@@ -1,0 +1,15 @@
+# Claude Code personal settings
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Generated simulation outputs
+*.gif
+output/
