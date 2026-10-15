@@ -1,0 +1,9 @@
+numpy>=1.24
+scipy>=1.11
+matplotlib>=3.7
+# Test suite
+pytest>=7
+# Legacy wxPython editor only (not needed by pcbthermal)
+# wxPython
+# Optional speed-up for the legacy FDM solver
+# numba

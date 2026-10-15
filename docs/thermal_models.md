@@ -1,4 +1,7 @@
-# Thermal Models: Description, Formulas and Review
+# Thermal Models: Description, Formulas and Review (legacy `core/` solvers)
+
+> This document describes the **legacy** solvers in `core/` and why they were replaced. The new
+> physics package is documented in [`physics_core.md`](physics_core.md).
 
 Reference document for the three solvers of the PCB Thermal Simulator Tool
 (`core/analytic_solver.py`, `core/lumped_solver.py`, `core/fdm_solver.py`).

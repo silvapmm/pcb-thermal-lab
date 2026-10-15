@@ -96,8 +96,13 @@ core/
 ui/
   editor.py              PCBEditor (wx.Frame): canvas, drawing tools, parameter panels (~3000 lines).
 ico/                     Application icons.
+pcbthermal/              NEW physics core, no GUI (branch feature/physics-core): model, geometry,
+                         fvm, lumped, analytic, results, plots, cli. Run: python -m pcbthermal --help
+tests/                   pytest suite for pcbthermal (python -m pytest -q tests)
+examples/                Example boards (native JSON format)
 docs/
-  thermal_models.md      Detailed description, formulas and review of the three solvers.
+  thermal_models.md      Legacy core/ solvers: formulas as implemented and the review.
+  physics_core.md        New pcbthermal package: models, formulas, CLI, verification.
 ```
 
 Data flow: the editor builds a `json_config` dict (`pcb_params`, `elements`,
@@ -150,9 +155,11 @@ solvers on one benchmark board and check energy balance (out/in ~ 1).
 ## Commands
 
 ```sh
-pip install wxPython numpy matplotlib   # core dependencies
-pip install numba scipy                 # optional (Numba speeds up FDM)
-python3 main.py                         # run the application
+pip install -r requirements.txt         # numpy, scipy, matplotlib, pytest
+python3 -m pcbthermal run examples/reference_board.json   # new physics core, all models + plots
+python3 -m pytest -q tests              # tests of the new core
+pip install wxPython                    # only for the legacy editor
+python3 main.py                         # legacy wxPython editor (uses core/, not pcbthermal)
 ```
 
 Tests, linting, and formatting are not set up yet. Add the commands here once they exist.
@@ -205,3 +212,4 @@ Record important decisions here, newest first, with date and reason.
 - 2026-10-16: Git policy defined: merge to `main` only for solid developments, tag only for good releases. Git rules made explicit in the local settings.
 - 2026-10-16: Full algorithm review done; findings recorded in "Algorithm Review". No solver code changed yet.
 - 2026-10-16: Added `docs/thermal_models.md` documenting the three models (formulas as implemented), validation experiments, review findings and references.
+- 2026-10-16: Started `feature/physics-core`: new GUI-independent package `pcbthermal` (FVM reference, ring-network lumped, modal analytic, CLI, plots, 30 tests). Cell-centred finite volumes chosen over node-centred FD (exact power and area conservation, no half-cell borders); sparse direct/CG solver instead of SOR; FR-4 anisotropic (0.3 through, 0.9 in-plane); hollow via barrels; analytic uses the exact multilayer fin series instead of Lee spreading formulas (their coefficients could not be sourced). See `docs/physics_core.md`. The legacy `core/` and `ui/` are untouched; the planned UI is PySide 6 on top of `pcbthermal`.
