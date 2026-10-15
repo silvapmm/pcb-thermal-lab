@@ -121,6 +121,20 @@ Tests, linting, and formatting are not set up yet. Add the commands here once th
 - `develop`: active development branch with the working application. Work on
   `develop` (or feature branches created from it) and open PRs into `develop`.
 
+## Git Policy
+
+Claude handles all git operations in this repository: branches, commits, pushes,
+merges, PRs, and tags. The maintainer set these rules on 2026-10-16:
+
+- **Commits and pushes**: commit small, coherent changes often, on `develop` or a
+  feature branch, and push them.
+- **Merges**: merge into `main` only when `develop` holds a solid, working
+  development (the app runs and the change is complete). Not for every commit.
+- **Tags**: create a tag only for a good release. Use semantic versioning
+  (`vMAJOR.MINOR.PATCH`), keep `APP_VERSION` in `config.py` equal to the tag, and
+  write release notes. Never tag routine work.
+- **Never**: force push, rewrite published history, or commit generated outputs.
+
 ## Maintaining This File
 
 Update `CLAUDE.md` whenever something important happens: architecture or
@@ -131,9 +145,9 @@ change. Do this without being asked.
 ## Claude Code Settings
 
 `.claude/settings.local.json` (gitignored, personal) gives Claude broad access in
-this repository: all file tools and Bash are allowed, with `acceptEdits` as the
-default mode. A few commands stay denied: `sudo`, force pushes, and `rm -rf` on
-`/` or `~`.
+this repository: all file tools, Bash (including explicit `git *` and `gh *` rules), WebFetch
+and WebSearch are allowed, with `acceptEdits` as the default mode. Denied: `sudo`,
+force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/` or `~`.
 
 ## Decisions Log
 
@@ -144,3 +158,4 @@ Record important decisions here, newest first, with date and reason.
 - 2026-10-16: Working branch is `develop` (it holds the application code). Added
   `.claude/settings.local.json` with broad permissions, `.gitignore`, and documented
   the real project structure and run command.
+- 2026-10-16: Git policy defined: merge to `main` only for solid developments, tag only for good releases. Git rules made explicit in the local settings.
