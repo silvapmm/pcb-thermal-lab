@@ -105,6 +105,44 @@ Data flow: the editor builds a `json_config` dict (`pcb_params`, `elements`,
 Known gaps (to improve): solver code and wx results dialogs live in the same
 files, and there are no automated tests yet.
 
+## Algorithm Review (2026-10-16)
+
+Code review plus numerical experiments (100x100 mm, 2 layers, 5 W, 20x20 mm heater,
+h_top=10, h_bottom=15 W/m2K). Reference: a direct sparse solve of the same FDM system.
+Priorities for the next work, most severe first.
+
+1. FDM `converged` can be false-positive. The stop test is the max change per sweep
+   (`tol=0.01`), not the residual. With weak convection (h=2) it reported converged
+   after dissipating only 15% of the input power; Tmax was 39.4 vs 46.5 degC (7 K error).
+   With defaults (omega 1.5) the error was 2.7 K. Fix: stop on residual or on
+   power balance, or replace SOR by `scipy.sparse.linalg` (the matrix is symmetric
+   positive definite; a direct or CG solve is exact and fast).
+2. FDM heater power is not conserved. Power is `W/mm2 * dx*dy` per node inside the
+   polygon, so the inserted power depends on the grid (1.4 W instead of 5 W at dx=10;
+   0 W if no node falls inside). Fix: distribute exactly the requested power over the
+   covered nodes (area-weighted).
+3. `fdm_solver.py` does not import without Numba: `float64[:,:,:]` annotations are
+   evaluated at definition time -> `NameError`. The "pure Python fallback" is broken.
+4. Analytic conduction term is dimensionally wrong: `L/(k*A*t)` (should use the
+   cross-section `t*width`). Result: 1002 degC in Basic mode and 24466 degC in
+   Advanced mode for the reference case (FDM: ~92 degC). Advanced mode also uses
+   the heater footprint as the convective area, which is physically wrong.
+5. Lumped network is not a valid series/parallel network: `R_total = (Rcu+Rfr4+Rconv)/(1+n_vias)`,
+   `R_th_via` is computed but unused, copper resistance uses the board thickness, only one
+   FR4 layer is used for N layers, and `T_max` can be below `T_top`. Advanced mode gives 1342 degC.
+6. FDM mesh: boundary nodes use a full `dx*dy` cell (should be half), FR4 has no lateral
+   conduction (nodes outside a Zone are isolated; with no Zone at all Tmax = 548 degC),
+   sinks on inner layers are ignored, vias are solid copper (ignore plating thickness
+   `DEFAULT_VIA_PLATING_THICKNESS`), `_process_elements` loops are pure Python.
+7. The "time evolution" GIF shows SOR iterations, not physical time. A real transient
+   needs heat capacity (rho*cp) and time stepping (implicit Euler / Crank-Nicolson).
+8. The solvers `print()` to the console and mix numerics with wx dialogs.
+
+Suggested direction: (a) keep FDM as the reference solver but fix 1-3 and 6; (b) rewrite
+Lumped as a real RC/resistor network; (c) replace Analytic by sheet-spreading
+resistance (Lee et al.) plus convection; (d) add regression tests that compare the
+solvers on one benchmark board and check energy balance (out/in ~ 1).
+
 ## Commands
 
 ```sh
@@ -159,3 +197,4 @@ Record important decisions here, newest first, with date and reason.
   `.claude/settings.local.json` with broad permissions, `.gitignore`, and documented
   the real project structure and run command.
 - 2026-10-16: Git policy defined: merge to `main` only for solid developments, tag only for good releases. Git rules made explicit in the local settings.
+- 2026-10-16: Full algorithm review done; findings recorded in "Algorithm Review". No solver code changed yet.
