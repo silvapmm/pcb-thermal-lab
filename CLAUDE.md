@@ -96,6 +96,8 @@ core/
 ui/
   editor.py              PCBEditor (wx.Frame): canvas, drawing tools, parameter panels (~3000 lines).
 ico/                     Application icons.
+docs/
+  thermal_models.md      Detailed description, formulas and review of the three solvers.
 ```
 
 Data flow: the editor builds a `json_config` dict (`pcb_params`, `elements`,
@@ -106,6 +108,8 @@ Known gaps (to improve): solver code and wx results dialogs live in the same
 files, and there are no automated tests yet.
 
 ## Algorithm Review (2026-10-16)
+
+Full detail, formulas and experiment tables: `docs/thermal_models.md`. Keep that file in sync with any solver change.
 
 Code review plus numerical experiments (100x100 mm, 2 layers, 5 W, 20x20 mm heater,
 h_top=10, h_bottom=15 W/m2K). Reference: a direct sparse solve of the same FDM system.
@@ -198,3 +202,4 @@ Record important decisions here, newest first, with date and reason.
   the real project structure and run command.
 - 2026-10-16: Git policy defined: merge to `main` only for solid developments, tag only for good releases. Git rules made explicit in the local settings.
 - 2026-10-16: Full algorithm review done; findings recorded in "Algorithm Review". No solver code changed yet.
+- 2026-10-16: Added `docs/thermal_models.md` documenting the three models (formulas as implemented), validation experiments, review findings and references.
