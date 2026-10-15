@@ -168,8 +168,10 @@ Tests, linting, and formatting are not set up yet. Add the commands here once th
 Claude handles all git operations in this repository: branches, commits, pushes,
 merges, PRs, and tags. The maintainer set these rules on 2026-10-16:
 
-- **Commits and pushes**: commit small, coherent changes often, on `develop` or a
-  feature branch, and push them.
+- **Commits**: commit small, coherent changes often, on `develop` or a feature
+  branch. Work locally; commits can be reverted locally.
+- **Pushes**: do not push after every commit. Push only when asked, or at a
+  milestone (before a merge or a PR).
 - **Merges**: merge into `main` only when `develop` holds a solid, working
   development (the app runs and the change is complete). Not for every commit.
 - **Tags**: create a tag only for a good release. Use semantic versioning
