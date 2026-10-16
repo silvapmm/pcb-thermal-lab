@@ -7,6 +7,7 @@
 | [`new_approach.md`](new_approach.md) | why the program was rebuilt; old versus new on the same board; SOR versus matrices; animation |
 | [`findings.md`](findings.md) | everything discovered so far, with evidence, decisions and open items |
 | [`roadmap.md`](roadmap.md) | the next version: power profiles (implemented in 2.1, with the theory), then the plans for computed convection, the Component element, multigrid and 3D validation |
+| [`package_models.md`](package_models.md) | research behind the planned Package component: JESD15-3 (2R) and DELPHI, datasheet metrics (θ vs ψ), limits, mapping to the three models, validation plan |
 | [`candidate_methods.md`](candidate_methods.md) | models and methods found in the literature and how they could be used |
 | [`thermal_models.md`](thermal_models.md) | history: the formulas of the original solvers and their review |
 | [`legacy_vs_new.md`](legacy_vs_new.md) | history: first comparison of the original solvers with the new ones |

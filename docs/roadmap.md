@@ -212,6 +212,8 @@ the temperature rise changed by **+6 %** (89.4 °C against 85.8 °C).
 
 ## 3. Component models (future; one Component element, today's heater is its Source type)
 
+> The evidence for this section (standards, which datasheet metrics may be used, limits, validation plan) is in [`package_models.md`](package_models.md).
+
 ### 3.1 What the current models do and what a part really does
 
 Today a part is a heater: all of its power enters the board under the footprint, and `theta_jb` only adds an offset to the reported junction temperature afterwards.
