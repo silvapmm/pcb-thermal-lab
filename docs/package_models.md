@@ -56,6 +56,23 @@ The structure is the same series-parallel network in all three; only how it atta
 - **Analytic:** a scalar Woodbury update on the footprint-average modal response: `θ̄_fp = θ̄_0 + g_ff f`, `f = G_b (T_j - θ̄_fp)`, `T_j = (P + G_b θ̄_fp)/(G_b + G_top)` (derivation in `roadmap.md` 3.2).
 - **Profiles:** the wave drives `P`; the average-or-resolve decision uses the step response of `T_j`. With no heat capacity `T_j` follows `P` instantly.
 
+## 4b. Heat sink on the component (decided 2026-10-16)
+
+Top cooling of a Package has three choices: **none** (case node to air through the package top with the computed `h`, or a fixed resistance), **heat sink** (the "one number" case) and, later, a sink described by geometry.
+
+Heat sink = series chain, as in the standard practice `θJA = θJC + θCS + θSA` [6], [7]:
+`junction -> θJC,top -> case -> θCS (paste or pad) -> sink node -> θSA -> ambient`. The user enters `θCS` and `θSA` in K/W.
+
+1. **ΔT correction of θSA (agreed).** A natural-convection heat sink has no fixed resistance: the convective `h` grows roughly as `ΔT^(1/4)` (the correlation `Nu ∝ Ra^(1/4)` of `roadmap.md` 2.2) and radiation grows faster, so a datasheet θSA is valid at its own operating point;
+   datasheets for natural convection give curves of power against temperature rise and the resistance is `ΔT/P` (search summary, not verified against a specific datasheet).
+   Design: the user gives `θSA` and the `ΔT_ref` at which it was specified; the program scales the convective part with `(ΔT/ΔT_ref)^(-1/4)` at each Picard iteration of the computed-`h` loop (so it costs almost nothing). Without `ΔT_ref` the number stays constant and a note is shown.
+   **To check before shipping:** the exponent against at least one real heat-sink curve; the split between convection and radiation (a first version scales the whole resistance, a refinement splits it).
+   A pasted curve (power versus temperature rise) is a later, more faithful input.
+2. **Heat-sink capacity from the first version (agreed).** The sink node carries an optional capacity `C_hs` in J/K (mass times specific heat, aluminium about 0.9 J/(g K); empty means 0). Fast waves then see only `θJC + θCS` in parallel with `θJB` because the sink stays near its mean temperature,
+   slow waves make the sink oscillate and the time simulation resolves it. Without `C_hs` the sink answers instantly and the junction ripple of fast waves is **overestimated** (the result is conservative); the report says so.
+   The capacity of the **package itself** (die and mould) stays for the Foster stage and comes from the manufacturer's `Zth,JC(t)` curve.
+3. The same chain serves the passive *Cooled area* of the Component element (a resistance or extra `h` over the polygon).
+
 ## 5. Validation plan (what makes the implementation trustworthy)
 
 1. **Limits:** `θJB → 0` and no top path gives the existing heater model exactly; `G_top → 0` gives the heater plus the offset `P θJB` (the current `theta_jb` behaviour).
@@ -68,6 +85,7 @@ The structure is the same series-parallel network in all three; only how it atta
 
 ## 6. Open points
 
+- Check the `(ΔT/ΔT_ref)^(-1/4)` scaling against a real heat-sink curve (the convection/radiation split changes the exponent).
 - Which real package to use for the ψ consistency check (needs datasheet values with their test conditions).
 - Whether to offer DELPHI later: it needs the extra surface-node resistances that manufacturers rarely publish, so it stays out of scope until a data source exists.
 - Default top-surface emissivity (plastic mould compound is about 0.95 according to [7]) and how to treat metal-lid packages.

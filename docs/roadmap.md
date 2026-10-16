@@ -249,6 +249,10 @@ A "component" is more than a heat source: it is an *area* of the board with its 
 
 **Decision (2026-10-16, maintainer agreed):** one **Component** element with a type and the properties that type needs. Today's heater is the type *Source* with nothing else set, so existing projects keep working unchanged.
 
+### 3.5 Heat sink on a component
+
+Decided: top cooling "heat sink" = `θCS` and `θSA` in K/W, `θSA` scaled with the temperature rise from a reference `ΔT_ref` (`(ΔT/ΔT_ref)^(-1/4)` for natural convection, checked against a real curve before shipping), and an optional heat-sink capacity `C_hs` (J/K) from the first version. Details and reasons: [`package_models.md`](package_models.md) section 4b.
+
 ### 3.4 How a component enters the simulator
 
 | Question | Design |
@@ -293,6 +297,33 @@ lumped-parameter thermal network (LPTN, also called thermal resistance network) 
 compact models [8, 9]. Recommendation under discussion: keep the technical names and API keys (`fvm`, `lumped`, `analytic`; renaming would break project files, the API and the published 2.0.0), and only make the
 labels in the interface more descriptive, for example "Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)", and "2R component" for the future component element.
 
+## 7. Import of Gerber files for the copper of each layer (future extra)
+
+Goal: read the copper of every layer from the manufacturing files instead of drawing zones by hand, so the real copper (traces, pours, pads, thermal reliefs) enters the models.
+- **Input**: Gerber RS-274X per copper layer (plus the Excellon drill file for the vias and the board outline layer for the shape). Candidate library: `gerbonara`, a Python library for reading, modifying and writing Gerber, Excellon and IPC-356 files [15]
+  (to be evaluated for licence, rasterisation of apertures, regions and clear polarity; not installed). Alternative: parse only what we need.
+- **Mapping to the model**: rasterise each layer on a fine grid and store the **copper fill fraction per cell**. This is what the FVM already needs (`f` in the cell conductivity `S = f k_cu t_cu + k_FR4 (slab - f t_cu)`) and what the Lumped and Analytic models use through the zone coverage;
+  the editor keeps zones as polygons for the hand-drawn case and gets a second source "imported raster" that is not editable polygon by polygon. Drills with plating become vias (position, drill diameter, plating from the stack-up).
+- **Limits to state in the program**: the fill fraction of a cell hides the connectivity of traces (a cell that is half copper may be one long trace or two disconnected pieces; the effective in-plane conductivity depends on the direction), so the imported raster is an approximation
+  that improves with a finer grid; the fine grid must be the FVM grid (or the cell fraction is averaged), which raises the cell count; the Analytic model needs layer-average copper plus local corrections and loses the detail; soldermask openings are irrelevant for conduction but matter for the emissivity of section 2.
+- **Open questions**: units and file variants (KiCad, Altium and Eagle outputs differ in apertures and polarity); one file per layer needs a layer-assignment step in the GUI; how to treat plane splits and anti-pads; component positions come from a pick-and-place file (a later extra), not from the Gerbers.
+- **Validation**: import a board whose copper we also drew by hand and compare areas per layer and the FVM result; check energy balance and the number of cells.
+
+## 8. Variable stack-up (future; plan the model for it now)
+
+Today the board has one total thickness, per-layer copper thicknesses (already a list) and **equal dielectric gaps** (`Board.dielectric_thickness()` shares what is left of the thickness among the `layers - 1` gaps; each layer node represents a slab `thickness / layers`).
+Real stack-ups have different copper weights, different core and prepreg thicknesses, and sometimes different materials. What changes and what to prepare:
+- **Parameters** (per layer and per gap): copper thickness (exists), **dielectric thickness per gap**, **dielectric material per gap** (FR-4 core, prepreg, high-Tg, polyimide for flex, metal-core insulating layer, ceramic), through-plane `k`, in-plane `k`, density and specific heat. The same list gives the heat capacities for the time simulation.
+  The board thickness becomes the **sum** of the stack (a derived value or a check), not an independent input; a stack-up table in the GUI (rows = copper and dielectric layers from the top).
+- **Model impact**:
+  - FVM: the layer node should represent `copper + half of each adjacent dielectric`, not `thickness / layers`; vertical conductance between two layers is the series of the half dielectrics (`g = k_through / d_gap` per gap, different per gap); the in-plane conduction uses the layer's own thickness. Vias cross all gaps (series of the plated barrel is unchanged; the dielectric between the barrel walls is negligible).
+  - Lumped and Analytic: the vertical coupling `g_l` becomes a vector over gaps (the Analytic model uses one scalar coupling today: `slab`, `d_diel` and `g_diel` in `_effective_sheet` become per-gap vectors and the tridiagonal modal matrix takes a coupling per gap).
+  - Time simulation: capacities per layer from the real thicknesses and materials.
+  - Edge cooling uses the real thickness of each layer.
+- **Why it matters**: the through-board resistance is the sum of the gaps `d_i / k_i`, so a thin prepreg under the heater layer and a thick core elsewhere give a very different result from equal gaps (the equal-gap model spreads the thickness evenly); a thick core between planes changes the spreading; a metal-core board is a different regime (high-`k` base). Expect first-order changes in `T_j` for boards with a thin top prepreg and an inner plane.
+- **Backward compatibility**: when the gaps are equal the new code must reproduce the current results exactly (regression test).
+- **Link with the Gerber import (section 7)**: the stack-up table also provides the copper thickness and plating that the import needs.
+
 ## References
 
 1. Texas Instruments, *Using MOSFET Transient Thermal Impedance Curves in Your Design*, SLUAAT8, https://www.ti.com/lit/pdf/sluaat8 (repetitive pulses, effective normalised impedance `D + (1 − D) z(t)`).
@@ -309,3 +340,4 @@ labels in the interface more descriptive, for example "Finite volume (FVM), refe
 12. Maya HTT, *Lumped parameter thermal networks in electric machine design*, https://www.mayahtt.com/blog/lumped-parameter-thermal-networks-in-electric-machine-design/ (LPTN, thermal resistance network).
 13. Siemens, Simcenter Flotherm (structured Cartesian grid solver, compact thermal models), https://www.siemens.com/en-us/products/simcenter/fluids-thermal-simulation/flotherm/ ; Cadence Celsius EC Solver, https://www.cadence.com/en_US/home/resources/technical-briefs/celsius-ec-solver-tb.html ; Ansys Icepak (Fluent CFD solver), https://www.padtinc.com/simulation/simulation-product/ansys-icepak/.
 14. Fourier-series analytical models of multilayer PCBs, https://hal-univ-paris10.archives-ouvertes.fr/hal-01473744v1 (via clusters as heat spreaders) and https://arxiv.org/pdf/1705.09925 (semi-analytical multilayer diffusion).
+15. gerbonara, Python library to read, modify and write Gerber, Excellon and IPC-356 files, https://pypi.org/project/gerbonara/ (documentation: https://gerbolyze.gitlab.io/gerbonara); listed only; not evaluated or installed.
