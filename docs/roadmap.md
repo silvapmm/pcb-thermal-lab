@@ -42,9 +42,9 @@ and are never accepted as resistors [3], [4]. The program can *report* `ΨJT = (
 * **Lumped**: `T_j` is a node attached to ring 0 of the heater layer and to ambient. **Analytic**: a scalar Woodbury update on the footprint-average modal response: `θ̄_fp = θ̄_0 + g_ff f`, `f = G_b (T_j − θ̄_fp)`, `T_j = (P + G_b θ̄_fp)/(G_b + G_top)`.
 * **Top surface cooling** is not part of the standard; TI closes the circuit with an ambient resistance from the convective and radiative loss of the package top [3]: the computed `h` already in the program applied to the package area and temperature, or a heat sink.
 
-**Limits to show to the user.** Accuracy: the 2R is the simplest standardised model; DELPHI is quoted as within about 10 % on junction temperature and main fluxes [5]; an often-quoted 2 to 20 % for the 2R could not be traced to a source and is not used: we will measure it on our boards.
-Single junction temperature (no die hot spots, no multi-die). `θJB` depends on the test board (standardised 1S2P). No heat capacity in the standard models: the Package is **quasi-static**, valid for periods well above the package time constants; dynamic compact models were still being standardised [5]
-and an RC ladder from measured transient curves is the way to add it [6].
+**Limits to show to the user.** JESD15-3 itself states that the error of a 2R prediction "cannot be known a priori", that it may over- or under-predict, that it grows with the difference between the application and the JEDEC test environment, and that published studies show errors on the junction **temperature rise** "in the neighbourhood of 30 % or less", a guide and not a bound [18];
+DELPHI is quoted within about 10 % (typically 5 % against detailed models) [5], [19]. The 2R model works best when the heat goes mostly into the board or a heat sink [19]. Single junction temperature (no die hot spots, no multi-die). `θJB` depends on the test board (below). No heat capacity in the standard models: the Package is **quasi-static**,
+valid for periods well above the package time constants; dynamic compact models were still being standardised [5] and an RC ladder from measured transient curves is the way to add it [6].
 
 ### 1.4 Heat sink on a component
 
@@ -87,7 +87,35 @@ Parameters found in datasheets of typical parts (all read from the PDF text, exc
 6. **LEDs**: the heat is `Vf·If` minus the optical output; the Component needs a "fraction of the electrical power that becomes heat" (or the heat power directly), which is not a datasheet number.
 7. The simple **Source** (a heater with a power) stays the default and needs none of this.
 
-### 1.7 Staging and validation
+### 1.7 How the datasheet tests convert to our model (researched 2026-10-16)
+
+**What each test measures** (JESD51 family [18], [20], [21], [22]):
+
+| Metric | Test | What it is physically | Transferable to our board model? |
+| :-- | :-- | :-- | :-- |
+| `θJC(top)`, `θJC(bot)` | cold plate on the top or bottom face, one heat path (JESD51-14 dual interface or the cold-plate method) | resistance **inside the package** from the junction to that face; meaningful for packages with a predominantly 1D path (the `θJB/θJC` ratio above about 10, power packages); an overmolded BGA gave 0.82 against 1.79 K/W by the two methods [22] | **yes**, it is a package property; the solder, thermal paste or heat-sink interface on that face is ours |
+| `θJB` | double ring cold plate, heat forced through the board (JESD51-8); board temperature 1 mm from the package edge (area-array parts) or on the lead foot (leaded parts) | package resistance **plus part of the test board** for area-array parts, none for leaded parts [18], [23] | **partly**: use it only when `θJC(bot)` is not given, and expect it to over-estimate if the part's heat spreading is already in our board [18] |
+| `θJA` | still air, 0.3 m cube, JEDEC board 1s0P (JESD51-3) or 2s2p (JESD51-7), at least 76 × 114 mm with at least 50 µm on the top copper (JESD51-2, -3, -7) [20] | package + test board + convection together | **no as input** (manufacturers say so [12], [13], [23]); **yes as a validation target**, see the virtual test below |
+| `ΨJT`, `ΨJB` | same environment as `θJA`, with the real heat partition | `ΔT/P` between the junction and a measured top or board temperature, **not** a resistance [3], [18] | as a **post-processing estimate**, see level A |
+
+**Three levels of approximation, from cheapest to richest**
+
+* **A. Source plus ψ (no new physics).** The heat enters the board under the footprint as today; after the simulation the program estimates `T_j = T_board,ref + ΨJB·P` (or `T_j = T_top + ΨJT·P` when a top temperature exists), where `T_board,ref` is the simulated board temperature on the reference point of the test (a ring 1 mm outside the package body).
+  This is the method the manufacturers themselves recommend with a measured temperature on the real board; Richtek measured 79.9 °C with the body-diode method against 79.98 °C from `ΨJB` and the measured board temperature, and 79.9 °C from `θJA(EVB)` [23]; `ΨJT` is the better estimate when the power is uncertain because the top is closer to the junction temperature than the board is [23].
+  Valid while the application is close to the test conditions (no heat sink, similar board); it needs `ΨJB` (given by IC makers, not by most MOSFET and diode makers) and it does not change the board field.
+* **B. Package (JESD15-3, section 1.3).** A junction node with the two resistances, built as the standard's **block-and-plate**: an isothermal block the size of the package, insulated on its sides, between two plates whose resistance equals `θJC,top` and `θJB`; the plate on the board has the footprint area, i.e. a uniform conductance `1/(θ·A)` per unit area,
+  which is exactly our `G_i = w_i/θJB`; the heat source sits in the block (a volume or area source, never a point); the block's own resistance must be two orders of magnitude below the plates' [18]. **Exposed-pad parts: the standard allows replacing `θJB` by `θJC(bottom)`** [18] (4.3 against 13.6 K/W and 1.7 against 11.9 K/W for the two TI parts of section 1.6), which settles which number goes between the junction and our board.
+  Needed when a heat sink or a strong top path exists. Expected error on the rise: 30 % or less in the standard's words [18].
+* **C. DELPHI / detailed.** Needs resistances manufacturers do not publish; out of scope until a data source exists.
+
+**The virtual JEDEC test (validation and a way to recover a missing number).** Build the datasheet's own board in the program (JESD51-3 1s0P or JESD51-7 2s2p, 76.2 × 114.3 mm, the copper and the pad area the datasheet states), natural convection (computed `h`, still air), the package with the user's resistances, and compute
+`θJA = (T_j − T_amb)/P`, `ΨJT` and `ΨJB`; they should land near the datasheet values (to be checked on the TPS7A47: `θJA` 32.5, `ΨJT` 0.3, `ΨJB` 11.9 K/W with `θJC(bot)` 1.7 K/W; and on the CSD17308Q3: `RθJA` 58 and 165 K/W for 6.45 cm² and the minimum pad of 2 oz copper). The test is the **calibration of the Component**: if it fails by more than the 30 % of the 2R,
+the parameters or the board data are wrong. It also converts the parts that only give `θJA` on a stated board (the SMA diode: `θJA` 65 K/W on 5 × 5 mm pads): the package resistance is `θJA` minus the resistance that **our model** gives to the stated board, the same relation TI states (`θJA = θJC(bot)` plus the contribution of the PCB copper [13]).
+
+**What the Component form asks, by case**: (1) the datasheet gives `θJC(top)` and `θJC(bot)` or `θJB` → Package with the top path; (2) one resistance to the pad, lead or solder point (`θJC(bot)`, `θJ-L`, `Rth j-sp`) → Package without a top path; (3) only `θJA` on a stated board → the package resistance from the virtual test; (4) only `ΨJB`/`ΨJT` → level A; (5) only a power rating at a temperature → derived resistance with a warning.
+The board reference temperature of a `ΨJB` estimate and the 1 mm ring are outputs of the board field, not inputs.
+
+### 1.8 Staging and validation
 
 Stages: (1) Component element and Package, static, in the three models; (2) top path from the computed `h`; (3) heat sink; (4) passive areas; (5) Foster chain for package transients.
 Validation: `θJB → 0` and no top path reproduce the current heater; `G_top → 0` gives heater plus the offset `P θJB`; exact series-parallel solution on a uniform board (`T_j` and power split to 1e-9); energy balance with the extra node; the models against each other;
@@ -156,3 +184,9 @@ Neural-network surrogates; trace Joule heating (IPC-2152 style); reduced-order m
 15. SS54 Schottky barrier rectifier (SMC), Farnell/element14 datasheet V1.1, https://components101.com/sites/default/files/component_datasheet/SS54%20Schottky%20Diode.pdf (read).
 16. Vishay, WSL power metal strip resistors, https://www.vishay.com/docs/30100/wsl.pdf (read: power rating at 70 °C and the derating curve).
 17. Samsung LED, high power LED datasheets (for example https://download.led.samsung.com/led/file/automotive/Samsung_C_Gen3_1W_WH_SPHWH1A1N1A0_DS_Rev.1.6.pdf); the thermal figures come from a search summary and the files were **not read**.
+18. JEDEC JESD15-3, *Two-Resistor Compact Thermal Model Guideline* (text read, mirror at http://www.simu-cad.com/userfiles/images/ZaiXianXiaZai/ef8f29116ed54c67a8a8d77502611043.pdf): definitions of `θJB` and `θJCtop`, replacing `θJB` by `θJCbottom` for exposed-pad packages, `ψJB` as a substitute, `ψJT` not allowed, the block-and-plate construction, accuracy "30 % or less".
+19. Electronics Cooling, *Compact thermal modeling in electronics design* (2007), https://www.electronics-cooling.com/2007/05/compact-thermal-modeling-in-electronics-design/ (read: 2R about 30 % or less, DELPHI within 10 %, typical errors under 5 % against detailed models, lack of `θJB` data from some manufacturers).
+20. Electronics Cooling, *JEDEC Thermal Standards: Developing a Common Understanding* (2019), https://www.electronics-cooling.com/2019/11/jedec-thermal-standards-developing-a-common-understanding/ (read: JESD51-2, -3, -5, -6, -7, -8, -9, -14, JESD15-3 and -4; test boards of at least 76 × 114 mm).
+21. Electronics Cooling, *Use of junction-to-board thermal resistance in predictive engineering* (1999), https://www.electronics-cooling.com/1999/01/use-of-junction-to-board-thermal-resistance-in-predictive-engineering/ (read: `RJB` depends on the board, about 10 % scatter, errors under 25 % in a CFD study).
+22. Electronics Cooling, *The Applicability of JESD51-14 for the Determination of Junction to Case Thermal Resistance* (2024), https://www.electronics-cooling.com/2024/04/the-applicability-of-jesd51-14-for-the-determination-of-junction-to-case-thermal-resistance/ (read: single-path packages, `Rjb/Rjc` above about 10, an overmolded BGA 0.82 against 1.79 K/W).
+23. Richtek, *Application and Definition of Thermal Resistances on Datasheet*, AN061 (2020), https://www.richtek.com/Design%20Support/Technical%20Document/~/media/AN%20PDF/AN061_EN.ashx (read: `θJB` on the lead foot for leaded parts, `θJA/θJC/θJB` not applicable to another board, the `ΨJB` and `ΨJT` estimates and their measured check).
