@@ -16,11 +16,13 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDia
                                QVBoxLayout, QWidget)
 
 from .. import __version__
+from .. import fvm
 from ..api import simulate
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
 from .canvas import BoardView
+from .animation import TransientWorker
 from .document import Document
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .results_view import ResultsView
@@ -199,6 +201,8 @@ class MainWindow(QMainWindow):
         self.canvas.element_created.connect(self._on_created)
         self.elements.selection_requested.connect(self._on_list_selection)
         self.solver_panel.run_requested.connect(self.run_simulation)
+        self.results.animation.compute_requested.connect(self.compute_animation)
+        self.tabs.currentChanged.connect(self._suggest_animation)
         self.doc.changed.connect(self._on_doc_changed)
         self.doc.state_changed.connect(self._update_title)
         self.doc.state_changed.connect(lambda: self.canvas.__setattr__("solver_cell", self.doc.options.cell_mm))
@@ -686,6 +690,36 @@ class MainWindow(QMainWindow):
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
         self.worker.start()
+
+    def _suggest_animation(self, _index=None):
+        """!
+        @brief Preset the animation duration to a few time constants of the current board.
+        """
+        if self.tabs.currentIndex() == 1 and self.doc.problem.heaters:
+            try:
+                self.results.animation.suggest_duration(5.0 * fvm.estimate_time_constant(self.doc.problem))
+            except Exception:
+                pass
+
+    def compute_animation(self, kwargs):
+        """!
+        @brief Compute the transient response in the background and hand it to the animation tab.
+        @param kwargs Duration, frame count, scheme and spacing chosen in the tab.
+        """
+        anim = self.results.animation
+        try:
+            self.doc.problem.validate()
+            if self.doc.problem.total_power() <= 0:
+                raise ValueError("Add at least one heater with a power above zero.")
+        except ValueError as exc:
+            anim.computing_failed(str(exc))
+            return
+        problem = copy.deepcopy(self.doc.problem)
+        kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
+        self._anim_worker = TransientWorker(problem, kwargs, self)
+        self._anim_worker.done.connect(lambda tr: anim.set_result(tr, problem))
+        self._anim_worker.failed.connect(anim.computing_failed)
+        self._anim_worker.start()
 
     def _on_done(self, sim):
         """!

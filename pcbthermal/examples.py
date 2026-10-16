@@ -16,7 +16,10 @@ def example_board():
     p.add_full_copper([2, 3, 4])
     p.add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=6.0)
     p.add_heater(1, 1.5, rect=(65, 38, 71, 44), name="U2", theta_jb=12.0)
-    p.add_via_array((30, 35, 40, 45), 3, 3, diameter=0.3)
+    # 3 x 3 vias with 3.5 mm pitch centred under U1 (the same positions as the legacy comparison board)
+    for i in range(3):
+        for j in range(3):
+            p.add_via(31.5 + 3.5 * i, 36.5 + 3.5 * j, diameter=0.3)
     p.add_sink(4, 30.0, rect=(25, 30, 45, 50), name="bottom heatsink")
     return p
 

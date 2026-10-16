@@ -314,11 +314,11 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
              Both are unconditionally stable for the diffusion equation.
     @param problem A Problem.
     @param t_end Final time in seconds.
-    @param n_out Number of output times (excluding t = 0).
+    @param n_out Number of output frames (excluding t = 0); in logarithmic mode it is rounded up to a multiple of 10.
     @param cell_mm Target cell size in millimetres.
-    @param substeps Implicit steps taken between two output times.
+    @param substeps Implicit steps between two output frames (linear mode only; logarithmic mode uses one step per frame).
     @param theta_scheme 1.0 for implicit Euler, 0.5 for Crank-Nicolson.
-    @param log_times If True the output times are logarithmically spaced (resolves fast and slow parts).
+    @param log_times If True the time step doubles in ten stages (resolves fast and slow parts with few factorisations).
     @return TransientResult.
     """
     b = problem.board
@@ -326,32 +326,56 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
     net = Network(problem, nx, ny)
     steady_theta, _ = net.solve_steady()
+
+    # --- Time grid: every frame is one time step, and the steps are built so that few distinct dt occur
+    # (one LU factorisation per distinct dt). Linear: one dt. Logarithmic: dt doubles stage after stage.
     if log_times:
-        times = np.concatenate([[0.0], np.geomspace(t_end / 1e4, t_end, n_out)])
+        stages = 10
+        per_stage = max(int(np.ceil(n_out / stages)), 1)
+        dt0 = t_end / (per_stage * (2 ** stages - 1))
+        dts = np.concatenate([np.full(per_stage, dt0 * 2.0 ** j) for j in range(stages)])
     else:
-        times = np.linspace(0.0, t_end, n_out + 1)
+        dts = np.full(max(n_out, 1) * max(substeps, 1), t_end / (max(n_out, 1) * max(substeps, 1)))
+    step_times = np.concatenate([[0.0], np.cumsum(dts)])
+    step_times[-1] = t_end                                  # Remove round-off at the end
+    keep = np.arange(len(step_times)) if log_times else np.arange(0, len(step_times), max(substeps, 1))
+    times = step_times[keep]
 
     N = net.nl * ny * nx
     Cd = net.C.ravel()
     q = net.Q.ravel()
-    x = np.zeros(N)                                    # Rise above ambient, starts at zero
-    frames = [x.reshape(net.nl, ny, nx) + b.ambient]
-    factor_cache = {}
-    for k in range(1, len(times)):
-        dt = (times[k] - times[k - 1]) / substeps
-        key = round(dt, 12)
-        if key not in factor_cache:
-            # One LU factorisation per distinct step size, reused for all substeps
+    x = np.zeros(N)                                         # Rise above ambient, starts at zero
+    frames = {0: x.reshape(net.nl, ny, nx) + b.ambient}
+    cache = {}
+    for k, dt in enumerate(dts, start=1):
+        key = round(float(dt), 12)
+        if key not in cache:
             A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
             B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
-            factor_cache[key] = (spla.splu(A), B)
-        lu, B = factor_cache[key]
-        for _ in range(substeps):
-            x = lu.solve(B @ x + q)
-        frames.append(x.reshape(net.nl, ny, nx) + b.ambient)
-    frames = np.asarray(frames)
+            cache[key] = (spla.splu(A), B)
+        lu, B = cache[key]
+        x = lu.solve(B @ x + q)
+        if k in set(keep.tolist()):
+            frames[k] = x.reshape(net.nl, ny, nx) + b.ambient
+    frames = np.asarray([frames[k] for k in keep])
     return TransientResult(
         times=times, t_max=frames.reshape(len(times), -1).max(axis=1),
         t_mean=frames.reshape(len(times), -1).mean(axis=1), frames=frames,
         steady_t_max=float(steady_theta.max() + b.ambient), ambient=b.ambient,
     )
+
+
+def estimate_time_constant(problem, cell_mm=5.0):
+    """!
+    @brief Slowest-scale thermal time constant of the whole board, C_total / G_total.
+    @details Uniform-board estimate: the total heat capacity divided by the total conductance to ambient.
+             The hottest point reaches 63 % much sooner; the board mean needs a few of these constants.
+    @param problem A Problem.
+    @param cell_mm Cell size used to aggregate the properties (the result hardly depends on it).
+    @return Time constant in seconds.
+    """
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    net = Network(problem, nx, ny, assemble=False)
+    return float(net.C.sum() / net.g_amb.sum())

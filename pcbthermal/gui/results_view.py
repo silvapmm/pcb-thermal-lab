@@ -313,6 +313,9 @@ class ResultsView(QWidget):
         cl.addWidget(split)
         self.tabs.addTab(comp, "Components")
         self.tabs.addTab(self.compare, "Models")
+        from .animation import AnimationTab        # Imported here: animation imports helpers from this module
+        self.animation = AnimationTab(theme)
+        self.tabs.addTab(self.animation, "Animation")
 
     def set_theme(self, theme):
         """!
@@ -322,6 +325,7 @@ class ResultsView(QWidget):
         self.theme = theme
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_theme(theme)
+        self.animation.set_theme(theme)
         self._draw_components()
 
     def set_simulation(self, sim):

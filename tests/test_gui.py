@@ -204,3 +204,31 @@ def test_theme_switch_and_screenshots(win, qtbot, tmp_path):
     win.grab().save(str(tmp_path / "board_light.png"))
     assert (tmp_path / "board_light.png").stat().st_size > 5000
     win.toggle_theme()
+
+
+def test_animation_tab_computes_plays_and_exports(win, qtbot, tmp_path):
+    win.doc.open_problem(example_board(), "example-4layer")
+    win._after_load()
+    anim = win.results.animation
+    win.tabs.setCurrentIndex(1)                               # Suggests a duration from the time constant
+    assert anim.t_end.value() > 1.0
+    anim.t_end.setValue(60.0)
+    anim.frames.setValue(12)
+    anim.compute.click()
+    qtbot.waitUntil(lambda: anim.tr is not None, timeout=60000)
+    assert anim.slider.maximum() == len(anim.tr.times) - 1 >= 12 and anim.slider.value() == anim.slider.maximum()
+    assert anim.tr.t_max[-1] > anim.tr.t_max[1] > anim.tr.ambient
+    anim.slider.setValue(0)
+    anim.play.setChecked(True)
+    qtbot.waitUntil(lambda: anim.slider.value() > 2, timeout=5000)
+    anim.play.setChecked(False)
+    from pcbthermal import plots
+    out = tmp_path / "evolution.gif"
+    plots.save_transient_gif(anim.tr, anim.problem, str(out), fps=5)
+    assert out.stat().st_size > 5000
+
+
+def test_animation_refuses_boards_without_power(win):
+    win.results.animation.compute.click()
+    assert win._anim_worker is None if hasattr(win, "_anim_worker") else True
+    assert "heater" in win.results.animation.status.text().lower()

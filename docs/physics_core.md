@@ -73,8 +73,8 @@ Steady state $K\theta=Q$ ($\theta=T-T_{amb}$, $K$ sparse symmetric positive defi
   residual, or by the step size like the original).
 
 The energy balance (heat out through top, bottom, sinks, edges minus power in) is reported and is at round-off level.
-Transient (power step, implicit Euler or Crank-Nicolson) is implemented in `fvm.solve_transient`,
-tested, and available on the command line (`transient --gif`), but not in the GUI yet.
+Transient (power step, implicit Euler or Crank-Nicolson, time step doubling in ten stages) is `fvm.solve_transient`: validated against an exact
+exponential, on the command line (`transient --gif`) and in the GUI Animation tab.
 
 ### 3.2 Lumped (ring network per heater)
 
@@ -126,12 +126,12 @@ python -m pytest -q tests
 | Editing | move by drag or arrows, duplicate (Ctrl+D), delete, select all on layer, layer chooser (other layers dimmed), sinks only on outer layers |
 | Left docks | board size, stack-up, environment, materials; element tree synchronised with the canvas |
 | Right docks | model choice and solver settings with the Run button (F5, background thread, progress); property inspector (name, layer, power, θ junction-board, fill, extra h, via position and diameter, rectangle position and size) |
-| Results | Summary (models table, warnings, text report), Temperature (all layers or one, colour map, range, hotspot contour), Gradients, Profiles (movable cut line, all models), Components (heater and junction temperatures, zone statistics, hotspot list), Models (comparison) |
+| Results | Summary (models table, warnings, text report), Temperature (all layers or one, colour map, range, hotspot contour), Gradients, Profiles (movable cut line, all models), Components (heater and junction temperatures, zone statistics, hotspot list), Models (comparison), Animation (real-time heat evolution: compute, play, scrub, export GIF) |
 | Board overlay | paint the last temperature field on the board (key T); results are marked outdated when the design changes |
 | Files | open/save projects, open legacy editor JSON, open examples, export results folder / TXT report / JSON summary / figures |
 
 Features of the original program that were dropped on purpose: the "iterations GIF" (it showed solver iterations, not physical
-time; a real time animation exists on the command line) and the pixel-corner board setup (the board is defined by its size in mm and
+time; it was replaced by the real-time Animation tab) and the pixel-corner board setup (the board is defined by its size in mm and
 a background image can be fitted to it).
 
 ## 6. Verification (2026-10-16)
@@ -186,7 +186,7 @@ it overestimates by 9 to 16 % when the copper on the heater layer is partial (it
 ## 7. Known limits and next steps
 
 - Radiation and natural convection are inside the constant `h`. Temperature-dependent `h(ΔT)` (Picard iteration) is the natural next step.
-- Transient mode in the GUI (animation, time-dependent power); components with junction/case resistances (JEDEC) beyond `theta_jb`.
+- Time-dependent power (pulses, duty cycles) in the transient and the GUI; components with junction/case resistances (JEDEC) beyond `theta_jb`.
 - Copper traces with Joule heating (IPC-2152) and temperature-dependent copper resistivity.
 - Reduced-order models for fast design sweeps; surrogate models for layout optimisation.
 - Analytic: partial copper under the heater needs the FVM.

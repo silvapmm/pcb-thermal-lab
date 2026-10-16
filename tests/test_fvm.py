@@ -136,3 +136,33 @@ def test_sor_step_criterion_of_the_original_program_stops_early():
     assert s.extras["converged"] == 1.0
     assert d.t_max - s.t_max > 0.5                 # Stopped well below the true maximum
     assert abs(s.balance_error) > 0.05             # and the heat balance is visibly violated
+
+
+def _uniform_slab():
+    # One layer, heater over the whole board, insulated edges: the temperature is uniform, so the
+    # problem reduces to C * dtheta/dt = P - G * theta with an exact exponential solution
+    p = reference_problem(layers=1, heater_mm=100.0, power=10.0)
+    p.board.h_side = None
+    return p
+
+
+def test_transient_matches_exact_exponential_and_has_the_right_order():
+    p = _uniform_slab()
+    net = fvm.Network(p, 8, 8, assemble=False)
+    C, G, P = net.C.sum(), net.g_amb.sum(), net.Q.sum()
+    tau = C / G
+    exact = lambda t: p.board.ambient + P / G * (1.0 - np.exp(-t / tau))
+    errs = {}
+    for scheme, name in ((1.0, "euler"), (0.5, "cn")):
+        for sub in (1, 4):
+            tr = fvm.solve_transient(p, t_end=3 * tau, n_out=6, cell_mm=12.5, substeps=sub, theta_scheme=scheme,
+                                     log_times=False)
+            errs[(name, sub)] = float(np.abs(tr.t_max - exact(tr.times)).max())
+    assert errs[("euler", 4)] < errs[("euler", 1)] / 3.0          # first order: error falls with the step
+    assert errs[("cn", 1)] < errs[("euler", 1)] / 5.0             # Crank-Nicolson is more accurate
+    assert errs[("cn", 4)] < 0.05                                 # and close to exact in kelvin
+    # Total energy: stored heat + lost heat = injected heat (checked at the last step with CN)
+    tr = fvm.solve_transient(p, t_end=3 * tau, n_out=40, cell_mm=12.5, substeps=4, theta_scheme=0.5, log_times=False)
+    stored = C * (tr.t_mean[-1] - p.board.ambient)
+    lost = np.trapezoid(G * (tr.t_mean - p.board.ambient), tr.times)
+    assert stored + lost == pytest.approx(P * tr.times[-1], rel=2e-3)

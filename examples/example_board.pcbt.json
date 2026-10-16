@@ -170,29 +170,29 @@
   ],
   "vias": [
     {
-      "x_mm": 31.666666666666668,
-      "y_mm": 36.666666666666664,
+      "x_mm": 31.5,
+      "y_mm": 36.5,
       "diameter_mm": 0.3,
       "filled": false,
       "name": ""
     },
     {
-      "x_mm": 31.666666666666668,
+      "x_mm": 31.5,
       "y_mm": 40.0,
       "diameter_mm": 0.3,
       "filled": false,
       "name": ""
     },
     {
-      "x_mm": 31.666666666666668,
-      "y_mm": 43.333333333333336,
+      "x_mm": 31.5,
+      "y_mm": 43.5,
       "diameter_mm": 0.3,
       "filled": false,
       "name": ""
     },
     {
       "x_mm": 35.0,
-      "y_mm": 36.666666666666664,
+      "y_mm": 36.5,
       "diameter_mm": 0.3,
       "filled": false,
       "name": ""
@@ -206,28 +206,28 @@
     },
     {
       "x_mm": 35.0,
-      "y_mm": 43.333333333333336,
+      "y_mm": 43.5,
       "diameter_mm": 0.3,
       "filled": false,
       "name": ""
     },
     {
-      "x_mm": 38.333333333333336,
-      "y_mm": 36.666666666666664,
+      "x_mm": 38.5,
+      "y_mm": 36.5,
       "diameter_mm": 0.3,
       "filled": false,
       "name": ""
     },
     {
-      "x_mm": 38.333333333333336,
+      "x_mm": 38.5,
       "y_mm": 40.0,
       "diameter_mm": 0.3,
       "filled": false,
       "name": ""
     },
     {
-      "x_mm": 38.333333333333336,
-      "y_mm": 43.333333333333336,
+      "x_mm": 38.5,
+      "y_mm": 43.5,
       "diameter_mm": 0.3,
       "filled": false,
       "name": ""

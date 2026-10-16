@@ -37,7 +37,9 @@ sim = simulate(p, SolverOptions(cell_mm=1.0))
 print(sim.to_markdown())
 ```
 
-Documentation: [`docs/physics_core.md`](docs/physics_core.md) (models, formulas, API, GUI, verification),
+Documentation: [`docs/new_approach.md`](docs/new_approach.md) (old vs new, SOR vs matrices, animation),
+[`docs/physics_core.md`](docs/physics_core.md) (models, formulas, API, GUI, verification),
+[`docs/candidate_methods.md`](docs/candidate_methods.md) (methods found in the literature),
 [`docs/thermal_models.md`](docs/thermal_models.md) and [`docs/legacy_vs_new.md`](docs/legacy_vs_new.md) (review of the original solvers).
 
 ## Project
