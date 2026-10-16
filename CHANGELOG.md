@@ -7,6 +7,29 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 Next: the Component element (Package 2R, heat sink, passive areas), Gerber import and a variable stack-up (see `docs/roadmap.md`).
 
+## [2.2.0] - 2026-10-16
+
+Power tables and CSV, a finite-difference model, validation against a 3D solid and a cleaner documentation.
+
+### Fixed
+- A result that arrives after the design was edited during the run is marked outdated (it was shown as current).
+- The application aborted when a simulation started while an animation or an analysis was still computing (the sparse direct solver of SciPy is not safe in two threads); background calculations now wait for each other.
+- Node fields (FDM) in the plots, hotspot list, heater statistics and the board overlay.
+
+### Added
+- **Power tables and CSV files**: a heater can follow any piecewise-constant power over time (`TableProfile`), repeating or run once (a start-up or mission profile with the last power held), read from and written to CSV files (`time_s,power_w`, comment lines, optional units, errors with the line number).
+  GUI: "Table (CSV file)" profile with **Import CSV…** and **Export CSV…** buttons (a square wave is exported as a table); CLI: `run --profile HEATER=file.csv`; project files store tables.
+  The average-or-resolve decision works for any periodic table (periodised step response), one-shot tables are always resolved, and several repeating profiles are simulated over the least common multiple of their periods.
+- **Analytic transient with vias and sinks**: one modal system per heater with the smeared via (or sink) conductance scaled so that its steady response equals the locally corrected steady model; the example's temperature curve now follows the FVM within 2.5 °C
+  (10 °C before) and the profile peak within 0.5 %. Animation of the power step also for the Analytical model (selector in the Animation tab).
+- **Finite-difference model** (`pcbthermal/fdm.py`, checkbox "Finite difference (FDM), comparison" in the application, `--model fdm` or `--model compare`, `models=("fdm",)`): node-centred FDM of the same layered physics, steady state only; area sampling of the copper and of the heater footprint by default (classic point sampling optional).
+- **About 40 % faster direct solves** (symmetric sparse ordering) in the FVM, the FDM and the time simulations.
+- The 3D finite-element check now models vias (copper rods) and sinks; `examples/validation_study.py [--fem]` prints the tables of the new `docs/validation.md`.
+- Documentation reduced to three documents: `docs/models.md`, `docs/validation.md`, `docs/roadmap.md`.
+- **Calibration of the convection**: `calibrate_convection` / `pcbthermal calibrate board.json --measured 85 [--heater U1]` fits the convection multiplier to one measured steady temperature.
+- `examples/fem3d_validation.py`: independent 3D finite-element check (scikit-fem, offline) of the three models; results in `docs/validation.md`.
+- `examples/csv_profiles/`: documented example board with three profile CSV files, scripts and a README.
+
 ## [2.1.0] - 2026-10-16
 
 Power profiles and computed heat transfer coefficients.

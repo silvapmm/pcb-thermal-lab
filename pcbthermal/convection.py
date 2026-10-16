@@ -2,7 +2,7 @@
 @file convection.py
 @brief Heat transfer coefficient of the board faces from correlations: natural and forced convection plus radiation.
 @details Used when the board cooling mode is "computed" (the user does not type h). All functions use SI units and
-         temperatures in degC at the interface. Sources and limits: docs/roadmap.md section 2.
+         temperatures in degC at the interface. Sources and limits: docs/models.md section 5.
 """
 
 import math

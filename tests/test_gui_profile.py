@@ -72,3 +72,32 @@ def test_analysis_and_full_run(window, qtbot):
     for i in range(tab.view.count()):
         tab.view.setCurrentIndex(i)
     assert window.tabs.indexOf(window.profile_page) == TAB_PROFILE
+
+
+def test_import_and_export_csv_buttons(window, tmp_path, monkeypatch):
+    page = window.profile_page
+    page.table.selectRow(0)
+    csv = tmp_path / "u1.csv"
+    csv.write_text("# repeat: yes\ntime_s,power_w\n0,12\n2,5\n10,0.5\n30,0.5\n")
+    assert page.import_csv(str(csv))
+    h = window.doc.problem.heaters[0]
+    assert h.profile.kind == "table" and h.average_power() == pytest.approx((24 + 40 + 10) / 30.0)
+    assert page.kind.currentData() == "table" and "3 stretches" in page.derived.text()
+    page.repeat.setChecked(False)
+    assert h.profile.repeat is False
+    out = tmp_path / "back.csv"
+    assert page.export_csv(str(out))
+    assert "repeat: no" in out.read_text()
+    # A wrong file is reported and the profile stays
+    bad = tmp_path / "bad.csv"
+    bad.write_text("time_s,power_w\n0,1\n")
+    assert not page.import_csv(str(bad))
+    assert window.doc.problem.heaters[0].profile.kind == "table"
+    # Decision table shows the one-shot table
+    page.run_analysis()
+    from pytestqt.qtbot import QtBot
+    window.doc.problem.heaters[0].profile.repeat = True
+    # Square wave exported from the other heater
+    page.table.selectRow(1)
+    page.kind.setCurrentIndex(1)
+    assert page.export_csv(str(tmp_path / "u2.csv"))

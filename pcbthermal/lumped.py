@@ -417,8 +417,15 @@ class _LumpedAdapter:
         self.dx, self.dy = self.net.dx, self.net.dy
         self.nh, self.L = len(self.systems), self.net.nl
         self.p_avg = np.array([h.average_power() for h in problem.heaters])
+        self.p_init = np.array([h.initial_power() for h in problem.heaters])   # Start state: average, or first power of a one-shot
         self.steady_average_max = solve_steady(problem.steady_copy("average"), rings, cell_mm).t_max
         self.steady_peak_max = solve_steady(problem.steady_copy("peak"), rings, cell_mm).t_max
+        self.initial_max = self.steady_average_max
+        if not np.allclose(self.p_init, self.p_avg):
+            start = problem.steady_copy("average")
+            for h, p in zip(start.heaters, self.p_init):
+                h.power = float(p)
+            self.initial_max = solve_steady(start, rings, cell_mm).t_max
         ny, nx = self.net.ny, self.net.nx
         cidx = [(min(max(int(s["centroid"][1] // self.net.dy), 0), ny - 1),
                  min(max(int(s["centroid"][0] // self.net.dx), 0), nx - 1)) for s in self.systems]
@@ -440,7 +447,7 @@ class _LumpedAdapter:
         """
         self.steppers = [_Stepper(s, options.theta) for s in self.systems]
         if options.initial == "average":
-            return [self.systems[i]["theta"].ravel() * self.p_avg[i] for i in range(self.nh)], self.steady_average_max
+            return [self.systems[i]["theta"].ravel() * self.p_init[i] for i in range(self.nh)], self.initial_max
         t0 = self.ambient if options.initial_c is None else float(options.initial_c)
         states = [np.zeros(len(s["C"])) for s in self.systems]
         states[0] = np.full(len(self.systems[0]["C"]), t0 - self.ambient)      # The uniform start field lives in network 0

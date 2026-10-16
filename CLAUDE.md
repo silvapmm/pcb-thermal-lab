@@ -5,19 +5,20 @@ record decisions, architecture, commands, and conventions here.
 
 ## Project Overview
 
-**PCB Thermal Simulator Tool** (v1.0.0) is a graphical application for simulating
-the thermal behavior of printed circuit boards (PCBs).
+**PCB Thermal Lab** (see `pcbthermal.__version__`; the original wxPython program was "PCB Thermal Simulator Tool" 1.0.0) is a
+physics package, command line and PySide 6 application for simulating the thermal behavior of printed circuit boards (PCBs).
 
 - Author: Pedro Silva (PMS Labs)
 - License: (C) 2025 Pedro Silva. All rights reserved (see `LICENSE`).
 - Users draw PCB elements (zones, heaters, vias, sinks), configure parameters,
-  and run simulations with three solvers:
-  - **Analytic**: closed-form approximations for quick estimates.
-  - **Lumped (LPTN)**: lumped-parameter thermal resistance network, multi-layer.
-  - **FDM**: finite difference method using a SOR solver, multi-layer, with
-    boundary conditions and convergence checks.
-- Outputs: heatmaps, time-evolution GIFs, hotspot detection, gradients,
-  zone charts, and PNG / TXT / GIF export. PCB configs are imported/exported as JSON.
+  and run three models (keys `fvm`, `lumped`, `analytic`):
+  - **Finite volume (FVM), reference**: cell-centred finite volumes on a sparse matrix (direct, CG or SOR solver), any geometry.
+  - **Thermal network (LPTN)**: lumped-parameter thermal resistance network per heater (rings by distance from the footprint).
+  - **Analytical (Fourier series)**: multilayer cosine series with local corrections for vias and sinks.
+  - Naming: **FDM** (finite *difference*, node-centred, SOR) is the name of the *legacy* solver only; it was replaced by the FVM
+    (see `docs/models.md`, "FDM or FVM").
+- Outputs: temperature maps, power profiles in time (square waves and CSV tables), animations, hotspots, gradients, zone and heater
+  statistics, reports, CSV and figures. Projects are plain JSON (`.pcbt.json`).
 
 See `README.md` for the full feature list.
 
@@ -105,69 +106,34 @@ Mandatory, and applies to everything that ends up in the repository history or o
 ## Project Structure
 
 ```
-pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
+pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   model.py             Board, Materials, Zone, Heater, Via, Sink, Problem (+ mm builder API), JSON I/O
   geometry.py          polygon area/centroid/point-in-polygon, cell coverage fractions
+  fdm.py               node-centred finite-difference model of the same layered physics (comparison only, steady state, `--model fdm|compare`)
   fvm.py               reference finite-volume model: steady (direct, CG, SOR) and transient
   lumped.py            ring network per heater, superposed
   analytic.py          multilayer cosine series + local via/sink corrections
   checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
   convection.py        computed h: air properties, natural/forced convection, radiation, board_h (Picard loop is in api.py)
+  profile_io.py        power profiles as CSV files (read/write)
   profiles.py          power profiles (square wave): decision average-or-resolve, window runner shared by the three models
   results.py, analysis.py, api.py (SolverOptions, simulate, suggest_cell_mm), project.py (.pcbt.json), examples.py
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (118 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
-examples/              example boards (.pcbt.json), accuracy_study.py, stress_study.py, solver_equivalence.py
-docs/                  README.md (index), physics_core.md (current), new_approach.md, findings.md (all discoveries), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
+tests/                 pytest suite (167 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+examples/              example boards (.pcbt.json), csv_profiles/ (documented CSV power-profile example), validation_study.py (all models, every scenario; tables of docs/validation.md), accuracy_study.py and stress_study.py (the scenario lists), solver_equivalence.py, fem3d_validation.py (3D solid)
+docs/                  models.md (models, formulas, profiles, convection, API), validation.md (every scenario in every model, 3D check, history), roadmap.md (planned work), images/
 ico/                   application icon
 ```
 
 The original wxPython program (`core/`, `ui/`, `main.py`, `config.py`) was removed in release 2.0.0;
 it can be inspected in git history (for example commit `641da87`). Old editor JSON files still open (`problem_from_legacy`).
 
-## Algorithm Review (2026-10-16, of the removed legacy solvers)
+## Why the legacy solvers were replaced
 
-This section records why the legacy solvers were replaced; all items below are fixed in `pcbthermal` (see `docs/physics_core.md`).
-
-Full detail, formulas and experiment tables: `docs/thermal_models.md`. Keep that file in sync with any solver change.
-
-Code review plus numerical experiments (100x100 mm, 2 layers, 5 W, 20x20 mm heater,
-h_top=10, h_bottom=15 W/m2K). Reference: a direct sparse solve of the same FDM system.
-Priorities for the next work, most severe first.
-
-1. FDM `converged` can be false-positive. The stop test is the max change per sweep
-   (`tol=0.01`), not the residual. With weak convection (h=2) it reported converged
-   after dissipating only 15% of the input power; Tmax was 39.4 vs 46.5 degC (7 K error).
-   With defaults (omega 1.5) the error was 2.7 K. Fix: stop on residual or on
-   power balance, or replace SOR by `scipy.sparse.linalg` (the matrix is symmetric
-   positive definite; a direct or CG solve is exact and fast).
-2. FDM heater power is not conserved. Power is `W/mm2 * dx*dy` per node inside the
-   polygon, so the inserted power depends on the grid (1.4 W instead of 5 W at dx=10;
-   0 W if no node falls inside). Fix: distribute exactly the requested power over the
-   covered nodes (area-weighted).
-3. `fdm_solver.py` does not import without Numba: `float64[:,:,:]` annotations are
-   evaluated at definition time -> `NameError`. The "pure Python fallback" is broken.
-4. Analytic conduction term is dimensionally wrong: `L/(k*A*t)` (should use the
-   cross-section `t*width`). Result: 1002 degC in Basic mode and 24466 degC in
-   Advanced mode for the reference case (FDM: ~92 degC). Advanced mode also uses
-   the heater footprint as the convective area, which is physically wrong.
-5. Lumped network is not a valid series/parallel network: `R_total = (Rcu+Rfr4+Rconv)/(1+n_vias)`,
-   `R_th_via` is computed but unused, copper resistance uses the board thickness, only one
-   FR4 layer is used for N layers, and `T_max` can be below `T_top`. Advanced mode gives 1342 degC.
-6. FDM mesh: boundary nodes use a full `dx*dy` cell (should be half), FR4 has no lateral
-   conduction (nodes outside a Zone are isolated; with no Zone at all Tmax = 548 degC),
-   sinks on inner layers are ignored, vias are solid copper (ignore plating thickness
-   `DEFAULT_VIA_PLATING_THICKNESS`), `_process_elements` loops are pure Python.
-7. The "time evolution" GIF shows SOR iterations, not physical time. A real transient
-   needs heat capacity (rho*cp) and time stepping (implicit Euler / Crank-Nicolson).
-8. The solvers `print()` to the console and mix numerics with wx dialogs.
-
-Suggested direction: (a) keep FDM as the reference solver but fix 1-3 and 6; (b) rewrite
-Lumped as a real RC/resistor network; (c) replace Analytic by sheet-spreading
-resistance (Lee et al.) plus convection; (d) add regression tests that compare the
-solvers on one benchmark board and check energy balance (out/in ~ 1).
+The review of the removed wxPython program (false convergence of its SOR stopping rule, heater power depending on the grid, no lateral conduction in the FR-4, solid vias, dimensionally wrong analytic term, an invalid lumped
+network, an iterations GIF instead of time) and the numbers before and after are in `docs/validation.md`, section 6; the code can be inspected at tag `legacy-wxpython-1.0.0` and commit `641da87`. All items are fixed in `pcbthermal`.
 
 ## Commands
 
@@ -177,14 +143,13 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 .venv/bin/python -m pcbthermal run examples/example_board.pcbt.json  # CLI: all models, report, plots
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json   # direct vs CG vs SOR
 .venv/bin/python -m pytest -q tests                                  # tests (GUI offscreen)
-.venv/bin/python examples/accuracy_study.py                          # Lumped/Analytic accuracy table
-.venv/bin/python examples/stress_study.py                            # stress cases
+.venv/bin/python examples/validation_study.py [--fem]                # every scenario in every model (+ 3D solid)
 .venv/bin/python examples/solver_equivalence.py                      # direct vs CG vs SOR on five boards
 ```
 
 ## Branches and Versions
 
-- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.1.0** (2026-10-16).
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.2.0** (2026-10-16).
 - `develop`: integration branch for the next version; feature work branches off it (`feature/<topic>`) and merges back when it is solid.
 - Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
@@ -213,7 +178,7 @@ merges, PRs, and tags. The maintainer set these rules (2026-10-16):
 Update `CLAUDE.md` whenever something important happens: architecture or
 structure changes, new commands, new dependencies, workflow or convention
 changes, and notable decisions. Add an entry to the Decisions Log in the same
-change. Do this without being asked.
+change. Keep the documentation **few and good**: `README.md`, `CHANGELOG.md`, `docs/models.md`, `docs/validation.md`, `docs/roadmap.md` and the README of an example folder; fold new material into them instead of adding files. Do this without being asked.
 
 ## Claude Code Settings
 
@@ -226,6 +191,12 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 
 Record important decisions here, newest first, with date and reason.
 
+- 2026-10-16: Released **2.2.0** after a stress test of the application (`tests/test_gui_stress.py`: every example with every model, every results view, the profile page with every control and bad CSV files, odd boards, edits during a run, files and exports, random actions with several seeds). It found one real bug: a result arriving after an edit made during the run was shown as current; fixed (marked outdated). The stress test also aborted the whole process (SuperLU is not safe in two threads at once) when a simulation started while an animation was computing; all background calculations now take one lock (`gui/compute.py`) and wait for each other. A real file dialog opened by choosing "Table (CSV file)" blocks tests unless patched.
+- 2026-10-16: Documentation cut to three documents (`docs/models.md`, `docs/validation.md`, `docs/roadmap.md`) plus README and CHANGELOG; eight older documents (model guide, physics core, new approach, findings, candidate methods, thermal models, legacy comparison, package models) were merged and removed (history is in git). `docs/validation.md` is the clean comparison of the same scenarios in every model, generated by `examples/validation_study.py`. The FDM is now in the application (checkbox, steady state only); area sampling made it the default; the symmetric sparse ordering made every direct solve about 40 % faster. The 3D check now has vias (copper rods of the barrel's copper area) and sinks: example board 85.6 °C against FVM 85.9, FDM 85.2, Lumped 84.7, Analytic 84.7.
+- 2026-10-16: Added `pcbthermal/fdm.py`, a correct node-centred FDM of the same model, as a comparison model (API `models=("fdm",)`, CLI `--model fdm|compare`, no GUI, no time simulation) and `examples/model_comparison.py`: FDM agrees with the FVM within ~1 % and jumps ±0.5 °C with the grid while the FVM converges monotonically; the old program's errors were modelling, not the discretisation.
+- 2026-10-16: Explained in `docs/model_guide.md` why FVM and Analytic agree (same layered model; the Analytic is its exact solution on a uniform sheet; Lumped and Analytic were tuned against the FVM so the 3D FEM is the independent check) and listed the literature on FDM/FVM and PCB models; recorded that no model has been compared with a physical board measurement yet.
+- 2026-10-16: Independent 3D FEM check (`examples/fem3d_validation.py`, scikit-fem not in requirements): FVM within 0.4 to 2.4 % of the 3D rise, Lumped 2 to 7 %, Analytic 0.2 % on uniform copper and up to 24 % with a 20 mm pad; explains why FVM and Analytic agree on uniform boards (same layered model). Convection calibration helper (`calibrate_convection`, CLI `calibrate`).
+- 2026-10-16: Added power tables and CSV (`TableProfile`, `profile_io.py`, GUI import/export buttons, `run --profile`, `examples/csv_profiles/`); the decision uses the periodised step response for any periodic table, one-shot tables are always resolved from the steady state of their first power; analytic transient now has one modal system per heater with the via (or sink) conductance scaled to the local steady response (single global scale tried and rejected: it cooled the distant heater by 18 %); animation of the power step also for the Analytical model. Version bump to be decided at the release.
 - 2026-10-16: Released **2.1.0** (power profiles + computed heat transfer coefficients), merged `feature/more-models` into `develop` and `main`, tag `v2.1.0`. Next: Component element (Package, heat sink), then Gerber import and variable stack-up.
 - 2026-10-16: Implemented computed heat transfer coefficients (`convection.py`, `Board.h_mode/emissivity_top/emissivity_bottom/air_speed/orientation/h_calibration`, Picard loop outside the models in `api._solve_computed_h`): one `h` per face from the mean face temperature, radiation always included (emissivity per face, default 0.9), global convection multiplier, edge `h` stays typed, time simulation and animation fixed at the steady-state coefficients. Measured effect on the example: a constant `h` overestimates the rise by 10 % at 22 W and underestimates it at low power (`roadmap.md` section 2).
 - 2026-10-16: Roadmap extended: heat sink on a component (θCS + θSA in K/W, θSA scaled with ΔT from a reference rise, optional sink capacity C_hs from the first version), Gerber import of the copper per layer (section 7, `gerbonara` as candidate, fill fraction per cell), and variable stack-up (section 8: per-gap dielectric thickness and material, layer nodes of copper plus half the adjacent dielectrics, backward compatible when gaps are equal). All future work, nothing implemented.

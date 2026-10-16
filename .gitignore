@@ -17,3 +17,4 @@ env/
 # Generated simulation outputs
 *.gif
 output/
+examples/csv_profiles/output_*/

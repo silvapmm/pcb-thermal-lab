@@ -1,0 +1,97 @@
+"""!
+@file validation_study.py
+@brief The same scenarios solved by every model, printed as the tables of docs/validation.md.
+
+Usage: python examples/validation_study.py [--fem]    (--fem adds the 3D finite-element solid; needs scikit-fem, several minutes)
+"""
+
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, HERE)
+
+from pcbthermal import analytic, check_problem, fdm, fvm, lumped         # noqa: E402
+from pcbthermal.examples import example_board                           # noqa: E402
+import accuracy_study                                                    # noqa: E402
+import stress_study                                                      # noqa: E402
+
+
+def error(result, reference):
+    """!
+    @brief Error of a model on the temperature rise, against a reference result.
+    @param result SteadyResult of the model.
+    @param reference SteadyResult (or its Tmax value in degC with ambient 25) of the reference.
+    @return Percentage.
+    """
+    ref_dt = reference.delta_t
+    return 100.0 * (result.delta_t / ref_dt - 1.0)
+
+
+def scenario_table(cell_mm=1.0):
+    """!
+    @brief Every scenario with the maximum temperature of the four models and their error against the FVM.
+    @param cell_mm Cell size for the FVM and the FDM.
+    @return Markdown text.
+    """
+    lines = ["| Scenario | FVM [°C] | FDM | Lumped | Analytic | Input check |", "| :-- | --: | --: | --: | --: | :-: |"]
+    for name, p in accuracy_study.cases() + stress_study.cases():
+        f = fvm.solve_steady(p, cell_mm)
+        d = fdm.solve_steady(p, cell_mm)
+        l = lumped.solve_steady(p)
+        a = analytic.solve_steady(p)
+        warn = "warns" if (check_problem(p, cell_mm) + a.warnings) else "-"
+        lines.append(f"| {name} | {f.t_max:.2f} | {d.t_max:.2f} ({error(d, f):+.1f} %) | {l.t_max:.2f} ({error(l, f):+.1f} %) | "
+                     f"{a.t_max:.2f} ({error(a, f):+.1f} %) | {warn} |")
+    return "\n".join(lines)
+
+
+def mesh_table(cells=(4.0, 2.0, 1.0, 0.5, 0.25)):
+    """!
+    @brief Maximum temperature of the example board against the grid spacing, FVM and FDM.
+    @param cells Grid spacings in millimetres.
+    @return Markdown text.
+    """
+    p = example_board()
+    lines = ["| Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) |", "| --: | --: | --: | --: |"]
+    for c in cells:
+        lines.append(f"| {c:g} | {fvm.solve_steady(p, c).t_max:.2f} | {fdm.solve_steady(p, c).t_max:.2f} | "
+                     f"{fdm.solve_steady(p, c, sampling='point').t_max:.2f} |")
+    return "\n".join(lines)
+
+
+def fem_table():
+    """!
+    @brief Boards solved as a 3D solid, with the error of every model on the temperature rise.
+    @return Markdown text.
+    """
+    import fem3d_validation as f3
+    rows = ["| Board | 3D solid [°C] | FVM | FDM | Lumped | Analytic |", "| :-- | --: | --: | --: | --: | --: |"]
+    cases = (("4 layers, full copper", f3.board_full_copper()), ("2 layers, 40 mm top pad", f3.board_partial_copper()),
+             ("2 layers, 20 mm top pad", f3.board_small_pad()), ("example board (partial copper, 9 vias, bottom sink)", example_board()))
+    for name, p in cases:
+        ref = f3.solve_fem(p, 1.0)["t_max"]
+        res = {"fvm": fvm.solve_steady(p, 0.5), "fdm": fdm.solve_steady(p, 0.5), "lumped": lumped.solve_steady(p),
+               "analytic": analytic.solve_steady(p)}
+        cells = " | ".join(f"{r.t_max:.1f} ({100 * (r.t_max - 25) / (ref - 25) - 100:+.1f} %)" for r in res.values())
+        rows.append(f"| {name} | {ref:.1f} | {cells} |")
+    return "\n".join(rows)
+
+
+def main(with_fem=False):
+    """!
+    @brief Print the tables.
+    @param with_fem True to include the 3D solid.
+    """
+    print("## Scenarios, 1 mm cells (error on the temperature rise against the FVM)\n")
+    print(scenario_table())
+    print("\n## Example board against the grid\n")
+    print(mesh_table())
+    if with_fem:
+        print("\n## Against an independent 3D solid\n")
+        print(fem_table())
+
+
+if __name__ == "__main__":
+    main("--fem" in sys.argv)

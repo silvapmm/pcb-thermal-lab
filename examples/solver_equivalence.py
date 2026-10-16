@@ -2,7 +2,7 @@
 @file solver_equivalence.py
 @brief Do the sparse-matrix solvers and SOR give the same temperatures? One table over several boards.
 
-Usage: python examples/solver_equivalence.py [--markdown docs/solver_equivalence.md]
+Usage: python examples/solver_equivalence.py [--markdown table.md]
 """
 
 import argparse

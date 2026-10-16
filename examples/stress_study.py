@@ -2,7 +2,7 @@
 @file stress_study.py
 @brief Stress cases for the Lumped and Analytic models: where do they stop being reliable?
 
-Usage: python examples/stress_study.py [--markdown docs/stress_study.md]
+Usage: python examples/stress_study.py [--markdown table.md]
 """
 
 import argparse

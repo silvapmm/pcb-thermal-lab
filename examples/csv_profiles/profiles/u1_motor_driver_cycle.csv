@@ -1,0 +1,8 @@
+# Power of U1 (a motor driver) over one 30 s work cycle that repeats forever.
+# Row i gives the power from its time until the next row; the last row is the END of the profile.
+# repeat: yes
+time_s,power_w
+0,12.0
+2,5.0
+10,0.5
+30,0.5

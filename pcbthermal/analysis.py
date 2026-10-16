@@ -9,7 +9,7 @@ where needed, the Problem that produced it.
 import numpy as np
 from scipy import ndimage
 
-from .geometry import coverage_fraction
+from .geometry import coverage_fraction, points_in_polygon
 
 
 def _require_field(result):
@@ -32,6 +32,7 @@ def hotspots(result, threshold):
     _require_field(result)
     out = []
     cell_area = result.dx * result.dy
+    xs, ys = result.coords()
     for l in range(result.T.shape[0]):
         mask = result.T[l] > threshold
         labels, n = ndimage.label(mask)
@@ -40,7 +41,7 @@ def hotspots(result, threshold):
             vals = np.where(region, result.T[l], -np.inf)
             i, j = np.unravel_index(int(np.argmax(vals)), vals.shape)
             out.append({"layer": l + 1, "t_max": float(vals[i, j]),
-                        "x_mm": (j + 0.5) * result.dx * 1000.0, "y_mm": (i + 0.5) * result.dy * 1000.0,
+                        "x_mm": xs[j] * 1000.0, "y_mm": ys[i] * 1000.0,
                         "area_mm2": float(region.sum() * cell_area * 1e6), "cells": int(region.sum())})
     return sorted(out, key=lambda r: -r["t_max"])
 
@@ -68,7 +69,13 @@ def _footprint_stats(result, polygon, layer):
     @return Tuple (mean, max, min) or (nan, nan, nan) if the polygon covers no cell.
     """
     ny, nx = result.T.shape[1:]
-    cov = coverage_fraction(polygon, nx, ny, result.dx, result.dy, samples=4)
+    if result.grid == "nodes":
+        # A node field has no cells: use the nodes inside the polygon (with the left and bottom edge in)
+        xs, ys = result.coords()
+        X, Y = np.meshgrid(xs, ys)
+        cov = points_in_polygon(X.ravel(), Y.ravel(), polygon).reshape(X.shape).astype(float)
+    else:
+        cov = coverage_fraction(polygon, nx, ny, result.dx, result.dy, samples=4)
     if cov.sum() <= 0:
         return float("nan"), float("nan"), float("nan")
     T = result.T[min(layer, result.T.shape[0] - 1)]

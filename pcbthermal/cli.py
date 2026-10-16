@@ -25,9 +25,11 @@ from . import __version__, fvm
 from .api import simulate, suggest_cell_mm
 from .examples import example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
+from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
 
 MODELS = ("fvm", "lumped", "analytic")
+RUN_MODELS = MODELS + ("fdm",)            # "fdm" is the finite-difference comparison model (steady state only)
 
 
 def _cell_arg(args, problem, default):
@@ -51,7 +53,7 @@ def cmd_run(args):
     """
     project = load_project(args.config)
     options = project.options
-    options.models = MODELS if args.model == "all" else (args.model,)
+    options.models = {"all": MODELS, "compare": RUN_MODELS}.get(args.model, (args.model,))
     options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     options.linear_solver = args.solver
     po = options.profile
@@ -67,6 +69,17 @@ def cmd_run(args):
         po.time_s = args.time_s
     if args.initial_c is not None:
         po.initial, po.initial_c = "temperature", args.initial_c
+    for spec in args.profile or []:
+        name, _, path = spec.partition("=")
+        if not path:
+            raise SystemExit(f"--profile expects NAME=file.csv, got '{spec}'")
+        # A heater is chosen by its name or by its 1-based number (#1, #2, ...)
+        heaters = project.problem.heaters
+        match = [h for h in heaters if h.name == name] or ([heaters[int(name[1:]) - 1]] if name.startswith("#") and name[1:].isdigit()
+                                                           and 0 < int(name[1:]) <= len(heaters) else [])
+        if not match:
+            raise SystemExit(f"no heater named '{name}' (names: {', '.join(h.name or '-' for h in heaters)})")
+        match[0].set_profile(read_profile_csv(path))
     b = project.problem.board
     if args.computed_h:
         b.h_mode = "computed"
@@ -112,6 +125,24 @@ def cmd_transient(args):
         if args.gif:
             plots.save_transient_gif(tr, problem, os.path.join(args.out, "transient.gif"))
     print(f"Outputs written to {args.out}/")
+    return 0
+
+
+def cmd_calibrate(args):
+    """!
+    @brief Handler of the `calibrate` command: fit the convection multiplier to a measured temperature.
+    @param args Parsed arguments.
+    @return Process exit code.
+    """
+    from .api import calibrate_convection
+    project = load_project(args.config)
+    options = project.options
+    options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
+    multiplier, predicted = calibrate_convection(project.problem, args.measured, options, args.model, args.heater)
+    what = f"heater {args.heater}" if args.heater else "the board maximum"
+    print(f"Measured {args.measured:g} degC at {what}: convection multiplier {multiplier:.3f} "
+          f"(the {args.model} model then gives {predicted:.2f} degC).")
+    print("Use it as Board.h_calibration (Environment panel: 'Convection x') with heat transfer set to Computed.")
     return 0
 
 
@@ -221,7 +252,8 @@ def build_parser():
 
     r = sub.add_parser("run", help="solve steady state")
     common(r)
-    r.add_argument("--model", choices=MODELS + ("all",), default="all")
+    r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
+                   help="all: fvm, lumped, analytic; compare: those three plus the finite-difference comparison model fdm")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
@@ -230,6 +262,8 @@ def build_parser():
     hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
     hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")
+    pg.add_argument("--profile", action="append", metavar="HEATER=FILE.csv",
+                    help="power profile of a heater from a CSV file (heater name or #number; repeat for several heaters)")
     pg.add_argument("--steady-power", choices=("average", "peak"), default=None,
                     help="power used by the steady models for heaters with a profile (default: from the project, average)")
     pg.add_argument("--threshold-c", type=float, default=None,
@@ -249,6 +283,14 @@ def build_parser():
     t.add_argument("--theta", type=float, default=1.0, help="1 = implicit Euler, 0.5 = Crank-Nicolson")
     t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
+
+    k = sub.add_parser("calibrate", help="fit the convection multiplier to a measured steady temperature")
+    k.add_argument("config", help="board JSON file")
+    k.add_argument("--measured", type=float, required=True, help="measured steady temperature in degC")
+    k.add_argument("--heater", default=None, help="heater whose footprint maximum was measured (default: board maximum)")
+    k.add_argument("--model", choices=MODELS, default="fvm")
+    k.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto'")
+    k.set_defaults(func=cmd_calibrate)
 
     c = sub.add_parser("convergence", help="FVM grid refinement study")
     common(c)

@@ -25,14 +25,16 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable, Dict, Optional, Tuple
 
 import copy
+import math
 
-from . import __version__, analytic, convection, fvm, lumped, profiles
+from . import __version__, analytic, convection, fdm, fvm, lumped, profiles
 from .analysis import heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
 from .results import SteadyResult
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
+COMPARISON_MODELS = ("fdm",)                     # Extra steady-state model for comparisons: no time simulation, not in the GUI
 
 
 @dataclass
@@ -55,9 +57,9 @@ class SolverOptions:
         @brief Check the values.
         @throws ValueError If a value is out of range or a model name is unknown.
         """
-        bad = [m for m in self.models if m not in MODEL_NAMES]
+        bad = [m for m in self.models if m not in MODEL_NAMES + COMPARISON_MODELS]
         if bad or not self.models:
-            raise ValueError(f"models must be a non-empty subset of {MODEL_NAMES}, got {self.models}")
+            raise ValueError(f"models must be a non-empty subset of {MODEL_NAMES + COMPARISON_MODELS}, got {self.models}")
         if not 0.05 <= self.cell_mm <= 50:
             raise ValueError("cell_mm must be between 0.05 and 50")
         if self.linear_solver not in ("direct", "cg", "sor"):
@@ -179,8 +181,8 @@ class Simulation:
                  "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
                  "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
         for d in self.decisions:
-            if d.kind == "wave":
-                lines.append(f"| {d.name} | {d.period:g} | {d.duty:.0%} | {d.average_power:.3f} | {d.peak_power:.3f} | "
+            if d.kind != "constant":
+                lines.append(f"| {d.name} | {d.period:g}{'' if d.repeat else ' (once)'} | {_duty_text(d)} | {d.average_power:.3f} | {d.peak_power:.3f} | "
                              f"{d.oscillation:.2f} | {d.oscillation_percent:.1f} % | {d.regime} |")
             else:
                 lines.append(f"| {d.name} | - | - | {d.average_power:.3f} | {d.peak_power:.3f} | - | - | constant |")
@@ -240,8 +242,9 @@ class Simulation:
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
                          f"{self.profile_reference} step response, threshold {self.options.profile.threshold_c:g} C):")
             for d in self.decisions:
-                if d.kind == "wave":
-                    lines.append(f"  {d.name}: period {d.period:g} s, duty {d.duty:.0%}, average {d.average_power:.3f} W, "
+                if d.kind != "constant":
+                    lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {d.period:g} s, duty {_duty_text(d)}, "
+                                 f"average {d.average_power:.3f} W, "
                                  f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} C "
                                  f"({d.oscillation_percent:.1f} % of the rise) -> {d.regime}")
                 else:
@@ -360,10 +363,21 @@ def _run_model(problem, name, o):
     """
     if name == "fvm":
         return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver)
+    if name == "fdm":
+        return fdm.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "lumped":
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=min(max(o.cell_mm, 0.5), 1.0))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
                                  local_corrections=o.analytic_local_corrections)
+
+
+def _duty_text(d):
+    """!
+    @brief Duty of a decision as text: a percentage for a square wave, a dash for a table.
+    @param d HeaterDecision.
+    @return String.
+    """
+    return "-" if d.duty != d.duty else f"{d.duty:.0%}"       # NaN is the only value that differs from itself
 
 
 def _solve_computed_h(problem, name, o):
@@ -401,6 +415,56 @@ def _solve_computed_h(problem, name, o):
     return res, ht, hb, it
 
 
+def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=None):
+    """!
+    @brief Fit the convection multiplier (Board.h_calibration) so that the model reproduces a measured temperature.
+    @details The board is put in computed mode and the multiplier is found by bisection on its logarithm (the temperature falls
+             as the multiplier grows). The measured quantity is the hottest point of the board, or the hottest point under a
+             named heater. The correlations are for isothermal plates and uncertain by 20 to 30 % on a board with hot spots;
+             this turns one measurement into the correction. Use a measurement taken in steady state, with the same power,
+             and note that the multiplier absorbs every other model error (copper, vias, enclosure) at that operating point.
+    @param problem A Problem (it is not modified).
+    @param measured_c Measured steady temperature in degC.
+    @param options SolverOptions (default: 1 mm cell); only the chosen model is run.
+    @param model "fvm" (default), "lumped" or "analytic".
+    @param heater Name of the heater whose footprint maximum was measured; None for the board maximum.
+    @return Tuple (multiplier, model temperature with it in degC).
+    @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
+    """
+    from .analysis import heater_stats
+    options = copy.deepcopy(options) if options else SolverOptions()
+    options.models = (model,)
+    p = copy.deepcopy(problem)
+    p.board.h_mode = "computed"
+    steady = p.steady_copy(options.steady_power) if p.has_profiles() else p
+
+    def predicted(multiplier):
+        steady.board.h_calibration = multiplier
+        res = _solve_computed_h(steady, model, options)[0]
+        if heater is None:
+            return res.t_max
+        rows = [r for r in heater_stats(res, steady) if r["name"] == heater]
+        if not rows:
+            raise ValueError(f"no heater named '{heater}'")
+        return rows[0]["t_max"]
+
+    lo, hi = math.log(0.1), math.log(10.0)
+    if not predicted(math.exp(hi)) <= measured_c <= predicted(math.exp(lo)):
+        raise ValueError(f"the measured {measured_c:g} degC is outside what a multiplier between 0.1 and 10 can give "
+                         f"({predicted(math.exp(hi)):.1f} to {predicted(math.exp(lo)):.1f} degC): check the powers, the ambient "
+                         "temperature and where the measurement was taken")
+    for _ in range(40):
+        mid = 0.5 * (lo + hi)
+        if predicted(math.exp(mid)) > measured_c:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo < 1e-3:
+            break
+    m = math.exp(0.5 * (lo + hi))
+    return m, predicted(m)
+
+
 def step_response(problem, model, options):
     """!
     @brief Unit-step responses of the heaters with one model (the input of the average-or-resolve decision).
@@ -429,7 +493,10 @@ def _run_profiles(sim, progress, start):
     """
     o = sim.options
     p = sim.effective_problem or sim.problem
-    ref = next(m for m in MODEL_NAMES if m in o.models)
+    ref = next((m for m in MODEL_NAMES if m in o.models), None)
+    if ref is None:
+        sim.profile_error = "the time simulation needs the FVM, the thermal network or the analytical model to be selected"
+        return
     sim.profile_reference = ref
     if progress:
         progress("Thermal response of the heaters", start)
@@ -439,6 +506,8 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in o.models:
+            if name in COMPARISON_MODELS:
+                continue                                                  # The comparison model has no time simulation
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
             if name == "fvm":
@@ -481,7 +550,7 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
             sim.results[name] = _run_model(steady_problem, name, options)
         sim.seconds[name] = time.time() - t0
     if computed:
-        ref = next(m for m in MODEL_NAMES if m in options.models)
+        ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in options.models))
         # Later stages (time simulation, animation) use the coefficients of the reference model, fixed during the cycle
         sim.effective_problem = copy.deepcopy(problem)
         sim.effective_problem.board.h_mode = "manual"

@@ -33,6 +33,9 @@ model needs laterally uniform properties, with these refinements:
 Strongly non-uniform copper is still beyond this model: use the FVM then.
 """
 
+import copy
+import math
+
 import numpy as np
 
 from scipy.special import k0
@@ -322,31 +325,26 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
 
 # ----------------------------------------------------------------------------------- time dependence
 
-def _modal_dynamics(problem, cell_mm, n_terms):
+def _modal_matrix(problem, sh, n_terms, via_scale, sink_scale=1.0):
     """!
-    @brief Modal description of the transient: decay rates, mode shapes and heater source vectors.
-    @details Every cosine mode (m, n) obeys C a' + A_mn a = q(t) with C = diag(c_l) the heat capacity per area of the
-             layers. With the symmetric matrix C^(-1/2) A C^(-1/2) = V diag(lambda) V^T and b = V^T C^(1/2) a the
-             modes decouple: b' = -lambda b + g(t), g = V^T C^(-1/2) q, so a constant power over a step has the exact
-             propagator b+ = exp(-lambda dt) b + (1 - exp(-lambda dt)) / lambda g. The transient uses the uniform
-             (smeared) vias and sinks, as the steady model does when local corrections are off.
+    @brief The (M, N, L, L) matrix A_mn of the modal equations C a' + A a = q (symmetric, tridiagonal in the layer index).
     @param problem A Problem.
-    @param cell_mm Cell size (mm) of the sampling grid.
+    @param sh Dict from _effective_sheet.
     @param n_terms Cosine modes per direction.
-    @return Dict with the sheet data and lam (M, N, L), back (M, N, L, L), V, G (heaters, M, N, L), U (heaters, M, N, L),
-            rth (heaters,), c_l (L,), cos_x (nx, M), cos_y (ny, N), points (heaters, 3) and tau (s).
+    @param via_scale Factor on the smeared via conductance.
+    @param sink_scale Factor on the smeared sink coefficient.
+    @return Array (M, N, L, L).
     """
-    sh = _effective_sheet(problem, cell_mm)
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     M = N = n_terms
     h_l = np.zeros(L)
     h_l[0] += b.h_top
     h_l[L - 1] += b.h_bottom
     for s in problem.sinks:
-        h_l[s.layer] += s.h_extra * polygon_area(s.polygon) / (W * H)
+        h_l[s.layer] += sink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
     g = sh["g_diel"]
     if L > 1:
-        g += m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / sh["d_diel"]
+        g += via_scale * m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / sh["d_diel"]
     k2 = ((np.arange(M) * np.pi / W) ** 2)[:, None] + ((np.arange(N) * np.pi / H) ** 2)[None, :]
     A = np.zeros((M, N, L, L))
     for l in range(L):
@@ -357,6 +355,29 @@ def _modal_dynamics(problem, cell_mm, n_terms):
         if l < L - 1:
             A[:, :, l, l] += g
             A[:, :, l, l + 1] -= g
+    return A
+
+
+def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, sink_scale=1.0):
+    """!
+    @brief Modal description of the transient: decay rates, mode shapes and heater source vectors.
+    @details Every cosine mode (m, n) obeys C a' + A_mn a = q(t) with C = diag(c_l) the heat capacity per area of the
+             layers. With the symmetric matrix C^(-1/2) A C^(-1/2) = V diag(lambda) V^T and b = V^T C^(1/2) a the
+             modes decouple: b' = -lambda b + g(t), g = V^T C^(-1/2) q, so a constant power over a step has the exact
+             propagator b+ = exp(-lambda dt) b + (1 - exp(-lambda dt)) / lambda g. The transient uses the uniform
+             (smeared) vias and sinks, as the steady model does when local corrections are off.
+    @param problem A Problem.
+    @param cell_mm Cell size (mm) of the sampling grid.
+    @param n_terms Cosine modes per direction.
+    @param via_scale Factor applied to the smeared via conductance (see _calibrated_dynamics).
+    @param sink_scale Factor applied to the smeared sink coefficient (see _calibrated_dynamics).
+    @return Dict with the sheet data and lam (M, N, L), back (M, N, L, L), V, G (heaters, M, N, L), U (heaters, M, N, L),
+            rth (heaters,), c_l (L,), cos_x (nx, M), cos_y (ny, N), points (heaters, 3) and tau (s).
+    """
+    sh = _effective_sheet(problem, cell_mm)
+    b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
+    M = N = n_terms
+    A = _modal_matrix(problem, sh, n_terms, via_scale, sink_scale)
     fill, tc, slab = sh["fill"], sh["tc"], sh["slab"]
     c_l = fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * m.rho_fr4 * m.cp_fr4      # J/(m2 K)
     cinv = 1.0 / np.sqrt(c_l)
@@ -378,14 +399,173 @@ def _modal_dynamics(problem, cell_mm, n_terms):
     rth = np.einsum("hmnk,hmnk,mnk->h", U, G, 1.0 / lam)
     tau = float(c_l.sum() / max(sh["h_tot"], 1e-9))
     sh.update({"lam": lam, "back": back, "V": V, "G": G, "U": U, "rth": rth, "c_l": c_l, "cos_x": cos_x,
-               "cos_y": cos_y, "points": points, "tau": tau, "M": M, "N": N})
+               "cos_y": cos_y, "points": points, "tau": tau, "M": M, "N": N, "via_scale": via_scale,
+               "sink_scale": sink_scale})
     return sh
+
+
+def _smeared_steady_max(problem, sh, A, n_terms):
+    """!
+    @brief Maximum steady temperature rise of the smeared modal model, A a = q, for the heater powers of the problem.
+    @param problem A Problem (heater powers are used).
+    @param sh Dict from _effective_sheet.
+    @param A Matrix from _modal_matrix.
+    @param n_terms Cosine modes per direction.
+    @return Maximum rise above ambient in kelvin.
+    """
+    W, H, L = sh["W"], sh["H"], sh["L"]
+    q = sum(h.power * src for h, src in zip(problem.heaters, _heater_unit_sources(problem, n_terms, n_terms)))
+    a = np.linalg.solve(A, q[..., None])[..., 0]                         # (M, N, L)
+    cx = np.cos(np.outer(sh["xs"], np.arange(n_terms) * np.pi / W))
+    cy = np.cos(np.outer(sh["ys"], np.arange(n_terms) * np.pi / H))
+    return float(max((cy @ a[:, :, l].T @ cx.T).max() for l in range(L)))
+
+
+def _calibrated_dynamics(problem, cell_mm, n_terms):
+    """!
+    @brief Modal dynamics whose smeared vias (or sinks) reproduce the steady maximum of the locally corrected model.
+    @details The transient cannot apply the local Green-function corrections of the steady model, so vias and sinks are smeared
+             over the board; a smeared via array under a heater has almost no effect (the example board came out 11 degC too hot).
+             One factor is chosen (bisection on its logarithm) so that the steady maximum with the actual powers equals the
+             steady maximum of solve_steady with local corrections: on the via conductance if the board has vias, otherwise on the
+             sink coefficient (scaling the sinks as well would cool the whole board and spoil the dynamics). With it the transient of
+             the example board follows the FVM within a few degC at every time (without it by up to 10 degC).
+    @param problem A Problem (heater powers are the ones used for the calibration).
+    @param cell_mm Cell size (mm) of the sampling grid.
+    @param n_terms Cosine modes per direction.
+    @return Dict from _modal_dynamics with the extra keys local_max (degC, None if there are no vias or sinks) and scaled
+            ("vias", "sinks" or None).
+    """
+    ambient = problem.board.ambient
+    d = _modal_dynamics(problem, cell_mm, n_terms)
+    d["local_max"], d["scaled"] = None, None
+    if not (problem.vias or problem.sinks) or problem.total_power() <= 0:
+        return d
+    local = solve_steady(problem, cell_mm=cell_mm, n_terms=n_terms).t_max - ambient
+    d["local_max"] = local + ambient
+    sh = _effective_sheet(problem, cell_mm)
+    which = "vias" if problem.vias else "sinks"
+
+    def steady(scale):
+        # Steady maximum of the smeared model with the chosen element scaled
+        a = _modal_matrix(problem, sh, n_terms, scale if which == "vias" else 1.0, scale if which == "sinks" else 1.0)
+        return _smeared_steady_max(problem, sh, a, n_terms)
+
+    if steady(1.0) <= local:
+        return d                                                          # Smeared is already no hotter: keep it
+    lo, hi = 0.0, math.log(1.0e4)
+    for _ in range(40):
+        mid = 0.5 * (lo + hi)
+        if steady(math.exp(mid)) > local:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo < 0.01:
+            break
+    scale = math.exp(0.5 * (lo + hi))
+    d = _modal_dynamics(problem, cell_mm, n_terms, scale if which == "vias" else 1.0, scale if which == "sinks" else 1.0)
+    d["local_max"], d["scaled"] = local + ambient, which
+    return d
+
+
+def _point_vector(d, point):
+    """!
+    @brief Row that evaluates the temperature at a grid point from the modal state of a system.
+    @param d Dict from _modal_dynamics.
+    @param point Tuple (layer, iy, ix) of the sampling grid.
+    @return Array (M, N, L) such that T = sum(vector * b).
+    """
+    lay, iy, ix = point
+    wx = np.cos(np.arange(d["M"]) * np.pi * d["xs"][ix] / d["W"])
+    wy = np.cos(np.arange(d["N"]) * np.pi * d["ys"][iy] / d["H"])
+    return wx[:, None, None] * wy[None, :, None] * d["back"][:, :, lay, :]
+
+
+class _ModalSet:
+    """!
+    @brief The modal system or systems that describe a board for the transient.
+    @details Without vias and sinks one system serves every heater. With them each heater gets its own system, calibrated
+             (see _calibrated_dynamics) with that heater alone, because a single scale cannot be right both for a heater above
+             a via array and for one far from it (on the example board it cooled the distant heater by 18 %). The
+             temperature at a heater is then the sum of the contributions of all the systems at its own hottest point.
+    """
+
+    def __init__(self, problem, cell_mm, n_terms):
+        """!
+        @param problem A Problem.
+        @param cell_mm Cell size (mm) of the sampling grid.
+        @param n_terms Cosine modes per direction.
+        """
+        nh = len(problem.heaters)
+        self.nh = nh
+        if (problem.vias or problem.sinks) and nh > 1:
+            self.ds, self.serve = [], list(range(nh))
+            for j in range(nh):
+                solo = copy.deepcopy(problem)
+                for k, h in enumerate(solo.heaters):
+                    h.power = 1.0 if k == j else 0.0                    # Unit power: only the shape of its response matters
+                self.ds.append(_calibrated_dynamics(solo, cell_mm, n_terms))
+        else:
+            self.ds, self.serve = [_calibrated_dynamics(problem, cell_mm, n_terms)], [0] * nh
+        d0 = self.ds[0]
+        self.d0 = d0
+        self.points = [self.ds[self.serve[k]]["points"][k] for k in range(nh)]          # Own hottest point of every heater
+        self.U = [np.stack([_point_vector(d, p) for p in self.points]) for d in self.ds]  # (nh, M, N, L) per system
+        # Resistance of every heater to its own point, through the system that serves it
+        self.rth = np.array([float(np.sum(self.U[self.serve[k]][k] * self.ds[self.serve[k]]["G"][k]
+                                          / self.ds[self.serve[k]]["lam"])) for k in range(nh)])
+        self.tau = max(d["tau"] for d in self.ds)
+        self.scaled = [(d["scaled"], d["via_scale"] if d["scaled"] == "vias" else d["sink_scale"], d["local_max"])
+                       for d in self.ds if d["local_max"] is not None]
+
+    def drive(self, powers):
+        """!
+        @brief Modal source of every system for the heater powers.
+        @param powers Heater powers in watts.
+        @return List of arrays (M, N, L), one per system.
+        """
+        out = []
+        for s, d in enumerate(self.ds):
+            g = np.zeros_like(d["lam"])
+            for k in range(self.nh):
+                if self.serve[k] == s and powers[k] != 0.0:
+                    g = g + powers[k] * d["G"][k]
+            out.append(g)
+        return out
+
+    def steady(self, powers):
+        """!
+        @brief Steady modal state for constant heater powers.
+        @param powers Heater powers in watts.
+        @return List of modal states, one per system.
+        """
+        return [g / d["lam"] for g, d in zip(self.drive(powers), self.ds)]
+
+    def points_temperature(self, states):
+        """!
+        @brief Temperature rise at every heater's own point.
+        @param states List of modal states.
+        @return Array (n_heaters,) in kelvin above ambient.
+        """
+        return sum(np.einsum("hmnk,mnk->h", U, b) for U, b in zip(self.U, states))
+
+    def field(self, states):
+        """!
+        @brief Temperature rise of every layer on the sampling grid.
+        @param states List of modal states.
+        @return Array (layers, ny, nx) in kelvin above ambient.
+        """
+        total = 0.0
+        for d, b in zip(self.ds, states):
+            a = np.einsum("mnlk,mnk->mnl", d["back"], b)
+            total = total + np.stack([d["cos_y"] @ a[:, :, l].T @ d["cos_x"].T for l in range(d["L"])])
+        return total
 
 
 def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     """!
     @brief Unit-step response of every heater's hottest point, in closed form.
-    @details Z_i(t) = sum over modes of U g (1 - exp(-lambda t)) / lambda.
+    @details Z_i(t) = sum over modes of U g (1 - exp(-lambda t)) / lambda, in the system that serves heater i.
     @param problem A Problem with at least one heater.
     @param cell_mm Cell size (mm) of the sampling grid.
     @param n_terms Cosine modes per direction.
@@ -393,18 +573,19 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @param n_times Number of logarithmically spaced times.
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
-    d = _modal_dynamics(problem, cell_mm, n_terms)
-    t_end = t_end or 10.0 * d["tau"]
+    ms = _ModalSet(problem, cell_mm, n_terms)
+    t_end = t_end or 10.0 * ms.tau
     times = np.geomspace(1e-5, t_end, n_times)
-    lam = d["lam"].ravel()
-    z = np.empty((len(d["G"]), n_times))
-    for i in range(len(d["G"])):
-        coef = (d["U"][i] * d["G"][i] / d["lam"]).ravel()
+    z = np.empty((ms.nh, n_times))
+    for i in range(ms.nh):
+        d = ms.ds[ms.serve[i]]
+        lam = d["lam"].ravel()
+        coef = (ms.U[ms.serve[i]][i] * d["G"][i] / d["lam"]).ravel()
         keep = np.abs(coef) > 1e-13 * np.abs(coef).max()                   # Prune modes that do not matter
         c, lk = coef[keep], lam[keep]
         for k, t in enumerate(times):
             z[i, k] = c @ (1.0 - np.exp(-lk * t))
-    return times, z, d["rth"]
+    return times, z, ms.rth
 
 
 class _AnalyticAdapter:
@@ -418,30 +599,34 @@ class _AnalyticAdapter:
         @param cell_mm Cell size (mm) of the sampling grid.
         @param n_terms Cosine modes per direction.
         """
-        self.d = d = _modal_dynamics(problem, cell_mm, n_terms)
+        self.ms = ms = _ModalSet(problem, cell_mm, n_terms)
+        d = ms.d0
         self.ambient = problem.board.ambient
         self.dx, self.dy = d["dx"], d["dy"]
         self.L = d["L"]
         self.p_avg = np.array([h.average_power() for h in problem.heaters])
-        self.b_avg = np.tensordot(self.p_avg, d["G"] / d["lam"], axes=1)
-        b_peak = np.tensordot(np.array([h.peak_power() for h in problem.heaters]), d["G"] / d["lam"], axes=1)
+        self.b_avg = ms.steady(self.p_avg)
+        p_init = np.array([h.initial_power() for h in problem.heaters])      # Start state: average, or first power of a one-shot
+        self.b_init = self.b_avg if np.allclose(p_init, self.p_avg) else ms.steady(p_init)
+        b_peak = ms.steady(np.array([h.peak_power() for h in problem.heaters]))
         self.steady_average_max = float(self.frame(self.b_avg).max())
         self.steady_peak_max = float(self.frame(b_peak).max())
         self.warnings = []
-        if problem.vias or problem.sinks:
-            local = solve_steady(problem.steady_copy("average"), cell_mm=cell_mm, n_terms=n_terms).t_max
+        if ms.scaled:
+            what = "via conductance" if ms.scaled[0][0] == "vias" else "sink coefficient"
+            scales = ", ".join(f"{sc:.3g}" for _, sc, _ in ms.scaled)
             self.warnings.append(
-                f"the analytic transient uses vias and sinks smeared over the board: its steady maximum with the average power "
-                f"is {self.steady_average_max:.1f} °C, against {local:.1f} °C when they are applied locally (steady analytic "
-                "model); use the FVM for boards where vias or sinks sit under the heaters")
+                f"the analytic transient smears the vias and sinks over the board and, for every heater, scales the {what} "
+                f"(factors {scales}) so that its steady response matches the locally corrected steady model; the dynamics near "
+                "them are approximate, use the FVM to confirm")
 
     def prepare(self, dt):
         """!
-        @brief Exact propagator of every mode for the time step.
+        @brief Exact propagator of every mode of every system for the time step.
         @param dt Time step in seconds.
         """
-        self.E = np.exp(-self.d["lam"] * dt)
-        self.F = (1.0 - self.E) / self.d["lam"]
+        self.E = [np.exp(-d["lam"] * dt) for d in self.ms.ds]
+        self.F = [(1.0 - e) / d["lam"] for e, d in zip(self.E, self.ms.ds)]
 
     def begin(self, options):
         """!
@@ -450,45 +635,46 @@ class _AnalyticAdapter:
         @return Tuple (state, reported initial temperature in degC).
         """
         if options.initial == "average":
-            return self.b_avg.copy(), self.steady_average_max
-        t0 = self.ambient if options.initial_c is None else float(options.initial_c)
-        b = np.zeros_like(self.b_avg)
-        # A uniform field is the (0, 0) mode with the same value on every layer
-        b[0, 0, :] = np.einsum("lk,l->k", self.d["V"][0, 0], np.sqrt(self.d["c_l"]) * (t0 - self.ambient))
-        return b, t0
+            return [b.copy() for b in self.b_init], float(self.frame(self.b_init).max())
+        t0 = self.ambient - 0.0 if options.initial_c is None else float(options.initial_c)
+        states = [np.zeros_like(b) for b in self.b_avg]
+        # A uniform field is the (0, 0) mode with the same value on every layer; it lives in the first system
+        d = self.ms.ds[0]
+        states[0][0, 0, :] = np.einsum("lk,l->k", d["V"][0, 0], np.sqrt(d["c_l"]) * (t0 - self.ambient))
+        return states, t0
 
-    def advance(self, b, dt, powers):
+    def advance(self, states, dt, powers):
         """!
         @brief Exact step of every mode under the constant power of the step.
-        @param b Modal state (M, N, L).
+        @param states List of modal states.
         @param dt Time step in seconds (equal to the prepared one).
         @param powers Power of every heater during the step (W).
-        @return New modal state.
+        @return New list of modal states.
         """
-        return self.E * b + self.F * np.tensordot(powers, self.d["G"], axes=1)
+        drive = self.ms.drive(powers)
+        return [e * b + f * g for e, f, b, g in zip(self.E, self.F, states, drive)]
 
-    def observe(self, b):
+    def observe(self, states):
         """!
         @brief Temperature at every heater's own hottest point.
-        @param b Modal state.
+        @param states List of modal states.
         @return Tuple (hottest degC, per-heater degC).
         """
-        pts = np.einsum("hmnk,mnk->h", self.d["U"], b) + self.ambient
+        pts = self.ms.points_temperature(states) + self.ambient
         return float(pts.max()), pts
 
-    def frame(self, b):
+    def frame(self, states):
         """!
         @brief Field of every layer on the sampling grid.
-        @param b Modal state.
+        @param states List of modal states.
         @return Array (layers, ny, nx) in degC.
         """
-        a = np.einsum("mnlk,mnk->mnl", self.d["back"], b)
-        return np.stack([self.d["cos_y"] @ a[:, :, l].T @ self.d["cos_x"].T for l in range(self.L)]) + self.ambient
+        return self.ms.field(states) + self.ambient
 
-    def peak_values(self, b):
+    def peak_values(self, states):
         """!
         @brief The peak map is built from the stored frames, not every step.
-        @param b Unused.
+        @param states Unused.
         @return None.
         """
         return None
@@ -509,3 +695,40 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     from . import profiles
     return profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic",
                                 progress)
+
+
+def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_times=True):
+    """!
+    @brief Response to the heater powers switched on at t = 0 on a board at ambient temperature, in closed form.
+    @details Every cosine mode follows b(t) = (1 - exp(-lambda t)) / lambda * g, so any time is evaluated directly with no
+             time stepping. Vias and sinks are smeared (see _modal_dynamics); use the FVM when they sit under the heaters.
+    @param problem A Problem (its heater powers; profiles are ignored, the average power is used).
+    @param t_end Final time in seconds.
+    @param n_out Number of output frames after t = 0.
+    @param cell_mm Cell size (mm) of the sampling grid.
+    @param n_terms Cosine modes per direction.
+    @param log_times True for logarithmically spaced times (resolves fast and slow parts), False for linear.
+    @return TransientResult.
+    """
+    from .results import TransientResult
+    problem = problem.steady_copy("average") if problem.has_profiles() else problem
+    ad = _AnalyticAdapter(problem, cell_mm, n_terms)
+    ms = ad.ms
+    if log_times:
+        # The same time grid as the FVM transient (the step doubles in ten stages), so that the models can be compared frame by frame
+        stages = 10
+        per_stage = max(int(np.ceil(n_out / stages)), 1)
+        dt0 = t_end / (per_stage * (2 ** stages - 1))
+        times = np.concatenate([[0.0], np.cumsum(np.concatenate([np.full(per_stage, dt0 * 2.0 ** j) for j in range(stages)]))])
+    else:
+        times = np.linspace(0.0, t_end, max(n_out, 1) + 1)
+    drive = ms.drive(ad.p_avg)                                         # Modal source of the powers, per system
+    frames, t_max, t_mean = [], [], []
+    for t in times:
+        b = [(1.0 - np.exp(-d["lam"] * t)) / d["lam"] * g for d, g in zip(ms.ds, drive)]
+        f = ad.frame(b)
+        frames.append(f.astype(np.float32))
+        t_max.append(float(f.max()))
+        t_mean.append(float(f.mean()))
+    return TransientResult(times=times, t_max=np.array(t_max), t_mean=np.array(t_mean), frames=np.array(frames),
+                           steady_t_max=ad.steady_average_max, ambient=problem.board.ambient)

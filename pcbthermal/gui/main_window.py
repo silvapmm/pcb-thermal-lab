@@ -24,6 +24,8 @@ from ..model import reference_problem
 from . import theme as th
 from .canvas import BoardView
 from .animation import TransientWorker
+from . import compute
+from .compute import LOCK
 from .document import Document
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .profile_page import ProfilePage
@@ -58,7 +60,9 @@ class SimWorker(QThread):
         @brief Thread body: run the simulation and emit the outcome.
         """
         try:
-            self.done.emit(simulate(self.problem, self.options, progress=lambda m, f: self.progress.emit(m, f)))
+            with LOCK:                                 # One calculation at a time (see compute.py)
+                result = simulate(self.problem, self.options, progress=lambda m, f: self.progress.emit(m, f))
+            self.done.emit(result)
         except Exception as exc:                       # Any solver or validation error goes to the user
             self.failed.emit(str(exc))
 
@@ -181,6 +185,7 @@ class MainWindow(QMainWindow):
         self.theme_name = self.settings.value("theme", "dark")
         self.doc = doc or Document()
         self.sim, self.worker, self._stale = None, None, False
+        self._edits, self._run_edits = 0, None                 # Edit counter, and its value when the running simulation started
 
         self.canvas = BoardView(self.doc, self.theme_name)
         self.results = ResultsView(self.theme_name)
@@ -452,7 +457,7 @@ class MainWindow(QMainWindow):
         ref = self.sim.reference
         layer = min(self.canvas.layer, ref.T.shape[0] - 1)
         cfg = self.results.temp.current_field()
-        self.canvas.set_overlay(ref.T[layer], ref.dx, ref.dy, cmap=cfg[3] if cfg else "inferno")
+        self.canvas.set_overlay(ref.T[layer], ref.dx, ref.dy, cmap=cfg[3] if cfg else "inferno", nodes=ref.grid == "nodes")
 
     def _refresh_layers(self):
         """!
@@ -533,6 +538,7 @@ class MainWindow(QMainWindow):
         """!
         @brief React to edits: refresh the layer list, mark results as outdated, schedule the input checks.
         """
+        self._edits += 1
         self._check_timer.start()
         self._refresh_layers()
         self._update_title()
@@ -709,11 +715,12 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Cannot run", str(exc))
             return
         self.solver_panel.set_running(True, "Starting…")
-        self.worker = SimWorker(self.doc.problem, self.doc.options, self)
+        self._run_edits = self._edits
+        self.worker = SimWorker(self.doc.problem, self.doc.options)
         self.worker.progress.connect(self.solver_panel.set_progress)
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
-        self.worker.start()
+        compute.start(self.worker)
 
     def _suggest_animation(self, _index=None):
         """!
@@ -744,26 +751,29 @@ class MainWindow(QMainWindow):
             else self.doc.problem
         problem = copy.deepcopy(source)
         kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
-        self._anim_worker = TransientWorker(problem, kwargs, self)
+        self._anim_worker = TransientWorker(problem, kwargs)
         self._anim_worker.done.connect(lambda tr: anim.set_result(tr, problem))
         self._anim_worker.failed.connect(anim.computing_failed)
-        self._anim_worker.start()
+        compute.start(self._anim_worker)
 
     def _on_done(self, sim):
         """!
         @brief Show the results of a finished simulation.
         @param sim Simulation.
         """
-        self.sim, self._stale = sim, False
+        # An edit made while the solver ran means the result belongs to the previous design
+        self.sim, self._stale = sim, self._run_edits is not None and self._edits != self._run_edits
+        self._run_edits = None
         self.results.set_simulation(sim)
         if sim.decisions:
             self.profile_page.show_decisions(sim.decisions, sim.profile_reference)
-        self.tabs.setTabText(TAB_RESULTS, "Results")
+        self.tabs.setTabText(TAB_RESULTS, "Results (outdated)" if self._stale else "Results")
         ref = sim.reference
-        self.solver_panel.set_running(False, f"Done: Tmax {ref.t_max:.1f} °C, Rθ {ref.r_theta:.2f} K/W")
+        self.solver_panel.set_running(False, f"Done: Tmax {ref.t_max:.1f} °C, Rθ {ref.r_theta:.2f} K/W"
+                                      + ("  (the design changed while it ran)" if self._stale else ""))
         self.tabs.setCurrentIndex(TAB_RESULTS)
         if self.a_overlay.isChecked():
-            self._toggle_overlay(True)
+            self._toggle_overlay(True)             # Refused while the result is outdated
 
     def _on_failed(self, message):
         """!
@@ -815,8 +825,7 @@ class MainWindow(QMainWindow):
         @brief Confirm unsaved changes and remember the window geometry.
         @param e QCloseEvent (accepted or ignored here).
         """
-        if self.worker is not None and self.worker.isRunning():
-            self.worker.wait(30000)
+        compute.wait_all(30000)                        # A running calculation finishes first (a thread must not be destroyed)
         if self._confirm_discard():
             self.settings.setValue("geometry", self.saveGeometry())
             e.accept()

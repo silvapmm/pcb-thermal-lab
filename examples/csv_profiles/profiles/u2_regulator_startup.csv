@@ -1,0 +1,8 @@
+# Power of U2 (a regulator) after switch-on: off for 10 s, a 10 s inrush at 3 W, then 1.5 W in normal operation.
+# The profile runs ONCE (repeat: no); after its end the last power (1.5 W) is held.
+# repeat: no
+time_s,power_w
+0,0.0
+10,3.0
+20,1.5
+300,1.5

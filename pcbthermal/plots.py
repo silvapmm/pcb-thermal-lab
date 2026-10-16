@@ -49,6 +49,28 @@ def _outline(ax, problem, layer):
         ax.plot([v.x * 1000.0 for v in problem.vias], [v.y * 1000.0 for v in problem.vias], "k.", ms=3)
 
 
+def _field_axes(field, problem, dx, dy):
+    """!
+    @brief Sample positions and image extent of a field that holds either cell values or values at grid points.
+    @details A node field (finite-difference model) has one more sample than the board has cells along each axis.
+    @param field Array (ny, nx).
+    @param problem The Problem (board size).
+    @param dx Spacing along x in metres.
+    @param dy Spacing along y in metres.
+    @return Tuple (xs_mm, ys_mm, extent_mm) with extent = [x0, x1, y0, y1] of the image.
+    """
+    ny, nx = field.shape
+    b = problem.board
+    nodes = nx == int(round(b.width / dx)) + 1 and ny == int(round(b.height / dy)) + 1
+    off = 0.0 if nodes else 0.5
+    xs, ys = (np.arange(nx) + off) * dx * 1000.0, (np.arange(ny) + off) * dy * 1000.0
+    if nodes:
+        ext = [-0.5 * dx * 1000.0, b.width * 1000.0 + 0.5 * dx * 1000.0, -0.5 * dy * 1000.0, b.height * 1000.0 + 0.5 * dy * 1000.0]
+    else:
+        ext = [0.0, b.width * 1000.0, 0.0, b.height * 1000.0]
+    return xs, ys, ext
+
+
 def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None, vmax=None,
                layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)"):
     """!
@@ -72,20 +94,18 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     fig.clear()
     ax = fig.add_subplot(111)
     b = problem.board
-    ext = [0, b.width * 1000, 0, b.height * 1000]
+    xs, ys, ext = _field_axes(field, problem, dx, dy)
     im = ax.imshow(field, origin="lower", cmap=cmap, extent=ext,
                    vmin=np.nanmin(field) if vmin is None else vmin,
                    vmax=np.nanmax(field) if vmax is None else vmax)
     if hotspot is not None and np.nanmax(field) > hotspot > np.nanmin(field):
-        xs = (np.arange(field.shape[1]) + 0.5) * dx * 1000
-        ys = (np.arange(field.shape[0]) + 0.5) * dy * 1000
         ax.contour(xs, ys, field, levels=[hotspot], colors="#ff00cc", linewidths=1.2)
     if outline:
         _outline(ax, problem, layer)
     if marker is not None:
         ax.plot(marker[0] * 1000, marker[1] * 1000, "c+", ms=12, mew=1.5)
-    ax.set_xlim(ext[0], ext[1])
-    ax.set_ylim(ext[2], ext[3])
+    ax.set_xlim(0, b.width * 1000)
+    ax.set_ylim(0, b.height * 1000)
     ax.set_xlabel("x (mm)")
     ax.set_ylabel("y (mm)")
     ax.set_aspect("equal")
@@ -110,8 +130,10 @@ def draw_fields(fig, result, problem, cmap="inferno"):
     axes = fig.subplots(1, L, squeeze=False)[0]
     im = None
     for l, ax in enumerate(axes):
-        im = ax.imshow(T[l], origin="lower", cmap=cmap, vmin=vmin, vmax=vmax,
-                       extent=[0, b.width * 1000, 0, b.height * 1000])
+        _, _, ext = _field_axes(T[l], problem, result.dx, result.dy)
+        im = ax.imshow(T[l], origin="lower", cmap=cmap, vmin=vmin, vmax=vmax, extent=ext)
+        ax.set_xlim(0, b.width * 1000)
+        ax.set_ylim(0, b.height * 1000)
         _outline(ax, problem, l)
         ax.set_title(f"Layer {l + 1}  (mean {result.layer_mean[l]:.1f} °C)", fontsize=9)
         ax.set_xlabel("x (mm)")
@@ -147,12 +169,13 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
         if r.T is None:
             continue
         T = r.T[min(layer, r.T.shape[0] - 1)]
+        xs, ys = r.coords()
         if axis == "x":
-            i = min(max(int(position_mm / 1000.0 / r.dy), 0), T.shape[0] - 1)
-            ax.plot((np.arange(T.shape[1]) + 0.5) * r.dx * 1000, T[i], label=name)
+            i = int(np.argmin(np.abs(ys * 1000.0 - position_mm)))
+            ax.plot(xs * 1000, T[i], label=name)
         else:
-            j = min(max(int(position_mm / 1000.0 / r.dx), 0), T.shape[1] - 1)
-            ax.plot((np.arange(T.shape[0]) + 0.5) * r.dy * 1000, T[:, j], label=name)
+            j = int(np.argmin(np.abs(xs * 1000.0 - position_mm)))
+            ax.plot(ys * 1000, T[:, j], label=name)
     ax.set_xlabel(("x" if axis == "x" else "y") + " (mm)")
     ax.set_ylabel(f"Layer {layer + 1} temperature (°C)")
     ax.set_title(f"Cut along {axis} at {'y' if axis == 'x' else 'x'} = {position_mm:.1f} mm", fontsize=10)
@@ -299,18 +322,27 @@ def draw_waveforms(fig, problem, cycles=2.0):
     if not waves:
         ax.text(0.5, 0.5, "No heater has a power profile", ha="center", va="center", transform=ax.transAxes)
         return
-    span = cycles * max(h.profile.period for _, h in waves)
+    # Show a few periods of the slowest repeating profile, or the whole length of a one-shot profile
+    longest = max(h.profile.period for _, h in waves)
+    span = (cycles if any(h.profile.repeat for _, h in waves) else 1.05) * longest
     t = np.linspace(0.0, span, 4000, endpoint=False)
     for i, h in waves:
         w = h.profile
         label = f"{h.name or f'Heater {i + 1}'}: average {w.average():.2f} W"
-        if span / w.period > 40:
+        iv = w.intervals()
+        lo, hi = min(p for _, _, p in iv), max(p for _, _, p in iv)
+        if w.repeat and span / w.period > 40:
             # Too many cycles to draw: show the swing as a band and the average as a line
-            line, = ax.plot(t, np.full_like(t, w.average()), lw=1.4, label=label + f" (switching at {1.0 / w.period:g} Hz)")
-            ax.fill_between(t, w.p_off, w.p_on, color=line.get_color(), alpha=0.18)
+            line, = ax.plot(t, np.full_like(t, w.average()), lw=1.4, label=label + f" (repeats at {1.0 / w.period:g} Hz)")
+            ax.fill_between(t, lo, hi, color=line.get_color(), alpha=0.18)
             continue
-        p = np.where((t % w.period) < w.on_time(), w.p_on, w.p_off)
-        ax.step(t, p, where="post", lw=1.4, label=label)
+        edges = np.array([a for a, _, _ in iv])
+        values = np.array([p for _, _, p in iv])
+        phase = t % w.period if w.repeat else np.minimum(t, w.period - 1e-12)
+        p = values[np.clip(np.searchsorted(edges, phase, side="right") - 1, 0, len(values) - 1)]
+        if not w.repeat:
+            p = np.where(t > w.period, values[-1], p)                       # The last power is held after the end
+        ax.step(t, p, where="post", lw=1.4, label=label + ("" if w.repeat else " (one-shot)"))
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Power (W)")
     ax.grid(alpha=0.3)
