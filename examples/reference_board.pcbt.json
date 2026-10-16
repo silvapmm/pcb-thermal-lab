@@ -1,0 +1,116 @@
+{
+  "name": "reference",
+  "board": {
+    "width_mm": 100.0,
+    "height_mm": 100.0,
+    "thickness_mm": 1.6,
+    "layers": 2,
+    "copper_thickness_mm": [
+      0.035,
+      0.035
+    ],
+    "ambient_c": 25.0,
+    "h_top": 10.0,
+    "h_bottom": 15.0,
+    "h_side": 10.0,
+    "via_plating_mm": 0.025,
+    "k_copper": 385.0,
+    "k_fr4_through": 0.3,
+    "k_fr4_inplane": 0.9,
+    "rho_copper": 8960.0,
+    "cp_copper": 385.0,
+    "rho_fr4": 1850.0,
+    "cp_fr4": 900.0
+  },
+  "zones": [
+    {
+      "layer": 1,
+      "polygon_mm": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          0.0
+        ],
+        [
+          100.0,
+          100.0
+        ],
+        [
+          0.0,
+          100.0
+        ]
+      ],
+      "fill": 1.0,
+      "name": ""
+    },
+    {
+      "layer": 2,
+      "polygon_mm": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          0.0
+        ],
+        [
+          100.0,
+          100.0
+        ],
+        [
+          0.0,
+          100.0
+        ]
+      ],
+      "fill": 1.0,
+      "name": ""
+    }
+  ],
+  "heaters": [
+    {
+      "layer": 1,
+      "power_w": 5.0,
+      "polygon_mm": [
+        [
+          40.0,
+          40.0
+        ],
+        [
+          60.0,
+          40.0
+        ],
+        [
+          60.0,
+          60.0
+        ],
+        [
+          40.0,
+          60.0
+        ]
+      ],
+      "name": "",
+      "theta_jb_k_per_w": 0.0
+    }
+  ],
+  "vias": [],
+  "sinks": [],
+  "solver": {
+    "models": [
+      "fvm",
+      "lumped",
+      "analytic"
+    ],
+    "cell_mm": 1.0,
+    "linear_solver": "direct",
+    "lumped_rings": 10,
+    "analytic_modes": 300,
+    "analytic_local_corrections": true,
+    "hotspot_c": 100.0
+  },
+  "view": {},
+  "format": "pcbthermal-project-1"
+}

@@ -1,92 +1,78 @@
-# 🔥 PCB Thermal Simulator Tool
+# PCB Thermal Lab
 
-## ⚙️ Overview
+[![version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-94%20passing-brightgreen)](tests)
 
-The **PCB Thermal Simulator Tool** is a graphical application developed for **simulating the thermal behavior** in printed circuit boards (**PCBs**).
+Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run three models and inspect temperatures,
+gradients, hotspots, component junction temperatures and the heat evolution in time.
 
-It allows users to draw and configure PCB elements (such as **zones**, **heaters**, **vias**, and **sinks**), define detailed parameters, and run simulations using three distinct methodologies: **Analytic**, **Lumped Parameter Thermal Network (LPTN)**, and **Finite Difference Method (FDM)**.
+![Editor](docs/images/editor.png)
 
-The goal is to provide a robust and accessible tool for thermal analysis, complete with clear and detailed visual results.
+## Features
 
-***
+- **Three models on one board description**, cross-checked against each other and reporting an exact energy balance.
+- **Interactive editor** (PySide 6): rectangles and polygons, vias, sinks, undo/redo, background photo, dark and light themes.
+- **Results**: temperature maps per layer, gradients, profiles, hotspot list, heater and junction temperatures, zone statistics, model comparison, temperature painted on the board.
+- **Animation of the heat evolution** in real time (power step), with GIF export.
+- **Input checks** that warn when a model is doubtful (heater outside the board, no copper under a heater, a copper edge crossing a heater, ...).
+- **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON.
 
-### ✨ Technology Stack
+![Temperature](docs/images/results_temperature.png)
 
-| Technology | Purpose |
-| :--- | :--- |
-| **Python** | Primary development language. |
-| **wxPython** | Used for the cross-platform Graphical User Interface (GUI). |
-| **NumPy** | Utilized for all efficient numerical computations and operations. |
-| **Matplotlib** | Used for data visualization and generating plots (heatmaps, etc.). |
+## Which model should I use?
 
-### 📋 Project Information
+| Model | Advantage | Apply it to | Accuracy vs FVM | Time |
+| :-- | :-- | :-- | :-- | :-- |
+| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | reference (within 0.2 % from 1 mm cells) | 0.2 s (1 mm) |
+| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other | design exploration, parameter sweeps, ranking layouts | within about 4 % in most cases | about 10 ms |
+| **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | within about 2 % in most cases | about 50 ms |
 
-| Detail | Value |
-| :--- | :--- |
-| **Version** | 1.0.0 |
-| **Author** | Pedro Silva |
-| **Company** | PMS Labs |
-| **License** | (C) 2025 Pedro Silva. All rights reserved. (See `LICENSE` file for details) |
+Rule of thumb: run all three; if they agree within about 5 % and there are no warnings, the numbers are consistent; if not, trust the FVM.
+Details, limits and a decision guide: [`docs/model_guide.md`](docs/model_guide.md).
 
-***
+## Install
 
-## 🚀 Key Features
+```sh
+git clone https://github.com/silvapmm/pcb-thermal-lab.git
+cd pcb-thermal-lab
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt     # numpy, scipy, matplotlib, PySide6, pytest
+```
 
-The simulator is packed with features to cover the entire thermal analysis workflow, from modeling to result visualization.
+## Use
 
-### 🎨 Interactive Graphical Editor
+```sh
+.venv/bin/python -m pcbthermal gui                                         # application
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots
+.venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
+.venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
+.venv/bin/python -m pcbthermal --version
+.venv/bin/python -m pytest -q tests
+```
 
-* **Element Drawing:** Draw polygons for **zones**, **heaters**, and **sinks**, and place **vias** directly on the canvas.
-* **Navigation:** Full support for **zooming**, **panning**, and grid overlays (including the solver grid).
-* **Visual Reference:** Load and overlay PCB images for easier and more accurate modeling.
-* **Complete Editing:** Functionalities to edit, duplicate, move, and delete elements quickly.
-* **Geometric Setup:** Define exact PCB dimensions using corner points.
+```python
+from pcbthermal import Problem, SolverOptions, simulate
 
-### 📝 Detailed Parameter Configuration
+p = Problem.new(width_mm=100, height_mm=80, layers=4)
+p.add_full_copper().add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=6.0)
+sim = simulate(p, SolverOptions(cell_mm=1.0))
+print(sim.to_markdown())          # models, errors against the reference, warnings
+sim.save("results")               # report, JSON, CSV fields, figures
+```
 
-* **Global PCB Parameters:** Setup for width, height, thickness, number of layers, copper/FR4 conductivity, ambient temperature, and convection coefficients.
-* **Element-Specific Parameters:** Power for heaters, diameter for vias, and extra Heat Transfer Coefficient (HTC) for sinks.
-* **Solver Settings:** Choice of method (Analytic/Lumped/FDM), model mode (Basic/Advanced), grid size, tolerance, max iterations, and Successive Over-Relaxation (SOR) factor.
+![Summary](docs/images/results_summary.png)
 
-### 🔬 Simulation Solvers
+## Documentation
 
-| Solver | Description | Use Cases |
-| :--- | :--- | :--- |
-| **Analytic** | Quick, closed-form approximations for simple estimations. | Initial estimates and rapid validation. |
-| **Lumped (LPTN)** | **Thermal Resistance Network** model. Supports multi-layer PCBs and basic/advanced area calculations. | Medium-complexity multi-layer PCB thermal analysis. |
-| **FDM** | **Finite Difference Method** for high-resolution analysis. Uses **SOR** solver, including multi-layer support, boundary conditions, and convergence checks. | High-precision and high-resolution simulations. |
+Index: [`docs/README.md`](docs/README.md). Start with [`docs/model_guide.md`](docs/model_guide.md) (which model to use),
+[`docs/physics_core.md`](docs/physics_core.md) (models, formulas, API, verification), [`docs/new_approach.md`](docs/new_approach.md) (old versus new, SOR versus matrices, animation)
+and [`docs/findings.md`](docs/findings.md) (everything discovered so far). Release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
-### 📊 Visualization and Results Export
+## Versions and branches
 
-* **Reports:** Generation of summary reports detailing temperatures, $\Delta T$, thermal resistances, and key metrics.
-* **Visualization:** Display of **Heatmaps**, **Time Evolution GIFs** of temperature, **hotspot detection**, thermal gradients, and zone-specific charts.
-* **Export:** Export results as **PNG** images, **TXT** reports, and **GIF** animations.
+- Version **2.0.0** (2026-10-16): first release of the rebuilt program. The original wxPython program was 1.0.0 (git tag `legacy-wxpython-1.0.0`).
+- `main`: released versions, tagged `vMAJOR.MINOR.PATCH`. `develop`: integration branch for the next version. Work happens on `feature/*` branches.
+- Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the application (title bar, status bar, About) and in every report.
 
-### 🛠️ Additional Tools
+## Author and license
 
-* **Configuration:** **JSON** import/export for PCB configurations.
-* **Logging:** Robust logging system for debugging and error tracking.
-* **File Management:** Temporary file management for outputs.
-
-***
-
-## 💻 Requirements and Installation
-
-### 📚 Core Requirements
-
-The following dependencies are essential for running the simulator:
-
-* **Python 3.8+**
-* `wxPython` (For the GUI)
-* `NumPy` (For numerical computations)
-* `Matplotlib` (For visualizations)
-
-You can install the core dependencies using `pip`:
-
-### ⚡ Optional Dependencies
-
-These libraries are recommended for advanced features or performance enhancements:
-
-* **Numba** (`pip install numba`): Highly recommended for **FDM performance optimization**.
-* **SciPy** (Requires `pip install scipy`): Included for potential extension into advanced features in future versions.
-
+Pedro Silva, PMS Labs. (C) 2025 Pedro Silva. All rights reserved (see `LICENSE`).

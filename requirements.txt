@@ -1,0 +1,11 @@
+# Physics core
+numpy>=1.24
+scipy>=1.11
+# Figures (command line and GUI)
+matplotlib>=3.7
+# Desktop application
+PySide6>=6.6
+# Tests
+pytest>=7
+pytest-qt>=4.2
+pytest-timeout>=2.2
