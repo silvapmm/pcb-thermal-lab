@@ -5,19 +5,20 @@ record decisions, architecture, commands, and conventions here.
 
 ## Project Overview
 
-**PCB Thermal Simulator Tool** (v1.0.0) is a graphical application for simulating
-the thermal behavior of printed circuit boards (PCBs).
+**PCB Thermal Lab** (see `pcbthermal.__version__`; the original wxPython program was "PCB Thermal Simulator Tool" 1.0.0) is a
+physics package, command line and PySide 6 application for simulating the thermal behavior of printed circuit boards (PCBs).
 
 - Author: Pedro Silva (PMS Labs)
 - License: (C) 2025 Pedro Silva. All rights reserved (see `LICENSE`).
 - Users draw PCB elements (zones, heaters, vias, sinks), configure parameters,
-  and run simulations with three solvers:
-  - **Analytic**: closed-form approximations for quick estimates.
-  - **Lumped (LPTN)**: lumped-parameter thermal resistance network, multi-layer.
-  - **FDM**: finite difference method using a SOR solver, multi-layer, with
-    boundary conditions and convergence checks.
-- Outputs: heatmaps, time-evolution GIFs, hotspot detection, gradients,
-  zone charts, and PNG / TXT / GIF export. PCB configs are imported/exported as JSON.
+  and run three models (keys `fvm`, `lumped`, `analytic`):
+  - **Finite volume (FVM), reference**: cell-centred finite volumes on a sparse matrix (direct, CG or SOR solver), any geometry.
+  - **Thermal network (LPTN)**: lumped-parameter thermal resistance network per heater (rings by distance from the footprint).
+  - **Analytical (Fourier series)**: multilayer cosine series with local corrections for vias and sinks.
+  - Naming: **FDM** (finite *difference*, node-centred, SOR) is the name of the *legacy* solver only; it was replaced by the FVM
+    (see `docs/model_guide.md`, "FDM or FVM").
+- Outputs: temperature maps, power profiles in time (square waves and CSV tables), animations, hotspots, gradients, zone and heater
+  statistics, reports, CSV and figures. Projects are plain JSON (`.pcbt.json`).
 
 See `README.md` for the full feature list.
 

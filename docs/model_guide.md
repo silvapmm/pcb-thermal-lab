@@ -4,6 +4,21 @@ PCB Thermal Lab 2.0.0 offers three models that solve the same problem at differe
 The numbers below come from the verification studies (`physics_core.md` section 7, `examples/accuracy_study.py`,
 `examples/stress_study.py`); the reference is always the FVM.
 
+## FDM or FVM? (names)
+
+Both are ways of turning the heat equation into a matrix, and for a uniform grid with simple conduction they give the **same stencil**, so the numbers are close.
+
+| | FDM (finite difference method) | FVM (finite volume method) |
+| :-- | :-- | :-- |
+| Idea | replace derivatives by differences between **node values** (Taylor expansion) | integrate the equation over a **cell** and balance the heat that crosses its faces |
+| Unknown | temperature at a grid **node** | mean temperature of a **cell** |
+| Conservation | not guaranteed: the power injected can depend on the grid and the nodes on the border need special care | exact: what leaves one cell enters the next, so power in = power out to machine precision |
+| Material jumps (copper next to FR-4) | needs extra care at interfaces | the face conductance combines the two cells in series, naturally |
+| In this project | the **original wxPython solver** (removed in 2.0.0): SOR, 8.17 W injected for 5.50 W requested on its default grid | the **current reference model** (`fvm`, "Finite volume (FVM), reference") |
+
+So: when this documentation says FDM it means the old program; everything current is FVM. The FVM is not more accurate than the analytic model in general (see "Accuracy against an independent 3D solid"); it is the model with the freedom of geometry and an exact energy balance.
+The linear solver (direct sparse, CG, SOR) is a separate choice: SOR is a way of *solving* the matrix, not a discretisation, and gives the same temperatures as the direct solver when it stops on the residual.
+
 ## At a glance
 
 | | **FVM** (finite volumes) | **Lumped** (thermal network) | **Analytic** (cosine series) |
