@@ -40,7 +40,7 @@ Reading: the exact sum agrees with the simulation within 0.1 to 3 % (the remaini
 the periodic regime is reached in about 5 to 12 cycles, because only the ripple has to settle.
 (The exact superposition expressions in the sources [1, 2] could not be read from the PDFs; the sum above was derived and verified numerically here.)
 
-### 1.3 Design (agreed direction)
+### 1.3 Design (agreed 2026-10-16)
 
 - **Which models:** all three, because with constant `h` the problem is linear.
   FVM: implicit time stepping (exists, validated). Lumped: the same stepping on each heater's small dense network (capacities from the real cells), heaters superposed.
@@ -63,6 +63,52 @@ the periodic regime is reached in about 5 to 12 cycles, because only the ripple 
   milliseconds only very locally). Microsecond to millisecond events belong to the transient thermal impedance of the part [1, 2, 6].
 - **Outputs:** Tmax(t) per heater, peak, minimum, ripple, time above a limit, Zth(t) curve (with mutual curves between heaters), **peak-envelope map** (maximum over time at every cell), animation.
 - **Validation plan:** square wave on the uniform slab against the exact RC solution; periodic peak against the superposition sum; energy balance; steady-state models reproduce the average-power result.
+
+### 1.4 Time scales and the profile editor (refined 2026-10-16)
+
+**Two situations that look alike, and the board treats them differently.** A switching waveform at kHz to MHz (MOSFET, LED PWM dimming at 100 Hz to a few kHz) is far faster than the
+board can follow: the board only feels its **average power**. A slow duty cycle (seconds to hours: a fan on 30 s / off 70 s, a motor accelerating and holding, a radio transmitting in
+bursts, a charger) is slow enough for the temperature to rise and fall: it must be **resolved in time**. Both are "power versus time" and use the same description (period, duty, on-state power,
+off-state power); what differs is what the simulator does with it. So the feature is **not called PWM**: it is a **Power profile**, with an automatic regime decision.
+
+**How fast is "fast" on our board** (example board, hottest point, from the FVM step response):
+
+| t [s] | 1e-4 | 1e-3 | 1e-2 | 0.1 | 1 | 10 | 100 | 1000 |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: |
+| Z(t) [K/W] | 0.001 | 0.010 | 0.104 | 0.93 | 3.87 | 6.34 | 9.31 | 11.06 |
+| share of Rθ | 0.0 % | 0.1 % | 0.9 % | 8.4 % | 35 % | 57 % | 84 % | 100 % |
+
+Square wave with 10× the nominal power at 10 % duty (average rise 60.8 K), exact periodic response by superposition of `Z(t)`:
+
+| Frequency | Period | Peak rise | Valley rise | Ripple (peak-to-peak) | Ripple / average rise | Decision (tolerance 1 K or 2 %) |
+| --: | --: | --: | --: | --: | --: | :-- |
+| 100 kHz | 10 µs | 60.81 K | 60.81 | 0.001 K | 0.00 % | average |
+| 1 kHz | 1 ms | 60.83 | 60.79 | 0.05 | 0.08 % | average |
+| 100 Hz | 10 ms | 61.1 | 61.2 | below the 0.06 K noise floor of this check | about 0 % | average |
+| 50 Hz | 20 ms | 62.71 | 61.51 | 1.2 | 2.0 % | average (boundary) |
+| 30 Hz | 33 ms | 63.57 | 60.06 | 3.5 | 5.8 % | resolve in time |
+| 10 Hz | 0.1 s | 63.5 | 44.95 | 18.6 | 30.5 % | resolve in time |
+| 1 Hz | 1 s | 93.4 | 43.7 | 49.7 | 82 % | resolve in time |
+| 0.1 Hz | 10 s | 242.1 | 29.8 | 212 | 349 % | resolve in time |
+| 0.01 Hz | 100 s | 363.2 | 15.9 | 347 | 571 % | resolve in time |
+
+On this board the boundary is near 50 Hz. It depends on the board (heater size, copper), so the **simulator computes it for the board at hand**: the ripple is obtained from the step response `Z(t)` of
+the selected reference model (peak and valley sums as in 1.2, with the tail `D (Rθ − Z(M T))`). The decision rule is *ripple below a tolerance → use the average* (default tolerance: 1 K or 2 % of the average
+rise, whichever is larger, user-adjustable).
+
+**Profile editor (one tab, three kinds of profile)**
+
+1. **Constant** (default, the present behaviour).
+2. **Cycle**: frequency or period (a unit selector: Hz, kHz, ms, s, min), duty, on-state power `P_on`, off-state power `P_off`, delay, rise and fall times, optional extra average loss.
+   It draws the waveform, shows the derived average power, peak, energy per period, the **ripple** and the decision ("Fast cycle: the board sees the average, ripple 0.05 K, using 12.4 W" or
+   "Slow cycle: resolved in time, N steps"). An override "resolve anyway" shows the number of time steps it would cost and refuses beyond a cap (a kHz waveform over minutes is millions of periods).
+3. **Steps / table**: a sequence "power for X seconds" with a repeat count, later CSV import of a measured profile.
+
+Typical uses: LED dimmed at 1 kHz and 30 %, MOSFET at 100 kHz: **fast, average**; fan or heater on/off every few seconds or minutes, motor start-hold-stop, communication bursts, charge profiles: **slow, resolved**.
+A short single pulse (microseconds to a few milliseconds) heats the **die**, not the board: that response belongs to the component's own transient thermal impedance (section 3), and the tab says so.
+
+**Per heater:** every heater has its own profile (different periods are fine: the response is the sum of each heater's contribution). The steady-state models use, per run, the average (default), the peak `P_on`
+(worst-case bound) or the periodic peak (from `Z(t)`, available for resolved profiles and also reported for fast ones as average plus half the ripple).
 
 ## 2. Computed convection and radiation (`h` not typed by the user)
 
