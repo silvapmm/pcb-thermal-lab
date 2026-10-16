@@ -4,7 +4,7 @@
 
 Three models share one problem description (`pcbthermal.model`):
 - `fvm`      cell-centred finite-volume solver (reference model)
-- `lumped`   ring thermal network, one network per heater
+- `lumped`   offset-contour thermal network, one network per heater
 - `analytic` closed-form multilayer fin solution with local via/sink corrections
 
 Typical use:
@@ -12,7 +12,7 @@ Typical use:
     from pcbthermal import Problem, SolverOptions, simulate
 """
 
-__version__ = "0.2.0"
+__version__ = "2.0.0"
 
 from .model import Problem, load_problem, reference_problem   # noqa: E402,F401
 from .api import SolverOptions, Simulation, simulate, suggest_cell_mm   # noqa: E402,F401

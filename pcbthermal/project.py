@@ -10,6 +10,7 @@ Plain native files and legacy editor files are read as well.
 import json
 from dataclasses import dataclass, field
 
+from . import __version__
 from .api import SolverOptions
 from .model import Problem, problem_from_dict, problem_from_legacy, problem_to_dict
 
@@ -36,6 +37,7 @@ def project_to_dict(project):
     d["solver"] = project.options.to_dict()
     d["view"] = project.view
     d["format"] = "pcbthermal-project-1"
+    d["app_version"] = __version__                  # Version that wrote the file (informational)
     return d
 
 

@@ -59,6 +59,6 @@ Notes:
 ## Why the first Lumped and Analytic versions missed, and what changed
 
 The ablation of the first versions showed that the Analytic model was exact on uniform boards but smeared vias and sinks over the whole board,
-and that the Lumped model merged separated heaters into one disc. Both causes were fixed (per-heater ring networks aggregated from the real
+and that the Lumped model merged separated heaters into one disc. Both causes were fixed (per-heater offset-contour networks aggregated from the real
 geometry; Green-function corrections for vias and sinks). The current accuracy table is in `physics_core.md`, section 6.2, and can be regenerated
 with `python examples/accuracy_study.py`.

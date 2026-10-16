@@ -194,7 +194,10 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self.setStatusBar(QStatusBar())
         self.coord_label = QLabel("")
+        self.version_label = QLabel(f"v{__version__}")
+        self.version_label.setToolTip("PCB Thermal Lab version")
         self.statusBar().addPermanentWidget(self.coord_label)
+        self.statusBar().addPermanentWidget(self.version_label)
 
         self.canvas.selection_changed.connect(self._on_canvas_selection)
         self.canvas.cursor_moved.connect(lambda x, y: self.coord_label.setText(f"x {x:7.2f} mm   y {y:7.2f} mm"))
@@ -537,7 +540,7 @@ class MainWindow(QMainWindow):
         """!
         @brief Window title with the file name and the modified flag.
         """
-        self.setWindowTitle(f"{self.doc.title}{' *' if self.doc.modified else ''} - PCB Thermal Lab")
+        self.setWindowTitle(f"{self.doc.title}{' *' if self.doc.modified else ''} - PCB Thermal Lab {__version__}")
 
     # ------------------------------------------------------------------ files
     def _confirm_discard(self):
@@ -790,7 +793,7 @@ class MainWindow(QMainWindow):
         """!
         @brief Show the About box.
         """
-        QMessageBox.about(self, "About PCB Thermal Lab", f"<b>PCB Thermal Lab</b> {__version__}<br>"
+        QMessageBox.about(self, "About PCB Thermal Lab", f"<b>PCB Thermal Lab</b> version {__version__}<br>"
                           "Thermal simulation of printed circuit boards with three models: "
                           "finite volumes, lumped network and analytic series.<br><br>"
                           "© 2025 Pedro Silva - PMS Labs")

@@ -24,7 +24,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Dict, Optional, Tuple
 
-from . import analytic, fvm, lumped
+from . import __version__, analytic, fvm, lumped
 from .analysis import heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
@@ -168,7 +168,7 @@ class Simulation:
         @return String.
         """
         ref = self.reference
-        lines = [f"PCB thermal report: {self.problem.name}",
+        lines = [f"PCB Thermal Lab {__version__} - report: {self.problem.name}",
                  f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
                  f"{self.problem.board.layers} layers, ambient {self.problem.board.ambient:g} degC, "
                  f"total power {self.problem.total_power():.3f} W", "", self.to_text()]
@@ -193,7 +193,7 @@ class Simulation:
         @brief JSON-ready summary of the whole simulation.
         @return Dict with options, table and per-model summaries.
         """
-        return {"problem": self.problem.name, "options": self.options.to_dict(), "table": self.table(),
+        return {"version": __version__, "problem": self.problem.name, "options": self.options.to_dict(), "table": self.table(),
                 "models": {k: r.summary() for k, r in self.results.items()}}
 
     def save(self, directory, plots=True):

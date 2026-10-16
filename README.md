@@ -1,20 +1,39 @@
 # PCB Thermal Lab
 
-Thermal simulation of printed circuit boards: draw copper zones, heaters, vias and sinks on a board, run three
-models and inspect temperatures, gradients, hotspots and component junction temperatures.
+[![version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-94%20passing-brightgreen)](tests)
 
-| Model | Idea | Use it for |
-| :-- | :-- | :-- |
-| **FVM** | cell-centred finite volumes on a multi-layer grid, exact sparse solve (reference) | any geometry, final answers |
-| **Lumped** | one thermal network per heater built from the real footprint and board outline | fast estimates, within a few percent of the FVM |
-| **Analytic** | multilayer cosine-series solution with copper weighting and local via and sink corrections | instant results, within a few percent unless a copper edge crosses the heater |
+Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run three models and inspect temperatures,
+gradients, hotspots, component junction temperatures and the heat evolution in time.
 
-All three share one problem description, conserve energy (reported in every result) and are cross-checked by the test suite.
-SOR is available as an optional FVM solver to compare with the original method.
+![Editor](docs/images/editor.png)
+
+## Features
+
+- **Three models on one board description**, cross-checked against each other and reporting an exact energy balance.
+- **Interactive editor** (PySide 6): rectangles and polygons, vias, sinks, undo/redo, background photo, dark and light themes.
+- **Results**: temperature maps per layer, gradients, profiles, hotspot list, heater and junction temperatures, zone statistics, model comparison, temperature painted on the board.
+- **Animation of the heat evolution** in real time (power step), with GIF export.
+- **Input checks** that warn when a model is doubtful (heater outside the board, no copper under a heater, a copper edge crossing a heater, ...).
+- **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON.
+
+![Temperature](docs/images/results_temperature.png)
+
+## Which model should I use?
+
+| Model | Advantage | Apply it to | Accuracy vs FVM | Time |
+| :-- | :-- | :-- | :-- | :-- |
+| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | reference (within 0.2 % from 1 mm cells) | 0.2 s (1 mm) |
+| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other | design exploration, parameter sweeps, ranking layouts | within about 4 % in most cases | about 10 ms |
+| **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | within about 2 % in most cases | about 50 ms |
+
+Rule of thumb: run all three; if they agree within about 5 % and there are no warnings, the numbers are consistent; if not, trust the FVM.
+Details, limits and a decision guide: [`docs/model_guide.md`](docs/model_guide.md).
 
 ## Install
 
 ```sh
+git clone https://github.com/silvapmm/pcb-thermal-lab.git
+cd pcb-thermal-lab
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt     # numpy, scipy, matplotlib, PySide6, pytest
 ```
@@ -22,9 +41,11 @@ python3 -m venv .venv
 ## Use
 
 ```sh
-.venv/bin/python -m pcbthermal gui                                   # graphical application
-.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json  # command line: models, report, plots
-.venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json   # direct vs CG vs SOR
+.venv/bin/python -m pcbthermal gui                                         # application
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots
+.venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
+.venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
+.venv/bin/python -m pcbthermal --version
 .venv/bin/python -m pytest -q tests
 ```
 
@@ -34,15 +55,24 @@ from pcbthermal import Problem, SolverOptions, simulate
 p = Problem.new(width_mm=100, height_mm=80, layers=4)
 p.add_full_copper().add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=6.0)
 sim = simulate(p, SolverOptions(cell_mm=1.0))
-print(sim.to_markdown())
+print(sim.to_markdown())          # models, errors against the reference, warnings
+sim.save("results")               # report, JSON, CSV fields, figures
 ```
 
-Documentation (index in [`docs/README.md`](docs/README.md)): [`docs/new_approach.md`](docs/new_approach.md) (old vs new, SOR vs matrices, animation),
-[`docs/findings.md`](docs/findings.md) (everything discovered so far),
-[`docs/physics_core.md`](docs/physics_core.md) (models, formulas, API, GUI, verification),
-[`docs/candidate_methods.md`](docs/candidate_methods.md) (methods found in the literature),
-[`docs/thermal_models.md`](docs/thermal_models.md) and [`docs/legacy_vs_new.md`](docs/legacy_vs_new.md) (review of the original solvers).
+![Summary](docs/images/results_summary.png)
 
-## Project
+## Documentation
 
-Author: Pedro Silva, PMS Labs. License: (C) 2025 Pedro Silva. All rights reserved (see `LICENSE`).
+Index: [`docs/README.md`](docs/README.md). Start with [`docs/model_guide.md`](docs/model_guide.md) (which model to use),
+[`docs/physics_core.md`](docs/physics_core.md) (models, formulas, API, verification), [`docs/new_approach.md`](docs/new_approach.md) (old versus new, SOR versus matrices, animation)
+and [`docs/findings.md`](docs/findings.md) (everything discovered so far). Release notes: [`CHANGELOG.md`](CHANGELOG.md).
+
+## Versions and branches
+
+- Version **2.0.0** (2026-10-16): first release of the rebuilt program. The original wxPython program was 1.0.0 (git tag `legacy-wxpython-1.0.0`).
+- `main`: released versions, tagged `vMAJOR.MINOR.PATCH`. `develop`: integration branch for the next version. Work happens on `feature/*` branches.
+- Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the application (title bar, status bar, About) and in every report.
+
+## Author and license
+
+Pedro Silva, PMS Labs. (C) 2025 Pedro Silva. All rights reserved (see `LICENSE`).

@@ -21,7 +21,7 @@ import time
 
 import numpy as np
 
-from . import fvm
+from . import __version__, fvm
 from .api import simulate, suggest_cell_mm
 from .examples import example_board
 from .model import load_problem, problem_to_dict, reference_problem
@@ -184,7 +184,8 @@ def build_parser():
     @brief Build the argument parser.
     @return argparse.ArgumentParser.
     """
-    p = argparse.ArgumentParser(prog="pcbthermal", description="PCB thermal simulator (command line).")
+    p = argparse.ArgumentParser(prog="pcbthermal", description="PCB Thermal Lab: PCB thermal simulator.")
+    p.add_argument("--version", action="version", version=f"PCB Thermal Lab {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
     def common(sp, config=True):

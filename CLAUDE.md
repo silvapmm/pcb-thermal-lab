@@ -96,13 +96,13 @@ pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (88 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (94 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (.pcbt.json), accuracy_study.py, stress_study.py, solver_equivalence.py
 docs/                  README.md (index), physics_core.md (current), new_approach.md, findings.md (all discoveries), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
 ico/                   application icon
 ```
 
-The original wxPython program (`core/`, `ui/`, `main.py`, `config.py`) was removed on branch `feature/physics-core`;
+The original wxPython program (`core/`, `ui/`, `main.py`, `config.py`) was removed in release 2.0.0;
 it can be inspected in git history (for example commit `641da87`). Old editor JSON files still open (`problem_from_legacy`).
 
 ## Algorithm Review (2026-10-16, of the removed legacy solvers)
@@ -160,27 +160,14 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 .venv/bin/python examples/solver_equivalence.py                      # direct vs CG vs SOR on five boards
 ```
 
-## Branches
+## Branches and Versions
 
-- `main`: stable, only has `README.md` and `LICENSE`.
-- `develop`: the previous wxPython application (legacy).
-- `feature/physics-core`: current work (new physics core, CLI and PySide 6 GUI). Merge into `develop` or `main` only when the user agrees.
-
-## Git Policy
-
-Claude handles all git operations in this repository: branches, commits, pushes,
-merges, PRs, and tags. The maintainer set these rules on 2026-10-16:
-
-- **Commits**: commit small, coherent changes often, on `develop` or a feature
-  branch. Work locally; commits can be reverted locally.
-- **Pushes**: do not push after every commit. Push only when asked, or at a
-  milestone (before a merge or a PR).
-- **Merges**: merge into `main` only when `develop` holds a solid, working
-  development (the app runs and the change is complete). Not for every commit.
-- **Tags**: create a tag only for a good release. Use semantic versioning
-  (`vMAJOR.MINOR.PATCH`), keep `APP_VERSION` in `config.py` equal to the tag, and
-  write release notes. Never tag routine work.
-- **Never**: force push, rewrite published history, or commit generated outputs.
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.0.0** (2026-10-16).
+- `develop`: integration branch for the next version; feature work branches off it (`feature/<topic>`) and merges back when it is solid.
+- Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
+- Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
+  (title bar, status bar, About), in `--version`, in reports and in saved projects. A release needs: version bump, `CHANGELOG.md` entry
+  (`tests/test_version.py` checks it and the README), README update, tests green, merge to `main`, annotated tag, push.
 
 ## Maintaining This File
 
@@ -208,8 +195,9 @@ Record important decisions here, newest first, with date and reason.
 - 2026-10-16: Git policy defined: merge to `main` only for solid developments, tag only for good releases. Git rules made explicit in the local settings.
 - 2026-10-16: Full algorithm review done; findings recorded in "Algorithm Review". No solver code changed yet.
 - 2026-10-16: Added `docs/thermal_models.md` documenting the three models (formulas as implemented), validation experiments, review findings and references.
-- 2026-10-16: Started `feature/physics-core`: new GUI-independent package `pcbthermal` (FVM reference, ring-network lumped, modal analytic, CLI, plots, 30 tests). Cell-centred finite volumes chosen over node-centred FD (exact power and area conservation, no half-cell borders); sparse direct/CG solver instead of SOR; FR-4 anisotropic (0.3 through, 0.9 in-plane); hollow via barrels; analytic uses the exact multilayer fin series instead of Lee spreading formulas (their coefficients could not be sourced). See `docs/physics_core.md`. The legacy `core/` and `ui/` are untouched; the planned UI is PySide 6 on top of `pcbthermal`.
+- 2026-10-16: Started the rebuild (branch `feature/physics-core`, merged into `main` as 2.0.0): new GUI-independent package `pcbthermal` (FVM reference, ring-network lumped, modal analytic, CLI, plots, 30 tests). Cell-centred finite volumes chosen over node-centred FD (exact power and area conservation, no half-cell borders); sparse direct/CG solver instead of SOR; FR-4 anisotropic (0.3 through, 0.9 in-plane); hollow via barrels; analytic uses the exact multilayer fin series instead of Lee spreading formulas (their coefficients could not be sourced). See `docs/physics_core.md`. The legacy `core/` and `ui/` are untouched; the planned UI is PySide 6 on top of `pcbthermal`.
 - 2026-10-16: Lumped rewritten as per-heater ring networks aggregated from the real geometry (24 % -> 1 % error on the example); Analytic got copper weighting, Green-function corrections for vias and sinks and validity warnings (47 % -> 9 %). New public API: `SolverOptions`, `simulate`, `Problem` builder (mm, 1-based layers), `Project` files. SOR kept as an optional FVM solver (vectorised red-black) to compare with the direct sparse solve: same answer with a residual criterion, wrong answer with the original step criterion.
 - 2026-10-16: Legacy wxPython code removed. PySide 6 GUI built on `pcbthermal` (editor canvas, panels, results tabs, themes, undo/redo). Transients exist in the CLI (`--gif`) but are out of the GUI scope for now, at the user's request. Virtual environment `.venv/` created and ignored by git.
 - 2026-10-16: SOR and the sparse direct solver give the same temperatures (≤1e-8 K on five boards) when SOR stops on the residual; the direct solver is the default (3 to 30 times faster). Real-time animation added to the GUI (Animation tab) and CLI (`transient --gif`), validated against an exact exponential (Euler first order, Crank-Nicolson second order). Docs added: `new_approach.md`, `candidate_methods.md`. The `example_board` vias use 3.5 mm pitch (same positions as the legacy comparison).
 - 2026-10-16: Models tuned after an audit (see `docs/findings.md`): Lumped uses offset-contour rings from the real footprint with exact disc interior relations and a Bessel vertical-loss correction (example board +24 % -> -2 %); Analytic weights copper per layer with the layer's own fin length (+47 % -> -2 %). Added `checks.py` (input validity warnings, shown live in the GUI), `suggest_cell_mm` (Auto cell size), a documentation test gate, and the findings/index docs. Corrected an earlier wrong claim that vias made the FVM mesh-dependent by 1 % (it was a different via layout).
+- 2026-10-16: Released **2.0.0** (first release of the rebuilt program; the old wxPython program was 1.0.0, so a major bump avoids a clash). Added `docs/model_guide.md` (which model to use), `CHANGELOG.md`, README with screenshots (`examples/make_screenshots.py`), version shown in the GUI, `--version`, version recorded in reports and projects.

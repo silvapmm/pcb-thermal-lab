@@ -444,9 +444,16 @@ class SolverPanel(QWidget):
         g = QGroupBox("Models")
         v = QVBoxLayout(g)
         self.cb = {"fvm": QCheckBox("FVM - finite volumes (reference)"),
-                   "lumped": QCheckBox("Lumped - ring thermal network"),
+                   "lumped": QCheckBox("Lumped - thermal network per heater"),
                    "analytic": QCheckBox("Analytic - closed-form fin series")}
-        for c in self.cb.values():
+        tips = {"fvm": "Reference model. Any geometry, full temperature field, exact energy balance. Use it for final answers "
+                       "and whenever a warning appears. Cost grows with the number of cells.",
+                "lumped": "Fast network (milliseconds). Handles partial copper, vias, sinks and several heaters; "
+                          "within about 4 % in most cases. Weak when a copper edge crosses the heater, at corners and for thin heaters.",
+                "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, sinks and "
+                            "partial copper. Assumes insulated edges and rectangular heaters; unreliable if a copper edge crosses a heater."}
+        for k, c in self.cb.items():
+            c.setToolTip(tips[k])
             v.addWidget(c)
             c.toggled.connect(self._apply)
         lay.addWidget(g)

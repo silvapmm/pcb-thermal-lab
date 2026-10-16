@@ -1,9 +1,9 @@
 # The New Approach: What Was Built and How It Compares with the Old Program
 
-2026-10-16, branch `feature/physics-core`. This document records why the program was rebuilt, what the new design is, and how
+Version 2.0.0, 2026-10-16. This document records why the program was rebuilt, what the new design is, and how
 its results compare with the original wxPython program on the same board. Formulas and the API are in
 [`physics_core.md`](physics_core.md); the review of the old solvers is in [`thermal_models.md`](thermal_models.md); everything found along
-the way is in [`findings.md`](findings.md); methods found in the literature are in [`candidate_methods.md`](candidate_methods.md).
+the way is in [`findings.md`](findings.md); which model to use is in [`model_guide.md`](model_guide.md); methods found in the literature are in [`candidate_methods.md`](candidate_methods.md).
 
 ## 1. Why a new approach
 
@@ -25,7 +25,7 @@ The review of the original program found, and experiments confirmed, that:
 | Energy balance and input checks in every result | an immediate test that nothing was lost, and a warning when the input makes a model doubtful |
 | Public API (`SolverOptions`, `simulate`, `Problem` builder, project files) | one validated object for settings, readable results, units hidden from the caller |
 | PySide 6 GUI with undo/redo, project files, themes, animation | the functions of the old editor with a modern workflow |
-| 88 tests, among them a documentation gate | regressions and undocumented code are caught automatically |
+| 94 tests, among them a documentation gate | regressions and undocumented code are caught automatically |
 
 ## 3. Old versus new on the same board
 
@@ -181,7 +181,7 @@ How the two models were tuned after the first comparison (first versions: Lumped
 ## 9. Reproduce
 
 ```sh
-.venv/bin/python -m pytest -q tests                              # 88 tests
+.venv/bin/python -m pytest -q tests                              # 94 tests
 .venv/bin/python examples/accuracy_study.py                      # section 6
 .venv/bin/python examples/stress_study.py                        # section 6
 .venv/bin/python examples/solver_equivalence.py                  # section 4

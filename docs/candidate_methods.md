@@ -15,7 +15,7 @@ Status legend: **Done** = already in `pcbthermal`, **Partly** = a first step exi
 | 2 | Hollow plated via barrel model | realistic via conductance | **Done** (FVM, Lumped, Analytic) | - | - |
 | 3 | Anisotropic FR-4 (in-plane vs through-plane) | lateral heat spreading in the dielectric | **Done** | - | - |
 | 4 | Sparse direct / CG solvers, implicit time stepping | exact steady state and stable transients | **Done** | - | - |
-| 5 | Lumped thermal networks (LPTN) | fast hot-spot estimates | **Done** (ring networks) | - | - |
+| 5 | Lumped thermal networks (LPTN) | fast hot-spot estimates | **Done** (offset-contour networks) | - | - |
 | 6 | Junction-to-board resistance of components (JEDEC compact models) | junction temperature per component | **Partly** (`theta_jb`) | S | high |
 | 7 | Temperature-dependent h with explicit radiation | no more constant coefficient guess | Candidate | S-M | high |
 | 8 | Joule heating of copper traces (IPC-2152 style) | self-heating of tracks, current limits | Candidate | M | medium |
@@ -63,7 +63,7 @@ exactly; implicit schemes are unconditionally stable for any time step, Crank-Ni
 LPTNs are used for hot-spot approximation in early design; finite elements for verification; researchers developed hybrids that
 keep accuracy and speed ([Thermal Modeling of PCB Magnetic Components based on Finite Element 2D Thermal Networks](https://vde-verlag.de/proceedings-en/565822176.html);
 [Steady-state temperature calculation tool for multilayer PCBs](https://research.science.eus/documentos/6916ec1dee6cd0098b615763?lang=ca)).
-**In this project:** per-heater ring networks aggregated from the real geometry (within about 10 % of the FVM, 1 % on the example board).
+**In this project:** per-heater offset-contour networks aggregated from the real geometry (within about 4 % of the FVM in most cases, 2 % on the example board).
 
 ## 6. Compact models of components, JEDEC DELPHI (Partly)
 

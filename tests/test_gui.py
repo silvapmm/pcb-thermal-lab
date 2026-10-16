@@ -232,3 +232,11 @@ def test_animation_refuses_boards_without_power(win):
     win.results.animation.compute.click()
     assert win._anim_worker is None if hasattr(win, "_anim_worker") else True
     assert "heater" in win.results.animation.status.text().lower()
+
+
+def test_window_shows_the_version(win):
+    import pcbthermal
+
+    assert pcbthermal.__version__ in win.windowTitle()
+    assert win.version_label.text() == f"v{pcbthermal.__version__}"
+    assert win.canvas is not None

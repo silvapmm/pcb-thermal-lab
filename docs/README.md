@@ -2,6 +2,7 @@
 
 | Document | Read it for |
 | :-- | :-- |
+| [`model_guide.md`](model_guide.md) | which model to use: advantages, where to apply each, decision guide and workflow |
 | [`physics_core.md`](physics_core.md) | the current models and formulas, the Python API, input checks, command line, GUI, verification tables |
 | [`new_approach.md`](new_approach.md) | why the program was rebuilt; old versus new on the same board; SOR versus matrices; animation |
 | [`findings.md`](findings.md) | everything discovered so far, with evidence, decisions and open items |

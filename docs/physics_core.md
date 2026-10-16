@@ -3,7 +3,7 @@
 GUI-independent physics package and PySide 6 application that replaced the original wxPython program
 (its solvers are reviewed in [`thermal_models.md`](thermal_models.md), results compared in
 [`legacy_vs_new.md`](legacy_vs_new.md) and [`new_approach.md`](new_approach.md); everything found along the way is in
-[`findings.md`](findings.md)). Branch `feature/physics-core`, 2026-10-16.
+[`findings.md`](findings.md)). Version 2.0.0, 2026-10-16 (see `CHANGELOG.md`).
 
 - SI units inside the package (m, W, K, W/mK, W/m²K, J/kgK, kg/m³).
 - JSON files and the builder API use millimetres and 1-based layers (layer 1 = top).
@@ -28,7 +28,7 @@ pcbthermal/
   plots.py      figures (draw_* into any Figure; plot_* / GIF writers for files)
   cli.py        python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/          PySide 6 application (section 6)
-tests/          88 pytest tests: geometry, FVM, models, API, checks, I/O, GUI (offscreen) and a documentation gate
+tests/          94 pytest tests: geometry, FVM, models, API, checks, I/O, GUI (offscreen) and a documentation gate
 examples/       example boards, accuracy_study.py, stress_study.py, solver_equivalence.py
 ```
 
@@ -57,6 +57,8 @@ sim.warnings                      # input checks + model warnings
 together (`save_project` / `load_project`).
 
 ## 3. Models
+
+Which model to use for which job (advantages, limits, decision guide): [`model_guide.md`](model_guide.md).
 
 ### 3.1 FVM (reference)
 
@@ -157,7 +159,7 @@ Dropped on purpose: the old "iterations GIF" (it showed solver iterations, not t
 | Analytic vs FVM, insulated edges, 1 / 2 / 4 layers | 104.25 vs 104.31, 90.35 vs 90.39, 76.08 vs 76.10 °C |
 | Transient vs exact exponential | Euler error halves with the step, Crank-Nicolson divides by four; stored + lost heat = injected within 0.2 % |
 | FVM size / speed | 320 000 cells in 4.6 s (direct), 3.3 s (CG) |
-| Tests | 88 pass, among them 28 that check the documentation of every function |
+| Tests | 94 pass, among them 29 that check the documentation of every function |
 
 ### 7.1 Direct matrices versus SOR
 
