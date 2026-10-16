@@ -104,6 +104,35 @@ Maximum temperature of the top face [°C] and error of every model on the rise (
 
 The block is always within 1.8 % of the solid. (An earlier version of this script left unused nodes in the matrix of the solid and gave wrong numbers for blocks; fixed by pinning exactly the nodes that belong to no element.)
 
+### 3.1 Does the outer copper dissipate and spread heat (against a heatsink)?
+
+`python examples/copper_dissipation.py [--fem]`. Board 100 × 80 mm, 2 layers, 5 W on a 10 × 10 mm heater on top, copper only on the top layer (a square pad centred on the heater), no vias, `h_top` 10 and `h_bottom` 15 W/m²K.
+Maximum temperature [°C] against the 3D solid (error on the rise):
+
+| Top copper pad | 3D solid | FVM | FDM | Lumped | Analytic |
+| :-- | --: | --: | --: | --: | --: |
+| heater pad only (10 mm) | 495.3 | 472.4 (−4.9 %) | 420.9 (−15.8 %) | 652.7 (+33.5 %) | 201.1 (−62.6 %) |
+| 20 mm square | 273.0 | 266.7 (−2.5 %) | 252.1 (−8.4 %) | 517.4 (+98.5 %) | 150.3 (−49.5 %) |
+| 30 mm square | 202.6 | 199.7 (−1.6 %) | 193.8 (−5.0 %) | 392.9 (+107.2 %) | 145.9 (−31.9 %) |
+| 40 mm square | 172.5 | 171.0 (−1.0 %) | 168.2 (−2.9 %) | 302.7 (+88.3 %) | 144.9 (−18.7 %) |
+| 60 mm square | 150.3 | 149.6 (−0.6 %) | 148.8 (−1.2 %) | 200.1 (+39.7 %) | 144.2 (−4.9 %) |
+| 80 mm square | 144.6 | 144.1 (−0.4 %) | 144.0 (−0.5 %) | 151.1 (+5.4 %) | 143.6 (−0.8 %) |
+
+Copper against heatsink on the same board (40 mm area), FVM heat leaving the top face inside / outside the pad polygon:
+
+| Case | 3D solid | FVM | FDM | Heat over the area [W] | Elsewhere on the top face [W] |
+| :-- | --: | --: | --: | --: | --: |
+| 40 mm copper pad | 172.5 | 171.0 (−1.0 %) | 168.2 (−2.9 %) | 1.30 | 0.78 |
+| pad + heatsink, extra h 30 W/m²K | 131.5 | 130.9 (−0.6 %) | 130.1 (−1.3 %) | 2.99 | 0.40 |
+| pad + heatsink, extra h 100 W/m²K | 100.7 | 100.4 (−0.4 %) | 100.3 (−0.5 %) | 4.10 | 0.16 |
+| heater pad only + heatsink 30 W/m²K on bare laminate | 340.7 | 324.6 (−5.1 %) | 285.6 (−17.5 %) | 1.16 | 2.48 |
+
+What it shows:
+* **The outer copper dissipates and spreads by itself**: the temperature falls monotonically as the pad grows (495 → 145 °C) and saturates (80 mm gains 6 °C over 60 mm), and the whole top face loses heat, pad and bare laminate alike (the heat found outside the 40 mm pad, 0.78 W, is heat that the copper carried to the laminate).
+  The FVM follows the 3D solid within 1 to 2.5 % for pads of 20 mm and more.
+* **A heatsink works through the copper under it**: the same 30 W/m²K heatsink gives 131 °C on the pad and 325 °C on bare laminate, because on the laminate there is no sheet to spread the heat in. The heatsink adds convection area; the copper provides the path to it.
+* **Where the models fail**: with a pad hardly larger than the heater (an edge of copper across the footprint) the FDM loses 8 to 16 % (the grid sees the pad as a few nodes), and the **Lumped and Analytic models are unreliable** for a one-sided pad without vias or bottom copper (Lumped up to +107 %, Analytic up to −63 %); they assume copper around the heater on both faces or a uniform sheet. The input checks already warn about a copper edge crossing a heater; use the FVM for such boards.
+
 The 3D value of the example board is converged: 85.55 °C with 1 mm elements and 85.59 °C with 0.5 mm (2 elements across each gap).
 
 Reading: on a uniform board the four models land on the 3D answer within 0.7 % (FVM, FDM and Analytic within 0.5 %). **With vias and a heatsink (the example board) all four are within 1.5 %**, and the FVM, with each via in one cell, is within 0.5 % of the 3D rods.
@@ -206,6 +235,7 @@ Air properties agree with textbook values within 1 to 3 %; the three models agre
 .venv/bin/python examples/validation_study.py [--fem]        # sections 2 and 3
 .venv/bin/python examples/solver_equivalence.py              # section 5
 .venv/bin/python examples/fem3d_validation.py                # the 3D solid on its own cases
+.venv/bin/python examples/copper_dissipation.py [--fem]      # section 3.1, outer copper against heatsink
 .venv/bin/python examples/csv_profiles/run_example.py        # section 7, CSV example
 git archive 641da87 | tar -x -C <empty folder>               # the removed program, section 6
 ```
