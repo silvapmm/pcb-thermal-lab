@@ -5,7 +5,7 @@
 Three models share one problem description (`pcbthermal.model`):
 - `fvm`      cell-centred finite-volume solver (reference model)
 - `lumped`   offset-contour thermal network, one network per heater
-- `analytic` closed-form multilayer fin solution with local via/sink corrections
+- `analytic` closed-form multilayer fin solution with local via/heatsink corrections
 
 Typical use:
 

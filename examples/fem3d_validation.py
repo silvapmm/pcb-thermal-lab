@@ -53,10 +53,10 @@ def solve_fem(problem, dxy_mm=1.0, n_diel=4, with_vias=True, block_sides=True):
     """!
     @brief Solve the steady state of a board as a 3D solid.
     @details Copper slabs have their true thickness (one element), every dielectric gap has n_diel elements, FR-4 is anisotropic,
-             convection acts on both faces and the edges, a sink adds its coefficient on the bottom facets inside its polygon and
+             convection acts on both faces and the edges, a heatsink adds its coefficient on the bottom facets inside its polygon and
              a heater is a heat flux on its footprint. A via is a copper rod of the same copper area as the plated barrel (the wall
              of 25 micrometres is far below the mesh), running through the whole thickness; the mesh is refined around the rods.
-    @param problem A Problem with rectangular zones, heaters, optional vias and rectangular sinks.
+    @param problem A Problem with rectangular zones, heaters, optional vias and rectangular heatsinks.
     @param dxy_mm Element size in the board plane (millimetres); it must divide the zone and heater edges.
     @param n_diel Elements across every dielectric gap.
     @param with_vias False to ignore the vias.
@@ -83,8 +83,8 @@ def solve_fem(problem, dxy_mm=1.0, n_diel=4, with_vias=True, block_sides=True):
     zs = b.thickness - np.array(zs_down)[::-1]                 # Heights from the bottom face up
     kinds = kinds[::-1]
     # A metal block on the bottom face: an interface pad (conductivity 1 W/mK, thickness = contact resistance) and the block below it,
-    # both only inside the polygon of the sink (the elements outside it are left out of the model)
-    blk = next((s for s in problem.sinks if s.is_block() and s.layer == L - 1), None)
+    # both only inside the polygon of the heatsink (the elements outside it are left out of the model)
+    blk = next((s for s in problem.heatsinks if s.is_block() and s.layer == L - 1), None)
     z_off = 0.0
     if blk is not None:
         t_pad, t_blk = blk.contact_r * 1.0, blk.thickness
@@ -160,7 +160,7 @@ def solve_fem(problem, dxy_mm=1.0, n_diel=4, with_vias=True, block_sides=True):
         if len(fs) and h:
             fbasis = FacetBasis(mesh, elem, facets=fs)
             K = K + asm(BilinearForm(lambda u, v, w, h=h: h * u * v), fbasis)
-    for sk in problem.sinks:
+    for sk in problem.heatsinks:
         x0, y0 = sk.polygon.min(axis=0)
         x1, y1 = sk.polygon.max(axis=0)
         if sk.is_block():

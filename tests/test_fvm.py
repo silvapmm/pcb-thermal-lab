@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from pcbthermal import fvm
-from pcbthermal.model import Heater, Sink, Via, reference_problem
+from pcbthermal.model import Heater, Heatsink, Via, reference_problem
 
 
 def test_energy_balance_is_exact():
@@ -86,14 +86,14 @@ def test_vias_lower_the_temperature_and_filled_is_better():
     assert t_filled < t_hollow
 
 
-def test_sink_lowers_the_temperature():
+def test_heatsink_lowers_the_temperature():
     p = reference_problem()
     t0 = fvm.solve_steady(p, cell_mm=2.0).t_max
     area = np.array([[30, 30], [70, 30], [70, 70], [30, 70]]) / 1000.0
-    p.sinks.append(Sink(0, area, 100.0))
+    p.heatsinks.append(Heatsink(0, area, 100.0))
     r = fvm.solve_steady(p, cell_mm=2.0)
     assert r.t_max < t0 - 5.0
-    assert r.power_out["sinks"] > 0
+    assert r.power_out["heatsinks"] > 0
     assert abs(r.balance_error) < 1e-9
 
 

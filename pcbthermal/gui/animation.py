@@ -86,7 +86,7 @@ class AnimationTab(QWidget):
         self.model.addItem("Finite volume (FVM)", "fvm")
         self.model.addItem("Finite difference (FDM)", "fdm")
         self.model.addItem("Analytical (Fourier series)", "analytic")
-        self.model.setToolTip("The analytical model gives the response instantly (vias and sinks are calibrated per heater); the FDM uses the same time stepping as the FVM on grid points.")
+        self.model.setToolTip("The analytical model gives the response instantly (vias and heatsinks are calibrated per heater); the FDM uses the same time stepping as the FVM on grid points.")
         self.scheme = QComboBox()
         self.scheme.addItem("Implicit Euler (robust)", 1.0)
         self.scheme.addItem("Crank-Nicolson (accurate)", 0.5)

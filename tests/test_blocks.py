@@ -1,6 +1,6 @@
 """!
 @file test_blocks.py
-@brief Metal blocks (sinks with a thickness): the extra layer of the FVM and FDM networks, the contact over the copper overlap, results.
+@brief Metal blocks (heatsinks with a thickness): the extra layer of the FVM and FDM networks, the contact over the copper overlap, results.
 """
 
 import numpy as np
@@ -18,7 +18,7 @@ def board(block=True, pad=(35, 25, 65, 55), rect=(20, 10, 80, 70), h_extra=0.0, 
     @param rect Block rectangle in mm.
     @param h_extra Extra coefficient of the block in W/m2K.
     @param thickness Block thickness in mm.
-    @param kw Further arguments of Problem.add_sink.
+    @param kw Further arguments of Problem.add_heatsink.
     @return Problem.
     """
     p = Problem.new(100, 80, 2).add_zone(1, rect=(0, 0, 100, 80))
@@ -26,18 +26,18 @@ def board(block=True, pad=(35, 25, 65, 55), rect=(20, 10, 80, 70), h_extra=0.0, 
         p.add_zone(2, rect=pad)
     p.add_heater(1, 5.0, rect=(45, 35, 55, 45))
     if block:
-        p.add_sink(2, h_extra, rect=rect, thickness_mm=thickness, **kw)
+        p.add_heatsink(2, h_extra, rect=rect, thickness_mm=thickness, **kw)
     return p
 
 
-def test_json_roundtrip_and_old_sinks_unchanged():
+def test_json_roundtrip_and_old_heatsinks_unchanged():
     p = board(name="Al", contact_r=1e-3, k=385.0)
     q = problem_from_dict(problem_to_dict(p))
-    s = q.sinks[0]
+    s = q.heatsinks[0]
     assert s.is_block() and s.thickness == pytest.approx(0.003) and s.k == 385.0 and s.contact_r == pytest.approx(1e-3)
-    plain = Problem.new(50, 40, 2).add_sink(1, 10.0, rect=(5, 5, 15, 15))
-    d = problem_to_dict(plain)["sinks"][0]
-    assert "thickness_mm" not in d and not problem_from_dict(problem_to_dict(plain)).sinks[0].is_block()
+    plain = Problem.new(50, 40, 2).add_heatsink(1, 10.0, rect=(5, 5, 15, 15))
+    d = problem_to_dict(plain)["heatsinks"][0]
+    assert "thickness_mm" not in d and not problem_from_dict(problem_to_dict(plain)).heatsinks[0].is_block()
     with pytest.raises(ValueError):
         board(thickness=-1.0).validate()
 
@@ -109,7 +109,7 @@ def test_other_models_use_an_equivalent_coefficient_and_say_so():
     assert any("metal block" in w for w in sim.results["analytic"].warnings)
     assert not any("metal block" in w for w in sim.results["fvm"].warnings)
     eq = blocks.plain_equivalent(p)
-    assert not eq.sinks[0].is_block() and eq.sinks[0].h_extra >= 0 and p.sinks[0].is_block()
+    assert not eq.heatsinks[0].is_block() and eq.heatsinks[0].h_extra >= 0 and p.heatsinks[0].is_block()
     assert "Metal block" in sim.report()
     # A model without block layers still conserves energy and cools less than the bare board
     assert sim.results["lumped"].t_max < fvm.solve_steady(board(False), 2.0).t_max + 30

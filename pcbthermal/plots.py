@@ -28,7 +28,7 @@ def new_figure(width=7.0, height=4.5):
 
 def _outline(ax, problem, layer):
     """!
-    @brief Draw heater, sink, zone and via outlines of one layer on an axis (coordinates in mm).
+    @brief Draw heater, heatsink, zone and via outlines of one layer on an axis (coordinates in mm).
     @param ax Matplotlib axis.
     @param problem The Problem that owns the elements.
     @param layer 0-based layer index.
@@ -41,7 +41,7 @@ def _outline(ax, problem, layer):
         if h.layer == layer:
             p = np.vstack([h.polygon, h.polygon[:1]]) * 1000.0
             ax.plot(p[:, 0], p[:, 1], color="white", lw=1.2, ls="--")
-    for s in problem.sinks:
+    for s in problem.heatsinks:
         if s.layer == layer:
             p = np.vstack([s.polygon, s.polygon[:1]]) * 1000.0
             ax.plot(p[:, 0], p[:, 1], color="cyan", lw=1.2, ls=":")
@@ -85,7 +85,7 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     @param vmin Lower colour limit (default: field minimum).
     @param vmax Upper colour limit (default: field maximum).
     @param layer 0-based layer used for the outlines.
-    @param outline If True draw zones, heaters, sinks and vias.
+    @param outline If True draw zones, heaters, heatsinks and vias.
     @param marker Optional (x_m, y_m) of a marker, for example the hottest point.
     @param hotspot Optional temperature; the contour at that level is drawn in magenta.
     @param label Colour bar label.

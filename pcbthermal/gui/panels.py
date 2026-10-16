@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 from ..api import suggest_cell_mm
 from .document import KINDS
 
-_TITLES = {"zone": "Zones", "heater": "Heaters", "sink": "Sinks", "via": "Vias"}
+_TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
 
 
 def _spin(lo, hi, value=0.0, decimals=2, step=0.1, suffix=""):
@@ -243,7 +243,7 @@ class ElementList(QWidget):
         self.tree.clear()
         pr = self.doc.problem
         for kind in KINDS:
-            lst = getattr(pr, {"zone": "zones", "heater": "heaters", "sink": "sinks", "via": "vias"}[kind])
+            lst = getattr(pr, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}[kind])
             top = QTreeWidgetItem([f"{_TITLES[kind]} ({len(lst)})"])
             top.setFlags(top.flags() & ~Qt.ItemIsSelectable)
             self.tree.addTopLevelItem(top)
@@ -369,14 +369,14 @@ class Inspector(QWidget):
                 lay.addRow("Move to layer", combo)
         else:
             kind, i = valid[0]
-            el = getattr(pr, {"zone": "zones", "heater": "heaters", "sink": "sinks", "via": "vias"}[kind])[i]
+            el = getattr(pr, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}[kind])[i]
             title = QLabel(f"<b>{kind.capitalize()}</b>")
             lay.addRow(title)
             name = QLineEdit(el.name)
             name.editingFinished.connect(lambda: self.doc.set_props(kind, i, "Rename", name=name.text()))
             lay.addRow("Name", name)
             if kind != "via":
-                lay.addRow("Layer", self._layer_combo(el.layer, outer_only=(kind == "sink"),
+                lay.addRow("Layer", self._layer_combo(el.layer, outer_only=(kind == "heatsink"),
                                                        cb=lambda idx: self._set_layers([(kind, i)], idx)))
             if kind == "zone":
                 w = _spin(0, 1, el.fill, 2, 0.05)
@@ -389,7 +389,7 @@ class Inspector(QWidget):
                 t = _spin(0, 500, el.theta_jb, 2, 0.5, "K/W")
                 t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jb=v))
                 lay.addRow("θ junction-board", t)
-            elif kind == "sink":
+            elif kind == "heatsink":
                 w = _spin(0, 5000, el.h_extra, 1, 5, "W/m²K")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, h_extra=v))
                 w.setToolTip("Extra heat transfer coefficient. Without a metal block it is added to the board face inside the polygon; "
@@ -446,7 +446,7 @@ class Inspector(QWidget):
         """!
         @brief Layer chooser.
         @param current Current 0-based layer or None.
-        @param outer_only If True offer only the top and bottom layers (sinks).
+        @param outer_only If True offer only the top and bottom layers (heatsinks).
         @param cb Callable(index) connected to the selection.
         @return QComboBox whose item data holds the 0-based layer.
         """
@@ -474,7 +474,7 @@ class Inspector(QWidget):
 
         def mutate(proj):
             for kind, i in items:
-                getattr(proj.problem, {"zone": "zones", "heater": "heaters", "sink": "sinks"}[kind])[i].layer = layer
+                getattr(proj.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[i].layer = layer
 
         self.doc.edit("Change layer", mutate)
 
@@ -500,7 +500,7 @@ class Inspector(QWidget):
         def commit():
             x, y, ww, hh = (fields[k].value() for k in "xywh")
             self.doc.edit("Edit shape", lambda proj: setattr(
-                getattr(proj.problem, {"zone": "zones", "heater": "heaters", "sink": "sinks"}[kind])[i],
+                getattr(proj.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[i],
                 "polygon", np.array([[x, y], [x + ww, y], [x + ww, y + hh], [x, y + hh]]) / 1000.0),
                 merge_key=f"geom{kind}{i}")
 
@@ -534,9 +534,9 @@ class SolverPanel(QWidget):
                    "fdm": QCheckBox("Finite difference (FDM), comparison")}
         tips = {"fvm": "Reference model. Any geometry, full temperature field, exact energy balance. Use it for final answers "
                        "and whenever a warning appears. Cost grows with the number of cells.",
-                "lumped": "Fast network (milliseconds). Handles partial copper, vias, sinks and several heaters; "
+                "lumped": "Fast network (milliseconds). Handles partial copper, vias, heatsinks and several heaters; "
                           "within about 4 % in most cases. Weak when a copper edge crosses the heater, at corners and for thin heaters.",
-                "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, sinks and "
+                "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, heatsinks and "
                             "partial copper. Assumes insulated edges and rectangular heaters; unreliable if a copper edge crosses a heater.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
@@ -565,7 +565,7 @@ class SolverPanel(QWidget):
         self.modes = QSpinBox()
         self.modes.setRange(20, 800)
         self.modes.setSingleStep(20)
-        self.local = QCheckBox("Local via and sink corrections")
+        self.local = QCheckBox("Local via and heatsink corrections")
         self.hot = _spin(-50, 1000, 100, 1, 5, "°C")
         f.addRow("Cell size", cell_row)
         f.addRow("", self.cells_label)

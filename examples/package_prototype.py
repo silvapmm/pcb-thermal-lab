@@ -62,7 +62,7 @@ def solve(problem, power, theta_pad, model, top=None, cell_mm=0.5):
     for _ in range(12):
         net.g_top[0] = ht * net.dx * net.dy
         net.g_bottom[-1] = hb * net.dx * net.dy
-        net.g_amb = net.g_top + net.g_bottom + net.g_side + net.g_sink
+        net.g_amb = net.g_top + net.g_bottom + net.g_side + net.g_heatsink
         K = net._assemble().tolil()
         if model == "node":
             # Extra unknown (index n): the junction, joined to every footprint cell with w_i / theta
@@ -113,15 +113,15 @@ def main():
         for model in ("offset", "node"):
             r = solve(p, 1.0, RTH_JC, model)
             print(f"   {name:28s} {model:8s} {r['tj']:6.1f} {(r['tj'] - amb):7.1f} {r['foot_max']:7.1f}")
-    print("\nB. A real use: 2 W in the FET on the 1 in2 pad, without and with a heat sink on the package top")
+    print("\nB. A real use: 2 W in the FET on the 1 in2 pad, without and with a heat heatsink on the package top")
     p = board(25.4)
     print(f"   {'case':44s} {'model':8s} {'Tj':>6s} {'Tj<=150?':>9s} {'top share':>10s}")
-    # The datasheet gives no junction-to-top resistance: it is assumed (5, 20 and 40 K/W), plus 1 K/W of paste and a 12 K/W clip-on heat sink
+    # The datasheet gives no junction-to-top resistance: it is assumed (5, 20 and 40 K/W), plus 1 K/W of paste and a 12 K/W clip-on heat heatsink
     cases = [("no top path", None),
              ("bare mould: 30 K/W + 15 W/m2K on 3.3 mm (assumed)", 30.0 + 1.0 / (15 * (PKG * 1e-3) ** 2))]
     for jc_top in (40.0, 20.0, 5.0):
-        cases.append((f"heat sink 12 K/W, theta_JC(top) = {jc_top:g} (assumed)", jc_top + 1.0 + 12.0))
-    cases.append(("good heat sink 4 K/W, theta_JC(top) = 20 (assumed)", 20.0 + 1.0 + 4.0))
+        cases.append((f"heat heatsink 12 K/W, theta_JC(top) = {jc_top:g} (assumed)", jc_top + 1.0 + 12.0))
+    cases.append(("good heat heatsink 4 K/W, theta_JC(top) = 20 (assumed)", 20.0 + 1.0 + 4.0))
     for label, rt in cases:
         for model in ("offset", "node"):
             if model == "offset" and rt is not None:

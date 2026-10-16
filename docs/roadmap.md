@@ -1,25 +1,25 @@
 # Roadmap
 
 What is planned and why, with the evidence gathered so far. Nothing in this document is implemented yet. What exists is described in [`models.md`](models.md) and checked in [`validation.md`](validation.md).
-Agreed order: **Component element (Package, heat sink)** → passive areas → Foster chain → **Gerber import** and **variable stack-up** (extras) → optional multigrid.
+Agreed order: **Component element (Package, heat heatsink)** → passive areas → Foster chain → **Gerber import** and **variable stack-up** (extras) → optional multigrid.
 
 ## 1. Component element
 
 > **Decision (2026-10-16, maintainer): worst case first.** For now the whole power of a component reaches the board; there is **no top path and no junction node**. The Component is a *Source* with optional *junction-to-pad resistance* (today's `θJB` field, renamed) and the junction temperature is
-> `T_j = T_max under the footprint + P·θ_pad`, which is the conservative variant (the prototype of section 1.8 gives it 3 K above the node model). The sections on the top path, the heat sink, the junction node and the Foster chain below are kept as **future work, not for the next version**.
+> `T_j = T_max under the footprint + P·θ_pad`, which is the conservative variant (the prototype of section 1.8 gives it 3 K above the node model). The sections on the top path, the heat heatsink, the junction node and the Foster chain below are kept as **future work, not for the next version**.
 > First delivery: (1) rename and document the field and add the choice of which datasheet number it takes (`θJC(bottom)`, `θJ-L`, `Rth j-sp`, or `θJB` when nothing else exists); (2) report `T_j` against the part's `T_j,max` with a warning; (3) the **virtual JEDEC test** (the datasheet's own board, `θJA` predicted against the datasheet) with the CSD17308Q3 and the TPS7A47 as cases;
 > (4) the Ψ estimate as an optional output; (5) presets by part type in the interface. The simple heater keeps working unchanged.
 
 ### 1.1 Why
 
 Today a part is a heater: all its power enters the board under the footprint and `theta_jb` only adds an offset to the reported junction temperature. A real single-die part generates heat at the junction, which leaves by **two parallel paths**:
-down through the package pad and solder into the board (`θJB`) and up through the package top (`θJC,top`) into the air or a heat sink. The current models cannot represent the top path: they send all the heat into the board (hotter board, hotter junction) and cannot represent
-a heat sink on the part. Estimate on the reference board (5 W, board resistance 13 K/W, `θJB` 6 K/W): board only, junction rise 5 × (13 + 6) = 95 K; with a top path of 25 K/W the heat splits 57 % board / 43 % top and the junction rises about 54 K (series-parallel estimate, not a measurement).
+down through the package pad and solder into the board (`θJB`) and up through the package top (`θJC,top`) into the air or a heat heatsink. The current models cannot represent the top path: they send all the heat into the board (hotter board, hotter junction) and cannot represent
+a heat heatsink on the part. Estimate on the reference board (5 W, board resistance 13 K/W, `θJB` 6 K/W): board only, junction rise 5 × (13 + 6) = 95 K; with a top path of 25 K/W the heat splits 57 % board / 43 % top and the junction rises about 54 K (series-parallel estimate, not a measurement).
 
 ### 1.2 One element with a type
 
 Decided: a single **Component** element with a type and the properties that type needs. Today's heater is the type *Source* with nothing else set, so existing projects keep working. Types: *Source* (power into the board),
-*Package* (JEDEC 2R, below), and passive areas: *Cooled area* (extra `h` or a resistance to ambient over the polygon; today's "sink" is the simplest case), *Contact* (pad or enclosure touching the board: a conductance to a fixed temperature),
+*Package* (JEDEC 2R, below), and passive areas: *Cooled area* (extra `h` or a resistance to ambient over the polygon; today's "heatsink" is the simplest case), *Contact* (pad or enclosure touching the board: a conductance to a fixed temperature),
 *Material patch* (different conductivity or thickness, for example a via field described by its density). Passive types have no power; *Source* and *Package* take a constant power, a square wave or a CSV table.
 
 ### 1.3 Package: the JEDEC two-resistor model
@@ -35,7 +35,7 @@ and are never accepted as resistors [3], [4]. The program can *report* `ΨJT = (
 ```
           P (constant, wave or table)
            |
-          [T_j]--- θJC,top ---[T_case]--- R_top ---> ambient    (R_top = 1/(h A_top) with the computed h, or a heat sink)
+          [T_j]--- θJC,top ---[T_case]--- R_top ---> ambient    (R_top = 1/(h A_top) with the computed h, or a heat heatsink)
            |
            θJB (spread over the footprint cells with weights w_i)
            |
@@ -45,20 +45,20 @@ and are never accepted as resistors [3], [4]. The program can *report* `ΨJT = (
 * **FVM**: one extra unknown `T_j`; the footprint cells couple to it with `G_i = w_i/θJB` (`w_i` coverage weights, `Σ w_i = 1`: TI's "block of footprint size" practice [3], without an artificial short); `T_j` couples to ambient with `G_top = 1/(θJC,top + R_top)`.
   The augmented matrix stays symmetric positive definite.
 * **Lumped**: `T_j` is a node attached to ring 0 of the heater layer and to ambient. **Analytic**: a scalar Woodbury update on the footprint-average modal response: `θ̄_fp = θ̄_0 + g_ff f`, `f = G_b (T_j − θ̄_fp)`, `T_j = (P + G_b θ̄_fp)/(G_b + G_top)`.
-* **Top surface cooling** is not part of the standard; TI closes the circuit with an ambient resistance from the convective and radiative loss of the package top [3]: the computed `h` already in the program applied to the package area and temperature, or a heat sink.
+* **Top surface cooling** is not part of the standard; TI closes the circuit with an ambient resistance from the convective and radiative loss of the package top [3]: the computed `h` already in the program applied to the package area and temperature, or a heat heatsink.
 
 **Limits to show to the user.** JESD15-3 itself states that the error of a 2R prediction "cannot be known a priori", that it may over- or under-predict, that it grows with the difference between the application and the JEDEC test environment, and that published studies show errors on the junction **temperature rise** "in the neighbourhood of 30 % or less", a guide and not a bound [18];
-DELPHI is quoted within about 10 % (typically 5 % against detailed models) [5], [19]. The 2R model works best when the heat goes mostly into the board or a heat sink [19]. Single junction temperature (no die hot spots, no multi-die). `θJB` depends on the test board (below). No heat capacity in the standard models: the Package is **quasi-static**,
+DELPHI is quoted within about 10 % (typically 5 % against detailed models) [5], [19]. The 2R model works best when the heat goes mostly into the board or a heat heatsink [19]. Single junction temperature (no die hot spots, no multi-die). `θJB` depends on the test board (below). No heat capacity in the standard models: the Package is **quasi-static**,
 valid for periods well above the package time constants; dynamic compact models were still being standardised [5] and an RC ladder from measured transient curves is the way to add it [6].
 
-### 1.4 Heat sink on a component
+### 1.4 Heat heatsink on a component
 
-Top cooling of a Package: none (package top with the computed `h` or a fixed resistance), **heat sink** (`junction → θJC,top → case → θCS → sink node → θSA → ambient`, the usual `θJA = θJC + θCS + θSA` [3], [4]) and later a heat sink described by geometry.
+Top cooling of a Package: none (package top with the computed `h` or a fixed resistance), **heat heatsink** (`junction → θJC,top → case → θCS → heatsink node → θSA → ambient`, the usual `θJA = θJC + θCS + θSA` [3], [4]) and later a heat heatsink described by geometry.
 
 * **θSA depends on the temperature rise** (agreed): the natural-convection `h` grows roughly as `ΔT^(1/4)` and radiation faster, so a datasheet value is valid at its own operating point; datasheets give power against temperature rise and the resistance is `ΔT/P`.
   Design: the user enters `θSA` and the `ΔT_ref` at which it was specified; the program scales the convective part with `(ΔT/ΔT_ref)^(−1/4)` in the same iteration that computes `h`; without `ΔT_ref` the number is constant. To check before shipping: the exponent against a real curve, and the convection/radiation split.
-* **Heat-sink capacity** `C_hs` (J/K, mass × specific heat; aluminium about 0.9 J/(g K)) as an optional node capacity from the first version (agreed): with it fast waves see only `θJC + θCS` in parallel with `θJB` because the sink stays near its mean temperature;
-  without it the sink answers instantly and the junction ripple of fast waves is overestimated (conservative). The package's own capacity (die and mould) comes later from the manufacturer's `Zth,JC(t)` curve as a Foster chain [8].
+* **Heat-heatsink capacity** `C_hs` (J/K, mass × specific heat; aluminium about 0.9 J/(g K)) as an optional node capacity from the first version (agreed): with it fast waves see only `θJC + θCS` in parallel with `θJB` because the heatsink stays near its mean temperature;
+  without it the heatsink answers instantly and the junction ripple of fast waves is overestimated (conservative). The package's own capacity (die and mould) comes later from the manufacturer's `Zth,JC(t)` curve as a Foster chain [8].
 
 ### 1.5 Power profiles with a Package
 
@@ -73,7 +73,7 @@ Parameters found in datasheets of typical parts (all read from the PDF text, exc
 | :-- | :-- | :-- | :-- |
 | Power MOSFET, TI CSD17308Q3 (SON 3.3 × 3.3) | `RθJC` 4.5 K/W (max); `RθJA` 58 K/W (max, 1 in² pad) and 165 K/W (max, minimum pad); power 2.7 W at 25 °C ambient, 28 W with the case at 25 °C; `Tj` −55 to 150 °C; transient thermal impedance curves | board 1.5 × 1.5 in, 1.52 mm FR-4, **2 oz** (71 µm) copper pad of 1 in² (6.45 cm²); `RθJC` "by design", `RθJA` "determined by the user's board design" | [10] |
 | Power MOSFET, Infineon OptiMOS (application note) | `RthJC` (bottom) 1.1 K/W; `Ptot` 136 W at `Tc` 25 °C and 3.0 W at `Ta` 25 °C with `RthJA` 50 K/W; **`ZthJC(tp, D)` curves** and the rule `ΔTj = Zth(tp, D) · Ptot`; "Zth consists of Rth and Cth" | 40 × 40 × 1.5 mm FR-4, **6 cm² of 70 µm copper** on one layer for the drain, board vertical in still air | [11] |
-| DC-DC converter, TI LMR36510 (HSOIC-8, exposed pad) | `RθJA` 42.9, `RθJC(top)` 54, `RθJB` 13.6, `ΨJT` 4.3, `ΨJB` 13.8, `RθJC(bot)` 4.3 K/W; a graph of `RθJA` against copper area | JEDEC board; the datasheet says the table "is not valid for design purposes" and that `RθJA` depends on power, airflow, PCB area, copper heat-sink area, number of thermal vias and neighbours | [12] |
+| DC-DC converter, TI LMR36510 (HSOIC-8, exposed pad) | `RθJA` 42.9, `RθJC(top)` 54, `RθJB` 13.6, `ΨJT` 4.3, `ΨJB` 13.8, `RθJC(bot)` 4.3 K/W; a graph of `RθJA` against copper area | JEDEC board; the datasheet says the table "is not valid for design purposes" and that `RθJA` depends on power, airflow, PCB area, copper heat-heatsink area, number of thermal vias and neighbours | [12] |
 | LDO, TI TPS7A47 (QFN-20, exposed pad) | `RθJA` 32.5, `RθJC(top)` 27, `RθJB` 11.9, `ΨJT` 0.3, `ΨJB` 11.9, `RθJC(bot)` 1.7 K/W; "`θJA` is the sum of `θJCbot` plus the PCB copper contribution" | JEDEC board; `θJA` "only a relative measure of package thermal performance" | [13] |
 | Schottky diode, SMA (SX SS12…SS120) | `RθJ-A` 65 and `RθJ-L` (junction to terminal) 20 K/W; `Tj` −55 to 125 or 150 °C; no `RθJC`, no `Zth` | PCB with 0.2 × 0.2 in (5 × 5 mm) copper pads | [14] |
 | Schottky diode, SMC (SS54) | `RθJA` 15 K/W only; `Tj` −55 to 125 °C | "junction to ambient", pad not stated | [15] |
@@ -98,7 +98,7 @@ Parameters found in datasheets of typical parts (all read from the PDF text, exc
 
 | Metric | Test | What it is physically | Transferable to our board model? |
 | :-- | :-- | :-- | :-- |
-| `θJC(top)`, `θJC(bot)` | cold plate on the top or bottom face, one heat path (JESD51-14 dual interface or the cold-plate method) | resistance **inside the package** from the junction to that face; meaningful for packages with a predominantly 1D path (the `θJB/θJC` ratio above about 10, power packages); an overmolded BGA gave 0.82 against 1.79 K/W by the two methods [22] | **yes**, it is a package property; the solder, thermal paste or heat-sink interface on that face is ours |
+| `θJC(top)`, `θJC(bot)` | cold plate on the top or bottom face, one heat path (JESD51-14 dual interface or the cold-plate method) | resistance **inside the package** from the junction to that face; meaningful for packages with a predominantly 1D path (the `θJB/θJC` ratio above about 10, power packages); an overmolded BGA gave 0.82 against 1.79 K/W by the two methods [22] | **yes**, it is a package property; the solder, thermal paste or heat-heatsink interface on that face is ours |
 | `θJB` | double ring cold plate, heat forced through the board (JESD51-8); board temperature 1 mm from the package edge (area-array parts) or on the lead foot (leaded parts) | package resistance **plus part of the test board** for area-array parts, none for leaded parts [18], [23] | **partly**: use it only when `θJC(bot)` is not given, and expect it to over-estimate if the part's heat spreading is already in our board [18] |
 | `θJA` | still air, 0.3 m cube, JEDEC board 1s0P (JESD51-3) or 2s2p (JESD51-7), at least 76 × 114 mm with at least 50 µm on the top copper (JESD51-2, -3, -7) [20] | package + test board + convection together | **no as input** (manufacturers say so [12], [13], [23]); **yes as a validation target**, see the virtual test below |
 | `ΨJT`, `ΨJB` | same environment as `θJA`, with the real heat partition | `ΔT/P` between the junction and a measured top or board temperature, **not** a resistance [3], [18] | as a **post-processing estimate**, see level A |
@@ -107,10 +107,10 @@ Parameters found in datasheets of typical parts (all read from the PDF text, exc
 
 * **A. Source plus ψ (no new physics).** The heat enters the board under the footprint as today; after the simulation the program estimates `T_j = T_board,ref + ΨJB·P` (or `T_j = T_top + ΨJT·P` when a top temperature exists), where `T_board,ref` is the simulated board temperature on the reference point of the test (a ring 1 mm outside the package body).
   This is the method the manufacturers themselves recommend with a measured temperature on the real board; Richtek measured 79.9 °C with the body-diode method against 79.98 °C from `ΨJB` and the measured board temperature, and 79.9 °C from `θJA(EVB)` [23]; `ΨJT` is the better estimate when the power is uncertain because the top is closer to the junction temperature than the board is [23].
-  Valid while the application is close to the test conditions (no heat sink, similar board); it needs `ΨJB` (given by IC makers, not by most MOSFET and diode makers) and it does not change the board field.
+  Valid while the application is close to the test conditions (no heat heatsink, similar board); it needs `ΨJB` (given by IC makers, not by most MOSFET and diode makers) and it does not change the board field.
 * **B. Package (JESD15-3, section 1.3).** A junction node with the two resistances, built as the standard's **block-and-plate**: an isothermal block the size of the package, insulated on its sides, between two plates whose resistance equals `θJC,top` and `θJB`; the plate on the board has the footprint area, i.e. a uniform conductance `1/(θ·A)` per unit area,
   which is exactly our `G_i = w_i/θJB`; the heat source sits in the block (a volume or area source, never a point); the block's own resistance must be two orders of magnitude below the plates' [18]. **Exposed-pad parts: the standard allows replacing `θJB` by `θJC(bottom)`** [18] (4.3 against 13.6 K/W and 1.7 against 11.9 K/W for the two TI parts of section 1.6), which settles which number goes between the junction and our board.
-  Needed when a heat sink or a strong top path exists. Expected error on the rise: 30 % or less in the standard's words [18].
+  Needed when a heat heatsink or a strong top path exists. Expected error on the rise: 30 % or less in the standard's words [18].
 * **C. DELPHI / detailed.** Needs resistances manufacturers do not publish; out of scope until a data source exists.
 
 **The virtual JEDEC test (validation and a way to recover a missing number).** Build the datasheet's own board in the program (JESD51-3 1s0P or JESD51-7 2s2p, 76.2 × 114.3 mm, the copper and the pad area the datasheet states), natural convection (computed `h`, still air), the package with the user's resistances, and compute
@@ -131,17 +131,17 @@ The board reference temperature of a `ΨJB` estimate and the 1 mm ring are outpu
 | `RθJA` on a 5 mm pad (assumed size, the datasheet does not give it; 1 W) | 165 max | 164.2 | 162.8 |
 | `Tj` at 2 W, 1 in² pad, no top path | | 112.5 °C | 109.4 °C |
 | 2 W with a bare mould (30 K/W + convection, assumed) | | | 108.9 °C, 0.7 % of the heat through the top |
-| 2 W with a 12 K/W clip-on heat sink, `θJC(top)` 40, 20, 5 K/W (assumed) | | cannot represent it | 73.6, 63.4, 51.1 °C; 46, 58, 73 % of the heat through the top |
-| 2 W with a 4 K/W heat sink, `θJC(top)` 20 K/W (assumed) | | cannot represent it | 57.6 °C, 65 % through the top |
+| 2 W with a 12 K/W clip-on heat heatsink, `θJC(top)` 40, 20, 5 K/W (assumed) | | cannot represent it | 73.6, 63.4, 51.1 °C; 46, 58, 73 % of the heat through the top |
+| 2 W with a 4 K/W heat heatsink, `θJC(top)` 20 K/W (assumed) | | cannot represent it | 57.6 °C, 65 % through the top |
 
 What it shows:
 * **The physics and the one-resistance approach already reproduce the datasheet**: `RθJA` within 2 % of the typical value on the 1 in² board with `θJC(bot)` only (the datasheet value is a maximum for the 58 and a typical for the 46), and the minimum-pad figure within 1 % of the maximum (a coincidence of the assumed pad size, to be repeated with the real pad).
 * **Without a top path the junction node changes little**: 3 K (3 % of the rise) lower than the offset, which is conservative; for a bare FET the **simple heater with the junction-to-pad resistance is enough**.
-* **With a heat sink on the top the answer changes by a factor of two** (112 against 51 to 74 °C) and the offset method cannot see it: that is the case that justifies the junction node.
-* The result depends strongly on the junction-to-top resistance, which this datasheet does not give: the heat-sink case needs `θJC(top)` from the manufacturer or an assumption stated in the report.
+* **With a heat heatsink on the top the answer changes by a factor of two** (112 against 51 to 74 °C) and the offset method cannot see it: that is the case that justifies the junction node.
+* The result depends strongly on the junction-to-top resistance, which this datasheet does not give: the heat-heatsink case needs `θJC(top)` from the manufacturer or an assumption stated in the report.
 
 **Consequence for the design (to keep it simple).** (1) The Component stays a **Source** with one optional field, the *junction-to-pad resistance* (today's `θJB` field, renamed and documented as `θJC(bottom)` / `θJ-L` / `Rth j-sp`); with it alone the program behaves as today and is within the 3 % above, and it is validated by the virtual JEDEC test (the table above is that test).
-(2) A **top path** (heat sink or top resistance) is a second optional group of fields; only when it is filled the program adds the junction node (FVM and FDM first; the Lumped and Analytic models warn that they ignore it until they get it). (3) The ψ estimate and the Foster chain come later. Nothing else is asked from the user.
+(2) A **top path** (heat heatsink or top resistance) is a second optional group of fields; only when it is filled the program adds the junction node (FVM and FDM first; the Lumped and Analytic models warn that they ignore it until they get it). (3) The ψ estimate and the Foster chain come later. Nothing else is asked from the user.
 
 ### 1.9 Dissipating through the board: copper, vias and a metal block (researched 2026-10-16)
 
@@ -149,23 +149,23 @@ What it shows:
 * a lateral copper plane of 1 oz (35 µm) has about **71 K/W per 1 cm square** (`θCu = L/(λ·W·t)`, `λ = 4 W/cm K`); copper weight matters: 1 oz → 2 oz improved `θJA` from 28.3 to 21.2 K/W (25 %) on a 3 × 3 in board;
 * one 12 mil via with 0.5 oz plating is about **261 K/W**; an array in parallel divides it (16 vias: 16.3 K/W, 40 vias: 6.5 K/W, spacing 1 mm); a filled 8 mil via is 128 K/W; connect the vias to as many copper layers as possible;
 * rule of thumb: a two-sided board with solid copper needs about **15.3 cm² per watt for a 40 K rise** in natural convection (up to half with air flow), and internal planes of a four-layer board improve a two-layer design by up to 30 %;
-* a **heat sink on the bottom of the board is more effective than one on top of a plastic package**: the top path goes through plastic (`θJT` 50 to 200 K/W for plastic tops) while the bottom path goes through the exposed pad and the vias (`θJC` 1 to 5 K/W); attach the sink to the lowest-impedance path from the junction [24].
+* a **heat heatsink on the bottom of the board is more effective than one on top of a plastic package**: the top path goes through plastic (`θJT` 50 to 200 K/W for plastic tops) while the bottom path goes through the exposed pad and the vias (`θJC` 1 to 5 K/W); attach the heatsink to the lowest-impedance path from the junction [24].
 Further sources: TI PowerPAD application note SLMA002 (via diameter 0.3 mm or less, pitch 1 mm; page not readable here) and an analytical model of via arrays and pads verified by CFD and measurements, including conduction, convection and radiation and the coupling of the coefficients with the temperatures [25].
 
-**Does our model cover it?** Mostly yes: the copper zones (any shape and weight), the vias (hollow or filled barrels with plating), the layers and their vertical resistance, the convection and radiation of both faces (computed `h`) and the **Sink** on an outer face are the ingredients above, solved in 2D by the FVM with a spreading that already agrees with an independent 3D solid within 0.5 % on the example with vias and a sink.
-What the Sink lacks for a **metal block** attached to the board (an aluminium or copper bar or plate, usually on the bottom, with a gap pad or paste between): the block's own **lateral conduction** (`k·t`, large), its **mass** (for the time simulation) and the **interface resistance**.
+**Does our model cover it?** Mostly yes: the copper zones (any shape and weight), the vias (hollow or filled barrels with plating), the layers and their vertical resistance, the convection and radiation of both faces (computed `h`) and the **Heatsink** on an outer face are the ingredients above, solved in 2D by the FVM with a spreading that already agrees with an independent 3D solid within 0.5 % on the example with vias and a heatsink.
+What the Heatsink lacks for a **metal block** attached to the board (an aluminium or copper bar or plate, usually on the bottom, with a gap pad or paste between): the block's own **lateral conduction** (`k·t`, large), its **mass** (for the time simulation) and the **interface resistance**.
 
 **Adjustment, in two steps (to keep it simple).**
-1. *Sink with an interface resistance and a helper* (small): the Sink keeps its uniform coefficient over the polygon (the block is taken as isothermal) and gets a **contact resistance per area** `R''_c` (m²K/W, `t/k` of the gap pad: for example 0.5 mm of a 3 W/mK pad is 1.7e-4 m²K/W, 1.7 K cm²/W) in series with the exposed-surface coefficient `h_block` of the block: `h_extra = 1/(R''_c + 1/h_block)`;
-   `h_block` from the datasheet of the sink (`1/(R_sa·A)`) or from the computed `h` times the area multiplier of the fins. The report shows the block's check number `λ_b = sqrt(k·t/h)` against its size: if `λ_b` is much larger than the block, the isothermal assumption holds; if not, step 2 is needed. This is conservative with respect to the spreading beyond the contact patch.
+1. *Heatsink with an interface resistance and a helper* (small): the Heatsink keeps its uniform coefficient over the polygon (the block is taken as isothermal) and gets a **contact resistance per area** `R''_c` (m²K/W, `t/k` of the gap pad: for example 0.5 mm of a 3 W/mK pad is 1.7e-4 m²K/W, 1.7 K cm²/W) in series with the exposed-surface coefficient `h_block` of the block: `h_extra = 1/(R''_c + 1/h_block)`;
+   `h_block` from the datasheet of the heatsink (`1/(R_sa·A)`) or from the computed `h` times the area multiplier of the fins. The report shows the block's check number `λ_b = sqrt(k·t/h)` against its size: if `λ_b` is much larger than the block, the isothermal assumption holds; if not, step 2 is needed. This is conservative with respect to the spreading beyond the contact patch.
 2. *Metal plate element* (later): an extra node per cell under a polygon of an outer layer with lateral conductance `k·t`, contact conductance `1/R''_c` to the board layer, the exposed-face coefficient and the heat capacity `ρ·c·t`; same matrix structure as the junction node. FVM and FDM first; the Lumped and Analytic models would warn.
-**Done (2026-10-16): step 2 implemented directly.** The maintainer's case is a block larger than the contact patch, so the Sink got a thickness and became the metal plate element in the FVM and FDM (`blocks.py`, see `docs/models.md` 2.6), the conduction area being the intersection of block and copper; validated against a 3D solid within 1.8 % (`docs/validation.md` section 3). Left for later: blocks on the inner layers, fins as a geometry (only a coefficient), the contact over bare laminate with a pad of its own, and a block in the Lumped and Analytic models.
+**Done (2026-10-16): step 2 implemented directly.** The maintainer's case is a block larger than the contact patch, so the Heatsink got a thickness and became the metal plate element in the FVM and FDM (`blocks.py`, see `docs/models.md` 2.6), the conduction area being the intersection of block and copper; validated against a 3D solid within 1.8 % (`docs/validation.md` section 3). Left for later: blocks on the inner layers, fins as a geometry (only a coefficient), the contact over bare laminate with a pad of its own, and a block in the Lumped and Analytic models.
 
 ### 1.10 Staging and validation
 
-Stages: (1) Component element and Package, static, in the three models; (2) top path from the computed `h`; (3) heat sink; (4) passive areas; (5) Foster chain for package transients.
+Stages: (1) Component element and Package, static, in the three models; (2) top path from the computed `h`; (3) heat heatsink; (4) passive areas; (5) Foster chain for package transients.
 Validation: `θJB → 0` and no top path reproduce the current heater; `G_top → 0` gives heater plus the offset `P θJB`; exact series-parallel solution on a uniform board (`T_j` and power split to 1e-9); energy balance with the extra node; the models against each other;
-**ΨJT and ΨJB against a real datasheet** (to be chosen, with its test conditions; no numbers invented); power split in the 75 to 95 % board range; an independent 3D solid (the validation script already handles vias and sinks).
+**ΨJT and ΨJB against a real datasheet** (to be chosen, with its test conditions; no numbers invented); power split in the 75 to 95 % board range; an independent 3D solid (the validation script already handles vias and heatsinks).
 
 ## 2. Import of Gerber files (extra)
 
@@ -204,7 +204,7 @@ All agree to 1e-8 K. The gain appears above about 500 000 unknowns; `pyamg` woul
 
 ## 5. Further validation
 
-Done: the 3D solid with vias and sinks on four boards (`validation.md` section 3). Next, in order of value: **a measurement of a physical board** (absolute accuracy; also calibrates the convection multiplier, `pcbthermal calibrate`);
+Done: the 3D solid with vias and heatsinks on four boards (`validation.md` section 3). Next, in order of value: **a measurement of a physical board** (absolute accuracy; also calibrates the convection multiplier, `pcbthermal calibrate`);
 a transient comparison against the 3D solid; a thick-copper case; the 3D solid with the Package once it exists.
 
 ## 6. Deferred
@@ -236,5 +236,5 @@ Neural-network surrogates; trace Joule heating (IPC-2152 style); reduced-order m
 21. Electronics Cooling, *Use of junction-to-board thermal resistance in predictive engineering* (1999), https://www.electronics-cooling.com/1999/01/use-of-junction-to-board-thermal-resistance-in-predictive-engineering/ (read: `RJB` depends on the board, about 10 % scatter, errors under 25 % in a CFD study).
 22. Electronics Cooling, *The Applicability of JESD51-14 for the Determination of Junction to Case Thermal Resistance* (2024), https://www.electronics-cooling.com/2024/04/the-applicability-of-jesd51-14-for-the-determination-of-junction-to-case-thermal-resistance/ (read: single-path packages, `Rjb/Rjc` above about 10, an overmolded BGA 0.82 against 1.79 K/W).
 23. Richtek, *Application and Definition of Thermal Resistances on Datasheet*, AN061 (2020), https://www.richtek.com/Design%20Support/Technical%20Document/~/media/AN%20PDF/AN061_EN.ashx (read: `θJB` on the lead foot for leaded parts, `θJA/θJC/θJB` not applicable to another board, the `ΨJB` and `ΨJT` estimates and their measured check).
-24. Texas Instruments, *AN-2020 Thermal Design by Insight, Not Hindsight*, SNVA419C (2013), https://www.ti.com/lit/an/snva419c/snva419c.pdf (read: `θCu`, `θVIA`, copper weight, board area rule of thumb, heat sink on the bottom against the top).
+24. Texas Instruments, *AN-2020 Thermal Design by Insight, Not Hindsight*, SNVA419C (2013), https://www.ti.com/lit/an/snva419c/snva419c.pdf (read: `θCu`, `θVIA`, copper weight, board area rule of thumb, heat heatsink on the bottom against the top).
 25. Y. Shen, H. Wang, F. Blaabjerg, H. Zhao, T. Long, *Thermal Modeling and Design Optimization of PCB Vias and Pads*, IEEE Trans. Power Electronics (2019), https://tenglong.eng.cam.ac.uk/files/thermalmodelinganddesignoptimizationofpcbviasandpads.pdf (abstract and structure read: analytical via-array and pad models verified by CFD and measurements).

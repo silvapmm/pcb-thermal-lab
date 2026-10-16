@@ -13,6 +13,15 @@ from pcbthermal.model import (problem_from_dict, problem_from_legacy, problem_to
                               reference_problem)
 
 
+def test_old_files_with_the_sinks_key_still_open():
+    from pcbthermal import Problem
+    from pcbthermal.model import problem_from_dict, problem_to_dict
+    p = Problem.new(50, 40, 2).add_heatsink(2, 25.0, rect=(5, 5, 15, 15))
+    d = problem_to_dict(p)
+    d["sinks"] = d.pop("heatsinks")                                   # The key used before the rename
+    assert len(problem_from_dict(d).heatsinks) == 1 and "heatsinks" in problem_to_dict(p)
+
+
 def test_roundtrip_native_json():
     p = reference_problem()
     q = problem_from_dict(json.loads(json.dumps(problem_to_dict(p))))
@@ -47,7 +56,7 @@ def test_bad_inputs_are_rejected():
     with pytest.raises(ValueError):
         problem_from_dict(d)
     d = problem_to_dict(reference_problem())
-    d["sinks"] = [{"layer": 2, "polygon_mm": [[0, 0], [10, 0], [10, 10]], "h_extra": 5}]
+    d["heatsinks"] = [{"layer": 2, "polygon_mm": [[0, 0], [10, 0], [10, 10]], "h_extra": 5}]
     d["board"]["layers"] = 4
     d["board"]["copper_thickness_mm"] = 0.035
     d["zones"] = []

@@ -12,13 +12,13 @@ THEMES = {
         "window": "#1e2127", "base": "#15181d", "alt": "#23272e", "text": "#e6e8eb", "muted": "#8b949e",
         "accent": "#4c8dff", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
         "grid_minor": "#ffffff12", "grid_major": "#ffffff2a", "solver_grid": "#4cc9f040",
-        "copper": "#d08a3c", "heater": "#ff5b4f", "sink": "#3aa0ff", "via": "#f2c14e",
+        "copper": "#d08a3c", "heater": "#ff5b4f", "heatsink": "#3aa0ff", "via": "#f2c14e",
     },
     "light": {
         "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280",
         "accent": "#2563eb", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
-        "copper": "#c77d2e", "heater": "#e0392d", "sink": "#1d78d8", "via": "#c9971c",
+        "copper": "#c77d2e", "heater": "#e0392d", "heatsink": "#1d78d8", "via": "#c9971c",
     },
 }
 
@@ -116,7 +116,7 @@ def _icon(size, painter_fn, color):
 def tool_icon(kind, theme="dark", size=22):
     """!
     @brief Painted icon of a tool or action.
-    @param kind select, zone, heater, sink, via, run, fit, grid, polygon.
+    @param kind select, zone, heater, heatsink, via, run, fit, grid, polygon.
     @param theme "dark" or "light" (stroke colour follows it).
     @param size Edge in pixels.
     @return QIcon.
@@ -144,9 +144,9 @@ def tool_icon(kind, theme="dark", size=22):
             p.setPen(QPen(QColor("white"), 1.6))
             p.drawLine(QPointF(s * .36, s * .62), QPointF(s * .5, s * .36))
             p.drawLine(QPointF(s * .5, s * .36), QPointF(s * .64, s * .62))
-        elif kind == "sink":
-            p.setBrush(qcolor(c["sink"], 120))
-            p.setPen(QPen(QColor(c["sink"]), 1.8, Qt.DashLine))
+        elif kind == "heatsink":
+            p.setBrush(qcolor(c["heatsink"], 120))
+            p.setPen(QPen(QColor(c["heatsink"]), 1.8, Qt.DashLine))
             p.drawRoundedRect(r, 2, 2)
         elif kind == "via":
             p.setBrush(qcolor(c["via"], 220))

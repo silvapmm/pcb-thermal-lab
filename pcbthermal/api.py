@@ -47,7 +47,7 @@ class SolverOptions:
     linear_solver: str = "direct"                # FVM solver: "direct" (sparse LU), "cg" or "sor" (comparison)
     lumped_rings: int = 10                       # Rings per heater network in the lumped model
     analytic_modes: int = 300                    # Cosine modes per direction in the analytic model
-    analytic_local_corrections: bool = True      # Treat vias and sinks locally (Green's function update)
+    analytic_local_corrections: bool = True      # Treat vias and heatsinks locally (Green's function update)
     hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings

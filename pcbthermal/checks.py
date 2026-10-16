@@ -81,10 +81,10 @@ def check_problem(problem, cell_mm=1.0):
 
     # --- Metal blocks: they only take heat where they overlap copper of their face
     block_cov = {}
-    for k, s in enumerate(problem.sinks):
+    for k, s in enumerate(problem.heatsinks):
         if not s.is_block():
             continue
-        name = s.name or f"Sink {k + 1}"
+        name = s.name or f"Heatsink {k + 1}"
         cov = coverage_fraction(s.polygon, nx, ny, dx, dy, 4)
         area = polygon_area(s.polygon)
         if area > 0 and float(cov.sum() * dx * dy) / area < 0.9:

@@ -69,7 +69,7 @@ def fem_table():
     import fem3d_validation as f3
     rows = ["| Board | 3D solid [°C] | FVM | FDM | Lumped | Analytic |", "| :-- | --: | --: | --: | --: | --: |"]
     cases = (("4 layers, full copper", f3.board_full_copper()), ("2 layers, 40 mm top pad", f3.board_partial_copper()),
-             ("2 layers, 20 mm top pad", f3.board_small_pad()), ("example board (partial copper, 9 vias, bottom sink)", example_board()))
+             ("2 layers, 20 mm top pad", f3.board_small_pad()), ("example board (partial copper, 9 vias, bottom heatsink)", example_board()))
     for name, p in cases:
         ref = f3.solve_fem(p, 1.0)["t_max"]
         res = {"fvm": fvm.solve_steady(p, 0.5), "fdm": fdm.solve_steady(p, 0.5), "lumped": lumped.solve_steady(p),

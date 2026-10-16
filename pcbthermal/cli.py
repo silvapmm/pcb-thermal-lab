@@ -320,7 +320,7 @@ def build_parser():
     e = sub.add_parser("example", help="write the reference board JSON")
     e.add_argument("output", nargs="?", default="examples/reference_board.pcbt.json")
     e.add_argument("--which", choices=("reference", "example", "profile", "block"), default="reference",
-                   help="reference: 100x100 mm 2-layer board; example: 4-layer board with vias and a sink; "
+                   help="reference: 100x100 mm 2-layer board; example: 4-layer board with vias and a heatsink; "
                         "profile: the example board with square-wave power on both heaters; block: the example board with a metal block on the bottom")
     e.set_defaults(func=cmd_example)
     return p

@@ -2,7 +2,7 @@
 @file blocks.py
 @brief Metal blocks attached to the outer faces of the board: the extra thermal nodes they add to a cell or node network.
 
-@details A sink with a thickness (model.Sink.is_block) is a plate of metal pressed on an outer face of the board through an interface.
+@details A heatsink with a thickness (model.Heatsink.is_block) is a plate of metal pressed on an outer face of the board through an interface.
          For every face that carries blocks the network gets **one extra layer** of nodes, one per cell or grid point:
 
          * lateral conductance  S = k t c   (c = fraction of the cell covered by the block), joined with the harmonic mean like the board;
@@ -34,7 +34,7 @@ def block_faces(problem):
     """
     n = problem.board.layers
     faces = set()
-    for s in problem.sinks:
+    for s in problem.heatsinks:
         if s.is_block():
             faces.add(0 if (s.layer == 0 or n == 1) else 1)
     return sorted(faces)
@@ -64,7 +64,7 @@ def extra_layers(problem, cover, area, fill, dx, dy):
         cov = np.zeros((ny, nx))
         S, C, g_link, g_amb, h_tot = (np.zeros((ny, nx)) for _ in range(5))
         names = []
-        for s in problem.sinks:
+        for s in problem.heatsinks:
             if not s.is_block() or (0 if (s.layer == 0 or L == 1) else 1) != face:
                 continue
             c = cover(s.polygon, 4)
@@ -97,14 +97,14 @@ def has_blocks(problem):
     @param problem A Problem.
     @return Boolean.
     """
-    return any(s.is_block() for s in problem.sinks)
+    return any(s.is_block() for s in problem.heatsinks)
 
 
 def plain_equivalent(problem):
     """!
-    @brief The problem with every metal block replaced by a plain sink, for the models that do not have blocks (lumped, analytic).
+    @brief The problem with every metal block replaced by a plain heatsink, for the models that do not have blocks (lumped, analytic).
     @details A block is replaced by the extra coefficient that gives the same heat through the interface and the exposed surface:
-             h_eq = 1 / (R'' + 1 / (h_face + h_extra)) minus the coefficient of the face that the plain sink adds to. The spreading in the
+             h_eq = 1 / (R'' + 1 / (h_face + h_extra)) minus the coefficient of the face that the plain heatsink adds to. The spreading in the
              metal, its mass and the copper fill of the contact are not represented.
     @param problem A Problem.
     @return The same Problem if there is no block, otherwise a copy.
@@ -113,7 +113,7 @@ def plain_equivalent(problem):
         return problem
     p = copy.deepcopy(problem)
     b = p.board
-    for s in p.sinks:
+    for s in p.heatsinks:
         if s.is_block():
             h_face = b.h_top if (s.layer == 0 or b.layers == 1) else b.h_bottom
             h_eq = 1.0 / (max(s.contact_r, 1e-7) + 1.0 / (h_face + s.h_extra))

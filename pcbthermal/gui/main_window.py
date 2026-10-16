@@ -297,7 +297,7 @@ class MainWindow(QMainWindow):
         self.a_save = self._act("Save", self.save_file, QKeySequence.Save)
         self.a_saveas = self._act("Save as…", self.save_file_as, QKeySequence.SaveAs)
         self.a_ex_ref = self._act("Reference board (100 × 100 mm, 2 layers)", lambda: self._load_problem(reference_problem(), "reference"))
-        self.a_ex_4l = self._act("Example 4-layer board (vias, sink, 2 heaters)", lambda: self._load_problem(example_board(), "example-4layer"))
+        self.a_ex_4l = self._act("Example 4-layer board (vias, heatsink, 2 heaters)", lambda: self._load_problem(example_board(), "example-4layer"))
         self.a_export_all = self._act("Export results to a folder…", self.export_results)
         self.a_export_txt = self._act("Export report (TXT)…", self.export_report)
         self.a_export_json = self._act("Export summary (JSON)…", self.export_summary)
@@ -365,7 +365,7 @@ class MainWindow(QMainWindow):
         self.tool_group.setExclusive(True)
         self.tool_actions = {}
         for name, text, key in (("select", "Select", "V"), ("zone", "Copper zone", "Z"), ("heater", "Heater", "H"),
-                                ("sink", "Sink", "K"), ("via", "Via", "I")):
+                                ("heatsink", "Heatsink", "K"), ("via", "Via", "I")):
             a = self._act(text, lambda checked, n=name: checked and self._set_tool(n), key, True, name == "select",
                           f"{text} ({key})")
             self.tool_group.addAction(a)
@@ -487,7 +487,7 @@ class MainWindow(QMainWindow):
         @brief Select every element of the active layer.
         """
         pr, L = self.doc.problem, self.canvas.layer
-        items = [(k, i) for k, lst in (("zone", pr.zones), ("heater", pr.heaters), ("sink", pr.sinks))
+        items = [(k, i) for k, lst in (("zone", pr.zones), ("heater", pr.heaters), ("heatsink", pr.heatsinks))
                  for i, e in enumerate(lst) if e.layer == L] + [("via", i) for i in range(len(pr.vias))]
         self.canvas.set_selection(items)
         self._on_canvas_selection(items)
@@ -507,7 +507,7 @@ class MainWindow(QMainWindow):
         """
         pr = self.doc.problem
         layers = {getattr(e, "layer", None) for k, i in items
-                  for e in [getattr(pr, {"zone": "zones", "heater": "heaters", "sink": "sinks", "via": "vias"}[k])[i]]}
+                  for e in [getattr(pr, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}[k])[i]]}
         layers.discard(None)
         if len(layers) == 1 and self.canvas.layer not in layers:
             self.layer_combo.setCurrentIndex(next(iter(layers)))      # Switch to the layer of the element
@@ -801,7 +801,7 @@ class MainWindow(QMainWindow):
         @brief Show the keyboard and mouse help.
         """
         QMessageBox.information(self, "Keyboard and mouse", """<table cellpadding=3>
-<tr><td><b>V Z H K I</b></td><td>Select, Zone, Heater, Sink, Via tools</td></tr>
+<tr><td><b>V Z H K I</b></td><td>Select, Zone, Heater, Heatsink, Via tools</td></tr>
 <tr><td><b>P</b></td><td>Polygon mode (click vertices; double click or Enter finishes)</td></tr>
 <tr><td><b>Wheel / middle drag / Space+drag</b></td><td>Zoom / pan</td></tr>
 <tr><td><b>Ctrl+0</b></td><td>Fit board</td></tr>

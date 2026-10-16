@@ -10,7 +10,7 @@ Every table here is produced by a script in `examples/` and can be regenerated. 
 ## 1. One scenario, every model: the example board
 
 `example_board()`: 100 × 80 mm, 4 layers, top copper only over 15 to 85 × 15 to 65 mm, planes on layers 2 to 4, heaters U1 (4 W, 10 × 10 mm) and U2 (1.5 W, 6 × 6 mm), a 3 × 3 array of 0.3 mm vias under U1,
-a 30 W/m²K sink on the bottom. Maximum temperature [°C]:
+a 30 W/m²K heatsink on the bottom. Maximum temperature [°C]:
 
 | Model | Tmax | Error on the rise | Time |
 | :-- | --: | --: | --: |
@@ -30,10 +30,10 @@ Every model closes the energy balance below 1e-11 (heat out equals power in).
 | :-- | --: | --: | --: | --: | :-: |
 | reference board (centred 20 mm heater) | 90.13 | 90.13 (+0.0 %) | 89.70 (−0.7 %) | 90.35 (+0.3 %) | - |
 | example board (full) | 85.81 | 84.38 (−2.4 %) | 84.66 (−1.9 %) | 84.65 (−1.9 %) | - |
-| example, no sink | 88.91 | 87.47 (−2.3 %) | 87.60 (−2.1 %) | 87.78 (−1.8 %) | - |
+| example, no heatsink | 88.91 | 87.47 (−2.3 %) | 87.60 (−2.1 %) | 87.78 (−1.8 %) | - |
 | example, no vias | 94.67 | 94.58 (−0.1 %) | 96.51 (+2.6 %) | 94.56 (−0.2 %) | - |
 | example, top copper over the full board | 85.29 | 83.94 (−2.2 %) | 84.14 (−1.9 %) | 84.62 (−1.1 %) | - |
-| example, uniform (no sink, no vias, full copper) | 96.68 | 96.66 (−0.0 %) | 98.34 (+2.3 %) | 97.15 (+0.7 %) | - |
+| example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (−0.0 %) | 98.34 (+2.3 %) | 97.15 (+0.7 %) | - |
 | example, only heater U1 | 79.97 | 78.54 (−2.6 %) | 77.82 (−3.9 %) | 78.71 (−2.3 %) | - |
 | example, only U1, uniform | 90.30 | 90.27 (−0.1 %) | 91.10 (+1.2 %) | 90.62 (+0.5 %) | - |
 | reference board, heater in the corner | 109.40 | 109.39 (−0.0 %) | 102.09 (−8.7 %) | 110.42 (+1.2 %) | - |
@@ -53,7 +53,7 @@ Reading:
 
 * **FDM and FVM agree to about 0.1 % wherever there are no vias** (and exactly where the geometry lies on the grid). With the via array the FDM is 2 to 3 % low at 1 mm, because it puts a point feature on the nearest grid point; the gap closes with the grid (section 2.1).
   It is 3.5 % low when a copper edge crosses the heater.
-* **Analytic** is exact on uniform boards and within 2.3 % with partial copper, vias, sinks, corners, thin heaters and several heaters; it fails (−25 %) when a copper edge crosses the heater, and the input check warns.
+* **Analytic** is exact on uniform boards and within 2.3 % with partial copper, vias, heatsinks, corners, thin heaters and several heaters; it fails (−25 %) when a copper edge crosses the heater, and the input check warns.
 * **Lumped** stays within about 4 % in most cases, 9 % at worst (corners, thin heaters), and also fails when a copper edge crosses the heater.
 
 ### 2.1 Against the grid (example board)
@@ -76,7 +76,7 @@ The FVM rises monotonically to its limit (within 0.2 % from 1 mm; the via array 
 
 **The 3D model** (`examples/fem3d_validation.py`): a tensor mesh of trilinear hexahedral elements; copper slabs with their true thickness (one element across), FR-4 gaps with four elements across,
 copper where a zone exists and FR-4 where it does not; anisotropic FR-4 (0.3 through, 0.9 in plane); convection on the top, bottom and edge facets; the heater as a heat flux on its footprint on the top face;
-a sink as an extra coefficient on the bottom facets inside its polygon; **a via as a copper rod with the copper area of the plated barrel** (0.147 mm square for a 0.3 mm via with a 25 µm wall, since the wall itself is far below
+a heatsink as an extra coefficient on the bottom facets inside its polygon; **a via as a copper rod with the copper area of the plated barrel** (0.147 mm square for a 0.3 mm via with a 25 µm wall, since the wall itself is far below
 the mesh), through the whole thickness, with mesh lines refined around every rod. It does not use the "one node per copper layer" idea of the four models, so it measures the error of that idea. Element size 1 mm in the board plane
 (halving it moved the 4-layer full-copper case by 0.06 °C; 2 elements instead of 4 across the gaps by 0.02 °C).
 
@@ -87,9 +87,9 @@ Maximum temperature of the top face [°C] and error of every model on the rise (
 | 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 90.3 (−0.5 %) | 91.1 (+0.7 %) | 90.6 (0.0 %) |
 | 2 layers, 40 mm top pad | 112.2 | 111.5 (−0.8 %) | 111.2 (−1.2 %) | 112.1 (−0.1 %) | 106.8 (−6.2 %) |
 | 2 layers, 20 mm top pad | 136.2 | 133.7 (−2.2 %) | 131.7 (−4.0 %) | 131.1 (−4.5 %) | 109.6 (−23.9 %) |
-| example board (partial copper, 9 vias, bottom sink) | 85.6 | 85.9 (+0.5 %) | 85.2 (−0.6 %) | 84.7 (−1.5 %) | 84.7 (−1.5 %) |
+| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.9 (+0.5 %) | 85.2 (−0.6 %) | 84.7 (−1.5 %) | 84.7 (−1.5 %) |
 
-**Metal block** (a sink with a thickness; `examples/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; 100 × 80 mm, 2 layers, 5 W, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated; FVM and FDM at 1 mm; error on the rise):
+**Metal block** (a heatsink with a thickness; `examples/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; 100 × 80 mm, 2 layers, 5 W, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated; FVM and FDM at 1 mm; error on the rise):
 
 | Case | 3D solid [°C] | FVM | FDM |
 | :-- | --: | --: | --: |
@@ -106,7 +106,7 @@ The block is always within 1.8 % of the solid. (An earlier version of this scrip
 
 The 3D value of the example board is converged: 85.55 °C with 1 mm elements and 85.59 °C with 0.5 mm (2 elements across each gap).
 
-Reading: on a uniform board the four models land on the 3D answer within 0.7 % (FVM, FDM and Analytic within 0.5 %). **With vias and a sink (the example board) all four are within 1.5 %**, and the FVM, with each via in one cell, is within 0.5 % of the 3D rods.
+Reading: on a uniform board the four models land on the 3D answer within 0.7 % (FVM, FDM and Analytic within 0.5 %). **With vias and a heatsink (the example board) all four are within 1.5 %**, and the FVM, with each via in one cell, is within 0.5 % of the 3D rods.
 With a small copper pad the FVM follows the 3D solid within 2.2 %, the FDM and the Lumped within 4.5 %, and the Analytic loses accuracy exactly where its uniform-sheet assumption breaks (6 % with a 40 mm pad, 24 % with a 20 mm pad). The remaining 0.4 to 2 % of the FVM comes from
 representing each copper layer by one node and the dielectric between two layers as a one-dimensional vertical resistance (no lateral spreading inside the gap).
 
@@ -159,7 +159,7 @@ Same example board (reference 85.81 °C). Old numbers were obtained by running t
 | new | Lumped | 84.66 | −1.9 % | 5.50 | |
 | new | Analytic | 84.65 | −1.9 % | 5.50 | |
 
-What went wrong in the old FDM was not the finite-difference idea: a stopping rule on the step size (false convergence), a heater power that depended on the grid, no lateral conduction in FR-4, solid vias, sinks on inner layers ignored,
+What went wrong in the old FDM was not the finite-difference idea: a stopping rule on the step size (false convergence), a heater power that depended on the grid, no lateral conduction in FR-4, solid vias, heatsinks on inner layers ignored,
 boundary nodes with a full cell. All were fixed (conservative cell balance, exact power, anisotropic FR-4, hollow vias). A correct FDM (section 2) lands within about 1 % of the FVM.
 
 ## 7. Time-dependent results

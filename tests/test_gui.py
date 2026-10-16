@@ -67,7 +67,7 @@ def test_draw_rectangle_heater_and_undo(win):
     assert win.doc.count("heater") == 1
 
 
-def test_polygon_mode_zone_via_and_sink_rules(win):
+def test_polygon_mode_zone_via_and_heatsink_rules(win):
     win.tool_actions["zone"].trigger()
     win.a_poly.setChecked(True)
     for p in ((10, 10), (40, 10), (40, 30)):
@@ -79,13 +79,13 @@ def test_polygon_mode_zone_via_and_sink_rules(win):
     win.tool_actions["via"].trigger()
     QTest.mouseClick(win.canvas.viewport(), Qt.LeftButton, Qt.NoModifier, vp(win.canvas, 50, 40))
     assert win.doc.count("via") == 1
-    # Sinks only on outer layers: a 2-layer board has top and bottom, so both are accepted
-    win.tool_actions["sink"].trigger()
+    # Heatsinks only on outer layers: a 2-layer board has top and bottom, so both are accepted
+    win.tool_actions["heatsink"].trigger()
     drag(win.canvas, (60, 10), (80, 30))
-    assert win.doc.count("sink") == 1
+    assert win.doc.count("heatsink") == 1
 
 
-def test_sink_refused_on_inner_layer(qtbot, monkeypatch, tmp_path):
+def test_heatsink_refused_on_inner_layer(qtbot, monkeypatch, tmp_path):
     doc = Document()
     doc.new(100, 80, 4)
     w = MainWindow(doc, QSettings(str(tmp_path / 'test.ini'), QSettings.IniFormat))
@@ -93,9 +93,9 @@ def test_sink_refused_on_inner_layer(qtbot, monkeypatch, tmp_path):
     w.show()
     w.canvas.fit()
     w.layer_combo.setCurrentIndex(1)                          # Inner layer
-    w.tool_actions["sink"].trigger()
+    w.tool_actions["heatsink"].trigger()
     drag(w.canvas, (10, 10), (20, 20))
-    assert doc.count("sink") == 0
+    assert doc.count("heatsink") == 0
 
 
 def test_move_by_drag_and_nudge(win):

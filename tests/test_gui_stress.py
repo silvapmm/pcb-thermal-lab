@@ -333,7 +333,7 @@ def test_solver_panel_every_option(win, qtbot):
 # ------------------------------------------------------------------ odd boards
 
 @pytest.mark.parametrize("build", ["one_layer", "twelve_layers", "tiny_board", "big_board", "heater_outside", "zero_power",
-                                   "no_zone", "tiny_heater", "all_inner_heater", "overlapping", "many_vias", "corner_sink"])
+                                   "no_zone", "tiny_heater", "all_inner_heater", "overlapping", "many_vias", "corner_heatsink"])
 def test_odd_boards_run_or_refuse_cleanly(win, qtbot, popups, build):
     p = {
         "one_layer": lambda: Problem.new(60, 40, 1).add_full_copper().add_heater(1, 1.0, rect=(20, 15, 30, 25)),
@@ -347,7 +347,7 @@ def test_odd_boards_run_or_refuse_cleanly(win, qtbot, popups, build):
         "all_inner_heater": lambda: Problem.new(60, 40, 4).add_full_copper().add_heater(2, 1.0, rect=(20, 15, 30, 25)),
         "overlapping": lambda: Problem.new(60, 40, 2).add_full_copper().add_heater(1, 1.0, rect=(20, 15, 30, 25)).add_heater(1, 2.0, rect=(25, 15, 35, 25)),
         "many_vias": lambda: Problem.new(60, 40, 2).add_full_copper().add_heater(1, 1.0, rect=(20, 15, 30, 25)).add_via_array((20, 15, 30, 25), 12, 12, diameter=0.3),
-        "corner_sink": lambda: Problem.new(60, 40, 2).add_full_copper().add_heater(1, 1.0, rect=(20, 15, 30, 25)).add_sink(2, 40.0, rect=(0, 0, 60, 40)),
+        "corner_heatsink": lambda: Problem.new(60, 40, 2).add_full_copper().add_heater(1, 1.0, rect=(20, 15, 30, 25)).add_heatsink(2, 40.0, rect=(0, 0, 60, 40)),
     }[build]()
     load(win, p)
     n_before = len(popups)
@@ -399,8 +399,8 @@ def test_draw_everything_edit_undo_run(win, qtbot):
     win._after_load()
     win.canvas.fit()
     for tool, box in (("zone", ((10, 10), (90, 70))), ("heater", ((30, 30), (40, 40))), ("heater", ((60, 30), (66, 36))),
-                      ("sink", ((20, 20), (50, 50)))):
-        if tool == "sink":
+                      ("heatsink", ((20, 20), (50, 50)))):
+        if tool == "heatsink":
             win.layer_combo.setCurrentIndex(3)
         win.tool_actions[tool].trigger()
         drag(win.canvas, *box)
@@ -560,24 +560,24 @@ def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
 
 
 def test_metal_block_in_the_application(win, qtbot):
-    """A sink with a thickness is a metal block: inspector fields, a run with the FVM and the FDM, its table and its own temperature view."""
+    """A heatsink with a thickness is a metal block: inspector fields, a run with the FVM and the FDM, its table and its own temperature view."""
     load(win, example_block_board())
     win.layer_combo.setCurrentIndex(3)                                  # The block is on the bottom layer: work on that layer
-    win.canvas.set_selection([("sink", 0)])
-    win._on_canvas_selection([("sink", 0)])
+    win.canvas.set_selection([("heatsink", 0)])
+    win._on_canvas_selection([("heatsink", 0)])
     spins = win.inspector.form_host.findChildren(QAbstractSpinBox)
     suffixes = {s.suffix().strip() for s in spins}
     assert {"mm", "K·cm²/W", "W/mK"} <= suffixes                       # Thickness, interface and conductivity are editable
     thickness = next(s for s in spins if s.suffix().strip() == "mm" and abs(s.value() - 3.0) < 1e-9)
     thickness.setValue(5.0)
-    assert win.doc.problem.sinks[0].thickness == pytest.approx(0.005)
+    assert win.doc.problem.heatsinks[0].thickness == pytest.approx(0.005)
     contact = next(s for s in spins if s.suffix().strip() == "K·cm²/W")
     contact.setValue(10.0)
-    assert win.doc.problem.sinks[0].contact_r == pytest.approx(1e-3)
+    assert win.doc.problem.heatsinks[0].contact_r == pytest.approx(1e-3)
     combos = win.inspector.form_host.findChildren(QComboBox)
     material = next(c for c in combos if c.findText("Copper") >= 0)
     material.setCurrentIndex(material.findText("Copper"))
-    assert win.doc.problem.sinks[0].k == pytest.approx(385.0)
+    assert win.doc.problem.heatsinks[0].k == pytest.approx(385.0)
     run(win, qtbot, ("fvm", "fdm", "lumped", "analytic"), cell=2.0)
     assert any("block" in w for w in win.sim.warnings)                  # The two simple models say they replace the block
     rv = win.results
@@ -592,8 +592,8 @@ def test_metal_block_in_the_application(win, qtbot):
     walk_results(win, qtbot)
     animate(win, qtbot, "fvm")
     animate(win, qtbot, "fdm")
-    # Removing the thickness turns it back into a plain sink; the table disappears
-    win.doc.problem.sinks[0].thickness = 0.0
+    # Removing the thickness turns it back into a plain heatsink; the table disappears
+    win.doc.problem.heatsinks[0].thickness = 0.0
     win.doc.changed.emit()
     run(win, qtbot, ("fvm",), cell=2.0)
     assert rv.block_table.rowCount() == 0

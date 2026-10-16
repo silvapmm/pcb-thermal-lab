@@ -7,7 +7,7 @@
          conductivity between two nodes is the mean of the two nodal values (arithmetic by default, harmonic on request), a
          heater distributes its power over the nodes inside its footprint, and the edge nodes use half control volumes (the
          standard second-order treatment of a convective boundary with ghost nodes). It solves the same equations with the same
-         sheet conductance, dielectric resistance, vias, sinks and convection as the FVM, so the difference between the two is the
+         sheet conductance, dielectric resistance, vias, heatsinks and convection as the FVM, so the difference between the two is the
          difference of the discretisation: point sampling of the copper and of the sources instead of cell averages, and the
          way the interface between copper and FR-4 is treated.
 
@@ -163,15 +163,15 @@ class Network:
             couple(idx[:L - 1], idx[1:L], gz)
         for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
             couple(idx[a_layer], idx[b_layer], g)
-        # Ambient: faces, sinks and edges
+        # Ambient: faces, heatsinks and edges
         self.g_top = np.zeros((Lt, ny, nx)); self.g_bottom = np.zeros_like(self.g_top)
-        self.g_sink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top); self.g_block = np.zeros_like(self.g_top)
+        self.g_heatsink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top); self.g_block = np.zeros_like(self.g_top)
         self.g_top[0] = b.h_top * area
         self.g_bottom[L - 1] = b.h_bottom * area
-        for sk in problem.sinks:
+        for sk in problem.heatsinks:
             if sk.is_block():
                 continue                                       # A metal block is a layer of its own
-            self.g_sink[sk.layer] += sk.h_extra * area * cover(sk.polygon, 4)
+            self.g_heatsink[sk.layer] += sk.h_extra * area * cover(sk.polygon, 4)
         for k, ly in enumerate(ex):
             self.g_block[L + k] = ly["g_amb"]
             (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
@@ -180,7 +180,7 @@ class Network:
             self.g_side[:, :, -1] += b.h_side * wy[None, :] * slab
             self.g_side[:, 0, :] += b.h_side * wx[None, :] * slab
             self.g_side[:, -1, :] += b.h_side * wx[None, :] * slab
-        self.g_amb = self.g_top + self.g_bottom + self.g_sink + self.g_side + self.g_block
+        self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
         rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(self.g_amb.ravel())
         self.K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()
 
@@ -255,10 +255,10 @@ def _power_out(net, theta):
     @brief Heat leaving through every path.
     @param net The Network.
     @param theta Rise of all layers (board first) in kelvin.
-    @return Dict top, bottom, sinks, sides and, with metal blocks, blocks (watts).
+    @return Dict top, bottom, heatsinks, sides and, with metal blocks, blocks (watts).
     """
     out = {"top": float((net.g_top * theta).sum()), "bottom": float((net.g_bottom * theta).sum()),
-           "sinks": float((net.g_sink * theta).sum()), "sides": float((net.g_side * theta).sum())}
+           "heatsinks": float((net.g_heatsink * theta).sum()), "sides": float((net.g_side * theta).sum())}
     if net.extra_links:
         out["blocks"] = float((net.g_block * theta).sum())
     return out

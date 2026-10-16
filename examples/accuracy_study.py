@@ -35,15 +35,15 @@ def cases():
         d["heaters"] = d["heaters"][:1]
 
     def clean(d):
-        d.update(sinks=[], vias=[])
+        d.update(heatsinks=[], vias=[])
         d["zones"][0]["polygon_mm"] = FULL
 
     out = [("reference board (centred 20 mm heater)", reference_problem()),
            ("example board (full)", example_board()),
-           ("example, no sink", variant(lambda d: d.update(sinks=[]))),
+           ("example, no heatsink", variant(lambda d: d.update(heatsinks=[]))),
            ("example, no vias", variant(lambda d: d.update(vias=[]))),
            ("example, top copper over the full board", variant(lambda d: d["zones"][0].update(polygon_mm=FULL))),
-           ("example, uniform (no sink, no vias, full copper)", variant(clean)),
+           ("example, uniform (no heatsink, no vias, full copper)", variant(clean)),
            ("example, only heater U1", variant(only_a)),
            ("example, only U1, uniform", variant(lambda d: (only_a(d), clean(d))))]
     d = problem_to_dict(reference_problem())

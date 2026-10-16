@@ -7,13 +7,14 @@ guide. The numbers that back every statement are in [`validation.md`](validation
 ## 1. The physical description
 
 A board has `N` copper layers (layer 1 = top), a total thickness, copper zones (polygons with a fill factor), heaters (power over a footprint on one layer),
-plated vias, sinks (extra heat transfer on an outer face) and boundary conditions: ambient temperature and a heat transfer coefficient `h` on the top, bottom and edges.
+plated vias, heatsinks (extra heat transfer on an outer face) and boundary conditions: ambient temperature and a heat transfer coefficient `h` on the top, bottom and edges.
 
 * SI units inside the package; project files and the builder API use millimetres and 1-based layers.
 * **Layered model**: every copper layer is a thin conducting sheet with in-plane sheet conductance
   `S = f·k_cu·t_cu + k_fr4,ip·(slab − f·t_cu)` (`f` copper fill, `slab = thickness/N`); the dielectric between two layers is a vertical conductance `k_fr4,th/d`
   per unit area (anisotropic FR-4: 0.3 W/mK through, 0.9 in plane); a via adds `k_cu·A_via/d` between all layers with `A_via = π[(d_v/2)² − (d_v/2 − t_plating)²]` (hollow) or `π(d_v/2)²` (filled);
-  the top and bottom faces lose heat with `h_top`, `h_bottom`, sinks add `h_extra`, edges `h_side`.
+  the top and bottom faces lose heat with `h_top`, `h_bottom`, heatsinks add `h_extra`, edges `h_side`.
+* **Copper that dissipates is already in the model, with no extra element.** A copper zone on an outer layer is both the spreader (its sheet conductance `S` carries the heat sideways) and the radiator: every cell of the outer face loses heat with `h_top` or `h_bottom` (typed or computed, radiation included), whether it is bare laminate or copper. Copper on the inner layers spreads the heat and sends it to the faces through the vias and the dielectrics. The copper fill `f` of a cell sets how well it spreads, so a larger zone cools better (more face area, more conduction), and the effect saturates at the length `sqrt(S/h)`. Solder mask and tinning are not modelled; a bare or tinned copper area differs only in emissivity (`emissivity_top/bottom`) and, if you want a different coefficient there, a heatsink with `h_extra` over the area. The 3D solid check (`docs/validation.md`, section 3) tests exactly this for the pad sizes of the table.
 * **Heater power** is injected exactly (it does not depend on the grid). Total heat out through the faces and edges equals the power in; every result reports that energy balance.
 * Dependencies: NumPy, SciPy, Matplotlib; PySide 6 for the application; scikit-fem only for the offline 3D check. Virtual environment: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
 
@@ -22,7 +23,7 @@ plated vias, sinks (extra heat transfer on an outer face) and boundary condition
 | | **FVM** | **FDM** | **Lumped** (thermal network, LPTN) | **Analytic** (Fourier series) |
 | :-- | :-- | :-- | :-- | :-- |
 | Role | reference | comparison | fast estimate | fast estimate, independent check |
-| What it is | board cut into cells, one node per layer and cell, sparse matrices | the same equations on grid **points** (node-centred finite differences) | one small network per heater, built from the real footprint and outline | exact closed-form solution of a uniform multilayer board, with corrections for vias, sinks and copper |
+| What it is | board cut into cells, one node per layer and cell, sparse matrices | the same equations on grid **points** (node-centred finite differences) | one small network per heater, built from the real footprint and outline | exact closed-form solution of a uniform multilayer board, with corrections for vias, heatsinks and copper |
 | Time on the example board | 0.13 s (1 mm cells) | 0.12 s | about 10 ms | about 50 ms |
 | Output | full field per layer | full field per layer (at nodes) | approximate field | field per layer |
 | Power profiles in time, step animation | yes | yes (same time stepping on the nodes) | profiles yes, animation no | yes (vias calibrated per heater) |
@@ -77,7 +78,7 @@ system; the problem is linear so the board is the sum over heaters (mutual heati
 The multilayer fin equation on the rectangle with insulated edges, expanded in `cos(mπx/W) cos(nπy/H)`: every mode is a small tridiagonal system over the layers (`analytic.py`). Exact on a uniform board. Refinements:
 
 * **copper weighted by influence, layer by layer**: `f_eff,l = Σ w f_l / Σ w` with `w = Σ_i P_i K₀(r_i/λ_l)` and the layer's own fin length `λ_l = √(S_l/(h_l + n_l g))` (about 5 mm for a layer that carries a heater, not the 34 mm of the whole stack);
-* **local vias and sinks** by a Green-function (Woodbury) update on 2.5 to 5 mm tiles: `(I + G C) y = y₀`;
+* **local vias and heatsinks** by a Green-function (Woodbury) update on 2.5 to 5 mm tiles: `(I + G C) y = y₀`;
 * **warnings** when the copper around the heater is strongly non-uniform or edge convection is significant.
 
 *Use it* for instant answers on boards close to uniform, to understand a design, and as an independent check. It fails when the copper is not uniform near the heater (24 % low with a 20 mm pad, 25 % when an edge crosses it);
@@ -96,11 +97,11 @@ Workflow: explore with Analytic/Lumped, refine with the FVM at the **Auto** cell
 
 ### 2.6 Metal block (heat spreader)
 
-A **Sink with a thickness** (`thickness_mm > 0`, aluminium by default) is a metal block pressed on the outer face. FVM and FDM add one more node layer under it:
+A **Heatsink with a thickness** (`thickness_mm > 0`, aluminium by default) is a metal block pressed on the outer face. FVM and FDM add one more node layer under it:
 lateral conductance `k·t` per cell, heat capacity `ρ·c·t` (time simulation), a **contact to the board layer** `G = A [ f/R'' + (1−f)/(R'' + d/k_FR4) ]` where `f` is the copper fill of that layer, `R''` the interface resistance (m²K/W; K cm²/W in the application) and `d` half a layer slab,
-and an exposed surface to the air `G = (h_face + h_extra)(A + t·L_edge)` (top or bottom coefficient of the board plus the sink's extra h, sides included). The heat therefore enters the block **where the block overlaps copper** (the intersection of the two planes);
+and an exposed surface to the air `G = (h_face + h_extra)(A + t·L_edge)` (top or bottom coefficient of the board plus the heatsink's extra h, sides included). The heat therefore enters the block **where the block overlaps copper** (the intersection of the two planes);
 over bare laminate it must also cross the FR-4. The board face under the block no longer loses heat on its own. The block is taken as an isotropic plate with no gradient across its thickness (thin blocks; a 1 to 10 mm aluminium or copper plate is within 0.6 % of a 3D solid).
-`block_stats` and the report give its mean and maximum temperature and the heat entering and leaving; the Temperature tab has a "Metal block" view. A sink with thickness 0 stays the plain extra coefficient.
+`block_stats` and the report give its mean and maximum temperature and the heat entering and leaving; the Temperature tab has a "Metal block" view. A heatsink with thickness 0 stays the plain extra coefficient.
 Lumped and Analytic have no block: they use the equivalent plain coefficient `1/(R'' + 1/(h+h_extra))` and warn. SOR does not support blocks (direct and CG do). `python -m pcbthermal example block` runs the example board with a block.
 
 ## 3. Input checks
@@ -122,7 +123,7 @@ A heater may carry a **square wave** (`SquareWave`: `p_on`, `period`, `duty`, `p
    constant power in the same run, the window is the least common multiple of the periods, and windows repeat until peak and minimum change by less than 0.1 °C ("until the cycle repeats"), for N cycles, or for a fixed time;
    more than 200,000 steps is refused with an explanation. Start: the steady state of the average power (the first power for a one-shot table) or a uniform temperature typed in °C.
 4. **Results**: peak, minimum, oscillation, temperature of every heater versus time, peak-temperature map, frames of the last window, steady temperatures with the average and with the peak power (the bound).
-5. **Analytic transient with vias and sinks**: one modal system per heater with the smeared via (or sink) conductance scaled so that its steady response equals the locally corrected steady model (factor 65 above the via
+5. **Analytic transient with vias and heatsinks**: one modal system per heater with the smeared via (or heatsink) conductance scaled so that its steady response equals the locally corrected steady model (factor 65 above the via
    array of the example, 1 for the distant heater); a single global factor cooled the distant heater by 18 %.
 
 Interfaces: `SolverOptions.profile`, `steady_power` ("average" or "peak"); CLI `run --profile U1=file.csv --duration --cycles --time-s --initial-c --threshold-c --steady-power`; the "Power profile" tab with
@@ -146,7 +147,7 @@ p = Problem.new(width_mm=100, height_mm=80, layers=4)
 p.add_zone(1, rect=(15, 15, 85, 65)).add_full_copper([2, 3, 4])
 p.add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=6.0)      # theta_jb: junction-to-board K/W
 p.add_via_array((30, 35, 40, 45), 3, 3, diameter=0.3)
-p.add_sink(4, 30.0, rect=(25, 30, 45, 50))                               # extra h on the bottom layer
+p.add_heatsink(4, 30.0, rect=(25, 30, 45, 50))                               # extra h on the bottom layer
 
 sim = simulate(p, SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=suggest_cell_mm(p)))
 print(sim.to_markdown())      # models, error against the FVM, energy balance, warnings
@@ -167,6 +168,6 @@ The sparse solvers of SciPy must not run in two threads at once (the application
 
 ## 7. The application (PySide 6)
 
-Board canvas with zoom/pan, grid snap, polygons, vias, sinks, undo/redo, background photo, dark and light themes; docks for the board, environment (typed or computed `h`), materials, element tree, models and settings,
+Board canvas with zoom/pan, grid snap, polygons, vias, heatsinks, undo/redo, background photo, dark and light themes; docks for the board, environment (typed or computed `h`), materials, element tree, models and settings,
 live input checks and the property inspector; tabs **Board**, **Power profile** (heater list, constant / square wave / table with CSV import and export, decision table, run settings) and **Results** (summary, temperature,
 gradients, profiles, components, model comparison, step-power animation, power-profile results). The temperature of the last run can be painted on the board (key T). The version is shown in the title bar, status bar and About box.

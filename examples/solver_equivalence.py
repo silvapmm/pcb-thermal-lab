@@ -35,7 +35,7 @@ def boards():
     plain.board.h_side = None
     return [("reference, 2 layers", reference_problem(), 2.0),
             ("reference, 8 layers", reference_problem(layers=8), 2.0),
-            ("example board (vias, sink, 2 heaters)", example_board(), 1.0),
+            ("example board (vias, heatsink, 2 heaters)", example_board(), 1.0),
             ("weak cooling (h = 2 W/m²K, 200 mm)", weak, 2.0),
             ("reference, insulated edges", plain, 1.0)]
 

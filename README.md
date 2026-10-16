@@ -2,7 +2,7 @@
 
 [![version](https://img.shields.io/badge/version-2.3.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-169%20passing-brightgreen)](tests)
 
-Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run the models and inspect temperatures,
+Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
 
 ![Editor](docs/images/editor.png)
@@ -10,7 +10,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ## Features
 
 - **Four models on one board description** (finite volumes, finite differences, thermal network, analytical series), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
-- **Interactive editor** (PySide 6): rectangles and polygons, vias, sinks and metal blocks, undo/redo, background photo, dark and light themes.
+- **Interactive editor** (PySide 6): rectangles and polygons, vias, heatsinks and metal blocks, undo/redo, background photo, dark and light themes.
 - **Results**: temperature maps per layer, gradients, profiles, hotspot list, heater and junction temperatures, zone statistics, model comparison, temperature painted on the board.
 - **Power tables from CSV files** (any piecewise-constant profile, repeating or one-shot) with import and export buttons; documented example in [`examples/csv_profiles`](examples/csv_profiles).
 - **Computed heat transfer coefficients**: convection (natural or forced, any orientation) plus radiation from the board temperature, with an optional calibration multiplier, instead of typed numbers.

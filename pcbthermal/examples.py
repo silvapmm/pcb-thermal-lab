@@ -8,7 +8,7 @@ from .model import Problem, SquareWave, reference_problem
 
 def example_board():
     """!
-    @brief 100 x 80 mm, 4-layer board with two heaters, a via array, partial top copper and a sink.
+    @brief 100 x 80 mm, 4-layer board with two heaters, a via array, partial top copper and a heatsink.
     @return A Problem.
     """
     p = Problem.new(width_mm=100, height_mm=80, layers=4, name="example-4layer")
@@ -20,7 +20,7 @@ def example_board():
     for i in range(3):
         for j in range(3):
             p.add_via(31.5 + 3.5 * i, 36.5 + 3.5 * j, diameter=0.3)
-    p.add_sink(4, 30.0, rect=(25, 30, 45, 50), name="bottom heatsink")
+    p.add_heatsink(4, 30.0, rect=(25, 30, 45, 50), name="bottom heatsink")
     return p
 
 
@@ -41,12 +41,12 @@ def example_profile_board():
 
 def example_block_board():
     """!
-    @brief The example board with a 3 mm aluminium block (60 x 50 mm, 5 K cm2/W gap pad) on the bottom face under U1, instead of the plain sink.
+    @brief The example board with a 3 mm aluminium block (60 x 50 mm, 5 K cm2/W gap pad) on the bottom face under U1, instead of the plain heatsink.
     @return A Problem.
     """
     p = example_board()
     p.name = "example with a metal block"
-    p.sinks = []
-    p.add_sink(4, 15.0, rect=(20, 15, 80, 65), name="Al block", thickness_mm=3.0, contact_r=5.0e-4)
+    p.heatsinks = []
+    p.add_heatsink(4, 15.0, rect=(20, 15, 80, 65), name="Al block", thickness_mm=3.0, contact_r=5.0e-4)
     return p
 

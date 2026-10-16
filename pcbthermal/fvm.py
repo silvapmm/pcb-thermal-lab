@@ -8,7 +8,7 @@ dx x dy and thickness t_pcb / layers. Heat flows
 - sideways between neighbouring cells through the layer sheet conductance
   S = f * k_cu * t_cu + k_fr4_inplane * (slab - f * t_cu), where f is the copper fill,
 - vertically between layers through the FR-4 dielectric (and the via barrels),
-- to ambient through the top and bottom surfaces, the sinks and, optionally, the edges.
+- to ambient through the top and bottom surfaces, the heatsinks and, optionally, the edges.
 
 The steady problem is the sparse symmetric positive definite system K*theta = Q with
 theta = T - T_ambient, solved directly (sparse LU) or with Conjugate Gradients. The transient
@@ -42,7 +42,7 @@ class Network:
         @param nx Number of cells along x.
         @param ny Number of cells along y.
         @param assemble If False, skip building the sparse matrix (the lumped model only needs the per-cell arrays).
-        @param with_blocks If False the metal blocks (sinks with a thickness) are left out: the sinks only add their coefficient on the
+        @param with_blocks If False the metal blocks (heatsinks with a thickness) are left out: the heatsinks only add their coefficient on the
                board face (the lumped and analytic models see them that way).
         """
         problem.validate()
@@ -84,18 +84,18 @@ class Network:
                 # The barrel conducts in parallel with the dielectric, across every gap
                 self.gz[:, i, j] += m.k_copper * v.copper_area(b.via_plating) / d
 
-        # --- Conductance to ambient (W/K): top, bottom, sinks and edges are kept separate
+        # --- Conductance to ambient (W/K): top, bottom, heatsinks and edges are kept separate
         self.g_top = np.zeros((L, ny, nx))
         self.g_bottom = np.zeros((L, ny, nx))
-        self.g_sink = np.zeros((L, ny, nx))
+        self.g_heatsink = np.zeros((L, ny, nx))
         self.g_side = np.zeros((L, ny, nx))
         self.g_top[0] = b.h_top * cell
         self.g_bottom[L - 1] = b.h_bottom * cell       # For one layer top and bottom share layer 0
-        for s in problem.sinks:
+        for s in problem.heatsinks:
             if s.is_block() and with_blocks:
                 continue                               # A metal block is a layer of its own (below)
             cov = coverage_fraction(s.polygon, nx, ny, dx, dy, samples=4)
-            self.g_sink[s.layer] += s.h_extra * cell * cov
+            self.g_heatsink[s.layer] += s.h_extra * cell * cov
         self.g_block = np.zeros((L, ny, nx))
         if with_blocks:
             area = np.full((ny, nx), cell)
@@ -107,7 +107,7 @@ class Network:
             self.g_side[:, :, -1] += b.h_side * dy * slab
             self.g_side[:, 0, :] += b.h_side * dx * slab
             self.g_side[:, -1, :] += b.h_side * dx * slab
-        self.g_amb = self.g_top + self.g_bottom + self.g_sink + self.g_side + self.g_block
+        self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
 
         # --- Heat sources (W): the requested power is spread exactly over the covered cells.
         # The unit-power distribution of every heater (weights that sum to 1) is kept, so that the source of a
@@ -146,7 +146,7 @@ class Network:
         zeros = np.zeros((E, ny, nx))
         self.S = np.concatenate([self.S, np.stack([ly["S"] for ly in layers])])
         self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in layers])])
-        for name in ("g_top", "g_bottom", "g_sink", "g_side"):
+        for name in ("g_top", "g_bottom", "g_heatsink", "g_side"):
             setattr(self, name, np.concatenate([getattr(self, name), zeros]))
         self.g_block = np.concatenate([self.g_block, np.stack([ly["g_amb"] for ly in layers])])
         for k, ly in enumerate(layers):
@@ -302,12 +302,12 @@ class Network:
         """!
         @brief Heat leaving the board through every path for a given temperature rise.
         @param theta Rise array of shape (layers, ny, nx).
-        @return Dict with keys top, bottom, sinks, sides in watts.
+        @return Dict with keys top, bottom, heatsinks, sides in watts.
         """
         out = {
             "top": float((self.g_top * theta).sum()),
             "bottom": float((self.g_bottom * theta).sum()),
-            "sinks": float((self.g_sink * theta).sum()),
+            "heatsinks": float((self.g_heatsink * theta).sum()),
             "sides": float((self.g_side * theta).sum()),
         }
         if self.extra_links:
