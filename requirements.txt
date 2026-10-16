@@ -1,9 +1,10 @@
+# Physics core
 numpy>=1.24
 scipy>=1.11
+# Figures (command line and GUI)
 matplotlib>=3.7
-# Test suite
+# Desktop application
+PySide6>=6.6
+# Tests
 pytest>=7
-# Legacy wxPython editor only (not needed by pcbthermal)
-# wxPython
-# Optional speed-up for the legacy FDM solver
-# numba
+pytest-qt>=4.2

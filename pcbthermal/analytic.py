@@ -19,12 +19,23 @@ decouples the equation by mode: for every (m, n) a small tridiagonal L x L syste
 
 where q_mn is the cosine projection of the heaters (analytic for rectangles). The a_00 mode is
 the uniform-board limit P / (h W H); the other modes add the lateral spreading penalty. The
-model needs uniform properties: copper fill is averaged per layer, vias are smeared over the
-board and sinks are averaged over the surface. Local effects (vias under the heater, partial
-copper) are only captured by the FVM model.
+model needs laterally uniform properties, with these refinements:
+
+- Copper fill is averaged per layer with a weight equal to the influence of the heaters
+  (the fin Green function K0(r / lambda), lambda = sqrt(S / h)), so copper near a heater counts
+  more than copper far away.
+- Vias and sinks are local. They are removed from the uniform problem and added back through
+  a Green-function (Woodbury) correction: the board is cut into tiles of a few millimetres,
+  every tile with a via or a sink gets a lumped conductance, and the small dense system
+  (I + G C) y = y0 gives the tile temperatures, where G is the modal response of the uniform
+  board and C holds the local conductances.
+- A validity check adds warnings when the copper is far from uniform around the heaters.
+Strongly non-uniform copper is still beyond this model: use the FVM then.
 """
 
 import numpy as np
+
+from scipy.special import k0
 
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
@@ -72,12 +83,28 @@ def _cos_projection(lo, hi, length, n_terms):
 
 
 
-def solve_steady(problem, cell_mm=1.0, n_terms=300):
+def _tile_grid(W, H, lam):
+    """!
+    @brief Tile grid used for the local corrections.
+    @param W Board width (m).
+    @param H Board height (m).
+    @param lam Fin length lambda = sqrt(S / h) (m).
+    @return Tuple (ntx, nty, tw, th): tile counts and tile size in metres.
+    """
+    target = min(max(lam / 4.0, 2.5e-3), 5e-3)            # Tiles between 2.5 and 5 mm, below lambda / 4
+    ntx = max(int(np.ceil(W / target)), 1)
+    nty = max(int(np.ceil(H / target)), 1)
+    return ntx, nty, W / ntx, H / nty
+
+
+def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     """!
     @brief Analytic steady-state solution of the multilayer fin problem.
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid used for the fields and the maxima.
     @param n_terms Number of cosine modes per direction (300 resolves heaters of a few mm).
+    @param local_corrections If True vias and sinks are applied locally (Green-function update);
+                             if False they are smeared over the board (the older, cruder model).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
     problem.validate()
@@ -88,31 +115,49 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300):
     nx = max(int(round(W * 1000.0 / cell_mm)), 2)
     ny = max(int(round(H * 1000.0 / cell_mm)), 2)
     dx, dy = W / nx, H / ny
-
-    # --- Per-layer sheet conductance with the mean copper fill of each layer
-    fill = np.zeros(L)
-    for l in range(L):
-        f = np.zeros((ny, nx))
-        for z in problem.zones:
-            if z.layer == l:
-                f = np.maximum(f, coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
-        fill[l] = f.mean()
+    xs = (np.arange(nx) + 0.5) * dx
+    ys = (np.arange(ny) + 0.5) * dy
     tc = np.asarray(b.copper_thickness)
+    power = problem.total_power()
+    warnings = []
+
+    # --- Copper fill field of every layer and its heater-influence weighted average
+    fill_map = np.zeros((L, ny, nx))
+    for z in problem.zones:
+        fill_map[z.layer] = np.maximum(fill_map[z.layer],
+                                       coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
+    h_tot = float(b.h_top + b.h_bottom)
+    fill_mean = fill_map.mean(axis=(1, 2))
+    S_mean = fill_mean * m.k_copper * tc + m.k_fr4_inplane * (slab - fill_mean * tc)
+    lam = float(np.sqrt(S_mean.sum() / h_tot)) if h_tot > 0 else W
+    centres = [(polygon_centroid(h.polygon), np.sqrt(polygon_area(h.polygon) / np.pi), h.power)
+               for h in problem.heaters if h.power > 0]
+    if centres:
+        w = np.zeros((ny, nx))
+        for (cx, cy), r0, pw in centres:
+            d = np.maximum(np.hypot(xs[None, :] - cx, ys[:, None] - cy), max(r0, 0.5 * dx))
+            w += pw * k0(d / lam)                      # Influence of the heater at distance d
+        fill = (fill_map * w).sum(axis=(1, 2)) / w.sum()
+        spread = np.sqrt(((fill_map - fill[:, None, None]) ** 2 * w).sum(axis=(1, 2)) / w.sum())
+        if spread.max() > 0.25:
+            warnings.append(
+                f"copper coverage varies strongly around the heaters (spread {spread.max():.2f}); "
+                "the uniform-sheet assumption is weak, the FVM result is more reliable")
+    else:
+        fill = fill_mean
     S = fill * m.k_copper * tc + m.k_fr4_inplane * (slab - fill * tc)           # (L,)
 
-    # --- Surface coefficient of every layer (W/m2K); sinks are averaged over the surface
+    # --- Surface coefficients and vertical conductance of the uniform problem
     h_l = np.zeros(L)
     h_l[0] += b.h_top
     h_l[L - 1] += b.h_bottom
-    for s in problem.sinks:
-        h_l[s.layer] += s.h_extra * polygon_area(s.polygon) / (W * H)
-
-    # --- Vertical conductance per unit area between adjacent layers (dielectric + smeared vias)
-    g = 0.0
-    if L > 1:
-        d = b.dielectric_thickness()
-        a_vias = sum(v.copper_area(b.via_plating) for v in problem.vias)
-        g = m.k_fr4_through / d + m.k_copper * a_vias / (W * H) / d
+    d_diel = b.dielectric_thickness()
+    g = m.k_fr4_through / d_diel if L > 1 else 0.0
+    if not local_corrections:
+        for s in problem.sinks:
+            h_l[s.layer] += s.h_extra * polygon_area(s.polygon) / (W * H)
+        if L > 1:
+            g += m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / d_diel
 
     # --- Cosine coefficients of the heaters, one vector entry per layer
     M = N = n_terms
@@ -126,7 +171,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300):
         py = _cos_projection(y1, y2, H, N)
         q_mn[:, :, ht.layer] += q0 * np.outer(ex * px, ey * py) / (W * H)
 
-    # --- Solve the L x L tridiagonal system of every mode at once
+    # --- Modal matrices A_mn (L x L) and their inverses
     k2 = ((np.arange(M) * np.pi / W) ** 2)[:, None] + ((np.arange(N) * np.pi / H) ** 2)[None, :]
     A = np.zeros((M, N, L, L))
     for l in range(L):
@@ -137,30 +182,88 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300):
         if l < L - 1:
             A[:, :, l, l] += g
             A[:, :, l, l + 1] -= g
-    a_mn = np.linalg.solve(A, q_mn[..., None])[..., 0]       # (M, N, L)
+    Ainv = np.linalg.inv(A)                                  # (M, N, L, L)
+    a_mn = np.einsum("mnlk,mnk->mnl", Ainv, q_mn)            # (M, N, L)
+
+    # --- Local corrections for vias and sinks through the tile Green-function system
+    sink_extraction = 0.0
+    if local_corrections and (problem.vias or problem.sinks):
+        ntx, nty, tw, th = _tile_grid(W, H, lam)
+        c_via = np.zeros((nty, ntx))
+        for v in problem.vias:
+            a = min(max(int(v.x // tw), 0), ntx - 1)
+            bb = min(max(int(v.y // th), 0), nty - 1)
+            c_via[bb, a] += m.k_copper * v.copper_area(b.via_plating) / d_diel if L > 1 else 0.0
+        g_sink = np.zeros((L, nty, ntx))
+        for s in problem.sinks:
+            g_sink[s.layer] += s.h_extra * tw * th * coverage_fraction(s.polygon, ntx, nty, tw, th, 8)
+        active = np.argwhere((c_via > 0) | (g_sink.sum(axis=0) > 0))        # (Nt, 2) = (row, col)
+        Nt = len(active)
+        if Nt:
+            rect = [(c * tw, (c + 1) * tw, r * th, (r + 1) * th) for r, c in active]
+            PX = np.stack([_cos_projection(x1, x2, W, M) for x1, x2, _, _ in rect], axis=1)   # (M, Nt)
+            PY = np.stack([_cos_projection(y1, y2, H, N) for _, _, y1, y2 in rect], axis=1)   # (N, Nt)
+            Ux, Uy = PX / tw, PY / th                         # Cosine average over each tile
+            # Tile averages of the uniform solution
+            y0 = np.stack([np.einsum("mr,mn,nr->r", Ux, a_mn[:, :, l], Uy) for l in range(L)], axis=1)  # (Nt, L)
+            # Modal response between tiles: G[(r,l),(s,k)] for unit power injected uniformly in tile s, layer k
+            Mg, Ng = min(M, 64), min(N, 64)
+            Gm = np.zeros((Nt, L, Nt, L))
+            for l in range(L):
+                for k in range(L):
+                    Wm = Ainv[:Mg, :Ng, l, k] * (ex[:Mg, None] * ey[None, :Ng]) / (W * H)
+                    acc = np.zeros((Nt, Nt))
+                    for n in range(Ng):
+                        # Sum over m of Ux_r Ux_s W[m, n], then weight with the y factors of mode n
+                        accx = (Ux[:Mg].T * Wm[:, n]) @ Ux[:Mg]
+                        acc += accx * np.outer(Uy[n], Uy[n])
+                    Gm[:, l, :, k] = acc
+            G = Gm.reshape(Nt * L, Nt * L)
+            # Local conductance matrix C (W/K): vias couple adjacent layers, sinks go to ambient
+            C = np.zeros((Nt * L, Nt * L))
+            for r, (row, col) in enumerate(active):
+                cv = c_via[row, col]
+                for l in range(L - 1):
+                    i1, i2 = r * L + l, r * L + l + 1
+                    C[i1, i1] += cv
+                    C[i2, i2] += cv
+                    C[i1, i2] -= cv
+                    C[i2, i1] -= cv
+                for l in range(L):
+                    C[r * L + l, r * L + l] += g_sink[l, row, col]
+            y = np.linalg.solve(np.eye(Nt * L) + G @ C, y0.reshape(-1))
+            f = -(C @ y).reshape(Nt, L)                       # Heat injected into every tile and layer (W)
+            sink_extraction = float(sum(g_sink[l, row, col] * y[r * L + l]
+                                        for r, (row, col) in enumerate(active) for l in range(L)))
+            # Add the response of the injected heat to the modal coefficients
+            Pxf = PX / tw
+            Pyf = PY / th
+            for k in range(L):
+                q_corr = np.einsum("mr,nr->mn", Pxf * f[:, k], Pyf) * (ex[:, None] * ey[None, :]) / (W * H)
+                a_mn += np.einsum("mnl,mn->mnl", Ainv[:, :, :, k], q_corr)
 
     # --- Evaluate every layer at the cell centres by two matrix products
-    xs = (np.arange(nx) + 0.5) * dx
-    ys = (np.arange(ny) + 0.5) * dy
-    cx = np.cos(np.outer(xs, np.arange(M) * np.pi / W))      # (nx, M)
-    cy = np.cos(np.outer(ys, np.arange(N) * np.pi / H))      # (ny, N)
-    theta = np.stack([cy @ a_mn[:, :, l].T @ cx.T for l in range(L)])   # (L, ny, nx)
+    cx_ = np.cos(np.outer(xs, np.arange(M) * np.pi / W))     # (nx, M)
+    cy_ = np.cos(np.outer(ys, np.arange(N) * np.pi / H))     # (ny, N)
+    theta = np.stack([cy_ @ a_mn[:, :, l].T @ cx_.T for l in range(L)])     # (L, ny, nx)
     T = theta + b.ambient
 
     l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
-    power = problem.total_power()
-    # Heat leaving through the faces: the a_00 mode integrates the field exactly
+    # Heat leaving through the faces: the a_00 mode integrates each layer exactly
     p_out = {"top": float(b.h_top * W * H * a_mn[0, 0, 0]),
              "bottom": float(b.h_bottom * W * H * a_mn[0, 0, L - 1]),
-             "sinks": float(sum(h_l[k] * W * H * a_mn[0, 0, k] for k in range(L))
+             "sinks": float(sink_extraction if local_corrections else
+                            sum(h_l[k] * W * H * a_mn[0, 0, k] for k in range(L))
                             - b.h_top * W * H * a_mn[0, 0, 0] - b.h_bottom * W * H * a_mn[0, 0, L - 1])}
-    h_tot = float(b.h_top + b.h_bottom)
+    edge_ratio = (b.h_side or 0.0) * 2 * (W + H) * b.thickness / max(h_tot * W * H, 1e-30)
+    if edge_ratio > 0.05:
+        warnings.append(f"edge convection is about {edge_ratio * 100:.0f} % of the face convection but the "
+                        "analytic model assumes insulated edges")
     return SteadyResult(
         model="analytic", ambient=b.ambient, power_in=power, t_max=float(T.max()),
         t_min=float(T.min()), t_mean=float(T.mean()), layer_mean=[float(T[k].mean()) for k in range(L)],
         t_max_location=(int(l), (j + 0.5) * dx, (i + 0.5) * dy), T=T, dx=dx, dy=dy,
-        power_out=p_out,
-        extras={"fin_length_mm": float(np.sqrt(S.sum() / h_tot) * 1000.0) if h_tot > 0 else float("inf"),
-                "sheet_conductance_w_per_k": float(S.sum()),
+        power_out=p_out, warnings=warnings,
+        extras={"fin_length_mm": lam * 1000.0, "sheet_conductance_w_per_k": float(S.sum()),
                 "uniform_board_rise_k": power / (h_tot * W * H) if h_tot > 0 else float("inf")},
     )

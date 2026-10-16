@@ -88,6 +88,7 @@ class Zone:
     layer: int                                  # 0-based layer index
     polygon: np.ndarray                         # Vertices (n, 2) in metres
     fill: float = 1.0                           # Copper fill fraction inside the polygon (0..1)
+    name: str = ""                              # Optional label shown in reports and the GUI
 
 
 @dataclass
@@ -98,6 +99,8 @@ class Heater:
     layer: int                                  # 0-based layer index
     polygon: np.ndarray                         # Vertices (n, 2) in metres
     power: float                                # Dissipated power (W)
+    name: str = ""                              # Optional label (for example the component name)
+    theta_jb: float = 0.0                       # Junction-to-board resistance (K/W); 0 = not used
 
     def area(self):
         """!
@@ -116,6 +119,7 @@ class Via:
     y: float                                    # Y position (m)
     diameter: float                             # Finished hole diameter (m)
     filled: bool = False                        # True for a copper-filled via (solid rod)
+    name: str = ""                              # Optional label
 
     def copper_area(self, plating):
         """!
@@ -139,6 +143,7 @@ class Sink:
     layer: int                                  # 0-based layer index (must be 0 or layers-1)
     polygon: np.ndarray                         # Vertices (n, 2) in metres
     h_extra: float                              # Added coefficient (W/m2K)
+    name: str = ""                              # Optional label
 
 
 @dataclass
@@ -176,6 +181,124 @@ class Problem:
         for s in self.sinks:
             if s.layer not in (0, n - 1):
                 raise ValueError("a sink must be on the top or the bottom layer")
+
+    # ---------------------------------------------------------------- builder API (mm, layer 1 = top)
+    @classmethod
+    def new(cls, width_mm=100.0, height_mm=100.0, layers=2, thickness_mm=1.6, copper_um=35.0,
+            name="board", **board_options):
+        """!
+        @brief Create an empty board using millimetres and micrometres.
+        @param width_mm Board width in mm.
+        @param height_mm Board height in mm.
+        @param layers Number of copper layers.
+        @param thickness_mm Total thickness in mm.
+        @param copper_um Copper thickness per layer in micrometres.
+        @param name Project name.
+        @param board_options Any other Board field (ambient, h_top, h_bottom, h_side, via_plating, materials).
+        @return A new Problem without elements.
+        """
+        board = Board(width=width_mm / 1000.0, height=height_mm / 1000.0,
+                      thickness=thickness_mm / 1000.0, layers=layers,
+                      copper_thickness=[copper_um * 1e-6] * layers, **board_options)
+        return cls(board=board, name=name)
+
+    @staticmethod
+    def _shape_m(rect, polygon):
+        """!
+        @brief Convert a rectangle (x0, y0, x1, y1) or a polygon, both in mm, to a metre polygon.
+        @param rect Tuple (x0, y0, x1, y1) in mm or None.
+        @param polygon List of [x, y] in mm or None.
+        @return Array (n, 2) in metres.
+        @throws ValueError If neither or both shapes are given.
+        """
+        if (rect is None) == (polygon is None):
+            raise ValueError("give exactly one of rect=(x0, y0, x1, y1) or polygon=[[x, y], ...]")
+        if rect is not None:
+            x0, y0, x1, y1 = rect
+            polygon = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+        return np.asarray(polygon, dtype=float) / 1000.0
+
+    def add_zone(self, layer, rect=None, polygon=None, fill=1.0, name=""):
+        """!
+        @brief Add a copper zone (layer 1 = top, geometry in mm).
+        @param layer 1-based layer number.
+        @param rect Rectangle (x0, y0, x1, y1) in mm.
+        @param polygon Polygon [[x, y], ...] in mm.
+        @param fill Copper fill fraction (0..1).
+        @param name Optional label.
+        @return self, so calls can be chained.
+        """
+        self.zones.append(Zone(layer - 1, self._shape_m(rect, polygon), fill, name))
+        return self
+
+    def add_full_copper(self, layers=None, fill=1.0):
+        """!
+        @brief Add a full-board copper plane on the given layers.
+        @param layers Iterable of 1-based layers (default: all layers).
+        @param fill Copper fill fraction.
+        @return self.
+        """
+        w, h = self.board.width * 1000.0, self.board.height * 1000.0
+        for l in (layers if layers is not None else range(1, self.board.layers + 1)):
+            self.add_zone(l, rect=(0, 0, w, h), fill=fill, name=f"plane L{l}")
+        return self
+
+    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta_jb=0.0):
+        """!
+        @brief Add a heat source (layer 1 = top, geometry in mm, power in W).
+        @param layer 1-based layer number.
+        @param power Dissipated power in watts.
+        @param rect Rectangle (x0, y0, x1, y1) in mm.
+        @param polygon Polygon [[x, y], ...] in mm.
+        @param name Optional label (for example the component).
+        @param theta_jb Junction-to-board resistance in K/W (adds a junction temperature to the report).
+        @return self.
+        """
+        self.heaters.append(Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta_jb))
+        return self
+
+    def add_via(self, x, y, diameter=0.3, filled=False, name=""):
+        """!
+        @brief Add one via (mm).
+        @param x X position in mm.
+        @param y Y position in mm.
+        @param diameter Finished hole diameter in mm.
+        @param filled True for a copper-filled via.
+        @param name Optional label.
+        @return self.
+        """
+        self.vias.append(Via(x / 1000.0, y / 1000.0, diameter / 1000.0, filled, name))
+        return self
+
+    def add_via_array(self, rect, nx, ny, diameter=0.3, filled=False):
+        """!
+        @brief Add a regular nx x ny array of vias, centred in a rectangle.
+        @param rect Rectangle (x0, y0, x1, y1) in mm.
+        @param nx Vias along x.
+        @param ny Vias along y.
+        @param diameter Finished hole diameter in mm.
+        @param filled True for copper-filled vias.
+        @return self.
+        """
+        x0, y0, x1, y1 = rect
+        # Vias sit at the centres of an nx x ny grid of equal cells, so the array is symmetric in the rectangle
+        for i in range(nx):
+            for j in range(ny):
+                self.add_via(x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny, diameter, filled)
+        return self
+
+    def add_sink(self, layer, h_extra, rect=None, polygon=None, name=""):
+        """!
+        @brief Add a sink: extra heat transfer coefficient on an outer surface (mm, W/m2K).
+        @param layer 1 (top) or the last layer (bottom).
+        @param h_extra Added coefficient in W/m2K.
+        @param rect Rectangle (x0, y0, x1, y1) in mm.
+        @param polygon Polygon [[x, y], ...] in mm.
+        @param name Optional label.
+        @return self.
+        """
+        self.sinks.append(Sink(layer - 1, self._shape_m(rect, polygon), float(h_extra), name))
+        return self
 
 
 # --------------------------------------------------------------------------- JSON readers
@@ -224,14 +347,15 @@ def problem_from_dict(data):
     )
     prob = Problem(board=board, name=data.get("name", "board"))
     for z in data.get("zones", []):
-        prob.zones.append(Zone(z["layer"] - 1, _poly_mm(z["polygon_mm"]), z.get("fill", 1.0)))
+        prob.zones.append(Zone(z["layer"] - 1, _poly_mm(z["polygon_mm"]), z.get("fill", 1.0), z.get("name", "")))
     for h in data.get("heaters", []):
-        prob.heaters.append(Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"])))
+        prob.heaters.append(Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]),
+                                   h.get("name", ""), float(h.get("theta_jb_k_per_w", 0.0))))
     for v in data.get("vias", []):
         prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
-                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False)))
+                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", "")))
     for s in data.get("sinks", []):
-        prob.sinks.append(Sink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"])))
+        prob.sinks.append(Sink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", "")))
     prob.validate()
     return prob
 
@@ -344,9 +468,12 @@ def problem_to_dict(prob):
             "k_copper": m.k_copper, "k_fr4_through": m.k_fr4_through, "k_fr4_inplane": m.k_fr4_inplane,
             "rho_copper": m.rho_copper, "cp_copper": m.cp_copper, "rho_fr4": m.rho_fr4, "cp_fr4": m.cp_fr4,
         },
-        "zones": [{"layer": z.layer + 1, "polygon_mm": poly(z.polygon), "fill": z.fill} for z in prob.zones],
-        "heaters": [{"layer": h.layer + 1, "power_w": h.power, "polygon_mm": poly(h.polygon)} for h in prob.heaters],
+        "zones": [{"layer": z.layer + 1, "polygon_mm": poly(z.polygon), "fill": z.fill, "name": z.name}
+                  for z in prob.zones],
+        "heaters": [{"layer": h.layer + 1, "power_w": h.power, "polygon_mm": poly(h.polygon), "name": h.name,
+                     "theta_jb_k_per_w": h.theta_jb} for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
-                  "filled": v.filled} for v in prob.vias],
-        "sinks": [{"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra} for s in prob.sinks],
+                  "filled": v.filled, "name": v.name} for v in prob.vias],
+        "sinks": [{"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name}
+                  for s in prob.sinks],
     }

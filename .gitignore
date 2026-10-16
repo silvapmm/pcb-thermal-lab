@@ -4,8 +4,12 @@
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Virtual environments (create with: python3 -m venv .venv)
 .venv/
 venv/
+env/
 
 # macOS
 .DS_Store

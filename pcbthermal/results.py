@@ -30,6 +30,7 @@ class SteadyResult:
     residual: float = 0.0                        # Relative residual of the linear system
     extras: Dict[str, float] = field(default_factory=dict)     # Model specific numbers
     arrays: Dict[str, np.ndarray] = field(default_factory=dict)  # Model specific profiles for plots
+    warnings: List[str] = field(default_factory=list)          # Validity warnings for the user
 
     @property
     def delta_t(self):

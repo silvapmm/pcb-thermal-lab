@@ -80,11 +80,6 @@ def plot_profiles(results, problem, path):
         i = min(max(int(i * ref.dy / r.dy), 0), r.T.shape[1] - 1)
         x = (np.arange(r.T.shape[2]) + 0.5) * r.dx * 1000
         ax.plot(x, r.T[0, i], label=name)
-    lumped = results.get("lumped")
-    if lumped is not None:
-        # Ring temperatures are radial: draw them against the distance from the board centre
-        rr = lumped.arrays["ring_radius_m"] * 1000
-        ax.plot(b.width * 500 + rr, lumped.arrays["ring_temps_c"][0], "o--", ms=3, label="lumped (rings)")
     ax.set_xlabel("x (mm)")
     ax.set_ylabel("Top layer temperature (°C)")
     ax.grid(alpha=0.3)

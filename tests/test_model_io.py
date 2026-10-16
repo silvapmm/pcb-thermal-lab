@@ -61,5 +61,6 @@ def test_cli_run_writes_outputs(tmp_path):
     out = tmp_path / "out"
     assert cli.main(["run", str(cfg), "--out", str(out), "--cell-mm", "4"]) == 0
     summary = json.loads((out / "summary.json").read_text())
-    assert set(summary) == {"fvm", "lumped", "analytic"}
+    assert set(summary["models"]) == {"fvm", "lumped", "analytic"}
+    assert (out / "report.txt").exists()
     assert (out / "fields_fvm.png").exists() and (out / "comparison.png").exists()

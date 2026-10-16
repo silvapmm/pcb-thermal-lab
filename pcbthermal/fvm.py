@@ -30,12 +30,13 @@ class Network:
     @brief Assembled thermal network: conductances, capacities, sources and the sparse matrix.
     """
 
-    def __init__(self, problem, nx, ny):
+    def __init__(self, problem, nx, ny, assemble=True):
         """!
         @brief Build the network of a problem on an nx x ny grid.
         @param problem A validated Problem.
         @param nx Number of cells along x.
         @param ny Number of cells along y.
+        @param assemble If False, skip building the sparse matrix (the lumped model only needs the per-cell arrays).
         """
         problem.validate()
         self.problem = problem
@@ -102,7 +103,7 @@ class Network:
                 cov[i, j] = 1.0
             self.Q[h.layer] += h.power * cov / cov.sum()
 
-        self.K = self._assemble()
+        self.K = self._assemble() if assemble else None
 
     # ------------------------------------------------------------------ assembly
     @staticmethod
