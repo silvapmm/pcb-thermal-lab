@@ -20,7 +20,7 @@ The steady-state models alone would call this board safe at 86 °C while it peak
 
 ### 1.2 Peak-temperature formulas (verified against our solver)
 
-Linear time-invariant response: with `Z(t)` the step response of the hottest point (K/W of total power), `Rth = Z(∞)`, period `T`, pulse width `tp = D·T`
+Linear time-invariant response: with `Z(t)` the step response of the hottest point (°C/W of total power), `Rth = Z(∞)`, period `T`, pulse width `tp = D·T`
 and on-state power `P_on`, the peak at the end of a pulse in periodic steady state is, by superposition,
 
 `ΔT_peak = P_on · Σ_{m=0..∞} [ Z(m·T + tp) − Z(m·T) ]`
@@ -50,7 +50,7 @@ the periodic regime is reached in about 5 to 12 cycles, because only the ripple 
 - **Steady-state models and power:** selectable per run: **average** (default, physical for fast PWM), **peak** (`P_on`, worst-case bound) and, when a step response is available, the **periodic peak** (formula above).
   Results show all three numbers side by side so the bracket is visible.
 - **Initial state (selectable):** cold (ambient), uniform temperature `T0` (for example an enclosure at 60 °C), steady state of a chosen baseline power (standby), or the periodic steady state
-  (start from the steady state of the average power and iterate cycles until the change per cycle is below a tolerance).
+  (start from the steady state of the average power and iterate cycles until the change per cycle is below 0.1 °C).
 - **Power profile tab** (not "PWM"; simplified in 1.4): a square wave (frequency or period, duty, `P_on`, `P_off`) with the derived average power and an automatic regime decision based on the
   estimated oscillation of the hottest point. Later: a segment table and CSV import.
 - **What power is stored (open point, proposal):** store the **physical on-state power `P_on` and the duty** (a MOSFET's conduction loss or an LED's electrical input in the on-state do not
@@ -73,16 +73,16 @@ off-state power); what differs is what the simulator does with it. So the featur
 
 | t [s] | 1e-4 | 1e-3 | 1e-2 | 0.1 | 1 | 10 | 100 | 1000 |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: |
-| Z(t) [K/W] | 0.001 | 0.010 | 0.104 | 0.93 | 3.87 | 6.34 | 9.31 | 11.06 |
+| Z(t) [°C/W] | 0.001 | 0.010 | 0.104 | 0.93 | 3.87 | 6.34 | 9.31 | 11.06 |
 | share of Rθ | 0.0 % | 0.1 % | 0.9 % | 8.4 % | 35 % | 57 % | 84 % | 100 % |
 
-Square wave with 10× the nominal power at 10 % duty (average rise 60.8 K), exact periodic response by superposition of `Z(t)`:
+Square wave with 10× the nominal power at 10 % duty (average rise 60.8 °C), exact periodic response by superposition of `Z(t)`:
 
-| Frequency | Period | Peak rise | Valley rise | Ripple (peak-to-peak) | Ripple / average rise | Decision (tolerance 1 K or 2 %) |
+| Frequency | Period | Peak rise | Valley rise | Ripple (peak-to-peak) | Ripple / average rise | Decision (threshold 1 °C) |
 | --: | --: | --: | --: | --: | --: | :-- |
-| 100 kHz | 10 µs | 60.81 K | 60.81 | 0.001 K | 0.00 % | average |
+| 100 kHz | 10 µs | 60.81 °C | 60.81 | 0.001 °C | 0.00 % | average |
 | 1 kHz | 1 ms | 60.83 | 60.79 | 0.05 | 0.08 % | average |
-| 100 Hz | 10 ms | 61.1 | 61.2 | below the 0.06 K noise floor of this check | about 0 % | average |
+| 100 Hz | 10 ms | 61.1 | 61.2 | below the 0.06 °C noise floor of this check | about 0 % | average |
 | 50 Hz | 20 ms | 62.71 | 61.51 | 1.2 | 2.0 % | average (boundary) |
 | 30 Hz | 33 ms | 63.57 | 60.06 | 3.5 | 5.8 % | resolve in time |
 | 10 Hz | 0.1 s | 63.5 | 44.95 | 18.6 | 30.5 % | resolve in time |
@@ -91,8 +91,7 @@ Square wave with 10× the nominal power at 10 % duty (average rise 60.8 K), exac
 | 0.01 Hz | 100 s | 363.2 | 15.9 | 347 | 571 % | resolve in time |
 
 On this board the boundary is near 50 Hz. It depends on the board (heater size, copper), so the **simulator computes it for the board at hand**: the ripple is obtained from the step response `Z(t)` of
-the selected reference model (peak and valley sums as in 1.2, with the tail `D (Rθ − Z(M T))`). The decision rule is *ripple below a tolerance → use the average* (default tolerance: 1 K or 2 % of the average
-rise, whichever is larger, user-adjustable).
+the selected reference model (peak and valley sums as in 1.2, with the tail `D (Rθ − Z(M T))`). The decision rule is *oscillation below the threshold → use the average* (default threshold 1.0 °C, user-adjustable).
 
 **Profile editor: simple on purpose (decided 2026-10-16: no waveform designer).** Two kinds of profile in 2.1:
 
@@ -110,7 +109,7 @@ A short single pulse (microseconds to a few milliseconds) heats the **die**, not
 
 **The oscillation threshold.** One setting, in °C: *ignore oscillations smaller than* (default **1.0 °C**). The simulator estimates the peak-to-peak oscillation of the hottest point
 (from the step response, section 1.2). If it is below the threshold the waveform is replaced by its average (exact to within that error, and instant); otherwise the cycle is simulated in time.
-No percentages: the threshold is a temperature the user cares about. Temperatures and temperature differences are shown in **°C** everywhere in the application and the reports; thermal resistance is shown in **°C/W** (identical to K/W).
+No percentages: the threshold is a temperature the user cares about. Temperatures and temperature differences are shown in **°C** everywhere in the application and the reports; thermal resistance is shown in **°C/W** (identical to °C/W).
 
 **Per heater:** every heater has its own profile (different periods are fine: the response is the sum of each heater's contribution). The steady-state models use, per run, the average (default), the peak `P_on`
 (worst-case bound) or the periodic peak (from `Z(t)`).
@@ -138,8 +137,56 @@ Examples at 1 mm cells: period 10 s, duty 10 %, 12 cycles (120 s simulated, step
 50 Hz, 12 cycles (0.24 s, step 2 ms, 120 steps): about 1 s. The Lumped model needs milliseconds and the Analytic model microseconds per evaluation. The editor shows the estimated number of steps and time before running and
 refuses runs above a cap (default 200 000 steps), suggesting the average instead.
 
-**Start state (setting *Start from*):** *average steady state* (default for a square wave), *ambient* (cold start), *a fixed temperature T0 in °C* (for example an enclosure at 60 °C), or *the steady state of a chosen power* (standby).
-Results report the last cycle (peak, minimum, oscillation) and, when starting from cold, the heat-up curve; the animation shows the last cycles.
+**Start temperature (setting *Initial temperature*):** the user types a temperature in °C; the default is the board's **ambient temperature** (Environment ▸ Ambient, 25 °C unless changed), so
+"cold start" is simply "initial temperature = ambient" and no separate cold value exists. A second option, *start from the steady state of the average power* (default for a square wave), starts the board already at
+its mean operating temperature so that only the oscillation has to settle. An enclosure at 60 °C is "initial temperature 60 °C" (and, if the air stays at 60 °C, ambient 60 °C).
+Results report the last cycle (peak, minimum, oscillation) and, when starting from a user temperature, the heat-up curve; the animation shows the last cycles.
+
+### 1.6 How the average-or-resolve decision is calculated (several heaters, each with its own regime)
+
+Everything below is arithmetic on the **step response**, so it costs almost nothing once the response is known.
+
+1. **Thermal response (once per board, cached until the board is edited).** For every heater *i* compute the response of its own hottest point to a unit step of its own power, `Z_i(t)` in °C/W, from about 10 µs to about five
+   board time constants. With the FVM all heaters are solved together as several right-hand sides of the same matrix (about the cost of one transient, 0.4 s with 2 mm cells); the Lumped model gives `Z_i` from each heater's own network;
+   the Analytic model from its modal closed form. The decision is made **once, with the reference model** (FVM if selected, otherwise Lumped, otherwise Analytic) and applied to all models so that they are compared on the same power input.
+2. **Oscillation of one heater (instant, live while editing).** For a square wave of period `T`, on-time `tp = D·T` and swing `ΔP = P_on − P_off`, superposition of delayed steps gives the
+   periodic peak and valley rises:
+   `peak = ΔP · Σ_{m≥0} [Z(mT + tp) − Z(mT)]`, `valley = ΔP · Σ_{m≥1} [Z(mT) − Z(mT − tp)]`, with the tail of each sum `D·(Rθ − Z(M·T))` after `M` terms;
+   `oscillation_i = peak − valley` in °C. (Verified against full time-stepping, section 1.2.)
+3. **Several heaters: an error budget.** The oscillation a heater produces is largest at its own footprint and smaller elsewhere (diffusion smooths it), so `oscillation_i` bounds its effect on the whole board.
+   The user threshold θ (default 1.0 °C) is a **budget for the total oscillation that may be ignored**: heaters are sorted by `oscillation_i` and averaged, smallest first, while the running sum stays within θ;
+   the others are resolved. By the triangle inequality the neglected oscillation anywhere on the board never exceeds θ. The editor shows a table: heater, period, duty, average power, oscillation (°C and % of its average rise), decision.
+4. **Running a mixed board.** The response is linear, so averaged heaters enter as constant power and resolved heaters as square waves **in the same time-stepping run** (one matrix factorisation, a source vector rebuilt each step).
+   Time step: one tenth of the shortest on or off time **among the resolved heaters**; duration: *until stable* is judged over a window equal to the longest resolved period (default 10 windows, stop when the peak changes by less than 0.1 °C).
+   If the resolved periods are incommensurate the combined signal never repeats exactly: the result is the peak observed in the window, and an extra number gives the **worst case if all peaks coincided**
+   (average rise plus the sum of the individual peak excesses, an upper bound by linearity).
+   When a slow and a fast heater are both resolved the step count grows (duration over the small step): the editor shows the estimate and, above the cap, proposes averaging the fast one (raising the threshold) instead.
+5. **Percentages** may be shown next to °C ("oscillation 18.6 °C, 31 % of the average rise"); the decision itself uses °C only.
+
+**Validation of the mixed run (2026-10-16, example board, 2 mm cells, 20 s).** Two heaters: U1 at 100 Hz, 30 % duty, 13.3 W on (average 4 W); U2 with a 20 s period, 25 % duty, 6 W on (average 1.5 W).
+
+| Heater | Average rise | Estimated oscillation | % of the average rise | Decision (threshold 1.0 °C) |
+| :-- | --: | --: | --: | :-- |
+| U1 (100 Hz) | 54.4 °C | 0.41 °C | 0.8 % | **average** |
+| U2 (20 s) | 31.4 °C | 84.8 °C | 270 % | **resolve** |
+
+Reference: both heaters resolved with 0.5 ms steps (40 000 steps, 32 s of computing). Mixed run: U1 replaced by its average, U2 resolved (same start state, the steady state of the average power):
+
+| Quantity | Both resolved | U1 averaged | Difference |
+| :-- | --: | --: | --: |
+| Peak of the hottest point over the run | 136.631 °C | 136.631 °C | 0.000 °C |
+| Mean difference over the 20 s | | | +0.002 °C |
+| Largest instantaneous difference | | | 0.384 °C (estimate: 0.41 °C) |
+
+The neglected oscillation (0.38 °C) is within the estimate (0.41 °C) and the peak is identical, so the decision and the error budget are consistent. A mixed run with the large step needs only 40 steps (0.06 s of computing instead of 29 s).
+
+**Time stepping rules learned from this test (implementation requirements):**
+- The power held during a step `[t_n, t_n+1]` is the value **at the start of the step** (right-continuous), and the time grid must **contain every edge** of every resolved heater.
+  Sampling at the end of the step shifted a pulse by one step: it turned a 30 % duty into 25 % (a 2 °C bias) and misplaced a 5 s pulse (a 41 °C error) in a first, wrong version of the test.
+- Uniform steps of about one tenth of the shortest on or off time are accurate enough: hottest-point error at the end of a 5 s pulse (reference 136.52 °C):
+  step 0.5 s (40 steps, implicit Euler) −0.37 °C; step 0.1 s (200 steps) +0.02 °C; geometric steps restarted after each edge with Crank-Nicolson (24 steps) +0.19 °C.
+  Default: uniform step, Crank-Nicolson, with the number of steps shown before the run.
+
 
 ## 2. Computed convection and radiation (`h` not typed by the user)
 
@@ -167,14 +214,14 @@ Today a part is a heater: all of its power enters the board under the footprint,
 A real part has the junction (the die) generating the heat, which leaves by **two parallel paths**: downwards through the package pad and solder into the board (resistance junction-to-board, `θJB`), and
 upwards through the package top (junction-to-case, `θJC,top`) into the air or a heatsink. The JEDEC two-resistor model (JESD15-3) is exactly this pair of resistances, for single-die packages [8, 9].
 The current models cannot represent the top path: they send too much heat into the board (hotter board, hotter junction) and cannot represent a heatsink on the part itself
-(a "sink" element only raises `h` on the board surface). Estimate with the reference board (5 W, board resistance 13 K/W, `θJB` 6 K/W):
-board only: junction rise 5 × (13 + 6) = 95 K; with a top path of 25 K/W (θJC plus heatsink) the heat splits 57 % board / 43 % top and the junction rises about 54 K (series-parallel estimate, not a measurement).
+(a "sink" element only raises `h` on the board surface). Estimate with the reference board (5 W, board resistance 13 °C/W, `θJB` 6 °C/W):
+board only: junction rise 5 × (13 + 6) = 95 °C; with a top path of 25 °C/W (θJC plus heatsink) the heat splits 57 % board / 43 % top and the junction rises about 54 °C (series-parallel estimate, not a measurement).
 Limits of the 2R model (one-dimensional heat flow, lowest accuracy of the JEDEC models, DELPHI recommended for higher fidelity) are stated in [8, 9].
 
 ### 3.2 Implementation sketch
 
 - **Element `Component`** (fidelity levels, names to be decided, working names *Source* = today's heater, *Pad* = θJB only, *Duo* = θJB + top path, *Duo + Sink*): layer, pad/footprint polygon, power or profile,
-  `θJB` (K/W), `θJC,top` (K/W), top cooling (none, a heatsink resistance in K/W, or a surface area exposed to the computed `h`), optional heat capacities and, later, a Foster RC chain of the
+  `θJB` (°C/W), `θJC,top` (°C/W), top cooling (none, a heatsink resistance in °C/W, or a surface area exposed to the computed `h`), optional heat capacities and, later, a Foster RC chain of the
   junction-to-case transient impedance (as published by manufacturers [6, 10]) so that package-level pulses are captured. Values are entered by the user; no datasheet numbers are invented.
 - **FVM:** one extra unknown `T_j` per component (a dense row over the footprint cells). The footprint cells couple to `T_j` with `G_i = w_i / θJB` (`w_i` coverage weights, `Σ w_i = 1`), `T_j` couples to ambient with
   `G_top = 1 / (θJC,top + R_top)`, and the power is injected at `T_j`. The augmented matrix stays symmetric positive definite. Outputs: `T_j`, `T_case`, power into the board and through the top.
@@ -197,7 +244,7 @@ Measured on the example board (4 layers), seconds per steady solve:
 | 512 000 | 16.2 | 6.5 | 4.2 |
 | 987 000 | not run (memory) | 12.8 | 8.0 |
 
-All agree to 1e-8 K. The gain only appears above about 500 000 unknowns, where the direct solver slows down and needs a lot of memory and multigrid scales almost linearly (`pyamg` stays an optional dependency,
+All agree to 1e-8 °C. The gain only appears above about 500 000 unknowns, where the direct solver slows down and needs a lot of memory and multigrid scales almost linearly (`pyamg` stays an optional dependency,
 chosen automatically above a threshold). Plain CG already captures most of the benefit for moderate sizes.
 
 ## 5. 3D finite elements as an independent validation (not a product feature)
