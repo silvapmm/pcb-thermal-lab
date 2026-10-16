@@ -20,7 +20,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QMessageBox
 
 from pcbthermal import SolverOptions, SquareWave, TableProfile, load_project, simulate
-from pcbthermal.examples import example_board, example_profile_board
+from pcbthermal.examples import example_block_board, example_board, example_profile_board
 from pcbthermal.gui.document import Document
 from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, MainWindow
 from pcbthermal.model import Problem, reference_problem
@@ -557,3 +557,43 @@ def test_overlapping_background_jobs_wait_for_each_other(win, qtbot):
     win.run_simulation()                                                   # ...and a simulation, all at once
     qtbot.waitUntil(lambda: anim.tr is not None and win.sim is not None and bool(win.profile_page.decisions), timeout=240000)
     qtbot.waitUntil(lambda: not win.worker.isRunning() and not win.profile_page.worker.isRunning(), timeout=60000)
+
+
+def test_metal_block_in_the_application(win, qtbot):
+    """A sink with a thickness is a metal block: inspector fields, a run with the FVM and the FDM, its table and its own temperature view."""
+    load(win, example_block_board())
+    win.layer_combo.setCurrentIndex(3)                                  # The block is on the bottom layer: work on that layer
+    win.canvas.set_selection([("sink", 0)])
+    win._on_canvas_selection([("sink", 0)])
+    spins = win.inspector.form_host.findChildren(QAbstractSpinBox)
+    suffixes = {s.suffix().strip() for s in spins}
+    assert {"mm", "K·cm²/W", "W/mK"} <= suffixes                       # Thickness, interface and conductivity are editable
+    thickness = next(s for s in spins if s.suffix().strip() == "mm" and abs(s.value() - 3.0) < 1e-9)
+    thickness.setValue(5.0)
+    assert win.doc.problem.sinks[0].thickness == pytest.approx(0.005)
+    contact = next(s for s in spins if s.suffix().strip() == "K·cm²/W")
+    contact.setValue(10.0)
+    assert win.doc.problem.sinks[0].contact_r == pytest.approx(1e-3)
+    combos = win.inspector.form_host.findChildren(QComboBox)
+    material = next(c for c in combos if c.findText("Copper") >= 0)
+    material.setCurrentIndex(material.findText("Copper"))
+    assert win.doc.problem.sinks[0].k == pytest.approx(385.0)
+    run(win, qtbot, ("fvm", "fdm", "lumped", "analytic"), cell=2.0)
+    assert any("block" in w for w in win.sim.warnings)                  # The two simple models say they replace the block
+    rv = win.results
+    assert rv.block_table.rowCount() == 1 and rv.block_table.item(0, 1).text() == "bottom"
+    rv.tabs.setCurrentWidget(rv.temp)
+    for model in ("fvm", "fdm", "lumped"):
+        rv.temp.model.setCurrentIndex(rv.temp.model.findData(model))
+        k = rv.temp.layer.findData(101)                                  # "Metal block (bottom)"
+        assert k >= 0
+        rv.temp.layer.setCurrentIndex(k)                                 # Drawn for the models that have it, a message for the others
+        rv.temp.layer.setCurrentIndex(0)
+    walk_results(win, qtbot)
+    animate(win, qtbot, "fvm")
+    animate(win, qtbot, "fdm")
+    # Removing the thickness turns it back into a plain sink; the table disappears
+    win.doc.problem.sinks[0].thickness = 0.0
+    win.doc.changed.emit()
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert rv.block_table.rowCount() == 0

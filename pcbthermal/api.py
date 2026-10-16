@@ -27,8 +27,8 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, convection, fdm, fvm, lumped, profiles
-from .analysis import heater_stats, hotspots, zone_stats
+from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles
+from .analysis import block_stats, heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
 from .results import SteadyResult
@@ -271,6 +271,9 @@ class Simulation:
             for z in zone_stats(ref, self.problem):
                 lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "
                              f"max {z['t_max']:.1f}, min {z['t_min']:.1f} degC")
+            for k in block_stats(ref, self.problem):
+                lines.append(f"Metal block {k['name']} ({k['face']} face): mean {k['t_mean']:.1f}, max {k['t_max']:.1f} degC; "
+                             f"{k['w_to_block']:.2f} W enter it through the interface, {k['w_to_air']:.2f} W leave by its surface")
         return "\n".join(lines) + "\n"
 
     def to_dict(self):
@@ -541,6 +544,7 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)
+    has_blocks = blocks.has_blocks(problem)
     for k, name in enumerate(options.models):
         if progress:
             progress(f"Solving {name}", k / n)
@@ -551,6 +555,12 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
         else:
             sim.results[name] = _run_model(steady_problem, name, options)
         sim.seconds[name] = time.time() - t0
+    if has_blocks:
+        for name in ("lumped", "analytic"):
+            if name in sim.results:
+                sim.results[name].warnings.append(
+                    "the metal block is replaced by an equivalent extra coefficient: its spreading, its mass and the "
+                    "copper overlap are not represented; use the FVM or the FDM")
     if computed:
         ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in options.models))
         # Later stages (time simulation, animation) use the coefficients of the reference model, fixed during the cycle

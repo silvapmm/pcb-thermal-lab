@@ -89,6 +89,21 @@ Maximum temperature of the top face [°C] and error of every model on the rise (
 | 2 layers, 20 mm top pad | 136.2 | 133.7 (−2.2 %) | 131.7 (−4.0 %) | 131.1 (−4.5 %) | 109.6 (−23.9 %) |
 | example board (partial copper, 9 vias, bottom sink) | 85.6 | 85.9 (+0.5 %) | 85.2 (−0.6 %) | 84.7 (−1.5 %) | 84.7 (−1.5 %) |
 
+**Metal block** (a sink with a thickness; `examples/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; 100 × 80 mm, 2 layers, 5 W, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated; FVM and FDM at 1 mm; error on the rise):
+
+| Case | 3D solid [°C] | FVM | FDM |
+| :-- | --: | --: | --: |
+| no block (bottom pad only) | 134.2 | 133.2 (−0.9 %) | 132.6 (−1.5 %) |
+| Al 3 mm, gap pad 5 K cm²/W | 115.5 | 115.0 (−0.5 %) | 114.9 (−0.6 %) |
+| same, finned (extra h 60 W/m²K) | 99.7 | 99.0 (−1.0 %) | 99.0 (−1.0 %) |
+| same, worse interface (20 K cm²/W) | 118.8 | 118.4 (−0.4 %) | 118.3 (−0.5 %) |
+| Al 1 mm | 117.3 | 116.8 (−0.5 %) | 116.7 (−0.6 %) |
+| Cu 3 mm | 115.3 | 114.8 (−0.5 %) | 114.8 (−0.6 %) |
+| Al 3 mm 40 × 40 over a 50 × 50 mm pad | 120.4 | 119.4 (−1.0 %) | 119.0 (−1.4 %) |
+| Al 3 mm 30 × 30 exactly over the pad | 129.3 | 128.1 (−1.1 %) | 127.4 (−1.8 %) |
+
+The block is always within 1.8 % of the solid. (An earlier version of this script left unused nodes in the matrix of the solid and gave wrong numbers for blocks; fixed by pinning exactly the nodes that belong to no element.)
+
 The 3D value of the example board is converged: 85.55 °C with 1 mm elements and 85.59 °C with 0.5 mm (2 elements across each gap).
 
 Reading: on a uniform board the four models land on the 3D answer within 0.7 % (FVM, FDM and Analytic within 0.5 %). **With vias and a sink (the example board) all four are within 1.5 %**, and the FVM, with each via in one cell, is within 0.5 % of the 3D rods.

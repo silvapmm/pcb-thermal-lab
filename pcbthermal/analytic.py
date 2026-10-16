@@ -40,6 +40,7 @@ import numpy as np
 
 from scipy.special import k0
 
+from . import blocks
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 
@@ -200,6 +201,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                              if False they are smeared over the board (the older, cruder model).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     sh = _effective_sheet(problem, cell_mm)
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     slab, nx, ny, dx, dy, xs, ys, tc = (sh[k] for k in ("slab", "nx", "ny", "dx", "dy", "xs", "ys", "tc"))
@@ -573,6 +575,7 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @param n_times Number of logarithmically spaced times.
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     ms = _ModalSet(problem, cell_mm, n_terms)
     t_end = t_end or 10.0 * ms.tau
     times = np.geomspace(1e-5, t_end, n_times)
@@ -692,6 +695,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     from . import profiles
     return profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic",
                                 progress)
@@ -710,6 +714,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     @param log_times True for logarithmically spaced times (resolves fast and slow parts), False for linear.
     @return TransientResult.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     from .results import TransientResult
     problem = problem.steady_copy("average") if problem.has_profiles() else problem
     ad = _AnalyticAdapter(problem, cell_mm, n_terms)

@@ -114,6 +114,29 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     return ax
 
 
+def draw_block(fig, result, problem, face, cmap="inferno"):
+    """!
+    @brief Temperature of the metal block of one face (where there is no block the board map is not shown).
+    @param fig Target Figure (cleared first).
+    @param result A SteadyResult with block temperatures (FVM or FDM).
+    @param problem The Problem.
+    @param face 0 for the block on the top face, 1 for the bottom face.
+    @param cmap Colormap name.
+    """
+    tag = "top" if face == 0 else "bottom"
+    names = [k for k in ("block_top_max", "block_bottom_max") if k in result.extras]
+    which = [k.split("_")[1] for k in names].index(tag) if f"block_{tag}_max" in result.extras else None
+    fig.clear()
+    ax = fig.add_subplot(111)
+    if which is None:
+        ax.text(0.5, 0.5, "This model has no metal block", ha="center", va="center", transform=ax.transAxes)
+        return
+    field = np.where(result.arrays["block_cov"][which] > 0, result.arrays["block_T"][which], np.nan)
+    draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=0 if face == 0 else problem.board.layers - 1,
+               title=f"{result.model.upper()} - metal block ({tag} face): mean {result.extras[f'block_{tag}_mean']:.1f} °C, "
+                     f"max {result.extras[f'block_{tag}_max']:.1f} °C", label="Block temperature (°C)")
+
+
 def draw_fields(fig, result, problem, cmap="inferno"):
     """!
     @brief All layers side by side with a shared colour scale.

@@ -37,3 +37,16 @@ def example_profile_board():
     p.heaters[0].set_profile(SquareWave(p_on=4.0 / 0.30, period=0.01, duty=0.30))
     p.heaters[1].set_profile(SquareWave(p_on=1.5 / 0.25, period=20.0, duty=0.25))
     return p
+
+
+def example_block_board():
+    """!
+    @brief The example board with a 3 mm aluminium block (60 x 50 mm, 5 K cm2/W gap pad) on the bottom face under U1, instead of the plain sink.
+    @return A Problem.
+    """
+    p = example_board()
+    p.name = "example with a metal block"
+    p.sinks = []
+    p.add_sink(4, 15.0, rect=(20, 15, 80, 65), name="Al block", thickness_mm=3.0, contact_r=5.0e-4)
+    return p
+

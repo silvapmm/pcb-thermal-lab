@@ -42,6 +42,7 @@ from scipy.special import ive
 
 from . import profiles
 from .fvm import Network
+from . import blocks
 from .geometry import coverage_fraction, polygon_centroid
 from .results import SteadyResult
 
@@ -246,11 +247,12 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     @param cell_mm Raster size (mm) used to aggregate the real geometry into rings.
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     problem.validate()
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=False)
     L = net.nl
     power = problem.total_power()
     xs = (np.arange(nx) + 0.5) * net.dx
@@ -312,7 +314,7 @@ def _unit_networks(problem, rings, cell_mm):
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=False)
     systems = []
     for h in problem.heaters:
         rn = _heater_network(net, _footprint_coverage(net, h), h.layer, 1.0, rings)
@@ -379,6 +381,7 @@ def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_st
     @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     net, systems = _unit_networks(problem, rings, cell_mm)
     if t_end is None:
         t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
@@ -522,4 +525,5 @@ def run_profile(problem, decisions, options, rings=10, cell_mm=1.0, progress=Non
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     return profiles.run_windows(problem, decisions, options, _LumpedAdapter(problem, rings, cell_mm), "lumped", progress)

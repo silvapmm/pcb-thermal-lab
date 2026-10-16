@@ -603,6 +603,7 @@ class _FVMAdapter:
         self.steady_average_max = float(self.th_avg.max() + self.ambient)
         self.steady_peak_max = float(th_peak.max() + self.ambient)
         self.shape = (self.net.nl, self.net.ny, self.net.nx)
+        self.nb = getattr(self.net, "n_board", self.net.nl)                 # Board layers (the blocks come after them)
 
     def prepare(self, dt):
         """!
@@ -650,7 +651,7 @@ class _FVMAdapter:
         @param x State.
         @return Array (layers, ny, nx).
         """
-        return x.reshape(self.shape) + self.ambient
+        return x.reshape(self.shape)[:self.nb] + self.ambient
 
     def peak_values(self, x):
         """!
@@ -666,7 +667,7 @@ class _FVMAdapter:
         @param flat Flat array.
         @return Array (layers, ny, nx).
         """
-        return flat.reshape(self.shape)
+        return flat.reshape(self.shape)[:self.nb]
 
 
 class _FDMAdapter(_FVMAdapter):

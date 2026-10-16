@@ -172,6 +172,11 @@ class PlotTab(QWidget):
             self.layer.addItem("All layers", -1)
         for l in range(n):
             self.layer.addItem(f"Layer {l + 1}", l)
+        if self.kind == "temperature":
+            # The metal blocks of the finite-volume and finite-difference models are views of their own (data 100 and 101)
+            faces = sorted({f for r in sim.results.values() for f in (0, 1) if f"block_{'top' if f == 0 else 'bottom'}_max" in r.extras})
+            for f in faces:
+                self.layer.addItem(f"Metal block ({'top' if f == 0 else 'bottom'})", 100 + f)
         self.layer.setCurrentIndex(0 if self.kind != "temperature" else 1 if n > 1 else 0)
         ref = sim.reference
         if self.kind == "temperature":
@@ -200,6 +205,8 @@ class PlotTab(QWidget):
         if r is None or self.kind != "temperature":
             return None
         layer = max(self.layer.currentData() if self.layer.currentData() is not None else 0, 0)
+        if layer >= 100:
+            return None                                                # The overlay on the board shows the board layers only
         vmin = None if self.auto.isChecked() else self.vmin.value()
         vmax = None if self.auto.isChecked() else self.vmax.value()
         return r.T[layer], r.dx, r.dy, self.cmap.currentText(), vmin, vmax
@@ -221,6 +228,8 @@ class PlotTab(QWidget):
                 cmap = self.cmap.currentText()
                 if layer == -1:
                     plots.draw_fields(self.fig, r, prob, cmap=cmap)
+                elif layer >= 100:
+                    plots.draw_block(self.fig, r, prob, layer - 100, cmap=cmap)
                 else:
                     vmin = None if self.auto.isChecked() else self.vmin.value()
                     vmax = None if self.auto.isChecked() else self.vmax.value()
@@ -304,7 +313,9 @@ class ResultsView(QWidget):
         self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C"])
         self.zone_table = _table(["Zone", "Layer", "Mean °C", "Max °C", "Min °C"])
         self.hot_table = _table(["Hotspot", "Layer", "Tmax °C", "x mm", "y mm", "Area mm²"])
-        for t in (self.heater_table, self.zone_table, self.hot_table):
+        self.block_table = _table(["Metal block", "Face", "Mean °C", "Max °C", "Heat in W", "Heat to air W"])
+        self.block_table.setMaximumHeight(90)
+        for t in (self.heater_table, self.zone_table, self.hot_table, self.block_table):
             tl.addWidget(t)
         split.addWidget(tables)
         self.comp_fig = Figure(layout="constrained")
@@ -371,6 +382,10 @@ class ResultsView(QWidget):
         zones = analysis.zone_stats(ref, sim.problem)
         _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",
                                  f"{z['t_min']:.1f}"] for z in zones])
+        blocks_ = analysis.block_stats(ref, sim.problem)
+        self.block_table.setVisible(bool(blocks_))
+        _fill(self.block_table, [[k["name"], k["face"], f"{k['t_mean']:.1f}", f"{k['t_max']:.1f}", f"{k['w_to_block']:.2f}",
+                                  f"{k['w_to_air']:.2f}"] for k in blocks_])
         hs = analysis.hotspots(ref, sim.options.hotspot_c)
         _fill(self.hot_table, [[f"#{k + 1}", str(h["layer"]), f"{h['t_max']:.1f}", f"{h['x_mm']:.1f}",
                                 f"{h['y_mm']:.1f}", f"{h['area_mm2']:.1f}"] for k, h in enumerate(hs[:50])]

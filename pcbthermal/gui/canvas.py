@@ -76,7 +76,7 @@ class ElementItem(QGraphicsPolygonItem):
         pen = QPen(QColor("white") if self.isSelected() else QColor(base), 0)
         pen.setCosmetic(True)
         pen.setWidthF(2.2 if self.isSelected() else 1.4)
-        if self.kind == "sink":
+        if self.kind == "sink" and not getattr(self, "is_block", False):
             pen.setStyle(Qt.DashLine)
         self.setPen(pen)
         self.setZValue({"zone": 1, "sink": 2, "heater": 3}[self.kind] + (0.5 if self.isSelected() else 0))
@@ -323,7 +323,13 @@ class BoardView(QGraphicsView):
             for kind, lst in (("zone", pr.zones), ("sink", pr.sinks), ("heater", pr.heaters)):
                 for i, el in enumerate(lst):
                     poly = self.doc.polygon_mm(el)
-                    it = ElementItem(self, kind, i, poly, el.name if el.layer == active else "", el.layer)
+                    label = el.name if el.layer == active else ""
+                    if kind == "sink" and el.is_block() and label:
+                        label = f"{label} ({el.thickness * 1000:g} mm block)"
+                    it = ElementItem(self, kind, i, poly, label, el.layer)
+                    if kind == "sink" and el.is_block():
+                        it.is_block = True
+                        it.restyle()
                     if el.layer != active:
                         it.setOpacity(0.22)
                         it.setFlags(it.flags() & ~(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable))

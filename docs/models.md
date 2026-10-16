@@ -94,11 +94,20 @@ the input checks warn.
 
 Workflow: explore with Analytic/Lumped, refine with the FVM at the **Auto** cell size, change the cell size once to confirm convergence, read the warnings.
 
+### 2.6 Metal block (heat spreader)
+
+A **Sink with a thickness** (`thickness_mm > 0`, aluminium by default) is a metal block pressed on the outer face. FVM and FDM add one more node layer under it:
+lateral conductance `k·t` per cell, heat capacity `ρ·c·t` (time simulation), a **contact to the board layer** `G = A [ f/R'' + (1−f)/(R'' + d/k_FR4) ]` where `f` is the copper fill of that layer, `R''` the interface resistance (m²K/W; K cm²/W in the application) and `d` half a layer slab,
+and an exposed surface to the air `G = (h_face + h_extra)(A + t·L_edge)` (top or bottom coefficient of the board plus the sink's extra h, sides included). The heat therefore enters the block **where the block overlaps copper** (the intersection of the two planes);
+over bare laminate it must also cross the FR-4. The board face under the block no longer loses heat on its own. The block is taken as an isotropic plate with no gradient across its thickness (thin blocks; a 1 to 10 mm aluminium or copper plate is within 0.6 % of a 3D solid).
+`block_stats` and the report give its mean and maximum temperature and the heat entering and leaving; the Temperature tab has a "Metal block" view. A sink with thickness 0 stays the plain extra coefficient.
+Lumped and Analytic have no block: they use the equivalent plain coefficient `1/(R'' + 1/(h+h_extra))` and warn. SOR does not support blocks (direct and CG do). `python -m pcbthermal example block` runs the example board with a block.
+
 ## 3. Input checks
 
 `check_problem` (also run by `simulate` and live in the application under the Run button) never blocks a run; it warns about inputs that make a result doubtful: a heater partly outside the board
 (its power would be moved onto the part inside), no copper under a heater, a copper edge or hatching crossing a footprint (Lumped and Analytic unreliable), a heater only a few cells wide, overlapping
-heaters, vias or zones outside the board and zero total power.
+heaters, vias or zones outside the board, a metal block with no copper under it (or an almost perfect contact) and zero total power.
 
 ## 4. Power profiles (time-dependent power)
 

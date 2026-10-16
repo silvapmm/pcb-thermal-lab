@@ -20,7 +20,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .geometry import coverage_fraction, points_in_polygon, polygon_centroid
-from . import fvm
+from . import blocks, fvm
 from .fvm import ORDERING
 from .results import SteadyResult
 
@@ -123,9 +123,20 @@ class Network:
         S = fill * m.k_copper * tc + m.k_fr4_inplane * (slab - fill * tc)    # Sheet conductance per node (W/K)
         # Heat capacity of every node (J/K)
         self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * m.rho_fr4 * m.cp_fr4) * area[None]
+        # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py)
+        ex = blocks.extra_layers(problem, cover, area, fill, dx, dy)
+        E = len(ex)
+        self.n_board, self.nl = L, L + E
+        if E:
+            S = np.concatenate([S, np.stack([ly["S"] for ly in ex])])
+            self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in ex])])
+        self.extra_links = [(ly["board_layer"], L + k, ly["g_link"]) for k, ly in enumerate(ex)]
+        self.block_info = [{"layer": L + k, "face": ly["face"], "cov": ly["cov"], "names": ly["names"], "g_link": ly["g_link"]}
+                           for k, ly in enumerate(ex)]
+        Lt = L + E
 
-        n = L * ny * nx
-        idx = np.arange(n).reshape(L, ny, nx)
+        n = Lt * ny * nx
+        idx = np.arange(n).reshape(Lt, ny, nx)
         rows, cols, vals = [], [], []
 
         def couple(a_idx, b_idx, g):
@@ -149,25 +160,32 @@ class Network:
                 j = min(max(int(round(v.x / dx)), 0), nx - 1)
                 i = min(max(int(round(v.y / dy)), 0), ny - 1)
                 gz[:, i, j] += m.k_copper * v.copper_area(b.via_plating) / d
-            couple(idx[:-1], idx[1:], gz)
+            couple(idx[:L - 1], idx[1:L], gz)
+        for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
+            couple(idx[a_layer], idx[b_layer], g)
         # Ambient: faces, sinks and edges
-        self.g_top = np.zeros((L, ny, nx)); self.g_bottom = np.zeros_like(self.g_top)
-        self.g_sink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top)
+        self.g_top = np.zeros((Lt, ny, nx)); self.g_bottom = np.zeros_like(self.g_top)
+        self.g_sink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top); self.g_block = np.zeros_like(self.g_top)
         self.g_top[0] = b.h_top * area
         self.g_bottom[L - 1] = b.h_bottom * area
         for sk in problem.sinks:
+            if sk.is_block():
+                continue                                       # A metal block is a layer of its own
             self.g_sink[sk.layer] += sk.h_extra * area * cover(sk.polygon, 4)
+        for k, ly in enumerate(ex):
+            self.g_block[L + k] = ly["g_amb"]
+            (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
         if b.h_side:
             self.g_side[:, :, 0] += b.h_side * wy[None, :] * slab
             self.g_side[:, :, -1] += b.h_side * wy[None, :] * slab
             self.g_side[:, 0, :] += b.h_side * wx[None, :] * slab
             self.g_side[:, -1, :] += b.h_side * wx[None, :] * slab
-        self.g_amb = self.g_top + self.g_bottom + self.g_sink + self.g_side
+        self.g_amb = self.g_top + self.g_bottom + self.g_sink + self.g_side + self.g_block
         rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(self.g_amb.ravel())
         self.K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()
 
         # Sources: unit-power weights of every heater (they sum to 1), so the power is exact on any grid
-        self.Qw, self.Q = [], np.zeros((L, ny, nx))
+        self.Qw, self.Q = [], np.zeros((Lt, ny, nx))
         for h in problem.heaters:
             if sampling == "area":
                 # Each cell's covered area is shared by its four nodes
@@ -182,7 +200,7 @@ class Network:
                 cx, cy = polygon_centroid(h.polygon)
                 w = np.zeros((ny, nx))
                 w[min(max(int(round(cy / dy)), 0), ny - 1), min(max(int(round(cx / dx)), 0), nx - 1)] = 1.0
-            full = np.zeros((L, ny, nx))
+            full = np.zeros((Lt, ny, nx))
             full[h.layer] = w / w.sum()
             self.Qw.append(full)
             self.Q += h.power * full
@@ -212,21 +230,38 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
     """
     net = Network(problem, cell_mm, mean, sampling)
     b = problem.board
-    theta, res = net.solve_steady()
+    theta_all, res = net.solve_steady()
+    nb = net.n_board
+    theta = theta_all[:nb]                                   # The board; the blocks are kept apart
     T = theta + b.ambient
     area, dx, dy = net.area, net.dx, net.dy
     total_area = area.sum()
     l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
-    return SteadyResult(
+    out = SteadyResult(
         model="fdm", ambient=b.ambient, power_in=float(net.Q.sum()), t_max=float(T.max()), t_min=float(T.min()),
-        t_mean=float((T * area[None]).sum() / (net.nl * total_area)),
-        layer_mean=[float((T[q] * area).sum() / total_area) for q in range(net.nl)],
+        t_mean=float((T * area[None]).sum() / (nb * total_area)),
+        layer_mean=[float((T[q] * area).sum() / total_area) for q in range(nb)],
         t_max_location=(int(l), j * dx, i * dy), T=T, dx=dx, dy=dy,
-        power_out={"top": float((net.g_top * theta).sum()), "bottom": float((net.g_bottom * theta).sum()),
-                   "sinks": float((net.g_sink * theta).sum()), "sides": float((net.g_side * theta).sum())},
+        power_out=_power_out(net, theta_all),
         grid="nodes", residual=res, extras={"nodes": float(T.size), "harmonic": float(mean == "harmonic"),
                                             "area_sampling": float(sampling == "area")},
         warnings=[])
+    fvm.attach_block_results(out, net, theta_all + b.ambient, theta_all)
+    return out
+
+
+def _power_out(net, theta):
+    """!
+    @brief Heat leaving through every path.
+    @param net The Network.
+    @param theta Rise of all layers (board first) in kelvin.
+    @return Dict top, bottom, sinks, sides and, with metal blocks, blocks (watts).
+    """
+    out = {"top": float((net.g_top * theta).sum()), "bottom": float((net.g_bottom * theta).sum()),
+           "sinks": float((net.g_sink * theta).sum()), "sides": float((net.g_side * theta).sum())}
+    if net.extra_links:
+        out["blocks"] = float((net.g_block * theta).sum())
+    return out
 
 
 def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=1.0, log_times=True):

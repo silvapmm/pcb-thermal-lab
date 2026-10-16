@@ -392,7 +392,38 @@ class Inspector(QWidget):
             elif kind == "sink":
                 w = _spin(0, 5000, el.h_extra, 1, 5, "W/m²K")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, h_extra=v))
+                w.setToolTip("Extra heat transfer coefficient. Without a metal block it is added to the board face inside the polygon; "
+                             "with a block it is added to the coefficient of the face for the exposed surface of the block "
+                             "(for a finned block use 1/(R·A) of its datasheet).")
                 lay.addRow("Extra h", w)
+                th = _spin(0, 100, el.thickness * 1000, 2, 0.5, "mm")
+                th.setToolTip("Thickness of a metal block pressed on this face (0 = no block, only the coefficient). The heat enters the block only "
+                              "where the block overlaps copper of this layer, spreads in the metal and leaves by its surface.")
+                th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
+                lay.addRow("Metal block", th)
+                mat = QComboBox()
+                presets = (("Aluminium", 205.0, 2.43e6), ("Copper", 385.0, 3.45e6), ("Steel", 50.0, 3.8e6), ("Custom", None, None))
+                for label, k_, c_ in presets:
+                    mat.addItem(label, (k_, c_))
+                cur = next((n for n, (_, k_, c_) in enumerate(presets) if k_ == el.k and c_ == el.rho_cp), len(presets) - 1)
+                mat.setCurrentIndex(cur)
+                kk = _spin(0.1, 1000, el.k, 1, 5, "W/mK")
+                kk.valueChanged.connect(lambda v: self.doc.set_props(kind, i, k=v))
+
+                def pick(_idx, mat=mat, kk=kk):
+                    k_, c_ = mat.currentData()
+                    if k_ is not None:
+                        kk.setValue(k_)
+                        self.doc.set_props(kind, i, k=k_, rho_cp=c_, merge=False)
+
+                mat.currentIndexChanged.connect(pick)
+                lay.addRow("Block material", mat)
+                lay.addRow("Block k", kk)
+                cr = _spin(0, 1000, el.contact_r * 1e4, 2, 0.5, "K·cm²/W")
+                cr.setToolTip("Interface resistance between the board and the block, per area: thickness / conductivity of the gap pad or paste "
+                              "(0.5 mm of a 1 W/mK pad is 5 K·cm²/W; 0.5 mm of a 5 W/mK pad is 1). The contact is over the copper under the block.")
+                cr.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_r=v * 1e-4))
+                lay.addRow("Interface", cr)
             else:
                 x = _spin(0, 2000, el.x * 1000, 2, 0.5, "mm")
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")

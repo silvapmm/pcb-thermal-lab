@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Added
+- **Metal block**: a Sink with a thickness (material, interface resistance, extra coefficient for fins) is a heat spreader in the FVM and FDM with lateral conduction, mass and a contact only over the copper it overlaps; block results (table, temperature view, report), checks, `example block`; validated against a 3D solid within 1.8 %.
+
 Next: the Component element (Package 2R, heat sink, passive areas) in its own version, then Gerber import and a variable stack-up (see `docs/roadmap.md`).
 
 ## [2.3.0] - 2026-10-16

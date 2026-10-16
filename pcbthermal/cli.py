@@ -23,7 +23,7 @@ import numpy as np
 
 from . import __version__, fvm
 from .api import simulate, suggest_cell_mm
-from .examples import example_board, example_profile_board
+from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
@@ -235,7 +235,7 @@ def cmd_example(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
-    board = {"example": example_board, "profile": example_profile_board}.get(args.which, reference_problem)()
+    board = {"example": example_board, "profile": example_profile_board, "block": example_block_board}.get(args.which, reference_problem)()
     save_project(args.output, Project(problem=board))
     print(f"Wrote {args.output}")
     return 0
@@ -319,9 +319,9 @@ def build_parser():
 
     e = sub.add_parser("example", help="write the reference board JSON")
     e.add_argument("output", nargs="?", default="examples/reference_board.pcbt.json")
-    e.add_argument("--which", choices=("reference", "example", "profile"), default="reference",
+    e.add_argument("--which", choices=("reference", "example", "profile", "block"), default="reference",
                    help="reference: 100x100 mm 2-layer board; example: 4-layer board with vias and a sink; "
-                        "profile: the example board with square-wave power on both heaters")
+                        "profile: the example board with square-wave power on both heaters; block: the example board with a metal block on the bottom")
     e.set_defaults(func=cmd_example)
     return p
 

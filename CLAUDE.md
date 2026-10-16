@@ -107,6 +107,7 @@ Mandatory, and applies to everything that ends up in the repository history or o
 
 ```
 pcbthermal/            Physics core (no GUI imports) - see docs/models.md
+  blocks.py            metal blocks (sinks with thickness): extra node layers for FVM/FDM
   model.py             Board, Materials, Zone, Heater, Via, Sink, Problem (+ mm builder API), JSON I/O
   geometry.py          polygon area/centroid/point-in-polygon, cell coverage fractions
   fdm.py               node-centred finite-difference model of the same layered physics (steady state, power-step animation, step responses and power profiles, `--model fdm|compare`; reuses the FVM transient machinery)
@@ -121,7 +122,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (169 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (181 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (.pcbt.json), csv_profiles/ (documented CSV power-profile example), validation_study.py (all models, every scenario; tables of docs/validation.md), accuracy_study.py and stress_study.py (the scenario lists), solver_equivalence.py, fem3d_validation.py (3D solid)
 docs/                  models.md (models, formulas, profiles, convection, API), validation.md (every scenario in every model, 3D check, history), roadmap.md (planned work), images/
 ico/                   application icon
@@ -207,6 +208,7 @@ Record important decisions here, newest first, with date and reason.
 - 2026-10-16: Roadmap extended: heat sink on a component (θCS + θSA in K/W, θSA scaled with ΔT from a reference rise, optional sink capacity C_hs from the first version), Gerber import of the copper per layer (section 7, `gerbonara` as candidate, fill fraction per cell), and variable stack-up (section 8: per-gap dielectric thickness and material, layer nodes of copper plus half the adjacent dielectrics, backward compatible when gaps are equal). All future work, nothing implemented.
 - 2026-10-16: Researched the Package (JEDEC 2R) basis and recorded it in `docs/package_models.md` (sources read: NISTIR 7648, TI SPRA953B, Renesas white paper, Semiconductor Digest, Siemens). Rules taken from it: the user enters θJB and θJC,top as resistances, never ψ; ψJT and ψJB are reported as consistency checks; θJB is spread over the footprint with area weights; the Package is quasi-static until a Foster chain exists; the share of power into the board is checked against 75 to 95 %. Unverified figures (2 to 20 % error of 2R) are not used. Implementation order: computed `h` first, then the Component element.
 - 2026-10-16: Future Component element agreed: one element with a type (Source = today's heater, Package 2R, passive areas such as cooled area, contact, material patch); its power and profile drive `T_j`, top cooling uses the computed `h` (Picard iteration), the profile decision measures the oscillation at `T_j`. Thermal resistance is displayed in K/W (same number as °C/W). Multigrid and the 3D FEM validation script are kept in `docs/roadmap.md` as optional future work; computed `h` and the Component element follow after the current models are polished. See `docs/roadmap.md` sections 2 to 5.
+- 2026-10-16: Metal block on `feature/component-model`: a Sink with `thickness>0` is a heat spreader (extra node layer in FVM/FDM, `blocks.py`), heat enters only where it overlaps copper (intersection of planes), laminate in series elsewhere; Lumped/Analytic use an equivalent coefficient and warn; validated within 1.8 % of the 3D solid (whose script had a singular-matrix bug, fixed). Component design still to be discussed with the maintainer.
 - 2026-10-16: Implemented power profiles on `feature/more-models` (square wave only; `profiles.py`; all three models; GUI "Power profile" tab; CLI options). Decision average-vs-resolve per heater from the oscillation in °C (default 1 °C, shared error budget, smallest first), mixed regimes in one run; start = steady state of the average power or a typed °C; duration until the cycle repeats / N cycles / fixed time; 200,000 step cap. Analytic transient smears vias and sinks (warned). GUI labels descriptive ("Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"), keys unchanged; units °C and °C/W. Results tab index is now 2 (Board, Power profile, Results).
 
 - 2026-10-15: Created CLAUDE.md. Decided that all code, comments, and docs are
