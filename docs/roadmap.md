@@ -115,7 +115,30 @@ the parameters or the board data are wrong. It also converts the parts that only
 **What the Component form asks, by case**: (1) the datasheet gives `θJC(top)` and `θJC(bot)` or `θJB` → Package with the top path; (2) one resistance to the pad, lead or solder point (`θJC(bot)`, `θJ-L`, `Rth j-sp`) → Package without a top path; (3) only `θJA` on a stated board → the package resistance from the virtual test; (4) only `ΨJB`/`ΨJT` → level A; (5) only a power rating at a temperature → derived resistance with a warning.
 The board reference temperature of a `ΨJB` estimate and the 1 mm ring are outputs of the board field, not inputs.
 
-### 1.8 Staging and validation
+### 1.8 Prototype on a real part: is the junction node worth it? (2026-10-16)
+
+`examples/package_prototype.py` (outside the program) simulates the TI CSD17308Q3 power MOSFET (SON 3.3 × 3.3 mm, `RthJC` 4.5 K/W to the drain pad, `Tj` max 150 °C) on the datasheet's own board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, a square copper pad on the top, still air with the computed `h`) in two ways:
+**offset** = what the program does today (the heat enters the board under the footprint, `Tj = T_max under the footprint + P·θ`) and **node** = a junction node joined to the footprint by a uniform conductance `1/θ` (the block-and-plate of JESD15-3) plus an optional path through the top.
+
+| Test | Datasheet | Offset | Node |
+| :-- | --: | --: | --: |
+| `RθJA` on 1 in² of 2 oz copper (1 W) | 46 typical, 58 max | **46.7** | **45.1** |
+| `RθJA` on a 5 mm pad (assumed size, the datasheet does not give it; 1 W) | 165 max | 164.2 | 162.8 |
+| `Tj` at 2 W, 1 in² pad, no top path | | 112.5 °C | 109.4 °C |
+| 2 W with a bare mould (30 K/W + convection, assumed) | | | 108.9 °C, 0.7 % of the heat through the top |
+| 2 W with a 12 K/W clip-on heat sink, `θJC(top)` 40, 20, 5 K/W (assumed) | | cannot represent it | 73.6, 63.4, 51.1 °C; 46, 58, 73 % of the heat through the top |
+| 2 W with a 4 K/W heat sink, `θJC(top)` 20 K/W (assumed) | | cannot represent it | 57.6 °C, 65 % through the top |
+
+What it shows:
+* **The physics and the one-resistance approach already reproduce the datasheet**: `RθJA` within 2 % of the typical value on the 1 in² board with `θJC(bot)` only (the datasheet value is a maximum for the 58 and a typical for the 46), and the minimum-pad figure within 1 % of the maximum (a coincidence of the assumed pad size, to be repeated with the real pad).
+* **Without a top path the junction node changes little**: 3 K (3 % of the rise) lower than the offset, which is conservative; for a bare FET the **simple heater with the junction-to-pad resistance is enough**.
+* **With a heat sink on the top the answer changes by a factor of two** (112 against 51 to 74 °C) and the offset method cannot see it: that is the case that justifies the junction node.
+* The result depends strongly on the junction-to-top resistance, which this datasheet does not give: the heat-sink case needs `θJC(top)` from the manufacturer or an assumption stated in the report.
+
+**Consequence for the design (to keep it simple).** (1) The Component stays a **Source** with one optional field, the *junction-to-pad resistance* (today's `θJB` field, renamed and documented as `θJC(bottom)` / `θJ-L` / `Rth j-sp`); with it alone the program behaves as today and is within the 3 % above, and it is validated by the virtual JEDEC test (the table above is that test).
+(2) A **top path** (heat sink or top resistance) is a second optional group of fields; only when it is filled the program adds the junction node (FVM and FDM first; the Lumped and Analytic models warn that they ignore it until they get it). (3) The ψ estimate and the Foster chain come later. Nothing else is asked from the user.
+
+### 1.9 Staging and validation
 
 Stages: (1) Component element and Package, static, in the three models; (2) top path from the computed `h`; (3) heat sink; (4) passive areas; (5) Foster chain for package transients.
 Validation: `θJB → 0` and no top path reproduce the current heater; `G_top → 0` gives heater plus the offset `P θJB`; exact series-parallel solution on a uniform board (`T_j` and power split to 1e-9); energy balance with the extra node; the models against each other;
