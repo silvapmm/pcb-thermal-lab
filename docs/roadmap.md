@@ -5,6 +5,11 @@ Agreed order: **Component element (Package, heat sink)** → passive areas → F
 
 ## 1. Component element
 
+> **Decision (2026-10-16, maintainer): worst case first.** For now the whole power of a component reaches the board; there is **no top path and no junction node**. The Component is a *Source* with optional *junction-to-pad resistance* (today's `θJB` field, renamed) and the junction temperature is
+> `T_j = T_max under the footprint + P·θ_pad`, which is the conservative variant (the prototype of section 1.8 gives it 3 K above the node model). The sections on the top path, the heat sink, the junction node and the Foster chain below are kept as **future work, not for the next version**.
+> First delivery: (1) rename and document the field and add the choice of which datasheet number it takes (`θJC(bottom)`, `θJ-L`, `Rth j-sp`, or `θJB` when nothing else exists); (2) report `T_j` against the part's `T_j,max` with a warning; (3) the **virtual JEDEC test** (the datasheet's own board, `θJA` predicted against the datasheet) with the CSD17308Q3 and the TPS7A47 as cases;
+> (4) the Ψ estimate as an optional output; (5) presets by part type in the interface. The simple heater keeps working unchanged.
+
 ### 1.1 Why
 
 Today a part is a heater: all its power enters the board under the footprint and `theta_jb` only adds an offset to the reported junction temperature. A real single-die part generates heat at the junction, which leaves by **two parallel paths**:
