@@ -98,4 +98,4 @@ The numbers below come from the verification studies (`physics_core.md` section 
 ## What none of the models covers yet
 
 Temperature-dependent convection and radiation (a constant `h` is used), 3D effects inside components, copper trace Joule heating,
-time-dependent power (pulses). See [`candidate_methods.md`](candidate_methods.md).
+time-dependent power other than a square wave (pulse trains, arbitrary shapes). Square-wave profiles are supported, see `roadmap.md` section 1. See [`candidate_methods.md`](candidate_methods.md).

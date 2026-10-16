@@ -4,7 +4,11 @@ Status 2026-10-16: version 2.0.0 is released. Work for 2.1.0 happens on `feature
 evidence gathered and the decisions taken, so that implementation can start from here. Items are in the agreed order.
 References are listed at the end; claims taken from the literature are marked with the source number, the rest are our own derivations or measurements.
 
-## 1. Variable power: profiles, PWM, pulses (next to implement)
+## 1. Variable power: profiles, PWM, pulses (implemented on `feature/more-models`)
+
+> **Status**: implemented as designed below (`pcbthermal/profiles.py`, `fvm/lumped/analytic.run_profile`, GUI "Power profile" tab, CLI `run` options). Differences from the notes:
+> the periodic-peak decision uses a monotone (PCHIP) interpolation of the step response in log time (0.4 % error against the exact RC solution); the analytic transient smears
+> vias and sinks; the mixed run is validated by `tests/test_profiles.py` (the difference to the fully resolved run is bounded by the neglected oscillation).
 
 ### 1.1 Why it matters (measured)
 

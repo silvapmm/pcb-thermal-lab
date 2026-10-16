@@ -12,6 +12,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Three models on one board description**, cross-checked against each other and reporting an exact energy balance.
 - **Interactive editor** (PySide 6): rectangles and polygons, vias, sinks, undo/redo, background photo, dark and light themes.
 - **Results**: temperature maps per layer, gradients, profiles, hotspot list, heater and junction temperatures, zone statistics, model comparison, temperature painted on the board.
+- **Power profiles**: square-wave power per heater (period or frequency, duty); each heater is averaged or simulated in time automatically, in all three models.
 - **Animation of the heat evolution** in real time (power step), with GIF export.
 - **Input checks** that warn when a model is doubtful (heater outside the board, no copper under a heater, a copper edge crossing a heater, ...).
 - **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON.
@@ -43,6 +44,7 @@ python3 -m venv .venv
 ```sh
 .venv/bin/python -m pcbthermal gui                                         # application
 .venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots
+.venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
 .venv/bin/python -m pcbthermal --version

@@ -443,9 +443,9 @@ class SolverPanel(QWidget):
 
         g = QGroupBox("Models")
         v = QVBoxLayout(g)
-        self.cb = {"fvm": QCheckBox("FVM - finite volumes (reference)"),
-                   "lumped": QCheckBox("Lumped - thermal network per heater"),
-                   "analytic": QCheckBox("Analytic - closed-form fin series")}
+        self.cb = {"fvm": QCheckBox("Finite volume (FVM), reference"),
+                   "lumped": QCheckBox("Thermal network (LPTN)"),
+                   "analytic": QCheckBox("Analytical (Fourier series)")}
         tips = {"fvm": "Reference model. Any geometry, full temperature field, exact energy balance. Use it for final answers "
                        "and whenever a warning appears. Cost grows with the number of cells.",
                 "lumped": "Fast network (milliseconds). Handles partial copper, vias, sinks and several heaters; "

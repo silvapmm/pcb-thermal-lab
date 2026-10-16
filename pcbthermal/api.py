@@ -24,7 +24,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Dict, Optional, Tuple
 
-from . import __version__, analytic, fvm, lumped
+from . import __version__, analytic, fvm, lumped, profiles
 from .analysis import heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
@@ -45,6 +45,8 @@ class SolverOptions:
     analytic_modes: int = 300                    # Cosine modes per direction in the analytic model
     analytic_local_corrections: bool = True      # Treat vias and sinks locally (Green's function update)
     hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
+    steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
+    profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
 
     def validate(self):
         """!
@@ -60,6 +62,9 @@ class SolverOptions:
             raise ValueError("linear_solver must be 'direct', 'cg' or 'sor'")
         if self.lumped_rings < 3 or self.analytic_modes < 20:
             raise ValueError("lumped_rings must be >= 3 and analytic_modes >= 20")
+        if self.steady_power not in ("average", "peak"):
+            raise ValueError("steady_power must be 'average' or 'peak'")
+        self.profile.validate()
 
     def to_dict(self):
         """!
@@ -68,6 +73,7 @@ class SolverOptions:
         """
         d = asdict(self)
         d["models"] = list(self.models)
+        d["profile"] = self.profile.to_dict()
         return d
 
     @classmethod
@@ -80,6 +86,7 @@ class SolverOptions:
         known = {k: v for k, v in (data or {}).items() if k in cls.__dataclass_fields__}
         if "models" in known:
             known["models"] = tuple(known["models"])
+        known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
         o = cls(**known)
         o.validate()
         return o
@@ -95,6 +102,11 @@ class Simulation:
     results: Dict[str, SteadyResult] = field(default_factory=dict)
     seconds: Dict[str, float] = field(default_factory=dict)
     problem_warnings: list = field(default_factory=list)       # Validity checks of the input (see checks.py)
+    decisions: list = field(default_factory=list)              # profiles.HeaterDecision per heater (power profiles)
+    profile_results: Dict[str, profiles.ProfileResult] = field(default_factory=dict)   # Time simulation per model
+    profile_reference: str = ""                                # Model whose step response made the decisions
+    profile_error: str = ""                                    # Why the time simulation was not run, if it was not
+    step_response: Optional[profiles.StepResponse] = None      # Step responses behind the decisions
 
     @property
     def warnings(self):
@@ -105,6 +117,10 @@ class Simulation:
         out = list(self.problem_warnings)
         for name, r in self.results.items():
             out += [f"{name}: {w}" for w in r.warnings]
+        for name, r in self.profile_results.items():
+            out += [f"{name} (time simulation): {w}" for w in r.warnings]
+        if self.profile_error:
+            out.append(f"time simulation not run: {self.profile_error}")
         return out
 
     @property
@@ -135,23 +151,55 @@ class Simulation:
         @brief The comparison table as Markdown, followed by the warnings.
         @return String.
         """
-        lines = ["| Model | Tmax [°C] | Tmean [°C] | ΔT [K] | Rθ [K/W] | Power [W] | Balance | Error vs " +
+        lines = ["| Model | Tmax [°C] | Tmean [°C] | ΔT [°C] | Rθ [°C/W] | Power [W] | Balance | Error vs " +
                  self.reference.model + " | Time [s] |",
                  "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
         for r in self.table():
             lines.append(f"| {r['model']} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
                          f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {r['energy_balance']:+.0e} | "
                          f"{r['error_vs_reference'] * 100:+.1f} % | {r['seconds']:.2f} |")
+        lines += self._profile_markdown()
         for w in self.warnings:
             lines.append(f"\n> **Warning**: {w}")
         return "\n".join(lines) + "\n"
+
+    def _profile_markdown(self):
+        """!
+        @brief Markdown tables of the power-profile decisions and of the time simulation.
+        @return List of lines (empty without profiles).
+        """
+        if not self.decisions:
+            return []
+        lines = ["", f"Power profiles (decision from the {self.profile_reference} step response, "
+                     f"threshold {self.options.profile.threshold_c:g} °C):", "",
+                 "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
+                 "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
+        for d in self.decisions:
+            if d.kind == "wave":
+                lines.append(f"| {d.name} | {d.period:g} | {d.duty:.0%} | {d.average_power:.3f} | {d.peak_power:.3f} | "
+                             f"{d.oscillation:.2f} | {d.oscillation_percent:.1f} % | {d.regime} |")
+            else:
+                lines.append(f"| {d.name} | - | - | {d.average_power:.3f} | {d.peak_power:.3f} | - | - | constant |")
+        if self.profile_results:
+            lines += ["", "| Model | Peak [°C] | Minimum [°C] | Oscillation [°C] | Steady, average power [°C] | "
+                          "Steady, peak power (bound) [°C] | Windows | Steps | Time [s] |",
+                      "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
+            for name, r in self.profile_results.items():
+                if r.resolved:
+                    lines.append(f"| {name} | {r.peak:.2f} | {r.minimum:.2f} | {r.oscillation:.2f} | "
+                                 f"{r.steady_average_max:.2f} | {r.steady_peak_max:.2f} | {r.windows} | {r.steps} | "
+                                 f"{r.seconds:.2f} |")
+                else:
+                    lines.append(f"| {name} | {r.steady_average_max:.2f} (all heaters averaged) | - | - | "
+                                 f"{r.steady_average_max:.2f} | {r.steady_peak_max:.2f} | - | - | {r.seconds:.2f} |")
+        return lines
 
     def to_text(self):
         """!
         @brief The comparison table as aligned plain text, followed by the warnings.
         @return String.
         """
-        head = f"{'model':9s} {'Tmax C':>8s} {'Tmean C':>8s} {'dT K':>8s} {'Rth K/W':>8s} {'P W':>7s} {'balance':>9s} " \
+        head = f"{'model':9s} {'Tmax C':>8s} {'Tmean C':>8s} {'dT C':>8s} {'Rth C/W':>8s} {'P W':>7s} {'balance':>9s} " \
                f"{'vs ' + self.reference.model:>9s} {'time s':>7s}"
         lines = [head, "-" * len(head)]
         for r in self.table():
@@ -172,6 +220,25 @@ class Simulation:
                  f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
                  f"{self.problem.board.layers} layers, ambient {self.problem.board.ambient:g} degC, "
                  f"total power {self.problem.total_power():.3f} W", "", self.to_text()]
+        if self.decisions:
+            lines.append("")
+            lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
+                         f"{self.profile_reference} step response, threshold {self.options.profile.threshold_c:g} C):")
+            for d in self.decisions:
+                if d.kind == "wave":
+                    lines.append(f"  {d.name}: period {d.period:g} s, duty {d.duty:.0%}, average {d.average_power:.3f} W, "
+                                 f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} C "
+                                 f"({d.oscillation_percent:.1f} % of the rise) -> {d.regime}")
+                else:
+                    lines.append(f"  {d.name}: constant {d.average_power:.3f} W")
+            for name, r in self.profile_results.items():
+                if r.resolved:
+                    lines.append(f"  {name}: peak {r.peak:.2f} C, minimum {r.minimum:.2f} C, oscillation {r.oscillation:.2f} C "
+                                 f"(steady with the average power {r.steady_average_max:.2f} C, with the peak power "
+                                 f"{r.steady_peak_max:.2f} C); {r.windows} windows, {r.steps} steps, "
+                                 f"{'stable' if r.converged else 'not stable'}")
+                else:
+                    lines.append(f"  {name}: every heater averaged; steady {r.steady_average_max:.2f} C")
         if ref.T is not None:
             lines.append(f"Reference model: {ref.model}")
             hs = hotspots(ref, self.options.hotspot_c)
@@ -193,8 +260,12 @@ class Simulation:
         @brief JSON-ready summary of the whole simulation.
         @return Dict with options, table and per-model summaries.
         """
-        return {"version": __version__, "problem": self.problem.name, "options": self.options.to_dict(), "table": self.table(),
-                "models": {k: r.summary() for k, r in self.results.items()}}
+        d = {"version": __version__, "problem": self.problem.name, "options": self.options.to_dict(), "table": self.table(),
+             "models": {k: r.summary() for k, r in self.results.items()}}
+        if self.decisions:
+            d["profile"] = {"reference": self.profile_reference, "error": self.profile_error,
+                            "models": {k: r.summary() for k, r in self.profile_results.items()}}
+        return d
 
     def save(self, directory, plots=True):
         """!
@@ -226,8 +297,21 @@ class Simulation:
                         for j in range(r.T.shape[2]):
                             w.writerow([l + 1, round((j + 0.5) * r.dx * 1000, 4),
                                         round((i + 0.5) * r.dy * 1000, 4), round(float(r.T[l, i, j]), 4)])
+        for name, r in self.profile_results.items():
+            if not r.resolved:
+                continue
+            with open(path(f"profile_{name}.csv"), "w", newline="") as fh:
+                w = csv.writer(fh)
+                w.writerow(["t_s", "Tmax_c"] + [f"T_{d.name}_c" for d in self.decisions])
+                for k in range(len(r.times)):
+                    w.writerow([round(float(r.times[k]), 6), round(float(r.t_max[k]), 4)] +
+                               [round(float(r.t_heaters[j, k]), 4) for j in range(len(self.decisions))])
         if plots:
             from . import plots
+            for name, r in self.profile_results.items():
+                if r.resolved:
+                    plots.plot_profile_series(r, self.problem, path(f"profile_{name}.png"))
+                    plots.plot_peak_map(r, self.problem, path(f"peak_map_{name}.png"))
             for name, r in self.results.items():
                 if r.T is not None:
                     plots.plot_fields(r, self.problem, path(f"fields_{name}.png"))
@@ -267,6 +351,58 @@ def _run_model(problem, name, o):
                                  local_corrections=o.analytic_local_corrections)
 
 
+def step_response(problem, model, options):
+    """!
+    @brief Unit-step responses of the heaters with one model (the input of the average-or-resolve decision).
+    @param problem A Problem with at least one heater.
+    @param model "fvm", "lumped" or "analytic".
+    @param options SolverOptions.
+    @return profiles.StepResponse.
+    """
+    if model == "fvm":
+        return profiles.step_response_fvm(problem, cell_mm=max(options.cell_mm, 2.0))
+    if model == "lumped":
+        t, z, r = lumped.step_responses(problem, rings=options.lumped_rings, cell_mm=min(max(options.cell_mm, 0.5), 1.0))
+    else:
+        t, z, r = analytic.step_responses(problem, cell_mm=min(max(options.cell_mm, 0.5), 1.0), n_terms=options.analytic_modes)
+    return profiles.StepResponse(model, t, z, r)
+
+
+def _run_profiles(sim, progress, start):
+    """!
+    @brief Decide average-or-resolve for every heater and simulate the profiles with every selected model.
+    @details The decision is made once, with the most reliable selected model (FVM, then lumped, then analytic), and
+             applied to all models. A run that is too expensive is reported in sim.profile_error, never raised.
+    @param sim Simulation with the steady results already filled in.
+    @param progress Optional callback progress(message, fraction).
+    @param start Progress fraction at which this stage starts.
+    """
+    o, p = sim.options, sim.problem
+    ref = next(m for m in MODEL_NAMES if m in o.models)
+    sim.profile_reference = ref
+    if progress:
+        progress("Thermal response of the heaters", start)
+    t0 = time.time()
+    try:
+        resp = step_response(p, ref, o)
+        sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
+        sim.step_response = resp
+        for name in o.models:
+            if progress:
+                progress(f"Time simulation: {name}", start + 0.1)
+            if name == "fvm":
+                sim.profile_results[name] = profiles.run_fvm(p, sim.decisions, o.profile, o.cell_mm)
+            elif name == "lumped":
+                sim.profile_results[name] = lumped.run_profile(p, sim.decisions, o.profile, o.lumped_rings,
+                                                               min(max(o.cell_mm, 0.5), 1.0))
+            else:
+                sim.profile_results[name] = analytic.run_profile(p, sim.decisions, o.profile,
+                                                                 min(max(o.cell_mm, 0.5), 1.0), o.analytic_modes)
+    except profiles.ProfileError as exc:
+        sim.profile_error = str(exc)
+    sim.seconds["profile"] = time.time() - t0
+
+
 def simulate(problem, options=None, progress: Optional[Callable[[str, float], None]] = None):
     """!
     @brief Run the selected models on a problem.
@@ -280,13 +416,16 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     options.validate()
     problem.validate()
     sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm))
-    n = len(options.models)
+    steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
+    n = len(options.models) + (1 if problem.has_profiles() else 0)
     for k, name in enumerate(options.models):
         if progress:
             progress(f"Solving {name}", k / n)
         t0 = time.time()
-        sim.results[name] = _run_model(problem, name, options)
+        sim.results[name] = _run_model(steady_problem, name, options)
         sim.seconds[name] = time.time() - t0
+    if problem.has_profiles():
+        _run_profiles(sim, progress, len(options.models) / n)
     if progress:
         progress("Done", 1.0)
     return sim

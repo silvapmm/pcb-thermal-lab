@@ -3,7 +3,7 @@
 @brief Ready-made boards for tests, the command line and the GUI.
 """
 
-from .model import Problem, reference_problem
+from .model import Problem, SquareWave, reference_problem
 
 
 def example_board():
@@ -25,3 +25,15 @@ def example_board():
 
 
 __all__ = ["example_board", "reference_problem"]
+
+
+def example_profile_board():
+    """!
+    @brief The example board with power profiles: U1 switches at 100 Hz (averaged) and U2 runs a 20 s cycle (resolved).
+    @return A Problem.
+    """
+    p = example_board()
+    p.name = "example with power profiles"
+    p.heaters[0].set_profile(SquareWave(p_on=4.0 / 0.30, period=0.01, duty=0.30))
+    p.heaters[1].set_profile(SquareWave(p_on=1.5 / 0.25, period=20.0, duty=0.25))
+    return p

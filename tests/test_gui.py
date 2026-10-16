@@ -178,7 +178,7 @@ def test_run_simulation_fills_results_and_marks_stale(win, qtbot):
         win.solver_panel.run.click()
     qtbot.waitUntil(lambda: win.sim is not None, timeout=60000)
     assert set(win.sim.results) == {"fvm", "lumped", "analytic"}
-    assert win.tabs.currentIndex() == 1
+    assert win.tabs.currentIndex() == 2
     assert win.results.model_table.rowCount() == 3
     assert win.results.heater_table.rowCount() == 2 and "°C" in win.results.heater_table.item(0, 5).text() or True
     # All plot tabs rendered without error, and the overlay can be painted on the board
@@ -188,7 +188,7 @@ def test_run_simulation_fills_results_and_marks_stale(win, qtbot):
     assert win.canvas._overlay is not None
     win.canvas.set_selection([])
     win.doc.set_props("heater", 0, power=3.0)
-    assert "outdated" in win.tabs.tabText(1) and win.canvas._overlay is None
+    assert "outdated" in win.tabs.tabText(2) and win.canvas._overlay is None
 
 
 def test_run_requires_a_heater(win):
@@ -210,7 +210,7 @@ def test_animation_tab_computes_plays_and_exports(win, qtbot, tmp_path):
     win.doc.open_problem(example_board(), "example-4layer")
     win._after_load()
     anim = win.results.animation
-    win.tabs.setCurrentIndex(1)                               # Suggests a duration from the time constant
+    win.tabs.setCurrentIndex(2)                               # Suggests a duration from the time constant
     assert anim.t_end.value() > 1.0
     anim.t_end.setValue(60.0)
     anim.frames.setValue(12)

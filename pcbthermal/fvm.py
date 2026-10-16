@@ -92,7 +92,10 @@ class Network:
             self.g_side[:, -1, :] += b.h_side * dx * slab
         self.g_amb = self.g_top + self.g_bottom + self.g_sink + self.g_side
 
-        # --- Heat sources (W): the requested power is spread exactly over the covered cells
+        # --- Heat sources (W): the requested power is spread exactly over the covered cells.
+        # The unit-power distribution of every heater (weights that sum to 1) is kept, so that the source of a
+        # power profile can be rebuilt at every time step as a matrix-vector product.
+        self.Qw = []
         self.Q = np.zeros((L, ny, nx))
         for h in problem.heaters:
             cov = coverage_fraction(h.polygon, nx, ny, dx, dy, samples=8)
@@ -101,7 +104,15 @@ class Network:
                 cx, cy = polygon_centroid(h.polygon)
                 i, j = cell_index_of_point(cx, cy, nx, ny, dx, dy)
                 cov[i, j] = 1.0
-            self.Q[h.layer] += h.power * cov / cov.sum()
+            w = np.zeros((L, ny, nx))
+            w[h.layer] = cov / cov.sum()
+            self.Qw.append(w)
+            self.Q += h.power * w
+        n_cells = L * ny * nx
+        # Sparse (cells x heaters) matrix of the weights, and the flat indices of every footprint
+        self.Qw_matrix = sp.csc_matrix(np.stack([w.ravel() for w in self.Qw], axis=1)) if self.Qw \
+            else sp.csc_matrix((n_cells, 0))
+        self.footprints = [np.flatnonzero(w.ravel() > 0) for w in self.Qw]
 
         self.K = self._assemble() if assemble else None
 
@@ -363,6 +374,53 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
         t_mean=frames.reshape(len(times), -1).mean(axis=1), frames=frames,
         steady_t_max=float(steady_theta.max() + b.ambient), ambient=b.ambient,
     )
+
+
+def step_responses(problem, cell_mm=2.0, t_end=None, ratio=3.0, per_stage=4, stages=18, theta_scheme=0.5):
+    """!
+    @brief Response of every heater's hottest point to a unit power step of that heater, all heaters at once.
+    @details The heaters are solved as several right-hand sides of the same matrices. The time step grows by
+             the factor `ratio` after every `per_stage` steps (one matrix factorisation per stage), which covers
+             about nine decades of time with a few dozen steps. The result Z_i(t) is in degC per W and is what the
+             power-profile analysis uses to estimate oscillations and periodic peaks.
+    @param problem A Problem with at least one heater.
+    @param cell_mm Target cell size in millimetres.
+    @param t_end Last time in seconds (default: ten board time constants).
+    @param ratio Growth factor of the time step between stages.
+    @param per_stage Steps per stage.
+    @param stages Number of stages.
+    @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
+    @return Tuple (times, z, rth): times (nt,) in s without t = 0, z (n_heaters, nt) in degC/W and rth (n_heaters,)
+            in degC/W (steady state).
+    @throws ValueError If the problem has no heater.
+    """
+    if not problem.heaters:
+        raise ValueError("the problem has no heater")
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    net = Network(problem, nx, ny)
+    if t_end is None:
+        t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
+    Q = net.Qw_matrix.toarray()                                   # (cells, heaters), unit power each
+    rth = (spla.splu(net.K.tocsc()).solve(Q)).max(axis=0)
+    # Step sizes: per_stage steps of dt0 * ratio^j for j = 0..stages-1, scaled so that they sum to t_end
+    geometric = per_stage * (ratio ** stages - 1.0) / (ratio - 1.0)
+    dt0 = t_end / geometric
+    Cd = net.C.ravel()
+    x = np.zeros_like(Q)
+    times, z, t = [], [], 0.0
+    for j in range(stages):
+        dt = dt0 * ratio ** j
+        A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
+        B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
+        lu = spla.splu(A)
+        for _ in range(per_stage):
+            x = lu.solve((B @ x) + Q)
+            t += dt
+            times.append(t)
+            z.append(x.max(axis=0))
+    return np.asarray(times), np.asarray(z).T, rth
 
 
 def estimate_time_constant(problem, cell_mm=5.0):

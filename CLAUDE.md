@@ -189,6 +189,23 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
   (title bar, status bar, About), in `--version`, in reports and in saved projects. A release needs: version bump, `CHANGELOG.md` entry
   (`tests/test_version.py` checks it and the README), README update, tests green, merge to `main`, annotated tag, push.
 
+## Git Policy
+
+Claude handles all git operations in this repository: branches, commits, pushes,
+merges, PRs, and tags. The maintainer set these rules (2026-10-16):
+
+- **Commits**: commit when a meaningful unit of work is finished (a feature, a fix, a batch of
+  documentation), not after every small step; the maintainer leaves the call to Claude.
+  Work on a feature branch; commits can be reverted locally.
+- **Pushes**: do not push after every commit. Push only when asked, or at a
+  milestone (before a merge or a release).
+- **Merges**: merge into `main` only when `develop` holds a solid, working
+  development (the app runs, tests pass and the change is complete). Not for every commit.
+- **Tags**: create a tag only for a good release (see "Branches and Versions"). Never tag routine work.
+- **Never**: force push, rewrite published history, or commit generated outputs.
+- **Before editing this file**: replace only the section you mean to change. A range replacement
+  once deleted this section by accident (restored on 2026-10-16).
+
 ## Maintaining This File
 
 Update `CLAUDE.md` whenever something important happens: architecture or
@@ -206,6 +223,8 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 ## Decisions Log
 
 Record important decisions here, newest first, with date and reason.
+
+- 2026-10-16: Implemented power profiles on `feature/more-models` (square wave only; `profiles.py`; all three models; GUI "Power profile" tab; CLI options). Decision average-vs-resolve per heater from the oscillation in °C (default 1 °C, shared error budget, smallest first), mixed regimes in one run; start = steady state of the average power or a typed °C; duration until the cycle repeats / N cycles / fixed time; 200,000 step cap. Analytic transient smears vias and sinks (warned). GUI labels descriptive ("Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"), keys unchanged; units °C and °C/W. Results tab index is now 2 (Board, Power profile, Results).
 
 - 2026-10-15: Created CLAUDE.md. Decided that all code, comments, and docs are
   in English, with `#` inline comments and Doxygen-style docstrings.
