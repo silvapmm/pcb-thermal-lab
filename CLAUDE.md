@@ -109,6 +109,7 @@ Mandatory, and applies to everything that ends up in the repository history or o
 pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
   model.py             Board, Materials, Zone, Heater, Via, Sink, Problem (+ mm builder API), JSON I/O
   geometry.py          polygon area/centroid/point-in-polygon, cell coverage fractions
+  fdm.py               node-centred finite-difference model of the same layered physics (comparison only, steady state, `--model fdm|compare`)
   fvm.py               reference finite-volume model: steady (direct, CG, SOR) and transient
   lumped.py            ring network per heater, superposed
   analytic.py          multilayer cosine series + local via/sink corrections
@@ -120,7 +121,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (128 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (137 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (.pcbt.json), accuracy_study.py, stress_study.py, solver_equivalence.py
 docs/                  README.md (index), physics_core.md (current), new_approach.md, findings.md (all discoveries), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
 ico/                   application icon
@@ -228,6 +229,7 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 
 Record important decisions here, newest first, with date and reason.
 
+- 2026-10-16: Added `pcbthermal/fdm.py`, a correct node-centred FDM of the same model, as a comparison model (API `models=("fdm",)`, CLI `--model fdm|compare`, no GUI, no time simulation) and `examples/model_comparison.py`: FDM agrees with the FVM within ~1 % and jumps ±0.5 °C with the grid while the FVM converges monotonically; the old program's errors were modelling, not the discretisation.
 - 2026-10-16: Explained in `docs/model_guide.md` why FVM and Analytic agree (same layered model; the Analytic is its exact solution on a uniform sheet; Lumped and Analytic were tuned against the FVM so the 3D FEM is the independent check) and listed the literature on FDM/FVM and PCB models; recorded that no model has been compared with a physical board measurement yet.
 - 2026-10-16: Independent 3D FEM check (`examples/fem3d_validation.py`, scikit-fem not in requirements): FVM within 0.4 to 2.4 % of the 3D rise, Lumped 2 to 7 %, Analytic 0.2 % on uniform copper and up to 24 % with a 20 mm pad; explains why FVM and Analytic agree on uniform boards (same layered model). Convection calibration helper (`calibrate_convection`, CLI `calibrate`).
 - 2026-10-16: Added power tables and CSV (`TableProfile`, `profile_io.py`, GUI import/export buttons, `run --profile`, `examples/csv_profiles/`); the decision uses the periodised step response for any periodic table, one-shot tables are always resolved from the steady state of their first power; analytic transient now has one modal system per heater with the via (or sink) conductance scaled to the local steady response (single global scale tried and rejected: it cooled the distant heater by 18 %); animation of the power step also for the Analytical model. Version bump to be decided at the release.

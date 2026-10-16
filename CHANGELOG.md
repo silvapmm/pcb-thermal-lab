@@ -11,6 +11,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
   The average-or-resolve decision works for any periodic table (periodised step response), one-shot tables are always resolved, and several repeating profiles are simulated over the least common multiple of their periods.
 - **Analytic transient with vias and sinks**: one modal system per heater with the smeared via (or sink) conductance scaled so that its steady response equals the locally corrected steady model; the example's temperature curve now follows the FVM within 2.5 °C
   (10 °C before) and the profile peak within 0.5 %. Animation of the power step also for the Analytical model (selector in the Animation tab).
+- **Finite-difference comparison model** (`pcbthermal/fdm.py`, `--model fdm` or `--model compare`, `models=("fdm",)`): node-centred FDM of the same layered physics, steady state only, for comparing discretisations; `examples/model_comparison.py` prints the tables.
 - **Calibration of the convection**: `calibrate_convection` / `pcbthermal calibrate board.json --measured 85 [--heater U1]` fits the convection multiplier to one measured steady temperature.
 - `examples/fem3d_validation.py`: independent 3D finite-element check (scikit-fem, offline) of the three models; results in `docs/findings.md` and `docs/model_guide.md`.
 - `examples/csv_profiles/`: documented example board with three profile CSV files, scripts and a README.

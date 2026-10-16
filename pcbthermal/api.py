@@ -27,13 +27,14 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, convection, fvm, lumped, profiles
+from . import __version__, analytic, convection, fdm, fvm, lumped, profiles
 from .analysis import heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
 from .results import SteadyResult
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
+COMPARISON_MODELS = ("fdm",)                     # Extra steady-state model for comparisons: no time simulation, not in the GUI
 
 
 @dataclass
@@ -56,9 +57,9 @@ class SolverOptions:
         @brief Check the values.
         @throws ValueError If a value is out of range or a model name is unknown.
         """
-        bad = [m for m in self.models if m not in MODEL_NAMES]
+        bad = [m for m in self.models if m not in MODEL_NAMES + COMPARISON_MODELS]
         if bad or not self.models:
-            raise ValueError(f"models must be a non-empty subset of {MODEL_NAMES}, got {self.models}")
+            raise ValueError(f"models must be a non-empty subset of {MODEL_NAMES + COMPARISON_MODELS}, got {self.models}")
         if not 0.05 <= self.cell_mm <= 50:
             raise ValueError("cell_mm must be between 0.05 and 50")
         if self.linear_solver not in ("direct", "cg", "sor"):
@@ -362,6 +363,8 @@ def _run_model(problem, name, o):
     """
     if name == "fvm":
         return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver)
+    if name == "fdm":
+        return fdm.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "lumped":
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=min(max(o.cell_mm, 0.5), 1.0))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
@@ -490,7 +493,10 @@ def _run_profiles(sim, progress, start):
     """
     o = sim.options
     p = sim.effective_problem or sim.problem
-    ref = next(m for m in MODEL_NAMES if m in o.models)
+    ref = next((m for m in MODEL_NAMES if m in o.models), None)
+    if ref is None:
+        sim.profile_error = "the time simulation needs the FVM, the thermal network or the analytical model to be selected"
+        return
     sim.profile_reference = ref
     if progress:
         progress("Thermal response of the heaters", start)
@@ -500,6 +506,8 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in o.models:
+            if name in COMPARISON_MODELS:
+                continue                                                  # The comparison model has no time simulation
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
             if name == "fvm":
@@ -542,7 +550,7 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
             sim.results[name] = _run_model(steady_problem, name, options)
         sim.seconds[name] = time.time() - t0
     if computed:
-        ref = next(m for m in MODEL_NAMES if m in options.models)
+        ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in options.models))
         # Later stages (time simulation, animation) use the coefficients of the reference model, fixed during the cycle
         sim.effective_problem = copy.deepcopy(problem)
         sim.effective_problem.board.h_mode = "manual"

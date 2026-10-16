@@ -30,7 +30,7 @@ pcbthermal/
   plots.py      figures (draw_* into any Figure; plot_* / GIF writers for files)
   cli.py        python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/          PySide 6 application (section 6)
-tests/          118 pytest tests: geometry, FVM, models, API, checks, I/O, power profiles, GUI (offscreen) and a documentation gate
+tests/          137 pytest tests: geometry, FVM, models, API, checks, I/O, power profiles, GUI (offscreen) and a documentation gate
 examples/       example boards, accuracy_study.py, stress_study.py, solver_equivalence.py
 ```
 

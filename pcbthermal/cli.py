@@ -29,6 +29,7 @@ from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
 
 MODELS = ("fvm", "lumped", "analytic")
+RUN_MODELS = MODELS + ("fdm",)            # "fdm" is the finite-difference comparison model (steady state only)
 
 
 def _cell_arg(args, problem, default):
@@ -52,7 +53,7 @@ def cmd_run(args):
     """
     project = load_project(args.config)
     options = project.options
-    options.models = MODELS if args.model == "all" else (args.model,)
+    options.models = {"all": MODELS, "compare": RUN_MODELS}.get(args.model, (args.model,))
     options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     options.linear_solver = args.solver
     po = options.profile
@@ -251,7 +252,8 @@ def build_parser():
 
     r = sub.add_parser("run", help="solve steady state")
     common(r)
-    r.add_argument("--model", choices=MODELS + ("all",), default="all")
+    r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
+                   help="all: fvm, lumped, analytic; compare: those three plus the finite-difference comparison model fdm")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
