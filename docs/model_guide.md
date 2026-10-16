@@ -19,6 +19,25 @@ Both are ways of turning the heat equation into a matrix, and for a uniform grid
 So: when this documentation says FDM it means the old program; everything current is FVM. The FVM is not more accurate than the analytic model in general (see "Accuracy against an independent 3D solid"); it is the model with the freedom of geometry and an exact energy balance.
 The linear solver (direct sparse, CG, SOR) is a separate choice: SOR is a way of *solving* the matrix, not a discretisation, and gives the same temperatures as the direct solver when it stops on the residual.
 
+### Why the FVM and the Analytic model give about the same numbers (and where they do not)
+
+1. **They solve the same model.** Both treat every copper layer as a thin conducting sheet, the dielectric between layers as a vertical resistance, one constant `h` per face, the same material properties. The Analytic model is the **exact** solution of that model on a uniform sheet (a cosine series); the FVM is a **numerical** solution of the same equations. Two correct solutions of one model must agree: on the uniform cases they differ by 0.2 to 1 %, which is the FVM mesh error (cell 1 mm).
+2. **The real board is not that model, and that error is shared.** The independent 3D finite-element solid (`model_guide.md`, "Accuracy against an independent 3D solid") shows the layered model itself is within 0.4 to 2.4 % of the true 3D conduction on these boards, and the literature reports 1 to 4 % between layered analytical models and finite elements and about 4 to 5 % against measurements on a real four-layer board [L5], [L6].
+   Neither the FVM nor the Analytic model can be better than the layered model they share, so "FVM = more precise" does not hold in general. **No model of the program has been compared with a measurement of a physical board yet.**
+3. **Part of the agreement was engineered.** The Lumped and Analytic models were tuned against the FVM (copper weighted with the heater influence, fin lengths, Bessel factors). The accuracy tables (`physics_core.md` 7.2, 7.3) measure agreement *with the FVM*, which is why the 3D check was added: it does not depend on that tuning.
+4. **Where they differ, and why it matters.** The Analytic model assumes a uniform effective sheet around the heater, so it fails when the geometry is not uniform near it: 6 % with a 40 mm copper pad, **24 % with a 20 mm pad** and 25 % when a copper edge crosses the heater; the Lumped model degrades more gently. The FVM keeps within 2.4 % in the same cases because it resolves the copper cell by cell.
+   For time dependence the FVM is the reference; the Analytic transient needs a per-heater calibration of the vias (`physics_core.md` 3.4).
+5. **What each is for.** Analytic: instant, exact on uniform boards, good for understanding and as an independent check. FVM: any copper shape, exact energy balance, and the answer to confirm with when a warning appears.
+
+### Literature on FDM, FVM and PCB thermal models
+
+* [L1] Finite volume methods are built from an integral balance on each cell, so the discrete solution satisfies the energy balance globally and locally; finite differences work on point values of the differential equation (R. Eymard, T. Gallouët, R. Herbin, *Finite Volume Methods*, https://raphaeleh.github.io/PUBLI/bookevol.pdf; *Finite Volume Method in Heat Conduction*, Encyclopedia of Thermal Stresses, https://link.springer.com/rwe/10.1007/978-94-007-2739-7_896).
+* [L2] Khouider, *Finite difference and finite volume methods for transport and conservation laws* (lecture notes), https://www.pims.math.ca/files/Khouider_1.pdf: conservation form is what makes finite volumes preserve the conserved quantity.
+* [L3] A comparison of the two methods on 1D steady heat conduction (https://link.springer.com/chapter/10.1007/978-981-97-0037-0_9) is reported by a search summary as giving almost the same results, with FDM needing many more iterations; the chapter is behind a login and was **not read**, so no figure from it is used here.
+* [L4] Commercial electronics-cooling tools use the finite volume method: Ansys Icepak, Siemens Flotherm (structured Cartesian grid) and Cadence Celsius (see `roadmap.md`, reference 13).
+* [L5] *A modeling method for thermal steady-state simulation of the four-layer printed circuit board*, PMC11410250, https://pmc.ncbi.nlm.nih.gov/articles/PMC11410250/ (text read): Fourier-series solutions for the insulating layers combined with a lateral-only finite volume discretisation of the metal layers, the same architecture as our FVM plus Analytic pair; error against COMSOL about 1.8 to 2.5 % at the hot region and 4 to 5 % against measurements of the IC surface temperature on a real board, solver time under 9 minutes against about 50 minutes for COMSOL.
+* [L6] Fourier-series analytical models of multilayer structures compared with finite elements: 1 to 4 % in the studies found by a search (https://researchonline.jcu.edu.au/86884/ and others); figures taken from search summaries, not from the full texts.
+
 ## At a glance
 
 | | **FVM** (finite volumes) | **Lumped** (thermal network) | **Analytic** (cosine series) |
