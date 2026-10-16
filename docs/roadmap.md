@@ -306,7 +306,9 @@ Measured on the example board (4 layers), seconds per steady solve:
 All agree to 1e-8 °C. The gain only appears above about 500 000 unknowns, where the direct solver slows down and needs a lot of memory and multigrid scales almost linearly (`pyamg` stays an optional dependency,
 chosen automatically above a threshold). Plain CG already captures most of the benefit for moderate sizes.
 
-## 5. 3D finite elements as an independent validation (not a product feature)
+## 5. 3D finite elements as an independent validation (not a product feature) — script done
+
+> **Done (2026-10-16)**: `examples/fem3d_validation.py` (hexahedral elements, three cases, results in `model_guide.md`). Still to do: vias and sinks in 3D, a thick-copper case, a transient comparison.
 
 Runs locally (laptop, no cloud): `scikit-fem` is already installed in the venv. A 100×80 mm board with 4 copper layers on a graded hexahedral mesh is a few hundred thousand elements, seconds to a few minutes with a sparse solver. One script, run by hand when needed.
 

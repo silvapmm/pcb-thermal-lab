@@ -150,6 +150,7 @@ forced convection laminar `0.664 Re^(1/2) Pr^(1/3)` (mixed above Re = 5e5); radi
 `h` depends on the mean face temperature, which depends on `h`: `simulate` repeats the model with updated coefficients until they change by less than 0.01 W/m²K (3 or 4 solves, 2 to 8 allowed in the tests).
 Settings: emissivity of each face, orientation, air speed, global calibration multiplier of the convection. The result carries `h_top`, `h_bottom`, their convection and radiation parts and the iteration count (`extras`, report, `Simulation.h_used`);
 a warning appears if the Rayleigh number leaves 1e4 to 1e11. The edge coefficient is not computed. Time simulation and animation keep the coefficients of the steady state with the average power fixed.
+Calibration: `api.calibrate_convection` (CLI `calibrate`) finds the multiplier that makes the model reproduce one measured steady temperature (bisection on its logarithm); the multiplier then also absorbs any other model error at that operating point.
 Limits: isothermal-plate correlations on a board with hot spots are uncertain by about 20 to 30 %, which is what the multiplier is for; a nearby enclosure or other boards change the radiation view factor.
 
 ## 4. Input checks

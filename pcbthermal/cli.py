@@ -127,6 +127,24 @@ def cmd_transient(args):
     return 0
 
 
+def cmd_calibrate(args):
+    """!
+    @brief Handler of the `calibrate` command: fit the convection multiplier to a measured temperature.
+    @param args Parsed arguments.
+    @return Process exit code.
+    """
+    from .api import calibrate_convection
+    project = load_project(args.config)
+    options = project.options
+    options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
+    multiplier, predicted = calibrate_convection(project.problem, args.measured, options, args.model, args.heater)
+    what = f"heater {args.heater}" if args.heater else "the board maximum"
+    print(f"Measured {args.measured:g} degC at {what}: convection multiplier {multiplier:.3f} "
+          f"(the {args.model} model then gives {predicted:.2f} degC).")
+    print("Use it as Board.h_calibration (Environment panel: 'Convection x') with heat transfer set to Computed.")
+    return 0
+
+
 def cmd_convergence(args):
     """!
     @brief Handler of the `convergence` command (FVM grid refinement).
@@ -263,6 +281,14 @@ def build_parser():
     t.add_argument("--theta", type=float, default=1.0, help="1 = implicit Euler, 0.5 = Crank-Nicolson")
     t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
+
+    k = sub.add_parser("calibrate", help="fit the convection multiplier to a measured steady temperature")
+    k.add_argument("config", help="board JSON file")
+    k.add_argument("--measured", type=float, required=True, help="measured steady temperature in degC")
+    k.add_argument("--heater", default=None, help="heater whose footprint maximum was measured (default: board maximum)")
+    k.add_argument("--model", choices=MODELS, default="fvm")
+    k.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto'")
+    k.set_defaults(func=cmd_calibrate)
 
     c = sub.add_parser("convergence", help="FVM grid refinement study")
     common(c)

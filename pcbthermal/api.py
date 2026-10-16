@@ -25,6 +25,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable, Dict, Optional, Tuple
 
 import copy
+import math
 
 from . import __version__, analytic, convection, fvm, lumped, profiles
 from .analysis import heater_stats, hotspots, zone_stats
@@ -409,6 +410,56 @@ def _solve_computed_h(problem, name, o):
     if it == 30 and not done:
         res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")
     return res, ht, hb, it
+
+
+def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=None):
+    """!
+    @brief Fit the convection multiplier (Board.h_calibration) so that the model reproduces a measured temperature.
+    @details The board is put in computed mode and the multiplier is found by bisection on its logarithm (the temperature falls
+             as the multiplier grows). The measured quantity is the hottest point of the board, or the hottest point under a
+             named heater. The correlations are for isothermal plates and uncertain by 20 to 30 % on a board with hot spots;
+             this turns one measurement into the correction. Use a measurement taken in steady state, with the same power,
+             and note that the multiplier absorbs every other model error (copper, vias, enclosure) at that operating point.
+    @param problem A Problem (it is not modified).
+    @param measured_c Measured steady temperature in degC.
+    @param options SolverOptions (default: 1 mm cell); only the chosen model is run.
+    @param model "fvm" (default), "lumped" or "analytic".
+    @param heater Name of the heater whose footprint maximum was measured; None for the board maximum.
+    @return Tuple (multiplier, model temperature with it in degC).
+    @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
+    """
+    from .analysis import heater_stats
+    options = copy.deepcopy(options) if options else SolverOptions()
+    options.models = (model,)
+    p = copy.deepcopy(problem)
+    p.board.h_mode = "computed"
+    steady = p.steady_copy(options.steady_power) if p.has_profiles() else p
+
+    def predicted(multiplier):
+        steady.board.h_calibration = multiplier
+        res = _solve_computed_h(steady, model, options)[0]
+        if heater is None:
+            return res.t_max
+        rows = [r for r in heater_stats(res, steady) if r["name"] == heater]
+        if not rows:
+            raise ValueError(f"no heater named '{heater}'")
+        return rows[0]["t_max"]
+
+    lo, hi = math.log(0.1), math.log(10.0)
+    if not predicted(math.exp(hi)) <= measured_c <= predicted(math.exp(lo)):
+        raise ValueError(f"the measured {measured_c:g} degC is outside what a multiplier between 0.1 and 10 can give "
+                         f"({predicted(math.exp(hi)):.1f} to {predicted(math.exp(lo)):.1f} degC): check the powers, the ambient "
+                         "temperature and where the measurement was taken")
+    for _ in range(40):
+        mid = 0.5 * (lo + hi)
+        if predicted(math.exp(mid)) > measured_c:
+            lo = mid
+        else:
+            hi = mid
+        if hi - lo < 1e-3:
+            break
+    m = math.exp(0.5 * (lo + hi))
+    return m, predicted(m)
 
 
 def step_response(problem, model, options):

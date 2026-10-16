@@ -73,6 +73,20 @@ The numbers below come from the verification studies (`physics_core.md` section 
 - edge convection matters (it assumes insulated edges; it warns when edge losses exceed 5 % of the face losses);
 - the heater is not a rectangle (a polygon is replaced by the rectangle with the same area and centroid).
 
+## Accuracy against an independent 3D solid
+Independent 3D finite-element check (`examples/fem3d_validation.py`, scikit-fem, hexahedral elements, copper slabs of true thickness, anisotropic FR-4; 100 x 80 mm board, one 10 x 10 mm heater of 4 W, no vias, 0.5 mm cells in the models).
+Maximum temperature of the top face; error is on the **temperature rise** against the 3D FEM (converged: element sizes in the table differ by less than 0.3 %):
+
+| Case | 3D FEM (°C) | FVM | Lumped | Analytic |
+| :-- | --: | --: | --: | --: |
+| 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 89.2 (−2.2 %) | 90.8 (+0.2 %) |
+| 2 layers, 40 x 40 mm top pad | 112.2 | 111.5 (−0.8 %) | 109.3 (−3.3 %) | 107.0 (−6.0 %) |
+| 2 layers, 20 x 20 mm top pad | 136.4 | 133.7 (−2.4 %) | 128.6 (−7.1 %) | 109.8 (−23.9 %) |
+
+Reading: the FVM is not "more accurate than the analytic model" in general. On a uniform board the analytic series is the exact solution of the same layered model the FVM approximates numerically (FVM error 0.4 % is mesh error), so both land on the 3D answer.
+What the FVM has that the others lack is **freedom of geometry**: with partial copper the analytic model assumes a uniform sheet and fails first (the warning "a copper edge crosses or is near the heater" exists for this), the Lumped model is next.
+The remaining 0.4 to 2.4 % of the FVM comes from representing each copper layer by one node and the dielectric between them as a one-dimensional vertical resistance (no lateral spreading inside the gap); vias and sinks are not in this table (they were not modelled in 3D).
+
 ## Decision guide
 
 | Situation | Use |

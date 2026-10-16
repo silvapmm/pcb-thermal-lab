@@ -133,3 +133,26 @@ def test_rayleigh_warning_outside_the_fitted_range():
     q = example_board()
     q.board.h_mode = "computed"
     assert not any("Rayleigh" in w for w in simulate(q, SolverOptions(models=("fvm",), cell_mm=2.0)).results["fvm"].warnings)
+
+
+def test_calibration_recovers_a_known_multiplier():
+    from pcbthermal import api
+    p = example_board()
+    p.board.h_mode, p.board.h_calibration = "computed", 0.7
+    truth = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0)).results["fvm"].t_max
+    q = example_board()                                       # Starts typed, with the default multiplier
+    m, predicted = api.calibrate_convection(q, truth, SolverOptions(cell_mm=2.0))
+    assert m == pytest.approx(0.7, abs=0.01) and predicted == pytest.approx(truth, abs=0.05)
+    assert q.board.h_mode == "manual"                         # The caller's problem is untouched
+    with pytest.raises(ValueError, match="outside"):
+        api.calibrate_convection(q, 26.0, SolverOptions(cell_mm=2.0))
+    with pytest.raises(ValueError, match="no heater named"):
+        api.calibrate_convection(q, truth, SolverOptions(cell_mm=2.0), heater="nobody")
+
+
+def test_cli_calibrate(tmp_path, capsys):
+    from pcbthermal import cli
+    path = tmp_path / "e.pcbt.json"
+    cli.main(["example", str(path), "--which", "example"])
+    assert cli.main(["calibrate", str(path), "--measured", "80", "--cell-mm", "2"]) == 0
+    assert "convection multiplier" in capsys.readouterr().out
