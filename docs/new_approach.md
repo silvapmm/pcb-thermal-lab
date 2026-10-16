@@ -25,7 +25,7 @@ The review of the original program found, and experiments confirmed, that:
 | Energy balance and input checks in every result | an immediate test that nothing was lost, and a warning when the input makes a model doubtful |
 | Public API (`SolverOptions`, `simulate`, `Problem` builder, project files) | one validated object for settings, readable results, units hidden from the caller |
 | PySide 6 GUI with undo/redo, project files, themes, animation | the functions of the old editor with a modern workflow |
-| 87 tests, among them a documentation gate | regressions and undocumented code are caught automatically |
+| 88 tests, among them a documentation gate | regressions and undocumented code are caught automatically |
 
 ## 3. Old versus new on the same board
 
@@ -181,7 +181,7 @@ How the two models were tuned after the first comparison (first versions: Lumped
 ## 9. Reproduce
 
 ```sh
-.venv/bin/python -m pytest -q tests                              # 87 tests
+.venv/bin/python -m pytest -q tests                              # 88 tests
 .venv/bin/python examples/accuracy_study.py                      # section 6
 .venv/bin/python examples/stress_study.py                        # section 6
 .venv/bin/python examples/solver_equivalence.py                  # section 4

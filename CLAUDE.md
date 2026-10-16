@@ -96,7 +96,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (87 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (88 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (.pcbt.json), accuracy_study.py, stress_study.py, solver_equivalence.py
 docs/                  README.md (index), physics_core.md (current), new_approach.md, findings.md (all discoveries), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
 ico/                   application icon

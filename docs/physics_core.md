@@ -28,7 +28,7 @@ pcbthermal/
   plots.py      figures (draw_* into any Figure; plot_* / GIF writers for files)
   cli.py        python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/          PySide 6 application (section 6)
-tests/          87 pytest tests: geometry, FVM, models, API, checks, I/O, GUI (offscreen) and a documentation gate
+tests/          88 pytest tests: geometry, FVM, models, API, checks, I/O, GUI (offscreen) and a documentation gate
 examples/       example boards, accuracy_study.py, stress_study.py, solver_equivalence.py
 ```
 
@@ -157,7 +157,7 @@ Dropped on purpose: the old "iterations GIF" (it showed solver iterations, not t
 | Analytic vs FVM, insulated edges, 1 / 2 / 4 layers | 104.25 vs 104.31, 90.35 vs 90.39, 76.08 vs 76.10 °C |
 | Transient vs exact exponential | Euler error halves with the step, Crank-Nicolson divides by four; stored + lost heat = injected within 0.2 % |
 | FVM size / speed | 320 000 cells in 4.6 s (direct), 3.3 s (CG) |
-| Tests | 87 pass, among them 27 that check the documentation of every function |
+| Tests | 88 pass, among them 28 that check the documentation of every function |
 
 ### 7.1 Direct matrices versus SOR
 
