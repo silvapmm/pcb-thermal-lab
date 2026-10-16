@@ -16,6 +16,8 @@ from .. import plots, profiles
 from ..api import MODEL_NAMES, step_response
 from ..model import SquareWave
 from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
+from . import compute
+from .compute import LOCK
 from .results_view import _mpl_theme, _paint_figure
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
@@ -44,9 +46,12 @@ class AnalyzeWorker(QThread):
         @brief Thread body: step response of the reference model, then the decisions.
         """
         try:
-            ref = next(m for m in MODEL_NAMES if m in self.options.models)
-            resp = step_response(self.problem, ref, self.options)
-            decisions = profiles.decide(self.problem, resp, self.options.profile.threshold_c)
+            ref = next((m for m in MODEL_NAMES if m in self.options.models), None)
+            if ref is None:
+                raise ValueError("select the FVM, the thermal network or the analytical model: the finite-difference model has no time response")
+            with LOCK:                                 # One calculation at a time (see compute.py)
+                resp = step_response(self.problem, ref, self.options)
+                decisions = profiles.decide(self.problem, resp, self.options.profile.threshold_c)
             self.done.emit(resp, decisions, ref)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -621,10 +626,10 @@ class ProfilePage(QWidget):
         import copy
         self.analyze.setEnabled(False)
         self.status.setText("Computing the thermal response of the heaters…")
-        self.worker = AnalyzeWorker(copy.deepcopy(pr), copy.deepcopy(self.doc.options), self)
+        self.worker = AnalyzeWorker(copy.deepcopy(pr), copy.deepcopy(self.doc.options))
         self.worker.done.connect(self._on_analysis)
         self.worker.failed.connect(self._on_analysis_failed)
-        self.worker.start()
+        compute.start(self.worker)
 
     def _on_analysis(self, resp, decisions, ref):
         """!

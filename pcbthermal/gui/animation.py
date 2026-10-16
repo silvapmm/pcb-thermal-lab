@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayo
                                QSpinBox, QVBoxLayout, QWidget)
 
 from .. import analytic, fvm, plots
+from .compute import LOCK
 from .results_view import _mpl_theme, _paint_figure
 
 
@@ -40,12 +41,14 @@ class TransientWorker(QThread):
         """
         try:
             kw = dict(self.kwargs)
-            if kw.pop("model", "fvm") == "analytic":
-                # The closed-form model needs neither a scheme nor a step; it takes the frames and the spacing
-                kw.pop("theta_scheme", None)
-                self.done.emit(analytic.solve_transient(self.problem, **kw))
-            else:
-                self.done.emit(fvm.solve_transient(self.problem, **kw))
+            with LOCK:                                 # One calculation at a time (see compute.py)
+                if kw.pop("model", "fvm") == "analytic":
+                    # The closed-form model needs neither a scheme nor a step; it takes the frames and the spacing
+                    kw.pop("theta_scheme", None)
+                    result = analytic.solve_transient(self.problem, **kw)
+                else:
+                    result = fvm.solve_transient(self.problem, **kw)
+            self.done.emit(result)
         except Exception as exc:
             self.failed.emit(str(exc))
 

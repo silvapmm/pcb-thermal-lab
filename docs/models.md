@@ -154,7 +154,7 @@ python -m pcbthermal transient board.pcbt.json --t-end 300 --gif   # power step 
 python -m pcbthermal solvers|convergence|convert|example ...        # solver comparison, grid study, legacy file, example boards
 ```
 
-`simulate` runs the selected models (the FDM is steady state only), the input checks, the power-profile decision and time simulation, and returns a `Simulation` (table, report, `save`).
+The sparse solvers of SciPy must not run in two threads at once (the application serialises its background calculations; do the same in your own code). `simulate` runs the selected models (the FDM is steady state only), the input checks, the power-profile decision and time simulation, and returns a `Simulation` (table, report, `save`).
 
 ## 7. The application (PySide 6)
 
