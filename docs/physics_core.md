@@ -19,6 +19,7 @@ pcbthermal/
   fvm.py        reference model: finite volumes, steady (sparse direct / CG / SOR) and transient
   lumped.py     offset-contour ring network per heater, superposed
   analytic.py   multilayer cosine series with per-layer copper weighting and local via/sink corrections
+  profiles.py   power profiles: options, average-or-resolve decision, window-by-window time simulation shared by the models (section 3.4)
   checks.py     input validity checks (heater outside the board, no copper, copper edge across a heater, ...)
   results.py    SteadyResult, TransientResult (energy balance and warnings built in)
   analysis.py   hotspots, gradients, zone and heater statistics (junction temperature)
@@ -28,7 +29,7 @@ pcbthermal/
   plots.py      figures (draw_* into any Figure; plot_* / GIF writers for files)
   cli.py        python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/          PySide 6 application (section 6)
-tests/          94 pytest tests: geometry, FVM, models, API, checks, I/O, GUI (offscreen) and a documentation gate
+tests/          110 pytest tests: geometry, FVM, models, API, checks, I/O, power profiles, GUI (offscreen) and a documentation gate
 examples/       example boards, accuracy_study.py, stress_study.py, solver_equivalence.py
 ```
 
@@ -110,6 +111,27 @@ over the layers (module docstring of `analytic.py`). Exact on a uniform board. R
   $f=-Cy$ is added to the modes.
 - **Warnings** when the copper around the heater is still strongly non-uniform, or edge convection is significant (the model assumes insulated edges).
 
+### 3.4 Power profiles (time-dependent power)
+
+A heater may carry a **square wave** (`SquareWave`: `p_on`, `period`, `duty`, `p_off`, average `p_off + duty (p_on - p_off)`); its `power` stays equal to the average, so the steady models and old files work unchanged.
+Theory and measurements: `roadmap.md` section 1. What is implemented:
+
+1. **Step response** `Z_i(t)` of every heater's own hottest point to a unit step of its power, from the reference model (FVM, else Lumped, else Analytic): `fvm.step_responses`, `lumped.step_responses`, `analytic.step_responses` (closed form per mode).
+2. **Decision** (`profiles.decide`): by superposition the periodic peak and valley of heater *i* are `P_off Rth + ΔP Σ[Z(mT+tp) - Z(mT)]` and the valley the analogous sum; the oscillation is their difference in °C.
+   Heaters are sorted by oscillation and averaged, smallest first, while the cumulative oscillation stays below the threshold (default 1 °C); the rest are simulated in time. Percentages are shown for information only.
+3. **Run** (`profiles.run_windows`, one runner for all models through an adapter): the step is chosen from the shortest resolved period, the power of each step is the exact mean of the wave over the step (`SquareWave.mean_power`),
+   averaged heaters keep their constant average power in the same run. Windows of the longest resolved period are repeated until the peak and minimum change by less than 0.1 °C ("until the cycle repeats"), for N cycles, or for a fixed time;
+   more than 200,000 steps is refused with an explanation. Start: steady state of the average power, or a uniform temperature typed in °C.
+   Adapters: FVM (implicit Euler or Crank-Nicolson with one factorisation), Lumped (one network per heater, own footprint plus the others' rise at its centroid), Analytic (`C a' + A a = q` per cosine mode,
+   exact exponential step; vias and sinks are smeared, with a warning that quantifies the difference from the steady analytic model).
+4. **Results** (`ProfileResult`): peak, minimum, oscillation, temperature of every heater versus time in the last window, peak map, frames of the last window, steady temperatures with the average power and with the peak power (the bound), windows, steps, warnings.
+5. **Interfaces**: `SolverOptions.profile` (`ProfileOptions`) and `steady_power` (steady models use the "average" or "peak" power); `Simulation.decisions` / `profile_results`; CLI `run --duration --cycles --time-s --initial-c --threshold-c --steady-power`;
+   GUI tab "Power profile" and results tab "Power profile"; files `profile_<model>.csv/.png`, `peak_map_<model>.png`.
+
+Validation (`tests/test_profiles.py`): exact energy of the step-mean power; exact RC solution of a uniform board (periodic peak within 0.3 %, time stepping within 0.4 % with Crank-Nicolson);
+mixed regimes against the fully resolved run (difference bounded by the neglected oscillation); the three models agree within 5 % on the example (FVM 135.3, Lumped 131.8, Analytic 134.9 °C peak).
+Animation of the last window works in all three models; the Lumped frames are only indicative (sum of radial profiles). The step-power Animation tab remains FVM only.
+
 ## 4. Input checks
 
 `check_problem(problem, cell_mm)` (also run by `simulate` and shown live in the GUI under the Run button) never blocks a run, it warns about inputs that
@@ -122,6 +144,8 @@ footprint (Lumped and Analytic unreliable), a heater only a few cells wide, over
 python -m pcbthermal example examples/example_board.pcbt.json --which example
 python -m pcbthermal run examples/example_board.pcbt.json            # all models + report + plots in ./output
 python -m pcbthermal run board.pcbt.json --model fvm --cell-mm auto --solver cg
+python -m pcbthermal example profile.pcbt.json --which profile         # example with square-wave power
+python -m pcbthermal run profile.pcbt.json --duration cycles --cycles 4 --initial-c 25
 python -m pcbthermal solvers board.pcbt.json                         # direct vs CG vs SOR
 python -m pcbthermal convergence board.pcbt.json                     # FVM grid refinement
 python -m pcbthermal transient board.pcbt.json --t-end 600 --gif     # power step + animated GIF
@@ -141,7 +165,8 @@ python -m pytest -q tests
 | Editing | move by drag or arrows, duplicate (Ctrl+D), delete, select all on layer, layer chooser (other layers dimmed), sinks only on outer layers |
 | Left docks | board size, stack-up, environment, materials; element tree synchronised with the canvas |
 | Right docks | model choice and solver settings (cell size with an Auto button), Run (F5, background thread, progress) and the live input checks; property inspector |
-| Results | Summary (models table, warnings, text report), Temperature, Gradients, Profiles (movable cut line), Components (heater and junction temperatures, zone statistics, hotspots), Models (comparison), **Animation** (real-time heat evolution: compute, play, scrub, export GIF) |
+| Power profile | tab between Board and Results: heater list, editor (Constant / Square wave, period or frequency with units, duty, power on/off or average), derived values, decision table, run settings, Analyze |
+| Results | Summary (models table, warnings, text report), Temperature, Gradients, Profiles (movable cut line), Components (heater and junction temperatures, zone statistics, hotspots), Models (comparison), **Animation** (real-time heat evolution: compute, play, scrub, export GIF), **Power profile** (temperature versus time, peak map, last-window frames) |
 | Board overlay | paint the last temperature field on the board (key T); results are marked outdated when the design changes |
 | Files | open/save projects, open legacy editor JSON, open examples, export results folder / TXT report / JSON summary / figures |
 
@@ -226,7 +251,7 @@ For those cases, and whenever geometry matters, use the FVM.
 ## 8. Known limits and next steps
 
 - Radiation and natural convection are inside the constant `h`; temperature-dependent `h(ΔT)` is the next accuracy step.
-- Time-dependent power (pulses, duty cycles) in the transient and the GUI; components with junction/case resistances beyond `theta_jb`.
+- Power shapes other than a square wave (arbitrary or CSV profiles); components with junction/case resistances beyond `theta_jb` (planned: one Component element, `roadmap.md` section 3).
 - Copper traces with Joule heating (IPC-2152); reduced-order models for design sweeps.
 - A copper edge crossing a heater, and non-axisymmetric edge effects (corners), limit the Lumped and Analytic models.
 - Methods found in the literature and not implemented: `candidate_methods.md`.

@@ -274,7 +274,7 @@ class ResultsView(QWidget):
         # Summary: models table, warnings and the text report
         summary = QWidget()
         sl = QVBoxLayout(summary)
-        self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ °C/W", "Power W",
+        self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
                                    "Balance", "Error vs ref", "Time s"])
         self.model_table.setMaximumHeight(170)
         self.warnings = QLabel()

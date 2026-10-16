@@ -113,7 +113,7 @@ A short single pulse (microseconds to a few milliseconds) heats the **die**, not
 
 **The oscillation threshold.** One setting, in °C: *ignore oscillations smaller than* (default **1.0 °C**). The simulator estimates the peak-to-peak oscillation of the hottest point
 (from the step response, section 1.2). If it is below the threshold the waveform is replaced by its average (exact to within that error, and instant); otherwise the cycle is simulated in time.
-No percentages: the threshold is a temperature the user cares about. Temperatures and temperature differences are shown in **°C** everywhere in the application and the reports; thermal resistance is shown in **°C/W** (identical to °C/W).
+No percentages: the threshold is a temperature the user cares about. Temperatures and temperature differences are shown in **°C** everywhere in the application and the reports; thermal resistance is shown in **K/W** (the same number as °C/W).
 
 **Per heater:** every heater has its own profile (different periods are fine: the response is the sum of each heater's contribution). The steady-state models use, per run, the average (default), the peak `P_on`
 (worst-case bound) or the periodic peak (from `Z(t)`).
@@ -210,7 +210,7 @@ the temperature rise changed by **+6 %** (89.4 °C against 85.8 °C).
 - Honest limit: these are isothermal-plate correlations; on a board with a hot spot the local `h` is uncertain by about ±20 to 30 %, so a **calibration multiplier** (fit to a measurement) is part of the design.
 - Cooling selector: *manual h* · *still air (computed)* with orientation and emissivity · *forced air at v m/s*. The same model gives `h` for component bodies and heatsinks (section 3).
 
-## 3. Component models (future; the heat source stays a heater for now)
+## 3. Component models (future; one Component element, today's heater is its Source type)
 
 ### 3.1 What the current models do and what a part really does
 
@@ -224,7 +224,7 @@ Limits of the 2R model (one-dimensional heat flow, lowest accuracy of the JEDEC 
 
 ### 3.2 Implementation sketch
 
-- **Element `Component`** (fidelity levels, names to be decided, working names *Source* = today's heater, *Pad* = θJB only, *Duo* = θJB + top path, *Duo + Sink*): layer, pad/footprint polygon, power or profile,
+- **Element `Component`** with a type (*Source* = today's heater, *Package* = JEDEC 2R, passive areas, see 3.3 and 3.4; the earlier working names Pad and Duo are withdrawn): layer, pad/footprint polygon, power or profile,
   `θJB` (°C/W), `θJC,top` (°C/W), top cooling (none, a heatsink resistance in °C/W, or a surface area exposed to the computed `h`), optional heat capacities and, later, a Foster RC chain of the
   junction-to-case transient impedance (as published by manufacturers [6, 10]) so that package-level pulses are captured. Values are entered by the user; no datasheet numbers are invented.
 - **FVM:** one extra unknown `T_j` per component (a dense row over the footprint cells). The footprint cells couple to `T_j` with `G_i = w_i / θJB` (`w_i` coverage weights, `Σ w_i = 1`), `T_j` couples to ambient with
@@ -235,6 +235,31 @@ Limits of the 2R model (one-dimensional heat flow, lowest accuracy of the JEDEC 
 - **Validation:** limits (θJB → 0 reproduces the heater; G_top → 0 gives heater + offset), exact series-parallel solution on the uniform board, energy balance, power split.
 - **Timing:** implement after power profiles and the computed `h` (the `h` model feeds the top surface; the profile model defines the component's power input). Suggested stages:
   (1) Pad and Duo, static, in the three models; (2) top surface and heatsink from the computed `h`; (3) Foster chain for package transients.
+
+### 3.3 Areas that are not heaters (to discuss before implementing)
+
+A "component" is more than a heat source: it is an *area* of the board with its own thermal behaviour. Candidate kinds, all sharing the same footprint polygon and a layer:
+- **Heat source** (today's heater): power into the board.
+- **Passive area with extra cooling**: a heatsink or exposed surface, extra `h` or a resistance to ambient in K/W over the polygon (today's "sink" is the simplest case).
+- **Contact area**: a thermal pad or enclosure touching the board, a conductance in W/(m²·K) to a fixed temperature (not necessarily the ambient).
+- **Material patch**: a region with different conductivity or thickness (metal-core insert, thermal-via field described by density instead of single vias).
+- **Package (2R)**: heat source plus a junction node and the two paths of section 3.2.
+
+**Decision (2026-10-16, maintainer agreed):** one **Component** element with a type and the properties that type needs. Today's heater is the type *Source* with nothing else set, so existing projects keep working unchanged.
+
+### 3.4 How a component enters the simulator
+
+| Question | Design |
+| :-- | :-- |
+| Simple use | A Source is just a power in a footprint, as today. Types and parameters are opt-in; the editor shows only the fields of the chosen type. |
+| Heat generation | Types *Source* and *Package* have a power (constant or square wave). Passive types (*Cooled area*, *Contact*, *Material patch*) have none. |
+| Package (2R) | One extra node `T_j`; the power enters `T_j`; `θJB` to the footprint cells, `θJC,top` plus a top cooling path to the air (sections 3.1, 3.2). Reported: `T_j`, `T_case`, split of the power between board and top. |
+| Temperature | The top cooling uses the computed `h` of section 2 (a small hot surface, its own area and temperature), so a package makes the problem temperature dependent exactly as the board does: the Picard iteration of section 2 covers both. Without computed `h`, the top path is a fixed resistance in K/W. |
+| Power profile | The profile drives the power of the Source/Package as now. The average-or-resolve decision measures the oscillation at `T_j` (the thing the user cares about), computed from the step response of `T_j`, which includes `θJB`; the periodic-peak formulas of section 1.2 are unchanged. |
+| Time behaviour | Quasi-static `T_j` (no heat capacity) is exact for periods above a few milliseconds; the package heat capacity matters for microsecond to millisecond pulses and is added later as a Foster RC chain from the manufacturer's `Zth,JC` curve. Until then the warning lists the shortest period for which the quasi-static assumption holds. |
+| Models | FVM: extra unknown per package (section 3.2); Lumped: a node on ring 0; Analytic: scalar Woodbury update. Passive areas map to extra `h` or conductance on the footprint cells (the analytic tile machinery already does this for sinks). |
+| Staging | (1) Component element + Package statically, three models; (2) top path from the computed `h`; (3) passive areas; (4) Foster chain. |
+| Validation | `θJB → 0` reproduces a Source; no top path gives Source plus an offset; exact series-parallel solution on a uniform board; energy balance; split of the power. |
 
 ## 4. Multigrid solver (optional, low priority)
 
@@ -252,6 +277,9 @@ All agree to 1e-8 °C. The gain only appears above about 500 000 unknowns, where
 chosen automatically above a threshold). Plain CG already captures most of the benefit for moderate sizes.
 
 ## 5. 3D finite elements as an independent validation (not a product feature)
+
+Runs locally (laptop, no cloud): `scikit-fem` is already installed in the venv. A 100×80 mm board with 4 copper layers on a graded hexahedral mesh is a few hundred thousand elements, seconds to a few minutes with a sparse solver. One script, run by hand when needed.
+
 
 Offline script with `scikit-fem` (installed in the virtual environment for experiments, not in `requirements.txt`): structured hexahedral mesh of the board with graded layers (35 µm copper slabs between FR-4 layers),
 anisotropic FR-4, convection on the faces. Compare with the FVM on three reference boards to quantify the error of treating copper as a 2D sheet; validate vias separately with one via on a fine mesh. Output: a short validation report in `docs/`.

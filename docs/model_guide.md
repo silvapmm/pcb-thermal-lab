@@ -12,7 +12,8 @@ The numbers below come from the verification studies (`physics_core.md` section 
 | Accuracy | reference (grid-converged within 0.2 % from 1 mm cells) | within about 4 % in most cases, 9 % at worst | within about 2 % in most cases, exact on uniform boards |
 | Time on the example board | 0.2 s (1 mm cells), 4.6 s for 320 000 cells | about 10 ms | about 50 ms |
 | Output | full field of every layer, exact energy balance | approximate field, per-heater network | field of every layer, exact energy balance |
-| Transient / animation | yes | no | no |
+| Step-power animation | yes | no | no |
+| Power profiles (square wave, time simulation) | yes, full field | yes, per-heater networks, frames indicative | yes, vias and sinks smeared (warned) |
 | Needs a mesh | yes (cell size, "Auto" button) | no (internal raster) | no |
 
 ## Advantages and where to apply each

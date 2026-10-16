@@ -151,7 +151,7 @@ class Simulation:
         @brief The comparison table as Markdown, followed by the warnings.
         @return String.
         """
-        lines = ["| Model | Tmax [°C] | Tmean [°C] | ΔT [°C] | Rθ [°C/W] | Power [W] | Balance | Error vs " +
+        lines = ["| Model | Tmax [°C] | Tmean [°C] | ΔT [°C] | Rθ [K/W] | Power [W] | Balance | Error vs " +
                  self.reference.model + " | Time [s] |",
                  "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
         for r in self.table():
@@ -199,7 +199,7 @@ class Simulation:
         @brief The comparison table as aligned plain text, followed by the warnings.
         @return String.
         """
-        head = f"{'model':9s} {'Tmax C':>8s} {'Tmean C':>8s} {'dT C':>8s} {'Rth C/W':>8s} {'P W':>7s} {'balance':>9s} " \
+        head = f"{'model':9s} {'Tmax C':>8s} {'Tmean C':>8s} {'dT C':>8s} {'Rth K/W':>8s} {'P W':>7s} {'balance':>9s} " \
                f"{'vs ' + self.reference.model:>9s} {'time s':>7s}"
         lines = [head, "-" * len(head)]
         for r in self.table():

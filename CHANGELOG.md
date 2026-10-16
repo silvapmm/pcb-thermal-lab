@@ -13,7 +13,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
   steady bounds with the average and the peak power, peak-temperature map and the last window as frames. Steady models can use the average (default) or peak power.
 - GUI: "Power profile" tab (editor, decisions, settings) and "Power profile" results tab; CLI: `run --duration/--cycles/--time-s/--initial-c/--threshold-c/--steady-power`,
   `example --which profile`; `profile_<model>.csv/png` and `peak_map_<model>.png` outputs.
-- Model labels in the GUI: "Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"; temperature differences shown in °C and °C/W.
+- Model labels in the GUI: "Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"; temperature differences shown in °C (thermal resistance stays in K/W, the same number as °C/W).
 
 ### Notes
 - The analytic transient uses vias and sinks smeared over the board (a warning quantifies the difference); use the FVM near them.

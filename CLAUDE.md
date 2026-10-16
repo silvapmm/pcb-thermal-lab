@@ -112,11 +112,12 @@ pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
   lumped.py            ring network per heater, superposed
   analytic.py          multilayer cosine series + local via/sink corrections
   checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
+  profiles.py          power profiles (square wave): decision average-or-resolve, window runner shared by the three models
   results.py, analysis.py, api.py (SolverOptions, simulate, suggest_cell_mm), project.py (.pcbt.json), examples.py
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (94 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (110 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (.pcbt.json), accuracy_study.py, stress_study.py, solver_equivalence.py
 docs/                  README.md (index), physics_core.md (current), new_approach.md, findings.md (all discoveries), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
 ico/                   application icon
@@ -224,6 +225,7 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 
 Record important decisions here, newest first, with date and reason.
 
+- 2026-10-16: Future Component element agreed: one element with a type (Source = today's heater, Package 2R, passive areas such as cooled area, contact, material patch); its power and profile drive `T_j`, top cooling uses the computed `h` (Picard iteration), the profile decision measures the oscillation at `T_j`. Thermal resistance is displayed in K/W (same number as °C/W). Multigrid and the 3D FEM validation script are kept in `docs/roadmap.md` as optional future work; computed `h` and the Component element follow after the current models are polished. See `docs/roadmap.md` sections 2 to 5.
 - 2026-10-16: Implemented power profiles on `feature/more-models` (square wave only; `profiles.py`; all three models; GUI "Power profile" tab; CLI options). Decision average-vs-resolve per heater from the oscillation in °C (default 1 °C, shared error budget, smallest first), mixed regimes in one run; start = steady state of the average power or a typed °C; duration until the cycle repeats / N cycles / fixed time; 200,000 step cap. Analytic transient smears vias and sinks (warned). GUI labels descriptive ("Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"), keys unchanged; units °C and °C/W. Results tab index is now 2 (Board, Power profile, Results).
 
 - 2026-10-15: Created CLAUDE.md. Decided that all code, comments, and docs are
