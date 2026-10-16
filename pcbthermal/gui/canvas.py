@@ -362,7 +362,7 @@ class BoardView(QGraphicsView):
         self.scene().addItem(item)
         self._background = item
 
-    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.8):
+    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.8, nodes=False):
         """!
         @brief Draw a temperature map over the board.
         @param field Array (ny, nx) in degC (row 0 at y = 0).
@@ -372,6 +372,7 @@ class BoardView(QGraphicsView):
         @param vmin Lower colour limit.
         @param vmax Upper colour limit.
         @param opacity Overlay opacity (0..1).
+        @param nodes True if the field holds values at grid points (the first sample sits at 0, not at half a cell).
         """
         from matplotlib import colormaps
 
@@ -384,7 +385,10 @@ class BoardView(QGraphicsView):
         rgba = np.ascontiguousarray(rgba)
         img = QImage(rgba.data, nx, ny, 4 * nx, QImage.Format_RGBA8888).copy()
         item = QGraphicsPixmapItem(QPixmap.fromImage(img))
-        item.setTransform(QTransform().scale(dx * 1000.0, dy * 1000.0))   # Row 0 sits at y = 0
+        tr = QTransform().scale(dx * 1000.0, dy * 1000.0)                 # Row 0 sits at y = 0
+        if nodes:
+            tr = QTransform().translate(-0.5 * dx * 1000.0, -0.5 * dy * 1000.0).scale(dx * 1000.0, dy * 1000.0)
+        item.setTransform(tr)
         item.setOpacity(opacity)
         item.setZValue(0.5)
         item.setAcceptedMouseButtons(Qt.NoButton)

@@ -452,7 +452,7 @@ class MainWindow(QMainWindow):
         ref = self.sim.reference
         layer = min(self.canvas.layer, ref.T.shape[0] - 1)
         cfg = self.results.temp.current_field()
-        self.canvas.set_overlay(ref.T[layer], ref.dx, ref.dy, cmap=cfg[3] if cfg else "inferno")
+        self.canvas.set_overlay(ref.T[layer], ref.dx, ref.dy, cmap=cfg[3] if cfg else "inferno", nodes=ref.grid == "nodes")
 
     def _refresh_layers(self):
         """!

@@ -2,7 +2,7 @@
 @file accuracy_study.py
 @brief Accuracy of the simplified models against the FVM on the example board and its variants.
 
-Usage: python examples/accuracy_study.py [--markdown docs/accuracy_study.md]
+Usage: python examples/accuracy_study.py [--markdown table.md]
 """
 
 import argparse

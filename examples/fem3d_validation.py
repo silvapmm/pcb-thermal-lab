@@ -24,19 +24,51 @@ from skfem import Basis, BilinearForm, ElementHex1, FacetBasis, LinearForm, Mesh
 from pcbthermal import Problem, SolverOptions, simulate                  # noqa: E402
 
 
-def solve_fem(problem, dxy_mm=1.0, n_diel=4):
+def _axis_lines(length, step, centres, half_width):
+    """!
+    @brief Mesh lines along one axis: a uniform grid plus fine lines around the given centres (for the vias).
+    @param length Board size along the axis (m).
+    @param step Uniform spacing (m).
+    @param centres Positions (m) where the mesh is refined.
+    @param half_width Half width (m) of the rod that must be resolved at every centre.
+    @return Sorted array of line coordinates (m) starting at 0 and ending at the board size.
+    """
+    lines = list(np.linspace(0.0, length, int(round(length / step)) + 1))
+    for c in centres:
+        # The rod faces, then a graded transition to the uniform grid (spacing growing by about a factor of two)
+        h = half_width
+        for k, off in enumerate((h, h + 0.1e-3, h + 0.25e-3, h + 0.5e-3, h + 0.9e-3)):
+            lines += [c - off, c + off]
+    lines = np.sort(np.array([x for x in lines if 0.0 <= x <= length]))
+    keep = [lines[0]]
+    for x in lines[1:]:
+        if x - keep[-1] > 0.02e-3:                                        # Drop lines closer than 20 micrometres
+            keep.append(x)
+    keep[-1] = length
+    return np.array(keep)
+
+
+def solve_fem(problem, dxy_mm=1.0, n_diel=4, with_vias=True):
     """!
     @brief Solve the steady state of a board as a 3D solid.
-    @param problem A Problem with rectangular zones and heaters, no vias or sinks.
+    @details Copper slabs have their true thickness (one element), every dielectric gap has n_diel elements, FR-4 is anisotropic,
+             convection acts on both faces and the edges, a sink adds its coefficient on the bottom facets inside its polygon and
+             a heater is a heat flux on its footprint. A via is a copper rod of the same copper area as the plated barrel (the wall
+             of 25 micrometres is far below the mesh), running through the whole thickness; the mesh is refined around the rods.
+    @param problem A Problem with rectangular zones, heaters, optional vias and rectangular sinks.
     @param dxy_mm Element size in the board plane (millimetres); it must divide the zone and heater edges.
     @param n_diel Elements across every dielectric gap.
-    @return Dict with the maximum temperature of the top face (degC), its mean under the heater, the mesh size and the time.
+    @param with_vias False to ignore the vias.
+    @return Dict with the maximum temperature of the top face (degC), its mean under the first heater, the mesh size and the time.
     """
     t0 = time.time()
     b, m = problem.board, problem.board.materials
     W, H, L = b.width, b.height, b.layers
     tcu = np.asarray(b.copper_thickness)
     d = b.dielectric_thickness()
+    vias = problem.vias if with_vias else []
+    # Square rod with the copper area of the barrel
+    side = np.sqrt(vias[0].copper_area(b.via_plating)) if vias else 0.0
     # Slabs from the top face down: copper 1, gap, copper 2, gap, ...
     zs_down, kinds = [0.0], []
     for l in range(L):
@@ -48,27 +80,30 @@ def solve_fem(problem, dxy_mm=1.0, n_diel=4):
                 kinds.append(("fr4", l, 1))
     zs = b.thickness - np.array(zs_down)[::-1]                 # Heights from the bottom face up
     kinds = kinds[::-1]
-    nx, ny = int(round(W * 1000 / dxy_mm)), int(round(H * 1000 / dxy_mm))
-    mesh = MeshHex.init_tensor(np.linspace(0, W, nx + 1), np.linspace(0, H, ny + 1), zs)
+    xl = _axis_lines(W, dxy_mm * 1e-3, sorted({v.x for v in vias}), side / 2.0)
+    yl = _axis_lines(H, dxy_mm * 1e-3, sorted({v.y for v in vias}), side / 2.0)
+    nx, ny = len(xl) - 1, len(yl) - 1
+    mesh = MeshHex.init_tensor(xl, yl, zs)
     # Element ordering of init_tensor: y fastest, then x, then z (checked on a small mesh)
-    ex = (np.arange(nx) + 0.5) * W / nx
-    ey = (np.arange(ny) + 0.5) * H / ny
+    ex = 0.5 * (xl[:-1] + xl[1:])
+    ey = 0.5 * (yl[:-1] + yl[1:])
     XX, YY = np.meshgrid(ex, ey, indexing="ij")                 # Shape (nx, ny): the element index runs along y first
+    rods = np.zeros((nx, ny), bool)
+    for v in vias:
+        rods |= (np.abs(XX - v.x) < side / 2.0) & (np.abs(YY - v.y) < side / 2.0)
     cu_idx, fr_idx = [], []
     for k, (kind, layer, _) in enumerate(kinds):
         base = k * nx * ny
         ids = base + np.arange(nx * ny)
+        inside = rods.copy()                                    # A via is copper through every slab
         if kind == "cu":
-            inside = np.zeros((nx, ny), bool)
             for z in problem.zones:
                 if z.layer == layer:
                     x0, y0 = z.polygon.min(axis=0)
                     x1, y1 = z.polygon.max(axis=0)
                     inside |= (XX >= x0) & (XX <= x1) & (YY >= y0) & (YY <= y1)
-            cu_idx.append(ids[inside.ravel()])
-            fr_idx.append(ids[~inside.ravel()])             # No copper here: the slab is FR-4
-        else:
-            fr_idx.append(ids)
+        cu_idx.append(ids[inside.ravel()])
+        fr_idx.append(ids[~inside.ravel()])
     cu_idx, fr_idx = np.concatenate(cu_idx), np.concatenate(fr_idx)
     elem = ElementHex1()
 
@@ -89,12 +124,19 @@ def solve_fem(problem, dxy_mm=1.0, n_diel=4):
 
     top = facets(lambda x: np.isclose(x[2], b.thickness))
     bot = facets(lambda x: np.isclose(x[2], 0.0))
-    side = facets(lambda x: np.isclose(x[0], 0) | np.isclose(x[0], W) | np.isclose(x[1], 0) | np.isclose(x[1], H))
+    side_f = facets(lambda x: np.isclose(x[0], 0) | np.isclose(x[0], W) | np.isclose(x[1], 0) | np.isclose(x[1], H))
     rhs = np.zeros(basis.N)
-    for fs, h in ((top, b.h_top), (bot, b.h_bottom), (side, b.h_side or 0.0)):
+    for fs, h in ((top, b.h_top), (bot, b.h_bottom), (side_f, b.h_side or 0.0)):
         if len(fs) and h:
             fbasis = FacetBasis(mesh, elem, facets=fs)
             K = K + asm(BilinearForm(lambda u, v, w, h=h: h * u * v), fbasis)
+    for sk in problem.sinks:
+        x0, y0 = sk.polygon.min(axis=0)
+        x1, y1 = sk.polygon.max(axis=0)
+        z_face = b.thickness if sk.layer == 0 else 0.0
+        sel = facets(lambda x, x0=x0, x1=x1, y0=y0, y1=y1, zf=z_face: np.isclose(x[2], zf)
+                     & (x[0] >= x0 - 1e-9) & (x[0] <= x1 + 1e-9) & (x[1] >= y0 - 1e-9) & (x[1] <= y1 + 1e-9))
+        K = K + asm(BilinearForm(lambda u, v, w, h=sk.h_extra: h * u * v), FacetBasis(mesh, elem, facets=sel))
     for hh in problem.heaters:
         x0, y0 = hh.polygon.min(axis=0)
         x1, y1 = hh.polygon.max(axis=0)
@@ -103,7 +145,7 @@ def solve_fem(problem, dxy_mm=1.0, n_diel=4):
                      & (x[0] >= x0 - 1e-9) & (x[0] <= x1 + 1e-9) & (x[1] >= y0 - 1e-9) & (x[1] <= y1 + 1e-9))
         fbasis = FacetBasis(mesh, elem, facets=sel)
         rhs += asm(LinearForm(lambda v, w, flux=hh.power / area: flux * v), fbasis)
-    theta = spla.spsolve(K.tocsc(), rhs)
+    theta = spla.spsolve(K.tocsc(), rhs, permc_spec="MMD_AT_PLUS_A")
     # Temperature of the top face under the first heater
     p = mesh.p
     on_top = np.isclose(p[2], b.thickness)

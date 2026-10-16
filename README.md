@@ -1,15 +1,15 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.1.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-137%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.1.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-138%20passing-brightgreen)](tests)
 
-Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run three models and inspect temperatures,
+Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
 
 ![Editor](docs/images/editor.png)
 
 ## Features
 
-- **Three models on one board description**, cross-checked against each other and reporting an exact energy balance.
+- **Four models on one board description** (finite volumes, finite differences, thermal network, analytical series), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
 - **Interactive editor** (PySide 6): rectangles and polygons, vias, sinks, undo/redo, background photo, dark and light themes.
 - **Results**: temperature maps per layer, gradients, profiles, hotspot list, heater and junction temperatures, zone statistics, model comparison, temperature painted on the board.
 - **Power tables from CSV files** (any piecewise-constant profile, repeating or one-shot) with import and export buttons; documented example in [`examples/csv_profiles`](examples/csv_profiles).
@@ -23,14 +23,15 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ## Which model should I use?
 
-| Model | Advantage | Apply it to | Accuracy vs FVM | Time |
+| Model | Advantage | Apply it to | Error on the rise vs a 3D solid | Time (example board) |
 | :-- | :-- | :-- | :-- | :-- |
-| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | reference (within 0.2 % from 1 mm cells) | 0.2 s (1 mm) |
-| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other | design exploration, parameter sweeps, ranking layouts | within about 4 % in most cases | about 10 ms |
-| **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | within about 2 % in most cases | about 50 ms |
+| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.4 to 2.2 % | 0.13 s (1 mm) |
+| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state only) | 0.5 to 4 % | 0.12 s |
+| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.5 % | about 10 ms |
+| **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | 0 to 1.5 % on uniform boards and with vias, 24 % with a small copper pad | about 50 ms |
 
-Rule of thumb: run all three; if they agree within about 5 % and there are no warnings, the numbers are consistent; if not, trust the FVM.
-Details, limits and a decision guide: [`docs/model_guide.md`](docs/model_guide.md).
+Rule of thumb: run them all (`--model compare`); if they agree within about 5 % and there are no warnings the numbers are consistent; if not, trust the FVM.
+**No model has been compared with a measurement of a physical board yet**; see the limits in [`docs/validation.md`](docs/validation.md).
 
 ## Install
 
@@ -45,7 +46,7 @@ python3 -m venv .venv
 
 ```sh
 .venv/bin/python -m pcbthermal gui                                         # application
-.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots (--model compare adds the FDM)
 .venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
@@ -71,9 +72,10 @@ sim.save("results")               # report, JSON, CSV fields, figures
 
 ## Documentation
 
-Index: [`docs/README.md`](docs/README.md). Start with [`docs/model_guide.md`](docs/model_guide.md) (which model to use),
-[`docs/physics_core.md`](docs/physics_core.md) (models, formulas, API, verification), [`docs/new_approach.md`](docs/new_approach.md) (old versus new, SOR versus matrices, animation)
-and [`docs/findings.md`](docs/findings.md) (everything discovered so far). Release notes: [`CHANGELOG.md`](CHANGELOG.md).
+Three documents: [`docs/models.md`](docs/models.md) (what the models are, how they work, power profiles, computed heat transfer coefficients, which one to use),
+[`docs/validation.md`](docs/validation.md) (the same scenarios in every model, against a 3D solid, the old program, solvers, time-dependent checks) and
+[`docs/roadmap.md`](docs/roadmap.md) (planned work and its evidence). A documented example with power profiles from CSV files: [`examples/csv_profiles`](examples/csv_profiles).
+Release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Versions and branches
 

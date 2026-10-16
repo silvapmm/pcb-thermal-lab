@@ -11,7 +11,7 @@
          difference of the discretisation: point sampling of the copper and of the sources instead of cell averages, and the
          way the interface between copper and FR-4 is treated.
 
-         This is not the removed wxPython solver: that one also had modelling errors (see docs/new_approach.md). It exists to
+         This is not the removed wxPython solver: that one also had modelling errors (see docs/validation.md, section 6). It exists to
          answer "what would a correct FDM give?" and is not meant for design work: use the FVM.
 """
 
@@ -19,7 +19,8 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .geometry import points_in_polygon, polygon_centroid
+from .geometry import coverage_fraction, points_in_polygon, polygon_centroid
+from .fvm import ORDERING
 from .results import SteadyResult
 
 
@@ -58,12 +59,31 @@ def _inside(poly, X, Y):
     return points_in_polygon(X.ravel(), Y.ravel(), poly).reshape(X.shape)
 
 
-def solve_steady(problem, cell_mm=2.0, mean="arithmetic"):
+def _node_average(cell_values):
+    """!
+    @brief Average of the cell values around every node (each node sees up to four cells).
+    @param cell_values Array (ny, nx) of cell values.
+    @return Array (ny + 1, nx + 1): the mean over the cells that touch each node, weighted by the shared area.
+    """
+    ny, nx = cell_values.shape
+    acc = np.zeros((ny + 1, nx + 1))
+    cnt = np.zeros((ny + 1, nx + 1))
+    for di in (0, 1):
+        for dj in (0, 1):
+            acc[di:di + ny, dj:dj + nx] += cell_values
+            cnt[di:di + ny, dj:dj + nx] += 1.0
+    return acc / cnt
+
+
+def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
     """!
     @brief Steady-state finite-difference solution of a problem.
     @param problem A Problem.
     @param cell_mm Target grid spacing in millimetres (nx = round(width / spacing) intervals).
     @param mean "arithmetic" (classic) or "harmonic" mean of the nodal conductivities on a face.
+    @param sampling How the copper and the heater footprint are given to the nodes: "area" (default) uses the covered fraction of
+           the control volume around each node, which removes most of the grid-to-grid scatter of point sampling; "point" is the
+           classic test of whether the node lies inside (kept for comparison).
     @return SteadyResult with the field at the nodes (layers, ny + 1, nx + 1).
     """
     problem.validate()
@@ -80,10 +100,13 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic"):
     slab = b.thickness / L
     tc = np.asarray(b.copper_thickness)[:, None, None]
 
-    # Copper fill sampled at the nodes
+    if sampling not in ("area", "point"):
+        raise ValueError("sampling must be 'area' or 'point'")
+    # Copper fill at the nodes: covered fraction of the surrounding cells, or the point test
     fill = np.zeros((L, ny + 1, nx + 1))
     for z in problem.zones:
-        fill[z.layer] = np.maximum(fill[z.layer], _inside(z.polygon, X, Y) * z.fill)
+        cover = _node_average(coverage_fraction(z.polygon, nx, ny, dx, dy, 4)) if sampling == "area" else _inside(z.polygon, X, Y)
+        fill[z.layer] = np.maximum(fill[z.layer], cover * z.fill)
     S = fill * m.k_copper * tc + m.k_fr4_inplane * (slab - fill * tc)         # Sheet conductance per node (W/K)
 
     n = L * (ny + 1) * (nx + 1)
@@ -108,9 +131,12 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic"):
         d = b.dielectric_thickness()
         gz = np.broadcast_to(m.k_fr4_through * area / d, (L - 1, ny + 1, nx + 1)).copy()
         for v in problem.vias:
+            # A via is a point: all its conductance goes to the node nearest to it (spreading it over the neighbours was
+            # tried and removes the constriction, giving temperatures 2 % too low against the 3D solid)
+            g_via = m.k_copper * v.copper_area(b.via_plating) / d
             j = min(max(int(round(v.x / dx)), 0), nx)
             i = min(max(int(round(v.y / dy)), 0), ny)
-            gz[:, i, j] += m.k_copper * v.copper_area(b.via_plating) / d
+            gz[:, i, j] += g_via
         couple(idx[:-1], idx[1:], gz)
     # Ambient: faces, sinks and edges
     g_amb = np.zeros((L, ny + 1, nx + 1))
@@ -118,7 +144,8 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic"):
     g_top[0] = b.h_top * area
     g_bottom[L - 1] = b.h_bottom * area
     for s in problem.sinks:
-        g_sink[s.layer] += s.h_extra * area * _inside(s.polygon, X, Y)
+        cover = _node_average(coverage_fraction(s.polygon, nx, ny, dx, dy, 4)) if sampling == "area" else _inside(s.polygon, X, Y)
+        g_sink[s.layer] += s.h_extra * area * cover
     if b.h_side:
         g_side[:, :, 0] += b.h_side * wy[None, :] * slab
         g_side[:, :, -1] += b.h_side * wy[None, :] * slab
@@ -131,13 +158,24 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic"):
     # Sources: the power is divided equally among the nodes inside the footprint (the node nearest to the centroid if none)
     Q = np.zeros((L, ny + 1, nx + 1))
     for h in problem.heaters:
-        sel = _inside(h.polygon, X, Y)
+        if sampling == "area":
+            # Each cell's covered area is shared by its four nodes; the weights are normalised so that the power is exact
+            ny_c, nx_c = ny, nx
+            w = np.zeros((ny + 1, nx + 1))
+            cov = coverage_fraction(h.polygon, nx_c, ny_c, dx, dy, 8)
+            for di in (0, 1):
+                for dj in (0, 1):
+                    w[di:di + ny_c, dj:dj + nx_c] += cov
+            sel = w > 0
+        else:
+            w = _inside(h.polygon, X, Y).astype(float)
+            sel = w > 0
         if not sel.any():
             cx, cy = polygon_centroid(h.polygon)
-            sel = np.zeros_like(sel)
-            sel[min(max(int(round(cy / dy)), 0), ny), min(max(int(round(cx / dx)), 0), nx)] = True
-        Q[h.layer][sel] += h.power / sel.sum()
-    theta = spla.spsolve(K, Q.ravel())
+            w = np.zeros((ny + 1, nx + 1))
+            w[min(max(int(round(cy / dy)), 0), ny), min(max(int(round(cx / dx)), 0), nx)] = 1.0
+        Q[h.layer] += h.power * w / w.sum()
+    theta = spla.spsolve(K, Q.ravel(), permc_spec=ORDERING)
     res = float(np.linalg.norm(K @ theta - Q.ravel()) / max(np.linalg.norm(Q), 1e-300))
     theta = theta.reshape(L, ny + 1, nx + 1)
 
@@ -152,6 +190,5 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic"):
         t_max_location=(int(l), j * dx, i * dy), T=T, dx=dx, dy=dy,
         power_out={"top": float((g_top * theta).sum()), "bottom": float((g_bottom * theta).sum()),
                    "sinks": float((g_sink * theta).sum()), "sides": float((g_side * theta).sum())},
-        residual=res, extras={"nodes": float(T.size), "harmonic": float(mean == "harmonic")},
-        warnings=["finite-difference comparison model: node sampling of the copper and of the heater footprint; "
-                  "use the FVM for design work"])
+        grid="nodes", residual=res, extras={"nodes": float(T.size), "harmonic": float(mean == "harmonic"), "area_sampling": float(sampling == "area")},
+        warnings=[])

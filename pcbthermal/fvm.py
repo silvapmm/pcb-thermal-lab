@@ -24,6 +24,10 @@ import scipy.sparse.linalg as spla
 from .geometry import coverage_fraction, cell_index_of_point, polygon_centroid
 from .results import SteadyResult, TransientResult
 
+# Column ordering of the sparse LU: the thermal matrices are symmetric, and the symmetric minimum-degree ordering gives about half
+# the fill and 40 % less time than the default COLAMD (measured on the example board at 1 and 0.5 mm)
+ORDERING = "MMD_AT_PLUS_A"
+
 
 class Network:
     """!
@@ -176,7 +180,7 @@ class Network:
         """
         q = self.Q.ravel()
         if method == "direct":
-            theta = spla.spsolve(self.K.tocsc(), q)
+            theta = spla.spsolve(self.K.tocsc(), q, permc_spec=ORDERING)
         elif method == "cg":
             # Jacobi (diagonal) preconditioner keeps CG cheap and robust for SPD thermal matrices
             dinv = 1.0 / self.K.diagonal()
@@ -363,7 +367,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
         if key not in cache:
             A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
             B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
-            cache[key] = (spla.splu(A), B)
+            cache[key] = (spla.splu(A, permc_spec=ORDERING), B)
         lu, B = cache[key]
         x = lu.solve(B @ x + q)
         if k in set(keep.tolist()):
@@ -403,7 +407,7 @@ def step_responses(problem, cell_mm=2.0, t_end=None, ratio=3.0, per_stage=4, sta
     if t_end is None:
         t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
     Q = net.Qw_matrix.toarray()                                   # (cells, heaters), unit power each
-    rth = (spla.splu(net.K.tocsc()).solve(Q)).max(axis=0)
+    rth = (spla.splu(net.K.tocsc(), permc_spec=ORDERING).solve(Q)).max(axis=0)
     # Step sizes: per_stage steps of dt0 * ratio^j for j = 0..stages-1, scaled so that they sum to t_end
     geometric = per_stage * (ratio ** stages - 1.0) / (ratio - 1.0)
     dt0 = t_end / geometric
@@ -414,7 +418,7 @@ def step_responses(problem, cell_mm=2.0, t_end=None, ratio=3.0, per_stage=4, sta
         dt = dt0 * ratio ** j
         A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
         B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
-        lu = spla.splu(A)
+        lu = spla.splu(A, permc_spec=ORDERING)
         for _ in range(per_stage):
             x = lu.solve((B @ x) + Q)
             t += dt

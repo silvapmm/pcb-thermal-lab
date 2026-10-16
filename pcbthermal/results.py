@@ -31,6 +31,16 @@ class SteadyResult:
     extras: Dict[str, float] = field(default_factory=dict)     # Model specific numbers
     arrays: Dict[str, np.ndarray] = field(default_factory=dict)  # Model specific profiles for plots
     warnings: List[str] = field(default_factory=list)          # Validity warnings for the user
+    grid: str = "cells"                          # "cells": T holds cell values; "nodes": T holds values at grid points (FDM)
+
+    def coords(self):
+        """!
+        @brief Positions of the samples of T along x and y.
+        @return Tuple (xs, ys) in metres: cell centres for a cell field, grid points (starting at 0) for a node field.
+        """
+        ny, nx = self.T.shape[1:]
+        off = 0.0 if self.grid == "nodes" else 0.5
+        return (np.arange(nx) + off) * self.dx, (np.arange(ny) + off) * self.dy
 
     @property
     def delta_t(self):

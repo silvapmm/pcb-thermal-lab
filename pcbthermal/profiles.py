@@ -37,6 +37,7 @@ import scipy.sparse.linalg as spla
 from scipy.interpolate import PchipInterpolator
 
 from . import fvm
+from .fvm import ORDERING
 
 
 class ProfileError(ValueError):
@@ -209,7 +210,7 @@ def wave_response(resp, i, profile, terms=3000):
     @brief Periodic-steady-state rise (peak and valley) of a heater's own hottest point under a repeating profile.
     @details With P(t) piecewise constant and periodic, T(u) = sum over the stretches j of P_j [G(s2) - G(s1)], where
              [s1, s2] is the part of the period whose impulse response falls on stretch j, and G is _cumulative_response.
-             For a square wave this is the exact formula peak = P_off Rth + dP G(tp) of docs/roadmap.md 1.2. The extremes are
+             For a square wave this is the exact formula peak = P_off Rth + dP G(tp) of docs/models.md section 4. The extremes are
              searched at the breakpoints and at the middle of every stretch.
     @param resp StepResponse of the reference model.
     @param i Heater index.
@@ -573,7 +574,7 @@ class _FVMAdapter:
         self.net = fvm.Network(problem, nx, ny)
         self.dx, self.dy = self.net.dx, self.net.dy
         self.p_avg = np.array([h.average_power() for h in problem.heaters])
-        steady = spla.splu(self.net.K.tocsc())
+        steady = spla.splu(self.net.K.tocsc(), permc_spec=ORDERING)
         self.th_avg = steady.solve(self.net.Qw_matrix @ self.p_avg)
         p_init = np.array([h.initial_power() for h in problem.heaters])      # Start state: average, or first power of a one-shot
         self.th_init = self.th_avg if np.allclose(p_init, self.p_avg) else steady.solve(self.net.Qw_matrix @ p_init)
@@ -589,7 +590,7 @@ class _FVMAdapter:
         """
         self.dt = dt
         Cd, K = self.net.C.ravel(), self.net.K
-        self.lu = spla.splu((sp.diags(Cd / dt) + self.theta * K).tocsc())
+        self.lu = spla.splu((sp.diags(Cd / dt) + self.theta * K).tocsc(), permc_spec=ORDERING)
         self.B = (sp.diags(Cd / dt) - (1.0 - self.theta) * K).tocsr()
 
     def begin(self, options):
