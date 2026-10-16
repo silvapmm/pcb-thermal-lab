@@ -254,7 +254,10 @@ anisotropic FR-4, convection on the faces. Compare with the FVM on three referen
 
 ## 6. Deferred
 
-Neural-network surrogates (not now); trace Joule heating (IPC-2152 style); reduced-order models (only if transients become too slow); naming of the models (working names Mesh / Network / Fin for FVM / Lumped / Analytic, and Source / Pad / Duo for components, to be decided).
+Neural-network surrogates (not now); trace Joule heating (IPC-2152 style); reduced-order models (only if transients become too slow); naming of the models. The working names Mesh / Network / Fin and Source / Pad / Duo were proposed without research and are **withdrawn**: the standard terms are finite volume method (FVM),
+lumped-parameter thermal network (LPTN, also called thermal resistance network) and analytical or semi-analytical (Fourier series) models [11, 12, 13, 14], and for components the JEDEC two-resistor (2R) and DELPHI
+compact models [8, 9]. Recommendation under discussion: keep the technical names and API keys (`fvm`, `lumped`, `analytic`; renaming would break project files, the API and the published 2.0.0), and only make the
+labels in the interface more descriptive, for example "Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)", and "2R component" for the future component element.
 
 ## References
 
@@ -268,3 +271,7 @@ Neural-network surrogates (not now); trace Joule heating (IPC-2152 style); reduc
 8. JEDEC JESD15-3, *Two-Resistor Compact Thermal Model Guideline* (2008), https://www.jedec.org/standards-documents/docs/jesd-15-3 (page not readable by the fetch tool; scope taken from the search summary).
 9. ROHM, *Two-resistor model for thermal simulation*, https://fscdn.rohm.com/en/products/databook/applinote/common/two_resistor_model_for_thermal_simulation-e.pdf.
 10. Infineon, *Application Note AN 2012-03 (OptiMOS datasheet explanation)*, https://www.infineon.com/assets/row/public/documents/24/42/infineon-mosfet-optimos-datasheet-explanation-applicationnote-en.pdf.
+11. Review of thermal modeling classes (analytical lumped-parameter network versus numerical FEM, FVM, FDM, CFD), https://www.sciencedirect.com/topics/engineering/thermal-model.
+12. Maya HTT, *Lumped parameter thermal networks in electric machine design*, https://www.mayahtt.com/blog/lumped-parameter-thermal-networks-in-electric-machine-design/ (LPTN, thermal resistance network).
+13. Siemens, Simcenter Flotherm (structured Cartesian grid solver, compact thermal models), https://www.siemens.com/en-us/products/simcenter/fluids-thermal-simulation/flotherm/ ; Cadence Celsius EC Solver, https://www.cadence.com/en_US/home/resources/technical-briefs/celsius-ec-solver-tb.html ; Ansys Icepak (Fluent CFD solver), https://www.padtinc.com/simulation/simulation-product/ansys-icepak/.
+14. Fourier-series analytical models of multilayer PCBs, https://hal-univ-paris10.archives-ouvertes.fr/hal-01473744v1 (via clusters as heat spreaders) and https://arxiv.org/pdf/1705.09925 (semi-analytical multilayer diffusion).
