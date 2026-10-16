@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.2.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-169%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.3.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-169%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -79,6 +79,7 @@ Release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Versions and branches
 
+- Version **2.3.0** (2026-10-16): the finite-difference model also does animation, step responses and power profiles.
 - Version **2.2.0** (2026-10-16): power tables from CSV files, a finite-difference model, a per-heater analytic transient, a 3D-solid validation and three clean documents.
 - Version **2.1.0** (2026-10-16): power profiles (square wave) and computed heat transfer coefficients.
 - Version **2.0.0** (2026-10-16): first release of the rebuilt program. The original wxPython program was 1.0.0 (git tag `legacy-wxpython-1.0.0`).

@@ -5,11 +5,15 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+Next: the Component element (Package 2R, heat sink, passive areas) in its own version, then Gerber import and a variable stack-up (see `docs/roadmap.md`).
+
+## [2.3.0] - 2026-10-16
+
+The finite-difference model in time.
+
 ### Added
 - The **FDM now also does the time-dependent work**: power-step animation (Animation tab, `transient --model fdm`, GIF export), step responses and the power-profile time simulation, with the same theta-method as the FVM on the grid points (the hottest point follows the FVM within 0.7 °C on the example; the profile peak is 3 % lower at 2 mm, where the 6 mm heater is three cells wide). With only the FDM selected it also makes the average-or-resolve decision.
 - `transient --model fvm|fdm|analytic`.
-
-Next: the Component element (Package 2R, heat sink, passive areas), Gerber import and a variable stack-up (see `docs/roadmap.md`).
 
 ## [2.2.0] - 2026-10-16
 
