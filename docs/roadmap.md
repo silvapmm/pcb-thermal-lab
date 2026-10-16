@@ -60,7 +60,34 @@ Top cooling of a Package: none (package top with the computed `h` or a fixed res
 The profile drives `P` as now. The **average-or-resolve decision** keeps measuring the board (that is what costs computing time) but the program also reports `T_j(t)` at every time step: with the board temperature nearly constant, `T_j(t) = T_board,mean + P(t)·R_eff`, `R_eff = θJB ‖ (θJC,top + θCS + …)`, which is a cheap post-processing of the instantaneous power
 and is **not averaged away** (on the example, 13.3 W on / 4 W average with `R_eff` ≈ 4.8 K/W gives a junction about 64 K above the board while the board only oscillates 0.4 K; illustrative values). Without package capacity this is an upper bound for fast waves.
 
-### 1.6 Staging and validation
+### 1.6 What real datasheets give (read on 2026-10-16)
+
+Parameters found in datasheets of typical parts (all read from the PDF text, except the LED row, taken from a search summary):
+
+| Part | Thermal parameters given | Conditions stated | Source |
+| :-- | :-- | :-- | :-- |
+| Power MOSFET, TI CSD17308Q3 (SON 3.3 × 3.3) | `RθJC` 4.5 K/W (max); `RθJA` 58 K/W (max, 1 in² pad) and 165 K/W (max, minimum pad); power 2.7 W at 25 °C ambient, 28 W with the case at 25 °C; `Tj` −55 to 150 °C; transient thermal impedance curves | board 1.5 × 1.5 in, 1.52 mm FR-4, **2 oz** (71 µm) copper pad of 1 in² (6.45 cm²); `RθJC` "by design", `RθJA` "determined by the user's board design" | [10] |
+| Power MOSFET, Infineon OptiMOS (application note) | `RthJC` (bottom) 1.1 K/W; `Ptot` 136 W at `Tc` 25 °C and 3.0 W at `Ta` 25 °C with `RthJA` 50 K/W; **`ZthJC(tp, D)` curves** and the rule `ΔTj = Zth(tp, D) · Ptot`; "Zth consists of Rth and Cth" | 40 × 40 × 1.5 mm FR-4, **6 cm² of 70 µm copper** on one layer for the drain, board vertical in still air | [11] |
+| DC-DC converter, TI LMR36510 (HSOIC-8, exposed pad) | `RθJA` 42.9, `RθJC(top)` 54, `RθJB` 13.6, `ΨJT` 4.3, `ΨJB` 13.8, `RθJC(bot)` 4.3 K/W; a graph of `RθJA` against copper area | JEDEC board; the datasheet says the table "is not valid for design purposes" and that `RθJA` depends on power, airflow, PCB area, copper heat-sink area, number of thermal vias and neighbours | [12] |
+| LDO, TI TPS7A47 (QFN-20, exposed pad) | `RθJA` 32.5, `RθJC(top)` 27, `RθJB` 11.9, `ΨJT` 0.3, `ΨJB` 11.9, `RθJC(bot)` 1.7 K/W; "`θJA` is the sum of `θJCbot` plus the PCB copper contribution" | JEDEC board; `θJA` "only a relative measure of package thermal performance" | [13] |
+| Schottky diode, SMA (SX SS12…SS120) | `RθJ-A` 65 and `RθJ-L` (junction to terminal) 20 K/W; `Tj` −55 to 125 or 150 °C; no `RθJC`, no `Zth` | PCB with 0.2 × 0.2 in (5 × 5 mm) copper pads | [14] |
+| Schottky diode, SMC (SS54) | `RθJA` 15 K/W only; `Tj` −55 to 125 °C | "junction to ambient", pad not stated | [15] |
+| Power metal-strip resistor, Vishay WSL | **power rating at 70 °C** (0.1 W for 0603, 0.125 W for 0805 …), derating curve to zero at the maximum temperature (170 °C); no thermal resistance | rating at 70 °C, board mounting | [16] |
+| LED, high power (Samsung and others; search summary, not read) | `Rth j-sp` junction to solder point: a "real" value (about 5 K/W) and a lower "electrical" one (about 3 K/W); `Tj` max 150 °C | the LED dissipates `Vf·If` minus the light emitted, which the datasheet does not give as a number | [17] |
+
+**What this means for the Component element**
+
+1. **The parameter sets differ by part type**, so the Package form needs optional fields and presets by type, not one fixed set: (a) `θJC,top` + `θJB` (TI converters and LDOs, the full 2R set); (b) **one** resistance to the board or terminal (`θJC(bot)` of a MOSFET, `θJ-L` of a diode, `Rth j-sp` of an LED) and no top path;
+   (c) only `θJA` on a stated board (some diodes); (d) only a **power rating at a temperature** (resistors: a thermal resistance can be derived as `(T_max − T_rating)/P_rating`, for example 100 K / 0.1 W = 1000 K/W for the 0603 at its 70 °C rating, an order of magnitude to be checked against the manufacturer's mounting note).
+2. **`θJA` must never be an input** of the board model: manufacturers say so themselves ([12], [13]); it is useful only as a plausibility check (our `T_j − T_ambient` on a board like the datasheet's should approach `P·θJA`) and `RθJA` against copper area (the CSD17308Q3 gives 58 and 165 K/W for 6.45 cm² and the minimum pad) is a good **validation case** for the model.
+3. **Which resistance goes between the junction and our board.** In the exposed-pad parts above `θJC(bot)` (4.3 and 1.7 K/W) is much smaller than `θJB` (13.6 and 11.9 K/W): `θJB` is measured on the JEDEC board and **includes the spreading of the heat in that board**, while `θJC(bot)` stops at the pad. Our model already spreads the heat in the real board under the footprint, so using `θJB` there would count the board's spreading twice. Proposal: the Package takes the
+   **junction-to-pad resistance** (`θJC(bot)`, `θJ-L`, `Rth j-sp`) when the datasheet gives it, and `θJB` otherwise, with a note on which one was used; the `ΨJB` consistency check (section 1.3) will show whether the choice is sensible for a given part. To settle with a real part.
+4. **Transient curves** `Zth(tp, D)` (MOSFETs) contain `Rth` and `Cth`: they are the input of the later Foster chain, and the datasheet shortcut `ΔTj = Zth(tp, D)·P` is a good check of our time simulation.
+5. **Copper weight matters**: the MOSFET boards are 2 oz (71 µm) or 70 µm, our default is 35 µm; the datasheet `RθJA` values cannot be compared without matching the copper of the board.
+6. **LEDs**: the heat is `Vf·If` minus the optical output; the Component needs a "fraction of the electrical power that becomes heat" (or the heat power directly), which is not a datasheet number.
+7. The simple **Source** (a heater with a power) stays the default and needs none of this.
+
+### 1.7 Staging and validation
 
 Stages: (1) Component element and Package, static, in the three models; (2) top path from the computed `h`; (3) heat sink; (4) passive areas; (5) Foster chain for package transients.
 Validation: `θJB → 0` and no top path reproduce the current heater; `G_top → 0` gives heater plus the offset `P θJB`; exact series-parallel solution on a uniform board (`T_j` and power split to 1e-9); energy balance with the extra node; the models against each other;
@@ -121,3 +148,11 @@ Neural-network surrogates; trace Joule heating (IPC-2152 style); reduced-order m
 7. gerbonara, https://pypi.org/project/gerbonara/ (documentation https://gerbolyze.gitlab.io/gerbonara); listed only.
 8. Nexperia, AN11261, *Using RC thermal models* (Foster and Cauer networks), https://mouser.com/pdfDocs/AN11261-3.pdf; Texas Instruments SLUAAT8, *Using MOSFET Transient Thermal Impedance Curves in Your Design*, https://www.ti.com/lit/pdf/sluaat8 (repetitive pulses, `D + (1 − D) z(t)`).
 9. Not used as a source for the 2R model: ROHM's application note "two-resistor model" (https://fscdn.rohm.com/en/products/databook/applinote/common/two_resistor_model_for_thermal_simulation-e.pdf) defines junction-to-board and board-to-ambient resistances, which is not the JESD15-3 definition.
+10. Texas Instruments, CSD17308Q3 datasheet (SLPS262C), https://www.ti.com/lit/ds/symlink/csd17308q3.pdf (read: thermal information, `RθJC`, `RθJA` and the pad area graph).
+11. Infineon, *OptiMOS Power MOSFET Datasheet Explanation*, AN 2012-03, https://www.infineon.com/assets/row/public/documents/24/42/infineon-mosfet-optimos-datasheet-explanation-applicationnote-en.pdf (read: `Ptot`, `RthJA` conditions, `ZthJC`).
+12. Texas Instruments, LMR36510 datasheet (SNVSBD7B), https://www.ti.com/lit/ds/symlink/lmr36510.pdf (read: thermal information and the application note on `RθJA`).
+13. Texas Instruments, TPS7A47 datasheet, https://www.ti.com/lit/ds/symlink/tps7a47.pdf (read: thermal information and the power dissipation section).
+14. SX Semiconductor, SS12 to SS120 SMA Schottky rectifiers, https://www.ickey.cn/static-pf/datasheet/22/76/cc08/2276cc08322b3110623485720f87bf21.pdf (read: thermal resistance and its PCB note).
+15. SS54 Schottky barrier rectifier (SMC), Farnell/element14 datasheet V1.1, https://components101.com/sites/default/files/component_datasheet/SS54%20Schottky%20Diode.pdf (read).
+16. Vishay, WSL power metal strip resistors, https://www.vishay.com/docs/30100/wsl.pdf (read: power rating at 70 °C and the derating curve).
+17. Samsung LED, high power LED datasheets (for example https://download.led.samsung.com/led/file/automotive/Samsung_C_Gen3_1W_WH_SPHWH1A1N1A0_DS_Rev.1.6.pdf); the thermal figures come from a search summary and the files were **not read**.

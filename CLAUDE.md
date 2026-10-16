@@ -168,6 +168,9 @@ merges, PRs, and tags. The maintainer set these rules (2026-10-16):
   milestone (before a merge or a release).
 - **Merges**: merge into `main` only when `develop` holds a solid, working
   development (the app runs, tests pass and the change is complete). Not for every commit.
+- **Before every merge** (feature branch into `develop`, `develop` into `main`) run the **whole test battery** and read its result: `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests --timeout=900 --timeout-method=thread`
+  (about 8 minutes: it includes the application stress tests, the documentation gate and the version checks). A partial run is not enough. If anything fails, fix it first; never merge on a red or unfinished battery, and say in the report that it was run and what it returned.
+  A new feature adds its own stress scenarios to `tests/test_gui_stress.py` (every new model, element type, dialog or background job).
 - **Tags**: create a tag only for a good release (see "Branches and Versions"). Never tag routine work.
 - **Never**: force push, rewrite published history, or commit generated outputs.
 - **Before editing this file**: replace only the section you mean to change. A range replacement
