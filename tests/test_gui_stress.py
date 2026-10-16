@@ -137,6 +137,7 @@ def animate(win, qtbot, model):
     anim = win.results.animation
     win.results.tabs.setCurrentWidget(anim)
     anim.model.setCurrentIndex(anim.model.findData(model))
+    assert anim.model.currentData() == model
     anim.t_end.setValue(60.0)
     anim.frames.setValue(20)
     anim.tr = None
@@ -172,6 +173,7 @@ def test_every_example_with_every_model_and_view(win, qtbot, which, tmp_path):
     assert set(win.sim.results) == set(ALL_MODELS)
     walk_results(win, qtbot)
     animate(win, qtbot, "fvm")
+    animate(win, qtbot, "fdm")
     animate(win, qtbot, "analytic")
     # Overlay on the board with each model as the temperature view
     for i in range(win.results.temp.model.count()):

@@ -103,6 +103,7 @@ class TransientResult:
     frames: np.ndarray                           # Fields, shape (n_out, layers, ny, nx), degC
     steady_t_max: float                          # Steady-state maximum for reference (degC)
     ambient: float                               # Ambient temperature (degC)
+    grid: str = "cells"                          # "cells" or "nodes": what the frames hold (nodes for the finite-difference model)
 
     def time_constant(self):
         """!

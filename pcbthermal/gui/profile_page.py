@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
                                QVBoxLayout, QWidget)
 
 from .. import plots, profiles
-from ..api import MODEL_NAMES, step_response
+from ..api import COMPARISON_MODELS, MODEL_NAMES, step_response
 from ..model import SquareWave
 from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from . import compute
@@ -46,9 +46,9 @@ class AnalyzeWorker(QThread):
         @brief Thread body: step response of the reference model, then the decisions.
         """
         try:
-            ref = next((m for m in MODEL_NAMES if m in self.options.models), None)
+            ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in self.options.models), None)
             if ref is None:
-                raise ValueError("select the FVM, the thermal network or the analytical model: the finite-difference model has no time response")
+                raise ValueError("select a model first")
             with LOCK:                                 # One calculation at a time (see compute.py)
                 resp = step_response(self.problem, ref, self.options)
                 decisions = profiles.decide(self.problem, resp, self.options.profile.threshold_c)

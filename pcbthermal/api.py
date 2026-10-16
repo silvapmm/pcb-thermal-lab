@@ -34,7 +34,7 @@ from .model import Problem
 from .results import SteadyResult
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
-COMPARISON_MODELS = ("fdm",)                     # Extra steady-state model for comparisons: no time simulation, not in the GUI
+COMPARISON_MODELS = ("fdm",)                     # Finite-difference model: never the reference of the decisions
 
 
 @dataclass
@@ -475,6 +475,8 @@ def step_response(problem, model, options):
     """
     if model == "fvm":
         return profiles.step_response_fvm(problem, cell_mm=max(options.cell_mm, 2.0))
+    if model == "fdm":
+        return profiles.step_response_fdm(problem, cell_mm=max(options.cell_mm, 2.0))
     if model == "lumped":
         t, z, r = lumped.step_responses(problem, rings=options.lumped_rings, cell_mm=min(max(options.cell_mm, 0.5), 1.0))
     else:
@@ -493,9 +495,9 @@ def _run_profiles(sim, progress, start):
     """
     o = sim.options
     p = sim.effective_problem or sim.problem
-    ref = next((m for m in MODEL_NAMES if m in o.models), None)
+    ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in o.models), None)   # The FDM only if nothing else is selected
     if ref is None:
-        sim.profile_error = "the time simulation needs the FVM, the thermal network or the analytical model to be selected"
+        sim.profile_error = "select a model for the time simulation"
         return
     sim.profile_reference = ref
     if progress:
@@ -506,12 +508,12 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in o.models:
-            if name in COMPARISON_MODELS:
-                continue                                                  # The comparison model has no time simulation
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
             if name == "fvm":
                 sim.profile_results[name] = profiles.run_fvm(p, sim.decisions, o.profile, o.cell_mm)
+            elif name == "fdm":
+                sim.profile_results[name] = profiles.run_fdm(p, sim.decisions, o.profile, o.cell_mm)
             elif name == "lumped":
                 sim.profile_results[name] = lumped.run_profile(p, sim.decisions, o.profile, o.lumped_rings,
                                                                min(max(o.cell_mm, 0.5), 1.0))

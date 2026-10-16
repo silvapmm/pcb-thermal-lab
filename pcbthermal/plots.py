@@ -442,6 +442,19 @@ def plot_transient(tr, path):
     _save(fig, path)
 
 
+def frame_spacing(tr, problem):
+    """!
+    @brief Sample spacing of the frames of a transient: cells for the FVM and Analytic, grid points for the FDM.
+    @param tr A TransientResult.
+    @param problem The Problem (board size).
+    @return Tuple (dx, dy) in metres.
+    """
+    ny, nx = tr.frames.shape[2], tr.frames.shape[3]
+    if tr.grid == "nodes":
+        return problem.board.width / (nx - 1), problem.board.height / (ny - 1)
+    return problem.board.width / nx, problem.board.height / ny
+
+
 def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno"):
     """!
     @brief Animated GIF of the temperature evolution of one layer in physical time.
@@ -458,9 +471,7 @@ def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno"):
 
     vmin, vmax = tr.ambient, float(tr.frames[:, layer].max())
     fig = new_figure(6.2, 5.0)
-    nx = tr.frames.shape[3]
-    dx = problem.board.width / nx
-    dy = problem.board.height / tr.frames.shape[2]
+    dx, dy = frame_spacing(tr, problem)
     writer = PillowWriter(fps=fps)
     with writer.saving(fig, path, dpi=90):
         for k in range(len(tr.times)):

@@ -25,7 +25,7 @@ plated vias, sinks (extra heat transfer on an outer face) and boundary condition
 | What it is | board cut into cells, one node per layer and cell, sparse matrices | the same equations on grid **points** (node-centred finite differences) | one small network per heater, built from the real footprint and outline | exact closed-form solution of a uniform multilayer board, with corrections for vias, sinks and copper |
 | Time on the example board | 0.13 s (1 mm cells) | 0.12 s | about 10 ms | about 50 ms |
 | Output | full field per layer | full field per layer (at nodes) | approximate field | field per layer |
-| Power profiles in time, step animation | yes | no | profiles yes, animation no | yes (vias calibrated per heater) |
+| Power profiles in time, step animation | yes | yes (same time stepping on the nodes) | profiles yes, animation no | yes (vias calibrated per heater) |
 | Needs a mesh | yes (cell size, Auto) | yes | no | no |
 
 ### 2.1 FVM (finite volumes), the reference
@@ -47,7 +47,7 @@ two nodes is the mean of the nodal values (arithmetic or harmonic), vias go to t
 * `sampling="point"`: the classic "is the node inside the polygon" test (left and bottom edge in, right and top edge out).
 
 Same equations as the FVM, so on boards without vias the two agree to about 0.1 % (table in `validation.md`). Differences: the FDM treats a via (a point feature) at the nearest node, which costs
-about 2 % on the example board at 1 mm; near a copper edge that crosses a heater it is 3.5 % below the FVM. It is steady state only (no time simulation or animation).
+about 2 % on the example board at 1 mm; near a copper edge that crosses a heater it is 3.5 % below the FVM. It also does the power-step transient (animation), the step response and the power-profile time simulation, with the same theta-method as the FVM on the nodes (on the example the hottest point follows the FVM within 1 °C at every time).
 *Use it* to check the FVM's discretisation or to see what a classic scheme gives; for design work the FVM is preferred (smoother with the grid, conservative by construction).
 FDM is **not** the removed wxPython solver, which also had modelling errors (see `validation.md`).
 
@@ -154,7 +154,7 @@ python -m pcbthermal transient board.pcbt.json --t-end 300 --gif   # power step 
 python -m pcbthermal solvers|convergence|convert|example ...        # solver comparison, grid study, legacy file, example boards
 ```
 
-The sparse solvers of SciPy must not run in two threads at once (the application serialises its background calculations; do the same in your own code). `simulate` runs the selected models (the FDM is steady state only), the input checks, the power-profile decision and time simulation, and returns a `Simulation` (table, report, `save`).
+The sparse solvers of SciPy must not run in two threads at once (the application serialises its background calculations; do the same in your own code). `simulate` runs the selected models, the input checks, the power-profile decision and time simulation, and returns a `Simulation` (table, report, `save`).
 
 ## 7. The application (PySide 6)
 

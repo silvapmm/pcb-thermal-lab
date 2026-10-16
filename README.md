@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.2.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-167%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.2.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-169%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -26,7 +26,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 | Model | Advantage | Apply it to | Error on the rise vs a 3D solid | Time (example board) |
 | :-- | :-- | :-- | :-- | :-- |
 | **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.4 to 2.2 % | 0.13 s (1 mm) |
-| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state only) | 0.5 to 4 % | 0.12 s |
+| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state, animation, power profiles) | 0.5 to 4 % | 0.12 s |
 | **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.5 % | about 10 ms |
 | **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | 0 to 1.5 % on uniform boards and with vias, 24 % with a small copper pad | about 50 ms |
 

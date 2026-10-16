@@ -507,8 +507,8 @@ class SolverPanel(QWidget):
                           "within about 4 % in most cases. Weak when a copper edge crosses the heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, sinks and "
                             "partial copper. Assumes insulated edges and rectangular heaters; unreliable if a copper edge crosses a heater.",
-                "fdm": "Node-centred finite differences of the same model, to compare discretisations (steady state only: no time simulation "
-                       "or animation). Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
+                "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
+                       "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
         for k, c in self.cb.items():
             c.setToolTip(tips[k])
             v.addWidget(c)

@@ -339,7 +339,24 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
-    net = Network(problem, nx, ny)
+    return transient_from_network(Network(problem, nx, ny), b.ambient, t_end, n_out, substeps, theta_scheme, log_times)
+
+
+def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_scheme=1.0, log_times=True, grid="cells"):
+    """!
+    @brief Power-step transient of any thermal network with the attributes of Network (also the finite-difference one).
+    @details The network provides K (sparse conductances), C (heat capacity per unknown), Q (source), nl, ny, nx and solve_steady().
+    @param net The network.
+    @param ambient Ambient temperature in degC.
+    @param t_end Final time in seconds.
+    @param n_out Number of output frames (excluding t = 0).
+    @param substeps Implicit steps between two frames (linear mode only).
+    @param theta_scheme 1.0 for implicit Euler, 0.5 for Crank-Nicolson.
+    @param log_times True for the doubling time step.
+    @param grid "cells" or "nodes": what the frames hold.
+    @return TransientResult.
+    """
+    ny, nx = net.ny, net.nx
     steady_theta, _ = net.solve_steady()
 
     # --- Time grid: every frame is one time step, and the steps are built so that few distinct dt occur
@@ -360,7 +377,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
     Cd = net.C.ravel()
     q = net.Q.ravel()
     x = np.zeros(N)                                         # Rise above ambient, starts at zero
-    frames = {0: x.reshape(net.nl, ny, nx) + b.ambient}
+    frames = {0: x.reshape(net.nl, ny, nx) + ambient}
     cache = {}
     for k, dt in enumerate(dts, start=1):
         key = round(float(dt), 12)
@@ -371,12 +388,12 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_sch
         lu, B = cache[key]
         x = lu.solve(B @ x + q)
         if k in set(keep.tolist()):
-            frames[k] = x.reshape(net.nl, ny, nx) + b.ambient
+            frames[k] = x.reshape(net.nl, ny, nx) + ambient
     frames = np.asarray([frames[k] for k in keep])
     return TransientResult(
         times=times, t_max=frames.reshape(len(times), -1).max(axis=1),
         t_mean=frames.reshape(len(times), -1).mean(axis=1), frames=frames,
-        steady_t_max=float(steady_theta.max() + b.ambient), ambient=b.ambient,
+        steady_t_max=float(steady_theta.max() + ambient), ambient=ambient, grid=grid,
     )
 
 
@@ -403,7 +420,20 @@ def step_responses(problem, cell_mm=2.0, t_end=None, ratio=3.0, per_stage=4, sta
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
-    net = Network(problem, nx, ny)
+    return step_responses_from_network(Network(problem, nx, ny), t_end, ratio, per_stage, stages, theta_scheme)
+
+
+def step_responses_from_network(net, t_end=None, ratio=3.0, per_stage=4, stages=18, theta_scheme=0.5):
+    """!
+    @brief Step responses of the heaters of any network with the attributes of Network (see step_responses).
+    @param net The network (K, C, g_amb, Qw_matrix).
+    @param t_end Last time in seconds (default: ten board time constants).
+    @param ratio Growth factor of the time step between stages.
+    @param per_stage Steps per stage.
+    @param stages Number of stages.
+    @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
+    @return Tuple (times, z, rth).
+    """
     if t_end is None:
         t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
     Q = net.Qw_matrix.toarray()                                   # (cells, heaters), unit power each

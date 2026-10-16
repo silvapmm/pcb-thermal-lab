@@ -29,7 +29,7 @@ from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
 
 MODELS = ("fvm", "lumped", "analytic")
-RUN_MODELS = MODELS + ("fdm",)            # "fdm" is the finite-difference comparison model (steady state only)
+RUN_MODELS = MODELS + ("fdm",)            # "fdm" is the finite-difference model
 
 
 def _cell_arg(args, problem, default):
@@ -109,8 +109,15 @@ def cmd_transient(args):
     """
     problem = load_problem(args.config)
     t0 = time.time()
-    tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0),
-                             theta_scheme=args.theta)
+    if args.model == "fdm":
+        from . import fdm
+        tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0), theta_scheme=args.theta)
+    elif args.model == "analytic":
+        from . import analytic
+        tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
+    else:
+        tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0),
+                                 theta_scheme=args.theta)
     print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} degC, "
           f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} degC")
     os.makedirs(args.out, exist_ok=True)
@@ -280,6 +287,7 @@ def build_parser():
     common(t)
     t.add_argument("--t-end", type=float, default=600.0, help="final time in seconds")
     t.add_argument("--steps", type=int, default=40, help="number of output times")
+    t.add_argument("--model", choices=("fvm", "fdm", "analytic"), default="fvm", help="model of the transient (default: fvm)")
     t.add_argument("--theta", type=float, default=1.0, help="1 = implicit Euler, 0.5 = Crank-Nicolson")
     t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
