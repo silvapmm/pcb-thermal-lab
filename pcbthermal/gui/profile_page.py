@@ -175,7 +175,7 @@ class ProfilePage(QWidget):
 
         # ---- decision table and waveform
         self.dec_table = QTableWidget(0, 7)
-        self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Average W", "Oscillation °C", "% of rise", "Regime"])
+        self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. °C", "% rise", "Regime"])
         self.dec_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.dec_table.verticalHeader().setVisible(False)
         self.dec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)

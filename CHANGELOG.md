@@ -15,6 +15,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
   `example --which profile`; `profile_<model>.csv/png` and `peak_map_<model>.png` outputs.
 - Model labels in the GUI: "Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"; temperature differences shown in °C (thermal resistance stays in K/W, the same number as °C/W).
 
+- **Computed heat transfer coefficients** (`Board.h_mode = "computed"`): natural and forced convection plus radiation per face from the mean face temperature, orientation, emissivities, air speed and a global calibration multiplier of the convection, solved by iteration (3 to 4 solves) in all three models. GUI: Environment panel; CLI: `run --computed-h --air-speed --orientation --emissivity --h-multiplier`.
+- Profile plot: a fast wave is drawn as a band, the hottest-point line is no longer hidden.
+
 ### Notes
 - The analytic transient uses vias and sinks smeared over the board (a warning quantifies the difference); use the FVM near them.
 

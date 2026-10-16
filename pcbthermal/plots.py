@@ -256,7 +256,7 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     fig.clear()
     ax = fig.add_subplot(111)
     t = result.times - result.times[0]
-    ax.plot(t, result.t_max, color="black", lw=1.8, label="hottest point of the board")
+    ax.plot(t, result.t_max, color="#888888", lw=4.0, alpha=0.5, zorder=1, label="hottest point of the board")
     for j, h in enumerate(problem.heaters):
         if h.profile is not None or len(problem.heaters) > 1:
             ax.plot(t, result.t_heaters[j], lw=1.0, label=h.name or f"Heater {j + 1}")
@@ -303,8 +303,14 @@ def draw_waveforms(fig, problem, cycles=2.0):
     t = np.linspace(0.0, span, 4000, endpoint=False)
     for i, h in waves:
         w = h.profile
+        label = f"{h.name or f'Heater {i + 1}'}: average {w.average():.2f} W"
+        if span / w.period > 40:
+            # Too many cycles to draw: show the swing as a band and the average as a line
+            line, = ax.plot(t, np.full_like(t, w.average()), lw=1.4, label=label + f" (switching at {1.0 / w.period:g} Hz)")
+            ax.fill_between(t, w.p_off, w.p_on, color=line.get_color(), alpha=0.18)
+            continue
         p = np.where((t % w.period) < w.on_time(), w.p_on, w.p_off)
-        ax.step(t, p, where="post", lw=1.4, label=f"{h.name or f'Heater {i + 1}'}: average {w.average():.2f} W")
+        ax.step(t, p, where="post", lw=1.4, label=label)
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Power (W)")
     ax.grid(alpha=0.3)

@@ -24,7 +24,9 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Dict, Optional, Tuple
 
-from . import __version__, analytic, fvm, lumped, profiles
+import copy
+
+from . import __version__, analytic, convection, fvm, lumped, profiles
 from .analysis import heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
@@ -107,6 +109,8 @@ class Simulation:
     profile_reference: str = ""                                # Model whose step response made the decisions
     profile_error: str = ""                                    # Why the time simulation was not run, if it was not
     step_response: Optional[profiles.StepResponse] = None      # Step responses behind the decisions
+    h_used: Dict[str, tuple] = field(default_factory=dict)     # (h_top, h_bottom) per model when h is computed
+    effective_problem: Optional[Problem] = None                # Problem with the computed h as typed values (computed mode)
 
     @property
     def warnings(self):
@@ -220,6 +224,17 @@ class Simulation:
                  f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
                  f"{self.problem.board.layers} layers, ambient {self.problem.board.ambient:g} degC, "
                  f"total power {self.problem.total_power():.3f} W", "", self.to_text()]
+        if self.h_used:
+            b = self.problem.board
+            lines.append("")
+            lines.append(f"Heat transfer coefficients computed from correlations (emissivity {b.emissivity_top:g} top, "
+                         f"{b.emissivity_bottom:g} bottom, {b.orientation} board, air speed {b.air_speed:g} m/s, "
+                         f"convection multiplier {b.h_calibration:g}):")
+            for name, (ht, hb) in self.h_used.items():
+                e = self.results[name].extras
+                lines.append(f"  {name}: top {ht:.2f} W/m2K (convection {e['h_top_convection']:.2f} + radiation "
+                             f"{e['h_top_radiation']:.2f}), bottom {hb:.2f} W/m2K (convection {e['h_bottom_convection']:.2f} + "
+                             f"radiation {e['h_bottom_radiation']:.2f}), {int(e['h_iterations'])} iterations")
         if self.decisions:
             lines.append("")
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
@@ -351,6 +366,41 @@ def _run_model(problem, name, o):
                                  local_corrections=o.analytic_local_corrections)
 
 
+def _solve_computed_h(problem, name, o):
+    """!
+    @brief Steady solution with the face coefficients computed from the correlations (Picard iteration).
+    @details h_top and h_bottom depend on the mean face temperature, which depends on h: the model is solved, the
+             coefficients are recomputed from the mean temperature of the top and bottom layers, and the loop repeats until
+             they change by less than 0.01 W/m2K (typically 3 to 6 solves). The edge coefficient stays as typed.
+    @param problem A Problem whose board has h_mode "computed".
+    @param name Model name.
+    @param o SolverOptions.
+    @return Tuple (SteadyResult, h_top, h_bottom, iterations).
+    """
+    p = copy.deepcopy(problem)
+    b = p.board
+    ht, hb = b.h_top, b.h_bottom                    # The typed values are the starting guess
+    res, it = None, 0
+    for it in range(1, 31):
+        b.h_top, b.h_bottom = ht, hb
+        res = _run_model(p, name, o)
+        nt, nb, info = convection.board_h(problem.board, res.layer_mean[0], res.layer_mean[-1])
+        done = abs(nt - ht) < 0.01 and abs(nb - hb) < 0.01
+        ht, hb = nt, nb
+        if done:
+            break
+    # Report the coefficients that produced the result (the last solve used the previous pair, within 0.01)
+    res.extras.update({"h_top": ht, "h_bottom": hb, "h_iterations": float(it),
+                       "h_top_convection": info["top"]["convection"], "h_top_radiation": info["top"]["radiation"],
+                       "h_bottom_convection": info["bottom"]["convection"], "h_bottom_radiation": info["bottom"]["radiation"]})
+    if problem.board.orientation == "horizontal" and not 1e4 <= info["top"]["rayleigh"] <= 1e11:
+        res.warnings.append(f"the top-face Rayleigh number {info['top']['rayleigh']:.2g} is outside 1e4 to 1e11, "
+                            "where the natural-convection correlation was fitted; the coefficient is an extrapolation")
+    if it == 30 and not done:
+        res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")
+    return res, ht, hb, it
+
+
 def step_response(problem, model, options):
     """!
     @brief Unit-step responses of the heaters with one model (the input of the average-or-resolve decision).
@@ -377,7 +427,8 @@ def _run_profiles(sim, progress, start):
     @param progress Optional callback progress(message, fraction).
     @param start Progress fraction at which this stage starts.
     """
-    o, p = sim.options, sim.problem
+    o = sim.options
+    p = sim.effective_problem or sim.problem
     ref = next(m for m in MODEL_NAMES if m in o.models)
     sim.profile_reference = ref
     if progress:
@@ -417,13 +468,24 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     problem.validate()
     sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm))
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
+    computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)
     for k, name in enumerate(options.models):
         if progress:
             progress(f"Solving {name}", k / n)
         t0 = time.time()
-        sim.results[name] = _run_model(steady_problem, name, options)
+        if computed:
+            sim.results[name], ht, hb, _ = _solve_computed_h(steady_problem, name, options)
+            sim.h_used[name] = (ht, hb)
+        else:
+            sim.results[name] = _run_model(steady_problem, name, options)
         sim.seconds[name] = time.time() - t0
+    if computed:
+        ref = next(m for m in MODEL_NAMES if m in options.models)
+        # Later stages (time simulation, animation) use the coefficients of the reference model, fixed during the cycle
+        sim.effective_problem = copy.deepcopy(problem)
+        sim.effective_problem.board.h_mode = "manual"
+        sim.effective_problem.board.h_top, sim.effective_problem.board.h_bottom = sim.h_used[ref]
     if problem.has_profiles():
         _run_profiles(sim, progress, len(options.models) / n)
     if progress:

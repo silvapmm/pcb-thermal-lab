@@ -50,6 +50,12 @@ class Board:
     h_bottom: float = 15.0                      # Bottom surface coefficient (W/m2K)
     h_side: Optional[float] = 10.0              # Edge coefficient (W/m2K); None = insulated edges
     via_plating: float = 25e-6                  # Plating thickness of the via barrel (m)
+    h_mode: str = "manual"                      # "manual": h_top and h_bottom as typed; "computed": from correlations
+    emissivity_top: float = 0.9                 # Emissivity of the top face (computed mode; solder mask about 0.9)
+    emissivity_bottom: float = 0.9              # Emissivity of the bottom face (computed mode)
+    air_speed: float = 0.0                      # Air speed along the board in m/s (computed mode; 0 = natural convection)
+    orientation: str = "horizontal"             # "horizontal" (top face up) or "vertical" (computed mode)
+    h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
 
     def dielectric_thickness(self):
@@ -77,7 +83,15 @@ class Board:
             raise ValueError("the copper layers do not fit inside the board thickness")
         if self.h_top < 0 or self.h_bottom < 0:
             raise ValueError("heat transfer coefficients must be >= 0")
-        if self.h_top + self.h_bottom <= 0 and not self.h_side:
+        if self.h_mode not in ("manual", "computed"):
+            raise ValueError("h_mode must be 'manual' or 'computed'")
+        if self.orientation not in ("horizontal", "vertical"):
+            raise ValueError("orientation must be 'horizontal' or 'vertical'")
+        if not (0.0 <= self.emissivity_top <= 1.0 and 0.0 <= self.emissivity_bottom <= 1.0):
+            raise ValueError("emissivity must be between 0 and 1")
+        if self.air_speed < 0 or self.h_calibration <= 0:
+            raise ValueError("air speed must be >= 0 and the calibration multiplier > 0")
+        if self.h_mode == "manual" and self.h_top + self.h_bottom <= 0 and not self.h_side:
             raise ValueError("the board has no path to ambient (all coefficients are zero)")
 
 
@@ -461,6 +475,12 @@ def problem_from_dict(data, validate=True):
         h_bottom=b.get("h_bottom", 15.0),
         h_side=b.get("h_side", 10.0),
         via_plating=b.get("via_plating_mm", 0.025) / 1000.0,
+        h_mode=b.get("h_mode", "manual"),
+        emissivity_top=b.get("emissivity_top", 0.9),
+        emissivity_bottom=b.get("emissivity_bottom", 0.9),
+        air_speed=b.get("air_speed_m_per_s", 0.0),
+        orientation=b.get("orientation", "horizontal"),
+        h_calibration=b.get("h_calibration", 1.0),
         materials=mat,
     )
     prob = Problem(board=board, name=data.get("name", "board"))
@@ -589,6 +609,8 @@ def problem_to_dict(prob):
             "copper_thickness_mm": [c * 1000.0 for c in b.copper_thickness],
             "ambient_c": b.ambient, "h_top": b.h_top, "h_bottom": b.h_bottom, "h_side": b.h_side,
             "via_plating_mm": b.via_plating * 1000.0,
+            "h_mode": b.h_mode, "emissivity_top": b.emissivity_top, "emissivity_bottom": b.emissivity_bottom,
+            "air_speed_m_per_s": b.air_speed, "orientation": b.orientation, "h_calibration": b.h_calibration,
             "k_copper": m.k_copper, "k_fr4_through": m.k_fr4_through, "k_fr4_inplane": m.k_fr4_inplane,
             "rho_copper": m.rho_copper, "cp_copper": m.cp_copper, "rho_fr4": m.rho_fr4, "cp_fr4": m.cp_fr4,
         },

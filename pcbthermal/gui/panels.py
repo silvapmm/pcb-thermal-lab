@@ -68,13 +68,39 @@ class BoardPanel(QWidget):
         g = QGroupBox("Environment")
         f = QFormLayout(g)
         self.ambient = _spin(-60, 200, 25, 1, 1, "°C")
+        self.h_mode = QComboBox()
+        self.h_mode.addItem("Typed by me", "manual")
+        self.h_mode.addItem("Computed (convection + radiation)", "computed")
+        self.h_mode.setToolTip("Computed: the coefficient of each face follows from the board temperature with natural or "
+                               "forced convection correlations plus radiation, solved by iteration.")
         self.h_top = _spin(0, 500, 10, 1, 1, "W/m²K")
         self.h_bottom = _spin(0, 500, 15, 1, 1, "W/m²K")
         self.side_on = QCheckBox("Edges lose heat")
         self.h_side = _spin(0, 500, 10, 1, 1, "W/m²K")
-        for label, w in (("Ambient", self.ambient), ("h top", self.h_top), ("h bottom", self.h_bottom),
-                         ("", self.side_on), ("h edges", self.h_side)):
+        self.orientation = QComboBox()
+        self.orientation.addItem("Horizontal, top face up", "horizontal")
+        self.orientation.addItem("Vertical", "vertical")
+        self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "")
+        self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "")
+        self.emis_top.setToolTip("Emissivity of the top face: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1")
+        self.emis_bottom.setToolTip(self.emis_top.toolTip())
+        self.air_speed = _spin(0, 50, 0, 2, 0.5, "m/s")
+        self.air_speed.setToolTip("Air speed along the board; 0 is still air (natural convection)")
+        self.calibration = _spin(0.2, 5, 1.0, 2, 0.05, "×")
+        self.calibration.setToolTip("Multiplier of the computed convection (not of the radiation); fit it to a measurement. "
+                                    "The correlations are for isothermal plates and are uncertain by about 20 to 30 % on a board with hot spots.")
+        self.computed_rows = []
+        f.addRow("Ambient", self.ambient)
+        f.addRow("Heat transfer", self.h_mode)
+        f.addRow("h top", self.h_top)
+        f.addRow("h bottom", self.h_bottom)
+        for label, w in (("Orientation", self.orientation), ("Emissivity top", self.emis_top),
+                         ("Emissivity bottom", self.emis_bottom), ("Air speed", self.air_speed),
+                         ("Convection ×", self.calibration)):
             f.addRow(label, w)
+            self.computed_rows.append((f.labelForField(w), w))
+        f.addRow("", self.side_on)
+        f.addRow("h edges", self.h_side)
         lay.addWidget(g)
 
         g = QGroupBox("Materials")
@@ -90,8 +116,11 @@ class BoardPanel(QWidget):
         lay.addStretch(1)
 
         for w in (self.width, self.height, self.thickness, self.copper, self.ambient, self.h_top,
-                  self.h_bottom, self.h_side, self.k_cu, self.k_th, self.k_ip, self.plating):
+                  self.h_bottom, self.h_side, self.k_cu, self.k_th, self.k_ip, self.plating,
+                  self.emis_top, self.emis_bottom, self.air_speed, self.calibration):
             w.valueChanged.connect(self._apply)
+        self.h_mode.currentIndexChanged.connect(self._apply)
+        self.orientation.currentIndexChanged.connect(self._apply)
         self.layers.valueChanged.connect(self._apply_layers)
         self.side_on.toggled.connect(self._apply)
         doc.changed.connect(self.refresh)
@@ -112,6 +141,13 @@ class BoardPanel(QWidget):
         self.ambient.setValue(b.ambient)
         self.h_top.setValue(b.h_top)
         self.h_bottom.setValue(b.h_bottom)
+        self.h_mode.setCurrentIndex(max(self.h_mode.findData(b.h_mode), 0))
+        self.orientation.setCurrentIndex(max(self.orientation.findData(b.orientation), 0))
+        self.emis_top.setValue(b.emissivity_top)
+        self.emis_bottom.setValue(b.emissivity_bottom)
+        self.air_speed.setValue(b.air_speed)
+        self.calibration.setValue(b.h_calibration)
+        self._show_modes(b.h_mode)
         self.side_on.setChecked(b.h_side is not None)
         self.h_side.setValue(b.h_side or 10.0)
         self.h_side.setEnabled(b.h_side is not None)
@@ -120,6 +156,20 @@ class BoardPanel(QWidget):
         self.k_ip.setValue(m.k_fr4_inplane)
         self.plating.setValue(b.via_plating * 1e6)
         self._updating = False
+
+    def _show_modes(self, mode):
+        """!
+        @brief Show the controls of the chosen heat-transfer mode (typed values or computed from correlations).
+        @param mode "manual" or "computed".
+        """
+        computed = mode == "computed"
+        self.h_top.setEnabled(not computed)
+        self.h_bottom.setEnabled(not computed)
+        self.h_top.setToolTip("Starting value only in computed mode" if computed else "")
+        for label, w in self.computed_rows:
+            w.setVisible(computed)
+            if label is not None:
+                label.setVisible(computed)
 
     def _apply(self, *_):
         """!
@@ -130,6 +180,7 @@ class BoardPanel(QWidget):
             return
         b = self.doc.problem.board
         self.h_side.setEnabled(self.side_on.isChecked())
+        self._show_modes(self.h_mode.currentData())
 
         def mutate(project):
             bd = project.problem.board
@@ -138,6 +189,9 @@ class BoardPanel(QWidget):
             bd.copper_thickness = [self.copper.value() * 1e-6] * bd.layers
             bd.ambient, bd.h_top, bd.h_bottom = self.ambient.value(), self.h_top.value(), self.h_bottom.value()
             bd.h_side = self.h_side.value() if self.side_on.isChecked() else None
+            bd.h_mode, bd.orientation = self.h_mode.currentData(), self.orientation.currentData()
+            bd.emissivity_top, bd.emissivity_bottom = self.emis_top.value(), self.emis_bottom.value()
+            bd.air_speed, bd.h_calibration = self.air_speed.value(), self.calibration.value()
             bd.via_plating = self.plating.value() * 1e-6
             bd.materials.k_copper, bd.materials.k_fr4_through = self.k_cu.value(), self.k_th.value()
             bd.materials.k_fr4_inplane = self.k_ip.value()

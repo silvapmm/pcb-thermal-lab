@@ -192,7 +192,28 @@ The neglected oscillation (0.38 °C) is within the estimate (0.41 °C) and the p
   Default: uniform step, Crank-Nicolson, with the number of steps shown before the run.
 
 
-## 2. Computed convection and radiation (`h` not typed by the user)
+## 2. Computed convection and radiation (`h` not typed by the user) — implemented
+
+> **Status (2026-10-16)**: implemented in `pcbthermal/convection.py` and `api._solve_computed_h`. Decisions taken from the open questions:
+> (1) radiation is always part of the computed coefficient (emissivity 0 switches it off), per face, default 0.9; (2) the calibration multiplier is **global** and scales the convection only, never the radiation;
+> (3) the coefficient is **one value per face** from the mean face temperature, the same definition for the three models (the correlations are for plate-average temperature), not per cell; the edge coefficient stays as typed;
+> (4) the Picard iteration runs **outside** the models (`simulate` calls the model again with new coefficients, 3 to 4 solves); the time simulation and the animation use the coefficients of the reference model's steady state with the average power and keep them fixed during the cycle.
+> Air properties are Sutherland-type fits checked against textbook values (300 K and 400 K within 1 to 3 %); blending of natural and forced convection is `(h_n³ + h_f³)^(1/3)` (Churchill's rule).
+> The component top (section 3) will reuse the same functions.
+>
+> **Measured on the example board (FVM, 1 mm, orientation horizontal, emissivity 0.9)**; Tmax in °C, typed `h` = 10 top / 15 bottom:
+>
+> | Power (W) | Typed h | Computed h | Difference | Computed h top / bottom (W/m²K) | Vertical board | 2 m/s | Convection ×0.8 |
+> | --: | --: | --: | --: | :-: | --: | --: | --: |
+> | 0.55 | 31.1 | 31.9 | +0.8 | 10.4 / 7.9 | 32.0 | 29.9 | 32.1 |
+> | 1.4 | 40.2 | 41.4 | +1.2 | 11.6 / 8.6 | 41.7 | 37.2 | 42.0 |
+> | 5.5 | 85.8 | 85.8 | +0.0 | 14.2 / 10.1 | 86.7 | 73.5 | 88.1 |
+> | 11 | 146.6 | 141.2 | −5.4 | 16.1 / 11.3 | 142.7 | 121.5 | 145.3 |
+> | 22 | 268.3 | 245.3 | −23.0 | 18.6 / 13.1 | 247.8 | 215.6 | 252.0 |
+>
+> The typed values happen to be right near 5.5 W (a coincidence of top 14 + bottom 10 against 10 + 15), and wrong away from it: a constant `h` overestimates the temperature rise at high power by 10 % (22 W) and underestimates it at low power.
+> Of the computed coefficient about 40 % is radiation on the top face (6.2 of 14.2 W/m²K) and 60 % on the bottom (6.1 of 10.1), which shows why emissivity matters: with 0.1 on both faces Tmax rises by more than 5 °C (test).
+> The bottom face is worse than the top (facing down), unlike the typed defaults.
 
 ### 2.1 Idea and evidence
 

@@ -739,7 +739,10 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             anim.computing_failed(str(exc))
             return
-        problem = copy.deepcopy(self.doc.problem)
+        # With computed heat transfer coefficients, animate with the ones of the last simulation (fixed during the run)
+        source = self.sim.effective_problem if (self.sim is not None and not self._stale and self.sim.effective_problem) \
+            else self.doc.problem
+        problem = copy.deepcopy(source)
         kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
         self._anim_worker = TransientWorker(problem, kwargs, self)
         self._anim_worker.done.connect(lambda tr: anim.set_result(tr, problem))

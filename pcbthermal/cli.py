@@ -67,6 +67,17 @@ def cmd_run(args):
         po.time_s = args.time_s
     if args.initial_c is not None:
         po.initial, po.initial_c = "temperature", args.initial_c
+    b = project.problem.board
+    if args.computed_h:
+        b.h_mode = "computed"
+    if args.air_speed is not None:
+        b.h_mode, b.air_speed = "computed", args.air_speed
+    if args.orientation:
+        b.h_mode, b.orientation = "computed", args.orientation
+    if args.emissivity is not None:
+        b.h_mode, b.emissivity_top, b.emissivity_bottom = "computed", args.emissivity, args.emissivity
+    if args.h_multiplier is not None:
+        b.h_mode, b.h_calibration = "computed", args.h_multiplier
     sim = simulate(project.problem, options)
     print(f"Board '{project.problem.name}': {project.problem.board.width * 1000:.0f} x "
           f"{project.problem.board.height * 1000:.0f} mm, {project.problem.board.layers} layers, "
@@ -212,6 +223,12 @@ def build_parser():
     common(r)
     r.add_argument("--model", choices=MODELS + ("all",), default="all")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
+    hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
+    hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
+    hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
+    hg.add_argument("--orientation", choices=("horizontal", "vertical"), default=None, help="board orientation")
+    hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
+    hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")
     pg.add_argument("--steady-power", choices=("average", "peak"), default=None,
                     help="power used by the steady models for heaters with a profile (default: from the project, average)")
