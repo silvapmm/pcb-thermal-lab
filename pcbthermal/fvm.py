@@ -178,6 +178,68 @@ class Network:
         res = np.linalg.norm(self.K @ theta - q) / max(np.linalg.norm(q), 1e-300)
         return theta.reshape(self.nl, self.ny, self.nx), float(res)
 
+    def solve_sor(self, omega=None, tol=1e-9, max_iter=200000, criterion="residual"):
+        """!
+        @brief Solve K*theta = Q with red-black Successive Over-Relaxation (vectorised with NumPy).
+        @details Every sweep updates the "red" nodes (l+i+j even) and then the "black" ones, each colour in one
+                 array operation, so the iteration is the classical SOR of the original program but fast.
+                 theta_new = (sum_m G_m theta_m + Q) / diag, theta += omega * (theta_new - theta).
+        @param omega Relaxation factor; None picks 2 / (1 + sin(pi / n)) with n the longest grid side.
+        @param tol Stopping tolerance.
+        @param max_iter Sweep limit.
+        @param criterion "residual" stops when |K theta - Q| / |Q| < tol (reliable);
+                         "step" stops when the largest change of one sweep is below tol in kelvin
+                         (the rule of the original program, which can stop far from the solution).
+        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step).
+        """
+        L, ny, nx = self.nl, self.ny, self.nx
+        if omega is None:
+            omega = 2.0 / (1.0 + np.sin(np.pi / max(nx, ny)))
+        K, Q = self.K, self.Q
+        diag = K.diagonal().reshape(L, ny, nx)
+        # Conductances towards the six neighbours (zero where the neighbour does not exist)
+        gl = np.zeros((L, ny, nx)); gr = np.zeros((L, ny, nx))     # x-1, x+1
+        gd = np.zeros((L, ny, nx)); gu = np.zeros((L, ny, nx))     # y-1, y+1
+        ga = np.zeros((L, ny, nx)); gb = np.zeros((L, ny, nx))     # layer-1, layer+1
+        gx = self._harmonic(self.S[:, :, :-1], self.S[:, :, 1:]) * self.dy / self.dx
+        gy = self._harmonic(self.S[:, :-1, :], self.S[:, 1:, :]) * self.dx / self.dy
+        gr[:, :, :-1], gl[:, :, 1:] = gx, gx
+        gu[:, :-1, :], gd[:, 1:, :] = gy, gy
+        if L > 1:
+            gb[:-1], ga[1:] = self.gz, self.gz
+        l_i, i_i, j_i = np.indices((L, ny, nx))
+        colour = (l_i + i_i + j_i) % 2 == 0
+        masks = (colour, ~colour)
+        qn = np.linalg.norm(Q)
+        theta = np.zeros((L, ny, nx))
+        pad = np.zeros((L + 2, ny + 2, nx + 2))
+        converged, last_step, it = False, np.inf, 0
+
+        def neighbours(t):
+            # Weighted sum of the neighbour temperatures using a zero-padded copy
+            pad[1:-1, 1:-1, 1:-1] = t
+            return (gl * pad[1:-1, 1:-1, :-2] + gr * pad[1:-1, 1:-1, 2:] + gd * pad[1:-1, :-2, 1:-1] +
+                    gu * pad[1:-1, 2:, 1:-1] + ga * pad[:-2, 1:-1, 1:-1] + gb * pad[2:, 1:-1, 1:-1])
+
+        for it in range(1, max_iter + 1):
+            step = 0.0
+            for m in masks:
+                new = (neighbours(theta) + Q) / diag
+                delta = np.where(m, new - theta, 0.0)
+                theta = theta + omega * delta
+                step = max(step, float(np.abs(delta).max()))
+            last_step = step
+            if criterion == "step":
+                if step < tol:
+                    converged = True
+                    break
+            elif it % 10 == 0 or step < tol:
+                if np.linalg.norm(K @ theta.ravel() - Q.ravel()) / max(qn, 1e-300) < tol:
+                    converged = True
+                    break
+        res = float(np.linalg.norm(K @ theta.ravel() - Q.ravel()) / max(qn, 1e-300))
+        return theta, res, {"iterations": it, "converged": converged, "omega": float(omega), "last_step": last_step}
+
     def power_out(self, theta):
         """!
         @brief Heat leaving the board through every path for a given temperature rise.
@@ -216,18 +278,29 @@ def _result_from_theta(net, theta, residual, model="fvm"):
     )
 
 
-def solve_steady(problem, cell_mm=2.0, method="direct"):
+def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=1e-9, sor_criterion="residual"):
     """!
     @brief Steady-state FVM solution of a problem.
     @param problem A Problem.
     @param cell_mm Target cell size in millimetres (the grid is nx = round(width / cell)).
-    @param method "direct" or "cg".
-    @return SteadyResult.
+    @param method "direct" (sparse LU), "cg" (conjugate gradients) or "sor" (red-black SOR, for comparison).
+    @param sor_omega Relaxation factor for "sor" (None = automatic).
+    @param sor_tol Tolerance for "sor".
+    @param sor_criterion "residual" or "step" (see Network.solve_sor).
+    @return SteadyResult (for "sor" the extras hold iterations, omega and converged).
     """
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
     net = Network(problem, nx, ny)
+    if method == "sor":
+        theta, res, info = net.solve_sor(omega=sor_omega, tol=sor_tol, criterion=sor_criterion)
+        r = _result_from_theta(net, theta, res)
+        r.extras.update({"iterations": float(info["iterations"]), "omega": info["omega"],
+                         "converged": float(info["converged"])})
+        if not info["converged"]:
+            r.warnings.append(f"SOR did not converge in {info['iterations']} sweeps (residual {res:.1e})")
+        return r
     theta, res = net.solve_steady(method=method)
     return _result_from_theta(net, theta, res)
 

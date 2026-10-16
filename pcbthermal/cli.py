@@ -6,7 +6,9 @@ Commands
 - run         solve one or all models and write a summary, plots and a CSV
 - transient   power-step response with the FVM model
 - convergence FVM grid refinement study
+- solvers     compare the linear solvers (direct, CG, SOR) on one board
 - convert     legacy editor JSON -> native JSON
+- gui         open the graphical application
 - example     write the reference board as a native JSON file
 """
 
@@ -99,6 +101,36 @@ def cmd_convergence(args):
     return 0
 
 
+def cmd_solvers(args):
+    """!
+    @brief Handler of the `solvers` command: compare the linear solvers on one board.
+    @param args Parsed arguments.
+    @return Process exit code.
+    """
+    project = load_project(args.config)
+    cell = args.cell_mm or project.options.cell_mm
+    cases = [("direct (sparse LU)", dict(method="direct")),
+             ("cg (Jacobi)", dict(method="cg")),
+             ("SOR, residual 1e-9, omega auto", dict(method="sor")),
+             ("SOR, residual 1e-6, omega auto", dict(method="sor", sor_tol=1e-6)),
+             ("SOR, step 0.01 K, omega 1.5 (original program)", dict(method="sor", sor_omega=1.5, sor_tol=0.01,
+                                                                     sor_criterion="step"))]
+    ref = None
+    print(f"Board '{project.problem.name}', cell {cell:g} mm")
+    print(f"{'solver':50s} {'Tmax C':>9s} {'|dT| vs direct':>15s} {'residual':>10s} {'sweeps':>8s} {'time s':>8s}")
+    for name, kw in cases:
+        t0 = time.time()
+        r = fvm.solve_steady(project.problem, cell_mm=cell, **kw)
+        dt = time.time() - t0
+        ref = r if ref is None else ref
+        err = float(abs(r.T - ref.T).max())
+        sweeps = f"{int(r.extras['iterations'])}" if "iterations" in r.extras else "-"
+        print(f"{name:50s} {r.t_max:9.4f} {err:15.2e} {r.residual:10.1e} {sweeps:>8s} {dt:8.2f}")
+        for w in r.warnings:
+            print(f"   warning: {w}")
+    return 0
+
+
 def cmd_convert(args):
     """!
     @brief Handler of the `convert` command.
@@ -110,6 +142,17 @@ def cmd_convert(args):
         json.dump(problem_to_dict(problem), fh, indent=2)
     print(f"Wrote {args.output}")
     return 0
+
+
+def cmd_gui(args):
+    """!
+    @brief Handler of the `gui` command.
+    @param args Parsed arguments.
+    @return Process exit code.
+    """
+    from .gui.app import main as gui_main
+
+    return gui_main(["pcbthermal"] + ([args.project] if args.project else []))
 
 
 def cmd_example(args):
@@ -142,7 +185,7 @@ def build_parser():
     r = sub.add_parser("run", help="solve steady state")
     common(r)
     r.add_argument("--model", choices=MODELS + ("all",), default="all")
-    r.add_argument("--solver", choices=("direct", "cg"), default="direct", help="FVM linear solver")
+    r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
     r.set_defaults(func=cmd_run)
 
     t = sub.add_parser("transient", help="power-step response (FVM)")
@@ -157,10 +200,18 @@ def build_parser():
     common(c)
     c.set_defaults(func=cmd_convergence)
 
+    sv = sub.add_parser("solvers", help="compare direct, CG and SOR on one board")
+    common(sv)
+    sv.set_defaults(func=cmd_solvers)
+
     v = sub.add_parser("convert", help="legacy editor JSON -> native JSON")
     v.add_argument("legacy")
     v.add_argument("output")
     v.set_defaults(func=cmd_convert)
+
+    g = sub.add_parser("gui", help="open the graphical application")
+    g.add_argument("project", nargs="?", help="project file to open")
+    g.set_defaults(func=cmd_gui)
 
     e = sub.add_parser("example", help="write the reference board JSON")
     e.add_argument("output", nargs="?", default="examples/reference_board.pcbt.json")

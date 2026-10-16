@@ -116,3 +116,23 @@ def test_transient_reaches_steady_state_and_is_monotonic():
     tr2 = fvm.solve_transient(p, t_end=3000.0, n_out=30, cell_mm=4.0, theta_scheme=0.5)
     assert tr2.t_max[-1] == pytest.approx(tr.t_max[-1], abs=0.05)
     assert np.isfinite(tr.time_constant())
+
+
+def test_sor_matches_direct_with_residual_criterion():
+    p = reference_problem()
+    d = fvm.solve_steady(p, cell_mm=2.0, method="direct")
+    s = fvm.solve_steady(p, cell_mm=2.0, method="sor", sor_tol=1e-9)
+    assert float(abs(s.T - d.T).max()) < 1e-6
+    assert s.extras["converged"] == 1.0 and s.extras["iterations"] > 10
+    assert abs(s.balance_error) < 1e-6
+
+
+def test_sor_step_criterion_of_the_original_program_stops_early():
+    # The original program stopped when one sweep changed less than 0.01 K, with omega = 1.5.
+    # On a weakly coupled board this leaves a large error, which the residual criterion avoids.
+    p = reference_problem()
+    d = fvm.solve_steady(p, cell_mm=2.0, method="direct")
+    s = fvm.solve_steady(p, cell_mm=2.0, method="sor", sor_omega=1.5, sor_tol=0.01, sor_criterion="step")
+    assert s.extras["converged"] == 1.0
+    assert d.t_max - s.t_max > 0.5                 # Stopped well below the true maximum
+    assert abs(s.balance_error) > 0.05             # and the heat balance is visibly violated

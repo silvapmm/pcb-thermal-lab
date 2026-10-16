@@ -39,13 +39,14 @@ def project_to_dict(project):
     return d
 
 
-def project_from_dict(data):
+def project_from_dict(data, validate=True):
     """!
     @brief Read a Project from a dict (native, project or legacy editor structure).
     @param data Parsed JSON.
+    @param validate If False, accept a transiently inconsistent problem (undo snapshots).
     @return Project.
     """
-    problem = problem_from_legacy(data) if "pcb_params" in data else problem_from_dict(data)
+    problem = problem_from_legacy(data) if "pcb_params" in data else problem_from_dict(data, validate)
     return Project(problem=problem, options=SolverOptions.from_dict(data.get("solver")),
                    view=dict(data.get("view", {})))
 

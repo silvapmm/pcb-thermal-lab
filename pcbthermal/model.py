@@ -312,11 +312,12 @@ def _poly_mm(points):
     return np.asarray(points, dtype=float) / 1000.0
 
 
-def problem_from_dict(data):
+def problem_from_dict(data, validate=True):
     """!
     @brief Build a Problem from the native JSON structure (millimetres, 1-based layers).
     @param data Dict with the keys board, zones, heaters, vias and sinks.
-    @return A validated Problem.
+    @param validate If False, skip the consistency check (used to restore undo snapshots).
+    @return A Problem (validated unless validate is False).
     """
     b = data["board"]
     layers = int(b.get("layers", 2))
@@ -356,7 +357,8 @@ def problem_from_dict(data):
                              v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", "")))
     for s in data.get("sinks", []):
         prob.sinks.append(Sink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", "")))
-    prob.validate()
+    if validate:
+        prob.validate()
     return prob
 
 

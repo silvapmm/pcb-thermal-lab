@@ -37,7 +37,7 @@ class SolverOptions:
     """
     models: Tuple[str, ...] = MODEL_NAMES        # Models to run, any subset of MODEL_NAMES
     cell_mm: float = 1.0                         # FVM cell size and sampling grid of the others (mm)
-    linear_solver: str = "direct"                # FVM solver: "direct" (sparse LU) or "cg"
+    linear_solver: str = "direct"                # FVM solver: "direct" (sparse LU), "cg" or "sor" (comparison)
     lumped_rings: int = 10                       # Rings per heater network in the lumped model
     analytic_modes: int = 300                    # Cosine modes per direction in the analytic model
     analytic_local_corrections: bool = True      # Treat vias and sinks locally (Green's function update)
@@ -53,8 +53,8 @@ class SolverOptions:
             raise ValueError(f"models must be a non-empty subset of {MODEL_NAMES}, got {self.models}")
         if not 0.05 <= self.cell_mm <= 50:
             raise ValueError("cell_mm must be between 0.05 and 50")
-        if self.linear_solver not in ("direct", "cg"):
-            raise ValueError("linear_solver must be 'direct' or 'cg'")
+        if self.linear_solver not in ("direct", "cg", "sor"):
+            raise ValueError("linear_solver must be 'direct', 'cg' or 'sor'")
         if self.lumped_rings < 3 or self.analytic_modes < 20:
             raise ValueError("lumped_rings must be >= 3 and analytic_modes >= 20")
 
@@ -132,6 +132,23 @@ class Simulation:
                 lines.append(f"\n> **{name}**: {w}")
         return "\n".join(lines) + "\n"
 
+    def to_text(self):
+        """!
+        @brief The comparison table as aligned plain text, followed by the warnings.
+        @return String.
+        """
+        head = f"{'model':9s} {'Tmax C':>8s} {'Tmean C':>8s} {'dT K':>8s} {'Rth K/W':>8s} {'P W':>7s} {'balance':>9s} " \
+               f"{'vs ' + self.reference.model:>9s} {'time s':>7s}"
+        lines = [head, "-" * len(head)]
+        for r in self.table():
+            lines.append(f"{r['model']:9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
+                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {r['energy_balance']:+9.0e} "
+                         f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
+        for name, res in self.results.items():
+            for w in res.warnings:
+                lines.append(f"WARNING ({name}): {w}")
+        return "\n".join(lines) + "\n"
+
     def report(self):
         """!
         @brief Plain-text report with the table, hotspots, zones and heaters (reference model).
@@ -141,7 +158,7 @@ class Simulation:
         lines = [f"PCB thermal report: {self.problem.name}",
                  f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
                  f"{self.problem.board.layers} layers, ambient {self.problem.board.ambient:g} degC, "
-                 f"total power {self.problem.total_power():.3f} W", "", self.to_markdown()]
+                 f"total power {self.problem.total_power():.3f} W", "", self.to_text()]
         if ref.T is not None:
             lines.append(f"Reference model: {ref.model}")
             hs = hotspots(ref, self.options.hotspot_c)
