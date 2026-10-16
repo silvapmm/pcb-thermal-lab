@@ -51,17 +51,15 @@ the periodic regime is reached in about 5 to 12 cycles, because only the ripple 
   Results show all three numbers side by side so the bracket is visible.
 - **Initial state (selectable):** cold (ambient), uniform temperature `T0` (for example an enclosure at 60 °C), steady state of a chosen baseline power (standby), or the periodic steady state
   (start from the steady state of the average power and iterate cycles until the change per cycle is below a tolerance).
-- **PWM simulator tab:** frequency (or period), duty cycle, on-state power `P_on`, off-state power `P_off` (default 0), delay, rise and fall times. It shows the waveform and the derived
-  average power `P_off + D (P_on − P_off)`, peak power, energy per period and a **regime indicator** comparing the period with the footprint's thermal time constant:
-  period much shorter than the time constant → the board sees the average and time stepping is not needed (ripple estimate shown);
-  comparable or longer → the pulses are resolved. Later: CSV import of a measured profile; a segment table ("power for X seconds, repeat N times").
+- **Power profile tab** (not "PWM"; simplified in 1.4): a square wave (frequency or period, duty, `P_on`, `P_off`) with the derived average power and an automatic regime decision based on the
+  estimated oscillation of the hottest point. Later: a segment table and CSV import.
 - **What power is stored (open point, proposal):** store the **physical on-state power `P_on` and the duty** (a MOSFET's conduction loss or an LED's electrical input in the on-state do not
   change when the duty changes), and *derive* the average. A toggle lets the user enter the average instead (then `P_on = P_off + (P_avg − P_off)/D`), with a lock
   "keep `P_on` fixed / keep average fixed" for when the duty is edited. A heater without profile is a constant source (`D = 1`), so existing projects do not change.
   Switching losses of a converter are naturally an *average* contribution (extra average loss field), not part of `P_on`.
 - **Limit to document:** switching at kHz to MHz is not resolved; the board responds to variations on the scale of its thermal time constants (hot spot about 19 s on the example board,
   milliseconds only very locally). Microsecond to millisecond events belong to the transient thermal impedance of the part [1, 2, 6].
-- **Outputs:** Tmax(t) per heater, peak, minimum, ripple, time above a limit, Zth(t) curve (with mutual curves between heaters), **peak-envelope map** (maximum over time at every cell), animation.
+- **Outputs:** Tmax(t) per heater, peak, minimum, oscillation, time above a limit, Zth(t) curve (with mutual curves between heaters), **peak-envelope map** (maximum over time at every cell), animation.
 - **Validation plan:** square wave on the uniform slab against the exact RC solution; periodic peak against the superposition sum; energy balance; steady-state models reproduce the average-power result.
 
 ### 1.4 Time scales and the profile editor (refined 2026-10-16)
@@ -96,19 +94,52 @@ On this board the boundary is near 50 Hz. It depends on the board (heater size, 
 the selected reference model (peak and valley sums as in 1.2, with the tail `D (Rθ − Z(M T))`). The decision rule is *ripple below a tolerance → use the average* (default tolerance: 1 K or 2 % of the average
 rise, whichever is larger, user-adjustable).
 
-**Profile editor (one tab, three kinds of profile)**
+**Profile editor: simple on purpose (decided 2026-10-16: no waveform designer).** Two kinds of profile in 2.1:
 
 1. **Constant** (default, the present behaviour).
-2. **Cycle**: frequency or period (a unit selector: Hz, kHz, ms, s, min), duty, on-state power `P_on`, off-state power `P_off`, delay, rise and fall times, optional extra average loss.
-   It draws the waveform, shows the derived average power, peak, energy per period, the **ripple** and the decision ("Fast cycle: the board sees the average, ripple 0.05 K, using 12.4 W" or
-   "Slow cycle: resolved in time, N steps"). An override "resolve anyway" shows the number of time steps it would cost and refuses beyond a cap (a kHz waveform over minutes is millions of periods).
-3. **Steps / table**: a sequence "power for X seconds" with a repeat count, later CSV import of a measured profile.
+2. **Square wave**, nothing else: frequency or period (unit selector Hz, kHz, ms, s, min), duty (%), power while on `P_on`, power while off `P_off` (default 0).
+   Read-only derived values: on-time, average power `P_off + D (P_on − P_off)`, and the **decision text**
+   ("Fast: the board only sees the average, oscillation 0.05 °C, using 12.4 W" or "Slow: resolved in time, about N steps, about X s").
+   No delay, no rise and fall times, no extra-loss field: edges of milliseconds are invisible to the board (section 1.4 table), a delay is just a different start state, and any
+   extra average loss can be added to `P_on` or `P_off` by the user.
 
-Typical uses: LED dimmed at 1 kHz and 30 %, MOSFET at 100 kHz: **fast, average**; fan or heater on/off every few seconds or minutes, motor start-hold-stop, communication bursts, charge profiles: **slow, resolved**.
-A short single pulse (microseconds to a few milliseconds) heats the **die**, not the board: that response belongs to the component's own transient thermal impedance (section 3), and the tab says so.
+Later and only if needed: a table of steps ("power for X seconds", repeated) and CSV import of a measured profile.
+
+Typical uses: LED dimmed at 1 kHz and 30 %, MOSFET at 100 kHz: **fast, average**; fan or heater on/off every few seconds or minutes, motor start-hold-stop, communication bursts: **slow, resolved**.
+A short single pulse (microseconds to a few milliseconds) heats the **die**, not the board: that belongs to the component's own transient thermal impedance (section 3), and the tab says so.
+
+**The oscillation threshold.** One setting, in °C: *ignore oscillations smaller than* (default **1.0 °C**). The simulator estimates the peak-to-peak oscillation of the hottest point
+(from the step response, section 1.2). If it is below the threshold the waveform is replaced by its average (exact to within that error, and instant); otherwise the cycle is simulated in time.
+No percentages: the threshold is a temperature the user cares about. Temperatures and temperature differences are shown in **°C** everywhere in the application and the reports; thermal resistance is shown in **°C/W** (identical to K/W).
 
 **Per heater:** every heater has its own profile (different periods are fine: the response is the sum of each heater's contribution). The steady-state models use, per run, the average (default), the peak `P_on`
-(worst-case bound) or the periodic peak (from `Z(t)`, available for resolved profiles and also reported for fast ones as average plus half the ripple).
+(worst-case bound) or the periodic peak (from `Z(t)`).
+
+### 1.5 Duration, start state and cost
+
+Two different "how long" questions:
+
+**Simulated time (how much of the profile is simulated).** Setting *Duration*, derived from the profile and the board, three choices:
+- **Until stable** (default for a square wave): cycle after cycle until the peak temperature changes by less than 0.1 °C between two consecutive cycles (cap: 100 cycles).
+  Starting from the steady state of the average power this takes about 5 to 12 cycles (measured), because the mean of a periodic response equals the average-power steady state and only the oscillating part has to settle.
+- **N cycles**: a fixed number of periods.
+- **Fixed time**: seconds (the choice for heat-up from cold, where the board needs several of its time constants, hundreds of seconds on the example board).
+
+**Computing time (how long the run takes).** The time step is automatic: about one tenth of the shorter of the on-time and the off-time (the implicit Crank-Nicolson scheme is stable at any step, so the step
+only has to resolve the waveform), with one matrix factorisation per run. Measured on the example board (FVM, one step of the 4-layer board):
+
+| Cell size | Unknowns | Factorise once | One step | Steps per second |
+| --: | --: | --: | --: | --: |
+| 2 mm | 8 000 | 0.03 s | 0.8 ms | 1 300 |
+| 1 mm | 32 000 | 0.23 s | 5.7 ms | 176 |
+| 0.5 mm | 128 000 | 2.0 s | 29.6 ms | 34 |
+
+Examples at 1 mm cells: period 10 s, duty 10 %, 12 cycles (120 s simulated, step 0.1 s, 1 200 steps): about 7 s; period 60 s, duty 50 %, 6 cycles (step 3 s, 120 steps): about 1 s;
+50 Hz, 12 cycles (0.24 s, step 2 ms, 120 steps): about 1 s. The Lumped model needs milliseconds and the Analytic model microseconds per evaluation. The editor shows the estimated number of steps and time before running and
+refuses runs above a cap (default 200 000 steps), suggesting the average instead.
+
+**Start state (setting *Start from*):** *average steady state* (default for a square wave), *ambient* (cold start), *a fixed temperature T0 in °C* (for example an enclosure at 60 °C), or *the steady state of a chosen power* (standby).
+Results report the last cycle (peak, minimum, oscillation) and, when starting from cold, the heat-up curve; the animation shows the last cycles.
 
 ## 2. Computed convection and radiation (`h` not typed by the user)
 
