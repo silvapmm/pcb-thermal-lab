@@ -12,9 +12,9 @@ Typical use:
     from pcbthermal import Problem, SolverOptions, simulate
 """
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
-from .model import Problem, load_problem, reference_problem   # noqa: E402,F401
+from .model import Problem, SquareWave, load_problem, reference_problem   # noqa: E402,F401
 from .api import SolverOptions, Simulation, simulate, suggest_cell_mm   # noqa: E402,F401
 from .checks import check_problem                                       # noqa: E402,F401
 from .project import Project, load_project, save_project       # noqa: E402,F401

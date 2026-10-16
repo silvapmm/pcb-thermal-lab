@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-94%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.1.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-118%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run three models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -12,6 +12,8 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Three models on one board description**, cross-checked against each other and reporting an exact energy balance.
 - **Interactive editor** (PySide 6): rectangles and polygons, vias, sinks, undo/redo, background photo, dark and light themes.
 - **Results**: temperature maps per layer, gradients, profiles, hotspot list, heater and junction temperatures, zone statistics, model comparison, temperature painted on the board.
+- **Computed heat transfer coefficients**: convection (natural or forced, any orientation) plus radiation from the board temperature, with an optional calibration multiplier, instead of typed numbers.
+- **Power profiles**: square-wave power per heater (period or frequency, duty); each heater is averaged or simulated in time automatically, in all three models.
 - **Animation of the heat evolution** in real time (power step), with GIF export.
 - **Input checks** that warn when a model is doubtful (heater outside the board, no copper under a heater, a copper edge crossing a heater, ...).
 - **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON.
@@ -43,6 +45,7 @@ python3 -m venv .venv
 ```sh
 .venv/bin/python -m pcbthermal gui                                         # application
 .venv/bin/python -m pcbthermal run examples/example_board.pcbt.json        # command line: all models, report, plots
+.venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
 .venv/bin/python -m pcbthermal --version
@@ -61,6 +64,10 @@ sim.save("results")               # report, JSON, CSV fields, figures
 
 ![Summary](docs/images/results_summary.png)
 
+![Power profile](docs/images/power_profile.png)
+
+![Time simulation](docs/images/results_power_profile.png)
+
 ## Documentation
 
 Index: [`docs/README.md`](docs/README.md). Start with [`docs/model_guide.md`](docs/model_guide.md) (which model to use),
@@ -69,6 +76,7 @@ and [`docs/findings.md`](docs/findings.md) (everything discovered so far). Relea
 
 ## Versions and branches
 
+- Version **2.1.0** (2026-10-16): power profiles (square wave) and computed heat transfer coefficients.
 - Version **2.0.0** (2026-10-16): first release of the rebuilt program. The original wxPython program was 1.0.0 (git tag `legacy-wxpython-1.0.0`).
 - `main`: released versions, tagged `vMAJOR.MINOR.PATCH`. `develop`: integration branch for the next version. Work happens on `feature/*` branches.
 - Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the application (title bar, status bar, About) and in every report.

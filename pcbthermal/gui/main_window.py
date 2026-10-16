@@ -26,9 +26,13 @@ from .canvas import BoardView
 from .animation import TransientWorker
 from .document import Document
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel
+from .profile_page import ProfilePage
 from .results_view import ResultsView
 
 FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
+
+
+TAB_BOARD, TAB_PROFILE, TAB_RESULTS = 0, 1, 2     # Order of the main tabs
 
 
 class SimWorker(QThread):
@@ -182,6 +186,8 @@ class MainWindow(QMainWindow):
         self.results = ResultsView(self.theme_name)
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
+        self.profile_page = ProfilePage(self.doc, self.theme_name)
+        self.tabs.addTab(self.profile_page, "Power profile")
         self.tabs.addTab(self.results, "Results")
         self.setCentralWidget(self.tabs)
 
@@ -532,7 +538,7 @@ class MainWindow(QMainWindow):
         self._update_title()
         if self.sim is not None and not self._stale:
             self._stale = True
-            self.tabs.setTabText(1, "Results (outdated)")
+            self.tabs.setTabText(TAB_RESULTS, "Results (outdated)")
             self.canvas.clear_overlay()
             self.a_overlay.setChecked(False)
 
@@ -561,7 +567,7 @@ class MainWindow(QMainWindow):
         @brief Reset the views after a new document was loaded.
         """
         self.sim, self._stale = None, False
-        self.tabs.setTabText(1, "Results")
+        self.tabs.setTabText(TAB_RESULTS, "Results")
         self.canvas.clear_overlay()
         self.a_overlay.setChecked(False)
         self.canvas.fit()
@@ -714,7 +720,7 @@ class MainWindow(QMainWindow):
         @brief Preset the animation duration to a few time constants of the current board.
         @param _index Ignored (the tab index of the Qt signal).
         """
-        if self.tabs.currentIndex() == 1 and self.doc.problem.heaters:
+        if self.tabs.currentIndex() == TAB_RESULTS and self.doc.problem.heaters:
             try:
                 self.results.animation.suggest_duration(5.0 * fvm.estimate_time_constant(self.doc.problem))
             except Exception:
@@ -733,7 +739,10 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             anim.computing_failed(str(exc))
             return
-        problem = copy.deepcopy(self.doc.problem)
+        # With computed heat transfer coefficients, animate with the ones of the last simulation (fixed during the run)
+        source = self.sim.effective_problem if (self.sim is not None and not self._stale and self.sim.effective_problem) \
+            else self.doc.problem
+        problem = copy.deepcopy(source)
         kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
         self._anim_worker = TransientWorker(problem, kwargs, self)
         self._anim_worker.done.connect(lambda tr: anim.set_result(tr, problem))
@@ -747,10 +756,12 @@ class MainWindow(QMainWindow):
         """
         self.sim, self._stale = sim, False
         self.results.set_simulation(sim)
-        self.tabs.setTabText(1, "Results")
+        if sim.decisions:
+            self.profile_page.show_decisions(sim.decisions, sim.profile_reference)
+        self.tabs.setTabText(TAB_RESULTS, "Results")
         ref = sim.reference
         self.solver_panel.set_running(False, f"Done: Tmax {ref.t_max:.1f} °C, Rθ {ref.r_theta:.2f} K/W")
-        self.tabs.setCurrentIndex(1)
+        self.tabs.setCurrentIndex(TAB_RESULTS)
         if self.a_overlay.isChecked():
             self._toggle_overlay(True)
 
@@ -772,6 +783,7 @@ class MainWindow(QMainWindow):
         th.apply_theme(QApplication.instance(), self.theme_name)
         self.canvas.set_theme(self.theme_name)
         self.results.set_theme(self.theme_name)
+        self.profile_page.set_theme(self.theme_name)
         self._refresh_icons()
 
     def show_shortcuts(self):

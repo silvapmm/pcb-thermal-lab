@@ -245,7 +245,103 @@ def draw_transient(fig, tr):
     ax.legend()
 
 
+def draw_profile_series(fig, result, problem, limit_c=None):
+    """!
+    @brief Temperature of the last window versus time: the hottest point of the board and under every heater.
+    @param fig Target Figure (cleared first).
+    @param result A ProfileResult with a time simulation.
+    @param problem The Problem (heater names).
+    @param limit_c Optional temperature limit drawn as a line.
+    """
+    fig.clear()
+    ax = fig.add_subplot(111)
+    t = result.times - result.times[0]
+    ax.plot(t, result.t_max, color="#888888", lw=4.0, alpha=0.5, zorder=1, label="hottest point of the board")
+    for j, h in enumerate(problem.heaters):
+        if h.profile is not None or len(problem.heaters) > 1:
+            ax.plot(t, result.t_heaters[j], lw=1.0, label=h.name or f"Heater {j + 1}")
+    ax.axhline(result.steady_average_max, color="#2a9d8f", ls="--", lw=1.0, label="steady, average power")
+    ax.axhline(result.steady_peak_max, color="#e63946", ls=":", lw=1.0, label="steady, peak power (bound)")
+    if limit_c is not None:
+        ax.axhline(limit_c, color="#ff00cc", lw=1.2, label=f"limit {limit_c:g} °C")
+    ax.set_xlabel("Time in the last window (s)")
+    ax.set_ylabel("Temperature (°C)")
+    ax.set_title(f"{result.model.upper()}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
+                 f"oscillation {result.oscillation:.1f} °C", fontsize=10)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+
+
+def draw_peak_map(fig, result, problem, layer=0, cmap="inferno"):
+    """!
+    @brief Highest temperature reached at every point during the last window.
+    @param fig Target Figure (cleared first).
+    @param result A ProfileResult with a time simulation.
+    @param problem The Problem.
+    @param layer 0-based layer.
+    @param cmap Colormap name.
+    """
+    draw_field(fig, result.peak_map[layer], problem, result.dx, result.dy, cmap=cmap, layer=layer,
+               title=f"{result.model.upper()} - layer {layer + 1}: peak temperature during the cycle "
+                     f"(max {float(result.peak_map[layer].max()):.1f} °C)", label="Peak temperature (°C)")
+
+
+def draw_waveforms(fig, problem, cycles=2.0):
+    """!
+    @brief Power of every heater with a profile over a few periods of the slowest one.
+    @param fig Target Figure (cleared first).
+    @param problem The Problem.
+    @param cycles Number of periods of the longest wave shown.
+    """
+    fig.clear()
+    ax = fig.add_subplot(111)
+    waves = [(i, h) for i, h in enumerate(problem.heaters) if h.profile is not None]
+    if not waves:
+        ax.text(0.5, 0.5, "No heater has a power profile", ha="center", va="center", transform=ax.transAxes)
+        return
+    span = cycles * max(h.profile.period for _, h in waves)
+    t = np.linspace(0.0, span, 4000, endpoint=False)
+    for i, h in waves:
+        w = h.profile
+        label = f"{h.name or f'Heater {i + 1}'}: average {w.average():.2f} W"
+        if span / w.period > 40:
+            # Too many cycles to draw: show the swing as a band and the average as a line
+            line, = ax.plot(t, np.full_like(t, w.average()), lw=1.4, label=label + f" (switching at {1.0 / w.period:g} Hz)")
+            ax.fill_between(t, w.p_off, w.p_on, color=line.get_color(), alpha=0.18)
+            continue
+        p = np.where((t % w.period) < w.on_time(), w.p_on, w.p_off)
+        ax.step(t, p, where="post", lw=1.4, label=label)
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Power (W)")
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+
+
 # ------------------------------------------------------------------ file wrappers
+
+def plot_profile_series(result, problem, path):
+    """!
+    @brief Save the temperature-versus-time plot of a time simulation.
+    @param result A ProfileResult.
+    @param problem The Problem.
+    @param path Output PNG path.
+    """
+    fig = new_figure(7.5, 4.5)
+    draw_profile_series(fig, result, problem)
+    _save(fig, path)
+
+
+def plot_peak_map(result, problem, path):
+    """!
+    @brief Save the peak-temperature map of the top layer.
+    @param result A ProfileResult.
+    @param problem The Problem.
+    @param path Output PNG path.
+    """
+    fig = new_figure(6.5, 5.0)
+    draw_peak_map(fig, result, problem)
+    _save(fig, path)
+
 
 def _save(fig, path, dpi=150):
     """!

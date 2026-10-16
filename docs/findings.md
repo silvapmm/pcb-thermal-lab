@@ -29,6 +29,9 @@ what was done about it. Detail and numbers live in the linked documents; this fi
 | B6 | FR-4 is anisotropic: 0.3 W/mK through, 0.8 to 1.06 in-plane | literature | defaults 0.3 and 0.9 |
 | B7 | A copper edge crossing a heater defeats both simplified models (about -25 %) | stress cases | warning from `check_problem` |
 | B8 | Transient time scales: the hottest point reaches 63 % in about 19 s, the board mean needs minutes (global constant about 106 s) | example board | default animation duration = 5 global constants |
+| B10 | A fast wave is harmless but a slow one is not: at 100 Hz and 30 % duty the oscillation at the hottest point is 0.4 °C (average is enough), at a 20 s period it is 85 °C | example board, `roadmap.md` 1.1 | decision by oscillation in °C |
+| B11 | Averaging the fast heater changes the peak by less than its oscillation and cuts the steps by a factor of 40 or more | `tests/test_profiles.py` | mixed regimes in one run |
+| B12 | A constant typed `h` is only right near one operating point: on the example board it is within 0.1 °C at 5.5 W but 23 °C too hot at 22 W; the bottom face (facing down) cools worse than the top and radiation is 40 to 60 % of the coefficient | `roadmap.md` section 2 table | computed `h` option |
 | B9 | A heater partly outside the board has its full power applied to the part inside | 5 W on half the area: 148 °C | warning from `check_problem` |
 
 ## C. Numerical findings
@@ -55,10 +58,12 @@ what was done about it. Detail and numbers live in the linked documents; this fi
 2. The FVM is the reference model; Lumped and Analytic are fast estimators with documented accuracy and warnings.
 3. Physics is separated from the GUI; the GUI is PySide 6 and talks to `simulate`.
 4. All code is documented in Doxygen style and a test enforces it (`tests/test_docs.py`).
-5. Transients are available (command line and GUI animation); time-dependent power inputs are left for later.
+5. Transients are available (command line and GUI animation).
+6. Power profiles are square waves; each heater is averaged or simulated in time from its oscillation in °C (default 1 °C); thermal resistance is shown in K/W, temperatures and differences in °C.
+7. Planned: a single Component element with a type (Source = today's heater, Package 2R, passive areas) and computed `h`; multigrid and a 3D FEM validation script are future options.
 
 ## F. Open items
 
-- Radiation and `h(ΔT)`, component compact models, trace Joule heating, reduced-order models (see `candidate_methods.md`).
+- Per-cell or enclosure-aware radiation, Component element (2R package, passive areas), power shapes beyond the square wave, trace Joule heating, reduced-order models (see `candidate_methods.md`).
 - A copper edge crossing the heater, and corner heaters, for the Lumped and Analytic models.
 - Interactive validation of the GUI on a real display; measurements of a physical board to validate the absolute numbers.

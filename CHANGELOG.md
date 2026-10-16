@@ -5,7 +5,27 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
-Next development branch: more models (see `docs/candidate_methods.md`).
+Next: the Component element (Package 2R, heat sink, passive areas), Gerber import and a variable stack-up (see `docs/roadmap.md`).
+
+## [2.1.0] - 2026-10-16
+
+Power profiles and computed heat transfer coefficients.
+
+### Added
+- **Power profiles**: a heater can have a square wave (period or frequency with unit, duty, power while on and off; the average is derived) instead of a constant power.
+  Every heater is either replaced by its average power or simulated in time, decided per heater from the oscillation in °C (default 1 °C) with a shared error budget;
+  heaters in both regimes run together. Works in all three models (FVM, Lumped, Analytic modal), start from the steady state of the average power or from a typed
+  temperature, run until the cycle repeats / for N cycles / for a fixed time, step cap 200,000. Results: temperature versus time, peak, minimum, oscillation,
+  steady bounds with the average and the peak power, peak-temperature map and the last window as frames. Steady models can use the average (default) or peak power.
+- GUI: "Power profile" tab (editor, decisions, settings) and "Power profile" results tab; CLI: `run --duration/--cycles/--time-s/--initial-c/--threshold-c/--steady-power`,
+  `example --which profile`; `profile_<model>.csv/png` and `peak_map_<model>.png` outputs.
+- Model labels in the GUI: "Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"; temperature differences shown in °C (thermal resistance stays in K/W, the same number as °C/W).
+
+- **Computed heat transfer coefficients** (`Board.h_mode = "computed"`): natural and forced convection plus radiation per face from the mean face temperature, orientation, emissivities, air speed and a global calibration multiplier of the convection, solved by iteration (3 to 4 solves) in all three models. GUI: Environment panel; CLI: `run --computed-h --air-speed --orientation --emissivity --h-multiplier`.
+- Profile plot: a fast wave is drawn as a band, the hottest-point line is no longer hidden.
+
+### Notes
+- The analytic transient uses vias and sinks smeared over the board (a warning quantifies the difference); use the FVM near them.
 
 ## [2.0.0] - 2026-10-16
 

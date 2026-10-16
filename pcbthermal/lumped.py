@@ -32,10 +32,15 @@ interpolating the radial profile of one heater at the distance of the other). Th
 footprint adds (phi_mean - phi_min) Q_lateral / (2 pi S), also from the logarithmic potential.
 """
 
+import math
+import time
+
 import numpy as np
 from scipy import ndimage
+from scipy.linalg import lu_factor, lu_solve
 from scipy.special import ive
 
+from . import profiles
 from .fvm import Network
 from .geometry import coverage_fraction, polygon_centroid
 from .results import SteadyResult
@@ -153,6 +158,7 @@ def _heater_network(net, cov, layer, power, rings):
     g_sink = np.array([ring_sum(net.g_sink[l]) for l in range(L)])
     g_side = np.array([ring_sum(net.g_side[l]) for l in range(L)])
     gz = np.array([ring_sum(net.gz[l]) for l in range(L - 1)]) if L > 1 else np.zeros((0, R))
+    cap = np.array([ring_sum(net.C[l]) for l in range(L)])               # Heat capacity of every ring (J/K)
 
     phi_mean, phi_bnd, phi_min = _footprint_potentials(cov, net.dx, net.dy)
     a_eq = np.sqrt(cnt[0] * cell / np.pi)
@@ -209,10 +215,27 @@ def _heater_network(net, cov, layer, power, rings):
     # --- Peak inside the footprint from the lateral outflow of ring 0 (logarithmic potential)
     lat = (th[layer, 0] - th[layer, 1]) / link_resistance(layer, 0) if R > 1 else 0.0
     peak_extra = max(lat, 0.0) * f_p[layer] * (phi_mean - phi_min) / (2.0 * np.pi * S[layer, 0])
+    r01 = link_resistance(layer, 0) if R > 1 else np.inf
     return {"theta": th, "rho": rho_mean, "dist": dist, "peak_extra": peak_extra,
+            "K": K, "C": cap.ravel(), "R": R, "layer": layer, "r01": r01,
+            "peak_coef": f_p[layer] * (phi_mean - phi_min) / (2.0 * np.pi * S[layer, 0]),
             "out": {"top": float((g_top * th).sum()), "bottom": float((g_bot * th).sum()),
                     "sinks": float((g_sink * th).sum()), "sides": float((g_side * th).sum())},
             "residual": float(np.linalg.norm(K @ theta - Q) / np.linalg.norm(Q))}
+
+
+def _footprint_coverage(net, heater):
+    """!
+    @brief Coverage of a heater footprint on the network grid (the centroid cell if the footprint is smaller than a cell).
+    @param net Network (grid information).
+    @param heater The Heater.
+    @return Array (ny, nx) in [0, 1] with a positive sum.
+    """
+    cov = coverage_fraction(heater.polygon, net.nx, net.ny, net.dx, net.dy, 4)
+    if cov.sum() <= 0:
+        cx, cy = polygon_centroid(heater.polygon)
+        cov[min(max(int(cy // net.dy), 0), net.ny - 1), min(max(int(cx // net.dx), 0), net.nx - 1)] = 1.0
+    return cov
 
 
 def solve_steady(problem, rings=10, cell_mm=1.0):
@@ -240,11 +263,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     for h in problem.heaters:
         if h.power <= 0:
             continue
-        cov = coverage_fraction(h.polygon, nx, ny, net.dx, net.dy, 4)
-        if cov.sum() <= 0:                               # Footprint smaller than a cell: use the cell of its centroid
-            cx, cy = polygon_centroid(h.polygon)
-            cov[min(max(int(cy // net.dy), 0), ny - 1), min(max(int(cx // net.dx), 0), nx - 1)] = 1.0
-        rn = _heater_network(net, cov, h.layer, h.power, rings)
+        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, h.power, rings)
         rn["centroid"] = polygon_centroid(h.polygon)
         nets.append((h, rn))
         for l in range(L):
@@ -278,3 +297,222 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
         extras={"heater_networks": float(len(nets)), "rings": float(rings),
                 "peak_correction_k": float(max((r["peak_extra"] for _, r in nets), default=0.0))},
     )
+
+
+# ----------------------------------------------------------------------------------- time dependence
+
+def _unit_networks(problem, rings, cell_mm):
+    """!
+    @brief Per-heater networks solved for 1 W (the response scales linearly with power).
+    @param problem A Problem with at least one heater.
+    @param rings Rings outside each footprint.
+    @param cell_mm Raster size in millimetres.
+    @return Tuple (net, systems): the Network and a list of system dicts (see _heater_network plus "centroid").
+    """
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
+    net = Network(problem, nx, ny, assemble=False)
+    systems = []
+    for h in problem.heaters:
+        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, 1.0, rings)
+        rn["centroid"] = polygon_centroid(h.polygon)
+        systems.append(rn)
+    return net, systems
+
+
+def _own_point(system, theta):
+    """!
+    @brief Temperature rise at the hottest point of a heater's own footprint, from its network state.
+    @param system System dict of the heater.
+    @param theta State vector (layers * rings,).
+    @return Rise in degC (footprint-ring value plus the peak correction of the instantaneous lateral flow).
+    """
+    R, layer = system["R"], system["layer"]
+    t0 = theta[layer * R]
+    if R < 2:
+        return float(t0)
+    lat = (t0 - theta[layer * R + 1]) / system["r01"]
+    return float(t0 + max(lat, 0.0) * system["peak_coef"])
+
+
+class _Stepper:
+    """!
+    @brief Dense implicit time stepper of one small network with cached factorisations per step size.
+    """
+
+    def __init__(self, system, theta):
+        """!
+        @param system System dict of the heater.
+        @param theta 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
+        """
+        self.K, self.C, self.theta = system["K"], system["C"], theta
+        self.cache = {}
+
+    def advance(self, x, dt, source):
+        """!
+        @brief One implicit step.
+        @param x State (layers * rings,).
+        @param dt Step in seconds.
+        @param source Source vector (W per node) held during the step.
+        @return New state.
+        """
+        key = round(dt, 14)
+        if key not in self.cache:
+            A = np.diag(self.C / dt) + self.theta * self.K
+            B = np.diag(self.C / dt) - (1.0 - self.theta) * self.K
+            self.cache[key] = (lu_factor(A), B)
+        lu, B = self.cache[key]
+        return lu_solve(lu, B @ x + source)
+
+
+def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_stage=4, stages=18, theta_scheme=0.5):
+    """!
+    @brief Unit-step response of every heater's hottest point with the thermal-network model.
+    @param problem A Problem with at least one heater.
+    @param rings Rings outside each footprint.
+    @param cell_mm Raster size in millimetres.
+    @param t_end Last time in seconds (default: ten board time constants).
+    @param ratio Growth factor of the time step between stages.
+    @param per_stage Steps per stage.
+    @param stages Number of stages.
+    @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
+    @return Tuple (times, z, rth) as in fvm.step_responses.
+    """
+    net, systems = _unit_networks(problem, rings, cell_mm)
+    if t_end is None:
+        t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
+    dt0 = t_end / (per_stage * (ratio ** stages - 1.0) / (ratio - 1.0))
+    times, z = [], []
+    rth = np.array([_own_point(s, s["theta"].ravel()) for s in systems])
+    for system in systems:
+        n = len(system["C"])
+        src = np.zeros(n)
+        src[system["layer"] * system["R"]] = 1.0
+        stepper, x, t, row, tt = _Stepper(system, theta_scheme), np.zeros(n), 0.0, [], []
+        for j in range(stages):
+            dt = dt0 * ratio ** j
+            for _ in range(per_stage):
+                x = stepper.advance(x, dt, src)
+                t += dt
+                tt.append(t)
+                row.append(_own_point(system, x))
+        times, z = tt, z + [row]
+    return np.asarray(times), np.asarray(z), rth
+
+
+class _LumpedAdapter:
+    """!
+    @brief Adapter that advances the thermal-network model in time (see profiles.run_windows for the interface).
+    """
+
+    def __init__(self, problem, rings, cell_mm):
+        """!
+        @param problem A Problem (heater powers equal the averages).
+        @param rings Rings outside each footprint.
+        @param cell_mm Raster size in millimetres.
+        """
+        self.ambient = problem.board.ambient
+        self.net, self.systems = _unit_networks(problem, rings, cell_mm)
+        self.dx, self.dy = self.net.dx, self.net.dy
+        self.nh, self.L = len(self.systems), self.net.nl
+        self.p_avg = np.array([h.average_power() for h in problem.heaters])
+        self.steady_average_max = solve_steady(problem.steady_copy("average"), rings, cell_mm).t_max
+        self.steady_peak_max = solve_steady(problem.steady_copy("peak"), rings, cell_mm).t_max
+        ny, nx = self.net.ny, self.net.nx
+        cidx = [(min(max(int(s["centroid"][1] // self.net.dy), 0), ny - 1),
+                 min(max(int(s["centroid"][0] // self.net.dx), 0), nx - 1)) for s in self.systems]
+        # Distance from every heater's footprint to every heater's centroid (cross-heating terms)
+        self.cross = [[self.systems[i]["dist"][cidx[j]] for j in range(self.nh)] for i in range(self.nh)]
+
+    def prepare(self, dt):
+        """!
+        @brief Nothing to factorise up front (factorisations are cached per step size).
+        @param dt Time step in seconds.
+        """
+        self.dt = dt
+
+    def begin(self, options):
+        """!
+        @brief Initial state: one vector per heater network.
+        @param options ProfileOptions.
+        @return Tuple (state list, reported initial temperature in degC).
+        """
+        self.steppers = [_Stepper(s, options.theta) for s in self.systems]
+        if options.initial == "average":
+            return [self.systems[i]["theta"].ravel() * self.p_avg[i] for i in range(self.nh)], self.steady_average_max
+        t0 = self.ambient if options.initial_c is None else float(options.initial_c)
+        states = [np.zeros(len(s["C"])) for s in self.systems]
+        states[0] = np.full(len(self.systems[0]["C"]), t0 - self.ambient)      # The uniform start field lives in network 0
+        return states, t0
+
+    def advance(self, states, dt, powers):
+        """!
+        @brief One implicit step of every heater's network.
+        @param states List of state vectors.
+        @param dt Time step in seconds.
+        @param powers Power of every heater during the step (W).
+        @return New list of states.
+        """
+        out = []
+        for i, s in enumerate(self.systems):
+            src = np.zeros(len(s["C"]))
+            src[s["layer"] * s["R"]] = powers[i]
+            out.append(self.steppers[i].advance(states[i], dt, src))
+        return out
+
+    def observe(self, states):
+        """!
+        @brief Hottest temperature under every heater (own footprint plus the other heaters' rise at its centroid).
+        @param states List of state vectors.
+        @return Tuple (hottest degC, per-heater degC).
+        """
+        pts = np.empty(self.nh)
+        for j in range(self.nh):
+            lay = self.systems[j]["layer"]
+            val = _own_point(self.systems[j], states[j])
+            for i in range(self.nh):
+                if i != j:
+                    val += np.interp(self.cross[i][j], self.systems[i]["rho"],
+                                     states[i].reshape(self.L, self.systems[i]["R"])[lay])
+            pts[j] = val + self.ambient
+        return float(pts.max()), pts
+
+    def frame(self, states):
+        """!
+        @brief Approximate field: the sum of the heaters' radial profiles.
+        @param states List of state vectors.
+        @return Array (layers, ny, nx) in degC.
+        """
+        f = np.zeros((self.L, self.net.ny, self.net.nx))
+        for i in range(self.nh):
+            th = states[i].reshape(self.L, self.systems[i]["R"])
+            for l in range(self.L):
+                f[l] += np.interp(self.systems[i]["dist"], self.systems[i]["rho"], th[l])
+        return f + self.ambient
+
+    def peak_values(self, states):
+        """!
+        @brief The peak map is built from the stored frames, not every step.
+        @param states Unused.
+        @return None.
+        """
+        return None
+
+
+def run_profile(problem, decisions, options, rings=10, cell_mm=1.0, progress=None):
+    """!
+    @brief Time simulation of a problem with power profiles using the thermal-network model.
+    @details One small network per heater, each stepped with its own power; the temperature at a heater is its own
+             footprint temperature plus the rise caused by the other heaters at its centroid, as in the steady model.
+             The peak map is the maximum over the stored frames of the last window.
+    @param problem A Problem (heater powers equal the averages).
+    @param decisions Decisions from profiles.decide().
+    @param options ProfileOptions.
+    @param rings Rings outside each footprint.
+    @param cell_mm Raster size in millimetres.
+    @param progress Optional callback progress(message, fraction).
+    @return ProfileResult.
+    @throws ProfileError If the run is too expensive for options.max_steps.
+    """
+    return profiles.run_windows(problem, decisions, options, _LumpedAdapter(problem, rings, cell_mm), "lumped", progress)

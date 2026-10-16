@@ -10,6 +10,7 @@ what the graphical editor shows.
 
 from dataclasses import dataclass, field
 from typing import List, Optional
+import copy
 import json
 import math
 
@@ -49,6 +50,12 @@ class Board:
     h_bottom: float = 15.0                      # Bottom surface coefficient (W/m2K)
     h_side: Optional[float] = 10.0              # Edge coefficient (W/m2K); None = insulated edges
     via_plating: float = 25e-6                  # Plating thickness of the via barrel (m)
+    h_mode: str = "manual"                      # "manual": h_top and h_bottom as typed; "computed": from correlations
+    emissivity_top: float = 0.9                 # Emissivity of the top face (computed mode; solder mask about 0.9)
+    emissivity_bottom: float = 0.9              # Emissivity of the bottom face (computed mode)
+    air_speed: float = 0.0                      # Air speed along the board in m/s (computed mode; 0 = natural convection)
+    orientation: str = "horizontal"             # "horizontal" (top face up) or "vertical" (computed mode)
+    h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
 
     def dielectric_thickness(self):
@@ -76,7 +83,15 @@ class Board:
             raise ValueError("the copper layers do not fit inside the board thickness")
         if self.h_top < 0 or self.h_bottom < 0:
             raise ValueError("heat transfer coefficients must be >= 0")
-        if self.h_top + self.h_bottom <= 0 and not self.h_side:
+        if self.h_mode not in ("manual", "computed"):
+            raise ValueError("h_mode must be 'manual' or 'computed'")
+        if self.orientation not in ("horizontal", "vertical"):
+            raise ValueError("orientation must be 'horizontal' or 'vertical'")
+        if not (0.0 <= self.emissivity_top <= 1.0 and 0.0 <= self.emissivity_bottom <= 1.0):
+            raise ValueError("emissivity must be between 0 and 1")
+        if self.air_speed < 0 or self.h_calibration <= 0:
+            raise ValueError("air speed must be >= 0 and the calibration multiplier > 0")
+        if self.h_mode == "manual" and self.h_top + self.h_bottom <= 0 and not self.h_side:
             raise ValueError("the board has no path to ambient (all coefficients are zero)")
 
 
@@ -92,6 +107,72 @@ class Zone:
 
 
 @dataclass
+class SquareWave:
+    """!
+    @brief Power of a heater as a square wave: on-state power for a fraction of every period.
+    @details The wave starts with the on-state at t = 0 of every period. The average power
+             p_off + duty * (p_on - p_off) is what the steady-state models use by default.
+    """
+    p_on: float                                 # Power while on (W)
+    period: float                               # Period (s)
+    duty: float                                 # Fraction of the period spent on (0..1]
+    p_off: float = 0.0                          # Power while off (W)
+
+    def average(self):
+        """!
+        @brief Mean power over one period.
+        @return Power in watts.
+        """
+        return self.p_off + self.duty * (self.p_on - self.p_off)
+
+    def on_time(self):
+        """!
+        @brief Duration of the on-state in every period.
+        @return Time in seconds.
+        """
+        return self.duty * self.period
+
+    def off_time(self):
+        """!
+        @brief Duration of the off-state in every period.
+        @return Time in seconds.
+        """
+        return (1.0 - self.duty) * self.period
+
+    def validate(self):
+        """!
+        @brief Check the parameters.
+        @throws ValueError If the period or duty are out of range or the powers are negative or inverted.
+        """
+        if not self.period > 0:
+            raise ValueError("the period of a square wave must be positive")
+        if not 0.0 < self.duty <= 1.0:
+            raise ValueError("the duty cycle must be in (0, 1]")
+        if self.p_on < 0 or self.p_off < 0 or self.p_off > self.p_on:
+            raise ValueError("powers must satisfy 0 <= P_off <= P_on")
+
+    def cumulative(self, t):
+        """!
+        @brief Energy delivered from t = 0 to t (exact, piecewise linear in t).
+        @param t Time or array of times in seconds (>= 0).
+        @return Energy in joules, same shape as t.
+        """
+        t = np.asarray(t, dtype=float)
+        k = np.floor(t / self.period)
+        r = t - k * self.period
+        return self.p_off * t + (self.p_on - self.p_off) * (k * self.on_time() + np.minimum(r, self.on_time()))
+
+    def mean_power(self, t0, t1):
+        """!
+        @brief Mean power over the interval [t0, t1], exact even when an edge falls inside it.
+        @param t0 Start time(s) in seconds.
+        @param t1 End time(s) in seconds (> t0).
+        @return Mean power in watts (array if the inputs are arrays).
+        """
+        return (self.cumulative(t1) - self.cumulative(t0)) / (np.asarray(t1, dtype=float) - t0)
+
+
+@dataclass
 class Heater:
     """!
     @brief Heat source spread uniformly over a polygon on one layer.
@@ -101,6 +182,30 @@ class Heater:
     power: float                                # Dissipated power (W)
     name: str = ""                              # Optional label (for example the component name)
     theta_jb: float = 0.0                       # Junction-to-board resistance (K/W); 0 = not used
+    profile: Optional["SquareWave"] = None      # Power versus time; None = constant power
+
+    def average_power(self):
+        """!
+        @brief Mean power: the profile average, or the constant power.
+        @return Power in watts.
+        """
+        return self.profile.average() if self.profile else self.power
+
+    def peak_power(self):
+        """!
+        @brief Highest power: the on-state of the profile, or the constant power.
+        @return Power in watts.
+        """
+        return self.profile.p_on if self.profile else self.power
+
+    def set_profile(self, profile):
+        """!
+        @brief Attach a power profile; `power` is kept equal to its average so steady models need no change.
+        @param profile A SquareWave or None (constant power).
+        """
+        self.profile = profile
+        if profile is not None:
+            self.power = profile.average()
 
     def area(self):
         """!
@@ -160,10 +265,31 @@ class Problem:
 
     def total_power(self):
         """!
-        @brief Sum of all heater powers.
+        @brief Sum of all heater powers (the average for heaters with a profile).
         @return Power in watts.
         """
         return float(sum(h.power for h in self.heaters))
+
+    def has_profiles(self):
+        """!
+        @brief True if at least one heater has a power profile.
+        @return bool.
+        """
+        return any(h.profile is not None for h in self.heaters)
+
+    def steady_copy(self, mode="average"):
+        """!
+        @brief Copy of the problem whose heater powers are the ones the steady-state models should use.
+        @param mode "average" (mean power of every profile) or "peak" (on-state power, a worst-case bound).
+        @return A new Problem; profiles are kept on the copy.
+        @throws ValueError If the mode is unknown.
+        """
+        if mode not in ("average", "peak"):
+            raise ValueError("steady power mode must be 'average' or 'peak'")
+        p = copy.deepcopy(self)
+        for h in p.heaters:
+            h.power = h.peak_power() if mode == "peak" else h.average_power()
+        return p
 
     def validate(self):
         """!
@@ -178,6 +304,8 @@ class Problem:
         for h in self.heaters:
             if h.power < 0:
                 raise ValueError("heater power must be >= 0")
+            if h.profile is not None:
+                h.profile.validate()
         for s in self.sinks:
             if s.layer not in (0, n - 1):
                 raise ValueError("a sink must be on the top or the bottom layer")
@@ -243,7 +371,7 @@ class Problem:
             self.add_zone(l, rect=(0, 0, w, h), fill=fill, name=f"plane L{l}")
         return self
 
-    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta_jb=0.0):
+    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta_jb=0.0, profile=None):
         """!
         @brief Add a heat source (layer 1 = top, geometry in mm, power in W).
         @param layer 1-based layer number.
@@ -252,9 +380,12 @@ class Problem:
         @param polygon Polygon [[x, y], ...] in mm.
         @param name Optional label (for example the component).
         @param theta_jb Junction-to-board resistance in K/W (adds a junction temperature to the report).
+        @param profile Optional SquareWave; the heater power is then its average and `power` is ignored.
         @return self.
         """
-        self.heaters.append(Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta_jb))
+        h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta_jb)
+        h.set_profile(profile)
+        self.heaters.append(h)
         return self
 
     def add_via(self, x, y, diameter=0.3, filled=False, name=""):
@@ -344,14 +475,25 @@ def problem_from_dict(data, validate=True):
         h_bottom=b.get("h_bottom", 15.0),
         h_side=b.get("h_side", 10.0),
         via_plating=b.get("via_plating_mm", 0.025) / 1000.0,
+        h_mode=b.get("h_mode", "manual"),
+        emissivity_top=b.get("emissivity_top", 0.9),
+        emissivity_bottom=b.get("emissivity_bottom", 0.9),
+        air_speed=b.get("air_speed_m_per_s", 0.0),
+        orientation=b.get("orientation", "horizontal"),
+        h_calibration=b.get("h_calibration", 1.0),
         materials=mat,
     )
     prob = Problem(board=board, name=data.get("name", "board"))
     for z in data.get("zones", []):
         prob.zones.append(Zone(z["layer"] - 1, _poly_mm(z["polygon_mm"]), z.get("fill", 1.0), z.get("name", "")))
     for h in data.get("heaters", []):
-        prob.heaters.append(Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]),
-                                   h.get("name", ""), float(h.get("theta_jb_k_per_w", 0.0))))
+        heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]),
+                        h.get("name", ""), float(h.get("theta_jb_k_per_w", 0.0)))
+        if "profile" in h:
+            w = h["profile"]
+            heater.set_profile(SquareWave(float(w["p_on_w"]), float(w["period_s"]), float(w["duty"]),
+                                          float(w.get("p_off_w", 0.0))))
+        prob.heaters.append(heater)
     for v in data.get("vias", []):
         prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
                              v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", "")))
@@ -467,13 +609,18 @@ def problem_to_dict(prob):
             "copper_thickness_mm": [c * 1000.0 for c in b.copper_thickness],
             "ambient_c": b.ambient, "h_top": b.h_top, "h_bottom": b.h_bottom, "h_side": b.h_side,
             "via_plating_mm": b.via_plating * 1000.0,
+            "h_mode": b.h_mode, "emissivity_top": b.emissivity_top, "emissivity_bottom": b.emissivity_bottom,
+            "air_speed_m_per_s": b.air_speed, "orientation": b.orientation, "h_calibration": b.h_calibration,
             "k_copper": m.k_copper, "k_fr4_through": m.k_fr4_through, "k_fr4_inplane": m.k_fr4_inplane,
             "rho_copper": m.rho_copper, "cp_copper": m.cp_copper, "rho_fr4": m.rho_fr4, "cp_fr4": m.cp_fr4,
         },
         "zones": [{"layer": z.layer + 1, "polygon_mm": poly(z.polygon), "fill": z.fill, "name": z.name}
                   for z in prob.zones],
-        "heaters": [{"layer": h.layer + 1, "power_w": h.power, "polygon_mm": poly(h.polygon), "name": h.name,
-                     "theta_jb_k_per_w": h.theta_jb} for h in prob.heaters],
+        "heaters": [dict({"layer": h.layer + 1, "power_w": h.power, "polygon_mm": poly(h.polygon), "name": h.name,
+                          "theta_jb_k_per_w": h.theta_jb},
+                         **({"profile": {"p_on_w": h.profile.p_on, "p_off_w": h.profile.p_off,
+                                         "period_s": h.profile.period, "duty": h.profile.duty}}
+                            if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
                   "filled": v.filled, "name": v.name} for v in prob.vias],
         "sinks": [{"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name}

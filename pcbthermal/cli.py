@@ -23,7 +23,7 @@ import numpy as np
 
 from . import __version__, fvm
 from .api import simulate, suggest_cell_mm
-from .examples import example_board
+from .examples import example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .project import Project, load_project, save_project
 
@@ -54,6 +54,30 @@ def cmd_run(args):
     options.models = MODELS if args.model == "all" else (args.model,)
     options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     options.linear_solver = args.solver
+    po = options.profile
+    if args.steady_power:
+        options.steady_power = args.steady_power
+    if args.threshold_c is not None:
+        po.threshold_c = args.threshold_c
+    if args.duration:
+        po.duration = args.duration
+    if args.cycles:
+        po.cycles = args.cycles
+    if args.time_s:
+        po.time_s = args.time_s
+    if args.initial_c is not None:
+        po.initial, po.initial_c = "temperature", args.initial_c
+    b = project.problem.board
+    if args.computed_h:
+        b.h_mode = "computed"
+    if args.air_speed is not None:
+        b.h_mode, b.air_speed = "computed", args.air_speed
+    if args.orientation:
+        b.h_mode, b.orientation = "computed", args.orientation
+    if args.emissivity is not None:
+        b.h_mode, b.emissivity_top, b.emissivity_bottom = "computed", args.emissivity, args.emissivity
+    if args.h_multiplier is not None:
+        b.h_mode, b.h_calibration = "computed", args.h_multiplier
     sim = simulate(project.problem, options)
     print(f"Board '{project.problem.name}': {project.problem.board.width * 1000:.0f} x "
           f"{project.problem.board.height * 1000:.0f} mm, {project.problem.board.layers} layers, "
@@ -173,7 +197,7 @@ def cmd_example(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
-    board = example_board() if args.which == "example" else reference_problem()
+    board = {"example": example_board, "profile": example_profile_board}.get(args.which, reference_problem)()
     save_project(args.output, Project(problem=board))
     print(f"Wrote {args.output}")
     return 0
@@ -199,6 +223,23 @@ def build_parser():
     common(r)
     r.add_argument("--model", choices=MODELS + ("all",), default="all")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
+    hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
+    hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
+    hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
+    hg.add_argument("--orientation", choices=("horizontal", "vertical"), default=None, help="board orientation")
+    hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
+    hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
+    pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")
+    pg.add_argument("--steady-power", choices=("average", "peak"), default=None,
+                    help="power used by the steady models for heaters with a profile (default: from the project, average)")
+    pg.add_argument("--threshold-c", type=float, default=None,
+                    help="oscillation in degC below which a heater is replaced by its average power (default: 1)")
+    pg.add_argument("--duration", choices=("stable", "cycles", "time"), default=None,
+                    help="simulate until the cycle repeats, for a number of cycles, or for a fixed time")
+    pg.add_argument("--cycles", type=int, default=None, help="number of cycles of the longest resolved period")
+    pg.add_argument("--time-s", type=float, default=None, help="simulated time in seconds (with --duration time)")
+    pg.add_argument("--initial-c", type=float, default=None,
+                    help="start from this uniform temperature in degC (default: steady state of the average power)")
     r.set_defaults(func=cmd_run)
 
     t = sub.add_parser("transient", help="power-step response (FVM)")
@@ -228,8 +269,9 @@ def build_parser():
 
     e = sub.add_parser("example", help="write the reference board JSON")
     e.add_argument("output", nargs="?", default="examples/reference_board.pcbt.json")
-    e.add_argument("--which", choices=("reference", "example"), default="reference",
-                   help="reference: 100x100 mm 2-layer board; example: 4-layer board with vias and a sink")
+    e.add_argument("--which", choices=("reference", "example", "profile"), default="reference",
+                   help="reference: 100x100 mm 2-layer board; example: 4-layer board with vias and a sink; "
+                        "profile: the example board with square-wave power on both heaters")
     e.set_defaults(func=cmd_example)
     return p
 

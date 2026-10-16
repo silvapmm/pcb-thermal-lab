@@ -32,7 +32,8 @@ See `README.md` for the full feature list.
 These rules are mandatory for all code and documentation in this repository.
 
 1. **Everything is in English**: code, identifiers, comments, docstrings,
-   commit messages, PR descriptions, and documentation files.
+   documentation files, and everything git-related (branch names, tag names,
+   commit messages, PR titles and descriptions; see "Git Language and Naming").
    (Conversation with the maintainer may be in Portuguese; the repository never is.)
 2. **Inline comments** must be present throughout the code, using `#` in Python.
    Explain the *why* and any non-obvious step, not just restate the code.
@@ -79,8 +80,27 @@ These rules are mandatory for all code and documentation in this repository.
 
 - Default branch: `main`; active branch: `develop`. Do not commit features directly
   to `main`; use a branch and open a PR with `gh pr create`.
-- Commit messages and PR descriptions are in English.
+- All git text is in English (details below).
 - The Claude GitHub app is installed on the repository (`/install-github-app`).
+
+### Git Language and Naming
+
+Mandatory, and applies to everything that ends up in the repository history or on GitHub:
+
+- **Language**: branch names, tag names and tag messages, commit subjects and bodies, merge commit
+  messages, PR titles, PR descriptions and comments, release notes and issue text are all in **English**.
+  Talking to the maintainer in Portuguese does not change this.
+- **Branch names**: ASCII, lowercase, kebab-case, with a type prefix: `feature/<topic>`, `fix/<topic>`,
+  `docs/<topic>`, for example `feature/component-models`. No accents, spaces or Portuguese words.
+  Long-lived branches are only `main` and `develop`.
+- **Commit messages**: imperative mood ("Add", "Fix", "Remove"), a subject of at most 72 characters
+  without a final period, then a blank line and a body that explains *why* when it is not obvious.
+  One logical change per commit. Keep the attribution trailers required by the session.
+- **Tags**: annotated, `vMAJOR.MINOR.PATCH` (see "Branches and Versions"), with an English message;
+  non-release markers use a descriptive English name, for example `legacy-wxpython-1.0.0`.
+- **Published history is never rewritten** (no force push). A message that breaks these rules is
+  corrected going forward, not by rewriting history.
+- Audited on 2026-10-16: all existing branches, tags, commits and the open PR already follow these rules.
 
 ## Project Structure
 
@@ -92,11 +112,13 @@ pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
   lumped.py            ring network per heater, superposed
   analytic.py          multilayer cosine series + local via/sink corrections
   checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
+  convection.py        computed h: air properties, natural/forced convection, radiation, board_h (Picard loop is in api.py)
+  profiles.py          power profiles (square wave): decision average-or-resolve, window runner shared by the three models
   results.py, analysis.py, api.py (SolverOptions, simulate, suggest_cell_mm), project.py (.pcbt.json), examples.py
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (94 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (118 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (.pcbt.json), accuracy_study.py, stress_study.py, solver_equivalence.py
 docs/                  README.md (index), physics_core.md (current), new_approach.md, findings.md (all discoveries), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
 ico/                   application icon
@@ -162,12 +184,29 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 
 ## Branches and Versions
 
-- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.0.0** (2026-10-16).
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.1.0** (2026-10-16).
 - `develop`: integration branch for the next version; feature work branches off it (`feature/<topic>`) and merges back when it is solid.
 - Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
   (title bar, status bar, About), in `--version`, in reports and in saved projects. A release needs: version bump, `CHANGELOG.md` entry
   (`tests/test_version.py` checks it and the README), README update, tests green, merge to `main`, annotated tag, push.
+
+## Git Policy
+
+Claude handles all git operations in this repository: branches, commits, pushes,
+merges, PRs, and tags. The maintainer set these rules (2026-10-16):
+
+- **Commits**: commit when a meaningful unit of work is finished (a feature, a fix, a batch of
+  documentation), not after every small step; the maintainer leaves the call to Claude.
+  Work on a feature branch; commits can be reverted locally.
+- **Pushes**: do not push after every commit. Push only when asked, or at a
+  milestone (before a merge or a release).
+- **Merges**: merge into `main` only when `develop` holds a solid, working
+  development (the app runs, tests pass and the change is complete). Not for every commit.
+- **Tags**: create a tag only for a good release (see "Branches and Versions"). Never tag routine work.
+- **Never**: force push, rewrite published history, or commit generated outputs.
+- **Before editing this file**: replace only the section you mean to change. A range replacement
+  once deleted this section by accident (restored on 2026-10-16).
 
 ## Maintaining This File
 
@@ -187,6 +226,13 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 
 Record important decisions here, newest first, with date and reason.
 
+- 2026-10-16: Released **2.1.0** (power profiles + computed heat transfer coefficients), merged `feature/more-models` into `develop` and `main`, tag `v2.1.0`. Next: Component element (Package, heat sink), then Gerber import and variable stack-up.
+- 2026-10-16: Implemented computed heat transfer coefficients (`convection.py`, `Board.h_mode/emissivity_top/emissivity_bottom/air_speed/orientation/h_calibration`, Picard loop outside the models in `api._solve_computed_h`): one `h` per face from the mean face temperature, radiation always included (emissivity per face, default 0.9), global convection multiplier, edge `h` stays typed, time simulation and animation fixed at the steady-state coefficients. Measured effect on the example: a constant `h` overestimates the rise by 10 % at 22 W and underestimates it at low power (`roadmap.md` section 2).
+- 2026-10-16: Roadmap extended: heat sink on a component (θCS + θSA in K/W, θSA scaled with ΔT from a reference rise, optional sink capacity C_hs from the first version), Gerber import of the copper per layer (section 7, `gerbonara` as candidate, fill fraction per cell), and variable stack-up (section 8: per-gap dielectric thickness and material, layer nodes of copper plus half the adjacent dielectrics, backward compatible when gaps are equal). All future work, nothing implemented.
+- 2026-10-16: Researched the Package (JEDEC 2R) basis and recorded it in `docs/package_models.md` (sources read: NISTIR 7648, TI SPRA953B, Renesas white paper, Semiconductor Digest, Siemens). Rules taken from it: the user enters θJB and θJC,top as resistances, never ψ; ψJT and ψJB are reported as consistency checks; θJB is spread over the footprint with area weights; the Package is quasi-static until a Foster chain exists; the share of power into the board is checked against 75 to 95 %. Unverified figures (2 to 20 % error of 2R) are not used. Implementation order: computed `h` first, then the Component element.
+- 2026-10-16: Future Component element agreed: one element with a type (Source = today's heater, Package 2R, passive areas such as cooled area, contact, material patch); its power and profile drive `T_j`, top cooling uses the computed `h` (Picard iteration), the profile decision measures the oscillation at `T_j`. Thermal resistance is displayed in K/W (same number as °C/W). Multigrid and the 3D FEM validation script are kept in `docs/roadmap.md` as optional future work; computed `h` and the Component element follow after the current models are polished. See `docs/roadmap.md` sections 2 to 5.
+- 2026-10-16: Implemented power profiles on `feature/more-models` (square wave only; `profiles.py`; all three models; GUI "Power profile" tab; CLI options). Decision average-vs-resolve per heater from the oscillation in °C (default 1 °C, shared error budget, smallest first), mixed regimes in one run; start = steady state of the average power or a typed °C; duration until the cycle repeats / N cycles / fixed time; 200,000 step cap. Analytic transient smears vias and sinks (warned). GUI labels descriptive ("Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"), keys unchanged; units °C and °C/W. Results tab index is now 2 (Board, Power profile, Results).
+
 - 2026-10-15: Created CLAUDE.md. Decided that all code, comments, and docs are
   in English, with `#` inline comments and Doxygen-style docstrings.
 - 2026-10-16: Working branch is `develop` (it holds the application code). Added
@@ -201,3 +247,4 @@ Record important decisions here, newest first, with date and reason.
 - 2026-10-16: SOR and the sparse direct solver give the same temperatures (≤1e-8 K on five boards) when SOR stops on the residual; the direct solver is the default (3 to 30 times faster). Real-time animation added to the GUI (Animation tab) and CLI (`transient --gif`), validated against an exact exponential (Euler first order, Crank-Nicolson second order). Docs added: `new_approach.md`, `candidate_methods.md`. The `example_board` vias use 3.5 mm pitch (same positions as the legacy comparison).
 - 2026-10-16: Models tuned after an audit (see `docs/findings.md`): Lumped uses offset-contour rings from the real footprint with exact disc interior relations and a Bessel vertical-loss correction (example board +24 % -> -2 %); Analytic weights copper per layer with the layer's own fin length (+47 % -> -2 %). Added `checks.py` (input validity warnings, shown live in the GUI), `suggest_cell_mm` (Auto cell size), a documentation test gate, and the findings/index docs. Corrected an earlier wrong claim that vias made the FVM mesh-dependent by 1 % (it was a different via layout).
 - 2026-10-16: Released **2.0.0** (first release of the rebuilt program; the old wxPython program was 1.0.0, so a major bump avoids a clash). Added `docs/model_guide.md` (which model to use), `CHANGELOG.md`, README with screenshots (`examples/make_screenshots.py`), version shown in the GUI, `--version`, version recorded in reports and projects.
+- 2026-10-16: Git language rule made explicit: branch names, tags, commit messages and PR text are in English, with naming conventions (`feature/<topic>` kebab-case, imperative commit subjects of at most 72 characters). History audited, nothing needed to change.

@@ -1,0 +1,303 @@
+{
+  "name": "example with power profiles",
+  "board": {
+    "width_mm": 100.0,
+    "height_mm": 80.0,
+    "thickness_mm": 1.6,
+    "layers": 4,
+    "copper_thickness_mm": [
+      0.034999999999999996,
+      0.034999999999999996,
+      0.034999999999999996,
+      0.034999999999999996
+    ],
+    "ambient_c": 25.0,
+    "h_top": 10.0,
+    "h_bottom": 15.0,
+    "h_side": 10.0,
+    "via_plating_mm": 0.025,
+    "k_copper": 385.0,
+    "k_fr4_through": 0.3,
+    "k_fr4_inplane": 0.9,
+    "rho_copper": 8960.0,
+    "cp_copper": 385.0,
+    "rho_fr4": 1850.0,
+    "cp_fr4": 900.0
+  },
+  "zones": [
+    {
+      "layer": 1,
+      "polygon_mm": [
+        [
+          15.0,
+          15.0
+        ],
+        [
+          85.0,
+          15.0
+        ],
+        [
+          85.0,
+          65.0
+        ],
+        [
+          15.0,
+          65.0
+        ]
+      ],
+      "fill": 1.0,
+      "name": "top copper"
+    },
+    {
+      "layer": 2,
+      "polygon_mm": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          0.0
+        ],
+        [
+          100.0,
+          80.0
+        ],
+        [
+          0.0,
+          80.0
+        ]
+      ],
+      "fill": 1.0,
+      "name": "plane L2"
+    },
+    {
+      "layer": 3,
+      "polygon_mm": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          0.0
+        ],
+        [
+          100.0,
+          80.0
+        ],
+        [
+          0.0,
+          80.0
+        ]
+      ],
+      "fill": 1.0,
+      "name": "plane L3"
+    },
+    {
+      "layer": 4,
+      "polygon_mm": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          100.0,
+          0.0
+        ],
+        [
+          100.0,
+          80.0
+        ],
+        [
+          0.0,
+          80.0
+        ]
+      ],
+      "fill": 1.0,
+      "name": "plane L4"
+    }
+  ],
+  "heaters": [
+    {
+      "layer": 1,
+      "power_w": 4.0,
+      "polygon_mm": [
+        [
+          30.0,
+          35.0
+        ],
+        [
+          40.0,
+          35.0
+        ],
+        [
+          40.0,
+          45.0
+        ],
+        [
+          30.0,
+          45.0
+        ]
+      ],
+      "name": "U1",
+      "theta_jb_k_per_w": 6.0,
+      "profile": {
+        "p_on_w": 13.333333333333334,
+        "p_off_w": 0.0,
+        "period_s": 0.01,
+        "duty": 0.3
+      }
+    },
+    {
+      "layer": 1,
+      "power_w": 1.5,
+      "polygon_mm": [
+        [
+          65.0,
+          38.0
+        ],
+        [
+          71.0,
+          38.0
+        ],
+        [
+          71.0,
+          44.0
+        ],
+        [
+          65.0,
+          44.0
+        ]
+      ],
+      "name": "U2",
+      "theta_jb_k_per_w": 12.0,
+      "profile": {
+        "p_on_w": 6.0,
+        "p_off_w": 0.0,
+        "period_s": 20.0,
+        "duty": 0.25
+      }
+    }
+  ],
+  "vias": [
+    {
+      "x_mm": 31.5,
+      "y_mm": 36.5,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    },
+    {
+      "x_mm": 31.5,
+      "y_mm": 40.0,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    },
+    {
+      "x_mm": 31.5,
+      "y_mm": 43.5,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    },
+    {
+      "x_mm": 35.0,
+      "y_mm": 36.5,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    },
+    {
+      "x_mm": 35.0,
+      "y_mm": 40.0,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    },
+    {
+      "x_mm": 35.0,
+      "y_mm": 43.5,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    },
+    {
+      "x_mm": 38.5,
+      "y_mm": 36.5,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    },
+    {
+      "x_mm": 38.5,
+      "y_mm": 40.0,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    },
+    {
+      "x_mm": 38.5,
+      "y_mm": 43.5,
+      "diameter_mm": 0.3,
+      "filled": false,
+      "name": ""
+    }
+  ],
+  "sinks": [
+    {
+      "layer": 4,
+      "polygon_mm": [
+        [
+          25.0,
+          30.0
+        ],
+        [
+          45.0,
+          30.0
+        ],
+        [
+          45.0,
+          50.0
+        ],
+        [
+          25.0,
+          50.0
+        ]
+      ],
+      "h_extra": 30.0,
+      "name": "bottom heatsink"
+    }
+  ],
+  "solver": {
+    "models": [
+      "fvm",
+      "lumped",
+      "analytic"
+    ],
+    "cell_mm": 1.0,
+    "linear_solver": "direct",
+    "lumped_rings": 10,
+    "analytic_modes": 300,
+    "analytic_local_corrections": true,
+    "hotspot_c": 100.0,
+    "steady_power": "average",
+    "profile": {
+      "threshold_c": 1.0,
+      "initial": "average",
+      "initial_c": null,
+      "duration": "stable",
+      "cycles": 10,
+      "time_s": 60.0,
+      "stable_c": 0.1,
+      "max_windows": 60,
+      "max_steps": 200000,
+      "theta": 1.0,
+      "frames": 60
+    }
+  },
+  "view": {},
+  "format": "pcbthermal-project-1",
+  "app_version": "2.0.0"
+}

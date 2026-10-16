@@ -274,7 +274,7 @@ class ResultsView(QWidget):
         # Summary: models table, warnings and the text report
         summary = QWidget()
         sl = QVBoxLayout(summary)
-        self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT K", "Rθ K/W", "Power W",
+        self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
                                    "Balance", "Error vs ref", "Time s"])
         self.model_table.setMaximumHeight(170)
         self.warnings = QLabel()
@@ -317,6 +317,9 @@ class ResultsView(QWidget):
         from .animation import AnimationTab        # Imported here: animation imports helpers from this module
         self.animation = AnimationTab(theme)
         self.tabs.addTab(self.animation, "Animation")
+        from .profile_results import ProfileResultsTab
+        self.time_sim = ProfileResultsTab(theme)
+        self.tabs.addTab(self.time_sim, "Power profile")
 
     def set_theme(self, theme):
         """!
@@ -327,6 +330,7 @@ class ResultsView(QWidget):
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_theme(theme)
         self.animation.set_theme(theme)
+        self.time_sim.set_theme(theme)
         self._draw_components()
 
     def set_simulation(self, sim):
@@ -348,6 +352,9 @@ class ResultsView(QWidget):
             t.set_simulation(sim)
         self._fill_components()
         self._draw_components()
+        self.time_sim.set_simulation(sim)
+        if sim.decisions:
+            self.tabs.setCurrentWidget(self.time_sim if sim.profile_results else self.tabs.widget(0))
 
     def _fill_components(self):
         """!
