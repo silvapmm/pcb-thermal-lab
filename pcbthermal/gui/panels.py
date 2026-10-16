@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from ..api import suggest_cell_mm
 from .document import KINDS
 
 _TITLES = {"zone": "Zones", "heater": "Heaters", "sink": "Sinks", "via": "Vias"}
@@ -123,6 +124,7 @@ class BoardPanel(QWidget):
     def _apply(self, *_):
         """!
         @brief Write the control values to the document.
+        @param _ Ignored (extra arguments of the Qt signal).
         """
         if self._updating:
             return
@@ -452,6 +454,12 @@ class SolverPanel(QWidget):
         g = QGroupBox("Settings")
         f = QFormLayout(g)
         self.cell = _spin(0.1, 20, 1.0, 2, 0.25, "mm")
+        self.auto_cell = QPushButton("Auto")
+        self.auto_cell.setToolTip("Choose a cell size that resolves the smallest heater (about 4 cells across)")
+        self.auto_cell.clicked.connect(lambda: self.cell.setValue(suggest_cell_mm(self.doc.problem)))
+        cell_row = QHBoxLayout()
+        cell_row.addWidget(self.cell, 1)
+        cell_row.addWidget(self.auto_cell)
         self.cells_label = QLabel()
         self.solver = QComboBox()
         self.solver.addItem("Sparse direct (exact)", "direct")
@@ -464,7 +472,7 @@ class SolverPanel(QWidget):
         self.modes.setSingleStep(20)
         self.local = QCheckBox("Local via and sink corrections")
         self.hot = _spin(-50, 1000, 100, 1, 5, "°C")
-        f.addRow("Cell size", self.cell)
+        f.addRow("Cell size", cell_row)
         f.addRow("", self.cells_label)
         f.addRow("FVM solver", self.solver)
         f.addRow("Lumped rings", self.rings)
@@ -482,9 +490,12 @@ class SolverPanel(QWidget):
         self.progress.setTextVisible(False)
         self.status = QLabel("")
         self.status.setWordWrap(True)
+        self.checks = QLabel("")
+        self.checks.setWordWrap(True)
         lay.addWidget(self.run)
         lay.addWidget(self.progress)
         lay.addWidget(self.status)
+        lay.addWidget(self.checks)
         lay.addStretch(1)
 
         for w in (self.cell, self.rings, self.modes, self.hot):
@@ -524,6 +535,7 @@ class SolverPanel(QWidget):
     def _apply(self, *_):
         """!
         @brief Write the controls to the document options (at least one model stays selected).
+        @param _ Ignored (extra arguments of the Qt signal).
         """
         if self._updating:
             return
@@ -537,6 +549,18 @@ class SolverPanel(QWidget):
                              lumped_rings=self.rings.value(), analytic_modes=self.modes.value(),
                              analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value())
         self._update_cells()
+
+    def set_checks(self, warnings):
+        """!
+        @brief Show the validity checks of the current design under the Run button.
+        @param warnings List of warning strings from checks.check_problem.
+        """
+        if not warnings:
+            self.checks.setText("")
+            self.checks.setToolTip("")
+            return
+        self.checks.setText("⚠ " + warnings[0] + (f"  (+{len(warnings) - 1} more)" if len(warnings) > 1 else ""))
+        self.checks.setToolTip("\n\n".join(warnings))
 
     def set_running(self, running, text=""):
         """!

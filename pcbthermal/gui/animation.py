@@ -194,6 +194,7 @@ class AnimationTab(QWidget):
     def _redraw(self, *_):
         """!
         @brief Draw the current frame with a colour scale fixed over the whole animation.
+        @param _ Ignored (extra arguments of the Qt signal).
         """
         if self._updating or self.tr is None:
             return

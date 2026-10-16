@@ -127,32 +127,43 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
         fill_map[z.layer] = np.maximum(fill_map[z.layer],
                                        coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
     h_tot = float(b.h_top + b.h_bottom)
+    d_diel = b.dielectric_thickness()
+    g_diel = m.k_fr4_through / d_diel if L > 1 else 0.0                   # Vertical conductance per area (W/m2K)
     fill_mean = fill_map.mean(axis=(1, 2))
     S_mean = fill_mean * m.k_copper * tc + m.k_fr4_inplane * (slab - fill_mean * tc)
-    lam = float(np.sqrt(S_mean.sum() / h_tot)) if h_tot > 0 else W
-    centres = [(polygon_centroid(h.polygon), np.sqrt(polygon_area(h.polygon) / np.pi), h.power)
+    lam = float(np.sqrt(S_mean.sum() / h_tot)) if h_tot > 0 else W        # Spreading length of the whole stack
+    centres = [(polygon_centroid(h.polygon), np.sqrt(polygon_area(h.polygon) / np.pi), h.power, h.layer)
                for h in problem.heaters if h.power > 0]
+    fill = fill_mean.copy()
     if centres:
-        w = np.zeros((ny, nx))
-        for (cx, cy), r0, pw in centres:
-            d = np.maximum(np.hypot(xs[None, :] - cx, ys[:, None] - cy), max(r0, 0.5 * dx))
-            w += pw * k0(d / lam)                      # Influence of the heater at distance d
-        fill = (fill_map * w).sum(axis=(1, 2)) / w.sum()
-        spread = np.sqrt(((fill_map - fill[:, None, None]) ** 2 * w).sum(axis=(1, 2)) / w.sum())
+        # A layer that carries a heater loses heat vertically within a few millimetres, so the copper that matters
+        # is much closer than the stack length: use the layer's own length sqrt(S / (h + n_neighbours * g)).
+        heater_layers = {c[3] for c in centres}
+        spread = np.zeros(L)
+        for l in range(L):
+            if l in heater_layers:
+                n_nb = (l > 0) + (l < L - 1)
+                h_surf = (b.h_top if l == 0 else 0.0) + (b.h_bottom if l == L - 1 else 0.0)
+                lam_l = float(np.sqrt(S_mean[l] / max(h_surf + n_nb * g_diel, 1e-9)))
+            else:
+                lam_l = lam
+            w = np.zeros((ny, nx))
+            for (cx, cy), r0, pw, _ in centres:
+                dist = np.maximum(np.hypot(xs[None, :] - cx, ys[:, None] - cy), max(r0, 0.5 * dx))
+                w += pw * k0(dist / lam_l)                  # Influence of the heater at this distance
+            fill[l] = (fill_map[l] * w).sum() / w.sum()
+            spread[l] = np.sqrt(((fill_map[l] - fill[l]) ** 2 * w).sum() / w.sum())
         if spread.max() > 0.25:
             warnings.append(
                 f"copper coverage varies strongly around the heaters (spread {spread.max():.2f}); "
                 "the uniform-sheet assumption is weak, the FVM result is more reliable")
-    else:
-        fill = fill_mean
     S = fill * m.k_copper * tc + m.k_fr4_inplane * (slab - fill * tc)           # (L,)
 
     # --- Surface coefficients and vertical conductance of the uniform problem
     h_l = np.zeros(L)
     h_l[0] += b.h_top
     h_l[L - 1] += b.h_bottom
-    d_diel = b.dielectric_thickness()
-    g = m.k_fr4_through / d_diel if L > 1 else 0.0
+    g = g_diel
     if not local_corrections:
         for s in problem.sinks:
             h_l[s.layer] += s.h_extra * polygon_area(s.polygon) / (W * H)

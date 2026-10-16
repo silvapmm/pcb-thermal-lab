@@ -84,6 +84,9 @@ class ElementItem(QGraphicsPolygonItem):
     def itemChange(self, change, value):
         """!
         @brief Snap the position while dragging and restyle on selection changes.
+        @param change Kind of change announced by Qt (QGraphicsItem.GraphicsItemChange).
+        @param value The value proposed by Qt (a QPointF position or the new selection state).
+        @return The value Qt should apply (the position is snapped to the grid while dragging).
         """
         if change == QGraphicsItem.ItemPositionChange and self.view.snap > 0 and self.scene() is not None:
             s = self.view.snap
@@ -95,6 +98,9 @@ class ElementItem(QGraphicsPolygonItem):
     def paint(self, painter, option, widget=None):
         """!
         @brief Paint without Qt's default dashed selection rectangle (the outline shows the selection).
+        @param painter QPainter to draw with.
+        @param option QStyleOptionGraphicsItem; its selected flag is cleared so Qt draws no default selection box.
+        @param widget Optional widget being painted on.
         """
         option.state &= ~QStyle.State_Selected
         super().paint(painter, option, widget)
@@ -136,6 +142,9 @@ class ViaItem(QGraphicsEllipseItem):
     def itemChange(self, change, value):
         """!
         @brief Snap while dragging and restyle on selection changes.
+        @param change Kind of change announced by Qt (QGraphicsItem.GraphicsItemChange).
+        @param value The value proposed by Qt (a QPointF position or the new selection state).
+        @return The value Qt should apply (the position is snapped to the grid while dragging).
         """
         if change == QGraphicsItem.ItemPositionChange and self.view.snap > 0 and self.scene() is not None:
             s = self.view.snap
@@ -147,6 +156,9 @@ class ViaItem(QGraphicsEllipseItem):
     def paint(self, painter, option, widget=None):
         """!
         @brief Paint without Qt's default selection rectangle.
+        @param painter QPainter to draw with.
+        @param option QStyleOptionGraphicsItem; its selected flag is cleared so Qt draws no default selection box.
+        @param widget Optional widget being painted on.
         """
         option.state &= ~QStyle.State_Selected
         super().paint(painter, option, widget)
@@ -178,6 +190,9 @@ class VertexHandle(QGraphicsRectItem):
     def itemChange(self, change, value):
         """!
         @brief Snap and forward the move to the view so the polygon follows the handle.
+        @param change Kind of change announced by Qt (QGraphicsItem.GraphicsItemChange).
+        @param value The value proposed by Qt (a QPointF position or the new selection state).
+        @return The value Qt should apply (the position is snapped to the grid while dragging).
         """
         if change == QGraphicsItem.ItemPositionChange and self.scene() is not None:
             s = self.view.snap
@@ -190,6 +205,7 @@ class VertexHandle(QGraphicsRectItem):
     def mouseReleaseEvent(self, event):
         """!
         @brief Commit the new polygon when the drag ends.
+        @param event QGraphicsSceneMouseEvent of the release.
         """
         super().mouseReleaseEvent(event)
         self.view._handles_committed()
@@ -500,6 +516,7 @@ class BoardView(QGraphicsView):
     def showEvent(self, e):
         """!
         @brief Fit the board the first time the view becomes visible.
+        @param e QShowEvent.
         """
         super().showEvent(e)
         if not self._fitted:
@@ -515,6 +532,7 @@ class BoardView(QGraphicsView):
     def wheelEvent(self, e):
         """!
         @brief Mouse wheel zooms around the cursor.
+        @param e QWheelEvent (the vertical angle delta sets the zoom).
         """
         self.scale(1.15 ** (e.angleDelta().y() / 120.0), 1.15 ** (e.angleDelta().y() / 120.0))
 
@@ -522,6 +540,8 @@ class BoardView(QGraphicsView):
     def drawBackground(self, painter, rect):
         """!
         @brief Paint the workspace, the board and the grids.
+        @param painter QPainter to draw with.
+        @param rect Exposed rectangle in scene coordinates (mm).
         """
         c = th.colors(self.theme)
         painter.fillRect(rect, QColor(c["canvas"]))
@@ -579,6 +599,7 @@ class BoardView(QGraphicsView):
     def mousePressEvent(self, e):
         """!
         @brief Start panning, drawing or the default selection and drag handling.
+        @param e QMouseEvent of the press.
         """
         self.setFocus()
         if e.button() == Qt.MiddleButton or (e.button() == Qt.LeftButton and self._space):
@@ -603,6 +624,7 @@ class BoardView(QGraphicsView):
     def mouseDoubleClickEvent(self, e):
         """!
         @brief A double click finishes a polygon.
+        @param e QMouseEvent of the double click.
         """
         if self._poly_pts:
             # A real double click is press, release, double-click: the press already added the last vertex.
@@ -618,6 +640,7 @@ class BoardView(QGraphicsView):
     def mouseMoveEvent(self, e):
         """!
         @brief Pan, update drawing previews and report the cursor position.
+        @param e QMouseEvent of the move.
         """
         scene_p = self.mapToScene(e.position().toPoint())
         self.cursor_moved.emit(scene_p.x(), scene_p.y())
@@ -640,6 +663,7 @@ class BoardView(QGraphicsView):
     def mouseReleaseEvent(self, e):
         """!
         @brief Finish panning, a rectangle, or commit element moves.
+        @param e QMouseEvent of the release.
         """
         if self._panning and e.button() in (Qt.MiddleButton, Qt.LeftButton):
             self._panning = False
@@ -664,6 +688,7 @@ class BoardView(QGraphicsView):
     def keyPressEvent(self, e):
         """!
         @brief Keyboard shortcuts: Delete, Ctrl+D, arrows, Enter, Esc, Space (pan).
+        @param e QKeyEvent of the key press.
         """
         key = e.key()
         if key == Qt.Key_Space and not e.isAutoRepeat():
@@ -690,6 +715,7 @@ class BoardView(QGraphicsView):
     def keyReleaseEvent(self, e):
         """!
         @brief Releasing Space ends hand-pan mode.
+        @param e QKeyEvent of the key release.
         """
         if e.key() == Qt.Key_Space and not e.isAutoRepeat():
             self._space = False

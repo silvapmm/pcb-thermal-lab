@@ -17,6 +17,8 @@ plot them:
 
 import csv
 import json
+
+import numpy as np
 import os
 import time
 from dataclasses import asdict, dataclass, field
@@ -24,6 +26,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 from . import analytic, fvm, lumped
 from .analysis import heater_stats, hotspots, zone_stats
+from .checks import check_problem
 from .model import Problem
 from .results import SteadyResult
 
@@ -91,6 +94,18 @@ class Simulation:
     options: SolverOptions
     results: Dict[str, SteadyResult] = field(default_factory=dict)
     seconds: Dict[str, float] = field(default_factory=dict)
+    problem_warnings: list = field(default_factory=list)       # Validity checks of the input (see checks.py)
+
+    @property
+    def warnings(self):
+        """!
+        @brief Every warning: input checks first, then those of each model.
+        @return List of strings.
+        """
+        out = list(self.problem_warnings)
+        for name, r in self.results.items():
+            out += [f"{name}: {w}" for w in r.warnings]
+        return out
 
     @property
     def reference(self):
@@ -127,9 +142,8 @@ class Simulation:
             lines.append(f"| {r['model']} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
                          f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {r['energy_balance']:+.0e} | "
                          f"{r['error_vs_reference'] * 100:+.1f} % | {r['seconds']:.2f} |")
-        for name, res in self.results.items():
-            for w in res.warnings:
-                lines.append(f"\n> **{name}**: {w}")
+        for w in self.warnings:
+            lines.append(f"\n> **Warning**: {w}")
         return "\n".join(lines) + "\n"
 
     def to_text(self):
@@ -144,9 +158,8 @@ class Simulation:
             lines.append(f"{r['model']:9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
                          f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {r['energy_balance']:+9.0e} "
                          f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
-        for name, res in self.results.items():
-            for w in res.warnings:
-                lines.append(f"WARNING ({name}): {w}")
+        for w in self.warnings:
+            lines.append(f"WARNING: {w}")
         return "\n".join(lines) + "\n"
 
     def report(self):
@@ -224,6 +237,20 @@ class Simulation:
         return written
 
 
+def suggest_cell_mm(problem, lo=0.25, hi=2.0):
+    """!
+    @brief Cell size that resolves the smallest heater with about four cells across its narrow side.
+    @param problem A Problem.
+    @param lo Smallest cell size returned (mm).
+    @param hi Largest cell size returned (mm).
+    @return Cell size in millimetres, clipped to [lo, hi]; hi when there is no heater.
+    """
+    sizes = [min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0 for h in problem.heaters if h.power > 0]
+    if not sizes:
+        return hi
+    return float(min(max(min(sizes) / 4.0, lo), hi))
+
+
 def _run_model(problem, name, o):
     """!
     @brief Run one model with the matching options.
@@ -252,7 +279,7 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     options = options or SolverOptions()
     options.validate()
     problem.validate()
-    sim = Simulation(problem=problem, options=options)
+    sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm))
     n = len(options.models)
     for k, name in enumerate(options.models):
         if progress:

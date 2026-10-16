@@ -93,15 +93,22 @@ def test_lumped_handles_corner_heater_and_two_heaters():
     assert l.t_mean == pytest.approx(f.t_mean, abs=1.0)
 
 
-def test_analytic_local_corrections_beat_smearing_and_warn_on_partial_copper():
+def test_analytic_local_corrections_beat_smearing_and_handle_partial_copper():
     p = example_board()
     f = fvm.solve_steady(p, cell_mm=1.0)
     a_local = analytic.solve_steady(p)
     a_smear = analytic.solve_steady(p, local_corrections=False)
     assert abs(a_local.delta_t / f.delta_t - 1) < abs(a_smear.delta_t / f.delta_t - 1)
-    assert abs(a_local.delta_t / f.delta_t - 1) < 0.15
+    assert abs(a_local.delta_t / f.delta_t - 1) < 0.05      # Per-layer copper weighting handles the partial top copper
     assert abs(a_local.balance_error) < 1e-9
-    assert a_local.warnings                          # partial top copper is flagged
+
+
+def test_analytic_warns_when_the_copper_edge_crosses_the_heater():
+    p = Problem.new(100, 80, 4).add_full_copper([2, 3, 4]).add_zone(1, rect=(15, 15, 85, 65))
+    p.add_heater(1, 4.0, rect=(10, 35, 20, 45))               # Straddles the left edge of the top copper
+    assert analytic.solve_steady(p).warnings
+    sim = simulate(p, SolverOptions(cell_mm=2.0))
+    assert any("copper edge" in w for w in sim.problem_warnings)
 
 
 def test_analytic_exact_on_uniform_board_with_vias_and_sink():
@@ -118,3 +125,39 @@ def test_analytic_exact_on_uniform_board_with_vias_and_sink():
 def test_legacy_file_is_still_readable(tmp_path):
     d = problem_to_dict(example_board())
     assert problem_from_dict(d).total_power() == pytest.approx(5.5)
+
+
+def test_lumped_follows_the_footprint_shape_and_missing_copper():
+    thin = Problem.new(100, 80, 4).add_full_copper().add_heater(1, 4.0, rect=(30, 38, 70, 42))
+    f, l = fvm.solve_steady(thin, cell_mm=1.0), lumped.solve_steady(thin)
+    assert l.delta_t == pytest.approx(f.delta_t, rel=0.12)       # A long strip is not a disc (it was +35 % before)
+    bare = Problem.new(100, 80, 4).add_full_copper([2, 3, 4]).add_heater(1, 4.0, rect=(40, 35, 50, 45))
+    f, l = fvm.solve_steady(bare, cell_mm=1.0), lumped.solve_steady(bare)
+    assert l.delta_t == pytest.approx(f.delta_t, rel=0.08)       # Vertical loss under the footprint (it was +24 % before)
+    assert abs(l.balance_error) < 1e-9
+
+
+def test_input_checks_report_doubtful_models():
+    from pcbthermal import check_problem
+
+    p = Problem.new(100, 80, 2).add_zone(1, rect=(0, 0, 100, 80))
+    p.add_heater(1, 3.0, rect=(90, 30, 110, 50), name="U9")                 # Half outside the board
+    p.add_heater(2, 1.0, rect=(10, 10, 20, 20), name="U1")                  # No copper on layer 2
+    p.add_heater(1, 1.0, rect=(40, 10, 41, 40), name="strip")               # Thin: too few cells at 1 mm? (1 mm wide)
+    p.add_via(150, 10)
+    text = "\n".join(check_problem(p, cell_mm=1.0))
+    assert "U9" in text and "outside the board" in text
+    assert "U1" in text and "no copper" in text
+    assert "strip" in text and "cells wide" in text
+    assert "Via 1 is outside the board" in text
+    assert check_problem(example_board(), cell_mm=1.0) == []                # The example board is clean
+
+
+def test_suggest_cell_size_follows_the_smallest_heater():
+    from pcbthermal import suggest_cell_mm
+
+    p = Problem.new(100, 80, 2).add_heater(1, 1.0, rect=(10, 10, 14, 14))
+    assert suggest_cell_mm(p) == pytest.approx(1.0)
+    q = Problem.new(100, 80, 2).add_heater(1, 1.0, rect=(10, 10, 12, 12))
+    assert suggest_cell_mm(q) == pytest.approx(0.5)
+    assert suggest_cell_mm(Problem.new(100, 80, 2)) == 2.0

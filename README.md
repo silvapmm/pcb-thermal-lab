@@ -6,8 +6,8 @@ models and inspect temperatures, gradients, hotspots and component junction temp
 | Model | Idea | Use it for |
 | :-- | :-- | :-- |
 | **FVM** | cell-centred finite volumes on a multi-layer grid, exact sparse solve (reference) | any geometry, final answers |
-| **Lumped** | one ring thermal network per heater aggregated from the real geometry | fast estimates, a few percent from the FVM |
-| **Analytic** | multilayer cosine-series solution with local via and sink corrections | instant results on boards with uniform copper |
+| **Lumped** | one thermal network per heater built from the real footprint and board outline | fast estimates, within a few percent of the FVM |
+| **Analytic** | multilayer cosine-series solution with copper weighting and local via and sink corrections | instant results, within a few percent unless a copper edge crosses the heater |
 
 All three share one problem description, conserve energy (reported in every result) and are cross-checked by the test suite.
 SOR is available as an optional FVM solver to compare with the original method.
@@ -37,7 +37,8 @@ sim = simulate(p, SolverOptions(cell_mm=1.0))
 print(sim.to_markdown())
 ```
 
-Documentation: [`docs/new_approach.md`](docs/new_approach.md) (old vs new, SOR vs matrices, animation),
+Documentation (index in [`docs/README.md`](docs/README.md)): [`docs/new_approach.md`](docs/new_approach.md) (old vs new, SOR vs matrices, animation),
+[`docs/findings.md`](docs/findings.md) (everything discovered so far),
 [`docs/physics_core.md`](docs/physics_core.md) (models, formulas, API, GUI, verification),
 [`docs/candidate_methods.md`](docs/candidate_methods.md) (methods found in the literature),
 [`docs/thermal_models.md`](docs/thermal_models.md) and [`docs/legacy_vs_new.md`](docs/legacy_vs_new.md) (review of the original solvers).

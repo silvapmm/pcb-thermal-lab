@@ -60,7 +60,8 @@ These rules are mandatory for all code and documentation in this repository.
    Use at least `@brief`, `@param`, and `@return` (plus `@throws`, `@note`,
    `@see` where useful). Start each file with a `@file` / `@brief` header block.
 4. Keep the documentation in sync with the code: update docstrings and this file
-   whenever behavior changes.
+   whenever behavior changes. `tests/test_docs.py` fails if a module, class, function or method in
+   `pcbthermal/` or `examples/` lacks `@brief`, an `@param` per argument, or an `@return` for a returned value.
 
 ## Conventions
 
@@ -90,13 +91,14 @@ pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
   fvm.py               reference finite-volume model: steady (direct, CG, SOR) and transient
   lumped.py            ring network per heater, superposed
   analytic.py          multilayer cosine series + local via/sink corrections
-  results.py, analysis.py, api.py (SolverOptions, simulate), project.py (.pcbt.json), examples.py
+  checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
+  results.py, analysis.py, api.py (SolverOptions, simulate, suggest_cell_mm), project.py (.pcbt.json), examples.py
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (53 tests; GUI tests run offscreen)
-examples/              example boards (.pcbt.json), accuracy_study.py
-docs/                  physics_core.md (current), new_approach.md (old vs new, SOR vs matrices, animation), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
+tests/                 pytest suite (87 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+examples/              example boards (.pcbt.json), accuracy_study.py, stress_study.py, solver_equivalence.py
+docs/                  README.md (index), physics_core.md (current), new_approach.md, findings.md (all discoveries), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
 ico/                   application icon
 ```
 
@@ -154,6 +156,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json   # direct vs CG vs SOR
 .venv/bin/python -m pytest -q tests                                  # tests (GUI offscreen)
 .venv/bin/python examples/accuracy_study.py                          # Lumped/Analytic accuracy table
+.venv/bin/python examples/stress_study.py                            # stress cases
+.venv/bin/python examples/solver_equivalence.py                      # direct vs CG vs SOR on five boards
 ```
 
 ## Branches
@@ -208,3 +212,4 @@ Record important decisions here, newest first, with date and reason.
 - 2026-10-16: Lumped rewritten as per-heater ring networks aggregated from the real geometry (24 % -> 1 % error on the example); Analytic got copper weighting, Green-function corrections for vias and sinks and validity warnings (47 % -> 9 %). New public API: `SolverOptions`, `simulate`, `Problem` builder (mm, 1-based layers), `Project` files. SOR kept as an optional FVM solver (vectorised red-black) to compare with the direct sparse solve: same answer with a residual criterion, wrong answer with the original step criterion.
 - 2026-10-16: Legacy wxPython code removed. PySide 6 GUI built on `pcbthermal` (editor canvas, panels, results tabs, themes, undo/redo). Transients exist in the CLI (`--gif`) but are out of the GUI scope for now, at the user's request. Virtual environment `.venv/` created and ignored by git.
 - 2026-10-16: SOR and the sparse direct solver give the same temperatures (≤1e-8 K on five boards) when SOR stops on the residual; the direct solver is the default (3 to 30 times faster). Real-time animation added to the GUI (Animation tab) and CLI (`transient --gif`), validated against an exact exponential (Euler first order, Crank-Nicolson second order). Docs added: `new_approach.md`, `candidate_methods.md`. The `example_board` vias use 3.5 mm pitch (same positions as the legacy comparison).
+- 2026-10-16: Models tuned after an audit (see `docs/findings.md`): Lumped uses offset-contour rings from the real footprint with exact disc interior relations and a Bessel vertical-loss correction (example board +24 % -> -2 %); Analytic weights copper per layer with the layer's own fin length (+47 % -> -2 %). Added `checks.py` (input validity warnings, shown live in the GUI), `suggest_cell_mm` (Auto cell size), a documentation test gate, and the findings/index docs. Corrected an earlier wrong claim that vias made the FVM mesh-dependent by 1 % (it was a different via layout).

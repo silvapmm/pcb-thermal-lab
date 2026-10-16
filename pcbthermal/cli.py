@@ -22,12 +22,25 @@ import time
 import numpy as np
 
 from . import fvm
-from .api import simulate
+from .api import simulate, suggest_cell_mm
 from .examples import example_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .project import Project, load_project, save_project
 
 MODELS = ("fvm", "lumped", "analytic")
+
+
+def _cell_arg(args, problem, default):
+    """!
+    @brief Resolve the --cell-mm argument.
+    @param args Parsed arguments.
+    @param problem The Problem (used by "auto").
+    @param default Value used when the argument is absent.
+    @return Cell size in millimetres.
+    """
+    if args.cell_mm is None:
+        return default
+    return suggest_cell_mm(problem) if args.cell_mm == "auto" else float(args.cell_mm)
 
 
 def cmd_run(args):
@@ -39,8 +52,7 @@ def cmd_run(args):
     project = load_project(args.config)
     options = project.options
     options.models = MODELS if args.model == "all" else (args.model,)
-    if args.cell_mm is not None:
-        options.cell_mm = args.cell_mm
+    options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     options.linear_solver = args.solver
     sim = simulate(project.problem, options)
     print(f"Board '{project.problem.name}': {project.problem.board.width * 1000:.0f} x "
@@ -60,7 +72,7 @@ def cmd_transient(args):
     """
     problem = load_problem(args.config)
     t0 = time.time()
-    tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=args.cell_mm or 2.0,
+    tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0),
                              theta_scheme=args.theta)
     print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} degC, "
           f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} degC")
@@ -108,7 +120,7 @@ def cmd_solvers(args):
     @return Process exit code.
     """
     project = load_project(args.config)
-    cell = args.cell_mm or project.options.cell_mm
+    cell = _cell_arg(args, project.problem, project.options.cell_mm)
     cases = [("direct (sparse LU)", dict(method="direct")),
              ("cg (Jacobi)", dict(method="cg")),
              ("SOR, residual 1e-9, omega auto", dict(method="sor")),
@@ -179,7 +191,7 @@ def build_parser():
         if config:
             sp.add_argument("config", help="board JSON file (native or legacy editor format)")
         sp.add_argument("--out", default="output", help="output directory (default: output)")
-        sp.add_argument("--cell-mm", type=float, default=None, help="cell size in mm (default: from the project, 1)")
+        sp.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto' (default: from the project, 1)")
         sp.add_argument("--no-plots", action="store_true", help="skip figure generation")
 
     r = sub.add_parser("run", help="solve steady state")

@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QThread, Signal
+from PySide6.QtCore import QSettings, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMainWindow,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDia
 from .. import __version__
 from .. import fvm
 from ..api import simulate
+from ..checks import check_problem
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
@@ -203,6 +204,10 @@ class MainWindow(QMainWindow):
         self.solver_panel.run_requested.connect(self.run_simulation)
         self.results.animation.compute_requested.connect(self.compute_animation)
         self.tabs.currentChanged.connect(self._suggest_animation)
+        self._check_timer = QTimer(self)                      # Re-check the design shortly after the last edit
+        self._check_timer.setSingleShot(True)
+        self._check_timer.setInterval(350)
+        self._check_timer.timeout.connect(self._update_checks)
         self.doc.changed.connect(self._on_doc_changed)
         self.doc.state_changed.connect(self._update_title)
         self.doc.state_changed.connect(lambda: self.canvas.__setattr__("solver_cell", self.doc.options.cell_mm))
@@ -506,10 +511,20 @@ class MainWindow(QMainWindow):
         self.tool_actions["select"].setChecked(True)
         self.canvas.set_tool("select")
 
+    def _update_checks(self):
+        """!
+        @brief Run the input validity checks and show them in the Simulation panel.
+        """
+        try:
+            self.solver_panel.set_checks(check_problem(self.doc.problem, max(self.doc.options.cell_mm, 0.5)))
+        except Exception:                                     # A half-edited design may be inconsistent
+            self.solver_panel.set_checks([])
+
     def _on_doc_changed(self):
         """!
-        @brief React to edits: refresh the layer list, mark results as outdated.
+        @brief React to edits: refresh the layer list, mark results as outdated, schedule the input checks.
         """
+        self._check_timer.start()
         self._refresh_layers()
         self._update_title()
         if self.sim is not None and not self._stale:
@@ -694,6 +709,7 @@ class MainWindow(QMainWindow):
     def _suggest_animation(self, _index=None):
         """!
         @brief Preset the animation duration to a few time constants of the current board.
+        @param _index Ignored (the tab index of the Qt signal).
         """
         if self.tabs.currentIndex() == 1 and self.doc.problem.heaters:
             try:
@@ -782,6 +798,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, e):
         """!
         @brief Confirm unsaved changes and remember the window geometry.
+        @param e QCloseEvent (accepted or ignored here).
         """
         if self.worker is not None and self.worker.isRunning():
             self.worker.wait(30000)

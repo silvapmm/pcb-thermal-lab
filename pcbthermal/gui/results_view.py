@@ -207,6 +207,7 @@ class PlotTab(QWidget):
     def redraw(self, *_):
         """!
         @brief Redraw the figure from the current controls.
+        @param _ Ignored (extra arguments of the Qt signal).
         """
         if self._updating or self.sim is None:
             return
@@ -339,7 +340,7 @@ class ResultsView(QWidget):
                  "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",
                  f"{r['seconds']:.2f}"] for r in sim.table()]
         _fill(self.model_table, rows)
-        warns = [f"{n}: {w}" for n, r in sim.results.items() for w in r.warnings]
+        warns = sim.warnings
         self.warnings.setText("<br>".join(f"⚠ {w}" for w in warns))
         self.warnings.setVisible(bool(warns))
         self.report.setPlainText(sim.report())

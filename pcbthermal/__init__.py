@@ -15,5 +15,6 @@ Typical use:
 __version__ = "0.2.0"
 
 from .model import Problem, load_problem, reference_problem   # noqa: E402,F401
-from .api import SolverOptions, Simulation, simulate           # noqa: E402,F401
+from .api import SolverOptions, Simulation, simulate, suggest_cell_mm   # noqa: E402,F401
+from .checks import check_problem                                       # noqa: E402,F401
 from .project import Project, load_project, save_project       # noqa: E402,F401

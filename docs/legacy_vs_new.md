@@ -3,8 +3,8 @@
 Generated 2026-10-16 by `examples/legacy_comparison.py` at commit `641da87` (the legacy `core/`, `ui/` and that script were removed in later commits;
 check out that commit to reproduce the legacy numbers). The legacy solvers were imported with stubs for wxPython/matplotlib, so only their numerics ran.
 
-> **Update:** after this comparison the new Lumped and Analytic models were improved (see `physics_core.md`). On this example board
-> the Lumped model now gives Tmax 86.48 °C (+1.1 %) and the Analytic model 91.04 °C (+8.6 %, with a warning), against FVM 85.81 °C.
+> **Update:** after this comparison the new Lumped and Analytic models were improved twice (see `new_approach.md` and `findings.md`). On this example board
+> the Lumped model now gives Tmax 84.66 °C (-2.0 %) and the Analytic model 84.65 °C (-2.0 %), against FVM 85.87 °C at 0.5 mm.
 > The "new" rows of the table below are the first versions (Lumped +24.0 %, Analytic +47.1 %).
 
 ## Example board
