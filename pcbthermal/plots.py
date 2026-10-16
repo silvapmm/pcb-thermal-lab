@@ -299,18 +299,27 @@ def draw_waveforms(fig, problem, cycles=2.0):
     if not waves:
         ax.text(0.5, 0.5, "No heater has a power profile", ha="center", va="center", transform=ax.transAxes)
         return
-    span = cycles * max(h.profile.period for _, h in waves)
+    # Show a few periods of the slowest repeating profile, or the whole length of a one-shot profile
+    longest = max(h.profile.period for _, h in waves)
+    span = (cycles if any(h.profile.repeat for _, h in waves) else 1.05) * longest
     t = np.linspace(0.0, span, 4000, endpoint=False)
     for i, h in waves:
         w = h.profile
         label = f"{h.name or f'Heater {i + 1}'}: average {w.average():.2f} W"
-        if span / w.period > 40:
+        iv = w.intervals()
+        lo, hi = min(p for _, _, p in iv), max(p for _, _, p in iv)
+        if w.repeat and span / w.period > 40:
             # Too many cycles to draw: show the swing as a band and the average as a line
-            line, = ax.plot(t, np.full_like(t, w.average()), lw=1.4, label=label + f" (switching at {1.0 / w.period:g} Hz)")
-            ax.fill_between(t, w.p_off, w.p_on, color=line.get_color(), alpha=0.18)
+            line, = ax.plot(t, np.full_like(t, w.average()), lw=1.4, label=label + f" (repeats at {1.0 / w.period:g} Hz)")
+            ax.fill_between(t, lo, hi, color=line.get_color(), alpha=0.18)
             continue
-        p = np.where((t % w.period) < w.on_time(), w.p_on, w.p_off)
-        ax.step(t, p, where="post", lw=1.4, label=label)
+        edges = np.array([a for a, _, _ in iv])
+        values = np.array([p for _, _, p in iv])
+        phase = t % w.period if w.repeat else np.minimum(t, w.period - 1e-12)
+        p = values[np.clip(np.searchsorted(edges, phase, side="right") - 1, 0, len(values) - 1)]
+        if not w.repeat:
+            p = np.where(t > w.period, values[-1], p)                       # The last power is held after the end
+        ax.step(t, p, where="post", lw=1.4, label=label + ("" if w.repeat else " (one-shot)"))
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Power (W)")
     ax.grid(alpha=0.3)

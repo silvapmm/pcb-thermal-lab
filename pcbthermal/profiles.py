@@ -146,16 +146,17 @@ class HeaterDecision:
     """
     index: int                                  # Heater index
     name: str                                   # Heater label
-    kind: str                                   # "constant" or "wave"
+    kind: str                                   # "constant", "wave" (square) or "table"
     regime: str                                 # "constant", "average" or "resolved"
     average_power: float                        # Mean power (W)
     peak_power: float                           # On-state power (W)
-    period: float                               # Period (s); 0 for a constant heater
-    duty: float                                 # Duty; 1 for a constant heater
+    period: float                               # Period or table length (s); 0 for a constant heater
+    duty: float                                 # Duty of a square wave; 1 for a constant heater; NaN for a table
     average_rise: float                         # Rise at its hottest point with the average power (degC)
     oscillation: float                          # Peak-to-peak oscillation at its hottest point (degC)
     periodic_peak_rise: float                   # Periodic-steady-state peak rise (degC)
     periodic_valley_rise: float                 # Periodic-steady-state valley rise (degC)
+    repeat: bool = True                         # False for a one-shot table (always resolved)
 
     @property
     def oscillation_percent(self):
@@ -177,25 +178,99 @@ def step_response_fvm(problem, cell_mm=2.0):
     return StepResponse("fvm", times, z, rth)
 
 
-def wave_response(resp, i, wave, terms=3000):
+def _cumulative_response(resp, i, period, sigma, terms):
     """!
-    @brief Periodic-steady-state rise (peak and valley) of a heater's own hottest point under a square wave.
+    @brief G(sigma) = sum over m >= 0 of [Z(sigma + m T) - Z(m T)], the response of the periodised impulse up to sigma.
+    @details G(T) equals the steady resistance. The terms beyond the exact ones are added as sigma / T times what is left of
+             the step response (the response is flat there), which is exact when T is much shorter than the time scale.
+    @param resp StepResponse.
+    @param i Heater index.
+    @param period Period T in seconds.
+    @param sigma Array of values in [0, T].
+    @param terms Number of exact terms.
+    @return Array like sigma, in degC/W.
+    """
+    sigma = np.atleast_1d(np.asarray(sigma, dtype=float))
+    m = np.arange(terms)
+    z0 = resp.z_at(i, m * period)                                         # Z(m T), shared by all sigma
+    tail = resp.rth[i] - float(resp.z_at(i, terms * period))
+    out = np.empty_like(sigma)
+    # Evaluate in blocks to bound the memory of the (sigma x terms) array
+    step = max(1, int(4e6 // terms))
+    for lo in range(0, len(sigma), step):
+        sg = sigma[lo:lo + step]
+        zs = resp.z_at(i, sg[:, None] + m[None, :] * period)
+        out[lo:lo + step] = np.sum(zs - z0[None, :], axis=1) + tail * sg / period
+    return out
+
+
+def wave_response(resp, i, profile, terms=3000):
+    """!
+    @brief Periodic-steady-state rise (peak and valley) of a heater's own hottest point under a repeating profile.
+    @details With P(t) piecewise constant and periodic, T(u) = sum over the stretches j of P_j [G(s2) - G(s1)], where
+             [s1, s2] is the part of the period whose impulse response falls on stretch j, and G is _cumulative_response.
+             For a square wave this is the exact formula peak = P_off Rth + dP G(tp) of docs/roadmap.md 1.2. The extremes are
+             searched at the breakpoints and at the middle of every stretch.
     @param resp StepResponse of the reference model.
     @param i Heater index.
-    @param wave SquareWave of that heater.
-    @param terms Number of exact terms of the superposition sums (the tail is added analytically).
-    @return Tuple (peak_rise, valley_rise) in degC above ambient (including the off-state power).
+    @param profile SquareWave or repeating TableProfile of that heater.
+    @param terms Number of exact terms of the superposition sums.
+    @return Tuple (peak_rise, valley_rise) in degC above ambient.
     """
-    T, tp, rth = wave.period, wave.on_time(), resp.rth[i]
-    dP = wave.p_on - wave.p_off
-    base = wave.p_off * rth
-    if wave.duty >= 1.0 or dP == 0.0:
-        return base + dP * rth, base + dP * rth
-    m = np.arange(terms)
-    tail = wave.duty * (rth - resp.z_at(i, terms * T))
-    peak = float(np.sum(resp.z_at(i, m * T + tp) - resp.z_at(i, m * T)) + tail)
-    valley = float(np.sum(resp.z_at(i, m[1:] * T) - resp.z_at(i, m[1:] * T - tp)) + tail)
-    return base + dP * peak, base + dP * valley
+    iv = profile.intervals()
+    period = profile.period
+    rth = resp.rth[i]
+    powers = np.array([p for _, _, p in iv])
+    if len(iv) == 1 or np.ptp(powers) == 0.0:
+        return float(powers[0] * rth), float(powers[0] * rth)
+    a = np.array([x for x, _, _ in iv])
+    b = np.array([y for _, y, _ in iv])
+    # Phases at which the temperature is evaluated: every breakpoint and every stretch middle
+    u = np.unique(np.concatenate([a, 0.5 * (a + b)]))
+    # Window of sigma (time since the impulse) that lands on stretch j at phase u, for the two wraps
+    los, his = [], []
+    for k in (0, 1):
+        lo = np.clip(u[:, None] - b[None, :] + k * period, 0.0, period)
+        hi = np.clip(u[:, None] - a[None, :] + k * period, 0.0, period)
+        los.append(lo)
+        his.append(hi)
+    lo, hi = np.stack(los), np.stack(his)                                   # (2, n_u, n_int)
+    needed = np.unique(np.concatenate([lo.ravel(), hi.ravel()]))
+    exact_terms = int(min(terms, max(50, 3e6 // max(len(needed), 1))))
+    if len(needed) > 1500:
+        # Many different windows: interpolate G (smooth, monotone) from a grid that contains the extremes
+        grid = np.unique(np.concatenate([np.geomspace(max(profile.shortest_feature() / 20.0, period * 1e-9), period, 600),
+                                         np.linspace(0.0, period, 600), [0.0, period]]))
+        g_grid = _cumulative_response(resp, i, period, grid, exact_terms)
+        interp = PchipInterpolator(grid, g_grid)
+        g_of = lambda x: interp(x)                                          # noqa: E731
+    else:
+        g_vals = _cumulative_response(resp, i, period, needed, exact_terms)
+        g_of = lambda x: np.interp(x, needed, g_vals)                       # noqa: E731
+    contrib = np.where(hi > lo, g_of(hi) - g_of(lo), 0.0)                   # (2, n_u, n_int)
+    temp = contrib.sum(axis=0) @ powers                                     # (n_u,)
+    return float(temp.max()), float(temp.min())
+
+
+def once_response(resp, i, profile, n_points=400):
+    """!
+    @brief Rise of a heater's own hottest point during a one-shot profile, starting from the steady state of its first power.
+    @param resp StepResponse of the reference model.
+    @param i Heater index.
+    @param profile A TableProfile that does not repeat.
+    @param n_points Number of times at which the response is sampled (plus every breakpoint).
+    @return Tuple (peak_rise, valley_rise) in degC above ambient over the profile length.
+    """
+    iv = profile.intervals()
+    powers = np.array([p for _, _, p in iv])
+    starts = np.array([a for a, _, _ in iv])
+    t = np.unique(np.concatenate([np.linspace(0.0, profile.period, n_points), starts, [profile.period]]))
+    dP = np.diff(np.concatenate([[powers[0]], powers]))                   # Steps of power at the start of each stretch
+    temp = powers[0] * resp.rth[i] + np.zeros_like(t)
+    for s, d in zip(starts, dP):
+        if d != 0.0:
+            temp = temp + d * resp.z_at(i, t - s)
+    return float(temp.max()), float(temp.min())
 
 
 def decide(problem, resp, threshold_c):
@@ -216,10 +291,16 @@ def decide(problem, resp, threshold_c):
                                       rise, 0.0, rise, rise))
             continue
         w = h.profile
-        pk, vl = wave_response(resp, i, w)
-        out.append(HeaterDecision(i, h.name or f"Heater {i + 1}", "wave", "average", avg, w.p_on, w.period, w.duty,
-                                  rise, max(pk - vl, 0.0), pk, vl))
-        waves.append(i)
+        if w.repeat:
+            pk, vl = wave_response(resp, i, w)
+        else:
+            pk, vl = once_response(resp, i, w)
+        kind = "wave" if w.kind == "square" else "table"
+        duty = w.duty if w.kind == "square" else float("nan")
+        out.append(HeaterDecision(i, h.name or f"Heater {i + 1}", kind, "average" if w.repeat else "resolved", avg, w.peak(),
+                                  w.period, duty, rise, max(pk - vl, 0.0), pk, vl, w.repeat))
+        if w.repeat:
+            waves.append(i)                                              # A one-shot profile never takes part in the budget
     # Error budget: average the heaters with the smallest oscillations while their sum stays within the threshold
     spent = 0.0
     for i in sorted(waves, key=lambda k: out[k].oscillation):
@@ -321,13 +402,19 @@ def plan_run(problem, decisions, options):
     """
     res = [d.index for d in decisions if d.regime == "resolved"]
     if not res:
-        return {"resolved": [], "window": 0.0, "n_per": 0, "dt": 0.0, "steps": 0}
+        return {"resolved": [], "window": 0.0, "n_per": 0, "dt": 0.0, "steps": 0, "once": False, "exact": True}
     waves = {i: problem.heaters[i].profile for i in res}
-    window = max(w.period for w in waves.values())
-    shortest = min(min(w.on_time(), w.off_time()) if w.off_time() > 0 else w.on_time() for w in waves.values())
+    repeating = [w.period for w in waves.values() if w.repeat]
+    once = [w.period for w in waves.values() if not w.repeat]
+    # The window is the period of the combined repeating signal (least common multiple); a one-shot profile fixes the length
+    window, exact = _common_period(repeating) if repeating else (0.0, True)
+    window = max([window] + once)
+    shortest = min(w.shortest_feature() for w in waves.values())
     n_per = max(int(math.ceil(window / (shortest / 10.0))), 20)
     dt = window / n_per
-    if options.duration == "cycles":
+    if once and options.duration != "time":
+        steps = n_per                                                  # One pass of the profile
+    elif options.duration == "cycles":
         steps = options.cycles * n_per
     elif options.duration == "time":
         steps = int(math.ceil(options.time_s / dt))
@@ -337,9 +424,36 @@ def plan_run(problem, decisions, options):
         names = ", ".join(problem.heaters[i].name or f"heater {i + 1}" for i in res)
         raise ProfileError(
             f"the time simulation needs about {steps:,} steps (limit {options.max_steps:,}): the resolved heaters ({names}) "
-            f"have a shortest edge of {shortest:.3g} s and a longest period of {window:.3g} s. Raise the oscillation "
+            f"have a shortest stretch of {shortest:.3g} s and a window of {window:.3g} s. Raise the oscillation "
             "threshold so that the fastest heater is averaged, shorten the duration, or raise the step limit.")
-    return {"resolved": res, "window": window, "n_per": n_per, "dt": dt, "steps": steps}
+    return {"resolved": res, "window": window, "n_per": n_per, "dt": dt, "steps": steps, "once": bool(once), "exact": exact}
+
+
+def _common_period(periods, max_ratio=50.0):
+    """!
+    @brief Period of the sum of several repeating signals: the least common multiple of their periods.
+    @details Periods are turned into fractions (denominator limit 100000); if the least common multiple is more than max_ratio
+             times the longest period (or there is none), the longest period is used and the result is marked inexact.
+    @param periods List of periods in seconds.
+    @param max_ratio Largest accepted ratio between the common period and the longest period.
+    @return Tuple (period in seconds, True if every period divides it).
+    """
+    from fractions import Fraction
+    from math import gcd
+    longest = max(periods)
+    fr = [Fraction(p).limit_denominator(100000) for p in periods]
+    den = 1
+    for f in fr:
+        den = den * f.denominator // gcd(den, f.denominator)
+    nums = [int(f * den) for f in fr]
+    lcm = 1
+    for n in nums:
+        lcm = lcm * n // gcd(lcm, n)
+    common = lcm / den
+    ok = all(abs(common / p - round(common / p)) < 1e-6 for p in periods)
+    if not ok or common > max_ratio * longest:
+        return longest, False
+    return float(common), True
 
 
 def run_windows(problem, decisions, options, adapter, model, progress=None):
@@ -376,6 +490,8 @@ def run_windows(problem, decisions, options, adapter, model, progress=None):
     adapter.prepare(dt)
     if options.duration == "time":
         windows_max = int(math.ceil(plan["steps"] / n_per))
+    elif plan["once"]:
+        windows_max = 1                                                # One pass of a one-shot profile
     elif options.duration == "cycles":
         windows_max = options.cycles
     else:
@@ -410,7 +526,9 @@ def run_windows(problem, decisions, options, adapter, model, progress=None):
             converged = True
             break
         prev_peak, prev_min = wp, wm
-    if options.duration != "stable":
+    if plan["once"] and options.duration != "time":
+        converged = True                                                 # A single pass has nothing to settle
+    elif options.duration != "stable":
         converged = prev_peak is not None and w >= 1
     result.resolved = True
     result.window, result.dt, result.windows, result.steps, result.converged = window, dt, w + 1, total, converged
@@ -423,14 +541,14 @@ def run_windows(problem, decisions, options, adapter, model, progress=None):
     result.history_max, result.history_t = flat[::keep], (np.arange(1, len(flat) + 1) * dt)[::keep]
     l, i, j = np.unravel_index(int(np.argmax(result.peak_map)), result.peak_map.shape)
     result.peak_location = (int(l), (j + 0.5) * adapter.dx, (i + 0.5) * adapter.dy)
-    if options.duration == "stable" and not converged:
+    if options.duration == "stable" and not converged and not plan["once"]:
         result.warnings.append(f"the cycle did not repeat within {w + 1} windows (a change below {options.stable_c} °C "
                                "was not reached); the last window is reported")
-    if len(res) > 1:
-        periods = [waves[i].period for i in res]
-        if abs(max(periods) / min(periods) - round(max(periods) / min(periods))) > 1e-6:
-            result.warnings.append("the resolved periods are not multiples of each other, so the combined signal never repeats "
-                                   "exactly; the peak is the highest value seen in the last window")
+    if not plan["exact"]:
+        result.warnings.append("the resolved periods have no common multiple within 50 times the longest one, so the combined "
+                               "signal is not followed over its whole period; the peak is the highest value seen in the last window")
+    if plan["once"]:
+        result.warnings.append("a one-shot profile is simulated once from its start state; its last power is held after the end")
     result.warnings += list(getattr(adapter, "warnings", []))
     result.seconds = time.time() - t_begin
     if progress:
@@ -457,6 +575,8 @@ class _FVMAdapter:
         self.p_avg = np.array([h.average_power() for h in problem.heaters])
         steady = spla.splu(self.net.K.tocsc())
         self.th_avg = steady.solve(self.net.Qw_matrix @ self.p_avg)
+        p_init = np.array([h.initial_power() for h in problem.heaters])      # Start state: average, or first power of a one-shot
+        self.th_init = self.th_avg if np.allclose(p_init, self.p_avg) else steady.solve(self.net.Qw_matrix @ p_init)
         th_peak = steady.solve(self.net.Qw_matrix @ np.array([h.peak_power() for h in problem.heaters]))
         self.steady_average_max = float(self.th_avg.max() + self.ambient)
         self.steady_peak_max = float(th_peak.max() + self.ambient)
@@ -480,7 +600,7 @@ class _FVMAdapter:
         """
         self.theta = options.theta
         if options.initial == "average":
-            return self.th_avg.copy(), self.steady_average_max
+            return self.th_init.copy(), float(self.th_init.max() + self.ambient)
         t0 = self.ambient if options.initial_c is None else float(options.initial_c)
         return np.full_like(self.th_avg, t0 - self.ambient), t0
 

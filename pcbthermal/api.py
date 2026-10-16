@@ -179,8 +179,8 @@ class Simulation:
                  "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
                  "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
         for d in self.decisions:
-            if d.kind == "wave":
-                lines.append(f"| {d.name} | {d.period:g} | {d.duty:.0%} | {d.average_power:.3f} | {d.peak_power:.3f} | "
+            if d.kind != "constant":
+                lines.append(f"| {d.name} | {d.period:g}{'' if d.repeat else ' (once)'} | {_duty_text(d)} | {d.average_power:.3f} | {d.peak_power:.3f} | "
                              f"{d.oscillation:.2f} | {d.oscillation_percent:.1f} % | {d.regime} |")
             else:
                 lines.append(f"| {d.name} | - | - | {d.average_power:.3f} | {d.peak_power:.3f} | - | - | constant |")
@@ -240,8 +240,9 @@ class Simulation:
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
                          f"{self.profile_reference} step response, threshold {self.options.profile.threshold_c:g} C):")
             for d in self.decisions:
-                if d.kind == "wave":
-                    lines.append(f"  {d.name}: period {d.period:g} s, duty {d.duty:.0%}, average {d.average_power:.3f} W, "
+                if d.kind != "constant":
+                    lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {d.period:g} s, duty {_duty_text(d)}, "
+                                 f"average {d.average_power:.3f} W, "
                                  f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} C "
                                  f"({d.oscillation_percent:.1f} % of the rise) -> {d.regime}")
                 else:
@@ -364,6 +365,15 @@ def _run_model(problem, name, o):
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=min(max(o.cell_mm, 0.5), 1.0))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
                                  local_corrections=o.analytic_local_corrections)
+
+
+def _duty_text(d):
+    """!
+    @brief Duty of a decision as text: a percentage for a square wave, a dash for a table.
+    @param d HeaterDecision.
+    @return String.
+    """
+    return "-" if d.duty != d.duty else f"{d.duty:.0%}"       # NaN is the only value that differs from itself
 
 
 def _solve_computed_h(problem, name, o):

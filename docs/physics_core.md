@@ -129,6 +129,15 @@ Theory and measurements: `roadmap.md` section 1. What is implemented:
 5. **Interfaces**: `SolverOptions.profile` (`ProfileOptions`) and `steady_power` (steady models use the "average" or "peak" power); `Simulation.decisions` / `profile_results`; CLI `run --duration --cycles --time-s --initial-c --threshold-c --steady-power`;
    GUI tab "Power profile" and results tab "Power profile"; files `profile_<model>.csv/.png`, `peak_map_<model>.png`.
 
+**Tables and CSV.** `TableProfile` (times, powers, repeat) has the same interface as the square wave (average, peak, exact step-mean power, intervals). The periodic response of a piecewise-constant profile is
+`T(u) = Σ_j P_j [G(σ2) - G(σ1)]` with `G(σ) = Σ_{m≥0} [Z(σ + mT) - Z(mT)]` and the tail `σ/T (Rth - Z(MT))` added for the terms beyond the exact ones; for a square wave this is the formula above. A one-shot table (`repeat: no`) is always resolved,
+starts from the steady state of its first power (or a typed temperature), is simulated for its length (or a fixed time) and holds its last power afterwards. The window of several repeating profiles is the least common multiple of their periods (a warning if there is none within 50 times the longest).
+CSV format and a worked example: `examples/csv_profiles/README.md`; reader and writer: `profile_io.py`.
+
+**Analytic transient with vias and sinks.** The steady analytic model corrects vias and sinks locally (Green functions); the transient cannot, so they are smeared over the board, which leaves a via array under a heater almost without effect (10 °C too hot on the example).
+With vias or sinks each heater gets its own modal system whose via conductance (or sink coefficient, if there are no vias) is scaled by a factor found by bisection so that the heater's steady response equals the locally corrected steady one (factors 65 for the heater above the array and 1 for the distant one on the example).
+Measured: the animation curve follows the FVM within 2.5 °C at every time; the profile peak 134.7 against 135.3 °C. A single global factor was tried first and cooled the distant heater by 18 %. The factor is reported in a warning.
+
 Validation (`tests/test_profiles.py`): exact energy of the step-mean power; exact RC solution of a uniform board (periodic peak within 0.3 %, time stepping within 0.4 % with Crank-Nicolson);
 mixed regimes against the fully resolved run (difference bounded by the neglected oscillation); the three models agree within 5 % on the example (FVM 135.3, Lumped 131.8, Analytic 134.9 °C peak).
 Animation of the last window works in all three models; the Lumped frames are only indicative (sum of radial profiles). The step-power Animation tab remains FVM only.

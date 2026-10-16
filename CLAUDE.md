@@ -113,12 +113,13 @@ pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
   analytic.py          multilayer cosine series + local via/sink corrections
   checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
   convection.py        computed h: air properties, natural/forced convection, radiation, board_h (Picard loop is in api.py)
+  profile_io.py        power profiles as CSV files (read/write)
   profiles.py          power profiles (square wave): decision average-or-resolve, window runner shared by the three models
   results.py, analysis.py, api.py (SolverOptions, simulate, suggest_cell_mm), project.py (.pcbt.json), examples.py
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (118 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (128 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (.pcbt.json), accuracy_study.py, stress_study.py, solver_equivalence.py
 docs/                  README.md (index), physics_core.md (current), new_approach.md, findings.md (all discoveries), candidate_methods.md (literature), thermal_models.md + legacy_vs_new.md (history of the old solvers)
 ico/                   application icon
@@ -226,6 +227,7 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 
 Record important decisions here, newest first, with date and reason.
 
+- 2026-10-16: Added power tables and CSV (`TableProfile`, `profile_io.py`, GUI import/export buttons, `run --profile`, `examples/csv_profiles/`); the decision uses the periodised step response for any periodic table, one-shot tables are always resolved from the steady state of their first power; analytic transient now has one modal system per heater with the via (or sink) conductance scaled to the local steady response (single global scale tried and rejected: it cooled the distant heater by 18 %); animation of the power step also for the Analytical model. Version bump to be decided at the release.
 - 2026-10-16: Released **2.1.0** (power profiles + computed heat transfer coefficients), merged `feature/more-models` into `develop` and `main`, tag `v2.1.0`. Next: Component element (Package, heat sink), then Gerber import and variable stack-up.
 - 2026-10-16: Implemented computed heat transfer coefficients (`convection.py`, `Board.h_mode/emissivity_top/emissivity_bottom/air_speed/orientation/h_calibration`, Picard loop outside the models in `api._solve_computed_h`): one `h` per face from the mean face temperature, radiation always included (emissivity per face, default 0.9), global convection multiplier, edge `h` stays typed, time simulation and animation fixed at the steady-state coefficients. Measured effect on the example: a constant `h` overestimates the rise by 10 % at 22 W and underestimates it at low power (`roadmap.md` section 2).
 - 2026-10-16: Roadmap extended: heat sink on a component (θCS + θSA in K/W, θSA scaled with ΔT from a reference rise, optional sink capacity C_hs from the first version), Gerber import of the copper per layer (section 7, `gerbonara` as candidate, fill fraction per cell), and variable stack-up (section 8: per-gap dielectric thickness and material, layer nodes of copper plus half the adjacent dielectrics, backward compatible when gaps are equal). All future work, nothing implemented.

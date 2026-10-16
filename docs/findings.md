@@ -32,6 +32,7 @@ what was done about it. Detail and numbers live in the linked documents; this fi
 | B10 | A fast wave is harmless but a slow one is not: at 100 Hz and 30 % duty the oscillation at the hottest point is 0.4 °C (average is enough), at a 20 s period it is 85 °C | example board, `roadmap.md` 1.1 | decision by oscillation in °C |
 | B11 | Averaging the fast heater changes the peak by less than its oscillation and cuts the steps by a factor of 40 or more | `tests/test_profiles.py` | mixed regimes in one run |
 | B12 | A constant typed `h` is only right near one operating point: on the example board it is within 0.1 °C at 5.5 W but 23 °C too hot at 22 W; the bottom face (facing down) cools worse than the top and radiation is 40 to 60 % of the coefficient | `roadmap.md` section 2 table | computed `h` option |
+| B13 | A smeared via array under a heater has almost no effect on the analytic transient (10 °C too hot); scaling the via conductance globally fixes the heater above the vias but cools the distant one by 18 %; one calibrated system per heater fixes both | `physics_core.md` 3.4 | analytic `_ModalSet` |
 | B9 | A heater partly outside the board has its full power applied to the part inside | 5 W on half the area: 148 °C | warning from `check_problem` |
 
 ## C. Numerical findings

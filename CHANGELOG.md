@@ -5,6 +5,14 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Added
+- **Power tables and CSV files**: a heater can follow any piecewise-constant power over time (`TableProfile`), repeating or run once (a start-up or mission profile with the last power held), read from and written to CSV files (`time_s,power_w`, comment lines, optional units, errors with the line number).
+  GUI: "Table (CSV file)" profile with **Import CSV…** and **Export CSV…** buttons (a square wave is exported as a table); CLI: `run --profile HEATER=file.csv`; project files store tables.
+  The average-or-resolve decision works for any periodic table (periodised step response), one-shot tables are always resolved, and several repeating profiles are simulated over the least common multiple of their periods.
+- **Analytic transient with vias and sinks**: one modal system per heater with the smeared via (or sink) conductance scaled so that its steady response equals the locally corrected steady model; the example's temperature curve now follows the FVM within 2.5 °C
+  (10 °C before) and the profile peak within 0.5 %. Animation of the power step also for the Analytical model (selector in the Animation tab).
+- `examples/csv_profiles/`: documented example board with three profile CSV files, scripts and a README.
+
 Next: the Component element (Package 2R, heat sink, passive areas), Gerber import and a variable stack-up (see `docs/roadmap.md`).
 
 ## [2.1.0] - 2026-10-16

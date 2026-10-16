@@ -6,6 +6,9 @@ References are listed at the end; claims taken from the literature are marked wi
 
 ## 1. Variable power: profiles, PWM, pulses (implemented on `feature/more-models`)
 
+> **Update (2026-10-16)**: arbitrary piecewise-constant profiles (tables, CSV import and export, one-shot or repeating) are also implemented; the decision for any periodic profile uses the periodised step response
+> `G(σ) = Σ_m [Z(σ + mT) - Z(mT)]` (exact for the square wave), and the analytic transient is calibrated per heater (see `physics_core.md` 3.4).
+>
 > **Status**: implemented as designed below (`pcbthermal/profiles.py`, `fvm/lumped/analytic.run_profile`, GUI "Power profile" tab, CLI `run` options). Differences from the notes:
 > the periodic-peak decision uses a monotone (PCHIP) interpolation of the step response in log time (0.4 % error against the exact RC solution); the analytic transient smears
 > vias and sinks; the mixed run is validated by `tests/test_profiles.py` (the difference to the fully resolved run is bounded by the neglected oscillation).

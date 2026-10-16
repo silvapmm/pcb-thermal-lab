@@ -122,3 +122,14 @@ def test_cli_computed_h(tmp_path, capsys):
     assert cli.main(["run", str(path), "--model", "fvm", "--cell-mm", "2", "--out", str(tmp_path / "o"), "--no-plots",
                      "--air-speed", "1"]) == 0
     assert (tmp_path / "o" / "report.txt").read_text().count("computed from correlations") == 1
+
+
+def test_rayleigh_warning_outside_the_fitted_range():
+    # A very small heated board with almost no power sits below Ra = 1e4: the correlation is an extrapolation
+    p = reference_problem(layers=2, heater_mm=5.0, power=0.01)
+    p.board.h_mode = "computed"
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
+    assert any("Rayleigh" in w for w in sim.results["fvm"].warnings)
+    q = example_board()
+    q.board.h_mode = "computed"
+    assert not any("Rayleigh" in w for w in simulate(q, SolverOptions(models=("fvm",), cell_mm=2.0)).results["fvm"].warnings)

@@ -12,6 +12,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Three models on one board description**, cross-checked against each other and reporting an exact energy balance.
 - **Interactive editor** (PySide 6): rectangles and polygons, vias, sinks, undo/redo, background photo, dark and light themes.
 - **Results**: temperature maps per layer, gradients, profiles, hotspot list, heater and junction temperatures, zone statistics, model comparison, temperature painted on the board.
+- **Power tables from CSV files** (any piecewise-constant profile, repeating or one-shot) with import and export buttons; documented example in [`examples/csv_profiles`](examples/csv_profiles).
 - **Computed heat transfer coefficients**: convection (natural or forced, any orientation) plus radiation from the board temperature, with an optional calibration multiplier, instead of typed numbers.
 - **Power profiles**: square-wave power per heater (period or frequency, duty); each heater is averaged or simulated in time automatically, in all three models.
 - **Animation of the heat evolution** in real time (power step), with GIF export.

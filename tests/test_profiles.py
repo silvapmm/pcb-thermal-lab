@@ -124,7 +124,7 @@ def test_models_agree_on_a_profile_run():
     f = sim.profile_results["fvm"]
     assert f.steady_average_max < f.peak < f.steady_peak_max                  # The bracket holds
     assert f.peak_map.max() == pytest.approx(f.peak, abs=0.01)                # The map is consistent with the series
-    assert any("smeared" in w for w in sim.warnings)                          # The analytic transient says what it ignores
+    assert any("smears" in w for w in sim.warnings)                          # The analytic transient says what it ignores
 
 
 def test_run_options_duration_start_and_limits():
@@ -179,3 +179,145 @@ def test_cli_runs_a_profile_project(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Power profiles" in out and "resolved" in out
     assert (tmp_path / "o" / "profile_fvm.csv").exists()
+
+
+# ------------------------------------------------------------------ table profiles and CSV files
+
+def test_table_profile_energy_average_and_hold():
+    from pcbthermal import TableProfile
+    t = TableProfile([0, 2, 5, 9, 20], [6, 1, 3, 0], True)
+    assert t.average() == pytest.approx((12 + 3 + 12) / 20.0) and t.peak() == 6.0 and t.period == 20.0
+    assert t.shortest_feature() == 2.0
+    for dt in (0.013, 0.7, 3.1):
+        x = np.arange(0, 100) * dt
+        assert np.sum(t.mean_power(x, x + dt) * dt) == pytest.approx(float(t.cumulative(100 * dt)), rel=1e-12)
+    assert t.mean_power(1.0, 3.0) == pytest.approx((6 * 1 + 1 * 1) / 2.0)             # An edge inside the interval
+    assert t.mean_power(19.0, 21.0) == pytest.approx((0 * 1 + 6 * 1) / 2.0)           # Wraps to the next period
+    once = TableProfile([0, 2, 5], [6, 1], False)
+    assert once.mean_power(5.0, 105.0) == pytest.approx(1.0)                           # The last power is held
+    assert once.initial_power() == 6.0 and t.initial_power() == pytest.approx(t.average())
+    for bad in (TableProfile([1, 2], [1], True), TableProfile([0, 2, 2], [1, 1], True), TableProfile([0, 1], [-1], True),
+                TableProfile([0, 1, 2], [1], True)):
+        with pytest.raises(ValueError):
+            bad.validate()
+
+
+def test_square_wave_as_table_gives_the_same_decision():
+    p = example_with_profiles()
+    resp = profiles.step_response_fvm(p, 2.0)
+    for i in (0, 1):
+        w = p.heaters[i].profile
+        assert profiles.wave_response(resp, i, w.as_table()) == pytest.approx(profiles.wave_response(resp, i, w), rel=1e-9)
+    # Against the exact RC solution (uniform board): a three-level table
+    from pcbthermal import TableProfile
+    u = reference_problem(layers=1, heater_mm=100.0, power=10.0)
+    u.board.h_side = None
+    net = fvm.Network(u, 8, 8, assemble=False)
+    C, G = net.C.sum(), net.g_amb.sum()
+    tau = C / G
+    table = TableProfile([0, 10, 25, 40], [40.0, 10.0, 0.0], True)
+    resp_u = profiles.step_response_fvm(u, 12.5)
+    peak, valley = profiles.wave_response(resp_u, 0, table)
+    # Exact periodic solution of C T' = P(t) - G T by marching until it repeats
+    dt, T = 0.01, 40.0
+    steps = int(T / dt)
+    power = table.mean_power(np.arange(steps) * dt, np.arange(1, steps + 1) * dt)
+    x, series = 0.0, None
+    for cycle in range(40):
+        series = np.empty(steps)
+        for k in range(steps):
+            x = x + dt * (power[k] - G * x) / C
+            series[k] = x
+    assert peak == pytest.approx(series.max(), rel=0.01) and valley == pytest.approx(series.min(), rel=0.01)
+    assert tau > 100                                                                  # A board much slower than the cycle
+
+
+def test_csv_reading_writing_units_and_errors(tmp_path):
+    from pcbthermal import ProfileFileError, TableProfile, read_profile_csv, write_profile_csv
+    from pcbthermal.profile_io import parse_profile_csv, profile_to_csv
+    t = parse_profile_csv("# note\n# repeat: no\ntime_ms;power_mw\n0;6000\n500;0\n1500;0\n")
+    assert t.times == [0.0, 0.5, 1.5] and t.powers == [6.0, 0.0] and t.repeat is False
+    assert parse_profile_csv("time_min,power_kw\n0,0.001\n2,0.001\n").times == [0.0, 120.0]
+    # Round trip, also from a square wave
+    w = SquareWave(10.0, 2.0, 0.25, 1.0)
+    path = tmp_path / "w.csv"
+    write_profile_csv(w, path, "U9")
+    back = read_profile_csv(path)
+    assert back.times == [0.0, 0.5, 2.0] and back.powers == [10.0, 1.0] and back.repeat is True
+    assert "U9" in path.read_text() and profile_to_csv(back).count("\n") == 7
+    for text, fragment in (("time_s,power_w\n0,1\n", "at least two rows"), ("time_s,power_w\n1,1\n2,1\n", "must be 0"),
+                           ("time_s,power_w\n0,1\n0,2\n", "increasing"), ("time_s,power_w\n0,-1\n1,1\n", "not negative"),
+                           ("time_s,power_w\n0,1\nx,y\n", "line 3"), ("time_xx,power_w\n0,1\n1,1\n", "unknown time unit"),
+                           ("# repeat: maybe\n0,1\n1,1\n", "repeat"), ("0\n1\n", "two columns")):
+        with pytest.raises(ProfileFileError, match=fragment):
+            parse_profile_csv(text)
+    # Project files keep tables and old square-wave files still open
+    p = example_board()
+    p.heaters[0].set_profile(TableProfile([0, 1, 3], [5.0, 1.0], False))
+    q = problem_from_dict(json.loads(json.dumps(problem_to_dict(p))))
+    assert q.heaters[0].profile.kind == "table" and q.heaters[0].profile.repeat is False and q.heaters[0].power == pytest.approx(2.333333, abs=1e-5)
+    old = problem_to_dict(example_with_profiles())
+    del old["heaters"][0]["profile"]["type"]
+    assert problem_from_dict(old).heaters[0].profile.kind == "square"
+
+
+def test_one_shot_and_repeating_tables_run_in_all_models():
+    from pcbthermal import TableProfile
+    p = example_board()
+    p.heaters[0].set_profile(TableProfile([0, 2, 10, 30], [12.0, 5.0, 0.5], True))
+    p.heaters[1].set_profile(TableProfile([0, 10, 20, 120], [0.0, 3.0, 1.5], False))
+    sim = simulate(p, SolverOptions(cell_mm=2.0))
+    assert [d.regime for d in sim.decisions] == ["resolved", "resolved"]
+    assert sim.decisions[1].repeat is False and sim.decisions[1].oscillation > 10.0
+    f = sim.profile_results["fvm"]
+    assert f.windows >= 1 and f.window == pytest.approx(120.0)                     # One-shot length, a multiple of 30 s
+    assert f.converged and any("one-shot" in w for w in f.warnings)
+    # U2 starts at the steady state of its first power (0 W): about ambient plus the U1 average, much cooler than 60 degC
+    assert f.t_heaters[1][0] < 45.0 and f.t_heaters[1].max() > f.t_heaters[1][0] + 15.0
+    # After the end the last power is held: a longer fixed time settles at the steady state of the final powers
+    long_run = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0,
+                                         profile=ProfileOptions(duration="time", time_s=2400.0, theta=1.0)))
+    assert long_run.profile_results["fvm"].t_heaters[1][-1] < long_run.profile_results["fvm"].peak
+    assert simulate(p, SolverOptions(cell_mm=2.0)).profile_results["lumped"].peak == pytest.approx(f.peak, rel=0.06)
+
+
+def test_common_period_is_the_least_common_multiple():
+    assert profiles._common_period([2.0, 3.0]) == (6.0, True)
+    assert profiles._common_period([0.1, 0.25]) == (0.5, True)
+    period, exact = profiles._common_period([1.0, 2.0 ** 0.5])
+    assert not exact and period == 2.0 ** 0.5 or period == 1.0 or not exact
+
+
+def test_cli_profile_files_and_gui_buttons(tmp_path, capsys):
+    from pcbthermal import cli
+    path = tmp_path / "e.pcbt.json"
+    cli.main(["example", str(path), "--which", "example"])
+    csv = tmp_path / "u1.csv"
+    csv.write_text("# repeat: yes\ntime_s,power_w\n0,12\n2,5\n10,0.5\n30,0.5\n")
+    assert cli.main(["run", str(path), "--model", "fvm", "--cell-mm", "2", "--out", str(tmp_path / "o"), "--no-plots",
+                     "--profile", f"U1={csv}", "--duration", "cycles", "--cycles", "3"]) == 0
+    assert "resolved" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        cli.main(["run", str(path), "--profile", f"nobody={csv}"])
+    # The examples folder works end to end
+    import importlib.util, pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent / "examples" / "csv_profiles"
+    for name in ("u1_motor_driver_cycle", "u2_regulator_startup", "u2_pwm_1khz"):
+        from pcbthermal import read_profile_csv
+        prof = read_profile_csv(root / "profiles" / f"{name}.csv")
+        assert prof.average() > 0
+    assert read_profile_csv(root / "profiles" / "u2_pwm_1khz.csv").average() == pytest.approx(1.5)
+
+
+def test_analytic_step_response_animation_matches_the_fvm():
+    from pcbthermal import analytic
+    p = example_board()
+    a = analytic.solve_transient(p, 120.0, n_out=20, cell_mm=2.0)
+    f = fvm.solve_transient(p, 120.0, n_out=20, cell_mm=2.0)
+    assert a.times[0] == 0.0 and a.t_max[0] == pytest.approx(25.0) and len(a.times) == len(f.times)
+    # With the per-heater calibration of the smeared vias the whole curve follows the FVM within 2.5 degC (10 degC without it)
+    assert np.max(np.abs(a.t_max - f.t_max)) < 2.5
+    assert a.t_max[-1] == pytest.approx(f.t_max[-1], rel=0.03)
+    assert a.frames.shape[1] == f.frames.shape[1]
+    assert np.all(np.diff(a.t_max) >= -1e-9)                                    # Monotone heating
+    assert a.steady_t_max > a.t_max[-1]

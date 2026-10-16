@@ -8,13 +8,14 @@ import math
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
-                               QHeaderView, QLabel, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox,
+                               QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
 from .. import plots, profiles
 from ..api import MODEL_NAMES, step_response
 from ..model import SquareWave
+from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from .results_view import _mpl_theme, _paint_figure
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
@@ -81,6 +82,7 @@ class ProfilePage(QWidget):
         self.kind = QComboBox()
         self.kind.addItem("Constant", "constant")
         self.kind.addItem("Square wave", "square")
+        self.kind.addItem("Table (CSV file)", "table")
         self.const_power = QDoubleSpinBox()
         self._spin(self.const_power, 0, 10000, 3, " W")
         self.by = QComboBox()
@@ -98,6 +100,14 @@ class ProfilePage(QWidget):
         self.avg_mode = QCheckBox("Enter the average power instead of the power while on")
         self.avg = QDoubleSpinBox()
         self._spin(self.avg, 0, 100000, 4, " W")
+        self.repeat = QCheckBox("Repeat the table (otherwise it runs once and the last power is held)")
+        self.import_btn = QPushButton("Import CSV…")
+        self.import_btn.setToolTip("Read a power profile (time_s,power_w) from a CSV file; see examples/led_driver_board/")
+        self.export_btn = QPushButton("Export CSV…")
+        self.export_btn.setToolTip("Write the profile of this heater to a CSV file (a square wave is written as a table)")
+        self.import_btn.clicked.connect(lambda: self.import_csv())
+        self.export_btn.clicked.connect(lambda: self.export_csv())
+        self.repeat.toggled.connect(self._apply_repeat)
         self.derived = QLabel()
         self.derived.setWordWrap(True)
         self.error = QLabel()
@@ -111,12 +121,18 @@ class ProfilePage(QWidget):
         row.addWidget(self.value, 1)
         row.addWidget(self.unit)
         self.wave_widgets = [self.by, self.value, self.unit, self.duty, self.p_on, self.p_off, self.avg_mode, self.avg]
-        form.addRow("Repeats every", row)
+        self.period_label = QLabel("Repeats every")
+        form.addRow(self.period_label, row)
         form.addRow("Duty (time on)", self.duty)
         form.addRow("Power while on", self.p_on)
         form.addRow("Power while off", self.p_off)
         form.addRow("", self.avg_mode)
         form.addRow("Average power", self.avg)
+        form.addRow("", self.repeat)
+        files = QHBoxLayout()
+        files.addWidget(self.import_btn)
+        files.addWidget(self.export_btn)
+        form.addRow("File", files)
         form.addRow(self.derived)
         form.addRow(self.error)
         for w in (self.value, self.duty, self.p_on, self.p_off, self.avg):
@@ -238,7 +254,12 @@ class ProfilePage(QWidget):
         sel = self.current
         self.table.setRowCount(len(pr.heaters))
         for i, h in enumerate(pr.heaters):
-            kind = "Constant" if h.profile is None else f"Square wave, {self._describe_period(h.profile.period)}, {h.profile.duty:.0%}"
+            if h.profile is None:
+                kind = "Constant"
+            elif h.profile.kind == "table":
+                kind = f"Table, {len(h.profile.powers)} stretches, {h.profile.period:g} s{'' if h.profile.repeat else ', once'}"
+            else:
+                kind = f"Square wave, {self._describe_period(h.profile.period)}, {h.profile.duty:.0%}"
             regime = ""
             if i < len(self.decisions) and self.decisions[i].index == i:
                 regime = self.decisions[i].regime
@@ -296,10 +317,13 @@ class ProfilePage(QWidget):
         self.editor.setEnabled(ok)
         if ok:
             h = pr.heaters[self.current]
-            self.kind.setCurrentIndex(0 if h.profile is None else 1)
+            self.kind.setCurrentIndex(0 if h.profile is None else (2 if h.profile.kind == "table" else 1))
             self.const_power.setValue(h.power)
             w = h.profile
-            if w is not None:
+            self.repeat.setChecked(True if w is None else bool(w.repeat))
+            if w is not None and w.kind == "table":
+                pass                                                          # Summarised by _derived; edited in the CSV file
+            elif w is not None:
                 # Show the period in the most natural unit
                 if self.by.currentData() == "period":
                     unit = "µs" if w.period < 1e-3 else "ms" if w.period < 1 else "s" if w.period < 600 else "min"
@@ -333,11 +357,27 @@ class ProfilePage(QWidget):
         @brief Enable the widgets that belong to the chosen kind of profile.
         """
         wave = self.kind.currentData() == "square"
-        self.const_power.setEnabled(not wave)
+        table = self.kind.currentData() == "table"
+        self.const_power.setEnabled(not wave and not table)
         for w in self.wave_widgets:
             w.setEnabled(wave)
         self.p_on.setEnabled(wave and not self.avg_mode.isChecked())
         self.avg.setEnabled(wave and self.avg_mode.isChecked())
+        self.repeat.setVisible(table)
+        self.export_btn.setEnabled(wave or table)
+        # Show only the rows of the chosen kind of profile (a table is edited in its CSV file)
+        form = self.editor.layout()
+        for widget in self.wave_widgets + [self.p_off, self.duty]:
+            widget.setVisible(wave)
+            label = form.labelForField(widget)
+            if label is not None:
+                label.setVisible(wave)
+        self.period_label.setVisible(wave)
+        for widget, show in ((self.const_power, not wave and not table),):
+            widget.setVisible(show)
+            label = form.labelForField(widget)
+            if label is not None:
+                label.setVisible(show)
 
     def _on_by(self, _index=None):
         """!
@@ -378,6 +418,13 @@ class ProfilePage(QWidget):
         @brief Update the derived values (average, on-time, frequency) and the validity message.
         """
         self.error.setText("")
+        if self.kind.currentData() == "table" and 0 <= self.current < len(self.doc.problem.heaters):
+            w = self.doc.problem.heaters[self.current].profile
+            if w is not None and w.kind == "table":
+                self.derived.setText(f"{len(w.powers)} stretches over {w.period:g} s (shortest {w.shortest_feature():g} s); "
+                                     f"average {w.average():.4g} W, peak {w.peak():.4g} W, energy {w.average() * w.period:.4g} J. "
+                                     "Edit the CSV file and import it again to change the table.")
+            return
         if self.kind.currentData() != "square" or self.current < 0:
             self.derived.setText("")
             return
@@ -433,9 +480,76 @@ class ProfilePage(QWidget):
                 h = proj.problem.heaters[i]
                 h.profile = None
             self.doc.edit("Constant power", to_constant)
+        elif self.kind.currentData() == "table":
+            h = self.doc.problem.heaters[i]
+            if h.profile is None or h.profile.kind != "table":
+                # A table needs a file: ask for it, and go back to the previous kind if nothing was loaded
+                if not self.import_csv():
+                    self._load_heater()
+            else:
+                self._show_kind()
         else:
             self._show_kind()
             self._apply()
+
+    def _apply_repeat(self, checked):
+        """!
+        @brief Change whether the table repeats.
+        @param checked True to repeat.
+        """
+        if self._updating or self.current < 0:
+            return
+        i = self.current
+        h = self.doc.problem.heaters[i]
+        if h.profile is None or h.profile.kind != "table" or h.profile.repeat == checked:
+            return
+
+        def mutate(proj):
+            proj.problem.heaters[i].profile.repeat = bool(checked)
+
+        self.doc.edit("Repeat table", mutate)
+
+    def import_csv(self, path=None):
+        """!
+        @brief Load a power profile for the selected heater from a CSV file.
+        @param path File to read; if None a file dialog is shown.
+        @return True if a profile was loaded.
+        """
+        if self.current < 0:
+            return False
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(self, "Import power profile", "", "CSV files (*.csv *.txt);;All files (*)")
+            if not path:
+                return False
+        try:
+            profile = read_profile_csv(path)
+        except (ProfileFileError, OSError) as exc:
+            QMessageBox.warning(self, "Cannot import the profile", str(exc))
+            return False
+        i = self.current
+        self.doc.edit("Import power profile", lambda proj: proj.problem.heaters[i].set_profile(profile))
+        return True
+
+    def export_csv(self, path=None):
+        """!
+        @brief Write the profile of the selected heater to a CSV file.
+        @param path File to write; if None a file dialog is shown.
+        @return True if a file was written.
+        """
+        if self.current < 0 or self.doc.problem.heaters[self.current].profile is None:
+            QMessageBox.information(self, "Nothing to export", "This heater has a constant power: choose a square wave or a table first.")
+            return False
+        h = self.doc.problem.heaters[self.current]
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, "Export power profile", f"{h.name or 'heater'}_profile.csv", "CSV files (*.csv)")
+            if not path:
+                return False
+        try:
+            write_profile_csv(h.profile, path, h.name)
+        except OSError as exc:
+            QMessageBox.warning(self, "Cannot export the profile", str(exc))
+            return False
+        return True
 
     # ------------------------------------------------------------------ run settings
     def _load_options(self):
@@ -523,7 +637,8 @@ class ProfilePage(QWidget):
         self.decisions = decisions
         self.dec_table.setRowCount(len(decisions))
         for r, d in enumerate(decisions):
-            cells = [d.name, "-" if d.kind == "constant" else f"{d.period:g} s", "-" if d.kind == "constant" else f"{d.duty:.0%}",
+            cells = [d.name, "-" if d.kind == "constant" else f"{d.period:g} s" + ("" if d.repeat else " (once)"),
+                     "-" if (d.kind == "constant" or d.duty != d.duty) else f"{d.duty:.0%}",
                      f"{d.average_power:.3g}", "-" if d.kind == "constant" else f"{d.oscillation:.2f}",
                      "-" if d.kind == "constant" else f"{d.oscillation_percent:.1f} %", d.regime]
             for c, text in enumerate(cells):

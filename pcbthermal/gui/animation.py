@@ -13,7 +13,7 @@ from PySide6.QtCore import QThread, QTimer, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel, QPushButton, QSlider,
                                QSpinBox, QVBoxLayout, QWidget)
 
-from .. import fvm, plots
+from .. import analytic, fvm, plots
 from .results_view import _mpl_theme, _paint_figure
 
 
@@ -39,7 +39,13 @@ class TransientWorker(QThread):
         @brief Thread body.
         """
         try:
-            self.done.emit(fvm.solve_transient(self.problem, **self.kwargs))
+            kw = dict(self.kwargs)
+            if kw.pop("model", "fvm") == "analytic":
+                # The closed-form model needs neither a scheme nor a step; it takes the frames and the spacing
+                kw.pop("theta_scheme", None)
+                self.done.emit(analytic.solve_transient(self.problem, **kw))
+            else:
+                self.done.emit(fvm.solve_transient(self.problem, **kw))
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -70,6 +76,10 @@ class AnimationTab(QWidget):
         self.frames = QSpinBox()
         self.frames.setRange(10, 400)
         self.frames.setValue(60)
+        self.model = QComboBox()
+        self.model.addItem("Finite volume (FVM)", "fvm")
+        self.model.addItem("Analytical (Fourier series)", "analytic")
+        self.model.setToolTip("The analytical model gives the response instantly, with vias and sinks smeared over the board.")
         self.scheme = QComboBox()
         self.scheme.addItem("Implicit Euler (robust)", 1.0)
         self.scheme.addItem("Crank-Nicolson (accurate)", 0.5)
@@ -99,7 +109,7 @@ class AnimationTab(QWidget):
         self.export.clicked.connect(self._export_gif)
 
         top = QHBoxLayout()
-        for lbl, w in (("Duration", self.t_end), ("Frames", self.frames), ("Scheme", self.scheme),
+        for lbl, w in (("Model", self.model), ("Duration", self.t_end), ("Frames", self.frames), ("Scheme", self.scheme),
                        ("Spacing", self.spacing)):
             top.addWidget(QLabel(lbl))
             top.addWidget(w)
@@ -156,7 +166,7 @@ class AnimationTab(QWidget):
         self.compute.setEnabled(False)
         self.status.setText("Computing…")
         self.compute_requested.emit({"t_end": self.t_end.value(), "n_out": self.frames.value(),
-                                     "theta_scheme": self.scheme.currentData(),
+                                     "theta_scheme": self.scheme.currentData(), "model": self.model.currentData(),
                                      "log_times": self.spacing.currentData()})
 
     def computing_failed(self, message):

@@ -25,6 +25,7 @@ from . import __version__, fvm
 from .api import simulate, suggest_cell_mm
 from .examples import example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
+from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
 
 MODELS = ("fvm", "lumped", "analytic")
@@ -67,6 +68,17 @@ def cmd_run(args):
         po.time_s = args.time_s
     if args.initial_c is not None:
         po.initial, po.initial_c = "temperature", args.initial_c
+    for spec in args.profile or []:
+        name, _, path = spec.partition("=")
+        if not path:
+            raise SystemExit(f"--profile expects NAME=file.csv, got '{spec}'")
+        # A heater is chosen by its name or by its 1-based number (#1, #2, ...)
+        heaters = project.problem.heaters
+        match = [h for h in heaters if h.name == name] or ([heaters[int(name[1:]) - 1]] if name.startswith("#") and name[1:].isdigit()
+                                                           and 0 < int(name[1:]) <= len(heaters) else [])
+        if not match:
+            raise SystemExit(f"no heater named '{name}' (names: {', '.join(h.name or '-' for h in heaters)})")
+        match[0].set_profile(read_profile_csv(path))
     b = project.problem.board
     if args.computed_h:
         b.h_mode = "computed"
@@ -230,6 +242,8 @@ def build_parser():
     hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
     hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")
+    pg.add_argument("--profile", action="append", metavar="HEATER=FILE.csv",
+                    help="power profile of a heater from a CSV file (heater name or #number; repeat for several heaters)")
     pg.add_argument("--steady-power", choices=("average", "peak"), default=None,
                     help="power used by the steady models for heaters with a profile (default: from the project, average)")
     pg.add_argument("--threshold-c", type=float, default=None,

@@ -139,6 +139,47 @@ class SquareWave:
         """
         return (1.0 - self.duty) * self.period
 
+    kind = "square"                             # Shape name used in files and reports
+    repeat = True                               # A square wave repeats forever
+
+    def peak(self):
+        """!
+        @brief Highest power of the wave.
+        @return Power in watts.
+        """
+        return self.p_on
+
+    def initial_power(self):
+        """!
+        @brief Power that defines the start state "steady state of the average": the average of a repeating wave.
+        @return Power in watts.
+        """
+        return self.average()
+
+    def shortest_feature(self):
+        """!
+        @brief Shortest constant-power stretch (limits the time step).
+        @return Time in seconds.
+        """
+        return min(self.on_time(), self.off_time()) if self.off_time() > 0 else self.on_time()
+
+    def intervals(self):
+        """!
+        @brief The constant-power stretches of one period.
+        @return List of tuples (start s, end s, power W) covering [0, period].
+        """
+        if self.duty >= 1.0 or self.p_on == self.p_off:
+            return [(0.0, self.period, self.average())]
+        return [(0.0, self.on_time(), self.p_on), (self.on_time(), self.period, self.p_off)]
+
+    def as_table(self):
+        """!
+        @brief The same wave as a TableProfile (used to export it to CSV).
+        @return TableProfile.
+        """
+        iv = self.intervals()
+        return TableProfile([a for a, _, _ in iv] + [iv[-1][1]], [p for _, _, p in iv], True)
+
     def validate(self):
         """!
         @brief Check the parameters.
@@ -173,6 +214,121 @@ class SquareWave:
 
 
 @dataclass
+class TableProfile:
+    """!
+    @brief Power of a heater as a table of constant-power stretches (from a CSV file or typed).
+    @details times has n + 1 increasing values starting at 0 and powers has n values: the power is powers[i] from
+             times[i] to times[i + 1]. With repeat the table repeats every times[-1] seconds (a periodic load);
+             without it the profile runs once and the last power is held afterwards (a mission or start-up profile).
+    """
+    times: List[float]                          # Breakpoints (s), n + 1 values, times[0] = 0
+    powers: List[float]                         # Power of each stretch (W), n values
+    repeat: bool = True                         # Repeat every times[-1] s, or run once and hold the last power
+
+    kind = "table"                              # Shape name used in files and reports
+
+    @property
+    def period(self):
+        """!
+        @brief Length of the table (the period when it repeats).
+        @return Time in seconds.
+        """
+        return float(self.times[-1])
+
+    def intervals(self):
+        """!
+        @brief The constant-power stretches.
+        @return List of tuples (start s, end s, power W).
+        """
+        return [(float(self.times[i]), float(self.times[i + 1]), float(self.powers[i])) for i in range(len(self.powers))]
+
+    def average(self):
+        """!
+        @brief Time-weighted mean power over the table.
+        @return Power in watts.
+        """
+        t, p = np.asarray(self.times, float), np.asarray(self.powers, float)
+        return float(np.sum(p * np.diff(t)) / (t[-1] - t[0]))
+
+    def peak(self):
+        """!
+        @brief Highest power of the table.
+        @return Power in watts.
+        """
+        return float(np.max(self.powers))
+
+    def initial_power(self):
+        """!
+        @brief Power that defines the start state "steady state of the average": the average if it repeats, the first power if not.
+        @return Power in watts.
+        """
+        return self.average() if self.repeat else float(self.powers[0])
+
+    def shortest_feature(self):
+        """!
+        @brief Shortest constant-power stretch (limits the time step).
+        @return Time in seconds.
+        """
+        return float(np.min(np.diff(np.asarray(self.times, float))))
+
+    def as_table(self):
+        """!
+        @brief Itself (so any profile can be exported with as_table()).
+        @return This TableProfile.
+        """
+        return self
+
+    def validate(self):
+        """!
+        @brief Check the table.
+        @throws ValueError If it has fewer than one stretch, does not start at 0, is not increasing, has negative powers
+                or too many rows.
+        """
+        t, p = np.asarray(self.times, float), np.asarray(self.powers, float)
+        if len(t) != len(p) + 1 or len(p) < 1:
+            raise ValueError("a power table needs at least one stretch: n powers and n + 1 times")
+        if len(p) > 200000:
+            raise ValueError("a power table is limited to 200,000 stretches")
+        if t[0] != 0.0:
+            raise ValueError("the first time of a power table must be 0")
+        if np.any(np.diff(t) <= 0):
+            raise ValueError("the times of a power table must be strictly increasing")
+        if np.any(p < 0) or not np.all(np.isfinite(p)):
+            raise ValueError("the powers of a power table must be finite and not negative")
+
+    def cumulative(self, t):
+        """!
+        @brief Energy delivered from t = 0 to t (exact).
+        @param t Time or array of times in seconds (>= 0).
+        @return Energy in joules, same shape as t.
+        """
+        tt = np.asarray(self.times, float)
+        pp = np.asarray(self.powers, float)
+        edges = np.concatenate([[0.0], np.cumsum(pp * np.diff(tt))])              # Energy at every breakpoint
+        length, total = tt[-1], edges[-1]
+        t = np.asarray(t, dtype=float)
+
+        def inside(x):
+            # Energy inside one pass of the table at time x in [0, length]
+            i = np.clip(np.searchsorted(tt, x, side="right") - 1, 0, len(pp) - 1)
+            return edges[i] + pp[i] * (x - tt[i])
+
+        if self.repeat:
+            k = np.floor(t / length)
+            return k * total + inside(t - k * length)
+        return np.where(t <= length, inside(np.minimum(t, length)), total + pp[-1] * (t - length))
+
+    def mean_power(self, t0, t1):
+        """!
+        @brief Mean power over [t0, t1], exact even when a breakpoint falls inside it.
+        @param t0 Start time(s) in seconds.
+        @param t1 End time(s) in seconds (> t0).
+        @return Mean power in watts.
+        """
+        return (self.cumulative(t1) - self.cumulative(t0)) / (np.asarray(t1, dtype=float) - t0)
+
+
+@dataclass
 class Heater:
     """!
     @brief Heat source spread uniformly over a polygon on one layer.
@@ -182,7 +338,7 @@ class Heater:
     power: float                                # Dissipated power (W)
     name: str = ""                              # Optional label (for example the component name)
     theta_jb: float = 0.0                       # Junction-to-board resistance (K/W); 0 = not used
-    profile: Optional["SquareWave"] = None      # Power versus time; None = constant power
+    profile: Optional[object] = None            # SquareWave or TableProfile; None = constant power
 
     def average_power(self):
         """!
@@ -196,12 +352,19 @@ class Heater:
         @brief Highest power: the on-state of the profile, or the constant power.
         @return Power in watts.
         """
-        return self.profile.p_on if self.profile else self.power
+        return self.profile.peak() if self.profile else self.power
+
+    def initial_power(self):
+        """!
+        @brief Power whose steady state is the default start of a time simulation.
+        @return The average power of a repeating profile, the first power of a one-shot profile, the constant power otherwise.
+        """
+        return self.profile.initial_power() if self.profile else self.power
 
     def set_profile(self, profile):
         """!
         @brief Attach a power profile; `power` is kept equal to its average so steady models need no change.
-        @param profile A SquareWave or None (constant power).
+        @param profile A SquareWave, a TableProfile or None (constant power).
         """
         self.profile = profile
         if profile is not None:
@@ -490,9 +653,7 @@ def problem_from_dict(data, validate=True):
         heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]),
                         h.get("name", ""), float(h.get("theta_jb_k_per_w", 0.0)))
         if "profile" in h:
-            w = h["profile"]
-            heater.set_profile(SquareWave(float(w["p_on_w"]), float(w["period_s"]), float(w["duty"]),
-                                          float(w.get("p_off_w", 0.0))))
+            heater.set_profile(_profile_from_dict(h["profile"]))
         prob.heaters.append(heater)
     for v in data.get("vias", []):
         prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
@@ -589,6 +750,30 @@ def reference_problem(power=5.0, layers=2, heater_mm=20.0, full_copper=True):
     return problem_from_dict(data)
 
 
+def _profile_to_dict(profile):
+    """!
+    @brief Serialise a power profile.
+    @param profile SquareWave or TableProfile.
+    @return Dict with a "type" key.
+    """
+    if profile.kind == "table":
+        return {"type": "table", "times_s": [float(x) for x in profile.times],
+                "power_w": [float(x) for x in profile.powers], "repeat": bool(profile.repeat)}
+    return {"type": "square", "p_on_w": profile.p_on, "p_off_w": profile.p_off, "period_s": profile.period,
+            "duty": profile.duty}
+
+
+def _profile_from_dict(w):
+    """!
+    @brief Read a power profile (files without "type" are square waves, as written by version 2.1.0).
+    @param w Dict from _profile_to_dict.
+    @return SquareWave or TableProfile.
+    """
+    if w.get("type") == "table":
+        return TableProfile([float(x) for x in w["times_s"]], [float(x) for x in w["power_w"]], bool(w.get("repeat", True)))
+    return SquareWave(float(w["p_on_w"]), float(w["period_s"]), float(w["duty"]), float(w.get("p_off_w", 0.0)))
+
+
 def problem_to_dict(prob):
     """!
     @brief Serialise a Problem to the native JSON structure (millimetres, 1-based layers).
@@ -618,9 +803,7 @@ def problem_to_dict(prob):
                   for z in prob.zones],
         "heaters": [dict({"layer": h.layer + 1, "power_w": h.power, "polygon_mm": poly(h.polygon), "name": h.name,
                           "theta_jb_k_per_w": h.theta_jb},
-                         **({"profile": {"p_on_w": h.profile.p_on, "p_off_w": h.profile.p_off,
-                                         "period_s": h.profile.period, "duty": h.profile.duty}}
-                            if h.profile else {})) for h in prob.heaters],
+                         **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
                   "filled": v.filled, "name": v.name} for v in prob.vias],
         "sinks": [{"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name}
