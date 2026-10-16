@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-118%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.1.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-118%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and sinks on a multi-layer board, run three models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -64,6 +64,10 @@ sim.save("results")               # report, JSON, CSV fields, figures
 
 ![Summary](docs/images/results_summary.png)
 
+![Power profile](docs/images/power_profile.png)
+
+![Time simulation](docs/images/results_power_profile.png)
+
 ## Documentation
 
 Index: [`docs/README.md`](docs/README.md). Start with [`docs/model_guide.md`](docs/model_guide.md) (which model to use),
@@ -72,6 +76,7 @@ and [`docs/findings.md`](docs/findings.md) (everything discovered so far). Relea
 
 ## Versions and branches
 
+- Version **2.1.0** (2026-10-16): power profiles (square wave) and computed heat transfer coefficients.
 - Version **2.0.0** (2026-10-16): first release of the rebuilt program. The original wxPython program was 1.0.0 (git tag `legacy-wxpython-1.0.0`).
 - `main`: released versions, tagged `vMAJOR.MINOR.PATCH`. `develop`: integration branch for the next version. Work happens on `feature/*` branches.
 - Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the application (title bar, status bar, About) and in every report.

@@ -5,6 +5,12 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+Next: the Component element (Package 2R, heat sink, passive areas), Gerber import and a variable stack-up (see `docs/roadmap.md`).
+
+## [2.1.0] - 2026-10-16
+
+Power profiles and computed heat transfer coefficients.
+
 ### Added
 - **Power profiles**: a heater can have a square wave (period or frequency with unit, duty, power while on and off; the average is derived) instead of a constant power.
   Every heater is either replaced by its average power or simulated in time, decided per heater from the oscillation in °C (default 1 °C) with a shared error budget;

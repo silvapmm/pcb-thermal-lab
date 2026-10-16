@@ -17,7 +17,7 @@ from PySide6.QtCore import QSettings                                        # no
 from PySide6.QtWidgets import QApplication                                  # noqa: E402
 
 from pcbthermal import SolverOptions, simulate                              # noqa: E402
-from pcbthermal.examples import example_board                               # noqa: E402
+from pcbthermal.examples import example_board, example_profile_board                               # noqa: E402
 from pcbthermal.gui.main_window import MainWindow                           # noqa: E402
 
 
@@ -54,8 +54,8 @@ def main(out_dir):
         win.results.tabs.setCurrentIndex(tab)
         shot(name)
 
-    win.tabs.setCurrentIndex(1)
-    win.results.tabs.setCurrentIndex(win.results.tabs.count() - 1)
+    win.tabs.setCurrentIndex(2)                                              # Results
+    win.results.tabs.setCurrentWidget(win.results.animation)
     anim = win.results.animation
     anim.t_end.setValue(120.0)
     anim.frames.setValue(40)
@@ -64,6 +64,19 @@ def main(out_dir):
         app.processEvents()
     anim.slider.setValue(int(anim.slider.maximum() * 0.55))
     shot("animation.png")
+
+    # Power profiles: editor page and time simulation
+    win._load_problem(example_profile_board(), "example-profile")
+    win.show()
+    win.tabs.setCurrentIndex(1)
+    win.profile_page.table.selectRow(1)
+    win.profile_page.run_analysis()
+    while not win.profile_page.decisions:
+        app.processEvents()
+    shot("power_profile.png")
+    win._on_done(simulate(win.doc.problem, SolverOptions(cell_mm=1.0)))
+    win.results.tabs.setCurrentWidget(win.results.time_sim)
+    shot("results_power_profile.png")
     return written
 
 
