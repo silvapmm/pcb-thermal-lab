@@ -1,7 +1,11 @@
 # Legacy Solvers vs New Models on One Example Board
 
-Generated 2026-10-16 by `examples/legacy_comparison.py` (run `python examples/legacy_comparison.py`;
-the legacy solvers are imported with stubs for wxPython/matplotlib, so only their numerics run).
+Generated 2026-10-16 by `examples/legacy_comparison.py` at commit `641da87` (the legacy `core/`, `ui/` and that script were removed in later commits;
+check out that commit to reproduce the legacy numbers). The legacy solvers were imported with stubs for wxPython/matplotlib, so only their numerics ran.
+
+> **Update:** after this comparison the new Lumped and Analytic models were improved (see `physics_core.md`). On this example board
+> the Lumped model now gives Tmax 86.48 °C (+1.1 %) and the Analytic model 91.04 °C (+8.6 %, with a warning), against FVM 85.81 °C.
+> The "new" rows of the table below are the first versions (Lumped +24.0 %, Analytic +47.1 %).
 
 ## Example board
 
@@ -52,23 +56,9 @@ Notes:
 - New **Lumped** (+24 %) and **Analytic** (+47 %) are much better than the legacy models but still
   too far off on this non-uniform board. The next section shows why.
 
-## Why the new Lumped and Analytic models miss on this board (ablation)
+## Why the first Lumped and Analytic versions missed, and what changed
 
-Features removed one at a time, FVM at 1 mm as reference:
-
-| Case | FVM Tmax [°C] | Lumped Tmax [°C] | Lumped dT error | Analytic Tmax [°C] | Analytic dT error |
-| :-- | --: | --: | --: | --: | --: |
-| full example | 85.81 | 100.46 | +24.1 % | 114.52 | +47.2 % |
-| no sink | 88.91 | 102.67 | +21.5 % | 116.05 | +42.5 % |
-| no vias | 94.67 | 116.88 | +31.9 % | 115.22 | +29.5 % |
-| no sink, no vias | 97.32 | 118.80 | +29.7 % | 116.74 | +26.9 % |
-| top copper over the full board | 85.29 | 95.64 | +17.2 % | 95.29 | +16.6 % |
-| no sink/vias, full top copper | 96.68 | 110.46 | +19.2 % | 97.15 | +0.7 % |
-| only heater A | 79.97 | 83.13 | +5.8 % | 108.56 | +52.0 % |
-| only A, no sink/vias, full copper | 90.30 | 92.54 | +3.4 % | 90.62 | +0.5 % |
-
-Reading:
-- **Analytic** is essentially exact (+0.5 % / +0.7 %) when the board is uniform (no vias, no sink, full copper). Its errors come from
-  partial copper (+17 %), vias (they act under the heater, but the model smears them over the board) and the sink (also smeared).
-- **Lumped** is good for a single heater (+5.8 %), and loses accuracy with two separated heaters (+20 to +30 %), because it merges them
-  into one disc; partial copper and the board edges add further error.
+The ablation of the first versions showed that the Analytic model was exact on uniform boards but smeared vias and sinks over the whole board,
+and that the Lumped model merged separated heaters into one disc. Both causes were fixed (per-heater ring networks aggregated from the real
+geometry; Green-function corrections for vias and sinks). The current accuracy table is in `physics_core.md`, section 6.2, and can be regenerated
+with `python examples/accuracy_study.py`.

@@ -23,11 +23,9 @@ See `README.md` for the full feature list.
 
 ## Technology Stack
 
-- Python 3.8+
-- wxPython (GUI)
-- NumPy (numerical computation)
-- Matplotlib (plots and heatmaps)
-- Optional: Numba (FDM performance), SciPy (future extensions)
+- Python 3.13 in a virtual environment (`.venv/`, git-ignored): `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
+- NumPy and SciPy (physics), Matplotlib (figures), PySide 6 (GUI), pytest + pytest-qt + pytest-timeout (tests)
+- Always run Python through `.venv/bin/python`; the system Python has none of the dependencies.
 
 ## Language and Documentation Rules
 
@@ -86,33 +84,28 @@ These rules are mandatory for all code and documentation in this repository.
 ## Project Structure
 
 ```
-main.py                  Entry point: creates the wx.App and the PCBEditor frame.
-config.py                Central constants: metadata, physical defaults, solver defaults, UI styles.
-core/
-  solver.py              ThermalSolver: validates json_config and dispatches to a solver.
-  analytic_solver.py     AnalyticSolver + AnalyticResultsDialog.
-  lumped_solver.py       LumpedSolver (LPTN) + LumpedResultsDialog.
-  fdm_solver.py          FDMSolver (SOR, optional Numba kernel sor_update) + FDMResultsDialog.
-ui/
-  editor.py              PCBEditor (wx.Frame): canvas, drawing tools, parameter panels (~3000 lines).
-ico/                     Application icons.
-pcbthermal/              NEW physics core, no GUI (branch feature/physics-core): model, geometry,
-                         fvm, lumped, analytic, results, plots, cli. Run: python -m pcbthermal --help
-tests/                   pytest suite for pcbthermal (python -m pytest -q tests)
-examples/                Example boards (native JSON format)
-docs/
-  thermal_models.md      Legacy core/ solvers: formulas as implemented and the review.
-  physics_core.md        New pcbthermal package: models, formulas, CLI, verification.
+pcbthermal/            Physics core (no GUI imports) - see docs/physics_core.md
+  model.py             Board, Materials, Zone, Heater, Via, Sink, Problem (+ mm builder API), JSON I/O
+  geometry.py          polygon area/centroid/point-in-polygon, cell coverage fractions
+  fvm.py               reference finite-volume model: steady (direct, CG, SOR) and transient
+  lumped.py            ring network per heater, superposed
+  analytic.py          multilayer cosine series + local via/sink corrections
+  results.py, analysis.py, api.py (SolverOptions, simulate), project.py (.pcbt.json), examples.py
+  plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
+  cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
+  gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
+tests/                 pytest suite (53 tests; GUI tests run offscreen)
+examples/              example boards (.pcbt.json), accuracy_study.py
+docs/                  physics_core.md (current), thermal_models.md + legacy_vs_new.md (history of the old solvers)
+ico/                   application icon
 ```
 
-Data flow: the editor builds a `json_config` dict (`pcb_params`, `elements`,
-`solver_mode`) -> `ThermalSolver.validate_config` -> the selected solver's static
-`simulate` method -> a results dialog class chosen from `ThermalSolver._DIALOG_MAP`.
+The original wxPython program (`core/`, `ui/`, `main.py`, `config.py`) was removed on branch `feature/physics-core`;
+it can be inspected in git history (for example commit `641da87`). Old editor JSON files still open (`problem_from_legacy`).
 
-Known gaps (to improve): solver code and wx results dialogs live in the same
-files, and there are no automated tests yet.
+## Algorithm Review (2026-10-16, of the removed legacy solvers)
 
-## Algorithm Review (2026-10-16)
+This section records why the legacy solvers were replaced; all items below are fixed in `pcbthermal` (see `docs/physics_core.md`).
 
 Full detail, formulas and experiment tables: `docs/thermal_models.md`. Keep that file in sync with any solver change.
 
@@ -155,20 +148,19 @@ solvers on one benchmark board and check energy balance (out/in ~ 1).
 ## Commands
 
 ```sh
-pip install -r requirements.txt         # numpy, scipy, matplotlib, pytest
-python3 -m pcbthermal run examples/reference_board.json   # new physics core, all models + plots
-python3 -m pytest -q tests              # tests of the new core
-pip install wxPython                    # only for the legacy editor
-python3 main.py                         # legacy wxPython editor (uses core/, not pcbthermal)
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
+.venv/bin/python -m pcbthermal gui [project.pcbt.json]               # application
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json  # CLI: all models, report, plots
+.venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json   # direct vs CG vs SOR
+.venv/bin/python -m pytest -q tests                                  # tests (GUI offscreen)
+.venv/bin/python examples/accuracy_study.py                          # Lumped/Analytic accuracy table
 ```
-
-Tests, linting, and formatting are not set up yet. Add the commands here once they exist.
 
 ## Branches
 
 - `main`: stable, only has `README.md` and `LICENSE`.
-- `develop`: active development branch with the working application. Work on
-  `develop` (or feature branches created from it) and open PRs into `develop`.
+- `develop`: the previous wxPython application (legacy).
+- `feature/physics-core`: current work (new physics core, CLI and PySide 6 GUI). Merge into `develop` or `main` only when the user agrees.
 
 ## Git Policy
 
@@ -213,3 +205,5 @@ Record important decisions here, newest first, with date and reason.
 - 2026-10-16: Full algorithm review done; findings recorded in "Algorithm Review". No solver code changed yet.
 - 2026-10-16: Added `docs/thermal_models.md` documenting the three models (formulas as implemented), validation experiments, review findings and references.
 - 2026-10-16: Started `feature/physics-core`: new GUI-independent package `pcbthermal` (FVM reference, ring-network lumped, modal analytic, CLI, plots, 30 tests). Cell-centred finite volumes chosen over node-centred FD (exact power and area conservation, no half-cell borders); sparse direct/CG solver instead of SOR; FR-4 anisotropic (0.3 through, 0.9 in-plane); hollow via barrels; analytic uses the exact multilayer fin series instead of Lee spreading formulas (their coefficients could not be sourced). See `docs/physics_core.md`. The legacy `core/` and `ui/` are untouched; the planned UI is PySide 6 on top of `pcbthermal`.
+- 2026-10-16: Lumped rewritten as per-heater ring networks aggregated from the real geometry (24 % -> 1 % error on the example); Analytic got copper weighting, Green-function corrections for vias and sinks and validity warnings (47 % -> 9 %). New public API: `SolverOptions`, `simulate`, `Problem` builder (mm, 1-based layers), `Project` files. SOR kept as an optional FVM solver (vectorised red-black) to compare with the direct sparse solve: same answer with a residual criterion, wrong answer with the original step criterion.
+- 2026-10-16: Legacy wxPython code removed. PySide 6 GUI built on `pcbthermal` (editor canvas, panels, results tabs, themes, undo/redo). Transients exist in the CLI (`--gif`) but are out of the GUI scope for now, at the user's request. Virtual environment `.venv/` created and ignored by git.

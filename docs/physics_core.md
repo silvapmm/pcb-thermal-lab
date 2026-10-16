@@ -1,173 +1,192 @@
-# Physics Core (`pcbthermal`): Models, Formulas, Verification
+# Physics Core (`pcbthermal`): Models, API, GUI, Verification
 
-New, GUI-independent physics package that replaces the solvers in `core/`
-(reviewed in [`thermal_models.md`](thermal_models.md)). Branch `feature/physics-core`,
-2026-10-16. Everything runs from the command line and the three models share one
-problem description, so their results can be compared directly.
+GUI-independent physics package and PySide 6 application that replaced the original wxPython program
+(its solvers are reviewed in [`thermal_models.md`](thermal_models.md), its results are compared in
+[`legacy_vs_new.md`](legacy_vs_new.md)). Branch `feature/physics-core`, 2026-10-16.
 
-- SI units everywhere inside the package (m, W, K, W/mK, W/m²K, J/kgK, kg/m³).
-- JSON files use millimetres and 1-based layer numbers (layer 1 = top).
-- Dependencies: NumPy, SciPy (solvers), Matplotlib (plots only, `plots.py`).
+- SI units inside the package (m, W, K, W/mK, W/m²K, J/kgK, kg/m³).
+- JSON files and the builder API use millimetres and 1-based layers (layer 1 = top).
+- Dependencies: NumPy, SciPy (solvers), Matplotlib (figures), PySide 6 (GUI only). Use a virtual environment:
+  `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt` (`.venv/` is git-ignored).
 
 ## 1. Layout
 
 ```
 pcbthermal/
-  model.py      Board, Materials, Zone, Heater, Via, Sink, Problem; JSON readers/writer;
-                reference_problem(); problem_from_legacy() for the old editor format
+  model.py      Board, Materials, Zone, Heater, Via, Sink, Problem (+ builder API), JSON readers/writer
   geometry.py   shoelace area, centroid, vectorised point-in-polygon, cell coverage fractions
-  fvm.py        reference model: finite volumes, steady (sparse direct / CG) and transient
-  lumped.py     ring-network LPTN solved exactly
-  analytic.py   multilayer cosine-series (modal) solution
-  results.py    SteadyResult, TransientResult (energy balance built in)
-  plots.py      field maps, profiles, comparison, convergence, transient
-  cli.py        python -m pcbthermal {run,transient,convergence,convert,example}
-tests/          30 pytest tests (geometry, FVM verification, model agreement, I/O, CLI)
-examples/reference_board.json
+  fvm.py        reference model: finite volumes, steady (sparse direct / CG / SOR) and transient
+  lumped.py     ring-network model, one network per heater, superposed
+  analytic.py   multilayer cosine-series model with local via/sink corrections
+  results.py    SteadyResult, TransientResult (energy balance and warnings built in)
+  analysis.py   hotspots, gradients, zone and heater statistics (junction temperature)
+  api.py        SolverOptions, simulate() -> Simulation (table, report, save)
+  project.py    Project files (.pcbt.json): problem + options + view settings; legacy editor files
+  examples.py   reference_problem(), example_board()
+  plots.py      figures (draw_* into any Figure; plot_* / GIF writers for files)
+  cli.py        python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
+  gui/          PySide 6 application (see section 5)
+tests/          53 pytest tests (geometry, FVM, models, API, I/O, GUI offscreen)
+examples/       example_board.pcbt.json, reference_board.pcbt.json, accuracy_study.py
 ```
 
-## 2. Command line
+## 2. Python API
+
+```python
+from pcbthermal import Problem, SolverOptions, simulate
+
+p = Problem.new(width_mm=100, height_mm=80, layers=4)               # empty board
+p.add_zone(1, rect=(15, 15, 85, 65)).add_full_copper([2, 3, 4])
+p.add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=6.0)   # theta_jb: junction-to-board K/W
+p.add_via_array((30, 35, 40, 45), 3, 3, diameter=0.3)
+p.add_sink(4, 30.0, rect=(25, 30, 45, 50))                          # extra h on the bottom layer
+
+sim = simulate(p, SolverOptions(models=("fvm", "lumped", "analytic"), cell_mm=1.0))
+print(sim.to_markdown())          # comparison table, warnings
+print(sim.report())               # text report: hotspots, heaters (junction), zones
+sim.save("results")               # summary.json, report.txt, field CSVs, PNG figures
+sim.results["fvm"].T              # temperature field (layers, ny, nx) in degC
+```
+
+`SolverOptions` holds every setting (models, `cell_mm`, `linear_solver` direct/cg/sor, `lumped_rings`,
+`analytic_modes`, `analytic_local_corrections`, `hotspot_c`) and validates them. Projects save
+the problem, the options and the viewer state together (`save_project` / `load_project`).
+
+## 3. Models
+
+### 3.1 FVM (reference)
+
+Cell-centred finite volumes, one node per layer and cell, slab thickness `t_pcb / N`.
+
+Lateral sheet conductance of a cell (copper fill *f*, copper thickness *t*<sub>cu</sub>):
+$S = f\,k_{cu}\,t_{cu} + k_{fr4,ip}\,(slab - f\,t_{cu})$, with the harmonic mean between cells:
+$G_x = \frac{2S_1S_2}{S_1+S_2}\frac{dy}{dx}$. Vertical: $G_z = \frac{k_{fr4,th}\,dx\,dy}{d} + \sum_{vias}\frac{k_{cu}A_v}{d}$
+with $A_v=\pi[(d_v/2)^2-(d_v/2-t_p)^2]$ (hollow) or $\pi(d_v/2)^2$ (filled). Ambient: $h_{top}dx\,dy$ on the top layer,
+$h_{bot}dx\,dy$ on the bottom layer, sinks and edges. Heater power is spread over the covered cells by
+coverage fraction, so the requested power is injected exactly on any grid.
+
+Steady state $K\theta=Q$ ($\theta=T-T_{amb}$, $K$ sparse symmetric positive definite) with three interchangeable solvers:
+
+- `direct`: sparse LU (default, exact),
+- `cg`: Jacobi-preconditioned conjugate gradients,
+- `sor`: vectorised red-black SOR, kept to compare with the method of the original program (stop by
+  residual, or by the step size like the original).
+
+The energy balance (heat out through top, bottom, sinks, edges minus power in) is reported and is at round-off level.
+Transient (power step, implicit Euler or Crank-Nicolson) is implemented in `fvm.solve_transient`,
+tested, and available on the command line (`transient --gif`), but not in the GUI yet.
+
+### 3.2 Lumped (ring network per heater)
+
+The model is the azimuthal average of the FVM network. For every heater the cells are binned in rings by the distance to the
+heater centroid (ring 0 = footprint, outer rings grow geometrically). For every layer and ring, the real geometry is aggregated:
+
+$$G_{lat}=\frac{2\pi f_{arc}\,\bar S}{\ln(r_{k+1}/r_k)},\qquad
+G_{vert}=\sum_{cells}G_z,\qquad G_{amb}=\sum_{cells}(g_{top}+g_{bot}+g_{sink}+g_{edge})$$
+
+$r$ is the rms radius of a ring and $f_{arc}$ the fraction of the circle inside the board (adiabatic edges: a heater in a
+corner spreads over a quarter circle). Each heater gives a small dense system. The problem is linear, so the field is the
+sum over heaters (mutual heating = radial profile of one heater interpolated at the other's distance). The peak in a
+footprint adds $Q_{lat}/(8\pi S)$ (exact for a uniform disc).
+Copper, vias, sinks and edges are seen where they really are, which fixed the 24 % error of the first version.
+
+### 3.3 Analytic (cosine series with local corrections)
+
+Multilayer fin equation on the rectangle with insulated edges, expanded in $\cos(m\pi x/W)\cos(n\pi y/H)$; every mode
+is a small tridiagonal system over the layers (see the module docstring). Exact for a uniform board. Refinements:
+
+- **Copper fill weighted by influence**: $f_{eff}=\sum w f/\sum w$, $w=\sum_i P_i K_0(r_i/\lambda)$, $\lambda=\sqrt{S/h}$.
+- **Local vias and sinks** (Green-function / Woodbury update): vias and sinks are removed from the uniform problem and returned
+  as lumped conductances $C$ on 2.5 to 5 mm tiles. With $G$ the modal response between tiles and $y_0$ the tile averages of the
+  uniform solution, the tile temperatures solve $(I+GC)\,y=y_0$ and the injected heat $f=-Cy$ is added to the modes.
+- **Warnings**: strong copper non-uniformity around the heaters, or significant edge convection (the model assumes insulated edges).
+
+## 4. Command line
 
 ```sh
-python -m pcbthermal example examples/reference_board.json      # write the reference board
-python -m pcbthermal run examples/reference_board.json          # all three models + plots in ./output
-python -m pcbthermal run board.json --model fvm --cell-mm 1 --solver cg --out results
-python -m pcbthermal transient board.json --t-end 600 --theta 0.5   # Crank-Nicolson step response
-python -m pcbthermal convergence board.json                      # FVM grid refinement table + plot
-python -m pcbthermal convert editor_export.json board.json       # legacy editor JSON -> native JSON
-python -m pytest -q tests                                        # run the test suite
+python -m pcbthermal example examples/example_board.pcbt.json --which example
+python -m pcbthermal run examples/example_board.pcbt.json            # all models + report + plots in ./output
+python -m pcbthermal run board.pcbt.json --model fvm --cell-mm 0.5 --solver cg
+python -m pcbthermal solvers board.pcbt.json                         # direct vs CG vs SOR
+python -m pcbthermal convergence board.pcbt.json                     # FVM grid refinement
+python -m pcbthermal transient board.pcbt.json --t-end 600 --gif     # power step + animated GIF
+python -m pcbthermal convert old_editor_export.json board.pcbt.json  # legacy editor JSON -> project
+python -m pcbthermal gui [board.pcbt.json]                           # open the application
+python -m pytest -q tests
 ```
 
-`run` prints a table (Tmax, Tmean, ΔT, Rθ, power in, energy-balance error, run time) and writes
-`summary.json`, `field_<model>_layer1.csv`, `fields_<model>.png`, `comparison.png` and
-`profiles.png`.
+## 5. Graphical application (PySide 6)
 
-Native JSON (millimetres):
+`python -m pcbthermal gui` (or `python -m pcbthermal.gui`). Dark and light themes, undo/redo, project files.
 
-```json
-{ "board":   {"width_mm":100, "height_mm":100, "thickness_mm":1.6, "layers":2,
-              "copper_thickness_mm":0.035, "ambient_c":25, "h_top":10, "h_bottom":15, "h_side":10,
-              "k_copper":385, "k_fr4_through":0.3, "k_fr4_inplane":0.9, "via_plating_mm":0.025},
-  "zones":   [{"layer":1, "polygon_mm":[[0,0],[100,0],[100,100],[0,100]], "fill":1.0}],
-  "heaters": [{"layer":1, "power_w":5, "polygon_mm":[[40,40],[60,40],[60,60],[40,60]]}],
-  "vias":    [{"x_mm":50, "y_mm":50, "diameter_mm":0.3, "filled":false}],
-  "sinks":   [{"layer":1, "polygon_mm":[[30,30],[70,30],[70,70],[30,70]], "h_extra":50}] }
-```
+| Area | What it does |
+| :-- | :-- |
+| Board canvas | zoom (wheel), pan (middle button or Space), grid with snap, optional solver-mesh overlay, background photo with position/size/opacity |
+| Tools | select/move, copper zone, heater, sink, via; rectangle by dragging, polygon mode by clicking vertices; corner handles reshape (rectangles stay rectangular) |
+| Editing | move by drag or arrows, duplicate (Ctrl+D), delete, select all on layer, layer chooser (other layers dimmed), sinks only on outer layers |
+| Left docks | board size, stack-up, environment, materials; element tree synchronised with the canvas |
+| Right docks | model choice and solver settings with the Run button (F5, background thread, progress); property inspector (name, layer, power, θ junction-board, fill, extra h, via position and diameter, rectangle position and size) |
+| Results | Summary (models table, warnings, text report), Temperature (all layers or one, colour map, range, hotspot contour), Gradients, Profiles (movable cut line, all models), Components (heater and junction temperatures, zone statistics, hotspot list), Models (comparison) |
+| Board overlay | paint the last temperature field on the board (key T); results are marked outdated when the design changes |
+| Files | open/save projects, open legacy editor JSON, open examples, export results folder / TXT report / JSON summary / figures |
 
-`h_side: null` makes the edges insulated. `copper_thickness_mm` may be a list (one value per layer).
-
-## 3. FVM model (reference)
-
-Cell-centred finite volumes on an `nx × ny` grid (cell `dx × dy`), one node per layer and cell.
-A node represents a slab of thickness `slab = t_pcb / N`.
-
-**Lateral sheet conductance** of a cell in layer *l* (copper fill *f*, thickness *t*<sub>cu</sub>):
-
-$$S = f\,k_{cu}\,t_{cu} + k_{fr4,ip}\,(slab - f\,t_{cu}) \quad [\mathrm{W/K}]$$
-
-Between neighbouring cells the harmonic mean is used (two half cells in series):
-
-$$G_x = \frac{2 S_1 S_2}{S_1+S_2}\frac{dy}{dx},\qquad G_y = \frac{2 S_1 S_2}{S_1+S_2}\frac{dx}{dy}$$
-
-**Vertical conductance** between layers (dielectric of thickness $d = (t_{pcb}-\sum t_{cu})/(N-1)$,
-via barrels in parallel with the dielectric):
-
-$$G_z = \frac{k_{fr4,th}\,dx\,dy}{d} + \sum_{v\in cell}\frac{k_{cu}\,A_v}{d},\qquad
-A_v = \pi\left[(d_v/2)^2-(d_v/2-t_p)^2\right]\ (\text{hollow}),\ \ \pi (d_v/2)^2\ (\text{filled})$$
-
-**Ambient conductances** per cell: top $h_{top}\,dx\,dy$ on layer 1, bottom $h_{bot}\,dx\,dy$ on layer N
-(both on layer 1 for a single layer), sinks $h_{extra}\,dx\,dy\cdot cov$, edges
-$h_{side}\,dy\cdot slab$ (or $dx\cdot slab$) on boundary cells.
-
-**Sources**: each heater power is spread over the covered cells with weights equal to the
-coverage fraction (sub-sampled 8×8), so the injected power is exactly the requested power for any
-grid. A heater smaller than the sampling goes to its centroid cell.
-
-**Heat capacity**: $C = \left(f\rho_{cu}c_{cu}t_{cu}+(slab-f t_{cu})\rho_{fr4}c_{fr4}\right)dx\,dy$.
-
-**Steady state** (rise $\theta = T-T_{amb}$): sparse symmetric positive definite system
-
-$$K\,\theta = Q$$
-
-solved by sparse LU (`method="direct"`, default) or Jacobi-preconditioned CG (`"cg"`). The residual
-and the **energy balance** (heat out through top, bottom, sinks and sides minus power in) are
-reported; the balance is at round-off level (about 1e-13).
-
-**Transient** (power step from ambient): θ-method
-
-$$\left(\tfrac{C}{\Delta t}+\theta K\right)x^{n+1} = \left(\tfrac{C}{\Delta t}-(1-\theta)K\right)x^{n} + Q$$
-
-with θ = 1 (implicit Euler, robust) or 0.5 (Crank-Nicolson, second order). Both are unconditionally
-stable. Output times are log-spaced by default; one LU factorisation is reused per interval. The 63 %
-time constant is interpolated from the curve.
-
-## 4. Analytic model
-
-Exact modal solution of the multilayer fin equation for a **uniform** board with insulated edges:
-
-$$S_l\nabla^2\theta_l - h_l\theta_l - g\,(2\theta_l-\theta_{l-1}-\theta_{l+1}) = -q_l$$
-
-Expanding in $\cos(m\pi x/W)\cos(n\pi y/H)$ turns it, for every mode, into a small tridiagonal system
-
-$$\left[\mathrm{diag}(S_l k_{mn}^2+h_l)+g\,\mathcal{L}\right]a_{mn}=q_{mn},\qquad k_{mn}^2=(m\pi/W)^2+(n\pi/H)^2$$
-
-($\mathcal L$ is the path-graph Laplacian over the layers, $g=k_{fr4,th}/d$ plus vias smeared over the board).
-The heater projection is closed-form for rectangles (non-rectangular heaters use the rectangle with the same
-area and centroid). Mode $(0,0)$ is the uniform board $P/(hWH)$. The characteristic fin length is
-$\lambda=\sqrt{S/h}$ (about 34 mm on the reference board): heat spreads over roughly λ around the source.
-
-## 5. Lumped model (ring network)
-
-Heater footprint = disc of equal area; board = disc of equal area; the annulus between them is split into
-geometrically growing rings (default 8). Nodes: layers × (rings + 1).
-
-$$G_{lat}=\frac{2\pi S}{\ln(r_{k+1}/r_k)}\ (\text{area-mean radii}),\qquad
-G_{vert}=\frac{k_{fr4,th}A_k+k_{cu}A_{vias,k}}{d}$$
-
-Convection, sinks and edges attach to the rings in proportion to their area. A dense solve gives the node
-temperatures; the peak inside the footprint adds the exact uniform-disc relation
-$T_{peak}-T_{mean}=Q_{lat}/(8\pi S)$.
+Features of the original program that were dropped on purpose: the "iterations GIF" (it showed solver iterations, not physical
+time; a real time animation exists on the command line) and the pixel-corner board setup (the board is defined by its size in mm and
+a background image can be fitted to it).
 
 ## 6. Verification (2026-10-16)
 
-Reference board: 100×100 mm, 2 layers, 35 µm copper full planes, 5 W / 20×20 mm heater centred on layer 1,
-h<sub>top</sub>=10, h<sub>bot</sub>=15, edges h=10 (FVM, cell 1 mm).
-
 | Check | Result |
 | :-- | :-- |
-| Energy balance, all models | below 1e-9 (round-off, about 1e-13) |
-| Uniform plate (heater = whole board, 1 layer, insulated) | FVM equals $P/((h_t+h_b)A)$ to 1e-6 K |
-| Requested power injected for any cell size (10 to 1 mm, 4 mm heater) | exact |
-| Grid convergence Tmax: 10 / 5 / 2 / 1 / 0.5 / 0.25 mm | 88.24 / 89.61 / 90.07 / 90.13 / 90.15 / 90.155 °C |
+| Energy balance, all models | below 1e-9 (about 1e-13 for the FVM) |
+| Uniform plate (heater = board, 1 layer, insulated) | FVM equals $P/((h_t+h_b)A)$ to 1e-6 K |
+| Requested power injected for any cell size | exact |
+| Grid convergence Tmax (reference board), 10 / 5 / 2 / 1 / 0.5 / 0.25 mm | 88.24 / 89.61 / 90.07 / 90.13 / 90.15 / 90.155 °C |
 | Analytic vs FVM, insulated edges, 1 / 2 / 4 layers | 104.25 vs 104.31, 90.35 vs 90.39, 76.08 vs 76.10 °C |
-| Lumped vs FVM, 1 / 2 / 4 layers | +4 to +6 % on ΔT |
-| Old merged-sheet assumption (perfect vertical coupling) | 79 °C, 12 % too low (FR-4 under the heater is 13 K/W) |
 | FVM size / speed | 320 000 cells in 4.6 s (direct), 3.3 s (CG) |
-| Transient, reference board | steady 90.07 °C, 63 % time constant about 19 s, reaches steady state |
+| Transient, reference board | steady 90.07 °C, 63 % time constant about 19 s |
+| Tests | 53 pass: geometry, FVM, model agreement, API, I/O, SOR, GUI (drawing, editing, undo, simulation) |
 
-Accuracy of the simplified models against the FVM (ΔT error):
+### 6.1 Solver comparison: direct matrices vs SOR (example board, cell 1 mm)
 
-| Case | Lumped | Analytic |
-| :-- | --: | --: |
-| Reference, centred heater | +6.0 % | +0.3 % |
-| Small heater 5 mm, 3 W | +6.6 % | +0.5 % |
-| 8 layers | +5.9 % | +1.0 % |
-| Heater near a corner | -18.2 % | +1.2 % |
-| 25 hollow vias under the heater | +9.7 % | +13.3 % |
-| Sink 40×40 mm (+100 W/m²K) | +18.2 % | +44.8 % |
-| Copper only 40×40 mm around the heater | +22.5 % | +57.2 % |
+```
+Board 'example-4layer', cell 1 mm
+solver                                                Tmax C  |dT| vs direct   residual   sweeps   time s
+direct (sparse LU)                                   85.8143        0.00e+00    1.1e-13        -     0.26
+cg (Jacobi)                                          85.8143        8.01e-12    1.1e-12        -     0.09
+SOR, residual 1e-9, omega auto                       85.8143        1.10e-08    9.9e-10     2247     0.77
+SOR, residual 1e-6, omega auto                       85.8143        1.09e-05    9.9e-07     1532     0.53
+SOR, step 0.01 K, omega 1.5 (original program)       69.6449        1.65e+01    1.4e-01      562     0.19
+```
 
-Reading: the **Analytic** model is excellent on uniform boards (it is an exact solution) and degrades when properties
-are not uniform (partial copper, sinks, local vias). The **Lumped** model is a fast ±6 % estimate for centred
-heaters but ignores board edges and non-uniform copper. The **FVM** is the reference: use it whenever geometry matters.
+Direct, CG and SOR with the residual criterion reach the same solution (differences down to 1e-8 K). The step-size rule of
+the original program (0.01 K per sweep, omega 1.5) stops 4.7 K (2 mm cells) to 16.5 K (1 mm cells) away from the solution, with a visibly violated
+heat balance, and the error grows when the mesh is refined, which is the false convergence found in the review of the old solver.
+
+### 6.2 Accuracy of the simplified models against the FVM
+
+| Case | FVM Tmax [°C] | Lumped Tmax | Lumped ΔT error | Analytic Tmax | Analytic ΔT error | Analytic warns |
+| :-- | --: | --: | --: | --: | --: | :-: |
+| reference board (centred 20 mm heater) | 90.13 | 94.86 | +7.3 % | 90.35 | +0.3 % | - |
+| example board (full) | 85.81 | 86.48 | +1.1 % | 91.04 | +8.6 % | yes |
+| example, no sink | 88.91 | 89.42 | +0.8 % | 94.44 | +8.7 % | yes |
+| example, no vias | 94.67 | 99.36 | +6.7 % | 105.86 | +16.1 % | yes |
+| example, top copper over the full board | 85.29 | 85.97 | +1.1 % | 84.62 | -1.1 % | - |
+| example, uniform (no sink, no vias, full copper) | 96.68 | 101.20 | +6.3 % | 97.15 | +0.7 % | - |
+| example, only heater U1 | 79.97 | 79.58 | -0.7 % | 85.20 | +9.5 % | yes |
+| example, only U1, uniform | 90.30 | 93.93 | +5.6 % | 90.62 | +0.5 % | - |
+| reference board, heater in the corner | 109.40 | 105.80 | -4.3 % | 110.42 | +1.2 % | - |
+| reference board, small 5 mm heater | 103.06 | 110.43 | +9.4 % | 103.44 | +0.5 % | - |
+| reference board, 8 layers | 65.70 | 68.50 | +6.9 % | 66.11 | +1.0 % | - |
+
+Reading: the **Lumped** model is within about 10 % everywhere and within 1 % on the example board; its limit is the circular-spreading
+assumption. The **Analytic** model is exact (below 1.5 %) on uniform boards and handles vias, sinks, corners and several layers;
+it overestimates by 9 to 16 % when the copper on the heater layer is partial (it then shows a warning), where the FVM is the reference.
 
 ## 7. Known limits and next steps
 
-- Radiation and natural convection are inside the user's `h` (constant). A temperature-dependent
-  $h(\Delta T)$ with a Picard iteration is the natural next step.
-- The FR-4 in-plane conductivity default (0.9 W/mK) is 3× the through-plane value (0.3), typical of glass-woven FR-4.
-- Components, enclosures and 3D effects are not modelled.
-- Lumped: add edge effects and local copper (ring model assumes a heater far from the edges and uniform copper).
-- Analytic: local vias, sinks and partial copper are only averaged; consider a hybrid using the FVM correction.
-- Time-dependent power (pulses, duty cycles) in `solve_transient`.
-- Adaptive mesh refinement near heaters.
+- Radiation and natural convection are inside the constant `h`. Temperature-dependent `h(ΔT)` (Picard iteration) is the natural next step.
+- Transient mode in the GUI (animation, time-dependent power); components with junction/case resistances (JEDEC) beyond `theta_jb`.
+- Copper traces with Joule heating (IPC-2152) and temperature-dependent copper resistivity.
+- Reduced-order models for fast design sweeps; surrogate models for layout optimisation.
+- Analytic: partial copper under the heater needs the FVM.
