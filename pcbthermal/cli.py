@@ -71,6 +71,8 @@ def cmd_transient(args):
     if not args.no_plots:
         from . import plots
         plots.plot_transient(tr, os.path.join(args.out, "transient.png"))
+        if args.gif:
+            plots.save_transient_gif(tr, problem, os.path.join(args.out, "transient.gif"))
     print(f"Outputs written to {args.out}/")
     return 0
 
@@ -148,6 +150,7 @@ def build_parser():
     t.add_argument("--t-end", type=float, default=600.0, help="final time in seconds")
     t.add_argument("--steps", type=int, default=40, help="number of output times")
     t.add_argument("--theta", type=float, default=1.0, help="1 = implicit Euler, 0.5 = Crank-Nicolson")
+    t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
 
     c = sub.add_parser("convergence", help="FVM grid refinement study")
