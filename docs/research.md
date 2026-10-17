@@ -6,6 +6,8 @@ Values marked *assumed* are not from a datasheet. Everything is reproducible wit
 
 ## Open now: the Component element (branch `feature/component-element`)
 
+**Decided (2026-10-17):** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md` 1.11); K/W only for the heatsink on a component (R8). Still to settle: topic 2 below (plate or K/W), the power temperature coefficient, the interface form.
+
 Reproduce: `examples/component_study.py`, `examples/heatsink_study.py`, `examples/block_contact_study.py`.
 
 ### Which resistance goes in (datasheets re-read on 2026-10-17)

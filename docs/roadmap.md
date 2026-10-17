@@ -171,6 +171,14 @@ Stages: (1) Component element and Package, static, in the three models; (2) top 
 Validation: `θJB → 0` and no top path reproduce the current heater; `G_top → 0` gives heater plus the offset `P θJB`; exact series-parallel solution on a uniform board (`T_j` and power split to 1e-9); energy balance with the extra node; the models against each other;
 **ΨJT and ΨJB against a real datasheet** (to be chosen, with its test conditions; no numbers invented); power split in the 75 to 95 % board range; an independent 3D solid (the validation script already handles vias and heatsinks).
 
+### 1.11 Noted for later (decisions of 2026-10-17)
+
+Decided for the first Component delivery: a single junction-to-pad resistance `θ` used in the **worst case** (all the power enters the board; `θJA` is never an input); a top heatsink only as a fixed `θsa` in K/W with `θJC(top)` and an optional interface. Left for later, with the evidence in `docs/research.md`:
+* heatsink **scenarios**: natural-convection scaling `θsa ∝ ΔT^−0.25` (changes `Tj` by 1 to 3 K in the study), forced-convection factors (0.31, 0.18, 0.10 at 1, 2.5, 5 m/s) and the orientation factor, all driven by the air speed and orientation of the board (R6);
+* the heatsink on a component as a **plate layer** with spreading (only worth it for a thin base of a poor conductor such as steel: 5 to 13 % of the top chain against 1 to 4 % for aluminium and copper, R8);
+* an **interface with its own area** (contact patch) and the **air gap** outside it (`k_air/g` plus radiation, default 1 mm), the intuitive presentation of "perfect contact" (0.01 K cm²/W), and a side view with the vertical information (stack-up, component height, gap) (R3, R5, R7);
+* temperature-dependent power, maximum power at `Tj,max`, the Foster chain for pulses (R4).
+
 ## 2. Import of Gerber files (extra)
 
 Read the copper of every layer from manufacturing files instead of drawing zones by hand.
