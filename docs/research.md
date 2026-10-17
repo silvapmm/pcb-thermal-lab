@@ -180,6 +180,28 @@ Heat from `J` splits between the top chain and the board in the inverse ratio of
 
 The effects are **not additive**: the block alone lowers the MOSFET by 9 K and the top heatsink by 37 K, both together by only 40 K, because the top heatsink already takes 43 to 46 % of the heat and the block's share falls from 27 to 16 %. A change of the paste under the block (0.5 to 5 K cm²/W) moves `Tj` by 1 to 2 K; the same change on top moves it by 10 to 20 K (section R2).
 
+### R6. The heatsink and its convection: several scenarios, one number (2026-10-17)
+
+**What the catalogues give**: one resistance `θsa` (K/W, heatsink to ambient) at stated conditions, often a curve against power or air velocity, and little else. The program has to turn it into something that behaves correctly in the scenarios the user runs. Read and confirmed on the web:
+* chain: `Rja = Rjc + Rcs + Rsa` (junction-case, case-to-sink interface, sink-to-ambient) and `Rsa = (Ts − Ta)/Q − Rjc − Rcs` for the required heatsink (Electronics Cooling, "How to select a heat sink"); spreading resistance of a source much smaller than the base adds 5 to 30 % (the plate model of R3 covers it);
+* **natural convection**: `W = β·ΔT^1.25`, so the resistance `ΔT/W` falls as `ΔT^−0.25`: a heatsink at a 30 K rise is 1.257 times worse than the catalogue value at 75 K (Alpha Novatech and similar catalogues; `(75/30)^0.25 = 1.257` agrees); a low power makes the heatsink worse, a high power better;
+* **orientation and finish**: a bad orientation can be about 25 % worse; anodised aluminium radiates more than bare (emissivity about 0.8 against 0.1), which matters in natural convection;
+* **forced convection**: the volumetric performance `C = R·V` (cm³ K/W) is 500 to 800 in natural convection, 150 to 250 at 1 m/s, 80 to 150 at 2.5 m/s and 50 to 80 at 5 m/s, i.e. factors of about 0.31, 0.18 and 0.10 on the natural value; natural and forced convection cross at 1 to 2 m/s; the same table gives the **size** of a heatsink from the resistance wanted: 20 cm³ is 25 to 40 K/W in natural convection and 4 to 7.5 K/W at 2.5 m/s;
+* altitude lowers the performance of a heatsink in thin air (the source's 0.80 at 3000 m is ambiguous between a resistance and a performance factor; to check before use); a finer fin pitch is better only if the flow can enter.
+Interface values of the same article: 0.07 to 0.81 in²°C/W (0.45 to 5.2 K cm²/W), consistent with the presets.
+
+**Approach with only `θsa` (proposal)**: the heatsink is a conductance `1/θsa` from its base to the ambient (a lumped node on a component, spread uniformly over the plate area on a block under the board) with a **scenario** that sets how `θsa` varies:
+1. *Fixed* (default; the number is used as given: the simplest and what the datasheet states for its own conditions);
+2. *Natural convection*: `θsa = θref·(ΔTref/ΔT)^0.25` (`ΔTref` from the datasheet, default 75 K), with `ΔT` the heatsink's own rise, solved by the same fixed-point loop as the computed `h` (converges in a few iterations);
+3. *Forced*: `θsa = θnatural × f(v)` with `f` 1, 0.31, 0.18, 0.10 for 0, 1, 2.5 and 5 m/s, or the points of the datasheet curve.
+One environment setting would drive all of it: the air speed already used for the board faces (computed `h`) sets the heatsink scenario too, and the orientation sets the factor (a vertical board and vertical fins are the good case).
+**Simulation** (`python examples/heatsink_convection_study.py`; MOSFET with the top chain `θJC(top)` 30 (assumed) + default paste 4.6 + `θsa`, board `h` constant): with a 12 K/W catalogue value at 75 K the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and `Tj` 70.4 °C against 68.1 °C with the fixed number (+2.3 K, +4 K at 4 W the other way: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s gives 65.7, 64.5 and 63.6 °C. The **scenarios change `Tj` by 2 to 7 K here because `θJC(top)` (30 K/W) limits the path**: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `θJC(top)` (metal lid, bare die), which is why the scenario is worth a switch but the fixed value is a good default.
+
+### R7. Vertical information and presentation (noted 2026-10-17)
+
+* **Vertical (z) information to carry**: the stack-up (layer thicknesses and dielectrics, roadmap section 8), the height of the component above the board (the air gap `g` under a heatsink or plate, R3, comes from it), the orientation of the board (horizontal or vertical; the computed `h` already has it), and for enclosures the free height above the board. A "vertical layout" panel or a small side view would make the gap, the stack and the interfaces visible; to design with the maintainer.
+* **Perfect contact in the interface form**: the value (0.01 K cm²/W) must be presented intuitively, for example as a named choice ("soldered or bonded: perfect contact") next to the pastes and pads, not as a number to remember; to design with the maintainer.
+
 ### R4. What else may be missing (2026-10-17)
 
 1. **Power that depends on temperature (electro-thermal feedback)**: the on-resistance of a power MOSFET rises with temperature (about 1.5 to 2 times its room-temperature value at 175 °C; search summary of vendor notes), so the dissipation grows with `Tj`. With `P = P0 (1 + α (Tj − 25))` and the same board, the MOSFET of the study (2 W at 25 °C, 107.6 °C without feedback) reaches 138.6 °C for α = 0.33 %/K, 165.8 °C for 0.5 %/K and 210 °C for 0.67 %/K (power 2.75, 3.41, 4.48 W): a design that looks fine at nominal power can exceed `Tj,max`. It is the same kind of loop as the computed `h` (cheap, a linear scalar iteration). Proposal: an optional "power temperature coefficient (%/K)" on the heater/component, off by default, with the converged power reported. LED efficiency falling with temperature is the same mechanism with the opposite sign of the benefit.
@@ -195,6 +217,7 @@ The effects are **not additive**: the block alone lowers the MOSFET by 9 K and t
 2. Heatsink contact area = the area of its interface (R5: a polygon with the paste's `k` and thickness, default the whole contact face, full contact `R'' = 0.01 K cm²/W`); outside it the air-gap coupling of R3 (gap parameter, default 1 mm)? (answered by the maintainer's proposal; confirm)
 3. Heatsink on a component as a plate layer (spreading in the plate) or only as a K/W number from the datasheet in the first version?
 4. Include the power temperature coefficient in the first Component delivery?
+5. Heatsink scenario (fixed, natural scaling, forced) in the first version or only the fixed `θsa` with a note?
 
 ## Template (what this file looks like when nothing is pending)
 
