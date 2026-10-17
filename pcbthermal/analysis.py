@@ -114,3 +114,25 @@ def heater_stats(result, problem):
                      "t_mean": mean, "t_max": mx,
                      "t_junction": mx + h.power * h.theta_jb if h.theta_jb > 0 else None})
     return rows
+
+
+def block_stats(result, problem):
+    """!
+    @brief Temperature of the metal blocks and the heat they take, one row per face that carries blocks.
+    @param result A SteadyResult from the FVM or the FDM (other models have no blocks).
+    @param problem The Problem that owns the heatsinks.
+    @return List of dicts: name, face ("top" or "bottom"), t_mean, t_max, w_to_block (heat entering the block through the interface,
+            W) and w_to_air (heat leaving through its exposed surface, W); empty without blocks.
+    """
+    rows = []
+    n = problem.board.layers
+    for face, tag in ((0, "top"), (1, "bottom")):
+        if f"block_{tag}_max" not in result.extras:
+            continue
+        names = [s.name or f"Heatsink {k + 1}" for k, s in enumerate(problem.heatsinks)
+                 if s.is_block() and (0 if (s.layer == 0 or n == 1) else 1) == face]
+        rows.append({"name": ", ".join(names), "face": tag, "t_mean": result.extras[f"block_{tag}_mean"],
+                     "t_max": result.extras[f"block_{tag}_max"], "w_to_block": result.extras[f"block_{tag}_w_to_block"],
+                     "w_to_air": result.extras[f"block_{tag}_w_to_air"]})
+    return rows
+

@@ -79,6 +79,35 @@ def check_problem(problem, cell_mm=1.0):
         if area > 0 and float(cov.sum() * dx * dy) / area < 0.5:
             out.append(f"{z.name or f'Zone {k + 1}'}: more than half of the zone is outside the board.")
 
+    # --- Metal blocks: they only take heat where they overlap copper of their face
+    block_cov = {}
+    for k, s in enumerate(problem.heatsinks):
+        if not s.is_block():
+            continue
+        name = s.name or f"Heatsink {k + 1}"
+        cov = coverage_fraction(s.polygon, nx, ny, dx, dy, 4)
+        area = polygon_area(s.polygon)
+        if area > 0 and float(cov.sum() * dx * dy) / area < 0.9:
+            out.append(f"{name}: part of the metal block is outside the board; only the part inside is modelled.")
+        if cov.sum() > 0:
+            overlap = float((fill[s.layer] * cov).sum() * dx * dy)
+            if overlap < 1e-6:
+                out.append(f"{name}: the metal block does not overlap any copper on its face, so it takes almost no heat "
+                           "(through the bare laminate only); add a copper pad under it.")
+            elif overlap < 0.25 * area:
+                out.append(f"{name}: only {100 * overlap / area:.0f} % of the metal block touches copper; the heat enters "
+                           "the block through that overlap only.")
+        if s.contact_r < 1e-5:
+            out.append(f"{name}: an interface resistance below 1e-5 m2K/W is a perfect contact; a gap pad or paste is "
+                       "usually 1e-4 to 1e-3 m2K/W (0.5 mm of a 1 to 5 W/mK pad).")
+        face = 0 if (s.layer == 0 or b.layers == 1) else 1
+        block_cov.setdefault(face, []).append((name, cov))
+    for face, items in block_cov.items():
+        for i in range(len(items)):
+            for j in range(i + 1, len(items)):
+                if float(np.minimum(items[i][1], items[j][1]).sum() * dx * dy) > 1e-7:
+                    out.append(f"{items[i][0]} and {items[j][0]} overlap: in the overlap only the later one is used.")
+
     if problem.total_power() <= 0:
         out.append("The total heater power is zero: the board stays at ambient temperature.")
     return out

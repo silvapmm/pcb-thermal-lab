@@ -27,14 +27,15 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, convection, fdm, fvm, lumped, profiles
-from .analysis import heater_stats, hotspots, zone_stats
+from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
+from .analysis import block_stats, heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
 from .results import SteadyResult
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
-COMPARISON_MODELS = ("fdm",)                     # Extra steady-state model for comparisons: no time simulation, not in the GUI
+COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
+TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid is steady state only)
 
 
 @dataclass
@@ -47,7 +48,7 @@ class SolverOptions:
     linear_solver: str = "direct"                # FVM solver: "direct" (sparse LU), "cg" or "sor" (comparison)
     lumped_rings: int = 10                       # Rings per heater network in the lumped model
     analytic_modes: int = 300                    # Cosine modes per direction in the analytic model
-    analytic_local_corrections: bool = True      # Treat vias and sinks locally (Green's function update)
+    analytic_local_corrections: bool = True      # Treat vias and heatsinks locally (Green's function update)
     hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
@@ -271,6 +272,9 @@ class Simulation:
             for z in zone_stats(ref, self.problem):
                 lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "
                              f"max {z['t_max']:.1f}, min {z['t_min']:.1f} degC")
+            for k in block_stats(ref, self.problem):
+                lines.append(f"Metal block {k['name']} ({k['face']} face): mean {k['t_mean']:.1f}, max {k['t_max']:.1f} degC; "
+                             f"{k['w_to_block']:.2f} W enter it through the interface, {k['w_to_air']:.2f} W leave by its surface")
         return "\n".join(lines) + "\n"
 
     def to_dict(self):
@@ -365,6 +369,8 @@ def _run_model(problem, name, o):
         return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver)
     if name == "fdm":
         return fdm.solve_steady(problem, cell_mm=o.cell_mm)
+    if name == "solid3d":
+        return solid3d.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "lumped":
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=min(max(o.cell_mm, 0.5), 1.0))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
@@ -475,6 +481,8 @@ def step_response(problem, model, options):
     """
     if model == "fvm":
         return profiles.step_response_fvm(problem, cell_mm=max(options.cell_mm, 2.0))
+    if model == "fdm":
+        return profiles.step_response_fdm(problem, cell_mm=max(options.cell_mm, 2.0))
     if model == "lumped":
         t, z, r = lumped.step_responses(problem, rings=options.lumped_rings, cell_mm=min(max(options.cell_mm, 0.5), 1.0))
     else:
@@ -493,9 +501,9 @@ def _run_profiles(sim, progress, start):
     """
     o = sim.options
     p = sim.effective_problem or sim.problem
-    ref = next((m for m in MODEL_NAMES if m in o.models), None)
+    ref = next((m for m in TIME_MODELS if m in o.models), None)   # The FDM only if nothing else is selected; the 3D solid has no time simulation
     if ref is None:
-        sim.profile_error = "the time simulation needs the FVM, the thermal network or the analytical model to be selected"
+        sim.profile_error = "select the FVM, Lumped, Analytic or FDM model for the time simulation (the 3D solid is steady state only)"
         return
     sim.profile_reference = ref
     if progress:
@@ -506,12 +514,14 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in o.models:
-            if name in COMPARISON_MODELS:
-                continue                                                  # The comparison model has no time simulation
+            if name == "solid3d":
+                continue
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
             if name == "fvm":
                 sim.profile_results[name] = profiles.run_fvm(p, sim.decisions, o.profile, o.cell_mm)
+            elif name == "fdm":
+                sim.profile_results[name] = profiles.run_fdm(p, sim.decisions, o.profile, o.cell_mm)
             elif name == "lumped":
                 sim.profile_results[name] = lumped.run_profile(p, sim.decisions, o.profile, o.lumped_rings,
                                                                min(max(o.cell_mm, 0.5), 1.0))
@@ -539,16 +549,29 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)
+    has_blocks = blocks.has_blocks(problem)
     for k, name in enumerate(options.models):
         if progress:
             progress(f"Solving {name}", k / n)
         t0 = time.time()
-        if computed:
-            sim.results[name], ht, hb, _ = _solve_computed_h(steady_problem, name, options)
-            sim.h_used[name] = (ht, hb)
-        else:
-            sim.results[name] = _run_model(steady_problem, name, options)
+        try:
+            if computed:
+                sim.results[name], ht, hb, _ = _solve_computed_h(steady_problem, name, options)
+                sim.h_used[name] = (ht, hb)
+            else:
+                sim.results[name] = _run_model(steady_problem, name, options)
+        except ValueError as exc:
+            if name != "solid3d" or len(options.models) == 1:
+                raise
+            sim.problem_warnings.append(f"the 3D solid was not run: {exc}")        # Too large: the other models still answer
+            continue
         sim.seconds[name] = time.time() - t0
+    if has_blocks:
+        for name in ("lumped", "analytic"):
+            if name in sim.results:
+                sim.results[name].warnings.append(
+                    "the metal block is replaced by an equivalent extra coefficient: its spreading, its mass and the "
+                    "copper overlap are not represented; use the FVM or the FDM")
     if computed:
         ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in options.models))
         # Later stages (time simulation, animation) use the coefficients of the reference model, fixed during the cycle

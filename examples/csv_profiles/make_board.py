@@ -1,6 +1,6 @@
 """!
 @file make_board.py
-@brief Writes board.pcbt.json: the 100 x 80 mm, 4-layer example board used by the tests (two heaters, vias, partial copper, a sink).
+@brief Writes board.pcbt.json: the 100 x 80 mm, 4-layer example board used by the tests (two heaters, vias, partial copper, a heatsink).
 """
 
 import os

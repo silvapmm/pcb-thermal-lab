@@ -5,14 +5,14 @@
 Three models share one problem description (`pcbthermal.model`):
 - `fvm`      cell-centred finite-volume solver (reference model)
 - `lumped`   offset-contour thermal network, one network per heater
-- `analytic` closed-form multilayer fin solution with local via/sink corrections
+- `analytic` closed-form multilayer fin solution with local via/heatsink corrections
 
 Typical use:
 
     from pcbthermal import Problem, SolverOptions, simulate
 """
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 
 from .model import Problem, SquareWave, TableProfile, load_problem, reference_problem   # noqa: E402,F401
 from .profile_io import ProfileFileError, read_profile_csv, write_profile_csv   # noqa: E402,F401

@@ -245,7 +245,7 @@
       "name": ""
     }
   ],
-  "sinks": [
+  "heatsinks": [
     {
       "layer": 4,
       "polygon_mm": [

@@ -36,7 +36,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy.interpolate import PchipInterpolator
 
-from . import fvm
+from . import fdm, fvm
 from .fvm import ORDERING
 
 
@@ -177,6 +177,17 @@ def step_response_fvm(problem, cell_mm=2.0):
     """
     times, z, rth = fvm.step_responses(problem, cell_mm=cell_mm)
     return StepResponse("fvm", times, z, rth)
+
+
+def step_response_fdm(problem, cell_mm=2.0):
+    """!
+    @brief Unit-step responses of every heater computed with the finite-difference model.
+    @param problem A Problem with at least one heater.
+    @param cell_mm Target grid spacing in millimetres.
+    @return StepResponse.
+    """
+    times, z, rth = fdm.step_responses(problem, cell_mm=cell_mm)
+    return StepResponse("fdm", times, z, rth)
 
 
 def _cumulative_response(resp, i, period, sigma, terms):
@@ -541,7 +552,8 @@ def run_windows(problem, decisions, options, adapter, model, progress=None):
     keep = max(len(flat) // 3000, 1)
     result.history_max, result.history_t = flat[::keep], (np.arange(1, len(flat) + 1) * dt)[::keep]
     l, i, j = np.unravel_index(int(np.argmax(result.peak_map)), result.peak_map.shape)
-    result.peak_location = (int(l), (j + 0.5) * adapter.dx, (i + 0.5) * adapter.dy)
+    off = getattr(adapter, "offset", 0.5)
+    result.peak_location = (int(l), (j + off) * adapter.dx, (i + off) * adapter.dy)
     if options.duration == "stable" and not converged and not plan["once"]:
         result.warnings.append(f"the cycle did not repeat within {w + 1} windows (a change below {options.stable_c} °C "
                                "was not reached); the last window is reported")
@@ -573,6 +585,15 @@ class _FVMAdapter:
         ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
         self.net = fvm.Network(problem, nx, ny)
         self.dx, self.dy = self.net.dx, self.net.dy
+        self._finish(problem)
+
+    offset = 0.5                                # Samples sit at cell centres
+
+    def _finish(self, problem):
+        """!
+        @brief Steady states and field shape of the network that is already built (shared with the finite-difference adapter).
+        @param problem A Problem.
+        """
         self.p_avg = np.array([h.average_power() for h in problem.heaters])
         steady = spla.splu(self.net.K.tocsc(), permc_spec=ORDERING)
         self.th_avg = steady.solve(self.net.Qw_matrix @ self.p_avg)
@@ -582,6 +603,7 @@ class _FVMAdapter:
         self.steady_average_max = float(self.th_avg.max() + self.ambient)
         self.steady_peak_max = float(th_peak.max() + self.ambient)
         self.shape = (self.net.nl, self.net.ny, self.net.nx)
+        self.nb = getattr(self.net, "n_board", self.net.nl)                 # Board layers (the blocks come after them)
 
     def prepare(self, dt):
         """!
@@ -629,7 +651,7 @@ class _FVMAdapter:
         @param x State.
         @return Array (layers, ny, nx).
         """
-        return x.reshape(self.shape) + self.ambient
+        return x.reshape(self.shape)[:self.nb] + self.ambient
 
     def peak_values(self, x):
         """!
@@ -645,7 +667,39 @@ class _FVMAdapter:
         @param flat Flat array.
         @return Array (layers, ny, nx).
         """
-        return flat.reshape(self.shape)
+        return flat.reshape(self.shape)[:self.nb]
+
+
+class _FDMAdapter(_FVMAdapter):
+    """!
+    @brief Adapter that advances the finite-difference model in time: the FVM adapter on the nodes of the FDM network.
+    """
+
+    offset = 0.0                                # Samples sit on grid points, not at cell centres
+
+    def __init__(self, problem, cell_mm):
+        """!
+        @param problem A Problem (heater powers equal the averages).
+        @param cell_mm Target grid spacing in millimetres.
+        """
+        self.ambient = problem.board.ambient
+        self.net = fdm.Network(problem, cell_mm)
+        self.dx, self.dy = self.net.dx, self.net.dy
+        self._finish(problem)
+
+
+def run_fdm(problem, decisions, options, cell_mm=1.0, progress=None):
+    """!
+    @brief Time simulation of a problem with power profiles using the finite-difference model.
+    @param problem A Problem (heater powers equal the averages).
+    @param decisions Decisions from decide().
+    @param options ProfileOptions.
+    @param cell_mm Target grid spacing in millimetres.
+    @param progress Optional callback progress(message, fraction).
+    @return ProfileResult.
+    @throws ProfileError If the run is too expensive for options.max_steps.
+    """
+    return run_windows(problem, decisions, options, _FDMAdapter(problem, cell_mm), "fdm", progress)
 
 
 def run_fvm(problem, decisions, options, cell_mm=1.0, progress=None):

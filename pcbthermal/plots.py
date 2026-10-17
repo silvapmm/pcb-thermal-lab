@@ -28,7 +28,7 @@ def new_figure(width=7.0, height=4.5):
 
 def _outline(ax, problem, layer):
     """!
-    @brief Draw heater, sink, zone and via outlines of one layer on an axis (coordinates in mm).
+    @brief Draw heater, heatsink, zone and via outlines of one layer on an axis (coordinates in mm).
     @param ax Matplotlib axis.
     @param problem The Problem that owns the elements.
     @param layer 0-based layer index.
@@ -41,7 +41,7 @@ def _outline(ax, problem, layer):
         if h.layer == layer:
             p = np.vstack([h.polygon, h.polygon[:1]]) * 1000.0
             ax.plot(p[:, 0], p[:, 1], color="white", lw=1.2, ls="--")
-    for s in problem.sinks:
+    for s in problem.heatsinks:
         if s.layer == layer:
             p = np.vstack([s.polygon, s.polygon[:1]]) * 1000.0
             ax.plot(p[:, 0], p[:, 1], color="cyan", lw=1.2, ls=":")
@@ -85,7 +85,7 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     @param vmin Lower colour limit (default: field minimum).
     @param vmax Upper colour limit (default: field maximum).
     @param layer 0-based layer used for the outlines.
-    @param outline If True draw zones, heaters, sinks and vias.
+    @param outline If True draw zones, heaters, heatsinks and vias.
     @param marker Optional (x_m, y_m) of a marker, for example the hottest point.
     @param hotspot Optional temperature; the contour at that level is drawn in magenta.
     @param label Colour bar label.
@@ -112,6 +112,29 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     ax.set_title(title, fontsize=10)
     fig.colorbar(im, ax=ax, label=label, shrink=0.85)
     return ax
+
+
+def draw_block(fig, result, problem, face, cmap="inferno"):
+    """!
+    @brief Temperature of the metal block of one face (where there is no block the board map is not shown).
+    @param fig Target Figure (cleared first).
+    @param result A SteadyResult with block temperatures (FVM or FDM).
+    @param problem The Problem.
+    @param face 0 for the block on the top face, 1 for the bottom face.
+    @param cmap Colormap name.
+    """
+    tag = "top" if face == 0 else "bottom"
+    names = [k for k in ("block_top_max", "block_bottom_max") if k in result.extras]
+    which = [k.split("_")[1] for k in names].index(tag) if f"block_{tag}_max" in result.extras else None
+    fig.clear()
+    ax = fig.add_subplot(111)
+    if which is None:
+        ax.text(0.5, 0.5, "This model has no metal block", ha="center", va="center", transform=ax.transAxes)
+        return
+    field = np.where(result.arrays["block_cov"][which] > 0, result.arrays["block_T"][which], np.nan)
+    draw_field(fig, field, problem, result.dx, result.dy, cmap=cmap, layer=0 if face == 0 else problem.board.layers - 1,
+               title=f"{result.model.upper()} - metal block ({tag} face): mean {result.extras[f'block_{tag}_mean']:.1f} °C, "
+                     f"max {result.extras[f'block_{tag}_max']:.1f} °C", label="Block temperature (°C)")
 
 
 def draw_fields(fig, result, problem, cmap="inferno"):
@@ -442,6 +465,19 @@ def plot_transient(tr, path):
     _save(fig, path)
 
 
+def frame_spacing(tr, problem):
+    """!
+    @brief Sample spacing of the frames of a transient: cells for the FVM and Analytic, grid points for the FDM.
+    @param tr A TransientResult.
+    @param problem The Problem (board size).
+    @return Tuple (dx, dy) in metres.
+    """
+    ny, nx = tr.frames.shape[2], tr.frames.shape[3]
+    if tr.grid == "nodes":
+        return problem.board.width / (nx - 1), problem.board.height / (ny - 1)
+    return problem.board.width / nx, problem.board.height / ny
+
+
 def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno"):
     """!
     @brief Animated GIF of the temperature evolution of one layer in physical time.
@@ -458,9 +494,7 @@ def save_transient_gif(tr, problem, path, layer=0, fps=8, cmap="inferno"):
 
     vmin, vmax = tr.ambient, float(tr.frames[:, layer].max())
     fig = new_figure(6.2, 5.0)
-    nx = tr.frames.shape[3]
-    dx = problem.board.width / nx
-    dy = problem.board.height / tr.frames.shape[2]
+    dx, dy = frame_spacing(tr, problem)
     writer = PillowWriter(fps=fps)
     with writer.saving(fig, path, dpi=90):
         for k in range(len(tr.times)):

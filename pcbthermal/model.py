@@ -404,14 +404,29 @@ class Via:
 
 
 @dataclass
-class Sink:
+class Heatsink:
     """!
-    @brief Extra heat transfer coefficient over a polygon of an outer surface.
+    @brief Extra cooling over a polygon of an outer surface: a plain coefficient, or a metal block attached to the board.
+    @details With thickness 0 the heatsink only adds h_extra to the board face inside the polygon. With a thickness it is a **metal
+             block** pressed on the face through an interface (a gap pad or paste): the heat flows from the board copper into the
+             block only where the block overlaps copper (the intersection of the planes), spreads sideways in the metal, is stored
+             in its mass and leaves through the block's exposed surface with the coefficient of the board face plus h_extra.
     """
     layer: int                                  # 0-based layer index (must be 0 or layers-1)
     polygon: np.ndarray                         # Vertices (n, 2) in metres
     h_extra: float                              # Added coefficient (W/m2K)
     name: str = ""                              # Optional label
+    thickness: float = 0.0                      # Metal block thickness (m); 0 = a plain coefficient, no block
+    k: float = 205.0                            # Conductivity of the block (W/mK); aluminium 205, copper 385
+    rho_cp: float = 2.43e6                      # Volumetric heat capacity of the block (J/m3K); aluminium 2.43e6, copper 3.45e6
+    contact_r: float = 5.0e-4                   # Interface resistance between the board and the block (m2K/W): pad thickness / k
+
+    def is_block(self):
+        """!
+        @brief True if the heatsink is a metal block (it has a thickness).
+        @return Boolean.
+        """
+        return self.thickness > 0.0
 
 
 @dataclass
@@ -423,7 +438,7 @@ class Problem:
     zones: List[Zone] = field(default_factory=list)
     heaters: List[Heater] = field(default_factory=list)
     vias: List[Via] = field(default_factory=list)
-    sinks: List[Sink] = field(default_factory=list)
+    heatsinks: List[Heatsink] = field(default_factory=list)
     name: str = "board"
 
     def total_power(self):
@@ -457,11 +472,11 @@ class Problem:
     def validate(self):
         """!
         @brief Validate the board and the element references.
-        @throws ValueError On a bad layer index, negative power or sink on an inner layer.
+        @throws ValueError On a bad layer index, negative power or heatsink on an inner layer.
         """
         self.board.validate()
         n = self.board.layers
-        for e in list(self.zones) + list(self.heaters) + list(self.sinks):
+        for e in list(self.zones) + list(self.heaters) + list(self.heatsinks):
             if not 0 <= e.layer < n:
                 raise ValueError(f"element on layer {e.layer + 1} but the board has {n} layers")
         for h in self.heaters:
@@ -469,9 +484,11 @@ class Problem:
                 raise ValueError("heater power must be >= 0")
             if h.profile is not None:
                 h.profile.validate()
-        for s in self.sinks:
+        for s in self.heatsinks:
             if s.layer not in (0, n - 1):
-                raise ValueError("a sink must be on the top or the bottom layer")
+                raise ValueError("a heatsink must be on the top or the bottom layer")
+            if s.thickness < 0 or s.k <= 0 or s.rho_cp <= 0 or s.contact_r < 0 or s.h_extra < 0:
+                raise ValueError("a heatsink needs h_extra, thickness and contact resistance >= 0 and k, heat capacity > 0")
 
     # ---------------------------------------------------------------- builder API (mm, layer 1 = top)
     @classmethod
@@ -581,17 +598,23 @@ class Problem:
                 self.add_via(x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny, diameter, filled)
         return self
 
-    def add_sink(self, layer, h_extra, rect=None, polygon=None, name=""):
+    def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=205.0, rho_cp=2.43e6,
+                 contact_r=5.0e-4):
         """!
-        @brief Add a sink: extra heat transfer coefficient on an outer surface (mm, W/m2K).
+        @brief Add a heatsink: extra heat transfer coefficient on an outer surface, optionally a metal block (mm, W/m2K).
         @param layer 1 (top) or the last layer (bottom).
-        @param h_extra Added coefficient in W/m2K.
+        @param h_extra Added coefficient in W/m2K (for a block: extra over the coefficient of the board face).
         @param rect Rectangle (x0, y0, x1, y1) in mm.
         @param polygon Polygon [[x, y], ...] in mm.
         @param name Optional label.
+        @param thickness_mm Thickness of the metal block in mm (0 = no block, only the coefficient).
+        @param k Conductivity of the block in W/mK.
+        @param rho_cp Volumetric heat capacity of the block in J/m3K.
+        @param contact_r Interface resistance in m2K/W (pad thickness divided by its conductivity).
         @return self.
         """
-        self.sinks.append(Sink(layer - 1, self._shape_m(rect, polygon), float(h_extra), name))
+        self.heatsinks.append(Heatsink(layer - 1, self._shape_m(rect, polygon), float(h_extra), name, thickness_mm / 1000.0,
+                               float(k), float(rho_cp), float(contact_r)))
         return self
 
 
@@ -609,7 +632,7 @@ def _poly_mm(points):
 def problem_from_dict(data, validate=True):
     """!
     @brief Build a Problem from the native JSON structure (millimetres, 1-based layers).
-    @param data Dict with the keys board, zones, heaters, vias and sinks.
+    @param data Dict with the keys board, zones, heaters, vias and heatsinks (older files call the last one "sinks", still accepted).
     @param validate If False, skip the consistency check (used to restore undo snapshots).
     @return A Problem (validated unless validate is False).
     """
@@ -658,8 +681,10 @@ def problem_from_dict(data, validate=True):
     for v in data.get("vias", []):
         prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
                              v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", "")))
-    for s in data.get("sinks", []):
-        prob.sinks.append(Sink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", "")))
+    for s in data.get("heatsinks", data.get("sinks", [])):    # "sinks" is the key of files saved before the rename
+        prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
+                               float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 205.0)),
+                               float(s.get("rho_cp_j_per_m3k", 2.43e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4))))
     if validate:
         prob.validate()
     return prob
@@ -704,7 +729,7 @@ def problem_from_legacy(json_config):
         elif t == "Heater":
             prob.heaters.append(Heater(layer, pts, float(e["power"])))
         elif t == "Sink":
-            prob.sinks.append(Sink(layer, pts, float(e["htc_extra"])))
+            prob.heatsinks.append(Heatsink(layer, pts, float(e["htc_extra"])))
         elif t == "Via":
             prob.vias.append(Via(pts[0][0], pts[0][1], e["diameter"] / 1000.0))
     prob.validate()
@@ -806,6 +831,7 @@ def problem_to_dict(prob):
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
                   "filled": v.filled, "name": v.name} for v in prob.vias],
-        "sinks": [{"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name}
-                  for s in prob.sinks],
+        "heatsinks": [dict({"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name},
+                       **({"thickness_mm": s.thickness * 1000.0, "k_w_per_mk": s.k, "rho_cp_j_per_m3k": s.rho_cp,
+                           "contact_r_m2k_per_w": s.contact_r} if s.is_block() else {})) for s in prob.heatsinks],
     }

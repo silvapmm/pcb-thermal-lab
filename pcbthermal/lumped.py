@@ -24,7 +24,7 @@ approximation is made. For every layer and ring the real geometry is aggregated:
   expressed with the modified Bessel functions I0 and I1 of x = a / lambda, scales this term by
   4 (I0 - 2 I1 / x) / (x I1) and the peak term by 4 (2 / x^2 - 1 / (x I1)); both factors are 1 for x -> 0,
 - vertical conduction and conductance to ambient: the sums of the cell values of the ring (dielectric,
-  vias, top, bottom, sinks and edges).
+  vias, top, bottom, heatsinks and edges).
 
 Each heater gives a small dense linear system, solved exactly. Because the problem is linear, the
 temperature at any point is the sum of the rises caused by every heater (mutual heating comes from
@@ -42,6 +42,7 @@ from scipy.special import ive
 
 from . import profiles
 from .fvm import Network
+from . import blocks
 from .geometry import coverage_fraction, polygon_centroid
 from .results import SteadyResult
 
@@ -155,7 +156,7 @@ def _heater_network(net, cov, layer, power, rings):
     S = np.array([ring_sum(net.S[l]) / cnt for l in range(L)])           # Mean sheet conductance (W/K)
     g_top = np.array([ring_sum(net.g_top[l]) for l in range(L)])
     g_bot = np.array([ring_sum(net.g_bottom[l]) for l in range(L)])
-    g_sink = np.array([ring_sum(net.g_sink[l]) for l in range(L)])
+    g_heatsink = np.array([ring_sum(net.g_heatsink[l]) for l in range(L)])
     g_side = np.array([ring_sum(net.g_side[l]) for l in range(L)])
     gz = np.array([ring_sum(net.gz[l]) for l in range(L - 1)]) if L > 1 else np.zeros((0, R))
     cap = np.array([ring_sum(net.C[l]) for l in range(L)])               # Heat capacity of every ring (J/K)
@@ -188,7 +189,7 @@ def _heater_network(net, cov, layer, power, rings):
             if l < L - 1:
                 for k in range(R):
                     couple(l * R + k, (l + 1) * R + k, gz[l, k])
-        K[np.arange(n), np.arange(n)] += (g_top + g_bot + g_sink + g_side).ravel()
+        K[np.arange(n), np.arange(n)] += (g_top + g_bot + g_heatsink + g_side).ravel()
         Q = np.zeros(n)
         Q[layer * R] = power
         theta = np.linalg.solve(K, Q)
@@ -204,7 +205,7 @@ def _heater_network(net, cov, layer, power, rings):
         th = theta.reshape(L, R)
         g_eff = np.zeros(L)
         for l in range(L):
-            loss = (g_top[l, 0] + g_bot[l, 0] + g_sink[l, 0] + g_side[l, 0]) * th[l, 0]
+            loss = (g_top[l, 0] + g_bot[l, 0] + g_heatsink[l, 0] + g_side[l, 0]) * th[l, 0]
             if l < L - 1:
                 loss += gz[l, 0] * (th[l, 0] - th[l + 1, 0])
             if l > 0:
@@ -220,7 +221,7 @@ def _heater_network(net, cov, layer, power, rings):
             "K": K, "C": cap.ravel(), "R": R, "layer": layer, "r01": r01,
             "peak_coef": f_p[layer] * (phi_mean - phi_min) / (2.0 * np.pi * S[layer, 0]),
             "out": {"top": float((g_top * th).sum()), "bottom": float((g_bot * th).sum()),
-                    "sinks": float((g_sink * th).sum()), "sides": float((g_side * th).sum())},
+                    "heatsinks": float((g_heatsink * th).sum()), "sides": float((g_side * th).sum())},
             "residual": float(np.linalg.norm(K @ theta - Q) / np.linalg.norm(Q))}
 
 
@@ -246,11 +247,12 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     @param cell_mm Raster size (mm) used to aggregate the real geometry into rings.
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     problem.validate()
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=False)
     L = net.nl
     power = problem.total_power()
     xs = (np.arange(nx) + 0.5) * net.dx
@@ -258,7 +260,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
 
     theta_field = np.zeros((L, ny, nx))
     nets = []
-    out = {"top": 0.0, "bottom": 0.0, "sinks": 0.0, "sides": 0.0}
+    out = {"top": 0.0, "bottom": 0.0, "heatsinks": 0.0, "sides": 0.0}
     res = 0.0
     for h in problem.heaters:
         if h.power <= 0:
@@ -312,7 +314,7 @@ def _unit_networks(problem, rings, cell_mm):
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=False)
     systems = []
     for h in problem.heaters:
         rn = _heater_network(net, _footprint_coverage(net, h), h.layer, 1.0, rings)
@@ -379,6 +381,7 @@ def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_st
     @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     net, systems = _unit_networks(problem, rings, cell_mm)
     if t_end is None:
         t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
@@ -522,4 +525,5 @@ def run_profile(problem, decisions, options, rings=10, cell_mm=1.0, progress=Non
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     return profiles.run_windows(problem, decisions, options, _LumpedAdapter(problem, rings, cell_mm), "lumped", progress)

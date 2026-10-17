@@ -19,7 +19,7 @@ def test_builder_matches_manual_construction():
     p = Problem.new(width_mm=100, height_mm=80, layers=2)
     p.add_full_copper().add_heater(1, 3.0, rect=(10, 10, 20, 20), name="U1")
     p.add_via_array((10, 10, 20, 20), 2, 2)
-    p.add_sink(2, 20.0, rect=(0, 0, 30, 30))
+    p.add_heatsink(2, 20.0, rect=(0, 0, 30, 30))
     p.validate()
     assert p.total_power() == 3.0 and len(p.vias) == 4 and len(p.zones) == 2
     # Via array is symmetric inside its rectangle
@@ -57,7 +57,7 @@ def test_project_roundtrip_keeps_everything(tmp_path):
     q = load_project(path)
     assert q.options.cell_mm == 0.8 and q.view == {"zoom": 2.5}
     assert q.problem.heaters[0].name == "U1" and q.problem.heaters[0].theta_jb == 6.0
-    assert len(q.problem.vias) == 9 and q.problem.sinks[0].name == "bottom heatsink"
+    assert len(q.problem.vias) == 9 and q.problem.heatsinks[0].name == "bottom heatsink"
 
 
 def test_analysis_hotspots_zones_and_junction():
@@ -111,10 +111,10 @@ def test_analytic_warns_when_the_copper_edge_crosses_the_heater():
     assert any("copper edge" in w for w in sim.problem_warnings)
 
 
-def test_analytic_exact_on_uniform_board_with_vias_and_sink():
+def test_analytic_exact_on_uniform_board_with_vias_and_heatsink():
     p = Problem.new(100, 100, layers=2).add_full_copper().add_heater(1, 5.0, rect=(40, 40, 60, 60))
     p.add_via_array((40, 40, 60, 60), 4, 4, 0.3)
-    p.add_sink(2, 40.0, rect=(30, 30, 70, 70))
+    p.add_heatsink(2, 40.0, rect=(30, 30, 70, 70))
     p.board.h_side = None
     f = fvm.solve_steady(p, cell_mm=1.0)
     a = analytic.solve_steady(p)

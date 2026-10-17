@@ -1,7 +1,7 @@
 # Example: power profiles from CSV files
 
 A small, fully documented example of how to describe the power of each component over time with **CSV files**.
-The board is the 100 x 80 mm, 4-layer board used by the tests: two heaters (U1 and U2), a 3 x 3 via array under U1, partial top copper and a sink on the bottom.
+The board is the 100 x 80 mm, 4-layer board used by the tests: two heaters (U1 and U2), a 3 x 3 via array under U1, partial top copper and a heatsink on the bottom.
 
 ```
 examples/csv_profiles/

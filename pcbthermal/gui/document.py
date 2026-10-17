@@ -14,11 +14,11 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from ..api import SolverOptions
-from ..model import Heater, Problem, Sink, Via, Zone
+from ..model import Heater, Problem, Heatsink, Via, Zone
 from ..project import Project, load_project, project_from_dict, project_to_dict, save_project
 
-KINDS = ("zone", "heater", "sink", "via")
-_LISTS = {"zone": "zones", "heater": "heaters", "sink": "sinks", "via": "vias"}
+KINDS = ("zone", "heater", "heatsink", "via")
+_LISTS = {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}
 
 
 class _SnapshotCommand(QUndoCommand):
@@ -240,15 +240,15 @@ class Document(QObject):
     def polygon_mm(element):
         """!
         @brief Polygon of an element in millimetres.
-        @param element Zone, Heater or Sink.
+        @param element Zone, Heater or Heatsink.
         @return Array (n, 2).
         """
         return np.asarray(element.polygon) * 1000.0
 
     def add_shape(self, kind, layer, polygon_mm):
         """!
-        @brief Create a zone, heater or sink from a polygon in millimetres.
-        @param kind "zone", "heater" or "sink".
+        @brief Create a zone, heater or heatsink from a polygon in millimetres.
+        @param kind "zone", "heater" or "heatsink".
         @param layer 0-based layer.
         @param polygon_mm Array-like (n, 2) in mm.
         @return Index of the new element.
@@ -264,7 +264,7 @@ class Document(QObject):
                 pr.heaters.append(Heater(layer, poly, 1.0, f"U{n}"))
             else:
                 last = pr.board.layers - 1
-                pr.sinks.append(Sink(last if layer != 0 else 0, poly, 20.0, f"Sink {n}"))
+                pr.heatsinks.append(Heatsink(last if layer != 0 else 0, poly, 20.0, f"Heatsink {n}"))
 
         self.edit(f"Add {kind}", mutate)
         return self.count(kind) - 1
@@ -284,7 +284,7 @@ class Document(QObject):
     def set_polygon(self, kind, index, polygon_mm):
         """!
         @brief Replace the polygon of an element.
-        @param kind "zone", "heater" or "sink".
+        @param kind "zone", "heater" or "heatsink".
         @param index Element index.
         @param polygon_mm New vertices in mm.
         """
@@ -400,7 +400,7 @@ class Document(QObject):
             for lst in (pr.zones, pr.heaters):
                 for e in lst:
                     e.layer = min(e.layer, n - 1)
-            for s in pr.sinks:
+            for s in pr.heatsinks:
                 s.layer = n - 1 if s.layer == old - 1 or s.layer >= n else 0
 
         self.edit("Layer count", mutate)

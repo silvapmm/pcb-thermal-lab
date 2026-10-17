@@ -24,9 +24,9 @@ model needs laterally uniform properties, with these refinements:
 - Copper fill is averaged per layer with a weight equal to the influence of the heaters
   (the fin Green function K0(r / lambda), lambda = sqrt(S / h)), so copper near a heater counts
   more than copper far away.
-- Vias and sinks are local. They are removed from the uniform problem and added back through
+- Vias and heatsinks are local. They are removed from the uniform problem and added back through
   a Green-function (Woodbury) correction: the board is cut into tiles of a few millimetres,
-  every tile with a via or a sink gets a lumped conductance, and the small dense system
+  every tile with a via or a heatsink gets a lumped conductance, and the small dense system
   (I + G C) y = y0 gives the tile temperatures, where G is the modal response of the uniform
   board and C holds the local conductances.
 - A validity check adds warnings when the copper is far from uniform around the heaters.
@@ -40,6 +40,7 @@ import numpy as np
 
 from scipy.special import k0
 
+from . import blocks
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 
@@ -196,10 +197,11 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid used for the fields and the maxima.
     @param n_terms Number of cosine modes per direction (300 resolves heaters of a few mm).
-    @param local_corrections If True vias and sinks are applied locally (Green-function update);
+    @param local_corrections If True vias and heatsinks are applied locally (Green-function update);
                              if False they are smeared over the board (the older, cruder model).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     sh = _effective_sheet(problem, cell_mm)
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     slab, nx, ny, dx, dy, xs, ys, tc = (sh[k] for k in ("slab", "nx", "ny", "dx", "dy", "xs", "ys", "tc"))
@@ -212,7 +214,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     h_l[L - 1] += b.h_bottom
     g = g_diel
     if not local_corrections:
-        for s in problem.sinks:
+        for s in problem.heatsinks:
             h_l[s.layer] += s.h_extra * polygon_area(s.polygon) / (W * H)
         if L > 1:
             g += m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / d_diel
@@ -239,19 +241,19 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     Ainv = np.linalg.inv(A)                                  # (M, N, L, L)
     a_mn = np.einsum("mnlk,mnk->mnl", Ainv, q_mn)            # (M, N, L)
 
-    # --- Local corrections for vias and sinks through the tile Green-function system
-    sink_extraction = 0.0
-    if local_corrections and (problem.vias or problem.sinks):
+    # --- Local corrections for vias and heatsinks through the tile Green-function system
+    heatsink_extraction = 0.0
+    if local_corrections and (problem.vias or problem.heatsinks):
         ntx, nty, tw, th = _tile_grid(W, H, lam)
         c_via = np.zeros((nty, ntx))
         for v in problem.vias:
             a = min(max(int(v.x // tw), 0), ntx - 1)
             bb = min(max(int(v.y // th), 0), nty - 1)
             c_via[bb, a] += m.k_copper * v.copper_area(b.via_plating) / d_diel if L > 1 else 0.0
-        g_sink = np.zeros((L, nty, ntx))
-        for s in problem.sinks:
-            g_sink[s.layer] += s.h_extra * tw * th * coverage_fraction(s.polygon, ntx, nty, tw, th, 8)
-        active = np.argwhere((c_via > 0) | (g_sink.sum(axis=0) > 0))        # (Nt, 2) = (row, col)
+        g_heatsink = np.zeros((L, nty, ntx))
+        for s in problem.heatsinks:
+            g_heatsink[s.layer] += s.h_extra * tw * th * coverage_fraction(s.polygon, ntx, nty, tw, th, 8)
+        active = np.argwhere((c_via > 0) | (g_heatsink.sum(axis=0) > 0))        # (Nt, 2) = (row, col)
         Nt = len(active)
         if Nt:
             rect = [(c * tw, (c + 1) * tw, r * th, (r + 1) * th) for r, c in active]
@@ -273,7 +275,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                         acc += accx * np.outer(Uy[n], Uy[n])
                     Gm[:, l, :, k] = acc
             G = Gm.reshape(Nt * L, Nt * L)
-            # Local conductance matrix C (W/K): vias couple adjacent layers, sinks go to ambient
+            # Local conductance matrix C (W/K): vias couple adjacent layers, heatsinks go to ambient
             C = np.zeros((Nt * L, Nt * L))
             for r, (row, col) in enumerate(active):
                 cv = c_via[row, col]
@@ -284,10 +286,10 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                     C[i1, i2] -= cv
                     C[i2, i1] -= cv
                 for l in range(L):
-                    C[r * L + l, r * L + l] += g_sink[l, row, col]
+                    C[r * L + l, r * L + l] += g_heatsink[l, row, col]
             y = np.linalg.solve(np.eye(Nt * L) + G @ C, y0.reshape(-1))
             f = -(C @ y).reshape(Nt, L)                       # Heat injected into every tile and layer (W)
-            sink_extraction = float(sum(g_sink[l, row, col] * y[r * L + l]
+            heatsink_extraction = float(sum(g_heatsink[l, row, col] * y[r * L + l]
                                         for r, (row, col) in enumerate(active) for l in range(L)))
             # Add the response of the injected heat to the modal coefficients
             Pxf = PX / tw
@@ -306,7 +308,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     # Heat leaving through the faces: the a_00 mode integrates each layer exactly
     p_out = {"top": float(b.h_top * W * H * a_mn[0, 0, 0]),
              "bottom": float(b.h_bottom * W * H * a_mn[0, 0, L - 1]),
-             "sinks": float(sink_extraction if local_corrections else
+             "heatsinks": float(heatsink_extraction if local_corrections else
                             sum(h_l[k] * W * H * a_mn[0, 0, k] for k in range(L))
                             - b.h_top * W * H * a_mn[0, 0, 0] - b.h_bottom * W * H * a_mn[0, 0, L - 1])}
     edge_ratio = (b.h_side or 0.0) * 2 * (W + H) * b.thickness / max(h_tot * W * H, 1e-30)
@@ -325,14 +327,14 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
 
 # ----------------------------------------------------------------------------------- time dependence
 
-def _modal_matrix(problem, sh, n_terms, via_scale, sink_scale=1.0):
+def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
     """!
     @brief The (M, N, L, L) matrix A_mn of the modal equations C a' + A a = q (symmetric, tridiagonal in the layer index).
     @param problem A Problem.
     @param sh Dict from _effective_sheet.
     @param n_terms Cosine modes per direction.
     @param via_scale Factor on the smeared via conductance.
-    @param sink_scale Factor on the smeared sink coefficient.
+    @param heatsink_scale Factor on the smeared heatsink coefficient.
     @return Array (M, N, L, L).
     """
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
@@ -340,8 +342,8 @@ def _modal_matrix(problem, sh, n_terms, via_scale, sink_scale=1.0):
     h_l = np.zeros(L)
     h_l[0] += b.h_top
     h_l[L - 1] += b.h_bottom
-    for s in problem.sinks:
-        h_l[s.layer] += sink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
+    for s in problem.heatsinks:
+        h_l[s.layer] += heatsink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
     g = sh["g_diel"]
     if L > 1:
         g += via_scale * m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / sh["d_diel"]
@@ -358,26 +360,26 @@ def _modal_matrix(problem, sh, n_terms, via_scale, sink_scale=1.0):
     return A
 
 
-def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, sink_scale=1.0):
+def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, heatsink_scale=1.0):
     """!
     @brief Modal description of the transient: decay rates, mode shapes and heater source vectors.
     @details Every cosine mode (m, n) obeys C a' + A_mn a = q(t) with C = diag(c_l) the heat capacity per area of the
              layers. With the symmetric matrix C^(-1/2) A C^(-1/2) = V diag(lambda) V^T and b = V^T C^(1/2) a the
              modes decouple: b' = -lambda b + g(t), g = V^T C^(-1/2) q, so a constant power over a step has the exact
              propagator b+ = exp(-lambda dt) b + (1 - exp(-lambda dt)) / lambda g. The transient uses the uniform
-             (smeared) vias and sinks, as the steady model does when local corrections are off.
+             (smeared) vias and heatsinks, as the steady model does when local corrections are off.
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid.
     @param n_terms Cosine modes per direction.
     @param via_scale Factor applied to the smeared via conductance (see _calibrated_dynamics).
-    @param sink_scale Factor applied to the smeared sink coefficient (see _calibrated_dynamics).
+    @param heatsink_scale Factor applied to the smeared heatsink coefficient (see _calibrated_dynamics).
     @return Dict with the sheet data and lam (M, N, L), back (M, N, L, L), V, G (heaters, M, N, L), U (heaters, M, N, L),
             rth (heaters,), c_l (L,), cos_x (nx, M), cos_y (ny, N), points (heaters, 3) and tau (s).
     """
     sh = _effective_sheet(problem, cell_mm)
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     M = N = n_terms
-    A = _modal_matrix(problem, sh, n_terms, via_scale, sink_scale)
+    A = _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale)
     fill, tc, slab = sh["fill"], sh["tc"], sh["slab"]
     c_l = fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * m.rho_fr4 * m.cp_fr4      # J/(m2 K)
     cinv = 1.0 / np.sqrt(c_l)
@@ -400,7 +402,7 @@ def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, sink_scale=1.0):
     tau = float(c_l.sum() / max(sh["h_tot"], 1e-9))
     sh.update({"lam": lam, "back": back, "V": V, "G": G, "U": U, "rth": rth, "c_l": c_l, "cos_x": cos_x,
                "cos_y": cos_y, "points": points, "tau": tau, "M": M, "N": N, "via_scale": via_scale,
-               "sink_scale": sink_scale})
+               "heatsink_scale": heatsink_scale})
     return sh
 
 
@@ -423,32 +425,32 @@ def _smeared_steady_max(problem, sh, A, n_terms):
 
 def _calibrated_dynamics(problem, cell_mm, n_terms):
     """!
-    @brief Modal dynamics whose smeared vias (or sinks) reproduce the steady maximum of the locally corrected model.
-    @details The transient cannot apply the local Green-function corrections of the steady model, so vias and sinks are smeared
+    @brief Modal dynamics whose smeared vias (or heatsinks) reproduce the steady maximum of the locally corrected model.
+    @details The transient cannot apply the local Green-function corrections of the steady model, so vias and heatsinks are smeared
              over the board; a smeared via array under a heater has almost no effect (the example board came out 11 degC too hot).
              One factor is chosen (bisection on its logarithm) so that the steady maximum with the actual powers equals the
              steady maximum of solve_steady with local corrections: on the via conductance if the board has vias, otherwise on the
-             sink coefficient (scaling the sinks as well would cool the whole board and spoil the dynamics). With it the transient of
+             heatsink coefficient (scaling the heatsinks as well would cool the whole board and spoil the dynamics). With it the transient of
              the example board follows the FVM within a few degC at every time (without it by up to 10 degC).
     @param problem A Problem (heater powers are the ones used for the calibration).
     @param cell_mm Cell size (mm) of the sampling grid.
     @param n_terms Cosine modes per direction.
-    @return Dict from _modal_dynamics with the extra keys local_max (degC, None if there are no vias or sinks) and scaled
-            ("vias", "sinks" or None).
+    @return Dict from _modal_dynamics with the extra keys local_max (degC, None if there are no vias or heatsinks) and scaled
+            ("vias", "heatsinks" or None).
     """
     ambient = problem.board.ambient
     d = _modal_dynamics(problem, cell_mm, n_terms)
     d["local_max"], d["scaled"] = None, None
-    if not (problem.vias or problem.sinks) or problem.total_power() <= 0:
+    if not (problem.vias or problem.heatsinks) or problem.total_power() <= 0:
         return d
     local = solve_steady(problem, cell_mm=cell_mm, n_terms=n_terms).t_max - ambient
     d["local_max"] = local + ambient
     sh = _effective_sheet(problem, cell_mm)
-    which = "vias" if problem.vias else "sinks"
+    which = "vias" if problem.vias else "heatsinks"
 
     def steady(scale):
         # Steady maximum of the smeared model with the chosen element scaled
-        a = _modal_matrix(problem, sh, n_terms, scale if which == "vias" else 1.0, scale if which == "sinks" else 1.0)
+        a = _modal_matrix(problem, sh, n_terms, scale if which == "vias" else 1.0, scale if which == "heatsinks" else 1.0)
         return _smeared_steady_max(problem, sh, a, n_terms)
 
     if steady(1.0) <= local:
@@ -463,7 +465,7 @@ def _calibrated_dynamics(problem, cell_mm, n_terms):
         if hi - lo < 0.01:
             break
     scale = math.exp(0.5 * (lo + hi))
-    d = _modal_dynamics(problem, cell_mm, n_terms, scale if which == "vias" else 1.0, scale if which == "sinks" else 1.0)
+    d = _modal_dynamics(problem, cell_mm, n_terms, scale if which == "vias" else 1.0, scale if which == "heatsinks" else 1.0)
     d["local_max"], d["scaled"] = local + ambient, which
     return d
 
@@ -484,7 +486,7 @@ def _point_vector(d, point):
 class _ModalSet:
     """!
     @brief The modal system or systems that describe a board for the transient.
-    @details Without vias and sinks one system serves every heater. With them each heater gets its own system, calibrated
+    @details Without vias and heatsinks one system serves every heater. With them each heater gets its own system, calibrated
              (see _calibrated_dynamics) with that heater alone, because a single scale cannot be right both for a heater above
              a via array and for one far from it (on the example board it cooled the distant heater by 18 %). The
              temperature at a heater is then the sum of the contributions of all the systems at its own hottest point.
@@ -498,7 +500,7 @@ class _ModalSet:
         """
         nh = len(problem.heaters)
         self.nh = nh
-        if (problem.vias or problem.sinks) and nh > 1:
+        if (problem.vias or problem.heatsinks) and nh > 1:
             self.ds, self.serve = [], list(range(nh))
             for j in range(nh):
                 solo = copy.deepcopy(problem)
@@ -515,7 +517,7 @@ class _ModalSet:
         self.rth = np.array([float(np.sum(self.U[self.serve[k]][k] * self.ds[self.serve[k]]["G"][k]
                                           / self.ds[self.serve[k]]["lam"])) for k in range(nh)])
         self.tau = max(d["tau"] for d in self.ds)
-        self.scaled = [(d["scaled"], d["via_scale"] if d["scaled"] == "vias" else d["sink_scale"], d["local_max"])
+        self.scaled = [(d["scaled"], d["via_scale"] if d["scaled"] == "vias" else d["heatsink_scale"], d["local_max"])
                        for d in self.ds if d["local_max"] is not None]
 
     def drive(self, powers):
@@ -573,6 +575,7 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @param n_times Number of logarithmically spaced times.
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     ms = _ModalSet(problem, cell_mm, n_terms)
     t_end = t_end or 10.0 * ms.tau
     times = np.geomspace(1e-5, t_end, n_times)
@@ -613,10 +616,10 @@ class _AnalyticAdapter:
         self.steady_peak_max = float(self.frame(b_peak).max())
         self.warnings = []
         if ms.scaled:
-            what = "via conductance" if ms.scaled[0][0] == "vias" else "sink coefficient"
+            what = "via conductance" if ms.scaled[0][0] == "vias" else "heatsink coefficient"
             scales = ", ".join(f"{sc:.3g}" for _, sc, _ in ms.scaled)
             self.warnings.append(
-                f"the analytic transient smears the vias and sinks over the board and, for every heater, scales the {what} "
+                f"the analytic transient smears the vias and heatsinks over the board and, for every heater, scales the {what} "
                 f"(factors {scales}) so that its steady response matches the locally corrected steady model; the dynamics near "
                 "them are approximate, use the FVM to confirm")
 
@@ -692,6 +695,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     from . import profiles
     return profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic",
                                 progress)
@@ -701,7 +705,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     """!
     @brief Response to the heater powers switched on at t = 0 on a board at ambient temperature, in closed form.
     @details Every cosine mode follows b(t) = (1 - exp(-lambda t)) / lambda * g, so any time is evaluated directly with no
-             time stepping. Vias and sinks are smeared (see _modal_dynamics); use the FVM when they sit under the heaters.
+             time stepping. Vias and heatsinks are smeared (see _modal_dynamics); use the FVM when they sit under the heaters.
     @param problem A Problem (its heater powers; profiles are ignored, the average power is used).
     @param t_end Final time in seconds.
     @param n_out Number of output frames after t = 0.
@@ -710,6 +714,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     @param log_times True for logarithmically spaced times (resolves fast and slow parts), False for linear.
     @return TransientResult.
     """
+    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
     from .results import TransientResult
     problem = problem.steady_copy("average") if problem.has_profiles() else problem
     ad = _AnalyticAdapter(problem, cell_mm, n_terms)

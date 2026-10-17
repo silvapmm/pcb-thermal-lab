@@ -7,7 +7,7 @@
          conductivity between two nodes is the mean of the two nodal values (arithmetic by default, harmonic on request), a
          heater distributes its power over the nodes inside its footprint, and the edge nodes use half control volumes (the
          standard second-order treatment of a convective boundary with ghost nodes). It solves the same equations with the same
-         sheet conductance, dielectric resistance, vias, sinks and convection as the FVM, so the difference between the two is the
+         sheet conductance, dielectric resistance, vias, heatsinks and convection as the FVM, so the difference between the two is the
          difference of the discretisation: point sampling of the copper and of the sources instead of cell averages, and the
          way the interface between copper and FR-4 is treated.
 
@@ -20,6 +20,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .geometry import coverage_fraction, points_in_polygon, polygon_centroid
+from . import blocks, fvm
 from .fvm import ORDERING
 from .results import SteadyResult
 
@@ -75,120 +76,220 @@ def _node_average(cell_values):
     return acc / cnt
 
 
+class Network:
+    """!
+    @brief The finite-difference network: conductances, capacities, sources and the sparse matrix, on the nodes of the grid.
+    @details Offers the same attributes as fvm.Network (nl, ny, nx, K, C, Q, Qw_matrix, footprints, g_amb, solve_steady), with ny and nx
+             the number of nodes, so the transient and the power-profile machinery of the FVM runs on it unchanged.
+    """
+
+    def __init__(self, problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
+        """!
+        @param problem A Problem.
+        @param cell_mm Target grid spacing in millimetres (the board is divided into round(width / spacing) intervals).
+        @param mean "arithmetic" (classic) or "harmonic" mean of the nodal conductivities on a face.
+        @param sampling "area" (covered fraction of the control volume around each node, removes most of the grid-to-grid scatter)
+               or "point" (the classic test of whether the node lies inside a polygon).
+        @throws ValueError If the sampling is unknown.
+        """
+        problem.validate()
+        if sampling not in ("area", "point"):
+            raise ValueError("sampling must be 'area' or 'point'")
+        self.problem = problem
+        b, m = problem.board, problem.board.materials
+        L, W, H = b.layers, b.width, b.height
+        cells_x = max(int(round(W * 1000.0 / cell_mm)), 2)
+        cells_y = max(int(round(H * 1000.0 / cell_mm)), 2)
+        dx, dy = W / cells_x, H / cells_y
+        nx, ny = cells_x + 1, cells_y + 1                                    # Nodes
+        self.nl, self.nx, self.ny, self.dx, self.dy = L, nx, ny, dx, dy
+        X, Y = np.meshgrid(np.arange(nx) * dx, np.arange(ny) * dy)           # (ny, nx)
+        # Control-volume size of every node: half a cell on the edges
+        wx = np.full(nx, dx); wx[[0, -1]] = 0.5 * dx
+        wy = np.full(ny, dy); wy[[0, -1]] = 0.5 * dy
+        area = np.outer(wy, wx)                                              # m2
+        self.area = area
+        slab = b.thickness / L
+        tc = np.asarray(b.copper_thickness)[:, None, None]
+
+        def cover(poly, samples):
+            return _node_average(coverage_fraction(poly, cells_x, cells_y, dx, dy, samples)) if sampling == "area" \
+                else _inside(poly, X, Y).astype(float)
+
+        # Copper fill at the nodes
+        fill = np.zeros((L, ny, nx))
+        for z in problem.zones:
+            fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
+        S = fill * m.k_copper * tc + m.k_fr4_inplane * (slab - fill * tc)    # Sheet conductance per node (W/K)
+        # Heat capacity of every node (J/K)
+        self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * m.rho_fr4 * m.cp_fr4) * area[None]
+        # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py)
+        ex = blocks.extra_layers(problem, cover, area, fill, dx, dy)
+        E = len(ex)
+        self.n_board, self.nl = L, L + E
+        if E:
+            S = np.concatenate([S, np.stack([ly["S"] for ly in ex])])
+            self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in ex])])
+        self.extra_links = [(ly["board_layer"], L + k, ly["g_link"]) for k, ly in enumerate(ex)]
+        self.block_info = [{"layer": L + k, "face": ly["face"], "cov": ly["cov"], "names": ly["names"], "g_link": ly["g_link"]}
+                           for k, ly in enumerate(ex)]
+        Lt = L + E
+
+        n = Lt * ny * nx
+        idx = np.arange(n).reshape(Lt, ny, nx)
+        rows, cols, vals = [], [], []
+
+        def couple(a_idx, b_idx, g):
+            a_idx, b_idx, g = a_idx.ravel(), b_idx.ravel(), g.ravel()
+            keep = g > 0
+            a_idx, b_idx, g = a_idx[keep], b_idx[keep], g[keep]
+            rows.extend([a_idx, b_idx, a_idx, b_idx])
+            cols.extend([a_idx, b_idx, b_idx, a_idx])
+            vals.extend([g, g, -g, -g])
+
+        # Lateral: face conductivity (mean of the two nodes) times the width of the face over the distance
+        couple(idx[:, :, :-1], idx[:, :, 1:], _mean(S[:, :, :-1], S[:, :, 1:], mean) * wy[None, :, None] / dx)
+        couple(idx[:, :-1, :], idx[:, 1:, :], _mean(S[:, :-1, :], S[:, 1:, :], mean) * wx[None, None, :] / dy)
+        # Vertical: dielectric over the control area, plus the via barrels at the nearest node
+        if L > 1:
+            d = b.dielectric_thickness()
+            gz = np.broadcast_to(m.k_fr4_through * area / d, (L - 1, ny, nx)).copy()
+            for v in problem.vias:
+                # A via is a point: all its conductance goes to the node nearest to it (spreading it over the neighbours was
+                # tried and removes the constriction, giving temperatures 2 % too low against the 3D solid)
+                j = min(max(int(round(v.x / dx)), 0), nx - 1)
+                i = min(max(int(round(v.y / dy)), 0), ny - 1)
+                gz[:, i, j] += m.k_copper * v.copper_area(b.via_plating) / d
+            couple(idx[:L - 1], idx[1:L], gz)
+        for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
+            couple(idx[a_layer], idx[b_layer], g)
+        # Ambient: faces, heatsinks and edges
+        self.g_top = np.zeros((Lt, ny, nx)); self.g_bottom = np.zeros_like(self.g_top)
+        self.g_heatsink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top); self.g_block = np.zeros_like(self.g_top)
+        self.g_top[0] = b.h_top * area
+        self.g_bottom[L - 1] = b.h_bottom * area
+        for sk in problem.heatsinks:
+            if sk.is_block():
+                continue                                       # A metal block is a layer of its own
+            self.g_heatsink[sk.layer] += sk.h_extra * area * cover(sk.polygon, 4)
+        for k, ly in enumerate(ex):
+            self.g_block[L + k] = ly["g_amb"]
+            (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
+        if b.h_side:
+            self.g_side[:, :, 0] += b.h_side * wy[None, :] * slab
+            self.g_side[:, :, -1] += b.h_side * wy[None, :] * slab
+            self.g_side[:, 0, :] += b.h_side * wx[None, :] * slab
+            self.g_side[:, -1, :] += b.h_side * wx[None, :] * slab
+        self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
+        rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(self.g_amb.ravel())
+        self.K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()
+
+        # Sources: unit-power weights of every heater (they sum to 1), so the power is exact on any grid
+        self.Qw, self.Q = [], np.zeros((Lt, ny, nx))
+        for h in problem.heaters:
+            if sampling == "area":
+                # Each cell's covered area is shared by its four nodes
+                w = np.zeros((ny, nx))
+                cov = coverage_fraction(h.polygon, cells_x, cells_y, dx, dy, 8)
+                for di in (0, 1):
+                    for dj in (0, 1):
+                        w[di:di + cells_y, dj:dj + cells_x] += cov
+            else:
+                w = _inside(h.polygon, X, Y).astype(float)
+            if not (w > 0).any():                       # Footprint smaller than the grid: the node nearest to the centroid
+                cx, cy = polygon_centroid(h.polygon)
+                w = np.zeros((ny, nx))
+                w[min(max(int(round(cy / dy)), 0), ny - 1), min(max(int(round(cx / dx)), 0), nx - 1)] = 1.0
+            full = np.zeros((Lt, ny, nx))
+            full[h.layer] = w / w.sum()
+            self.Qw.append(full)
+            self.Q += h.power * full
+        self.Qw_matrix = sp.csc_matrix(np.stack([w.ravel() for w in self.Qw], axis=1)) if self.Qw else sp.csc_matrix((n, 0))
+        self.footprints = [np.flatnonzero(w.ravel() > 0) for w in self.Qw]
+
+    def solve_steady(self, method="direct"):
+        """!
+        @brief Solve K theta = Q.
+        @param method Only "direct" (sparse LU); the argument keeps the interface of fvm.Network.
+        @return Tuple (theta of shape (layers, ny, nx) in kelvin above ambient, relative residual).
+        """
+        q = self.Q.ravel()
+        theta = spla.spsolve(self.K, q, permc_spec=ORDERING)
+        res = float(np.linalg.norm(self.K @ theta - q) / max(np.linalg.norm(q), 1e-300))
+        return theta.reshape(self.nl, self.ny, self.nx), res
+
+
 def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
     """!
     @brief Steady-state finite-difference solution of a problem.
     @param problem A Problem.
     @param cell_mm Target grid spacing in millimetres (nx = round(width / spacing) intervals).
     @param mean "arithmetic" (classic) or "harmonic" mean of the nodal conductivities on a face.
-    @param sampling How the copper and the heater footprint are given to the nodes: "area" (default) uses the covered fraction of
-           the control volume around each node, which removes most of the grid-to-grid scatter of point sampling; "point" is the
-           classic test of whether the node lies inside (kept for comparison).
+    @param sampling "area" (default) or "point" (see Network).
     @return SteadyResult with the field at the nodes (layers, ny + 1, nx + 1).
     """
-    problem.validate()
-    b, m = problem.board, problem.board.materials
-    L, W, H = b.layers, b.width, b.height
-    nx = max(int(round(W * 1000.0 / cell_mm)), 2)
-    ny = max(int(round(H * 1000.0 / cell_mm)), 2)
-    dx, dy = W / nx, H / ny
-    X, Y = np.meshgrid(np.arange(nx + 1) * dx, np.arange(ny + 1) * dy)         # (ny + 1, nx + 1)
-    # Control-volume size of every node: half a cell on the edges
-    wx = np.full(nx + 1, dx); wx[[0, -1]] = 0.5 * dx
-    wy = np.full(ny + 1, dy); wy[[0, -1]] = 0.5 * dy
-    area = np.outer(wy, wx)                                                   # (ny + 1, nx + 1) in m2
-    slab = b.thickness / L
-    tc = np.asarray(b.copper_thickness)[:, None, None]
-
-    if sampling not in ("area", "point"):
-        raise ValueError("sampling must be 'area' or 'point'")
-    # Copper fill at the nodes: covered fraction of the surrounding cells, or the point test
-    fill = np.zeros((L, ny + 1, nx + 1))
-    for z in problem.zones:
-        cover = _node_average(coverage_fraction(z.polygon, nx, ny, dx, dy, 4)) if sampling == "area" else _inside(z.polygon, X, Y)
-        fill[z.layer] = np.maximum(fill[z.layer], cover * z.fill)
-    S = fill * m.k_copper * tc + m.k_fr4_inplane * (slab - fill * tc)         # Sheet conductance per node (W/K)
-
-    n = L * (ny + 1) * (nx + 1)
-    idx = np.arange(n).reshape(L, ny + 1, nx + 1)
-    rows, cols, vals = [], [], []
-
-    def couple(a, bb, g):
-        a, bb, g = a.ravel(), bb.ravel(), g.ravel()
-        keep = g > 0
-        a, bb, g = a[keep], bb[keep], g[keep]
-        rows.extend([a, bb, a, bb])
-        cols.extend([a, bb, bb, a])
-        vals.extend([g, g, -g, -g])
-
-    # Lateral: face conductivity (mean of the two nodes) times the width of the face over the distance
-    sx = _mean(S[:, :, :-1], S[:, :, 1:], mean)
-    sy = _mean(S[:, :-1, :], S[:, 1:, :], mean)
-    couple(idx[:, :, :-1], idx[:, :, 1:], sx * wy[None, :, None] / dx)
-    couple(idx[:, :-1, :], idx[:, 1:, :], sy * wx[None, None, :] / dy)
-    # Vertical: dielectric over the control area, plus the via barrels at the nearest node
-    if L > 1:
-        d = b.dielectric_thickness()
-        gz = np.broadcast_to(m.k_fr4_through * area / d, (L - 1, ny + 1, nx + 1)).copy()
-        for v in problem.vias:
-            # A via is a point: all its conductance goes to the node nearest to it (spreading it over the neighbours was
-            # tried and removes the constriction, giving temperatures 2 % too low against the 3D solid)
-            g_via = m.k_copper * v.copper_area(b.via_plating) / d
-            j = min(max(int(round(v.x / dx)), 0), nx)
-            i = min(max(int(round(v.y / dy)), 0), ny)
-            gz[:, i, j] += g_via
-        couple(idx[:-1], idx[1:], gz)
-    # Ambient: faces, sinks and edges
-    g_amb = np.zeros((L, ny + 1, nx + 1))
-    g_top = np.zeros_like(g_amb); g_bottom = np.zeros_like(g_amb); g_sink = np.zeros_like(g_amb); g_side = np.zeros_like(g_amb)
-    g_top[0] = b.h_top * area
-    g_bottom[L - 1] = b.h_bottom * area
-    for s in problem.sinks:
-        cover = _node_average(coverage_fraction(s.polygon, nx, ny, dx, dy, 4)) if sampling == "area" else _inside(s.polygon, X, Y)
-        g_sink[s.layer] += s.h_extra * area * cover
-    if b.h_side:
-        g_side[:, :, 0] += b.h_side * wy[None, :] * slab
-        g_side[:, :, -1] += b.h_side * wy[None, :] * slab
-        g_side[:, 0, :] += b.h_side * wx[None, :] * slab
-        g_side[:, -1, :] += b.h_side * wx[None, :] * slab
-    g_amb = g_top + g_bottom + g_sink + g_side
-    rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(g_amb.ravel())
-    K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()
-
-    # Sources: the power is divided equally among the nodes inside the footprint (the node nearest to the centroid if none)
-    Q = np.zeros((L, ny + 1, nx + 1))
-    for h in problem.heaters:
-        if sampling == "area":
-            # Each cell's covered area is shared by its four nodes; the weights are normalised so that the power is exact
-            ny_c, nx_c = ny, nx
-            w = np.zeros((ny + 1, nx + 1))
-            cov = coverage_fraction(h.polygon, nx_c, ny_c, dx, dy, 8)
-            for di in (0, 1):
-                for dj in (0, 1):
-                    w[di:di + ny_c, dj:dj + nx_c] += cov
-            sel = w > 0
-        else:
-            w = _inside(h.polygon, X, Y).astype(float)
-            sel = w > 0
-        if not sel.any():
-            cx, cy = polygon_centroid(h.polygon)
-            w = np.zeros((ny + 1, nx + 1))
-            w[min(max(int(round(cy / dy)), 0), ny), min(max(int(round(cx / dx)), 0), nx)] = 1.0
-        Q[h.layer] += h.power * w / w.sum()
-    theta = spla.spsolve(K, Q.ravel(), permc_spec=ORDERING)
-    res = float(np.linalg.norm(K @ theta - Q.ravel()) / max(np.linalg.norm(Q), 1e-300))
-    theta = theta.reshape(L, ny + 1, nx + 1)
-
+    net = Network(problem, cell_mm, mean, sampling)
+    b = problem.board
+    theta_all, res = net.solve_steady()
+    nb = net.n_board
+    theta = theta_all[:nb]                                   # The board; the blocks are kept apart
     T = theta + b.ambient
+    area, dx, dy = net.area, net.dx, net.dy
     total_area = area.sum()
-    k = int(np.argmax(T))
-    l, i, j = np.unravel_index(k, T.shape)
-    return SteadyResult(
-        model="fdm", ambient=b.ambient, power_in=float(Q.sum()), t_max=float(T.max()), t_min=float(T.min()),
-        t_mean=float((T * area[None]).sum() / (L * total_area)),
-        layer_mean=[float((T[q] * area).sum() / total_area) for q in range(L)],
+    l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
+    out = SteadyResult(
+        model="fdm", ambient=b.ambient, power_in=float(net.Q.sum()), t_max=float(T.max()), t_min=float(T.min()),
+        t_mean=float((T * area[None]).sum() / (nb * total_area)),
+        layer_mean=[float((T[q] * area).sum() / total_area) for q in range(nb)],
         t_max_location=(int(l), j * dx, i * dy), T=T, dx=dx, dy=dy,
-        power_out={"top": float((g_top * theta).sum()), "bottom": float((g_bottom * theta).sum()),
-                   "sinks": float((g_sink * theta).sum()), "sides": float((g_side * theta).sum())},
-        grid="nodes", residual=res, extras={"nodes": float(T.size), "harmonic": float(mean == "harmonic"), "area_sampling": float(sampling == "area")},
+        power_out=_power_out(net, theta_all),
+        grid="nodes", residual=res, extras={"nodes": float(T.size), "harmonic": float(mean == "harmonic"),
+                                            "area_sampling": float(sampling == "area")},
         warnings=[])
+    fvm.attach_block_results(out, net, theta_all + b.ambient, theta_all)
+    return out
+
+
+def _power_out(net, theta):
+    """!
+    @brief Heat leaving through every path.
+    @param net The Network.
+    @param theta Rise of all layers (board first) in kelvin.
+    @return Dict top, bottom, heatsinks, sides and, with metal blocks, blocks (watts).
+    """
+    out = {"top": float((net.g_top * theta).sum()), "bottom": float((net.g_bottom * theta).sum()),
+           "heatsinks": float((net.g_heatsink * theta).sum()), "sides": float((net.g_side * theta).sum())}
+    if net.extra_links:
+        out["blocks"] = float((net.g_block * theta).sum())
+    return out
+
+
+def solve_transient(problem, t_end, n_out=40, cell_mm=2.0, substeps=4, theta_scheme=1.0, log_times=True):
+    """!
+    @brief Power-step transient of the finite-difference model, from a board at ambient temperature.
+    @details The same theta-method as fvm.solve_transient on the finite-difference network; the frames hold the values at the nodes.
+    @param problem A Problem.
+    @param t_end Final time in seconds.
+    @param n_out Number of output frames after t = 0.
+    @param cell_mm Target grid spacing in millimetres.
+    @param substeps Implicit steps between two frames (linear mode only).
+    @param theta_scheme 1.0 for implicit Euler, 0.5 for Crank-Nicolson.
+    @param log_times True for the doubling time step.
+    @return TransientResult with grid "nodes".
+    """
+    return fvm.transient_from_network(Network(problem, cell_mm), problem.board.ambient, t_end, n_out, substeps, theta_scheme,
+                                      log_times, grid="nodes")
+
+
+def step_responses(problem, cell_mm=2.0, **kwargs):
+    """!
+    @brief Unit-step response of every heater's hottest node (see fvm.step_responses).
+    @param problem A Problem with at least one heater.
+    @param cell_mm Target grid spacing in millimetres.
+    @param kwargs Further arguments of fvm.step_responses_from_network (t_end, ratio, per_stage, stages, theta_scheme).
+    @return Tuple (times, z, rth).
+    @throws ValueError If the problem has no heater.
+    """
+    if not problem.heaters:
+        raise ValueError("the problem has no heater")
+    return fvm.step_responses_from_network(Network(problem, cell_mm), **kwargs)

@@ -36,13 +36,13 @@ def _is_axis_aligned_rect(pts):
 
 class ElementItem(QGraphicsPolygonItem):
     """!
-    @brief A zone, heater or sink polygon on the canvas.
+    @brief A zone, heater or heatsink polygon on the canvas.
     """
 
     def __init__(self, view, kind, index, polygon_mm, label, layer):
         """!
         @param view Owning BoardView.
-        @param kind "zone", "heater" or "sink".
+        @param kind "zone", "heater" or "heatsink".
         @param index Index in the problem list.
         @param polygon_mm Array (n, 2) in mm.
         @param label Text shown at the centroid.
@@ -57,7 +57,7 @@ class ElementItem(QGraphicsPolygonItem):
             self.label = QGraphicsSimpleTextItem(label, self)
             self.label.setFlag(QGraphicsItem.ItemIgnoresTransformations)
             br = self.boundingRect()
-            # Heaters are labelled at the centre; zones and sinks in the top-left corner so labels do not collide
+            # Heaters are labelled at the centre; zones and heatsinks in the top-left corner so labels do not collide
             if kind == "heater":
                 self.label.setPos(br.center().x(), br.center().y())
             else:
@@ -70,16 +70,16 @@ class ElementItem(QGraphicsPolygonItem):
         @brief Apply the fill and outline of the element kind and its selection state.
         """
         c = th.colors(self.view.theme)
-        base = {"zone": c["copper"], "heater": c["heater"], "sink": c["sink"]}[self.kind]
-        alpha = {"zone": 70, "heater": 120, "sink": 70}[self.kind]
+        base = {"zone": c["copper"], "heater": c["heater"], "heatsink": c["heatsink"]}[self.kind]
+        alpha = {"zone": 70, "heater": 120, "heatsink": 70}[self.kind]
         self.setBrush(QBrush(th.qcolor(base, alpha)))
         pen = QPen(QColor("white") if self.isSelected() else QColor(base), 0)
         pen.setCosmetic(True)
         pen.setWidthF(2.2 if self.isSelected() else 1.4)
-        if self.kind == "sink":
+        if self.kind == "heatsink" and not getattr(self, "is_block", False):
             pen.setStyle(Qt.DashLine)
         self.setPen(pen)
-        self.setZValue({"zone": 1, "sink": 2, "heater": 3}[self.kind] + (0.5 if self.isSelected() else 0))
+        self.setZValue({"zone": 1, "heatsink": 2, "heater": 3}[self.kind] + (0.5 if self.isSelected() else 0))
 
     def itemChange(self, change, value):
         """!
@@ -221,7 +221,7 @@ class BoardView(QGraphicsView):
     message = Signal(str)                  # status text
     element_created = Signal(str, int)     # kind, index
 
-    TOOLS = ("select", "zone", "heater", "sink", "via")
+    TOOLS = ("select", "zone", "heater", "heatsink", "via")
 
     def __init__(self, doc, theme="dark", parent=None):
         """!
@@ -280,7 +280,7 @@ class BoardView(QGraphicsView):
         hints = {"select": "Select: click, drag to move, drag a corner handle to reshape, Delete to remove.",
                  "zone": "Zone: drag a rectangle (or click points in polygon mode).",
                  "heater": "Heater: drag a rectangle (or click points in polygon mode).",
-                 "sink": "Sink: drag a rectangle on the top or bottom layer.",
+                 "heatsink": "Heatsink: drag a rectangle on the top or bottom layer.",
                  "via": "Via: click to place."}
         self.message.emit(hints[tool])
 
@@ -320,10 +320,16 @@ class BoardView(QGraphicsView):
             sc.setSceneRect(QRectF(-m, -m, W + 2 * m, H + 2 * m))
             self._add_background()
             active = self.layer
-            for kind, lst in (("zone", pr.zones), ("sink", pr.sinks), ("heater", pr.heaters)):
+            for kind, lst in (("zone", pr.zones), ("heatsink", pr.heatsinks), ("heater", pr.heaters)):
                 for i, el in enumerate(lst):
                     poly = self.doc.polygon_mm(el)
-                    it = ElementItem(self, kind, i, poly, el.name if el.layer == active else "", el.layer)
+                    label = el.name if el.layer == active else ""
+                    if kind == "heatsink" and el.is_block() and label:
+                        label = f"{label} ({el.thickness * 1000:g} mm block)"
+                    it = ElementItem(self, kind, i, poly, label, el.layer)
+                    if kind == "heatsink" and el.is_block():
+                        it.is_block = True
+                        it.restyle()
                     if el.layer != active:
                         it.setOpacity(0.22)
                         it.setFlags(it.flags() & ~(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable))
@@ -730,14 +736,14 @@ class BoardView(QGraphicsView):
     def _create(self, kind, polygon_mm):
         """!
         @brief Create an element from a finished shape.
-        @param kind "zone", "heater" or "sink".
+        @param kind "zone", "heater" or "heatsink".
         @param polygon_mm Vertices in mm.
         """
         layer = self.layer
-        if kind == "sink":
+        if kind == "heatsink":
             last = self.doc.problem.board.layers - 1
             if layer not in (0, last):
-                self.message.emit("A sink must be on the top or the bottom layer: switch the layer first.")
+                self.message.emit("A heatsink must be on the top or the bottom layer: switch the layer first.")
                 return
         idx = self.doc.add_shape(kind, layer, polygon_mm)
         self.element_created.emit(kind, idx)

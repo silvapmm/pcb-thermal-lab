@@ -23,13 +23,13 @@ import numpy as np
 
 from . import __version__, fvm
 from .api import simulate, suggest_cell_mm
-from .examples import example_board, example_profile_board
+from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
 
 MODELS = ("fvm", "lumped", "analytic")
-RUN_MODELS = MODELS + ("fdm",)            # "fdm" is the finite-difference comparison model (steady state only)
+RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
 
 
 def _cell_arg(args, problem, default):
@@ -109,8 +109,15 @@ def cmd_transient(args):
     """
     problem = load_problem(args.config)
     t0 = time.time()
-    tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0),
-                             theta_scheme=args.theta)
+    if args.model == "fdm":
+        from . import fdm
+        tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0), theta_scheme=args.theta)
+    elif args.model == "analytic":
+        from . import analytic
+        tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
+    else:
+        tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0),
+                                 theta_scheme=args.theta)
     print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} degC, "
           f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} degC")
     os.makedirs(args.out, exist_ok=True)
@@ -228,7 +235,7 @@ def cmd_example(args):
     @param args Parsed arguments.
     @return Process exit code.
     """
-    board = {"example": example_board, "profile": example_profile_board}.get(args.which, reference_problem)()
+    board = {"example": example_board, "profile": example_profile_board, "block": example_block_board}.get(args.which, reference_problem)()
     save_project(args.output, Project(problem=board))
     print(f"Wrote {args.output}")
     return 0
@@ -253,7 +260,7 @@ def build_parser():
     r = sub.add_parser("run", help="solve steady state")
     common(r)
     r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
-                   help="all: fvm, lumped, analytic; compare: those three plus the finite-difference comparison model fdm")
+                   help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm and solid3d")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
@@ -280,6 +287,7 @@ def build_parser():
     common(t)
     t.add_argument("--t-end", type=float, default=600.0, help="final time in seconds")
     t.add_argument("--steps", type=int, default=40, help="number of output times")
+    t.add_argument("--model", choices=("fvm", "fdm", "analytic"), default="fvm", help="model of the transient (default: fvm)")
     t.add_argument("--theta", type=float, default=1.0, help="1 = implicit Euler, 0.5 = Crank-Nicolson")
     t.add_argument("--gif", action="store_true", help="also write an animated GIF of the heat evolution")
     t.set_defaults(func=cmd_transient)
@@ -311,9 +319,9 @@ def build_parser():
 
     e = sub.add_parser("example", help="write the reference board JSON")
     e.add_argument("output", nargs="?", default="examples/reference_board.pcbt.json")
-    e.add_argument("--which", choices=("reference", "example", "profile"), default="reference",
-                   help="reference: 100x100 mm 2-layer board; example: 4-layer board with vias and a sink; "
-                        "profile: the example board with square-wave power on both heaters")
+    e.add_argument("--which", choices=("reference", "example", "profile", "block"), default="reference",
+                   help="reference: 100x100 mm 2-layer board; example: 4-layer board with vias and a heatsink; "
+                        "profile: the example board with square-wave power on both heaters; block: the example board with a metal block on the bottom")
     e.set_defaults(func=cmd_example)
     return p
 

@@ -97,7 +97,7 @@
     }
   ],
   "vias": [],
-  "sinks": [],
+  "heatsinks": [],
   "solver": {
     "models": [
       "fvm",
