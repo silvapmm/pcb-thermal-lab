@@ -19,7 +19,7 @@ import component_study as cs                                          # noqa: E4
 import package_prototype as proto                                     # noqa: E402
 
 # name: (conductivity W/mK, thickness mm) -> resistance per area t/k in K cm2/W
-TIMS = {"thermal grease (3 W/mK, 50 um)": (3.0, 0.05), "paste, typical default (2 W/mK, 100 um)": (2.0, 0.10),
+TIMS = {"good paste (1.5 W/mK apparent, 50 um)": (1.5, 0.05), "paste, typical default (2 W/mK, 100 um)": (2.0, 0.10),
         "soft gap pad (3 W/mK, 0.5 mm)": (3.0, 0.5), "gap pad (1 W/mK, 0.5 mm)": (1.0, 0.5), "hard gap pad (1 W/mK, 1 mm)": (1.0, 1.0)}
 # metal: (k W/mK, rho cp J/m3K)
 METALS = {"aluminium": (204.0, 2.44e6), "copper": (386.0, 3.45e6), "brass": (111.0, 2.91e6), "carbon steel": (54.0, 3.85e6), "stainless 304": (14.4, 3.69e6)}

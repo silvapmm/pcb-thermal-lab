@@ -140,7 +140,7 @@ def test_presets_of_metals_and_interfaces():
     assert names[:2] == ["Aluminium", "Copper"] and all(k > 0 and c > 1e6 for _, k, c in METALS)
     assert (METALS[0][1], METALS[0][2]) == (Heatsink.__dataclass_fields__["k"].default, Heatsink.__dataclass_fields__["rho_cp"].default)
     r = [t * 1e-3 / k * 1e4 for _, k, t in INTERFACES]                  # K cm2/W
-    assert r == sorted(r) and 0.1 < r[0] < 0.3 and 5.0 < r[-1] < 15.0   # From grease to a hard gap pad
+    assert r == sorted(r) and 0.3 < r[0] < 0.4 and 5.0 < r[-1] < 15.0   # From grease to a hard gap pad
     # A worse interface heats the board more, a better metal cools it a little more
     base = fvm.solve_steady(board(contact_r=INTERFACES[0][2] * 1e-3 / INTERFACES[0][1]), 2.0).t_max
     worst = fvm.solve_steady(board(contact_r=INTERFACES[-1][2] * 1e-3 / INTERFACES[-1][1]), 2.0).t_max

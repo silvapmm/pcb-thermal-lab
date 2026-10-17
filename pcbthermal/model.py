@@ -410,8 +410,9 @@ METALS = (("Aluminium", 204.0, 2.44e6), ("Copper", 386.0, 3.45e6), ("Brass", 111
           ("Stainless steel 304", 14.4, 3.69e6))
 
 # Interface materials between the board (or a package) and a metal: (name, conductivity W/mK, thickness mm). Assumed typical values inside the ranges
-# found in the literature (grease 7-20 um at best and 1-5 W/mK in practice, gap pads 1-6 W/mK and 0.5-1.2 mm); the resistance per area is t/k.
-INTERFACES = (("Thermal grease (3 W/mK, 50 µm)", 3.0, 0.05), ("Paste, typical default (2 W/mK, 100 µm)", 2.0, 0.10),
+# found in the literature (grease 7-20 um at best and 1-5 W/mK in practice, gap pads 1-6 W/mK and 0.5-1.2 mm); the resistance per area is t/k. Measured totals
+# (ASTM D5470, Electronics Cooling 2014): Arctic Silver 5 paste 0.31 K cm2/W at 23.5 um, a ceramic paste 0.41, a 1.6 mm gap pad 12; so k here is an apparent value that includes the two contact resistances.
+INTERFACES = (("Thermal paste, good (measured 0.3 K·cm²/W)", 1.5, 0.05), ("Paste, typical default (2 W/mK, 100 µm)", 2.0, 0.10),
               ("Soft gap pad (3 W/mK, 0.5 mm)", 3.0, 0.5), ("Gap pad (1 W/mK, 0.5 mm)", 1.0, 0.5), ("Hard gap pad (1 W/mK, 1 mm)", 1.0, 1.0))
 
 

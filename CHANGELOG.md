@@ -6,7 +6,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ## [Unreleased]
 
 ### Added
-- Metals (aluminium, copper, brass, carbon steel, stainless 304) and interface presets (grease, default paste, gap pads) for the Heatsink block in the application; default block conductivity 204 W/mK (was 205); `examples/heatsink_study.py` and the typical values in `docs/roadmap.md` 1.9c.
+- Metals (aluminium, copper, brass, carbon steel, stainless 304) and interface presets (good paste, default paste, gap pads) for the Heatsink block in the application; default block conductivity 204 W/mK (was 205); `examples/heatsink_study.py` and the typical values in `docs/roadmap.md` 1.9c.
 
 Next: the Component element (Package 2R, heat sink, passive areas) in its own version, then Gerber import and a variable stack-up (see `docs/roadmap.md`).
 

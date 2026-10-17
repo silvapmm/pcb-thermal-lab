@@ -580,7 +580,7 @@ def test_metal_block_in_the_application(win, qtbot):
     material = next(c for c in combos if c.findText("Copper") >= 0)
     material.setCurrentIndex(material.findText("Copper"))
     assert win.doc.problem.heatsinks[0].k == pytest.approx(386.0)
-    tim = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.findText("Thermal grease", Qt.MatchStartsWith) >= 0)
+    tim = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.findText("Thermal paste, good", Qt.MatchStartsWith) >= 0)
     for i in range(tim.count()):                                       # Every interface preset sets the interface resistance
         tim.setCurrentIndex(i)
         if tim.currentData() is not None:
