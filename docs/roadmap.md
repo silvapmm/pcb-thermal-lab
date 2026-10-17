@@ -5,6 +5,8 @@ Agreed order: **Component element (Package, heat heatsink)** → passive areas �
 
 ## 1. Component element
 
+> **Status (2026-10-17): first delivery implemented** (branch `feature/component-element`): `theta` (junction-to-pad, worst case), `tj_max` with margin and power limit, `psi_jb` ring estimate, `power_tc` temperature coefficient, package-family typical values and the hints in the application; see `docs/models.md` section 6 and `docs/validation.md` section 9. Everything below about the top path, the heatsink on the IC, the junction node, ψ presets and the Foster chain is future work (1.11).
+>
 > **Decision (2026-10-16, maintainer): worst case first.** For now the whole power of a component reaches the board; there is **no top path and no junction node**. The Component is a *Source* with optional *junction-to-pad resistance* (today's `θJB` field, renamed) and the junction temperature is
 > `T_j = T_max under the footprint + P·θ_pad`, which is the conservative variant (the prototype of section 1.8 gives it 3 K above the node model). The sections on the top path, the heat heatsink, the junction node and the Foster chain below are kept as **future work, not for the next version**.
 > First delivery: (1) rename and document the field and add the choice of which datasheet number it takes (`θJC(bottom)`, `θJ-L`, `Rth j-sp`, or `θJB` when nothing else exists); (2) report `T_j` against the part's `T_j,max` with a warning; (3) the **virtual JEDEC test** (the datasheet's own board, `θJA` predicted against the datasheet) with the CSD17308Q3 and the TPS7A47 as cases;

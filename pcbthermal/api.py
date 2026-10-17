@@ -9,7 +9,7 @@ plot them:
     from pcbthermal import Problem, simulate, SolverOptions
 
     p = Problem.new(width_mm=100, height_mm=80, layers=4)
-    p.add_full_copper().add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=8.0)
+    p.add_full_copper().add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta=8.0)
     sim = simulate(p, SolverOptions(models=("fvm", "lumped"), cell_mm=1.0))
     print(sim.to_markdown())
     sim.save("results")
@@ -114,6 +114,8 @@ class Simulation:
     step_response: Optional[profiles.StepResponse] = None      # Step responses behind the decisions
     h_used: Dict[str, tuple] = field(default_factory=dict)     # (h_top, h_bottom) per model when h is computed
     effective_problem: Optional[Problem] = None                # Problem with the computed h as typed values (computed mode)
+    power_used: Dict[str, list] = field(default_factory=dict)  # Powers dissipated per heater and model when a power temperature coefficient is set
+    part_warnings: list = field(default_factory=list)          # Junction limits, implausible theta, thermal runaway (after the solves)
 
     @property
     def warnings(self):
@@ -121,7 +123,7 @@ class Simulation:
         @brief Every warning: input checks first, then those of each model.
         @return List of strings.
         """
-        out = list(self.problem_warnings)
+        out = list(self.problem_warnings) + list(self.part_warnings)
         for name, r in self.results.items():
             out += [f"{name}: {w}" for w in r.warnings]
         for name, r in self.profile_results.items():
@@ -137,6 +139,16 @@ class Simulation:
         @return SteadyResult.
         """
         return self.results.get("fvm") or next(iter(self.results.values()))
+
+    def heater_rows(self):
+        """!
+        @brief Heater and junction statistics of the reference model, with the powers actually dissipated.
+        @return List of dicts of analysis.heater_stats (empty without a field).
+        """
+        ref = self.reference
+        if ref.T is None:
+            return []
+        return heater_stats(ref, self.problem, self.power_used.get(ref.model))
 
     def table(self):
         """!
@@ -265,10 +277,17 @@ class Simulation:
             for h in hs[:10]:
                 lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} degC at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
                              f"{h['area_mm2']:.1f} mm2")
-            for h in heater_stats(ref, self.problem):
-                tj = f", junction {h['t_junction']:.1f} degC" if h["t_junction"] is not None else ""
-                lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W): "
-                             f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{tj}")
+            for h in self.heater_rows():
+                extra = f", junction {h['t_junction']:.1f} degC" if h["t_junction"] is not None else ""
+                if h["t_ring"] is not None and h["theta"] > 0:
+                    extra += f", board ring {h['t_ring']:.1f} degC"
+                if h["t_junction_psi"] is not None:
+                    extra += f", junction by psi_JB {h['t_junction_psi']:.1f} degC"
+                if h["margin_k"] is not None:
+                    extra += f", limit {h['tj_max']:g} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
+                nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
+                lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
+                             f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")
             for z in zone_stats(ref, self.problem):
                 lines.append(f"Zone {z['name']} (layer {z['layer']}): mean {z['t_mean']:.1f}, "
                              f"max {z['t_max']:.1f}, min {z['t_min']:.1f} degC")
@@ -355,6 +374,73 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0):
     if not sizes:
         return hi
     return float(min(max(min(sizes) / 4.0, lo), hi))
+
+
+def _solve_with_tc(problem, name, options, computed):
+    """!
+    @brief Solve one model, iterating on the powers when a heater has a power temperature coefficient.
+    @details P = P0 (1 + tc (Tj - 25 degC)) with Tj the junction (or the hottest board point under a part without theta); a fixed-point loop around the solve,
+             like the computed heat transfer coefficients. Without a coefficient it is a plain solve. The loop stops when the powers change by less than 1e-5
+             (relative), or reports a thermal runaway when the device passes 1500 degC or the power grows 50 times (no stable operating point).
+    @param problem A Problem (steady powers; it is not modified).
+    @param name Model name.
+    @param options SolverOptions.
+    @param computed True when the board uses computed heat transfer coefficients.
+    @return Tuple (SteadyResult, (h_top, h_bottom) or None, list of powers or None).
+    """
+    def once(pr):
+        if computed:
+            res, ht, hb, _ = _solve_computed_h(pr, name, options)
+            return res, (ht, hb)
+        return _run_model(pr, name, options), None
+
+    tcs = [h.power_tc for h in problem.heaters]
+    if not any(tcs):
+        res, hh = once(problem)
+        return res, hh, None
+    base = [h.power for h in problem.heaters]
+    pr = copy.deepcopy(problem)
+    powers = list(base)
+    runaway = False
+    for it in range(1, 81):
+        for h, pw in zip(pr.heaters, powers):
+            h.power = pw
+        res, hh = once(pr)
+        rows = heater_stats(res, pr)
+        new = []
+        for row, b, tc in zip(rows, base, tcs):
+            device = row["t_junction"] if row["t_junction"] is not None else row["t_max"]
+            new.append(max(b * (1.0 + tc * (device - 25.0)), 0.0))
+            runaway = runaway or device > 1500.0 or (b > 0 and new[-1] > 50.0 * b)
+        change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new, powers)), default=0.0)
+        if runaway or change < 1e-5:
+            break
+        powers = new
+    res.extras["power_tc_iterations"] = float(it)
+    res.extras["thermal_runaway"] = float(runaway)
+    if runaway:
+        res.warnings.append("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)")
+    return res, hh, powers
+
+
+def _part_warnings(sim):
+    """!
+    @brief Warnings about the parts after the solves: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients.
+    @param sim Simulation with its results.
+    @return List of strings.
+    """
+    out = []
+    runaway = any(r.extras.get("thermal_runaway") for r in sim.results.values())
+    for row, h in zip(sim.heater_rows(), sim.problem.heaters):
+        if row["margin_k"] is not None and row["margin_k"] < 0 and not runaway:
+            out.append(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} degC, "
+                       f"{-row['margin_k']:.1f} K above its limit of {row['tj_max']:g} degC (power limit {row['p_limit_w']:.2f} W with this board)")
+        if h.theta > 0 and row["power_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
+            out.append(f"{row['name']}: theta x P = {row['power_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
+                       f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
+    if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
+        out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
+    return out
 
 
 def _run_model(problem, name, o):
@@ -555,17 +641,18 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
             progress(f"Solving {name}", k / n)
         t0 = time.time()
         try:
-            if computed:
-                sim.results[name], ht, hb, _ = _solve_computed_h(steady_problem, name, options)
-                sim.h_used[name] = (ht, hb)
-            else:
-                sim.results[name] = _run_model(steady_problem, name, options)
+            sim.results[name], hh, powers = _solve_with_tc(steady_problem, name, options, computed)
+            if hh is not None:
+                sim.h_used[name] = hh
+            if powers is not None:
+                sim.power_used[name] = powers
         except ValueError as exc:
             if name != "solid3d" or len(options.models) == 1:
                 raise
             sim.problem_warnings.append(f"the 3D solid was not run: {exc}")        # Too large: the other models still answer
             continue
         sim.seconds[name] = time.time() - t0
+    sim.part_warnings = _part_warnings(sim) if sim.results else []
     if has_blocks:
         for name in ("lumped", "analytic"):
             if name in sim.results:

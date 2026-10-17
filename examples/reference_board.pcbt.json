@@ -93,7 +93,7 @@
         ]
       ],
       "name": "",
-      "theta_jb_k_per_w": 0.0
+      "theta_k_per_w": 0.0
     }
   ],
   "vias": [],

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 
 from .. import blocks
 from ..api import suggest_cell_mm
-from ..model import INTERFACES, METALS
+from ..model import INTERFACES, METALS, PACKAGE_THETA
 from .document import KINDS
 
 _TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
@@ -388,9 +388,46 @@ class Inspector(QWidget):
                 w = _spin(0, 1000, el.power, 3, 0.1, "W")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power=v))
                 lay.addRow("Power", w)
-                t = _spin(0, 500, el.theta_jb, 2, 0.5, "K/W")
-                t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jb=v))
-                lay.addRow("θ junction-board", t)
+                t = _spin(0, 5000, el.theta, 2, 0.5, "K/W")
+                t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta=v))
+                t.setToolTip("Junction-to-pad resistance of the part. Take the datasheet's junction-to-bottom or junction-to-pad number (θJC(bot), RθJC of a power "
+                             "MOSFET, θJ-L of a diode, Rth j-sp of an LED). Never θJA. Worst case: all the power enters the board. With only θJB or ψJB use the ψJB "
+                             "box below; with nothing, pick the package family (a typical value) or leave 0 (plain source: the report shows the board temperature "
+                             "under the part and says the junction is hotter).")
+                lay.addRow("θ junction-pad", t)
+                fam = QComboBox()
+                fam.addItem("Typical θ by package family...", None)
+                for label, th_ in PACKAGE_THETA:
+                    fam.addItem(f"{label}: {th_:g} K/W (typical)", th_)
+                fam.setToolTip("Indicative values by package family, not from your datasheet; they replace θ when chosen. Use the datasheet number when you have it.")
+
+                def pick_family(_idx, fam=fam, t=t):
+                    if fam.currentData() is not None:
+                        t.setValue(fam.currentData())
+                        fam.setCurrentIndex(0)
+
+                fam.currentIndexChanged.connect(pick_family)
+                lay.addRow("", fam)
+                hint = QLabel("Use the datasheet's junction-to-bottom/pad number (θJC(bot), RθJC of a MOSFET, θJ-L), never θJA. Worst case: all the power enters the board. "
+                              "Only θJB or ψJB: fill ψJB below. Nothing: pick a family or leave 0.")
+                hint.setWordWrap(True)
+                hint.setStyleSheet("font-size: 11px; color: gray;")
+                lay.addRow(hint)
+                tj = _spin(0, 500, el.tj_max, 1, 5, "°C")
+                tj.setToolTip("Maximum junction temperature of the part (0 = no limit). The report gives the margin and the power limit.")
+                tj.valueChanged.connect(lambda v: self.doc.set_props(kind, i, tj_max=v))
+                lay.addRow("Tj max", tj)
+                psi = _spin(0, 500, el.psi_jb, 2, 0.5, "K/W")
+                psi.setToolTip("Junction-to-board characterisation parameter ψJB (0 = not used). The report adds Tj = mean board temperature in the ring "
+                               "0.5 to 1.5 mm around the package + ψJB·P, the least pessimistic estimate when the datasheet has no junction-to-pad number.")
+                psi.valueChanged.connect(lambda v: self.doc.set_props(kind, i, psi_jb=v))
+                lay.addRow("ψJB", psi)
+                tc = _spin(-5, 5, el.power_tc * 100.0, 3, 0.1, "%/K")
+                tc.setToolTip("Temperature coefficient of the dissipated power (0 = constant). A power MOSFET's Rds(on) rises about 0.3 to 0.7 %/K, so its loss grows "
+                              "with its junction temperature: P = P0 (1 + tc (Tj − 25 °C)), P0 the power typed above (at 25 °C). The program solves it together with "
+                              "the board and warns when there is no stable point (thermal runaway). Steady-state models only.")
+                tc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power_tc=v / 100.0))
+                lay.addRow("Power coefficient", tc)
             elif kind == "heatsink":
                 w = _spin(0, 5000, el.h_extra, 1, 5, "W/m²K")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, h_extra=v))

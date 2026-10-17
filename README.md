@@ -9,7 +9,8 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ## Features
 
-- **Four models on one board description** (finite volumes, finite differences, thermal network, analytical series), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
+- **Five models on one board description** (finite volumes, finite differences, 3D solid, thermal network, analytical series), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
+- **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate and a power that grows with temperature (with runaway detection).
 - **Interactive editor** (PySide 6): rectangles and polygons, vias, heatsinks and metal blocks, undo/redo, background photo, dark and light themes.
 - **Results**: temperature maps per layer, gradients, profiles, hotspot list, heater and junction temperatures, zone statistics, model comparison, temperature painted on the board.
 - **Power tables from CSV files** (any piecewise-constant profile, repeating or one-shot) with import and export buttons; documented example in [`examples/csv_profiles`](examples/csv_profiles).
@@ -59,7 +60,7 @@ python3 -m venv .venv
 from pcbthermal import Problem, SolverOptions, simulate
 
 p = Problem.new(width_mm=100, height_mm=80, layers=4)
-p.add_full_copper().add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=6.0)
+p.add_full_copper().add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta=6.0)
 sim = simulate(p, SolverOptions(cell_mm=1.0))
 print(sim.to_markdown())          # models, errors against the reference, warnings
 sim.save("results")               # report, JSON, CSV fields, figures

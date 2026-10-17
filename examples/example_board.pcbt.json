@@ -141,7 +141,7 @@
         ]
       ],
       "name": "U1",
-      "theta_jb_k_per_w": 6.0
+      "theta_k_per_w": 6.0
     },
     {
       "layer": 1,
@@ -165,7 +165,7 @@
         ]
       ],
       "name": "U2",
-      "theta_jb_k_per_w": 12.0
+      "theta_k_per_w": 12.0
     }
   ],
   "vias": [
