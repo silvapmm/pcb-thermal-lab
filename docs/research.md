@@ -202,6 +202,21 @@ One environment setting would drive all of it: the air speed already used for th
 * **Vertical (z) information to carry**: the stack-up (layer thicknesses and dielectrics, roadmap section 8), the height of the component above the board (the air gap `g` under a heatsink or plate, R3, comes from it), the orientation of the board (horizontal or vertical; the computed `h` already has it), and for enclosures the free height above the board. A "vertical layout" panel or a small side view would make the gap, the stack and the interfaces visible; to design with the maintainer.
 * **Perfect contact in the interface form**: the value (0.01 K cm²/W) must be presented intuitively, for example as a named choice ("soldered or bonded: perfect contact") next to the pastes and pads, not as a number to remember; to design with the maintainer.
 
+### R8. Heatsink on a component: plate or only K/W? (topic under discussion, 2026-10-17)
+
+**Question**: is a plate model of the heatsink base (spreading in the metal) needed on top of a component, or is the catalogue `θsa` in K/W enough? The catalogue value already contains the spreading of the catalogue's own test source; what a small component adds is the conduction through the base under it and the spreading in the plate.
+**Simulation** (`python examples/base_spreading_study.py`; 3D finite-volume plate 40 × 40 mm, uniform film `h = 1/(R0·A)` on the top, source on the bottom, catalogue 12 K/W; extra resistance on the mean temperature of the source, and its share of the whole top chain `θJC(top)` + paste + `θsa` = 46.6 K/W for the 3.3 mm MOSFET, 41 K/W for the 5 mm LDO):
+
+| Base | 3.3 mm source | 5 mm source |
+| :-- | --: | --: |
+| aluminium 1 mm | 1.69 K/W (3.6 %) | 1.32 (3.2 %) |
+| aluminium 3 mm | 0.75 (1.6 %) | 0.54 (1.3 %) |
+| copper 3 mm | 0.40 (0.9 %) | 0.29 (0.7 %) |
+| carbon steel 1 mm | 6.31 (13.5 %) | 4.90 (12.0 %) |
+| carbon steel 3 mm | 2.83 (6.1 %) | 2.04 (5.0 %) |
+
+So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it is inside the 5 to 30 % of the catalogue literature only for sources much smaller relative to the base *and* a low `θJC(top)`), and it matters (5 to 13 %) only for a thin base of a poor conductor such as steel. **Recommendation**: first version = K/W only (`θJC(top)` + interface + `θsa`), with a note that a thin steel or stainless base adds more; the plate model stays where it already exists (metal block under the board, where the geometry of contact and copper matters) and returns for the component top only if a case needs it.
+
 ### R4. What else may be missing (2026-10-17)
 
 1. **Power that depends on temperature (electro-thermal feedback)**: the on-resistance of a power MOSFET rises with temperature (about 1.5 to 2 times its room-temperature value at 175 °C; search summary of vendor notes), so the dissipation grows with `Tj`. With `P = P0 (1 + α (Tj − 25))` and the same board, the MOSFET of the study (2 W at 25 °C, 107.6 °C without feedback) reaches 138.6 °C for α = 0.33 %/K, 165.8 °C for 0.5 %/K and 210 °C for 0.67 %/K (power 2.75, 3.41, 4.48 W): a design that looks fine at nominal power can exceed `Tj,max`. It is the same kind of loop as the computed `h` (cheap, a linear scalar iteration). Proposal: an optional "power temperature coefficient (%/K)" on the heater/component, off by default, with the converged power reported. LED efficiency falling with temperature is the same mechanism with the opposite sign of the benefit.
@@ -215,9 +230,9 @@ One environment setting would drive all of it: the air speed already used for th
 
 1. Thermal interface of a top heatsink optional (agreed): without it the program assumes perfect contact (optimistic); keep a visible note and offer the default paste (0.5 K cm²/W)? 
 2. Heatsink contact area = the area of its interface (R5: a polygon with the paste's `k` and thickness, default the whole contact face, full contact `R'' = 0.01 K cm²/W`); outside it the air-gap coupling of R3 (gap parameter, default 1 mm)? (answered by the maintainer's proposal; confirm)
-3. Heatsink on a component as a plate layer (spreading in the plate) or only as a K/W number from the datasheet in the first version?
+3. Heatsink on a component as a plate layer or only a K/W number in the first version? (R8: spreading is 1 to 4 % of the chain for aluminium or copper; recommendation K/W only; under discussion)
 4. Include the power temperature coefficient in the first Component delivery?
-5. Heatsink scenario (fixed, natural scaling, forced) in the first version or only the fixed `θsa` with a note?
+5. Heatsink scenario: recommendation fixed `θsa` only in the first version (the natural-convection scaling changes `Tj` by 1 to 3 K in the study; forced convection is the user choosing the datasheet value for their air speed); natural scaling and forced factors stay noted in R6 for later.
 
 ## Template (what this file looks like when nothing is pending)
 
