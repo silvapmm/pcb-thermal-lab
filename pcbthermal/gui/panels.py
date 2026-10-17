@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 
 from .. import blocks
 from ..api import suggest_cell_mm
+from ..model import INTERFACES, METALS
 from .document import KINDS
 
 _TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
@@ -403,7 +404,7 @@ class Inspector(QWidget):
                 th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
                 lay.addRow("Metal block", th)
                 mat = QComboBox()
-                presets = (("Aluminium", 205.0, 2.43e6), ("Copper", 385.0, 3.45e6), ("Steel", 50.0, 3.8e6), ("Custom", None, None))
+                presets = METALS + (("Custom", None, None),)
                 for label, k_, c_ in presets:
                     mat.addItem(label, (k_, c_))
                 cur = next((n for n, (_, k_, c_) in enumerate(presets) if k_ == el.k and c_ == el.rho_cp), len(presets) - 1)
@@ -420,11 +421,25 @@ class Inspector(QWidget):
                 mat.currentIndexChanged.connect(pick)
                 lay.addRow("Block material", mat)
                 lay.addRow("Block k", kk)
-                cr = _spin(0, 1000, el.contact_r * 1e4, 2, 0.5, "K·cm²/W")
+                cr = _spin(0, 1000, el.contact_r * 1e4, 3, 0.5, "K·cm²/W")
                 cr.setToolTip("Interface resistance between the board and the block, per area: thickness / conductivity of the gap pad or paste "
                               "(0.5 mm of a 1 W/mK pad is 5 K·cm²/W; 0.5 mm of a 5 W/mK pad is 1). The contact is over the copper under the block.")
                 cr.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_r=v * 1e-4))
                 lay.addRow("Interface", cr)
+                tim = QComboBox()
+                for label, k_, t_ in INTERFACES:
+                    tim.addItem(label, t_ * 1e-3 / k_)
+                tim.addItem("Custom (type the value above)", None)
+                tim.setCurrentIndex(next((n for n in range(tim.count() - 1) if abs(tim.itemData(n) - el.contact_r) < 1e-7), tim.count() - 1))
+
+                def pick_tim(_idx, tim=tim, cr=cr):
+                    if tim.currentData() is not None:
+                        cr.setValue(tim.currentData() * 1e4)
+
+                tim.currentIndexChanged.connect(pick_tim)
+                tim.setToolTip("Preset of the interface material between the board and the block (grease, paste, gap pads). The value above can still be edited; "
+                               "if you do not know it, the default paste is a safe choice.")
+                lay.addRow("Interface material", tim)
             else:
                 x = _spin(0, 2000, el.x * 1000, 2, 0.5, "mm")
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")

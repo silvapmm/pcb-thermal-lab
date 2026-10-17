@@ -199,6 +199,29 @@ Sources of the literature used for the plan: the two-resistor model is accepted 
 3. **Not worth it for now:** `ΨJT`/`ΨJB` estimates, full 2R as two mandatory numbers, DELPHI, the Foster chain (only for fast transients of the package itself), presets by part type (the form asks for one number and says which datasheet value to take).
 4. **Which value**: `θJC(bot)`, `θJ-L` or `Rth j-sp` when the datasheet has them (the board's spreading is already in our model); `θJB` only when the pad and vias of the board are not modelled; a resistor: `(Tmax − T_rating)/P_rating`.
 
+### 1.9c Heatsinks and interface materials: typical values and what they do (2026-10-17)
+
+**Values found** (sources read; the presets of the application are *assumed typical values inside these ranges*, always editable):
+* metals (Ferrotec material table, Engineering ToolBox): aluminium 204 W/mK (2.71 g/cm³, 0.90 J/gK), copper 386 (8.96, 0.385), brass 111 (8.49, 0.34), stainless 304 13.8 to 14.4 (8.01, 0.46), carbon steel 54 (heat capacity 0.49 J/gK, textbook value); alloys of aluminium vary (190 for 3003 and 2014);
+* thermal grease: bond line of 7 to 20 µm at best and 0.05 to 0.1 K cm²/W in the laboratory (Dow Corning); in assembly 25 to 100 µm and 1 to 5 W/mK; it needs pressure to reach its best value; it can pump out with thermal cycling;
+* gap pads: 1 to 6 W/mK and 0.5 to 1.2 mm; thermal adhesives 0.5 to more than 6 W/mK; phase-change pads behave like grease above 55 to 60 °C.
+Presets (resistance per area `t/k`): grease 3 W/mK × 50 µm = 0.17 K cm²/W; **paste, default when unknown** 2 W/mK × 100 µm = 0.5; soft gap pad 3 × 0.5 mm = 1.7; gap pad 1 × 0.5 mm = 5; hard gap pad 1 × 1 mm = 10. On a package the resistance is `R''/A` (K/W): 0.5 K cm²/W over 3.3 × 3.3 mm is 4.6 K/W.
+
+**Simulated** (`python examples/heatsink_study.py`, parts of section 1.9b, pad 25 mm, 12 K/W clip-on heatsink on top of the package, Tj in °C and heat share through the top):
+
+| Part | no heatsink | grease 0.17 | default paste 0.5 | soft pad 1.7 | gap pad 5 | hard pad 10 |
+| :-- | --: | --: | --: | --: | --: | --: |
+| MOSFET 2 W (3.3 × 3.3 mm) | 107.6 | 67.7 (49 %) | 69.0 (47 %) | 73.1 (42 %) | 81.0 (32 %) | 87.5 (23 %) |
+| LDO 1.5 W (5 × 5 mm) | 87.3 | 55.3 (51 %) | 55.8 (50 %) | 57.4 (47 %) | 61.2 (41 %) | 65.1 (34 %) |
+| Buck 0.8 W (4.9 × 3.9 mm) | 62.8 | 46.9 (41 %) | 47.1 (40 %) | 47.8 (38 %) | 49.5 (33 %) | 51.4 (28 %) |
+| Schottky 0.5 W (4.3 × 2.6 mm) | 60.9 | 43.0 (49 %) | 43.3 (48 %) | 44.4 (45 %) | 46.9 (38 %) | 49.4 (30 %) |
+
+* **The interface matters on the top of a small package** (MOSFET: 68 °C with grease against 88 °C with a hard pad): 10 K cm²/W over 11 mm² is 92 K/W, far more than the heatsink itself. The default paste costs only 1 to 1.5 K against the best grease, so it is a safe default; a gap pad should be typed.
+* **Under the board, a metal block helps by 9 K on the MOSFET** (107.6 → 98 °C, block 30 × 30 × 3 mm, natural convection) **and the metal and the interface hardly matter**: aluminium and copper differ by 0.1 K, stainless steel is 1 K worse, and a hard pad 2 K worse than grease. With fins (extra h 60 W/m²K) the whole range of metals spans 71.7 to 72.2 °C at 6 mm. What matters is the **block thickness and area and the cooling of its surface** (1 mm 76.8, 3 mm 74.3, 6 mm 71.7 °C with fins), because the board has already spread the heat before the block sees it. The material choice is useful as a convenience (heat capacity for the time simulation, large thin plates), not as a design lever.
+
+**When the datasheet only gives `θJB` (or `ψJB`)**: three ways, from the least to the most conservative (Tj of the LDO on a 25 mm pad, true value 87.4 °C with `θJC(bot)` 1.7 K/W): (1) **`ψJB` with the program's board temperature** `Tj = T_ring + ψJB·P`, with `T_ring` the mean board temperature in a ring 0.5 to 1.5 mm outside the package body: 93.7 °C (+6 K) for the LDO (`ψJB` 11.9) and 65.1 against 62.8 °C for the buck (`ψJB` 13.8); this is the method the manufacturers recommend for a real board and it needs no `θJC(bot)`;
+(2) **`θJB` as the junction-to-pad resistance** with the pad and vias drawn: 102.7 °C (+15 K) and 70.2 °C, pessimistic by the spreading of the datasheet's own board, counted twice; (3) the same with a simple heater and no copper drawn, where `θJB` is the better number. The application should say this next to the field, offer the ring temperature as an output ("board temperature 1 mm from the package") and warn when `θ` is larger than the board's own rise.
+
 ### 1.10 Staging and validation
 
 Stages: (1) Component element and Package, static, in the three models; (2) top path from the computed `h`; (3) heat heatsink; (4) passive areas; (5) Foster chain for package transients.

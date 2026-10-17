@@ -403,6 +403,18 @@ class Via:
         return math.pi * (r * r - r_in * r_in)
 
 
+# Metals for heatsinks and spreaders: (name, conductivity W/mK, volumetric heat capacity rho*cp J/m3K). Aluminium, copper, brass and stainless from
+# the Ferrotec material table (204, 386, 111 and 13.8 W/mK; densities 2.71, 8.96, 8.49 and 8.01 g/cm3), carbon steel 54 W/mK from the Engineering
+# ToolBox table (its heat capacity is a textbook value). The user can always type other numbers.
+METALS = (("Aluminium", 204.0, 2.44e6), ("Copper", 386.0, 3.45e6), ("Brass", 111.0, 2.91e6), ("Carbon steel", 54.0, 3.85e6),
+          ("Stainless steel 304", 14.4, 3.69e6))
+
+# Interface materials between the board (or a package) and a metal: (name, conductivity W/mK, thickness mm). Assumed typical values inside the ranges
+# found in the literature (grease 7-20 um at best and 1-5 W/mK in practice, gap pads 1-6 W/mK and 0.5-1.2 mm); the resistance per area is t/k.
+INTERFACES = (("Thermal grease (3 W/mK, 50 µm)", 3.0, 0.05), ("Paste, typical default (2 W/mK, 100 µm)", 2.0, 0.10),
+              ("Soft gap pad (3 W/mK, 0.5 mm)", 3.0, 0.5), ("Gap pad (1 W/mK, 0.5 mm)", 1.0, 0.5), ("Hard gap pad (1 W/mK, 1 mm)", 1.0, 1.0))
+
+
 @dataclass
 class Heatsink:
     """!
@@ -417,8 +429,8 @@ class Heatsink:
     h_extra: float                              # Added coefficient (W/m2K)
     name: str = ""                              # Optional label
     thickness: float = 0.0                      # Metal block thickness (m); 0 = a plain coefficient, no block
-    k: float = 205.0                            # Conductivity of the block (W/mK); aluminium 205, copper 385
-    rho_cp: float = 2.43e6                      # Volumetric heat capacity of the block (J/m3K); aluminium 2.43e6, copper 3.45e6
+    k: float = 204.0                            # Conductivity of the block (W/mK); aluminium 204, copper 386
+    rho_cp: float = 2.44e6                      # Volumetric heat capacity of the block (J/m3K); aluminium 2.44e6, copper 3.45e6
     contact_r: float = 5.0e-4                   # Interface resistance between the board and the block (m2K/W): pad thickness / k
 
     def is_block(self):
@@ -598,7 +610,7 @@ class Problem:
                 self.add_via(x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny, diameter, filled)
         return self
 
-    def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=205.0, rho_cp=2.43e6,
+    def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=204.0, rho_cp=2.44e6,
                  contact_r=5.0e-4):
         """!
         @brief Add a heatsink: extra heat transfer coefficient on an outer surface, optionally a metal block (mm, W/m2K).
@@ -683,8 +695,8 @@ def problem_from_dict(data, validate=True):
                              v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", "")))
     for s in data.get("heatsinks", data.get("sinks", [])):    # "sinks" is the key of files saved before the rename
         prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
-                               float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 205.0)),
-                               float(s.get("rho_cp_j_per_m3k", 2.43e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4))))
+                               float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 204.0)),
+                               float(s.get("rho_cp_j_per_m3k", 2.44e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4))))
     if validate:
         prob.validate()
     return prob

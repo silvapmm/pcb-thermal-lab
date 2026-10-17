@@ -579,7 +579,14 @@ def test_metal_block_in_the_application(win, qtbot):
     combos = win.inspector.form_host.findChildren(QComboBox)
     material = next(c for c in combos if c.findText("Copper") >= 0)
     material.setCurrentIndex(material.findText("Copper"))
-    assert win.doc.problem.heatsinks[0].k == pytest.approx(385.0)
+    assert win.doc.problem.heatsinks[0].k == pytest.approx(386.0)
+    tim = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.findText("Thermal grease", Qt.MatchStartsWith) >= 0)
+    for i in range(tim.count()):                                       # Every interface preset sets the interface resistance
+        tim.setCurrentIndex(i)
+        if tim.currentData() is not None:
+            assert win.doc.problem.heatsinks[0].contact_r == pytest.approx(tim.currentData(), rel=1e-2)
+    for i in range(material.count()):                                   # And every metal
+        material.setCurrentIndex(i)
     run(win, qtbot, ("fvm", "fdm", "lumped", "analytic"), cell=2.0)
     assert any("block" in w for w in win.sim.warnings)                  # The two simple models say they replace the block
     rv = win.results
