@@ -11,12 +11,12 @@ physics package, command line and PySide 6 application for simulating the therma
 - Author: Pedro Silva (PMS Labs)
 - License: (C) 2025 Pedro Silva. All rights reserved (see `LICENSE`).
 - Users draw PCB elements (zones, heaters, vias, heatsinks), configure parameters,
-  and run three models (keys `fvm`, `lumped`, `analytic`):
+  and run three main models (keys `fvm`, `lumped`, `analytic`) plus two comparison models:
   - **Finite volume (FVM), reference**: cell-centred finite volumes on a sparse matrix (direct, CG or SOR solver), any geometry.
   - **Thermal network (LPTN)**: lumped-parameter thermal resistance network per heater (rings by distance from the footprint).
   - **Analytical (Fourier series)**: multilayer cosine series with local corrections for vias and heatsinks.
-  - Naming: **FDM** (finite *difference*, node-centred, SOR) is the name of the *legacy* solver only; it was replaced by the FVM
-    (see `docs/models.md`, "FDM or FVM").
+  - Comparison models (keys `fdm`, `solid3d`): **FDM** (node-centred finite differences of the same layered model, steady state and time) and the **3D solid** (3D finite volumes with real slabs, steady state only).
+    The old wxPython solver was also called FDM; it was replaced (see `docs/models.md`, "FDM or FVM").
 - Outputs: temperature maps, power profiles in time (square waves and CSV tables), animations, hotspots, gradients, zone and heater
   statistics, reports, CSV and figures. Projects are plain JSON (`.pcbt.json`).
 
@@ -110,6 +110,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   blocks.py            metal blocks (heatsinks with thickness): extra node layers for FVM/FDM
   model.py             Board, Materials, Zone, Heater, Via, Heatsink, Problem (+ mm builder API), JSON I/O
   geometry.py          polygon area/centroid/point-in-polygon, cell coverage fractions
+  solid3d.py           3D finite-volume solid (real slabs per copper layer, gap and block; steady state; comparison model, key `solid3d`)
   fdm.py               node-centred finite-difference model of the same layered physics (steady state, power-step animation, step responses and power profiles, `--model fdm|compare`; reuses the FVM transient machinery)
   fvm.py               reference finite-volume model: steady (direct, CG, SOR) and transient
   lumped.py            ring network per heater, superposed
@@ -122,8 +123,8 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (186 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
-examples/              example boards (.pcbt.json), csv_profiles/ (documented CSV power-profile example), validation_study.py (all models, every scenario; tables of docs/validation.md), accuracy_study.py and stress_study.py (the scenario lists), solver_equivalence.py, fem3d_validation.py (3D solid), copper_dissipation.py (outer copper against heatsink)
+tests/                 pytest suite (194 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+examples/              example boards (.pcbt.json), csv_profiles/ (documented CSV power-profile example), validation_study.py (all models, every scenario; tables of docs/validation.md), accuracy_study.py and stress_study.py (the scenario lists), solver_equivalence.py, fem3d_validation.py (3D solid), copper_dissipation.py (outer copper against heatsink), component_study.py (what a package resistance and a top path add on five real parts)
 docs/                  models.md (models, formulas, profiles, convection, API), validation.md (every scenario in every model, 3D check, history), roadmap.md (planned work), images/
 ico/                   application icon
 ```
@@ -208,6 +209,7 @@ Record important decisions here, newest first, with date and reason.
 - 2026-10-16: Roadmap extended: heat heatsink on a component (θCS + θSA in K/W, θSA scaled with ΔT from a reference rise, optional heatsink capacity C_hs from the first version), Gerber import of the copper per layer (section 7, `gerbonara` as candidate, fill fraction per cell), and variable stack-up (section 8: per-gap dielectric thickness and material, layer nodes of copper plus half the adjacent dielectrics, backward compatible when gaps are equal). All future work, nothing implemented.
 - 2026-10-16: Researched the Package (JEDEC 2R) basis and recorded it in `docs/package_models.md` (sources read: NISTIR 7648, TI SPRA953B, Renesas white paper, Semiconductor Digest, Siemens). Rules taken from it: the user enters θJB and θJC,top as resistances, never ψ; ψJT and ψJB are reported as consistency checks; θJB is spread over the footprint with area weights; the Package is quasi-static until a Foster chain exists; the share of power into the board is checked against 75 to 95 %. Unverified figures (2 to 20 % error of 2R) are not used. Implementation order: computed `h` first, then the Component element.
 - 2026-10-16: Future Component element agreed: one element with a type (Source = today's heater, Package 2R, passive areas such as cooled area, contact, material patch); its power and profile drive `T_j`, top cooling uses the computed `h` (Picard iteration), the profile decision measures the oscillation at `T_j`. Thermal resistance is displayed in K/W (same number as °C/W). Multigrid and the 3D FEM validation script are kept in `docs/roadmap.md` as optional future work; computed `h` and the Component element follow after the current models are polished. See `docs/roadmap.md` sections 2 to 5.
+- 2026-10-17: **3D solid model** `solid3d.py` (own finite volumes on a structured 3D grid, SciPy only) chosen over adding scikit-fem as a dependency: assembly with NumPy slices, conservative, per-cell volume-averaged materials (the tiled-conductivity method), real barrel copper area for vias, exact power, same plan grid as the FVM; 0.1 to 10 s; steady state only (time simulation stays with the layered models); skipped with a warning above 2 million unknowns. scikit-fem stays as the offline cross-check of the 3D solid itself (FV and FEM bracket the same limit on small pads). Component study (`docs/roadmap.md` 1.9b): keep the Source with one junction-to-pad resistance, add a top path only as an optional heatsink block; no ψ, no mandatory 2R, no Foster chain for now.
 - 2026-10-16: **Sink renamed Heatsink** (class, `add_heatsink`, `Problem.heatsinks`, JSON key `heatsinks`, GUI, docs); old files with `sinks` and the legacy editor type "Sink" still load. The copper that dissipates needs no element (confirmed against the 3D solid, `docs/validation.md` 3.1; Lumped/Analytic unreliable for a one-sided pad): outer-layer copper already radiates/convects through `h_top`/`h_bottom` and spreads through its sheet conductance (`docs/models.md` section 1).
 - 2026-10-16: Metal block on `feature/component-model`: a Heatsink with `thickness>0` is a heat spreader (extra node layer in FVM/FDM, `blocks.py`), heat enters only where it overlaps copper (intersection of planes), laminate in series elsewhere; Lumped/Analytic use an equivalent coefficient and warn; validated within 1.8 % of the 3D solid (whose script had a singular-matrix bug, fixed). Component design still to be discussed with the maintainer.
 - 2026-10-16: Implemented power profiles on `feature/more-models` (square wave only; `profiles.py`; all three models; GUI "Power profile" tab; CLI options). Decision average-vs-resolve per heater from the oscillation in °C (default 1 °C, shared error budget, smallest first), mixed regimes in one run; start = steady state of the average power or a typed °C; duration until the cycle repeats / N cycles / fixed time; 200,000 step cap. Analytic transient smears vias and heatsinks (warned). GUI labels descriptive ("Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"), keys unchanged; units °C and °C/W. Results tab index is now 2 (Board, Power profile, Results).

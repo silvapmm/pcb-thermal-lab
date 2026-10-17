@@ -27,14 +27,15 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles
+from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
 from .analysis import block_stats, heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
 from .results import SteadyResult
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
-COMPARISON_MODELS = ("fdm",)                     # Finite-difference model: never the reference of the decisions
+COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
+TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid is steady state only)
 
 
 @dataclass
@@ -368,6 +369,8 @@ def _run_model(problem, name, o):
         return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver)
     if name == "fdm":
         return fdm.solve_steady(problem, cell_mm=o.cell_mm)
+    if name == "solid3d":
+        return solid3d.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "lumped":
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=min(max(o.cell_mm, 0.5), 1.0))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
@@ -498,9 +501,9 @@ def _run_profiles(sim, progress, start):
     """
     o = sim.options
     p = sim.effective_problem or sim.problem
-    ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in o.models), None)   # The FDM only if nothing else is selected
+    ref = next((m for m in TIME_MODELS if m in o.models), None)   # The FDM only if nothing else is selected; the 3D solid has no time simulation
     if ref is None:
-        sim.profile_error = "select a model for the time simulation"
+        sim.profile_error = "select the FVM, Lumped, Analytic or FDM model for the time simulation (the 3D solid is steady state only)"
         return
     sim.profile_reference = ref
     if progress:
@@ -511,6 +514,8 @@ def _run_profiles(sim, progress, start):
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
         for name in o.models:
+            if name == "solid3d":
+                continue
             if progress:
                 progress(f"Time simulation: {name}", start + 0.1)
             if name == "fvm":
@@ -549,11 +554,17 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
         if progress:
             progress(f"Solving {name}", k / n)
         t0 = time.time()
-        if computed:
-            sim.results[name], ht, hb, _ = _solve_computed_h(steady_problem, name, options)
-            sim.h_used[name] = (ht, hb)
-        else:
-            sim.results[name] = _run_model(steady_problem, name, options)
+        try:
+            if computed:
+                sim.results[name], ht, hb, _ = _solve_computed_h(steady_problem, name, options)
+                sim.h_used[name] = (ht, hb)
+            else:
+                sim.results[name] = _run_model(steady_problem, name, options)
+        except ValueError as exc:
+            if name != "solid3d" or len(options.models) == 1:
+                raise
+            sim.problem_warnings.append(f"the 3D solid was not run: {exc}")        # Too large: the other models still answer
+            continue
         sim.seconds[name] = time.time() - t0
     if has_blocks:
         for name in ("lumped", "analytic"):

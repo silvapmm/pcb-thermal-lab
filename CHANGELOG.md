@@ -9,6 +9,8 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 - **Sink is now called Heatsink** everywhere (class, `add_heatsink`, `Problem.heatsinks`, JSON key `heatsinks`, application labels, documentation). Project files saved with the key `sinks` and the old editor files still open.
 
 ### Added
+- **3D solid model** (`solid3d.py`, key `solid3d`, "3D solid (finite volumes), comparison" in the application, `--model solid3d|compare`): the board as a real 3D solid on the plan grid with real slabs (every copper layer, four per dielectric gap, metal blocks as pad and metal slabs, vias with their real copper area); steady state, SciPy only; the number of 3D unknowns is shown and a too large model is skipped with a warning. Within 0.2 % of an independent finite-element solid on three boards and 1.6 % on a 20 mm pad; within 0.3 % of the FVM on ordinary scenarios. Validation tables of `docs/validation.md` now include it.
+- `examples/component_study.py`: what a Component parametrisation adds on five real parts (one resistance to the pad adds 2 to 28 % of the rise, a top path matters only with a heatsink); results and the proposed minimal Component in `docs/roadmap.md` 1.9b.
 - `examples/copper_dissipation.py` and `tests/test_copper.py`: the outer copper dissipates and spreads heat by itself and a heatsink works through the copper under it (FVM within 2.5 % of a 3D solid for pads of 20 mm and more).
 - **Metal block**: a Heatsink with a thickness (material, interface resistance, extra coefficient for fins) is a heat spreader in the FVM and FDM with lateral conduction, mass and a contact only over the copper it overlaps; block results (table, temperature view, report), checks, `example block`; validated against a 3D solid within 1.8 %.
 

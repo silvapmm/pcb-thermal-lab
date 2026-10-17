@@ -12,7 +12,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 
-from pcbthermal import analytic, check_problem, fdm, fvm, lumped         # noqa: E402
+from pcbthermal import analytic, check_problem, fdm, fvm, lumped, solid3d  # noqa: E402
 from pcbthermal.examples import example_board                           # noqa: E402
 import accuracy_study                                                    # noqa: E402
 import stress_study                                                      # noqa: E402
@@ -35,16 +35,30 @@ def scenario_table(cell_mm=1.0):
     @param cell_mm Cell size for the FVM and the FDM.
     @return Markdown text.
     """
-    lines = ["| Scenario | FVM [°C] | FDM | Lumped | Analytic | Input check |", "| :-- | --: | --: | --: | --: | :-: |"]
+    lines = ["| Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |", "| :-- | --: | --: | --: | --: | --: | :-: |"]
     for name, p in accuracy_study.cases() + stress_study.cases():
         f = fvm.solve_steady(p, cell_mm)
         d = fdm.solve_steady(p, cell_mm)
+        s3 = solid3d.solve_steady(p, cell_mm)
         l = lumped.solve_steady(p)
         a = analytic.solve_steady(p)
         warn = "warns" if (check_problem(p, cell_mm) + a.warnings) else "-"
-        lines.append(f"| {name} | {f.t_max:.2f} | {d.t_max:.2f} ({error(d, f):+.1f} %) | {l.t_max:.2f} ({error(l, f):+.1f} %) | "
+        lines.append(f"| {name} | {f.t_max:.2f} | {d.t_max:.2f} ({error(d, f):+.1f} %) | {s3.t_max:.2f} ({error(s3, f):+.1f} %) | {l.t_max:.2f} ({error(l, f):+.1f} %) | "
                      f"{a.t_max:.2f} ({error(a, f):+.1f} %) | {warn} |")
     return "\n".join(lines)
+
+
+def _solid(p, cell):
+    """!
+    @brief Maximum temperature of the 3D solid as text, or "-" when the model is too large for the cell size.
+    @param p Problem.
+    @param cell Cell size in mm.
+    @return String.
+    """
+    try:
+        return f"{solid3d.solve_steady(p, cell).t_max:.2f}"
+    except ValueError:
+        return "-"
 
 
 def mesh_table(cells=(4.0, 2.0, 1.0, 0.5, 0.25)):
@@ -54,10 +68,10 @@ def mesh_table(cells=(4.0, 2.0, 1.0, 0.5, 0.25)):
     @return Markdown text.
     """
     p = example_board()
-    lines = ["| Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) |", "| --: | --: | --: | --: |"]
+    lines = ["| Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) | 3D solid |", "| --: | --: | --: | --: | --: |"]
     for c in cells:
         lines.append(f"| {c:g} | {fvm.solve_steady(p, c).t_max:.2f} | {fdm.solve_steady(p, c).t_max:.2f} | "
-                     f"{fdm.solve_steady(p, c, sampling='point').t_max:.2f} |")
+                     f"{fdm.solve_steady(p, c, sampling='point').t_max:.2f} | {_solid(p, c)} |")
     return "\n".join(lines)
 
 
@@ -67,12 +81,12 @@ def fem_table():
     @return Markdown text.
     """
     import fem3d_validation as f3
-    rows = ["| Board | 3D solid [°C] | FVM | FDM | Lumped | Analytic |", "| :-- | --: | --: | --: | --: | --: |"]
+    rows = ["| Board | 3D FEM [°C] | FVM | FDM | 3D solid (FV) | Lumped | Analytic |", "| :-- | --: | --: | --: | --: | --: | --: |"]
     cases = (("4 layers, full copper", f3.board_full_copper()), ("2 layers, 40 mm top pad", f3.board_partial_copper()),
              ("2 layers, 20 mm top pad", f3.board_small_pad()), ("example board (partial copper, 9 vias, bottom heatsink)", example_board()))
     for name, p in cases:
         ref = f3.solve_fem(p, 1.0)["t_max"]
-        res = {"fvm": fvm.solve_steady(p, 0.5), "fdm": fdm.solve_steady(p, 0.5), "lumped": lumped.solve_steady(p),
+        res = {"fvm": fvm.solve_steady(p, 0.5), "fdm": fdm.solve_steady(p, 0.5), "solid3d": solid3d.solve_steady(p, 0.5), "lumped": lumped.solve_steady(p),
                "analytic": analytic.solve_steady(p)}
         cells = " | ".join(f"{r.t_max:.1f} ({100 * (r.t_max - 25) / (ref - 25) - 100:+.1f} %)" for r in res.values())
         rows.append(f"| {name} | {ref:.1f} | {cells} |")

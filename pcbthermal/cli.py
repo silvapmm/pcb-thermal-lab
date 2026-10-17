@@ -29,7 +29,7 @@ from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
 
 MODELS = ("fvm", "lumped", "analytic")
-RUN_MODELS = MODELS + ("fdm",)            # "fdm" is the finite-difference model
+RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
 
 
 def _cell_arg(args, problem, default):
@@ -260,7 +260,7 @@ def build_parser():
     r = sub.add_parser("run", help="solve steady state")
     common(r)
     r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
-                   help="all: fvm, lumped, analytic; compare: those three plus the finite-difference comparison model fdm")
+                   help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm and solid3d")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")

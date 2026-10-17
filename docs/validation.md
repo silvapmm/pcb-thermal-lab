@@ -26,28 +26,28 @@ Every model closes the energy balance below 1e-11 (heat out equals power in).
 
 `python examples/validation_study.py`
 
-| Scenario | FVM [°C] | FDM | Lumped | Analytic | Input check |
-| :-- | --: | --: | --: | --: | :-: |
-| reference board (centred 20 mm heater) | 90.13 | 90.13 (+0.0 %) | 89.70 (−0.7 %) | 90.35 (+0.3 %) | - |
-| example board (full) | 85.81 | 84.38 (−2.4 %) | 84.66 (−1.9 %) | 84.65 (−1.9 %) | - |
-| example, no heatsink | 88.91 | 87.47 (−2.3 %) | 87.60 (−2.1 %) | 87.78 (−1.8 %) | - |
-| example, no vias | 94.67 | 94.58 (−0.1 %) | 96.51 (+2.6 %) | 94.56 (−0.2 %) | - |
-| example, top copper over the full board | 85.29 | 83.94 (−2.2 %) | 84.14 (−1.9 %) | 84.62 (−1.1 %) | - |
-| example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (−0.0 %) | 98.34 (+2.3 %) | 97.15 (+0.7 %) | - |
-| example, only heater U1 | 79.97 | 78.54 (−2.6 %) | 77.82 (−3.9 %) | 78.71 (−2.3 %) | - |
-| example, only U1, uniform | 90.30 | 90.27 (−0.1 %) | 91.10 (+1.2 %) | 90.62 (+0.5 %) | - |
-| reference board, heater in the corner | 109.40 | 109.39 (−0.0 %) | 102.09 (−8.7 %) | 110.42 (+1.2 %) | - |
-| reference board, small 5 mm heater | 103.06 | 103.06 (+0.0 %) | 102.87 (−0.2 %) | 103.44 (+0.5 %) | - |
-| reference board, 8 layers | 65.70 | 65.70 (+0.0 %) | 66.17 (+1.1 %) | 66.11 (+1.0 %) | - |
-| heater 5 mm inside the top-copper edge | 94.45 | 94.04 (−0.6 %) | 91.45 (−4.3 %) | 93.83 (−0.9 %) | - |
-| heater straddling the top-copper edge | 143.89 | 139.77 (−3.5 %) | 111.52 (−27.2 %) | 114.54 (−24.7 %) | warns |
-| no copper on the heater layer | 150.16 | 150.14 (−0.0 %) | 150.12 (−0.0 %) | 150.44 (+0.2 %) | warns |
-| 30 × 30 mm copper island around the heater | 92.38 | 91.96 (−0.6 %) | 91.66 (−1.1 %) | 89.49 (−4.3 %) | - |
-| hatched copper (fill 0.5) on the top layer | 105.78 | 105.78 (+0.0 %) | 105.72 (−0.1 %) | 106.00 (+0.3 %) | warns |
-| heater on the bottom layer | 88.37 | 88.37 (+0.0 %) | 87.97 (−0.6 %) | 88.65 (+0.4 %) | - |
-| long thin heater, 40 × 4 mm | 67.84 | 67.84 (+0.0 %) | 71.90 (+9.5 %) | 68.12 (+0.7 %) | - |
-| heater in the corner (10 mm from two edges) | 105.34 | 104.92 (−0.5 %) | 98.51 (−8.5 %) | 106.06 (+0.9 %) | - |
-| two heaters 60 mm apart (4 W + 2 W) | 100.41 | 100.33 (−0.1 %) | 99.10 (−1.7 %) | 101.07 (+0.9 %) | - |
+| Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
+| :-- | --: | --: | --: | --: | --: | :-: |
+| reference board (centred 20 mm heater) | 90.13 | 90.13 (+0.0 %) | 90.27 (+0.2 %) | 89.70 (−0.7 %) | 90.35 (+0.3 %) | - |
+| example board (full) | 85.81 | 84.38 (−2.4 %) | 85.98 (+0.3 %) | 84.66 (−1.9 %) | 84.65 (−1.9 %) | - |
+| example, no heatsink | 88.91 | 87.47 (−2.3 %) | 89.08 (+0.3 %) | 87.60 (−2.1 %) | 87.78 (−1.8 %) | - |
+| example, no vias | 94.67 | 94.58 (−0.1 %) | 94.91 (+0.3 %) | 96.51 (+2.6 %) | 94.56 (−0.2 %) | - |
+| example, top copper over the full board | 85.29 | 83.94 (−2.2 %) | 85.42 (+0.2 %) | 84.14 (−1.9 %) | 84.62 (−1.1 %) | - |
+| example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (−0.0 %) | 96.88 (+0.3 %) | 98.34 (+2.3 %) | 97.15 (+0.7 %) | - |
+| example, only heater U1 | 79.97 | 78.54 (−2.6 %) | 80.12 (+0.3 %) | 77.82 (−3.9 %) | 78.71 (−2.3 %) | - |
+| example, only U1, uniform | 90.30 | 90.27 (−0.1 %) | 90.51 (+0.3 %) | 91.10 (+1.2 %) | 90.62 (+0.5 %) | - |
+| reference board, heater in the corner | 109.40 | 109.39 (−0.0 %) | 109.54 (+0.2 %) | 102.09 (−8.7 %) | 110.42 (+1.2 %) | - |
+| reference board, small 5 mm heater | 103.06 | 103.06 (+0.0 %) | 103.73 (+0.9 %) | 102.87 (−0.2 %) | 103.44 (+0.5 %) | - |
+| reference board, 8 layers | 65.70 | 65.70 (+0.0 %) | 65.72 (+0.1 %) | 66.17 (+1.1 %) | 66.11 (+1.0 %) | - |
+| heater 5 mm inside the top-copper edge | 94.45 | 94.04 (−0.6 %) | 94.78 (+0.5 %) | 91.45 (−4.3 %) | 93.83 (−0.9 %) | - |
+| heater straddling the top-copper edge | 143.89 | 139.77 (−3.5 %) | 149.27 (+4.5 %) | 111.52 (−27.2 %) | 114.54 (−24.7 %) | warns |
+| no copper on the heater layer | 150.16 | 150.14 (−0.0 %) | 153.19 (+2.4 %) | 150.12 (−0.0 %) | 150.44 (+0.2 %) | warns |
+| 30 x 30 mm copper island around the heater | 92.38 | 91.96 (−0.6 %) | 92.78 (+0.6 %) | 91.66 (−1.1 %) | 89.49 (−4.3 %) | - |
+| hatched copper (fill 0.5) on the top layer | 105.78 | 105.78 (+0.0 %) | 106.23 (+0.6 %) | 105.72 (−0.1 %) | 106.00 (+0.3 %) | warns |
+| heater on the bottom layer | 88.37 | 88.37 (+0.0 %) | 88.58 (+0.3 %) | 87.97 (−0.6 %) | 88.65 (+0.4 %) | - |
+| long thin heater, 40 x 4 mm | 67.84 | 67.84 (+0.0 %) | 67.92 (+0.2 %) | 71.90 (+9.5 %) | 68.12 (+0.7 %) | - |
+| heater in the corner (10 mm from two edges) | 105.34 | 104.92 (−0.5 %) | 105.54 (+0.3 %) | 98.51 (−8.5 %) | 106.06 (+0.9 %) | - |
+| two heaters 60 mm apart (4 W + 2 W) | 100.41 | 100.33 (−0.1 %) | 100.62 (+0.3 %) | 99.10 (−1.7 %) | 101.07 (+0.9 %) | - |
 
 Reading:
 
@@ -58,13 +58,13 @@ Reading:
 
 ### 2.1 Against the grid (example board)
 
-| Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) |
-| --: | --: | --: | --: |
-| 4 | 83.00 | 82.29 | 85.36 |
-| 2 | 85.34 | 84.66 | 86.18 |
-| 1 | 85.81 | 84.38 | 85.15 |
-| 0.5 | 85.87 | 85.22 | 85.58 |
-| 0.25 | 85.95 | 85.67 | 85.80 |
+| Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) | 3D solid |
+| --: | --: | --: | --: | --: |
+| 4 | 83.00 | 82.29 | 85.36 | 83.10 |
+| 2 | 85.34 | 84.66 | 86.18 | 85.48 |
+| 1 | 85.81 | 84.38 | 85.15 | 85.98 |
+| 0.5 | 85.87 | 85.22 | 85.58 | 85.56 |
+| 0.25 | 85.95 | 85.67 | 85.80 | - |
 
 The FVM rises monotonically to its limit (within 0.2 % from 1 mm; the via array is a point feature that keeps adding a little constriction as the mesh is refined). The classic point-sampled FDM jumps around it
 (±0.5 °C) because it samples the copper edge, the heater footprint and the vias at points; area sampling removes the jumps on geometry that is not aligned with the grid. A board whose heater is not on the grid
@@ -82,16 +82,16 @@ the mesh), through the whole thickness, with mesh lines refined around every rod
 
 Maximum temperature of the top face [°C] and error of every model on the rise (FVM and FDM at 0.5 mm; Lumped and Analytic with their default settings):
 
-| Board | 3D solid [°C] | FVM | FDM | Lumped | Analytic |
-| :-- | --: | --: | --: | --: | --: |
-| 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 90.3 (−0.5 %) | 91.1 (+0.7 %) | 90.6 (0.0 %) |
-| 2 layers, 40 mm top pad | 112.2 | 111.5 (−0.8 %) | 111.2 (−1.2 %) | 112.1 (−0.1 %) | 106.8 (−6.2 %) |
-| 2 layers, 20 mm top pad | 136.2 | 133.7 (−2.2 %) | 131.7 (−4.0 %) | 131.1 (−4.5 %) | 109.6 (−23.9 %) |
-| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.9 (+0.5 %) | 85.2 (−0.6 %) | 84.7 (−1.5 %) | 84.7 (−1.5 %) |
+| Board | 3D FEM [°C] | FVM | FDM | 3D solid (FV) | Lumped | Analytic |
+| :-- | --: | --: | --: | --: | --: | --: |
+| 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 90.3 (−0.5 %) | 90.5 (−0.1 %) | 91.1 (+0.7 %) | 90.6 (−0.0 %) |
+| 2 layers, 40 mm top pad | 112.2 | 111.5 (−0.8 %) | 111.2 (−1.2 %) | 112.4 (+0.2 %) | 112.1 (−0.1 %) | 106.8 (−6.2 %) |
+| 2 layers, 20 mm top pad | 136.2 | 133.7 (−2.2 %) | 131.7 (−4.0 %) | 138.0 (+1.6 %) | 131.1 (−4.5 %) | 109.6 (−23.9 %) |
+| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.9 (+0.5 %) | 85.2 (−0.6 %) | 85.6 (−0.0 %) | 84.7 (−1.5 %) | 84.7 (−1.5 %) |
 
 **Metal block** (a heatsink with a thickness; `examples/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; 100 × 80 mm, 2 layers, 5 W, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated; FVM and FDM at 1 mm; error on the rise):
 
-| Case | 3D solid [°C] | FVM | FDM |
+| Case | 3D FEM [°C] | FVM | FDM |
 | :-- | --: | --: | --: |
 | no block (bottom pad only) | 134.2 | 133.2 (−0.9 %) | 132.6 (−1.5 %) |
 | Al 3 mm, gap pad 5 K cm²/W | 115.5 | 115.0 (−0.5 %) | 114.9 (−0.6 %) |
@@ -107,35 +107,37 @@ The block is always within 1.8 % of the solid. (An earlier version of this scrip
 ### 3.1 Does the outer copper dissipate and spread heat (against a heatsink)?
 
 `python examples/copper_dissipation.py [--fem]`. Board 100 × 80 mm, 2 layers, 5 W on a 10 × 10 mm heater on top, copper only on the top layer (a square pad centred on the heater), no vias, `h_top` 10 and `h_bottom` 15 W/m²K.
-Maximum temperature [°C] against the 3D solid (error on the rise):
+Maximum temperature [°C] against the 3D finite-element solid (error on the rise; the 3D FV column is the program's own `solid3d`):
 
-| Top copper pad | 3D solid | FVM | FDM | Lumped | Analytic |
-| :-- | --: | --: | --: | --: | --: |
-| heater pad only (10 mm) | 495.3 | 472.4 (−4.9 %) | 420.9 (−15.8 %) | 652.7 (+33.5 %) | 201.1 (−62.6 %) |
-| 20 mm square | 273.0 | 266.7 (−2.5 %) | 252.1 (−8.4 %) | 517.4 (+98.5 %) | 150.3 (−49.5 %) |
-| 30 mm square | 202.6 | 199.7 (−1.6 %) | 193.8 (−5.0 %) | 392.9 (+107.2 %) | 145.9 (−31.9 %) |
-| 40 mm square | 172.5 | 171.0 (−1.0 %) | 168.2 (−2.9 %) | 302.7 (+88.3 %) | 144.9 (−18.7 %) |
-| 60 mm square | 150.3 | 149.6 (−0.6 %) | 148.8 (−1.2 %) | 200.1 (+39.7 %) | 144.2 (−4.9 %) |
-| 80 mm square | 144.6 | 144.1 (−0.4 %) | 144.0 (−0.5 %) | 151.1 (+5.4 %) | 143.6 (−0.8 %) |
+| Top copper pad | 3D FEM | FVM | FDM | 3D solid (FV) | Lumped | Analytic |
+| :-- | --: | --: | --: | --: | --: | --: |
+| heater pad only (10 mm) | 495.3 | 472.4 (−4.9 %) | 420.9 (−15.8 %) | 533.1 (+8.0 %) | 652.7 (+33.5 %) | 201.1 (−62.6 %) |
+| 20 mm square | 273.0 | 266.7 (−2.5 %) | 252.1 (−8.4 %) | 282.0 (+3.6 %) | 517.4 (+98.5 %) | 150.3 (−49.5 %) |
+| 30 mm square | 202.6 | 199.7 (−1.6 %) | 193.8 (−5.0 %) | 205.9 (+1.9 %) | 392.9 (+107.2 %) | 145.9 (−31.9 %) |
+| 40 mm square | 172.5 | 171.0 (−1.0 %) | 168.2 (−2.9 %) | 174.0 (+1.0 %) | 302.7 (+88.3 %) | 144.9 (−18.7 %) |
+| 60 mm square | 150.3 | 149.6 (−0.6 %) | 148.8 (−1.2 %) | 150.6 (+0.2 %) | 200.1 (+39.7 %) | 144.2 (−4.9 %) |
+| 80 mm square | 144.6 | 144.1 (−0.4 %) | 144.0 (−0.5 %) | 144.5 (−0.1 %) | 151.1 (+5.4 %) | 143.6 (−0.8 %) |
 
 Copper against heatsink on the same board (40 mm area), FVM heat leaving the top face inside / outside the pad polygon:
 
-| Case | 3D solid | FVM | FDM | Heat over the area [W] | Elsewhere on the top face [W] |
-| :-- | --: | --: | --: | --: | --: |
-| 40 mm copper pad | 172.5 | 171.0 (−1.0 %) | 168.2 (−2.9 %) | 1.30 | 0.78 |
-| pad + heatsink, extra h 30 W/m²K | 131.5 | 130.9 (−0.6 %) | 130.1 (−1.3 %) | 2.99 | 0.40 |
-| pad + heatsink, extra h 100 W/m²K | 100.7 | 100.4 (−0.4 %) | 100.3 (−0.5 %) | 4.10 | 0.16 |
-| heater pad only + heatsink 30 W/m²K on bare laminate | 340.7 | 324.6 (−5.1 %) | 285.6 (−17.5 %) | 1.16 | 2.48 |
+| Case | 3D FEM | FVM | FDM | 3D solid (FV) | Heat over the area [W] | Elsewhere on the top face [W] |
+| :-- | --: | --: | --: | --: | --: | --: |
+| 40 mm copper pad | 172.5 | 171.0 (−1.0 %) | 168.2 (−2.9 %) | 174.0 (+1.0 %) | 1.30 | 0.78 |
+| pad + heatsink, extra h 30 W/m²K | 131.5 | 130.9 (−0.6 %) | 130.1 (−1.3 %) | 131.8 (+0.3 %) | 2.99 | 0.40 |
+| pad + heatsink, extra h 100 W/m²K | 100.7 | 100.4 (−0.4 %) | 100.3 (−0.5 %) | 100.6 (−0.1 %) | 4.10 | 0.16 |
+| heater pad only + heatsink 30 W/m²K on bare laminate | 340.7 | 324.6 (−5.1 %) | 285.6 (−17.5 %) | 369.6 (+9.2 %) | 1.16 | 2.48 |
 
 What it shows:
 * **The outer copper dissipates and spreads by itself**: the temperature falls monotonically as the pad grows (495 → 145 °C) and saturates (80 mm gains 6 °C over 60 mm), and the whole top face loses heat, pad and bare laminate alike (the heat found outside the 40 mm pad, 0.78 W, is heat that the copper carried to the laminate).
-  The FVM follows the 3D solid within 1 to 2.5 % for pads of 20 mm and more.
+  The FVM follows the 3D FEM within 1 to 2.5 % for pads of 20 mm and more; the 3D FV solid is within 2 % there, and both 3D models bracket the converged value on the heater-sized pad (section 3).
 * **A heatsink works through the copper under it**: the same 30 W/m²K heatsink gives 131 °C on the pad and 325 °C on bare laminate, because on the laminate there is no sheet to spread the heat in. The heatsink adds convection area; the copper provides the path to it.
 * **Where the models fail**: with a pad hardly larger than the heater (an edge of copper across the footprint) the FDM loses 8 to 16 % (the grid sees the pad as a few nodes), and the **Lumped and Analytic models are unreliable** for a one-sided pad without vias or bottom copper (Lumped up to +107 %, Analytic up to −63 %); they assume copper around the heater on both faces or a uniform sheet. The input checks already warn about a copper edge crossing a heater; use the FVM for such boards.
 
 The 3D value of the example board is converged: 85.55 °C with 1 mm elements and 85.59 °C with 0.5 mm (2 elements across each gap).
 
-Reading: on a uniform board the four models land on the 3D answer within 0.7 % (FVM, FDM and Analytic within 0.5 %). **With vias and a heatsink (the example board) all four are within 1.5 %**, and the FVM, with each via in one cell, is within 0.5 % of the 3D rods.
+The new **3D solid (FV)** column is the program's own 3D model (`solid3d.py`, section 2.7 of `models.md`; slabs of real thickness, 4 per gap, 1 mm cells here, 0.5 mm in the FEM script's column header): it lands within 0.2 % of the FEM on three boards and 1.6 % high on the 20 mm pad. Its numbers are also the closest to the FVM in section 2 (within 0.3 % on the ordinary scenarios, +4.5 % with a copper edge across the heater, +2.4 % with no copper under it).
+**Convergence on a small pad**, where the two 3D models differ most (maximum temperature of the heater-sized copper pad, `copper_dissipation.py`; both rise or fall towards the same limit): 3D FV at 1 mm and 0.5 mm with 4 slabs per gap 533 and 523 °C, with 8 slabs 530 and 519 °C; FEM at 1 mm 495, at 0.5 mm 500 (4 elements per gap) and 502 (8): the limit is about 510 °C, so at 1 mm the FV is 4 % high and the FEM 3 % low on this extreme case (20 mm pad: FV 282, 280, 281, 279; FEM 273, 274, 275; limit about 277 °C).
+Reading: on a uniform board the four layered models land on the 3D answer within 0.7 % (FVM, FDM and Analytic within 0.5 %). **With vias and a heatsink (the example board) all four are within 1.5 %**, and the FVM, with each via in one cell, is within 0.5 % of the 3D rods.
 With a small copper pad the FVM follows the 3D solid within 2.2 %, the FDM and the Lumped within 4.5 %, and the Analytic loses accuracy exactly where its uniform-sheet assumption breaks (6 % with a 40 mm pad, 24 % with a 20 mm pad). The remaining 0.4 to 2 % of the FVM comes from
 representing each copper layer by one node and the dielectric between two layers as a one-dimensional vertical resistance (no lateral spreading inside the gap).
 

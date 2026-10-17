@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from .. import blocks
 from ..api import suggest_cell_mm
 from .document import KINDS
 
@@ -531,13 +532,18 @@ class SolverPanel(QWidget):
         self.cb = {"fvm": QCheckBox("Finite volume (FVM), reference"),
                    "lumped": QCheckBox("Thermal network (LPTN)"),
                    "analytic": QCheckBox("Analytical (Fourier series)"),
-                   "fdm": QCheckBox("Finite difference (FDM), comparison")}
+                   "fdm": QCheckBox("Finite difference (FDM), comparison"),
+                   "solid3d": QCheckBox("3D solid (finite volumes), comparison")}
         tips = {"fvm": "Reference model. Any geometry, full temperature field, exact energy balance. Use it for final answers "
                        "and whenever a warning appears. Cost grows with the number of cells.",
                 "lumped": "Fast network (milliseconds). Handles partial copper, vias, heatsinks and several heaters; "
                           "within about 4 % in most cases. Weak when a copper edge crosses the heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, heatsinks and "
                             "partial copper. Assumes insulated edges and rectangular heaters; unreliable if a copper edge crosses a heater.",
+                "solid3d": "The board as a real 3D solid (every copper layer and dielectric gap a slab, vias with their copper area, metal blocks as "
+                           "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
+                           "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
+                           "than the heater, a copper edge across a footprint).",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
         for k, c in self.cb.items():
@@ -625,7 +631,12 @@ class SolverPanel(QWidget):
         b = self.doc.problem.board
         c = self.cell.value()
         n = max(int(round(b.width * 1000 / c)), 2) * max(int(round(b.height * 1000 / c)), 2) * b.layers
-        self.cells_label.setText(f"{n:,} unknowns".replace(",", " "))
+        text = f"{n:,} unknowns"
+        if self.cb["solid3d"].isChecked():
+            # The 3D solid has a slab for every copper layer and four for every gap (plus the blocks)
+            n3 = n // b.layers * (b.layers + 4 * (b.layers - 1) + (4 if blocks.has_blocks(self.doc.problem) else 0))
+            text += f" (3D solid: {n3:,}" + ("; slow, try a larger cell)" if n3 > 500_000 else ")")
+        self.cells_label.setText(text.replace(",", " "))
 
     def _apply(self, *_):
         """!

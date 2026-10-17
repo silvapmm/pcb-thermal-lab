@@ -12,7 +12,7 @@ import os
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from pcbthermal import Problem, analytic, fdm, fvm, lumped
+from pcbthermal import Problem, analytic, fdm, fvm, lumped, solid3d
 
 FEM = "--fem" in sys.argv
 
@@ -45,7 +45,8 @@ def run(p, cell=1.0):
     @return Dict model -> Tmax in degC (plus "fem" when --fem is given).
     """
     out = {"fvm": fvm.solve_steady(p, cell).t_max, "fdm": fdm.solve_steady(p, cell).t_max,
-           "lumped": lumped.solve_steady(p, cell).t_max, "analytic": analytic.solve_steady(p, cell).t_max}
+           "solid3d": solid3d.solve_steady(p, cell).t_max, "lumped": lumped.solve_steady(p, cell).t_max,
+           "analytic": analytic.solve_steady(p, cell).t_max}
     if FEM:
         sys.path.insert(0, "examples")
         import fem3d_validation as f3
@@ -78,18 +79,18 @@ def face_split(p, cell=1.0):
 
 
 if __name__ == "__main__":
-    print("| Top pad | " + " | ".join(["FVM", "FDM", "Lumped", "Analytic"] + (["3D solid"] if FEM else [])) + " |")
-    print("| :-- |" + " --: |" * (4 + FEM))
+    print("| Top pad | " + " | ".join(["FVM", "FDM", "3D solid (FV)", "Lumped", "Analytic"] + (["3D FEM"] if FEM else [])) + " |")
+    print("| :-- |" + " --: |" * (5 + FEM))
     for pad in (None, 20, 30, 40, 60, 80):
         res = run(board(pad))
         print(f"| {'heater pad only (10 mm)' if pad is None else f'{pad} mm square'} | " + " | ".join(f"{v:.1f}" for v in res.values()) + " |", flush=True)
     print()
-    print("| Case | " + " | ".join(["FVM", "FDM"] + (["3D solid"] if FEM else [])) + " | Heat over the pad [W] | Heat elsewhere [W] |")
-    print("| :-- |" + " --: |" * (4 + FEM))
+    print("| Case | " + " | ".join(["FVM", "FDM", "3D solid (FV)"] + (["3D FEM"] if FEM else [])) + " | Heat over the pad [W] | Heat elsewhere [W] |")
+    print("| :-- |" + " --: |" * (5 + FEM))
     bare = board(None)
     bare.add_heatsink(1, 30.0, rect=(30, 20, 70, 60))            # A heatsink on bare laminate: the extra coefficient only, no copper to spread in
     for name, p in (("40 mm copper pad", board(40)), ("40 mm pad + heatsink 30 W/m2K", board(40, 30.0)),
                     ("40 mm pad + heatsink 100 W/m2K", board(40, 100.0)), ("heater pad only + heatsink 30 W/m2K (40 mm)", bare)):
-        res = {k: v for k, v in run(p).items() if k in ("fvm", "fdm", "fem")}
+        res = {k: v for k, v in run(p).items() if k in ("fvm", "fdm", "solid3d", "fem")}
         w_pad, w_rest = face_split(p)
         print(f"| {name} | " + " | ".join(f"{v:.1f}" for v in res.values()) + f" | {w_pad:.2f} | {w_rest:.2f} |", flush=True)

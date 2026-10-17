@@ -161,6 +161,44 @@ What the Heatsink lacks for a **metal block** attached to the board (an aluminiu
 2. *Metal plate element* (later): an extra node per cell under a polygon of an outer layer with lateral conductance `k·t`, contact conductance `1/R''_c` to the board layer, the exposed-face coefficient and the heat capacity `ρ·c·t`; same matrix structure as the junction node. FVM and FDM first; the Lumped and Analytic models would warn.
 **Done (2026-10-16): step 2 implemented directly.** The maintainer's case is a block larger than the contact patch, so the Heatsink got a thickness and became the metal plate element in the FVM and FDM (`blocks.py`, see `docs/models.md` 2.6), the conduction area being the intersection of block and copper; validated against a 3D solid within 1.8 % (`docs/validation.md` section 3). Left for later: blocks on the inner layers, fins as a geometry (only a coefficient), the contact over bare laminate with a pad of its own, and a block in the Lumped and Analytic models.
 
+### 1.9b Is the parametrisation worth it? Study on five real parts (2026-10-17)
+
+`python examples/component_study.py`. Five parts of section 1.6 on a 60 × 60 mm, 2-layer board (copper pad under the part on both faces, thermal vias under footprints of 3 mm and more, computed natural convection, FVM at 0.5 mm). Level 0 is today's Source (the answer is the hottest board point under the part); level 1 adds **one** junction-to-pad resistance (`Tj = T_max + P θ`); level 2 adds a top path (junction node, section 1.8).
+Sources of the literature used for the plan: the two-resistor model is accepted up to ±30 % on `Tj` and is better the closer the application is to the test conditions, better still when the heat goes mainly into the board or a heatsink [18, ROHM, Electronics Cooling 2007, 2019]; `ΨJT` and `ΨJB` are the recommended way to estimate `Tj` on a functional board; compact models (DELPHI) are for boundary-condition independence and need data the makers do not publish.
+
+**A. What the one resistance adds** (`θ` is `θJC(bot)`, `θJ-L` or the derived value of a resistor):
+
+| Part | P [W] | θ [K/W] | Pad | Board under part (level 0) | Tj (level 1) | P·θ | Share of the rise |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| MOSFET CSD17308Q3 | 2 | 4.5 | 8 mm | 227.4 °C | 236.4 °C | 9.0 K | 4 % |
+| MOSFET CSD17308Q3 | 2 | 4.5 | 25 mm | 98.6 °C | 107.6 °C | 9.0 K | 11 % |
+| LDO TPS7A47 | 1.5 | 1.7 | 8 mm | 176.7 °C | 179.2 °C | 2.5 K | 2 % |
+| LDO TPS7A47 | 1.5 | 1.7 | 25 mm | 84.8 °C | 87.3 °C | 2.5 K | 4 % |
+| Buck LMR36510 | 0.8 | 4.3 | 8 mm | 109.9 °C | 113.3 °C | 3.4 K | 4 % |
+| Buck LMR36510 | 0.8 | 4.3 | 25 mm | 59.3 °C | 62.8 °C | 3.4 K | 9 % |
+| Schottky SS12 (SMA) | 0.5 | 20 | 8 mm | 85.6 °C | 95.6 °C | 10.0 K | 14 % |
+| Schottky SS12 (SMA) | 0.5 | 20 | 25 mm | 50.9 °C | 60.9 °C | 10.0 K | 28 % |
+| Resistor 0603, 0.1 W | 0.1 | 1000 (derived) | 8 mm | 38.9 °C | 138.9 °C | 100 K | 88 % |
+| Resistor 0603, 0.1 W | 0.1 | 1000 (derived) | 25 mm | 31.6 °C | 131.6 °C | 100 K | 94 % |
+
+**B. Sensitivity** (pad 25 mm): `θ` ±30 % moves `Tj` by only ±0.8 K (LDO), ±1.0 K (buck), ±2.7 K (MOSFET), ±3.0 K (diode), but ±30 K for the resistor, where the derived number is the whole answer.
+**The number chosen matters more than its accuracy**: entering `θJB` instead of `θJC(bot)` adds 15.3 K to the LDO (87.3 → 102.6 °C, +25 % of the rise) and 7.4 K to the buck (62.8 → 70.2 °C, +20 %) because the board's spreading would be counted twice. The virtual JEDEC board (76.2 × 114.3 mm, 2s2p) cannot settle which is right: the datasheets do not give the via array of their test boards, and the program brackets `RθJA` of the TPS7A47 (32.5 K/W) between 51 K/W with no vias and 22 K/W (with `θJC(bot)`; 32 K/W with `θJB`) with nine vias, and the LMR36510 (42.9) between 54 and 25 (34 with `θJB`). So the virtual test is a plausibility check, not a calibration.
+
+**C. A top path** (junction node joined to the footprint by `1/θ`; bare mould = `θJC(top)` + 15 W/m²K on the body; clip-on = 12 K/W heatsink + 1 K/W paste; pad 25 mm):
+
+| Part | Level 1 Tj | Bare mould (heat through the top) | With the 12 K/W heatsink (heat through the top) | θJC(top) |
+| :-- | --: | --: | --: | --: |
+| MOSFET CSD17308Q3 | 107.6 °C | 104.6 °C (0.6 %) | 67.4 °C (49 %) | 30 K/W (assumed) |
+| LDO TPS7A47 | 87.3 °C | 83.2 °C (1.4 %) | 55.5 °C (51 %) | 27 |
+| Buck LMR36510 | 62.8 °C | 60.6 °C (1.3 %) | 46.9 °C (41 %) | 54 |
+| Schottky SS12 | 60.9 °C | 59.1 °C (1.1 %) | 42.9 °C (49 %) | 60 K/W (assumed) |
+
+**Conclusions (what is worth parametrising)**
+1. **One resistance to the pad: yes.** It is the only way to get `Tj` (the junction is hotter than the board point), it adds 2 to 28 % of the rise for chips and about 90 % for a resistor, it comes straight from the datasheet and ±30 % in it is a few kelvin. With the `Tj,max` limit it is the whole of what a designer asks of a part.
+2. **Top path: only with a heatsink.** A bare mould carries about 1 % of the heat and changes `Tj` by 2 to 4 K (conservative to ignore); a clip-on heatsink takes 41 to 51 % and lowers `Tj` by 16 to 40 K, which the single resistance cannot see. So the top path is an **optional second block** (a heatsink resistance in K/W plus `θJC(top)`), invisible unless filled.
+3. **Not worth it for now:** `ΨJT`/`ΨJB` estimates, full 2R as two mandatory numbers, DELPHI, the Foster chain (only for fast transients of the package itself), presets by part type (the form asks for one number and says which datasheet value to take).
+4. **Which value**: `θJC(bot)`, `θJ-L` or `Rth j-sp` when the datasheet has them (the board's spreading is already in our model); `θJB` only when the pad and vias of the board are not modelled; a resistor: `(Tmax − T_rating)/P_rating`.
+
 ### 1.10 Staging and validation
 
 Stages: (1) Component element and Package, static, in the three models; (2) top path from the computed `h`; (3) heat heatsink; (4) passive areas; (5) Foster chain for package transients.

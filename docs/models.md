@@ -18,7 +18,9 @@ plated vias, heatsinks (extra heat transfer on an outer face) and boundary condi
 * **Heater power** is injected exactly (it does not depend on the grid). Total heat out through the faces and edges equals the power in; every result reports that energy balance.
 * Dependencies: NumPy, SciPy, Matplotlib; PySide 6 for the application; scikit-fem only for the offline 3D check. Virtual environment: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.
 
-## 2. The four models
+## 2. The five models
+
+Four of them are layered models (one node per copper layer); the **3D solid** (section 2.7) is a different kind of model and the independent check of all of them.
 
 | | **FVM** | **FDM** | **Lumped** (thermal network, LPTN) | **Analytic** (Fourier series) |
 | :-- | :-- | :-- | :-- | :-- |
@@ -89,9 +91,10 @@ the input checks warn.
 | You want | Use |
 | :-- | :-- |
 | the number you sign off, any geometry, hotspots, junction temperatures, time behaviour | **FVM** |
+| to check the layered models on your board (small copper pad, copper edge under a heater, thick blocks) | **3D solid** (steady state; slower) |
 | a quick exploration or a parameter sweep | **Analytic** (uniform-ish boards) or **Lumped** (partial copper, several heaters), then confirm with the FVM |
 | to see whether the grid or the scheme matters | compare **FVM** and **FDM** at two spacings |
-| to know whether a fast model can be trusted on your board | run all four (`--model compare`); a spread above about 5 % means "use the FVM" |
+| to know whether a fast model can be trusted on your board | run all of them (`--model compare`); a spread above about 5 % means "use the FVM" |
 
 Workflow: explore with Analytic/Lumped, refine with the FVM at the **Auto** cell size, change the cell size once to confirm convergence, read the warnings.
 
@@ -103,6 +106,15 @@ and an exposed surface to the air `G = (h_face + h_extra)(A + t·L_edge)` (top o
 over bare laminate it must also cross the FR-4. The board face under the block no longer loses heat on its own. The block is taken as an isotropic plate with no gradient across its thickness (thin blocks; a 1 to 10 mm aluminium or copper plate is within 0.6 % of a 3D solid).
 `block_stats` and the report give its mean and maximum temperature and the heat entering and leaving; the Temperature tab has a "Metal block" view. A heatsink with thickness 0 stays the plain extra coefficient.
 Lumped and Analytic have no block: they use the equivalent plain coefficient `1/(R'' + 1/(h+h_extra))` and warn. SOR does not support blocks (direct and CG do). `python -m pcbthermal example block` runs the example board with a block.
+
+### 2.7 3D solid (finite volumes in three dimensions)
+
+`solid3d.py` solves the board as a real solid on a structured grid: the **same plan cells** as the FVM and, across the thickness, **real slabs**: each copper layer one slab of its own thickness, each dielectric gap four slabs (`n_diel`), a metal block one pad slab (the interface, thickness `R''` at 1 W/mK) plus up to six slabs of metal.
+The unknown is the temperature of every cell of every slab; heat spreads in the gaps and in the blocks and a heater feels the real vertical path. Cell properties are volume averages (the tiled-conductivity method used for PCB models in industry): copper slab with fill `f`: in-plane `f k_Cu + (1−f) k_FR4,ip`, through `f k_Cu + (1−f) k_FR4,th`;
+a via adds the **real copper area of its barrel** in parallel in every slab of its cell; faces use the harmonic mean of the half-cell resistances; convection, edges, heatsinks and blocks as in the other models (a block hides the board face under it and loses heat on its exposed face and sides); the heater power is spread exactly over its footprint on the copper slab of its layer.
+The result has the same layout as the FVM (the temperature of the copper slab of each layer) and the block temperatures, so every plot and table works. **Steady state only** (the time simulation and the animation are the layered models' job). The model needs only SciPy; a direct sparse solve of 0.1 to 10 s on an ordinary board (it grows quickly with layers and cell count; the application shows the number of 3D unknowns, and a model over 2 million unknowns is refused with a hint, the others still run).
+What it is for: it does **not** use the "one node per copper layer" idea, so it measures the error of that idea on your own board (largest with a copper pad hardly bigger than the heater, a copper edge across a footprint, and thick or small blocks). It is verified in turn against the offline finite-element script (`examples/fem3d_validation.py`, scikit-fem; section 3 of `docs/validation.md`).
+It is not a truth either: the barrel is a lumped copper area (no plating geometry), copper is one slab thick, the contact of a block is perfect over the pad, and there are no measurements of a real board in this project yet.
 
 ## 3. Input checks
 

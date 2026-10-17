@@ -26,7 +26,7 @@ from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, Main
 from pcbthermal.model import Problem, reference_problem
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ALL_MODELS = ("fvm", "fdm", "lumped", "analytic")
+ALL_MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
 
 
 @pytest.fixture
@@ -265,9 +265,11 @@ def test_profile_run_with_each_kind_and_model_subset(win, qtbot):
     pr.heaters[0].set_profile(SquareWave(13.3, 0.01, 0.3))
     pr.heaters[1].set_profile(TableProfile([0, 2, 5, 9, 20], [6, 1, 3, 0], True))
     win.doc.changed.emit()
-    for models in (("fvm",), ("lumped",), ("analytic",), ("fdm",), ("fvm", "fdm"), ALL_MODELS):
+    for models in (("fvm",), ("lumped",), ("analytic",), ("fdm",), ("fvm", "fdm"), ("solid3d",), ("fvm", "solid3d"), ALL_MODELS):
         run(win, qtbot, models)
         walk_results(win, qtbot)
+        if models == ("solid3d",):
+            assert "steady state only" in (win.sim.profile_error or "")        # The 3D solid has no time simulation
     # One-shot table, a step limit that is too small, a computed h
     pr.heaters[1].set_profile(TableProfile([0, 0.01, 20], [0.0, 5.0], False))   # A 10 ms stretch in 20 s: 20,000 steps
     win.doc.options.profile.max_steps = 200
@@ -529,7 +531,7 @@ def test_random_user_actions(win, qtbot, tmp_path, seed):
             cells = b.width * b.height / (2e-3 * 2e-3) * b.layers
             if win.doc.problem.heaters and win.doc.problem.total_power() > 0 and cells < 3e5 \
                     and win.doc.options.analytic_modes <= 400 and win.doc.options.profile.max_steps <= 300000:
-                run(win, qtbot, tuple(rng.sample(ALL_MODELS, rng.randint(1, 4))), cell=max(win.doc.options.cell_mm, 2.0),
+                run(win, qtbot, tuple(rng.sample(ALL_MODELS, rng.randint(1, 5))), cell=max(win.doc.options.cell_mm, 2.0),
                     expect_ok=False)
         else:
             qtbot.wait(2)
