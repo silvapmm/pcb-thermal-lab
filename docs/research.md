@@ -25,6 +25,12 @@ Thermal figures found in the PDFs (text extracted from the files):
 Rule for the form (one field, "junction-to-pad resistance θ"), in order of preference: (1) a downward number (`θJC(bot)`, `RθJC` of a power MOSFET, `θJ-L`, `Rth j-sp`) used as is; (2) only `θJB`/`ψJB`: `Tj = T_ring + ψJB·P` with the board temperature in a ring 0.5 to 1.5 mm outside the body (least pessimistic), or `θJB` as θ (pessimistic by the datasheet board's spreading, 15 K and 7 K on the two chips); (3) only `θJA` on a stated board: θ from the virtual test (`θJA` minus what our model gives for that board; section below); (4) only a power rating at a temperature (resistors): `(Tmax − T_rating)/P_rating`.
 The program should say which route was used and warn when `θ·P` exceeds the board's own rise (the number is then probably not a junction-to-pad value).
 
+**When the manual has no usable junction number (2026-10-17 follow-up).**
+* *Typical values by package family* (indicative, from web summaries of vendor notes, **not** datasheets; to be replaced by a datasheet value whenever one exists): QFN 2 to 10 K/W, power QFN 1 to 5, DFN 5 to 15, D2PAK 0.5 to 1, TO-220 1 to 2, SOT-223 about 15 (junction to tab); the SMA diode of our set gives 20 (`θJ-L`). The form can offer these as a starting point for a family with a visible "typical, not from your datasheet" note; for chips whose `θ·P` is a few percent of the rise (section above) the error is of no consequence.
+* *θ from `θJA`* (the "virtual test": `θ = θJA − R_board`, where `R_board` is what our model gives for the board the datasheet states): **it does not work when the board is not fully stated.** The SS12 gives `θJA` 65 K/W "on 5 × 5 mm pads"; our model of two 5 × 5 mm pads (heat entering by the terminals, 1.6 mm FR-4, 35 µm, board 30 to 80 mm) gives 112 to 168 K/W, so `θ` comes out negative (−47 to −104 K/W); only with 10 mm pads does it approach zero (−8 K/W). The datasheet board must have had more copper than stated. Rule: if the result is negative or larger than `θJA`, ignore it and use the typical value; `θJA` is never an input (the manufacturers say so themselves).
+* *Where the heat enters*: for two-terminal parts (SMA diode) the heat enters the board by the **terminals**, not under the body; the footprint of the source should be the terminal areas (two small rectangles), or the whole part when a body-footprint pad exists.
+* *Nothing at all*: `θ = 0` (plain Source); the report shows the board temperature under the part and says the junction is hotter.
+
 ### R1. Is the parametrisation worth it? Study on five real parts (2026-10-17)
 
 `python examples/component_study.py`. Five parts of section 1.6 on a 60 × 60 mm, 2-layer board (copper pad under the part on both faces, thermal vias under footprints of 3 mm and more, computed natural convection, FVM at 0.5 mm). Level 0 is today's Source (the answer is the hottest board point under the part); level 1 adds **one** junction-to-pad resistance (`Tj = T_max + P θ`); level 2 adds a top path (junction node, section 1.8).
@@ -107,6 +113,43 @@ What it says: (1) most of the gain comes from the copper pad area; shrinking the
 **Proposal for the model**: the Heatsink gets an optional **contact area** (a rectangle or polygon inside its outline; default: the whole outline, as now). The interface conductance exists only over `contact ∩ block ∩ copper` (and over laminate only if the user says the heatsink touches it); outside it the block faces an air gap. The board face under the block outside the contact keeps a fraction of its coefficient (a parameter, default 0.5, to settle).
 For a heatsink **on top of a component** the same machinery applies with the contact patch equal to the component footprint: a plate layer whose contact is the junction node through `θJC(top) + paste`, with no contact to the board. This gives the spreading resistance of the plate for free.
 
+### R5. Many levels in a chain: package, interface, board, interface, metal (2026-10-17)
+
+**Interface as the contact area (the maintainer's proposal, 2026-10-17).** A thermal interface (paste, pad, adhesive) is a layer with its own **area** (a polygon, default the whole contact face), material (`k`) and thickness, hence `R'' = t/k`. Where the interface exists the two sides are joined with `G = A/R''`; where it does not exist there is an air gap (no conduction in the first version).
+A surface that is in full contact is an interface with a very high `k` (or a very small `t`); a partial contact is a smaller polygon. This replaces the separate "contact polygon" of R3: one object, one place to type the numbers. It applies to the heatsink under the board (interface between board and metal) and to the top of a component (interface between package and heatsink).
+Open: how much of the board's own convection to keep under a block outside the interface (0.5 proposed).
+
+**How the levels combine.** Every level adds one conductance in series and, where heat can leave, one parallel branch; the program solves one sparse matrix, so the number of levels does not make the mathematics harder, only longer to describe:
+
+```
+                      heatsink (K/W or plate)  -- ambient
+                           |  interface on top (R''/A)
+             package top --+  theta_JC(top)
+                           |
+ junction J ---------------+
+      |  theta_down (1/theta per footprint cell)
+ board cells (copper layers, vias, FR-4) -- faces (h) -- ambient
+      |  interface under the board (G = A/R'' over the interface area)
+ metal block layer (k t, exposed surface, sides) -- ambient
+```
+Heat from `J` splits between the top chain and the board in the inverse ratio of their resistances; the board's share spreads sideways, leaves through its faces and, where the block touches it, through the block.
+
+**Simulation** (`python examples/chain_study.py`; junction node, board faces at constant `h` from the board alone, pad 25 mm, default paste 0.5 K cm²/W, heatsink 12 K/W on top, aluminium block 30 × 30 × 3 mm under the board):
+
+| Part | Case | Tj [°C] | Heat through the top | Heat through the block |
+| :-- | :-- | --: | --: | --: |
+| MOSFET 2 W | board only | 105.0 | 0 % | 0 % |
+| | + block under the board, paste 0.5 | 95.6 | 0 % | 27 % |
+| | + block, gap pad 5 K cm²/W | 96.7 | 0 % | 28 % |
+| | + top heatsink with paste (chain 46.6 K/W) | 68.1 | 46 % | 0 % |
+| | + both | 65.2 | 43 % | 16 % |
+| LDO 1.5 W | board only | 84.0 | 0 % | 0 % |
+| | + block, paste 0.5 | 72.0 | 0 % | 28 % |
+| | + top heatsink with paste (chain 41.0 K/W) | 55.1 | 49 % | 0 % |
+| | + both | 51.6 | 43 % | 16 % |
+
+The effects are **not additive**: the block alone lowers the MOSFET by 9 K and the top heatsink by 37 K, both together by only 40 K, because the top heatsink already takes 43 to 46 % of the heat and the block's share falls from 27 to 16 %. A change of the paste under the block (0.5 to 5 K cm²/W) moves `Tj` by 1 to 2 K; the same change on top moves it by 10 to 20 K (section R2).
+
 ### R4. What else may be missing (2026-10-17)
 
 1. **Power that depends on temperature (electro-thermal feedback)**: the on-resistance of a power MOSFET rises with temperature (about 1.5 to 2 times its room-temperature value at 175 °C; search summary of vendor notes), so the dissipation grows with `Tj`. With `P = P0 (1 + α (Tj − 25))` and the same board, the MOSFET of the study (2 W at 25 °C, 107.6 °C without feedback) reaches 138.6 °C for α = 0.33 %/K, 165.8 °C for 0.5 %/K and 210 °C for 0.67 %/K (power 2.75, 3.41, 4.48 W): a design that looks fine at nominal power can exceed `Tj,max`. It is the same kind of loop as the computed `h` (cheap, a linear scalar iteration). Proposal: an optional "power temperature coefficient (%/K)" on the heater/component, off by default, with the converged power reported. LED efficiency falling with temperature is the same mechanism with the opposite sign of the benefit.
@@ -119,7 +162,7 @@ For a heatsink **on top of a component** the same machinery applies with the con
 ### Open questions for the maintainer
 
 1. Thermal interface of a top heatsink optional (agreed): without it the program assumes perfect contact (optimistic); keep a visible note and offer the default paste (0.5 K cm²/W)? 
-2. Heatsink contact area as above: default whole outline, optional contact polygon, fraction of the board's convection under a non-touching block (0.5?)?
+2. Heatsink contact area = the area of its interface (R5: a polygon with the paste's `k` and thickness, default the whole contact face, full contact by a high `k`); fraction of the board's convection under a block outside the interface (0.5?)?
 3. Heatsink on a component as a plate layer (spreading in the plate) or only as a K/W number from the datasheet in the first version?
 4. Include the power temperature coefficient in the first Component delivery?
 
