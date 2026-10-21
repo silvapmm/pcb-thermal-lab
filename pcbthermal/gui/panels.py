@@ -15,6 +15,7 @@ from .. import blocks
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA
 from ..geometry import polygon_area
+from . import tips
 from .document import KINDS
 
 
@@ -432,6 +433,7 @@ class ElementList(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         self.tree = QTreeWidget()
+        self.tree.setToolTip("Every zone, heater, heatsink and via of the board. Click to select it on the board, right-click for more actions.")
         self.tree.setHeaderLabels(["Element", "Layer", "Value"])
         self.tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tree.setRootIsDecorated(True)
@@ -549,43 +551,6 @@ class Inspector(QWidget):
         self.selection = list(items)
         self.rebuild()
 
-    def _shape_rows(self, lay, kind, index, el):
-        """!
-        @brief Position and size of a selected shape: editable for a rectangle, read-only (box, area, vertices) for any other polygon.
-        @param lay The QFormLayout.
-        @param kind Element kind.
-        @param index Element index.
-        @param el The element.
-        """
-        pts = np.asarray(el.polygon) * 1000.0
-        x0, y0 = pts.min(axis=0)
-        x1, y1 = pts.max(axis=0)
-        area = float(polygon_area(np.asarray(el.polygon))) * 1e6
-        if _is_rect(pts):
-            b = self.doc.problem.board
-            bw, bh = b.width * 1000.0, b.height * 1000.0
-
-            def change(_v, spins=None):
-                if self._updating:
-                    return
-                sx, sy, sw, sh = (w.value() for w in spins)
-                self.doc.set_polygon(kind, index, [[sx, sy], [sx + sw, sy], [sx + sw, sy + sh], [sx, sy + sh]])
-
-            spins = [_spin(0, bw, x0, 2, 0.5, "mm"), _spin(0, bh, y0, 2, 0.5, "mm"),
-                     _spin(0.01, bw, x1 - x0, 2, 0.5, "mm"), _spin(0.01, bh, y1 - y0, 2, 0.5, "mm")]
-            tips = ("X of the left edge, measured from the board's lower-left corner.", "Y of the lower edge, measured from the board's lower-left corner.",
-                    "Width of the rectangle along x.", "Height of the rectangle along y.")
-            for label, w, tip in zip(("X", "Y", "Width", "Height"), spins, tips):
-                w.setToolTip(tip)
-                w.valueChanged.connect(lambda v, sp=spins: change(v, sp))
-                lay.addRow(label, w)
-            info = QLabel(f"Area {area:.2f} mm²")
-        else:
-            info = QLabel(f"{len(pts)} vertices, box {x1 - x0:.2f} × {y1 - y0:.2f} mm at ({x0:.2f}, {y0:.2f}), area {area:.2f} mm²")
-        info.setToolTip("Measures of the selected shape in millimetres. Drag the vertex handles on the board to reshape a polygon.")
-        info.setWordWrap(True)
-        lay.addRow("", info)
-
     def rebuild(self):
         """!
         @brief Rebuild the form for the current selection and the current document values.
@@ -610,6 +575,7 @@ class Inspector(QWidget):
             movable = [(k, i) for k, i in valid if k in ("zone", "heater")]
             if movable:
                 combo = self._layer_combo(None)
+                combo.setToolTip("Move all the selected zones and heaters to this layer.")
                 combo.currentIndexChanged.connect(lambda idx, m=movable: self._set_layers(m, idx))
                 lay.addRow("Move to layer", combo)
         else:
@@ -623,8 +589,6 @@ class Inspector(QWidget):
             if kind != "via":
                 lay.addRow("Layer", self._layer_combo(el.layer, outer_only=(kind == "heatsink"),
                                                        cb=lambda idx: self._set_layers([(kind, i)], idx)))
-            if kind != "via":
-                self._shape_rows(lay, kind, i, el)
             if kind == "zone":
                 w = _spin(0, 1, el.fill, 2, 0.05)
                 w.setToolTip("Copper fill fraction inside the polygon: 1 is solid copper, 0.5 a hatched or half-filled area.")
@@ -754,6 +718,7 @@ class Inspector(QWidget):
                 lay.addRow("", fl)
             if kind != "via":
                 self._geometry_rows(lay, kind, i, el)
+        tips.apply(self.form_host)
         self._updating = False
 
     def _layer_combo(self, current, outer_only=False, cb=None):
@@ -794,22 +759,26 @@ class Inspector(QWidget):
 
     def _geometry_rows(self, lay, kind, i, el):
         """!
-        @brief Position and size rows for rectangles, or a note for general polygons.
+        @brief Position and size of a selected shape: editable rows for a rectangle (plus its area), a read-only summary (vertices, box, area) for any other polygon.
         @param lay Form layout.
         @param kind Element kind.
         @param i Element index.
         @param el The element.
         """
         p = np.asarray(el.polygon) * 1000.0
-        axis_aligned = len(p) == 4 and all(
-            abs(p[k][0] - p[(k + 1) % 4][0]) < 1e-6 or abs(p[k][1] - p[(k + 1) % 4][1]) < 1e-6 for k in range(4))
-        if not axis_aligned:
-            lay.addRow(QLabel(f"Polygon with {len(p)} vertices (drag the corner handles to reshape)"))
-            return
         x0, y0 = p[:, 0].min(), p[:, 1].min()
         w, h = p[:, 0].max() - x0, p[:, 1].max() - y0
+        area = float(polygon_area(np.asarray(el.polygon))) * 1e6
+        if not _is_rect(p):
+            info = QLabel(f"Polygon with {len(p)} vertices (drag the corner handles to reshape): box {w:.2f} × {h:.2f} mm at ({x0:.2f}, {y0:.2f}), area {area:.2f} mm²")
+            info.setWordWrap(True)
+            info.setToolTip("Measures of the selected shape in millimetres, from the board's lower-left corner.")
+            lay.addRow(info)
+            return
         fields = {"x": _spin(-1000, 2000, x0, 2, 0.5, "mm"), "y": _spin(-1000, 2000, y0, 2, 0.5, "mm"),
                   "w": _spin(0.1, 2000, w, 2, 0.5, "mm"), "h": _spin(0.1, 2000, h, 2, 0.5, "mm")}
+        tips = {"x": "X of the left edge, measured from the board's lower-left corner.", "y": "Y of the lower edge, measured from the board's lower-left corner.",
+                "w": "Width of the rectangle along x.", "h": "Height of the rectangle along y."}
 
         def commit():
             x, y, ww, hh = (fields[k].value() for k in "xywh")
@@ -819,8 +788,12 @@ class Inspector(QWidget):
                 merge_key=f"geom{kind}{i}")
 
         for label, key in (("X", "x"), ("Y", "y"), ("Width", "w"), ("Height", "h")):
+            fields[key].setToolTip(tips[key])
             fields[key].valueChanged.connect(lambda _v: commit())
             lay.addRow(label, fields[key])
+        info = QLabel(f"Area {area:.2f} mm²")
+        info.setToolTip("Area of the rectangle in square millimetres.")
+        lay.addRow("", info)
 
 
 class SolverPanel(QWidget):

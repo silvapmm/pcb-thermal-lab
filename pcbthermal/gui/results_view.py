@@ -52,6 +52,7 @@ def _table(headers):
     @return QTableWidget.
     """
     t = QTableWidget(0, len(headers))
+    t.setToolTip("Values of the reference model; hover the column titles for what each column means.")
     t.setHorizontalHeaderLabels(headers)
     t.setEditTriggers(QAbstractItemView.NoEditTriggers)
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -113,6 +114,13 @@ class PlotTab(QWidget):
         self.pos = QSlider(Qt.Horizontal)
         self.pos.setRange(0, 1000)
         self.pos_label = QLabel()
+        self.model.setToolTip("Model whose result is drawn.")
+        self.layer.setToolTip("Copper layer shown.")
+        self.cmap.setToolTip("Colour scale of the map.")
+        self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
+        self.vmax.setToolTip("Highest temperature of the colour scale in °C (used when Auto range is off).")
+        self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
+        self.pos.setToolTip("Position of the cut: drag to move the line across the board.")
 
         controls = QHBoxLayout()
         if kind in ("temperature", "gradient"):

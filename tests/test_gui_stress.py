@@ -848,3 +848,33 @@ def test_board_outline_in_the_application(win, qtbot, tmp_path):
     win.doc.set_outline(None)
     assert not win.doc.problem.board.has_outline()
     run(win, qtbot, ("fvm", "lumped", "analytic"), cell=2.0)
+
+
+def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
+    """The calculator finds the power of a part from a temperature, writes it into the heater, and the datasheet route works; no heater and bad inputs do not crash."""
+    from pcbthermal.gui.calculator import PowerCalculator
+    load(win, example_board())
+    truth = win.doc.problem.heaters[0].power
+    row = simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+    dlg = PowerCalculator(win.doc)
+    qtbot.addWidget(dlg)
+    dlg.point.setCurrentIndex(dlg.point.findData("mean"))
+    dlg.measured.setValue(row["t_mean"])
+    dlg.ambient.setValue(win.doc.problem.board.ambient)
+    win.doc.set_props("heater", 0, power=1.0, merge=False)                    # The part's power is "unknown"
+    dlg.compute.click()
+    qtbot.waitUntil(lambda: dlg.use.isEnabled(), timeout=120000)
+    assert dlg.result_power == pytest.approx(truth, rel=0.01)
+    dlg.use.click()
+    assert win.doc.problem.heaters[0].power == pytest.approx(truth, rel=0.01)
+    dlg.measured.setValue(10.0)                                               # Below the ambient: an error message, no crash
+    dlg.compute.click()
+    qtbot.waitUntil(lambda: "above the ambient" in dlg.result.text(), timeout=120000)
+    dlg.tj.setValue(120.0); dlg.tref.setValue(100.0); dlg.par.setValue(10.0)
+    assert "2.000 W" in dlg.out2.text()
+    dlg.tj.setValue(90.0)
+    assert "hotter" in dlg.out2.text()
+    dlg.close()
+    empty = PowerCalculator(Document())
+    qtbot.addWidget(empty)
+    assert not empty.compute.isEnabled()

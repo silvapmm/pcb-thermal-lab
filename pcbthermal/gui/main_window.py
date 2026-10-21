@@ -21,6 +21,7 @@ from ..checks import check_problem
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
+from .calculator import PowerCalculator
 from .canvas import BoardView
 from . import compute
 from .compute import ProcessWorker
@@ -28,6 +29,7 @@ from .document import Document
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .profile_page import ProfilePage
 from .stackup import StackupPage
+from . import tips
 from .results_view import ResultsView
 
 FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
@@ -207,6 +209,9 @@ class MainWindow(QMainWindow):
         geo = self.settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
+        self.layer_combo.setToolTip("Layer on which new zones and heaters are drawn; the other layers are shown faded.")
+        self.snap_combo.setToolTip("Grid distance the drawn and dragged elements snap to (off = free placement).")
+        tips.apply(self)
         self.canvas.set_tool("select")
 
     # ------------------------------------------------------------------ construction
@@ -297,6 +302,8 @@ class MainWindow(QMainWindow):
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
         self.a_run = self._act("Run simulation", self.run_simulation, "F5")
+        self.a_calc = self._act("Power from a measured temperature…", self.show_calculator,
+                                tip="Find the power of a part from a measured temperature (board model) or a datasheet parameter")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
         self.a_keys = self._act("Keyboard shortcuts", self.show_shortcuts)
@@ -324,6 +331,8 @@ class MainWindow(QMainWindow):
         m = mb.addMenu("&Simulation")
         m.addAction(self.a_run)
         m.addAction(self.a_cancel)
+        m.addSeparator()
+        m.addAction(self.a_calc)
         m = mb.addMenu("&Help")
         m.addAction(self.a_keys)
         m.addAction(self.a_about)
@@ -515,6 +524,7 @@ class MainWindow(QMainWindow):
         @brief React to edits: refresh the layer list, mark results as outdated, schedule the input checks.
         """
         self._edits += 1
+        tips.apply(self.profile_page)                      # The profile page rebuilds its forms with the choices
         self._check_timer.start()
         self._refresh_layers()
         self._update_title()
@@ -715,6 +725,12 @@ class MainWindow(QMainWindow):
         self._run_edits = None
         panel.set_running(False, "Cancelled.")
 
+    def show_calculator(self):
+        """!
+        @brief Open the power calculator.
+        """
+        PowerCalculator(self.doc, self).exec()
+
     def _suggest_animation(self, _index=None):
         """!
         @brief Preset the animation duration to a few time constants of the current board.
@@ -759,6 +775,7 @@ class MainWindow(QMainWindow):
         self.sim, self._stale = sim, self._run_edits is not None and self._edits != self._run_edits
         self._run_edits = None
         self.results.set_simulation(sim)
+        tips.apply(self.results)
         if sim.decisions:
             self.profile_page.show_decisions(sim.decisions, sim.profile_reference)
         self.tabs.setTabText(TAB_RESULTS, "Results (outdated)" if self._stale else "Results")

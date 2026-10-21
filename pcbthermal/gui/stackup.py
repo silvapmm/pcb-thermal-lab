@@ -219,6 +219,7 @@ class StackupEditor(QTableWidget):
         for i, tip in enumerate(self.TIPS):
             self.horizontalHeaderItem(i).setToolTip(tip)
         self.setSelectionMode(QAbstractItemView.NoSelection)
+        self.setToolTip("Every copper layer and dielectric gap of the advanced stack-up, top face first. Edit the thickness and the material properties of each.")
         self.verticalHeader().setVisible(False)
         self.horizontalHeader().setStretchLastSection(True)
         self.setMinimumWidth(520)

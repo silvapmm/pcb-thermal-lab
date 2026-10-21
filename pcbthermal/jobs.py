@@ -57,6 +57,22 @@ def job_analyze(progress, problem, options):
     return resp, profiles.decide(problem, resp, options.profile.threshold_c), ref
 
 
+def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm):
+    """!
+    @brief Power of a part from a measured temperature (inverse.power_from_temperature).
+    @param progress Callable progress(message, fraction) (unused).
+    @param problem Problem.
+    @param index Heater index.
+    @param measured_c Measured temperature in degC.
+    @param point "max", "mean", "ring" or "junction".
+    @param ambient_c Ambient of the measurement in degC.
+    @param cell_mm Cell size in mm.
+    @return Dict of inverse.power_from_temperature.
+    """
+    from .inverse import power_from_temperature
+    return power_from_temperature(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm)
+
+
 def job_sleep(progress, seconds):
     """!
     @brief Wait, reporting progress (used by the tests of cancellation).
@@ -72,7 +88,7 @@ def job_sleep(progress, seconds):
     return seconds
 
 
-JOBS = {"simulate": job_simulate, "transient": job_transient, "analyze": job_analyze, "sleep": job_sleep}
+JOBS = {"inverse": job_inverse, "simulate": job_simulate, "transient": job_transient, "analyze": job_analyze, "sleep": job_sleep}
 
 
 def serve(tasks, results):
