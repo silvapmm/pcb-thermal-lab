@@ -310,7 +310,7 @@ class ResultsView(QWidget):
         split = QSplitter(Qt.Vertical)
         tables = QWidget()
         tl = QVBoxLayout(tables)
-        self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C"])
+        self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W"])
         self.zone_table = _table(["Zone", "Layer", "Mean °C", "Max °C", "Min °C"])
         self.hot_table = _table(["Hotspot", "Layer", "Tmax °C", "x mm", "y mm", "Area mm²"])
         self.block_table = _table(["Metal block", "Face", "Mean °C", "Max °C", "Heat in W", "Heat to air W"])
@@ -374,10 +374,12 @@ class ResultsView(QWidget):
         sim, ref = self.sim, self.sim.reference
         if ref.T is None:
             return
-        heaters = analysis.heater_stats(ref, sim.problem)
+        heaters = sim.heater_rows()
         _fill(self.heater_table, [[h["name"], str(h["layer"]), f"{h['power_w']:.2f}", f"{h['t_mean']:.1f}",
                                    f"{h['t_max']:.1f}",
-                                   f"{h['t_junction']:.1f}" if h["t_junction"] is not None else "-"]
+                                   f"{h['t_junction']:.1f}" if h["t_junction"] is not None else "-",
+                                   f"{h['margin_k']:.1f}" if h["margin_k"] is not None else "-",
+                                   f"{h['p_limit_w']:.2f}" if h["p_limit_w"] is not None else "-"]
                                   for h in heaters])
         zones = analysis.zone_stats(ref, sim.problem)
         _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",
@@ -397,13 +399,13 @@ class ResultsView(QWidget):
         """
         if self.sim is None or self.sim.reference.T is None:
             return
-        heaters = analysis.heater_stats(self.sim.reference, self.sim.problem)
+        heaters = self.sim.heater_rows()
         with _mpl_theme(self.theme):
             if heaters:
                 series = {"mean under footprint": [h["t_mean"] for h in heaters],
                           "max under footprint": [h["t_max"] for h in heaters]}
                 if any(h["t_junction"] is not None for h in heaters):
-                    series["junction"] = [h["t_junction"] for h in heaters]
+                    series["junction"] = [float("nan") if h["t_junction"] is None else h["t_junction"] for h in heaters]
                 plots.draw_bars(self.comp_fig, [h["name"] for h in heaters], series, title="Heater temperatures")
             else:
                 self.comp_fig.clear()

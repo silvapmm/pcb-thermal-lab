@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 
 from .. import blocks
 from ..api import suggest_cell_mm
+from ..model import INTERFACES, METALS, PACKAGE_THETA
 from .document import KINDS
 
 _TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
@@ -387,9 +388,46 @@ class Inspector(QWidget):
                 w = _spin(0, 1000, el.power, 3, 0.1, "W")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power=v))
                 lay.addRow("Power", w)
-                t = _spin(0, 500, el.theta_jb, 2, 0.5, "K/W")
-                t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jb=v))
-                lay.addRow("θ junction-board", t)
+                t = _spin(0, 5000, el.theta, 2, 0.5, "K/W")
+                t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta=v))
+                t.setToolTip("Junction-to-pad resistance of the part. Take the datasheet's junction-to-bottom or junction-to-pad number (θJC(bot), RθJC of a power "
+                             "MOSFET, θJ-L of a diode, Rth j-sp of an LED). Never θJA. Worst case: all the power enters the board. With only θJB or ψJB use the ψJB "
+                             "box below; with nothing, pick the package family (a typical value) or leave 0 (plain source: the report shows the board temperature "
+                             "under the part and says the junction is hotter).")
+                lay.addRow("θ junction-pad", t)
+                fam = QComboBox()
+                fam.addItem("Typical θ by package family...", None)
+                for label, th_ in PACKAGE_THETA:
+                    fam.addItem(f"{label}: {th_:g} K/W (typical)", th_)
+                fam.setToolTip("Indicative values by package family, not from your datasheet; they replace θ when chosen. Use the datasheet number when you have it.")
+
+                def pick_family(_idx, fam=fam, t=t):
+                    if fam.currentData() is not None:
+                        t.setValue(fam.currentData())
+                        fam.setCurrentIndex(0)
+
+                fam.currentIndexChanged.connect(pick_family)
+                lay.addRow("", fam)
+                hint = QLabel("Use the datasheet's junction-to-bottom/pad number (θJC(bot), RθJC of a MOSFET, θJ-L), never θJA. Worst case: all the power enters the board. "
+                              "Only θJB or ψJB: fill ψJB below. Nothing: pick a family or leave 0.")
+                hint.setWordWrap(True)
+                hint.setStyleSheet("font-size: 11px; color: gray;")
+                lay.addRow(hint)
+                tj = _spin(0, 500, el.tj_max, 1, 5, "°C")
+                tj.setToolTip("Maximum junction temperature of the part (0 = no limit). The report gives the margin and the power limit.")
+                tj.valueChanged.connect(lambda v: self.doc.set_props(kind, i, tj_max=v))
+                lay.addRow("Tj max", tj)
+                psi = _spin(0, 500, el.psi_jb, 2, 0.5, "K/W")
+                psi.setToolTip("Junction-to-board characterisation parameter ψJB (0 = not used). The report adds Tj = mean board temperature in the ring "
+                               "0.5 to 1.5 mm around the package + ψJB·P, the least pessimistic estimate when the datasheet has no junction-to-pad number.")
+                psi.valueChanged.connect(lambda v: self.doc.set_props(kind, i, psi_jb=v))
+                lay.addRow("ψJB", psi)
+                tc = _spin(-5, 5, el.power_tc * 100.0, 3, 0.1, "%/K")
+                tc.setToolTip("Temperature coefficient of the dissipated power (0 = constant). A power MOSFET's Rds(on) rises about 0.3 to 0.7 %/K, so its loss grows "
+                              "with its junction temperature: P = P0 (1 + tc (Tj − 25 °C)), P0 the power typed above (at 25 °C). The program solves it together with "
+                              "the board and warns when there is no stable point (thermal runaway). Steady-state models only.")
+                tc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power_tc=v / 100.0))
+                lay.addRow("Power coefficient", tc)
             elif kind == "heatsink":
                 w = _spin(0, 5000, el.h_extra, 1, 5, "W/m²K")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, h_extra=v))
@@ -403,7 +441,7 @@ class Inspector(QWidget):
                 th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
                 lay.addRow("Metal block", th)
                 mat = QComboBox()
-                presets = (("Aluminium", 205.0, 2.43e6), ("Copper", 385.0, 3.45e6), ("Steel", 50.0, 3.8e6), ("Custom", None, None))
+                presets = METALS + (("Custom", None, None),)
                 for label, k_, c_ in presets:
                     mat.addItem(label, (k_, c_))
                 cur = next((n for n, (_, k_, c_) in enumerate(presets) if k_ == el.k and c_ == el.rho_cp), len(presets) - 1)
@@ -420,11 +458,25 @@ class Inspector(QWidget):
                 mat.currentIndexChanged.connect(pick)
                 lay.addRow("Block material", mat)
                 lay.addRow("Block k", kk)
-                cr = _spin(0, 1000, el.contact_r * 1e4, 2, 0.5, "K·cm²/W")
+                cr = _spin(0, 1000, el.contact_r * 1e4, 3, 0.5, "K·cm²/W")
                 cr.setToolTip("Interface resistance between the board and the block, per area: thickness / conductivity of the gap pad or paste "
                               "(0.5 mm of a 1 W/mK pad is 5 K·cm²/W; 0.5 mm of a 5 W/mK pad is 1). The contact is over the copper under the block.")
                 cr.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_r=v * 1e-4))
                 lay.addRow("Interface", cr)
+                tim = QComboBox()
+                for label, k_, t_ in INTERFACES:
+                    tim.addItem(label, t_ * 1e-3 / k_)
+                tim.addItem("Custom (type the value above)", None)
+                tim.setCurrentIndex(next((n for n in range(tim.count() - 1) if abs(tim.itemData(n) - el.contact_r) < 1e-7), tim.count() - 1))
+
+                def pick_tim(_idx, tim=tim, cr=cr):
+                    if tim.currentData() is not None:
+                        cr.setValue(tim.currentData() * 1e4)
+
+                tim.currentIndexChanged.connect(pick_tim)
+                tim.setToolTip("Preset of the interface material between the board and the block (grease, paste, gap pads). The value above can still be edited; "
+                               "if you do not know it, the default paste is a safe choice.")
+                lay.addRow("Interface material", tim)
             else:
                 x = _spin(0, 2000, el.x * 1000, 2, 0.5, "mm")
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")

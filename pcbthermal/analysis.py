@@ -99,20 +99,60 @@ def zone_stats(result, problem):
     return rows
 
 
-def heater_stats(result, problem):
+RING_INNER = 0.5e-3           # The reference ring of the junction-to-board parameter starts 0.5 mm outside the package outline (m)
+RING_OUTER = 1.5e-3           # and ends 1.5 mm outside it, around the 1 mm of the JEDEC definition (m)
+
+
+def _ring_mean(result, polygon, layer):
     """!
-    @brief Temperatures under every heater, including the junction temperature when theta_jb is set.
+    @brief Mean board temperature in a ring around a footprint (the reference of the junction-to-board characterisation parameter).
+    @param result A SteadyResult with a field.
+    @param polygon Footprint vertices (n, 2) in metres; its bounding box is the package outline.
+    @param layer 0-based layer of the part.
+    @return Mean temperature in degC, or None when the grid has no cell centre in the ring (a coarse grid).
+    """
+    xs, ys = result.coords()
+    x0, y0 = polygon.min(axis=0)
+    x1, y1 = polygon.max(axis=0)
+    X, Y = np.meshgrid(xs, ys)
+    outer = (X >= x0 - RING_OUTER) & (X <= x1 + RING_OUTER) & (Y >= y0 - RING_OUTER) & (Y <= y1 + RING_OUTER)
+    inner = (X >= x0 - RING_INNER) & (X <= x1 + RING_INNER) & (Y >= y0 - RING_INNER) & (Y <= y1 + RING_INNER)
+    ring = outer & ~inner
+    if not ring.any():
+        return None
+    return float(result.T[min(layer, result.T.shape[0] - 1)][ring].mean())
+
+
+def heater_stats(result, problem, powers=None):
+    """!
+    @brief Temperatures under every heater and, for a part, the junction temperature, its margin and the power limit.
+    @details With the junction-to-pad resistance theta (worst case: all the power enters the board) Tj = hottest board point under the footprint + P theta;
+             with psi_jb the second estimate is Tj = mean board temperature in the 0.5 to 1.5 mm ring around the outline + psi_jb P. The device temperature
+             used for the limit is Tj (or the hottest point under a part without theta). The power limit is the dissipation that brings the device to tj_max
+             with the board's response of this run (linear in the power for constant coefficients).
     @param result A SteadyResult with a field.
     @param problem The Problem that owns the heaters.
-    @return List of dicts: name, layer (1-based), power_w, t_mean, t_max, t_junction (None without theta_jb).
+    @param powers Powers actually dissipated in W, one per heater (default: the powers of the problem; they differ when a power temperature coefficient is set).
+    @return List of dicts: name, layer (1-based), power_w, power_nominal_w (the power typed), t_mean, t_max, t_junction (None without theta), t_ring (None on a coarse grid),
+            t_junction_psi (None without psi_jb), tj_max (0 = none), margin_k (None without tj_max), p_limit_w (None without tj_max), theta, psi_jb, power_tc.
     """
     _require_field(result)
     rows = []
+    amb = result.ambient
     for k, h in enumerate(problem.heaters):
+        power = h.power if powers is None else float(powers[k])
         mean, mx, _ = _footprint_stats(result, h.polygon, h.layer)
-        rows.append({"name": h.name or f"Heater {k + 1}", "layer": h.layer + 1, "power_w": h.power,
-                     "t_mean": mean, "t_max": mx,
-                     "t_junction": mx + h.power * h.theta_jb if h.theta_jb > 0 else None})
+        tj = mx + power * h.theta if h.theta > 0 else None
+        device = tj if tj is not None else mx
+        ring = _ring_mean(result, h.polygon, h.layer)
+        row = {"name": h.name or f"Heater {k + 1}", "layer": h.layer + 1, "power_w": power, "t_mean": mean, "t_max": mx,
+               "power_nominal_w": h.power, "t_junction": tj, "t_ring": ring,
+               "t_junction_psi": ring + power * h.psi_jb if (h.psi_jb > 0 and ring is not None) else None,
+               "tj_max": h.tj_max, "margin_k": h.tj_max - device if h.tj_max > 0 else None, "p_limit_w": None,
+               "theta": h.theta, "psi_jb": h.psi_jb, "power_tc": h.power_tc}
+        if h.tj_max > 0 and power > 0 and device > amb:
+            row["p_limit_w"] = power * (h.tj_max - amb) / (device - amb)
+        rows.append(row)
     return rows
 
 

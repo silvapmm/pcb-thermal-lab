@@ -337,8 +337,11 @@ class Heater:
     polygon: np.ndarray                         # Vertices (n, 2) in metres
     power: float                                # Dissipated power (W)
     name: str = ""                              # Optional label (for example the component name)
-    theta_jb: float = 0.0                       # Junction-to-board resistance (K/W); 0 = not used
+    theta: float = 0.0                          # Junction-to-pad resistance (K/W), worst case: all the power enters the board; 0 = plain source
     profile: Optional[object] = None            # SquareWave or TableProfile; None = constant power
+    tj_max: float = 0.0                         # Maximum junction temperature (degC); 0 = no limit
+    psi_jb: float = 0.0                         # Junction-to-board characterisation parameter (K/W) for the ring-temperature estimate; 0 = not used
+    power_tc: float = 0.0                       # Temperature coefficient of the power (1/K): P = P0 (1 + tc (Tj - 25 degC)); 0 = constant power
 
     def average_power(self):
         """!
@@ -403,6 +406,26 @@ class Via:
         return math.pi * (r * r - r_in * r_in)
 
 
+# Metals for heatsinks and spreaders: (name, conductivity W/mK, volumetric heat capacity rho*cp J/m3K). Aluminium, copper, brass and stainless from
+# the Ferrotec material table (204, 386, 111 and 13.8 W/mK; densities 2.71, 8.96, 8.49 and 8.01 g/cm3), carbon steel 54 W/mK from the Engineering
+# ToolBox table (its heat capacity is a textbook value). The user can always type other numbers.
+METALS = (("Aluminium", 204.0, 2.44e6), ("Copper", 386.0, 3.45e6), ("Brass", 111.0, 2.91e6), ("Carbon steel", 54.0, 3.85e6),
+          ("Stainless steel 304", 14.4, 3.69e6))
+
+# Interface materials between the board (or a package) and a metal: (name, conductivity W/mK, thickness mm). Assumed typical values inside the ranges
+# found in the literature (grease 7-20 um at best and 1-5 W/mK in practice, gap pads 1-6 W/mK and 0.5-1.2 mm); the resistance per area is t/k. Measured totals
+# (ASTM D5470, Electronics Cooling 2014): Arctic Silver 5 paste 0.31 K cm2/W at 23.5 um, a ceramic paste 0.41, a 1.6 mm gap pad 12; so k here is an apparent value that includes the two contact resistances.
+INTERFACES = (("Thermal paste, good (measured 0.3 K·cm²/W)", 1.5, 0.05), ("Paste, typical default (2 W/mK, 100 µm)", 2.0, 0.10),
+              ("Soft gap pad (3 W/mK, 0.5 mm)", 3.0, 0.5), ("Gap pad (1 W/mK, 0.5 mm)", 1.0, 0.5), ("Hard gap pad (1 W/mK, 1 mm)", 1.0, 1.0))
+
+
+# Typical junction-to-pad resistances by package family, K/W: indicative ranges from web summaries of vendor notes, NOT from a datasheet (QFN 2-10,
+# power QFN 1-5, DFN 5-15, D2PAK 0.5-1, TO-220 1-2, SOT-223 junction to tab about 15; the SMA diode 20 is the SS12 datasheet value; the 0603 resistor
+# is derived from a 0.1 W rating at 70 degC and a 170 degC limit). To be replaced by the datasheet value whenever there is one.
+PACKAGE_THETA = (("QFN / exposed pad", 5.0), ("Power QFN", 3.0), ("DFN", 10.0), ("D2PAK / TO-263", 0.75), ("TO-220", 1.5),
+                 ("SOT-223 (junction to tab)", 15.0), ("SMA / SMB / SMC diode (junction to terminal)", 20.0), ("Chip resistor 0603 (derived from its rating)", 1000.0))
+
+
 @dataclass
 class Heatsink:
     """!
@@ -417,8 +440,8 @@ class Heatsink:
     h_extra: float                              # Added coefficient (W/m2K)
     name: str = ""                              # Optional label
     thickness: float = 0.0                      # Metal block thickness (m); 0 = a plain coefficient, no block
-    k: float = 205.0                            # Conductivity of the block (W/mK); aluminium 205, copper 385
-    rho_cp: float = 2.43e6                      # Volumetric heat capacity of the block (J/m3K); aluminium 2.43e6, copper 3.45e6
+    k: float = 204.0                            # Conductivity of the block (W/mK); aluminium 204, copper 386
+    rho_cp: float = 2.44e6                      # Volumetric heat capacity of the block (J/m3K); aluminium 2.44e6, copper 3.45e6
     contact_r: float = 5.0e-4                   # Interface resistance between the board and the block (m2K/W): pad thickness / k
 
     def is_block(self):
@@ -482,6 +505,8 @@ class Problem:
         for h in self.heaters:
             if h.power < 0:
                 raise ValueError("heater power must be >= 0")
+            if h.theta < 0 or h.tj_max < 0 or h.psi_jb < 0 or not -0.05 <= h.power_tc <= 0.05:
+                raise ValueError("a heater needs theta, tj_max and psi_jb >= 0 and a power temperature coefficient between -5 and 5 %/K")
             if h.profile is not None:
                 h.profile.validate()
         for s in self.heatsinks:
@@ -551,7 +576,7 @@ class Problem:
             self.add_zone(l, rect=(0, 0, w, h), fill=fill, name=f"plane L{l}")
         return self
 
-    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta_jb=0.0, profile=None):
+    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta=0.0, profile=None, tj_max=0.0, psi_jb=0.0, power_tc=0.0):
         """!
         @brief Add a heat source (layer 1 = top, geometry in mm, power in W).
         @param layer 1-based layer number.
@@ -559,11 +584,15 @@ class Problem:
         @param rect Rectangle (x0, y0, x1, y1) in mm.
         @param polygon Polygon [[x, y], ...] in mm.
         @param name Optional label (for example the component).
-        @param theta_jb Junction-to-board resistance in K/W (adds a junction temperature to the report).
+        @param theta Junction-to-pad resistance in K/W (the datasheet's junction-to-bottom, junction-to-terminal or junction-to-case number
+               of a power part; adds the junction temperature to the report, worst case: all the power enters the board).
         @param profile Optional SquareWave; the heater power is then its average and `power` is ignored.
+        @param tj_max Maximum junction temperature in degC (0 = none): the report gives the margin and the power limit.
+        @param psi_jb Junction-to-board characterisation parameter in K/W (0 = none): the report adds Tj = ring temperature + psi P.
+        @param power_tc Temperature coefficient of the power in 1/K (0 = constant); P = P0 (1 + tc (Tj - 25 degC)) is solved with the board.
         @return self.
         """
-        h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta_jb)
+        h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta, None, float(tj_max), float(psi_jb), float(power_tc))
         h.set_profile(profile)
         self.heaters.append(h)
         return self
@@ -598,7 +627,7 @@ class Problem:
                 self.add_via(x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny, diameter, filled)
         return self
 
-    def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=205.0, rho_cp=2.43e6,
+    def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=204.0, rho_cp=2.44e6,
                  contact_r=5.0e-4):
         """!
         @brief Add a heatsink: extra heat transfer coefficient on an outer surface, optionally a metal block (mm, W/m2K).
@@ -673,8 +702,10 @@ def problem_from_dict(data, validate=True):
     for z in data.get("zones", []):
         prob.zones.append(Zone(z["layer"] - 1, _poly_mm(z["polygon_mm"]), z.get("fill", 1.0), z.get("name", "")))
     for h in data.get("heaters", []):
-        heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]),
-                        h.get("name", ""), float(h.get("theta_jb_k_per_w", 0.0)))
+        # "theta_jb_k_per_w" is the key of files saved before the junction resistance was renamed
+        heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]), h.get("name", ""),
+                        float(h.get("theta_k_per_w", h.get("theta_jb_k_per_w", 0.0))), None, float(h.get("tj_max_c", 0.0)),
+                        float(h.get("psi_jb_k_per_w", 0.0)), float(h.get("power_tc_per_k", 0.0)))
         if "profile" in h:
             heater.set_profile(_profile_from_dict(h["profile"]))
         prob.heaters.append(heater)
@@ -683,8 +714,8 @@ def problem_from_dict(data, validate=True):
                              v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", "")))
     for s in data.get("heatsinks", data.get("sinks", [])):    # "sinks" is the key of files saved before the rename
         prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
-                               float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 205.0)),
-                               float(s.get("rho_cp_j_per_m3k", 2.43e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4))))
+                               float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 204.0)),
+                               float(s.get("rho_cp_j_per_m3k", 2.44e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4))))
     if validate:
         prob.validate()
     return prob
@@ -827,7 +858,9 @@ def problem_to_dict(prob):
         "zones": [{"layer": z.layer + 1, "polygon_mm": poly(z.polygon), "fill": z.fill, "name": z.name}
                   for z in prob.zones],
         "heaters": [dict({"layer": h.layer + 1, "power_w": h.power, "polygon_mm": poly(h.polygon), "name": h.name,
-                          "theta_jb_k_per_w": h.theta_jb},
+                          "theta_k_per_w": h.theta},
+                         **({"tj_max_c": h.tj_max} if h.tj_max else {}), **({"psi_jb_k_per_w": h.psi_jb} if h.psi_jb else {}),
+                         **({"power_tc_per_k": h.power_tc} if h.power_tc else {}),
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
                   "filled": v.filled, "name": v.name} for v in prob.vias],

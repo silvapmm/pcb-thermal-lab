@@ -56,7 +56,7 @@ def test_project_roundtrip_keeps_everything(tmp_path):
     save_project(path, Project(problem=p, options=SolverOptions(cell_mm=0.8), view={"zoom": 2.5}))
     q = load_project(path)
     assert q.options.cell_mm == 0.8 and q.view == {"zoom": 2.5}
-    assert q.problem.heaters[0].name == "U1" and q.problem.heaters[0].theta_jb == 6.0
+    assert q.problem.heaters[0].name == "U1" and q.problem.heaters[0].theta == 6.0
     assert len(q.problem.vias) == 9 and q.problem.heatsinks[0].name == "bottom heatsink"
 
 

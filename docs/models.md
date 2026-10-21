@@ -150,14 +150,31 @@ repeats the model until the coefficients change by less than 0.01 W/m²K (3 or 4
 `api.calibrate_convection` / `pcbthermal calibrate board.json --measured 85 [--heater U1]` fits that multiplier to one measured steady temperature. Time simulation and animation use the steady-state coefficients with the average power.
 Limits: isothermal-plate correlations are uncertain by 20 to 30 % on a board with hot spots; the edge coefficient is not computed; the radiation view factor is 1.
 
-## 6. Python API and command line
+## 6. Parts: the junction temperature
+
+A heater is a **source**: its power enters the board under the footprint and the report gives the board temperature there. A part (an IC, a MOSFET, a diode, a resistor) is a heater with optional extra fields; with none of them set nothing changes.
+
+| Field | Meaning | What the program does |
+| :-- | :-- | :-- |
+| `theta` (K/W) | junction-to-pad resistance of the part | `Tj = T_max under the footprint + P·θ`; the board is solved with the same power (**worst case**: all the heat enters the board, no top path), so θ changes the report and not the board |
+| `tj_max` (°C) | maximum junction temperature | margin `tj_max − Tj`, the **power limit** `P·(tj_max − T_amb)/(Tj − T_amb)` (the dissipation that brings the part to its limit on this board; linear for constant coefficients) and a warning when exceeded |
+| `psi_jb` (K/W) | junction-to-board characterisation parameter | second estimate `Tj = T_ring + ψJB·P`, `T_ring` the mean board temperature in the ring 0.5 to 1.5 mm outside the package outline (the reference of the JEDEC definition); the least pessimistic route when the datasheet has no junction-to-pad number |
+| `power_tc` (1/K; %/K in the application) | temperature coefficient of the power | `P = P0 (1 + tc (Tj − 25 °C))`, solved together with the board by a fixed-point loop (like the computed `h`); the powers used are reported; **thermal runaway** (no stable point: the device passes 1500 °C or the power grows 50 times) is detected and warned. Steady-state models only |
+
+**Which datasheet number is θ.** The junction-to-pad (or junction-to-bottom, junction-to-terminal) resistance: `θJC(bot)` of the TI converters and LDO, `RθJC` of a power MOSFET (its "case" is the drain pad), `θJ-L` of an SMA diode, `Rth j-sp` of an LED. Never `θJA` (chip, board and air of the manufacturer's test together; manufacturers say so themselves). The program already computes the spreading in **your** board, so `θJB`, which includes the spreading in the manufacturer's test board, counts it twice if used as θ: entering `θJB` instead of `θJC(bot)` adds 15 K to the 1.5 W LDO and 7 K to the 0.8 W converter of the study (20 to 25 % of the rise). The datasheets read (2026-10-17): the MOSFET and the SMA diode give one downward number, the converter and the LDO give `θJC(bot)`, `θJB`, `ψJB`, `θJC(top)`, `ψJT` and `θJA`, the SMC diode only `θJA` and the Vishay power resistor no resistance (only its power rating at 70 °C).
+**When the datasheet has no usable number**, in order: (1) fill `psi_jb` (if only `θJB`/`ψJB` exist): the ring-temperature estimate is 6 K above the `θJC(bot)` route on the LDO against 15 K for `θJB` as θ; (2) pick the **package family** (typical θ, indicative values, not from a datasheet: QFN 5, power QFN 3, DFN 10, D2PAK 0.75, TO-220 1.5, SOT-223 15, SMA/SMB/SMC diode 20, 0603 resistor 1000 K/W derived from a 0.1 W rating at 70 °C and a 170 °C limit); (3) leave θ = 0: the report is the board temperature under the part and the junction is hotter by an unknown amount. `θJA` is not usable to derive θ when the datasheet's board is not fully stated (on the SS12 it gives a negative result).
+**Sanity check**: if `θ·P` is larger than the board's own rise under the part the program warns that θ is probably a `θJA`. For two-terminal parts the heat enters by the terminals, so draw the source as the two terminal areas.
+**How much it matters** (docs/validation.md section 9): θ adds 2 to 28 % of the rise for chips and diodes (about 90 % for a small resistor); ±30 % in θ moves `Tj` by 1 to 3 K for chips. The power coefficient is the larger effect for a power MOSFET (2 W at 25 °C reaches 138 to 210 °C instead of 108 °C for 0.33 to 0.67 %/K).
+**Not in this version** (noted in `docs/roadmap.md` 1.11): a heatsink or top path on the part, the junction as a thermal node, the Foster chain for pulses.
+
+## 7. Python API and command line
 
 ```python
 from pcbthermal import Problem, SolverOptions, simulate, suggest_cell_mm
 
 p = Problem.new(width_mm=100, height_mm=80, layers=4)
 p.add_zone(1, rect=(15, 15, 85, 65)).add_full_copper([2, 3, 4])
-p.add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=6.0)      # theta_jb: junction-to-board K/W
+p.add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta=6.0)      # theta: junction-to-pad K/W (section 6)
 p.add_via_array((30, 35, 40, 45), 3, 3, diameter=0.3)
 p.add_heatsink(4, 30.0, rect=(25, 30, 45, 50))                               # extra h on the bottom layer
 
@@ -178,7 +195,7 @@ python -m pcbthermal solvers|convergence|convert|example ...        # solver com
 
 The sparse solvers of SciPy must not run in two threads at once (the application serialises its background calculations; do the same in your own code). `simulate` runs the selected models, the input checks, the power-profile decision and time simulation, and returns a `Simulation` (table, report, `save`).
 
-## 7. The application (PySide 6)
+## 8. The application (PySide 6)
 
 Board canvas with zoom/pan, grid snap, polygons, vias, heatsinks, undo/redo, background photo, dark and light themes; docks for the board, environment (typed or computed `h`), materials, element tree, models and settings,
 live input checks and the property inspector; tabs **Board**, **Power profile** (heater list, constant / square wave / table with CSV import and export, decision table, run settings) and **Results** (summary, temperature,

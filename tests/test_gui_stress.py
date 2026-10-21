@@ -579,7 +579,14 @@ def test_metal_block_in_the_application(win, qtbot):
     combos = win.inspector.form_host.findChildren(QComboBox)
     material = next(c for c in combos if c.findText("Copper") >= 0)
     material.setCurrentIndex(material.findText("Copper"))
-    assert win.doc.problem.heatsinks[0].k == pytest.approx(385.0)
+    assert win.doc.problem.heatsinks[0].k == pytest.approx(386.0)
+    tim = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.findText("Thermal paste, good", Qt.MatchStartsWith) >= 0)
+    for i in range(tim.count()):                                       # Every interface preset sets the interface resistance
+        tim.setCurrentIndex(i)
+        if tim.currentData() is not None:
+            assert win.doc.problem.heatsinks[0].contact_r == pytest.approx(tim.currentData(), rel=1e-2)
+    for i in range(material.count()):                                   # And every metal
+        material.setCurrentIndex(i)
     run(win, qtbot, ("fvm", "fdm", "lumped", "analytic"), cell=2.0)
     assert any("block" in w for w in win.sim.warnings)                  # The two simple models say they replace the block
     rv = win.results
@@ -599,3 +606,34 @@ def test_metal_block_in_the_application(win, qtbot):
     win.doc.changed.emit()
     run(win, qtbot, ("fvm",), cell=2.0)
     assert rv.block_table.rowCount() == 0
+
+
+def test_component_fields_in_the_application(win, qtbot):
+    """A part with theta, a junction limit, psi_JB and a power temperature coefficient: inspector fields, a run with every model, its table and the warnings."""
+    load(win, example_board())
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    form = win.inspector.form_host
+    spins = {s.suffix().strip(): [] for s in form.findChildren(QAbstractSpinBox)}
+    for s in form.findChildren(QAbstractSpinBox):
+        spins[s.suffix().strip()].append(s)
+    assert {"W", "K/W", "°C", "%/K"} <= set(spins)
+    theta = next(s for s in spins["K/W"] if abs(s.value() - 6.0) < 1e-9)          # U1 of the example has 6 K/W
+    theta.setValue(10.0)
+    assert win.doc.problem.heaters[0].theta == pytest.approx(10.0)
+    family = next(c for c in form.findChildren(QComboBox) if c.itemText(0).startswith("Typical θ"))
+    family.setCurrentIndex(1)                                                      # The first family replaces theta with its typical value
+    assert win.doc.problem.heaters[0].theta == pytest.approx(5.0)
+    next(s for s in spins["°C"] if s.maximum() >= 500 and s.value() == 0.0).setValue(90.0)       # Tj max
+    next(s for s in spins["%/K"]).setValue(0.4)
+    assert win.doc.problem.heaters[0].tj_max == pytest.approx(90.0) and win.doc.problem.heaters[0].power_tc == pytest.approx(0.004)
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    rv = win.results
+    assert rv.heater_table.columnCount() >= 8 and rv.heater_table.item(0, 6).text() != "-" and rv.heater_table.item(0, 7).text() != "-"
+    assert any("above its limit" in w for w in win.sim.warnings)                  # 90 degC is below what the board gives
+    walk_results(win, qtbot)
+    # A coefficient with no stable point: warning, no crash, every view still opens
+    win.doc.set_props("heater", 0, power_tc=0.05)
+    run(win, qtbot, ("fvm", "lumped"), cell=2.0)
+    assert any("thermal runaway" in w for w in win.sim.warnings)
+    walk_results(win, qtbot)
