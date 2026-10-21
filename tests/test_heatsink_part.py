@@ -184,3 +184,45 @@ def test_gui_cooling_model_fins_body_helper_and_contact_area(tmp_path, qtbot, mo
     body = next(s for s in spins() if s.toolTip().startswith("Estimate θJC(top)"))
     body.setValue(1.0)                                                                     # 1 mm of mould over a 9 cm2 contact
     assert win.doc.problem.heaters[0].theta_jc_top == pytest.approx(1e-3 / (0.9 * 9e-4), rel=1e-2)
+
+
+def test_interface_is_one_dielectric_sheet_with_its_own_material_and_thickness():
+    from pcbthermal.model import Heater, Heatsink
+    # Block under the board: the resistance is thickness / k of the sheet, or the typed one when there is no sheet
+    p = board()
+    s = p.heatsinks[0]
+    assert s.interface_resistance() == pytest.approx(5e-5)                          # contact_r typed in the builder
+    s.pad_thickness, s.pad_k = 0.5e-3, 3.0                                          # A 0.5 mm soft gap pad
+    assert s.interface_resistance() == pytest.approx(0.5e-3 / 3.0)
+    # The solvers that have the block use it: a thicker or poorer sheet makes the part hotter (the lumped and analytic models replace a plain plate by an
+    # equivalent coefficient that cannot beat the bare face, so the sheet does not show there)
+    for model in ("fvm", "fdm", "solid3d"):
+        a = simulate(p, SolverOptions(models=(model,), cell_mm=1.0)).results[model].t_max
+        p.heatsinks[0].pad_thickness = 1.5e-3
+        b = simulate(p, SolverOptions(models=(model,), cell_mm=1.0)).results[model].t_max
+        p.heatsinks[0].pad_thickness = 0.5e-3
+        assert b > a + 0.3, (model, a, b)
+    # A sheet equal to the typed resistance gives the same temperatures
+    q = board()
+    q.heatsinks[0].contact_r = 0.5e-3 / 3.0
+    r = board()
+    r.heatsinks[0].pad_thickness, r.heatsinks[0].pad_k = 0.5e-3, 3.0
+    ta = simulate(q, SolverOptions(models=("fvm",), cell_mm=1.0)).reference.t_max
+    tb = simulate(r, SolverOptions(models=("fvm",), cell_mm=1.0)).reference.t_max
+    assert ta == pytest.approx(tb, abs=1e-9)
+    # JSON round trip and validation
+    z = problem_from_dict(problem_to_dict(p))
+    assert z.heatsinks[0].pad_thickness == pytest.approx(0.5e-3) and z.heatsinks[0].pad_k == pytest.approx(3.0)
+    assert "pad_thickness_mm" not in problem_to_dict(board())["heatsinks"][0]
+    with pytest.raises(ValueError):
+        p.heatsinks[0].pad_k = -1.0
+        p.validate()
+    # Part with a heatsink on top: the sheet gives the interface and the contact area divides it
+    h = Heater(0, np.array([[0, 0], [0.006, 0], [0.006, 0.006], [0, 0.006]]), 1.0, "U", 3.0, theta_jc_top=10.0, theta_sa=5.0, interface=9.0,
+               contact_area=4.0e-4, pad_thickness=0.5e-3, pad_k=3.0)
+    assert h.interface_kcm2() == pytest.approx(0.5e-3 / 3.0 * 1e4)                  # The sheet wins over the typed value
+    assert h.top_resistance() == pytest.approx(10.0 + 0.5e-3 / 3.0 * 1e4 / 4.0 + 5.0)
+    h.pad_thickness = 0.0
+    assert h.interface_kcm2() == 9.0
+    w = problem_from_dict(problem_to_dict(Problem(board=Problem.new(40, 40, 2).board, heaters=[Heater(0, h.polygon, 1.0, "U", 3.0, pad_thickness=0.5e-3, pad_k=3.0)])))
+    assert w.heaters[0].pad_thickness == pytest.approx(0.5e-3) and w.heaters[0].pad_k == pytest.approx(3.0)

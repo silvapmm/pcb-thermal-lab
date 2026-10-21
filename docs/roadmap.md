@@ -229,7 +229,36 @@ All agree to 1e-8 K. The gain appears above about 500 000 unknowns; `pyamg` woul
 Done: the 3D solid with vias and heatsinks on four boards (`validation.md` section 3). Next, in order of value: **a measurement of a physical board** (absolute accuracy; also calibrates the convection multiplier, `pcbthermal calibrate`);
 a transient comparison against the 3D solid; a thick-copper case; the 3D solid with the Package once it exists.
 
-## 6. Deferred
+## 6. Ideas from similar projects and tools (research of 2026-10-21)
+
+What other open-source projects and commercial tools do, and what would be worth taking. Sources were read as web summaries (the repositories were not cloned or run): none of the projects below has the models, the profiles, the junction, the computed convection or the 3D check of this one; they are mostly KiCad plug-ins with one 2D model.
+
+| Project / tool | What it does | Idea for us |
+| :-- | :-- | :-- |
+| [Dietschi10/KiCad_Thermal_Sim](https://github.com/Dietschi10/KiCad_Thermal_Sim) | KiCad plug-in: 2D in-plane conduction on every copper layer, coupling through FR-4 and vias, manual heat sources, optional DC current (I²R) heating and a Joule-loss map | **KiCad import** and **Joule heating of the copper** (below) |
+| [mgburr/pcb-sim-toolkit](https://github.com/mgburr/pcb-sim-toolkit) | Python toolkit that imports KiCad boards: 2D finite-difference steady state, junction temperature per component, with SPICE and signal integrity | components with positions and powers read from the board file |
+| [krosa-laboratory/kicad-electrothermal-sim](https://github.com/krosa-laboratory/kicad-electrothermal-sim) | 2.5D/3D DC IR-drop and electro-thermal co-simulation (sparse MNA and FEM) on native KiCad 6 to 9 files, temperature maps planned | **electro-thermal coupling**: current density → I²R heat → temperature → resistivity |
+| [kbralten/KiPIDA](https://github.com/kbralten/KiPIDA) | KiCad 9 plug-in: DC power integrity, current density and thermal rise with a 2.5D resistive mesh | the same coupling, and a current-density map |
+| [SPIKE](https://github.com/krishna-swaroop/SPIKE) | Desktop workbench (power and signal integrity, thermal, extensions): layer maps, cooling presets, command line | cooling presets; an extension mechanism |
+| [SchrodingersGat/KITS](https://github.com/SchrodingersGat/KITS) | KiCad thermal simulation tool (MIT) | listed only |
+| Ansys Icepak, Flotherm, Cadence Celsius, Simcenter | Import of ODB++/Gerber/IPC-2581, orthotropic conductivity per layer, conjugate heat transfer with airflow, component libraries (2R/DELPHI) | ECAD import; copper as polygons, not as a percentage (JLCPCB's advice too); a component library |
+| Elmer FEM / OpenFOAM routes ([jrainimo write-up](https://jrainimo.com/build/2024/11/oss-thermal-simulation-of-pcbs/)) | Export the copper geometry (STEP/XAO) to a free 3D solver | export of the model for an external 3D check |
+| JLCPCB / RayPCB guides | Thermal vias: 4 vias about 40 K/W, 16 about 10 K/W; power from the datasheet maximum, V × I, or a circuit simulation | a thermal-via array generator and a check against those numbers; power from a circuit simulation (CSV) |
+
+Ideas, in the order of value for the effort (all future work, nothing implemented):
+
+1. **Board import from KiCad** (`.kicad_pcb` is text): outline (now supported), copper zones and tracks as polygons per layer (the fill fraction of a cell then comes from real copper, not drawn zones), vias with drills, the stack-up table, footprints with reference, position and size (heaters to be given a power); a pure-Python S-expression parser, no KiCad needed. Gerber (section 2) comes after.
+2. **Power list from a CSV/BOM** (`reference, power_w, theta, tj_max`) applied to the footprints by reference designator; and power from a circuit simulation or measured profile (CSV exists for profiles).
+3. **Electro-thermal coupling**: Joule heating of the copper (current in, current out → I²R in the planes and traces, `IPC-2152` trace-rise check), with the copper resistivity rising 0.39 %/K with the temperature, solved by the fixed-point loop that already exists for the power coefficient.
+4. **Thermal via tools**: an array generator (pitch, diameter, area), the resistance of an array shown next to the 4/16-via figures of the guides, and a via-count sweep.
+5. **Parameter sweeps and comparison of two designs** (copper area, number of vias, power, ambient, air speed) with plots of Tj against the parameter and an A/B table; a short optimisation (smallest copper area that keeps Tj below the limit), reusing the power-limit logic.
+6. **Component library** (JSON): typical θJC, θJB, ψJB, package size and mass by part family or part number, editable, like the stack-up templates; presets for processors with lid and paste.
+7. **Report**: one HTML or PDF page of the design with the settings, the maps, the table of parts with margins and the warnings.
+8. **Orthotropic copper** from the raster: the conductivity along x and along y of a cell with traces (the fill fraction hides direction); needs the Gerber/KiCad copper.
+9. **Export for an external solver** (STEP/XAO or a simple mesh) to check a board in Elmer or OpenFOAM.
+10. **Cooling presets and enclosure**: an air-speed preset by fan, a closed box with an internal air temperature rise (a first step towards conjugate heat transfer, no CFD).
+
+## 7. Deferred
 
 Neural-network surrogates; trace Joule heating (IPC-2152 style); reduced-order models (only if transients become too slow); a per-cell or enclosure-aware radiation model; editing power tables inside the application (the CSV round trip is the workflow).
 

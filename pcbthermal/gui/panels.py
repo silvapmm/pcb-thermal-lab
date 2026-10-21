@@ -688,25 +688,7 @@ class Inspector(QWidget):
                               "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
                 ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))
                 lay.addRow("Contact area", ca)
-                itf = _spin(0, 100, el.interface, 2, 0.1, "K·cm²/W")
-                itf.setToolTip("Interface between the package top and the heatsink, resistance per area (divided by the contact area). Good paste 0.3, default "
-                               "paste 0.5, soft gap pad 1.7, gap pad 5, hard pad 10; 0 = perfect contact (optimistic).")
-                itf.valueChanged.connect(lambda v: self.doc.set_props(kind, i, interface=v))
-                lay.addRow("Interface", itf)
-                itf_mat = QComboBox()
-                itf_mat.addItem("Interface material preset...", None)
-                for label, k_, t_ in INTERFACES:
-                    itf_mat.addItem(f"{label}: {t_ * 1e-3 / k_ * 1e4:.2f} K·cm²/W", t_ * 1e-3 / k_ * 1e4)
-                itf_mat.setToolTip("Typical thermal interface materials between the package top and the heatsink (paste, gap pads): fills the interface value above. "
-                                   "Indicative values (apparent conductivity including the contact resistances): check your material's datasheet.")
-
-                def pick_itf(_i, c=itf_mat, spin=itf):
-                    if c.currentData() is not None:
-                        spin.setValue(c.currentData())
-                        c.setCurrentIndex(0)
-
-                itf_mat.currentIndexChanged.connect(pick_itf)
-                lay.addRow("Interface material", itf_mat)
+                self._pad_rows(lay, kind, i, el, heater=True)
                 sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
                 sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
                               "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
@@ -771,26 +753,7 @@ class Inspector(QWidget):
                     mat.currentIndexChanged.connect(pick)
                     lay.addRow("Block material", mat)
                     lay.addRow("Block k", kk)
-                    cr = _spin(0, 1000, el.contact_r * 1e4, 3, 0.5, "K·cm²/W")
-                    cr.setToolTip("Interface resistance between the board and the block, per area: thickness / conductivity of the gap pad or paste "
-                                  "(0.5 mm of a 1 W/mK pad is 5 K·cm²/W; 0.5 mm of a 5 W/mK pad is 1). The contact is over the copper under the block, so the "
-                                  "contact area is the overlap of the block with the copper: there is nothing to draw.")
-                    cr.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_r=v * 1e-4))
-                    lay.addRow("Interface", cr)
-                    tim = QComboBox()
-                    for label, k_, t_ in INTERFACES:
-                        tim.addItem(label, t_ * 1e-3 / k_)
-                    tim.addItem("Custom (type the value above)", None)
-                    tim.setCurrentIndex(next((n for n in range(tim.count() - 1) if abs(tim.itemData(n) - el.contact_r) < 1e-7), tim.count() - 1))
-
-                    def pick_tim(_idx, tim=tim, cr=cr):
-                        if tim.currentData() is not None:
-                            cr.setValue(tim.currentData() * 1e4)
-
-                    tim.currentIndexChanged.connect(pick_tim)
-                    tim.setToolTip("Preset of the interface material between the board and the block (grease, paste, gap pads). The value above can still be edited; "
-                                   "if you do not know it, the default paste is a safe choice.")
-                    lay.addRow("Interface material", tim)
+                    self._pad_rows(lay, kind, i, el, heater=False)
                     fh = _spin(0, 200, el.fin_height * 1000, 2, 1, "mm")
                     ft = _spin(0, 20, el.fin_thickness * 1000, 2, 0.1, "mm")
                     fp = _spin(0, 100, el.fin_pitch * 1000, 2, 0.5, "mm")
@@ -822,6 +785,62 @@ class Inspector(QWidget):
                 self._geometry_rows(lay, kind, i, el)
         tips.apply(self.form_host)
         self._updating = False
+
+    def _pad_rows(self, lay, kind, index, el, heater):
+        """!
+        @brief The interface between a heatsink and the board or the package: one dielectric sheet (paste, gap pad) with its own material and thickness.
+        @details Rows: a material preset (typical thickness and conductivity), the thickness (mm), the conductivity (W/mK) and the resulting resistance per area
+                 (K cm2/W). The sheet defines the resistance as thickness / conductivity; typing the resistance directly replaces the sheet (custom value).
+        @param lay Form layout.
+        @param kind Element kind ("heater" or "heatsink").
+        @param index Element index.
+        @param el The element (a Heater for the package top, a Heatsink for a block on the board).
+        @param heater True for the interface on top of a part, False for the interface under a metal block.
+        """
+        where = "between the package top and the heatsink" if heater else "between the board and the block"
+        r_now = (el.interface_kcm2() if heater else el.interface_resistance() * 1e4)
+
+        def write(thickness, conductivity, resistance):
+            # Resistance in K cm2/W; the sheet fields are zero for a typed resistance
+            fields = dict(pad_thickness=thickness, pad_k=conductivity)
+            fields.update(interface=resistance) if heater else fields.update(contact_r=resistance * 1e-4)
+            self.doc.set_props(kind, index, merge=False, **fields)
+
+        mat = QComboBox()
+        mat.addItem("Interface material preset...", None)
+        for label, k_, t_ in INTERFACES:
+            mat.addItem(f"{label}: {t_:g} mm", (k_, t_ * 1e-3))
+        mat.setToolTip(f"The one dielectric sheet {where} (thermal paste or gap pad): a preset fills its thickness and conductivity. Indicative values (apparent "
+                       "conductivity including the contact resistances): check your material's datasheet. The sheet can have its own material and thickness.")
+        th = _spin(0, 20, el.pad_thickness * 1000, 3, 0.1, "mm")
+        th.setToolTip(f"Thickness of the dielectric sheet {where} (paste 0.05 to 0.1 mm, gap pad 0.5 to 1.5 mm). With its conductivity it gives the interface "
+                      "resistance thickness / k; 0 = type the resistance below instead.")
+        kk = _spin(0, 100, el.pad_k, 2, 0.5, "W/mK")
+        kk.setToolTip("Conductivity of the dielectric sheet (grease 1 to 5, gap pads 1 to 6 W/mK apparent; the datasheet's bulk value is higher than what a joint "
+                      "gives because of the contact resistances).")
+        res = _spin(0, 1000, r_now, 3, 0.1, "K·cm²/W")
+        res.setToolTip(f"Resistance per area of the interface {where}: thickness / conductivity of the sheet, or typed here (which replaces the sheet). Good paste 0.3, "
+                       "default paste 0.5, soft gap pad 1.7, gap pad 5, hard pad 10; 0 = perfect contact (optimistic). " +
+                       ("It is divided by the contact area of the part." if heater else "The contact is over the copper under the block: there is nothing to draw."))
+
+        def pick(_i):
+            data = mat.currentData()
+            if data is not None:
+                k_, t_ = data
+                write(t_, k_, t_ / k_ * 1e4)
+
+        def sheet(_v):
+            if th.value() > 0 and kk.value() > 0:
+                write(th.value() * 1e-3, kk.value(), th.value() * 1e-3 / kk.value() * 1e4)
+
+        mat.currentIndexChanged.connect(pick)
+        th.valueChanged.connect(sheet)
+        kk.valueChanged.connect(sheet)
+        res.valueChanged.connect(lambda v: write(0.0, 0.0, v))
+        lay.addRow("Interface material", mat)
+        lay.addRow("Interface thickness", th)
+        lay.addRow("Interface conductivity", kk)
+        lay.addRow("Interface resistance", res)
 
     def _layer_combo(self, current, outer_only=False, cb=None):
         """!

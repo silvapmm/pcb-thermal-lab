@@ -89,7 +89,7 @@ sim.save("results")               # report, JSON, CSV fields, figures
 In the program: **Help - User guide** (`F1`; the same HTML file is `pcbthermal/help/index.html`) explains every parameter, every model and the results. In the repository:
 [`docs/versions.md`](docs/versions.md) (what was implemented in every version, where and how it is tested), and three technical documents: [`docs/models.md`](docs/models.md) (what the models are, how they work, power profiles, computed heat transfer coefficients, which one to use),
 [`docs/validation.md`](docs/validation.md) (the same scenarios in every model, against a 3D solid, the old program, solvers, time-dependent checks) and
-[`docs/roadmap.md`](docs/roadmap.md) (planned work and its evidence). A documented example with power profiles from CSV files: [`examples/csv_profiles`](examples/csv_profiles).
+[`docs/roadmap.md`](docs/roadmap.md) (planned work and its evidence, and the ideas taken from similar projects such as the KiCad thermal plug-ins). A documented example with power profiles from CSV files: [`examples/csv_profiles`](examples/csv_profiles).
 Short release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Versions and branches

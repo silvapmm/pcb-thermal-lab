@@ -108,7 +108,7 @@ def extra_layers(problem, cover, area, fill, dx, dy):
             S = np.where(take, s.k * s.thickness * c, S)
             C = np.where(take, s.rho_cp * s.thickness * area * c, C)
             # Contact only over the copper (fill) inside the block; a zero resistance is limited to avoid an unbounded conductance
-            r_c = max(s.contact_r, 1e-7)
+            r_c = max(s.interface_resistance(), 1e-7)
             f = fill[layer]
             g_link = np.where(take, c * area * (f / r_c + (1.0 - f) / (r_c + r_half)), g_link)
             h_tot = np.where(take, exposed_h(s, h_face), h_tot)
@@ -153,7 +153,7 @@ def plain_equivalent(problem):
     for s in p.heatsinks:
         if s.is_block():
             h_face = b.h_top if (s.layer == 0 or b.layers == 1) else b.h_bottom
-            h_eq = 1.0 / (max(s.contact_r, 1e-7) + 1.0 / exposed_h(s, h_face))
+            h_eq = 1.0 / (max(s.interface_resistance(), 1e-7) + 1.0 / exposed_h(s, h_face))
             s.h_extra, s.thickness = max(h_eq - h_face, 0.0), 0.0
             s.fin_height = s.fin_thickness = s.fin_pitch = 0.0
     return p

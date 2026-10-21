@@ -20,6 +20,8 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 - **Cooling model of the Heatsink**: *Coefficient* (extra h or θSA) or *Metal block, computed* from its thickness, metal, interface and **fins** (height, thickness, pitch: area gain with fin efficiency; warning when the fins are too close in still air). Contact area of a part's interface (lid or exposed top), body helper for θJC(top), several sheets in one dielectric gap (`combine_sheets`). `docs/models.md` sections 15 to 18.
 
+- The interface between a heatsink and the board or the package is **one dielectric sheet with its own material and thickness** (preset, thickness, conductivity, resulting K·cm²/W), for the metal block and for the heatsink on a part.
+
 ### Changed
 - Changing the number of layers loads the typical stack-up of the new count (a 4-layer board is now 1.586 mm).
 - Tool keys are now `S Z H C V O` (Select, Zone, Heater, Heatsink/Cooling, Via, board Outline); `V` is the via tool.

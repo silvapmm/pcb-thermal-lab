@@ -583,8 +583,11 @@ def test_metal_block_in_the_application(win, qtbot):
     tim = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.findText("Thermal paste, good", Qt.MatchStartsWith) >= 0)
     for i in range(tim.count()):                                       # Every interface preset sets the interface resistance
         tim.setCurrentIndex(i)
-        if tim.currentData() is not None:
-            assert win.doc.problem.heatsinks[0].contact_r == pytest.approx(tim.currentData(), rel=1e-2)
+        if tim.currentData() is not None:                              # (conductivity, thickness) of the sheet: its resistance is thickness / k
+            k_, t_ = tim.currentData()
+            hs = win.doc.problem.heatsinks[0]
+            assert hs.contact_r == pytest.approx(t_ / k_, rel=1e-2) and hs.pad_k == pytest.approx(k_) and hs.pad_thickness == pytest.approx(t_)
+            assert hs.interface_resistance() == pytest.approx(t_ / k_, rel=1e-2)
     for i in range(material.count()):                                   # And every metal
         material.setCurrentIndex(i)
     run(win, qtbot, ("fvm", "fdm", "lumped", "analytic"), cell=2.0)

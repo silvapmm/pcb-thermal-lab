@@ -126,7 +126,7 @@ class Solid:
             f["cov"] = np.where(take, c, f["cov"])
             f["t"] = np.where(take, s.thickness, f["t"])
             f["k"] = np.where(take, s.k, f["k"])
-            f["r"] = np.where(take, max(s.contact_r, 1e-7), f["r"])
+            f["r"] = np.where(take, max(s.interface_resistance(), 1e-7), f["r"])
             f["he"] = np.where(take, s.h_extra, f["he"])
             f["fins"] = {k: np.where(take, v, f["fins"].get(k, 0.0)) for k, v in
                          (("h", s.fin_height if s.has_fins() else 0.0), ("t", s.fin_thickness if s.has_fins() else 0.0),
