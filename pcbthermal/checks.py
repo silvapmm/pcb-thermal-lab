@@ -33,6 +33,11 @@ def check_problem(problem, cell_mm=1.0):
     for z in problem.zones:
         fill[z.layer] = np.maximum(fill[z.layer], coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
 
+    for k, s in enumerate(problem.heatsinks):
+        if s.has_fins() and b.air_speed == 0 and s.fin_pitch - s.fin_thickness < 4e-3:
+            out.append(f"{s.name or f'Heatsink {k + 1}'}: the air gap between the fins is {1000 * (s.fin_pitch - s.fin_thickness):.1f} mm; in still air fins closer than about "
+                       "4 to 6 mm choke the natural convection and the model (which does not slow the air between the fins) overestimates the cooling: use a larger pitch or the datasheet theta_SA.")
+
     heater_cov = []
     for k, h in enumerate(problem.heaters):
         name = h.name or f"Heater {k + 1}"

@@ -121,13 +121,16 @@ class Solid:
             face = 0 if (s.layer == 0 or L == 1) else 1
             c = cover(s.polygon, 4)
             f = faces.setdefault(face, {"cov": np.zeros((ny, nx)), "t": np.zeros((ny, nx)), "k": np.ones((ny, nx)),
-                                        "r": np.zeros((ny, nx)), "he": np.zeros((ny, nx)), "names": []})
+                                        "r": np.zeros((ny, nx)), "he": np.zeros((ny, nx)), "names": [], "fins": {}})
             take = c > 0
             f["cov"] = np.where(take, c, f["cov"])
             f["t"] = np.where(take, s.thickness, f["t"])
             f["k"] = np.where(take, s.k, f["k"])
             f["r"] = np.where(take, max(s.contact_r, 1e-7), f["r"])
             f["he"] = np.where(take, s.h_extra, f["he"])
+            f["fins"] = {k: np.where(take, v, f["fins"].get(k, 0.0)) for k, v in
+                         (("h", s.fin_height if s.has_fins() else 0.0), ("t", s.fin_thickness if s.has_fins() else 0.0),
+                          ("p", s.fin_pitch if s.has_fins() else 0.0), ("k", s.k))}
             f["names"].append(s.name or "block")
         self.faces = faces
         n_blk = {face: int(np.clip(round(float(f["t"].max()) * 1000.0), 1, 6)) for face, f in faces.items()}
@@ -236,7 +239,13 @@ class Solid:
         # Exposed face and sides of the blocks
         for face, f in faces.items():
             h_face = b.h_top if face == 0 else b.h_bottom
-            h_tot = h_face + f["he"]
+            fi = f["fins"]
+            hc = fi["h"] + 0.5 * fi["t"]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                m = np.sqrt(2.0 * max(h_face, 1e-12) / (fi["k"] * np.where(fi["t"] > 0, fi["t"], 1.0)))
+                eta = np.where(hc > 0, np.tanh(m * hc) / np.where(m * hc > 0, m * hc, 1.0), 1.0)
+                ratio = np.where(fi["p"] > 0, (1.0 - fi["t"] / np.where(fi["p"] > 0, fi["p"], 1.0)) + 2.0 * hc * eta / np.where(fi["p"] > 0, fi["p"], 1.0), 1.0)
+            h_tot = h_face * ratio + f["he"]
             edge = _edge_length(f["cov"], dx, dy)
             blk_ids = [s for s, sl in enumerate(slabs) if sl["kind"] == "blk" and ((s < first_board) == (face == 0))]
             outer = blk_ids[0] if face == 0 else blk_ids[-1]

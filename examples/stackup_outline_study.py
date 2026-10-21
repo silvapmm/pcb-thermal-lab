@@ -71,9 +71,59 @@ def rises(p, models, cell=1.0):
     return out
 
 
+def sensitivity():
+    """!
+    @brief Print the sensitivity of the hottest point to the uncertain numbers of a stack-up (the 4-layer typical stack-up, FVM at 1 mm).
+    """
+    from pcbthermal.model import combine_sheets                                  # noqa: E402
+
+    def run(modify):
+        p = board("same")
+        p.board.apply_template()                                                 # The typical 4-layer stack-up (35 / 15.2 / 15.2 / 35, prepreg 210 / core 1065 / prepreg 210)
+        modify(p.board)
+        return rises(p, ("fvm",))["fvm"]
+
+    base = run(lambda b: None)
+    print(f"C. Sensitivity of the rise of the hottest point to the stack-up numbers (typical 4-layer stack-up, base rise {base:.1f} K)")
+    print("| Change | Rise [K] | Change in the rise |")
+    print("| :-- | --: | --: |")
+
+    def scale_k(f):
+        def m(b):
+            for d in b.dielectrics:
+                d.k_through *= f
+        return m
+
+    def scale_t(f):
+        def m(b):
+            for d in b.dielectrics:
+                d.thickness *= f
+            b.thickness = b.total_thickness()
+        return m
+
+    def prepreg_low(b):                                                          # Resin-rich prepreg at 0.25 W/mK, cores at 0.35 W/mK (the spread of the published values)
+        for i, d in enumerate(b.dielectrics):
+            d.k_through = 0.25 if i in (0, 2) else 0.35
+
+    def copper(f):
+        def m(b):
+            b.copper_thickness = [c * f for c in b.copper_thickness]
+        return m
+
+    cases = (("dielectric k through -30 % (0.21 W/mK)", scale_k(0.7)), ("dielectric k through +30 % (0.39 W/mK)", scale_k(1.3)),
+             ("all dielectric thicknesses -10 % (fabricator tolerance)", scale_t(0.9)), ("all dielectric thicknesses +10 %", scale_t(1.1)),
+             ("prepreg 0.25 and core 0.35 W/mK", prepreg_low), ("finished copper 15 % thinner (etch and plating spread)", copper(0.85)),
+             ("finished copper 15 % thicker", copper(1.15)))
+    for name, f in cases:
+        r = run(f)
+        print(f"| {name} | {r:.1f} | {100 * (r / base - 1):+.1f} % |", flush=True)
+    d = combine_sheets([{"thickness_um": 105, "material": "FR-4 (standard)"}, {"thickness_um": 105, "material": "FR-4 (standard)"}])
+    print(f"\nTwo plies of 105 µm of the same prepreg are one gap of {d.thickness * 1e6:.0f} µm with k through {d.k_through:.2f} W/mK: the plies matter only through their total pressed thickness and, when their materials differ, through the series formula.")
+
+
 def main():
     """!
-    @brief Print the two tables.
+    @brief Print the tables.
     """
     print("A. Advanced stack-up: rise of the hottest point [K] (FVM) and the other models as a difference from the FVM [%]")
     print("| Stack | FVM | FDM | 3D solid | Lumped | Analytic |")
@@ -104,3 +154,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+    print()
+    sensitivity()

@@ -149,8 +149,8 @@ class BoardPanel(QWidget):
         self.side_on = QCheckBox("Edges lose heat")
         self.h_side = _spin(0, 500, 10, 1, 1, "W/m²K")
         self.orientation = QComboBox()
-        self.orientation.addItem("Horizontal, top face up", "horizontal")
-        self.orientation.addItem("Horizontal, top face down", "horizontal_down")
+        self.orientation.addItem("Horizontal: top face up, bottom face down", "horizontal")
+        self.orientation.addItem("Horizontal: top face down, bottom face up", "horizontal_down")
         self.orientation.addItem("Vertical", "vertical")
         self.orientation.setToolTip("How the board is mounted (computed heat transfer only): a hot face looking up loses heat better than one looking down "
                                     "(0.54 against 0.27 in the natural convection correlation); a vertical board uses the vertical plate correlation. "
@@ -664,8 +664,32 @@ class Inspector(QWidget):
                               "heatsink resistance below is set (a bare mould carries about 1 % of the heat and is ignored: worst case).")
                 jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
                 lay.addRow("θJC top", jc)
+                body_t = _spin(0, 50, 0.0, 2, 0.1, "mm")
+                body_m = QComboBox()
+                for label, k_ in (("Mould compound (0.9 W/mK)", 0.9), ("Thermally enhanced mould (2.3 W/mK)", 2.3), ("Alumina ceramic (24 W/mK)", 24.0),
+                                  ("Copper lid / heat spreader (385 W/mK)", 385.0)):
+                    body_m.addItem(label, k_)
+                body_t.setToolTip("Estimate θJC(top) when the datasheet has no value: the thickness of the package body above the die (a plastic QFN has 0.3 to 1 mm of mould). "
+                                  "θ = thickness / (k × contact area), one-dimensional through the body, no spreading: an upper bound for a small die under a larger "
+                                  "lid. A processor's datasheet θJC already includes its heat spreader and the paste under it: use that instead. 0 = not used.")
+                body_m.setToolTip("Material of the package body above the die (typical conductivities: mould 0.88 to 0.9 W/mK, enhanced mould 2.3 to 6, alumina 24, copper 385).")
+
+                def from_body(_v, t=body_t, m=body_m, spin=jc, e=el):
+                    area = (e.contact_area or e.area())
+                    if t.value() > 0 and area > 0:
+                        spin.setValue(t.value() * 1e-3 / (m.currentData() * area))
+
+                body_t.valueChanged.connect(from_body)
+                body_m.currentIndexChanged.connect(from_body)
+                lay.addRow("Body thickness", body_t)
+                lay.addRow("Body material", body_m)
+                ca = _spin(0, 100000, el.contact_area * 1e6, 2, 5, "mm²")
+                ca.setToolTip("Area of the package top that touches the heatsink through the paste (0 = the footprint). For a processor it is the lid, for a chip with an "
+                              "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
+                ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))
+                lay.addRow("Contact area", ca)
                 itf = _spin(0, 100, el.interface, 2, 0.1, "K·cm²/W")
-                itf.setToolTip("Interface between the package top and the heatsink, resistance per area (divided by the footprint area). Good paste 0.3, default "
+                itf.setToolTip("Interface between the package top and the heatsink, resistance per area (divided by the contact area). Good paste 0.3, default "
                                "paste 0.5, soft gap pad 1.7, gap pad 5, hard pad 10; 0 = perfect contact (optimistic).")
                 itf.valueChanged.connect(lambda v: self.doc.set_props(kind, i, interface=v))
                 lay.addRow("Interface", itf)
@@ -689,66 +713,97 @@ class Inspector(QWidget):
                 sa.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_sa=v))
                 lay.addRow("Heatsink θSA", sa)
             elif kind == "heatsink":
+                is_block = el.is_block()
+                mode = QComboBox()
+                mode.addItem("Coefficient: I give h or θSA", False)
+                mode.addItem("Metal block: the program computes it", True)
+                mode.setCurrentIndex(1 if is_block else 0)
+                mode.setToolTip("How the cooling of this area is described. Coefficient: you give the extra heat transfer coefficient, or the heatsink's θSA from its datasheet. "
+                                "Metal block: you give the plate (thickness, metal, interface to the board, optional fins) and the program computes how it spreads and "
+                                "dissipates the heat with the board's own face coefficient (typed or computed, orientation included).")
+
+                def switch(_i, m=mode):
+                    block = bool(m.currentData())
+                    if block != is_block:
+                        self.doc.set_props(kind, i, thickness=3e-3 if block else 0.0, merge=False)
+
+                mode.currentIndexChanged.connect(switch)
+                lay.addRow("Cooling model", mode)
                 w = _spin(0, 5000, el.h_extra, 1, 5, "W/m²K")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, h_extra=v))
-                w.setToolTip("Extra heat transfer coefficient. Without a metal block it is added to the board face inside the polygon; "
-                             "with a block it is added to the coefficient of the face for the exposed surface of the block "
-                             "(for a finned block use 1/(R·A) of its datasheet).")
+                w.setToolTip("Extra heat transfer coefficient. Without a metal block it is added to the board face inside the polygon; with a block it is added to the "
+                             "coefficient of the exposed surface of the block (use it for a finned block of which you know the datasheet performance instead of the fins below).")
                 lay.addRow("Extra h", w)
                 area_m2 = float(polygon_area(np.asarray(el.polygon)))
-                rsa = _spin(0, 5000, (1.0 / (el.h_extra * area_m2)) if el.h_extra > 0 and area_m2 > 0 else 0.0, 3, 0.1, "K/W")
-                rsa.setToolTip("Heatsink resistance to ambient θSA from its datasheet, at your air flow and orientation (0 = not used). Typing it sets the extra h above to "
-                               "1/(θSA × area of this polygon): the whole heatsink is spread over the polygon. Datasheets give θSA for natural convection in the "
-                               "orientation they tested (fins vertical is the best case): use the value for your mounting.")
+                if not is_block:
+                    rsa = _spin(0, 5000, (1.0 / (el.h_extra * area_m2)) if el.h_extra > 0 and area_m2 > 0 else 0.0, 3, 0.1, "K/W")
+                    rsa.setToolTip("Heatsink resistance to ambient θSA from its datasheet, at your air flow and orientation (0 = not used). Typing it sets the extra h above to "
+                                   "1/(θSA × area of this polygon): the whole heatsink is spread over the polygon. Datasheets give θSA for natural convection in the "
+                                   "orientation they tested (fins vertical is the best case): use the value for your mounting.")
 
-                def from_rsa(v, h=w, a=area_m2):
-                    if v > 0 and a > 0:
-                        h.setValue(1.0 / (v * a))
+                    def from_rsa(v, h=w, a=area_m2):
+                        if v > 0 and a > 0:
+                            h.setValue(1.0 / (v * a))
 
-                rsa.valueChanged.connect(from_rsa)
-                lay.addRow("θSA from datasheet", rsa)
-                th = _spin(0, 100, el.thickness * 1000, 2, 0.5, "mm")
-                th.setToolTip("Thickness of a metal block pressed on this face (0 = no block, only the coefficient). The heat enters the block only "
-                              "where the block overlaps copper of this layer, spreads in the metal and leaves by its surface.")
-                th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
-                lay.addRow("Metal block", th)
-                mat = QComboBox()
-                presets = METALS + (("Custom", None, None),)
-                for label, k_, c_ in presets:
-                    mat.addItem(label, (k_, c_))
-                cur = next((n for n, (_, k_, c_) in enumerate(presets) if k_ == el.k and c_ == el.rho_cp), len(presets) - 1)
-                mat.setCurrentIndex(cur)
-                kk = _spin(0.1, 1000, el.k, 1, 5, "W/mK")
-                kk.valueChanged.connect(lambda v: self.doc.set_props(kind, i, k=v))
+                    rsa.valueChanged.connect(from_rsa)
+                    lay.addRow("θSA from datasheet", rsa)
+                else:
+                    th = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
+                    th.setToolTip("Thickness of the metal block pressed on this face. The heat enters the block only where the block overlaps copper of this layer, "
+                                  "spreads in the metal and leaves by its surface.")
+                    th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
+                    lay.addRow("Block thickness", th)
+                    mat = QComboBox()
+                    presets = METALS + (("Custom", None, None),)
+                    for label, k_, c_ in presets:
+                        mat.addItem(label, (k_, c_))
+                    cur = next((n for n, (_, k_, c_) in enumerate(presets) if k_ == el.k and c_ == el.rho_cp), len(presets) - 1)
+                    mat.setCurrentIndex(cur)
+                    kk = _spin(0.1, 1000, el.k, 1, 5, "W/mK")
+                    kk.valueChanged.connect(lambda v: self.doc.set_props(kind, i, k=v))
 
-                def pick(_idx, mat=mat, kk=kk):
-                    k_, c_ = mat.currentData()
-                    if k_ is not None:
-                        kk.setValue(k_)
-                        self.doc.set_props(kind, i, k=k_, rho_cp=c_, merge=False)
+                    def pick(_idx, mat=mat, kk=kk):
+                        k_, c_ = mat.currentData()
+                        if k_ is not None:
+                            kk.setValue(k_)
+                            self.doc.set_props(kind, i, k=k_, rho_cp=c_, merge=False)
 
-                mat.currentIndexChanged.connect(pick)
-                lay.addRow("Block material", mat)
-                lay.addRow("Block k", kk)
-                cr = _spin(0, 1000, el.contact_r * 1e4, 3, 0.5, "K·cm²/W")
-                cr.setToolTip("Interface resistance between the board and the block, per area: thickness / conductivity of the gap pad or paste "
-                              "(0.5 mm of a 1 W/mK pad is 5 K·cm²/W; 0.5 mm of a 5 W/mK pad is 1). The contact is over the copper under the block.")
-                cr.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_r=v * 1e-4))
-                lay.addRow("Interface", cr)
-                tim = QComboBox()
-                for label, k_, t_ in INTERFACES:
-                    tim.addItem(label, t_ * 1e-3 / k_)
-                tim.addItem("Custom (type the value above)", None)
-                tim.setCurrentIndex(next((n for n in range(tim.count() - 1) if abs(tim.itemData(n) - el.contact_r) < 1e-7), tim.count() - 1))
+                    mat.currentIndexChanged.connect(pick)
+                    lay.addRow("Block material", mat)
+                    lay.addRow("Block k", kk)
+                    cr = _spin(0, 1000, el.contact_r * 1e4, 3, 0.5, "K·cm²/W")
+                    cr.setToolTip("Interface resistance between the board and the block, per area: thickness / conductivity of the gap pad or paste "
+                                  "(0.5 mm of a 1 W/mK pad is 5 K·cm²/W; 0.5 mm of a 5 W/mK pad is 1). The contact is over the copper under the block, so the "
+                                  "contact area is the overlap of the block with the copper: there is nothing to draw.")
+                    cr.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_r=v * 1e-4))
+                    lay.addRow("Interface", cr)
+                    tim = QComboBox()
+                    for label, k_, t_ in INTERFACES:
+                        tim.addItem(label, t_ * 1e-3 / k_)
+                    tim.addItem("Custom (type the value above)", None)
+                    tim.setCurrentIndex(next((n for n in range(tim.count() - 1) if abs(tim.itemData(n) - el.contact_r) < 1e-7), tim.count() - 1))
 
-                def pick_tim(_idx, tim=tim, cr=cr):
-                    if tim.currentData() is not None:
-                        cr.setValue(tim.currentData() * 1e4)
+                    def pick_tim(_idx, tim=tim, cr=cr):
+                        if tim.currentData() is not None:
+                            cr.setValue(tim.currentData() * 1e4)
 
-                tim.currentIndexChanged.connect(pick_tim)
-                tim.setToolTip("Preset of the interface material between the board and the block (grease, paste, gap pads). The value above can still be edited; "
-                               "if you do not know it, the default paste is a safe choice.")
-                lay.addRow("Interface material", tim)
+                    tim.currentIndexChanged.connect(pick_tim)
+                    tim.setToolTip("Preset of the interface material between the board and the block (grease, paste, gap pads). The value above can still be edited; "
+                                   "if you do not know it, the default paste is a safe choice.")
+                    lay.addRow("Interface material", tim)
+                    fh = _spin(0, 200, el.fin_height * 1000, 2, 1, "mm")
+                    ft = _spin(0, 20, el.fin_thickness * 1000, 2, 0.1, "mm")
+                    fp = _spin(0, 100, el.fin_pitch * 1000, 2, 0.5, "mm")
+                    fh.setToolTip("Height of the plate fins on the exposed face of the block (0 = a plain plate). The program computes the area gain and the fin efficiency "
+                                  "tanh(mL)/(mL) of the metal.")
+                    ft.setToolTip("Thickness of one fin.")
+                    fp.setToolTip("Distance between the axes of two fins. The air gap is pitch minus thickness: in still air less than about 4 to 6 mm chokes the "
+                                  "natural convection (the program warns; it does not slow the air between the fins).")
+                    for key, spin in (("fin_height", fh), ("fin_thickness", ft), ("fin_pitch", fp)):
+                        spin.valueChanged.connect(lambda v, k=key: self.doc.set_props(kind, i, **{k: v / 1000.0}))
+                    lay.addRow("Fin height", fh)
+                    lay.addRow("Fin thickness", ft)
+                    lay.addRow("Fin pitch", fp)
             else:
                 x = _spin(0, 2000, el.x * 1000, 2, 0.5, "mm")
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")

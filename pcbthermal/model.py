@@ -88,6 +88,45 @@ def load_stackup_templates(path=None):
     return _STACKUP_CACHE["data"]
 
 
+def combine_sheets(sheets):
+    """!
+    @brief One dielectric gap that is made of several sheets in a row (for example a prepreg and a core, or two prepreg plies of different glass styles).
+    @details The sheets are in series for the heat that crosses the board and side by side for the heat that spreads along it:
+             through the thickness k = sum(t_i) / sum(t_i / k_i) (resistances add), in the plane k = sum(t_i k_i) / sum(t_i) (conductances add),
+             density the thickness-weighted mean, specific heat the mass-weighted mean. The thickness is the pressed thickness after lamination.
+    @param sheets List of dicts with thickness_um and material (a DIELECTRICS label); an optional k_through, k_inplane, rho and cp override the preset.
+    @return A Dielectric (name: the materials joined by " + ").
+    @throws ValueError If there is no sheet or a thickness is not positive.
+    """
+    if not sheets:
+        raise ValueError("a gap needs at least one sheet")
+    rows = []
+    for sh in sheets:
+        p = next((d for d in DIELECTRICS if d[0] == sh.get("material")), DIELECTRICS[0])
+        t = float(sh["thickness_um"]) * 1e-6
+        if t <= 0:
+            raise ValueError("every sheet needs a positive thickness")
+        rows.append((t, sh.get("k_through", p[1]), sh.get("k_inplane", p[2]), sh.get("rho", p[3]), sh.get("cp", p[4]), p[0]))
+    total = sum(r[0] for r in rows)
+    k_through = total / sum(r[0] / r[1] for r in rows)
+    k_inplane = sum(r[0] * r[2] for r in rows) / total
+    mass = sum(r[0] * r[3] for r in rows)
+    names = []
+    for r in rows:
+        if r[5] not in names:
+            names.append(r[5])
+    return Dielectric(total, " + ".join(names), k_through, k_inplane, mass / total, sum(r[0] * r[3] * r[4] for r in rows) / mass)
+
+
+def _gap_thickness_um(d):
+    """!
+    @brief Thickness in micrometres of a dielectric entry of a template (a single sheet or a list of sheets).
+    @param d Entry of the template's dielectrics.
+    @return Thickness in um.
+    """
+    return sum(s["thickness_um"] for s in d["sheets"]) if "sheets" in d else d["thickness_um"]
+
+
 def stackup_template(layers, path=None):
     """!
     @brief The typical stack-up for a number of copper layers.
@@ -102,7 +141,7 @@ def stackup_template(layers, path=None):
     if t is not None:
         out = copy.deepcopy(t)
         out.setdefault("mode", "advanced")
-        out["total_thickness_um"] = out.get("total_thickness_um", sum(out["copper_um"]) + sum(d["thickness_um"] for d in out["dielectrics"]))
+        out["total_thickness_um"] = out.get("total_thickness_um", sum(out["copper_um"]) + sum(_gap_thickness_um(d) for d in out["dielectrics"]))
         return out
     below = max((int(k) for k in data if int(k) < layers), default=min(int(k) for k in data))
     ref = stackup_template(below, path)
@@ -156,8 +195,7 @@ class Board:
         self.copper_thickness = [c * 1e-6 for c in t["copper_um"]]
         self.dielectrics = []
         for d in t["dielectrics"]:
-            preset = next((p for p in DIELECTRICS if p[0] == d.get("material")), DIELECTRICS[0])
-            self.dielectrics.append(Dielectric(d["thickness_um"] * 1e-6, preset[0], preset[1], preset[2], preset[3], preset[4]))
+            self.dielectrics.append(combine_sheets(d.get("sheets") or [d]))
         self.thickness = self.total_thickness()
         return t
 
@@ -589,7 +627,8 @@ class Heater:
     power_tc: float = 0.0                       # Temperature coefficient of the power (1/K): P = P0 (1 + tc (Tj - 25 degC)); 0 = constant power
     theta_jc_top: float = 0.0                   # Junction-to-case (top) resistance (K/W) of the top path; used only with theta_sa
     theta_sa: float = 0.0                       # Heatsink-to-ambient resistance (K/W) on top of the package; 0 = no top path (worst case)
-    interface: float = 0.0                      # Interface between package top and heatsink (K cm2/W, over the footprint area); 0 = perfect contact
+    interface: float = 0.0                      # Interface between package top and heatsink (K cm2/W, over the contact area); 0 = perfect contact
+    contact_area: float = 0.0                   # Area of the package top that touches the heatsink through the interface (m2); 0 = the footprint
 
     def top_resistance(self):
         """!
@@ -600,7 +639,7 @@ class Heater:
         """
         if self.theta <= 0 or self.theta_sa <= 0:
             return 0.0
-        area_cm2 = max(self.area() * 1e4, 1e-9)
+        area_cm2 = max((self.contact_area or self.area()) * 1e4, 1e-9)           # The paste covers the lid/case, which can differ from the footprint
         return self.theta_jc_top + self.interface / area_cm2 + self.theta_sa
 
     def average_power(self):
@@ -703,6 +742,16 @@ class Heatsink:
     k: float = 204.0                            # Conductivity of the block (W/mK); aluminium 204, copper 386
     rho_cp: float = 2.44e6                      # Volumetric heat capacity of the block (J/m3K); aluminium 2.44e6, copper 3.45e6
     contact_r: float = 5.0e-4                   # Interface resistance between the board and the block (m2K/W): pad thickness / k
+    fin_height: float = 0.0                     # Fins on the exposed face of the block: height (m); 0 = no fins (a plain plate)
+    fin_thickness: float = 0.0                  # Fin thickness (m)
+    fin_pitch: float = 0.0                      # Distance between the axes of two fins (m)
+
+    def has_fins(self):
+        """!
+        @brief True if the block has plate fins (height, thickness and pitch all set).
+        @return Boolean.
+        """
+        return self.is_block() and self.fin_height > 0 and self.fin_thickness > 0 and self.fin_pitch > self.fin_thickness
 
     def is_block(self):
         """!
@@ -767,8 +816,8 @@ class Problem:
                 raise ValueError("heater power must be >= 0")
             if h.theta < 0 or h.tj_max < 0 or h.psi_jb < 0 or not -0.05 <= h.power_tc <= 0.05:
                 raise ValueError("a heater needs theta, tj_max and psi_jb >= 0 and a power temperature coefficient between -5 and 5 %/K")
-            if h.theta_jc_top < 0 or h.theta_sa < 0 or h.interface < 0:
-                raise ValueError("theta_jc_top, theta_sa and the interface resistance must be >= 0")
+            if h.theta_jc_top < 0 or h.theta_sa < 0 or h.interface < 0 or h.contact_area < 0:
+                raise ValueError("theta_jc_top, theta_sa, the interface resistance and the contact area must be >= 0")
             if h.profile is not None:
                 h.profile.validate()
         for s in self.heatsinks:
@@ -776,6 +825,8 @@ class Problem:
                 raise ValueError("a heatsink must be on the top or the bottom layer")
             if s.thickness < 0 or s.k <= 0 or s.rho_cp <= 0 or s.contact_r < 0 or s.h_extra < 0:
                 raise ValueError("a heatsink needs h_extra, thickness and contact resistance >= 0 and k, heat capacity > 0")
+            if min(s.fin_height, s.fin_thickness, s.fin_pitch) < 0 or (s.fin_height > 0 and not s.fin_pitch > s.fin_thickness > 0):
+                raise ValueError("fins need a height, a thickness and a pitch larger than the thickness (all in mm, or all zero for no fins)")
 
     # ---------------------------------------------------------------- builder API (mm, layer 1 = top)
     @classmethod
@@ -839,7 +890,7 @@ class Problem:
         return self
 
     def add_heater(self, layer, power, rect=None, polygon=None, name="", theta=0.0, profile=None, tj_max=0.0, psi_jb=0.0, power_tc=0.0,
-                   theta_jc_top=0.0, theta_sa=0.0, interface=0.0):
+                   theta_jc_top=0.0, theta_sa=0.0, interface=0.0, contact_area_mm2=0.0):
         """!
         @brief Add a heat source (layer 1 = top, geometry in mm, power in W).
         @param layer 1-based layer number.
@@ -855,11 +906,12 @@ class Problem:
         @param power_tc Temperature coefficient of the power in 1/K (0 = constant); P = P0 (1 + tc (Tj - 25 degC)) is solved with the board.
         @param theta_jc_top Junction-to-case (top) resistance in K/W of the top path (used only with theta_sa).
         @param theta_sa Resistance in K/W from the heatsink on top of the package to the ambient (0 = no top path: all the power enters the board).
-        @param interface Interface between package and heatsink in K cm2/W, divided by the footprint area (0 = perfect contact).
+        @param interface Interface between package and heatsink in K cm2/W, divided by the contact area (0 = perfect contact).
+        @param contact_area_mm2 Area of the package top that touches the heatsink in mm2 (0 = the footprint; for a processor the lid).
         @return self.
         """
         h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta, None, float(tj_max), float(psi_jb), float(power_tc),
-                   float(theta_jc_top), float(theta_sa), float(interface))
+                   float(theta_jc_top), float(theta_sa), float(interface), float(contact_area_mm2) * 1e-6)
         h.set_profile(profile)
         self.heaters.append(h)
         return self
@@ -906,7 +958,7 @@ class Problem:
         return self
 
     def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=204.0, rho_cp=2.44e6,
-                 contact_r=5.0e-4):
+                 contact_r=5.0e-4, fin_height_mm=0.0, fin_thickness_mm=0.0, fin_pitch_mm=0.0):
         """!
         @brief Add a heatsink: extra heat transfer coefficient on an outer surface, optionally a metal block (mm, W/m2K).
         @param layer 1 (top) or the last layer (bottom).
@@ -918,10 +970,13 @@ class Problem:
         @param k Conductivity of the block in W/mK.
         @param rho_cp Volumetric heat capacity of the block in J/m3K.
         @param contact_r Interface resistance in m2K/W (pad thickness divided by its conductivity).
+        @param fin_height_mm Height of the plate fins of the block in mm (0 = no fins).
+        @param fin_thickness_mm Thickness of a fin in mm.
+        @param fin_pitch_mm Distance between the axes of two fins in mm.
         @return self.
         """
         self.heatsinks.append(Heatsink(layer - 1, self._shape_m(rect, polygon), float(h_extra), name, thickness_mm / 1000.0,
-                               float(k), float(rho_cp), float(contact_r)))
+                               float(k), float(rho_cp), float(contact_r), fin_height_mm / 1000.0, fin_thickness_mm / 1000.0, fin_pitch_mm / 1000.0))
         return self
 
 
@@ -988,7 +1043,8 @@ def problem_from_dict(data, validate=True):
         heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]), h.get("name", ""),
                         float(h.get("theta_k_per_w", h.get("theta_jb_k_per_w", 0.0))), None, float(h.get("tj_max_c", 0.0)),
                         float(h.get("psi_jb_k_per_w", 0.0)), float(h.get("power_tc_per_k", 0.0)),
-                        float(h.get("theta_jc_top_k_per_w", 0.0)), float(h.get("theta_sa_k_per_w", 0.0)), float(h.get("interface_kcm2_per_w", 0.0)))
+                        float(h.get("theta_jc_top_k_per_w", 0.0)), float(h.get("theta_sa_k_per_w", 0.0)), float(h.get("interface_kcm2_per_w", 0.0)),
+                        float(h.get("contact_area_mm2", 0.0)) * 1e-6)
         if "profile" in h:
             heater.set_profile(_profile_from_dict(h["profile"]))
         prob.heaters.append(heater)
@@ -998,7 +1054,9 @@ def problem_from_dict(data, validate=True):
     for s in data.get("heatsinks", data.get("sinks", [])):    # "sinks" is the key of files saved before the rename
         prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
                                float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 204.0)),
-                               float(s.get("rho_cp_j_per_m3k", 2.44e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4))))
+                               float(s.get("rho_cp_j_per_m3k", 2.44e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4)),
+                               float(s.get("fin_height_mm", 0.0)) / 1000.0, float(s.get("fin_thickness_mm", 0.0)) / 1000.0,
+                               float(s.get("fin_pitch_mm", 0.0)) / 1000.0))
     if validate:
         prob.validate()
     return prob
@@ -1150,10 +1208,13 @@ def problem_to_dict(prob):
                          **({"theta_jc_top_k_per_w": h.theta_jc_top} if h.theta_jc_top else {}),
                          **({"theta_sa_k_per_w": h.theta_sa} if h.theta_sa else {}),
                          **({"interface_kcm2_per_w": h.interface} if h.interface else {}),
+                         **({"contact_area_mm2": h.contact_area * 1e6} if h.contact_area else {}),
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
                   "filled": v.filled, "name": v.name} for v in prob.vias],
         "heatsinks": [dict({"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name},
                        **({"thickness_mm": s.thickness * 1000.0, "k_w_per_mk": s.k, "rho_cp_j_per_m3k": s.rho_cp,
-                           "contact_r_m2k_per_w": s.contact_r} if s.is_block() else {})) for s in prob.heatsinks],
+                           "contact_r_m2k_per_w": s.contact_r} if s.is_block() else {}),
+                       **({"fin_height_mm": s.fin_height * 1000.0, "fin_thickness_mm": s.fin_thickness * 1000.0, "fin_pitch_mm": s.fin_pitch * 1000.0}
+                          if s.has_fins() else {})) for s in prob.heatsinks],
     }

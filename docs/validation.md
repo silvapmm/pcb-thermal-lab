@@ -317,6 +317,31 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 * Less board makes the heater hotter (the L shape has 25 % less board and the rise grows 35 %), the FVM and the independent 3D solid agree within 1.5 % on every shape, as they do on the rectangle.
 * Limits: cell-cover treatment of the boundary (a cell on the edge conducts with its covered fraction), so a neck narrower than two or three cells is poorly resolved; the lumped and analytic models need a rectangle and are not run.
 
+**C. Sensitivity to the stack-up numbers** (`python examples/stackup_outline_study.py`; the typical 4-layer stack-up of `stackups.json`, base rise 84.5 K):
+
+| Change | Rise [K] | Change in the rise |
+| :-- | --: | --: |
+| dielectric k through -30 % (0.21 W/mK) | 85.4 | +1.0 % |
+| dielectric k through +30 % (0.39 W/mK) | 83.8 | -0.8 % |
+| all dielectric thicknesses -10 % (fabricator tolerance) | 84.2 | -0.4 % |
+| all dielectric thicknesses +10 % | 84.8 | +0.4 % |
+| prepreg 0.25 and core 0.35 W/mK | 84.6 | +0.1 % |
+| finished copper 15 % thinner (etch and plating spread) | 89.3 | +5.7 % |
+| finished copper 15 % thicker | 80.8 | -4.4 % |
+
+Without the vias under the part (base rise 93.4 K) the same ±30 % in the dielectric conductivity gives +3.3 / -2.3 %. The prepreg and the core matter little; the copper and the vias matter more.
+
+**D. Finned metal block** (60 × 40 mm two-layer board, 3 W part, aluminium block 40 × 30 mm on the bottom face, 5e-5 m²K/W interface, typed 10 W/m²K; rise of the hottest point in K):
+
+| Block | Fin ratio at 10 W/m²K | FVM | FDM | 3D solid | Lumped | Analytic |
+| :-- | --: | --: | --: | --: | --: | --: |
+| plain plate 3 mm | 1.0 | 88.3 | 88.2 | 88.9 | 100.3 | 99.8 |
+| fins 15 × 1.5 mm, pitch 8 mm | 4.7 | 61.2 | 61.2 | 61.7 | 72.1 | 69.4 |
+| fins 15 × 1.5 mm, pitch 12 mm | 3.5 | 66.4 | 66.3 | 66.8 | 77.8 | 75.5 |
+| fins 30 × 1.5 mm, pitch 8 mm | 8.4 | 53.2 | 53.2 | 53.6 | 62.4 | 59.3 |
+
+The FVM, the FDM and the 3D solid agree within 1 % on a finned block (the same fin ratio in all three); the lumped and analytic models are 10 to 13 % high on a board with a block, as they are on a plain block (they replace it by an equivalent coefficient).
+
 **Power from a measured temperature.** The forward model reproduces the measurement: the power recovered from the model's own board temperature at the mean-under-part and the 1 mm ring points is exact to 1e-3 (affine, two model runs plus a check), the hottest point and the junction need a few more because the hottest point can move with the power, and with computed convection (not linear) the iteration converges to 2e-3 (`tests/test_inverse.py`). The accuracy against a real measurement is the accuracy of the drawn board and of the probe: no measurement of a real board has been made in this project yet.
 
 **Calculation process.** A cancelled run stops at once (the process is terminated, the next job starts a fresh one), jobs run one at a time, and closing the program leaves no process (`tests/test_compute.py`, `test_gui_stress.py`). Results travel by pickle (22 MB for a four-model run with a profile, 0.04 s).

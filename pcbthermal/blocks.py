@@ -10,7 +10,8 @@
          * contact to the board layer of that face, G = c A [ f / R'' + (1 - f) / (R'' + d / k) ]  with f the copper fill of the board layer there:
            the heat enters the block through the interface of resistance R'' (m2K/W) mostly where it overlaps copper (the intersection of the two
            planes); over bare laminate it has to cross half a layer slab d of FR-4 as well, a much larger resistance;
-         * to the ambient through the exposed surface, G = (h_face + h_extra) A c, and through the sides of the block, G = (h_face + h_extra) t L_edge,
+         * to the ambient through the exposed surface, G = h_exp A c, and through the sides of the block, G = h_exp t L_edge, with h_exp = h_face x fin ratio + h_extra
+           (fin_ratio: plate fins with their efficiency; 1 for a plain plate),
            with L_edge the length of the edge of the block inside the cell (a rectangular block on the grid has the whole length of its outline);
          * the board face under the block no longer loses heat to the air (it is covered): its coefficient is multiplied by 1 - c.
 
@@ -24,6 +25,34 @@ import copy
 import numpy as np
 
 ISOLATED = 1.0e-9            # W/K of a node without block: keeps the matrix regular, changes nothing
+
+
+def fin_ratio(h, s):
+    """!
+    @brief Ratio of the heat given by the finned face of a block to that of the plain plate, for the same coefficient h on the metal.
+    @details Plate fins perpendicular to the base, thin fins with an adiabatic tip at the corrected height Hc = H + t/2: efficiency
+             eta = tanh(m Hc) / (m Hc), m = sqrt(2 h / (k t)); per unit of base area the free base is 1 - t/p and the fins add 2 Hc eta / p, with t the
+             fin thickness and p the pitch. The air between close fins is not slowed down in this model (see checks.py for the warning).
+    @param h Heat transfer coefficient on the metal in W/m2K.
+    @param s A Heatsink (block).
+    @return Ratio >= 1 (1 for a block without fins).
+    """
+    if not s.has_fins():
+        return 1.0
+    t, p, hc = s.fin_thickness, s.fin_pitch, s.fin_height + 0.5 * s.fin_thickness
+    m = np.sqrt(2.0 * max(h, 1e-12) / (s.k * t))
+    eta = np.tanh(m * hc) / (m * hc)
+    return float((1.0 - t / p) + 2.0 * hc * eta / p)
+
+
+def exposed_h(s, h_face):
+    """!
+    @brief Coefficient of the exposed surface of a block, per unit of base area: the face coefficient times the fin ratio plus the extra h.
+    @param s A Heatsink (block).
+    @param h_face Coefficient of the board face the block is on, in W/m2K.
+    @return W/m2K.
+    """
+    return h_face * fin_ratio(h_face, s) + s.h_extra
 
 
 def block_faces(problem):
@@ -82,7 +111,7 @@ def extra_layers(problem, cover, area, fill, dx, dy):
             r_c = max(s.contact_r, 1e-7)
             f = fill[layer]
             g_link = np.where(take, c * area * (f / r_c + (1.0 - f) / (r_c + r_half)), g_link)
-            h_tot = np.where(take, h_face + s.h_extra, h_tot)
+            h_tot = np.where(take, exposed_h(s, h_face), h_tot)
             side = np.zeros_like(c)                                         # Length of the block edge inside every cell
             pad = np.pad(c, 1)
             for axis, length in ((1, dy), (0, dx)):
@@ -124,6 +153,7 @@ def plain_equivalent(problem):
     for s in p.heatsinks:
         if s.is_block():
             h_face = b.h_top if (s.layer == 0 or b.layers == 1) else b.h_bottom
-            h_eq = 1.0 / (max(s.contact_r, 1e-7) + 1.0 / (h_face + s.h_extra))
+            h_eq = 1.0 / (max(s.contact_r, 1e-7) + 1.0 / exposed_h(s, h_face))
             s.h_extra, s.thickness = max(h_eq - h_face, 0.0), 0.0
+            s.fin_height = s.fin_thickness = s.fin_pitch = 0.0
     return p

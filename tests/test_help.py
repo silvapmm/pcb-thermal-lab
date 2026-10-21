@@ -29,7 +29,7 @@ def test_guide_file_links_and_content():
     assert links and all(l in ids for l in links), [l for l in links if l not in ids]
     # The guide mentions every model, every part field, every tool key and every dielectric preset of the program
     for word in ("FVM", "FDM", "Lumped", "Analytic", "3D solid", "θ junction-pad", "Tj max", "ψJB", "Power coefficient", "Heatsink θSA", "Board outline",
-                 "Stack-up", "Power calculator", "Cancel", "F1", __version__ if False else "Quick start"):
+                 "Stack-up", "Power calculator", "Cancel", "F1", "Cooling model", "Metal block", "contact area", "Prepreg", "Load typical stack-up", "stackups.json", __version__ if False else "Quick start"):
         assert word in html, word
     for entry in DIELECTRICS:
         assert entry[0].split(" (")[0].split(" high")[0].split(" ceramic")[0] in html or entry[0] in html, entry[0]

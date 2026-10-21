@@ -135,6 +135,18 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 | Rounded-corner preset, Subdivide button, `geometry.rounded_rectangle` | `gui/panels.py`, `geometry.py` | `test_templates.py`: area error 0.13 % at 8 edges, temperature converges |
 | Documentation of the heat paths, the stack-up contents and curved boards | `docs/models.md` sections 12 to 14, the user guide | |
 
+### Third batch (2026-10-21): computed heatsinks, contact area, prepreg
+
+| Feature | Code | Tests / evidence |
+| :-- | :-- | :-- |
+| **Cooling model** of the Heatsink element: *Coefficient* (extra h or θSA) or *Metal block, computed* (the program does the rest); fields appear for the chosen model | `gui/panels.py` | `test_heatsink_part.py` |
+| **Fins on a metal block**: height, thickness, pitch; area gain with fin efficiency, in the FVM, FDM and 3D solid (lumped and analytic: equivalent coefficient); warning for fins too close in still air | `blocks.fin_ratio`, `blocks.exposed_h`, `Heatsink.fin_*`, `solid3d.py`, `checks.py` | textbook formula to 1e-12, the five models, FVM/FDM/3D within 1 % (`validation.md` 12 D) |
+| **Contact area** of a part's interface (lid or exposed top; empty = footprint) and the **body helper** (θJC(top) = t/(kA) from thickness and material), for processors and chips with a heatsink | `Heater.contact_area`, `gui/panels.py` | `test_heatsink_part.py` |
+| **Gaps of several sheets** (prepreg and core): `combine_sheets` (series through, parallel in plane), `"sheets"` in the templates | `model.combine_sheets` | exact formulas in `test_heatsink_part.py` |
+| Sensitivity of the temperature to the stack-up numbers (dielectric k, thickness, copper) | `examples/stackup_outline_study.py` | `validation.md` 12 C |
+| Orientation worded by faces (top up / top down / vertical) | `gui/panels.py` | |
+| Documentation: `docs/models.md` sections 15 to 18 (computed block, paste and processors, prepreg, orientation) | | |
+
 ### Changed behaviour
 
 - Changing the number of layers in the application now loads the typical stack-up of the new count (copper, dielectrics and total thickness in the advanced mode; total thickness and outer copper in the simple mode): a 4-layer board is 1.586 mm, a 10-layer board 2.0 mm.
