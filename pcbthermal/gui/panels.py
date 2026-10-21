@@ -82,13 +82,13 @@ class BoardPanel(QWidget):
         self.orientation = QComboBox()
         self.orientation.addItem("Horizontal, top face up", "horizontal")
         self.orientation.addItem("Vertical", "vertical")
-        self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "")
-        self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "")
+        self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
+        self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_top.setToolTip("Emissivity of the top face: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1")
         self.emis_bottom.setToolTip(self.emis_top.toolTip())
         self.air_speed = _spin(0, 50, 0, 2, 0.5, "m/s")
         self.air_speed.setToolTip("Air speed along the board; 0 is still air (natural convection)")
-        self.calibration = _spin(0.2, 5, 1.0, 2, 0.05, "×")
+        self.calibration = _spin(0.2, 5, 1.0, 2, 0.05, "× (factor)")
         self.calibration.setToolTip("Multiplier of the computed convection (not of the radiation); fit it to a measurement. "
                                     "The correlations are for isothermal plates and are uncertain by about 20 to 30 % on a board with hot spots.")
         self.computed_rows = []
@@ -96,6 +96,9 @@ class BoardPanel(QWidget):
         f.addRow("Heat transfer", self.h_mode)
         f.addRow("h top", self.h_top)
         f.addRow("h bottom", self.h_bottom)
+        self.manual_rows = [(f.labelForField(self.h_top), self.h_top), (f.labelForField(self.h_bottom), self.h_bottom)]
+        self.h_top.setToolTip("Heat transfer coefficient of the top face (convection plus radiation), typed. Natural convection in air is about 5 to 15 W/m²K.")
+        self.h_bottom.setToolTip("Heat transfer coefficient of the bottom face, typed. Usually a little lower than the top face for a board facing up.")
         for label, w in (("Orientation", self.orientation), ("Emissivity top", self.emis_top),
                          ("Emissivity bottom", self.emis_bottom), ("Air speed", self.air_speed),
                          ("Convection ×", self.calibration)):
@@ -165,9 +168,11 @@ class BoardPanel(QWidget):
         @param mode "manual" or "computed".
         """
         computed = mode == "computed"
-        self.h_top.setEnabled(not computed)
-        self.h_bottom.setEnabled(not computed)
-        self.h_top.setToolTip("Starting value only in computed mode" if computed else "")
+        # The typed h only matters when typed: in computed mode it is just the starting guess of the iteration, so it is hidden
+        for label, w in self.manual_rows:
+            w.setVisible(not computed)
+            if label is not None:
+                label.setVisible(not computed)
         for label, w in self.computed_rows:
             w.setVisible(computed)
             if label is not None:
@@ -583,6 +588,7 @@ class SolverPanel(QWidget):
     """
 
     run_requested = Signal()
+    cancel_requested = Signal()
 
     def __init__(self, doc, parent=None):
         """!
@@ -652,6 +658,11 @@ class SolverPanel(QWidget):
         self.run = QPushButton("Run simulation   (F5)")
         self.run.setObjectName("primary")
         self.run.clicked.connect(self.run_requested)
+        self.run.setToolTip("Solve the selected models (F5). The calculation runs in a separate process: the window stays usable and it can be cancelled.")
+        self.cancel = QPushButton("Cancel")
+        self.cancel.setToolTip("Stop the running calculation at once (Ctrl+.). Nothing is kept from the interrupted run.")
+        self.cancel.clicked.connect(self.cancel_requested)
+        self.cancel.setVisible(False)
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
@@ -661,6 +672,7 @@ class SolverPanel(QWidget):
         self.checks = QLabel("")
         self.checks.setWordWrap(True)
         lay.addWidget(self.run)
+        lay.addWidget(self.cancel)
         lay.addWidget(self.progress)
         lay.addWidget(self.status)
         lay.addWidget(self.checks)
@@ -742,6 +754,7 @@ class SolverPanel(QWidget):
         @param text Status text.
         """
         self.run.setEnabled(not running)
+        self.cancel.setVisible(running)
         self.status.setText(text)
         if not running:
             self.progress.setValue(0)

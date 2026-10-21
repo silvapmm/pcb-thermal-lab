@@ -55,10 +55,15 @@ def extra_layers(problem, cover, area, fill, dx, dy):
     """
     b = problem.board
     L = b.layers
-    r_half = (b.thickness / L / 2.0) / b.materials.k_fr4_through     # Half a layer slab of FR-4 (m2K/W)
+    slabs, k_gap = b.slab_thicknesses(), b.gap_properties()[0]
+    def half_slab_resistance(layer):
+        # Half a layer slab of the dielectric next to the face (m2K/W); the face's own gap when there is one
+        k = k_gap[0 if layer == 0 else L - 2] if L > 1 else b.materials.k_fr4_through
+        return slabs[layer] / 2.0 / k
     out = []
     for face in block_faces(problem):
         layer = 0 if face == 0 else L - 1
+        r_half = half_slab_resistance(layer)
         h_face = b.h_top if face == 0 else b.h_bottom
         ny, nx = area.shape
         cov = np.zeros((ny, nx))

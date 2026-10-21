@@ -56,7 +56,8 @@ class Network:
         self.dx, self.dy = b.width / nx, b.height / ny
         L, dx, dy = b.layers, self.dx, self.dy
         cell = dx * dy                       # Cell footprint area (m2)
-        slab = b.thickness / L               # Thickness represented by one layer node (m)
+        slab = b.slab_thicknesses()          # Thickness represented by each layer node (m)
+        k_lam, rho_cp_lam = b.layer_laminate()   # In-plane conductivity and volumetric heat capacity of the dielectric part of each node
         t_cu = np.asarray(b.copper_thickness)
         if np.any(t_cu >= slab):
             raise ValueError("copper thickness must be smaller than thickness / layers")
@@ -70,15 +71,16 @@ class Network:
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
         tc = t_cu[:, None, None]
-        diel_t = slab - f * tc                         # FR-4 thickness left in the slab (m)
-        self.S = f * m.k_copper * tc + m.k_fr4_inplane * diel_t
-        self.C = (f * m.rho_copper * m.cp_copper * tc + diel_t * m.rho_fr4 * m.cp_fr4) * cell
+        diel_t = slab[:, None, None] - f * tc          # Dielectric thickness left in the slab (m)
+        self.S = f * m.k_copper * tc + k_lam[:, None, None] * diel_t
+        self.C = (f * m.rho_copper * m.cp_copper * tc + diel_t * rho_cp_lam[:, None, None]) * cell
 
         # --- Vertical conductance between layer l and l+1 (W/K)
         self.gz = np.zeros((max(L - 1, 0), ny, nx))
         if L > 1:
-            d = b.dielectric_thickness()
-            self.gz[:] = m.k_fr4_through * cell / d    # Dielectric alone
+            d = b.gap_thicknesses()                    # One value per gap (equal in the simple stack-up)
+            k_gap = b.gap_properties()[0]
+            self.gz[:] = (k_gap * cell / d)[:, None, None]    # Dielectric alone
             for v in problem.vias:
                 i, j = cell_index_of_point(v.x, v.y, nx, ny, dx, dy)
                 # The barrel conducts in parallel with the dielectric, across every gap
@@ -103,10 +105,11 @@ class Network:
             self._add_blocks(layers)
         if b.h_side:
             # Each edge cell exposes a face of (cell edge length) x (slab thickness)
-            self.g_side[:, :, 0] += b.h_side * dy * slab
-            self.g_side[:, :, -1] += b.h_side * dy * slab
-            self.g_side[:, 0, :] += b.h_side * dx * slab
-            self.g_side[:, -1, :] += b.h_side * dx * slab
+            sl = slab[:, None]
+            self.g_side[:L, :, 0] += b.h_side * dy * sl
+            self.g_side[:L, :, -1] += b.h_side * dy * sl
+            self.g_side[:L, 0, :] += b.h_side * dx * sl
+            self.g_side[:L, -1, :] += b.h_side * dx * sl
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
 
         # --- Heat sources (W): the requested power is spread exactly over the covered cells.

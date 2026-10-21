@@ -9,51 +9,12 @@ The frames come from the implicit time stepping of the same matrices as the stea
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PySide6.QtCore import QThread, QTimer, Qt, Signal
+from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel, QPushButton, QSlider,
                                QSpinBox, QVBoxLayout, QWidget)
 
 from .. import analytic, fdm, fvm, plots
-from .compute import LOCK
 from .results_view import _mpl_theme, _paint_figure
-
-
-class TransientWorker(QThread):
-    """!
-    @brief Runs the transient solver in a background thread.
-    """
-
-    done = Signal(object)
-    failed = Signal(str)
-
-    def __init__(self, problem, kwargs, parent=None):
-        """!
-        @param problem Problem (the caller passes a private copy).
-        @param kwargs Arguments of fvm.solve_transient.
-        @param parent Qt parent.
-        """
-        super().__init__(parent)
-        self.problem, self.kwargs = problem, kwargs
-
-    def run(self):
-        """!
-        @brief Thread body.
-        """
-        try:
-            kw = dict(self.kwargs)
-            with LOCK:                                 # One calculation at a time (see compute.py)
-                model = kw.pop("model", "fvm")
-                if model == "analytic":
-                    # The closed-form model needs neither a scheme nor a step; it takes the frames and the spacing
-                    kw.pop("theta_scheme", None)
-                    result = analytic.solve_transient(self.problem, **kw)
-                elif model == "fdm":
-                    result = fdm.solve_transient(self.problem, **kw)
-                else:
-                    result = fvm.solve_transient(self.problem, **kw)
-            self.done.emit(result)
-        except Exception as exc:
-            self.failed.emit(str(exc))
 
 
 class AnimationTab(QWidget):

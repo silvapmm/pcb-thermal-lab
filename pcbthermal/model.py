@@ -36,6 +36,32 @@ class Materials:
 
 
 @dataclass
+class Dielectric:
+    """!
+    @brief One dielectric layer (core or prepreg) between two adjacent copper layers, for the advanced stack-up.
+    @details The properties are those of the material in the thickness direction (k_through) and along the plane (k_inplane).
+    """
+    thickness: float = 0.3e-3         # Thickness (m)
+    name: str = "FR-4"                # Material label (a DIELECTRICS entry or free text)
+    k_through: float = 0.3            # Conductivity across the thickness (W/mK)
+    k_inplane: float = 0.9            # Conductivity along the plane (W/mK)
+    rho: float = 1850.0               # Density (kg/m3)
+    cp: float = 900.0                 # Specific heat (J/kgK)
+
+
+# Typical dielectric materials, (label, k_through W/mK, k_inplane W/mK, rho kg/m3, cp J/kgK). Indicative values, always editable
+DIELECTRICS = (
+    ("FR-4 (standard)", 0.3, 0.9, 1850.0, 900.0),
+    ("FR-4 high Tg / filled", 0.4, 1.0, 1900.0, 900.0),
+    ("Polyimide (flex)", 0.15, 0.15, 1420.0, 1090.0),
+    ("PTFE ceramic (RO4350B type)", 0.69, 0.69, 1860.0, 830.0),
+    ("Metal-core dielectric (2 W/mK)", 2.0, 2.0, 2300.0, 900.0),
+    ("Alumina ceramic (96 %)", 24.0, 24.0, 3750.0, 800.0),
+    ("Aluminium nitride", 170.0, 170.0, 3260.0, 740.0),
+)
+
+
+@dataclass
 class Board:
     """!
     @brief Geometry, stack-up and boundary conditions of the board (SI units).
@@ -57,6 +83,99 @@ class Board:
     orientation: str = "horizontal"             # "horizontal" (top face up) or "vertical" (computed mode)
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
+    dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
+
+    def is_advanced(self):
+        """!
+        @brief True when the dielectrics are described one by one (advanced stack-up).
+        @return bool.
+        """
+        return self.dielectrics is not None
+
+    def total_thickness(self):
+        """!
+        @brief Total board thickness: the typed one in simple mode, copper plus dielectrics in advanced mode.
+        @return Thickness in metres.
+        """
+        if self.dielectrics is None:
+            return self.thickness
+        return float(sum(self.copper_thickness) + sum(d.thickness for d in self.dielectrics))
+
+    def make_advanced(self):
+        """!
+        @brief Switch to the advanced stack-up with dielectrics equal to the current simple ones (the same board, now editable per gap).
+        """
+        if self.dielectrics is None and self.layers > 1:
+            m = self.materials
+            gap = self.dielectric_thickness()
+            self.dielectrics = [Dielectric(gap, "FR-4", m.k_fr4_through, m.k_fr4_inplane, m.rho_fr4, m.cp_fr4) for _ in range(self.layers - 1)]
+        elif self.dielectrics is None:
+            self.dielectrics = []
+        self.thickness = self.total_thickness()
+
+    def make_simple(self):
+        """!
+        @brief Return to the simple stack-up: equal gaps that share the total thickness, FR-4 of `materials`.
+        """
+        self.thickness = self.total_thickness()
+        self.dielectrics = None
+
+    def gap_thicknesses(self):
+        """!
+        @brief Thickness of every dielectric gap, top to bottom.
+        @return Array of length layers - 1 in metres.
+        """
+        if self.dielectrics is not None:
+            return np.array([d.thickness for d in self.dielectrics], dtype=float)
+        return np.full(max(self.layers - 1, 0), self.dielectric_thickness())
+
+    def gap_properties(self):
+        """!
+        @brief Properties of every dielectric gap, top to bottom.
+        @return Tuple of arrays (k_through, k_inplane, rho_cp) of length layers - 1; rho_cp in J/m3K.
+        """
+        n = max(self.layers - 1, 0)
+        if self.dielectrics is not None:
+            return (np.array([d.k_through for d in self.dielectrics], dtype=float), np.array([d.k_inplane for d in self.dielectrics], dtype=float),
+                    np.array([d.rho * d.cp for d in self.dielectrics], dtype=float))
+        m = self.materials
+        return np.full(n, m.k_fr4_through), np.full(n, m.k_fr4_inplane), np.full(n, m.rho_fr4 * m.cp_fr4)
+
+    def slab_thicknesses(self):
+        """!
+        @brief Thickness represented by every layer node: copper plus the part of the dielectric around it.
+        @details Simple stack-up: the total thickness shared equally among the layers (the original model). Advanced: the copper plus half of each
+                 adjacent gap, so the slabs add up to the total thickness.
+        @return Array of length layers in metres.
+        """
+        L = self.layers
+        if self.dielectrics is None:
+            return np.full(L, self.thickness / L)
+        d = self.gap_thicknesses()
+        half = np.zeros(L)
+        half[:-1] += d / 2.0
+        half[1:] += d / 2.0
+        return np.asarray(self.copper_thickness, dtype=float) + half
+
+    def layer_laminate(self):
+        """!
+        @brief In-plane conductivity and volumetric heat capacity of the dielectric part of every layer node.
+        @details The thickness-weighted mean of the two adjacent gaps (the single gap for the outer layers); the plain FR-4 values in simple mode.
+        @return Tuple of arrays (k_inplane in W/mK, rho_cp in J/m3K), each of length layers.
+        """
+        L = self.layers
+        k_ip, rho_cp = np.full(L, self.materials.k_fr4_inplane), np.full(L, self.materials.rho_fr4 * self.materials.cp_fr4)
+        if self.dielectrics is None or L < 2:
+            return k_ip, rho_cp
+        d = self.gap_thicknesses()
+        _, gk, gc = self.gap_properties()
+        for l in range(L):
+            gaps = [g for g in (l - 1, l) if 0 <= g < L - 1]
+            w = np.array([d[g] for g in gaps])
+            if w.sum() > 0:
+                k_ip[l] = float(np.dot(w, [gk[g] for g in gaps]) / w.sum())
+                rho_cp[l] = float(np.dot(w, [gc[g] for g in gaps]) / w.sum())
+        return k_ip, rho_cp
 
     def dielectric_thickness(self):
         """!
@@ -65,6 +184,8 @@ class Board:
         """
         if self.layers < 2:
             return 0.0
+        if self.dielectrics is not None:
+            return float(np.mean([d.thickness for d in self.dielectrics]))       # Mean of the gaps; use gap_thicknesses() for each one
         # Board thickness minus all copper, shared by the (layers - 1) dielectric gaps
         return (self.thickness - sum(self.copper_thickness)) / (self.layers - 1)
 
@@ -77,9 +198,17 @@ class Board:
             raise ValueError("layers must be >= 1")
         if len(self.copper_thickness) != self.layers:
             raise ValueError("copper_thickness must have one value per layer")
-        if min(self.width, self.height, self.thickness) <= 0:
+        if min(self.width, self.height, self.total_thickness()) <= 0:
             raise ValueError("board dimensions must be positive")
-        if self.layers > 1 and self.dielectric_thickness() <= 0:
+        if self.dielectrics is not None:
+            if len(self.dielectrics) != max(self.layers - 1, 0):
+                raise ValueError("the advanced stack-up needs one dielectric per gap between copper layers")
+            for d in self.dielectrics:
+                if d.thickness <= 0 or d.k_through <= 0 or d.k_inplane <= 0 or d.rho <= 0 or d.cp <= 0:
+                    raise ValueError("every dielectric needs a positive thickness, conductivities, density and specific heat")
+            if min(self.copper_thickness) <= 0:
+                raise ValueError("copper thickness must be positive")
+        elif self.layers > 1 and self.dielectric_thickness() <= 0:
             raise ValueError("the copper layers do not fit inside the board thickness")
         if self.h_top < 0 or self.h_bottom < 0:
             raise ValueError("heat transfer coefficients must be >= 0")
@@ -719,6 +848,9 @@ def problem_from_dict(data, validate=True):
         orientation=b.get("orientation", "horizontal"),
         h_calibration=b.get("h_calibration", 1.0),
         materials=mat,
+        dielectrics=[Dielectric(float(d["thickness_mm"]) / 1000.0, d.get("name", "FR-4"), float(d.get("k_through", 0.3)),
+                                float(d.get("k_inplane", 0.9)), float(d.get("rho", 1850.0)), float(d.get("cp", 900.0)))
+                     for d in b["dielectrics"]] if "dielectrics" in b else None,
     )
     prob = Problem(board=board, name=data.get("name", "board"))
     for z in data.get("zones", []):
@@ -869,7 +1001,7 @@ def problem_to_dict(prob):
         "name": prob.name,
         "board": {
             "width_mm": b.width * 1000.0, "height_mm": b.height * 1000.0,
-            "thickness_mm": b.thickness * 1000.0, "layers": b.layers,
+            "thickness_mm": b.total_thickness() * 1000.0, "layers": b.layers,
             "copper_thickness_mm": [c * 1000.0 for c in b.copper_thickness],
             "ambient_c": b.ambient, "h_top": b.h_top, "h_bottom": b.h_bottom, "h_side": b.h_side,
             "via_plating_mm": b.via_plating * 1000.0,
@@ -877,6 +1009,8 @@ def problem_to_dict(prob):
             "air_speed_m_per_s": b.air_speed, "orientation": b.orientation, "h_calibration": b.h_calibration,
             "k_copper": m.k_copper, "k_fr4_through": m.k_fr4_through, "k_fr4_inplane": m.k_fr4_inplane,
             "rho_copper": m.rho_copper, "cp_copper": m.cp_copper, "rho_fr4": m.rho_fr4, "cp_fr4": m.cp_fr4,
+            **({"dielectrics": [{"thickness_mm": d.thickness * 1000.0, "name": d.name, "k_through": d.k_through, "k_inplane": d.k_inplane,
+                                 "rho": d.rho, "cp": d.cp} for d in b.dielectrics]} if b.dielectrics is not None else {}),
         },
         "zones": [{"layer": z.layer + 1, "polygon_mm": poly(z.polygon), "fill": z.fill, "name": z.name}
                   for z in prob.zones],

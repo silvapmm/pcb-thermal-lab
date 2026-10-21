@@ -109,7 +109,8 @@ class Network:
         wy = np.full(ny, dy); wy[[0, -1]] = 0.5 * dy
         area = np.outer(wy, wx)                                              # m2
         self.area = area
-        slab = b.thickness / L
+        slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (equal in the simple stack-up)
+        k_lam, rho_cp_lam = (v[:, None, None] for v in b.layer_laminate())  # Dielectric part of each node
         tc = np.asarray(b.copper_thickness)[:, None, None]
 
         def cover(poly, samples):
@@ -120,9 +121,9 @@ class Network:
         fill = np.zeros((L, ny, nx))
         for z in problem.zones:
             fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
-        S = fill * m.k_copper * tc + m.k_fr4_inplane * (slab - fill * tc)    # Sheet conductance per node (W/K)
+        S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)              # Sheet conductance per node (W/K)
         # Heat capacity of every node (J/K)
-        self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * m.rho_fr4 * m.cp_fr4) * area[None]
+        self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * rho_cp_lam) * area[None]
         # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py)
         ex = blocks.extra_layers(problem, cover, area, fill, dx, dy)
         E = len(ex)
@@ -152,8 +153,8 @@ class Network:
         couple(idx[:, :-1, :], idx[:, 1:, :], _mean(S[:, :-1, :], S[:, 1:, :], mean) * wx[None, None, :] / dy)
         # Vertical: dielectric over the control area, plus the via barrels at the nearest node
         if L > 1:
-            d = b.dielectric_thickness()
-            gz = np.broadcast_to(m.k_fr4_through * area / d, (L - 1, ny, nx)).copy()
+            d = b.gap_thicknesses()
+            gz = (b.gap_properties()[0][:, None, None] * area[None] / d[:, None, None]).copy()
             for v in problem.vias:
                 # A via is a point: all its conductance goes to the node nearest to it (spreading it over the neighbours was
                 # tried and removes the constriction, giving temperatures 2 % too low against the 3D solid)
@@ -176,10 +177,11 @@ class Network:
             self.g_block[L + k] = ly["g_amb"]
             (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
         if b.h_side:
-            self.g_side[:, :, 0] += b.h_side * wy[None, :] * slab
-            self.g_side[:, :, -1] += b.h_side * wy[None, :] * slab
-            self.g_side[:, 0, :] += b.h_side * wx[None, :] * slab
-            self.g_side[:, -1, :] += b.h_side * wx[None, :] * slab
+            sl = slab[:, :, 0]                                  # (L, 1): per-layer slab
+            self.g_side[:L, :, 0] += b.h_side * wy[None, :] * sl
+            self.g_side[:L, :, -1] += b.h_side * wy[None, :] * sl
+            self.g_side[:L, 0, :] += b.h_side * wx[None, :] * sl
+            self.g_side[:L, -1, :] += b.h_side * wx[None, :] * sl
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
         rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(self.g_amb.ravel())
         self.K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()

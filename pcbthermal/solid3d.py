@@ -89,7 +89,11 @@ class Solid:
         via_frac = np.minimum(via_frac, 1.0)
 
         tc = np.asarray(b.copper_thickness)
-        gap = b.dielectric_thickness()
+        gaps = b.gap_thicknesses()                                  # (L-1,) thickness of every gap
+        g_kz, g_kip, _ = b.gap_properties()
+        k_lam = b.layer_laminate()[0]                               # In-plane conductivity of the dielectric around each copper layer
+        kz_lam = np.array([float(np.dot([gaps[g] for g in a], [g_kz[g] for g in a]) / sum(gaps[g] for g in a))
+                           if (a := [g for g in (l - 1, l) if 0 <= g < L - 1]) else m.k_fr4_through for l in range(L)])
 
         # --- Slabs from the top face down: each is (kind, layer, dz, kx, kz); dz, kx, kz are arrays (ny, nx)
         slabs = []
@@ -133,14 +137,14 @@ class Solid:
         self.board_slab = []                                    # Index of the copper slab of every layer
         for l in range(L):
             f_eff = np.minimum(fill[l] + via_frac, 1.0)
-            kx = fill[l] * m.k_copper + (1.0 - fill[l]) * m.k_fr4_inplane
-            kz = f_eff * m.k_copper + (1.0 - f_eff) * m.k_fr4_through
+            kx = fill[l] * m.k_copper + (1.0 - fill[l]) * k_lam[l]
+            kz = f_eff * m.k_copper + (1.0 - f_eff) * kz_lam[l]
             self.board_slab.append(len(slabs))
             add("cu", l, tc[l], kx, kz)
             if l < L - 1:
-                kz = via_frac * m.k_copper + (1.0 - via_frac) * m.k_fr4_through
+                kz = via_frac * m.k_copper + (1.0 - via_frac) * g_kz[l]
                 for _ in range(n_diel):
-                    add("fr4", l, gap / n_diel, m.k_fr4_inplane, kz)
+                    add("fr4", l, gaps[l] / n_diel, g_kip[l], kz)
         last_board = len(slabs) - 1
         if 1 in faces:
             for kind, dz, kx, kz in block_slabs(1):

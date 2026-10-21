@@ -360,6 +360,16 @@ class Document(QObject):
         """
         sel = list(selection)
         d = np.array([dx_mm, dy_mm]) / 1000.0
+        # Keep the whole selection inside the board: the shift is limited so no element crosses the edge
+        b = self.problem.board
+        lo, hi = np.array([np.inf, np.inf]), np.array([-np.inf, -np.inf])
+        for kind, idx in sel:
+            el = getattr(self.problem, _LISTS[kind])[idx]
+            pts = np.asarray(el.polygon) if hasattr(el, "polygon") else np.array([[el.x, el.y]])
+            lo, hi = np.minimum(lo, pts.min(axis=0)), np.maximum(hi, pts.max(axis=0))
+        if sel:
+            d = np.clip(d, -lo, np.array([b.width, b.height]) - hi) if np.all(lo >= -1e-12) and np.all(hi <= np.array([b.width, b.height]) + 1e-12) else d
+            dx_mm, dy_mm = d * 1000.0
 
         def mutate(proj):
             for kind, idx in sel:

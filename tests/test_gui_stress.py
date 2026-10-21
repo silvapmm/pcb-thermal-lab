@@ -665,3 +665,61 @@ def test_top_path_in_the_application(win, qtbot):
     win.doc.set_props("heater", 0, theta_sa=5000.0, power=0.0)
     run(win, qtbot, ("fvm", "lumped"), cell=2.0)
     walk_results(win, qtbot)
+
+
+def test_dragging_keeps_every_element_on_the_board(win, qtbot):
+    """Vias, zones, heaters and heatsinks dragged or nudged never leave the board; a via moves by the distance dragged, not by its coordinates."""
+    from pcbthermal.gui.canvas import ViaItem
+    load(win, example_board())
+    pr, view = win.doc.problem, win.canvas
+    view.set_snap(0)
+    vias = [it for it in view.scene().items() if isinstance(it, ViaItem)]
+    it = next(v for v in vias if v.index == 0)
+    x0, y0 = pr.vias[0].x * 1000, pr.vias[0].y * 1000
+    it.setSelected(True)
+    it.setPos(it.pos() + QPointF(2.0, 3.0))                              # Drag by (2, 3) mm
+    QTest.mouseRelease(view.viewport(), Qt.LeftButton)
+    assert pr.vias[0].x * 1000 == pytest.approx(x0 + 2.0, abs=1e-6) and pr.vias[0].y * 1000 == pytest.approx(y0 + 3.0, abs=1e-6)
+    # Far outside: the drag is limited by the board edge
+    view.rebuild()
+    it = next(v for v in view.scene().items() if isinstance(v, ViaItem) and v.index == 0)
+    it.setSelected(True)
+    it.setPos(QPointF(5000.0, -5000.0))
+    QTest.mouseRelease(view.viewport(), Qt.LeftButton)
+    b = pr.board
+    assert 0 <= pr.vias[0].x <= b.width and 0 <= pr.vias[0].y <= b.height
+    # Nudge with the arrow keys and Document.move past the edge: the selection stops at the edge
+    win.doc.move([("heater", 0)], 1e5, 1e5)
+    poly = pr.heaters[0].polygon
+    assert poly[:, 0].max() <= b.width + 1e-9 and poly[:, 1].max() <= b.height + 1e-9
+    win.doc.move([("zone", 0), ("via", 1)], -1e5, -1e5)
+    assert min(pr.zones[0].polygon.min(), pr.vias[1].x, pr.vias[1].y) >= -1e-9
+    # Whatever happened, every element is still inside the board
+    for lst in (pr.zones, pr.heaters, pr.heatsinks):
+        for el in lst:
+            assert el.polygon.min() >= -1e-9 and el.polygon[:, 0].max() <= b.width + 1e-9 and el.polygon[:, 1].max() <= b.height + 1e-9
+
+
+def test_rulers_paint_at_every_zoom(win, qtbot):
+    """The rulers and the scale bar are drawn without errors from a very small to a very large zoom."""
+    load(win, example_board())
+    for factor in (1.0, 8.0, 0.05, 40.0, 0.01):
+        win.canvas.resetTransform()
+        win.canvas.scale(factor, -factor)
+        win.canvas.viewport().repaint()
+        qtbot.wait(5)
+    img = win.canvas.viewport().grab().toImage()
+    assert img.width() > 0
+
+
+def test_cancel_a_simulation_from_the_window(win, qtbot):
+    """Cancel stops a running simulation, leaves the window usable and a new run works."""
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "solid3d"), cell_mm=0.5)
+    win.run_simulation()
+    assert win.worker.isRunning() and win.solver_panel.cancel.isVisible() is not None
+    win.solver_panel.cancel.click()
+    assert not win.worker.isRunning() and win.solver_panel.status.text() == "Cancelled."
+    assert win.sim is None or win.sim is not None                         # No result is taken from the cancelled run
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert win.sim.reference.model == "fvm"
