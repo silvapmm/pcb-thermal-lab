@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem
 from .. import blocks
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA
-from ..geometry import polygon_area
+from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
 
@@ -105,7 +105,7 @@ class BoardPanel(QWidget):
                                       "The FVM, FDM and 3D solid solve any outline; the lumped and analytic models need a rectangle.")
         self.preset = QComboBox()
         self.preset.addItem("Preset shape...", None)
-        for label in ("Rectangle (full box)", "L shape", "T shape", "Circle / ellipse", "Chamfered corners"):
+        for label in ("Rectangle (full box)", "L shape", "T shape", "Circle / ellipse", "Chamfered corners", "Rounded corners"):
             self.preset.addItem(label, label)
         self.preset.setToolTip("Replace the outline by a preset that fits the width x height box. Edit the vertices below afterwards.")
         self.preset.currentIndexChanged.connect(self._pick_outline)
@@ -119,10 +119,14 @@ class BoardPanel(QWidget):
         self.v_add.setToolTip("Insert a vertex in the middle of the last edge.")
         self.v_del = QPushButton("Remove vertex")
         self.v_del.setToolTip("Remove the selected vertex (an outline needs at least three).")
+        self.v_sub = QPushButton("Subdivide")
+        self.v_sub.setToolTip("Insert a vertex in the middle of every edge (twice as many vertices): the first step to turn a corner or a curve into a smooth outline "
+                              "by moving the new vertices. A curve is a polygon with many short edges; use edges a few cells long at most.")
         self.v_draw = QPushButton("Draw (O)")
         self.v_draw.setToolTip("Draw the outline on the board: drag a rectangle or click the vertices in polygon mode.")
-        for w in (self.v_add, self.v_del, self.v_draw):
+        for w in (self.v_add, self.v_del, self.v_sub, self.v_draw):
             row.addWidget(w)
+        self.v_sub.clicked.connect(self._subdivide)
         self.v_add.clicked.connect(self._add_vertex)
         self.v_del.clicked.connect(self._remove_vertex)
         self.v_draw.clicked.connect(self.draw_outline_requested)
@@ -146,7 +150,11 @@ class BoardPanel(QWidget):
         self.h_side = _spin(0, 500, 10, 1, 1, "W/m²K")
         self.orientation = QComboBox()
         self.orientation.addItem("Horizontal, top face up", "horizontal")
+        self.orientation.addItem("Horizontal, top face down", "horizontal_down")
         self.orientation.addItem("Vertical", "vertical")
+        self.orientation.setToolTip("How the board is mounted (computed heat transfer only): a hot face looking up loses heat better than one looking down "
+                                    "(0.54 against 0.27 in the natural convection correlation); a vertical board uses the vertical plate correlation. "
+                                    "With typed coefficients the orientation does not matter: type the h of the real mounting.")
         self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_top.setToolTip("Emissivity of the top face: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1")
@@ -310,7 +318,7 @@ class BoardPanel(QWidget):
         else:
             self.outline_label.setText("Rectangle: the whole width x height box. Choose a preset or draw an outline for other shapes.")
         t.blockSignals(False)
-        for w in (self.outline_table, self.v_add, self.v_del):
+        for w in (self.outline_table, self.v_add, self.v_del, self.v_sub):
             w.setEnabled(b.has_outline())
 
     def _preset_polygon(self, name):
@@ -330,6 +338,8 @@ class BoardPanel(QWidget):
         if name == "Circle / ellipse":
             return [[W / 2 * (1 + math.cos(2 * math.pi * k / 32)), H / 2 * (1 + math.sin(2 * math.pi * k / 32))] for k in range(32)]
         c = 0.15 * min(W, H)
+        if name == "Rounded corners":
+            return rounded_rectangle(W, H, c)
         return [[c, 0], [W - c, 0], [W, c], [W, H - c], [W - c, H], [c, H], [0, H - c], [0, c]]
 
     def _pick_outline(self, _index):
@@ -371,6 +381,17 @@ class BoardPanel(QWidget):
                 self.doc.set_outline(pts)
                 return
         self._fill_outline(b)                                 # Not a valid outline: show the stored one again
+
+    def _subdivide(self):
+        """!
+        @brief Insert a vertex in the middle of every edge of the outline.
+        """
+        pts = self._vertices()
+        if pts and len(pts) < 2000:
+            out = []
+            for a, b in zip(pts, pts[1:] + pts[:1]):
+                out += [a, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0]]
+            self.doc.set_outline(out)
 
     def _add_vertex(self):
         """!
@@ -648,6 +669,20 @@ class Inspector(QWidget):
                                "paste 0.5, soft gap pad 1.7, gap pad 5, hard pad 10; 0 = perfect contact (optimistic).")
                 itf.valueChanged.connect(lambda v: self.doc.set_props(kind, i, interface=v))
                 lay.addRow("Interface", itf)
+                itf_mat = QComboBox()
+                itf_mat.addItem("Interface material preset...", None)
+                for label, k_, t_ in INTERFACES:
+                    itf_mat.addItem(f"{label}: {t_ * 1e-3 / k_ * 1e4:.2f} K·cm²/W", t_ * 1e-3 / k_ * 1e4)
+                itf_mat.setToolTip("Typical thermal interface materials between the package top and the heatsink (paste, gap pads): fills the interface value above. "
+                                   "Indicative values (apparent conductivity including the contact resistances): check your material's datasheet.")
+
+                def pick_itf(_i, c=itf_mat, spin=itf):
+                    if c.currentData() is not None:
+                        spin.setValue(c.currentData())
+                        c.setCurrentIndex(0)
+
+                itf_mat.currentIndexChanged.connect(pick_itf)
+                lay.addRow("Interface material", itf_mat)
                 sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
                 sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
                               "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
@@ -660,6 +695,18 @@ class Inspector(QWidget):
                              "with a block it is added to the coefficient of the face for the exposed surface of the block "
                              "(for a finned block use 1/(R·A) of its datasheet).")
                 lay.addRow("Extra h", w)
+                area_m2 = float(polygon_area(np.asarray(el.polygon)))
+                rsa = _spin(0, 5000, (1.0 / (el.h_extra * area_m2)) if el.h_extra > 0 and area_m2 > 0 else 0.0, 3, 0.1, "K/W")
+                rsa.setToolTip("Heatsink resistance to ambient θSA from its datasheet, at your air flow and orientation (0 = not used). Typing it sets the extra h above to "
+                               "1/(θSA × area of this polygon): the whole heatsink is spread over the polygon. Datasheets give θSA for natural convection in the "
+                               "orientation they tested (fins vertical is the best case): use the value for your mounting.")
+
+                def from_rsa(v, h=w, a=area_m2):
+                    if v > 0 and a > 0:
+                        h.setValue(1.0 / (v * a))
+
+                rsa.valueChanged.connect(from_rsa)
+                lay.addRow("θSA from datasheet", rsa)
                 th = _spin(0, 100, el.thickness * 1000, 2, 0.5, "mm")
                 th.setToolTip("Thickness of a metal block pressed on this face (0 = no block, only the coefficient). The heat enters the block only "
                               "where the block overlaps copper of this layer, spreads in the metal and leaves by its surface.")

@@ -13,6 +13,7 @@ from typing import List, Optional
 import copy
 import json
 import math
+import os
 
 import numpy as np
 
@@ -61,6 +62,57 @@ DIELECTRICS = (
 )
 
 
+STACKUP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "stackups.json")   # Typical stack-ups by layer count (editable)
+_STACKUP_CACHE = {}
+
+
+def load_stackup_templates(path=None):
+    """!
+    @brief The typical stack-up templates read from the JSON file (cached).
+    @param path File path (default: the file shipped with the package, `pcbthermal/data/stackups.json`).
+    @return Dict with the keys description, notes, sources and templates ({"2": {...}, "4": {...}, ...}).
+    @throws ValueError If the file is not a valid template file.
+    """
+    path = path or STACKUP_FILE
+    stamp = (path, os.path.getmtime(path))
+    if _STACKUP_CACHE.get("stamp") != stamp:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if "templates" not in data or not isinstance(data["templates"], dict):
+            raise ValueError(f"{path}: no 'templates' table")
+        for key, t in data["templates"].items():
+            n = int(key)
+            if len(t.get("copper_um", [])) != n or (t.get("mode") == "advanced" and len(t.get("dielectrics", [])) != n - 1):
+                raise ValueError(f"{path}: template {key} needs {n} copper layers and {n - 1} dielectrics")
+        _STACKUP_CACHE.update(stamp=stamp, data=data)
+    return _STACKUP_CACHE["data"]
+
+
+def stackup_template(layers, path=None):
+    """!
+    @brief The typical stack-up for a number of copper layers.
+    @details The entry of the JSON file for that count; for a count that is not listed (3, 5, 7, ...) a generic one: 35 um outer copper, 15.2 um inner copper
+             and equal gaps that bring the board to the total thickness of the largest listed template with fewer layers.
+    @param layers Number of copper layers.
+    @param path Template file (default: the shipped one).
+    @return Dict with name, mode ("simple" or "advanced"), copper_um (list), dielectrics (list of dicts kind, thickness_um, material) and total_thickness_um.
+    """
+    data = load_stackup_templates(path)["templates"]
+    t = data.get(str(layers))
+    if t is not None:
+        out = copy.deepcopy(t)
+        out.setdefault("mode", "advanced")
+        out["total_thickness_um"] = out.get("total_thickness_um", sum(out["copper_um"]) + sum(d["thickness_um"] for d in out["dielectrics"]))
+        return out
+    below = max((int(k) for k in data if int(k) < layers), default=min(int(k) for k in data))
+    ref = stackup_template(below, path)
+    copper = [35.0] + [15.2] * max(layers - 2, 0) + [35.0] if layers > 1 else [35.0]
+    gap = (ref["total_thickness_um"] - sum(copper)) / (layers - 1) if layers > 1 else 0.0
+    return {"name": f"{layers} layers, {ref['total_thickness_um'] / 1000:g} mm (generic: equal gaps)", "mode": "advanced" if layers > 1 else "simple",
+            "copper_um": copper, "total_thickness_um": ref["total_thickness_um"],
+            "dielectrics": [{"kind": "dielectric", "thickness_um": gap, "material": "FR-4 (standard)"} for _ in range(layers - 1)]}
+
+
 @dataclass
 class Board:
     """!
@@ -80,11 +132,34 @@ class Board:
     emissivity_top: float = 0.9                 # Emissivity of the top face (computed mode; solder mask about 0.9)
     emissivity_bottom: float = 0.9              # Emissivity of the bottom face (computed mode)
     air_speed: float = 0.0                      # Air speed along the board in m/s (computed mode; 0 = natural convection)
-    orientation: str = "horizontal"             # "horizontal" (top face up) or "vertical" (computed mode)
+    orientation: str = "horizontal"             # "horizontal" (top face up), "horizontal_down" (top face down) or "vertical" (computed mode)
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
     dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
     outline: Optional[np.ndarray] = field(default=None, compare=False)   # Board outline (n, 2) in metres inside the width x height box; None = the whole rectangle
+
+    def apply_template(self, path=None):
+        """!
+        @brief Load the typical stack-up of the current number of layers (copper and dielectrics, or total thickness and copper for a simple board).
+        @details Advanced board: copper thickness per layer, one dielectric per gap with the thickness and material of the template (the properties of the
+                 material come from DIELECTRICS), total thickness = their sum. Simple board: total thickness of the template and the outer copper thickness on every layer.
+        @param path Template file (default: the shipped one).
+        @return The template dict used (its name tells which stack-up was loaded).
+        """
+        t = stackup_template(self.layers, path)
+        if self.dielectrics is None or t["mode"] == "simple":
+            if self.dielectrics is not None:
+                self.dielectrics = None                  # A single layer has no gaps to describe
+            self.thickness = t["total_thickness_um"] * 1e-6
+            self.copper_thickness = [t["copper_um"][0] * 1e-6] * self.layers
+            return t
+        self.copper_thickness = [c * 1e-6 for c in t["copper_um"]]
+        self.dielectrics = []
+        for d in t["dielectrics"]:
+            preset = next((p for p in DIELECTRICS if p[0] == d.get("material")), DIELECTRICS[0])
+            self.dielectrics.append(Dielectric(d["thickness_um"] * 1e-6, preset[0], preset[1], preset[2], preset[3], preset[4]))
+        self.thickness = self.total_thickness()
+        return t
 
     def has_outline(self):
         """!
@@ -255,8 +330,8 @@ class Board:
             raise ValueError("heat transfer coefficients must be >= 0")
         if self.h_mode not in ("manual", "computed"):
             raise ValueError("h_mode must be 'manual' or 'computed'")
-        if self.orientation not in ("horizontal", "vertical"):
-            raise ValueError("orientation must be 'horizontal' or 'vertical'")
+        if self.orientation not in ("horizontal", "horizontal_down", "vertical"):
+            raise ValueError("orientation must be 'horizontal', 'horizontal_down' or 'vertical'")
         if not (0.0 <= self.emissivity_top <= 1.0 and 0.0 <= self.emissivity_bottom <= 1.0):
             raise ValueError("emissivity must be between 0 and 1")
         if self.air_speed < 0 or self.h_calibration <= 0:

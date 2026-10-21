@@ -184,3 +184,22 @@ def nearest_active_cell(active, x, y, dx, dy, offset=0.5):
     d = np.hypot((jj + offset) * dx - x, (ii + offset) * dy - y)
     k = int(np.argmin(d))
     return int(ii[k]), int(jj[k])
+
+
+def rounded_rectangle(width, height, radius, segments=8):
+    """!
+    @brief Outline of a rectangle with rounded corners, as a polygon (each corner is an arc of `segments` edges).
+    @param width Width of the rectangle (any unit).
+    @param height Height of the rectangle (same unit).
+    @param radius Corner radius (same unit); limited to half of the shorter side.
+    @param segments Edges per quarter circle (8 gives a deviation of 0.5 % of the radius from the true arc).
+    @return List of [x, y], counter-clockwise from the lower-left corner's start.
+    """
+    r = min(float(radius), width / 2.0, height / 2.0)
+    pts = []
+    # Corner centres and the start angle of the arc of each corner, counter-clockwise from the lower-right corner
+    for cx, cy, a0 in ((width - r, r, -90.0), (width - r, height - r, 0.0), (r, height - r, 90.0), (r, r, 180.0)):
+        for k in range(segments + 1):
+            a = np.radians(a0 + 90.0 * k / segments)
+            pts.append([cx + r * np.cos(a), cy + r * np.sin(a)])
+    return pts

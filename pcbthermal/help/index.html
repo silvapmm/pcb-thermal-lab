@@ -92,7 +92,7 @@ Elements cannot be dragged off the board. The calculation runs in a separate pro
 <tr><td>Ambient (°C)</td><td>Air temperature. All results are temperatures above it.</td></tr>
 <tr><td>Heat transfer</td><td><b>Typed by me</b>: you give one coefficient for the top face, one for the bottom and one for the edges. <b>Computed</b>: the program computes the coefficient of each face from the board temperature, with natural or forced convection correlations plus radiation, repeating the solve until the coefficients settle.</td></tr>
 <tr><td>h top, h bottom (W/m²K)</td><td>Coefficient of each face (convection plus radiation). Natural convection in still air is about 5 to 15 W/m²K. Shown only when typed: in computed mode the program derives them (the typed values would only be a starting guess).</td></tr>
-<tr><td>Orientation</td><td>(Computed.) Horizontal with the top face up, or vertical.</td></tr>
+<tr><td>Orientation</td><td>(Computed.) Horizontal with the top face up, horizontal with the top face down, or vertical. A hot face looking up loses heat better than one looking down; typed coefficients ignore the orientation (type the h of the real mounting). A tilted board and an enclosure are not modelled.</td></tr>
 <tr><td>Emissivity top / bottom (0 to 1)</td><td>(Computed.) Radiation: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1.</td></tr>
 <tr><td>Air speed (m/s)</td><td>(Computed.) 0 is still air (natural convection); above 0 forced convection along the board.</td></tr>
 <tr><td>Convection × (factor)</td><td>(Computed.) Multiplier of the convection (not of the radiation), to fit a measurement.</td></tr>
@@ -125,6 +125,14 @@ Switching to Advanced keeps the same board (the gaps start equal); switching bac
 </table>
 <p>The vertical resistance of the board between two copper layers is the sum of <code>thickness / k</code> of the gaps in between, so a thin prepreg under a hot part and a thick core elsewhere give very different results from equal gaps.
 In the model every copper layer is one node that represents its copper and half of each adjacent dielectric.</p>
+<h3>Typical stack-ups by layer count</h3>
+<p>When you change the number of copper layers the program loads a typical stack-up for that count (and the <b>Load typical stack-up</b> button on the Stack-up tab does it again, undoably):
+1 layer on 1.6 mm laminate; 2 layers 1.6 mm; 4 layers 1.6 mm (35 / 15.2 / 15.2 / 35 µm copper with a 1.065 mm core and 0.21 mm prepregs, the JLCPCB build); 6 and 8 layers 1.6 mm; 10 layers 2.0 mm; 12 layers 2.4 mm (8 layers and more with a high-Tg laminate).
+They are typical numbers to start from, <b>not your fabricator's stack-up</b>: replace them. The defaults live in <code>pcbthermal/data/stackups.json</code> (copper per layer, and for each gap the kind core or prepreg, the thickness and the material): edit that file to change them.
+In the simple stack-up a layer change loads the total thickness and the outer copper only.</p>
+<h3>What is inside the dielectric</h3>
+<p>Between two copper layers there is glass-reinforced epoxy (FR-4: woven glass cloth in epoxy resin) as a <b>core</b> (cured laminate with copper foil on both faces) or <b>prepreg</b> (glass cloth with resin that flows and bonds the layers in lamination). The weave makes it anisotropic: about 0.3 to 0.4 W/mK through the thickness and 0.8 to 1 W/mK along the plane.
+The outer copper is a foil plus plating (18 µm + 17 to 20 µm = the finished 35 µm of 1 oz); inner 0.5 oz copper finishes at 15 to 17.5 µm. The solder mask (15 to 25 µm) is not modelled: its resistance is a thousandth of the air film's. Metal-core boards and ceramics are chosen as dielectric materials.</p>
 <h3>The cross-section diagram</h3>
 <p>The diagram shows the layers from the top face to the bottom face with their thickness in micrometres and millimetres and the total board thickness. <i>Units</i> chooses µm, mm or both; <i>Scale</i> chooses "true proportions" (35 µm
 copper next to 1.5 mm of laminate is a thin line) or "readable" (thin layers enlarged to stay visible). Click a layer to see its thickness, conductivities, density and specific heat and what is drawn on it.</p>
@@ -134,6 +142,7 @@ copper next to 1.5 mm of laminate is a thin line) or "readable" (thin layers enl
 or draw it with the outline tool (<kbd>O</kbd>, rectangle or polygon mode). Outside the outline there is no board: no copper, no heat, no heat loss.</p>
 <ul>
 <li>The outline must be a simple polygon (no crossing edges) inside the box.</li>
+<li><b>Curves and rounded corners</b>: a curve is a polygon with many short edges. Presets: ellipse (32 edges), <b>rounded corners</b> (8 edges per corner), chamfered corners. <b>Subdivide</b> puts a vertex in the middle of every edge (repeat to refine, then move the new vertices); the vertex table edits any point. 8 edges per quarter circle already give 0.13 % of area error on a 12 mm corner; keep the edges a few cells long at most.</li>
 <li>The FVM, FDM and 3D solid solve any outline. The <b>lumped network and the analytic series need a rectangle</b> and are skipped with a warning when the board has an outline.</li>
 <li>The temperature maps leave the area outside the outline blank; the heat lost through the edge follows the outline; the convection characteristic length uses the real area and perimeter.</li>
 <li>A part drawn off the board still delivers its power to the nearest board cell (with a warning): move it onto the board.</li>
@@ -145,7 +154,7 @@ or draw it with the outline tool (<kbd>O</kbd>, rectangle or polygon mode). Outs
 <tr><th>Element</th><th>What it is</th><th>Fields</th></tr>
 <tr><td><b>Copper zone</b> (<kbd>Z</kbd>)</td><td>Copper area on one layer (any polygon). It spreads the heat sideways and, on an outer layer, also radiates and convects it.</td><td>Name, layer, position and size, copper fill (1 = solid, 0.5 = hatched).</td></tr>
 <tr><td><b>Heater</b> (<kbd>H</kbd>)</td><td>A part that dissipates power: the power is spread exactly over its footprint on one layer.</td><td>Name, layer, position and size, power (W), and the part fields of the next section.</td></tr>
-<tr><td><b>Heatsink</b> (<kbd>C</kbd>, cooling)</td><td>Extra heat transfer on an outer face inside a polygon (a finned plate, a cooled area). With a thickness it becomes a metal block pressed on the board.</td><td>Extra h (W/m²K), thickness, block material and conductivity, interface resistance (K·cm²/W) and interface material.</td></tr>
+<tr><td><b>Heatsink</b> (<kbd>C</kbd>, cooling)</td><td>Extra heat transfer on an outer face inside a polygon (a finned plate, a cooled area). With a thickness it becomes a metal block pressed on the board.</td><td>Extra h (W/m²K), θSA from the datasheet (K/W; sets the extra h to 1/(θSA × area)), thickness, block material and conductivity, interface resistance (K·cm²/W) and interface material.</td></tr>
 <tr><td><b>Via</b> (<kbd>V</kbd>)</td><td>Plated through hole connecting all copper layers: it carries heat vertically through its copper barrel.</td><td>Position, diameter (mm), filled with copper or hollow.</td></tr>
 <tr><td><b>Board outline</b> (<kbd>O</kbd>)</td><td>Shape of the board (previous section).</td><td>Vertex table in the Board panel.</td></tr>
 </table>
@@ -161,9 +170,17 @@ over the copper it overlaps through the interface resistance (grease or paste 0.
 <tr><td>Tj max (°C)</td><td>Maximum junction temperature: the report gives the <b>margin</b>, the <b>power limit</b> (the dissipation that brings the part to its limit on this board) and a warning if exceeded.</td></tr>
 <tr><td>ψJB (K/W)</td><td>Junction-to-board characterisation parameter: second estimate <code>Tj = T_ring + ψJB·P</code> where T_ring is the mean board temperature in the ring 0.5 to 1.5 mm around the package. Useful when the datasheet gives only θJB or ψJB.</td></tr>
 <tr><td>Power coefficient (%/K)</td><td>Power that changes with the junction temperature, <code>P = P0 (1 + c (Tj − 25 °C))</code>, solved together with the board; a MOSFET's Rds(on) rises about 0.3 to 0.7 %/K. Thermal runaway (no stable point) is detected and warned. Steady state only.</td></tr>
-<tr><td>θJC top (K/W), Interface (K·cm²/W), Heatsink θSA (K/W)</td><td><b>Heatsink on the package</b>: the heat also leaves through the top, through θJC(top), the interface (divided by the footprint area) and the heatsink to ambient. Active only with θ and θSA. The board receives only the power the top does not take; the report gives the top-path power. A bare mould carries about 1 % of the heat and is ignored (worst case). Steady state only.</td></tr>
+<tr><td>θJC top (K/W), Interface (K·cm²/W) with <i>Interface material</i>, Heatsink θSA (K/W)</td><td><b>Heatsink on the package</b>: the heat also leaves through the top, through θJC(top), the interface (divided by the footprint area) and the heatsink to ambient. Active only with θ and θSA. The board receives only the power the top does not take; the report gives the top-path power. A bare mould carries about 1 % of the heat and is ignored (worst case). Steady state only.</td></tr>
 </table>
+<p><b>Thermal paste or gap pad</b> goes in two places: between the package top and a heatsink (the part's <i>Interface</i> field, with an <i>Interface material</i> preset) and between the board and a metal block (the block's interface). Typical values, K·cm²/W: good paste 0.33, default paste 0.5, soft gap pad 1.7, gap pad 5, hard gap pad 10, perfect contact 0.01 (a joint is thickness/conductivity plus contact resistances; on a package divide by its area). Under the package the solder and the thermal pad are inside the datasheet's junction-to-pad number.</p>
 <div class="note">Warning shown by the program: if θ·P is larger than the board's own temperature rise under the part, θ is probably a θJA. The datasheet thermal numbers refer to the manufacturer's test board; on yours they are estimates.</div>
+
+<h3>Heatsinks, metal pieces and orientation</h3>
+<ul>
+<li><b>A heatsink whose convection you know</b>: draw a Heatsink over the area and type its <i>extra h</i>, or type the datasheet <i>θSA</i> and the program computes the h over the polygon. A heatsink on a package: the part's <i>Heatsink θSA</i> (with θJC(top) and the interface).</li>
+<li><b>A piece of metal</b>: give the Heatsink a thickness. It spreads heat sideways in the metal, stores heat, touches the board over the copper it overlaps through the interface resistance, and cools from its exposed surface. The thickness, the area and the cooling of the surface matter more than the metal (aluminium and copper are 0.1 K apart).</li>
+<li><b>Orientation</b>: it matters for computed coefficients (above) and for heatsinks, whose θSA in natural convection depends on how they are mounted: vertical fins are the usual best case, horizontal facing down the weakest, by tens of percent. No universal derating factor exists, so the program applies none: enter the θSA or h for <i>your</i> orientation and air flow as the datasheet gives it.</li>
+</ul>
 
 <h2 id="sim">8. Simulation settings</h2>
 <table>

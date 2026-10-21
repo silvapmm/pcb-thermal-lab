@@ -15,7 +15,11 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 - **A tooltip on every control** (`gui/tips.py`, checked by `tests/test_tooltips.py`), rulers and a scale bar on the board, position and size fields for the selected shape, tab shortcuts `Ctrl+1` to `Ctrl+4`.
 - `docs/versions.md`: what was implemented in every version, where and how it is tested. `examples/stackup_outline_study.py`.
 
+- **Typical stack-ups by layer count** in an editable JSON file (`pcbthermal/data/stackups.json`), loaded when the number of layers changes and by *Load typical stack-up* on the Stack-up tab; `docs/models.md` section 12 lists them and what is inside the dielectric.
+- Interface material presets (paste, gap pads) for the heatsink on a package; θSA from the datasheet for the Heatsink element; board orientation "horizontal, top face down"; rounded-corner preset, Subdivide button and `geometry.rounded_rectangle`; `docs/models.md` sections 13 and 14.
+
 ### Changed
+- Changing the number of layers loads the typical stack-up of the new count (a 4-layer board is now 1.586 mm).
 - Tool keys are now `S Z H C V O` (Select, Zone, Heater, Heatsink/Cooling, Via, board Outline); `V` is the via tool.
 - The Environment panel hides the typed `h top` and `h bottom` in computed mode (they were only a starting guess), and every field shows its unit.
 - The edge loss of the FVM and FDM no longer adds the board edge conductance to the layers of metal blocks (it was counted twice).

@@ -403,10 +403,11 @@ class Document(QObject):
 
         self.edit(text, mutate, merge_key="board" + str(sorted(fields)))
 
-    def set_layers(self, n):
+    def set_layers(self, n, template=True):
         """!
-        @brief Change the layer count, moving elements that fall outside onto the last layer.
+        @brief Change the layer count, moving elements that fall outside onto the last layer, and load the typical stack-up of the new count.
         @param n New number of layers (1..12).
+        @param template True to load the typical stack-up of `n` layers (copper, dielectrics, thickness; see Board.apply_template); False to keep the old values.
         """
         def mutate(proj):
             pr = proj.problem
@@ -425,8 +426,16 @@ class Document(QObject):
                     e.layer = min(e.layer, n - 1)
             for s in pr.heatsinks:
                 s.layer = n - 1 if s.layer == old - 1 or s.layer >= n else 0
+            if template:
+                b.apply_template()
 
         self.edit("Layer count", mutate)
+
+    def load_typical_stackup(self):
+        """!
+        @brief Replace the copper and the dielectrics by the typical stack-up of the current number of layers (undoable).
+        """
+        self.edit("Typical stack-up", lambda proj: proj.problem.board.apply_template())
 
     def set_options(self, **fields):
         """!

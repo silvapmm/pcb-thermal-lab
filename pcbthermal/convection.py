@@ -114,7 +114,8 @@ def board_h(board, t_top, t_bottom):
     @brief Heat transfer coefficients of the top and bottom faces of a board from its cooling settings.
     @details Natural and forced convection are blended as (h_n^3 + h_f^3)^(1/3) (Churchill's rule for mixed convection),
              the calibration multiplier scales the convection only, and radiation is added. Orientation "horizontal" has the
-             top face looking up; "vertical" uses the plate correlation with the board height for both faces.
+             top face looking up, "horizontal_down" has the top face looking down (the bottom face then looks up);
+             "vertical" uses the plate correlation with the board height for both faces.
     @param board Board with h_mode, emissivity_top, emissivity_bottom, air_speed, orientation and h_calibration.
     @param t_top Mean temperature of the top face in degC.
     @param t_bottom Mean temperature of the bottom face in degC.
@@ -128,7 +129,8 @@ def board_h(board, t_top, t_bottom):
     length = area / perim
     info = {}
     out = []
-    for name, ts, eps, up in (("top", t_top, board.emissivity_top, True), ("bottom", t_bottom, board.emissivity_bottom, False)):
+    top_up = board.orientation != "horizontal_down"                # Which face looks up decides the horizontal-plate correlation
+    for name, ts, eps, up in (("top", t_top, board.emissivity_top, top_up), ("bottom", t_bottom, board.emissivity_bottom, not top_up)):
         if board.orientation == "vertical":
             hn, ra = h_natural_vertical(ts, ta, board.height)
         else:

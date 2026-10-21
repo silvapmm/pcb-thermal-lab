@@ -176,7 +176,7 @@ Validation: `θJB → 0` and no top path reproduce the current heater; `G_top �
 ### 1.11 Noted for later (decisions of 2026-10-17)
 
 Decided for the first Component delivery: a single junction-to-pad resistance `θ` used in the **worst case** (all the power enters the board; `θJA` is never an input). **Implemented on 2026-10-21**: the top heatsink as a fixed `θsa` in K/W with `θJC(top)` and an interface in K·cm²/W (`docs/models.md` section 6, `docs/validation.md` section 9). Left for later, with the evidence in `docs/research.md`:
-* heatsink **scenarios**: natural-convection scaling `θsa ∝ ΔT^−0.25` (changes `Tj` by 1 to 3 K in the study), forced-convection factors (0.31, 0.18, 0.10 at 1, 2.5, 5 m/s) and the orientation factor, all driven by the air speed and orientation of the board (R6);
+* heatsink **scenarios**: natural-convection scaling `θsa ∝ ΔT^−0.25` (changes `Tj` by 1 to 3 K in the study), forced-convection factors (0.31, 0.18, 0.10 at 1, 2.5, 5 m/s) and the orientation factor, all driven by the air speed and orientation of the board (R6). A web search on 2026-10-21 found no universal orientation derating (correlations for fin geometries disagree; one test: sideways-vertical 12 % above facing up, 26 % above facing down, 120 % above sideways-horizontal), so the first implementation takes θSA/h as given for the real mounting; tilt angle and enclosures are further work;
 * the heatsink on a component as a **plate layer** with spreading (only worth it for a thin base of a poor conductor such as steel: 5 to 13 % of the top chain against 1 to 4 % for aluminium and copper, R8);
 * an **interface with its own area** (contact patch) and the **air gap** outside it (`k_air/g` plus radiation, default 1 mm), the intuitive presentation of "perfect contact" (0.01 K cm²/W), and a side view with the vertical information (stack-up, component height, gap) (R3, R5, R7);
 * temperature-dependent power, maximum power at `Tj,max`, the Foster chain for pulses (R4).
@@ -207,7 +207,7 @@ Today: one total thickness, copper thickness per layer (already a list) and **eq
 
 ## 3b. Board outline (implemented 2026-10-21; Lumped and Analytic still need a rectangle)
 
-Done for the FVM, FDM and 3D solid (`docs/models.md` section 9). Left: the Lumped network on any outline (rings of the geodesic distance inside the board instead of the Euclidean one, an outline-aware edge model) and the Analytic series (a conformal map or a domain decomposition; probably not worth it: the models are the fast, uniform-board estimates);
+Done for the FVM, FDM and 3D solid (`docs/models.md` section 9; curves are polygons, section 14: a true arc/spline outline and an automatic refinement of the outline near curves are not done). Left: the Lumped network on any outline (rings of the geodesic distance inside the board instead of the Euclidean one, an outline-aware edge model) and the Analytic series (a conformal map or a domain decomposition; probably not worth it: the models are the fast, uniform-board estimates);
 holes and cut-outs inside the board (an outline with holes: a list of polygons with even-odd fill, same cell cover); a board outline imported from the Gerber outline layer together with the copper (section 2); a check that warns when a neck of the outline is narrower than three cells.
 
 ## 4. Multigrid solver (optional, low priority)

@@ -110,6 +110,7 @@ class PowerCalculator(QDialog):
     def _theta(self, *_):
         """!
         @brief Update the datasheet route.
+        @param _ Ignored (the value of the Qt signal).
         """
         try:
             self.out2.setText(f"<b>{power_from_theta(self.tj.value(), self.tref.value(), self.par.value()):.3f} W</b>")

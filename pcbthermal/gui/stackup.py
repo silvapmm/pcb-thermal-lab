@@ -375,7 +375,12 @@ class StackupPage(QWidget):
         self.scale.addItem("Readable (thin layers enlarged)", False)
         self.scale.addItem("True proportions", True)
         self.scale.setToolTip("True proportions draw each layer with its real thickness ratio (35 µm copper next to 1.5 mm of laminate is a thin line).")
-        for text, w in (("Stack-up ", self.mode), ("  Units ", self.unit), ("  Scale ", self.scale)):
+        self.typical = QPushButton("Load typical stack-up")
+        self.typical.setToolTip("Replace the copper and the dielectrics by a typical stack-up for this number of layers (JLCPCB-like 4 layers, 1.6 mm; 6, 8, 10, 12 layers). "
+                                "It is loaded automatically when you change the number of layers. The templates are in pcbthermal/data/stackups.json: edit that file to change them. "
+                                "They are typical values, not the stack-up of your fabricator.")
+        self.typical.clicked.connect(self.doc.load_typical_stackup)
+        for text, w in (("Stack-up ", self.mode), ("  Units ", self.unit), ("  Scale ", self.scale), ("  ", self.typical)):
             bar.addWidget(QLabel(text))
             bar.addWidget(w)
         bar.addStretch(1)
@@ -439,6 +444,7 @@ class StackupPage(QWidget):
     def _look_changed(self, *_):
         """!
         @brief Apply the unit and scale choices to the diagram.
+        @param _ Ignored (the index of the Qt signal).
         """
         self.view.unit = self.unit.currentData()
         self.view.true_scale = bool(self.scale.currentData())

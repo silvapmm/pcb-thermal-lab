@@ -124,7 +124,20 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 | **Tooltips on every control**, checked by a test | `gui/tips.py` | `test_tooltips.py` |
 | Rulers and scale bar on the board, drag keeps every element on the board (a via no longer jumps off), shape position and size fields, tool keys S Z H C V O, tab shortcuts Ctrl+1..4, hidden unused heat transfer fields, units on every field | `gui/canvas.py`, `gui/document.py`, `gui/panels.py`, `gui/main_window.py` | `test_gui_stress.py` |
 
+### Typical stack-ups, interface presets and curved boards (2026-10-21, second batch)
+
+| Feature | Code | Tests / evidence |
+| :-- | :-- | :-- |
+| **Typical stack-ups by layer count** (1, 2, 4, 6, 8, 10, 12; generic for odd counts) in an editable JSON file, loaded when the layer count changes and by a button on the Stack-up tab | `data/stackups.json`, `model.load_stackup_templates`, `stackup_template`, `Board.apply_template`, `gui/document.py` | `test_templates.py`: file consistency (counts, symmetric builds, real thicknesses, known materials), every template runs in all five models, a user file works, a bad file is refused |
+| Interface material presets for the heatsink on a package (paste, gap pads) | `gui/panels.py`, `model.INTERFACES` | `test_templates.py` |
+| Heatsink: θSA from the datasheet sets the extra h over the polygon | `gui/panels.py` | `test_templates.py` |
+| Board orientation "horizontal, top face down" in the computed heat transfer | `convection.board_h`, `Board.orientation` | `test_templates.py`: faces swap exactly |
+| Rounded-corner preset, Subdivide button, `geometry.rounded_rectangle` | `gui/panels.py`, `geometry.py` | `test_templates.py`: area error 0.13 % at 8 edges, temperature converges |
+| Documentation of the heat paths, the stack-up contents and curved boards | `docs/models.md` sections 12 to 14, the user guide | |
+
 ### Changed behaviour
+
+- Changing the number of layers in the application now loads the typical stack-up of the new count (copper, dielectrics and total thickness in the advanced mode; total thickness and outer copper in the simple mode): a 4-layer board is 1.586 mm, a 10-layer board 2.0 mm.
 
 - The edge loss of the FVM and FDM no longer adds the board edge conductance to the layers of metal blocks (the block's own edge is in its exposed surface): the old code counted it twice. The effect on the examples is below the validation tolerances.
 - `Board.thickness` stays the typed value in the simple stack-up; use `Board.total_thickness()` for the real total.
