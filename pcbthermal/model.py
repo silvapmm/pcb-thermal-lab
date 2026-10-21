@@ -171,7 +171,7 @@ class Board:
     emissivity_top: float = 0.9                 # Emissivity of the top face (computed mode; solder mask about 0.9)
     emissivity_bottom: float = 0.9              # Emissivity of the bottom face (computed mode)
     air_speed: float = 0.0                      # Air speed along the board in m/s (computed mode; 0 = natural convection)
-    orientation: str = "horizontal"             # "horizontal" (top face up), "horizontal_down" (top face down) or "vertical" (computed mode)
+    orientation: str = "horizontal"             # "horizontal" (layer 1 is the top face and looks up, the last layer looks down) or "vertical" (on its edge); computed mode
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
     dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
@@ -368,8 +368,8 @@ class Board:
             raise ValueError("heat transfer coefficients must be >= 0")
         if self.h_mode not in ("manual", "computed"):
             raise ValueError("h_mode must be 'manual' or 'computed'")
-        if self.orientation not in ("horizontal", "horizontal_down", "vertical"):
-            raise ValueError("orientation must be 'horizontal', 'horizontal_down' or 'vertical'")
+        if self.orientation not in ("horizontal", "vertical"):
+            raise ValueError("orientation must be 'horizontal' (layer 1 faces up) or 'vertical'")
         if not (0.0 <= self.emissivity_top <= 1.0 and 0.0 <= self.emissivity_bottom <= 1.0):
             raise ValueError("emissivity must be between 0 and 1")
         if self.air_speed < 0 or self.h_calibration <= 0:

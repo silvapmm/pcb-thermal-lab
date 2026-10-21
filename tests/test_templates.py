@@ -13,7 +13,6 @@ import numpy as np
 import pytest
 
 from pcbthermal import Problem, SolverOptions, simulate
-from pcbthermal.convection import board_h
 from pcbthermal.geometry import polygon_area, polygon_is_simple, rounded_rectangle
 from pcbthermal.model import DIELECTRICS, STACKUP_FILE, load_stackup_templates, stackup_template
 
@@ -76,20 +75,6 @@ def test_every_template_runs_in_every_model():
         assert max(rise.values()) < 1.5 * rise["fvm"] and min(rise.values()) > 0.6 * rise["fvm"], (n, rise)
 
 
-def test_board_orientation_down_swaps_the_faces_and_runs():
-    p = Problem.new(80, 60, 2)
-    p.board.h_mode = "computed"
-    up = board_h(p.board, 80.0, 80.0)
-    p.board.orientation = "horizontal_down"
-    down = board_h(p.board, 80.0, 80.0)
-    assert up[0] > up[1] and down[0] < down[1]                          # The face that looks up convects better
-    assert down[0] == pytest.approx(up[1]) and down[1] == pytest.approx(up[0])
-    p.add_zone(1, rect=(5, 5, 75, 55))
-    p.add_heater(1, 2.0, rect=(35, 25, 45, 35))
-    p.validate()
-    assert simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0)).reference.t_max > 25.0
-
-
 def test_rounded_rectangle_is_a_valid_polygon_and_the_curve_converges():
     pts = rounded_rectangle(60.0, 40.0, 8.0)
     assert polygon_is_simple(pts) and len(pts) == 36
@@ -132,9 +117,10 @@ def test_gui_template_on_layer_change_interface_preset_heatsink_helper_and_subdi
     assert win.doc.problem.board.dielectrics[0].thickness == pytest.approx(1530e-6)
     win.doc.stack.undo()
     assert win.doc.problem.board.dielectrics[0].thickness == pytest.approx(5e-4)
-    # Orientation choice
-    bp.orientation.setCurrentIndex(bp.orientation.findData("horizontal_down"))
-    assert win.doc.problem.board.orientation == "horizontal_down"
+    # Orientation: only horizontal (layer 1 faces up) and vertical
+    assert [bp.orientation.itemData(i) for i in range(bp.orientation.count())] == ["horizontal", "vertical"]
+    bp.orientation.setCurrentIndex(1)
+    assert win.doc.problem.board.orientation == "vertical"
     # Part: interface material preset fills the interface
     win.canvas.set_selection([("heater", 0)])
     win._on_canvas_selection([("heater", 0)])

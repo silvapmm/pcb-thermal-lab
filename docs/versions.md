@@ -131,7 +131,7 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 | **Typical stack-ups by layer count** (1, 2, 4, 6, 8, 10, 12; generic for odd counts) in an editable JSON file, loaded when the layer count changes and by a button on the Stack-up tab | `data/stackups.json`, `model.load_stackup_templates`, `stackup_template`, `Board.apply_template`, `gui/document.py` | `test_templates.py`: file consistency (counts, symmetric builds, real thicknesses, known materials), every template runs in all five models, a user file works, a bad file is refused |
 | Interface material presets for the heatsink on a package (paste, gap pads) | `gui/panels.py`, `model.INTERFACES` | `test_templates.py` |
 | Heatsink: θSA from the datasheet sets the extra h over the polygon | `gui/panels.py` | `test_templates.py` |
-| Board orientation "horizontal, top face down" in the computed heat transfer | `convection.board_h`, `Board.orientation` | `test_templates.py`: faces swap exactly |
+| Board orientation reduced to what the layer numbering already says (layer 1 = top faces up; horizontal or vertical only), validated against the textbook correlations | `convection.board_h`, `tests/test_orientation.py` | `test_orientation.py` |
 | Rounded-corner preset, Subdivide button, `geometry.rounded_rectangle` | `gui/panels.py`, `geometry.py` | `test_templates.py`: area error 0.13 % at 8 edges, temperature converges |
 | Documentation of the heat paths, the stack-up contents and curved boards | `docs/models.md` sections 12 to 14, the user guide | |
 

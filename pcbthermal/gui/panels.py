@@ -149,11 +149,11 @@ class BoardPanel(QWidget):
         self.side_on = QCheckBox("Edges lose heat")
         self.h_side = _spin(0, 500, 10, 1, 1, "W/m²K")
         self.orientation = QComboBox()
-        self.orientation.addItem("Horizontal: top face up, bottom face down", "horizontal")
-        self.orientation.addItem("Horizontal: top face down, bottom face up", "horizontal_down")
-        self.orientation.addItem("Vertical", "vertical")
-        self.orientation.setToolTip("How the board is mounted (computed heat transfer only): a hot face looking up loses heat better than one looking down "
-                                    "(0.54 against 0.27 in the natural convection correlation); a vertical board uses the vertical plate correlation. "
+        self.orientation.addItem("Horizontal (layer 1 = top faces up)", "horizontal")
+        self.orientation.addItem("Vertical (on its edge)", "vertical")
+        self.orientation.setToolTip("How the board is mounted (computed heat transfer only). Horizontal: layer 1 is the top face and looks up, the last layer looks "
+                                    "down, so the mounting follows from the layer numbering (a hot face looking up loses heat better than one looking down: 0.54 against "
+                                    "0.27 in the natural convection correlation). Vertical: the plate correlation with the board height on both faces. "
                                     "With typed coefficients the orientation does not matter: type the h of the real mounting.")
         self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")

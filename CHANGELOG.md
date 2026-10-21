@@ -16,7 +16,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 - `docs/versions.md`: what was implemented in every version, where and how it is tested. `examples/stackup_outline_study.py`.
 
 - **Typical stack-ups by layer count** in an editable JSON file (`pcbthermal/data/stackups.json`), loaded when the number of layers changes and by *Load typical stack-up* on the Stack-up tab; `docs/models.md` section 12 lists them and what is inside the dielectric.
-- Interface material presets (paste, gap pads) for the heatsink on a package; θSA from the datasheet for the Heatsink element; board orientation "horizontal, top face down"; rounded-corner preset, Subdivide button and `geometry.rounded_rectangle`; `docs/models.md` sections 13 and 14.
+- Interface material presets (paste, gap pads) for the heatsink on a package; θSA from the datasheet for the Heatsink element; rounded-corner preset, Subdivide button and `geometry.rounded_rectangle`; `docs/models.md` sections 13 and 14.
 
 - **Cooling model of the Heatsink**: *Coefficient* (extra h or θSA) or *Metal block, computed* from its thickness, metal, interface and **fins** (height, thickness, pitch: area gain with fin efficiency; warning when the fins are too close in still air). Contact area of a part's interface (lid or exposed top), body helper for θJC(top), several sheets in one dielectric gap (`combine_sheets`). `docs/models.md` sections 15 to 18.
 
