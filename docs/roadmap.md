@@ -229,7 +229,7 @@ All agree to 1e-8 K. The gain appears above about 500 000 unknowns; `pyamg` woul
 Done: the 3D solid with vias and heatsinks on four boards (`validation.md` section 3). Next, in order of value: **a measurement of a physical board** (absolute accuracy; also calibrates the convection multiplier, `pcbthermal calibrate`);
 a transient comparison against the 3D solid; a thick-copper case; the 3D solid with the Package once it exists.
 
-## 6. Ideas from similar projects and tools (research of 2026-10-21)
+## 6. Ideas from similar projects and tools (research of 2026-10-21 and 22)
 
 What other open-source projects and commercial tools do, and what would be worth taking. Sources were read as web summaries (the repositories were not cloned or run): none of the projects below has the models, the profiles, the junction, the computed convection or the 3D check of this one; they are mostly KiCad plug-ins with one 2D model.
 
@@ -243,6 +243,9 @@ What other open-source projects and commercial tools do, and what would be worth
 | [SchrodingersGat/KITS](https://github.com/SchrodingersGat/KITS) | KiCad thermal simulation tool (MIT) | listed only |
 | Ansys Icepak, Flotherm, Cadence Celsius, Simcenter | Import of ODB++/Gerber/IPC-2581, orthotropic conductivity per layer, conjugate heat transfer with airflow, component libraries (2R/DELPHI) | ECAD import; copper as polygons, not as a percentage (JLCPCB's advice too); a component library |
 | Elmer FEM / OpenFOAM routes ([jrainimo write-up](https://jrainimo.com/build/2024/11/oss-thermal-simulation-of-pcbs/)) | Export the copper geometry (STEP/XAO) to a free 3D solver | export of the model for an external 3D check |
+| [Tomachie/FYPA](https://github.com/Tomachie/FYPA) (fork of [anarthrous-eda/FYPA](https://github.com/anarthrous-eda/FYPA), AGPL-3.0) | PDN (voltage drop) analysis of Altium and Gerber boards: a 2D FEM Laplace solve per copper layer on a triangulated mesh, an OpenGL viewer with probes and sortable pin and via tables, an editor mode whose edits go to a sidecar file, a result cache keyed by the inputs, PASS/FAIL checks (a sink's minimum voltage) in HTML/PDF reports with a CI exit code (`--fail-on fail`), a regulator model (LDO gain 1; SMPS gain Vout/(Vin·efficiency)), ParaView export, PyInstaller build and a release workflow on version tags | design checks with pass/fail and a CI exit code, result cache, sidecar edits, regulator losses from efficiency, probes, ParaView export, release automation |
+| [atx/padne](https://github.com/atx/padne) (the FEM solver FYPA vendors; NLnet-funded) | KiCad-native 2.5D FEM of the DC voltage drop and current density; **text directives in the schematic** (`VOLTAGE`, `CURRENT`, `RESISTANCE`, `REGULATOR`, `COPPER`) on `DESIGNATOR.PAD` endpoints, several pads joined by a small coupling resistance (1 mΩ); surface conductivity from the stackup copper thickness; Qt GUI and ParaView export; also meant for "heating elements" | read our part parameters from the schematic fields of the KiCad project; the same current solution gives the I²R heat source for a thermal run |
+| [wavenumber-eng/altium_monkey](https://github.com/wavenumber-eng/altium_monkey) (AGPL-3.0) | Python reading/writing of Altium PcbDoc, SchDoc, PrjPcb: layers, drills, outlines, nets, components, vias, tracks, pads; design JSON for CI checks | an import path for Altium boards (the file format is the work, not the thermal part); design-review checks in CI |
 | JLCPCB / RayPCB guides | Thermal vias: 4 vias about 40 K/W, 16 about 10 K/W; power from the datasheet maximum, V × I, or a circuit simulation | a thermal-via array generator and a check against those numbers; power from a circuit simulation (CSV) |
 
 Ideas, in the order of value for the effort (all future work, nothing implemented):
@@ -257,6 +260,21 @@ Ideas, in the order of value for the effort (all future work, nothing implemente
 8. **Orthotropic copper** from the raster: the conductivity along x and along y of a cell with traces (the fill fraction hides direction); needs the Gerber/KiCad copper.
 9. **Export for an external solver** (STEP/XAO or a simple mesh) to check a board in Elmer or OpenFOAM.
 10. **Cooling presets and enclosure**: an air-speed preset by fan, a closed box with an internal air temperature rise (a first step towards conjugate heat transfer, no CFD).
+
+Added after reading FYPA, padne and altium_monkey (2026-10-22), again in order of value for the effort:
+
+11. **Design checks with PASS/FAIL and an exit code**: one line per rule (a part's junction margin ≥ 0, no hotspot above the limit, energy balance, warnings), a `--fail-on fail` option of `run` for scripts and CI (FYPA does this for its minimum-voltage check). Our margins and power limits already exist; this is the report and the exit code.
+12. **Result cache**: a fingerprint of the problem JSON, the options and the code version selects a stored result, so reopening a project or switching tabs does not solve again (FYPA reloads in under a second; ours solves in 0.1 to 10 s, the 3D solid and the time simulations in minutes).
+13. **Regulator and converter losses from efficiency**: the power a part dissipates is `P_out (1/η − 1)` for a switching converter and `(V_in − V_out) I_out` for an LDO (FYPA's regulator model uses the gain 1 for LDOs and `V_out/(V_in η)` for switching ones); a small helper in the power calculator, and an optional power-from-load link for several parts on one rail.
+14. **Parameters in the design files**: padne and FYPA read `PDN_*`/`VOLTAGE` directives written in the schematic, so the analysis travels with the design. For us: read the power, θ and Tj max of a part from fields of the KiCad symbol (`Thermal_Power`, `Thermal_theta`, ...) when the board is imported (idea 1), and keep our own settings in a **sidecar file** next to the board (FYPA's `.fypa`) so the CAD files are never modified.
+15. **Electrical solution as the heat source** (padne, FYPA, kicad-electrothermal-sim): their current-density and `power density` maps are exactly the I²R heat of the copper; with the same sparse Laplace solve per copper layer (we already have the layer sheets) a DC current between a source and a sink gives the heat source and the voltage drop, and the thermal result feeds back through the resistivity (idea 3).
+16. **Probes and pin tables**: click on a map for the temperature of every layer at that point, a sortable table of the parts and the vias with their temperatures, and the minimum margin highlighted (FYPA's viewer).
+17. **Export for ParaView** (one VTU file per layer and a field for the temperature; padne and FYPA export the same way), which also serves the external 3D check (idea 9).
+18. **Local mesh refinement or a triangular mesh** near parts and along a curved outline (padne and FYPA triangulate the copper), against our structured cell grid with cell cover: the structured grid is simple and robust (and the 3D solid shares it), a refinement near the parts would cut the unknowns of large boards; large work, only if the boards that matter are large.
+19. **Release automation**: a CI workflow that runs the lint, the documentation gate and the tests on every push and, on a version tag, builds a standalone program (PyInstaller) and attaches it (FYPA's release workflow); a script that stamps the version.
+20. **A visible disclaimer** (FYPA's README opens with it): the results are a design aid, to be validated by measurement; none of the models has been compared with a physical board yet. To appear in the About box, the user guide and every report.
+
+**Licences**: FYPA, padne and altium_monkey are AGPL-3.0; this project is MIT (see the `LICENSE` file). Their code must not be copied here; their ideas and file formats can be used (Gerber, Excellon, KiCad and Altium formats are public or reverse-documented) and any import has to be written independently.
 
 ## 7. Deferred
 
