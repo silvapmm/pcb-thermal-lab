@@ -91,12 +91,29 @@ def job_sleep(progress, seconds):
 JOBS = {"inverse": job_inverse, "simulate": job_simulate, "transient": job_transient, "analyze": job_analyze, "sleep": job_sleep}
 
 
+def _watch_parent():
+    """!
+    @brief Stop this process as soon as the process that started it is gone (killed, crashed or closed without a clean shutdown).
+    @details Without it a calculation process would wait for jobs forever after its application died.
+    """
+    import multiprocessing
+    import os
+    import time
+    parent = multiprocessing.parent_process()
+    while parent is not None:
+        time.sleep(1.0)
+        if not parent.is_alive():
+            os._exit(0)
+
+
 def serve(tasks, results):
     """!
     @brief Body of the calculation process: execute jobs from the task queue until a None arrives.
     @param tasks Queue of (job id, job name, args) tuples or None.
     @param results Queue receiving (job id, kind, payload) with kind progress, done or failed.
     """
+    import threading
+    threading.Thread(target=_watch_parent, daemon=True).start()
     while True:
         item = tasks.get()
         if item is None:

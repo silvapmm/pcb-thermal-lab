@@ -125,3 +125,27 @@ def test_json_round_trip_and_validation():
     bad.board.dielectrics[0] = Dielectric(thickness=0.0)
     with pytest.raises(ValueError):
         bad.validate()
+
+
+def test_uniform_board_matches_the_exact_series_circuit_gap_by_gap():
+    """With the heater and the copper covering the whole board and insulated edges the problem is one-dimensional: a chain of layer nodes joined by k/d of every gap."""
+    gaps = [(0.12, 0.4, 1.0), (0.9, 2.0, 2.0), (0.25, 0.3, 0.9)]
+    p = Problem.new(40, 40, 4, thickness_mm=1.6)
+    p.board.h_mode, p.board.h_top, p.board.h_bottom, p.board.h_side = "manual", 14.0, 9.0, None
+    for l in range(1, 5):
+        p.add_zone(l, rect=(0, 0, 40, 40))
+    p.add_heater(1, 3.0, rect=(0, 0, 40, 40))
+    p.board.make_advanced()
+    for d, (t, kz, kp) in zip(p.board.dielectrics, gaps):
+        d.thickness, d.k_through, d.k_inplane = t * 1e-3, kz, kp
+    area = 0.04 * 0.04
+    g = [kz / (t * 1e-3) * area for t, kz, _ in gaps]                    # W/K of every gap over the whole board
+    K = np.zeros((4, 4))
+    for i, gi in enumerate(g):
+        K[i, i] += gi; K[i + 1, i + 1] += gi; K[i, i + 1] -= gi; K[i + 1, i] -= gi
+    K[0, 0] += 14.0 * area
+    K[3, 3] += 9.0 * area
+    exact = np.linalg.solve(K, np.array([3.0, 0.0, 0.0, 0.0])) + 25.0
+    res = simulate(p, SolverOptions(models=("fvm", "fdm"), cell_mm=4.0))
+    for m in ("fvm", "fdm"):
+        assert np.allclose(res.results[m].T[:, 3, 3], exact, atol=1e-6), (m, res.results[m].T[:, 3, 3], exact)

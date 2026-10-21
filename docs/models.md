@@ -11,8 +11,8 @@ plated vias, heatsinks (extra heat transfer on an outer face) and boundary condi
 
 * SI units inside the package; project files and the builder API use millimetres and 1-based layers.
 * **Layered model**: every copper layer is a thin conducting sheet with in-plane sheet conductance
-  `S = f·k_cu·t_cu + k_fr4,ip·(slab − f·t_cu)` (`f` copper fill, `slab = thickness/N`); the dielectric between two layers is a vertical conductance `k_fr4,th/d`
-  per unit area (anisotropic FR-4: 0.3 W/mK through, 0.9 in plane); a via adds `k_cu·A_via/d` between all layers with `A_via = π[(d_v/2)² − (d_v/2 − t_plating)²]` (hollow) or `π(d_v/2)²` (filled);
+  `S = f·k_cu·t_cu + k_lam·(slab − f·t_cu)` (`f` copper fill; simple stack-up: `slab = thickness/N` and `k_lam` the FR-4 in-plane value; advanced stack-up: the slab is the copper plus half of each adjacent gap and `k_lam` the thickness-weighted mean of the two gaps, section 8); the dielectric between two layers is a vertical conductance `k/d` of that gap
+  per unit area (anisotropic FR-4 by default: 0.3 W/mK through, 0.9 in plane; each gap can have its own thickness and material in the advanced stack-up); a via adds `k_cu·A_via/d` between all layers with `A_via = π[(d_v/2)² − (d_v/2 − t_plating)²]` (hollow) or `π(d_v/2)²` (filled);
   the top and bottom faces lose heat with `h_top`, `h_bottom`, heatsinks add `h_extra`, edges `h_side`.
 * **Copper that dissipates is already in the model, with no extra element.** A copper zone on an outer layer is both the spreader (its sheet conductance `S` carries the heat sideways) and the radiator: every cell of the outer face loses heat with `h_top` or `h_bottom` (typed or computed, radiation included), whether it is bare laminate or copper. Copper on the inner layers spreads the heat and sends it to the faces through the vias and the dielectrics. The copper fill `f` of a cell sets how well it spreads, so a larger zone cools better (more face area, more conduction), and the effect saturates at the length `sqrt(S/h)`. Solder mask and tinning are not modelled; a bare or tinned copper area differs only in emissivity (`emissivity_top/bottom`) and, if you want a different coefficient there, a heatsink with `h_extra` over the area. `docs/validation.md` section 3.1 checks it against a 3D solid: pad of 20 to 80 mm within 2.5 % in the FVM, and a heatsink only works through the copper under it.
 * **Heater power** is injected exactly (it does not depend on the grid). Total heat out through the faces and edges equals the power in; every result reports that energy balance.
@@ -202,3 +202,48 @@ The sparse solvers of SciPy must not run in two threads at once (the application
 Board canvas with zoom/pan, grid snap, polygons, vias, heatsinks, undo/redo, background photo, dark and light themes; docks for the board, environment (typed or computed `h`), materials, element tree, models and settings,
 live input checks and the property inspector; tabs **Board**, **Power profile** (heater list, constant / square wave / table with CSV import and export, decision table, run settings) and **Results** (summary, temperature,
 gradients, profiles, components, model comparison, step-power animation, power-profile results). The temperature of the last run can be painted on the board (key T). The version is shown in the title bar, status bar and About box.
+
+## 8. Stack-up: simple and advanced
+
+`Board` describes the vertical build in one of two ways, and **every model** (FVM, FDM, Lumped, Analytic, 3D solid) reads it through the same four helpers (`slab_thicknesses`, `gap_thicknesses`, `gap_properties`, `layer_laminate`):
+
+| | Simple (default) | Advanced (`Board.dielectrics` set) |
+| :-- | :-- | :-- |
+| Total thickness | typed | copper plus dielectrics (read-only) |
+| Copper thickness | one value per layer in the data, one value in the panel | any value per layer |
+| Dielectric gaps | `layers − 1` equal gaps of `(thickness − Σ copper)/(layers − 1)`, one material (`Materials`) | one `Dielectric` per gap: thickness, `k_through`, `k_inplane`, density, specific heat, material label |
+| Layer node | slab `thickness/N` | copper plus half of each adjacent gap (the slabs add up to the total thickness) |
+| Vertical conductance between layers l and l+1 | `k_through/d` | `k_through,l/d_l` of that gap; a via adds `k_Cu A_via/d_l` in every gap |
+| In-plane laminate of a layer node | FR-4 `k_inplane` | thickness-weighted mean of the two adjacent gaps |
+| Heat capacity | FR-4 `ρ c` of the slab | `ρ c` of the adjacent gaps |
+
+Switching to advanced (`make_advanced`) keeps the same board with equal gaps (within 0.1 K of the simple result: the laminate of the layer nodes is shared by half-gaps instead of thickness/N); switching back (`make_simple`) keeps the total thickness. Project files store `dielectrics` only for an advanced board; simple boards are unchanged.
+The through-board resistance between two layers is `Σ d/k` of the gaps in between, so a thin prepreg under a hot part and a thick core elsewhere, or a metal-core dielectric, change the result a lot (`validation.md` section 12).
+The 3D solid takes every gap as `n_diel` real slabs of its own thickness and conductivities. Presets (`DIELECTRICS`) are typical indicative values: FR-4 0.3/0.9 W/mK, high-Tg 0.4/1.0, polyimide 0.15, PTFE-ceramic (RO4350B type) 0.69, metal-core dielectric 2, alumina 24, aluminium nitride 170;
+the FR-4 and RO4350B figures agree with vendor data found on the web (about 0.3 and 0.69 W/mK), the others are general values to replace with your datasheet.
+The Stack-up tab draws the cross-section with the thickness of every layer in µm and mm and the total, and edits the advanced table.
+
+## 9. Board outline
+
+`Board.outline` (polygon, metres, inside the width × height box; `None` = the whole rectangle). Cell cover: every solver cell carries the fraction of it that is board (`Board.cover`; cells under 1 % are off the board).
+
+* **FVM**: sheet conductance, capacity, vertical conductances, face and heatsink losses are multiplied by the cover of the cell; the harmonic mean between neighbours is zero next to an off-board cell, so no heat crosses the outline; the heat lost through the **edge** is `h_edge × slab × length of the outline inside the cell` (`geometry.edge_length_per_cell`), which for a rectangle gives the same conductance as before; cells off the board are pinned to ambient (1 W/K on the diagonal) and carry no heat.
+* **FDM**: the same with the control volume of every node; faces that touch an off-board node conduct nothing (the arithmetic mean would leak half the conductivity).
+* **3D solid**: lateral conductivities and the vertical/convective areas of the board slabs scale with the cover; the edge loss goes through half a cell of the slab's own material.
+* **Lumped and Analytic**: need a rectangle (rings measured on a rectangular grid, cosine series on a rectangle); `simulate` leaves them out with a warning and asks for another model if none is left.
+* **Parts**: the power of a heater is spread over the part of its footprint that is on the board; a part entirely off the board puts its power in the nearest board cell (and the input check warns).
+* **Results**: the field outside the board is ambient and is blanked in the plots (`arrays["board_mask"]`); means are weighted by the cover; `Tmax` and `Tmin` are taken on the board; computed convection uses the real area and perimeter.
+* **Parametrisation**: a polygon in the file (`outline_mm`); in the application presets (rectangle, L, T, ellipse, chamfered corners), a vertex table, and the outline tool (`O`).
+
+## 10. Power from a measured temperature
+
+`inverse.power_from_temperature(problem, index, measured_c, point, ambient_c)` finds the power of one heater that makes the board model reproduce a measured temperature at one point of the part: `ring` (board 0.5 to 1.5 mm around it, the JEDEC point of ψJB), `max` or `mean` (under the footprint) or `junction` (needs θ).
+With the other heaters at their powers the temperature is affine in the power of the part, so two runs (the part at 0 and at one power) give the power and a third checks it; with computed convection the problem is not linear and a secant iteration finishes (typically a few more runs). `power_from_theta(Tj, T_ref, parameter)` is the datasheet relation `P = (Tj − T_ref)/θ` with ψJB, ψJT or θ.
+Why this approach: JESD51-12 and the manufacturers' notes define `Tj = T_board + ψJB·P` with the board temperature measured about 1 mm from the package; ψ is not a thermal resistance and belongs to the datasheet's test board, so the power cannot come from the board temperature and ψ alone (the junction temperature is also needed); the drawn board, on the other hand, gives the board temperature as a function of power directly.
+It is an estimate: as good as the drawn board (copper, vias, stack-up, heat transfer) and the measurement (a thermocouple that touches the board cools it; an IR gun's spot is too large for a small part). Sources read: TI datasheets and Electronic Design notes on ψJB/ψJT, the Diodes Inc. note on thermal parameters, a summary of JEDEC JESD51-12 (the standard itself is behind a registration).
+
+## 11. The calculation process
+
+The application runs the calculations (simulation, animation, profile analysis, power calculator) in **one separate process** (`pcbthermal/jobs.py`, `gui/compute.py`), started with `spawn` at the first job and kept for the next ones.
+Reasons: a job can be **cancelled at any moment** (the process is stopped, which a thread cannot do inside a sparse factorisation), the window never freezes, the rule that a sparse factorisation never runs twice in one process holds (jobs run in order), and when the program closes the process is stopped so nothing remains.
+Arguments and results are pickled (a four-model result with a profile is 22 MB, 0.04 s).

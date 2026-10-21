@@ -75,7 +75,7 @@ These rules are mandatory for all code and documentation in this repository.
 - Keep solver logic (numerics) separate from GUI code so solvers can be tested
   without wxPython.
 - Use the `logging` module instead of `print`.
-- Never commit generated outputs (PNG, GIF, TXT reports, temp files).
+- Never commit generated outputs (PNG, GIF, TXT reports, temp files); the README screenshots in `docs/images/` are the exception (regenerate with `examples/make_screenshots.py`).
 
 ## Git Workflow
 
@@ -119,13 +119,16 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   convection.py        computed h: air properties, natural/forced convection, radiation, board_h (Picard loop is in api.py)
   profile_io.py        power profiles as CSV files (read/write)
   profiles.py          power profiles (square wave): decision average-or-resolve, window runner shared by the three models
+  jobs.py              calculations run by the application in a separate process (no Qt): simulate, transient, analyze, inverse
+  inverse.py           power of a part from a measured temperature (board model run backwards) and from a datasheet parameter
+  help/index.html      the user guide (HTML, shown by Help - User guide and F1)
   results.py, analysis.py, api.py (SolverOptions, simulate, suggest_cell_mm), project.py (.pcbt.json), examples.py
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
-  gui/                 PySide 6 app: document (undo), canvas (editor), panels, results_view, main_window, theme
-tests/                 pytest suite (209 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+  gui/                 PySide 6 app: document (undo), canvas (editor, rulers), panels, stackup (cross-section tab), calculator, help (guide, About), tips (tooltips), compute (calculation process), results_view, main_window, theme
+tests/                 pytest suite (TESTCOUNT tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (.pcbt.json), csv_profiles/ (documented CSV power-profile example), validation_study.py (all models, every scenario; tables of docs/validation.md), accuracy_study.py and stress_study.py (the scenario lists), solver_equivalence.py, fem3d_validation.py (3D solid), copper_dissipation.py (outer copper against heatsink), component_study.py (what a package resistance and a top path add on five real parts), top_path_study.py (the top path of the program against the junction-node prototype)
-docs/                  models.md (models, formulas, profiles, convection, API), validation.md (every scenario in every model, 3D check, history), roadmap.md (planned work), research.md (open investigations, empty when nothing is pending), images/
+docs/                  versions.md (what was implemented in every version), models.md (models, formulas, profiles, convection, API), validation.md (every scenario in every model, 3D check, history), roadmap.md (planned work), research.md (open investigations, empty when nothing is pending), images/
 ico/                   application icon
 ```
 
@@ -195,6 +198,8 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 ## Decisions Log
 
 Record important decisions here, newest first, with date and reason.
+
+- 2026-10-21: **Advanced stack-up, board outline, calculation process, help** (maintainer's list of 18 items, branch `claude/eloquent-dijkstra-safezy`; `main` untouched by request). Stack-up: `Board.dielectrics` (None = simple) read through four helpers by every model; simple mode kept bit-compatible, advanced with equal gaps within 0.1 K; exact 1D series-circuit test. Outline: cell cover (`Board.cover`) in FVM/FDM/3D, cells off the board pinned to ambient, Lumped and Analytic left rectangle-only (skipped with a warning) because their geometry (rings, cosine series) is rectangular. Calculations moved from threads to one `spawn` process (cancel = terminate; a watchdog thread makes it exit when the parent dies; found because an orphan kept a pipe open and hung a shell). Power calculator: the board model run backwards (affine in the power with two runs) rather than a datasheet-only formula, because Tj = Tboard + psi P needs Tj. Help: one HTML file, shown in a QTextBrowser and openable in the browser. Tooltips: one table keyed by label (`gui/tips.py`) plus a test that scans the whole application. `docs/versions.md` added at the maintainer's request (one more document: it is the per-version detail the CHANGELOG does not give). The remote branch `add-claude-github-actions-1792104903738` could not be deleted from the session (the git proxy cut the push): delete it in GitHub. LICENSE (MIT, silvapmm) and the README/CLAUDE.md text (all rights reserved) disagree: to be decided by the maintainer.
 
 - 2026-10-21: **Top path of a part implemented** (heatsink on the package) on the session branch `claude/eloquent-dijkstra-safezy` (the maintainer asked not to touch `main`). Chosen as a fixed-point loop around any model instead of a junction unknown inside each matrix: `analysis.part_split` closes the series-parallel network (junction node joined to the board by θ and to the ambient by `R_top = θJC(top) + interface/A + θSA`), `api._solve_with_tc` gives the board `P − P_top` and shares the loop with the power coefficient, so FVM, FDM, Lumped, Analytic and the 3D solid all get it. Worst-case convention kept (hottest point under the footprint); 0.4 to 0.8 K above the uniform-conductance node prototype. Steady state only. Without `theta_sa` nothing changes. Still for later: heatsink scenarios, plate layer, interface with its own area, Foster chain (`docs/roadmap.md` 1.11).
 

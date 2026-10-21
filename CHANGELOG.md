@@ -6,6 +6,25 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ## [Unreleased]
 
 ### Added
+- **Advanced stack-up** in all five models: copper thickness per layer and thickness, conductivities, density and specific heat per dielectric gap (presets for FR-4, high-Tg, polyimide, PTFE-ceramic, metal-core, alumina, AlN); the simple stack-up is unchanged. New **Stack-up tab** between Board and Power profile with the cross-section drawn in µm and mm (true or readable proportions), the total thickness, a click on a layer for its data, and the layer table. Validated against the exact series circuit (1e-6 K). `docs/models.md` section 8, `docs/validation.md` section 12.
+- **Board outline polygon** (any shape: presets, vertex table, outline tool `O`) in the FVM, FDM and 3D solid; the lumped and analytic models need a rectangle and are skipped with a warning. Blank cells in the plots, edge loss along the outline, parts off the board still deliver their power. `docs/models.md` section 9.
+- **Top path of a part** (heatsink on the package): `theta_jc_top`, `interface`, `theta_sa`; within 0.4 to 0.8 K of a junction-node prototype (`examples/top_path_study.py`).
+- **Power calculator** (Simulation menu): the power of a part from a measured temperature, by the board model (`pcbthermal.inverse`) or from a datasheet ψ/θ parameter.
+- **Calculations in a separate process** (`pcbthermal/jobs.py`, `gui/compute.py`): a Cancel button and `Ctrl+.`, a window that never freezes, and a process that stops when the program closes or dies.
+- **Help menu**: an HTML user guide (`pcbthermal/help/index.html`, `F1`, in the program or in the browser) and an About box with version, author, project link and library versions.
+- **A tooltip on every control** (`gui/tips.py`, checked by `tests/test_tooltips.py`), rulers and a scale bar on the board, position and size fields for the selected shape, tab shortcuts `Ctrl+1` to `Ctrl+4`.
+- `docs/versions.md`: what was implemented in every version, where and how it is tested. `examples/stackup_outline_study.py`.
+
+### Changed
+- Tool keys are now `S Z H C V O` (Select, Zone, Heater, Heatsink/Cooling, Via, board Outline); `V` is the via tool.
+- The Environment panel hides the typed `h top` and `h bottom` in computed mode (they were only a starting guess), and every field shows its unit.
+- The edge loss of the FVM and FDM no longer adds the board edge conductance to the layers of metal blocks (it was counted twice).
+
+### Fixed
+- Dragging a via (or any element) no longer moves it by its own coordinates off the board; elements and selections cannot leave the board when dragged, nudged or moved.
+- Leaving the application no longer leaves a calculation running.
+
+### Added (earlier in this cycle)
 - **Parts**: a heater can be a part with a junction-to-pad resistance `theta` (worst case: all the power enters the board; the old `theta_jb` key still opens), a maximum junction temperature (margin, **power limit** and warning), `psi_jb` (second estimate from the board temperature in the ring around the package) and a **power temperature coefficient** (power solved together with the board, thermal runaway detected). Typical θ by package family, hints and a datasheet guide in the application; the Components tab shows the junction, margin and power limit. `docs/models.md` section 6, `docs/validation.md` section 9, `examples/component_study.py`, `tests/test_component.py`.
 - **Top path of a part** (heatsink on the package): `theta_jc_top`, `interface` (K·cm²/W over the footprint) and `theta_sa` (K/W) make the part a junction node joined to the board by θ and to the ambient through the top; the board receives only the power the top does not take (fixed-point loop around any model, together with the power coefficient). The report and the Components table give the top-path power and its share; steady-state models only. Within 0.4 to 0.8 K of the junction-node prototype on four chips; `examples/top_path_study.py`, `docs/models.md` section 6, `docs/validation.md` section 9.
 - `docs/research.md` for investigations before implementation.

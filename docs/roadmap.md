@@ -192,7 +192,10 @@ Read the copper of every layer from manufacturing files instead of drawing zones
 * **Open**: file variants of KiCad/Altium/Eagle, a layer-assignment step in the GUI, plane splits and anti-pads; component positions come from a pick-and-place file (a later extra).
 * **Validation**: import a board whose copper was also drawn by hand, compare areas per layer and the FVM result.
 
-## 3. Variable stack-up (extra; keep the model ready for it)
+## 3. Variable stack-up (implemented 2026-10-21)
+
+> **Status**: done in all five models (`docs/models.md` section 8, `docs/validation.md` section 12): per-layer copper, per-gap dielectric thickness and material, simple and advanced modes, the Stack-up tab with the cross-section, file round trip, regression against the simple stack-up (0.1 K) and an exact series-circuit check (1e-6 K). Left for later: an outer dielectric (solder mask) above the top copper and below the bottom copper, a material per copper layer (copper alloys, plated copper), a stack-up library of the usual 4/6/8-layer builds.
+> The text below is the original plan, kept for the reasoning.
 
 Today: one total thickness, copper thickness per layer (already a list) and **equal dielectric gaps** (`Board.dielectric_thickness()` shares what is left of the thickness among the gaps; each layer node is a slab `thickness/layers`). Real stack-ups have different copper weights, core and prepreg thicknesses and sometimes materials.
 
@@ -201,6 +204,11 @@ Today: one total thickness, copper thickness per layer (already a list) and **eq
   tridiagonal modal matrix takes one coupling per gap). Time simulation: capacities from real thicknesses and materials. Edge cooling from each layer's real thickness.
 * **Why**: through-board resistance is `Σ d_i/k_i`, so a thin prepreg under the heater layer and a thick core elsewhere differ a lot from equal gaps; a metal-core board is another regime. Expect first-order changes in `T_j` with a thin top prepreg and an inner plane.
 * **Compatibility**: with equal gaps the new code must reproduce the current results exactly (regression test). The stack-up table also feeds the Gerber import (copper thickness, plating).
+
+## 3b. Board outline (implemented 2026-10-21; Lumped and Analytic still need a rectangle)
+
+Done for the FVM, FDM and 3D solid (`docs/models.md` section 9). Left: the Lumped network on any outline (rings of the geodesic distance inside the board instead of the Euclidean one, an outline-aware edge model) and the Analytic series (a conformal map or a domain decomposition; probably not worth it: the models are the fast, uniform-board estimates);
+holes and cut-outs inside the board (an outline with holes: a list of polygons with even-odd fill, same cell cover); a board outline imported from the Gerber outline layer together with the copper (section 2); a check that warns when a neck of the outline is narrower than three cells.
 
 ## 4. Multigrid solver (optional, low priority)
 
