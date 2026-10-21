@@ -637,3 +637,31 @@ def test_component_fields_in_the_application(win, qtbot):
     run(win, qtbot, ("fvm", "lumped"), cell=2.0)
     assert any("thermal runaway" in w for w in win.sim.warnings)
     walk_results(win, qtbot)
+
+
+def test_top_path_in_the_application(win, qtbot):
+    """The heatsink on a part: three inspector fields, a run with every model, the top-path column, the warning for the time simulation, and undo."""
+    load(win, example_board())
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    form = win.inspector.form_host
+    spins = form.findChildren(QAbstractSpinBox)
+    by_tip = lambda start: next(s for s in spins if s.toolTip().startswith(start))
+    by_tip("Junction-to-case").setValue(30.0)
+    by_tip("Interface between the package top").setValue(0.5)
+    by_tip("Resistance from a heatsink on top").setValue(12.0)
+    h = win.doc.problem.heaters[0]
+    assert (h.theta_jc_top, h.interface, h.theta_sa) == (pytest.approx(30.0), pytest.approx(0.5), pytest.approx(12.0))
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    rv = win.results
+    top = rv.heater_table.columnCount() - 1
+    assert rv.heater_table.item(0, top).text() != "-" and float(rv.heater_table.item(0, top).text()) > 0
+    assert rv.heater_table.item(1, top).text() == "-"                       # U2 has no heatsink
+    walk_results(win, qtbot)
+    win.doc.stack.undo()                                                     # Undo restores the previous value and the run stays consistent
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert win.doc.problem.heaters[0].theta_sa != 12.0 or win.doc.problem.heaters[0].interface != 0.5
+    # An absurd heatsink (very high resistance) and zero power: no crash
+    win.doc.set_props("heater", 0, theta_sa=5000.0, power=0.0)
+    run(win, qtbot, ("fvm", "lumped"), cell=2.0)
+    walk_results(win, qtbot)

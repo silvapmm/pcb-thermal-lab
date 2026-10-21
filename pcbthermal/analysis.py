@@ -123,10 +123,33 @@ def _ring_mean(result, polygon, layer):
     return float(result.T[min(layer, result.T.shape[0] - 1)][ring].mean())
 
 
+def part_split(heater, t_max, power, ambient):
+    """!
+    @brief Junction temperature and the heat taken by the top path of one part, for the hottest board point under it.
+    @details Junction node joined to the board by theta and to the ambient by the top resistance R: with P_b the heat into the board,
+             Tj - Ta = (T_max - Ta) + P_b theta and P_b = P - (Tj - Ta)/R, hence Tj - Ta = (T_max - Ta + P theta)/(1 + theta/R).
+             The top heat is limited to [0, P] (the board does not feed the part). Without a top path all the power enters the board.
+    @param heater A Heater.
+    @param t_max Hottest board temperature under the footprint in degC.
+    @param power Total power dissipated by the part in W.
+    @param ambient Ambient temperature in degC.
+    @return Tuple (t_junction or None without theta in degC, power_top in W).
+    """
+    if heater.theta <= 0:
+        return None, 0.0
+    r_top = heater.top_resistance()
+    if r_top <= 0:
+        return t_max + power * heater.theta, 0.0
+    rise = (t_max - ambient + power * heater.theta) / (1.0 + heater.theta / r_top)
+    p_top = min(max(rise / r_top, 0.0), power)
+    return t_max + (power - p_top) * heater.theta, p_top
+
+
 def heater_stats(result, problem, powers=None):
     """!
     @brief Temperatures under every heater and, for a part, the junction temperature, its margin and the power limit.
-    @details With the junction-to-pad resistance theta (worst case: all the power enters the board) Tj = hottest board point under the footprint + P theta;
+    @details With the junction-to-pad resistance theta Tj = hottest board point under the footprint + P_board theta (worst case: P_board = P, all the power enters the board;
+             with a top path P_board = P minus the heat of the top path, see part_split);
              with psi_jb the second estimate is Tj = mean board temperature in the 0.5 to 1.5 mm ring around the outline + psi_jb P. The device temperature
              used for the limit is Tj (or the hottest point under a part without theta). The power limit is the dissipation that brings the device to tj_max
              with the board's response of this run (linear in the power for constant coefficients).
@@ -134,7 +157,7 @@ def heater_stats(result, problem, powers=None):
     @param problem The Problem that owns the heaters.
     @param powers Powers actually dissipated in W, one per heater (default: the powers of the problem; they differ when a power temperature coefficient is set).
     @return List of dicts: name, layer (1-based), power_w, power_nominal_w (the power typed), t_mean, t_max, t_junction (None without theta), t_ring (None on a coarse grid),
-            t_junction_psi (None without psi_jb), tj_max (0 = none), margin_k (None without tj_max), p_limit_w (None without tj_max), theta, psi_jb, power_tc.
+            t_junction_psi (None without psi_jb), power_top_w and power_board_w (split of the power between the top path and the board), r_top (K/W, 0 without a top path), tj_max (0 = none), margin_k (None without tj_max), p_limit_w (None without tj_max), theta, psi_jb, power_tc.
     """
     _require_field(result)
     rows = []
@@ -142,14 +165,15 @@ def heater_stats(result, problem, powers=None):
     for k, h in enumerate(problem.heaters):
         power = h.power if powers is None else float(powers[k])
         mean, mx, _ = _footprint_stats(result, h.polygon, h.layer)
-        tj = mx + power * h.theta if h.theta > 0 else None
+        tj, p_top = part_split(h, mx, power, amb)
         device = tj if tj is not None else mx
         ring = _ring_mean(result, h.polygon, h.layer)
         row = {"name": h.name or f"Heater {k + 1}", "layer": h.layer + 1, "power_w": power, "t_mean": mean, "t_max": mx,
                "power_nominal_w": h.power, "t_junction": tj, "t_ring": ring,
-               "t_junction_psi": ring + power * h.psi_jb if (h.psi_jb > 0 and ring is not None) else None,
+               "t_junction_psi": ring + (power - p_top) * h.psi_jb if (h.psi_jb > 0 and ring is not None) else None,
                "tj_max": h.tj_max, "margin_k": h.tj_max - device if h.tj_max > 0 else None, "p_limit_w": None,
-               "theta": h.theta, "psi_jb": h.psi_jb, "power_tc": h.power_tc}
+               "theta": h.theta, "psi_jb": h.psi_jb, "power_tc": h.power_tc,
+               "power_top_w": p_top, "power_board_w": power - p_top, "r_top": h.top_resistance()}
         if h.tj_max > 0 and power > 0 and device > amb:
             row["p_limit_w"] = power * (h.tj_max - amb) / (device - amb)
         rows.append(row)

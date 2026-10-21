@@ -428,6 +428,21 @@ class Inspector(QWidget):
                               "the board and warns when there is no stable point (thermal runaway). Steady-state models only.")
                 tc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power_tc=v / 100.0))
                 lay.addRow("Power coefficient", tc)
+                jc = _spin(0, 5000, el.theta_jc_top, 2, 0.5, "K/W")
+                jc.setToolTip("Junction-to-case (top) resistance θJC(top) of the package, in series with the interface and the heatsink. Used only when the "
+                              "heatsink resistance below is set (a bare mould carries about 1 % of the heat and is ignored: worst case).")
+                jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
+                lay.addRow("θJC top", jc)
+                itf = _spin(0, 100, el.interface, 2, 0.1, "K·cm²/W")
+                itf.setToolTip("Interface between the package top and the heatsink, resistance per area (divided by the footprint area). Good paste 0.3, default "
+                               "paste 0.5, soft gap pad 1.7, gap pad 5, hard pad 10; 0 = perfect contact (optimistic).")
+                itf.valueChanged.connect(lambda v: self.doc.set_props(kind, i, interface=v))
+                lay.addRow("Interface", itf)
+                sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
+                sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
+                              "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
+                sa.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_sa=v))
+                lay.addRow("Heatsink θSA", sa)
             elif kind == "heatsink":
                 w = _spin(0, 5000, el.h_extra, 1, 5, "W/m²K")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, h_extra=v))

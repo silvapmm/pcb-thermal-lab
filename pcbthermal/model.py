@@ -342,6 +342,21 @@ class Heater:
     tj_max: float = 0.0                         # Maximum junction temperature (degC); 0 = no limit
     psi_jb: float = 0.0                         # Junction-to-board characterisation parameter (K/W) for the ring-temperature estimate; 0 = not used
     power_tc: float = 0.0                       # Temperature coefficient of the power (1/K): P = P0 (1 + tc (Tj - 25 degC)); 0 = constant power
+    theta_jc_top: float = 0.0                   # Junction-to-case (top) resistance (K/W) of the top path; used only with theta_sa
+    theta_sa: float = 0.0                       # Heatsink-to-ambient resistance (K/W) on top of the package; 0 = no top path (worst case)
+    interface: float = 0.0                      # Interface between package top and heatsink (K cm2/W, over the footprint area); 0 = perfect contact
+
+    def top_resistance(self):
+        """!
+        @brief Total resistance of the top path, junction to ambient.
+        @details theta_jc_top + interface / footprint area + theta_sa, in series; the path exists only for a part with a junction
+                 resistance theta and a heatsink resistance theta_sa.
+        @return Resistance in K/W, or 0.0 when the heater has no top path.
+        """
+        if self.theta <= 0 or self.theta_sa <= 0:
+            return 0.0
+        area_cm2 = max(self.area() * 1e4, 1e-9)
+        return self.theta_jc_top + self.interface / area_cm2 + self.theta_sa
 
     def average_power(self):
         """!
@@ -507,6 +522,8 @@ class Problem:
                 raise ValueError("heater power must be >= 0")
             if h.theta < 0 or h.tj_max < 0 or h.psi_jb < 0 or not -0.05 <= h.power_tc <= 0.05:
                 raise ValueError("a heater needs theta, tj_max and psi_jb >= 0 and a power temperature coefficient between -5 and 5 %/K")
+            if h.theta_jc_top < 0 or h.theta_sa < 0 or h.interface < 0:
+                raise ValueError("theta_jc_top, theta_sa and the interface resistance must be >= 0")
             if h.profile is not None:
                 h.profile.validate()
         for s in self.heatsinks:
@@ -576,7 +593,8 @@ class Problem:
             self.add_zone(l, rect=(0, 0, w, h), fill=fill, name=f"plane L{l}")
         return self
 
-    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta=0.0, profile=None, tj_max=0.0, psi_jb=0.0, power_tc=0.0):
+    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta=0.0, profile=None, tj_max=0.0, psi_jb=0.0, power_tc=0.0,
+                   theta_jc_top=0.0, theta_sa=0.0, interface=0.0):
         """!
         @brief Add a heat source (layer 1 = top, geometry in mm, power in W).
         @param layer 1-based layer number.
@@ -590,9 +608,13 @@ class Problem:
         @param tj_max Maximum junction temperature in degC (0 = none): the report gives the margin and the power limit.
         @param psi_jb Junction-to-board characterisation parameter in K/W (0 = none): the report adds Tj = ring temperature + psi P.
         @param power_tc Temperature coefficient of the power in 1/K (0 = constant); P = P0 (1 + tc (Tj - 25 degC)) is solved with the board.
+        @param theta_jc_top Junction-to-case (top) resistance in K/W of the top path (used only with theta_sa).
+        @param theta_sa Resistance in K/W from the heatsink on top of the package to the ambient (0 = no top path: all the power enters the board).
+        @param interface Interface between package and heatsink in K cm2/W, divided by the footprint area (0 = perfect contact).
         @return self.
         """
-        h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta, None, float(tj_max), float(psi_jb), float(power_tc))
+        h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta, None, float(tj_max), float(psi_jb), float(power_tc),
+                   float(theta_jc_top), float(theta_sa), float(interface))
         h.set_profile(profile)
         self.heaters.append(h)
         return self
@@ -705,7 +727,8 @@ def problem_from_dict(data, validate=True):
         # "theta_jb_k_per_w" is the key of files saved before the junction resistance was renamed
         heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]), h.get("name", ""),
                         float(h.get("theta_k_per_w", h.get("theta_jb_k_per_w", 0.0))), None, float(h.get("tj_max_c", 0.0)),
-                        float(h.get("psi_jb_k_per_w", 0.0)), float(h.get("power_tc_per_k", 0.0)))
+                        float(h.get("psi_jb_k_per_w", 0.0)), float(h.get("power_tc_per_k", 0.0)),
+                        float(h.get("theta_jc_top_k_per_w", 0.0)), float(h.get("theta_sa_k_per_w", 0.0)), float(h.get("interface_kcm2_per_w", 0.0)))
         if "profile" in h:
             heater.set_profile(_profile_from_dict(h["profile"]))
         prob.heaters.append(heater)
@@ -861,6 +884,9 @@ def problem_to_dict(prob):
                           "theta_k_per_w": h.theta},
                          **({"tj_max_c": h.tj_max} if h.tj_max else {}), **({"psi_jb_k_per_w": h.psi_jb} if h.psi_jb else {}),
                          **({"power_tc_per_k": h.power_tc} if h.power_tc else {}),
+                         **({"theta_jc_top_k_per_w": h.theta_jc_top} if h.theta_jc_top else {}),
+                         **({"theta_sa_k_per_w": h.theta_sa} if h.theta_sa else {}),
+                         **({"interface_kcm2_per_w": h.interface} if h.interface else {}),
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
                   "filled": v.filled, "name": v.name} for v in prob.vias],

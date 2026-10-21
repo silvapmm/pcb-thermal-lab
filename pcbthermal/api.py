@@ -28,7 +28,7 @@ import copy
 import math
 
 from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
-from .analysis import block_stats, heater_stats, hotspots, zone_stats
+from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from .checks import check_problem
 from .model import Problem
 from .results import SteadyResult
@@ -283,6 +283,8 @@ class Simulation:
                     extra += f", board ring {h['t_ring']:.1f} degC"
                 if h["t_junction_psi"] is not None:
                     extra += f", junction by psi_JB {h['t_junction_psi']:.1f} degC"
+                if h["power_top_w"] > 0:
+                    extra += f", top path {h['power_top_w']:.2f} W ({100.0 * h['power_top_w'] / h['power_w']:.0f} % of the power, {h['r_top']:.1f} K/W)"
                 if h["margin_k"] is not None:
                     extra += f", limit {h['tj_max']:g} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
@@ -378,15 +380,17 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0):
 
 def _solve_with_tc(problem, name, options, computed):
     """!
-    @brief Solve one model, iterating on the powers when a heater has a power temperature coefficient.
-    @details P = P0 (1 + tc (Tj - 25 degC)) with Tj the junction (or the hottest board point under a part without theta); a fixed-point loop around the solve,
-             like the computed heat transfer coefficients. Without a coefficient it is a plain solve. The loop stops when the powers change by less than 1e-5
-             (relative), or reports a thermal runaway when the device passes 1500 degC or the power grows 50 times (no stable operating point).
+    @brief Solve one model, iterating on the powers when a heater has a power temperature coefficient or a top path.
+    @details P = P0 (1 + tc (Tj - 25 degC)) with Tj the junction (or the hottest board point under a part without theta); with a top path (theta_sa) the part sends
+             part of P to the ambient through the top and only the rest enters the board (analysis.part_split). Both are a fixed-point loop around the solve,
+             like the computed heat transfer coefficients; the board receives the power that is not taken by the top. Without either it is a plain solve.
+             The loop stops when the board powers change by less than 1e-5 (relative), or reports a thermal runaway when the device passes 1500 degC or the
+             power grows 50 times (no stable operating point).
     @param problem A Problem (steady powers; it is not modified).
     @param name Model name.
     @param options SolverOptions.
     @param computed True when the board uses computed heat transfer coefficients.
-    @return Tuple (SteadyResult, (h_top, h_bottom) or None, list of powers or None).
+    @return Tuple (SteadyResult, (h_top, h_bottom) or None, list of total powers dissipated by the parts or None).
     """
     def once(pr):
         if computed:
@@ -395,32 +399,38 @@ def _solve_with_tc(problem, name, options, computed):
         return _run_model(pr, name, options), None
 
     tcs = [h.power_tc for h in problem.heaters]
-    if not any(tcs):
+    tops = [h.top_resistance() > 0 for h in problem.heaters]
+    if not any(tcs) and not any(tops):
         res, hh = once(problem)
         return res, hh, None
     base = [h.power for h in problem.heaters]
     pr = copy.deepcopy(problem)
-    powers = list(base)
+    totals = list(base)                      # Power dissipated by every part
+    board = list(base)                       # Power that enters the board (the total minus the top path)
     runaway = False
     for it in range(1, 81):
-        for h, pw in zip(pr.heaters, powers):
+        for h, pw in zip(pr.heaters, board):
             h.power = pw
         res, hh = once(pr)
-        rows = heater_stats(res, pr)
-        new = []
-        for row, b, tc in zip(rows, base, tcs):
-            device = row["t_junction"] if row["t_junction"] is not None else row["t_max"]
-            new.append(max(b * (1.0 + tc * (device - 25.0)), 0.0))
-            runaway = runaway or device > 1500.0 or (b > 0 and new[-1] > 50.0 * b)
-        change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new, powers)), default=0.0)
+        amb = res.ambient
+        new_total, new_board = [], []
+        for h, row, b, tc in zip(problem.heaters, heater_stats(res, problem, totals), base, tcs):
+            mx = row["t_max"]
+            device = row["t_junction"] if row["t_junction"] is not None else mx
+            total = max(b * (1.0 + tc * (device - 25.0)), 0.0) if tc else b
+            _, p_top = part_split(h, mx, total, amb)
+            new_total.append(total)
+            new_board.append(total - p_top)
+            runaway = runaway or device > 1500.0 or (b > 0 and total > 50.0 * b)
+        change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new_board, board)), default=0.0)
         if runaway or change < 1e-5:
-            break
-        powers = new
+            break                                                   # `totals` still pairs with the board power of the last solve
+        totals, board = new_total, new_board
     res.extras["power_tc_iterations"] = float(it)
     res.extras["thermal_runaway"] = float(runaway)
     if runaway:
         res.warnings.append("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)")
-    return res, hh, powers
+    return res, hh, totals
 
 
 def _part_warnings(sim):
@@ -435,11 +445,13 @@ def _part_warnings(sim):
         if row["margin_k"] is not None and row["margin_k"] < 0 and not runaway:
             out.append(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} degC, "
                        f"{-row['margin_k']:.1f} K above its limit of {row['tj_max']:g} degC (power limit {row['p_limit_w']:.2f} W with this board)")
-        if h.theta > 0 and row["power_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
-            out.append(f"{row['name']}: theta x P = {row['power_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
+        if h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
+            out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
+    if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):
+        out.append("the top path (heatsink on the package) is applied to the steady-state models only: the time simulation sends all the power into the board")
     return out
 
 

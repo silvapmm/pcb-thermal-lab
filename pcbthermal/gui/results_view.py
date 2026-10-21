@@ -310,7 +310,7 @@ class ResultsView(QWidget):
         split = QSplitter(Qt.Vertical)
         tables = QWidget()
         tl = QVBoxLayout(tables)
-        self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W"])
+        self.heater_table = _table(["Heater", "Layer", "Power W", "Mean °C", "Max °C", "Junction °C", "Margin K", "Power limit W", "Top path W"])
         self.zone_table = _table(["Zone", "Layer", "Mean °C", "Max °C", "Min °C"])
         self.hot_table = _table(["Hotspot", "Layer", "Tmax °C", "x mm", "y mm", "Area mm²"])
         self.block_table = _table(["Metal block", "Face", "Mean °C", "Max °C", "Heat in W", "Heat to air W"])
@@ -379,7 +379,8 @@ class ResultsView(QWidget):
                                    f"{h['t_max']:.1f}",
                                    f"{h['t_junction']:.1f}" if h["t_junction"] is not None else "-",
                                    f"{h['margin_k']:.1f}" if h["margin_k"] is not None else "-",
-                                   f"{h['p_limit_w']:.2f}" if h["p_limit_w"] is not None else "-"]
+                                   f"{h['p_limit_w']:.2f}" if h["p_limit_w"] is not None else "-",
+                                   f"{h['power_top_w']:.2f}" if h["power_top_w"] > 0 else "-"]
                                   for h in heaters])
         zones = analysis.zone_stats(ref, sim.problem)
         _fill(self.zone_table, [[z["name"], str(z["layer"]), f"{z['t_mean']:.1f}", f"{z['t_max']:.1f}",

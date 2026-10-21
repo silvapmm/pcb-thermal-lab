@@ -6,14 +6,14 @@ Values marked *assumed* are not from a datasheet. Everything is reproducible wit
 
 ## Open now: the Component element (branch `feature/component-element`)
 
-**Decided (2026-10-17) and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md` 1.11); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The heatsink on the IC was postponed (maintainer, 2026-10-17); what is below about it is kept for that work.
+**Decided (2026-10-17) and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md` 1.11); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented on 2026-10-21 (`docs/models.md` section 6, `docs/validation.md` section 9, `examples/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
 
 Reproduce: `examples/component_study.py`, `examples/heatsink_study.py`, `examples/block_contact_study.py`.
 
 ### Implemented on 2026-10-17 and what stays open from it
 
 The junction-to-pad resistance θ (worst case), the junction limit with its margin and power limit, the `ψJB` ring estimate, the power temperature coefficient and the package-family typical values are implemented and documented in `docs/models.md` section 6 and `docs/validation.md` section 9 (the datasheet table, the study on five parts and the sensitivity are there).
-What stays here is the **top path** of the study, for the future heatsink on the IC (postponed by the maintainer on 2026-10-17; junction node joined to the footprint by `1/θ` and to the ambient through `θJC(top)` + interface + heatsink; `examples/component_study.py`, level 2):
+What stays here is the **top path** of the study, behind the top path now implemented (2026-10-21; junction node joined to the footprint by `1/θ` and to the ambient through `θJC(top)` + interface + heatsink; `examples/component_study.py`, level 2):
 
 | Part | Tj without top path | Bare mould (heat through the top) | With a 12 K/W clip-on heatsink (heat through the top) | θJC(top) |
 | :-- | --: | --: | --: | --: |

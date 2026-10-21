@@ -99,3 +99,41 @@ def test_files_and_the_package_presets():
     # The datasheet case of the study: a 2 W MOSFET with 4.5 K/W adds 9 K to the board point under it
     r = fvm.solve_steady(part(), 0.5)
     assert analysis.heater_stats(r, part())[0]["t_junction"] - r.t_max == pytest.approx(9.0)
+
+
+def test_top_path_splits_the_power_and_follows_the_series_parallel_solution():
+    p = part(power=2.0, theta=4.5, theta_jc_top=30.0, theta_sa=12.0, interface=0.5)
+    h = p.heaters[0]
+    r_top = 30.0 + 0.5 / (h.area() * 1e4) + 12.0
+    assert h.top_resistance() == pytest.approx(r_top)
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5))
+    row = sim.heater_rows()[0]
+    # Energy: what the top does not take enters the board, and the junction node closes the series-parallel network
+    assert row["power_top_w"] + row["power_board_w"] == pytest.approx(2.0)
+    assert row["power_top_w"] == pytest.approx((row["t_junction"] - 25.0) / r_top, rel=1e-4)
+    assert row["t_junction"] == pytest.approx(row["t_max"] + row["power_board_w"] * 4.5, rel=1e-6)
+    # The board itself received only its share
+    plain = fvm.solve_steady(part(power=row["power_board_w"], theta=4.5), 0.5)
+    assert sim.results["fvm"].t_max == pytest.approx(plain.t_max, abs=2e-3)
+    cold = analysis.heater_stats(fvm.solve_steady(part(theta=4.5), 0.5), part(theta=4.5))[0]
+    assert row["t_junction"] < cold["t_junction"]                        # A heatsink on top lowers the junction
+
+
+def test_top_path_off_without_theta_or_theta_sa_and_in_all_models():
+    for kw in (dict(theta=4.5), dict(theta=0.0, theta_sa=12.0)):
+        row = simulate(part(**kw), SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+        assert row["power_top_w"] == 0.0 and row["power_board_w"] == pytest.approx(2.0)
+    tj = {m: simulate(part(theta=4.5, theta_sa=12.0, theta_jc_top=30.0), SolverOptions(models=(m,), cell_mm=1.0)).heater_rows()[0]["t_junction"]
+          for m in ("fvm", "lumped", "analytic", "fdm")}
+    assert max(tj.values()) - min(tj.values()) < 0.1 * (tj["fvm"] - 25.0)
+
+
+def test_top_path_with_power_coefficient_and_json_round_trip():
+    p = part(power=2.0, theta=4.5, power_tc=0.005, theta_jc_top=30.0, theta_sa=12.0, interface=1.0)
+    q = problem_from_dict(problem_to_dict(p))
+    h = q.heaters[0]
+    assert (h.theta_jc_top, h.theta_sa, h.interface) == (30.0, 12.0, 1.0)
+    row = simulate(q, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+    assert row["power_w"] > 2.0 and row["power_top_w"] > 0                 # Hotter junction, more power, part of it leaves through the top
+    with pytest.raises(ValueError):
+        part(theta_sa=-1.0).validate()
