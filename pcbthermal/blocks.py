@@ -113,7 +113,10 @@ def plain_equivalent(problem):
              metal, its mass and the copper fill of the contact are not represented.
     @param problem A Problem.
     @return The same Problem if there is no block, otherwise a copy.
+    @throws ValueError If the board has an outline: the lumped and analytic models need a rectangular board.
     """
+    if problem.board.has_outline():
+        raise ValueError("this model needs a rectangular board: the board has an outline polygon (use the FVM, FDM or the 3D solid)")
     if not has_blocks(problem):
         return problem
     p = copy.deepcopy(problem)

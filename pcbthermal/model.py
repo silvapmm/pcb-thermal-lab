@@ -16,7 +16,7 @@ import math
 
 import numpy as np
 
-from .geometry import polygon_area
+from .geometry import coverage_fraction, polygon_area, polygon_is_simple
 
 
 @dataclass
@@ -42,7 +42,7 @@ class Dielectric:
     @details The properties are those of the material in the thickness direction (k_through) and along the plane (k_inplane).
     """
     thickness: float = 0.3e-3         # Thickness (m)
-    name: str = "FR-4"                # Material label (a DIELECTRICS entry or free text)
+    name: str = "FR-4 (standard)"     # Material label (a DIELECTRICS entry or free text)
     k_through: float = 0.3            # Conductivity across the thickness (W/mK)
     k_inplane: float = 0.9            # Conductivity along the plane (W/mK)
     rho: float = 1850.0               # Density (kg/m3)
@@ -84,6 +84,38 @@ class Board:
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
     dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
+    outline: Optional[np.ndarray] = field(default=None, compare=False)   # Board outline (n, 2) in metres inside the width x height box; None = the whole rectangle
+
+    def has_outline(self):
+        """!
+        @brief True when the board is not the full rectangle (an outline polygon is set).
+        @return bool.
+        """
+        return self.outline is not None
+
+    def cover(self, nx, ny, dx, dy, samples=4, minimum=0.01):
+        """!
+        @brief Fraction of every grid cell that lies on the board.
+        @details All ones for a rectangular board; otherwise the coverage of the outline polygon. Cells with less than `minimum` are taken as off the board.
+        @param nx Number of cells along x.
+        @param ny Number of cells along y.
+        @param dx Cell width in metres.
+        @param dy Cell height in metres.
+        @param samples Sub-samples per cell side.
+        @param minimum Smallest coverage kept.
+        @return Array (ny, nx) with values in [0, 1].
+        """
+        if self.outline is None:
+            return np.ones((ny, nx))
+        c = coverage_fraction(self.outline, nx, ny, dx, dy, samples)
+        return np.where(c >= minimum, c, 0.0)
+
+    def board_area(self):
+        """!
+        @brief Area of the board.
+        @return Area in square metres (the polygon area with an outline, width x height otherwise).
+        """
+        return polygon_area(self.outline) if self.outline is not None else self.width * self.height
 
     def is_advanced(self):
         """!
@@ -108,7 +140,7 @@ class Board:
         if self.dielectrics is None and self.layers > 1:
             m = self.materials
             gap = self.dielectric_thickness()
-            self.dielectrics = [Dielectric(gap, "FR-4", m.k_fr4_through, m.k_fr4_inplane, m.rho_fr4, m.cp_fr4) for _ in range(self.layers - 1)]
+            self.dielectrics = [Dielectric(gap, "FR-4 (standard)", m.k_fr4_through, m.k_fr4_inplane, m.rho_fr4, m.cp_fr4) for _ in range(self.layers - 1)]
         elif self.dielectrics is None:
             self.dielectrics = []
         self.thickness = self.total_thickness()
@@ -210,6 +242,15 @@ class Board:
                 raise ValueError("copper thickness must be positive")
         elif self.layers > 1 and self.dielectric_thickness() <= 0:
             raise ValueError("the copper layers do not fit inside the board thickness")
+        if self.outline is not None:
+            o = np.asarray(self.outline, dtype=float)
+            if o.ndim != 2 or o.shape[1] != 2 or len(o) < 3:
+                raise ValueError("the board outline needs at least three vertices")
+            tol = 1e-9
+            if o.min() < -tol or o[:, 0].max() > self.width + tol or o[:, 1].max() > self.height + tol:
+                raise ValueError("the board outline must lie inside the width x height box")
+            if polygon_area(o) <= 0 or not polygon_is_simple(o):
+                raise ValueError("the board outline must be a simple polygon with a positive area")
         if self.h_top < 0 or self.h_bottom < 0:
             raise ValueError("heat transfer coefficients must be >= 0")
         if self.h_mode not in ("manual", "computed"):
@@ -748,6 +789,17 @@ class Problem:
         self.heaters.append(h)
         return self
 
+    def set_outline(self, polygon):
+        """!
+        @brief Give the board a non-rectangular outline (None restores the full rectangle).
+        @details The polygon lies inside the width x height box of the board (the bounding box is NOT changed); the area outside it is not board: no
+                 copper, no heat, no heat loss. The FVM, FDM and 3D solid solve any outline; the lumped and analytic models need a rectangle.
+        @param polygon List of [x, y] in mm, or None.
+        @return self.
+        """
+        self.board.outline = None if polygon is None else np.asarray(polygon, dtype=float) / 1000.0
+        return self
+
     def add_via(self, x, y, diameter=0.3, filled=False, name=""):
         """!
         @brief Add one via (mm).
@@ -848,7 +900,8 @@ def problem_from_dict(data, validate=True):
         orientation=b.get("orientation", "horizontal"),
         h_calibration=b.get("h_calibration", 1.0),
         materials=mat,
-        dielectrics=[Dielectric(float(d["thickness_mm"]) / 1000.0, d.get("name", "FR-4"), float(d.get("k_through", 0.3)),
+        outline=_poly_mm(b["outline_mm"]) if b.get("outline_mm") else None,
+        dielectrics=[Dielectric(float(d["thickness_mm"]) / 1000.0, d.get("name", "FR-4 (standard)"), float(d.get("k_through", 0.3)),
                                 float(d.get("k_inplane", 0.9)), float(d.get("rho", 1850.0)), float(d.get("cp", 900.0)))
                      for d in b["dielectrics"]] if "dielectrics" in b else None,
     )
@@ -1009,6 +1062,7 @@ def problem_to_dict(prob):
             "air_speed_m_per_s": b.air_speed, "orientation": b.orientation, "h_calibration": b.h_calibration,
             "k_copper": m.k_copper, "k_fr4_through": m.k_fr4_through, "k_fr4_inplane": m.k_fr4_inplane,
             "rho_copper": m.rho_copper, "cp_copper": m.cp_copper, "rho_fr4": m.rho_fr4, "cp_fr4": m.cp_fr4,
+            **({"outline_mm": poly(b.outline)} if b.outline is not None else {}),
             **({"dielectrics": [{"thickness_mm": d.thickness * 1000.0, "name": d.name, "k_through": d.k_through, "k_inplane": d.k_inplane,
                                  "rho": d.rho, "cp": d.cp} for d in b.dielectrics]} if b.dielectrics is not None else {}),
         },

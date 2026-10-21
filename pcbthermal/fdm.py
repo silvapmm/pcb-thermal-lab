@@ -19,7 +19,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .geometry import coverage_fraction, points_in_polygon, polygon_centroid
+from .geometry import coverage_fraction, edge_length_per_cell, nearest_active_cell, points_in_polygon, polygon_centroid
 from . import blocks, fvm
 from .fvm import ORDERING
 from .results import SteadyResult
@@ -108,7 +108,6 @@ class Network:
         wx = np.full(nx, dx); wx[[0, -1]] = 0.5 * dx
         wy = np.full(ny, dy); wy[[0, -1]] = 0.5 * dy
         area = np.outer(wy, wx)                                              # m2
-        self.area = area
         slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (equal in the simple stack-up)
         k_lam, rho_cp_lam = (v[:, None, None] for v in b.layer_laminate())  # Dielectric part of each node
         tc = np.asarray(b.copper_thickness)[:, None, None]
@@ -117,11 +116,22 @@ class Network:
             return _node_average(coverage_fraction(poly, cells_x, cells_y, dx, dy, samples)) if sampling == "area" \
                 else _inside(poly, X, Y).astype(float)
 
+        # Share of every node's control volume that is board (ones for a rectangle); nodes off the board carry nothing
+        if b.has_outline():
+            ncov = cover(b.outline, 8)
+            ncov = np.where(ncov >= 0.01, ncov, 0.0)
+        else:
+            ncov = np.ones((ny, nx))
+        self.active = ncov > 0
+        self.cover = ncov
+        area = area * ncov                                                   # Board area of every control volume
+        self.area = area
+
         # Copper fill at the nodes
         fill = np.zeros((L, ny, nx))
         for z in problem.zones:
             fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
-        S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)              # Sheet conductance per node (W/K)
+        S = (fill * m.k_copper * tc + k_lam * (slab - fill * tc)) * ncov     # Sheet conductance per node (W/K)
         # Heat capacity of every node (J/K)
         self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * rho_cp_lam) * area[None]
         # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py)
@@ -149,8 +159,10 @@ class Network:
             vals.extend([g, g, -g, -g])
 
         # Lateral: face conductivity (mean of the two nodes) times the width of the face over the distance
-        couple(idx[:, :, :-1], idx[:, :, 1:], _mean(S[:, :, :-1], S[:, :, 1:], mean) * wy[None, :, None] / dx)
-        couple(idx[:, :-1, :], idx[:, 1:, :], _mean(S[:, :-1, :], S[:, 1:, :], mean) * wx[None, None, :] / dy)
+        # (No heat crosses a face that touches a node off the board, whatever the mean of the two conductivities says)
+        on = self.active
+        couple(idx[:, :, :-1], idx[:, :, 1:], _mean(S[:, :, :-1], S[:, :, 1:], mean) * wy[None, :, None] / dx * (on[:, :-1] & on[:, 1:])[None])
+        couple(idx[:, :-1, :], idx[:, 1:, :], _mean(S[:, :-1, :], S[:, 1:, :], mean) * wx[None, None, :] / dy * (on[:-1, :] & on[1:, :])[None])
         # Vertical: dielectric over the control area, plus the via barrels at the nearest node
         if L > 1:
             d = b.gap_thicknesses()
@@ -176,13 +188,19 @@ class Network:
         for k, ly in enumerate(ex):
             self.g_block[L + k] = ly["g_amb"]
             (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
-        if b.h_side:
+        if b.h_side and b.has_outline():
+            # Non-rectangular board: the outline length inside the control volume of every node times the slab thickness
+            edge = edge_length_per_cell(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy) * self.active
+            self.g_side[:L] += b.h_side * slab[:, :, :] * edge[None]
+        elif b.h_side:
             sl = slab[:, :, 0]                                  # (L, 1): per-layer slab
             self.g_side[:L, :, 0] += b.h_side * wy[None, :] * sl
             self.g_side[:L, :, -1] += b.h_side * wy[None, :] * sl
             self.g_side[:L, 0, :] += b.h_side * wx[None, :] * sl
             self.g_side[:L, -1, :] += b.h_side * wx[None, :] * sl
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
+        if not self.active.all():
+            self.g_amb[:, ~self.active] += 1.0                  # Nodes off the board are pinned to ambient (they carry no heat)
         rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(self.g_amb.ravel())
         self.K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()
 
@@ -198,10 +216,14 @@ class Network:
                         w[di:di + cells_y, dj:dj + cells_x] += cov
             else:
                 w = _inside(h.polygon, X, Y).astype(float)
+            w = w * self.active                         # A part is only heated on the board
             if not (w > 0).any():                       # Footprint smaller than the grid: the node nearest to the centroid
                 cx, cy = polygon_centroid(h.polygon)
                 w = np.zeros((ny, nx))
-                w[min(max(int(round(cy / dy)), 0), ny - 1), min(max(int(round(cx / dx)), 0), nx - 1)] = 1.0
+                i, j = min(max(int(round(cy / dy)), 0), ny - 1), min(max(int(round(cx / dx)), 0), nx - 1)
+                if not self.active[i, j]:                       # A part off the board: its power goes to the nearest board node
+                    i, j = nearest_active_cell(self.active, cx, cy, dx, dy, offset=0.0)
+                w[i, j] = 1.0
             full = np.zeros((Lt, ny, nx))
             full[h.layer] = w / w.sum()
             self.Qw.append(full)
@@ -238,9 +260,10 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
     T = theta + b.ambient
     area, dx, dy = net.area, net.dx, net.dy
     total_area = area.sum()
-    l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
+    inside = net.active
+    l, i, j = np.unravel_index(int(np.argmax(np.where(inside[None], T, -np.inf))), T.shape)
     out = SteadyResult(
-        model="fdm", ambient=b.ambient, power_in=float(net.Q.sum()), t_max=float(T.max()), t_min=float(T.min()),
+        model="fdm", ambient=b.ambient, power_in=float(net.Q.sum()), t_max=float(T[:, inside].max()), t_min=float(T[:, inside].min()),
         t_mean=float((T * area[None]).sum() / (nb * total_area)),
         layer_mean=[float((T[q] * area).sum() / total_area) for q in range(nb)],
         t_max_location=(int(l), j * dx, i * dy), T=T, dx=dx, dy=dy,
@@ -248,6 +271,8 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
         grid="nodes", residual=res, extras={"nodes": float(T.size), "harmonic": float(mean == "harmonic"),
                                             "area_sampling": float(sampling == "area")},
         warnings=[])
+    if not inside.all():
+        out.arrays["board_mask"] = inside
     fvm.attach_block_results(out, net, theta_all + b.ambient, theta_all)
     return out
 

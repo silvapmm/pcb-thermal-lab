@@ -116,3 +116,71 @@ def cell_index_of_point(x, y, nx, ny, dx, dy):
     j = min(max(int(x // dx), 0), nx - 1)
     i = min(max(int(y // dy), 0), ny - 1)
     return i, j
+
+
+def edge_length_per_cell(poly, nx, ny, dx, dy):
+    """!
+    @brief Length of the polygon outline that lies inside every grid cell (the perimeter that exchanges heat through the board edge).
+    @details Every edge is sampled at steps of a tenth of the smaller cell side and each sample adds its step length to the cell that contains it;
+             a point on a cell border is counted in the cell above or to the right, so the total is the perimeter to within a fraction of a percent.
+    @param poly Closed polygon (n, 2) in metres (the last vertex joins the first).
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Array (ny, nx) of lengths in metres.
+    """
+    p = np.asarray(poly, dtype=float)
+    out = np.zeros((ny, nx))
+    step = min(dx, dy) / 10.0
+    for a, b in zip(p, np.roll(p, -1, axis=0)):
+        length = float(np.hypot(*(b - a)))
+        if length <= 0:
+            continue
+        n = max(int(np.ceil(length / step)), 1)
+        t = (np.arange(n) + 0.5) / n                             # Midpoints of the n pieces
+        x, y = a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])
+        j = np.clip((x // dx).astype(int), 0, nx - 1)
+        i = np.clip((y // dy).astype(int), 0, ny - 1)
+        np.add.at(out, (i, j), length / n)
+    return out
+
+
+def polygon_is_simple(poly):
+    """!
+    @brief True if the polygon does not cross itself (no two non-adjacent edges intersect).
+    @param poly Array-like (n, 2).
+    @return bool.
+    """
+    p = np.asarray(poly, dtype=float)
+    n = len(p)
+
+    def ccw(a, b, c):
+        return (c[1] - a[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    for i in range(n):
+        a, b = p[i], p[(i + 1) % n]
+        for j in range(i + 1, n):
+            if j == i or (j + 1) % n == i or (i + 1) % n == j:
+                continue                                         # Adjacent edges share a vertex
+            c, d = p[j], p[(j + 1) % n]
+            if ccw(a, b, c) * ccw(a, b, d) < 0 and ccw(c, d, a) * ccw(c, d, b) < 0:
+                return False
+    return True
+
+
+def nearest_active_cell(active, x, y, dx, dy, offset=0.5):
+    """!
+    @brief The active (on the board) cell or node nearest to a point.
+    @param active Boolean array (ny, nx).
+    @param x X coordinate in metres.
+    @param y Y coordinate in metres.
+    @param dx Spacing along x in metres.
+    @param dy Spacing along y in metres.
+    @param offset 0.5 for cell centres, 0 for nodes at the grid points.
+    @return Tuple (i, j) = (row, column).
+    """
+    ii, jj = np.nonzero(active)
+    d = np.hypot((jj + offset) * dx - x, (ii + offset) * dy - y)
+    k = int(np.argmin(d))
+    return int(ii[k]), int(jj[k])

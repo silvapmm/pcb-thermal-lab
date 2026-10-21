@@ -14,7 +14,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from ..api import SolverOptions
-from ..model import Heater, Problem, Heatsink, Via, Zone
+from ..model import Dielectric, Heater, Problem, Heatsink, Via, Zone
 from ..project import Project, load_project, project_from_dict, project_to_dict, save_project
 
 KINDS = ("zone", "heater", "heatsink", "via")
@@ -291,6 +291,14 @@ class Document(QObject):
         poly = np.asarray(polygon_mm, dtype=float) / 1000.0
         self.edit("Edit shape", lambda proj: setattr(getattr(proj.problem, _LISTS[kind])[index], "polygon", poly))
 
+    def set_outline(self, polygon_mm):
+        """!
+        @brief Give the board an outline polygon, or restore the full rectangle.
+        @param polygon_mm Vertices in mm inside the board box, or None for the rectangle.
+        """
+        poly = None if polygon_mm is None else np.asarray(polygon_mm, dtype=float) / 1000.0
+        self.edit("Board outline", lambda proj: setattr(proj.problem.board, "outline", poly))
+
     def set_props(self, kind, index, text="Edit properties", merge=True, **props):
         """!
         @brief Change attributes of one element (SI units for physical values, see the element classes).
@@ -406,6 +414,11 @@ class Document(QObject):
             old = b.layers
             t = b.copper_thickness[0] if b.copper_thickness else 35e-6
             b.copper_thickness = (list(b.copper_thickness) + [t] * n)[:n]
+            if b.dielectrics is not None:                      # Advanced stack-up: keep one dielectric per gap (new gaps copy the last one)
+                last = copy.deepcopy(b.dielectrics[-1]) if b.dielectrics else Dielectric()
+                b.dielectrics = (list(b.dielectrics) + [copy.deepcopy(last) for _ in range(n)])[:max(n - 1, 0)]
+                b.layers = n
+                b.thickness = b.total_thickness()
             b.layers = n
             for lst in (pr.zones, pr.heaters):
                 for e in lst:

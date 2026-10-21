@@ -155,6 +155,11 @@ def tool_icon(kind, theme="dark", size=22):
             p.setBrush(QColor(c["canvas"]))
             p.setPen(Qt.NoPen)
             p.drawEllipse(QPointF(s / 2, s / 2), s * .11, s * .11)
+        elif kind == "outline":
+            p.setBrush(qcolor(c["board"], 200))
+            p.setPen(QPen(QColor(c["accent"]), 1.8))
+            p.drawPolygon(QPolygonF([QPointF(s * .18, s * .18), QPointF(s * .82, s * .18), QPointF(s * .82, s * .5), QPointF(s * .5, s * .5),
+                                     QPointF(s * .5, s * .82), QPointF(s * .18, s * .82)]))
         elif kind == "overlay":
             for k, col in enumerate(("#ffe27a", "#ff9a3c", "#e0392d", "#7a1f5c")):
                 p.setPen(Qt.NoPen)

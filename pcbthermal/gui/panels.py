@@ -5,14 +5,30 @@
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
+import math
+
+from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import blocks
 from ..api import suggest_cell_mm
-from ..model import INTERFACES, METALS, PACKAGE_THETA
+from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA
+from ..geometry import polygon_area
 from .document import KINDS
+
+
+def _is_rect(pts):
+    """!
+    @brief True if the points are an axis-aligned rectangle (four corners, two distinct x and two distinct y values).
+    @param pts Array (n, 2).
+    @return bool.
+    """
+    if len(pts) != 4:
+        return False
+    xs, ys = np.unique(np.round(pts[:, 0], 9)), np.unique(np.round(pts[:, 1], 9))
+    return len(xs) == 2 and len(ys) == 2 and len({(round(x, 9), round(y, 9)) for x, y in pts}) == 4
+
 
 _TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
 
@@ -44,6 +60,8 @@ class BoardPanel(QWidget):
     @brief Board size, stack-up, environment and materials.
     """
 
+    draw_outline_requested = Signal()
+
     def __init__(self, doc, parent=None):
         """!
         @param doc The Document.
@@ -58,13 +76,59 @@ class BoardPanel(QWidget):
         f = QFormLayout(g)
         self.width = _spin(5, 1000, 100, 1, 1, "mm")
         self.height = _spin(5, 1000, 80, 1, 1, "mm")
-        self.thickness = _spin(0.2, 10, 1.6, 2, 0.1, "mm")
+        self.thickness = _spin(0.2, 10, 1.6, 3, 0.1, "mm")
         self.layers = QSpinBox()
         self.layers.setRange(1, 12)
         self.copper = _spin(5, 210, 35, 1, 5, "µm")
+        self.stack_note = QLabel("")
+        self.stack_note.setWordWrap(True)
+        self.stack_note.setStyleSheet("font-size: 11px; color: gray;")
+        self.width.setToolTip("Board size along x in millimetres.")
+        self.height.setToolTip("Board size along y in millimetres.")
+        self.thickness.setToolTip("Total board thickness in millimetres (simple stack-up: copper and equal dielectric gaps share it). "
+                                  "In the advanced stack-up it is the sum of the layers and is edited in the Stack-up tab.")
+        self.layers.setToolTip("Number of copper layers (1 to 12). Layer 1 is the top face.")
+        self.copper.setToolTip("Copper thickness of every layer in micrometres: 35 µm is 1 oz, 17.5 µm is 0.5 oz, 70 µm is 2 oz. "
+                               "Different thickness per layer: use the advanced stack-up in the Stack-up tab.")
         for label, w in (("Width", self.width), ("Height", self.height), ("Thickness", self.thickness),
                          ("Copper layers", self.layers), ("Copper per layer", self.copper)):
             f.addRow(label, w)
+        f.addRow(self.stack_note)
+        lay.addWidget(g)
+
+        g = QGroupBox("Board outline")
+        v = QVBoxLayout(g)
+        self.outline_label = QLabel("")
+        self.outline_label.setWordWrap(True)
+        self.outline_label.setToolTip("Shape of the board inside the width x height box. Outside the outline there is no board: no copper, no heat, no heat loss. "
+                                      "The FVM, FDM and 3D solid solve any outline; the lumped and analytic models need a rectangle.")
+        self.preset = QComboBox()
+        self.preset.addItem("Preset shape...", None)
+        for label in ("Rectangle (full box)", "L shape", "T shape", "Circle / ellipse", "Chamfered corners"):
+            self.preset.addItem(label, label)
+        self.preset.setToolTip("Replace the outline by a preset that fits the width x height box. Edit the vertices below afterwards.")
+        self.preset.currentIndexChanged.connect(self._pick_outline)
+        self.outline_table = QTableWidget(0, 2)
+        self.outline_table.setHorizontalHeaderLabels(["x (mm)", "y (mm)"])
+        self.outline_table.setMaximumHeight(140)
+        self.outline_table.setToolTip("Vertices of the outline in millimetres, from the lower-left corner of the box. Edit a cell to move a vertex.")
+        self.outline_table.itemChanged.connect(self._edit_vertex)
+        row = QHBoxLayout()
+        self.v_add = QPushButton("Add vertex")
+        self.v_add.setToolTip("Insert a vertex in the middle of the last edge.")
+        self.v_del = QPushButton("Remove vertex")
+        self.v_del.setToolTip("Remove the selected vertex (an outline needs at least three).")
+        self.v_draw = QPushButton("Draw (O)")
+        self.v_draw.setToolTip("Draw the outline on the board: drag a rectangle or click the vertices in polygon mode.")
+        for w in (self.v_add, self.v_del, self.v_draw):
+            row.addWidget(w)
+        self.v_add.clicked.connect(self._add_vertex)
+        self.v_del.clicked.connect(self._remove_vertex)
+        self.v_draw.clicked.connect(self.draw_outline_requested)
+        v.addWidget(self.outline_label)
+        v.addWidget(self.preset)
+        v.addWidget(self.outline_table)
+        v.addLayout(row)
         lay.addWidget(g)
 
         g = QGroupBox("Environment")
@@ -114,9 +178,21 @@ class BoardPanel(QWidget):
         self.k_th = _spin(0.05, 20, 0.3, 2, 0.05, "W/mK")
         self.k_ip = _spin(0.05, 20, 0.9, 2, 0.05, "W/mK")
         self.plating = _spin(1, 200, 25, 0, 1, "µm")
-        for label, w in (("Copper k", self.k_cu), ("FR-4 k through", self.k_th), ("FR-4 k in-plane", self.k_ip),
+        self.laminate = QComboBox()
+        self.laminate.addItem("Laminate preset...", None)
+        for entry in DIELECTRICS:
+            self.laminate.addItem(f"{entry[0]}: {entry[1]:g} / {entry[2]:g} W/mK", entry)
+        self.laminate.setToolTip("Typical dielectric materials (indicative values, not from your laminate datasheet): fills the through-thickness and in-plane "
+                                 "conductivity, density and specific heat of the dielectric of the simple stack-up.")
+        self.laminate.currentIndexChanged.connect(self._pick_laminate)
+        self.k_cu.setToolTip("Thermal conductivity of copper, W/mK (pure copper 385 to 400).")
+        self.k_th.setToolTip("Conductivity of the dielectric across the board thickness, W/mK (FR-4 about 0.3). It sets the resistance between layers.")
+        self.k_ip.setToolTip("Conductivity of the dielectric along the plane, W/mK (FR-4 about 0.9, glass weave).")
+        self.plating.setToolTip("Copper plating thickness of the via barrel in micrometres (typically 20 to 25 µm).")
+        for label, w in (("Copper k", self.k_cu), ("Laminate", self.laminate), ("Dielectric k through", self.k_th), ("Dielectric k in-plane", self.k_ip),
                          ("Via plating", self.plating)):
             f.addRow(label, w)
+        self.simple_only = [self.laminate, self.k_th, self.k_ip]
         lay.addWidget(g)
         lay.addStretch(1)
 
@@ -143,6 +219,12 @@ class BoardPanel(QWidget):
         self.thickness.setValue(b.thickness * 1000)
         self.layers.setValue(b.layers)
         self.copper.setValue(b.copper_thickness[0] * 1e6)
+        advanced = b.is_advanced()
+        self.thickness.setValue(b.total_thickness() * 1000)
+        for w in [self.thickness, self.copper] + self.simple_only:
+            w.setEnabled(not advanced)
+        self.stack_note.setText("Advanced stack-up: thickness, copper and dielectrics are set layer by layer in the Stack-up tab." if advanced
+                                else "Simple stack-up: equal gaps. For different copper weights or dielectrics use the Stack-up tab.")
         self.ambient.setValue(b.ambient)
         self.h_top.setValue(b.h_top)
         self.h_bottom.setValue(b.h_bottom)
@@ -160,6 +242,7 @@ class BoardPanel(QWidget):
         self.k_th.setValue(m.k_fr4_through)
         self.k_ip.setValue(m.k_fr4_inplane)
         self.plating.setValue(b.via_plating * 1e6)
+        self._fill_outline(b)
         self._updating = False
 
     def _show_modes(self, mode):
@@ -192,18 +275,136 @@ class BoardPanel(QWidget):
         def mutate(project):
             bd = project.problem.board
             bd.width, bd.height = self.width.value() / 1000, self.height.value() / 1000
-            bd.thickness = self.thickness.value() / 1000
-            bd.copper_thickness = [self.copper.value() * 1e-6] * bd.layers
+            if not bd.is_advanced():                           # In the advanced stack-up these come from the Stack-up tab
+                bd.thickness = self.thickness.value() / 1000
+                bd.copper_thickness = [self.copper.value() * 1e-6] * bd.layers
             bd.ambient, bd.h_top, bd.h_bottom = self.ambient.value(), self.h_top.value(), self.h_bottom.value()
             bd.h_side = self.h_side.value() if self.side_on.isChecked() else None
             bd.h_mode, bd.orientation = self.h_mode.currentData(), self.orientation.currentData()
             bd.emissivity_top, bd.emissivity_bottom = self.emis_top.value(), self.emis_bottom.value()
             bd.air_speed, bd.h_calibration = self.air_speed.value(), self.calibration.value()
             bd.via_plating = self.plating.value() * 1e-6
-            bd.materials.k_copper, bd.materials.k_fr4_through = self.k_cu.value(), self.k_th.value()
-            bd.materials.k_fr4_inplane = self.k_ip.value()
+            bd.materials.k_copper = self.k_cu.value()
+            if not bd.is_advanced():
+                bd.materials.k_fr4_through, bd.materials.k_fr4_inplane = self.k_th.value(), self.k_ip.value()
 
         self.doc.edit("Board parameters", mutate, merge_key="board")
+
+    def _fill_outline(self, b):
+        """!
+        @brief Show the outline of the board in the label and the vertex table.
+        @param b The Board.
+        """
+        t = self.outline_table
+        t.blockSignals(True)
+        t.setRowCount(0)
+        if b.has_outline():
+            o = np.asarray(b.outline) * 1000.0
+            t.setRowCount(len(o))
+            for r, (x, y) in enumerate(o):
+                for c, val in enumerate((x, y)):
+                    t.setItem(r, c, QTableWidgetItem(f"{val:.3f}"))
+            self.outline_label.setText(f"Polygon: {len(o)} vertices, area {b.board_area() * 1e6:.1f} mm² "
+                                       f"({100.0 * b.board_area() / (b.width * b.height):.0f} % of the box).")
+        else:
+            self.outline_label.setText("Rectangle: the whole width x height box. Choose a preset or draw an outline for other shapes.")
+        t.blockSignals(False)
+        for w in (self.outline_table, self.v_add, self.v_del):
+            w.setEnabled(b.has_outline())
+
+    def _preset_polygon(self, name):
+        """!
+        @brief Vertices of a preset outline fitted to the box.
+        @param name Preset label.
+        @return List of [x, y] in mm, or None for the full rectangle.
+        """
+        b = self.doc.problem.board
+        W, H = b.width * 1000.0, b.height * 1000.0
+        if name.startswith("Rectangle"):
+            return None
+        if name == "L shape":
+            return [[0, 0], [W, 0], [W, H / 2], [W / 2, H / 2], [W / 2, H], [0, H]]
+        if name == "T shape":
+            return [[0, H / 2], [W / 3, H / 2], [W / 3, 0], [2 * W / 3, 0], [2 * W / 3, H / 2], [W, H / 2], [W, H], [0, H]]
+        if name == "Circle / ellipse":
+            return [[W / 2 * (1 + math.cos(2 * math.pi * k / 32)), H / 2 * (1 + math.sin(2 * math.pi * k / 32))] for k in range(32)]
+        c = 0.15 * min(W, H)
+        return [[c, 0], [W - c, 0], [W, c], [W, H - c], [W - c, H], [c, H], [0, H - c], [0, c]]
+
+    def _pick_outline(self, _index):
+        """!
+        @brief Apply a preset outline.
+        @param _index Ignored.
+        """
+        name = self.preset.currentData()
+        if name is None or self._updating:
+            return
+        self.doc.set_outline(self._preset_polygon(name))
+        self.preset.setCurrentIndex(0)
+
+    def _vertices(self):
+        """!
+        @brief The vertices in the table.
+        @return List of [x, y] in mm, or None if a cell is not a number.
+        """
+        t = self.outline_table
+        try:
+            return [[float(t.item(r, 0).text()), float(t.item(r, 1).text())] for r in range(t.rowCount())]
+        except (ValueError, AttributeError):
+            return None
+
+    def _edit_vertex(self, _item):
+        """!
+        @brief A vertex was edited: apply the table if it is a valid outline, otherwise restore it.
+        @param _item The changed QTableWidgetItem (ignored).
+        """
+        if self._updating:
+            return
+        pts = self._vertices()
+        b = self.doc.problem.board
+        if pts is not None:
+            probe = np.asarray(pts) / 1000.0
+            from ..geometry import polygon_is_simple
+            if len(probe) >= 3 and polygon_is_simple(probe) and polygon_area(probe) > 0 and probe.min() >= 0 \
+                    and probe[:, 0].max() <= b.width and probe[:, 1].max() <= b.height:
+                self.doc.set_outline(pts)
+                return
+        self._fill_outline(b)                                 # Not a valid outline: show the stored one again
+
+    def _add_vertex(self):
+        """!
+        @brief Insert a vertex in the middle of the last edge.
+        """
+        pts = self._vertices()
+        if pts:
+            mid = [(pts[-1][0] + pts[0][0]) / 2.0, (pts[-1][1] + pts[0][1]) / 2.0]
+            self.doc.set_outline(pts + [mid])
+
+    def _remove_vertex(self):
+        """!
+        @brief Remove the selected vertex (the last one if none is selected).
+        """
+        pts = self._vertices()
+        if pts and len(pts) > 3:
+            row = self.outline_table.currentRow()
+            del pts[row if 0 <= row < len(pts) else -1]
+            self.doc.set_outline(pts)
+
+    def _pick_laminate(self, _index):
+        """!
+        @brief Apply a dielectric preset to the simple stack-up.
+        @param _index Ignored (the combo index).
+        """
+        entry = self.laminate.currentData()
+        if entry is None or self._updating:
+            return
+
+        def mutate(project):
+            m = project.problem.board.materials
+            m.k_fr4_through, m.k_fr4_inplane, m.rho_fr4, m.cp_fr4 = entry[1:]
+
+        self.doc.edit("Laminate material", mutate)
+        self.laminate.setCurrentIndex(0)
 
     def _apply_layers(self, n):
         """!
@@ -348,6 +549,43 @@ class Inspector(QWidget):
         self.selection = list(items)
         self.rebuild()
 
+    def _shape_rows(self, lay, kind, index, el):
+        """!
+        @brief Position and size of a selected shape: editable for a rectangle, read-only (box, area, vertices) for any other polygon.
+        @param lay The QFormLayout.
+        @param kind Element kind.
+        @param index Element index.
+        @param el The element.
+        """
+        pts = np.asarray(el.polygon) * 1000.0
+        x0, y0 = pts.min(axis=0)
+        x1, y1 = pts.max(axis=0)
+        area = float(polygon_area(np.asarray(el.polygon))) * 1e6
+        if _is_rect(pts):
+            b = self.doc.problem.board
+            bw, bh = b.width * 1000.0, b.height * 1000.0
+
+            def change(_v, spins=None):
+                if self._updating:
+                    return
+                sx, sy, sw, sh = (w.value() for w in spins)
+                self.doc.set_polygon(kind, index, [[sx, sy], [sx + sw, sy], [sx + sw, sy + sh], [sx, sy + sh]])
+
+            spins = [_spin(0, bw, x0, 2, 0.5, "mm"), _spin(0, bh, y0, 2, 0.5, "mm"),
+                     _spin(0.01, bw, x1 - x0, 2, 0.5, "mm"), _spin(0.01, bh, y1 - y0, 2, 0.5, "mm")]
+            tips = ("X of the left edge, measured from the board's lower-left corner.", "Y of the lower edge, measured from the board's lower-left corner.",
+                    "Width of the rectangle along x.", "Height of the rectangle along y.")
+            for label, w, tip in zip(("X", "Y", "Width", "Height"), spins, tips):
+                w.setToolTip(tip)
+                w.valueChanged.connect(lambda v, sp=spins: change(v, sp))
+                lay.addRow(label, w)
+            info = QLabel(f"Area {area:.2f} mm²")
+        else:
+            info = QLabel(f"{len(pts)} vertices, box {x1 - x0:.2f} × {y1 - y0:.2f} mm at ({x0:.2f}, {y0:.2f}), area {area:.2f} mm²")
+        info.setToolTip("Measures of the selected shape in millimetres. Drag the vertex handles on the board to reshape a polygon.")
+        info.setWordWrap(True)
+        lay.addRow("", info)
+
     def rebuild(self):
         """!
         @brief Rebuild the form for the current selection and the current document values.
@@ -385,8 +623,11 @@ class Inspector(QWidget):
             if kind != "via":
                 lay.addRow("Layer", self._layer_combo(el.layer, outer_only=(kind == "heatsink"),
                                                        cb=lambda idx: self._set_layers([(kind, i)], idx)))
+            if kind != "via":
+                self._shape_rows(lay, kind, i, el)
             if kind == "zone":
                 w = _spin(0, 1, el.fill, 2, 0.05)
+                w.setToolTip("Copper fill fraction inside the polygon: 1 is solid copper, 0.5 a hatched or half-filled area.")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, fill=v))
                 lay.addRow("Copper fill", w)
             elif kind == "heater":

@@ -27,12 +27,13 @@ from .compute import ProcessWorker
 from .document import Document
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .profile_page import ProfilePage
+from .stackup import StackupPage
 from .results_view import ResultsView
 
 FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
 
 
-TAB_BOARD, TAB_PROFILE, TAB_RESULTS = 0, 1, 2     # Order of the main tabs
+TAB_BOARD, TAB_STACKUP, TAB_PROFILE, TAB_RESULTS = 0, 1, 2, 3     # Order of the main tabs
 
 
 class NewBoardDialog(QDialog):
@@ -159,6 +160,8 @@ class MainWindow(QMainWindow):
         self.results = ResultsView(self.theme_name)
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
+        self.stackup_page = StackupPage(self.doc, self.theme_name)
+        self.tabs.addTab(self.stackup_page, "Stack-up")
         self.profile_page = ProfilePage(self.doc, self.theme_name)
         self.tabs.addTab(self.profile_page, "Power profile")
         self.tabs.addTab(self.results, "Results")
@@ -183,6 +186,7 @@ class MainWindow(QMainWindow):
         self.canvas.message.connect(lambda m: self.statusBar().showMessage(m))
         self.canvas.element_created.connect(self._on_created)
         self.elements.selection_requested.connect(self._on_list_selection)
+        self.board_panel.draw_outline_requested.connect(lambda: self.tool_actions["outline"].setChecked(True))
         self.solver_panel.run_requested.connect(self.run_simulation)
         self.solver_panel.cancel_requested.connect(self.cancel_simulation)
         self.results.animation.compute_requested.connect(self.compute_animation)
@@ -336,7 +340,8 @@ class MainWindow(QMainWindow):
         self.tool_group.setExclusive(True)
         self.tool_actions = {}
         for name, text, key in (("select", "Select", "S"), ("zone", "Copper zone", "Z"), ("heater", "Heater", "H"),
-                                ("heatsink", "Heatsink (cooling)", "C"), ("via", "Via", "V")):
+                                ("heatsink", "Heatsink (cooling)", "C"), ("via", "Via", "V"),
+                                ("outline", "Board outline", "O")):
             a = self._act(text, lambda checked, n=name: checked and self._set_tool(n), key, True, name == "select",
                           f"{text} ({key})")
             self.tool_group.addAction(a)
@@ -783,6 +788,7 @@ class MainWindow(QMainWindow):
         self.canvas.set_theme(self.theme_name)
         self.results.set_theme(self.theme_name)
         self.profile_page.set_theme(self.theme_name)
+        self.stackup_page.set_theme(self.theme_name)
         self._refresh_icons()
 
     def show_shortcuts(self):
@@ -790,7 +796,7 @@ class MainWindow(QMainWindow):
         @brief Show the keyboard and mouse help.
         """
         QMessageBox.information(self, "Keyboard and mouse", """<table cellpadding=3>
-<tr><td><b>S Z H C V</b></td><td>Select, Zone, Heater, Heatsink (Cooling), Via tools</td></tr>
+<tr><td><b>S Z H C V O</b></td><td>Select, Zone, Heater, Heatsink (Cooling), Via, board Outline tools</td></tr>
 <tr><td><b>P</b></td><td>Polygon mode (click vertices; double click or Enter finishes)</td></tr>
 <tr><td><b>Wheel / middle drag / Space+drag</b></td><td>Zoom / pan</td></tr>
 <tr><td><b>Ctrl+0</b></td><td>Fit board</td></tr>

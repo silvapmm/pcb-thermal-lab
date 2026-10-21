@@ -22,7 +22,7 @@ from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QMessageBox
 from pcbthermal import SolverOptions, SquareWave, TableProfile, load_project, simulate
 from pcbthermal.examples import example_block_board, example_board, example_profile_board
 from pcbthermal.gui.document import Document
-from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, MainWindow
+from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, TAB_STACKUP, MainWindow
 from pcbthermal.model import Problem, reference_problem
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -506,7 +506,7 @@ def test_random_user_actions(win, qtbot, tmp_path, seed):
                 lo, hi = w.minimum(), w.maximum()
                 w.setValue(rng.choice((lo, hi, (lo + hi) / 2, w.value() * 1.5 if w.value() else 1.0)) if hi < 1e7 else w.value())
         elif choice < 0.65:
-            win.tabs.setCurrentIndex(rng.choice((TAB_BOARD, TAB_PROFILE, TAB_RESULTS)))
+            win.tabs.setCurrentIndex(rng.choice((TAB_BOARD, TAB_STACKUP, TAB_PROFILE, TAB_RESULTS)))
         elif choice < 0.72:
             n = len(win.doc.problem.heaters)
             if n:
@@ -723,3 +723,128 @@ def test_cancel_a_simulation_from_the_window(win, qtbot):
     assert win.sim is None or win.sim is not None                         # No result is taken from the cancelled run
     run(win, qtbot, ("fvm",), cell=2.0)
     assert win.sim.reference.model == "fvm"
+
+
+def test_advanced_stackup_in_the_application(win, qtbot, tmp_path):
+    """Switch to the advanced stack-up, edit layers and materials in the table, change the layer count, run every model, draw the section in every look, save and reopen."""
+    from pcbthermal.gui.stackup import StackupEditor, stack_layers
+    load(win, example_board())
+    page = win.stackup_page
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    simple_total = win.doc.problem.board.total_thickness()
+    page.mode.setCurrentIndex(1)                                           # Advanced
+    b = win.doc.problem.board
+    assert b.is_advanced() and b.total_thickness() == pytest.approx(simple_total) and page.editor.rowCount() == 2 * b.layers - 1
+    spins = {r: [page.editor.cellWidget(r, c) for c in range(2, 7)] for r in range(page.editor.rowCount())}
+    spins[0][0].setValue(70.0)                                             # Top copper 70 um
+    assert b.copper_thickness[0] == pytest.approx(70e-6) and b.total_thickness() == pytest.approx(simple_total + 35e-6)
+    spins[1][0].setValue(100.0)                                            # First gap 100 um
+    assert b.dielectrics[0].thickness == pytest.approx(100e-6)
+    combo = page.editor.cellWidget(1, 1)
+    combo.setCurrentIndex(combo.findText("Metal-core dielectric (2 W/mK)"))
+    assert b.dielectrics[0].k_through == pytest.approx(2.0) and b.dielectrics[0].name.startswith("Metal-core")
+    spins[1][1].setValue(1.5)                                              # k through typed by hand
+    assert b.dielectrics[0].k_through == pytest.approx(1.5)
+    # The Board panel shows the total and does not overwrite the per-layer values
+    assert win.board_panel.thickness.value() == pytest.approx(b.total_thickness() * 1000, abs=1e-3) and not win.board_panel.thickness.isEnabled()
+    win.board_panel.width.setValue(win.board_panel.width.value() + 1.0)
+    assert b.copper_thickness[0] == pytest.approx(70e-6) and b.is_advanced()
+    # More and fewer layers keep one dielectric per gap
+    for n in (6, 2, 1, 3, 4):
+        win.board_panel.layers.setValue(n)
+        assert len(win.doc.problem.board.dielectrics) == n - 1 and page.editor.rowCount() == max(2 * n - 1, 1)
+        win.doc.problem.validate()
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    walk_results(win, qtbot)
+    # The diagram in every look, and a click on every layer
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    for unit in range(page.unit.count()):
+        for scale in range(page.scale.count()):
+            page.unit.setCurrentIndex(unit)
+            page.scale.setCurrentIndex(scale)
+            page.view.repaint()
+    for i, rect in enumerate(page.view._rects):
+        QTest.mouseClick(page.view, Qt.LeftButton, pos=rect.center().toPoint())
+        assert page.view.selected == i and "thickness" in page.info.text()
+    assert len(stack_layers(win.doc.problem)) == len(page.view.layers)
+    # Save, reopen: the stack-up is kept; undo goes back to the simple board
+    path = str(tmp_path / "adv.pcbt.json")
+    from pcbthermal import load_project, save_project
+    save_project(path, win.doc.project)
+    again = load_project(path).problem.board
+    assert again.is_advanced() and np.allclose(again.gap_thicknesses(), win.doc.problem.board.gap_thicknesses())
+    page.mode.setCurrentIndex(0)                                           # Back to simple keeps the total thickness
+    assert not win.doc.problem.board.is_advanced() and win.doc.problem.board.thickness == pytest.approx(again.total_thickness())
+    run(win, qtbot, ("fvm",), cell=2.0)
+
+
+def test_selected_shape_shows_and_edits_its_measures(win, qtbot):
+    """Clicking a rectangle shows X, Y, width, height and area; editing them moves or resizes it; a polygon shows its box and area."""
+    load(win, example_board())
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    form = win.inspector.form_host
+    spins = [s for s in form.findChildren(QAbstractSpinBox) if s.toolTip().startswith(("X of", "Y of", "Width of", "Height of"))]
+    assert len(spins) == 4
+    x0 = win.doc.problem.heaters[0].polygon[:, 0].min() * 1000
+    assert spins[0].value() == pytest.approx(x0, abs=1e-6)
+    spins[2].setValue(8.0)                                                    # Width 8 mm
+    poly = win.doc.problem.heaters[0].polygon * 1000
+    assert poly[:, 0].max() - poly[:, 0].min() == pytest.approx(8.0, abs=1e-6)
+    win.doc.add_shape("zone", 0, [[10, 10], [30, 10], [35, 25], [20, 30], [8, 20]])      # An irregular polygon
+    idx = len(win.doc.problem.zones) - 1
+    win.canvas.set_selection([("zone", idx)])
+    win._on_canvas_selection([("zone", idx)])
+    texts = [l.text() for l in win.inspector.form_host.findChildren(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
+    assert any("5 vertices" in t and "area" in t for t in texts)
+
+
+def test_board_outline_in_the_application(win, qtbot, tmp_path):
+    """Presets, the vertex table, the outline tool, a run with every model (the rectangular ones are skipped with a warning), every results view and a save/open."""
+    from PySide6.QtWidgets import QTableWidgetItem
+    load(win, example_board())
+    bp, pr = win.board_panel, win.doc.problem
+    assert not pr.board.has_outline() and not bp.outline_table.isEnabled()
+    for i in range(1, bp.preset.count()):                                  # Every preset gives a valid outline (the first one is the plain rectangle)
+        bp.preset.setCurrentIndex(i)
+        win.doc.problem.validate()
+    bp.preset.setCurrentIndex(bp.preset.findData("L shape"))
+    b = win.doc.problem.board
+    assert b.has_outline() and bp.outline_table.rowCount() == 6 and "6 vertices" in bp.outline_label.text()
+    bp.outline_table.setItem(0, 0, QTableWidgetItem("5"))                   # Move a vertex
+    assert win.doc.problem.board.outline[0, 0] == pytest.approx(0.005)
+    bp.outline_table.setItem(0, 0, QTableWidgetItem("abc"))                 # Not a number: ignored, the table shows the stored value again
+    assert bp.outline_table.item(0, 0).text() == "5.000"
+    bp.outline_table.setItem(1, 1, QTableWidgetItem("999"))                 # Outside the box: ignored
+    assert win.doc.problem.board.outline[:, 1].max() <= win.doc.problem.board.height + 1e-12
+    bp.v_add.click()
+    assert bp.outline_table.rowCount() == 7
+    bp.outline_table.selectRow(6)
+    bp.v_del.click()
+    assert bp.outline_table.rowCount() == 6
+    # The outline tool: drag a rectangle, then click a polygon
+    win.tool_actions["outline"].setChecked(True)
+    assert win.canvas.tool == "outline"
+    W, H = win.doc.problem.board.width * 1000, win.doc.problem.board.height * 1000
+    p0, p1 = win.canvas.mapFromScene(QPointF(5, 5)), win.canvas.mapFromScene(QPointF(W - 5, H - 5))
+    QTest.mousePress(win.canvas.viewport(), Qt.LeftButton, pos=p0)
+    QTest.mouseMove(win.canvas.viewport(), pos=p1)
+    QTest.mouseRelease(win.canvas.viewport(), Qt.LeftButton, pos=p1)
+    assert win.doc.problem.board.outline is not None and len(win.doc.problem.board.outline) == 4
+    win.tool_actions["select"].setChecked(True)
+    bp.preset.setCurrentIndex(bp.preset.findData("Circle / ellipse"))
+    win.canvas.viewport().repaint()
+    # The example parts must be on the board for a sensible run: an L cut would put U2 off the board, so use chamfered corners
+    bp.preset.setCurrentIndex(bp.preset.findData("Chamfered corners"))
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    assert any("outline" in w for w in win.sim.warnings) and "lumped" not in win.sim.results and "analytic" not in win.sim.results
+    assert {"fvm", "fdm", "solid3d"} <= set(win.sim.results)
+    walk_results(win, qtbot)
+    # Save and reopen: the outline is kept; undo restores the rectangle
+    from pcbthermal import load_project, save_project
+    path = str(tmp_path / "outline.pcbt.json")
+    save_project(path, win.doc.project)
+    assert np.allclose(load_project(path).problem.board.outline, win.doc.problem.board.outline)
+    win.doc.set_outline(None)
+    assert not win.doc.problem.board.has_outline()
+    run(win, qtbot, ("fvm", "lumped", "analytic"), cell=2.0)

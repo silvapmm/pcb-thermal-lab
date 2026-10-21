@@ -8,7 +8,7 @@ coordinates are the board coordinates the physics core uses.
 
 import numpy as np
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import (QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
+from PySide6.QtGui import (QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
                            QTransform)
 from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPolygonItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
@@ -245,7 +245,7 @@ class BoardView(QGraphicsView):
     message = Signal(str)                  # status text
     element_created = Signal(str, int)     # kind, index
 
-    TOOLS = ("select", "zone", "heater", "heatsink", "via")
+    TOOLS = ("select", "zone", "heater", "heatsink", "via", "outline")
 
     def __init__(self, doc, theme="dark", parent=None):
         """!
@@ -305,7 +305,8 @@ class BoardView(QGraphicsView):
                  "zone": "Zone: drag a rectangle (or click points in polygon mode).",
                  "heater": "Heater: drag a rectangle (or click points in polygon mode).",
                  "heatsink": "Heatsink: drag a rectangle on the top or bottom layer.",
-                 "via": "Via: click to place."}
+                 "via": "Via: click to place.",
+                 "outline": "Board outline: drag a rectangle or click the vertices (polygon mode); the board takes that shape. Esc cancels."}
         self.message.emit(hints[tool])
 
     def set_layer(self, layer):
@@ -582,11 +583,25 @@ class BoardView(QGraphicsView):
         b = self.doc.problem.board
         W, H = b.width * 1000.0, b.height * 1000.0
         board = QRectF(0, 0, W, H)
-        painter.fillRect(board, QColor(c["board"]))
+        path = None
+        if b.has_outline():
+            path = QPainterPath()
+            path.addPolygon(QPolygonF([QPointF(x * 1000.0, y * 1000.0) for x, y in b.outline]))
+            path.closeSubpath()
+            dash = QPen(QColor(c["muted"]), 0, Qt.DashLine)           # The box the outline sits in
+            dash.setCosmetic(True)
+            painter.setPen(dash)
+            painter.drawRect(board)
+            painter.fillPath(path, QColor(c["board"]))
+        else:
+            painter.fillRect(board, QColor(c["board"]))
         scale = abs(self.transform().m11())
         vis = rect.intersected(board)
         if vis.isEmpty():
             return
+        if path is not None:
+            painter.save()
+            painter.setClipPath(path)
         if self.show_grid:
             step = next((s for s in _GRID_STEPS if s * scale >= 14), _GRID_STEPS[-1])
             for width_step, key in ((step, "grid_minor"), (step * 5, "grid_major")):
@@ -612,12 +627,17 @@ class BoardView(QGraphicsView):
                 painter.setPen(pen)
                 painter.drawLines([QLineF(i * W / nx, 0, i * W / nx, H) for i in range(nx + 1)] +
                                   [QLineF(0, j * H / ny, W, j * H / ny) for j in range(ny + 1)])
+        if path is not None:
+            painter.restore()
         pen = QPen(QColor(c["accent"]))
         pen.setCosmetic(True)
         pen.setWidthF(1.5)
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
-        painter.drawRect(board)
+        if path is not None:
+            painter.drawPath(path)
+        else:
+            painter.drawRect(board)
 
     def paintEvent(self, e):
         """!
@@ -842,6 +862,14 @@ class BoardView(QGraphicsView):
         @param polygon_mm Vertices in mm.
         """
         layer = self.layer
+        if kind == "outline":
+            b = self.doc.problem.board
+            pts = np.clip(np.asarray(polygon_mm, dtype=float), [0.0, 0.0], [b.width * 1000.0, b.height * 1000.0])
+            if len(pts) < 3:
+                return
+            self.doc.set_outline(pts.tolist())
+            self.message.emit("Board outline set. Edit its vertices in the Board panel; the cells outside it are not solved.")
+            return
         if kind == "heatsink":
             last = self.doc.problem.board.layers - 1
             if layer not in (0, last):

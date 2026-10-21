@@ -11,6 +11,8 @@ import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
+from .geometry import points_in_polygon
+
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
 
 
@@ -26,6 +28,23 @@ def new_figure(width=7.0, height=4.5):
     return fig
 
 
+def _off_board(field, problem, dx, dy):
+    """!
+    @brief The field with the samples that lie off a non-rectangular board replaced by NaN (drawn blank).
+    @param field Array (ny, nx) of cell or node values.
+    @param problem The Problem (board outline).
+    @param dx Spacing along x in metres.
+    @param dy Spacing along y in metres.
+    @return The same array for a rectangular board, a copy with NaN outside the outline otherwise.
+    """
+    b = problem.board
+    if not b.has_outline():
+        return field
+    xs, ys, _ = _field_axes(field, problem, dx, dy)
+    X, Y = np.meshgrid(xs / 1000.0, ys / 1000.0)
+    return np.where(points_in_polygon(X, Y, b.outline), field, np.nan)
+
+
 def _outline(ax, problem, layer):
     """!
     @brief Draw heater, heatsink, zone and via outlines of one layer on an axis (coordinates in mm).
@@ -33,6 +52,9 @@ def _outline(ax, problem, layer):
     @param problem The Problem that owns the elements.
     @param layer 0-based layer index.
     """
+    if problem.board.has_outline():
+        o = np.vstack([problem.board.outline, problem.board.outline[:1]]) * 1000.0
+        ax.plot(o[:, 0], o[:, 1], color="white", lw=1.4)
     for z in problem.zones:
         if z.layer == layer:
             p = np.vstack([z.polygon, z.polygon[:1]]) * 1000.0
@@ -94,6 +116,7 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     fig.clear()
     ax = fig.add_subplot(111)
     b = problem.board
+    field = _off_board(field, problem, dx, dy)
     xs, ys, ext = _field_axes(field, problem, dx, dy)
     im = ax.imshow(field, origin="lower", cmap=cmap, extent=ext,
                    vmin=np.nanmin(field) if vmin is None else vmin,
@@ -146,9 +169,9 @@ def draw_fields(fig, result, problem, cmap="inferno"):
     @param cmap Colormap name.
     """
     fig.clear()
-    T = result.T
+    T = np.stack([_off_board(t, problem, result.dx, result.dy) for t in result.T])
     L = T.shape[0]
-    vmin, vmax = float(T.min()), float(T.max())
+    vmin, vmax = float(np.nanmin(T)), float(np.nanmax(T))
     b = problem.board
     axes = fig.subplots(1, L, squeeze=False)[0]
     im = None
@@ -191,7 +214,7 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
     for name, r in results.items():
         if r.T is None:
             continue
-        T = r.T[min(layer, r.T.shape[0] - 1)]
+        T = _off_board(r.T[min(layer, r.T.shape[0] - 1)], problem, r.dx, r.dy)
         xs, ys = r.coords()
         if axis == "x":
             i = int(np.argmin(np.abs(ys * 1000.0 - position_mm)))

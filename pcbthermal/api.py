@@ -35,6 +35,7 @@ from .results import SteadyResult
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
+RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board (no outline polygon)
 TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid is steady state only)
 
 
@@ -644,6 +645,16 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     options.validate()
     problem.validate()
     sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm))
+    if problem.board.has_outline():
+        # The lumped network and the cosine series need a rectangle: they are left out for a board with an outline
+        skipped = [m for m in options.models if m in RECTANGLE_ONLY]
+        if skipped:
+            options = copy.deepcopy(options)
+            options.models = tuple(m for m in options.models if m not in RECTANGLE_ONLY)
+            if not options.models:
+                raise ValueError("the board has an outline polygon: select the FVM, the FDM or the 3D solid (the lumped and analytic models need a rectangle)")
+            sim.options = options
+            sim.problem_warnings.append("not run for a board with an outline polygon (they need a rectangular board): " + ", ".join(skipped))
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)

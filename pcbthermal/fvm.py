@@ -22,7 +22,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from . import blocks
-from .geometry import coverage_fraction, cell_index_of_point, polygon_centroid
+from .geometry import edge_length_per_cell, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
 from .results import SteadyResult, TransientResult
 
 # Column ordering of the sparse LU: the thermal matrices are symmetric, and the symmetric minimum-degree ordering gives about half
@@ -55,7 +55,10 @@ class Network:
         self.block_info = []
         self.dx, self.dy = b.width / nx, b.height / ny
         L, dx, dy = b.layers, self.dx, self.dy
-        cell = dx * dy                       # Cell footprint area (m2)
+        # Fraction of every cell that is board (all ones for a rectangle); cells off the board carry nothing
+        self.cover = b.cover(nx, ny, dx, dy)
+        self.active = self.cover > 0
+        cell = dx * dy * self.cover          # Board area of every cell (m2), (ny, nx)
         slab = b.slab_thicknesses()          # Thickness represented by each layer node (m)
         k_lam, rho_cp_lam = b.layer_laminate()   # In-plane conductivity and volumetric heat capacity of the dielectric part of each node
         t_cu = np.asarray(b.copper_thickness)
@@ -72,7 +75,7 @@ class Network:
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
         tc = t_cu[:, None, None]
         diel_t = slab[:, None, None] - f * tc          # Dielectric thickness left in the slab (m)
-        self.S = f * m.k_copper * tc + k_lam[:, None, None] * diel_t
+        self.S = (f * m.k_copper * tc + k_lam[:, None, None] * diel_t) * self.cover
         self.C = (f * m.rho_copper * m.cp_copper * tc + diel_t * rho_cp_lam[:, None, None]) * cell
 
         # --- Vertical conductance between layer l and l+1 (W/K)
@@ -80,7 +83,7 @@ class Network:
         if L > 1:
             d = b.gap_thicknesses()                    # One value per gap (equal in the simple stack-up)
             k_gap = b.gap_properties()[0]
-            self.gz[:] = (k_gap * cell / d)[:, None, None]    # Dielectric alone
+            self.gz[:] = k_gap[:, None, None] * cell[None] / d[:, None, None]    # Dielectric alone
             for v in problem.vias:
                 i, j = cell_index_of_point(v.x, v.y, nx, ny, dx, dy)
                 # The barrel conducts in parallel with the dielectric, across every gap
@@ -100,10 +103,14 @@ class Network:
             self.g_heatsink[s.layer] += s.h_extra * cell * cov
         self.g_block = np.zeros((L, ny, nx))
         if with_blocks:
-            area = np.full((ny, nx), cell)
+            area = cell.copy()
             layers = blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, nx, ny, dx, dy, samples=n), area, f, dx, dy)
             self._add_blocks(layers)
-        if b.h_side:
+        if b.h_side and b.has_outline():
+            # Edge of a non-rectangular board: the length of the outline inside every cell times the slab thickness
+            edge = edge_length_per_cell(b.outline, nx, ny, dx, dy) * self.active
+            self.g_side[:L] += b.h_side * slab[:, None, None] * edge[None]
+        elif b.h_side:
             # Each edge cell exposes a face of (cell edge length) x (slab thickness)
             sl = slab[:, None]
             self.g_side[:L, :, 0] += b.h_side * dy * sl
@@ -111,6 +118,9 @@ class Network:
             self.g_side[:L, 0, :] += b.h_side * dx * sl
             self.g_side[:L, -1, :] += b.h_side * dx * sl
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
+        if not self.active.all():
+            # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0)
+            self.g_amb[:, ~self.active] += 1.0
 
         # --- Heat sources (W): the requested power is spread exactly over the covered cells.
         # The unit-power distribution of every heater (weights that sum to 1) is kept, so that the source of a
@@ -119,11 +129,13 @@ class Network:
         L = self.nl                                    # Board layers plus the block layers
         self.Q = np.zeros((L, ny, nx))
         for h in problem.heaters:
-            cov = coverage_fraction(h.polygon, nx, ny, dx, dy, samples=8)
+            cov = coverage_fraction(h.polygon, nx, ny, dx, dy, samples=8) * self.active      # A part is only heated on the board
             if cov.sum() <= 0:
                 # Footprint smaller than the sampling: put all the power in the centroid cell
                 cx, cy = polygon_centroid(h.polygon)
                 i, j = cell_index_of_point(cx, cy, nx, ny, dx, dy)
+                if not self.active[i, j]:                      # A part off the board: its power goes to the nearest board cell
+                    i, j = nearest_active_cell(self.active, cx, cy, dx, dy)
                 cov[i, j] = 1.0
             w = np.zeros((L, ny, nx))
             w[h.layer] = cov / cov.sum()
@@ -331,16 +343,21 @@ def _result_from_theta(net, theta, residual, model="fvm"):
     nb = net.n_board
     T_all = theta + amb
     T = T_all[:nb]                                     # The board; the block layers are kept apart
-    k = int(np.argmax(T))
+    inside = net.active                                # Cells that are board (all of them for a rectangle)
+    cover = net.cover
+    k = int(np.argmax(np.where(inside[None], T, -np.inf)))
     l, i, j = np.unravel_index(k, T.shape)
     res = SteadyResult(
         model=model, ambient=amb, power_in=float(net.Q.sum()),
-        t_max=float(T.max()), t_min=float(T.min()), t_mean=float(T.mean()),
-        layer_mean=[float(T[n].mean()) for n in range(nb)],
+        t_max=float(T[:, inside].max()), t_min=float(T[:, inside].min()),
+        t_mean=float((T * cover[None]).sum() / (nb * cover.sum())),
+        layer_mean=[float((T[n] * cover).sum() / cover.sum()) for n in range(nb)],
         t_max_location=(int(l), (j + 0.5) * net.dx, (i + 0.5) * net.dy),
         T=T, dx=net.dx, dy=net.dy, power_out=net.power_out(theta), residual=residual,
-        extras={"cells": float(T.size)},
+        extras={"cells": float(inside.sum() * nb)},
     )
+    if not inside.all():
+        res.arrays["board_mask"] = inside              # The plots leave the cells off the board blank
     attach_block_results(res, net, T_all, theta)
     return res
 

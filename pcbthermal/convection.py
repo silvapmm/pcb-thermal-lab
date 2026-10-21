@@ -7,6 +7,8 @@
 
 import math
 
+import numpy as np
+
 SIGMA = 5.670374419e-8          # Stefan-Boltzmann constant (W/m2K4)
 G = 9.80665                     # Gravity (m/s2)
 P_ATM = 101325.0                # Air pressure (Pa)
@@ -120,6 +122,9 @@ def board_h(board, t_top, t_bottom):
     """
     ta = board.ambient
     area, perim = board.width * board.height, 2.0 * (board.width + board.height)
+    if board.has_outline():                              # Characteristic length of a non-rectangular board: its own area and perimeter
+        o = board.outline
+        area, perim = board.board_area(), float(np.hypot(*(np.roll(o, -1, axis=0) - o).T).sum())
     length = area / perim
     info = {}
     out = []
