@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PCB Thermal Lab - User guide</title>
+<style>
+  body { font-family: "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.5; max-width: 62em; margin: 0 auto; padding: 1em 1.5em 4em; color: #1f2328; background: #ffffff; }
+  h1 { border-bottom: 2px solid #2563eb; padding-bottom: .2em; }
+  h2 { margin-top: 2em; border-bottom: 1px solid #d0d5dd; padding-bottom: .15em; }
+  h3 { margin-top: 1.4em; }
+  table { border-collapse: collapse; margin: .8em 0; }
+  th, td { border: 1px solid #c8ccd2; padding: .3em .6em; text-align: left; vertical-align: top; }
+  th { background: #eef0f3; }
+  code, kbd { background: #eef0f3; padding: 0 .3em; border-radius: 3px; font-family: Consolas, Menlo, monospace; }
+  .note { background: #fff7e0; border-left: 4px solid #e0a800; padding: .4em .8em; margin: .8em 0; }
+  .tip { background: #e8f3ff; border-left: 4px solid #2563eb; padding: .4em .8em; margin: .8em 0; }
+  nav li { margin: .1em 0; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1e2127; color: #e6e8eb; }
+    th { background: #2a2f37; } th, td { border-color: #3a414b; }
+    code, kbd { background: #2a2f37; }
+    .note { background: #3a331c; } .tip { background: #1c2d44; }
+    a { color: #7aa8ff; }
+  }
+</style>
+</head>
+<body>
+
+<h1>PCB Thermal Lab - user guide</h1>
+<p>PCB Thermal Lab simulates the temperature of a printed circuit board: you draw the board, its copper, the parts that dissipate power, the vias and the heatsinks,
+choose how it is cooled, and the program gives the temperature maps, the junction temperature of each part, how it evolves in time and how much margin is left. This guide explains what every
+parameter means, what each model does and what it can and cannot do. Hover the pointer over any field in the program for a short description of it.</p>
+
+<nav>
+<h3>Contents</h3>
+<ol>
+<li><a href="#start">Quick start</a></li>
+<li><a href="#window">The window</a></li>
+<li><a href="#board">Board panel: size, layers, environment, materials</a></li>
+<li><a href="#stackup">Stack-up: simple and advanced</a></li>
+<li><a href="#outline">Board outline (any shape)</a></li>
+<li><a href="#elements">Drawing elements: zones, heaters, heatsinks, vias</a></li>
+<li><a href="#parts">Heaters as parts: junction temperature, limit, power coefficient, heatsink on the package</a></li>
+<li><a href="#sim">Simulation settings</a></li>
+<li><a href="#models">The models: what each one does</a></li>
+<li><a href="#results">Reading the results</a></li>
+<li><a href="#profile">Power profiles and time simulation</a></li>
+<li><a href="#calc">Power calculator</a></li>
+<li><a href="#files">Files, export and the command line</a></li>
+<li><a href="#keys">Keyboard and mouse</a></li>
+<li><a href="#limits">Limits and good practice</a></li>
+</ol>
+</nav>
+
+<h2 id="start">1. Quick start</h2>
+<ol>
+<li><b>File - New board</b> (or open an example from <b>File - Open example</b>). Set the width, height and number of copper layers in the Board panel.</li>
+<li>Draw a <b>copper zone</b> (tool <kbd>Z</kbd>) under where the heat has to spread, a <b>heater</b> (<kbd>H</kbd>) where a part dissipates power, and <b>vias</b> (<kbd>V</kbd>) under it to carry the heat to the other layers.
+ Drag a rectangle on the board, or switch on polygon mode (<kbd>P</kbd>) and click the corners. Select an element and type its exact position, size and values in the Properties panel.</li>
+<li>Type the heater <b>power</b> in watts. For a real part also fill its <b>junction-to-pad resistance θ</b> and the maximum junction temperature.</li>
+<li>Choose how the board is cooled in <b>Environment</b> (ambient temperature and heat transfer coefficients, typed or computed).</li>
+<li>Press <b>Run simulation</b> (<kbd>F5</kbd>). The window stays usable and the run can be cancelled (<kbd>Ctrl</kbd>+<kbd>.</kbd>). The Results tab opens when it finishes.</li>
+<li>Read the temperature map, the table of parts (junction temperature, margin, power limit) and the warnings under the Run button.</li>
+</ol>
+<div class="tip">Start with the FVM model only and the <b>Auto</b> cell size. Add the other models afterwards to check the answer; a spread above about 5 % between models means "trust the FVM".</div>
+
+<h2 id="window">2. The window</h2>
+<table>
+<tr><th>Area</th><th>What it is</th></tr>
+<tr><td>Board dock (left)</td><td>Board size, outline, environment and materials.</td></tr>
+<tr><td>Elements dock (left, below)</td><td>List of all zones, heaters, heatsinks and vias; click to select, right-click for actions.</td></tr>
+<tr><td>Tabs in the middle</td><td><b>Board</b>: the drawing canvas with rulers and a scale bar. <b>Stack-up</b>: the vertical cross-section and the layer table. <b>Power profile</b>: power in time per heater. <b>Results</b>: maps, tables, comparison, animation.</td></tr>
+<tr><td>Simulation dock (right)</td><td>Models to run, cell size, solver settings, Run and Cancel, and the live input warnings.</td></tr>
+<tr><td>Properties dock (right, below)</td><td>All fields of the selected element.</td></tr>
+<tr><td>Tool bar</td><td>Drawing tools, polygon mode, the layer being drawn, snap, fit, grids, temperature overlay and Run.</td></tr>
+</table>
+<p>The rulers along the top and left edges of the board show millimetres from the lower-left corner and follow the zoom; the bar at the bottom left shows a round length (for example 10 mm) at the current zoom.
+Elements cannot be dragged off the board. The calculation runs in a separate process so the window never freezes; when the program closes nothing is left running.</p>
+
+<h2 id="board">3. Board panel</h2>
+<h3>Board</h3>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Width, Height (mm)</td><td>Size of the box that contains the board (the board itself can be any shape inside it, see the outline).</td></tr>
+<tr><td>Thickness (mm)</td><td>Total thickness of the board. In the simple stack-up the copper and the dielectric gaps share it; in the advanced stack-up it is the sum of the layers and is read-only.</td></tr>
+<tr><td>Copper layers</td><td>Number of copper layers (1 to 12). Layer 1 is the top face, the last is the bottom face.</td></tr>
+<tr><td>Copper per layer (µm)</td><td>Copper thickness of every layer: 17.5 µm = 0.5 oz, 35 µm = 1 oz, 70 µm = 2 oz. Different values per layer: advanced stack-up.</td></tr>
+</table>
+<h3>Environment</h3>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Ambient (°C)</td><td>Air temperature. All results are temperatures above it.</td></tr>
+<tr><td>Heat transfer</td><td><b>Typed by me</b>: you give one coefficient for the top face, one for the bottom and one for the edges. <b>Computed</b>: the program computes the coefficient of each face from the board temperature, with natural or forced convection correlations plus radiation, repeating the solve until the coefficients settle.</td></tr>
+<tr><td>h top, h bottom (W/m²K)</td><td>Coefficient of each face (convection plus radiation). Natural convection in still air is about 5 to 15 W/m²K. Shown only when typed: in computed mode the program derives them (the typed values would only be a starting guess).</td></tr>
+<tr><td>Orientation</td><td>(Computed.) Horizontal with the top face up, or vertical.</td></tr>
+<tr><td>Emissivity top / bottom (0 to 1)</td><td>(Computed.) Radiation: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1.</td></tr>
+<tr><td>Air speed (m/s)</td><td>(Computed.) 0 is still air (natural convection); above 0 forced convection along the board.</td></tr>
+<tr><td>Convection × (factor)</td><td>(Computed.) Multiplier of the convection (not of the radiation), to fit a measurement.</td></tr>
+<tr><td>Edges lose heat / h edges</td><td>Whether the board edges exchange heat with the air and with which coefficient.</td></tr>
+</table>
+<h3>Materials</h3>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Copper k (W/mK)</td><td>Thermal conductivity of copper (385 to 400).</td></tr>
+<tr><td>Laminate preset</td><td>Typical dielectric materials; fills the next three values (indicative values, not from your datasheet).</td></tr>
+<tr><td>Dielectric k through (W/mK)</td><td>Conductivity across the board between copper layers (FR-4 about 0.3): sets the resistance between layers.</td></tr>
+<tr><td>Dielectric k in-plane (W/mK)</td><td>Conductivity along the plane (FR-4 about 0.9, glass weave).</td></tr>
+<tr><td>Via plating (µm)</td><td>Copper plating of the via barrel, typically 20 to 25 µm.</td></tr>
+</table>
+
+<h2 id="stackup">4. Stack-up: simple and advanced</h2>
+<p><b>Simple</b> (default): all the dielectric gaps are equal and made of the same material; the Board panel sets the total thickness, the copper thickness (same for every layer) and the dielectric properties.
+This is the model of earlier versions, unchanged.</p>
+<p><b>Advanced</b> (Stack-up tab, <i>Stack-up</i> list): every copper layer has its own thickness and every dielectric gap its own thickness and material (conductivity through the thickness and in the plane, density, specific heat).
+Switching to Advanced keeps the same board (the gaps start equal); switching back keeps the total thickness. All five models use the advanced stack-up.</p>
+<table>
+<tr><th>Preset (typical, indicative)</th><th>k through</th><th>k in-plane</th></tr>
+<tr><td>FR-4 standard</td><td>0.3 W/mK</td><td>0.9 W/mK</td></tr>
+<tr><td>FR-4 high Tg / filled</td><td>0.4</td><td>1.0</td></tr>
+<tr><td>Polyimide (flex)</td><td>0.15</td><td>0.15</td></tr>
+<tr><td>PTFE ceramic (RO4350B type)</td><td>0.69</td><td>0.69</td></tr>
+<tr><td>Metal-core dielectric</td><td>2</td><td>2</td></tr>
+<tr><td>Alumina ceramic 96 %</td><td>24</td><td>24</td></tr>
+<tr><td>Aluminium nitride</td><td>170</td><td>170</td></tr>
+</table>
+<p>The vertical resistance of the board between two copper layers is the sum of <code>thickness / k</code> of the gaps in between, so a thin prepreg under a hot part and a thick core elsewhere give very different results from equal gaps.
+In the model every copper layer is one node that represents its copper and half of each adjacent dielectric.</p>
+<h3>The cross-section diagram</h3>
+<p>The diagram shows the layers from the top face to the bottom face with their thickness in micrometres and millimetres and the total board thickness. <i>Units</i> chooses µm, mm or both; <i>Scale</i> chooses "true proportions" (35 µm
+copper next to 1.5 mm of laminate is a thin line) or "readable" (thin layers enlarged to stay visible). Click a layer to see its thickness, conductivities, density and specific heat and what is drawn on it.</p>
+
+<h2 id="outline">5. Board outline (any shape)</h2>
+<p>By default the board is the whole width × height rectangle. For another shape (L, T, round, chamfered corners, any polygon) use <b>Board outline</b> in the Board panel: pick a preset, edit the vertices in the table (millimetres from the lower-left corner of the box),
+or draw it with the outline tool (<kbd>O</kbd>, rectangle or polygon mode). Outside the outline there is no board: no copper, no heat, no heat loss.</p>
+<ul>
+<li>The outline must be a simple polygon (no crossing edges) inside the box.</li>
+<li>The FVM, FDM and 3D solid solve any outline. The <b>lumped network and the analytic series need a rectangle</b> and are skipped with a warning when the board has an outline.</li>
+<li>The temperature maps leave the area outside the outline blank; the heat lost through the edge follows the outline; the convection characteristic length uses the real area and perimeter.</li>
+<li>A part drawn off the board still delivers its power to the nearest board cell (with a warning): move it onto the board.</li>
+<li>Cell sizes should be several times smaller than the narrowest part of the board (a neck of two cells is poorly resolved).</li>
+</ul>
+
+<h2 id="elements">6. Drawing elements</h2>
+<table>
+<tr><th>Element</th><th>What it is</th><th>Fields</th></tr>
+<tr><td><b>Copper zone</b> (<kbd>Z</kbd>)</td><td>Copper area on one layer (any polygon). It spreads the heat sideways and, on an outer layer, also radiates and convects it.</td><td>Name, layer, position and size, copper fill (1 = solid, 0.5 = hatched).</td></tr>
+<tr><td><b>Heater</b> (<kbd>H</kbd>)</td><td>A part that dissipates power: the power is spread exactly over its footprint on one layer.</td><td>Name, layer, position and size, power (W), and the part fields of the next section.</td></tr>
+<tr><td><b>Heatsink</b> (<kbd>C</kbd>, cooling)</td><td>Extra heat transfer on an outer face inside a polygon (a finned plate, a cooled area). With a thickness it becomes a metal block pressed on the board.</td><td>Extra h (W/m²K), thickness, block material and conductivity, interface resistance (K·cm²/W) and interface material.</td></tr>
+<tr><td><b>Via</b> (<kbd>V</kbd>)</td><td>Plated through hole connecting all copper layers: it carries heat vertically through its copper barrel.</td><td>Position, diameter (mm), filled with copper or hollow.</td></tr>
+<tr><td><b>Board outline</b> (<kbd>O</kbd>)</td><td>Shape of the board (previous section).</td><td>Vertex table in the Board panel.</td></tr>
+</table>
+<p>Select an element to see and type its position, width and height (a rectangle) or its vertex count, box and area (a polygon). Drag the corner handles to reshape a polygon. The metal block spreads heat in the metal, has a heat capacity and touches the board only
+over the copper it overlaps through the interface resistance (grease or paste 0.3 to 0.5 K·cm²/W, gap pads 1.7 to 10).</p>
+
+<h2 id="parts">7. Heaters as parts</h2>
+<p>A heater with only a power is a plain heat source: the report gives the board temperature under it. For a real part (IC, MOSFET, diode) fill the optional fields; with none filled nothing changes.</p>
+<table>
+<tr><th>Field</th><th>Meaning and what the program does</th></tr>
+<tr><td>θ junction-pad (K/W)</td><td>Junction-to-pad (junction-to-bottom) resistance of the part: take θJC(bot), the MOSFET's RθJC, θJ-L of a diode or Rth j-sp of an LED, <b>never θJA</b> (it includes the manufacturer's board and air). The program computes <code>Tj = hottest board point under the part + P·θ</code> (worst case: all the power goes into the board). The board itself does not change.</td></tr>
+<tr><td>Typical θ by package family</td><td>Indicative values (QFN 5, power QFN 3, DFN 10, D2PAK 0.75, TO-220 1.5, SOT-223 15, diodes SMA/SMB/SMC 20, 0603 resistor 1000 K/W) for when the datasheet has no usable number.</td></tr>
+<tr><td>Tj max (°C)</td><td>Maximum junction temperature: the report gives the <b>margin</b>, the <b>power limit</b> (the dissipation that brings the part to its limit on this board) and a warning if exceeded.</td></tr>
+<tr><td>ψJB (K/W)</td><td>Junction-to-board characterisation parameter: second estimate <code>Tj = T_ring + ψJB·P</code> where T_ring is the mean board temperature in the ring 0.5 to 1.5 mm around the package. Useful when the datasheet gives only θJB or ψJB.</td></tr>
+<tr><td>Power coefficient (%/K)</td><td>Power that changes with the junction temperature, <code>P = P0 (1 + c (Tj − 25 °C))</code>, solved together with the board; a MOSFET's Rds(on) rises about 0.3 to 0.7 %/K. Thermal runaway (no stable point) is detected and warned. Steady state only.</td></tr>
+<tr><td>θJC top (K/W), Interface (K·cm²/W), Heatsink θSA (K/W)</td><td><b>Heatsink on the package</b>: the heat also leaves through the top, through θJC(top), the interface (divided by the footprint area) and the heatsink to ambient. Active only with θ and θSA. The board receives only the power the top does not take; the report gives the top-path power. A bare mould carries about 1 % of the heat and is ignored (worst case). Steady state only.</td></tr>
+</table>
+<div class="note">Warning shown by the program: if θ·P is larger than the board's own temperature rise under the part, θ is probably a θJA. The datasheet thermal numbers refer to the manufacturer's test board; on yours they are estimates.</div>
+
+<h2 id="sim">8. Simulation settings</h2>
+<table>
+<tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Models</td><td>Which models to run (section 9). FVM is the reference.</td></tr>
+<tr><td>Cell size (mm)</td><td>Size of the solver cells. Smaller is more accurate and slower; <b>Auto</b> picks a quarter of the smallest part. The number of unknowns is shown. Halve it once to check the result does not change.</td></tr>
+<tr><td>FVM solver</td><td>Sparse direct (exact, default), conjugate gradients, or SOR (slow, kept for comparison).</td></tr>
+<tr><td>Lumped rings</td><td>Number of rings of the thermal network of each heater.</td></tr>
+<tr><td>Analytic modes</td><td>Number of cosine modes per direction (more resolve smaller parts).</td></tr>
+<tr><td>Local via and heatsink corrections</td><td>Apply vias and heatsinks locally in the analytical model instead of smearing them.</td></tr>
+<tr><td>Hotspot limit (°C)</td><td>Temperature above which an area is reported as a hotspot.</td></tr>
+<tr><td>Run / Cancel</td><td>Run in the background; Cancel stops the calculation at once and nothing is kept from it.</td></tr>
+</table>
+
+<h2 id="models">9. The models</h2>
+<p>All models describe the same physical board: copper layers as thin conducting sheets, dielectrics as vertical conductances (each gap with its own thickness and material), vias as copper barrels, heat leaving through the faces and edges.
+They differ in how they solve it.</p>
+<table>
+<tr><th></th><th>FVM (reference)</th><th>FDM</th><th>Lumped network (LPTN)</th><th>Analytic (Fourier series)</th><th>3D solid</th></tr>
+<tr><td><b>What it is</b></td><td>Board cut into cells (finite volumes), one node per layer and cell</td><td>The same equations on grid points (finite differences)</td><td>A small network of resistances per heater, built from the real footprint</td><td>Closed-form solution of a uniform multilayer board with local corrections</td><td>The board as a real 3D solid with every layer and gap as slabs</td></tr>
+<tr><td><b>Best for</b></td><td>The number you sign off, any geometry, hotspots, junction temperatures, time behaviour</td><td>Checking the FVM's discretisation</td><td>Fast exploration and sweeps</td><td>Instant answers on near-uniform boards, an independent check</td><td>Checking the "one node per layer" idea on your board (small pads, copper edges, thick blocks)</td></tr>
+<tr><td><b>Time</b></td><td>about 0.1 s to seconds</td><td>similar</td><td>about 10 ms</td><td>about 50 ms</td><td>0.1 to 10 s</td></tr>
+<tr><td><b>Time simulation, animation</b></td><td>yes</td><td>yes</td><td>power profiles yes, animation no</td><td>yes</td><td>no (steady state only)</td></tr>
+<tr><td><b>Non-rectangular board</b></td><td>yes</td><td>yes</td><td>no</td><td>no</td><td>yes</td></tr>
+<tr><td><b>Metal blocks</b></td><td>yes</td><td>yes</td><td>equivalent coefficient (warned)</td><td>equivalent coefficient (warned)</td><td>yes</td></tr>
+<tr><td><b>Weak when</b></td><td>cells too coarse for the smallest part</td><td>point features (vias) at the nearest node: about 2 % off</td><td>copper edge across the heater, corners, thin heaters</td><td>copper not uniform near the heater (up to 25 % low), non-rectangular boards</td><td>slower; the via barrel is a lumped copper area</td></tr>
+</table>
+<p>The program adds <b>input checks</b> that never block a run but warn about doubtful input: a heater partly off the board, no copper under a heater, a copper edge crossing a footprint, a heater only a few cells wide, vias or zones off the board, and more.
+No model has been compared with a measurement of a real board yet; the models are compared with each other and with an independent 3D finite-element check (see the validation document).</p>
+
+<h2 id="results">10. Reading the results</h2>
+<table>
+<tr><th>Tab</th><th>What it shows</th></tr>
+<tr><td>Summary</td><td>Table of the models (Tmax, Tmean, ΔT, Rθ, power, energy balance, error against the reference) and the text report with the warnings.</td></tr>
+<tr><td>Temperature</td><td>Temperature map of a layer for a model; hotspot contour, colour map and range; the metal block view when there is one. Cells off a non-rectangular board are blank.</td></tr>
+<tr><td>Gradients</td><td>Magnitude of the temperature gradient (K/mm).</td></tr>
+<tr><td>Profiles</td><td>Temperature along a cut through the board for every model.</td></tr>
+<tr><td>Components</td><td>Per heater: power (and nominal power), mean and maximum board temperature, junction temperature, margin to the limit, power limit, top-path power; per zone; hotspots; the metal block.</td></tr>
+<tr><td>Models</td><td>Comparison of the models.</td></tr>
+<tr><td>Animation</td><td>Heating of the board in time after the power is switched on (see below).</td></tr>
+<tr><td>Power profile</td><td>Results of the time simulation when a heater has a profile.</td></tr>
+</table>
+<p><b>Tmax</b> is the hottest point of the board; <b>Rθ</b> is the rise of the hottest point divided by the total power (K/W). The <b>energy balance</b> is the difference between the power in and the heat out through the faces and edges; it must be about 1e-9 or smaller.
+A result marked <i>outdated</i> means the design was edited after the run. Export results (maps, tables, CSV) from the File menu.</p>
+
+<h2 id="profile">11. Power profiles and time simulation</h2>
+<p>A heater can have a constant power, a <b>square wave</b> (on-power, period, duty, off-power) or a <b>table</b> read from a CSV file (times and powers, repeating or one-shot). In the Power profile tab press <b>Analyze regimes</b> to see, per heater,
+whether its power can be <i>averaged</i> (the temperature oscillation is below the threshold, default 1 °C) or must be <i>resolved</i> in time. Settings: the start (steady state of the average power, or a typed temperature), how long to simulate (until the cycle repeats, N cycles,
+or a fixed time) and which power the steady-state models use (average, peak). The animation of the power step (Results - Animation) uses the FVM, FDM or analytic model with implicit Euler or Crank-Nicolson stepping.
+The power coefficient and the heatsink on the package apply to the steady-state models only.</p>
+
+<h2 id="calc">12. Power calculator</h2>
+<p><b>Simulation - Power from a measured temperature</b> finds the power of a part when you measured a temperature:</p>
+<ul>
+<li><b>From the board model</b>: you give the part, where the temperature was measured (the board 1 mm around it, the hottest point under it, its mean, or the junction if θ is set), the temperature and the ambient. The program runs the board model two or three times and finds the power that reproduces the measurement
+ (the problem is linear for typed coefficients; with computed convection it iterates). <i>Use as the power of this part</i> writes it into the heater. The result is as good as the board you drew and the measurement (a probe that touches the board cools it a little; an IR gun's spot is too large for a small part).</li>
+<li><b>From a datasheet parameter</b>: <code>P = (Tj − T_ref) / parameter</code> for a known junction temperature (a sense diode) with ψJB (reference: the board 1 mm from the package), ψJT (the top of the case) or θ. ψ values are not thermal resistances and belong to the datasheet's test board.</li>
+</ul>
+
+<h2 id="files">13. Files, export and the command line</h2>
+<ul>
+<li>Projects are plain JSON files (<code>.pcbt.json</code>) with millimetres and 1-based layers. They store everything: the board size and outline, the stack-up (simple or advanced, each layer and dielectric), the materials, the environment, all elements and their part fields, the power profiles and the solver options. Older files open unchanged.</li>
+<li><b>File - Export</b>: a folder with maps, tables and CSV; the text report; a JSON summary.</li>
+<li>Command line: <code>python -m pcbthermal run board.pcbt.json</code> (all models, report, plots), <code>solvers</code>, <code>transient</code>, <code>convert</code>, <code>calibrate</code>, <code>gui</code>, <code>example</code>; add <code>--help</code> to any.</li>
+<li>Python: <code>from pcbthermal import Problem, simulate</code>; the builder takes millimetres.</li>
+</ul>
+
+<h2 id="keys">14. Keyboard and mouse</h2>
+<table>
+<tr><th>Keys</th><th>Action</th></tr>
+<tr><td><kbd>S</kbd> <kbd>Z</kbd> <kbd>H</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>O</kbd></td><td>Select, Zone, Heater, Heatsink (Cooling), Via, board Outline tools</td></tr>
+<tr><td><kbd>P</kbd></td><td>Polygon mode: click the vertices, double-click or <kbd>Enter</kbd> to finish, right-click also finishes</td></tr>
+<tr><td>Wheel, middle-drag, <kbd>Space</kbd>+drag</td><td>Zoom, pan</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd>, <kbd>Ctrl</kbd>+<kbd>+</kbd>, <kbd>Ctrl</kbd>+<kbd>-</kbd></td><td>Fit the board, zoom in, zoom out</td></tr>
+<tr><td><kbd>Del</kbd>, <kbd>Ctrl</kbd>+<kbd>D</kbd>, arrows</td><td>Delete, duplicate, nudge the selection (it cannot leave the board)</td></tr>
+<tr><td><kbd>Esc</kbd></td><td>Cancel the drawing, clear the selection</td></tr>
+<tr><td><kbd>G</kbd>, <kbd>Shift</kbd>+<kbd>G</kbd>, <kbd>T</kbd></td><td>Grid, solver grid, temperature overlay</td></tr>
+<tr><td><kbd>F5</kbd>, <kbd>Ctrl</kbd>+<kbd>.</kbd></td><td>Run, cancel the calculation</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Undo, redo</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd> to <kbd>4</kbd></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
+<tr><td><kbd>F1</kbd></td><td>This guide</td></tr>
+</table>
+
+<h2 id="limits">15. Limits and good practice</h2>
+<ul>
+<li>The models are 2D layered models (the 3D solid excepted); they do not include a model of the component's package, only a junction-to-pad resistance. They assume the copper and the board are what you drew.</li>
+<li>No model has been compared with a measurement of a real board. Use <code>calibrate</code> or the power calculator with a measurement to check your board.</li>
+<li>Convection correlations are for isothermal plates and are uncertain by 20 to 30 % on a board with hot spots.</li>
+<li>Always check the cell size once (halve it), read the warnings, and confirm the fast models with the FVM before relying on them.</li>
+<li>Material presets are typical values for orientation, not datasheet values: type your laminate's.</li>
+<li>Thermal numbers from datasheets (θ, ψ) belong to the manufacturer's test board and are estimates on yours.</li>
+</ul>
+
+</body>
+</html>

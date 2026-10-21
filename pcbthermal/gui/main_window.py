@@ -22,6 +22,7 @@ from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
 from .calculator import PowerCalculator
+from .help import AboutDialog, GuideWindow, open_guide_in_browser
 from .canvas import BoardView
 from . import compute
 from .compute import ProcessWorker
@@ -155,7 +156,7 @@ class MainWindow(QMainWindow):
         self.settings = settings or QSettings("PMS Labs", "PCB Thermal Lab")
         self.theme_name = self.settings.value("theme", "dark")
         self.doc = doc or Document()
-        self.sim, self.worker, self._stale = None, None, False
+        self.sim, self.worker, self._stale, self._guide = None, None, False, None
         self._edits, self._run_edits = 0, None                 # Edit counter, and its value when the running simulation started
 
         self.canvas = BoardView(self.doc, self.theme_name)
@@ -306,8 +307,13 @@ class MainWindow(QMainWindow):
                                 tip="Find the power of a part from a measured temperature (board model) or a datasheet parameter")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
+        self.a_guide = self._act("User guide", self.show_guide, "F1", tip="Parameters, models and how to read the results")
+        self.a_guide_web = self._act("User guide in the browser", open_guide_in_browser, tip="Open the user guide in the web browser")
         self.a_keys = self._act("Keyboard shortcuts", self.show_shortcuts)
-        self.a_about = self._act("About", self.show_about)
+        self.a_about = self._act("About PCB Thermal Lab", self.show_about)
+        for n, key in enumerate(("Board", "Stack-up", "Power profile", "Results")):
+            a = self._act(f"Show the {key} tab", lambda _=False, i=n: self.tabs.setCurrentIndex(i), f"Ctrl+{n + 1}")
+            self.addAction(a)                                  # Active without a menu entry
 
         mb = self.menuBar()
         m = mb.addMenu("&File")
@@ -334,7 +340,10 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction(self.a_calc)
         m = mb.addMenu("&Help")
+        m.addAction(self.a_guide)
+        m.addAction(self.a_guide_web)
         m.addAction(self.a_keys)
+        m.addSeparator()
         m.addAction(self.a_about)
 
     def _build_toolbar(self):
@@ -820,17 +829,25 @@ class MainWindow(QMainWindow):
 <tr><td><b>Del, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
-<tr><td><b>F5</b></td><td>Run simulation</td></tr>
-<tr><td><b>Ctrl+Z / Ctrl+Shift+Z</b></td><td>Undo / redo</td></tr></table>""")
+<tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
+<tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
+<tr><td><b>Ctrl+Z / Ctrl+Shift+Z</b></td><td>Undo / redo</td></tr>
+<tr><td><b>F1</b></td><td>User guide</td></tr></table>""")
 
     def show_about(self):
         """!
-        @brief Show the About box.
+        @brief Show the About box (program, version, author, project link, libraries).
         """
-        QMessageBox.about(self, "About PCB Thermal Lab", f"<b>PCB Thermal Lab</b> version {__version__}<br>"
-                          "Thermal simulation of printed circuit boards with three models: "
-                          "finite volumes, lumped network and analytic series.<br><br>"
-                          "© 2025 Pedro Silva - PMS Labs")
+        AboutDialog(self).exec()
+
+    def show_guide(self):
+        """!
+        @brief Show the user guide inside the program.
+        """
+        if self._guide is None:
+            self._guide = GuideWindow(self)
+        self._guide.show()
+        self._guide.raise_()
 
     def closeEvent(self, e):
         """!
