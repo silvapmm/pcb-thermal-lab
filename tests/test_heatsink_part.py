@@ -176,6 +176,7 @@ def test_gui_cooling_model_fins_body_helper_and_contact_area(tmp_path, qtbot, mo
     qtbot.wait(50)
     # The part: contact area and the body helper
     win.layer_combo.setCurrentIndex(0)
+    win.doc.set_props("heater", 0, theta=3.0, theta_sa=10.0)                                # The top-path boxes show with a heatsink resistance
     win.canvas.set_selection([("heater", 0)])
     win._on_canvas_selection([("heater", 0)])
     ca = next(s for s in spins() if s.toolTip().startswith("Area of the package top"))

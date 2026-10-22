@@ -727,25 +727,37 @@ class Inspector(QWidget):
                     tc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power_tc=v / 100.0))
                     lay.addRow("Power coefficient", tc)
                     lay = box("Heatsink on the package")
+                    # Two lists: the heatsink and the air flow it was catalogued at (only the flows the catalogue gives); the stored name is "heatsink, flow"
+                    kinds = []
+                    for e in HEATSINKS:
+                        if e[3] not in kinds:
+                            kinds.append(e[3])
+                    cur = next((e for e in HEATSINKS if e[0] == el.heatsink), None)
                     hs = QComboBox()
                     hs.addItem("None (no heatsink)", "none")
-                    for hs_name, _theta_sa, _note in HEATSINKS:
-                        hs.addItem(hs_name, hs_name)
+                    for k_ in kinds:
+                        hs.addItem(k_, k_)
                     hs.addItem("Custom", "custom")
-                    hs_names = [e[0] for e in HEATSINKS]
-                    hs.setCurrentIndex(hs.findData(el.heatsink) if el.heatsink in hs_names else (hs.findData("custom") if el.theta_sa > 0 else 0))
-                    hs.setToolTip("A typical heatsink for the top of the package, from a catalogue library (Preferences - Heatsinks): choosing one fills θSA below with its catalogue "
-                                  "value, which you can change. None: no heatsink (all the power enters the board). Custom: type your own θSA. The catalogue values are for their own "
-                                  "test conditions: yours depends on the air flow, the orientation and the mounting.")
+                    hs.setCurrentIndex(hs.findData(cur[3]) if cur else (hs.findData("custom") if el.theta_sa > 0 else 0))
+                    hs.setToolTip("A typical heatsink for the top of the package, from a catalogue library (Preferences): choosing one fills θSA below with its catalogue value, which you "
+                                  "can change. None: no heatsink (all the power enters the board). Custom: type your own θSA. The catalogue values are for their own test "
+                                  "conditions: yours depends on the air flow, the orientation and the mounting.")
+                    flow = QComboBox()
+                    if cur:
+                        for e in HEATSINKS:
+                            if e[3] == cur[3]:
+                                flow.addItem(f"{e[4]}: {e[1]:g} K/W", e[0])
+                        flow.setCurrentIndex(max(flow.findData(cur[0]), 0))
+                    flow.setToolTip("The air flow of the catalogue value (natural convection, 1 m/s, 2 m/s, forced air): only the flows the catalogue gives for this heatsink. The "
+                                    "air speed of the board (Environment) does not change θSA: choose the flow that matches your case or type your own θSA.")
                     hs_note = QLabel("")
                     hs_note.setWordWrap(True)
                     hs_note.setStyleSheet("font-size: 11px; color: gray;")
-                    hs_note.setToolTip("The catalogue value and its source for the chosen heatsink.")
-                    hs_entry = next((e for e in HEATSINKS if e[0] == el.heatsink), None)
-                    hs_note.setText(f"Catalogue: {hs_entry[1]:g} K/W." if hs_entry else
+                    hs_note.setToolTip("The catalogue value and its source for the chosen heatsink and flow.")
+                    hs_note.setText(f"Catalogue: {cur[0]}, {cur[1]:g} K/W." if cur else
                                     ("Custom: your own θSA." if el.theta_sa > 0 else "No heatsink: all the power enters the board (worst case)."))
-                    if hs_entry:
-                        hs_note.setToolTip(hs_entry[2])                    # The source and the test conditions
+                    if cur:
+                        hs_note.setToolTip(cur[2])                         # The source and the test conditions
 
                     def pick_heatsink(_idx, c=hs):
                         key = c.currentData()
@@ -753,12 +765,20 @@ class Inspector(QWidget):
                             self.doc.set_props(kind, i, theta_sa=0.0, heatsink="", merge=False)
                         elif key == "custom":
                             self.doc.set_props(kind, i, heatsink="", merge=False)
-                        else:
-                            e = next(x for x in HEATSINKS if x[0] == key)
+                        else:                                             # The first catalogued flow of the heatsink
+                            e = next(x for x in HEATSINKS if x[3] == key)
+                            self.doc.set_props(kind, i, theta_sa=e[1], heatsink=e[0], merge=False)
+
+                    def pick_flow(_idx, c=flow):
+                        e = next((x for x in HEATSINKS if x[0] == c.currentData()), None)
+                        if e is not None:
                             self.doc.set_props(kind, i, theta_sa=e[1], heatsink=e[0], merge=False)
 
                     hs.currentIndexChanged.connect(pick_heatsink)
+                    flow.currentIndexChanged.connect(pick_flow)
                     lay.addRow("Heatsink", hs)
+                    if cur:
+                        lay.addRow("Air flow", flow)
                     lay.addRow(hs_note)
                     sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
                     sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "

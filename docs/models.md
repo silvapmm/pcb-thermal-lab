@@ -292,7 +292,7 @@ board bottom/top face -- interface (paste, pad) -- metal block (spreads, has mas
 
 * **A heater with only watts** is a heat source on the board: the report gives the board temperature under it.
 * **With a thermal junction** (θ junction-pad, Tj max, ψJB, power coefficient) the report adds the junction temperature `Tj = T_board_max + P_board·θ`, the margin and the power limit (section 6).
-* **Typical θSA for the top of a package** (library `heatsinks` in Preferences; a catalogue value for each part's own test conditions, so a starting point and not your θSA, which depends on the air flow, the orientation and the mounting; natural-convection values are quoted at a 75 K rise by Boyd/Aavid and fall as the rise grows):
+* **Typical θSA for the top of a package** (library `heatsinks` in Preferences, shown as **two lists**: the heatsink and the air flow of its catalogue value, with only the flows the catalogue gives; the stored name is "heatsink, flow", for example "BGA 40×40×18, 2 m/s". The air speed of the board does **not** change θSA: the flow is part of the choice, or you type your own θSA; a catalogue value for each part's own test conditions, so a starting point and not your θSA, which depends on the air flow, the orientation and the mounting; natural-convection values are quoted at a 75 K rise by Boyd/Aavid and fall as the rise grows):
 
 | Heatsink | θSA (K/W) | Source |
 | :-- | --: | :-- |

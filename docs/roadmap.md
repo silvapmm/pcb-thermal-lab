@@ -9,6 +9,7 @@ Rule: when something is implemented it moves from the second list to the first i
 * **Heat transfer**: computed convection and radiation per face (natural and forced, emissivity, horizontal or vertical mounting, calibration multiplier), typed coefficients, edge loss.
 * **Power profiles**: square waves and CSV tables, the average-or-resolve decision per heater, animation of a power step.
 * **Parts (heaters)**: junction-to-pad `θ` in the worst case, junction limit with margin and power limit, `ψJB` ring estimate, power temperature coefficient with runaway detection, typical `θ` by package family, the top path (`θJC(top)`, body helper, contact area, interface sheet, `θSA`), power from a measured temperature or a datasheet parameter (Power calculator).
+* **Typical heatsinks on a package**: a library of catalogue θSA (heatsink and air flow, with source and test conditions) in Preferences and two lists in the heater panel; the top-path boxes appear with θSA.
 * **Heatsinks**: extra coefficient typed as `h` or as `θSA`; metal block (all five models in steady state, FVM, FDM and 3D solid in time too) with thickness, metal presets, interface sheet (paste, gap pad, direct contact), plate fins with efficiency, exposed-surface coefficient; validated against the 3D solid within 1.8 %.
 * **Board**: variable stack-up (copper per layer, material and thickness per gap, simple and advanced modes, typical stack-ups for 1 to 12 layers checked against JLCPCB and PCBWay tables), outline polygon of any shape (FVM, FDM, 3D solid on the real shape; Lumped and Analytic on the rectangle of the same area), advanced stack-up in all five models.
 * **Vias and power calculator**: the via fill (open, epoxy resin, conductive paste, copper) and the power of a part from a board temperature, the junction or the top of the package (θ and ψJT), with the sensitivity to the copper measured (`validation.md` sections 18 and 19).
@@ -21,6 +22,14 @@ Rule: when something is implemented it moves from the second list to the first i
 ## What we want to implement
 
 In the order of value for the effort.
+
+### Heatsink air flow (follows from `docs/research.md` R3)
+
+- **Other speed (estimated)** in the heatsink flow list: `θSA(v) = θSA(natural) × f(v)` with f from the volumetric guide (1, 0.31, 0.18, 0.10 at 0, 1, 2.5, 5 m/s), always marked as an estimate (about 15 % for a large heatsink, up to 50 % for a small one).
+- **Flow linked to the board air speed** by default, with an override for a heatsink that has its own fan or air channel.
+- **Heatsinks with a fan** (catalogue assemblies, for example 40 mm sets of about 1.1 K/W) as entries of the library.
+- **Heatsink from its geometry** (fin height, thickness, pitch, metal) with the channel effect between fins (Elenbaas, Bar-Cohen and Rohsenow) and the temperature-rise dependence of natural convection, compared with the catalogue θSA.
+- **Junction node (JESD15-3 two-resistor)**: only worth it with a heatsink on top (a bare mould changes the result by about 3 K, a heatsink by a factor of two); first in the FVM, top path only.
 
 ### Component element (the part of the plan not done)
 

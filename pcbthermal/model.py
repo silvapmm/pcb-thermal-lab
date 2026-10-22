@@ -773,7 +773,7 @@ VIA_FILLS = []
 METALS = []
 INTERFACES = []
 PACKAGE_THETA = []
-HEATSINKS = []                                  # Heatsinks on a package: (name, typical theta_SA in K/W, note with the source and the test conditions)
+HEATSINKS = []                                  # Heatsinks on a package: (name = "heatsink, flow", typical theta_SA in K/W, note with the source and the test conditions, heatsink, air flow)
 
 
 def reload_libraries():
@@ -785,7 +785,7 @@ def reload_libraries():
     VIA_FILLS[:] = [(e["name"], e["k_w_per_mk"], e.get("note", "")) for e in lib["via_fills"]]
     METALS[:] = [(e["name"], e["k_w_per_mk"], e["rho_cp_j_per_m3k"]) for e in lib["metals"]]
     INTERFACES[:] = [(e["name"], e["k_w_per_mk"], e["thickness_mm"]) for e in lib["interfaces"]]
-    HEATSINKS[:] = [(e["name"], e["theta_sa_k_per_w"], e.get("note", "")) for e in lib["heatsinks"]]
+    HEATSINKS[:] = [(e["name"], e["theta_sa_k_per_w"], e.get("note", ""), e.get("heatsink", e["name"]), e.get("flow", "")) for e in lib["heatsinks"]]
     PACKAGE_THETA[:] = [(e["name"], e["theta_k_per_w"], e.get("theta_jc_top_k_per_w", 0.0), e.get("tj_max_c", 0.0), e.get("note", "")) for e in lib["package_theta"]]
 
 

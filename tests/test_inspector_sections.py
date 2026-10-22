@@ -252,7 +252,8 @@ def test_heatsink_selector_fills_the_typical_theta_sa_and_the_top_boxes_say_when
     assert not any("not used yet" in l.text() for l in form.findChildren(QLabel))
     assert any(l.text().startswith("Custom: no typical values applied") for l in form.findChildren(QLabel))
     hs = next(c for c in form.findChildren(QComboBox) if c.itemText(0) == "None (no heatsink)")
-    assert [hs.itemText(i) for i in range(1, hs.count() - 1)] == [e[0] for e in HEATSINKS] and hs.itemText(hs.count() - 1) == "Custom"
+    kinds = list(dict.fromkeys(e[3] for e in HEATSINKS))                                         # One entry per heatsink, the air flow is a second list
+    assert [hs.itemText(i) for i in range(1, hs.count() - 1)] == kinds and hs.itemText(hs.count() - 1) == "Custom"
     hs.setCurrentIndex(1)                                                                        # The first typical heatsink
     assert h().heatsink == HEATSINKS[0][0] and h().theta_sa == HEATSINKS[0][1]
     select(win, "heater")
@@ -261,6 +262,15 @@ def test_heatsink_selector_fills_the_typical_theta_sa_and_the_top_boxes_say_when
     assert boxes["Package top: junction to case"].isEnabled() and boxes["Interface: package top to heatsink"].isEnabled()           # They appear with the heatsink
     assert any(l.text().startswith("Catalogue: ") for l in form.findChildren(QLabel))
     hs = next(c for c in form.findChildren(QComboBox) if c.itemText(0) == "None (no heatsink)")
+    flow = next(c for c in form.findChildren(QComboBox) if c.itemText(0).startswith(HEATSINKS[0][4] + ":"))
+    n_flows = sum(1 for e in HEATSINKS if e[3] == HEATSINKS[0][3])
+    assert flow.count() == n_flows                                                               # Only the flows the catalogue gives
+    if n_flows > 1:
+        flow.setCurrentIndex(1)
+        assert h().heatsink == HEATSINKS[1][0] and h().theta_sa == HEATSINKS[1][1]
+        select(win, "heater")
+        form = win.inspector.form_host
+        hs = next(c for c in form.findChildren(QComboBox) if c.itemText(0) == "None (no heatsink)")
     hs.setCurrentIndex(0)                                                                        # None: back to no top path
     assert h().theta_sa == 0.0 and h().heatsink == ""
     # The typical values are a library in the settings

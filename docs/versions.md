@@ -10,9 +10,9 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ---
 
-## Unreleased (next version, 2.4.0): parts, stack-up, outline, tools
+## 2.4.0 - 2026-10-22: parts, stack-up, outline, tools
 
-Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-element`). Nothing here is tagged yet.
+Work of the branches `feature/component-element` and `feature/junction-node` (merged through `develop`).
 
 ### Parts (the Component element, first delivery)
 
@@ -99,7 +99,7 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 
 | Heater type (heat source with an interface under it / component), package family fills θ, θJC(top), Tj max from the library in Preferences | `model.Heater.role/base_*/junction_theta`, `analysis.part_split`, `gui/panels.py`, `defaults.json` | `test_component.py`, `test_inspector_sections.py` |
 
-| Typical heatsink list for the top of a package (library `heatsinks`, θSA from catalogues); the top-path boxes appear with θSA | `defaults.json`, `model.HEATSINKS`, `Heater.heatsink`, `gui/panels.py` | `test_inspector_sections.py` |
+| Typical heatsink list for the top of a package (library `heatsinks`: heatsink and air flow, θSA from catalogues, 11 entries); the top-path boxes appear with θSA; the study of flow factors against catalogues is in `research.md` R3 | `defaults.json`, `model.HEATSINKS`, `Heater.heatsink`, `gui/panels.py` | `test_inspector_sections.py` |
 
 ### Changed behaviour
 

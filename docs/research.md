@@ -24,6 +24,23 @@ What stays here is the **top path** of the study, behind the top path now implem
 
 A bare mould carries about 1 % of the heat (2 to 4 K); a heatsink takes 41 to 51 % and lowers `Tj` by 16 to 40 K, which the single resistance cannot see: this is the case that justifies the junction node.
 
+### R3. Heatsink air flow: catalogue values against a scaling factor (2026-10-22)
+
+**Question.** Should the heatsink on a package have its own forced-air option, computed from the natural-convection θSA, or should it use catalogue values by flow?
+
+**What was done.** The typical heatsinks of the library (`defaults.json`, `heatsinks`) were compiled from catalogues (Wakefield-Vette, Fischer, Aavid, SAME Sky; sources in `docs/models.md`). The ratio θSA(forced) / θSA(natural) of the catalogues was compared with the factors of the volumetric-resistance guide (Electronics Cooling, *How to select a heat sink*: 500 to 800 cm³·K/W natural, 150 to 250 at 1 m/s, 80 to 150 at 2.5 m/s, 50 to 80 at 5 m/s; mid-values give 0.31 at 1 m/s and about 0.22 at 2 m/s):
+
+| Heatsink | Catalogue ratio | Guide factor | Difference |
+| :-- | --: | --: | --: |
+| BGA 40×40×18 mm, 1 m/s | 0.33 | 0.31 | within 6 % |
+| BGA 40×40×18 mm, 2 m/s | 0.20 | about 0.22 | within 15 % |
+| TO-220 board-level, 2 m/s | 0.34 | about 0.22 | the guide is about 35 % low (a small heatsink uses the air worse) |
+| Pin-fin 10×10 mm, "forced air" (speed not stated) | 0.52 | not comparable | speed unknown |
+
+**Findings.** A scaling factor is a fair estimate for a large heatsink and misses by tens of per cent for a small one; the natural-convection value itself falls as the temperature rise grows (quoted at a 75 K rise by Boyd/Aavid, 10.8 K/W at 1 W against 7.68 at 75 K for the SAME Sky part). The air speed of the board (Environment) acts on the board faces only, so a heatsink with its own fan has a different flow.
+
+**Decision.** Implemented: catalogue values by flow, two lists (heatsink, then air flow, only the flows the catalogue gives). Not implemented, in `docs/roadmap.md`: "other speed (estimated)" by a factor, the default flow linked to the board air speed, heatsinks with a fan (Boyd 40 mm sets about 1.1 K/W), the heatsink defined by its geometry with the fin channel effect, and the scaling of θSA with the temperature rise.
+
 ### R2. Heatsinks and interface materials: typical values and what they do (2026-10-17)
 
 **Values found** (sources read; the presets of the application are *assumed typical values inside these ranges*, always editable):

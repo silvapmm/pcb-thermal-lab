@@ -121,7 +121,8 @@ def test_gui_template_on_layer_change_interface_preset_heatsink_helper_and_subdi
     assert [bp.orientation.itemData(i) for i in range(bp.orientation.count())] == ["horizontal", "vertical"]
     bp.orientation.setCurrentIndex(1)
     assert win.doc.problem.board.orientation == "vertical"
-    # Part: interface material preset fills the interface
+    # Part: interface material preset fills the interface (the top-path boxes show once the part has a heatsink resistance)
+    win.doc.set_props("heater", 0, theta=3.0, theta_sa=10.0)
     win.canvas.set_selection([("heater", 0)])
     win._on_canvas_selection([("heater", 0)])
     form = win.inspector.form_host

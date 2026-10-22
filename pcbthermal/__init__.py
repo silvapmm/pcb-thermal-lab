@@ -12,7 +12,7 @@ Typical use:
     from pcbthermal import Problem, SolverOptions, simulate
 """
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 __author__ = "Pedro Silva (PMS Labs)"
 __project_url__ = "https://github.com/silvapmm/pcb-thermal-lab"
 
