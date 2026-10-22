@@ -8,7 +8,6 @@
 """
 
 import warnings
-from pathlib import Path
 
 import numpy as np
 
@@ -22,7 +21,7 @@ from shapely import affinity
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
-DATA = Path(__file__).resolve().parent / "data"      # downloaded boards (see fetch_boards.py); git-ignored
+from readers import DATA, board_files        # noqa: E402,F401  (the path helpers live in readers.py, which needs no third-party geometry library)
 
 
 def primitive_polygon(p):
@@ -138,13 +137,3 @@ def drill_holes(path):
         else:
             out.append(((o.x1 + o.x2) / 2, (o.y1 + o.y2) / 2, o.tool.diameter))
     return out
-
-
-def board_files(name):
-    """!
-    @brief Paths of a downloaded board (see fetch_boards.py).
-    @param name Board key (for example "storm").
-    @return Dict role -> Path for the files that exist: "F" (top copper), "B" (bottom copper), "edge", "drill".
-    """
-    d = DATA / name
-    return {role: d / f for role, f in (("F", "F.gbr"), ("B", "B.gbr"), ("edge", "edge.gbr"), ("drill", "drill.drl")) if (d / f).exists()}

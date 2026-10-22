@@ -30,6 +30,9 @@ BOARDS = {
              "GPL-3", "https://github.com/lvd2/zxnet_usb"),
     "dip": (GERBONARA + "diptrace/", {"F.gbr": "mainboard_Top.gbr", "edge.gbr": "mainboard_BoardOutline.gbr"},
             "BSD", "https://github.com/codepainters/FD1/tree/master/hardware"),
+    "alleg": (GERBONARA + "allegro/", {"F.gbr": "l1_primary.art", "L2.gbr": "l2_gnd.art", "L3.gbr": "l3_vcc.art", "B.gbr": "l4_secondary.art",
+                                      "drill.drl": "ncdrill-1-4.drl"},
+              "not stated", "https://github.com/tracespace/tracespace/issues/371 (a 4-layer Cadence Allegro board, 101.7 x 81.1 mm, inches)"),
     "fritz": (GERBONARA + "fritzing/", {"F.gbr": "combined.gtl", "edge.gbr": "combined.GKO"},
               "MIT", "https://github.com/ohguma/analog_gyro_2021"),
 }

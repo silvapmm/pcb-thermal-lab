@@ -13,7 +13,7 @@ import time
 import numpy as np
 
 import conduction as cd
-import gerber_geometry as gg
+import readers
 
 K_TH, D_GAP = 0.3, 1.53e-3          # FR-4 through-plane conductivity (W/mK) and the gap between the two copper layers (m)
 T_PLATE = 25e-6                     # plating of a barrel (m)
@@ -80,14 +80,10 @@ def main():
     @return None.
     """
     t0 = time.time()
-    files = gg.board_files("storm")
-    holes = gg.drill_holes(files["drill"])
-    geom = {l: gg.load_copper(files[l])[0] for l in "FB"}
-    x0, y0, x1, y1 = gg.board_bbox(files["edge"], geom["F"].bounds)
-    S = {}
-    for l in "FB":
-        m = gg.sample_mask(geom[l], x0, y1, COLS * PIX, ROWS * PIX, PIX) > 0.5
-        S[l] = cd.sheet_of(m)
+    files = readers.board_files("storm")
+    holes = readers.holes(files["drill"])
+    x0, y0, x1, y1 = readers.box(files["edge"], files["F"])
+    S = {l: cd.sheet_of(readers.render(files[l], x0, y1, COLS * PIX, ROWS * PIX, PIX)) for l in "FB"}
     gz = vertical_conductance(holes, x0, y1, PIX, (ROWS, COLS))
     gx = np.stack([cd.harm(S[l][:, :-1], S[l][:, 1:]) for l in "FB"])
     gy = np.stack([cd.harm(S[l][:-1, :], S[l][1:, :]) for l in "FB"])

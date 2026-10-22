@@ -232,29 +232,30 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 
 ## Open now: Gerber import and the mapping of copper to the grid (2026-10-22)
 
-Branch `research/gerbers`; everything (scripts, tests, tables, sources) is in [`research/gerbers/README.md`](../research/gerbers/README.md). Summary:
+Branch `research/gerbers`; scripts, tests, tables, sources and the design of the integration are in [`research/gerbers/README.md`](../research/gerbers/README.md) and [`research/gerbers/INTEGRATION.md`](../research/gerbers/INTEGRATION.md). Summary:
 
-**Question.** A Gerber is vector data, the FVM works on square cells and knows only the copper *fraction* of each cell. Can the vectors be converted exactly, and how should they feed the grid?
+**Question.** A Gerber is vector data, the FVM works on square cells and knows only the copper *fraction* of each cell (and the fill of a zone). Can the vectors be converted exactly, without third-party licences, and how should they feed the grid?
 
 **Answers.**
-* **Vectors to polygons: exact.** gerbonara (Apache-2.0) gives the primitives, shapely unions them in file order with the polarity (dark adds, clear subtracts); holes and islands are kept (one Uno-clone layer: 103 polygons, 80 holes, 43 285 vertices). The data model has no place for it yet: `Zone` is one polygon with a scalar `fill`, no holes.
-* **Raster of the vectors: fine.** Area within 0.2 % at 0.1 mm pixels; a binary raster keeps the area but **interrupts** a trace thinner than about 1.4 pixels (pixel of at most half the thinnest trace: 0.05 mm for 0.1 mm traces).
-* **The mapping to the cell is the problem, not the pixel.** On 42 windows of 7 real boards (reference: the copper mask solved pixel by pixel), the fill fraction the FVM uses today is 10 to 11 % too cool on the mean temperature of a heated block with 35 µm copper (up to 18 % at 140 µm, 14 to 15 % with plated holes), because clearances cut the conduction paths that the average assumes:
+* **Vectors to polygons: exact** (gerbonara + shapely, holes and islands kept), and **not needed**: a mask at 0.1 mm (9 to 12 KB per layer) is enough. **Reading without libraries: done** (`native_gerber.py`, NumPy only; within 0.9 % of the copper area of the gerbonara route, same boxes and drills, unsupported features reported); only NumPy and SciPy are needed for the import.
+* **The pixel matters little, the mapping matters a lot.** The area is within 0.2 % at 0.1 mm pixels; a binary raster only interrupts traces thinner than about 1.4 pixels (use a pixel of at most half the thinnest trace).
+  On 42 windows of 7 real boards (reference: the mask solved pixel by pixel) the fill fraction the FVM uses is **10 to 11 % too cool** (up to 18 % with 140 µm copper, 14 % with plated holes on two layers, 3 to 7 % on a real four-layer board, **7 to 43 % for regular 50 % patterns**): clearances cut the paths that the average assumes connected.
 
-| Mapping of the cell | Error 0.6 mm cells | 1.0 mm | 2.0 mm | Needs |
-| :-- | --: | --: | --: | :-- |
-| fill fraction (today) | 9.7 % | 11.3 % | 11.1 % | `f` |
-| geometric mean `S_cu^f S_lam^(1-f)` | 2.2 % | 2.4 % | 3.0 % | `f` only |
-| directional `sqrt(low*up)` (lambda 0.5) | 1.0 % | 1.3 % | 3.2 % | fine mask, `Sx`, `Sy` per cell |
-| flow-based faces | 0.6 % | 0.9 % | 3.6 % | fine mask, local solves |
+| Mapping of the cell | Real copper 0.6 / 1.0 mm | Two layers + holes | Four layers (real) | Regular patterns, 1 mm | Needs |
+| :-- | --: | --: | --: | --: | :-- |
+| fill fraction (today) | 9.7 / 11.3 % | 13.6 / 14.9 % | 3.0 / 4.6 % | 7 to 43 % | `f` |
+| geometric mean | 2.2 / 2.4 % | 3.9 / 4.1 % | 0.4 / 1.5 % | -20 to +22 % | `f` only |
+| directional `sqrt(low*up)` (lambda 0.5) | 1.0 / 1.3 % | 1.0 / 1.0 % | 1.5 / 2.8 % | 0 to 2.4 % (diagonal +12 % at 0.6 mm) | fine mask |
+| **flow-based faces** | **0.6 / 0.9 %** | 1.3 / 0.4 % | **0.3 / 1.1 %** | 0.9 to 3.4 % | fine mask, local solves (5.5 s per 100 x 160 mm layer, once) |
 
-  (mean absolute error of the mean temperature, `research/gerbers/study_mapping.py`; with two layers and plated holes: 13.6 to 14.9 % today, 2.8 to 4.1 % geometric mean, 0.5 to 1.0 % lambda 0.5, `study_two_layer.py`; the ranking holds from 18 to 140 µm of copper, `study_contrast.py`.)
+  (mean absolute error of the heater-block temperature; `study_mapping.py`, `study_two_layer.py`, `study_multilayer_real.py`, `study_patterns*.py`.)
+* **Cautions investigated.** Thick copper: the ranking holds from 18 to 140 µm; heater size: small heaters (1 to 3 mm) are the hard case, the flow-based faces best; time response: capacity stays arithmetic and the response follows the steady one; hatched zones: **the zone fill must keep its formula**: the geometric mean in the program's `S` moves a hatched zone by +26 % (0.75), +45 % (0.5), +42 % (0.25) and four exact-value tests by 0.05 to 0.07 K, and no function of the fraction is right for a grid, stripes and islands, so the pattern has to be declared; through the program's own `fvm.Network` the mappings reproduce the research numbers and the research solver agrees with the program to 3e-12.
 
-**Proposal, in steps** (nothing implemented): (1) the geometric mean in the cell conductance, no new data; (2) directional conductances with lambda 0.5 from a fine copper mask stored per layer (`Sx`, `Sy` per cell in `fvm.py` and `fdm.py`, in-plane `kx`, `ky` in the 3D solid; Lumped and Analytic keep the average fill); (3) optionally flow-based faces. The geometric mean was validated on Gerber copper only: a hand-drawn hatch fill is a set of stripes (arithmetic mean along, harmonic across) and is **not** tested.
+**Proposal** (nothing implemented): keep `Zone.fill` as it is; an element "imported copper" (a fine mask per layer, from a Gerber or from a declared zone pattern) whose face conductances come from the flow-based mapping (lambda 0.5 as quick mode); zones with a `pattern` use the same path; import with the NumPy reader, layer assignment pre-filled from the X2 attribute or the name, plated holes as vias (filtered). Details, lines and costs in `INTEGRATION.md`.
 
-**Other projects** (read for ideas only; FYPA, padne are AGPL-3.0): FYPA and padne keep shapely polygons with holes and build a triangular mesh (`triangle`, CGAL) for a FEM solve; two KiCad plug-ins rasterise to a binary grid (0.1 mm, or 0.5 to 0.3 mm with adaptive merging). The mesh libraries are a licensing problem for a closed product (Triangle restricts commercial use, the CGAL mesh packages are GPL), which is one more reason to stay on the square grid.
+**Other projects** (read for ideas only; FYPA and padne are AGPL-3.0): FYPA and padne keep shapely polygons with holes and build a triangular mesh (`triangle`, CGAL) for a FEM solve; two KiCad plug-ins rasterise to a binary grid (0.1 mm, or 0.5 to 0.3 mm with adaptive merging). The mesh libraries are a licensing problem for a closed product (Triangle restricts commercial use, the CGAL mesh packages are GPL), which is one more reason to stay on the square grid.
 
-**Open.** Which stage enters the program; validation on hatched zones, a thick-copper multi-layer board of a real design and against a measurement; the layer-assignment dialog and how to tell vias from pads (a Gerber cannot, a `.kicad_pcb` can); what the Lumped and Analytic models do with a rasterised copper. When it is implemented the findings fold into `models.md`, `theory.md` and `validation.md`, and this section is removed.
+**Open.** Which stage enters the program and the decision on the zone `pattern` (and what to do with existing files that use `fill` below 1: the arithmetic value is the optimistic limit); validation on a thick-copper multi-layer board of a real design and against a measurement (none exists in the project); the layer-assignment dialog; what the Lumped and Analytic models do with a mask; processing of very large boards in strips. When it is implemented the findings fold into `models.md`, `theory.md` and `validation.md`, and this section is removed.
 
 ## Evidence for the junction node and the Foster chain (moved from the roadmap, 2026-10-22)
 

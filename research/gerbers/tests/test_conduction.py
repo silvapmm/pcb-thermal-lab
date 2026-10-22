@@ -144,3 +144,40 @@ def test_geometric_mean_beats_the_fill_fraction_on_random_copper():
         T = cd.solve_faces(*cd.faces_from_cells(sc, sc), 1.0, 4, 8, 4, 8)[4:8, 4:8].mean()
         errs[p] = abs(T / ref - 1)
     assert errs[0.0] < errs[1.0]
+
+
+def test_bruggeman_and_hashin_shtrikman_limits():
+    """!@brief The effective-medium formulas return the phases at f = 0 and 1, the geometric mean at f = 1/2, and the Hashin-Shtrikman bounds bracket them. @return None."""
+    f = np.array([0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0])
+    br, lo, up = cd.map_bruggeman(f), cd.map_hashin_shtrikman(f, "lower"), cd.map_hashin_shtrikman(f, "upper")
+    assert br[0] == pytest.approx(cd.S_LAM) and br[-1] == pytest.approx(cd.S_CU)
+    assert lo[0] == pytest.approx(cd.S_LAM) and lo[-1] == pytest.approx(cd.S_CU) and up[0] == pytest.approx(cd.S_LAM) and up[-1] == pytest.approx(cd.S_CU)
+    assert br[3] == pytest.approx(np.sqrt(cd.S_CU * cd.S_LAM))
+    assert np.all(lo <= br + 1e-15) and np.all(br <= up + 1e-15)
+    assert np.all(cd.map_power(f, -1.0) <= lo + 1e-15) and np.all(up <= cd.map_power(f, 1.0) + 1e-15)      # and inside the Wiener bounds
+
+
+def test_stack_solver_matches_the_two_layer_solver_and_balances_energy():
+    """!@brief solve_stack with two layers reproduces solve_two_layers; with four layers all the power leaves through the two outer faces. @return None."""
+    rng = np.random.default_rng(2)
+    ny = nx = 16
+    S = [cd.sheet_of(rng.random((ny, nx)) < 0.6) for _ in range(4)]
+    gx = np.stack([cd.harm(s[:, :-1], s[:, 1:]) for s in S])
+    gy = np.stack([cd.harm(s[:-1, :], s[1:, :]) for s in S])
+    gz = np.full((3, ny, nx), 2e-4)
+    rows = np.arange(6, 10)
+    two = cd.solve_two_layers(gx[:2], gy[:2], gz[0], 1.0, rows, rows, h_face=cd.H_FACE)
+    # solve_two_layers puts the face loss on both layers' outer faces, like the stack with h_top = h_bottom
+    stk2 = cd.solve_stack(gx[:2], gy[:2], gz[:1], 1.0, rows, rows)
+    assert np.allclose(two, stk2, rtol=1e-9)
+    T = cd.solve_stack(gx, gy, gz, 1.0, rows, rows, power=3.0)
+    assert (cd.H_FACE * 1e-6 * (T[0] + T[3])).sum() == pytest.approx(3.0, rel=1e-9)
+
+
+def test_dual_faces_do_not_depend_on_the_batch_size():
+    """!@brief Solving the local windows in small batches gives the same faces as in one go. @return None."""
+    rng = np.random.default_rng(4)
+    S = cd.sheet_of(rng.random((80, 100)) < 0.5)
+    a = cd.dual_faces(S, 10, 2, batch_pixels=10 ** 9)
+    b = cd.dual_faces(S, 10, 2, batch_pixels=3000)
+    assert np.allclose(a[0], b[0], rtol=1e-9) and np.allclose(a[1], b[1], rtol=1e-9)

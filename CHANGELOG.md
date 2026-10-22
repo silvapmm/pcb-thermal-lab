@@ -6,7 +6,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ## [Unreleased]
 
 ### Research
-- `research/gerbers` (branch `research/gerbers`, not part of the program): Gerber to exact polygons and four ways to map copper to the conductances of a square grid, with studies on 7 real boards, 19 tests and the conclusions (the fill fraction is 10 to 18 % too cool; the geometric mean and directional bounds cut that to 1 to 4 %). See `research/gerbers/README.md` and `docs/research.md`.
+- `research/gerbers` (branch `research/gerbers`, not part of the program): an independent Gerber and Excellon reader that needs only NumPy, the mapping of copper to the conductances of a square grid (flow-based faces, directional bounds, geometric mean), studies on 8 real boards (single layer, two layers with plated holes, a four-layer board, regular patterns, thick copper, heater sizes, time response), a prototype through the program's own FVM network, 34 tests and the design of the integration. The fill fraction used today is 10 to 18 % too cool on real copper; the flow-based faces are within 0.3 to 3.4 %; the fill of a hatched zone must keep its formula. See `research/gerbers/README.md`, `research/gerbers/INTEGRATION.md` and `docs/research.md`.
 
 ## [2.4.0] - 2026-10-22
 

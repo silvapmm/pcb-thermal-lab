@@ -1,46 +1,55 @@
 # Gerber import: from copper vectors to the conductances of the grid
 
 Research branch `research/gerbers` (started 2026-10-22). **Nothing in `pcbthermal/` was changed**: this folder holds the studies, their tests and the
-conclusions, so that the work can be repeated and the decision taken later. The summary for the project documents is in `docs/research.md`
-(section "Gerber import").
+conclusions, so that the work can be repeated and the decision taken later. The summary for the project documents is in `docs/research.md` (section
+"Gerber import"); how the result would enter the program, line by line, is in [`INTEGRATION.md`](INTEGRATION.md).
 
-## 1. The question
+## 1. The questions
 
-A Gerber file is vector data: strokes with a width, flashes and filled regions. The program's finite-volume model works on a grid of square cells and,
-today, knows only one number per cell and layer: the **fraction of copper**. Two questions follow.
+A Gerber file is vector data: strokes with a width, flashes and filled regions. The program's finite-volume model works on a grid of square cells and, today,
+knows only one number per cell and layer: the **fraction of copper** (and, for a zone, the fill typed by the user).
 
-1. *Can the Gerber be converted to exact polygons, including holes and islands?* Yes (section 4.1).
-2. *How should the polygons (or a raster of them) be turned into the conductances of a grid of squares?* The fill fraction is badly biased; better
-   mappings exist and are cheap (sections 4.3 to 4.7). The pixel size of the raster matters much less than the mapping.
+1. Can the Gerber be converted to exact polygons, with holes and islands? **Yes** (4.1).
+2. Can it be read **without third-party licences**? **Yes**: an independent reader that needs only NumPy (section 5).
+3. How should the copper be turned into the conductances of a grid of squares? The fill fraction is badly biased; better mappings exist (4.4 to 4.12).
+4. What are the cautions (hatched zones, thick copper, several layers, heater size, time response, the program's own tests)? Investigated, 4.6 to 4.14.
+5. Does it work through the program's own solver? **Yes, without changing it** (4.14).
 
 ## 2. Findings in short
 
 | Item | Result |
 | :-- | :-- |
-| Vector to polygons | Exact with `gerbonara` (Apache-2.0) + `shapely`: the polarity-aware union keeps holes and islands. One Uno-clone layer: 103 polygons, 80 holes, 43 285 vertices. |
-| Raster area | Within 0.2 % at 0.1 mm pixels, and 0.0 to 0.1 % at 0.05 mm; error per 1 mm cell 0.02 (RMS) at 0.1 mm. |
-| Thin traces | A binary raster keeps the area but **interrupts** traces thinner than about 1.4 pixels: use a pixel of at most half the thinnest trace (0.05 mm for 0.1 mm traces). |
-| **Fill fraction (today)** | **10 to 11 % too cool** on average (35 µm copper, single layer, 42 windows of 7 real boards), 14 to 15 % with plated holes, up to 18 % with 140 µm copper: connectivity is overstated because the clearances cut the paths. |
-| **Geometric mean** | `S = S_cu^f * S_lam^(1 - f)`, from the fill fraction alone: 2.2 to 3.0 % error (single layer), 2.8 to 4.1 % with holes. No new data needed. |
-| **Directional bounds, lambda = 0.5** | Sx, Sy per cell from the fine mask, `sqrt(low * up)`: 1.0 to 1.3 % at 0.6 and 1.0 mm cells, 0.5 to 1.0 % with holes. Closed formulas, no local solves. |
-| Flow-based faces | The best at small cells (0.6 to 0.9 %), but about 1 point better than lambda = 0.5 at the cost of local solves. |
-| Cell size | 0.6 and 1.0 mm cells map well; at 2 mm every method is limited by the grid itself (the heater has 3 x 3 cells). |
+| Vectors to polygons | Exact with gerbonara + shapely (union keeps holes and islands). One Uno-clone layer: 103 polygons, 80 holes, 43 285 vertices. |
+| Reading without libraries | `native_gerber.py` (NumPy only) draws the copper directly from the file: within 0.9 % of the copper area of the gerbonara route (max 2.5 %), same board boxes, same drills; unsupported features are reported, not guessed. |
+| Raster | Area within 0.2 % at 0.1 mm pixels; a binary raster **interrupts** traces thinner than about 1.4 pixels: pixel of at most half the thinnest trace (0.05 mm for 0.1 mm traces). |
+| **Fill fraction (today)** | **Too cool by 10 to 11 %** on average (single layer, 35 µm, 42 windows of 7 real boards), 14 % with plated holes on two layers, 3 to 7 % on a real four-layer board, up to 18 % with 140 µm copper, and **7 to 43 % for regular 50 % patterns**. Never too hot: the average assumes the copper is connected where clearances cut it. |
+| Geometric mean | `S = S_cu^f S_lam^(1 - f)` from the fraction alone: 2 to 3 % on real copper, but **-20 to +22 % on regular patterns** (connected grids too hot, islands too cool): a fallback, not a rule. |
+| Directional bounds, lambda = 0.5 | `Sx`, `Sy` per cell from a fine mask: 1.0 to 1.3 % (single layer, 0.6 and 1.0 mm cells), 0.5 to 1.0 % with plated holes, but 1.3 to 7.5 % on the four-layer board and +10 to +12 % for diagonal stripes at 0.6 mm cells. |
+| **Flow-based faces** | The most robust: 0.6 to 0.9 % (single layer), 0.4 to 1.3 % (two layers), 0.3 to 2.0 % (four layers), 0.9 to 3.4 % on every regular pattern at 1 mm cells (diagonal stripes included). It costs 5.5 s per 1.6 M pixels (a 100 x 160 mm layer at 0.1 mm), once, at import. |
+| In the program | The same numbers through `pcbthermal.fvm.Network` (agreement with the research solver to 3e-12): only the conductances change. **Applying the geometric mean to the program's `Zone.fill` would change a hatched zone by +26 to +45 %** and four exact-value tests by 0.05 to 0.07 K: the zone fill and the imported copper must stay separate things. |
+| Time response | Heat capacity stays an arithmetic average; with the new conductances the response follows the steady one (0.7 to 3.2 % at 120 s). |
+| Cell size | 0.6 and 1.0 mm cells map well; at 2 mm every method is limited by the grid itself (the 6 mm heater has 3 x 3 cells). |
 
 ## 3. Folder layout
 
 | File | What it is |
 | :-- | :-- |
-| `gerber_geometry.py` | Gerber -> shapely (polarity-aware union), board outline, centre-sampled mask, drill holes. |
-| `conduction.py` | The conduction solvers (one and two layers) and **every mapping**: power mean, bounds, lambda, cell problem, flow-based faces. |
-| `fetch_boards.py` | Downloads the public test boards into `data/` (git-ignored; licences differ, see section 8). |
-| `windows.py` | Cuts 42 windows of 36 x 36 mm (0.1 mm pixels) out of 7 boards; fixed seed. |
-| `study_raster_error.py` | Area, thin-trace and pixel-size studies (section 4.2, 4.3). |
-| `study_mapping.py` | All mappings on the 42 windows (section 4.4). |
-| `study_fine_scan.py` | Fine scan of the exponent `p` and of `lambda` (section 4.5). |
-| `study_contrast.py` | Copper 18 to 140 µm (section 4.6). |
-| `study_two_layer.py` | Two layers with plated holes, on the Stormduino (section 4.7). |
-| `tests/` | 19 fast tests: exact and limiting cases of the solvers and mappings, and the Gerber reader on synthetic files. |
-| `requirements.txt` | Extra packages (gerbonara, shapely, pillow, scipy, pytest). |
+| `native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 file function, a layer classifier, Excellon (metric and inch, comment tool tables, repeats, slots). |
+| `readers.py` | One interface for the studies: the native reader (default) or gerbonara + shapely (`GERBER_READER=shapely`); the paths of the boards. |
+| `gerber_geometry.py` | The vector route: Gerber to shapely polygons (polarity-aware union), used as the reference and for the exact areas. Needs gerbonara and shapely. |
+| `conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
+| `fetch_boards.py` | Downloads the public test boards into `data/` (git-ignored; licences differ, section 8). |
+| `windows.py` | 42 windows of 36 x 36 mm (0.1 mm pixels) from 7 boards; fixed seed. |
+| `study_raster_error.py` | Area, thin traces, pixel size (4.2, 4.3). |
+| `study_native_check.py` | The native reader against gerbonara + shapely (section 5). |
+| `study_mapping.py`, `study_fine_scan.py`, `study_scalar_formulas.py`, `study_contrast.py`, `study_heater_size.py`, `study_transient.py` | The mappings on the 42 windows and their parameters (4.4 to 4.10). |
+| `study_patterns.py`, `study_patterns_two_layer.py` | Hatch, cross-hatch, squares, perforated plane: one layer and over a plane or bare laminate (4.11). |
+| `study_two_layer.py`, `study_multilayer_real.py` | Two layers with plated holes; a real four-layer board, thin and heavy copper (4.12, 4.13). |
+| `prototype_in_program.py` | The mappings through the program's own `fvm.Network` (4.14). |
+| `bench_mapping_cost.py` | Time and memory of the mappings on board-sized layers (4.15). |
+| `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not. |
+| `tests/` | 34 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
+| `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |
 
 ## 4. How to run, and the results
 
@@ -48,25 +57,23 @@ today, knows only one number per cell and layer: the **fraction of copper**. Two
 python3 -m venv research/gerbers/.venv && research/gerbers/.venv/bin/pip install -r research/gerbers/requirements.txt
 cd research/gerbers
 .venv/bin/python fetch_boards.py                 # once
-.venv/bin/python -m pytest -q tests              # 19 tests, about 1 s
-.venv/bin/python study_raster_error.py           # about 3 min
-.venv/bin/python study_mapping.py                # about 2 min (4 cores); builds the windows on first use
-.venv/bin/python study_fine_scan.py              # about 2 min
-.venv/bin/python study_two_layer.py              # about 2 min
-.venv/bin/python study_contrast.py               # about 6 min
+.venv/bin/python -m pytest -q tests              # 34 tests, about 3 s
+.venv/bin/python study_mapping.py                # 2 min (4 cores); builds the windows on first use
+# the others: study_raster_error (3 min), study_fine_scan (2), study_scalar_formulas (1), study_contrast (7), study_heater_size (2), study_transient (1),
+# study_patterns (1), study_patterns_two_layer (3), study_two_layer (2), study_multilayer_real (5), study_native_check (1), prototype_in_program (3, needs the repository's dependencies)
 ```
 
-All the studies use one copper sheet of 35 µm (385 W/mK) on 1.6 mm of FR-4 (0.9 W/mK in plane), 10 W/m²K on each face, and compare the temperature of a
-heated block (mean and maximum) with a **reference**: the copper mask solved as it is, pixel by pixel, at 0.1 mm. The coarse grids (0.6, 1.0, 2.0 mm cells)
-are built from the same mask, so the error of a mapping is isolated from the fidelity of the pixels. `MAE` is the mean of the absolute errors; `bias` is the
-mean signed error (negative = too cool = optimistic).
+The studies use one copper sheet of 35 µm (385 W/mK) on 1.6 mm of FR-4 (0.9 W/mK in plane), 10 W/m²K on each face, and compare the temperature of a heated
+block (mean and maximum) with a **reference**: the copper mask solved as it is, pixel by pixel, at 0.1 mm. The coarse grids (0.6, 1.0, 2.0 mm cells) are built
+from the same mask, so the error of a mapping is isolated from the fidelity of the pixels. `MAE` is the mean of the absolute errors; `bias` the mean signed error
+(negative = too cool = optimistic). All numbers below come from the default (independent) reader.
 
 ### 4.1 Vectors to polygons (Stormduino, an Arduino Uno clone)
 
-`gerbonara` turns every draw, flash and region into primitives; `shapely` unions them in file order, adding dark and subtracting clear polarity. The top
-layer has 6 654 primitives (6 117 are 0.254 mm strokes: the copper pour is drawn as hatch lines) and unions into **103 polygons with 80 holes and 43 285
-vertices** (12 462 after simplifying by 5 µm, with 0.07 % less area); the bottom layer 69 polygons, 44 holes, 26 288 vertices. Stored as WKB the polygons are
-300 to 500 KB; the same layer as a 0.1 mm PNG mask is 9 to 12 KB.
+gerbonara turns every draw, flash and region into primitives; shapely unions them in file order, adding dark and subtracting clear polarity. The top layer has
+6 654 primitives (6 117 are 0.254 mm strokes: the copper pour is drawn as hatch lines) and unions into **103 polygons with 80 holes and 43 285 vertices** (12 462
+after simplifying by 5 µm, with 0.07 % less area); the bottom layer 69 polygons, 44 holes, 26 288 vertices. As WKB the polygons are 300 to 500 KB; the same layer
+as a 0.1 mm PNG mask is 9 to 12 KB.
 
 ### 4.2 Raster against the exact area (`study_raster_error.py`)
 
@@ -81,8 +88,8 @@ Anti-aliasing (4 x 4 samples) at 0.1 mm gives the same as a binary raster at 0.0
 
 ### 4.3 Thin traces and the pixel (`study_raster_error.py`)
 
-Binary raster, synthetic traces at random sub-pixel offsets and two angles (200 each). Mean area kept is always about 100 %; the share of traces that come
-out **interrupted** is what counts:
+Binary raster, synthetic traces at random sub-pixel offsets and two angles (200 each). The mean area kept is always about 100 %; what counts is the share of
+traces that come out **interrupted**:
 
 | Trace (mm) | Pixel 0.2 | Pixel 0.1 | Pixel 0.05 | Pixel 0.025 |
 | --: | --: | --: | --: | --: |
@@ -92,13 +99,13 @@ out **interrupted** is what counts:
 | 0.15 | 15 % | 0 % | 0 % | 0 % |
 | 0.20 and wider | 0 % | 0 % | 0 % | 0 % |
 
-The reference itself depends a little on the pixel (single layer, 5 x 5 mm heater, `study_raster_error.py` section 3): 0.2 mm +2.1 %, 0.1 mm +0.2 % against 0.05 mm.
+The reference also depends a little on the pixel (single layer, 5 x 5 mm heater): 0.2 mm +2.1 %, 0.1 mm +0.2 % against 0.05 mm.
 
 ### 4.4 The mappings on 42 windows (`study_mapping.py`)
 
 Methods (all give the face conductances the solver uses; for the first four the face is the harmonic mean of the two cells, as the FVM does):
 
-* **pmean(p)**: cell sheet conductance = `(f S_cu^p + (1 - f) S_lam^p)^(1/p)`, from the fill fraction `f` alone. `p = 1` is the program's fill fraction, `p = 0` the geometric mean, `p = -1` the harmonic mean.
+* **pmean(p)**: cell sheet conductance `(f S_cu^p + (1 - f) S_lam^p)^(1/p)` from the fill fraction alone. `p = 1` is the program's fill fraction, `p = 0` the geometric mean, `p = -1` the harmonic mean.
 * **lam(l)**: directional, `low^(1 - l) * up^l` per direction, with `low` = rows in parallel of series chains (no cross flow, a lower bound) and `up` = series of parallel columns (equipotential column faces, an upper bound).
 * **cellnum**: numerical upscaling, a local conduction problem on the cell (potential fixed on two faces, the other two insulated).
 * **dual(m)**: flow-based face conductance, a local problem on the window that spans the centres of the two cells, with `m` rows of oversampling margin (transmissibility upscaling, as for reservoir grids).
@@ -109,7 +116,7 @@ MAE of the mean-temperature error (%), with the bias in brackets:
 | :-- | --: | --: | --: |
 | pmean 1 (fill fraction, today) | 9.7 (-9.7) | 11.3 (-11.3) | 11.1 (-11.0) |
 | pmean 0 (geometric mean) | 2.2 (-1.0) | 2.4 (-0.8) | 3.0 (+1.7) |
-| pmean -1 (harmonic) | 10.2 (+10.2) | 13.7 (+13.7) | 21.0 (+21.0) |
+| pmean -1 (harmonic) | 10.2 (+10.2) | 13.7 (+13.7) | 20.9 (+20.9) |
 | lam 0 (low) | 2.6 (+2.6) | 4.5 (+4.5) | 9.5 (+9.5) |
 | **lam 0.5** | **1.0 (+0.2)** | **1.3 (+0.7)** | 3.2 (+3.2) |
 | lam 0.75 | 1.5 (-0.9) | 2.0 (-1.0) | 2.1 (+0.4) |
@@ -118,68 +125,178 @@ MAE of the mean-temperature error (%), with the bias in brackets:
 | dual, m = 0 | 0.6 (-0.1) | 0.9 (+0.4) | 3.6 (+3.6) |
 | dual, m/n about 0.2 | 0.7 (-0.4) | 0.8 (+0.2) | 3.1 (+3.1) |
 
-Per board (MAE over the three sizes), the fill fraction is 6.7 to 15.2 % off on every board; lambda = 0.5 is 1.1 to 2.3 % on six boards and 4.4 % on the
-sparse one (`fritz`, 18 % copper), where the flow-based faces are best (2.3 to 2.9 %).
+Per board (MAE over the three sizes) the fill fraction is 6.7 to 15.2 % off on every board; lambda = 0.5 is 1.1 to 2.3 % on six boards and 4.4 % on the sparse one
+(`fritz`, 18 % copper), where the flow-based faces are best (2.3 to 2.9 %).
 
-### 4.5 Fine scan of the parameters (`study_fine_scan.py`)
+### 4.5 Scalar formulas from the fraction alone (`study_scalar_formulas.py`)
 
-* Exponent `p`: the minimum is at **-0.05 to 0** for 0.6 and 1.0 mm (MAE 2.1 to 2.4 %); at 2 mm it moves to +0.10. So the geometric mean (`p = 0`) is the natural choice.
+| Formula | 0.6 mm | 1.0 mm | 2.0 mm |
+| :-- | --: | --: | --: |
+| arithmetic (today) | 9.7 (-9.7) | 11.3 (-11.3) | 11.1 (-11.0) |
+| geometric | 2.2 (-1.0) | 2.4 (-0.8) | 3.0 (+1.7) |
+| Bruggeman 2D | 2.4 (-1.0) | 2.7 (-0.8) | 3.7 (+1.4) |
+| Hashin-Shtrikman, geometric mean of the two bounds | 2.1 (-1.0) | 2.2 (-0.7) | 2.8 (+2.0) |
+| HS lower / HS upper | 4.3 (+4.1) / 5.6 (-5.6) | 5.8 (+5.7) / 6.3 (-6.3) | 10.3 (+10.2) / 5.5 (-5.1) |
+
+The classical effective-medium formulas of an isotropic 2D two-phase medium give nothing better than the geometric mean (for f = 1/2 Bruggeman is exactly the
+geometric mean); they cannot tell a connected copper network from isolated islands, because they only see the fraction.
+
+### 4.6 Fine scan of the parameters (`study_fine_scan.py`)
+
+* Exponent `p`: the minimum is at **-0.05 to 0** for 0.6 and 1.0 mm (MAE 2.1 to 2.4 %); at 2 mm it moves to +0.10. So the geometric mean (`p = 0`) is the natural choice of a scalar.
 * Weight `lambda`: the minimum is at **0.5 to 0.6** (average MAE 1.6 to 1.8 %); 0.5 is best at 0.6 and 1.0 mm, 0.7 at 2 mm.
 
-### 4.6 Copper thickness (`study_contrast.py`)
+### 4.7 Copper thickness (`study_contrast.py`)
 
-MAE (bias) of the mean-temperature error for 18, 35, 70 and 140 µm of copper (contrast copper / laminate 4.8, 9.4, 18.7, 37.4):
+MAE (bias) for 18, 35, 70 and 140 µm of copper (contrast copper / laminate 4.8, 9.4, 18.7, 37.4):
 
 | Copper | Method | 0.6 mm | 1.0 mm | 2.0 mm |
 | --: | :-- | --: | --: | --: |
 | 18 µm | fill fraction | 5.7 (-5.7) | 6.4 (-6.3) | 5.1 (-4.8) |
 | | geometric mean | 1.1 (-0.3) | 1.3 (+0.3) | 3.5 (+3.4) |
-| | lam 0.5 | 0.6 (+0.3) | 1.1 (+1.0) | 4.1 (+4.1) |
+| | lam 0.5 / lam 0.7 | 0.6 (+0.3) / 0.7 (-0.2) | 1.1 (+1.0) / 0.9 (+0.2) | 4.1 (+4.1) / 2.7 (+2.7) |
 | 35 µm | fill fraction | 9.7 (-9.7) | 11.3 (-11.3) | 11.1 (-11.0) |
 | | geometric mean | 2.2 (-1.0) | 2.4 (-0.8) | 3.0 (+1.7) |
-| | lam 0.5 | 1.0 (+0.2) | 1.3 (+0.7) | 3.2 (+3.2) |
+| | lam 0.5 / lam 0.7 | 1.0 (+0.2) / 1.4 (-0.6) | 1.3 (+0.7) / 1.8 (-0.6) | 3.2 (+3.2) / 2.0 (+0.9) |
 | 70 µm | fill fraction | 13.0 (-13.0) | 15.1 (-15.1) | 15.6 (-15.6) |
 | | geometric mean | 3.4 (-1.7) | 3.7 (-1.8) | 3.9 (-0.1) |
-| | lam 0.5 | 1.5 (+0.3) | 2.0 (+0.6) | 2.9 (+2.4) |
+| | lam 0.5 / lam 0.7 | 1.5 (+0.3) / 2.0 (-0.9) | 2.0 (+0.6) / 2.8 (-1.3) | 2.9 (+2.4) / 3.0 (-0.7) |
 | 140 µm | fill fraction | 14.9 (-14.9) | 17.0 (-17.0) | 17.8 (-17.8) |
-| | geometric mean | 4.4 (-2.3) | 4.8 (-2.6) | 4.9 (-1.4) |
-| | lam 0.5 | 2.1 (+0.4) | 2.6 (+0.5) | 3.2 (+1.8) |
+| | geometric mean | 4.4 (-2.3) | 4.8 (-2.7) | 4.9 (-1.4) |
+| | lam 0.5 / lam 0.7 | 2.1 (+0.4) / 2.6 (-1.0) | 2.6 (+0.5) / 3.7 (-1.8) | 3.2 (+1.8) / 4.1 (-1.8) |
 
-The fill fraction gets worse as the copper gets thicker; the ranking of the methods does not change.
+The fill fraction gets worse as the copper gets thicker; lambda 0.5 to 0.7 stays the best at 0.6 and 1.0 mm for every thickness (0.6 to 0.7 for thin copper, 0.5 for heavy).
 
-### 4.7 Two layers with plated holes (`study_two_layer.py`)
+### 4.8 Heater size (`study_heater_size.py`)
 
-Stormduino, both layers resolved, 109 drilled holes as copper barrels (25 µm plating), FR-4 0.3 W/mK through the 1.53 mm gap, 6 x 6 mm heater on the top
-layer at three random places. MAE (%) of the mean-temperature error:
+MAE of the block-mean temperature, square heaters on the 42 windows:
+
+| Heater | Cells | fill fraction | geometric | lam 0.5 | cellnum | dual |
+| --: | --: | --: | --: | --: | --: | --: |
+| 1.2 mm | 0.6 | 10.3 | 4.4 | 5.0 | 5.8 | 3.8 |
+| 3 mm | 0.6 | 11.3 | 3.0 | 1.5 | 1.8 | 1.0 |
+| 3 mm | 1.0 | 12.3 | 3.6 | 3.1 | 3.9 | 2.5 |
+| 6 mm | 0.6 | 9.7 | 2.2 | 1.0 | 1.1 | 0.6 |
+| 12 mm | 1.0 | 7.3 | 1.6 | 0.7 | 0.7 | 0.5 |
+
+A heater of a few cells is the hard case (the part sits on a few mapped cells); the flow-based faces are best at every size, and the maximum temperature is less sensitive than the mean (lam 0.5 on the 1.2 mm heater: 2.1 % on the maximum, 5.0 % on the mean).
+
+### 4.9 Time response (`study_transient.py`)
+
+Implicit Euler, 1 W step, 14 windows, error of the block-mean temperature (heat capacity as an arithmetic average in every row):
+
+| Cells | Method | 0.1 s | 1 s | 10 s | 120 s |
+| --: | :-- | --: | --: | --: | --: |
+| 0.6 mm | fill fraction | +1.2 | -4.3 | -13.8 | -14.0 |
+| | geometric | +3.0 | +1.1 | -1.1 | -1.9 |
+| | lam 0.5 | +3.1 | +1.9 | +1.2 | +0.5 |
+| | dual | +2.7 | +1.6 | +0.6 | -0.1 |
+| 1.0 mm | fill fraction | +3.4 | -3.3 | -15.5 | -16.2 |
+| | lam 0.5 | +5.5 | +4.6 | +2.6 | +1.1 |
+| | dual | +5.1 | +3.9 | +1.9 | +0.6 |
+
+The first fraction of a second is dominated by the heat that has not left the block yet (the coarse grid itself): that error is the same for every mapping; from 10 s on the response follows the steady one.
+
+### 4.10 Scalar versus fill of a zone: what the program does today (`prototype_in_program.py`, and a scratch copy of the program)
+
+The program computes `S = f k_cu t_cu + k_lam (slab - f t_cu)` (`fvm.py:78`, `fdm.py:134`; `solid3d.py:153`, `analytic.py:139,166`) with `f` the union of the zones, each zone a polygon times
+its `fill`. With the geometric mean in those lines (a scratch copy, not committed):
+
+| Board, 100 x 80 mm, 2 layers, 4 W at the centre | zone fill 1 | 0.75 | 0.5 | 0.25 |
+| :-- | --: | --: | --: | --: |
+| rise of the FVM today (K) | 79.4 | 91.4 | 110.0 | 144.3 |
+| rise with the geometric mean | 79.4 | 115.5 | 159.3 | 204.2 |
+| change | 0 | +26 % | +45 % | +42 % |
+
+(FDM, Lumped and Analytic move by the same amount.) Test battery on the scratch copy: 321 passed, 6 failed, 38 not run (the GUI stress test); two of the failures are only the documents missing from the copy,
+the other four are exact-value tests that move by 0.05 to 0.07 K (the 85.34 °C of the example board becomes 85.39; the "outline equals the smaller board" tests for the FVM, FDM and 3D solid differ by 0.07 to 0.08 K).
+So **boards without partial copper do not change; a hatched zone changes by tens of percent**: `Zone.fill` is a number typed by a person ("50 % copper") and its meaning depends on the pattern (4.11).
+The conclusion: do not change the zone formula; give the imported copper its own element.
+
+### 4.11 Regular patterns: what "fill 0.5" means (`study_patterns.py`, `study_patterns_two_layer.py`)
+
+Synthetic patterns of about 50 % copper (pitch 1 mm), single layer and a two-layer board as the program models it (patterned top over a full plane, or over bare laminate). Error of the block-mean
+temperature of the top layer (%), cells of 1 mm; positive = too hot:
+
+| Pattern | fill fraction (today), over plane / bare | geometric | lam 0.5 | dual |
+| :-- | --: | --: | --: | --: |
+| stripes 0 / 90 degrees | -17.8 / -28.1 | +4.1 / +1.5 | +1.0 / +1.1 | +1.0 / +1.1 |
+| stripes 45 degrees | -19.0 / -28.9 | +2.5 / +0.2 | +2.4 / +0.0 | +3.4 / +1.9 |
+| cross-hatch (a connected grid) | -9.0 / -12.6 | **+14.8 / +22.5** | -0.4 / -0.9 | +1.3 / +1.6 |
+| isolated squares | **-31.2 / -43.4** | -12.5 / -19.5 | +1.1 / +1.1 | +2.0 / +2.5 |
+| perforated plane | -11.0 / -15.6 | +13.6 / +20.7 | +1.2 / +1.4 | +0.9 / +0.9 |
+
+* The same 50 % can mean a connected grid (heat flows well), stripes (well one way) or islands (almost not at all): **no scalar function of the fraction is right for all of them**, and the program's arithmetic value is the optimistic limit: 7 to 43 % too cool on every pattern.
+* The flow-based faces are within 0.1 to 3.4 % on all of them at 0.6 and 1.0 mm cells; lambda 0.5 within 0.0 to 2.4 % except the diagonal stripes at 0.6 mm cells (+9.8 % over a plane, +12.0 % over bare laminate: a five-point grid has no cross term), where the flow-based faces stay at +1.4 and -0.1 %.
+* So a hatched or perforated zone drawn in the program should say which pattern it is (`pattern`: solid, hatch lines, cross-hatch, islands, perforated, with a pitch): the program can then synthesise the mask and use the same mapping as for an imported board.
+
+### 4.12 Two layers with plated holes (`study_two_layer.py`)
+
+Stormduino, both layers resolved, 109 drilled holes as copper barrels (25 µm plating), FR-4 0.3 W/mK through the 1.53 mm gap, 6 x 6 mm heater on the top layer at three random places. MAE (%):
 
 | Method | 0.6 mm | 1.0 mm | 2.0 mm |
 | :-- | --: | --: | --: |
 | fill fraction | 13.6 | 14.9 | 14.4 |
 | geometric mean | 3.9 | 4.1 | 2.8 |
 | **lam 0.5** | **1.0** | **1.0** | **0.5** |
-| lam 0.6 | 1.6 | 1.9 | 1.0 |
 | cellnum | 0.2 | 0.5 | 2.2 |
 | dual, m = 0 | 1.3 | 0.4 | 1.2 |
 
-Reference values: 50.81, 46.72 and 54.67 K (mean of the heated block) at the three places.
+### 4.13 A real four-layer board (`study_multilayer_real.py`)
 
-## 5. Proposal for the program (not implemented)
+A Cadence Allegro board (inner GND and VCC planes, 283 plated holes), six random 30 x 30 mm windows, the 4-layer stack-up of the program (35 / 15.2 / 15.2 / 35 µm copper, 210 / 1065 / 210 µm FR-4, each layer node its copper plus
+half of the adjacent gaps), every hole a barrel across all the gaps, 6 x 6 mm heater on the top layer. MAE (bias) of the block-mean temperature (%):
 
-1. **Stage 1, no new data: the geometric mean.** In the cell conductance replace `f S_cu + (1 - f) S_lam` by `S_cu^f S_lam^(1 - f)`: 10 to 14 % bias down to 2 to 4 %.
-   It is the exact result for a symmetric two-phase medium in 2D (Dykhne) and is the exponent `p = 0` the scan found best. Caution: it was validated on
-   Gerber copper (pours with clearances, traces); a hand-drawn zone with a hatch fill below 1 is a set of parallel stripes (conducts as the arithmetic mean along
-   them and the harmonic mean across) and was **not** tested; for `f = 0.5` the geometric mean of phases equals the geometric mean of those two directions.
-2. **Stage 2, the recommended default: directional conductances with lambda = 0.5.** Store the copper per layer as a fine mask (0.1 mm, or 0.05 mm for
-   traces thinner than 0.1 mm), compute `low` and `up` per cell for the chosen cell size, and give the FVM `Sx`, `Sy` per cell (the face keeps the harmonic mean).
-   1 % at 0.6 and 1.0 mm cells, no local solves. Changes: a copper raster element in `Problem` (mask or polygons with holes), `fvm.py` and `fdm.py` with
-   conductance per direction, the 3D solid with in-plane `kx`, `ky`; the Lumped and Analytic models keep using the average fill.
-3. **Stage 3, optional: flow-based faces** for the last point of accuracy (about 4 fine-grid solves per layer).
-4. **Before any change**: a validation section in `docs/validation.md`, the equation in `docs/theory.md`, tests, and a check on a **thick-copper** and a
-   **multi-layer** board with vias on a real design, plus the hatch fill case above.
-5. **Import**: Gerber (any CAD) for the copper and the outline, Excellon for the holes (vias are not told from component pads in a Gerber), KiCad
-   (`.kicad_pcb`, text) for parts, stack-up and the distinction vias/pads. The layer assignment needs a small dialog.
+| Stack-up | Cells | fill fraction | geometric | lam 0.5 | lam 0.9 | cellnum | dual |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| 1 oz outer / 0.5 oz inner | 0.6 | 3.0 (-3.0) | 0.4 (+0.4) | 1.5 (+1.5) | 1.3 (+1.3) | 1.6 (+1.6) | **0.3 (0.0)** |
+| | 1.0 | 4.6 (-4.6) | 1.5 (+1.5) | 2.8 (+2.8) | 2.5 (+2.5) | 2.9 (+2.9) | **1.1 (+1.0)** |
+| | 2.0 | 5.8 (-5.8) | 4.2 (+4.2) | 7.5 (+7.5) | 6.8 (+6.8) | 7.7 (+7.7) | **2.0 (+1.7)** |
+| 2 oz outer / 1 oz inner | 0.6 | 3.1 (-3.1) | 0.3 (+0.1) | 1.3 (+1.3) | 1.2 (+1.2) | 1.4 (+1.4) | **0.3 (0.0)** |
+| | 1.0 | 5.0 (-5.0) | 0.9 (+0.9) | 2.4 (+2.4) | 2.1 (+2.1) | 2.5 (+2.5) | **1.0 (+0.8)** |
+| | 2.0 | 6.9 (-6.9) | 2.8 (+2.8) | 6.1 (+6.1) | 5.6 (+5.6) | 6.3 (+6.3) | **1.4 (+0.9)** |
 
-## 6. How other projects do it (read on 2026-10-22; for ideas only, no code copied)
+With strong vertical coupling (planes and many holes) the mapping matters less (the fill fraction is 3 to 7 % off instead of 10 to 14 %), the bounds-based methods become pessimistic (+1.3 to +7.7 %), and only the flow-based faces
+stay within 0.3 to 2.0 % everywhere: the bounds assume the heat has to cross each cell in the plane, while here it also leaves through the holes and the dielectric.
+
+### 4.14 Through the program's own solver (`prototype_in_program.py`)
+
+The program's network (`fvm.Network`: cells, heater, losses, assembly, sparse solve) is built as usual and only the conductances are replaced: for a scalar mapping the `S` array; for the directional and the flow-based ones a 20-line subclass
+whose assembly takes the face conductances as given (stage 2 and 3 of `INTEGRATION.md`). One window per board, reference the program's own FVM on the 0.1 mm grid:
+
+* the program's FVM and the research solver agree to **3e-12** (relative) on the same conductances: the studies are the program's numerics;
+* MAE over the 7 windows: 0.6 mm cells: fill fraction 9.7 %, geometric 1.8 %, lam 0.5 0.8 %, flow-based 0.4 %; 1.0 mm cells: 11.5 %, 2.2 %, 1.3 %, 0.8 %.
+
+### 4.15 Cost (`bench_mapping_cost.py`)
+
+Per layer, 1 mm cells, 0.1 mm pixels, one core: `lam` 0.00 to 0.02 s; the flow-based faces 0.6 s (200 000 pixels), 1.6 s (480 000), 2.7 s (800 000), 5.5 s (1 600 000 = 100 x 160 mm); the cell problem about the same.
+Peak memory about 830 bytes per pixel (1.3 GB for 1.6 M pixels): a larger board is processed in strips (not implemented here). The cost is paid once, at import, and the result is cached with the project.
+
+## 5. Without third-party libraries: the independent reader
+
+The research route (gerbonara + shapely) is only the **reference**. `native_gerber.py` reads the files and draws the pixel centres itself, written from the public Gerber layer format specification and common Excellon practice, with NumPy only:
+
+* RS-274X: coordinate formats (leading or trailing zero omission), MM and IN, standard apertures C, R, O, P with holes, aperture macros (primitives 0, 1, 4, 5, 7, 20, 21, 22, variables and arithmetic), draws with round and rectangular apertures, flashes, arcs (G02/G03, G74/G75), regions (G36/G37), dark and clear polarity, step and repeat, image polarity, X2 file attributes and a classifier of the layer from the attribute or the name.
+* Not supported, and reported with an error instead of drawing a wrong picture: aperture blocks (AB), mirrored, rotated or scaled apertures (LM, LR, LS), the moire primitive, an image offset, mirror or scale.
+* Excellon: metric and inch, tool definitions and the comment tables of some CAD tools, modal coordinates, the repeat command, routed slots (one hole at the middle).
+
+Cross-check (`study_native_check.py`, 42 windows, 0.1 mm pixels): the copper area differs from the gerbonara + shapely route by -0.66 % to +0.89 % on average per board (largest single window 2.4 %); the pixels that differ are on edges (away from any edge: 0.0005 to 0.01 % of the window); the board boxes
+are identical to 0.01 mm; the Stormduino drill gives the same 109 holes; the Allegro and OrCAD drill files, which gerbonara refuses, give exactly the declared 287 and 859 holes. On a four-layer board the native and shapely masks differ by 0.01 % (XOR over union). It is also faster (4.0 s for the 42 windows against 5.0 s plus the sampling). The windows chosen are the same, and **every table above was produced with the native reader**.
+
+Licences of what the program would need for the import: NumPy and SciPy (BSD, already in the program). Nothing else.
+
+## 6. Proposal for the program (not implemented)
+
+Three things came out of the study: **a vector is not needed** (a mask at 0.1 mm is enough and smaller), **the zone fill and the imported copper must stay separate**, and **the mapping that sees the pattern is the one to use**.
+
+1. **Keep `Zone.fill` as it is** (4.10): it is a typed density whose pattern is unknown; changing it would move existing results by tens of percent. If a pattern is declared (`pattern`: solid, hatch lines at 0 or 90 degrees, cross-hatch, islands, perforated, pitch), the program synthesises the mask and uses the mapping below (4.11).
+2. **A copper element for the imported layers** (a fine mask per layer, from a Gerber or from a pattern): `Sx`, `Sy` per cell for the grid of the run; the capacity, the blocks and the checks keep using the arithmetic fraction.
+3. **The mapping**: the **flow-based faces** as the production choice (robust on real copper, patterns, several layers, small heaters; 5.5 s per 100 x 160 mm layer, once); **lambda 0.5** as the quick preview or fallback (1 % on single layers, pessimistic on stacks with strong vertical coupling, weak on diagonal copper); the **geometric mean** only as a last fallback for random imported copper when no mask is kept.
+4. **Cells**: 0.6 to 1.0 mm for the mapping to pay off; coarser cells are limited by the grid.
+5. **Import**: Gerber copper and outline, Excellon holes (a Gerber cannot tell a via from a component pad: a filter by diameter and a preview), the layer assignment pre-filled from the X2 attribute or the file name; KiCad (`.kicad_pcb`, text) for parts, stack-up and the via/pad distinction.
+6. **Before any change**: `docs/validation.md` section, the equations in `docs/theory.md`, the user guide and tooltips, tests, a layer-by-layer validation on a thick-copper board of a real design, and the effect on the existing examples (`INTEGRATION.md`).
+
+## 7. How other projects do it (read on 2026-10-22; for ideas only, no code copied)
 
 | Project | Geometry | Grid or mesh |
 | :-- | :-- | :-- |
@@ -188,25 +305,23 @@ Reference values: 50.81, 46.72 and 54.67 K (mean of the heated block) at the thr
 | [kicad-electrothermal-sim](https://github.com/krosa-laboratory/kicad-electrothermal-sim) | filled zones, tracks and pads from the KiCad API, shapely | raster grid, 0.1 mm "usually sufficient", islands flagged |
 | [KiCad_Thermal_Sim](https://github.com/Dietschi10/KiCad_Thermal_Sim) | KiCad filled zones and tracks | regular grid of 0.5 then 0.3 mm; an adaptive mode keeps the fine cell at copper edges and merges uniform interiors up to 8 times larger |
 
-None of them used a mapping like the ones above: the mesh projects either follow the polygons exactly (triangles) or rasterise to a binary grid.
-A 2017 [Electronics Cooling article](https://www.electronics-cooling.com/2017/04/problem-effective-thermal-conductivity/) on PCB conductivity warns that volume-weighted
-"smearing" gives serious errors and recommends conductances between neighbouring nodes, which agrees with what was measured here.
+None of them maps the copper to the cell conductances as above: the mesh projects either follow the polygons exactly (triangles) or rasterise to a binary grid. Electronics Cooling has warned for years about the volume-weighted "smearing" of copper: a
+2017 [article](https://www.electronics-cooling.com/2017/04/problem-effective-thermal-conductivity/) says it gives serious errors and recommends conductances between neighbouring nodes, a 2015 [article](https://www.electronics-cooling.com/2015/03/strategies-for-the-thermal-modeling-of-metal-traces-on-printed-circuit-boards)
+that the error depends on whether the traces run along or across the heat flow (which the pattern study confirms), and a 2010 [article](https://www.electronics-cooling.com/2010/09/creating-pcb-thermal-conductivity-maps-using-image-processing/) describes making conductivity maps from the layout image (the pages could not be opened from the session; only their summaries were read). The flow-based faces are the conductances between neighbouring nodes, computed from the image.
 
-**Licences of the mesh libraries** (summaries read, not the licence texts): Shewchuk's *Triangle* restricts commercial use without permission, and the
-CGAL mesh packages are GPL; either one is a problem for a closed product. `shapely` is BSD but its wheels bundle GEOS (LGPL); Clipper2 was not checked.
-The square-grid route of this folder needs none of them (gerbonara, Apache-2.0, is only needed to read the files).
+**Licences of the mesh libraries** (summaries read, not the licence texts): Shewchuk's *Triangle* restricts commercial use without permission and the CGAL mesh packages are GPL: a problem for a closed product. shapely is BSD but its wheels bundle GEOS (LGPL); Clipper2 was not checked. The route of this folder needs none of them.
 
-## 7. Limits of this study
+## 8. Limits of this study
 
-* One copper sheet on laminate for the 42-window studies; two layers with holes on **one** board (three places).
-* The reference is the 0.1 mm mask, which is about 0.2 to 1 % hotter than a 0.05 mm one; a cell never sees detail below that.
-* Heated block of 6 x 6 mm, uniform face coefficient (no edge loss, no copper on the other layers in the single-layer test).
-* Results at 2 mm cells include the error of the coarse grid itself (3 x 3 cells under the heater), not only the mapping.
-* The 1 mm cell results in an earlier two-layer run (cells of 0.5, 1 and 2.5 mm) showed an irregular behaviour that was not explained; the present grids (0.6, 1.0, 2.0) do not.
-* The boards are public designs, mostly hobby boards; no power or industrial boards, no heavy-copper or metal-core boards.
-* Not tested: hatched zones, thermal-relief patterns made by hand, the Lumped and Analytic models, the time simulation.
+* Single copper sheet on laminate for the 42-window studies (7 boards, 6 windows each); two layers with holes on **one** board (three places); four layers on **one** board (six windows). All boards are public designs, mostly hobby boards: no power, heavy-copper or metal-core boards.
+* The reference is the 0.1 mm mask, 0.2 to 1 % hotter than a 0.05 mm one; a cell never sees detail below that.
+* Heater blocks of 1.2 to 12 mm, a uniform face coefficient, insulated edges: no board outline, no copper near the board edge, no parts with a top path.
+* Results at 2 mm cells include the error of the coarse grid itself, not only the mapping.
+* The geometric mean applied to the program was tried on a scratch copy only; the effect of the other mappings on the program's examples and tests was not measured (they need the copper element).
+* Not tested: the Lumped and Analytic models with a mask (the analytic one averages the fraction over large regions; the lumped one reads the FVM `S`), non-rectangular boards, a comparison with a measurement of a physical board (none exists in the project).
+* The diagonal copper limit (five-point grid) is a property of the grid, not of the mapping.
 
-## 8. Test boards and licences
+## 9. Test boards and licences
 
 The files are **not** in the repository (`data/` is git-ignored). `fetch_boards.py` downloads them for private use; the results quoted here are statistics.
 
@@ -219,14 +334,15 @@ The files are **not** in the repository (`data/` is git-ignored). `fetch_boards.
 | `pcad` | zxnet_usb (P-CAD) | GPL-3 |
 | `dip` | FD1 mainboard (DipTrace) | BSD |
 | `fritz` | analog_gyro_2021 (Fritzing) | MIT |
+| `alleg` | a 4-layer Cadence Allegro board (tracespace issue 371), inches | not stated |
 
-The latter six come from the test resources of gerbonara (https://gitlab.com/gerbolyze/gerbonara), each with the licence of its own folder.
+All but the Stormduino come from the test resources of gerbonara (https://gitlab.com/gerbolyze/gerbonara), each with the licence of its own folder.
 
-## 9. Sources
+## 10. Sources
 
-* gerbonara, https://pypi.org/project/gerbonara/ (Apache-2.0).
-* shapely and GEOS, https://shapely.readthedocs.io/.
+* gerbonara, https://pypi.org/project/gerbonara/ (Apache-2.0); shapely and GEOS, https://shapely.readthedocs.io/.
+* Ucamco, *The Gerber Layer Format Specification* (free download from https://www.ucamco.com/en/gerber): the reference of `native_gerber.py` (not copied; the document was not read in full in this session, only its availability was confirmed; the reader was written from the format as commonly documented and checked against real files).
 * Durlofsky, *Upscaling and gridding of fine scale geological models for flow simulation* (2005), https://pangea.stanford.edu/departments/ere/dropbox/SmartFields/SFC_publications/2005_Durlofsky_upsc_grid_review_ifrs.pdf (local, extended-local and global upscaling; transmissibility).
-* Power-law averaging of permeability (exponents between -1 and 1; the geometric mean for isotropic 2D media), https://ccg-server.engineering.ualberta.ca/CCG%20Publications/Other/CVD%20Papers/02-Conference/2002/power-law-averaging02.PDF. The 2D two-phase result of Dykhne (1971) is quoted from memory and was not checked against the paper.
-* Electronics Cooling, *Problem: effective thermal conductivity* (2017), https://www.electronics-cooling.com/2017/04/problem-effective-thermal-conductivity/.
-* The four projects of section 6 (repositories linked there).
+* Power-law averaging of permeability (exponents between -1 and 1; the geometric mean for isotropic 2D media), https://ccg-server.engineering.ualberta.ca/CCG%20Publications/Other/CVD%20Papers/02-Conference/2002/power-law-averaging02.PDF. The 2D two-phase result of Dykhne (1971) and the closed form of the 2D Bruggeman and Hashin-Shtrikman formulas are quoted from memory (checked here only against their limits by the tests).
+* Electronics Cooling: *Problem: effective thermal conductivity* (2017), *Strategies for the thermal modeling of metal traces on printed circuit boards* (2015), *Creating PCB thermal conductivity maps using image processing* (2010), *Modeling heat conduction in printed circuit boards using finite element analysis* (2004).
+* The four projects of section 7 (repositories linked there).

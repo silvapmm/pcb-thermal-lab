@@ -100,6 +100,45 @@ def solve_two_layers(gx, gy, gz, cell_mm, rows, cols, power=1.0, h_face=H_FACE):
     return spla.spsolve(K.tocsc(), q).reshape(2, ny, nx)
 
 
+def solve_stack(gx, gy, gz, cell_mm, rows, cols, h_top=H_FACE, h_bottom=H_FACE, power=1.0):
+    """!
+    @brief A stack of conducting sheets (layer 0 on top, where the heat enters) joined by vertical conductances; the two outer faces lose heat.
+    @param gx Face conductances along x, shape (L, ny, nx - 1), W/K.
+    @param gy Face conductances along y, shape (L, ny - 1, nx), W/K.
+    @param gz Vertical conductances between neighbouring layers, shape (L - 1, ny, nx), W/K (dielectric plus plated barrels).
+    @param cell_mm Cell size (mm).
+    @param rows Array of the rows of the heated block (in the top layer).
+    @param cols Array of the columns of the heated block.
+    @param h_top Coefficient of the top face (W/m2K).
+    @param h_bottom Coefficient of the bottom face (W/m2K).
+    @param power Total power (W).
+    @return numpy.ndarray (L, ny, nx) temperature rise (K).
+    """
+    L, ny, nx = gx.shape[0], gy.shape[1] + 1, gx.shape[2] + 1
+    m = ny * nx
+    n = L * m
+    A, B, G = [], [], []
+    for l in range(L):
+        idx = l * m + np.arange(m).reshape(ny, nx)
+        A += [idx[:, :-1].ravel(), idx[:-1, :].ravel()]
+        B += [idx[:, 1:].ravel(), idx[1:, :].ravel()]
+        G += [gx[l].ravel(), gy[l].ravel()]
+    for l in range(L - 1):
+        a = l * m + np.arange(m)
+        A.append(a)
+        B.append(a + m)
+        G.append(gz[l].ravel())
+    A, B, G = np.concatenate(A), np.concatenate(B), np.concatenate(G)
+    diag = np.bincount(A, G, n) + np.bincount(B, G, n)
+    area = (cell_mm * 1e-3) ** 2
+    diag[:m] += h_top * area
+    diag[n - m:] += h_bottom * area                          # for one layer both faces end up on layer 0 (not used here)
+    K = sp.coo_matrix((np.concatenate([-G, -G]), (np.concatenate([A, B]), np.concatenate([B, A]))), shape=(n, n)).tocsr() + sp.diags(diag)
+    q = np.zeros(n)
+    q[rows[:, None] * nx + cols[None, :]] = power / (len(rows) * len(cols))
+    return spla.spsolve(K.tocsc(), q).reshape(L, ny, nx)
+
+
 def local_flux(Sw, m=0):
     """!
     @brief Effective conductance, left to right, of many windows of pixel sheet conductances (a local conduction problem per window).
@@ -179,6 +218,34 @@ def map_power(f, p, s_cu=S_CU, s_lam=S_LAM):
     return (f * s_cu ** p + (1.0 - f) * s_lam ** p) ** (1.0 / p)
 
 
+def map_bruggeman(f, s_cu=S_CU, s_lam=S_LAM):
+    """!
+    @brief Symmetric Bruggeman effective-medium conductance of a two-phase isotropic 2D medium, from the copper fraction alone.
+    @details Root of f (a - k)/(a + k) + (1 - f)(b - k)/(b + k) = 0, that is k^2 - (a - b)(2f - 1) k - a b = 0 (2D). At f = 1/2 it is the geometric mean sqrt(a b).
+    @param f Copper fraction of every cell (array, 0..1).
+    @param s_cu Conductance of the copper phase (W/K).
+    @param s_lam Conductance of the laminate phase (W/K).
+    @return Array of cell sheet conductances (isotropic).
+    """
+    d = (s_cu - s_lam) * (2.0 * f - 1.0)
+    return 0.5 * (d + np.sqrt(d * d + 4.0 * s_cu * s_lam))
+
+
+def map_hashin_shtrikman(f, which, s_cu=S_CU, s_lam=S_LAM):
+    """!
+    @brief Hashin-Shtrikman bound of an isotropic two-phase 2D medium (the tightest bounds that need only the fraction).
+    @param f Copper fraction of every cell (array, 0..1).
+    @param which "lower" (laminate is the matrix) or "upper" (copper is the matrix).
+    @param s_cu Conductance of the copper phase (W/K).
+    @param s_lam Conductance of the laminate phase (W/K).
+    @return Array of cell sheet conductances (isotropic).
+    """
+    a, b = s_cu, s_lam
+    if which == "lower":
+        return b + f / (1.0 / (a - b) + (1.0 - f) / (2.0 * b))
+    return a + (1.0 - f) / (1.0 / (b - a) + f / (2.0 * a))
+
+
 def map_bounds(blocks):
     """!
     @brief The two bounds of Wiener for flow along x and along y in every cell, from the pixel conductances.
@@ -218,7 +285,7 @@ def map_cell_problem(blocks):
     return sx, sy
 
 
-def dual_faces(S, n, m):
+def dual_faces(S, n, m, batch_pixels=400000):
     """!
     @brief Flow-based face conductances: one local problem per pair of neighbouring cells, on the window from centre to centre.
     @details For two horizontal neighbours the window is n x n pixels (n even) starting at the centre of the left cell; m extra rows above and below
@@ -227,6 +294,7 @@ def dual_faces(S, n, m):
     @param S Pixel sheet conductances (rows, cols); only whole cells are used.
     @param n Pixels per cell side (even).
     @param m Margin rows of the oversampling (0 = none).
+    @param batch_pixels Pixels of the windows solved together (memory bound; the result does not depend on it).
     @return Tuple (gx (cy, cx - 1), gy (cy - 1, cx)) in W/K.
     """
     from numpy.lib.stride_tricks import sliding_window_view as swv
@@ -241,6 +309,9 @@ def dual_faces(S, n, m):
         rows = np.arange(ry) * n
         cols = np.arange(rx - 1) * n + n // 2
         Wf = W[rows][:, cols].reshape(-1, n + 2 * m, n)
-        return local_flux(np.ascontiguousarray(Wf), m).reshape(ry, rx - 1)
+        # The windows are independent: solve them in batches so that the block-diagonal system of a big board stays a few hundred thousand unknowns
+        step = max(batch_pixels // ((n + 2 * m) * n), 1)
+        flux = np.concatenate([local_flux(np.ascontiguousarray(Wf[k:k + step]), m) for k in range(0, len(Wf), step)])
+        return flux.reshape(ry, rx - 1)
 
     return one(S), one(S.T).T
