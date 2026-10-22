@@ -148,10 +148,59 @@ def test_calculator_shows_the_parameters_its_point_needs_and_the_program_starts_
     qtbot.addWidget(d)
     d.show()
     assert d.windowTitle() == "Power calculator"
-    for key, theta_visible, psi_visible in (("ring", False, False), ("max", False, False), ("junction", True, False), ("top", True, True)):
+    for key, theta_on, psi_on in (("ring", False, False), ("max", False, False), ("junction", True, False), ("top", True, True)):
         d.point.setCurrentIndex(d.point.findData(key))
-        assert d.theta.isVisible() == theta_visible and d.psi_jt.isVisible() == psi_visible
+        assert d.theta.isEnabled() == theta_on and d.psi_jt.isEnabled() == psi_on          # Greyed when the point does not use them, still in place
+        assert ("Greyed" in d.theta.toolTip()) == (not theta_on)
     assert d.theta.value() == doc.problem.heaters[0].theta                                # Starts at the part's θ
     assert all(d.point.itemData(i, 3) for i in range(d.point.count())) and len(POINTS) == d.point.count()      # A hint on every option
     from tests.test_tooltips import missing
     assert not missing(d, "calculator")
+
+
+def test_calculator_window_keeps_its_size_selects_the_case_and_has_two_independent_routes(qtbot):
+    from pcbthermal.examples import example_board
+    from pcbthermal.gui.calculator import CalculatorHelp, PowerCalculator
+    from pcbthermal.gui.document import Document
+    doc = Document()
+    doc.open_problem(example_board(), "example")
+    d = PowerCalculator(doc)
+    qtbot.addWidget(d)
+    d.show()
+    assert d.tabs.count() == 2 and d.tabs.tabText(0).startswith("Route 1") and d.tabs.tabText(1).startswith("Route 2")
+    sizes = set()
+    for key in ("ring", "junction", "top", "max"):
+        d.point.setCurrentIndex(d.point.findData(key))
+        qtbot.wait(20)
+        sizes.add((d.sizeHint().width(), d.sizeHint().height()))
+    assert len(sizes) == 1                                                          # The window never changes size when the point changes
+    assert d.minimumSize().height() >= d.sizeHint().height() - 1
+    # The case selector picks which power goes into the part
+    d.out = {"power_w": 2.0, "best_w": 1.6, "worst_w": 2.4}
+    d.use.setEnabled(True)
+    for key, expected in (("best", 1.6), ("nominal", 2.0), ("worst", 2.4)):
+        d.case.setCurrentIndex(d.case.findData(key))
+        assert d.selected_power() == expected
+        d._use()
+        assert doc.problem.heaters[0].power == expected
+    assert [d.case.itemText(i) for i in range(3)] == ["Best case (lowest power)", "Nominal", "Worst case (highest power)"]
+    # Route 2 updates as you type and writes its own power
+    d.tj.setValue(90.0)
+    d.tref.setValue(70.0)
+    d.par.setValue(10.0)
+    assert d.power2 == pytest.approx(2.0) and "2.000" in d.out2.text()
+    d.heater.setCurrentIndex(1)
+    d._use2()
+    assert doc.problem.heaters[1].power == pytest.approx(2.0)
+    h = CalculatorHelp(d)
+    qtbot.addWidget(h)
+    assert "Route 1" in h.view.toPlainText() and "Worst case" in h.view.toPlainText() and "root of the sum of squares" in h.view.toPlainText()
+
+
+def test_calculator_uncertainties_are_defaults_that_can_be_changed(qtbot):
+    d = defaults.load()["calculator"]
+    assert (d["copper_uncertainty_pct"], d["h_uncertainty_pct"], d["theta_uncertainty_pct"], d["psi_jt_uncertainty_pct"], d["reading_uncertainty_k"]) == (25.0, 30.0, 20.0, 30.0, 1.0)
+    full = defaults.load()
+    full["calculator"]["copper_uncertainty_pct"] = 40.0
+    defaults.save_user(full)
+    assert defaults.value("calculator", "copper_uncertainty_pct") == 40.0 and "calculator" in defaults.diff_text()

@@ -873,7 +873,14 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     win.doc.set_props("heater", 0, power=1.0, merge=False)                    # The part's power is "unknown"
     dlg.compute.click()
     qtbot.waitUntil(lambda: dlg.use.isEnabled(), timeout=120000)
-    assert dlg.result_power == pytest.approx(truth, rel=0.01)
+    assert dlg.selected_power() == pytest.approx(truth, rel=0.01)                 # Nominal is the default case
+    assert dlg.out["best_w"] < truth < dlg.out["worst_w"] and "worst case" in dlg.result.text()
+    dlg.case.setCurrentIndex(dlg.case.findData("worst"))                      # The worst case is what goes into the part
+    worst = dlg.out["worst_w"]
+    dlg.use.click()
+    assert win.doc.problem.heaters[0].power == pytest.approx(worst)
+    dlg.case.setCurrentIndex(dlg.case.findData("nominal"))
+    dlg.use.setEnabled(True)
     dlg.use.click()
     assert win.doc.problem.heaters[0].power == pytest.approx(truth, rel=0.01)
     dlg.measured.setValue(10.0)                                               # Below the ambient: an error message, no crash

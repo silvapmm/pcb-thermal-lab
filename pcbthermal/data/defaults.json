@@ -53,6 +53,9 @@
     "heater_power_w": 1.0, "heater_size_mm": 5.0, "zone_fill": 1.0, "zone_size_mm": 10.0, "via_diameter_mm": 0.3, "via_fill": "Open",
     "heatsink_h_extra": 20.0, "heatsink_size_mm": 10.0, "block_thickness_mm": 3.0, "block_metal": "Aluminium", "block_interface": "Paste, typical default (2 W/mK, 100 µm)"
   },
+  "calculator": {
+    "copper_uncertainty_pct": 25.0, "h_uncertainty_pct": 30.0, "theta_uncertainty_pct": 20.0, "psi_jt_uncertainty_pct": 30.0, "reading_uncertainty_k": 1.0
+  },
   "solver": {
     "models": ["fvm", "lumped", "analytic"], "cell_mm": 1.0, "linear_solver": "direct", "lumped_rings": 10, "analytic_modes": 300, "hotspot_c": 100.0
   }

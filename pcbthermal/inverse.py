@@ -16,7 +16,9 @@
 """
 
 import copy
+import math
 
+from . import defaults
 from .analysis import heater_stats
 from .api import SolverOptions, _run_model
 
@@ -137,6 +139,80 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
     state = point_temperatures(pr, model, options, index, pb, psi_jt)
     return {"power_w": pb, "temperature_c": tb, "rise_k": rise, "runs": runs + 1, "linear": bool(linear), "at_power": state,
             "resistance_k_per_w": rise / pb if pb > 0 else float("inf")}
+
+
+def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="fvm", cell_mm=1.0, psi_jt=0.0, uncertainty=None, progress=None):
+    """!
+    @brief The power with its uncertainty band: nominal, best case (lowest plausible power) and worst case (highest plausible power).
+    @details The nominal power is power_from_temperature. Then each source of doubt is moved alone to both ends of its uncertainty and the calculator is run again: the copper
+             (thickness of every layer), the heat transfer (both face coefficients, or the convection multiplier when they are computed), theta and psi_JT (when the point uses
+             them) and the reading itself. A source moves the power down on one side and up on the other; the deviations of the independent sources are combined as the
+             root of the sum of squares, separately below and above the nominal value, which is how independent uncertainties are normally added (stacking all of them at once
+             would give a range nobody has seen). More copper means a lower board resistance, so more watts for the same reading.
+    @param problem A Problem with the board drawn as it is in reality.
+    @param index 0-based index of the heater.
+    @param measured_c Measured temperature in degC.
+    @param point One of POINTS.
+    @param ambient_c Ambient of the measurement in degC (default: the board's).
+    @param model Model key.
+    @param cell_mm Cell size in millimetres.
+    @param psi_jt Datasheet psi_JT in K/W for the point "top".
+    @param uncertainty Dict with copper_pct, h_pct, theta_pct, psi_jt_pct and reading_k (default: the "calculator" defaults of the program).
+    @param progress Optional callback progress(message, fraction).
+    @return Dict: the keys of power_from_temperature plus best_w, worst_w, contributions (list of dicts factor, low_w, high_w) and uncertainty (the values used).
+    """
+    d = defaults.load()["calculator"]
+    u = {"copper_pct": d["copper_uncertainty_pct"], "h_pct": d["h_uncertainty_pct"], "theta_pct": d["theta_uncertainty_pct"], "psi_jt_pct": d["psi_jt_uncertainty_pct"],
+         "reading_k": d["reading_uncertainty_k"]}
+    u.update(uncertainty or {})
+    base = power_from_temperature(problem, index, measured_c, point=point, ambient_c=ambient_c, model=model, cell_mm=cell_mm, psi_jt=psi_jt)
+    p0 = base["power_w"]
+
+    def scaled_copper(pr, f):
+        pr.board.copper_thickness = [t * f for t in pr.board.copper_thickness]
+
+    def scaled_h(pr, f):
+        if pr.board.h_mode == "computed":
+            pr.board.h_calibration *= f
+        else:
+            pr.board.h_top *= f
+            pr.board.h_bottom *= f
+
+    def scaled_theta(pr, f):
+        pr.heaters[index].theta *= f
+
+    factors = [("copper", u["copper_pct"] / 100.0, scaled_copper, "copper"), ("heat transfer", u["h_pct"] / 100.0, scaled_h, "h")]
+    if point in ("junction", "top"):
+        factors.append(("θ junction-pad", u["theta_pct"] / 100.0, scaled_theta, "theta"))
+    if point == "top":
+        factors.append(("ψJT", u["psi_jt_pct"] / 100.0, None, "psi"))
+    factors.append(("reading", u["reading_k"], None, "reading"))
+    contributions, down, up = [], 0.0, 0.0
+    for n, (name, amount, mutate, kind) in enumerate(factors):
+        if progress:
+            progress(f"Uncertainty: {name}", (n + 0.5) / (len(factors) + 1))
+        powers = []
+        for sign in (-1.0, 1.0):
+            pr, meas, psi = copy.deepcopy(problem), float(measured_c), psi_jt
+            if kind == "reading":
+                meas += sign * amount
+            elif kind == "psi":
+                psi = psi_jt * (1.0 + sign * amount)
+            else:
+                mutate(pr, 1.0 + sign * amount)
+            try:
+                powers.append(power_from_temperature(pr, index, meas, point=point, ambient_c=ambient_c, model=model, cell_mm=cell_mm, psi_jt=psi)["power_w"])
+            except ValueError:                                  # The reading falls outside what the changed board can explain: that end does not exist
+                continue
+        if not powers:
+            continue
+        lo, hi = min(powers + [p0]), max(powers + [p0])
+        contributions.append({"factor": name, "low_w": lo, "high_w": hi})
+        down += (p0 - lo) ** 2
+        up += (hi - p0) ** 2
+    out = dict(base)
+    out.update(best_w=p0 - math.sqrt(down), worst_w=p0 + math.sqrt(up), contributions=contributions, uncertainty=u)
+    return out
 
 
 def power_from_theta(t_junction_c, t_reference_c, theta_k_per_w):

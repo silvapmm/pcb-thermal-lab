@@ -28,10 +28,11 @@ LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name app
                 "interfaces": "Pastes and gap pads under a heatsink or a package: apparent conductivity (W/mK) and thickness (mm); the resistance is thickness / conductivity.",
                 "dielectrics": "Dielectrics of the stack-up: conductivity across and along the plane (W/mK), density (kg/m³) and specific heat (J/kgK).",
                 "package_theta": "Typical junction-to-pad resistance by package family (K/W): a starting value, never the datasheet's."}
-SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "solver": "Solver of a new project"}
+SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power calculator: uncertainties", "solver": "Solver of a new project"}
 SECTION_HINTS = {"new_board": "The values a board starts with when you choose File - New board (and when the program starts).",
                  "new_elements": "The values of an element when you draw it or add it from the right-click menu.",
                  "materials": "Copper and the simple-stack-up dielectric of a new board. The dielectrics of the advanced stack-up are a library.",
+                 "calculator": "How uncertain the inputs of the power calculator are. The band (best case / nominal / worst case) moves each one to both ends and adds the effects as the root of the sum of squares.",
                  "solver": "The models and settings a new project starts with."}
 CHOICES = {"h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "linear_solver": ("direct", "cg", "sor")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
@@ -52,6 +53,11 @@ TIPS = {
     "k_copper": "Conductivity of copper (W/mK).", "rho_copper": "Density of copper (kg/m³).", "cp_copper": "Specific heat of copper (J/kgK).",
     "k_fr4_through": "Conductivity of the simple-stack-up dielectric across the board (W/mK).", "k_fr4_inplane": "Conductivity of the simple-stack-up dielectric along the plane (W/mK).",
     "rho_fr4": "Density of the simple-stack-up dielectric (kg/m³).", "cp_fr4": "Specific heat of the simple-stack-up dielectric (J/kgK).",
+    "copper_uncertainty_pct": "Uncertainty of the copper (thickness of every layer) in the drawn board, in percent: how far the real copper may be from what you drew.",
+    "h_uncertainty_pct": "Uncertainty of the heat transfer coefficients (or of the computed convection) in percent; natural convection correlations are good to 20 to 30 %.",
+    "theta_uncertainty_pct": "Uncertainty of the part's junction-to-pad resistance θ in percent (datasheet numbers belong to the datasheet's board).",
+    "psi_jt_uncertainty_pct": "Uncertainty of the datasheet ψJT in percent (it changes with the board and the air flow).",
+    "reading_uncertainty_k": "Error of the temperature reading in kelvin: a thermocouple that touches the board, an infrared emissivity error. Typically 1 to 3 K.",
     "models": "Models selected in a new project.", "cell_mm": "Cell size in mm.", "linear_solver": "Solver of the FVM linear system.",
     "lumped_rings": "Rings of the Lumped model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Temperature limit for hotspot detection in °C.",
 }
@@ -158,7 +164,7 @@ class PreferencesDialog(QDialog):
         from PySide6.QtWidgets import QGroupBox, QScrollArea
         host = QWidget()
         lay = QVBoxLayout(host)
-        for section in ("new_board", "new_elements", "materials", "solver"):
+        for section in ("new_board", "new_elements", "materials", "calculator", "solver"):
             box = QGroupBox(SECTION_TITLES[section])
             box.setToolTip(SECTION_HINTS[section])
             inner = QVBoxLayout(box)

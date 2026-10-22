@@ -22,6 +22,7 @@ SHIPPED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", 
 USER_NAME = "user_defaults.json"
 STACKUP_NAME = "stackups.json"
 LIBRARIES = ("via_fills", "metals", "interfaces", "dielectrics", "package_theta")      # Lists of entries keyed by "name"
+SECTIONS = ("materials", "new_board", "new_elements", "calculator", "solver")           # Sections of scalar defaults
 _CACHE = {}
 
 
@@ -123,7 +124,7 @@ def merged(overrides=None):
     for lib in LIBRARIES:
         if lib in over.get("libraries", {}) or lib in removed:
             data["libraries"][lib] = _merge_library(data["libraries"][lib], over.get("libraries", {}).get(lib, []), set(removed.get(lib, [])))
-    for section in ("materials", "new_board", "new_elements", "solver"):
+    for section in SECTIONS:
         data[section].update(over.get(section, {}))
     return data
 
@@ -177,7 +178,7 @@ def diff(full):
             out.setdefault("libraries", {})[lib] = changed
         if gone:
             out.setdefault("removed", {})[lib] = gone
-    for section in ("materials", "new_board", "new_elements", "solver"):
+    for section in SECTIONS:
         changed = {k: v for k, v in full[section].items() if base[section].get(k) != v}
         if changed:
             out[section] = changed
@@ -226,7 +227,7 @@ def diff_text():
         parts.append(f"{len(rows)} in {lib}")
     for lib, rows in over.get("removed", {}).items():
         parts.append(f"{len(rows)} removed from {lib}")
-    for section in ("materials", "new_board", "new_elements", "solver"):
+    for section in SECTIONS:
         if over.get(section):
             parts.append(f"{len(over[section])} in {section}")
     return ", ".join(parts)

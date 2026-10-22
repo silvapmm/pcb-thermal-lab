@@ -95,6 +95,8 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 
 | Power calculator reworked (name, parameters inside the window, hints, result with temperatures and board resistance), validated against datasheet boards; empty board at start-up | `gui/calculator.py`, `inverse.py`, `gui/app.py`, `examples/calculator_validation.py`, `docs/calculators.md` | `test_calculator_validation.py`, `test_inverse.py` |
 
+| Power calculator: tabs per route, constant window size, Help window, uncertainty band with best / nominal / worst selector (`inverse.power_band`, `calculator` defaults) | `inverse.py`, `jobs.py`, `gui/calculator.py`, `help/calculator.html`, `defaults.json` | `test_inverse.py` (band), `test_defaults.py` (window, selector, routes) |
+
 ### Changed behaviour
 
 - Changing the number of layers in the application now loads the typical stack-up of the new count (copper, dielectrics and total thickness in the advanced mode; total thickness and outer copper in the simple mode): a 4-layer board is 1.586 mm, a 10-layer board 2.0 mm.

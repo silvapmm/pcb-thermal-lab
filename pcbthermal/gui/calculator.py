@@ -1,20 +1,25 @@
 """!
 @file calculator.py
 @brief Power calculator: the watts a part dissipates, from a temperature you measured.
-@details Two routes (docs/calculators.md):
-         * **From the drawn board** (inverse.power_from_temperature, run in the calculation process): the board you drew (its copper, vias, stack-up, heat transfer) is solved at two
-           powers and the power that makes the model read your temperature at the chosen point is found. The copper does not "give" the heat: it decides how many kelvin each watt
-           raises at that point (the board resistance shown in the result). Points: the board ring 1 mm around the part, the hottest board point or the mean under it, the
-           junction (needs the part's theta) or the top of the package (needs theta and the datasheet psi_JT).
+@details Two independent routes, one per tab (docs/calculators.md, and the Help button of the window):
+         * **From the drawn board** (inverse.power_from_temperature / power_band, run in the calculation process): the board you drew (its copper, vias, stack-up, heat transfer)
+           is solved at two powers and the power that makes the model read your temperature at the chosen point is found. The copper does not "give" the heat: it decides how
+           many kelvin each watt raises at that point (the board resistance shown in the result). Points: the board ring 1 mm around the part, the hottest board point or the
+           mean under it, the junction (needs the part's theta) or the top of the package (needs theta and the datasheet psi_JT). The result has a band: best case, nominal and
+           worst case, and the selector says which one is written into the part.
          * **From a datasheet parameter**: P = (Tj - T_reference) / parameter for a known junction temperature (a sense diode) with psi_JB, psi_JT or theta.
 """
 
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QGroupBox, QLabel, QPushButton,
-                               QVBoxLayout)
+from pathlib import Path
+
+from PySide6.QtCore import QUrl
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QTabWidget,
+                               QTextBrowser, QVBoxLayout, QWidget)
 
 from ..inverse import power_from_theta
 from .compute import ProcessWorker
 
+HELP_FILE = Path(__file__).resolve().parents[1] / "help" / "calculator.html"
 POINTS = (("Board temperature 1 mm around the part (ring)", "ring",
            "The board 0.5 to 1.5 mm outside the package: the point where the datasheet's ψJB takes the board temperature. Measure it with a thermocouple taped on the copper "
            "next to the part. Needs nothing from the datasheet."),
@@ -25,8 +30,11 @@ POINTS = (("Board temperature 1 mm around the part (ring)", "ring",
            "The junction temperature itself, from a sense diode or the part's own sensor. The program adds θ·P between the board and the junction, so it needs the part's "
            "junction-to-pad resistance θ."),
           ("Top of the package (needs θ and ψJT)", "top",
-           "The temperature of the top of the package (thermocouple or IR). The datasheet's ψJT says how far below the junction it is: Ttop = Tj − ψJT·P, with Tj = board + θ·P. "
+           "The temperature of the top of the package (thermocouple or infrared). The datasheet's ψJT says how far below the junction it is: Ttop = Tj − ψJT·P, with Tj = board + θ·P. "
            "Needs the part's θ and the datasheet's ψJT."))
+CASES = (("Best case (lowest power)", "best", "The lowest plausible power: the coolest assumptions inside the uncertainty. The optimistic end of the band."),
+         ("Nominal", "nominal", "The power from your inputs as typed: the best single estimate."),
+         ("Worst case (highest power)", "worst", "The highest plausible power: the hottest assumptions inside the uncertainty. Use it to check margins (Tj, power limit, hotspots)."))
 
 
 def _spin(lo, hi, value, decimals, suffix, tip):
@@ -50,6 +58,30 @@ def _spin(lo, hi, value, decimals, suffix, tip):
     return s
 
 
+class CalculatorHelp(QDialog):
+    """!
+    @brief The detailed, formatted help of the power calculator (pcbthermal/help/calculator.html).
+    """
+
+    def __init__(self, parent=None):
+        """!
+        @param parent Qt parent.
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Power calculator - help")
+        self.resize(820, 700)
+        lay = QVBoxLayout(self)
+        self.view = QTextBrowser()
+        self.view.setOpenExternalLinks(True)
+        self.view.setToolTip("How the calculator works, what each field means, the uncertainty band, the validation and the limits.")
+        self.view.setSource(QUrl.fromLocalFile(str(HELP_FILE)))
+        lay.addWidget(self.view, 1)
+        box = QDialogButtonBox(QDialogButtonBox.Close)
+        box.button(QDialogButtonBox.Close).setToolTip("Close the help.")
+        box.rejected.connect(self.reject)
+        lay.addWidget(box)
+
+
 class PowerCalculator(QDialog):
     """!
     @brief Dialog of the power calculator.
@@ -62,20 +94,52 @@ class PowerCalculator(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Power calculator")
-        self.doc, self.worker, self.result_power = doc, None, None
+        self.doc, self.worker, self.out = doc, None, None
         lay = QVBoxLayout(self)
-        intro = QLabel("Finds the power a part dissipates from a temperature you measured. <b>Route 1</b> solves the board you drew (copper, vias, stack-up, air) and finds "
-                       "the watts that make it read your temperature; the copper decides how many kelvin each watt gives. <b>Route 2</b> applies a datasheet parameter to a "
-                       "known junction temperature.")
-        intro.setWordWrap(True)
-        intro.setToolTip("How the calculator works. The board model is the same one the simulation uses, run backwards. Details, formulas, validation and limits: docs/calculators.md.")
-        lay.addWidget(intro)
+        top = QHBoxLayout()
+        intro = QLabel("Finds the watts a part dissipates from a temperature you measured. Choose <b>one</b> of the two routes.")
+        intro.setToolTip("The routes are independent: you do not fill both. Press Help for how they work, the fields, the uncertainty band and the validation.")
+        self.help_btn = QPushButton("Help")
+        self.help_btn.setToolTip("Open the detailed help of the calculator: the routes, the parameters, the band, the validation, the limits.")
+        self.help_btn.clicked.connect(lambda: CalculatorHelp(self).exec())
+        top.addWidget(intro, 1)
+        top.addWidget(self.help_btn)
+        lay.addLayout(top)
+        self.tabs = QTabWidget()
+        self.tabs.setToolTip("Route 1 solves the board you drew. Route 2 is the datasheet formula. Use one of them.")
+        self.tabs.addTab(self._board_tab(), "Route 1: from the drawn board")
+        self.tabs.addTab(self._datasheet_tab(), "Route 2: from a datasheet parameter")
+        lay.addWidget(self.tabs, 1)
+        box = QDialogButtonBox(QDialogButtonBox.Close)
+        box.button(QDialogButtonBox.Close).setToolTip("Close the calculator.")
+        box.rejected.connect(self.reject)
+        lay.addWidget(box)
+        if not doc.problem.heaters:
+            self.compute.setEnabled(False)
+            self.result.setText("Draw a heater first.")
+        self.heater.currentIndexChanged.connect(self._part_changed)
+        self.point.currentIndexChanged.connect(self._point_changed)
+        self._part_changed()
+        self._point_changed()
+        # The window keeps one size for every point: the parameters a point does not use are greyed, not removed
+        self.setMinimumSize(self.sizeHint())
 
-        g = QGroupBox("1. From the drawn board")
-        g.setToolTip("Uses the board in the editor: change the copper, vias or stack-up there and the answer changes.")
-        f = QFormLayout(g)
+    # ------------------------------------------------------------------ route 1
+    def _board_tab(self):
+        """!
+        @brief The tab of route 1 (the drawn board).
+        @return QWidget.
+        """
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        note = QLabel("Uses the board in the editor: change the copper, vias or stack-up there and the answer changes.")
+        note.setWordWrap(True)
+        note.setStyleSheet("font-size: 11px; color: gray;")
+        note.setToolTip("The board model is the same one the simulation uses, run backwards.")
+        lay.addWidget(note)
+        f = QFormLayout()
         self.heater = QComboBox()
-        for k, h in enumerate(doc.problem.heaters):
+        for k, h in enumerate(self.doc.problem.heaters):
             self.heater.addItem(h.name or f"Heater {k + 1}", k)
         self.heater.setToolTip("The part whose power is unknown. The other heaters keep the powers typed in the program.")
         self.point = QComboBox()
@@ -84,67 +148,95 @@ class PowerCalculator(QDialog):
             self.point.setItemData(self.point.count() - 1, tip, 3)           # Qt.ToolTipRole: the hint of each option
         self.point.setToolTip("Where you measured. Each option has a hint; the last two also use datasheet parameters, which appear below when you choose them.")
         self.measured = _spin(-50, 400, 60.0, 1, "°C", "The temperature you measured at that point, in °C.")
-        self.ambient = _spin(-60, 200, doc.problem.board.ambient, 1, "°C", "Air temperature at the time of the measurement (the board's ambient is the default).")
+        self.ambient = _spin(-60, 200, self.doc.problem.board.ambient, 1, "°C", "Air temperature at the time of the measurement (the board's ambient is the default).")
         self.theta = _spin(0, 5000, 0.0, 2, "K/W", "θ junction-to-pad of the part: the datasheet's junction-to-case (bottom / exposed pad), junction-to-lead or junction-to-solder-point "
                            "resistance. Never θJA. It starts at the value typed in the part's Properties and is used for this calculation only.")
         self.psi_jt = _spin(0, 500, 2.0, 2, "K/W", "ψJT of the datasheet (junction-to-top characterisation parameter): Tj − Ttop = ψJT·P. Typically 0.3 to 5 K/W. It belongs to the "
                             "datasheet's test board: on yours it is an estimate.")
-        self.compute = QPushButton("Calculate")
-        self.compute.setToolTip("Runs the board model (two or three solves) and finds the power that reproduces the measurement. The result is as good as the board drawn "
-                                "(copper, vias, stack-up, heat transfer coefficients) and as the measurement (a probe that touches the board cools it a little).")
-        self.compute.clicked.connect(self._run)
-        self.result = QLabel("")
-        self.result.setWordWrap(True)
-        self.result.setToolTip("The power found, what the model reads at that power, and the board resistance (kelvin per watt) at the measured point.")
-        self.use = QPushButton("Use as the power of this part")
-        self.use.setToolTip("Write the calculated power in the heater and keep the other settings.")
-        self.use.setEnabled(False)
-        self.use.clicked.connect(self._use)
+        self.theta.setProperty("base_tip", self.theta.toolTip())
+        self.psi_jt.setProperty("base_tip", self.psi_jt.toolTip())
         self.theta_label = QLabel("θ junction-pad")
         self.psi_label = QLabel("ψJT (datasheet)")
-        for label, w in (("Part", self.heater), ("Measured at", self.point), ("Temperature", self.measured)):
-            f.addRow(label, w)
+        for label, wd in (("Part", self.heater), ("Measured at", self.point), ("Temperature", self.measured)):
+            f.addRow(label, wd)
         f.addRow(self.theta_label, self.theta)
         f.addRow(self.psi_label, self.psi_jt)
         f.addRow("Ambient", self.ambient)
-        f.addRow(self.compute)
-        f.addRow(self.result)
-        f.addRow(self.use)
-        lay.addWidget(g)
-        self.heater.currentIndexChanged.connect(self._part_changed)
-        self.point.currentIndexChanged.connect(self._point_changed)
-        self._part_changed()
+        lay.addLayout(f)
+        self.band = QCheckBox("Uncertainty band (best case / worst case)")
+        self.band.setChecked(True)
+        self.band.setToolTip("Also compute the best and worst case: the copper, heat transfer, θ, ψJT and the reading are moved to both ends of their uncertainty (Edit - Preferences) "
+                             "and the effects added as the root of the sum of squares. Slower: about ten times the nominal calculation.")
+        lay.addWidget(self.band)
+        row = QHBoxLayout()
+        self.compute = QPushButton("Calculate")
+        self.compute.setToolTip("Runs the board model and finds the power that reproduces the measurement. The result is as good as the board drawn "
+                                "(copper, vias, stack-up, heat transfer coefficients) and as the measurement (a probe that touches the board cools it a little).")
+        self.compute.clicked.connect(self._run)
+        row.addWidget(self.compute)
+        row.addStretch(1)
+        lay.addLayout(row)
+        self.result = QLabel("")
+        self.result.setWordWrap(True)
+        self.result.setMinimumHeight(self.result.fontMetrics().lineSpacing() * 9)       # Room for the longest result: the window does not grow when it appears
+        self.result.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)
+        self.result.setToolTip("The power (best case, nominal, worst case), what the model reads at the nominal power, the board resistance at the measured point and what each "
+                               "source of doubt contributes.")
+        lay.addWidget(self.result)
+        row = QHBoxLayout()
+        self.case = QComboBox()
+        for label, key, tip in CASES:
+            self.case.addItem(label, key)
+            self.case.setItemData(self.case.count() - 1, tip, 3)
+        self.case.setCurrentIndex(1)
+        self.case.setToolTip("Which power goes into the part: the best case (lowest), the nominal, or the worst case (highest, to check margins). Each option has a hint.")
+        self.use = QPushButton("Use as the power of this part")
+        self.use.setToolTip("Write the selected power in the heater (it can be undone); the next simulation uses it. Nothing else changes.")
+        self.use.setEnabled(False)
+        self.use.clicked.connect(self._use)
+        row.addWidget(QLabel("Power to use"))
+        row.addWidget(self.case, 1)
+        row.addWidget(self.use)
+        lay.addLayout(row)
+        return w
 
-        g = QGroupBox("2. From a datasheet parameter (junction temperature known)")
-        g.setToolTip("No board model: the datasheet relation P = (Tj − Treference) / parameter. Quick, but the parameter belongs to the datasheet's own test board.")
-        f = QFormLayout(g)
+    # ------------------------------------------------------------------ route 2
+    def _datasheet_tab(self):
+        """!
+        @brief The tab of route 2 (a datasheet parameter).
+        @return QWidget.
+        """
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        note = QLabel("No board model: the datasheet relation P = (Tj − Treference) / parameter. The result updates as you type.")
+        note.setWordWrap(True)
+        note.setStyleSheet("font-size: 11px; color: gray;")
+        note.setToolTip("Quick, but the parameter belongs to the datasheet's own test board: on yours it is an estimate.")
+        lay.addWidget(note)
+        f = QFormLayout()
         self.tj = _spin(-50, 500, 100.0, 1, "°C", "Junction temperature, for example from the part's sense diode or temperature output.")
         self.tref = _spin(-50, 500, 80.0, 1, "°C", "Temperature of the reference point: the board 1 mm from the package for ψJB or θJB, the top of the case for ψJT.")
         self.par = _spin(0.01, 2000, 10.0, 2, "K/W", "ψJB, ψJT or θ from the datasheet. They belong to the datasheet's test board: on yours they are an estimate (ψJB within about 15 % of θJB).")
         self.out2 = QLabel("")
         self.out2.setToolTip("P = (Tj − Treference) / parameter.")
-        for label, w in (("Junction Tj", self.tj), ("Reference point", self.tref), ("Parameter", self.par)):
-            f.addRow(label, w)
+        for label, wd in (("Junction Tj", self.tj), ("Reference point", self.tref), ("Parameter", self.par)):
+            f.addRow(label, wd)
         f.addRow("Power", self.out2)
-        for w in (self.tj, self.tref, self.par):
-            w.valueChanged.connect(self._theta)
+        lay.addLayout(f)
+        self.use2 = QPushButton("Use as the power of a part")
+        self.use2.setToolTip("Write this power in the part chosen in Route 1 (it can be undone).")
+        self.use2.clicked.connect(self._use2)
+        row = QHBoxLayout()
+        row.addWidget(self.use2)
+        row.addStretch(1)
+        lay.addLayout(row)
+        lay.addStretch(1)
+        for wd in (self.tj, self.tref, self.par):
+            wd.valueChanged.connect(self._theta)
         self._theta()
-        lay.addWidget(g)
-        note = QLabel("Both routes give an estimate. Route 1 is only as good as the drawn board; ψ parameters are not thermal resistances and come from the datasheet's board "
-                      "(JEDEC JESD51-12). The datasheet shortcut P = (Ttop − Tamb)/(θJA − ψJT) is not offered: with a θJA 30 % away from your board's it is 25 to 50 % off.")
-        note.setWordWrap(True)
-        note.setStyleSheet("font-size: 11px; color: gray;")
-        note.setToolTip("Why the answers are estimates. Validation against datasheets and the sensitivity to the copper: docs/calculators.md.")
-        lay.addWidget(note)
-        box = QDialogButtonBox(QDialogButtonBox.Close)
-        box.button(QDialogButtonBox.Close).setToolTip("Close the calculator.")
-        box.rejected.connect(self.reject)
-        lay.addWidget(box)
-        if not doc.problem.heaters:
-            self.compute.setEnabled(False)
-            self.result.setText("Draw a heater first.")
-        self._point_changed()
+        return w
 
+    # ------------------------------------------------------------------ behaviour
     def _part_changed(self, *_):
         """!
         @brief Load the part's junction resistance into the θ field.
@@ -156,14 +248,17 @@ class PowerCalculator(QDialog):
 
     def _point_changed(self, *_):
         """!
-        @brief Show only the parameters the chosen measurement point needs (θ for the junction, θ and ψJT for the top).
+        @brief Grey out the parameters the chosen measurement point does not use (θ is used by the junction and the top, ψJT by the top only). They stay in place, so the
+               window never changes size when the point changes.
         @param _ Ignored (the Qt signal argument).
         """
         key = self.point.currentData()
-        for w in (self.theta, self.theta_label):
-            w.setVisible(key in ("junction", "top"))
-        for w in (self.psi_jt, self.psi_label):
-            w.setVisible(key == "top")
+        for wd, on, why in ((self.theta, key in ("junction", "top"), "junction or the top of the package"), (self.psi_jt, key == "top", "top of the package")):
+            wd.setEnabled(on)
+            label = self.theta_label if wd is self.theta else self.psi_label
+            label.setEnabled(on)
+            suffix = "" if on else f"\n\nGreyed: this point does not use it (it is used by the {why})."
+            wd.setToolTip(wd.property("base_tip") + suffix)
 
     def _theta(self, *_):
         """!
@@ -171,9 +266,13 @@ class PowerCalculator(QDialog):
         @param _ Ignored (the value of the Qt signal).
         """
         try:
-            self.out2.setText(f"<b>{power_from_theta(self.tj.value(), self.tref.value(), self.par.value()):.3f} W</b>")
+            self.power2 = power_from_theta(self.tj.value(), self.tref.value(), self.par.value())
+            self.out2.setText(f"<b>{self.power2:.3f} W</b>")
+            self.use2.setEnabled(bool(self.doc.problem.heaters))
         except ValueError as exc:
+            self.power2 = None
             self.out2.setText(str(exc))
+            self.use2.setEnabled(False)
 
     def _run(self):
         """!
@@ -189,8 +288,9 @@ class PowerCalculator(QDialog):
         k = self.heater.currentData()
         if self.point.currentData() in ("junction", "top"):
             problem.heaters[k].theta = self.theta.value()                  # The θ typed here is used for this calculation only
-        self.worker = ProcessWorker("inverse", problem, k, self.measured.value(), self.point.currentData(),
-                                    self.ambient.value(), max(self.doc.options.cell_mm, 0.5), self.psi_jt.value())
+        self.worker = ProcessWorker("inverse", problem, k, self.measured.value(), self.point.currentData(), self.ambient.value(),
+                                    max(self.doc.options.cell_mm, 0.5), self.psi_jt.value(), self.band.isChecked())
+        self.worker.progress.connect(lambda text, _f: self.result.setText(f"Calculating… {text}"))
         self.worker.done.connect(self._done)
         self.worker.failed.connect(self._failed)
         self.worker.cancelled.connect(lambda: self._failed("Cancelled."))
@@ -198,19 +298,40 @@ class PowerCalculator(QDialog):
 
     def _done(self, out):
         """!
-        @brief Show the calculated power and what the model reads at that power.
-        @param out Dict of inverse.power_from_temperature.
+        @brief Show the calculated power (with its band) and what the model reads at that power.
+        @param out Dict of inverse.power_from_temperature or inverse.power_band.
         """
         self.compute.setEnabled(True)
-        self.result_power = out["power_w"]
+        self.out = out
         st = out.get("at_power", {})
         names = (("board_max", "hottest board point"), ("ring", "board ring"), ("junction", "junction"), ("top", "top of the package"))
         reads = ", ".join(f"{label} {st[key]:.1f} °C" for key, label in names if st.get(key) is not None)
-        self.result.setText(f"<b>{out['power_w']:.3f} W</b> reproduce {out['temperature_c']:.1f} °C "
-                            f"({out['runs']} model runs{', linear' if out['linear'] else ', iterated: the heat transfer depends on the temperature'}).<br>"
-                            f"At that power the model reads: {reads}.<br>"
-                            f"Board resistance at the measured point: <b>{out.get('resistance_k_per_w', 0.0):.1f} K/W</b> (kelvin per watt: set by the copper, vias, stack-up and air).")
+        if "best_w" in out:
+            head = (f"<b>Nominal {out['power_w']:.3f} W</b> &nbsp; (best case {out['best_w']:.3f} W, worst case {out['worst_w']:.3f} W)<br>")
+            parts = "".join(f"{c['factor']}: {c['low_w']:.2f} to {c['high_w']:.2f} W; " for c in out.get("contributions", []))
+            band = f"<br>What each source of doubt moves: {parts.rstrip('; ')}."
+        else:
+            head, band = f"<b>{out['power_w']:.3f} W</b><br>", ""
+        self.result.setText(head + f"reproduces {out['temperature_c']:.1f} °C ({out['runs']} model runs"
+                            f"{', linear' if out['linear'] else ', iterated: the heat transfer depends on the temperature'}).<br>"
+                            f"At the nominal power the model reads: {reads}.<br>"
+                            f"Board resistance at the measured point: <b>{out.get('resistance_k_per_w', 0.0):.1f} K/W</b> (kelvin per watt: set by the copper, vias, stack-up and air)."
+                            + band)
         self.use.setEnabled(True)
+
+    def selected_power(self):
+        """!
+        @brief The power chosen by the case selector (best case, nominal or worst case).
+        @return Watts, or None when there is no result yet.
+        """
+        if not self.out:
+            return None
+        key = self.case.currentData()
+        if key == "best" and "best_w" in self.out:
+            return float(self.out["best_w"])
+        if key == "worst" and "worst_w" in self.out:
+            return float(self.out["worst_w"])
+        return float(self.out["power_w"])
 
     def _failed(self, message):
         """!
@@ -222,11 +343,19 @@ class PowerCalculator(QDialog):
 
     def _use(self):
         """!
-        @brief Write the power in the heater.
+        @brief Write the selected power in the heater.
         """
-        if self.result_power is not None:
-            self.doc.set_props("heater", self.heater.currentData(), power=float(self.result_power), merge=False)
+        p = self.selected_power()
+        if p is not None:
+            self.doc.set_props("heater", self.heater.currentData(), power=p, merge=False)
             self.use.setEnabled(False)
+
+    def _use2(self):
+        """!
+        @brief Write the power of the datasheet route in the part chosen in route 1.
+        """
+        if self.power2 is not None and self.heater.currentData() is not None:
+            self.doc.set_props("heater", self.heater.currentData(), power=float(self.power2), merge=False)
 
     def done(self, code):
         """!

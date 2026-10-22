@@ -57,7 +57,7 @@ def job_analyze(progress, problem, options):
     return resp, profiles.decide(problem, resp, options.profile.threshold_c), ref
 
 
-def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt=0.0):
+def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt=0.0, band=False, uncertainty=None):
     """!
     @brief Power of a part from a measured temperature (inverse.power_from_temperature).
     @param progress Callable progress(message, fraction) (unused).
@@ -68,9 +68,13 @@ def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm,
     @param ambient_c Ambient of the measurement in degC.
     @param cell_mm Cell size in mm.
     @param psi_jt Datasheet psi_JT in K/W for the point "top".
-    @return Dict of inverse.power_from_temperature.
+    @param band True to also compute the uncertainty band (inverse.power_band).
+    @param uncertainty Optional dict of uncertainties for the band (see inverse.power_band).
+    @return Dict of inverse.power_from_temperature, or of inverse.power_band with the band.
     """
-    from .inverse import power_from_temperature
+    from .inverse import power_band, power_from_temperature
+    if band:
+        return power_band(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm, psi_jt=psi_jt, uncertainty=uncertainty, progress=progress)
     return power_from_temperature(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm, psi_jt=psi_jt)
 
 

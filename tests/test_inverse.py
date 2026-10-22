@@ -76,3 +76,28 @@ def test_the_top_of_the_package_needs_theta_and_depends_on_the_board_and_psi():
     low = power_from_temperature(part(), 0, t_top, point="top", cell_mm=1.0, psi_jt=1.0)["power_w"]
     high = power_from_temperature(part(), 0, t_top, point="top", cell_mm=1.0, psi_jt=2.0)["power_w"]
     assert low < 3.0 < high
+
+
+def test_power_band_orders_best_nominal_worst_and_the_sources_add_in_quadrature():
+    from pcbthermal.inverse import power_band
+    truth = part(power=3.0)
+    row = simulate(truth, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+    t_top = row["t_junction"] - 1.5 * 3.0
+    out = power_band(part(power=1.0), 0, t_top, point="top", cell_mm=1.0, psi_jt=1.5)
+    assert out["power_w"] == pytest.approx(3.0, rel=1e-3)                                  # The nominal is the plain calculator
+    assert out["best_w"] < out["power_w"] < out["worst_w"]
+    names = [c["factor"] for c in out["contributions"]]
+    assert names == ["copper", "heat transfer", "θ junction-pad", "ψJT", "reading"]
+    for c in out["contributions"]:
+        assert c["low_w"] <= out["power_w"] + 1e-9 <= c["high_w"] + 2e-9
+    down = sum((out["power_w"] - c["low_w"]) ** 2 for c in out["contributions"]) ** 0.5
+    up = sum((c["high_w"] - out["power_w"]) ** 2 for c in out["contributions"]) ** 0.5
+    assert out["best_w"] == pytest.approx(out["power_w"] - down) and out["worst_w"] == pytest.approx(out["power_w"] + up)
+    # A board point needs neither theta nor psi_JT: those two sources are not in its band; a bigger uncertainty widens it
+    ring = power_band(part(power=1.0), 0, row["t_ring"], point="ring", cell_mm=1.0)
+    assert [c["factor"] for c in ring["contributions"]] == ["copper", "heat transfer", "reading"]
+    wide = power_band(part(power=1.0), 0, row["t_ring"], point="ring", cell_mm=1.0, uncertainty={"copper_pct": 50.0, "h_pct": 60.0})
+    assert wide["worst_w"] - wide["best_w"] > ring["worst_w"] - ring["best_w"]
+    # More copper means a lower board resistance: more watts for the same reading
+    copper = next(c for c in ring["contributions"] if c["factor"] == "copper")
+    assert copper["high_w"] > ring["power_w"] > copper["low_w"]
