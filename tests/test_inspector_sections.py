@@ -43,7 +43,10 @@ def test_boxes_of_every_element(win):
     select(win, "zone")
     assert titles(win) == ["Copper", "Position and size"]
     select(win, "heater")
+    assert titles(win) == ["Part", "Junction", "Heatsink on the package", "Position and size"]            # No heatsink: no top boxes
+    win.doc.set_props("heater", 0, theta_sa=12.0)
     assert titles(win) == ["Part", "Junction", "Heatsink on the package", "Package top: junction to case", "Interface: package top to heatsink", "Position and size"]
+    win.doc.set_props("heater", 0, theta_sa=0.0)
     select(win, "via")
     assert titles(win) == ["Via"]
     select(win, "heatsink")
@@ -133,16 +136,19 @@ def test_direct_contact_is_cooler_than_a_gap_pad_under_a_metal_block(win):
 
 def test_fields_that_do_not_apply_are_greyed(win):
     from PySide6.QtWidgets import QGroupBox
-    # Top path of a part: used only with both the junction-to-pad theta and the heatsink theta_SA
+    # Top path of a part: its boxes appear as soon as there is a heatsink resistance theta_SA
     h = win.doc.problem.heaters[0]
     h.theta, h.theta_sa, h.role = 0.0, 0.0, "component"
     select(win, "heater")
     boxes = {g.title(): g for g in win.inspector.form_host.findChildren(QGroupBox)}
-    assert not boxes["Package top: junction to case"].isEnabled() and not boxes["Interface: package top to heatsink"].isEnabled() and boxes["Heatsink on the package"].isEnabled()
-    assert "Greyed" in boxes["Interface: package top to heatsink"].toolTip()
+    assert "Package top: junction to case" not in boxes and "Interface: package top to heatsink" not in boxes and "Heatsink on the package" in boxes
     win.doc.set_props("heater", 0, theta=5.0, theta_sa=10.0)
     boxes = {g.title(): g for g in win.inspector.form_host.findChildren(QGroupBox)}
     assert boxes["Package top: junction to case"].isEnabled() and boxes["Interface: package top to heatsink"].isEnabled()
+    win.doc.set_props("heater", 0, theta=0.0)                                                    # A heatsink without a junction resistance: the boxes show, a hint says what is missing
+    from PySide6.QtWidgets import QLabel
+    assert any(l.text().startswith("The top path also needs a junction-to-pad θ") for l in win.inspector.form_host.findChildren(QLabel))
+    win.doc.set_props("heater", 0, theta=5.0)
     # Solver settings follow the selected models
     sp = win.solver_panel
     win.doc.set_options(models=("fvm",))
@@ -231,3 +237,38 @@ def test_heater_type_source_or_component_with_the_interface_under_a_source_and_t
     fam = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0) == "Custom")
     fam.setCurrentIndex(1)
     assert h().theta == 7.5
+
+
+def test_heatsink_selector_fills_the_typical_theta_sa_and_the_top_boxes_say_when_they_count(win):
+    from PySide6.QtWidgets import QGroupBox, QLabel
+    from pcbthermal import defaults, model
+    from pcbthermal.model import HEATSINKS
+    h = lambda: win.doc.problem.heaters[0]                                                       # noqa: E731
+    h().theta_sa, h().heatsink, h().role = 0.0, "", "component"
+    select(win, "heater")
+    form = win.inspector.form_host
+    boxes = {g.title(): g for g in form.findChildren(QGroupBox)}
+    assert "Package top: junction to case" not in boxes and "Interface: package top to heatsink" not in boxes     # No heatsink: no top boxes, no orange message
+    assert not any("not used yet" in l.text() for l in form.findChildren(QLabel))
+    assert any(l.text().startswith("Custom: no typical values applied") for l in form.findChildren(QLabel))
+    hs = next(c for c in form.findChildren(QComboBox) if c.itemText(0) == "None (no heatsink)")
+    assert [hs.itemText(i) for i in range(1, hs.count() - 1)] == [e[0] for e in HEATSINKS] and hs.itemText(hs.count() - 1) == "Custom"
+    hs.setCurrentIndex(1)                                                                        # The first typical heatsink
+    assert h().heatsink == HEATSINKS[0][0] and h().theta_sa == HEATSINKS[0][1]
+    select(win, "heater")
+    form = win.inspector.form_host
+    boxes = {g.title(): g for g in form.findChildren(QGroupBox)}
+    assert boxes["Package top: junction to case"].isEnabled() and boxes["Interface: package top to heatsink"].isEnabled()           # They appear with the heatsink
+    assert any(l.text().startswith("Catalogue: ") for l in form.findChildren(QLabel))
+    hs = next(c for c in form.findChildren(QComboBox) if c.itemText(0) == "None (no heatsink)")
+    hs.setCurrentIndex(0)                                                                        # None: back to no top path
+    assert h().theta_sa == 0.0 and h().heatsink == ""
+    # The typical values are a library in the settings
+    full = defaults.load()
+    full["libraries"]["heatsinks"][0]["theta_sa_k_per_w"] = 9.9
+    defaults.save_user(full)
+    model.reload_libraries()
+    select(win, "heater")
+    hs = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0) == "None (no heatsink)")
+    hs.setCurrentIndex(1)
+    assert h().theta_sa == 9.9

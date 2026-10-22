@@ -203,6 +203,63 @@
         "tj_max_c": 170.0,
         "note": "Derived from a 0.1 W rating at 70 degC and a 170 degC limit. No top path (0 = not used); 170 degC is the limit of its derating curve."
       }
+    ],
+    "heatsinks": [
+      {
+        "name": "Pin-fin 10×10, natural",
+        "theta_sa_k_per_w": 11.4,
+        "note": "Wakefield-Vette 901-10-1-18-2-B-0 (push-pin, 10 × 10 mm): 11.4 K/W in natural convection, 5.97 K/W with forced air (catalogue). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "Pin-fin 10×10, forced air",
+        "theta_sa_k_per_w": 5.97,
+        "note": "Same part with forced air (the catalogue does not state the speed here). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "Adhesive pin 10×10×12.5",
+        "theta_sa_k_per_w": 26.3,
+        "note": "Fischer Elektronik ICK 10 × 10 × 12.5 mm, adhesive or foil mounting: 26.3 K/W (archived catalogue sheet). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 clip-on, thin",
+        "theta_sa_k_per_w": 26.0,
+        "note": "Fischer Elektronik FK 242 SA 220 O: 26 K/W (distributor listing). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 clip-on, PF745",
+        "theta_sa_k_per_w": 23.1,
+        "note": "Aavid / Thermalloy PF745, 21.8 × 19.1 × 10 mm: 23.1 K/W (distributor listing). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 clip-on, FK 240",
+        "theta_sa_k_per_w": 16.0,
+        "note": "Fischer Elektronik FK 240 SA 220 O: 16 K/W (distributor listing). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 board-level, natural",
+        "theta_sa_k_per_w": 10.5,
+        "note": "Wakefield-Vette 272-AB: 10.5 K/W in natural convection, 3.6 K/W at 400 LFM (2 m/s) (DigiKey listing). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 board-level, 2 m/s",
+        "theta_sa_k_per_w": 3.6,
+        "note": "Same part at 400 LFM (about 2 m/s). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "BGA 40×40×18, natural",
+        "theta_sa_k_per_w": 7.68,
+        "note": "SAME Sky HSB16-404018 (adhesive): 7.68 K/W at 75 K rise, 10.8 K/W at 1 W; 2.5 K/W at 200 LFM (about 1 m/s) and 1.5 K/W at 400 LFM (about 2 m/s). Natural convection resistance falls as the rise grows (Boyd/Aavid quote it at a 75 K rise). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "BGA 40×40×18, 1 m/s",
+        "theta_sa_k_per_w": 2.5,
+        "note": "Same part at 200 LFM (about 1 m/s). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "BGA 40×40×18, 2 m/s",
+        "theta_sa_k_per_w": 1.5,
+        "note": "Same part at 400 LFM (about 2 m/s). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      }
     ]
   },
   "materials": {

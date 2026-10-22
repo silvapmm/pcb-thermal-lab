@@ -21,13 +21,14 @@ from .. import defaults
 from .. import model
 
 LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)", "interfaces": "Interface materials", "dielectrics": "Dielectrics (stack-up)",
-                  "package_theta": "Package families (typical θ)"}
+                  "package_theta": "Package families (typical θ)", "heatsinks": "Heatsinks on a package (typical θSA)"}
 LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name appears in the via's Fill list and the conductivity is its typical value (W/mK). Edit a cell to change it, "
                              "add a row for a new fill.",
                 "metals": "Metals of a heatsink block: conductivity (W/mK) and volumetric heat capacity (J/m³K).",
                 "interfaces": "Pastes and gap pads under a heatsink or a package: apparent conductivity (W/mK) and thickness (mm); the resistance is thickness / conductivity.",
                 "dielectrics": "Dielectrics of the stack-up: conductivity across and along the plane (W/mK), density (kg/m³) and specific heat (J/kgK).",
-                "package_theta": "Typical junction-to-pad resistance by package family (K/W): a starting value, never the datasheet's."}
+                "package_theta": "Typical values by package family: junction-to-pad θ, junction-to-case (top) θJC(top) (K/W) and the maximum junction temperature (°C): a starting value, never the datasheet's.",
+                "heatsinks": "Typical heatsinks for the top of a package and their catalogue θSA (K/W) with the source and the test conditions in the note: a starting value, your θSA depends on air flow, orientation and mounting."}
 SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power calculator", "solver": "Solver of a new project"}
 SECTION_HINTS = {"new_board": "The values a board starts with when you choose File - New board (and when the program starts).",
                  "new_elements": "The values of an element when you draw it or add it from the right-click menu.",

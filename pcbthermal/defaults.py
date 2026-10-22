@@ -21,7 +21,7 @@ import sys
 SHIPPED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "defaults.json")
 USER_NAME = "user_defaults.json"
 STACKUP_NAME = "stackups.json"
-LIBRARIES = ("via_fills", "metals", "interfaces", "dielectrics", "package_theta")      # Lists of entries keyed by "name"
+LIBRARIES = ("via_fills", "metals", "interfaces", "dielectrics", "package_theta", "heatsinks")      # Lists of entries keyed by "name"
 SECTIONS = ("materials", "new_board", "new_elements", "calculator", "solver")           # Sections of scalar defaults
 _CACHE = {}
 

@@ -655,11 +655,14 @@ def test_top_path_in_the_application(win, qtbot):
     win.canvas.set_selection([("heater", 0)])
     win._on_canvas_selection([("heater", 0)])
     form = win.inspector.form_host
-    spins = form.findChildren(QAbstractSpinBox)
-    by_tip = lambda start: next(s for s in spins if s.toolTip().startswith(start))
+    by_tip = lambda start: next(s for s in win.inspector.form_host.findChildren(QAbstractSpinBox) if s.toolTip().startswith(start))
+    by_tip("Resistance from a heatsink on top").setValue(12.0)                      # The top boxes appear with the heatsink resistance
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
     by_tip("Junction-to-case").setValue(30.0)
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
     by_tip("Resistance per area of the interface between the package top").setValue(0.5)
-    by_tip("Resistance from a heatsink on top").setValue(12.0)
     h = win.doc.problem.heaters[0]
     assert (h.theta_jc_top, h.interface, h.theta_sa) == (pytest.approx(30.0), pytest.approx(0.5), pytest.approx(12.0))
     run(win, qtbot, ALL_MODELS, cell=2.0)

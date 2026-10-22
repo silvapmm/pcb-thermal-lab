@@ -630,6 +630,7 @@ class Heater:
     base_pad_thickness: float = 0.0             # Source: the sheet under it (paste, solder, adhesive): thickness (m); 0 = use `base_interface`
     base_pad_k: float = 0.0                     # Source: conductivity of that sheet (W/mK)
     family: str = ""                            # Component: name of the package family chosen (informative; the values are in the fields)
+    heatsink: str = ""                          # Component: name of the typical heatsink chosen for the package top (informative; theta_sa is the value used)
 
     def is_component(self):
         """!
@@ -772,6 +773,7 @@ VIA_FILLS = []
 METALS = []
 INTERFACES = []
 PACKAGE_THETA = []
+HEATSINKS = []                                  # Heatsinks on a package: (name, typical theta_SA in K/W, note with the source and the test conditions)
 
 
 def reload_libraries():
@@ -783,6 +785,7 @@ def reload_libraries():
     VIA_FILLS[:] = [(e["name"], e["k_w_per_mk"], e.get("note", "")) for e in lib["via_fills"]]
     METALS[:] = [(e["name"], e["k_w_per_mk"], e["rho_cp_j_per_m3k"]) for e in lib["metals"]]
     INTERFACES[:] = [(e["name"], e["k_w_per_mk"], e["thickness_mm"]) for e in lib["interfaces"]]
+    HEATSINKS[:] = [(e["name"], e["theta_sa_k_per_w"], e.get("note", "")) for e in lib["heatsinks"]]
     PACKAGE_THETA[:] = [(e["name"], e["theta_k_per_w"], e.get("theta_jc_top_k_per_w", 0.0), e.get("tj_max_c", 0.0), e.get("note", "")) for e in lib["package_theta"]]
 
 
@@ -1175,7 +1178,7 @@ def problem_from_dict(data, validate=True):
                         float(h.get("theta_jc_top_k_per_w", 0.0)), float(h.get("theta_sa_k_per_w", 0.0)), float(h.get("interface_kcm2_per_w", 0.0)),
                         float(h.get("contact_area_mm2", 0.0)) * 1e-6, float(h.get("pad_thickness_mm", 0.0)) * 1e-3, float(h.get("pad_k_w_per_mk", 0.0)),
                         h.get("role", ""), float(h.get("base_interface_kcm2_per_w", 0.0)), float(h.get("base_pad_thickness_mm", 0.0)) * 1e-3,
-                        float(h.get("base_pad_k_w_per_mk", 0.0)), h.get("family", ""))
+                        float(h.get("base_pad_k_w_per_mk", 0.0)), h.get("family", ""), h.get("heatsink", ""))
         if "profile" in h:
             heater.set_profile(_profile_from_dict(h["profile"]))
         prob.heaters.append(heater)
@@ -1341,7 +1344,7 @@ def problem_to_dict(prob):
                          **({"interface_kcm2_per_w": h.interface} if h.interface else {}),
                          **({"contact_area_mm2": h.contact_area * 1e6} if h.contact_area else {}),
                          **({"pad_thickness_mm": h.pad_thickness * 1000.0, "pad_k_w_per_mk": h.pad_k} if h.pad_thickness and h.pad_k else {}),
-                         **({"role": h.role} if h.role else {}), **({"family": h.family} if h.family else {}),
+                         **({"role": h.role} if h.role else {}), **({"family": h.family} if h.family else {}), **({"heatsink": h.heatsink} if h.heatsink else {}),
                          **({"base_interface_kcm2_per_w": h.base_interface} if h.base_interface else {}),
                          **({"base_pad_thickness_mm": h.base_pad_thickness * 1000.0, "base_pad_k_w_per_mk": h.base_pad_k} if h.base_pad_thickness and h.base_pad_k else {}),
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem
 from .. import blocks
 from .. import defaults
 from ..api import suggest_cell_mm
-from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
+from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
 from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
@@ -654,7 +654,7 @@ class Inspector(QWidget):
                     want = c.currentData()
                     if want == "source" and comp:
                         self.doc.set_props(kind, i, role="source", theta=0.0, tj_max=0.0, psi_jb=0.0, power_tc=0.0, theta_jc_top=0.0, theta_sa=0.0, interface=0.0,
-                                           contact_area=0.0, pad_thickness=0.0, pad_k=0.0, family="", merge=False)
+                                           contact_area=0.0, pad_thickness=0.0, pad_k=0.0, family="", heatsink="", merge=False)
                     elif want == "component" and not comp:
                         self.doc.set_props(kind, i, role="component", merge=False)
 
@@ -686,8 +686,10 @@ class Inspector(QWidget):
                     typical.setStyleSheet("font-size: 11px; color: gray;")
                     typical.setToolTip("The typical values and the note of the chosen family, from the library.")
                     entry = next((e for e in PACKAGE_THETA if e[0] == el.family), None)
-                    typical.setText((f"Typical for {entry[0]}: θ junction-pad {entry[1]:g} K/W, θJC(top) {entry[2]:g} K/W, Tj max {entry[3]:g} °C. {entry[4]}") if entry else
-                                    "No family chosen: type the datasheet values below.")
+                    typical.setText(f"Typical for {entry[0]}: θ junction-pad {entry[1]:g} K/W, θJC(top) {entry[2]:g} K/W, Tj max {entry[3]:g} °C." if entry else
+                                    "Custom: no typical values applied. Type the datasheet numbers below.")
+                    if entry and entry[4]:
+                        typical.setToolTip(entry[4])                       # The note and the source of the library entry
 
                     def pick_family(_idx, c=fam):
                         e = next((x for x in PACKAGE_THETA if x[0] == c.currentData()), None)
@@ -725,47 +727,85 @@ class Inspector(QWidget):
                     tc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power_tc=v / 100.0))
                     lay.addRow("Power coefficient", tc)
                     lay = box("Heatsink on the package")
+                    hs = QComboBox()
+                    hs.addItem("None (no heatsink)", "none")
+                    for hs_name, _theta_sa, _note in HEATSINKS:
+                        hs.addItem(hs_name, hs_name)
+                    hs.addItem("Custom", "custom")
+                    hs_names = [e[0] for e in HEATSINKS]
+                    hs.setCurrentIndex(hs.findData(el.heatsink) if el.heatsink in hs_names else (hs.findData("custom") if el.theta_sa > 0 else 0))
+                    hs.setToolTip("A typical heatsink for the top of the package, from a catalogue library (Preferences - Heatsinks): choosing one fills θSA below with its catalogue "
+                                  "value, which you can change. None: no heatsink (all the power enters the board). Custom: type your own θSA. The catalogue values are for their own "
+                                  "test conditions: yours depends on the air flow, the orientation and the mounting.")
+                    hs_note = QLabel("")
+                    hs_note.setWordWrap(True)
+                    hs_note.setStyleSheet("font-size: 11px; color: gray;")
+                    hs_note.setToolTip("The catalogue value and its source for the chosen heatsink.")
+                    hs_entry = next((e for e in HEATSINKS if e[0] == el.heatsink), None)
+                    hs_note.setText(f"Catalogue: {hs_entry[1]:g} K/W." if hs_entry else
+                                    ("Custom: your own θSA." if el.theta_sa > 0 else "No heatsink: all the power enters the board (worst case)."))
+                    if hs_entry:
+                        hs_note.setToolTip(hs_entry[2])                    # The source and the test conditions
+
+                    def pick_heatsink(_idx, c=hs):
+                        key = c.currentData()
+                        if key == "none":
+                            self.doc.set_props(kind, i, theta_sa=0.0, heatsink="", merge=False)
+                        elif key == "custom":
+                            self.doc.set_props(kind, i, heatsink="", merge=False)
+                        else:
+                            e = next(x for x in HEATSINKS if x[0] == key)
+                            self.doc.set_props(kind, i, theta_sa=e[1], heatsink=e[0], merge=False)
+
+                    hs.currentIndexChanged.connect(pick_heatsink)
+                    lay.addRow("Heatsink", hs)
+                    lay.addRow(hs_note)
                     sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
                     sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
                                   "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
                     sa.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_sa=v))
                     lay.addRow("Heatsink θSA", sa)
-                    top_active = el.theta > 0 and el.theta_sa > 0               # The top path needs both the junction resistance and the heatsink resistance
-                    why = "" if top_active else "Greyed: the top path is used only when the junction-to-pad θ and the heatsink θSA are both above zero."
-                    lay = box("Package top: junction to case", why)
-                    lay.parentWidget().setEnabled(top_active)
-                    jc = _spin(0, 5000, el.theta_jc_top, 2, 0.5, "K/W")
-                    jc.setToolTip("Junction-to-case (top) resistance θJC(top) of the package, in series with the interface and the heatsink. Used only when the "
-                                  "heatsink resistance is set (a bare mould carries about 1 % of the heat and is ignored: worst case).")
-                    jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
-                    lay.addRow("θJC top", jc)
-                    body_t = _spin(0, 50, 0.0, 2, 0.1, "mm")
-                    body_m = QComboBox()
-                    for label, k_ in (("Mould compound (0.9 W/mK)", 0.9), ("Thermally enhanced mould (2.3 W/mK)", 2.3), ("Alumina ceramic (24 W/mK)", 24.0),
-                                      ("Copper lid / heat spreader (385 W/mK)", 385.0)):
-                        body_m.addItem(label, k_)
-                    body_t.setToolTip("Estimate θJC(top) when the datasheet has no value: the thickness of the package body above the die (a plastic QFN has 0.3 to 1 mm of mould). "
-                                      "θ = thickness / (k × contact area), one-dimensional through the body, no spreading: an upper bound for a small die under a larger "
-                                      "lid. A processor's datasheet θJC already includes its heat spreader and the paste under it: use that instead. 0 = not used.")
-                    body_m.setToolTip("Material of the package body above the die (typical conductivities: mould 0.88 to 0.9 W/mK, enhanced mould 2.3 to 6, alumina 24, copper 385).")
+                    top_active = el.theta_sa > 0                                # The boxes of the top path appear as soon as there is a heatsink resistance
+                    if top_active and el.theta <= 0:
+                        need = QLabel("The top path also needs a junction-to-pad θ above zero (Junction box).")
+                        need.setWordWrap(True)
+                        need.setStyleSheet("font-size: 11px; color: gray;")
+                        need.setToolTip("The heat that goes up is taken from the heat that enters the board, which needs the junction-to-pad resistance θ to be known.")
+                        lay.addRow(need)
+                    why = ""
+                    if top_active:                                              # The top path boxes appear as soon as there is a heatsink θSA
+                        lay = box("Package top: junction to case", why)
+                        jc = _spin(0, 5000, el.theta_jc_top, 2, 0.5, "K/W")
+                        jc.setToolTip("Junction-to-case (top) resistance θJC(top) of the package, in series with the interface and the heatsink. Used only when the "
+                                      "heatsink resistance is set (a bare mould carries about 1 % of the heat and is ignored: worst case).")
+                        jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
+                        lay.addRow("θJC top", jc)
+                        body_t = _spin(0, 50, 0.0, 2, 0.1, "mm")
+                        body_m = QComboBox()
+                        for label, k_ in (("Mould compound (0.9 W/mK)", 0.9), ("Thermally enhanced mould (2.3 W/mK)", 2.3), ("Alumina ceramic (24 W/mK)", 24.0),
+                                          ("Copper lid / heat spreader (385 W/mK)", 385.0)):
+                            body_m.addItem(label, k_)
+                        body_t.setToolTip("Estimate θJC(top) when the datasheet has no value: the thickness of the package body above the die (a plastic QFN has 0.3 to 1 mm of mould). "
+                                          "θ = thickness / (k × contact area), one-dimensional through the body, no spreading: an upper bound for a small die under a larger "
+                                          "lid. A processor's datasheet θJC already includes its heat spreader and the paste under it: use that instead. 0 = not used.")
+                        body_m.setToolTip("Material of the package body above the die (typical conductivities: mould 0.88 to 0.9 W/mK, enhanced mould 2.3 to 6, alumina 24, copper 385).")
 
-                    def from_body(_v, t=body_t, m=body_m, spin=jc, e=el):
-                        area = (e.contact_area or e.area())
-                        if t.value() > 0 and area > 0:
-                            spin.setValue(t.value() * 1e-3 / (m.currentData() * area))
+                        def from_body(_v, t=body_t, m=body_m, spin=jc, e=el):
+                            area = (e.contact_area or e.area())
+                            if t.value() > 0 and area > 0:
+                                spin.setValue(t.value() * 1e-3 / (m.currentData() * area))
 
-                    body_t.valueChanged.connect(from_body)
-                    body_m.currentIndexChanged.connect(from_body)
-                    lay.addRow("Body thickness", body_t)
-                    lay.addRow("Body material", body_m)
-                    ca = _spin(0, 100000, el.contact_area * 1e6, 2, 5, "mm²")
-                    ca.setToolTip("Area of the package top that touches the heatsink through the paste (0 = the footprint). For a processor it is the lid, for a chip with an "
-                                  "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
-                    ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))
-                    lay.addRow("Contact area", ca)
-                    pad_form = box("Interface: package top to heatsink", why)
-                    pad_form.parentWidget().setEnabled(top_active)
-                    self._pad_rows(pad_form, kind, i, el, heater=True)
+                        body_t.valueChanged.connect(from_body)
+                        body_m.currentIndexChanged.connect(from_body)
+                        lay.addRow("Body thickness", body_t)
+                        lay.addRow("Body material", body_m)
+                        ca = _spin(0, 100000, el.contact_area * 1e6, 2, 5, "mm²")
+                        ca.setToolTip("Area of the package top that touches the heatsink through the paste (0 = the footprint). For a processor it is the lid, for a chip with an "
+                                      "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
+                        ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))
+                        lay.addRow("Contact area", ca)
+                        pad_form = box("Interface: package top to heatsink", why)
+                        self._pad_rows(pad_form, kind, i, el, heater=True)
             elif kind == "heatsink":
                 is_block = el.is_block()
                 mode = QComboBox()

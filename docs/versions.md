@@ -99,6 +99,8 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 
 | Heater type (heat source with an interface under it / component), package family fills θ, θJC(top), Tj max from the library in Preferences | `model.Heater.role/base_*/junction_theta`, `analysis.part_split`, `gui/panels.py`, `defaults.json` | `test_component.py`, `test_inspector_sections.py` |
 
+| Typical heatsink list for the top of a package (library `heatsinks`, θSA from catalogues); the top-path boxes appear with θSA | `defaults.json`, `model.HEATSINKS`, `Heater.heatsink`, `gui/panels.py` | `test_inspector_sections.py` |
+
 ### Changed behaviour
 
 - Changing the number of layers in the application now loads the typical stack-up of the new count (copper, dielectrics and total thickness in the advanced mode; total thickness and outer copper in the simple mode): a 4-layer board is 1.586 mm, a 10-layer board 2.0 mm.
