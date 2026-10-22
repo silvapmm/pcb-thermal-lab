@@ -158,7 +158,10 @@ def _heater_network(net, cov, layer, power, rings):
     g_bot = np.array([ring_sum(net.g_bottom[l]) for l in range(L)])
     g_heatsink = np.array([ring_sum(net.g_heatsink[l]) for l in range(L)])
     g_side = np.array([ring_sum(net.g_side[l]) for l in range(L)])
-    gz = np.array([ring_sum(net.gz[l]) for l in range(L - 1)]) if L > 1 else np.zeros((0, R))
+    nb = net.n_board                                    # Board layers; a metal block adds layers after them (block_nodes)
+    g_block = np.array([ring_sum(net.g_block[l]) for l in range(L)])
+    gz = np.array([ring_sum(net.gz[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))
+    links = [(a, b, ring_sum(g)) for a, b, g in net.extra_links]       # Contact of a block with its board face
     cap = np.array([ring_sum(net.C[l]) for l in range(L)])               # Heat capacity of every ring (J/K)
 
     phi_mean, phi_bnd, phi_min = _footprint_potentials(cov, net.dx, net.dy)
@@ -177,7 +180,9 @@ def _heater_network(net, cov, layer, power, rings):
             K[b, a] -= g
 
         def link_resistance(l, k):
-            # Thermal resistance between the area-mean temperatures of rings k and k+1 in layer l (K/W)
+            # Thermal resistance between the area-mean temperatures of rings k and k+1 in layer l (K/W); infinite where the layer (a block) has no material
+            if S[l, k] <= 0 or S[l, k + 1] <= 0:
+                return np.inf
             half_k1 = 0.5 * thick[k + 1] / (S[l, k + 1] * length[k + 1])
             if k == 0:
                 return f_r[l] * max(phi_bnd - phi_mean, 1e-3) / (2.0 * np.pi * S[l, 0]) + half_k1
@@ -185,13 +190,23 @@ def _heater_network(net, cov, layer, power, rings):
 
         for l in range(L):
             for k in range(R - 1):
-                couple(l * R + k, l * R + k + 1, 1.0 / link_resistance(l, k))
-            if l < L - 1:
+                r_link = link_resistance(l, k)
+                if np.isfinite(r_link):
+                    couple(l * R + k, l * R + k + 1, 1.0 / r_link)
+            if l < nb - 1:
                 for k in range(R):
                     couple(l * R + k, (l + 1) * R + k, gz[l, k])
-        K[np.arange(n), np.arange(n)] += (g_top + g_bot + g_heatsink + g_side).ravel()
+        for a, b, g in links:
+            for k in range(R):
+                if g[k] > 0:
+                    couple(a * R + k, b * R + k, g[k])
+        diag = (g_top + g_bot + g_heatsink + g_side + g_block).ravel()
+        K[np.arange(n), np.arange(n)] += np.where(diag > 0, diag, 0.0)
         Q = np.zeros(n)
         Q[layer * R] = power
+        # A block layer that does not reach a ring has no coupling at all: pin that node to zero so the matrix stays regular
+        iso = np.diag(K) <= 0
+        K[iso, iso] = 1.0
         theta = np.linalg.solve(K, Q)
         return theta, K, Q, link_resistance
 
@@ -205,13 +220,16 @@ def _heater_network(net, cov, layer, power, rings):
         th = theta.reshape(L, R)
         g_eff = np.zeros(L)
         for l in range(L):
-            loss = (g_top[l, 0] + g_bot[l, 0] + g_heatsink[l, 0] + g_side[l, 0]) * th[l, 0]
-            if l < L - 1:
+            loss = (g_top[l, 0] + g_bot[l, 0] + g_heatsink[l, 0] + g_side[l, 0] + g_block[l, 0]) * th[l, 0]
+            if l < nb - 1:
                 loss += gz[l, 0] * (th[l, 0] - th[l + 1, 0])
-            if l > 0:
+            if l > 0 and l < nb:
                 loss += gz[l - 1, 0] * (th[l, 0] - th[l - 1, 0])
+            for a, b, g in links:                                  # Contact with a block: heat leaving this layer towards the block (or arriving)
+                if a == l:
+                    loss += g[0] * (th[a, 0] - th[b, 0])
             g_eff[l] = max(loss, 0.0) / (max(th[l, 0], 1e-9) * A_foot)
-        f_r, f_p = _interior_factors(a_eq * np.sqrt(np.maximum(g_eff, 1e-12) / S[:, 0]))
+        f_r, f_p = _interior_factors(a_eq * np.sqrt(np.maximum(g_eff, 1e-12) / np.maximum(S[:, 0], 1e-12)))
 
     # --- Peak inside the footprint from the lateral outflow of ring 0 (logarithmic potential)
     lat = (th[layer, 0] - th[layer, 1]) / link_resistance(layer, 0) if R > 1 else 0.0
@@ -221,7 +239,8 @@ def _heater_network(net, cov, layer, power, rings):
             "K": K, "C": cap.ravel(), "R": R, "layer": layer, "r01": r01,
             "peak_coef": f_p[layer] * (phi_mean - phi_min) / (2.0 * np.pi * S[layer, 0]),
             "out": {"top": float((g_top * th).sum()), "bottom": float((g_bot * th).sum()),
-                    "heatsinks": float((g_heatsink * th).sum()), "sides": float((g_side * th).sum())},
+                    "heatsinks": float((g_heatsink * th).sum()), "sides": float((g_side * th).sum())}
+                   | ({"blocks": float((g_block * th).sum())} if net.block_info else {}),
             "residual": float(np.linalg.norm(K @ theta - Q) / np.linalg.norm(Q))}
 
 
@@ -239,28 +258,32 @@ def _footprint_coverage(net, heater):
     return cov
 
 
-def solve_steady(problem, rings=10, cell_mm=1.0):
+def solve_steady(problem, rings=10, cell_mm=1.0, block_nodes=False):
     """!
     @brief Steady-state solution of the offset-contour networks (one per heater) with superposition.
     @param problem A Problem.
     @param rings Number of rings outside each footprint (more rings = finer radial resolution).
     @param cell_mm Raster size (mm) used to aggregate the real geometry into rings.
+    @param block_nodes Experimental: True to keep the metal blocks as one more layer of the ring network (the block layer of the FVM network aggregated
+                       into rings); False (default) refuses a problem with a block.
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
     """
-    blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    if not block_nodes:
+        blocks.require_no_blocks(problem)                        # These models have no metal blocks
     problem.validate()
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False, with_blocks=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=block_nodes)
     L = net.nl
+    nbl = net.n_board
     power = problem.total_power()
     xs = (np.arange(nx) + 0.5) * net.dx
     ys = (np.arange(ny) + 0.5) * net.dy
 
     theta_field = np.zeros((L, ny, nx))
     nets = []
-    out = {"top": 0.0, "bottom": 0.0, "heatsinks": 0.0, "sides": 0.0}
+    out = {"top": 0.0, "bottom": 0.0, "heatsinks": 0.0, "sides": 0.0, **({"blocks": 0.0} if net.block_info else {})}
     res = 0.0
     for h in problem.heaters:
         if h.power <= 0:
@@ -272,9 +295,11 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
             # Profile versus distance to the footprint, interpolated at every cell (constant at both ends)
             theta_field[l] += np.interp(rn["dist"], rn["rho"], rn["theta"][l])
         for k in out:
-            out[k] += rn["out"][k]
+            out[k] += rn["out"].get(k, 0.0)
         res = max(res, rn["residual"])
 
+    theta_field = theta_field[:nbl]                              # The block layers are not part of the board field
+    L = nbl
     T = theta_field + b.ambient
     # --- Peaks: own footprint peak plus the rise caused by the other heaters at its centroid
     t_peak, where = float(T.max()), None

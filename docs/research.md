@@ -186,6 +186,22 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 2. Heatsink on a component: K/W only (R8, spreading is 1 to 4 % of the chain for aluminium and copper)?
 3. Heatsink scenarios (natural scaling, forced factors): later (`docs/roadmap.md`, "What we want to implement", Component).
 
+## Open now: metal block in the Lumped and Analytic models (experiment branch `experiment/block-equivalents`, 2026-10-22)
+
+`python examples/block_equivalent_study.py` compares, on 62 cases (four block and pad geometries, 1, 3 and 6 mm of aluminium, copper and steel, interface 1 to 20 K·cm²/W, two finned blocks), the maximum temperature of the models against the FVM, which has the block. Error as a percentage of the FVM rise:
+
+| Approach | Lumped mean / max | Analytic mean / max |
+| :-- | --: | --: |
+| old equivalent coefficient (isothermal block, whole polygon) | 15.5 / 31.3 | 17.3 / 31.5 |
+| **A.** equivalent coefficient on the copper contact area plus an annular fin for the block outside it | 8.8 / 18.7 | 11.0 / 19.7 |
+| **B.** the block as one more layer of the ring network (`lumped.solve_steady(block_nodes=True)`) | **2.0 / 4.8** | not available |
+
+* A improves the old equivalent but is not good enough, and it gets **worse with a thicker or better-conducting block** (+13 % for 1 mm, +19 % for 6 mm of aluminium): the block does not only add cooling area, it spreads the heat of the centre of the pad to the whole pad, which a uniform coefficient cannot do.
+* B keeps that lateral conduction because the block layer of the FVM network (conductance `k t`, contact to the board layer over the copper, exposed surface with the fin ratio) is aggregated into rings like the board layers: 2.0 % on average, 4.8 % at most, fins included (−1.5 %). It needs only small changes in `lumped._heater_network` (ring sums of the block quantities, the extra links, a guard for rings the block does not reach).
+* The Analytic series needs laterally uniform layers: a block would be a patch of extra sheet conductance with its own Green function, which is a different piece of work (A is the only simple option and it is 11 % / 20 %).
+* Sources: the annular-fin efficiency used in A (`η = 2r1/(m(r2²−r1²))·[K1(mr1)I1(mr2) − I1(mr1)K1(mr2)]/[K0(mr1)I1(mr2) + I0(mr1)K1(mr2)]`, Incropera and DeWitt; the same expression in the SciPy textbook example https://scipython.com/books/book2/chapter-8-scipy/problems/heat-dissipation-of-an-annular-fin-heatsink/); spreading resistance of a heat sink base plate by Lee, Song, Au and Moran (1995) and Song, Lee and Au (1994), as described in https://www.electronics-cooling.com/1998/01/calculating-spreading-resistance-in-heat-sinks/ and https://www.electronics-cooling.com/2008/05/heat-spreading-not-a-trivial-problem/ (the explicit formulas are images in these pages and could not be read; they give about 5 % for a centred source and would replace the annular fin in A, which cannot fix the pad-spreading effect above).
+* Open: the transient of the Lumped model with a block node (the heat capacity is already in the ring sums, not tested), the Analytic, the results table of the block temperature in Lumped, the GUI (the Lumped checkbox would stay enabled with a block).
+
 ## Evidence for the junction node and the Foster chain (moved from the roadmap, 2026-10-22)
 
 The part of the Component element that is **not implemented**: a junction node (JESD15-3 two-resistor model), a heat-sink node with capacity and the Foster chain for package transients. The implemented part (junction-to-pad `θ`, the junction limit, `ψJB`, the power coefficient, the top path with `θJC(top)`, the interface and `θSA`) is in `docs/models.md` section 6 and `docs/validation.md` section 9. The numbers `[n]` refer to the references at the end of this file.
