@@ -230,6 +230,32 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 4. The order of the boxes follows the heat: Part → Junction → Package top → Interface → Heatsink on the package, shown as a chain, with the live Tj and the heat share (top / board) below.
 5. The datasheet "Thermal information" table mapped line by line to the fields (TI: RθJC(bot) → θ, RθJC(top) → θJC(top), ψJT → calculator, ψJB → ψJB) in the help.
 
+## Open now: Gerber import and the mapping of copper to the grid (2026-10-22)
+
+Branch `research/gerbers`; everything (scripts, tests, tables, sources) is in [`research/gerbers/README.md`](../research/gerbers/README.md). Summary:
+
+**Question.** A Gerber is vector data, the FVM works on square cells and knows only the copper *fraction* of each cell. Can the vectors be converted exactly, and how should they feed the grid?
+
+**Answers.**
+* **Vectors to polygons: exact.** gerbonara (Apache-2.0) gives the primitives, shapely unions them in file order with the polarity (dark adds, clear subtracts); holes and islands are kept (one Uno-clone layer: 103 polygons, 80 holes, 43 285 vertices). The data model has no place for it yet: `Zone` is one polygon with a scalar `fill`, no holes.
+* **Raster of the vectors: fine.** Area within 0.2 % at 0.1 mm pixels; a binary raster keeps the area but **interrupts** a trace thinner than about 1.4 pixels (pixel of at most half the thinnest trace: 0.05 mm for 0.1 mm traces).
+* **The mapping to the cell is the problem, not the pixel.** On 42 windows of 7 real boards (reference: the copper mask solved pixel by pixel), the fill fraction the FVM uses today is 10 to 11 % too cool on the mean temperature of a heated block with 35 µm copper (up to 18 % at 140 µm, 14 to 15 % with plated holes), because clearances cut the conduction paths that the average assumes:
+
+| Mapping of the cell | Error 0.6 mm cells | 1.0 mm | 2.0 mm | Needs |
+| :-- | --: | --: | --: | :-- |
+| fill fraction (today) | 9.7 % | 11.3 % | 11.1 % | `f` |
+| geometric mean `S_cu^f S_lam^(1-f)` | 2.2 % | 2.4 % | 3.0 % | `f` only |
+| directional `sqrt(low*up)` (lambda 0.5) | 1.0 % | 1.3 % | 3.2 % | fine mask, `Sx`, `Sy` per cell |
+| flow-based faces | 0.6 % | 0.9 % | 3.6 % | fine mask, local solves |
+
+  (mean absolute error of the mean temperature, `research/gerbers/study_mapping.py`; with two layers and plated holes: 13.6 to 14.9 % today, 2.8 to 4.1 % geometric mean, 0.5 to 1.0 % lambda 0.5, `study_two_layer.py`; the ranking holds from 18 to 140 µm of copper, `study_contrast.py`.)
+
+**Proposal, in steps** (nothing implemented): (1) the geometric mean in the cell conductance, no new data; (2) directional conductances with lambda 0.5 from a fine copper mask stored per layer (`Sx`, `Sy` per cell in `fvm.py` and `fdm.py`, in-plane `kx`, `ky` in the 3D solid; Lumped and Analytic keep the average fill); (3) optionally flow-based faces. The geometric mean was validated on Gerber copper only: a hand-drawn hatch fill is a set of stripes (arithmetic mean along, harmonic across) and is **not** tested.
+
+**Other projects** (read for ideas only; FYPA, padne are AGPL-3.0): FYPA and padne keep shapely polygons with holes and build a triangular mesh (`triangle`, CGAL) for a FEM solve; two KiCad plug-ins rasterise to a binary grid (0.1 mm, or 0.5 to 0.3 mm with adaptive merging). The mesh libraries are a licensing problem for a closed product (Triangle restricts commercial use, the CGAL mesh packages are GPL), which is one more reason to stay on the square grid.
+
+**Open.** Which stage enters the program; validation on hatched zones, a thick-copper multi-layer board of a real design and against a measurement; the layer-assignment dialog and how to tell vias from pads (a Gerber cannot, a `.kicad_pcb` can); what the Lumped and Analytic models do with a rasterised copper. When it is implemented the findings fold into `models.md`, `theory.md` and `validation.md`, and this section is removed.
+
 ## Evidence for the junction node and the Foster chain (moved from the roadmap, 2026-10-22)
 
 The part of the Component element that is **not implemented**: a junction node (JESD15-3 two-resistor model), a heat-sink node with capacity and the Foster chain for package transients. The implemented part (junction-to-pad `θ`, the junction limit, `ψJB`, the power coefficient, the top path with `θJC(top)`, the interface and `θSA`) is in `docs/models.md` section 6 and `docs/validation.md` section 9. The numbers `[n]` refer to the references at the end of this file.

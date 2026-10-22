@@ -1,0 +1,9 @@
+# Extra packages of the Gerber research (not needed by the program itself).
+# Install in a separate virtual environment, for example:
+#   python3 -m venv research/gerbers/.venv && research/gerbers/.venv/bin/pip install -r research/gerbers/requirements.txt
+numpy>=1.24
+scipy>=1.11
+shapely>=2.0
+pillow>=10
+gerbonara>=1.6        # Apache-2.0: reads Gerber and Excellon, gives vector primitives
+pytest>=7

@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Research
+- `research/gerbers` (branch `research/gerbers`, not part of the program): Gerber to exact polygons and four ways to map copper to the conductances of a square grid, with studies on 7 real boards, 19 tests and the conclusions (the fill fraction is 10 to 18 % too cool; the geometric mean and directional bounds cut that to 1 to 4 %). See `research/gerbers/README.md` and `docs/research.md`.
+
 ## [2.4.0] - 2026-10-22
 
 ### Added
