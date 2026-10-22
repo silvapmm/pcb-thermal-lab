@@ -106,4 +106,6 @@ Short release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Author and license
 
-Pedro Silva, PMS Labs. (C) 2025 Pedro Silva. All rights reserved (see `LICENSE`).
+Pedro Silva, PMS Labs. Released under the MIT License (see `LICENSE`).
+
+The results are a design aid and have not been validated against measurements of a physical board (see `docs/validation.md`); verify critical results by measurement. Third-party libraries (NumPy, SciPy, Matplotlib, PySide 6 and others) keep their own licenses.
