@@ -2,7 +2,7 @@
 @file stackup_vendor_check.py
 @brief How much does the maximum temperature of the example board change between the program's typical stack-ups and the published ones of fabricators?
 
-@details Published layer tables (JLCPCB impedance page, PCBWay stack-up pages, 2026-10-22) are entered layer by layer and the example board is solved with the FVM at 2 mm.
+@details Published layer tables (JLCPCB, PCBWay, OSH Park, AdvancedPCB, Bittele 7pcb and PCBGOGO pages, 2026-10-22) are entered layer by layer and the example board is solved with the FVM at 2 mm.
          The program's own templates (`pcbthermal/data/stackups.json`) are the reference rows. Results are in `docs/validation.md` section 14.
 
 Usage: python examples/stackup_vendor_check.py
@@ -57,17 +57,26 @@ def main():
     """!
     @brief Print the maximum temperature for every stack-up.
     """
+    mil = 25.4                                              # micrometres per mil (thousandth of an inch)
     for name, p in [
- ("4L program (= JLC04161H-7628)",tmpl(4)),
- ("4L PCBWay 1 oz inner, core 1030, PP 190",board(4,[35,35,35,35],[190,1030,190])),
- ("4L Weller-like core 930, PP 1080+7628",board(4,[35,15.2,15.2,35],[77+210,930,77+210])),
- ("6L program",tmpl(6)),
- ("6L JLC06161H-3313 exact",board(6,[35,15.2,15.2,15.2,15.2,35],[99.4,550,108.8,550,99.4])),
- ("6L PCBWay old (110/530/110/530/110, 35 um inner)",board(6,[35,35,35,35,35,35],[110,530,110,530,110])),
- ("8L program",tmpl(8)),
- ("8L PCBWay old (175/130 alt., 35 um inner)",board(8,[35]*8,[175,130,175,130,175,130,175])),
-]:
-        print(f"{name:55s} total {p.board.total_thickness()*1000:.3f} mm  Tmax {t(p):.2f}")
+            ("4L program (= JLC04161H-7628)", tmpl(4)),
+            ("4L OSH Park (FR408HR, 43.2 / 17.5 um copper, 2113 prepreg 199.9, core 990.6)", board(4, [43.2, 17.5, 17.5, 43.2], [199.9, 990.6, 199.9])),
+            ("4L AdvancedPCB sample (1 oz, 2116 x2 per side, core 39 mil)", board(4, [34.3] * 4, [9.3 * mil, 39 * mil, 9.8 * mil])),
+            ("4L Bittele 7pcb (1 oz, 2116 x2 0.0091 in, core 0.037 in)", board(4, [35.6] * 4, [9.1 * mil, 37 * mil, 9.1 * mil])),
+            ("4L PCBGOGO (18 -> 35 um outer, 1 oz inner, PP 0.11, core 1.2)", board(4, [35] * 4, [110, 1200, 110])),
+            ("4L PCBWay (1 oz inner, core 1030, PP 190)", board(4, [35, 35, 35, 35], [190, 1030, 190])),
+            ("6L program", tmpl(6)),
+            ("6L JLC06161H-3313 exact", board(6, [35, 15.2, 15.2, 15.2, 15.2, 35], [99.4, 550, 108.8, 550, 99.4])),
+            ("6L Bittele 7pcb (1 oz; 0.0081 / 0.013 / 0.0091 / 0.013 / 0.0081 in)", board(6, [35.6] * 6, [8.1 * mil, 13 * mil, 9.1 * mil, 13 * mil, 8.1 * mil])),
+            ("6L PCBGOGO (PP 0.11, cores 0.6, 1 oz)", board(6, [35] * 6, [110, 600, 110, 600, 110])),
+            ("6L PCBWay old blog (110/530/110/530/110)", board(6, [35] * 6, [110, 530, 110, 530, 110])),
+            ("8L program", tmpl(8)),
+            ("8L Bittele 7pcb (1080x2 / 0.009 / 7628 / 0.0051 / 7628 / 0.009 / 1080x2)",
+             board(8, [35.6] * 8, [5.9 * mil, 9 * mil, 7.3 * mil, 5.1 * mil, 7.3 * mil, 9 * mil, 5.9 * mil])),
+            ("8L PCBGOGO (PP 0.18, cores 0.2, 1 oz)", board(8, [35] * 8, [180, 200, 180, 200, 180, 200, 180])),
+            ("8L PCBWay old blog (175/130 alternating)", board(8, [35] * 8, [175, 130, 175, 130, 175, 130, 175])),
+        ]:
+        print(f"{name:80s} total {p.board.total_thickness()*1000:.3f} mm  Tmax {t(p):.2f}")
 
 
 if __name__ == "__main__":

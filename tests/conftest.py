@@ -18,9 +18,9 @@ import pytest  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _no_modal_rectangle_message(monkeypatch):
+def _no_modal_messages(monkeypatch):
     """!
-    @brief Answer OK to the "board with an outline" message before a run, so no test waits for a real dialog (a test of the message patches it again).
+    @brief Answer the modal messages (a real dialog would wait for a click and block the battery): OK to any message box, Discard to "save the changes?".
     @param monkeypatch pytest fixture.
     """
     try:

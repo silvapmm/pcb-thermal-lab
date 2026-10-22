@@ -44,7 +44,7 @@ Every equation, discretisation and approximation of every model is in [`docs/the
 | **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.5 % | about 10 ms |
 | **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | 0 to 1.5 % on uniform boards and with vias, 24 % with a small copper pad | about 50 ms |
 
-The lumped network and the analytic series need a rectangular board: on a board with an outline they run on the rectangle of the same area (the program says so before the run); every model reads the advanced stack-up.
+The lumped network and the analytic series need a rectangular board: on a board with an outline they run on the rectangle of the same area (the Results summary says so with a warning); every model reads the advanced stack-up.
 
 Rule of thumb: run them all (`--model compare`); if they agree within about 5 % and there are no warnings the numbers are consistent; if not, trust the FVM.
 **No model has been compared with a measurement of a physical board yet**; see the limits in [`docs/validation.md`](docs/validation.md).

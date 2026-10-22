@@ -1,87 +1,12 @@
 # Version history in detail
 
 What was implemented in every version, where it lives in the code, how it is tested and what it left out. The short list is `CHANGELOG.md`; the physics is in
-`models.md`, the numbers in `validation.md`, the plans in `roadmap.md`. Dates are those of the release tags.
+`models.md`, the numbers in `validation.md`, the plans in `roadmap.md`. Dates are those of the release tags. **Newest first**: the next version is at the top, the original program at the bottom.
 
 ## How to read this file
 
 For each version: the **headline**, a table of **what was implemented** (feature, code, tests/evidence), **what changed** for existing users and the **limits** that remained.
 
----
-
-## 1.0.0 - 2025 (tag `legacy-wxpython-1.0.0`)
-
-Original wxPython program, "PCB Thermal Simulator Tool".
-
-| Feature | Notes |
-| :-- | :-- |
-| Interactive editor (zones, heaters, vias, sinks) | wxPython; removed in 2.0.0 |
-| Three solvers: Analytic, Lumped, FDM (SOR) | had modelling errors: false convergence of the SOR stop rule, heater power depending on the grid, no lateral conduction in the FR-4, solid vias, a dimensionally wrong analytic term, an invalid lumped network (`validation.md` section 6) |
-
----
-
-## 2.0.0 - 2026-10-16: the rebuilt program
-
-First release of the new physics package and GUI.
-
-| Feature | Code | Tests / evidence |
-| :-- | :-- | :-- |
-| GUI-independent physics package `pcbthermal` with a public API (`Problem` builder in mm, `SolverOptions`, `simulate`) and project files `.pcbt.json` | `model.py`, `api.py`, `project.py` | 94 tests, a documentation gate (`test_docs.py`) requiring Doxygen docstrings on every function |
-| **FVM**, the reference: cell-centred finite volumes, sparse direct/CG/SOR solvers, exact heater power on any grid | `fvm.py`, `geometry.py` | energy balance of every result; SOR equals the direct solve to 1e-8 K when it stops on the residual |
-| **Lumped** thermal network: rings by distance from the real footprint, one network per heater, Bessel correction for vertical losses | `lumped.py` | example board within 1 to 2 % of the FVM |
-| **Analytic** multilayer Fourier series with copper weighting and local via/heatsink corrections | `analytic.py` | example board within 2 %; warnings when its assumptions fail |
-| Anisotropic FR-4 (0.3 through, 0.9 in plane), hollow plated via barrels | `model.py` | |
-| Input validity checks, shown live (heater off the board, no copper under a part, ...) and **Auto** cell size | `checks.py`, `api.suggest_cell_mm` | `test_api.py` |
-| Transient response (implicit Euler, Crank-Nicolson), animation in the GUI and `transient --gif` | `fvm.solve_transient`, `gui/animation.py` | exact exponential reference |
-| PySide 6 application: editor with undo/redo, inspector, background image, dark/light themes, results tabs, export | `gui/` | `test_gui.py` |
-| Command line `run`, `solvers`, `transient`, `convergence`, `convert`, `gui`, `example` | `cli.py` | |
-| Version defined only in `pcbthermal/__version__`, shown in the title bar, status bar, reports and project files | `__init__.py` | `test_version.py` |
-
-Limits: steady-state power only (no profiles), constant heat transfer coefficients, no component junction model beyond an offset.
-
----
-
-## 2.1.0 - 2026-10-16: power profiles and computed heat transfer
-
-| Feature | Code | Tests / evidence |
-| :-- | :-- | :-- |
-| **Power profiles** (square wave) per heater, in the three models; the decision average-or-resolve per heater from the oscillation in °C (default 1 °C, shared error budget); mixed regimes in one run; start from the steady state of the average power or a typed temperature; duration until the cycle repeats / N cycles / fixed time; 200,000-step cap | `profiles.py`, `model.SquareWave` | `test_profiles.py`, `test_gui_profile.py` |
-| "Power profile" tab and results tab; CLI `run --duration --cycles --time-s --initial-c --threshold-c --steady-power`, `example --which profile` | `gui/profile_page.py`, `gui/profile_results.py`, `cli.py` | |
-| **Computed heat transfer coefficients**: natural and forced convection plus radiation per face from the mean face temperature, emissivity, orientation, air speed and a convection multiplier; solved by iteration in all models | `convection.py`, `api._solve_computed_h` | `test_convection.py`; a constant `h` overestimates the rise by 10 % at 22 W (`roadmap.md` section 2) |
-| Model names in the GUI ("Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"); temperature differences in °C | `gui/` | |
-
-Limits: the analytic transient smeared vias and heatsinks over the board (warned).
-
----
-
-## 2.2.0 - 2026-10-16: tables, the FDM, 3D check, clean documentation
-
-| Feature | Code | Tests / evidence |
-| :-- | :-- | :-- |
-| **Power tables and CSV files** (`TableProfile`, repeating or one-shot, import/export, `run --profile`) | `model.TableProfile`, `profile_io.py`, `examples/csv_profiles/` | `test_profiles.py`, stress tests with bad CSV files |
-| Analytic transient with vias and heatsinks (one modal system per heater, scaled to the local steady response); animation of the power step also for the Analytical model | `analytic.py` | curve within 2.5 °C of the FVM (10 °C before) |
-| **FDM** comparison model (node-centred finite differences, area sampling by default) | `fdm.py` | `test_fdm.py`; FDM within about 1 % of the FVM |
-| About 40 % faster direct solves (symmetric sparse ordering) | `fvm.ORDERING` | `examples/solver_equivalence.py` |
-| `calibrate_convection` and `pcbthermal calibrate` | `api.py`, `cli.py` | |
-| Independent 3D finite-element check with vias and heatsinks (offline, scikit-fem) | `examples/fem3d_validation.py` | `validation.md` section 3 |
-| Documentation cut to `models.md`, `validation.md`, `roadmap.md` | `docs/` | `validation.md` is regenerated by `examples/validation_study.py` |
-| Stress test of the application (every example with every model, every view, odd boards, edits during a run, random actions) | `tests/test_gui_stress.py` | found one real bug: a result arriving after an edit was shown as current |
-
-Fixed: that bug; the abort when two background calculations ran at the same time (SuperLU is not safe in two threads: they now wait for each other); node fields in the plots, hotspot list and overlay.
-
----
-
-## 2.3.0 - 2026-10-17: FDM in time, metal blocks, the 3D solid
-
-(Rewritten at the maintainer's request to include the work first planned for 2.4.0.)
-
-| Feature | Code | Tests / evidence |
-| :-- | :-- | :-- |
-| **FDM in time**: power-step animation, step responses and profile simulation on the nodes (same theta-method as the FVM) | `fdm.py`, `fvm.transient_from_network` | hottest point within 0.7 °C of the FVM |
-| **Metal block** (a Heatsink with a thickness): extra node layer in the FVM and FDM, lateral conduction, mass, contact over the copper it overlaps through an interface resistance, material and interface presets | `blocks.py`, `gui/panels.py` | `test_blocks.py`; within 1.8 % of the 3D solid |
-| **Sink renamed Heatsink** everywhere (old files with `sinks` still open) | `model.py` | |
-| **3D solid** model: the board as a real solid with a slab per copper layer and per dielectric gap, vias with their real copper area, metal blocks; steady state | `solid3d.py` | `test_solid3d.py`; within 0.2 % of an independent finite-element solid on three boards |
-| Studies: copper that dissipates needs no element; what a package resistance and a top path add on five real parts | `examples/copper_dissipation.py`, `examples/component_study.py`, `test_copper.py` | `validation.md` section 3.1, `roadmap.md` 1.9b |
 
 ---
 
@@ -115,7 +40,7 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 | Outline presets, vertex table, outline tool | `gui/panels.py`, `gui/canvas.py` | |
 | Right-click menu: add/delete a vertex, duplicate, delete, add an element on an empty spot | `gui/canvas.BoardView.build_context_menu`, `geometry.insert_vertex/nearest_vertex` | `test_context_menu.py` |
 | Properties panel in boxes; heatsink manual input as h or θSA; Direct contact interface; simple stack-up and materials in the Stack-up tab | `gui/panels.Inspector.rebuild`, `gui/stackup.StackupPage.add_parameters` | `test_inspector_sections.py`, `test_tooltips.py`, `test_heatsink_part.py` |
-| Lumped and Analytic on an outline: rectangle of the same area (box and positions scaled by sqrt(area ratio), parts keep their size, field stretched back), message before the run ("Do not ask again" per session), warning in the result, no time simulation for them | `model.Problem.equivalent_rectangle`, `api._run_model`, `api.simulate`, `gui/main_window._confirm_rectangle`, `examples/outline_rectangle_study.py` | `test_outline.py` (area, sizes, beats the bounding box), `test_gui_stress.py` (cancel and confirm); `docs/validation.md` section 13 |
+| Lumped and Analytic on an outline: rectangle of the same area (box and positions scaled by sqrt(area ratio), parts keep their size, field stretched back), warning in the Results summary, no time simulation for them | `model.Problem.equivalent_rectangle`, `api._run_model`, `api.simulate`, `gui/main_window._confirm_rectangle`, `examples/outline_rectangle_study.py` | `test_outline.py` (area, sizes, beats the bounding box), `test_gui_stress.py` (cancel and confirm); `docs/validation.md` section 13 |
 
 ### Application
 
@@ -157,3 +82,79 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 
 - The edge loss of the FVM and FDM no longer adds the board edge conductance to the layers of metal blocks (the block's own edge is in its exposed surface): the old code counted it twice. The effect on the examples is below the validation tolerances.
 - `Board.thickness` stays the typed value in the simple stack-up; use `Board.total_thickness()` for the real total.
+
+---
+
+## 2.3.0 - 2026-10-17: FDM in time, metal blocks, the 3D solid
+
+(Rewritten at the maintainer's request to include the work first planned for 2.4.0.)
+
+| Feature | Code | Tests / evidence |
+| :-- | :-- | :-- |
+| **FDM in time**: power-step animation, step responses and profile simulation on the nodes (same theta-method as the FVM) | `fdm.py`, `fvm.transient_from_network` | hottest point within 0.7 °C of the FVM |
+| **Metal block** (a Heatsink with a thickness): extra node layer in the FVM and FDM, lateral conduction, mass, contact over the copper it overlaps through an interface resistance, material and interface presets | `blocks.py`, `gui/panels.py` | `test_blocks.py`; within 1.8 % of the 3D solid |
+| **Sink renamed Heatsink** everywhere (old files with `sinks` still open) | `model.py` | |
+| **3D solid** model: the board as a real solid with a slab per copper layer and per dielectric gap, vias with their real copper area, metal blocks; steady state | `solid3d.py` | `test_solid3d.py`; within 0.2 % of an independent finite-element solid on three boards |
+| Studies: copper that dissipates needs no element; what a package resistance and a top path add on five real parts | `examples/copper_dissipation.py`, `examples/component_study.py`, `test_copper.py` | `validation.md` section 3.1, `roadmap.md` 1.9b |
+
+---
+
+## 2.2.0 - 2026-10-16: tables, the FDM, 3D check, clean documentation
+
+| Feature | Code | Tests / evidence |
+| :-- | :-- | :-- |
+| **Power tables and CSV files** (`TableProfile`, repeating or one-shot, import/export, `run --profile`) | `model.TableProfile`, `profile_io.py`, `examples/csv_profiles/` | `test_profiles.py`, stress tests with bad CSV files |
+| Analytic transient with vias and heatsinks (one modal system per heater, scaled to the local steady response); animation of the power step also for the Analytical model | `analytic.py` | curve within 2.5 °C of the FVM (10 °C before) |
+| **FDM** comparison model (node-centred finite differences, area sampling by default) | `fdm.py` | `test_fdm.py`; FDM within about 1 % of the FVM |
+| About 40 % faster direct solves (symmetric sparse ordering) | `fvm.ORDERING` | `examples/solver_equivalence.py` |
+| `calibrate_convection` and `pcbthermal calibrate` | `api.py`, `cli.py` | |
+| Independent 3D finite-element check with vias and heatsinks (offline, scikit-fem) | `examples/fem3d_validation.py` | `validation.md` section 3 |
+| Documentation cut to `models.md`, `validation.md`, `roadmap.md` | `docs/` | `validation.md` is regenerated by `examples/validation_study.py` |
+| Stress test of the application (every example with every model, every view, odd boards, edits during a run, random actions) | `tests/test_gui_stress.py` | found one real bug: a result arriving after an edit was shown as current |
+
+Fixed: that bug; the abort when two background calculations ran at the same time (SuperLU is not safe in two threads: they now wait for each other); node fields in the plots, hotspot list and overlay.
+
+---
+
+## 2.1.0 - 2026-10-16: power profiles and computed heat transfer
+
+| Feature | Code | Tests / evidence |
+| :-- | :-- | :-- |
+| **Power profiles** (square wave) per heater, in the three models; the decision average-or-resolve per heater from the oscillation in °C (default 1 °C, shared error budget); mixed regimes in one run; start from the steady state of the average power or a typed temperature; duration until the cycle repeats / N cycles / fixed time; 200,000-step cap | `profiles.py`, `model.SquareWave` | `test_profiles.py`, `test_gui_profile.py` |
+| "Power profile" tab and results tab; CLI `run --duration --cycles --time-s --initial-c --threshold-c --steady-power`, `example --which profile` | `gui/profile_page.py`, `gui/profile_results.py`, `cli.py` | |
+| **Computed heat transfer coefficients**: natural and forced convection plus radiation per face from the mean face temperature, emissivity, orientation, air speed and a convection multiplier; solved by iteration in all models | `convection.py`, `api._solve_computed_h` | `test_convection.py`; a constant `h` overestimates the rise by 10 % at 22 W (`roadmap.md` section 2) |
+| Model names in the GUI ("Finite volume (FVM), reference", "Thermal network (LPTN)", "Analytical (Fourier series)"); temperature differences in °C | `gui/` | |
+
+Limits: the analytic transient smeared vias and heatsinks over the board (warned).
+
+---
+
+## 2.0.0 - 2026-10-16: the rebuilt program
+
+First release of the new physics package and GUI.
+
+| Feature | Code | Tests / evidence |
+| :-- | :-- | :-- |
+| GUI-independent physics package `pcbthermal` with a public API (`Problem` builder in mm, `SolverOptions`, `simulate`) and project files `.pcbt.json` | `model.py`, `api.py`, `project.py` | 94 tests, a documentation gate (`test_docs.py`) requiring Doxygen docstrings on every function |
+| **FVM**, the reference: cell-centred finite volumes, sparse direct/CG/SOR solvers, exact heater power on any grid | `fvm.py`, `geometry.py` | energy balance of every result; SOR equals the direct solve to 1e-8 K when it stops on the residual |
+| **Lumped** thermal network: rings by distance from the real footprint, one network per heater, Bessel correction for vertical losses | `lumped.py` | example board within 1 to 2 % of the FVM |
+| **Analytic** multilayer Fourier series with copper weighting and local via/heatsink corrections | `analytic.py` | example board within 2 %; warnings when its assumptions fail |
+| Anisotropic FR-4 (0.3 through, 0.9 in plane), hollow plated via barrels | `model.py` | |
+| Input validity checks, shown live (heater off the board, no copper under a part, ...) and **Auto** cell size | `checks.py`, `api.suggest_cell_mm` | `test_api.py` |
+| Transient response (implicit Euler, Crank-Nicolson), animation in the GUI and `transient --gif` | `fvm.solve_transient`, `gui/animation.py` | exact exponential reference |
+| PySide 6 application: editor with undo/redo, inspector, background image, dark/light themes, results tabs, export | `gui/` | `test_gui.py` |
+| Command line `run`, `solvers`, `transient`, `convergence`, `convert`, `gui`, `example` | `cli.py` | |
+| Version defined only in `pcbthermal/__version__`, shown in the title bar, status bar, reports and project files | `__init__.py` | `test_version.py` |
+
+Limits: steady-state power only (no profiles), constant heat transfer coefficients, no component junction model beyond an offset.
+
+---
+
+## 1.0.0 - 2025 (tag `legacy-wxpython-1.0.0`)
+
+Original wxPython program, "PCB Thermal Simulator Tool".
+
+| Feature | Notes |
+| :-- | :-- |
+| Interactive editor (zones, heaters, vias, sinks) | wxPython; removed in 2.0.0 |
+| Three solvers: Analytic, Lumped, FDM (SOR) | had modelling errors: false convergence of the SOR stop rule, heater power depending on the grid, no lateral conduction in the FR-4, solid vias, a dimensionally wrong analytic term, an invalid lumped network (`validation.md` section 6) |
