@@ -170,3 +170,21 @@ def test_switching_to_a_metal_block_does_not_carry_the_manual_h(win):
     mode = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Manual input"))
     mode.setCurrentIndex(0)
     assert not hs().is_block() and hs().h_extra == 20.0                                          # Back to manual input: the default coefficient
+
+
+def test_side_panels_scroll_so_every_field_stays_reachable(win):
+    """The panels are taller than a short dock: they sit in scroll areas, and the position and size of a selected zone can be reached by scrolling."""
+    from PySide6.QtWidgets import QScrollArea
+    for dock, panel in ((win.dock_board, win.board_panel), (win.dock_sim, win.solver_panel), (win.dock_inspector, win.inspector)):
+        area = dock.widget()
+        assert isinstance(area, QScrollArea) and area.widget() is panel and area.widgetResizable()
+    win.resize(1300, 560)                                                      # A short window
+    win.show()
+    select(win, "zone")
+    form = win.inspector.form_host
+    x_spin = next(s for s in form.findChildren(QAbstractSpinBox) if s.toolTip().startswith("X of"))
+    area = win.dock_inspector.widget()
+    area.ensureWidgetVisible(x_spin)
+    assert area.isAncestorOf(x_spin)
+    top_left = x_spin.mapTo(area.viewport(), x_spin.rect().topLeft())
+    assert 0 <= top_left.y() < area.viewport().height()                          # After scrolling to it, the X field is inside the visible part

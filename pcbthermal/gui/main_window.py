@@ -11,8 +11,8 @@ from pathlib import Path
 from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
-                               QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMainWindow,
-                               QMessageBox, QPushButton, QSlider, QSpinBox, QStatusBar, QTabWidget, QToolBar,
+                               QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QMainWindow,
+                               QMessageBox, QPushButton, QScrollArea, QSlider, QSpinBox, QStatusBar, QTabWidget, QToolBar,
                                QVBoxLayout, QWidget)
 
 from .. import __version__
@@ -217,17 +217,27 @@ class MainWindow(QMainWindow):
         self.canvas.set_tool("select")
 
     # ------------------------------------------------------------------ construction
-    def _dock(self, title, widget, area):
+    def _dock(self, title, widget, area, scroll=True):
         """!
         @brief Add a titled dock widget.
         @param title Dock title.
         @param widget Content widget.
         @param area Qt dock area.
+        @param scroll True to put the widget in a scroll area (panels of fields); False for a list that scrolls by itself.
         @return The QDockWidget.
         """
         d = QDockWidget(title, self)
         d.setObjectName(title)
-        d.setWidget(widget)
+        if scroll:
+            # The panels grew taller with their boxes: a scroll area keeps every field reachable when the dock is short (a clipped panel hid "Position and size")
+            area_widget = QScrollArea()
+            area_widget.setWidgetResizable(True)
+            area_widget.setFrameShape(QFrame.NoFrame)
+            area_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            area_widget.setWidget(widget)
+            d.setWidget(area_widget)
+        else:
+            d.setWidget(widget)
         d.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
         self.addDockWidget(area, d)
         return d
@@ -237,13 +247,13 @@ class MainWindow(QMainWindow):
         @brief Create the left and right docks.
         """
         self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea)
-        self.dock_elements = self._dock("Elements", self.elements, Qt.LeftDockWidgetArea)
+        self.dock_elements = self._dock("Elements", self.elements, Qt.LeftDockWidgetArea, scroll=False)
         self.splitDockWidget(self.dock_board, self.dock_elements, Qt.Vertical)
         self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea)
         self.dock_inspector = self._dock("Properties", self.inspector, Qt.RightDockWidgetArea)
         self.splitDockWidget(self.dock_sim, self.dock_inspector, Qt.Vertical)
         self.resizeDocks([self.dock_board, self.dock_sim], [310, 300], Qt.Horizontal)
-        self.resizeDocks([self.dock_sim, self.dock_inspector], [470, 330], Qt.Vertical)
+        self.resizeDocks([self.dock_sim, self.dock_inspector], [380, 420], Qt.Vertical)
 
     def _act(self, text, slot=None, shortcut=None, checkable=False, checked=False, tip=""):
         """!
