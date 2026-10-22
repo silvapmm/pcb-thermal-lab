@@ -31,7 +31,7 @@ TIPS = {
     "width": "Width of the rectangle along x in millimetres.",
     "height": "Height of the rectangle along y in millimetres.",
     "power": "Power dissipated by the part in watts. With a power profile this is the average.",
-    "diameter": "Finished hole diameter of the via in millimetres; the plating thickness is in the Board panel.",
+    "diameter": "Finished hole diameter of the via in millimetres; the plating thickness is in the Materials box of the Stack-up tab.",
     "filled with copper": "A via filled with copper (solid rod) instead of a hollow plated barrel: much more conductive.",
     "block material": "Metal of the block pressed on the board (a preset sets the conductivity below; Custom keeps your value).",
     "cooling model": "How the cooling of this area is described: a coefficient you give, or a metal block the program computes.",

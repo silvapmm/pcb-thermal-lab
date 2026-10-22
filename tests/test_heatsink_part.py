@@ -154,7 +154,7 @@ def test_gui_cooling_model_fins_body_helper_and_contact_area(tmp_path, qtbot, mo
         return win.inspector.form_host.findChildren(QAbstractSpinBox)
 
     def mode_combo():
-        return next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Coefficient"))
+        return next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Manual input"))
 
     assert not win.doc.problem.heatsinks[0].is_block()
     assert not any(s.toolTip().startswith("Height of the plate fins") for s in spins())      # Fins only exist in block mode

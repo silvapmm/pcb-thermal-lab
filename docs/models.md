@@ -1,10 +1,10 @@
 # Models: what they are, how they work, which one to use
 
-PCB Thermal Lab solves the steady and time-dependent temperature of a PCB with **four models of the same physical description**. This document
-explains the description, each model, the features built on top of them (power profiles, computed heat transfer coefficients), and gives a decision
-guide. The numbers that back every statement are in [`validation.md`](validation.md); what is planned is in [`roadmap.md`](roadmap.md).
+PCB Thermal Lab solves the steady and time-dependent temperature of a PCB with **five models** (four of the same layered description plus a 3D solid). This document
+explains the description, each model, the features built on top of them (power profiles, computed heat transfer coefficients, parts), and gives a decision
+guide. **Every equation, discretisation and approximation is stated in [`theory.md`](theory.md)** (section numbers are quoted below as "theory §n"); the numbers that back every statement are in [`validation.md`](validation.md); what is planned is in [`roadmap.md`](roadmap.md); open investigations are in [`research.md`](research.md).
 
-## 1. The physical description
+## 1. The physical description (theory §1)
 
 A board has `N` copper layers (layer 1 = top), a total thickness, copper zones (polygons with a fill factor), heaters (power over a footprint on one layer),
 plated vias, heatsinks (extra heat transfer on an outer face) and boundary conditions: ambient temperature and a heat transfer coefficient `h` on the top, bottom and edges.
@@ -31,7 +31,7 @@ Four of them are layered models (one node per copper layer); the **3D solid** (s
 | Power profiles in time, step animation | yes | yes (same time stepping on the nodes) | profiles yes, animation no | yes (vias calibrated per heater) |
 | Needs a mesh | yes (cell size, Auto) | yes | no | no |
 
-### 2.1 FVM (finite volumes), the reference
+### 2.1 FVM (finite volumes), the reference (theory §2)
 
 Cell-centred finite volumes (`fvm.py`). One node per layer and cell; between neighbouring cells the conductance uses the harmonic mean of the two sheet
 conductances (`G_x = 2 S₁S₂/(S₁+S₂)·dy/dx`), so a copper/FR-4 jump is a series combination. The steady problem is the sparse symmetric positive definite system `K θ = Q`
@@ -41,7 +41,7 @@ comparison). Transient: `C dθ/dt + K θ = Q`, theta-method (implicit Euler or C
 *Use it* for final temperatures, any geometry (partial or hatched copper, copper edges anywhere, via arrays, thin or L-shaped heaters), whenever a warning appears, and to
 confirm the fast models. Cost grows with cells × layers; the **Auto** cell size (about four cells across the smallest heater) is a good start.
 
-### 2.2 FDM (finite differences), the comparison
+### 2.2 FDM (finite differences), the comparison (theory §3)
 
 Node-centred finite differences (`fdm.py`) of the same layered model: nodes on the board edges (`nx+1` by `ny+1`), edge nodes with half control volumes, the conductivity between
 two nodes is the mean of the nodal values (arithmetic or harmonic), vias go to the nearest node. How the copper and the heater footprint reach the nodes is selectable:
@@ -66,7 +66,7 @@ FDM is **not** the removed wxPython solver, which also had modelling errors (see
 
 The linear solver (direct, CG, SOR) is a separate choice from the discretisation.
 
-### 2.3 Lumped (thermal network)
+### 2.3 Lumped (thermal network) (theory §5)
 
 A reduction of the FVM network (`lumped.py`). For every heater the cells are grouped in rings by their **distance to the heater footprint** (ring 0 is the footprint, outer rings grow geometrically),
 so any heater shape and the real board outline are followed. For every layer and ring the geometry is aggregated; heat crosses offset contours of length `L_k = A_k/Δ_k`:
@@ -75,7 +75,7 @@ losses (modified Bessel functions `I₀, I₁`: factors `f_R = 4(I₀ − 2I₁/
 system; the problem is linear so the board is the sum over heaters (mutual heating is one heater's profile read at the distance of the other).
 *Use it* for fast exploration and sweeps; it is weak when a copper edge crosses the heater, at corners (−8.7 %) and for thin heaters (+9.5 %).
 
-### 2.4 Analytic (Fourier series)
+### 2.4 Analytic (Fourier series) (theory §6)
 
 The multilayer fin equation on the rectangle with insulated edges, expanded in `cos(mπx/W) cos(nπy/H)`: every mode is a small tridiagonal system over the layers (`analytic.py`). Exact on a uniform board. Refinements:
 
@@ -98,7 +98,7 @@ the input checks warn.
 
 Workflow: explore with Analytic/Lumped, refine with the FVM at the **Auto** cell size, change the cell size once to confirm convergence, read the warnings.
 
-### 2.6 Metal block (heat spreader)
+### 2.6 Metal block (heat spreader) (theory §7)
 
 A **Heatsink with a thickness** (`thickness_mm > 0`, aluminium by default) is a metal block pressed on the outer face. FVM and FDM add one more node layer under it:
 lateral conductance `k·t` per cell, heat capacity `ρ·c·t` (time simulation), a **contact to the board layer** `G = A [ f/R'' + (1−f)/(R'' + d/k_FR4) ]` where `f` is the copper fill of that layer, `R''` the interface resistance (m²K/W; K cm²/W in the application) and `d` half a layer slab,
@@ -107,7 +107,7 @@ over bare laminate it must also cross the FR-4. The board face under the block n
 `block_stats` and the report give its mean and maximum temperature and the heat entering and leaving; the Temperature tab has a "Metal block" view. A heatsink with thickness 0 stays the plain extra coefficient.
 Lumped and Analytic have no block: they use the equivalent plain coefficient `1/(R'' + 1/(h+h_extra))` and warn. SOR does not support blocks (direct and CG do). `python -m pcbthermal example block` runs the example board with a block.
 
-### 2.7 3D solid (finite volumes in three dimensions)
+### 2.7 3D solid (finite volumes in three dimensions) (theory §4)
 
 `solid3d.py` solves the board as a real solid on a structured grid: the **same plan cells** as the FVM and, across the thickness, **real slabs**: each copper layer one slab of its own thickness, each dielectric gap four slabs (`n_diel`), a metal block one pad slab (the interface, thickness `R''` at 1 W/mK) plus up to six slabs of metal.
 The unknown is the temperature of every cell of every slab; heat spreads in the gaps and in the blocks and a heater feels the real vertical path. Cell properties are volume averages (the tiled-conductivity method used for PCB models in industry): copper slab with fill `f`: in-plane `f k_Cu + (1−f) k_FR4,ip`, through `f k_Cu + (1−f) k_FR4,th`;
@@ -122,7 +122,7 @@ It is not a truth either: the barrel is a lumped copper area (no plating geometr
 (its power would be moved onto the part inside), no copper under a heater, a copper edge or hatching crossing a footprint (Lumped and Analytic unreliable), a heater only a few cells wide, overlapping
 heaters, vias or zones outside the board, a metal block with no copper under it (or an almost perfect contact) and zero total power.
 
-## 4. Power profiles (time-dependent power)
+## 4. Power profiles (time-dependent power) (theory §10)
 
 A heater may carry a **square wave** (`SquareWave`: `p_on`, `period`, `duty`, `p_off`) or a **table** (`TableProfile`: times and powers, repeating or one-shot, read from and written to CSV files:
 `profile_io.py`, format and a worked example in [`examples/csv_profiles/README.md`](../examples/csv_profiles/README.md)). The heater's `power` stays equal to the average, so steady models and old files work unchanged.
@@ -141,7 +141,7 @@ A heater may carry a **square wave** (`SquareWave`: `p_on`, `period`, `duty`, `p
 Interfaces: `SolverOptions.profile`, `steady_power` ("average" or "peak"); CLI `run --profile U1=file.csv --duration --cycles --time-s --initial-c --threshold-c --steady-power`; the "Power profile" tab with
 **Import CSV…** / **Export CSV…**; outputs `profile_<model>.csv/.png`, `peak_map_<model>.png`.
 
-## 5. Heat transfer coefficients: typed or computed
+## 5. Heat transfer coefficients: typed or computed (theory §8)
 
 `Board.h_mode` is `"manual"` or `"computed"`. Computed (`convection.py`): each face gets `h = calibration × (h_n³ + h_f³)^(1/3) + h_radiation`, with natural convection on a horizontal plate
 (up: `Nu = 0.54 Ra^(1/4)` to Ra = 1e7 then `0.15 Ra^(1/3)`; down: `0.27 Ra^(1/4)`; length = area/perimeter) or Churchill and Chu for a vertical board; forced laminar `Nu = 0.664 Re^(1/2) Pr^(1/3)` (mixed above Re = 5e5);
@@ -150,7 +150,7 @@ repeats the model until the coefficients change by less than 0.01 W/m²K (3 or 4
 `api.calibrate_convection` / `pcbthermal calibrate board.json --measured 85 [--heater U1]` fits that multiplier to one measured steady temperature. Time simulation and animation use the steady-state coefficients with the average power.
 Limits: isothermal-plate correlations are uncertain by 20 to 30 % on a board with hot spots; the edge coefficient is not computed; the radiation view factor is 1.
 
-## 6. Parts: the junction temperature
+## 6. Parts: the junction temperature (theory §9)
 
 A heater is a **source**: its power enters the board under the footprint and the report gives the board temperature there. A part (an IC, a MOSFET, a diode, a resistor) is a heater with optional extra fields; with none of them set nothing changes.
 
@@ -230,7 +230,7 @@ The Stack-up tab draws the cross-section with the thickness of every layer in µ
 * **FVM**: sheet conductance, capacity, vertical conductances, face and heatsink losses are multiplied by the cover of the cell; the harmonic mean between neighbours is zero next to an off-board cell, so no heat crosses the outline; the heat lost through the **edge** is `h_edge × slab × length of the outline inside the cell` (`geometry.edge_length_per_cell`), which for a rectangle gives the same conductance as before; cells off the board are pinned to ambient (1 W/K on the diagonal) and carry no heat.
 * **FDM**: the same with the control volume of every node; faces that touch an off-board node conduct nothing (the arithmetic mean would leak half the conductivity).
 * **3D solid**: lateral conductivities and the vertical/convective areas of the board slabs scale with the cover; the edge loss goes through half a cell of the slab's own material.
-* **Lumped and Analytic**: need a rectangle (rings measured on a rectangular grid, cosine series on a rectangle); `simulate` leaves them out with a warning and asks for another model if none is left.
+* **Lumped and Analytic**: need a rectangle (rings measured on a rectangular grid, cosine series on a rectangle). On a board with an outline they run on the **rectangle of the same area** (`Problem.equivalent_rectangle`): the box is scaled by `s = sqrt(outline area / box area)` in both directions, heater centres, vias, zones and heatsinks are scaled by the same `s`, parts keep their size (so the power density is unchanged), and the field is stretched back over the real box. The application asks for confirmation before the run and `simulate` adds a warning. The error against the FVM on the real shape is in `docs/validation.md` section 13: 0.2 to 3 % of the rise for a part away from the edge, up to 10 to 18 % for a part near the edge or in the arm of a T, always on the cool side; use the FVM there. There is no time simulation of these two models on an outline.
 * **Parts**: the power of a heater is spread over the part of its footprint that is on the board; a part entirely off the board puts its power in the nearest board cell (and the input check warns).
 * **Results**: the field outside the board is ambient and is blanked in the plots (`arrays["board_mask"]`); means are weighted by the cover; `Tmax` and `Tmin` are taken on the board; computed convection uses the real area and perimeter.
 * **Parametrisation**: a polygon in the file (`outline_mm`); in the application presets (rectangle, L, T, ellipse, chamfered corners), a vertex table, and the outline tool (`O`).

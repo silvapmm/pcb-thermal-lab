@@ -3,13 +3,8 @@
 @brief The Help menu: the user guide (an HTML file, shown in the program or in the browser) and the About box.
 """
 
-import platform
 from pathlib import Path
 
-import matplotlib
-import numpy
-import scipy
-from PySide6 import __version__ as pyside_version
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QIcon, QTextCursor
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout
@@ -74,7 +69,7 @@ def open_guide_in_browser():
 
 class AboutDialog(QDialog):
     """!
-    @brief About box: program, version, author, project link and the versions of the libraries in use.
+    @brief About box: program, version, author and project link.
     """
 
     def __init__(self, parent=None):
@@ -102,11 +97,6 @@ class AboutDialog(QDialog):
         self.text.setToolTip("Program information.")
         top.addWidget(self.text, 1)
         lay.addLayout(top)
-        self.libs = QLabel(f"Python {platform.python_version()}  ·  NumPy {numpy.__version__}  ·  SciPy {scipy.__version__}  ·  "
-                           f"Matplotlib {matplotlib.__version__}  ·  PySide {pyside_version}")
-        self.libs.setStyleSheet("color: gray; font-size: 11px;")
-        self.libs.setToolTip("Versions of the libraries this copy of the program runs on.")
-        lay.addWidget(self.libs)
         box = QDialogButtonBox(QDialogButtonBox.Close)
         box.button(QDialogButtonBox.Close).setToolTip("Close this box.")
         box.rejected.connect(self.reject)

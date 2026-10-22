@@ -583,7 +583,10 @@ def test_metal_block_in_the_application(win, qtbot):
     tim = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.findText("Thermal paste, good", Qt.MatchStartsWith) >= 0)
     for i in range(tim.count()):                                       # Every interface preset sets the interface resistance
         tim.setCurrentIndex(i)
-        if tim.currentData() is not None:                              # (conductivity, thickness) of the sheet: its resistance is thickness / k
+        if tim.currentData() == "direct":                              # No material: no sheet and no resistance
+            hs = win.doc.problem.heatsinks[0]
+            assert hs.interface_resistance() == 0.0 and hs.pad_k == 0.0 and hs.pad_thickness == 0.0
+        elif tim.currentData() is not None:                            # (conductivity, thickness) of the sheet: its resistance is thickness / k
             k_, t_ = tim.currentData()
             hs = win.doc.problem.heatsinks[0]
             assert hs.contact_r == pytest.approx(t_ / k_, rel=1e-2) and hs.pad_k == pytest.approx(k_) and hs.pad_thickness == pytest.approx(t_)
@@ -805,8 +808,8 @@ def test_selected_shape_shows_and_edits_its_measures(win, qtbot):
     assert any("5 vertices" in t and "area" in t for t in texts)
 
 
-def test_board_outline_in_the_application(win, qtbot, tmp_path):
-    """Presets, the vertex table, the outline tool, a run with every model (the rectangular ones are skipped with a warning), every results view and a save/open."""
+def test_board_outline_in_the_application(win, qtbot, tmp_path, monkeypatch):
+    """Presets, the vertex table, the outline tool, a run with every model (the rectangular ones on the rectangle of the same area, after a confirmation), every results view and a save/open."""
     from PySide6.QtWidgets import QTableWidgetItem
     load(win, example_board())
     bp, pr = win.board_panel, win.doc.problem
@@ -842,9 +845,17 @@ def test_board_outline_in_the_application(win, qtbot, tmp_path):
     win.canvas.viewport().repaint()
     # The example parts must be on the board for a sensible run: an L cut would put U2 off the board, so use chamfered corners
     bp.preset.setCurrentIndex(bp.preset.findData("Chamfered corners"))
+    from PySide6.QtWidgets import QMessageBox
+    asked = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: asked.append(self.text()) or QMessageBox.Cancel)
+    win.doc.set_options(models=ALL_MODELS, cell_mm=2.0)
+    win.run_simulation()                                                    # Cancel in the message: nothing runs
+    assert len(asked) == 1 and "rectangle of the same area" in asked[0] and (win.worker is None or not win.worker.isRunning())
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: asked.append(self.text()) or QMessageBox.Ok)
     run(win, qtbot, ALL_MODELS, cell=2.0)
-    assert any("outline" in w for w in win.sim.warnings) and "lumped" not in win.sim.results and "analytic" not in win.sim.results
-    assert {"fvm", "fdm", "solid3d"} <= set(win.sim.results)
+    assert len(asked) == 2
+    assert any("outline" in w for w in win.sim.warnings) and set(ALL_MODELS) <= set(win.sim.results)
+    assert win.sim.results["lumped"].T.shape[1:] == win.sim.results["fvm"].T.shape[1:] or win.sim.results["lumped"].T is not None
     walk_results(win, qtbot)
     # Save and reopen: the outline is kept; undo restores the rectangle
     from pcbthermal import load_project, save_project

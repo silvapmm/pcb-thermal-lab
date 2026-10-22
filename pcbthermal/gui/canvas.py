@@ -12,8 +12,9 @@ from PySide6.QtGui import (QPainterPath, QBrush, QColor, QCursor, QImage, QPaint
                            QTransform)
 from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPolygonItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
-                               QStyle)
+                               QMenu, QStyle)
 
+from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
@@ -747,6 +748,115 @@ class BoardView(QGraphicsView):
                 self._draw_start = p
             return
         super().mousePressEvent(e)
+
+    # ------------------------------------------------------------------ context menu
+    DEFAULT_SIZE_MM = {"heater": 5.0, "zone": 10.0, "heatsink": 10.0}           # Side of a shape dropped from the menu
+
+    def contextMenuEvent(self, e):
+        """!
+        @brief Right click: edit the vertices of the shape under the cursor, or add an element on an empty spot.
+        @param e QContextMenuEvent.
+        """
+        if self.tool != "select" or self._poly_pts or self._draw_start is not None:
+            e.accept()
+            return
+        menu = self.build_context_menu(self.mapToScene(e.pos()))
+        if menu is not None:
+            menu.exec(e.globalPos())
+        e.accept()
+
+    def build_context_menu(self, scene_pt):
+        """!
+        @brief The right-click menu for a point of the board.
+        @details On a polygon (zone, heater, heatsink): add a vertex on the nearest edge, delete the vertex under the cursor (three stay at least), duplicate and delete the
+                 element. On a via: duplicate and delete. On an empty spot: add a heater, zone, heatsink or via centred there. The element under the cursor is selected first.
+        @param scene_pt QPointF in mm.
+        @return QMenu with the actions, or None when the point is outside every element and outside the board.
+        """
+        tol = 8.0 / max(abs(self.transform().m11()), 1e-9)                       # Eight pixels in mm
+        # Several elements can lie under the cursor (a full-board zone below a part below a via): the smallest kind wins
+        rank = {"via": 0, "heater": 1, "heatsink": 2, "zone": 3}
+        under = sorted((it for it in self.items(self.mapFromScene(scene_pt)) if hasattr(it, "kind")), key=lambda it: rank.get(it.kind, 9))
+        target = under[0] if under else None
+        menu = QMenu(self)
+        if target is not None:
+            self.set_selection([(target.kind, target.index)])
+            self.selection_changed.emit(self.selected_elements())
+            kind, i = target.kind, target.index
+            if kind != "via":
+                pts = self.doc.polygon_mm(getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[i])
+                add = menu.addAction("Add a vertex here")
+                add.setToolTip("Adds a point on the nearest edge; drag it to reshape the polygon.")
+                add.triggered.connect(lambda: self.add_vertex(kind, i, (scene_pt.x(), scene_pt.y())))
+                k, d = nearest_vertex(pts, (scene_pt.x(), scene_pt.y()))
+                dele = menu.addAction("Delete this vertex")
+                dele.setToolTip("Removes the vertex under the cursor; a polygon keeps at least three.")
+                dele.setEnabled(d <= tol * 1.5 and len(pts) > 3)
+                dele.triggered.connect(lambda: self.remove_vertex(kind, i, k))
+                menu.addSeparator()
+            dup = menu.addAction("Duplicate")
+            dup.triggered.connect(lambda: self.set_selection(self.doc.duplicate([(kind, i)])))
+            rem = menu.addAction(f"Delete {kind}")
+            rem.triggered.connect(lambda: self.doc.delete([(kind, i)]))
+            menu.addSeparator()
+        b = self.doc.problem.board
+        if not (0 <= scene_pt.x() <= b.width * 1000.0 and 0 <= scene_pt.y() <= b.height * 1000.0):
+            return menu if target is not None else None
+        p = self._snapped(scene_pt)
+        if target is None:
+            self.scene().clearSelection()
+        # On an element the new-element entries sit in a submenu; on an empty spot they are the menu
+        add_to = menu.addMenu("Add here") if target is not None else menu
+        for new_kind in ("heater", "zone", "heatsink"):                      # Not `kind`: the lambdas above close over it
+            act = add_to.addAction(f"Add {new_kind} here")
+            act.triggered.connect(lambda _c=False, k=new_kind: self.add_centered(k, p))
+        act = add_to.addAction("Add via here")
+        act.triggered.connect(lambda: self.element_created.emit("via", self.doc.add_via(p.x(), p.y(), self.via_diameter)))
+        return menu
+
+    def add_centered(self, kind, centre):
+        """!
+        @brief Drop a square heater, zone or heatsink centred on a point (kept inside the board).
+        @param kind "heater", "zone" or "heatsink".
+        @param centre QPointF in mm.
+        """
+        b = self.doc.problem.board
+        s = min(self.DEFAULT_SIZE_MM[kind], b.width * 1000.0, b.height * 1000.0)
+        x0 = min(max(centre.x() - s / 2, 0.0), b.width * 1000.0 - s)
+        y0 = min(max(centre.y() - s / 2, 0.0), b.height * 1000.0 - s)
+        self._create(kind, [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]])
+
+    def add_vertex(self, kind, index, point_mm):
+        """!
+        @brief Add a vertex on the edge of a shape nearest to a point.
+        @param kind "zone", "heater" or "heatsink".
+        @param index Element index.
+        @param point_mm (x, y) in mm.
+        """
+        el = getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[index]
+        pts, _ = insert_vertex(self.doc.polygon_mm(el), point_mm)
+        self.doc.set_polygon(kind, index, pts)
+        self.set_selection([(kind, index)])
+        self.message.emit("Vertex added: drag its handle to reshape the polygon.")
+
+    def remove_vertex(self, kind, index, vertex):
+        """!
+        @brief Delete one vertex of a shape (a polygon keeps at least three).
+        @param kind "zone", "heater" or "heatsink".
+        @param index Element index.
+        @param vertex Vertex index.
+        """
+        el = getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[index]
+        pts = self.doc.polygon_mm(el)
+        if len(pts) <= 3:
+            self.message.emit("A polygon needs at least three vertices.")
+            return
+        new = np.delete(pts, vertex, axis=0)
+        if not polygon_is_simple(new):
+            self.message.emit("Not deleted: the polygon would cross itself.")
+            return
+        self.doc.set_polygon(kind, index, new)
+        self.set_selection([(kind, index)])
 
     def mouseDoubleClickEvent(self, e):
         """!

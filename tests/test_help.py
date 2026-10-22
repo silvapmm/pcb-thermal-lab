@@ -28,7 +28,7 @@ def test_guide_file_links_and_content():
     links = re.findall(r'href="#([^"]+)"', html)
     assert links and all(l in ids for l in links), [l for l in links if l not in ids]
     # The guide mentions every model, every part field, every tool key and every dielectric preset of the program
-    for word in ("FVM", "FDM", "Lumped", "Analytic", "3D solid", "θ junction-pad", "Tj max", "ψJB", "Power coefficient", "Heatsink θSA", "Board outline",
+    for word in ("FVM", "FDM", "Lumped", "Analytic", "3D solid", "θ junction-pad", "Tj max", "ψJB", "Power coefficient", "Heatsink θSA", "Board outline", "Manual input", "Direct contact", "Add a vertex here", "rectangle of the same area",
                  "Stack-up", "Power calculator", "Cancel", "F1", "Cooling model", "Metal block", "interface sheet", "contact area", "Prepreg", "Load typical stack-up", "stackups.json", __version__ if False else "Quick start"):
         assert word in html, word
     for entry in DIELECTRICS:
@@ -56,7 +56,7 @@ def test_guide_window_about_and_menu(qtbot, tmp_path, monkeypatch):
     about = AboutDialog(win)
     qtbot.addWidget(about)
     txt = about.text.text()
-    assert __version__ in txt and __author__ in txt and __project_url__ in txt and "Python" in about.libs.text()
+    assert __version__ in txt and __author__ in txt and __project_url__ in txt
     # The tab shortcuts exist (Ctrl+1 to Ctrl+4) and switch the tab
     from PySide6.QtGui import QKeySequence
     by_key = {a.shortcut().toString(): a for a in win.actions()}

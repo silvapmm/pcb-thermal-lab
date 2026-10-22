@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDia
 
 from .. import __version__
 from .. import fvm
+from ..api import RECTANGLE_ONLY
 from ..checks import check_problem
 from ..examples import example_board
 from ..model import reference_problem
@@ -171,6 +172,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         self.board_panel = BoardPanel(self.doc)
+        self.stackup_page.add_parameters(self.board_panel.stack_box, self.board_panel.materials_box)
         self.elements = ElementList(self.doc)
         self.inspector = Inspector(self.doc)
         self.solver_panel = SolverPanel(self.doc)
@@ -709,6 +711,8 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "Cannot run", str(exc))
             return
+        if not self._confirm_rectangle():
+            return
         self.solver_panel.set_running(True, "Starting…")
         self._run_edits = self._edits
         self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), copy.deepcopy(self.doc.options))
@@ -717,6 +721,30 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(self._on_failed)
         self.worker.cancelled.connect(lambda: self._on_cancelled(self.solver_panel))
         compute.start(self.worker)
+
+    def _confirm_rectangle(self):
+        """!
+        @brief Tell the user, before a run, that the lumped and analytic models will use a rectangle of the same area for a board with an outline.
+        @details Asked once per session when the box "Do not ask again" is ticked. Nothing is asked for a rectangular board or when neither model is selected.
+        @return True to run, False if the user cancelled.
+        """
+        prob, opt = self.doc.problem, self.doc.options
+        models = [m for m in opt.models if m in RECTANGLE_ONLY]
+        if not prob.board.has_outline() or not models or getattr(self, "_rect_ack", False):
+            return True
+        _, scale = prob.equivalent_rectangle()
+        box = QMessageBox(QMessageBox.Information, "Board with an outline",
+                          f"The {' and '.join(models)} model(s) need a rectangular board.\n\n"
+                          f"They will be run on a rectangle of the same area as the outline (box scaled by {scale:.3f}, part positions scaled with it) "
+                          "and the result is stretched back over the board. Expect a few percent of difference, more for parts near the edge or in a narrow arm.\n\n"
+                          "The FVM, FDM and 3D solid use the real shape; compare with them.", QMessageBox.Ok | QMessageBox.Cancel, self)
+        again = QCheckBox("Do not ask again in this session")
+        box.setCheckBox(again)
+        box._again = again                      # Keep the Python wrapper alive as long as the box (a dropped wrapper left a dangling check box)
+        ok = box.exec() == QMessageBox.Ok
+        self._rect_ack = ok and again.isChecked()
+        box.deleteLater()                       # The box is parented to the window: do not leave it behind
+        return ok
 
     def cancel_simulation(self):
         """!
@@ -826,6 +854,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>P</b></td><td>Polygon mode (click vertices; double click or Enter finishes)</td></tr>
 <tr><td><b>Wheel / middle drag / Space+drag</b></td><td>Zoom / pan</td></tr>
 <tr><td><b>Ctrl+0</b></td><td>Fit board</td></tr>
+<tr><td><b>Right-click</b></td><td>On a shape: add or delete a vertex, duplicate, delete; on an empty spot: add a heater, zone, heatsink or via there</td></tr>
 <tr><td><b>Del, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>

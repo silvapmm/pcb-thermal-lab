@@ -54,7 +54,7 @@ parameter means, what each model does and what it can and cannot do. Hover the p
 
 <h2 id="start">1. Quick start</h2>
 <ol>
-<li><b>File - New board</b> (or open an example from <b>File - Open example</b>). Set the width, height and number of copper layers in the Board panel.</li>
+<li><b>File - New board</b> (or open an example from <b>File - Open example</b>). Set the width and height in the Board panel and the number of copper layers in the Stack-up tab.</li>
 <li>Draw a <b>copper zone</b> (tool <kbd>Z</kbd>) under where the heat has to spread, a <b>heater</b> (<kbd>H</kbd>) where a part dissipates power, and <b>vias</b> (<kbd>V</kbd>) under it to carry the heat to the other layers.
  Drag a rectangle on the board, or switch on polygon mode (<kbd>P</kbd>) and click the corners. Select an element and type its exact position, size and values in the Properties panel.</li>
 <li>Type the heater <b>power</b> in watts. For a real part also fill its <b>junction-to-pad resistance θ</b> and the maximum junction temperature.</li>
@@ -82,9 +82,6 @@ Elements cannot be dragged off the board. The calculation runs in a separate pro
 <table>
 <tr><th>Field</th><th>Meaning</th></tr>
 <tr><td>Width, Height (mm)</td><td>Size of the box that contains the board (the board itself can be any shape inside it, see the outline).</td></tr>
-<tr><td>Thickness (mm)</td><td>Total thickness of the board. In the simple stack-up the copper and the dielectric gaps share it; in the advanced stack-up it is the sum of the layers and is read-only.</td></tr>
-<tr><td>Copper layers</td><td>Number of copper layers (1 to 12). Layer 1 is the top face, the last is the bottom face.</td></tr>
-<tr><td>Copper per layer (µm)</td><td>Copper thickness of every layer: 17.5 µm = 0.5 oz, 35 µm = 1 oz, 70 µm = 2 oz. Different values per layer: advanced stack-up.</td></tr>
 </table>
 <h3>Environment</h3>
 <table>
@@ -98,9 +95,13 @@ Elements cannot be dragged off the board. The calculation runs in a separate pro
 <tr><td>Convection × (factor)</td><td>(Computed.) Multiplier of the convection (not of the radiation), to fit a measurement.</td></tr>
 <tr><td>Edges lose heat / h edges</td><td>Whether the board edges exchange heat with the air and with which coefficient.</td></tr>
 </table>
-<h3>Materials</h3>
+<h3>Materials (Stack-up tab)</h3>
+<p>The simple stack-up and the materials are on the <b>Stack-up</b> tab, in the boxes on the right of the cross-section: <i>Simple stack-up</i> (total thickness, number of copper layers, copper per layer) and <i>Materials</i>.</p>
 <table>
 <tr><th>Field</th><th>Meaning</th></tr>
+<tr><td>Total thickness (mm)</td><td>Total thickness of the board. In the simple stack-up the copper and the dielectric gaps share it; in the advanced stack-up it is the sum of the layers and is read-only.</td></tr>
+<tr><td>Copper layers</td><td>Number of copper layers (1 to 12). Layer 1 is the top face, the last is the bottom face.</td></tr>
+<tr><td>Copper per layer (µm)</td><td>Copper thickness of every layer: 17.5 µm = 0.5 oz, 35 µm = 1 oz, 70 µm = 2 oz. Different values per layer: advanced stack-up.</td></tr>
 <tr><td>Copper k (W/mK)</td><td>Thermal conductivity of copper (385 to 400).</td></tr>
 <tr><td>Laminate preset</td><td>Typical dielectric materials; fills the next three values (indicative values, not from your datasheet).</td></tr>
 <tr><td>Dielectric k through (W/mK)</td><td>Conductivity across the board between copper layers (FR-4 about 0.3): sets the resistance between layers.</td></tr>
@@ -109,7 +110,7 @@ Elements cannot be dragged off the board. The calculation runs in a separate pro
 </table>
 
 <h2 id="stackup">4. Stack-up: simple and advanced</h2>
-<p><b>Simple</b> (default): all the dielectric gaps are equal and made of the same material; the Board panel sets the total thickness, the copper thickness (same for every layer) and the dielectric properties.
+<p><b>Simple</b> (default): all the dielectric gaps are equal and made of the same material; the boxes on the right of the Stack-up tab set the total thickness, the copper thickness (same for every layer) and the dielectric properties.
 This is the model of earlier versions, unchanged.</p>
 <p><b>Advanced</b> (Stack-up tab, <i>Stack-up</i> list): every copper layer has its own thickness and every dielectric gap its own thickness and material (conductivity through the thickness and in the plane, density, specific heat).
 Switching to Advanced keeps the same board (the gaps start equal); switching back keeps the total thickness. All five models use the advanced stack-up.</p>
@@ -145,7 +146,7 @@ or draw it with the outline tool (<kbd>O</kbd>, rectangle or polygon mode). Outs
 <ul>
 <li>The outline must be a simple polygon (no crossing edges) inside the box.</li>
 <li><b>Curves and rounded corners</b>: a curve is a polygon with many short edges. Presets: ellipse (32 edges), <b>rounded corners</b> (8 edges per corner), chamfered corners. <b>Subdivide</b> puts a vertex in the middle of every edge (repeat to refine, then move the new vertices); the vertex table edits any point. 8 edges per quarter circle already give 0.13 % of area error on a 12 mm corner; keep the edges a few cells long at most.</li>
-<li>The FVM, FDM and 3D solid solve any outline. The <b>lumped network and the analytic series need a rectangle</b> and are skipped with a warning when the board has an outline.</li>
+<li>The FVM, FDM and 3D solid solve any outline. The <b>lumped network and the analytic series need a rectangle</b>: on a board with an outline they run on a <b>rectangle of the same area</b> (the box and the part positions are scaled by the square root of the area ratio, the parts keep their size) and the program tells you before the run. Expect 0.2 to 3 % of the rise for parts away from the edge and more (up to 18 %, too cool) for a part near the edge or in a narrow arm; compare with the FVM, which uses the real shape. These two models have no time simulation on an outline.</li>
 <li>The temperature maps leave the area outside the outline blank; the heat lost through the edge follows the outline; the convection characteristic length uses the real area and perimeter.</li>
 <li>A part drawn off the board still delivers its power to the nearest board cell (with a warning): move it onto the board.</li>
 <li>Cell sizes should be several times smaller than the narrowest part of the board (a neck of two cells is poorly resolved).</li>
@@ -181,7 +182,7 @@ over the copper it overlaps through the interface resistance (grease or paste 0.
 
 <h3>Heatsinks, metal pieces and orientation</h3>
 <ul>
-<li><b>You choose how to describe a heatsink</b> (<i>Cooling model</i> of the Heatsink): <b>Coefficient</b> if you know its convection (type the <i>extra h</i>, or the datasheet <i>θSA</i> and the program computes the h over the polygon), or <b>Metal block</b> if you just have a piece of metal: give the thickness, the metal, the interface and, if it has them, the fins, and the program computes the rest. A heatsink on a package: the part's <i>Heatsink θSA</i> (with θJC(top), the interface and the contact area).</li>
+<li><b>You choose how to describe a heatsink</b> (<i>Cooling model</i> of the Heatsink): <b>Manual input</b> if you know its convection: in <i>Input as</i> choose the heat transfer coefficient <i>h</i> or the datasheet resistance <i>θSA</i> (one or the other: the program shows the equivalent of the other, h = 1/(θSA × polygon area)); or <b>Metal block</b> if you just have a piece of metal: give the thickness and the metal (box <i>Metal block</i>), the <i>Interface</i> to the board (box; <i>Direct contact</i> is no material at all, resistance 0, the optimistic limit), the <i>Fins</i> if it has them, and optionally an <i>Extra cooling of the exposed surface</i>, and the program computes the rest. A heatsink on a package: the part's <i>Heatsink θSA</i> (with θJC(top), the interface and the contact area).</li>
 <li><b>A piece of metal</b>: it spreads heat sideways in the metal, stores heat, touches the board over the copper it overlaps through the interface resistance (you do not draw the paste: the contact area is that overlap), and cools from its exposed surface with the board's face coefficient. Fins multiply the surface by their area gain times their efficiency; the program warns when the air gap between fins is under 4 mm in still air (it does not slow the air between fins). The thickness, the area and the cooling of the surface matter more than the metal (aluminium and copper are 0.1 K apart).</li>
 <li><b>Orientation</b>: it matters for computed coefficients (above) and for heatsinks, whose θSA in natural convection depends on how they are mounted: vertical fins are the usual best case, horizontal facing down the weakest, by tens of percent. No universal derating factor exists, so the program applies none: enter the θSA or h for <i>your</i> orientation and air flow as the datasheet gives it.</li>
 </ul>
@@ -256,6 +257,7 @@ The power coefficient and the heatsink on the package apply to the steady-state 
 <table>
 <tr><th>Keys</th><th>Action</th></tr>
 <tr><td><kbd>S</kbd> <kbd>Z</kbd> <kbd>H</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>O</kbd></td><td>Select, Zone, Heater, Heatsink (Cooling), Via, board Outline tools</td></tr>
+<tr><td>Right-click on the board</td><td>On a shape: <b>Add a vertex here</b> (on the nearest edge; drag it afterwards), <b>Delete this vertex</b> (three stay at least), Duplicate, Delete. On a via: Duplicate, Delete. On an empty spot: <b>Add heater / zone / heatsink / via here</b> (centred on the click; on a shape they are under <i>Add here</i>).</td></tr>
 <tr><td><kbd>P</kbd></td><td>Polygon mode: click the vertices, double-click or <kbd>Enter</kbd> to finish, right-click also finishes</td></tr>
 <tr><td>Wheel, middle-drag, <kbd>Space</kbd>+drag</td><td>Zoom, pan</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd>, <kbd>Ctrl</kbd>+<kbd>+</kbd>, <kbd>Ctrl</kbd>+<kbd>-</kbd></td><td>Fit the board, zoom in, zoom out</td></tr>

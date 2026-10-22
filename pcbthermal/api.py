@@ -35,7 +35,7 @@ from .results import SteadyResult
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
-RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board (no outline polygon)
+RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board: for an outline they run on the rectangle of the same area
 TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid is steady state only)
 
 
@@ -464,6 +464,17 @@ def _run_model(problem, name, o):
     @param o SolverOptions.
     @return SteadyResult.
     """
+    if name in RECTANGLE_ONLY and problem.board.has_outline():
+        # Solve the rectangle of the same area, then stretch the field back over the real box (the cells outside the outline are blanked by the plots)
+        eq, s = problem.equivalent_rectangle()
+        res = _run_model(eq, name, o)
+        res.dx, res.dy = res.dx / s, res.dy / s
+        if res.t_max_location is not None:
+            layer, x, y = res.t_max_location
+            res.t_max_location = (layer, x / s, y / s)
+        res.warnings.append(f"the board has an outline: computed on a rectangle of the same area (box and positions scaled by {s:.3f}); expect a few percent of "
+                            "difference, more for parts near the edge or in a narrow arm; the FVM, FDM and 3D solid use the real shape")
+        return res
     if name == "fvm":
         return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver)
     if name == "fdm":
@@ -600,9 +611,11 @@ def _run_profiles(sim, progress, start):
     """
     o = sim.options
     p = sim.effective_problem or sim.problem
-    ref = next((m for m in TIME_MODELS if m in o.models), None)   # The FDM only if nothing else is selected; the 3D solid has no time simulation
+    # The lumped and analytic models have no time simulation on a board with an outline (the rectangle of the same area is a steady-state device)
+    usable = tuple(m for m in o.models if not (m in RECTANGLE_ONLY and p.board.has_outline()))
+    ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
     if ref is None:
-        sim.profile_error = "select the FVM, Lumped, Analytic or FDM model for the time simulation (the 3D solid is steady state only)"
+        sim.profile_error = "select the FVM or the FDM (or Lumped/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
         return
     sim.profile_reference = ref
     if progress:
@@ -612,7 +625,7 @@ def _run_profiles(sim, progress, start):
         resp = step_response(p, ref, o)
         sim.decisions = profiles.decide(p, resp, o.profile.threshold_c)
         sim.step_response = resp
-        for name in o.models:
+        for name in usable:
             if name == "solid3d":
                 continue
             if progress:
@@ -645,16 +658,6 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     options.validate()
     problem.validate()
     sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm))
-    if problem.board.has_outline():
-        # The lumped network and the cosine series need a rectangle: they are left out for a board with an outline
-        skipped = [m for m in options.models if m in RECTANGLE_ONLY]
-        if skipped:
-            options = copy.deepcopy(options)
-            options.models = tuple(m for m in options.models if m not in RECTANGLE_ONLY)
-            if not options.models:
-                raise ValueError("the board has an outline polygon: select the FVM, the FDM or the 3D solid (the lumped and analytic models need a rectangle)")
-            sim.options = options
-            sim.problem_warnings.append("not run for a board with an outline polygon (they need a rectangular board): " + ", ".join(skipped))
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)

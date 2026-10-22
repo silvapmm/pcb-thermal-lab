@@ -203,3 +203,51 @@ def rounded_rectangle(width, height, radius, segments=8):
             a = np.radians(a0 + 90.0 * k / segments)
             pts.append([cx + r * np.cos(a), cy + r * np.sin(a)])
     return pts
+
+
+def nearest_edge_point(poly, point):
+    """!
+    @brief Closest point of a polygon's boundary to a point.
+    @param poly Array-like (n, 2) of vertices (any length unit).
+    @param point (x, y) in the same unit.
+    @return Tuple (edge, q, distance): index i of the edge from vertex i to vertex i+1, the closest point q on it (array of 2) and its distance to `point`.
+    """
+    p = np.asarray(poly, dtype=float)
+    pt = np.asarray(point, dtype=float)
+    best = (0, p[0], float("inf"))
+    for i in range(len(p)):
+        a, b = p[i], p[(i + 1) % len(p)]
+        ab = b - a
+        n2 = float(np.dot(ab, ab))
+        # Projection parameter clamped to the segment (a degenerate edge falls back to its start)
+        t = 0.0 if n2 == 0.0 else min(max(float(np.dot(pt - a, ab)) / n2, 0.0), 1.0)
+        q = a + t * ab
+        d = float(np.hypot(*(pt - q)))
+        if d < best[2]:
+            best = (i, q, d)
+    return best
+
+
+def insert_vertex(poly, point):
+    """!
+    @brief Add a vertex to a polygon on the edge closest to a point, so the shape does not change until the new vertex is moved.
+    @param poly Array-like (n, 2) of vertices.
+    @param point (x, y) near the wanted edge, same unit.
+    @return Tuple (new vertices as an (n+1, 2) array, index of the new vertex).
+    """
+    p = np.asarray(poly, dtype=float)
+    edge, q, _ = nearest_edge_point(p, point)
+    return np.insert(p, edge + 1, q, axis=0), edge + 1
+
+
+def nearest_vertex(poly, point):
+    """!
+    @brief Vertex of a polygon closest to a point.
+    @param poly Array-like (n, 2) of vertices.
+    @param point (x, y) in the same unit.
+    @return Tuple (index, distance).
+    """
+    p = np.asarray(poly, dtype=float)
+    d = np.hypot(p[:, 0] - point[0], p[:, 1] - point[1])
+    k = int(np.argmin(d))
+    return k, float(d[k])

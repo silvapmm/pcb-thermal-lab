@@ -111,8 +111,11 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 
 | Feature | Code | Tests / evidence |
 | :-- | :-- | :-- |
-| Board outline polygon: cell cover, edge loss along the outline, blank cells in plots, parts off the board deliver power to the nearest board cell; FVM, FDM and 3D solid (lumped and analytic need a rectangle and are skipped with a warning) | `model.Board.outline`, `geometry.edge_length_per_cell`, `fvm.py`, `fdm.py`, `solid3d.py`, `plots.py` | `test_outline.py`: a rectangle as polygon is identical, a smaller outline equals the smaller board, energy closes, models within 3 % |
+| Board outline polygon: cell cover, edge loss along the outline, blank cells in plots, parts off the board deliver power to the nearest board cell; FVM, FDM and 3D solid (lumped and analytic run on the rectangle of the same area, see below) | `model.Board.outline`, `geometry.edge_length_per_cell`, `fvm.py`, `fdm.py`, `solid3d.py`, `plots.py` | `test_outline.py`: a rectangle as polygon is identical, a smaller outline equals the smaller board, energy closes, models within 3 % |
 | Outline presets, vertex table, outline tool | `gui/panels.py`, `gui/canvas.py` | |
+| Right-click menu: add/delete a vertex, duplicate, delete, add an element on an empty spot | `gui/canvas.BoardView.build_context_menu`, `geometry.insert_vertex/nearest_vertex` | `test_context_menu.py` |
+| Properties panel in boxes; heatsink manual input as h or θSA; Direct contact interface; simple stack-up and materials in the Stack-up tab | `gui/panels.Inspector.rebuild`, `gui/stackup.StackupPage.add_parameters` | `test_inspector_sections.py`, `test_tooltips.py`, `test_heatsink_part.py` |
+| Lumped and Analytic on an outline: rectangle of the same area (box and positions scaled by sqrt(area ratio), parts keep their size, field stretched back), message before the run ("Do not ask again" per session), warning in the result, no time simulation for them | `model.Problem.equivalent_rectangle`, `api._run_model`, `api.simulate`, `gui/main_window._confirm_rectangle`, `examples/outline_rectangle_study.py` | `test_outline.py` (area, sizes, beats the bounding box), `test_gui_stress.py` (cancel and confirm); `docs/validation.md` section 13 |
 
 ### Application
 

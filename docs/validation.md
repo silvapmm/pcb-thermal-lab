@@ -315,7 +315,7 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 | chamfered corners (6 mm) | 2328 mm² | 82.2 | -4.0 % | -1.5 % |
 
 * Less board makes the heater hotter (the L shape has 25 % less board and the rise grows 35 %), the FVM and the independent 3D solid agree within 1.5 % on every shape, as they do on the rectangle.
-* Limits: cell-cover treatment of the boundary (a cell on the edge conducts with its covered fraction), so a neck narrower than two or three cells is poorly resolved; the lumped and analytic models need a rectangle and are not run.
+* Limits: cell-cover treatment of the boundary (a cell on the edge conducts with its covered fraction), so a neck narrower than two or three cells is poorly resolved; the lumped and analytic models need a rectangle and run on the rectangle of the same area (section 13).
 
 **C. Sensitivity to the stack-up numbers** (`python examples/stackup_outline_study.py`; the typical 4-layer stack-up of `stackups.json`, base rise 84.5 K):
 
@@ -347,3 +347,54 @@ The FVM, the FDM and the 3D solid agree within 1 % on a finned block (the same f
 **Power from a measured temperature.** The forward model reproduces the measurement: the power recovered from the model's own board temperature at the mean-under-part and the 1 mm ring points is exact to 1e-3 (affine, two model runs plus a check), the hottest point and the junction need a few more because the hottest point can move with the power, and with computed convection (not linear) the iteration converges to 2e-3 (`tests/test_inverse.py`). The accuracy against a real measurement is the accuracy of the drawn board and of the probe: no measurement of a real board has been made in this project yet.
 
 **Calculation process.** A cancelled run stops at once (the process is terminated, the next job starts a fresh one), jobs run one at a time, and closing the program leaves no process (`tests/test_compute.py`, `test_gui_stress.py`). Results travel by pickle (22 MB for a four-model run with a profile, 0.04 s).
+
+## 13. Lumped and Analytic on a board with an outline (2026-10-22)
+
+`python examples/outline_rectangle_study.py` prints the table; `tests/test_outline.py` checks that the rectangle of the same area keeps the area, the part sizes and the original problem, and that it beats the bounding box on an ellipse.
+Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) moved to the positions of the *Parts* column, FVM at 1 mm on the real outline as the reference, lumped and analytic at 1 mm. Error = difference of the maximum temperature divided by the FVM rise above ambient, in percent (negative = too cool), shown as lumped / analytic.
+
+| Outline | Parts | Area ratio | FVM Tmax | bounding box | same area (used) | 1.1 × box |
+| :-- | :-- | --: | --: | --: | --: | --: |
+| ellipse | example | 0.783 | 90.8 | -9.3 / -9.3 | -1.9 / +0.4 | -16.3 / -15.1 |
+| ellipse | centre | 0.783 | 114.3 | -7.4 / -5.8 | +0.9 / +2.9 | -9.9 / -11.5 |
+| ellipse | off-centre | 0.783 | 104.4 | -10.4 / -8.8 | -2.0 / -0.6 | -15.8 / -13.9 |
+| ellipse | near the edge | 0.783 | 119.7 | -16.5 / -14.0 | -10.2 / -5.8 | -21.2 / -19.3 |
+| L | near the edge | 0.750 | 115.8 | -12.9 / -10.3 | -6.2 / +0.1 | -17.8 / -15.8 |
+| T | example | 0.667 | 109.1 | -29.0 / -29.0 | -17.8 / -16.0 | -34.5 / -33.5 |
+| T | centre | 0.667 | 123.4 | -16.0 / -14.5 | +0.0 / -0.4 | -18.2 / -19.7 |
+| chamfer | example | 0.964 | 86.4 | -2.9 / -2.9 | -2.8 / -1.8 | -10.3 / -9.1 |
+| chamfer | centre | 0.964 | 110.1 | -2.9 / -1.2 | -3.5 / +0.4 | -5.5 / -7.2 |
+| chamfer | off-centre | 0.964 | 99.1 | -3.9 / -2.1 | -4.8 / -0.8 | -9.6 / -7.6 |
+| chamfer | near the edge | 0.964 | 112.6 | -9.6 / -7.0 | -9.7 / -5.7 | -14.8 / -12.7 |
+| rounded | example | 0.984 | 86.1 | -2.3 / -2.3 | -3.0 / -2.0 | -9.8 / -8.5 |
+| rounded | centre | 0.984 | 109.8 | -2.5 / -0.8 | -5.5 / -0.3 | -5.2 / -6.8 |
+| rounded | off-centre | 0.984 | 98.6 | -3.3 / -1.6 | -5.0 / -0.9 | -9.1 / -7.1 |
+| rounded | near the edge | 0.984 | 112.0 | -9.1 / -6.4 | -10.3 / -5.8 | -14.2 / -12.1 |
+
+* Enlarging the box (the idea of growing outwards) is the worst choice in every row: more area means more convection, so the board runs 10 to 20 % too cool. Shrinking to the same area is the best on average, and the error is always on the cool side.
+* For a strongly cut shape (ellipse, L, T; area ratio below 0.8) the bounding box ignores 20 to 33 % of the board and is 6 to 29 % cool; the same-area rectangle brings parts away from the edge to within 0.2 to 3 %.
+* Where it fails: a part near the edge of the real board or in the arm of a T has less board to spread into than the scaled rectangle gives it (10 to 18 % cool). For nearly rectangular outlines (chamfer, rounded: area ratio above 0.95) the three boxes differ by a few percent either way and the same-area box is not better than the bounding box (lumped 3 to 5 % cool). Scaling about the area centroid of the outline instead of the box centre gave no consistent gain (tried, not kept).
+* Not covered: parts in the cut region (they are off the board), holes, outlines with more than one lobe, and the time simulation (not available for these two models on an outline).
+
+## 14. The typical stack-ups against fabricators' tables (2026-10-22)
+
+`python examples/stackup_vendor_check.py` solves the example board (FVM, 2 mm) with the program's template of each layer count and with the published tables of fabricators entered layer by layer.
+
+**What was found online.** JLCPCB publishes complete layer tables (impedance page: 4 layers with 7628, 3313, 1080, 2116 prepreg, and 6 layers JLC06161H-3313). PCBWay publishes 76 four-layer tables (1.6 mm, 1 oz or 1.5 oz inner copper, 30 to 90 % residual copper; example: prepreg 7628 0.196 mm before and 0.1855 mm after lamination, core 1.03 mm, laminated 1.51 mm, finished 1.61 mm) and an older blog table for 6 and 8 layers. Eurocircuits does not publish tables as text: its builds are chosen in the PCB configurator (about 940 predefined builds); the catalogue is cores of 100, 200, 360 and 710 µm with 12, 18, 35 or 70 µm foil and prepregs PR1080 70 µm, PR2116 120 µm, PR7628 180 µm; pooled boards are 1.55 mm (6 layers and more) and 1.00 mm (4 layers). Sierra Circuits (Proto Express) gives a nominal 1.57 mm (0.062 in), minimum core and dielectric 4 mil, and makes the final stack-up per order. No Eurocircuits or Sierra layer table could be read, so those two are checked only against the catalogue above.
+
+| Stack-up | Total (mm) | Tmax (°C) |
+| :-- | --: | --: |
+| 4 layers, program template (= JLC04161H-7628: 35 / 15.2 / 15.2 / 35 µm, prepreg 210.4, core 1065) | 1.586 | 101.00 |
+| 4 layers, PCBWay table (1 oz inner copper, prepreg 190, core 1030) | 1.550 | 100.59 |
+| 4 layers, core 930 µm with 1080 + 7628 prepreg (Weller-like) | 1.604 | 101.10 |
+| 6 layers, program template | 1.600 | 122.20 |
+| 6 layers, JLC06161H-3313 as published (99.4 / 550 / 108.8 / 550 / 99.4 µm) | 1.538 | 122.31 |
+| 6 layers, PCBWay blog table (110 / 530 / 110 / 530 / 110 µm, 1 oz inner) | 1.600 | 121.97 |
+| 8 layers, program template | 1.600 | 120.40 |
+| 8 layers, PCBWay blog table (175 / 130 alternating, 1 oz inner) | 1.370 | 122.18 |
+
+* The 4-layer template is the JLCPCB table to the last digit. Between the 4- and 6-layer tables of different fabricators the maximum temperature moves by 0.1 to 0.4 °C (under 0.5 %), although the inner copper changes from 15.2 to 35 µm and the core by 10 %: on a board whose heat goes down the vias and spreads in the outer copper, the exact prepreg and core split hardly matters.
+* The 8-layer blog table sums to 1.37 mm, not the 1.6 mm it is titled with, so it is not consistent (and PCBWay calls it the old version); with it the board is 1.8 °C (1.5 %) hotter than with the template, mostly because the board is 14 % thinner.
+* The middle prepreg of the 6-layer template (200 µm) is thicker than the published 109 to 110 µm (the template keeps 1.6 mm by thickening it); the effect on the temperature is 0.1 K, so the template was left unchanged.
+* Not covered: constructions with blind or buried vias, sequential lamination, heavy copper, metal-core and ceramic boards (they are in the dielectric presets, with no fabricator table checked).
+

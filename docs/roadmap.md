@@ -205,9 +205,9 @@ Today: one total thickness, copper thickness per layer (already a list) and **eq
 * **Why**: through-board resistance is `Σ d_i/k_i`, so a thin prepreg under the heater layer and a thick core elsewhere differ a lot from equal gaps; a metal-core board is another regime. Expect first-order changes in `T_j` with a thin top prepreg and an inner plane.
 * **Compatibility**: with equal gaps the new code must reproduce the current results exactly (regression test). The stack-up table also feeds the Gerber import (copper thickness, plating).
 
-## 3b. Board outline (implemented 2026-10-21; Lumped and Analytic still need a rectangle)
+## 3b. Board outline (implemented 2026-10-21; Lumped and Analytic use the rectangle of the same area since 2026-10-22)
 
-Done for the FVM, FDM and 3D solid (`docs/models.md` section 9; curves are polygons, section 14: a true arc/spline outline and an automatic refinement of the outline near curves are not done). Left: the Lumped network on any outline (rings of the geodesic distance inside the board instead of the Euclidean one, an outline-aware edge model) and the Analytic series (a conformal map or a domain decomposition; probably not worth it: the models are the fast, uniform-board estimates);
+Done for the FVM, FDM and 3D solid (`docs/models.md` section 9; curves are polygons, section 14: a true arc/spline outline and an automatic refinement of the outline near curves are not done). Done 2026-10-22: Lumped and Analytic on the rectangle of the same area (`docs/validation.md` section 13; 10 to 18 % cool for a part near the edge). Left: the Lumped network on any outline (rings of the geodesic distance inside the board instead of the Euclidean one, an outline-aware edge model) and the Analytic series (a conformal map or a domain decomposition; probably not worth it: the models are the fast, uniform-board estimates);
 holes and cut-outs inside the board (an outline with holes: a list of polygons with even-odd fill, same cell cover); a board outline imported from the Gerber outline layer together with the copper (section 2); a check that warns when a neck of the outline is narrower than three cells.
 
 ## 4. Multigrid solver (optional, low priority)

@@ -1,7 +1,7 @@
 """!
 @file stackup.py
 @brief Stack-up tab: the vertical cross-section of the board drawn to scale and the table that edits every copper layer and every dielectric.
-@details The simple stack-up (equal gaps of one FR-4) is edited in the Board panel; here the board can be switched to the advanced stack-up, where each
+@details The simple stack-up (equal gaps of one FR-4) is edited in the boxes on the right of this tab; here the board can be switched to the advanced stack-up, where each
          copper layer has its own thickness and each gap its own thickness and material. The diagram shows the thickness of every layer in
          micrometres and millimetres and the total thickness of the board; a click on a layer tells its dimensions and properties.
 """
@@ -201,7 +201,7 @@ class StackupEditor(QTableWidget):
 
     COLUMNS = ("Layer", "Material", "Thickness (µm)", "k through (W/mK)", "k in-plane (W/mK)", "ρ (kg/m³)", "cp (J/kgK)")
     TIPS = ("Copper layer or dielectric gap between two copper layers, from the top face down.",
-            "Dielectric material. Choosing one fills the four properties with typical values (indicative; edit them for your laminate). Copper is described in the Board panel (Materials).",
+            "Dielectric material. Choosing one fills the four properties with typical values (indicative; edit them for your laminate). Copper is described in the Materials box above.",
             "Thickness in micrometres (1 oz copper is 35 µm, 0.5 oz 17.5 µm, 2 oz 70 µm; a 0.2 mm prepreg is 200 µm).",
             "Thermal conductivity across the thickness (between the copper layers), W/mK.",
             "Thermal conductivity along the plane (spreading inside the dielectric), W/mK.",
@@ -267,7 +267,7 @@ class StackupEditor(QTableWidget):
                 i = ly["index"]
                 if copper:
                     self.setCellWidget(r, 1, QLabel("  Copper"))
-                    self.cellWidget(r, 1).setToolTip("Copper properties are set in the Board panel (Materials).")
+                    self.cellWidget(r, 1).setToolTip("Copper properties are set in the Materials box above the table.")
                 else:
                     combo = QComboBox()
                     for name, *_ in DIELECTRICS:
@@ -284,7 +284,7 @@ class StackupEditor(QTableWidget):
                 cols = ((ly["k_through"], "k_through", 0.01, 2000.0, 2), (ly["k_inplane"], "k_inplane", 0.01, 2000.0, 2),
                         (ly["rho"], "rho", 10.0, 30000.0, 0), (ly["cp"], "cp", 10.0, 5000.0, 0))
                 for c, (val, key, a, z, dec) in enumerate(cols):
-                    self.setCellWidget(r, 3 + c, self._spin(val, a, z, dec, not copper, self.TIPS[3 + c] if not copper else "Copper: set in the Board panel (Materials).",
+                    self.setCellWidget(r, 3 + c, self._spin(val, a, z, dec, not copper, self.TIPS[3 + c] if not copper else "Copper: set in the Materials box above the table.",
                                                             (lambda v, g=i, k=key: self._set_gap(g, **{k: v})) if not copper else None))
                 self.setRowHeight(r, 26)
             self.resizeColumnsToContents()
@@ -365,7 +365,7 @@ class StackupPage(QWidget):
         self.mode = QComboBox()
         self.mode.addItem("Simple: equal layers, one FR-4", False)
         self.mode.addItem("Advanced: each layer on its own", True)
-        self.mode.setToolTip("Simple: the Board panel sets the thickness, the copper and the FR-4 of equal gaps. Advanced: every copper layer and every dielectric "
+        self.mode.setToolTip("Simple: the boxes on the right set the thickness, the copper and the dielectric of equal gaps. Advanced: every copper layer and every dielectric "
                              "gap has its own thickness and material (all models use them). Switching keeps the same board.")
         self.unit = QComboBox()
         for label, key in _UNITS:
@@ -394,7 +394,10 @@ class StackupPage(QWidget):
         self.note = QLabel("")
         self.note.setWordWrap(True)
         rl.addWidget(self.note)
+        self.params = QVBoxLayout()                       # Filled by add_parameters: the simple stack-up and the materials
+        rl.addLayout(self.params)
         rl.addWidget(self.editor, 1)
+        rl.addStretch(0)
         split.addWidget(self.view)
         split.addWidget(right)
         split.setStretchFactor(0, 2)
@@ -411,6 +414,14 @@ class StackupPage(QWidget):
         self.view.layer_clicked.connect(self._show_layer)
         doc.changed.connect(self.refresh)
         self.refresh()
+
+    def add_parameters(self, *boxes):
+        """!
+        @brief Put the parameter boxes of the stack-up (thickness, copper, layers, materials) in the right-hand column, above the layer table.
+        @param boxes QGroupBox widgets owned by the BoardPanel.
+        """
+        for box in boxes:
+            self.params.addWidget(box)
 
     def set_theme(self, theme):
         """!
@@ -434,10 +445,10 @@ class StackupPage(QWidget):
         self._look_changed()
         if b.is_advanced():
             self.note.setText(f"Advanced stack-up: {b.layers} copper layers, {len(b.dielectrics)} dielectrics, total thickness "
-                              f"{format_thickness(b.total_thickness(), 'both')}. Copper conductivity and the via plating are in the Board panel.")
+                              f"{format_thickness(b.total_thickness(), 'both')}. Copper conductivity and the via plating are in the Materials box.")
         else:
-            self.note.setText("Simple stack-up: the Board panel sets the total thickness, the copper thickness of the layers and the FR-4 properties; "
-                              "the gaps are equal. Switch to Advanced to describe each layer.")
+            self.note.setText("Simple stack-up: set the total thickness, the copper and the dielectric below; the gaps are equal. "
+                              "Switch to Advanced to describe each layer.")
         if self.view.selected >= 0:
             self._show_layer(self.view.selected)
 

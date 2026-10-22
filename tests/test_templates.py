@@ -95,7 +95,7 @@ def test_rounded_rectangle_is_a_valid_polygon_and_the_curve_converges():
 
 
 def test_gui_template_on_layer_change_interface_preset_heatsink_helper_and_subdivide(tmp_path, qtbot, monkeypatch):
-    from PySide6.QtCore import QSettings
+    from PySide6.QtCore import QSettings, Qt
     from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QMessageBox
     from pcbthermal.examples import example_board
     from pcbthermal.gui.document import Document
@@ -126,16 +126,28 @@ def test_gui_template_on_layer_change_interface_preset_heatsink_helper_and_subdi
     win._on_canvas_selection([("heater", 0)])
     form = win.inspector.form_host
     preset = next(c for c in form.findChildren(QComboBox) if c.itemText(0).startswith("Interface material"))
-    preset.setCurrentIndex(3)
+    preset.setCurrentIndex(preset.findText("Direct contact", Qt.MatchStartsWith))             # No material: zero resistance and no sheet
+    h0 = win.doc.problem.heaters[0]
+    assert h0.interface == 0.0 and h0.pad_thickness == 0.0 and h0.pad_k == 0.0
+    form = win.inspector.form_host
+    preset = next(c for c in form.findChildren(QComboBox) if c.itemText(0).startswith("Interface material"))
+    preset.setCurrentIndex(4)
     assert win.doc.problem.heaters[0].interface == pytest.approx(1.667, abs=0.01)
     # Heatsink: theta_SA from the datasheet sets the extra h
     win.canvas.set_selection([("heatsink", 0)])
     win._on_canvas_selection([("heatsink", 0)])
     hs = win.doc.problem.heatsinks[0]
     area = polygon_area(hs.polygon)
+    how = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Heat transfer coefficient"))
+    how.setCurrentIndex(1)                                                                     # Input as θSA instead of h: the form is rebuilt with the θSA field
     spin = next(s for s in win.inspector.form_host.findChildren(QAbstractSpinBox) if s.toolTip().startswith("Heatsink resistance to ambient"))
     spin.setValue(4.0)
     assert win.doc.problem.heatsinks[0].h_extra == pytest.approx(1.0 / (4.0 * area), rel=1e-3)
+    win._on_canvas_selection([("heatsink", 0)])                                                # The heatsink is on a layer the canvas is not showing: select it again for the inspector
+    how = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Heat transfer coefficient"))
+    how.setCurrentIndex(0)                                                                     # Back to h: it shows the same coefficient
+    h_spin = next(s for s in win.inspector.form_host.findChildren(QAbstractSpinBox) if s.suffix().strip() == "W/m²K")
+    assert h_spin.value() == pytest.approx(win.doc.problem.heatsinks[0].h_extra, rel=1e-2)
     # Outline: rounded preset and subdivide
     bp.preset.setCurrentIndex(bp.preset.findData("Rounded corners"))
     n0 = len(win.doc.problem.board.outline)

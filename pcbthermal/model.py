@@ -804,6 +804,38 @@ class Problem:
         """
         return float(sum(h.power for h in self.heaters))
 
+    def equivalent_rectangle(self):
+        """!
+        @brief Rectangular problem of the same area as a board with an outline (for the lumped and analytic models).
+        @details The box is scaled by s = sqrt(outline area / box area) in both directions, which keeps the aspect ratio and the board
+                 area, and every position is scaled by the same s: heater centres, via positions, zone and heatsink polygons. The heaters keep
+                 their size (so their power density is unchanged) and are pushed back inside the new box if needed. The outline is dropped.
+                 Measured against the FVM on the real shape: the area-equivalent box is within 0.2 to 3 % of the temperature rise for a
+                 circle with parts away from the edge, against 6 to 10 % too low with the bounding box (`docs/validation.md`).
+        @return Tuple (Problem without outline, s). For a board without outline: (a copy, 1.0).
+        """
+        q = copy.deepcopy(self)
+        b = q.board
+        if not b.has_outline():
+            return q, 1.0
+        # The outline lies inside the box, so s <= 1 (the new box is never larger than the old one)
+        s = math.sqrt(min(polygon_area(b.outline) / (b.width * b.height), 1.0))
+        b.outline = None
+        b.width, b.height = b.width * s, b.height * s
+        for z in q.zones:
+            z.polygon = z.polygon * s
+        for k in q.heatsinks:
+            k.polygon = k.polygon * s
+        for v in q.vias:
+            v.x, v.y = v.x * s, v.y * s
+        for h in q.heaters:
+            c = h.polygon.mean(axis=0)
+            moved = h.polygon - c + c * s                                   # Same size, scaled centre
+            lo, hi = moved.min(axis=0), moved.max(axis=0)
+            shift = np.maximum(-lo, 0.0) - np.maximum(hi - [b.width, b.height], 0.0)   # Back inside the box
+            h.polygon = moved + shift
+        return q, s
+
     def has_profiles(self):
         """!
         @brief True if at least one heater has a power profile.
