@@ -234,8 +234,16 @@ class BoardPanel(QWidget):
         self.copper.setValue(b.copper_thickness[0] * 1e6)
         advanced = b.is_advanced()
         self.thickness.setValue(b.total_thickness() * 1000)
+        # Advanced stack-up: thickness, copper per layer and the dielectric are set layer by layer in the table, so those rows are hidden (not just greyed);
+        # the number of layers, the copper conductivity and the via plating still apply
         for w in [self.thickness, self.copper] + self.simple_only:
             w.setEnabled(not advanced)
+            w.setVisible(not advanced)
+            label = w.parent().layout().labelForField(w) if w.parent() is not None and w.parent().layout() is not None else None
+            if label is not None:
+                label.setVisible(not advanced)
+        self.stack_box.setTitle("Stack-up (layer by layer in the table)" if advanced else "Simple stack-up")
+        self.stack_note.setVisible(not advanced)
         self.stack_note.setText("Advanced stack-up: thickness, copper and dielectrics are set layer by layer in the Stack-up tab." if advanced
                                 else "Simple stack-up: equal gaps. For different copper weights or dielectrics use the Stack-up tab.")
         self.ambient.setValue(b.ambient)
@@ -716,7 +724,6 @@ class Inspector(QWidget):
                 lay.addRow("Heatsink θSA", sa)
             elif kind == "heatsink":
                 is_block = el.is_block()
-                lay = box("Cooling model")
                 mode = QComboBox()
                 mode.addItem("Manual input: I give h or θSA", False)
                 mode.addItem("Metal block: the program computes it", True)
@@ -731,7 +738,7 @@ class Inspector(QWidget):
                         self.doc.set_props(kind, i, thickness=3e-3 if block else 0.0, merge=False)
 
                 mode.currentIndexChanged.connect(switch)
-                lay.addRow("Cooling model", mode)
+                root.addRow("Cooling model", mode)                 # A single field: no box of its own
                 area_m2 = float(polygon_area(np.asarray(el.polygon)))
                 if not is_block:
                     lay = box("Manual input")

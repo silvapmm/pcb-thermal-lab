@@ -47,10 +47,10 @@ def test_boxes_of_every_element(win):
     select(win, "via")
     assert titles(win) == ["Via"]
     select(win, "heatsink")
-    assert titles(win) == ["Cooling model", "Manual input", "Position and size"]
+    assert titles(win) == ["Manual input", "Position and size"]
     win._load_problem(example_block_board(), "block")
     select(win, "heatsink")
-    assert titles(win) == ["Cooling model", "Metal block", "Interface: board to block", "Fins (optional)",
+    assert titles(win) == ["Metal block", "Interface: board to block", "Fins (optional)",
                            "Extra cooling of the exposed surface (optional)", "Position and size"]
     assert not missing(win.inspector.form_host, "block boxes")
 
@@ -80,8 +80,11 @@ def test_simple_stackup_fields_are_in_the_stackup_tab(win):
     assert not bp.isAncestorOf(bp.thickness) and bp.isAncestorOf(bp.width) and bp.isAncestorOf(bp.h_top)
     page.mode.setCurrentIndex(1)                                                                  # Advanced: thickness and copper are read-only, materials of copper stay
     assert not bp.thickness.isEnabled() and bp.k_cu.isEnabled()
+    assert bp.thickness.isHidden() and bp.copper.isHidden() and bp.laminate.isHidden() and bp.k_th.isHidden() and bp.k_ip.isHidden()      # Set layer by layer in the table
+    assert not bp.layers.isHidden() and not bp.k_cu.isHidden() and not bp.plating.isHidden()                                           # Still apply
+    assert "layer by layer" in bp.stack_box.title()
     page.mode.setCurrentIndex(0)
-    assert bp.thickness.isEnabled()
+    assert bp.thickness.isEnabled() and not bp.thickness.isHidden() and not bp.laminate.isHidden() and bp.stack_box.title() == "Simple stack-up"
 
 
 def tmax(win, model="fvm"):
