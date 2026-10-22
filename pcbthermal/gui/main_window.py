@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMainWindow,
@@ -17,54 +17,26 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDia
 
 from .. import __version__
 from .. import fvm
-from ..api import simulate
 from ..checks import check_problem
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
+from .calculator import PowerCalculator
+from .help import AboutDialog, GuideWindow, open_guide_in_browser
 from .canvas import BoardView
-from .animation import TransientWorker
 from . import compute
-from .compute import LOCK
+from .compute import ProcessWorker
 from .document import Document
 from .panels import BoardPanel, ElementList, Inspector, SolverPanel
 from .profile_page import ProfilePage
+from .stackup import StackupPage
+from . import tips
 from .results_view import ResultsView
 
 FILE_FILTER = "PCB Thermal projects (*.pcbt.json *.json);;All files (*)"
 
 
-TAB_BOARD, TAB_PROFILE, TAB_RESULTS = 0, 1, 2     # Order of the main tabs
-
-
-class SimWorker(QThread):
-    """!
-    @brief Runs simulate() in a background thread so the window stays responsive.
-    """
-
-    progress = Signal(str, float)
-    done = Signal(object)
-    failed = Signal(str)
-
-    def __init__(self, problem, options, parent=None):
-        """!
-        @param problem Problem (deep-copied so later edits cannot race with the solver).
-        @param options SolverOptions (copied).
-        @param parent Qt parent.
-        """
-        super().__init__(parent)
-        self.problem, self.options = copy.deepcopy(problem), copy.deepcopy(options)
-
-    def run(self):
-        """!
-        @brief Thread body: run the simulation and emit the outcome.
-        """
-        try:
-            with LOCK:                                 # One calculation at a time (see compute.py)
-                result = simulate(self.problem, self.options, progress=lambda m, f: self.progress.emit(m, f))
-            self.done.emit(result)
-        except Exception as exc:                       # Any solver or validation error goes to the user
-            self.failed.emit(str(exc))
+TAB_BOARD, TAB_STACKUP, TAB_PROFILE, TAB_RESULTS = 0, 1, 2, 3     # Order of the main tabs
 
 
 class NewBoardDialog(QDialog):
@@ -184,13 +156,15 @@ class MainWindow(QMainWindow):
         self.settings = settings or QSettings("PMS Labs", "PCB Thermal Lab")
         self.theme_name = self.settings.value("theme", "dark")
         self.doc = doc or Document()
-        self.sim, self.worker, self._stale = None, None, False
+        self.sim, self.worker, self._stale, self._guide = None, None, False, None
         self._edits, self._run_edits = 0, None                 # Edit counter, and its value when the running simulation started
 
         self.canvas = BoardView(self.doc, self.theme_name)
         self.results = ResultsView(self.theme_name)
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
+        self.stackup_page = StackupPage(self.doc, self.theme_name)
+        self.tabs.addTab(self.stackup_page, "Stack-up")
         self.profile_page = ProfilePage(self.doc, self.theme_name)
         self.tabs.addTab(self.profile_page, "Power profile")
         self.tabs.addTab(self.results, "Results")
@@ -215,7 +189,9 @@ class MainWindow(QMainWindow):
         self.canvas.message.connect(lambda m: self.statusBar().showMessage(m))
         self.canvas.element_created.connect(self._on_created)
         self.elements.selection_requested.connect(self._on_list_selection)
+        self.board_panel.draw_outline_requested.connect(lambda: self.tool_actions["outline"].setChecked(True))
         self.solver_panel.run_requested.connect(self.run_simulation)
+        self.solver_panel.cancel_requested.connect(self.cancel_simulation)
         self.results.animation.compute_requested.connect(self.compute_animation)
         self.tabs.currentChanged.connect(self._suggest_animation)
         self._check_timer = QTimer(self)                      # Re-check the design shortly after the last edit
@@ -234,6 +210,9 @@ class MainWindow(QMainWindow):
         geo = self.settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
+        self.layer_combo.setToolTip("Layer on which new zones and heaters are drawn; the other layers are shown faded.")
+        self.snap_combo.setToolTip("Grid distance the drawn and dragged elements snap to (off = free placement).")
+        tips.apply(self)
         self.canvas.set_tool("select")
 
     # ------------------------------------------------------------------ construction
@@ -324,9 +303,17 @@ class MainWindow(QMainWindow):
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
         self.a_run = self._act("Run simulation", self.run_simulation, "F5")
+        self.a_calc = self._act("Power from a measured temperature…", self.show_calculator,
+                                tip="Find the power of a part from a measured temperature (board model) or a datasheet parameter")
+        self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
+        self.a_guide = self._act("User guide", self.show_guide, "F1", tip="Parameters, models and how to read the results")
+        self.a_guide_web = self._act("User guide in the browser", open_guide_in_browser, tip="Open the user guide in the web browser")
         self.a_keys = self._act("Keyboard shortcuts", self.show_shortcuts)
-        self.a_about = self._act("About", self.show_about)
+        self.a_about = self._act("About PCB Thermal Lab", self.show_about)
+        for n, key in enumerate(("Board", "Stack-up", "Power profile", "Results")):
+            a = self._act(f"Show the {key} tab", lambda _=False, i=n: self.tabs.setCurrentIndex(i), f"Ctrl+{n + 1}")
+            self.addAction(a)                                  # Active without a menu entry
 
         mb = self.menuBar()
         m = mb.addMenu("&File")
@@ -349,8 +336,14 @@ class MainWindow(QMainWindow):
             m.addAction(d.toggleViewAction())
         m = mb.addMenu("&Simulation")
         m.addAction(self.a_run)
+        m.addAction(self.a_cancel)
+        m.addSeparator()
+        m.addAction(self.a_calc)
         m = mb.addMenu("&Help")
+        m.addAction(self.a_guide)
+        m.addAction(self.a_guide_web)
         m.addAction(self.a_keys)
+        m.addSeparator()
         m.addAction(self.a_about)
 
     def _build_toolbar(self):
@@ -364,8 +357,9 @@ class MainWindow(QMainWindow):
         self.tool_group = QActionGroup(self)
         self.tool_group.setExclusive(True)
         self.tool_actions = {}
-        for name, text, key in (("select", "Select", "V"), ("zone", "Copper zone", "Z"), ("heater", "Heater", "H"),
-                                ("heatsink", "Heatsink", "K"), ("via", "Via", "I")):
+        for name, text, key in (("select", "Select", "S"), ("zone", "Copper zone", "Z"), ("heater", "Heater", "H"),
+                                ("heatsink", "Heatsink (cooling)", "C"), ("via", "Via", "V"),
+                                ("outline", "Board outline", "O")):
             a = self._act(text, lambda checked, n=name: checked and self._set_tool(n), key, True, name == "select",
                           f"{text} ({key})")
             self.tool_group.addAction(a)
@@ -539,6 +533,7 @@ class MainWindow(QMainWindow):
         @brief React to edits: refresh the layer list, mark results as outdated, schedule the input checks.
         """
         self._edits += 1
+        tips.apply(self.profile_page)                      # The profile page rebuilds its forms with the choices
         self._check_timer.start()
         self._refresh_layers()
         self._update_title()
@@ -716,11 +711,34 @@ class MainWindow(QMainWindow):
             return
         self.solver_panel.set_running(True, "Starting…")
         self._run_edits = self._edits
-        self.worker = SimWorker(self.doc.problem, self.doc.options)
+        self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), copy.deepcopy(self.doc.options))
         self.worker.progress.connect(self.solver_panel.set_progress)
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
+        self.worker.cancelled.connect(lambda: self._on_cancelled(self.solver_panel))
         compute.start(self.worker)
+
+    def cancel_simulation(self):
+        """!
+        @brief Cancel the simulation (and the animation or analysis computing) without waiting: the calculation process is stopped.
+        """
+        for w in (self.worker, getattr(self, "_anim_worker", None), self.profile_page.worker):
+            if w is not None and w.isRunning():
+                w.cancel()
+
+    def _on_cancelled(self, panel):
+        """!
+        @brief Return the panel to its idle state after a cancelled simulation.
+        @param panel The SolverPanel.
+        """
+        self._run_edits = None
+        panel.set_running(False, "Cancelled.")
+
+    def show_calculator(self):
+        """!
+        @brief Open the power calculator.
+        """
+        PowerCalculator(self.doc, self).exec()
 
     def _suggest_animation(self, _index=None):
         """!
@@ -751,9 +769,10 @@ class MainWindow(QMainWindow):
             else self.doc.problem
         problem = copy.deepcopy(source)
         kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
-        self._anim_worker = TransientWorker(problem, kwargs)
+        self._anim_worker = ProcessWorker("transient", problem, kwargs)
         self._anim_worker.done.connect(lambda tr: anim.set_result(tr, problem))
         self._anim_worker.failed.connect(anim.computing_failed)
+        self._anim_worker.cancelled.connect(lambda: anim.computing_failed("Cancelled."))
         compute.start(self._anim_worker)
 
     def _on_done(self, sim):
@@ -765,6 +784,7 @@ class MainWindow(QMainWindow):
         self.sim, self._stale = sim, self._run_edits is not None and self._edits != self._run_edits
         self._run_edits = None
         self.results.set_simulation(sim)
+        tips.apply(self.results)
         if sim.decisions:
             self.profile_page.show_decisions(sim.decisions, sim.profile_reference)
         self.tabs.setTabText(TAB_RESULTS, "Results (outdated)" if self._stale else "Results")
@@ -794,6 +814,7 @@ class MainWindow(QMainWindow):
         self.canvas.set_theme(self.theme_name)
         self.results.set_theme(self.theme_name)
         self.profile_page.set_theme(self.theme_name)
+        self.stackup_page.set_theme(self.theme_name)
         self._refresh_icons()
 
     def show_shortcuts(self):
@@ -801,32 +822,40 @@ class MainWindow(QMainWindow):
         @brief Show the keyboard and mouse help.
         """
         QMessageBox.information(self, "Keyboard and mouse", """<table cellpadding=3>
-<tr><td><b>V Z H K I</b></td><td>Select, Zone, Heater, Heatsink, Via tools</td></tr>
+<tr><td><b>S Z H C V O</b></td><td>Select, Zone, Heater, Heatsink (Cooling), Via, board Outline tools</td></tr>
 <tr><td><b>P</b></td><td>Polygon mode (click vertices; double click or Enter finishes)</td></tr>
 <tr><td><b>Wheel / middle drag / Space+drag</b></td><td>Zoom / pan</td></tr>
 <tr><td><b>Ctrl+0</b></td><td>Fit board</td></tr>
 <tr><td><b>Del, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
-<tr><td><b>F5</b></td><td>Run simulation</td></tr>
-<tr><td><b>Ctrl+Z / Ctrl+Shift+Z</b></td><td>Undo / redo</td></tr></table>""")
+<tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
+<tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
+<tr><td><b>Ctrl+Z / Ctrl+Shift+Z</b></td><td>Undo / redo</td></tr>
+<tr><td><b>F1</b></td><td>User guide</td></tr></table>""")
 
     def show_about(self):
         """!
-        @brief Show the About box.
+        @brief Show the About box (program, version, author, project link, libraries).
         """
-        QMessageBox.about(self, "About PCB Thermal Lab", f"<b>PCB Thermal Lab</b> version {__version__}<br>"
-                          "Thermal simulation of printed circuit boards with three models: "
-                          "finite volumes, lumped network and analytic series.<br><br>"
-                          "© 2025 Pedro Silva - PMS Labs")
+        AboutDialog(self).exec()
+
+    def show_guide(self):
+        """!
+        @brief Show the user guide inside the program.
+        """
+        if self._guide is None:
+            self._guide = GuideWindow(self)
+        self._guide.show()
+        self._guide.raise_()
 
     def closeEvent(self, e):
         """!
         @brief Confirm unsaved changes and remember the window geometry.
         @param e QCloseEvent (accepted or ignored here).
         """
-        compute.wait_all(30000)                        # A running calculation finishes first (a thread must not be destroyed)
         if self._confirm_discard():
+            compute.shutdown()                         # Nothing keeps running in the background after the window closes
             self.settings.setValue("geometry", self.saveGeometry())
             e.accept()
         else:

@@ -26,11 +26,17 @@ def check_problem(problem, cell_mm=1.0):
     ny = max(int(round(H * 1000.0 / cell_mm)), 8)
     dx, dy = W / nx, H / ny
     out = []
+    board_cover = b.cover(nx, ny, dx, dy)               # Ones for a rectangular board
 
     # --- Copper fill of every layer (union of its zones), used by several checks
     fill = np.zeros((b.layers, ny, nx))
     for z in problem.zones:
         fill[z.layer] = np.maximum(fill[z.layer], coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
+
+    for k, s in enumerate(problem.heatsinks):
+        if s.has_fins() and b.air_speed == 0 and s.fin_pitch - s.fin_thickness < 4e-3:
+            out.append(f"{s.name or f'Heatsink {k + 1}'}: the air gap between the fins is {1000 * (s.fin_pitch - s.fin_thickness):.1f} mm; in still air fins closer than about "
+                       "4 to 6 mm choke the natural convection and the model (which does not slow the air between the fins) overestimates the cooling: use a larger pitch or the datasheet theta_SA.")
 
     heater_cov = []
     for k, h in enumerate(problem.heaters):
@@ -42,7 +48,7 @@ def check_problem(problem, cell_mm=1.0):
             continue
         cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 4)
         heater_cov.append(cov)
-        inside = float(cov.sum() * dx * dy) / area
+        inside = float((cov * board_cover).sum() * dx * dy) / area
         if inside < 0.98:
             out.append(f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board; its full power "
                        "is applied to the part that is inside.")
@@ -97,7 +103,7 @@ def check_problem(problem, cell_mm=1.0):
             elif overlap < 0.25 * area:
                 out.append(f"{name}: only {100 * overlap / area:.0f} % of the metal block touches copper; the heat enters "
                            "the block through that overlap only.")
-        if s.contact_r < 1e-5:
+        if s.interface_resistance() < 1e-5:
             out.append(f"{name}: an interface resistance below 1e-5 m2K/W is a perfect contact; a gap pad or paste is "
                        "usually 1e-4 to 1e-3 m2K/W (0.5 mm of a 1 to 5 W/mK pad).")
         face = 0 if (s.layer == 0 or b.layers == 1) else 1

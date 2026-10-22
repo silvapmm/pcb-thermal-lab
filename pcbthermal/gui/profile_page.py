@@ -7,7 +7,7 @@ import math
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox,
                                QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QSpinBox, QSplitter, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
@@ -17,44 +17,11 @@ from ..api import TIME_MODELS, step_response
 from ..model import SquareWave
 from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from . import compute
-from .compute import LOCK
+from .compute import ProcessWorker
 from .results_view import _mpl_theme, _paint_figure
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
 _FREQUENCY_UNITS = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6}
-
-
-class AnalyzeWorker(QThread):
-    """!
-    @brief Computes the step responses and the average-or-resolve decisions in a background thread.
-    """
-
-    done = Signal(object, object, str)
-    failed = Signal(str)
-
-    def __init__(self, problem, options, parent=None):
-        """!
-        @param problem Problem (a private copy).
-        @param options SolverOptions (a private copy).
-        @param parent Qt parent.
-        """
-        super().__init__(parent)
-        self.problem, self.options = problem, options
-
-    def run(self):
-        """!
-        @brief Thread body: step response of the reference model, then the decisions.
-        """
-        try:
-            ref = next((m for m in TIME_MODELS if m in self.options.models), None)
-            if ref is None:
-                raise ValueError("select a model first")
-            with LOCK:                                 # One calculation at a time (see compute.py)
-                resp = step_response(self.problem, ref, self.options)
-                decisions = profiles.decide(self.problem, resp, self.options.profile.threshold_c)
-            self.done.emit(resp, decisions, ref)
-        except Exception as exc:
-            self.failed.emit(str(exc))
 
 
 class ProfilePage(QWidget):
@@ -79,6 +46,7 @@ class ProfilePage(QWidget):
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.table.setToolTip("Heaters with their power profile, the average power and the regime chosen for each (averaged or resolved in time). Click one to edit it.")
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.itemSelectionChanged.connect(self._on_row)
@@ -198,6 +166,7 @@ class ProfilePage(QWidget):
         self.dec_table = QTableWidget(0, 7)
         self.dec_table.setHorizontalHeaderLabels(["Heater", "Period", "Duty", "Avg W", "Osc. °C", "% rise", "Regime"])
         self.dec_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.dec_table.setToolTip("Decision for every heater: period, duty, average power, the temperature oscillation it would cause (°C and % of the rise) and the regime chosen.")
         self.dec_table.verticalHeader().setVisible(False)
         self.dec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.dec_table.setMaximumHeight(150)
@@ -626,9 +595,10 @@ class ProfilePage(QWidget):
         import copy
         self.analyze.setEnabled(False)
         self.status.setText("Computing the thermal response of the heaters…")
-        self.worker = AnalyzeWorker(copy.deepcopy(pr), copy.deepcopy(self.doc.options))
-        self.worker.done.connect(self._on_analysis)
+        self.worker = ProcessWorker("analyze", copy.deepcopy(pr), copy.deepcopy(self.doc.options))
+        self.worker.done.connect(lambda out: self._on_analysis(*out))
         self.worker.failed.connect(self._on_analysis_failed)
+        self.worker.cancelled.connect(lambda: self._on_analysis_failed("Cancelled."))
         compute.start(self.worker)
 
     def _on_analysis(self, resp, decisions, ref):

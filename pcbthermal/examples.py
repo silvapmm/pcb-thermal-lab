@@ -14,8 +14,8 @@ def example_board():
     p = Problem.new(width_mm=100, height_mm=80, layers=4, name="example-4layer")
     p.add_zone(1, rect=(15, 15, 85, 65), name="top copper")
     p.add_full_copper([2, 3, 4])
-    p.add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta_jb=6.0)
-    p.add_heater(1, 1.5, rect=(65, 38, 71, 44), name="U2", theta_jb=12.0)
+    p.add_heater(1, 4.0, rect=(30, 35, 40, 45), name="U1", theta=6.0)
+    p.add_heater(1, 1.5, rect=(65, 38, 71, 44), name="U2", theta=12.0)
     # 3 x 3 vias with 3.5 mm pitch centred under U1 (the same positions as the legacy comparison board)
     for i in range(3):
         for j in range(3):

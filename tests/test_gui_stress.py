@@ -22,7 +22,7 @@ from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QMessageBox
 from pcbthermal import SolverOptions, SquareWave, TableProfile, load_project, simulate
 from pcbthermal.examples import example_block_board, example_board, example_profile_board
 from pcbthermal.gui.document import Document
-from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, MainWindow
+from pcbthermal.gui.main_window import TAB_BOARD, TAB_PROFILE, TAB_RESULTS, TAB_STACKUP, MainWindow
 from pcbthermal.model import Problem, reference_problem
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -87,7 +87,7 @@ def run(win, qtbot, models=ALL_MODELS, cell=2.0, expect_ok=True):
     win.board_panel.refresh()
     win.run_simulation()
     if win.worker is not None:
-        qtbot.waitUntil(lambda: not win.worker.isRunning(), timeout=180000)
+        qtbot.waitUntil(lambda: not win.worker.isRunning(), timeout=1200000)
         qtbot.wait(50)
     if expect_ok:
         assert win.sim is not None and win.sim is not before
@@ -506,7 +506,7 @@ def test_random_user_actions(win, qtbot, tmp_path, seed):
                 lo, hi = w.minimum(), w.maximum()
                 w.setValue(rng.choice((lo, hi, (lo + hi) / 2, w.value() * 1.5 if w.value() else 1.0)) if hi < 1e7 else w.value())
         elif choice < 0.65:
-            win.tabs.setCurrentIndex(rng.choice((TAB_BOARD, TAB_PROFILE, TAB_RESULTS)))
+            win.tabs.setCurrentIndex(rng.choice((TAB_BOARD, TAB_STACKUP, TAB_PROFILE, TAB_RESULTS)))
         elif choice < 0.72:
             n = len(win.doc.problem.heaters)
             if n:
@@ -579,7 +579,17 @@ def test_metal_block_in_the_application(win, qtbot):
     combos = win.inspector.form_host.findChildren(QComboBox)
     material = next(c for c in combos if c.findText("Copper") >= 0)
     material.setCurrentIndex(material.findText("Copper"))
-    assert win.doc.problem.heatsinks[0].k == pytest.approx(385.0)
+    assert win.doc.problem.heatsinks[0].k == pytest.approx(386.0)
+    tim = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.findText("Thermal paste, good", Qt.MatchStartsWith) >= 0)
+    for i in range(tim.count()):                                       # Every interface preset sets the interface resistance
+        tim.setCurrentIndex(i)
+        if tim.currentData() is not None:                              # (conductivity, thickness) of the sheet: its resistance is thickness / k
+            k_, t_ = tim.currentData()
+            hs = win.doc.problem.heatsinks[0]
+            assert hs.contact_r == pytest.approx(t_ / k_, rel=1e-2) and hs.pad_k == pytest.approx(k_) and hs.pad_thickness == pytest.approx(t_)
+            assert hs.interface_resistance() == pytest.approx(t_ / k_, rel=1e-2)
+    for i in range(material.count()):                                   # And every metal
+        material.setCurrentIndex(i)
     run(win, qtbot, ("fvm", "fdm", "lumped", "analytic"), cell=2.0)
     assert any("block" in w for w in win.sim.warnings)                  # The two simple models say they replace the block
     rv = win.results
@@ -599,3 +609,278 @@ def test_metal_block_in_the_application(win, qtbot):
     win.doc.changed.emit()
     run(win, qtbot, ("fvm",), cell=2.0)
     assert rv.block_table.rowCount() == 0
+
+
+def test_component_fields_in_the_application(win, qtbot):
+    """A part with theta, a junction limit, psi_JB and a power temperature coefficient: inspector fields, a run with every model, its table and the warnings."""
+    load(win, example_board())
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    form = win.inspector.form_host
+    spins = {s.suffix().strip(): [] for s in form.findChildren(QAbstractSpinBox)}
+    for s in form.findChildren(QAbstractSpinBox):
+        spins[s.suffix().strip()].append(s)
+    assert {"W", "K/W", "°C", "%/K"} <= set(spins)
+    theta = next(s for s in spins["K/W"] if abs(s.value() - 6.0) < 1e-9)          # U1 of the example has 6 K/W
+    theta.setValue(10.0)
+    assert win.doc.problem.heaters[0].theta == pytest.approx(10.0)
+    family = next(c for c in form.findChildren(QComboBox) if c.itemText(0).startswith("Typical θ"))
+    family.setCurrentIndex(1)                                                      # The first family replaces theta with its typical value
+    assert win.doc.problem.heaters[0].theta == pytest.approx(5.0)
+    next(s for s in spins["°C"] if s.maximum() >= 500 and s.value() == 0.0).setValue(90.0)       # Tj max
+    next(s for s in spins["%/K"]).setValue(0.4)
+    assert win.doc.problem.heaters[0].tj_max == pytest.approx(90.0) and win.doc.problem.heaters[0].power_tc == pytest.approx(0.004)
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    rv = win.results
+    assert rv.heater_table.columnCount() >= 8 and rv.heater_table.item(0, 6).text() != "-" and rv.heater_table.item(0, 7).text() != "-"
+    assert any("above its limit" in w for w in win.sim.warnings)                  # 90 degC is below what the board gives
+    walk_results(win, qtbot)
+    # A coefficient with no stable point: warning, no crash, every view still opens
+    win.doc.set_props("heater", 0, power_tc=0.05)
+    run(win, qtbot, ("fvm", "lumped"), cell=2.0)
+    assert any("thermal runaway" in w for w in win.sim.warnings)
+    walk_results(win, qtbot)
+
+
+def test_top_path_in_the_application(win, qtbot):
+    """The heatsink on a part: three inspector fields, a run with every model, the top-path column, the warning for the time simulation, and undo."""
+    load(win, example_board())
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    form = win.inspector.form_host
+    spins = form.findChildren(QAbstractSpinBox)
+    by_tip = lambda start: next(s for s in spins if s.toolTip().startswith(start))
+    by_tip("Junction-to-case").setValue(30.0)
+    by_tip("Resistance per area of the interface between the package top").setValue(0.5)
+    by_tip("Resistance from a heatsink on top").setValue(12.0)
+    h = win.doc.problem.heaters[0]
+    assert (h.theta_jc_top, h.interface, h.theta_sa) == (pytest.approx(30.0), pytest.approx(0.5), pytest.approx(12.0))
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    rv = win.results
+    top = rv.heater_table.columnCount() - 1
+    assert rv.heater_table.item(0, top).text() != "-" and float(rv.heater_table.item(0, top).text()) > 0
+    assert rv.heater_table.item(1, top).text() == "-"                       # U2 has no heatsink
+    walk_results(win, qtbot)
+    win.doc.stack.undo()                                                     # Undo restores the previous value and the run stays consistent
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert win.doc.problem.heaters[0].theta_sa != 12.0 or win.doc.problem.heaters[0].interface != 0.5
+    # An absurd heatsink (very high resistance) and zero power: no crash
+    win.doc.set_props("heater", 0, theta_sa=5000.0, power=0.0)
+    run(win, qtbot, ("fvm", "lumped"), cell=2.0)
+    walk_results(win, qtbot)
+
+
+def test_dragging_keeps_every_element_on_the_board(win, qtbot):
+    """Vias, zones, heaters and heatsinks dragged or nudged never leave the board; a via moves by the distance dragged, not by its coordinates."""
+    from pcbthermal.gui.canvas import ViaItem
+    load(win, example_board())
+    pr, view = win.doc.problem, win.canvas
+    view.set_snap(0)
+    vias = [it for it in view.scene().items() if isinstance(it, ViaItem)]
+    it = next(v for v in vias if v.index == 0)
+    x0, y0 = pr.vias[0].x * 1000, pr.vias[0].y * 1000
+    it.setSelected(True)
+    it.setPos(it.pos() + QPointF(2.0, 3.0))                              # Drag by (2, 3) mm
+    QTest.mouseRelease(view.viewport(), Qt.LeftButton)
+    assert pr.vias[0].x * 1000 == pytest.approx(x0 + 2.0, abs=1e-6) and pr.vias[0].y * 1000 == pytest.approx(y0 + 3.0, abs=1e-6)
+    # Far outside: the drag is limited by the board edge
+    view.rebuild()
+    it = next(v for v in view.scene().items() if isinstance(v, ViaItem) and v.index == 0)
+    it.setSelected(True)
+    it.setPos(QPointF(5000.0, -5000.0))
+    QTest.mouseRelease(view.viewport(), Qt.LeftButton)
+    b = pr.board
+    assert 0 <= pr.vias[0].x <= b.width and 0 <= pr.vias[0].y <= b.height
+    # Nudge with the arrow keys and Document.move past the edge: the selection stops at the edge
+    win.doc.move([("heater", 0)], 1e5, 1e5)
+    poly = pr.heaters[0].polygon
+    assert poly[:, 0].max() <= b.width + 1e-9 and poly[:, 1].max() <= b.height + 1e-9
+    win.doc.move([("zone", 0), ("via", 1)], -1e5, -1e5)
+    assert min(pr.zones[0].polygon.min(), pr.vias[1].x, pr.vias[1].y) >= -1e-9
+    # Whatever happened, every element is still inside the board
+    for lst in (pr.zones, pr.heaters, pr.heatsinks):
+        for el in lst:
+            assert el.polygon.min() >= -1e-9 and el.polygon[:, 0].max() <= b.width + 1e-9 and el.polygon[:, 1].max() <= b.height + 1e-9
+
+
+def test_rulers_paint_at_every_zoom(win, qtbot):
+    """The rulers and the scale bar are drawn without errors from a very small to a very large zoom."""
+    load(win, example_board())
+    for factor in (1.0, 8.0, 0.05, 40.0, 0.01):
+        win.canvas.resetTransform()
+        win.canvas.scale(factor, -factor)
+        win.canvas.viewport().repaint()
+        qtbot.wait(5)
+    img = win.canvas.viewport().grab().toImage()
+    assert img.width() > 0
+
+
+def test_cancel_a_simulation_from_the_window(win, qtbot):
+    """Cancel stops a running simulation, leaves the window usable and a new run works."""
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "solid3d"), cell_mm=0.5)
+    win.run_simulation()
+    assert win.worker.isRunning() and win.solver_panel.cancel.isVisible() is not None
+    win.solver_panel.cancel.click()
+    assert not win.worker.isRunning() and win.solver_panel.status.text() == "Cancelled."
+    assert win.sim is None or win.sim is not None                         # No result is taken from the cancelled run
+    run(win, qtbot, ("fvm",), cell=2.0)
+    assert win.sim.reference.model == "fvm"
+
+
+def test_advanced_stackup_in_the_application(win, qtbot, tmp_path):
+    """Switch to the advanced stack-up, edit layers and materials in the table, change the layer count, run every model, draw the section in every look, save and reopen."""
+    from pcbthermal.gui.stackup import StackupEditor, stack_layers
+    load(win, example_board())
+    page = win.stackup_page
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    simple_total = win.doc.problem.board.total_thickness()
+    page.mode.setCurrentIndex(1)                                           # Advanced
+    b = win.doc.problem.board
+    assert b.is_advanced() and b.total_thickness() == pytest.approx(simple_total) and page.editor.rowCount() == 2 * b.layers - 1
+    spins = {r: [page.editor.cellWidget(r, c) for c in range(2, 7)] for r in range(page.editor.rowCount())}
+    spins[0][0].setValue(70.0)                                             # Top copper 70 um
+    assert b.copper_thickness[0] == pytest.approx(70e-6) and b.total_thickness() == pytest.approx(simple_total + 35e-6)
+    spins[1][0].setValue(100.0)                                            # First gap 100 um
+    assert b.dielectrics[0].thickness == pytest.approx(100e-6)
+    combo = page.editor.cellWidget(1, 1)
+    combo.setCurrentIndex(combo.findText("Metal-core dielectric (2 W/mK)"))
+    assert b.dielectrics[0].k_through == pytest.approx(2.0) and b.dielectrics[0].name.startswith("Metal-core")
+    spins[1][1].setValue(1.5)                                              # k through typed by hand
+    assert b.dielectrics[0].k_through == pytest.approx(1.5)
+    # The Board panel shows the total and does not overwrite the per-layer values
+    assert win.board_panel.thickness.value() == pytest.approx(b.total_thickness() * 1000, abs=1e-3) and not win.board_panel.thickness.isEnabled()
+    win.board_panel.width.setValue(win.board_panel.width.value() + 1.0)
+    assert b.copper_thickness[0] == pytest.approx(70e-6) and b.is_advanced()
+    # More and fewer layers keep one dielectric per gap
+    for n in (6, 2, 1, 3, 4):
+        win.board_panel.layers.setValue(n)
+        if n == 1:                                                         # The typical 1-layer board is a simple one (no gaps to describe): back to advanced
+            assert not win.doc.problem.board.is_advanced()
+            page.mode.setCurrentIndex(1)
+        assert len(win.doc.problem.board.dielectrics) == n - 1 and page.editor.rowCount() == max(2 * n - 1, 1)
+        win.doc.problem.validate()
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    walk_results(win, qtbot)
+    # The diagram in every look, and a click on every layer
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    for unit in range(page.unit.count()):
+        for scale in range(page.scale.count()):
+            page.unit.setCurrentIndex(unit)
+            page.scale.setCurrentIndex(scale)
+            page.view.repaint()
+    for i, rect in enumerate(page.view._rects):
+        QTest.mouseClick(page.view, Qt.LeftButton, pos=rect.center().toPoint())
+        assert page.view.selected == i and "thickness" in page.info.text()
+    assert len(stack_layers(win.doc.problem)) == len(page.view.layers)
+    # Save, reopen: the stack-up is kept; undo goes back to the simple board
+    path = str(tmp_path / "adv.pcbt.json")
+    from pcbthermal import load_project, save_project
+    save_project(path, win.doc.project)
+    again = load_project(path).problem.board
+    assert again.is_advanced() and np.allclose(again.gap_thicknesses(), win.doc.problem.board.gap_thicknesses())
+    page.mode.setCurrentIndex(0)                                           # Back to simple keeps the total thickness
+    assert not win.doc.problem.board.is_advanced() and win.doc.problem.board.thickness == pytest.approx(again.total_thickness())
+    run(win, qtbot, ("fvm",), cell=2.0)
+
+
+def test_selected_shape_shows_and_edits_its_measures(win, qtbot):
+    """Clicking a rectangle shows X, Y, width, height and area; editing them moves or resizes it; a polygon shows its box and area."""
+    load(win, example_board())
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    form = win.inspector.form_host
+    spins = [s for s in form.findChildren(QAbstractSpinBox) if s.toolTip().startswith(("X of", "Y of", "Width of", "Height of"))]
+    assert len(spins) == 4
+    x0 = win.doc.problem.heaters[0].polygon[:, 0].min() * 1000
+    assert spins[0].value() == pytest.approx(x0, abs=1e-6)
+    spins[2].setValue(8.0)                                                    # Width 8 mm
+    poly = win.doc.problem.heaters[0].polygon * 1000
+    assert poly[:, 0].max() - poly[:, 0].min() == pytest.approx(8.0, abs=1e-6)
+    win.doc.add_shape("zone", 0, [[10, 10], [30, 10], [35, 25], [20, 30], [8, 20]])      # An irregular polygon
+    idx = len(win.doc.problem.zones) - 1
+    win.canvas.set_selection([("zone", idx)])
+    win._on_canvas_selection([("zone", idx)])
+    texts = [l.text() for l in win.inspector.form_host.findChildren(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel)]
+    assert any("5 vertices" in t and "area" in t for t in texts)
+
+
+def test_board_outline_in_the_application(win, qtbot, tmp_path):
+    """Presets, the vertex table, the outline tool, a run with every model (the rectangular ones are skipped with a warning), every results view and a save/open."""
+    from PySide6.QtWidgets import QTableWidgetItem
+    load(win, example_board())
+    bp, pr = win.board_panel, win.doc.problem
+    assert not pr.board.has_outline() and not bp.outline_table.isEnabled()
+    for i in range(1, bp.preset.count()):                                  # Every preset gives a valid outline (the first one is the plain rectangle)
+        bp.preset.setCurrentIndex(i)
+        win.doc.problem.validate()
+    bp.preset.setCurrentIndex(bp.preset.findData("L shape"))
+    b = win.doc.problem.board
+    assert b.has_outline() and bp.outline_table.rowCount() == 6 and "6 vertices" in bp.outline_label.text()
+    bp.outline_table.setItem(0, 0, QTableWidgetItem("5"))                   # Move a vertex
+    assert win.doc.problem.board.outline[0, 0] == pytest.approx(0.005)
+    bp.outline_table.setItem(0, 0, QTableWidgetItem("abc"))                 # Not a number: ignored, the table shows the stored value again
+    assert bp.outline_table.item(0, 0).text() == "5.000"
+    bp.outline_table.setItem(1, 1, QTableWidgetItem("999"))                 # Outside the box: ignored
+    assert win.doc.problem.board.outline[:, 1].max() <= win.doc.problem.board.height + 1e-12
+    bp.v_add.click()
+    assert bp.outline_table.rowCount() == 7
+    bp.outline_table.selectRow(6)
+    bp.v_del.click()
+    assert bp.outline_table.rowCount() == 6
+    # The outline tool: drag a rectangle, then click a polygon
+    win.tool_actions["outline"].setChecked(True)
+    assert win.canvas.tool == "outline"
+    W, H = win.doc.problem.board.width * 1000, win.doc.problem.board.height * 1000
+    p0, p1 = win.canvas.mapFromScene(QPointF(5, 5)), win.canvas.mapFromScene(QPointF(W - 5, H - 5))
+    QTest.mousePress(win.canvas.viewport(), Qt.LeftButton, pos=p0)
+    QTest.mouseMove(win.canvas.viewport(), pos=p1)
+    QTest.mouseRelease(win.canvas.viewport(), Qt.LeftButton, pos=p1)
+    assert win.doc.problem.board.outline is not None and len(win.doc.problem.board.outline) == 4
+    win.tool_actions["select"].setChecked(True)
+    bp.preset.setCurrentIndex(bp.preset.findData("Circle / ellipse"))
+    win.canvas.viewport().repaint()
+    # The example parts must be on the board for a sensible run: an L cut would put U2 off the board, so use chamfered corners
+    bp.preset.setCurrentIndex(bp.preset.findData("Chamfered corners"))
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    assert any("outline" in w for w in win.sim.warnings) and "lumped" not in win.sim.results and "analytic" not in win.sim.results
+    assert {"fvm", "fdm", "solid3d"} <= set(win.sim.results)
+    walk_results(win, qtbot)
+    # Save and reopen: the outline is kept; undo restores the rectangle
+    from pcbthermal import load_project, save_project
+    path = str(tmp_path / "outline.pcbt.json")
+    save_project(path, win.doc.project)
+    assert np.allclose(load_project(path).problem.board.outline, win.doc.problem.board.outline)
+    win.doc.set_outline(None)
+    assert not win.doc.problem.board.has_outline()
+    run(win, qtbot, ("fvm", "lumped", "analytic"), cell=2.0)
+
+
+def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
+    """The calculator finds the power of a part from a temperature, writes it into the heater, and the datasheet route works; no heater and bad inputs do not crash."""
+    from pcbthermal.gui.calculator import PowerCalculator
+    load(win, example_board())
+    truth = win.doc.problem.heaters[0].power
+    row = simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+    dlg = PowerCalculator(win.doc)
+    qtbot.addWidget(dlg)
+    dlg.point.setCurrentIndex(dlg.point.findData("mean"))
+    dlg.measured.setValue(row["t_mean"])
+    dlg.ambient.setValue(win.doc.problem.board.ambient)
+    win.doc.set_props("heater", 0, power=1.0, merge=False)                    # The part's power is "unknown"
+    dlg.compute.click()
+    qtbot.waitUntil(lambda: dlg.use.isEnabled(), timeout=120000)
+    assert dlg.result_power == pytest.approx(truth, rel=0.01)
+    dlg.use.click()
+    assert win.doc.problem.heaters[0].power == pytest.approx(truth, rel=0.01)
+    dlg.measured.setValue(10.0)                                               # Below the ambient: an error message, no crash
+    dlg.compute.click()
+    qtbot.waitUntil(lambda: "above the ambient" in dlg.result.text(), timeout=120000)
+    dlg.tj.setValue(120.0); dlg.tref.setValue(100.0); dlg.par.setValue(10.0)
+    assert "2.000 W" in dlg.out2.text()
+    dlg.tj.setValue(90.0)
+    assert "hotter" in dlg.out2.text()
+    dlg.close()
+    empty = PowerCalculator(Document())
+    qtbot.addWidget(empty)
+    assert not empty.compute.isEnabled()

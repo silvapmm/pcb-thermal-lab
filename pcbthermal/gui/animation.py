@@ -9,51 +9,12 @@ The frames come from the implicit time stepping of the same matrices as the stea
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from PySide6.QtCore import QThread, QTimer, Qt, Signal
+from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel, QPushButton, QSlider,
                                QSpinBox, QVBoxLayout, QWidget)
 
 from .. import analytic, fdm, fvm, plots
-from .compute import LOCK
 from .results_view import _mpl_theme, _paint_figure
-
-
-class TransientWorker(QThread):
-    """!
-    @brief Runs the transient solver in a background thread.
-    """
-
-    done = Signal(object)
-    failed = Signal(str)
-
-    def __init__(self, problem, kwargs, parent=None):
-        """!
-        @param problem Problem (the caller passes a private copy).
-        @param kwargs Arguments of fvm.solve_transient.
-        @param parent Qt parent.
-        """
-        super().__init__(parent)
-        self.problem, self.kwargs = problem, kwargs
-
-    def run(self):
-        """!
-        @brief Thread body.
-        """
-        try:
-            kw = dict(self.kwargs)
-            with LOCK:                                 # One calculation at a time (see compute.py)
-                model = kw.pop("model", "fvm")
-                if model == "analytic":
-                    # The closed-form model needs neither a scheme nor a step; it takes the frames and the spacing
-                    kw.pop("theta_scheme", None)
-                    result = analytic.solve_transient(self.problem, **kw)
-                elif model == "fdm":
-                    result = fdm.solve_transient(self.problem, **kw)
-                else:
-                    result = fvm.solve_transient(self.problem, **kw)
-            self.done.emit(result)
-        except Exception as exc:
-            self.failed.emit(str(exc))
 
 
 class AnimationTab(QWidget):
@@ -93,7 +54,12 @@ class AnimationTab(QWidget):
         self.spacing = QComboBox()
         self.spacing.addItem("Logarithmic time", True)
         self.spacing.addItem("Linear time", False)
+        self.t_end.setToolTip("Length of the animated power step in seconds (preset to a few time constants of the board).")
+        self.frames.setToolTip("Number of frames computed for the animation.")
+        self.scheme.setToolTip("Time stepping: implicit Euler is robust, Crank-Nicolson is more accurate.")
+        self.spacing.setToolTip("Spacing of the frames in time: logarithmic shows the early heating in detail, linear spaces them evenly.")
         self.compute = QPushButton("Compute")
+        self.compute.setToolTip("Compute the response to the heater power switched on at t = 0 (runs in the background; Ctrl+. cancels it).")
         self.compute.setObjectName("primary")
         self.compute.clicked.connect(self._request)
         self.status = QLabel("Set the duration and compute the response to the heater power switched on at t = 0.")
@@ -112,7 +78,13 @@ class AnimationTab(QWidget):
         self.fps.setRange(1, 60)
         self.fps.setValue(12)
         self.fps.setSuffix(" fps")
+        self.layer.setToolTip("Copper layer shown in the animation.")
+        self.cmap.setToolTip("Colour scale of the animation.")
+        self.slider.setToolTip("Drag to go to a moment of the response.")
+        self.fps.setToolTip("Playback speed in frames per second.")
+        self.play.setToolTip("Play or pause the animation.")
         self.export = QPushButton("Export GIF…")
+        self.export.setToolTip("Save the animation as a GIF file.")
         self.export.clicked.connect(self._export_gif)
 
         top = QHBoxLayout()

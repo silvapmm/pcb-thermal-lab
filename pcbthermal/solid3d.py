@@ -27,7 +27,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .fvm import ORDERING
-from .geometry import coverage_fraction
+from .geometry import coverage_fraction, edge_length_per_cell, nearest_active_cell, polygon_centroid
 from .results import SteadyResult
 
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
@@ -73,10 +73,17 @@ class Solid:
         dx, dy = W / nx, H / ny
         A = dx * dy
         self.nx, self.ny, self.dx, self.dy, self.area = nx, ny, dx, dy, A
+        Ab = A                                                       # Board area of every cell (set below once the cover is known)
         ones = np.ones((ny, nx))
 
         def cover(poly, samples):
             return coverage_fraction(poly, nx, ny, dx, dy, samples)
+
+        # Share of every plan cell that is board (ones for a rectangle); cells off the board carry nothing
+        bcov = b.cover(nx, ny, dx, dy)
+        self.cover, self.active = bcov, bcov > 0
+        Ab = A * bcov
+        self.area_b = Ab
 
         # --- Copper fill of every layer and the plated area of the vias in every cell
         fill = np.zeros((L, ny, nx))
@@ -89,7 +96,11 @@ class Solid:
         via_frac = np.minimum(via_frac, 1.0)
 
         tc = np.asarray(b.copper_thickness)
-        gap = b.dielectric_thickness()
+        gaps = b.gap_thicknesses()                                  # (L-1,) thickness of every gap
+        g_kz, g_kip, _ = b.gap_properties()
+        k_lam = b.layer_laminate()[0]                               # In-plane conductivity of the dielectric around each copper layer
+        kz_lam = np.array([float(np.dot([gaps[g] for g in a], [g_kz[g] for g in a]) / sum(gaps[g] for g in a))
+                           if (a := [g for g in (l - 1, l) if 0 <= g < L - 1]) else m.k_fr4_through for l in range(L)])
 
         # --- Slabs from the top face down: each is (kind, layer, dz, kx, kz); dz, kx, kz are arrays (ny, nx)
         slabs = []
@@ -98,6 +109,9 @@ class Solid:
             slabs.append({"kind": kind, "layer": layer, "dz": np.broadcast_to(dz, (ny, nx)).astype(float),
                           "kx": np.maximum(np.broadcast_to(kx, (ny, nx)).astype(float), K_FLOOR),
                           "kz": np.maximum(np.broadcast_to(kz, (ny, nx)).astype(float), K_FLOOR)})
+            if kind in ("cu", "fr4"):                    # Board slabs: the conducting cross-section is the share of the cell on the board
+                slabs[-1]["kx"] = np.maximum(slabs[-1]["kx"] * bcov, K_FLOOR * 1e-3)
+                slabs[-1]["bcov"] = bcov
 
         # Metal blocks: one stack per face, parameters per cell (a later block wins where blocks overlap)
         faces = {}
@@ -107,13 +121,16 @@ class Solid:
             face = 0 if (s.layer == 0 or L == 1) else 1
             c = cover(s.polygon, 4)
             f = faces.setdefault(face, {"cov": np.zeros((ny, nx)), "t": np.zeros((ny, nx)), "k": np.ones((ny, nx)),
-                                        "r": np.zeros((ny, nx)), "he": np.zeros((ny, nx)), "names": []})
+                                        "r": np.zeros((ny, nx)), "he": np.zeros((ny, nx)), "names": [], "fins": {}})
             take = c > 0
             f["cov"] = np.where(take, c, f["cov"])
             f["t"] = np.where(take, s.thickness, f["t"])
             f["k"] = np.where(take, s.k, f["k"])
-            f["r"] = np.where(take, max(s.contact_r, 1e-7), f["r"])
+            f["r"] = np.where(take, max(s.interface_resistance(), 1e-7), f["r"])
             f["he"] = np.where(take, s.h_extra, f["he"])
+            f["fins"] = {k: np.where(take, v, f["fins"].get(k, 0.0)) for k, v in
+                         (("h", s.fin_height if s.has_fins() else 0.0), ("t", s.fin_thickness if s.has_fins() else 0.0),
+                          ("p", s.fin_pitch if s.has_fins() else 0.0), ("k", s.k))}
             f["names"].append(s.name or "block")
         self.faces = faces
         n_blk = {face: int(np.clip(round(float(f["t"].max()) * 1000.0), 1, 6)) for face, f in faces.items()}
@@ -133,14 +150,14 @@ class Solid:
         self.board_slab = []                                    # Index of the copper slab of every layer
         for l in range(L):
             f_eff = np.minimum(fill[l] + via_frac, 1.0)
-            kx = fill[l] * m.k_copper + (1.0 - fill[l]) * m.k_fr4_inplane
-            kz = f_eff * m.k_copper + (1.0 - f_eff) * m.k_fr4_through
+            kx = fill[l] * m.k_copper + (1.0 - fill[l]) * k_lam[l]
+            kz = f_eff * m.k_copper + (1.0 - f_eff) * kz_lam[l]
             self.board_slab.append(len(slabs))
             add("cu", l, tc[l], kx, kz)
             if l < L - 1:
-                kz = via_frac * m.k_copper + (1.0 - via_frac) * m.k_fr4_through
+                kz = via_frac * m.k_copper + (1.0 - via_frac) * g_kz[l]
                 for _ in range(n_diel):
-                    add("fr4", l, gap / n_diel, m.k_fr4_inplane, kz)
+                    add("fr4", l, gaps[l] / n_diel, g_kip[l], kz)
         last_board = len(slabs) - 1
         if 1 in faces:
             for kind, dz, kx, kz in block_slabs(1):
@@ -170,7 +187,7 @@ class Solid:
         gz_pad_board = None
         for s in range(ns - 1):
             a, c = slabs[s], slabs[s + 1]
-            g = A / (a["dz"] / (2.0 * a["kz"]) + c["dz"] / (2.0 * c["kz"]))
+            g = Ab / (a["dz"] / (2.0 * a["kz"]) + c["dz"] / (2.0 * c["kz"]))
             link(idx[s], idx[s + 1], g)
             if (a["kind"], c["kind"]) in (("pad", "cu"), ("cu", "pad")):
                 gz_pad_board = (s, g)
@@ -184,7 +201,7 @@ class Solid:
         def face_g(h, s):
             """Series of the film (h) and half a slab for a face of area A."""
             sl = slabs[s]
-            return A / (1.0 / np.maximum(h, 1e-12) + sl["dz"] / (2.0 * sl["kz"]))
+            return Ab / (1.0 / np.maximum(h, 1e-12) + sl["dz"] / (2.0 * sl["kz"]))
 
         # Plain heatsinks add their coefficient on the board face inside their polygon
         he_top, he_bot = np.zeros((ny, nx)), np.zeros((ny, nx))
@@ -205,7 +222,15 @@ class Solid:
         vb[bot_s] += tot * share
         vh[bot_s] += tot * (1.0 - share)
         # Edges of the board
-        if b.h_side:
+        if b.h_side and b.has_outline():
+            # Non-rectangular board: the outline length inside every cell, through half a cell of the slab's own material
+            edge = edge_length_per_cell(b.outline, nx, ny, dx, dy) * self.active
+            on = edge > 0
+            for s in range(first_board, last_board + 1):
+                sl = slabs[s]
+                length, dz, kx = edge[on], sl["dz"][on], sl["kx"][on]
+                vs[s][on] += 1.0 / (1.0 / (b.h_side * length * dz) + (0.25 * (dx + dy)) / (kx * length * dz))
+        elif b.h_side:
             for s in range(first_board, last_board + 1):
                 sl = slabs[s]
                 for mask, length, half in ((np.s_[:, 0], dy, dx), (np.s_[:, -1], dy, dx), (np.s_[0, :], dx, dy), (np.s_[-1, :], dx, dy)):
@@ -214,17 +239,26 @@ class Solid:
         # Exposed face and sides of the blocks
         for face, f in faces.items():
             h_face = b.h_top if face == 0 else b.h_bottom
-            h_tot = h_face + f["he"]
+            fi = f["fins"]
+            hc = fi["h"] + 0.5 * fi["t"]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                m = np.sqrt(2.0 * max(h_face, 1e-12) / (fi["k"] * np.where(fi["t"] > 0, fi["t"], 1.0)))
+                eta = np.where(hc > 0, np.tanh(m * hc) / np.where(m * hc > 0, m * hc, 1.0), 1.0)
+                ratio = np.where(fi["p"] > 0, (1.0 - fi["t"] / np.where(fi["p"] > 0, fi["p"], 1.0)) + 2.0 * hc * eta / np.where(fi["p"] > 0, fi["p"], 1.0), 1.0)
+            h_tot = h_face * ratio + f["he"]
             edge = _edge_length(f["cov"], dx, dy)
             blk_ids = [s for s, sl in enumerate(slabs) if sl["kind"] == "blk" and ((s < first_board) == (face == 0))]
             outer = blk_ids[0] if face == 0 else blk_ids[-1]
-            vk[outer] += A / (1.0 / np.maximum(h_tot, 1e-12) + slabs[outer]["dz"] / (2.0 * slabs[outer]["kz"])) * f["cov"]
+            vk[outer] += Ab / (1.0 / np.maximum(h_tot, 1e-12) + slabs[outer]["dz"] / (2.0 * slabs[outer]["kz"])) * f["cov"]
             for s in blk_ids:
                 vk[s] += h_tot * slabs[s]["dz"] * edge
             for s in range(ns):
                 if slabs[s]["kind"] in ("pad", "blk") and ((s < first_board) == (face == 0)):
                     vl[s] += ISOLATED
         g_amb = g_top + g_bottom + g_hs + g_side + g_blk + g_leak
+        pin = np.zeros((ns, ny, nx))
+        pin[:, ~self.active] = 1.0                              # Cells off the board are pinned to ambient (they carry no heat)
+        g_amb = g_amb + pin.ravel()
 
         # --- Matrix
         offd = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n))
@@ -239,7 +273,11 @@ class Solid:
         # --- Heaters on the copper slab of their layer, power exact over the footprint
         Q = np.zeros(n)
         for h in problem.heaters:
-            w = cover(h.polygon, 4)
+            w = cover(h.polygon, 4) * self.active                # A part is only heated on the board
+            if w.sum() <= 0:                                     # A part off the board: its power goes to the nearest board cell
+                cx, cy = polygon_centroid(h.polygon)
+                w = np.zeros((ny, nx))
+                w[nearest_active_cell(self.active, cx, cy, dx, dy)] = 1.0
             tot_w = w.sum()
             if tot_w > 0:
                 Q.reshape(ns, ny, nx)[self.board_slab[h.layer]] += h.power * w / tot_w
@@ -271,16 +309,19 @@ def solve_steady(problem, cell_mm=2.0, n_diel=4):
     L = b.layers
     theta = theta_all[net.board_slab]                           # The copper slabs, one per layer
     T = theta + b.ambient
-    A = net.area
+    A = net.area_b
     cells = net.nx * net.ny
-    l, j, i = np.unravel_index(int(np.argmax(T)), T.shape)
+    inside = net.active
+    l, j, i = np.unravel_index(int(np.argmax(np.where(inside[None], T, -np.inf))), T.shape)
     power_out = {k: float((g * theta_all.ravel()).sum()) for k, g in net.g.items() if k != "blocks"}
     out = SteadyResult(
-        model="solid3d", ambient=b.ambient, power_in=float(net.Q.sum()), t_max=float(T.max()), t_min=float(T.min()),
-        t_mean=float(T.mean()), layer_mean=[float(T[q].mean()) for q in range(L)],
+        model="solid3d", ambient=b.ambient, power_in=float(net.Q.sum()), t_max=float(T[:, inside].max()), t_min=float(T[:, inside].min()),
+        t_mean=float((T * net.cover[None]).sum() / (L * net.cover.sum())), layer_mean=[float((T[q] * net.cover).sum() / net.cover.sum()) for q in range(L)],
         t_max_location=(int(l), (i + 0.5) * net.dx, (j + 0.5) * net.dy), T=T, dx=net.dx, dy=net.dy,
         power_out=power_out, residual=res,
         extras={"cells": float(net.n), "slabs": float(net.ns)}, warnings=[])
+    if not inside.all():
+        out.arrays["board_mask"] = inside
     if net.faces:
         out.power_out["blocks"] = float(((net.g["blocks"] + net.g_leak) * theta_all.ravel()).sum())
         covs, temps = [], []

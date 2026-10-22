@@ -5,13 +5,31 @@
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
+import math
+
+from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import blocks
 from ..api import suggest_cell_mm
+from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA
+from ..geometry import polygon_area, rounded_rectangle
+from . import tips
 from .document import KINDS
+
+
+def _is_rect(pts):
+    """!
+    @brief True if the points are an axis-aligned rectangle (four corners, two distinct x and two distinct y values).
+    @param pts Array (n, 2).
+    @return bool.
+    """
+    if len(pts) != 4:
+        return False
+    xs, ys = np.unique(np.round(pts[:, 0], 9)), np.unique(np.round(pts[:, 1], 9))
+    return len(xs) == 2 and len(ys) == 2 and len({(round(x, 9), round(y, 9)) for x, y in pts}) == 4
+
 
 _TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
 
@@ -43,6 +61,8 @@ class BoardPanel(QWidget):
     @brief Board size, stack-up, environment and materials.
     """
 
+    draw_outline_requested = Signal()
+
     def __init__(self, doc, parent=None):
         """!
         @param doc The Document.
@@ -57,13 +77,63 @@ class BoardPanel(QWidget):
         f = QFormLayout(g)
         self.width = _spin(5, 1000, 100, 1, 1, "mm")
         self.height = _spin(5, 1000, 80, 1, 1, "mm")
-        self.thickness = _spin(0.2, 10, 1.6, 2, 0.1, "mm")
+        self.thickness = _spin(0.2, 10, 1.6, 3, 0.1, "mm")
         self.layers = QSpinBox()
         self.layers.setRange(1, 12)
         self.copper = _spin(5, 210, 35, 1, 5, "µm")
+        self.stack_note = QLabel("")
+        self.stack_note.setWordWrap(True)
+        self.stack_note.setStyleSheet("font-size: 11px; color: gray;")
+        self.width.setToolTip("Board size along x in millimetres.")
+        self.height.setToolTip("Board size along y in millimetres.")
+        self.thickness.setToolTip("Total board thickness in millimetres (simple stack-up: copper and equal dielectric gaps share it). "
+                                  "In the advanced stack-up it is the sum of the layers and is edited in the Stack-up tab.")
+        self.layers.setToolTip("Number of copper layers (1 to 12). Layer 1 is the top face.")
+        self.copper.setToolTip("Copper thickness of every layer in micrometres: 35 µm is 1 oz, 17.5 µm is 0.5 oz, 70 µm is 2 oz. "
+                               "Different thickness per layer: use the advanced stack-up in the Stack-up tab.")
         for label, w in (("Width", self.width), ("Height", self.height), ("Thickness", self.thickness),
                          ("Copper layers", self.layers), ("Copper per layer", self.copper)):
             f.addRow(label, w)
+        f.addRow(self.stack_note)
+        lay.addWidget(g)
+
+        g = QGroupBox("Board outline")
+        v = QVBoxLayout(g)
+        self.outline_label = QLabel("")
+        self.outline_label.setWordWrap(True)
+        self.outline_label.setToolTip("Shape of the board inside the width x height box. Outside the outline there is no board: no copper, no heat, no heat loss. "
+                                      "The FVM, FDM and 3D solid solve any outline; the lumped and analytic models need a rectangle.")
+        self.preset = QComboBox()
+        self.preset.addItem("Preset shape...", None)
+        for label in ("Rectangle (full box)", "L shape", "T shape", "Circle / ellipse", "Chamfered corners", "Rounded corners"):
+            self.preset.addItem(label, label)
+        self.preset.setToolTip("Replace the outline by a preset that fits the width x height box. Edit the vertices below afterwards.")
+        self.preset.currentIndexChanged.connect(self._pick_outline)
+        self.outline_table = QTableWidget(0, 2)
+        self.outline_table.setHorizontalHeaderLabels(["x (mm)", "y (mm)"])
+        self.outline_table.setMaximumHeight(140)
+        self.outline_table.setToolTip("Vertices of the outline in millimetres, from the lower-left corner of the box. Edit a cell to move a vertex.")
+        self.outline_table.itemChanged.connect(self._edit_vertex)
+        row = QHBoxLayout()
+        self.v_add = QPushButton("Add vertex")
+        self.v_add.setToolTip("Insert a vertex in the middle of the last edge.")
+        self.v_del = QPushButton("Remove vertex")
+        self.v_del.setToolTip("Remove the selected vertex (an outline needs at least three).")
+        self.v_sub = QPushButton("Subdivide")
+        self.v_sub.setToolTip("Insert a vertex in the middle of every edge (twice as many vertices): the first step to turn a corner or a curve into a smooth outline "
+                              "by moving the new vertices. A curve is a polygon with many short edges; use edges a few cells long at most.")
+        self.v_draw = QPushButton("Draw (O)")
+        self.v_draw.setToolTip("Draw the outline on the board: drag a rectangle or click the vertices in polygon mode.")
+        for w in (self.v_add, self.v_del, self.v_sub, self.v_draw):
+            row.addWidget(w)
+        self.v_sub.clicked.connect(self._subdivide)
+        self.v_add.clicked.connect(self._add_vertex)
+        self.v_del.clicked.connect(self._remove_vertex)
+        self.v_draw.clicked.connect(self.draw_outline_requested)
+        v.addWidget(self.outline_label)
+        v.addWidget(self.preset)
+        v.addWidget(self.outline_table)
+        v.addLayout(row)
         lay.addWidget(g)
 
         g = QGroupBox("Environment")
@@ -79,15 +149,19 @@ class BoardPanel(QWidget):
         self.side_on = QCheckBox("Edges lose heat")
         self.h_side = _spin(0, 500, 10, 1, 1, "W/m²K")
         self.orientation = QComboBox()
-        self.orientation.addItem("Horizontal, top face up", "horizontal")
-        self.orientation.addItem("Vertical", "vertical")
-        self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "")
-        self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "")
+        self.orientation.addItem("Horizontal (layer 1 = top faces up)", "horizontal")
+        self.orientation.addItem("Vertical (on its edge)", "vertical")
+        self.orientation.setToolTip("How the board is mounted (computed heat transfer only). Horizontal: layer 1 is the top face and looks up, the last layer looks "
+                                    "down, so the mounting follows from the layer numbering (a hot face looking up loses heat better than one looking down: 0.54 against "
+                                    "0.27 in the natural convection correlation). Vertical: the plate correlation with the board height on both faces. "
+                                    "With typed coefficients the orientation does not matter: type the h of the real mounting.")
+        self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
+        self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_top.setToolTip("Emissivity of the top face: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1")
         self.emis_bottom.setToolTip(self.emis_top.toolTip())
         self.air_speed = _spin(0, 50, 0, 2, 0.5, "m/s")
         self.air_speed.setToolTip("Air speed along the board; 0 is still air (natural convection)")
-        self.calibration = _spin(0.2, 5, 1.0, 2, 0.05, "×")
+        self.calibration = _spin(0.2, 5, 1.0, 2, 0.05, "× (factor)")
         self.calibration.setToolTip("Multiplier of the computed convection (not of the radiation); fit it to a measurement. "
                                     "The correlations are for isothermal plates and are uncertain by about 20 to 30 % on a board with hot spots.")
         self.computed_rows = []
@@ -95,6 +169,9 @@ class BoardPanel(QWidget):
         f.addRow("Heat transfer", self.h_mode)
         f.addRow("h top", self.h_top)
         f.addRow("h bottom", self.h_bottom)
+        self.manual_rows = [(f.labelForField(self.h_top), self.h_top), (f.labelForField(self.h_bottom), self.h_bottom)]
+        self.h_top.setToolTip("Heat transfer coefficient of the top face (convection plus radiation), typed. Natural convection in air is about 5 to 15 W/m²K.")
+        self.h_bottom.setToolTip("Heat transfer coefficient of the bottom face, typed. Usually a little lower than the top face for a board facing up.")
         for label, w in (("Orientation", self.orientation), ("Emissivity top", self.emis_top),
                          ("Emissivity bottom", self.emis_bottom), ("Air speed", self.air_speed),
                          ("Convection ×", self.calibration)):
@@ -110,9 +187,21 @@ class BoardPanel(QWidget):
         self.k_th = _spin(0.05, 20, 0.3, 2, 0.05, "W/mK")
         self.k_ip = _spin(0.05, 20, 0.9, 2, 0.05, "W/mK")
         self.plating = _spin(1, 200, 25, 0, 1, "µm")
-        for label, w in (("Copper k", self.k_cu), ("FR-4 k through", self.k_th), ("FR-4 k in-plane", self.k_ip),
+        self.laminate = QComboBox()
+        self.laminate.addItem("Laminate preset...", None)
+        for entry in DIELECTRICS:
+            self.laminate.addItem(f"{entry[0]}: {entry[1]:g} / {entry[2]:g} W/mK", entry)
+        self.laminate.setToolTip("Typical dielectric materials (indicative values, not from your laminate datasheet): fills the through-thickness and in-plane "
+                                 "conductivity, density and specific heat of the dielectric of the simple stack-up.")
+        self.laminate.currentIndexChanged.connect(self._pick_laminate)
+        self.k_cu.setToolTip("Thermal conductivity of copper, W/mK (pure copper 385 to 400).")
+        self.k_th.setToolTip("Conductivity of the dielectric across the board thickness, W/mK (FR-4 about 0.3). It sets the resistance between layers.")
+        self.k_ip.setToolTip("Conductivity of the dielectric along the plane, W/mK (FR-4 about 0.9, glass weave).")
+        self.plating.setToolTip("Copper plating thickness of the via barrel in micrometres (typically 20 to 25 µm).")
+        for label, w in (("Copper k", self.k_cu), ("Laminate", self.laminate), ("Dielectric k through", self.k_th), ("Dielectric k in-plane", self.k_ip),
                          ("Via plating", self.plating)):
             f.addRow(label, w)
+        self.simple_only = [self.laminate, self.k_th, self.k_ip]
         lay.addWidget(g)
         lay.addStretch(1)
 
@@ -139,6 +228,12 @@ class BoardPanel(QWidget):
         self.thickness.setValue(b.thickness * 1000)
         self.layers.setValue(b.layers)
         self.copper.setValue(b.copper_thickness[0] * 1e6)
+        advanced = b.is_advanced()
+        self.thickness.setValue(b.total_thickness() * 1000)
+        for w in [self.thickness, self.copper] + self.simple_only:
+            w.setEnabled(not advanced)
+        self.stack_note.setText("Advanced stack-up: thickness, copper and dielectrics are set layer by layer in the Stack-up tab." if advanced
+                                else "Simple stack-up: equal gaps. For different copper weights or dielectrics use the Stack-up tab.")
         self.ambient.setValue(b.ambient)
         self.h_top.setValue(b.h_top)
         self.h_bottom.setValue(b.h_bottom)
@@ -156,6 +251,7 @@ class BoardPanel(QWidget):
         self.k_th.setValue(m.k_fr4_through)
         self.k_ip.setValue(m.k_fr4_inplane)
         self.plating.setValue(b.via_plating * 1e6)
+        self._fill_outline(b)
         self._updating = False
 
     def _show_modes(self, mode):
@@ -164,9 +260,11 @@ class BoardPanel(QWidget):
         @param mode "manual" or "computed".
         """
         computed = mode == "computed"
-        self.h_top.setEnabled(not computed)
-        self.h_bottom.setEnabled(not computed)
-        self.h_top.setToolTip("Starting value only in computed mode" if computed else "")
+        # The typed h only matters when typed: in computed mode it is just the starting guess of the iteration, so it is hidden
+        for label, w in self.manual_rows:
+            w.setVisible(not computed)
+            if label is not None:
+                label.setVisible(not computed)
         for label, w in self.computed_rows:
             w.setVisible(computed)
             if label is not None:
@@ -186,18 +284,149 @@ class BoardPanel(QWidget):
         def mutate(project):
             bd = project.problem.board
             bd.width, bd.height = self.width.value() / 1000, self.height.value() / 1000
-            bd.thickness = self.thickness.value() / 1000
-            bd.copper_thickness = [self.copper.value() * 1e-6] * bd.layers
+            if not bd.is_advanced():                           # In the advanced stack-up these come from the Stack-up tab
+                bd.thickness = self.thickness.value() / 1000
+                bd.copper_thickness = [self.copper.value() * 1e-6] * bd.layers
             bd.ambient, bd.h_top, bd.h_bottom = self.ambient.value(), self.h_top.value(), self.h_bottom.value()
             bd.h_side = self.h_side.value() if self.side_on.isChecked() else None
             bd.h_mode, bd.orientation = self.h_mode.currentData(), self.orientation.currentData()
             bd.emissivity_top, bd.emissivity_bottom = self.emis_top.value(), self.emis_bottom.value()
             bd.air_speed, bd.h_calibration = self.air_speed.value(), self.calibration.value()
             bd.via_plating = self.plating.value() * 1e-6
-            bd.materials.k_copper, bd.materials.k_fr4_through = self.k_cu.value(), self.k_th.value()
-            bd.materials.k_fr4_inplane = self.k_ip.value()
+            bd.materials.k_copper = self.k_cu.value()
+            if not bd.is_advanced():
+                bd.materials.k_fr4_through, bd.materials.k_fr4_inplane = self.k_th.value(), self.k_ip.value()
 
         self.doc.edit("Board parameters", mutate, merge_key="board")
+
+    def _fill_outline(self, b):
+        """!
+        @brief Show the outline of the board in the label and the vertex table.
+        @param b The Board.
+        """
+        t = self.outline_table
+        t.blockSignals(True)
+        t.setRowCount(0)
+        if b.has_outline():
+            o = np.asarray(b.outline) * 1000.0
+            t.setRowCount(len(o))
+            for r, (x, y) in enumerate(o):
+                for c, val in enumerate((x, y)):
+                    t.setItem(r, c, QTableWidgetItem(f"{val:.3f}"))
+            self.outline_label.setText(f"Polygon: {len(o)} vertices, area {b.board_area() * 1e6:.1f} mm² "
+                                       f"({100.0 * b.board_area() / (b.width * b.height):.0f} % of the box).")
+        else:
+            self.outline_label.setText("Rectangle: the whole width x height box. Choose a preset or draw an outline for other shapes.")
+        t.blockSignals(False)
+        for w in (self.outline_table, self.v_add, self.v_del, self.v_sub):
+            w.setEnabled(b.has_outline())
+
+    def _preset_polygon(self, name):
+        """!
+        @brief Vertices of a preset outline fitted to the box.
+        @param name Preset label.
+        @return List of [x, y] in mm, or None for the full rectangle.
+        """
+        b = self.doc.problem.board
+        W, H = b.width * 1000.0, b.height * 1000.0
+        if name.startswith("Rectangle"):
+            return None
+        if name == "L shape":
+            return [[0, 0], [W, 0], [W, H / 2], [W / 2, H / 2], [W / 2, H], [0, H]]
+        if name == "T shape":
+            return [[0, H / 2], [W / 3, H / 2], [W / 3, 0], [2 * W / 3, 0], [2 * W / 3, H / 2], [W, H / 2], [W, H], [0, H]]
+        if name == "Circle / ellipse":
+            return [[W / 2 * (1 + math.cos(2 * math.pi * k / 32)), H / 2 * (1 + math.sin(2 * math.pi * k / 32))] for k in range(32)]
+        c = 0.15 * min(W, H)
+        if name == "Rounded corners":
+            return rounded_rectangle(W, H, c)
+        return [[c, 0], [W - c, 0], [W, c], [W, H - c], [W - c, H], [c, H], [0, H - c], [0, c]]
+
+    def _pick_outline(self, _index):
+        """!
+        @brief Apply a preset outline.
+        @param _index Ignored.
+        """
+        name = self.preset.currentData()
+        if name is None or self._updating:
+            return
+        self.doc.set_outline(self._preset_polygon(name))
+        self.preset.setCurrentIndex(0)
+
+    def _vertices(self):
+        """!
+        @brief The vertices in the table.
+        @return List of [x, y] in mm, or None if a cell is not a number.
+        """
+        t = self.outline_table
+        try:
+            return [[float(t.item(r, 0).text()), float(t.item(r, 1).text())] for r in range(t.rowCount())]
+        except (ValueError, AttributeError):
+            return None
+
+    def _edit_vertex(self, _item):
+        """!
+        @brief A vertex was edited: apply the table if it is a valid outline, otherwise restore it.
+        @param _item The changed QTableWidgetItem (ignored).
+        """
+        if self._updating:
+            return
+        pts = self._vertices()
+        b = self.doc.problem.board
+        if pts is not None:
+            probe = np.asarray(pts) / 1000.0
+            from ..geometry import polygon_is_simple
+            if len(probe) >= 3 and polygon_is_simple(probe) and polygon_area(probe) > 0 and probe.min() >= 0 \
+                    and probe[:, 0].max() <= b.width and probe[:, 1].max() <= b.height:
+                self.doc.set_outline(pts)
+                return
+        self._fill_outline(b)                                 # Not a valid outline: show the stored one again
+
+    def _subdivide(self):
+        """!
+        @brief Insert a vertex in the middle of every edge of the outline.
+        """
+        pts = self._vertices()
+        if pts and len(pts) < 2000:
+            out = []
+            for a, b in zip(pts, pts[1:] + pts[:1]):
+                out += [a, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0]]
+            self.doc.set_outline(out)
+
+    def _add_vertex(self):
+        """!
+        @brief Insert a vertex in the middle of the last edge.
+        """
+        pts = self._vertices()
+        if pts:
+            mid = [(pts[-1][0] + pts[0][0]) / 2.0, (pts[-1][1] + pts[0][1]) / 2.0]
+            self.doc.set_outline(pts + [mid])
+
+    def _remove_vertex(self):
+        """!
+        @brief Remove the selected vertex (the last one if none is selected).
+        """
+        pts = self._vertices()
+        if pts and len(pts) > 3:
+            row = self.outline_table.currentRow()
+            del pts[row if 0 <= row < len(pts) else -1]
+            self.doc.set_outline(pts)
+
+    def _pick_laminate(self, _index):
+        """!
+        @brief Apply a dielectric preset to the simple stack-up.
+        @param _index Ignored (the combo index).
+        """
+        entry = self.laminate.currentData()
+        if entry is None or self._updating:
+            return
+
+        def mutate(project):
+            m = project.problem.board.materials
+            m.k_fr4_through, m.k_fr4_inplane, m.rho_fr4, m.cp_fr4 = entry[1:]
+
+        self.doc.edit("Laminate material", mutate)
+        self.laminate.setCurrentIndex(0)
 
     def _apply_layers(self, n):
         """!
@@ -225,6 +454,7 @@ class ElementList(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         self.tree = QTreeWidget()
+        self.tree.setToolTip("Every zone, heater, heatsink and via of the board. Click to select it on the board, right-click for more actions.")
         self.tree.setHeaderLabels(["Element", "Layer", "Value"])
         self.tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tree.setRootIsDecorated(True)
@@ -366,6 +596,7 @@ class Inspector(QWidget):
             movable = [(k, i) for k, i in valid if k in ("zone", "heater")]
             if movable:
                 combo = self._layer_combo(None)
+                combo.setToolTip("Move all the selected zones and heaters to this layer.")
                 combo.currentIndexChanged.connect(lambda idx, m=movable: self._set_layers(m, idx))
                 lay.addRow("Move to layer", combo)
         else:
@@ -381,50 +612,161 @@ class Inspector(QWidget):
                                                        cb=lambda idx: self._set_layers([(kind, i)], idx)))
             if kind == "zone":
                 w = _spin(0, 1, el.fill, 2, 0.05)
+                w.setToolTip("Copper fill fraction inside the polygon: 1 is solid copper, 0.5 a hatched or half-filled area.")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, fill=v))
                 lay.addRow("Copper fill", w)
             elif kind == "heater":
                 w = _spin(0, 1000, el.power, 3, 0.1, "W")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power=v))
                 lay.addRow("Power", w)
-                t = _spin(0, 500, el.theta_jb, 2, 0.5, "K/W")
-                t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jb=v))
-                lay.addRow("θ junction-board", t)
+                t = _spin(0, 5000, el.theta, 2, 0.5, "K/W")
+                t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta=v))
+                t.setToolTip("Junction-to-pad resistance of the part. Take the datasheet's junction-to-bottom or junction-to-pad number (θJC(bot), RθJC of a power "
+                             "MOSFET, θJ-L of a diode, Rth j-sp of an LED). Never θJA. Worst case: all the power enters the board. With only θJB or ψJB use the ψJB "
+                             "box below; with nothing, pick the package family (a typical value) or leave 0 (plain source: the report shows the board temperature "
+                             "under the part and says the junction is hotter).")
+                lay.addRow("θ junction-pad", t)
+                fam = QComboBox()
+                fam.addItem("Typical θ by package family...", None)
+                for label, th_ in PACKAGE_THETA:
+                    fam.addItem(f"{label}: {th_:g} K/W (typical)", th_)
+                fam.setToolTip("Indicative values by package family, not from your datasheet; they replace θ when chosen. Use the datasheet number when you have it.")
+
+                def pick_family(_idx, fam=fam, t=t):
+                    if fam.currentData() is not None:
+                        t.setValue(fam.currentData())
+                        fam.setCurrentIndex(0)
+
+                fam.currentIndexChanged.connect(pick_family)
+                lay.addRow("", fam)
+                hint = QLabel("Use the datasheet's junction-to-bottom/pad number (θJC(bot), RθJC of a MOSFET, θJ-L), never θJA. Worst case: all the power enters the board. "
+                              "Only θJB or ψJB: fill ψJB below. Nothing: pick a family or leave 0.")
+                hint.setWordWrap(True)
+                hint.setStyleSheet("font-size: 11px; color: gray;")
+                lay.addRow(hint)
+                tj = _spin(0, 500, el.tj_max, 1, 5, "°C")
+                tj.setToolTip("Maximum junction temperature of the part (0 = no limit). The report gives the margin and the power limit.")
+                tj.valueChanged.connect(lambda v: self.doc.set_props(kind, i, tj_max=v))
+                lay.addRow("Tj max", tj)
+                psi = _spin(0, 500, el.psi_jb, 2, 0.5, "K/W")
+                psi.setToolTip("Junction-to-board characterisation parameter ψJB (0 = not used). The report adds Tj = mean board temperature in the ring "
+                               "0.5 to 1.5 mm around the package + ψJB·P, the least pessimistic estimate when the datasheet has no junction-to-pad number.")
+                psi.valueChanged.connect(lambda v: self.doc.set_props(kind, i, psi_jb=v))
+                lay.addRow("ψJB", psi)
+                tc = _spin(-5, 5, el.power_tc * 100.0, 3, 0.1, "%/K")
+                tc.setToolTip("Temperature coefficient of the dissipated power (0 = constant). A power MOSFET's Rds(on) rises about 0.3 to 0.7 %/K, so its loss grows "
+                              "with its junction temperature: P = P0 (1 + tc (Tj − 25 °C)), P0 the power typed above (at 25 °C). The program solves it together with "
+                              "the board and warns when there is no stable point (thermal runaway). Steady-state models only.")
+                tc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power_tc=v / 100.0))
+                lay.addRow("Power coefficient", tc)
+                jc = _spin(0, 5000, el.theta_jc_top, 2, 0.5, "K/W")
+                jc.setToolTip("Junction-to-case (top) resistance θJC(top) of the package, in series with the interface and the heatsink. Used only when the "
+                              "heatsink resistance below is set (a bare mould carries about 1 % of the heat and is ignored: worst case).")
+                jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
+                lay.addRow("θJC top", jc)
+                body_t = _spin(0, 50, 0.0, 2, 0.1, "mm")
+                body_m = QComboBox()
+                for label, k_ in (("Mould compound (0.9 W/mK)", 0.9), ("Thermally enhanced mould (2.3 W/mK)", 2.3), ("Alumina ceramic (24 W/mK)", 24.0),
+                                  ("Copper lid / heat spreader (385 W/mK)", 385.0)):
+                    body_m.addItem(label, k_)
+                body_t.setToolTip("Estimate θJC(top) when the datasheet has no value: the thickness of the package body above the die (a plastic QFN has 0.3 to 1 mm of mould). "
+                                  "θ = thickness / (k × contact area), one-dimensional through the body, no spreading: an upper bound for a small die under a larger "
+                                  "lid. A processor's datasheet θJC already includes its heat spreader and the paste under it: use that instead. 0 = not used.")
+                body_m.setToolTip("Material of the package body above the die (typical conductivities: mould 0.88 to 0.9 W/mK, enhanced mould 2.3 to 6, alumina 24, copper 385).")
+
+                def from_body(_v, t=body_t, m=body_m, spin=jc, e=el):
+                    area = (e.contact_area or e.area())
+                    if t.value() > 0 and area > 0:
+                        spin.setValue(t.value() * 1e-3 / (m.currentData() * area))
+
+                body_t.valueChanged.connect(from_body)
+                body_m.currentIndexChanged.connect(from_body)
+                lay.addRow("Body thickness", body_t)
+                lay.addRow("Body material", body_m)
+                ca = _spin(0, 100000, el.contact_area * 1e6, 2, 5, "mm²")
+                ca.setToolTip("Area of the package top that touches the heatsink through the paste (0 = the footprint). For a processor it is the lid, for a chip with an "
+                              "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
+                ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))
+                lay.addRow("Contact area", ca)
+                self._pad_rows(lay, kind, i, el, heater=True)
+                sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
+                sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
+                              "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
+                sa.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_sa=v))
+                lay.addRow("Heatsink θSA", sa)
             elif kind == "heatsink":
+                is_block = el.is_block()
+                mode = QComboBox()
+                mode.addItem("Coefficient: I give h or θSA", False)
+                mode.addItem("Metal block: the program computes it", True)
+                mode.setCurrentIndex(1 if is_block else 0)
+                mode.setToolTip("How the cooling of this area is described. Coefficient: you give the extra heat transfer coefficient, or the heatsink's θSA from its datasheet. "
+                                "Metal block: you give the plate (thickness, metal, interface to the board, optional fins) and the program computes how it spreads and "
+                                "dissipates the heat with the board's own face coefficient (typed or computed, orientation included).")
+
+                def switch(_i, m=mode):
+                    block = bool(m.currentData())
+                    if block != is_block:
+                        self.doc.set_props(kind, i, thickness=3e-3 if block else 0.0, merge=False)
+
+                mode.currentIndexChanged.connect(switch)
+                lay.addRow("Cooling model", mode)
                 w = _spin(0, 5000, el.h_extra, 1, 5, "W/m²K")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, h_extra=v))
-                w.setToolTip("Extra heat transfer coefficient. Without a metal block it is added to the board face inside the polygon; "
-                             "with a block it is added to the coefficient of the face for the exposed surface of the block "
-                             "(for a finned block use 1/(R·A) of its datasheet).")
+                w.setToolTip("Extra heat transfer coefficient. Without a metal block it is added to the board face inside the polygon; with a block it is added to the "
+                             "coefficient of the exposed surface of the block (use it for a finned block of which you know the datasheet performance instead of the fins below).")
                 lay.addRow("Extra h", w)
-                th = _spin(0, 100, el.thickness * 1000, 2, 0.5, "mm")
-                th.setToolTip("Thickness of a metal block pressed on this face (0 = no block, only the coefficient). The heat enters the block only "
-                              "where the block overlaps copper of this layer, spreads in the metal and leaves by its surface.")
-                th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
-                lay.addRow("Metal block", th)
-                mat = QComboBox()
-                presets = (("Aluminium", 205.0, 2.43e6), ("Copper", 385.0, 3.45e6), ("Steel", 50.0, 3.8e6), ("Custom", None, None))
-                for label, k_, c_ in presets:
-                    mat.addItem(label, (k_, c_))
-                cur = next((n for n, (_, k_, c_) in enumerate(presets) if k_ == el.k and c_ == el.rho_cp), len(presets) - 1)
-                mat.setCurrentIndex(cur)
-                kk = _spin(0.1, 1000, el.k, 1, 5, "W/mK")
-                kk.valueChanged.connect(lambda v: self.doc.set_props(kind, i, k=v))
+                area_m2 = float(polygon_area(np.asarray(el.polygon)))
+                if not is_block:
+                    rsa = _spin(0, 5000, (1.0 / (el.h_extra * area_m2)) if el.h_extra > 0 and area_m2 > 0 else 0.0, 3, 0.1, "K/W")
+                    rsa.setToolTip("Heatsink resistance to ambient θSA from its datasheet, at your air flow and orientation (0 = not used). Typing it sets the extra h above to "
+                                   "1/(θSA × area of this polygon): the whole heatsink is spread over the polygon. Datasheets give θSA for natural convection in the "
+                                   "orientation they tested (fins vertical is the best case): use the value for your mounting.")
 
-                def pick(_idx, mat=mat, kk=kk):
-                    k_, c_ = mat.currentData()
-                    if k_ is not None:
-                        kk.setValue(k_)
-                        self.doc.set_props(kind, i, k=k_, rho_cp=c_, merge=False)
+                    def from_rsa(v, h=w, a=area_m2):
+                        if v > 0 and a > 0:
+                            h.setValue(1.0 / (v * a))
 
-                mat.currentIndexChanged.connect(pick)
-                lay.addRow("Block material", mat)
-                lay.addRow("Block k", kk)
-                cr = _spin(0, 1000, el.contact_r * 1e4, 2, 0.5, "K·cm²/W")
-                cr.setToolTip("Interface resistance between the board and the block, per area: thickness / conductivity of the gap pad or paste "
-                              "(0.5 mm of a 1 W/mK pad is 5 K·cm²/W; 0.5 mm of a 5 W/mK pad is 1). The contact is over the copper under the block.")
-                cr.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_r=v * 1e-4))
-                lay.addRow("Interface", cr)
+                    rsa.valueChanged.connect(from_rsa)
+                    lay.addRow("θSA from datasheet", rsa)
+                else:
+                    th = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
+                    th.setToolTip("Thickness of the metal block pressed on this face. The heat enters the block only where the block overlaps copper of this layer, "
+                                  "spreads in the metal and leaves by its surface.")
+                    th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
+                    lay.addRow("Block thickness", th)
+                    mat = QComboBox()
+                    presets = METALS + (("Custom", None, None),)
+                    for label, k_, c_ in presets:
+                        mat.addItem(label, (k_, c_))
+                    cur = next((n for n, (_, k_, c_) in enumerate(presets) if k_ == el.k and c_ == el.rho_cp), len(presets) - 1)
+                    mat.setCurrentIndex(cur)
+                    kk = _spin(0.1, 1000, el.k, 1, 5, "W/mK")
+                    kk.valueChanged.connect(lambda v: self.doc.set_props(kind, i, k=v))
+
+                    def pick(_idx, mat=mat, kk=kk):
+                        k_, c_ = mat.currentData()
+                        if k_ is not None:
+                            kk.setValue(k_)
+                            self.doc.set_props(kind, i, k=k_, rho_cp=c_, merge=False)
+
+                    mat.currentIndexChanged.connect(pick)
+                    lay.addRow("Block material", mat)
+                    lay.addRow("Block k", kk)
+                    self._pad_rows(lay, kind, i, el, heater=False)
+                    fh = _spin(0, 200, el.fin_height * 1000, 2, 1, "mm")
+                    ft = _spin(0, 20, el.fin_thickness * 1000, 2, 0.1, "mm")
+                    fp = _spin(0, 100, el.fin_pitch * 1000, 2, 0.5, "mm")
+                    fh.setToolTip("Height of the plate fins on the exposed face of the block (0 = a plain plate). The program computes the area gain and the fin efficiency "
+                                  "tanh(mL)/(mL) of the metal.")
+                    ft.setToolTip("Thickness of one fin.")
+                    fp.setToolTip("Distance between the axes of two fins. The air gap is pitch minus thickness: in still air less than about 4 to 6 mm chokes the "
+                                  "natural convection (the program warns; it does not slow the air between the fins).")
+                    for key, spin in (("fin_height", fh), ("fin_thickness", ft), ("fin_pitch", fp)):
+                        spin.valueChanged.connect(lambda v, k=key: self.doc.set_props(kind, i, **{k: v / 1000.0}))
+                    lay.addRow("Fin height", fh)
+                    lay.addRow("Fin thickness", ft)
+                    lay.addRow("Fin pitch", fp)
             else:
                 x = _spin(0, 2000, el.x * 1000, 2, 0.5, "mm")
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")
@@ -441,7 +783,64 @@ class Inspector(QWidget):
                 lay.addRow("", fl)
             if kind != "via":
                 self._geometry_rows(lay, kind, i, el)
+        tips.apply(self.form_host)
         self._updating = False
+
+    def _pad_rows(self, lay, kind, index, el, heater):
+        """!
+        @brief The interface between a heatsink and the board or the package: one dielectric sheet (paste, gap pad) with its own material and thickness.
+        @details Rows: a material preset (typical thickness and conductivity), the thickness (mm), the conductivity (W/mK) and the resulting resistance per area
+                 (K cm2/W). The sheet defines the resistance as thickness / conductivity; typing the resistance directly replaces the sheet (custom value).
+        @param lay Form layout.
+        @param kind Element kind ("heater" or "heatsink").
+        @param index Element index.
+        @param el The element (a Heater for the package top, a Heatsink for a block on the board).
+        @param heater True for the interface on top of a part, False for the interface under a metal block.
+        """
+        where = "between the package top and the heatsink" if heater else "between the board and the block"
+        r_now = (el.interface_kcm2() if heater else el.interface_resistance() * 1e4)
+
+        def write(thickness, conductivity, resistance):
+            # Resistance in K cm2/W; the sheet fields are zero for a typed resistance
+            fields = dict(pad_thickness=thickness, pad_k=conductivity)
+            fields.update(interface=resistance) if heater else fields.update(contact_r=resistance * 1e-4)
+            self.doc.set_props(kind, index, merge=False, **fields)
+
+        mat = QComboBox()
+        mat.addItem("Interface material preset...", None)
+        for label, k_, t_ in INTERFACES:
+            mat.addItem(f"{label}: {t_:g} mm", (k_, t_ * 1e-3))
+        mat.setToolTip(f"The one dielectric sheet {where} (thermal paste or gap pad): a preset fills its thickness and conductivity. Indicative values (apparent "
+                       "conductivity including the contact resistances): check your material's datasheet. The sheet can have its own material and thickness.")
+        th = _spin(0, 20, el.pad_thickness * 1000, 3, 0.1, "mm")
+        th.setToolTip(f"Thickness of the dielectric sheet {where} (paste 0.05 to 0.1 mm, gap pad 0.5 to 1.5 mm). With its conductivity it gives the interface "
+                      "resistance thickness / k; 0 = type the resistance below instead.")
+        kk = _spin(0, 100, el.pad_k, 2, 0.5, "W/mK")
+        kk.setToolTip("Conductivity of the dielectric sheet (grease 1 to 5, gap pads 1 to 6 W/mK apparent; the datasheet's bulk value is higher than what a joint "
+                      "gives because of the contact resistances).")
+        res = _spin(0, 1000, r_now, 3, 0.1, "K·cm²/W")
+        res.setToolTip(f"Resistance per area of the interface {where}: thickness / conductivity of the sheet, or typed here (which replaces the sheet). Good paste 0.3, "
+                       "default paste 0.5, soft gap pad 1.7, gap pad 5, hard pad 10; 0 = perfect contact (optimistic). " +
+                       ("It is divided by the contact area of the part." if heater else "The contact is over the copper under the block: there is nothing to draw."))
+
+        def pick(_i):
+            data = mat.currentData()
+            if data is not None:
+                k_, t_ = data
+                write(t_, k_, t_ / k_ * 1e4)
+
+        def sheet(_v):
+            if th.value() > 0 and kk.value() > 0:
+                write(th.value() * 1e-3, kk.value(), th.value() * 1e-3 / kk.value() * 1e4)
+
+        mat.currentIndexChanged.connect(pick)
+        th.valueChanged.connect(sheet)
+        kk.valueChanged.connect(sheet)
+        res.valueChanged.connect(lambda v: write(0.0, 0.0, v))
+        lay.addRow("Interface material", mat)
+        lay.addRow("Interface thickness", th)
+        lay.addRow("Interface conductivity", kk)
+        lay.addRow("Interface resistance", res)
 
     def _layer_combo(self, current, outer_only=False, cb=None):
         """!
@@ -481,22 +880,26 @@ class Inspector(QWidget):
 
     def _geometry_rows(self, lay, kind, i, el):
         """!
-        @brief Position and size rows for rectangles, or a note for general polygons.
+        @brief Position and size of a selected shape: editable rows for a rectangle (plus its area), a read-only summary (vertices, box, area) for any other polygon.
         @param lay Form layout.
         @param kind Element kind.
         @param i Element index.
         @param el The element.
         """
         p = np.asarray(el.polygon) * 1000.0
-        axis_aligned = len(p) == 4 and all(
-            abs(p[k][0] - p[(k + 1) % 4][0]) < 1e-6 or abs(p[k][1] - p[(k + 1) % 4][1]) < 1e-6 for k in range(4))
-        if not axis_aligned:
-            lay.addRow(QLabel(f"Polygon with {len(p)} vertices (drag the corner handles to reshape)"))
-            return
         x0, y0 = p[:, 0].min(), p[:, 1].min()
         w, h = p[:, 0].max() - x0, p[:, 1].max() - y0
+        area = float(polygon_area(np.asarray(el.polygon))) * 1e6
+        if not _is_rect(p):
+            info = QLabel(f"Polygon with {len(p)} vertices (drag the corner handles to reshape): box {w:.2f} × {h:.2f} mm at ({x0:.2f}, {y0:.2f}), area {area:.2f} mm²")
+            info.setWordWrap(True)
+            info.setToolTip("Measures of the selected shape in millimetres, from the board's lower-left corner.")
+            lay.addRow(info)
+            return
         fields = {"x": _spin(-1000, 2000, x0, 2, 0.5, "mm"), "y": _spin(-1000, 2000, y0, 2, 0.5, "mm"),
                   "w": _spin(0.1, 2000, w, 2, 0.5, "mm"), "h": _spin(0.1, 2000, h, 2, 0.5, "mm")}
+        tips = {"x": "X of the left edge, measured from the board's lower-left corner.", "y": "Y of the lower edge, measured from the board's lower-left corner.",
+                "w": "Width of the rectangle along x.", "h": "Height of the rectangle along y."}
 
         def commit():
             x, y, ww, hh = (fields[k].value() for k in "xywh")
@@ -506,8 +909,12 @@ class Inspector(QWidget):
                 merge_key=f"geom{kind}{i}")
 
         for label, key in (("X", "x"), ("Y", "y"), ("Width", "w"), ("Height", "h")):
+            fields[key].setToolTip(tips[key])
             fields[key].valueChanged.connect(lambda _v: commit())
             lay.addRow(label, fields[key])
+        info = QLabel(f"Area {area:.2f} mm²")
+        info.setToolTip("Area of the rectangle in square millimetres.")
+        lay.addRow("", info)
 
 
 class SolverPanel(QWidget):
@@ -516,6 +923,7 @@ class SolverPanel(QWidget):
     """
 
     run_requested = Signal()
+    cancel_requested = Signal()
 
     def __init__(self, doc, parent=None):
         """!
@@ -585,6 +993,11 @@ class SolverPanel(QWidget):
         self.run = QPushButton("Run simulation   (F5)")
         self.run.setObjectName("primary")
         self.run.clicked.connect(self.run_requested)
+        self.run.setToolTip("Solve the selected models (F5). The calculation runs in a separate process: the window stays usable and it can be cancelled.")
+        self.cancel = QPushButton("Cancel")
+        self.cancel.setToolTip("Stop the running calculation at once (Ctrl+.). Nothing is kept from the interrupted run.")
+        self.cancel.clicked.connect(self.cancel_requested)
+        self.cancel.setVisible(False)
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
@@ -594,6 +1007,7 @@ class SolverPanel(QWidget):
         self.checks = QLabel("")
         self.checks.setWordWrap(True)
         lay.addWidget(self.run)
+        lay.addWidget(self.cancel)
         lay.addWidget(self.progress)
         lay.addWidget(self.status)
         lay.addWidget(self.checks)
@@ -675,6 +1089,7 @@ class SolverPanel(QWidget):
         @param text Status text.
         """
         self.run.setEnabled(not running)
+        self.cancel.setVisible(running)
         self.status.setText(text)
         if not running:
             self.progress.setValue(0)

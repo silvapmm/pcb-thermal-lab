@@ -5,6 +5,8 @@ Agreed order: **Component element (Package, heat heatsink)** → passive areas �
 
 ## 1. Component element
 
+> **Status (2026-10-17): first delivery implemented** (branch `feature/component-element`): `theta` (junction-to-pad, worst case), `tj_max` with margin and power limit, `psi_jb` ring estimate, `power_tc` temperature coefficient, package-family typical values and the hints in the application; see `docs/models.md` section 6 and `docs/validation.md` section 9. Everything below about the top path, the heatsink on the IC, the junction node, ψ presets and the Foster chain is future work (1.11).
+>
 > **Decision (2026-10-16, maintainer): worst case first.** For now the whole power of a component reaches the board; there is **no top path and no junction node**. The Component is a *Source* with optional *junction-to-pad resistance* (today's `θJB` field, renamed) and the junction temperature is
 > `T_j = T_max under the footprint + P·θ_pad`, which is the conservative variant (the prototype of section 1.8 gives it 3 K above the node model). The sections on the top path, the heat heatsink, the junction node and the Foster chain below are kept as **future work, not for the next version**.
 > First delivery: (1) rename and document the field and add the choice of which datasheet number it takes (`θJC(bottom)`, `θJ-L`, `Rth j-sp`, or `θJB` when nothing else exists); (2) report `T_j` against the part's `T_j,max` with a warning; (3) the **virtual JEDEC test** (the datasheet's own board, `θJA` predicted against the datasheet) with the CSD17308Q3 and the TPS7A47 as cases;
@@ -161,49 +163,23 @@ What the Heatsink lacks for a **metal block** attached to the board (an aluminiu
 2. *Metal plate element* (later): an extra node per cell under a polygon of an outer layer with lateral conductance `k·t`, contact conductance `1/R''_c` to the board layer, the exposed-face coefficient and the heat capacity `ρ·c·t`; same matrix structure as the junction node. FVM and FDM first; the Lumped and Analytic models would warn.
 **Done (2026-10-16): step 2 implemented directly.** The maintainer's case is a block larger than the contact patch, so the Heatsink got a thickness and became the metal plate element in the FVM and FDM (`blocks.py`, see `docs/models.md` 2.6), the conduction area being the intersection of block and copper; validated against a 3D solid within 1.8 % (`docs/validation.md` section 3). Left for later: blocks on the inner layers, fins as a geometry (only a coefficient), the contact over bare laminate with a pad of its own, and a block in the Lumped and Analytic models.
 
-### 1.9b Is the parametrisation worth it? Study on five real parts (2026-10-17)
+### 1.9b and 1.9c Component study, heatsinks and interface materials
 
-`python examples/component_study.py`. Five parts of section 1.6 on a 60 × 60 mm, 2-layer board (copper pad under the part on both faces, thermal vias under footprints of 3 mm and more, computed natural convection, FVM at 0.5 mm). Level 0 is today's Source (the answer is the hottest board point under the part); level 1 adds **one** junction-to-pad resistance (`Tj = T_max + P θ`); level 2 adds a top path (junction node, section 1.8).
-Sources of the literature used for the plan: the two-resistor model is accepted up to ±30 % on `Tj` and is better the closer the application is to the test conditions, better still when the heat goes mainly into the board or a heatsink [18, ROHM, Electronics Cooling 2007, 2019]; `ΨJT` and `ΨJB` are the recommended way to estimate `Tj` on a functional board; compact models (DELPHI) are for boundary-condition independence and need data the makers do not publish.
-
-**A. What the one resistance adds** (`θ` is `θJC(bot)`, `θJ-L` or the derived value of a resistor):
-
-| Part | P [W] | θ [K/W] | Pad | Board under part (level 0) | Tj (level 1) | P·θ | Share of the rise |
-| :-- | --: | --: | --: | --: | --: | --: | --: |
-| MOSFET CSD17308Q3 | 2 | 4.5 | 8 mm | 227.4 °C | 236.4 °C | 9.0 K | 4 % |
-| MOSFET CSD17308Q3 | 2 | 4.5 | 25 mm | 98.6 °C | 107.6 °C | 9.0 K | 11 % |
-| LDO TPS7A47 | 1.5 | 1.7 | 8 mm | 176.7 °C | 179.2 °C | 2.5 K | 2 % |
-| LDO TPS7A47 | 1.5 | 1.7 | 25 mm | 84.8 °C | 87.3 °C | 2.5 K | 4 % |
-| Buck LMR36510 | 0.8 | 4.3 | 8 mm | 109.9 °C | 113.3 °C | 3.4 K | 4 % |
-| Buck LMR36510 | 0.8 | 4.3 | 25 mm | 59.3 °C | 62.8 °C | 3.4 K | 9 % |
-| Schottky SS12 (SMA) | 0.5 | 20 | 8 mm | 85.6 °C | 95.6 °C | 10.0 K | 14 % |
-| Schottky SS12 (SMA) | 0.5 | 20 | 25 mm | 50.9 °C | 60.9 °C | 10.0 K | 28 % |
-| Resistor 0603, 0.1 W | 0.1 | 1000 (derived) | 8 mm | 38.9 °C | 138.9 °C | 100 K | 88 % |
-| Resistor 0603, 0.1 W | 0.1 | 1000 (derived) | 25 mm | 31.6 °C | 131.6 °C | 100 K | 94 % |
-
-**B. Sensitivity** (pad 25 mm): `θ` ±30 % moves `Tj` by only ±0.8 K (LDO), ±1.0 K (buck), ±2.7 K (MOSFET), ±3.0 K (diode), but ±30 K for the resistor, where the derived number is the whole answer.
-**The number chosen matters more than its accuracy**: entering `θJB` instead of `θJC(bot)` adds 15.3 K to the LDO (87.3 → 102.6 °C, +25 % of the rise) and 7.4 K to the buck (62.8 → 70.2 °C, +20 %) because the board's spreading would be counted twice. The virtual JEDEC board (76.2 × 114.3 mm, 2s2p) cannot settle which is right: the datasheets do not give the via array of their test boards, and the program brackets `RθJA` of the TPS7A47 (32.5 K/W) between 51 K/W with no vias and 22 K/W (with `θJC(bot)`; 32 K/W with `θJB`) with nine vias, and the LMR36510 (42.9) between 54 and 25 (34 with `θJB`). So the virtual test is a plausibility check, not a calibration.
-
-**C. A top path** (junction node joined to the footprint by `1/θ`; bare mould = `θJC(top)` + 15 W/m²K on the body; clip-on = 12 K/W heatsink + 1 K/W paste; pad 25 mm):
-
-| Part | Level 1 Tj | Bare mould (heat through the top) | With the 12 K/W heatsink (heat through the top) | θJC(top) |
-| :-- | --: | --: | --: | --: |
-| MOSFET CSD17308Q3 | 107.6 °C | 104.6 °C (0.6 %) | 67.4 °C (49 %) | 30 K/W (assumed) |
-| LDO TPS7A47 | 87.3 °C | 83.2 °C (1.4 %) | 55.5 °C (51 %) | 27 |
-| Buck LMR36510 | 62.8 °C | 60.6 °C (1.3 %) | 46.9 °C (41 %) | 54 |
-| Schottky SS12 | 60.9 °C | 59.1 °C (1.1 %) | 42.9 °C (49 %) | 60 K/W (assumed) |
-
-**Conclusions (what is worth parametrising)**
-1. **One resistance to the pad: yes.** It is the only way to get `Tj` (the junction is hotter than the board point), it adds 2 to 28 % of the rise for chips and about 90 % for a resistor, it comes straight from the datasheet and ±30 % in it is a few kelvin. With the `Tj,max` limit it is the whole of what a designer asks of a part.
-2. **Top path: only with a heatsink.** A bare mould carries about 1 % of the heat and changes `Tj` by 2 to 4 K (conservative to ignore); a clip-on heatsink takes 41 to 51 % and lowers `Tj` by 16 to 40 K, which the single resistance cannot see. So the top path is an **optional second block** (a heatsink resistance in K/W plus `θJC(top)`), invisible unless filled.
-3. **Not worth it for now:** `ΨJT`/`ΨJB` estimates, full 2R as two mandatory numbers, DELPHI, the Foster chain (only for fast transients of the package itself), presets by part type (the form asks for one number and says which datasheet value to take).
-4. **Which value**: `θJC(bot)`, `θJ-L` or `Rth j-sp` when the datasheet has them (the board's spreading is already in our model); `θJB` only when the pad and vias of the board are not modelled; a resistor: `(Tmax − T_rating)/P_rating`.
+The studies on five real parts, the typical values of metals and interface materials, and the way to use a datasheet that only gives `θJB` are in `docs/research.md` (open investigations) until the Component is implemented; then they move here.
 
 ### 1.10 Staging and validation
 
 Stages: (1) Component element and Package, static, in the three models; (2) top path from the computed `h`; (3) heat heatsink; (4) passive areas; (5) Foster chain for package transients.
 Validation: `θJB → 0` and no top path reproduce the current heater; `G_top → 0` gives heater plus the offset `P θJB`; exact series-parallel solution on a uniform board (`T_j` and power split to 1e-9); energy balance with the extra node; the models against each other;
 **ΨJT and ΨJB against a real datasheet** (to be chosen, with its test conditions; no numbers invented); power split in the 75 to 95 % board range; an independent 3D solid (the validation script already handles vias and heatsinks).
+
+### 1.11 Noted for later (decisions of 2026-10-17)
+
+Decided for the first Component delivery: a single junction-to-pad resistance `θ` used in the **worst case** (all the power enters the board; `θJA` is never an input). **Implemented on 2026-10-21**: the top heatsink as a fixed `θsa` in K/W with `θJC(top)` and an interface in K·cm²/W (`docs/models.md` section 6, `docs/validation.md` section 9). Left for later, with the evidence in `docs/research.md`:
+* heatsink **scenarios**: natural-convection scaling `θsa ∝ ΔT^−0.25` (changes `Tj` by 1 to 3 K in the study), forced-convection factors (0.31, 0.18, 0.10 at 1, 2.5, 5 m/s) and the orientation factor, all driven by the air speed and orientation of the board (R6). A web search on 2026-10-21 found no universal orientation derating (correlations for fin geometries disagree; one test: sideways-vertical 12 % above facing up, 26 % above facing down, 120 % above sideways-horizontal), so the first implementation takes θSA/h as given for the real mounting; tilt angle and enclosures are further work. **Done 2026-10-21**: the metal block as a computed heatsink with plate fins (fin efficiency; no slowing of the air between the fins, only a warning), the contact area of a part's interface, the θJC(top) body helper; still open: the fin spacing effect on the convection (Elenbaas-type channel correlation), pin fins, forced-convection fin factors tied to the air speed;
+* the heatsink on a component as a **plate layer** with spreading (only worth it for a thin base of a poor conductor such as steel: 5 to 13 % of the top chain against 1 to 4 % for aluminium and copper, R8);
+* an **interface with its own area** (contact patch) and the **air gap** outside it (`k_air/g` plus radiation, default 1 mm), the intuitive presentation of "perfect contact" (0.01 K cm²/W), and a side view with the vertical information (stack-up, component height, gap) (R3, R5, R7);
+* temperature-dependent power, maximum power at `Tj,max`, the Foster chain for pulses (R4).
 
 ## 2. Import of Gerber files (extra)
 
@@ -216,7 +192,10 @@ Read the copper of every layer from manufacturing files instead of drawing zones
 * **Open**: file variants of KiCad/Altium/Eagle, a layer-assignment step in the GUI, plane splits and anti-pads; component positions come from a pick-and-place file (a later extra).
 * **Validation**: import a board whose copper was also drawn by hand, compare areas per layer and the FVM result.
 
-## 3. Variable stack-up (extra; keep the model ready for it)
+## 3. Variable stack-up (implemented 2026-10-21)
+
+> **Status**: done in all five models (`docs/models.md` section 8, `docs/validation.md` section 12): per-layer copper, per-gap dielectric thickness and material, simple and advanced modes, the Stack-up tab with the cross-section, file round trip, regression against the simple stack-up (0.1 K) and an exact series-circuit check (1e-6 K). Left for later: an outer dielectric (solder mask) above the top copper and below the bottom copper, a material per copper layer (copper alloys, plated copper), a stack-up library of the usual 4/6/8-layer builds.
+> The text below is the original plan, kept for the reasoning.
 
 Today: one total thickness, copper thickness per layer (already a list) and **equal dielectric gaps** (`Board.dielectric_thickness()` shares what is left of the thickness among the gaps; each layer node is a slab `thickness/layers`). Real stack-ups have different copper weights, core and prepreg thicknesses and sometimes materials.
 
@@ -225,6 +204,11 @@ Today: one total thickness, copper thickness per layer (already a list) and **eq
   tridiagonal modal matrix takes one coupling per gap). Time simulation: capacities from real thicknesses and materials. Edge cooling from each layer's real thickness.
 * **Why**: through-board resistance is `Σ d_i/k_i`, so a thin prepreg under the heater layer and a thick core elsewhere differ a lot from equal gaps; a metal-core board is another regime. Expect first-order changes in `T_j` with a thin top prepreg and an inner plane.
 * **Compatibility**: with equal gaps the new code must reproduce the current results exactly (regression test). The stack-up table also feeds the Gerber import (copper thickness, plating).
+
+## 3b. Board outline (implemented 2026-10-21; Lumped and Analytic still need a rectangle)
+
+Done for the FVM, FDM and 3D solid (`docs/models.md` section 9; curves are polygons, section 14: a true arc/spline outline and an automatic refinement of the outline near curves are not done). Left: the Lumped network on any outline (rings of the geodesic distance inside the board instead of the Euclidean one, an outline-aware edge model) and the Analytic series (a conformal map or a domain decomposition; probably not worth it: the models are the fast, uniform-board estimates);
+holes and cut-outs inside the board (an outline with holes: a list of polygons with even-odd fill, same cell cover); a board outline imported from the Gerber outline layer together with the copper (section 2); a check that warns when a neck of the outline is narrower than three cells.
 
 ## 4. Multigrid solver (optional, low priority)
 
@@ -245,7 +229,54 @@ All agree to 1e-8 K. The gain appears above about 500 000 unknowns; `pyamg` woul
 Done: the 3D solid with vias and heatsinks on four boards (`validation.md` section 3). Next, in order of value: **a measurement of a physical board** (absolute accuracy; also calibrates the convection multiplier, `pcbthermal calibrate`);
 a transient comparison against the 3D solid; a thick-copper case; the 3D solid with the Package once it exists.
 
-## 6. Deferred
+## 6. Ideas from similar projects and tools (research of 2026-10-21 and 22)
+
+What other open-source projects and commercial tools do, and what would be worth taking. Sources were read as web summaries (the repositories were not cloned or run): none of the projects below has the models, the profiles, the junction, the computed convection or the 3D check of this one; they are mostly KiCad plug-ins with one 2D model.
+
+| Project / tool | What it does | Idea for us |
+| :-- | :-- | :-- |
+| [Dietschi10/KiCad_Thermal_Sim](https://github.com/Dietschi10/KiCad_Thermal_Sim) | KiCad plug-in: 2D in-plane conduction on every copper layer, coupling through FR-4 and vias, manual heat sources, optional DC current (I²R) heating and a Joule-loss map | **KiCad import** and **Joule heating of the copper** (below) |
+| [mgburr/pcb-sim-toolkit](https://github.com/mgburr/pcb-sim-toolkit) | Python toolkit that imports KiCad boards: 2D finite-difference steady state, junction temperature per component, with SPICE and signal integrity | components with positions and powers read from the board file |
+| [krosa-laboratory/kicad-electrothermal-sim](https://github.com/krosa-laboratory/kicad-electrothermal-sim) | 2.5D/3D DC IR-drop and electro-thermal co-simulation (sparse MNA and FEM) on native KiCad 6 to 9 files, temperature maps planned | **electro-thermal coupling**: current density → I²R heat → temperature → resistivity |
+| [kbralten/KiPIDA](https://github.com/kbralten/KiPIDA) | KiCad 9 plug-in: DC power integrity, current density and thermal rise with a 2.5D resistive mesh | the same coupling, and a current-density map |
+| [SPIKE](https://github.com/krishna-swaroop/SPIKE) | Desktop workbench (power and signal integrity, thermal, extensions): layer maps, cooling presets, command line | cooling presets; an extension mechanism |
+| [SchrodingersGat/KITS](https://github.com/SchrodingersGat/KITS) | KiCad thermal simulation tool (MIT) | listed only |
+| Ansys Icepak, Flotherm, Cadence Celsius, Simcenter | Import of ODB++/Gerber/IPC-2581, orthotropic conductivity per layer, conjugate heat transfer with airflow, component libraries (2R/DELPHI) | ECAD import; copper as polygons, not as a percentage (JLCPCB's advice too); a component library |
+| Elmer FEM / OpenFOAM routes ([jrainimo write-up](https://jrainimo.com/build/2024/11/oss-thermal-simulation-of-pcbs/)) | Export the copper geometry (STEP/XAO) to a free 3D solver | export of the model for an external 3D check |
+| [Tomachie/FYPA](https://github.com/Tomachie/FYPA) (fork of [anarthrous-eda/FYPA](https://github.com/anarthrous-eda/FYPA), AGPL-3.0) | PDN (voltage drop) analysis of Altium and Gerber boards: a 2D FEM Laplace solve per copper layer on a triangulated mesh, an OpenGL viewer with probes and sortable pin and via tables, an editor mode whose edits go to a sidecar file, a result cache keyed by the inputs, PASS/FAIL checks (a sink's minimum voltage) in HTML/PDF reports with a CI exit code (`--fail-on fail`), a regulator model (LDO gain 1; SMPS gain Vout/(Vin·efficiency)), ParaView export, PyInstaller build and a release workflow on version tags | design checks with pass/fail and a CI exit code, result cache, sidecar edits, regulator losses from efficiency, probes, ParaView export, release automation |
+| [atx/padne](https://github.com/atx/padne) (the FEM solver FYPA vendors; NLnet-funded) | KiCad-native 2.5D FEM of the DC voltage drop and current density; **text directives in the schematic** (`VOLTAGE`, `CURRENT`, `RESISTANCE`, `REGULATOR`, `COPPER`) on `DESIGNATOR.PAD` endpoints, several pads joined by a small coupling resistance (1 mΩ); surface conductivity from the stackup copper thickness; Qt GUI and ParaView export; also meant for "heating elements" | read our part parameters from the schematic fields of the KiCad project; the same current solution gives the I²R heat source for a thermal run |
+| [wavenumber-eng/altium_monkey](https://github.com/wavenumber-eng/altium_monkey) (AGPL-3.0) | Python reading/writing of Altium PcbDoc, SchDoc, PrjPcb: layers, drills, outlines, nets, components, vias, tracks, pads; design JSON for CI checks | an import path for Altium boards (the file format is the work, not the thermal part); design-review checks in CI |
+| JLCPCB / RayPCB guides | Thermal vias: 4 vias about 40 K/W, 16 about 10 K/W; power from the datasheet maximum, V × I, or a circuit simulation | a thermal-via array generator and a check against those numbers; power from a circuit simulation (CSV) |
+
+Ideas, in the order of value for the effort (all future work, nothing implemented):
+
+1. **Board import from KiCad** (`.kicad_pcb` is text): outline (now supported), copper zones and tracks as polygons per layer (the fill fraction of a cell then comes from real copper, not drawn zones), vias with drills, the stack-up table, footprints with reference, position and size (heaters to be given a power); a pure-Python S-expression parser, no KiCad needed. Gerber (section 2) comes after.
+2. **Power list from a CSV/BOM** (`reference, power_w, theta, tj_max`) applied to the footprints by reference designator; and power from a circuit simulation or measured profile (CSV exists for profiles).
+3. **Electro-thermal coupling**: Joule heating of the copper (current in, current out → I²R in the planes and traces, `IPC-2152` trace-rise check), with the copper resistivity rising 0.39 %/K with the temperature, solved by the fixed-point loop that already exists for the power coefficient.
+4. **Thermal via tools**: an array generator (pitch, diameter, area), the resistance of an array shown next to the 4/16-via figures of the guides, and a via-count sweep.
+5. **Parameter sweeps and comparison of two designs** (copper area, number of vias, power, ambient, air speed) with plots of Tj against the parameter and an A/B table; a short optimisation (smallest copper area that keeps Tj below the limit), reusing the power-limit logic.
+6. **Component library** (JSON): typical θJC, θJB, ψJB, package size and mass by part family or part number, editable, like the stack-up templates; presets for processors with lid and paste.
+7. **Report**: one HTML or PDF page of the design with the settings, the maps, the table of parts with margins and the warnings.
+8. **Orthotropic copper** from the raster: the conductivity along x and along y of a cell with traces (the fill fraction hides direction); needs the Gerber/KiCad copper.
+9. **Export for an external solver** (STEP/XAO or a simple mesh) to check a board in Elmer or OpenFOAM.
+10. **Cooling presets and enclosure**: an air-speed preset by fan, a closed box with an internal air temperature rise (a first step towards conjugate heat transfer, no CFD).
+
+Added after reading FYPA, padne and altium_monkey (2026-10-22), again in order of value for the effort:
+
+11. **Design checks with PASS/FAIL and an exit code**: one line per rule (a part's junction margin ≥ 0, no hotspot above the limit, energy balance, warnings), a `--fail-on fail` option of `run` for scripts and CI (FYPA does this for its minimum-voltage check). Our margins and power limits already exist; this is the report and the exit code.
+12. **Result cache**: a fingerprint of the problem JSON, the options and the code version selects a stored result, so reopening a project or switching tabs does not solve again (FYPA reloads in under a second; ours solves in 0.1 to 10 s, the 3D solid and the time simulations in minutes).
+13. **Regulator and converter losses from efficiency**: the power a part dissipates is `P_out (1/η − 1)` for a switching converter and `(V_in − V_out) I_out` for an LDO (FYPA's regulator model uses the gain 1 for LDOs and `V_out/(V_in η)` for switching ones); a small helper in the power calculator, and an optional power-from-load link for several parts on one rail.
+14. **Parameters in the design files**: padne and FYPA read `PDN_*`/`VOLTAGE` directives written in the schematic, so the analysis travels with the design. For us: read the power, θ and Tj max of a part from fields of the KiCad symbol (`Thermal_Power`, `Thermal_theta`, ...) when the board is imported (idea 1), and keep our own settings in a **sidecar file** next to the board (FYPA's `.fypa`) so the CAD files are never modified.
+15. **Electrical solution as the heat source** (padne, FYPA, kicad-electrothermal-sim): their current-density and `power density` maps are exactly the I²R heat of the copper; with the same sparse Laplace solve per copper layer (we already have the layer sheets) a DC current between a source and a sink gives the heat source and the voltage drop, and the thermal result feeds back through the resistivity (idea 3).
+16. **Probes and pin tables**: click on a map for the temperature of every layer at that point, a sortable table of the parts and the vias with their temperatures, and the minimum margin highlighted (FYPA's viewer).
+17. **Export for ParaView** (one VTU file per layer and a field for the temperature; padne and FYPA export the same way), which also serves the external 3D check (idea 9).
+18. **Local mesh refinement or a triangular mesh** near parts and along a curved outline (padne and FYPA triangulate the copper), against our structured cell grid with cell cover: the structured grid is simple and robust (and the 3D solid shares it), a refinement near the parts would cut the unknowns of large boards; large work, only if the boards that matter are large.
+19. **Release automation**: a CI workflow that runs the lint, the documentation gate and the tests on every push and, on a version tag, builds a standalone program (PyInstaller) and attaches it (FYPA's release workflow); a script that stamps the version.
+20. **A visible disclaimer** (FYPA's README opens with it): the results are a design aid, to be validated by measurement; none of the models has been compared with a physical board yet. To appear in the About box, the user guide and every report.
+
+**Licences**: FYPA, padne and altium_monkey are AGPL-3.0; this project is MIT (see the `LICENSE` file). Their code must not be copied here; their ideas and file formats can be used (Gerber, Excellon, KiCad and Altium formats are public or reverse-documented) and any import has to be written independently.
+
+## 7. Deferred
 
 Neural-network surrogates; trace Joule heating (IPC-2152 style); reduced-order models (only if transients become too slow); a per-cell or enclosure-aware radiation model; editing power tables inside the application (the CSV round trip is the workflow).
 

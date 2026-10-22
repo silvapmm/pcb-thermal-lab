@@ -141,7 +141,7 @@
         ]
       ],
       "name": "U1",
-      "theta_jb_k_per_w": 6.0,
+      "theta_k_per_w": 6.0,
       "profile": {
         "p_on_w": 13.333333333333334,
         "p_off_w": 0.0,
@@ -171,7 +171,7 @@
         ]
       ],
       "name": "U2",
-      "theta_jb_k_per_w": 12.0,
+      "theta_k_per_w": 12.0,
       "profile": {
         "p_on_w": 6.0,
         "p_off_w": 0.0,
