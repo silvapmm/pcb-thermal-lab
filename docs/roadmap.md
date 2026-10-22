@@ -32,7 +32,7 @@ Evidence for all of this is in `research.md` (sections E3 to E8 and R2 to R8).
 * **Interface with its own area** (contact patch) and the **air gap** outside it, and a side view with the vertical information (stack-up, component height, gap).
 * **Virtual JEDEC test**: the datasheet's own board built in the program, to predict `θJA`, `ΨJT`, `ΨJB` and compare with the datasheet (TPS7A47, CSD17308Q3), and to recover a missing package resistance from a `θJA` on a stated board.
 * **Passive areas** as component types (cooled area, contact to a fixed temperature, material patch) and a **component library** (typical `θJC`, `θJB`, `ψJB`, size and mass by family or part number; presets for processors with lid and paste).
-* **Calibrate the board from a second measurement** (the board ring and the top of the package, or two known powers) to correct the copper uncertainty that dominates the power calculator (11 to 45 % error for a wrong board).
+* **Power calculator, less error from the board** (`docs/calculators.md` section 2.4): an optional **known-power reference** (the same reading at a known power scales the model: ±5 % with ±1 K of reading error against −19 to −27 % without) and an **uncertainty band** (copper ±25 %, heat transfer ±30 %); a two-point fit of power and copper is exact without noise but badly conditioned with 1 K of error, so it stays a study. The **virtual JEDEC test** of the datasheet's own board is done for two cases (`docs/calculators.md` section 2.1); more datasheet cases would need their boards described.
 * LEDs: the fraction of the electrical power that becomes heat; temperature-dependent power beyond the linear coefficient.
 
 ### Import of copper and parts
