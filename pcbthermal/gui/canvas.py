@@ -202,8 +202,10 @@ class VertexHandle(QGraphicsRectItem):
         """
         super().__init__(-4, -4, 8, 8)
         self.view, self.index = view, index
-        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIgnoresTransformations |
-                      QGraphicsItem.ItemSendsGeometryChanges)
+        # Not ItemIsMovable: Qt moves every selected movable item with the one that is dragged, which dragged the whole selected polygon along with its handle.
+        # The handle follows the mouse by itself (mouseMoveEvent) and only reshapes the polygon.
+        self.setFlags(QGraphicsItem.ItemIgnoresTransformations | QGraphicsItem.ItemSendsGeometryChanges)
+        self.setAcceptedMouseButtons(Qt.LeftButton)
         self.setBrush(QBrush(QColor("white")))
         pen = QPen(QColor("#4c8dff"))
         pen.setWidthF(1.5)
@@ -226,6 +228,21 @@ class VertexHandle(QGraphicsRectItem):
             if not self.view._handle_lock:
                 self.view._handle_moved(self.index, value)
         return super().itemChange(change, value)
+
+    def mousePressEvent(self, event):
+        """!
+        @brief Take the click so the polygon under the handle is not dragged or reselected.
+        @param event QGraphicsSceneMouseEvent of the press.
+        """
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        """!
+        @brief Follow the mouse; itemChange snaps the position and reshapes the polygon live.
+        @param event QGraphicsSceneMouseEvent of the move.
+        """
+        self.setPos(event.scenePos())
+        event.accept()
 
     def mouseReleaseEvent(self, event):
         """!

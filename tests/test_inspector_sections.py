@@ -165,3 +165,16 @@ def test_metal_block_greys_the_models_that_cannot_represent_it(win):
     assert "lumped" in win.doc.options.models and "fdm" in win.doc.options.models
     win._load_problem(example_board(), "plain")
     assert sp.cb["lumped"].isEnabled() and sp.cb["lumped"].isChecked()
+
+
+def test_switching_to_a_metal_block_does_not_carry_the_manual_h(win):
+    select(win, "heatsink")
+    hs = lambda: win.doc.problem.heatsinks[0]                                                    # noqa: E731
+    win.doc.set_props("heatsink", 0, h_extra=30.0)
+    mode = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Manual input"))
+    mode.setCurrentIndex(1)                                                                      # Metal block
+    assert hs().is_block() and hs().h_extra == 0.0                                               # Extra cooling of the exposed surface starts at 0
+    win._on_canvas_selection([("heatsink", 0)])                                                  # The block is on a layer the canvas does not show: select it for the inspector again
+    mode = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Manual input"))
+    mode.setCurrentIndex(0)
+    assert not hs().is_block() and hs().h_extra == 20.0                                          # Back to manual input: the default coefficient

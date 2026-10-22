@@ -132,3 +132,30 @@ def test_random_menu_actions_keep_the_board_valid_and_solvable(win, seed):
     win.doc.problem.validate()
     for m in ("fvm", "lumped"):
         simulate(win.doc.problem, SolverOptions(models=(m,), cell_mm=2.5))
+
+
+def test_dragging_a_vertex_handle_moves_only_that_vertex(win):
+    """The selected polygon must not travel with the handle (Qt moves every selected movable item with the dragged one): its position stays 0, only the vertex follows
+    the mouse while dragging, and the document gets the new polygon on release."""
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+    cv = win.canvas
+    h = win.doc.problem.heaters[0]
+    cv.set_selection([("heater", 0)])
+    cv.add_vertex("heater", 0, tuple(h.polygon.mean(axis=0) * 1000.0 + [0.0, 6.0]))
+    cv.set_selection([("heater", 0)])
+    item = cv._handle_item
+    before = [(p.x(), p.y()) for p in (item.polygon().at(i) for i in range(item.polygon().count()))]
+    handle = cv._handles[1]
+    start = cv.mapFromScene(handle.pos())
+    vp = cv.viewport()
+    QTest.mousePress(vp, Qt.LeftButton, pos=start)
+    for k in range(1, 5):
+        QTest.mouseMove(vp, pos=start + QPoint(5 * k, -4 * k))
+        assert item.pos().x() == 0.0 and item.pos().y() == 0.0                         # The piece does not move
+        now = [(p.x(), p.y()) for p in (item.polygon().at(i) for i in range(item.polygon().count()))]
+        assert [q for i, q in enumerate(now) if i != 1] == [q for i, q in enumerate(before) if i != 1]      # Only vertex 1 changes
+    QTest.mouseRelease(vp, Qt.LeftButton, pos=start + QPoint(20, -16))
+    after = win.doc.problem.heaters[0].polygon * 1000.0
+    assert len(after) == 5 and (after[1] != before[1]).any()
+    assert [tuple(map(float, after[i])) for i in (0, 2, 3, 4)] == [before[i] for i in (0, 2, 3, 4)]

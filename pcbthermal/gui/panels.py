@@ -740,7 +740,9 @@ class Inspector(QWidget):
                 def switch(_i, m=mode):
                     block = bool(m.currentData())
                     if block != is_block:
-                        self.doc.set_props(kind, i, thickness=3e-3 if block else 0.0, merge=False)
+                        # The extra h of a manual heatsink is its own coolant coefficient: carried into a block it would add cooling to the exposed surface that
+                        # nobody asked for, so a new block starts at 0 and a heatsink going back to manual input gets the default again
+                        self.doc.set_props(kind, i, thickness=3e-3 if block else 0.0, h_extra=0.0 if block else 20.0, merge=False)
 
                 mode.currentIndexChanged.connect(switch)
                 root.addRow("Cooling model", mode)                 # A single field: no box of its own
