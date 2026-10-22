@@ -43,7 +43,7 @@ def test_boxes_of_every_element(win):
     select(win, "zone")
     assert titles(win) == ["Copper", "Position and size"]
     select(win, "heater")
-    assert titles(win) == ["Part", "Junction", "Package top: junction to case", "Interface: package top to heatsink", "Heatsink on the package", "Position and size"]
+    assert titles(win) == ["Part", "Junction", "Heatsink on the package", "Package top: junction to case", "Interface: package top to heatsink", "Position and size"]
     select(win, "via")
     assert titles(win) == ["Via"]
     select(win, "heatsink")
@@ -129,3 +129,39 @@ def test_direct_contact_is_cooler_than_a_gap_pad_under_a_metal_block(win):
     hs = win.doc.problem.heatsinks[0]
     assert hs.interface_resistance() == 0.0
     assert tmax(win) < t_pad
+
+
+def test_fields_that_do_not_apply_are_greyed(win):
+    from PySide6.QtWidgets import QGroupBox
+    # Top path of a part: used only with both the junction-to-pad theta and the heatsink theta_SA
+    h = win.doc.problem.heaters[0]
+    h.theta, h.theta_sa = 0.0, 0.0
+    select(win, "heater")
+    boxes = {g.title(): g for g in win.inspector.form_host.findChildren(QGroupBox)}
+    assert not boxes["Package top: junction to case"].isEnabled() and not boxes["Interface: package top to heatsink"].isEnabled() and boxes["Heatsink on the package"].isEnabled()
+    assert "Greyed" in boxes["Interface: package top to heatsink"].toolTip()
+    win.doc.set_props("heater", 0, theta=5.0, theta_sa=10.0)
+    boxes = {g.title(): g for g in win.inspector.form_host.findChildren(QGroupBox)}
+    assert boxes["Package top: junction to case"].isEnabled() and boxes["Interface: package top to heatsink"].isEnabled()
+    # Solver settings follow the selected models
+    sp = win.solver_panel
+    win.doc.set_options(models=("fvm",))
+    assert sp.solver.isEnabled() and not sp.rings.isEnabled() and not sp.modes.isEnabled() and not sp.local.isEnabled()
+    win.doc.set_options(models=("lumped", "analytic"))
+    assert not sp.solver.isEnabled() and sp.rings.isEnabled() and sp.modes.isEnabled() and sp.local.isEnabled()
+    assert "Greyed" in sp.solver.toolTip()
+
+
+def test_metal_block_greys_the_models_that_cannot_represent_it(win):
+    sp = win.solver_panel
+    win.doc.set_options(models=("fvm", "lumped", "analytic"))
+    assert sp.cb["lumped"].isEnabled() and sp.cb["lumped"].isChecked()
+    win._load_problem(example_block_board(), "block")
+    assert not sp.cb["lumped"].isEnabled() and not sp.cb["analytic"].isEnabled()
+    assert not sp.cb["lumped"].isChecked() and "metal block" in sp.cb["lumped"].toolTip()
+    assert sp.cb["fvm"].isEnabled() and sp.cb["solid3d"].isEnabled()
+    assert "lumped" in win.doc.options.models                                    # The choice is kept for when the block goes away
+    sp.cb["fdm"].setChecked(True)                                                # Touching another box does not drop it
+    assert "lumped" in win.doc.options.models and "fdm" in win.doc.options.models
+    win._load_problem(example_board(), "plain")
+    assert sp.cb["lumped"].isEnabled() and sp.cb["lumped"].isChecked()

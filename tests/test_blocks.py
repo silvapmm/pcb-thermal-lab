@@ -102,17 +102,19 @@ def test_transient_includes_the_mass_of_the_block():
     assert d.frames.shape[1] == 2 and d.t_max[-1] > 25.0
 
 
-def test_other_models_use_an_equivalent_coefficient_and_say_so():
+def test_lumped_and_analytic_do_not_run_with_a_block():
     p = board()
     sim = simulate(p, SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=2.0))
-    assert any("metal block" in w for w in sim.results["lumped"].warnings)
-    assert any("metal block" in w for w in sim.results["analytic"].warnings)
-    assert not any("metal block" in w for w in sim.results["fvm"].warnings)
-    eq = blocks.plain_equivalent(p)
-    assert not eq.heatsinks[0].is_block() and eq.heatsinks[0].h_extra >= 0 and p.heatsinks[0].is_block()
+    assert list(sim.results) == ["fvm", "fdm"]                                  # The two simple models are left out ...
+    assert any("metal block" in w and "lumped" in w and "analytic" in w for w in sim.warnings)         # ... with a warning that names them
     assert "Metal block" in sim.report()
-    # A model without block layers still conserves energy and cools less than the bare board
-    assert sim.results["lumped"].t_max < fvm.solve_steady(board(False), 2.0).t_max + 30
+    with pytest.raises(ValueError, match="metal block"):                        # Alone they cannot run: the user is told what to select
+        simulate(p, SolverOptions(models=("lumped",), cell_mm=2.0))
+    from pcbthermal import analytic, lumped
+    for module in (lumped, analytic):
+        with pytest.raises(ValueError, match="metal block"):                    # And the models themselves refuse
+            module.solve_steady(p)
+    assert blocks.require_no_blocks(board(False)).heatsinks == board(False).heatsinks
 
 
 def test_checks_warn_about_a_block_without_copper_and_sor_refuses():

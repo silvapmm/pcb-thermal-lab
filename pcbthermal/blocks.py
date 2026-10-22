@@ -134,26 +134,17 @@ def has_blocks(problem):
     return any(s.is_block() for s in problem.heatsinks)
 
 
-def plain_equivalent(problem):
+def require_no_blocks(problem):
     """!
-    @brief The problem with every metal block replaced by a plain heatsink, for the models that do not have blocks (lumped, analytic).
-    @details A block is replaced by the extra coefficient that gives the same heat through the interface and the exposed surface:
-             h_eq = 1 / (R'' + 1 / (h_face + h_extra)) minus the coefficient of the face that the plain heatsink adds to. The spreading in the
-             metal, its mass and the copper fill of the contact are not represented.
+    @brief Refuse a problem with a metal block in the models that cannot represent one (lumped, analytic).
+    @details A block spreads heat sideways in the metal, stores heat, and touches the board only over the copper it overlaps; a network of rings or a cosine series on a
+             uniform board has none of that, and an equivalent coefficient was 10 to 13 % off (docs/validation.md), so these models do not run with a block.
     @param problem A Problem.
-    @return The same Problem if there is no block, otherwise a copy.
-    @throws ValueError If the board has an outline: the lumped and analytic models need a rectangular board.
+    @return The same Problem.
+    @throws ValueError If the problem has a metal block, or an outline polygon (these models need a rectangular board; `simulate` solves the rectangle of the same area).
     """
     if problem.board.has_outline():
         raise ValueError("this model needs a rectangular board: the board has an outline polygon (use the FVM, FDM or the 3D solid)")
-    if not has_blocks(problem):
-        return problem
-    p = copy.deepcopy(problem)
-    b = p.board
-    for s in p.heatsinks:
-        if s.is_block():
-            h_face = b.h_top if (s.layer == 0 or b.layers == 1) else b.h_bottom
-            h_eq = 1.0 / (max(s.interface_resistance(), 1e-7) + 1.0 / exposed_h(s, h_face))
-            s.h_extra, s.thickness = max(h_eq - h_face, 0.0), 0.0
-            s.fin_height = s.fin_thickness = s.fin_pitch = 0.0
-    return p
+    if has_blocks(problem):
+        raise ValueError("this model cannot represent a metal block (spreading, mass, copper overlap): use the FVM, FDM or the 3D solid")
+    return problem

@@ -52,8 +52,8 @@ def test_fin_ratio_follows_the_textbook_formula():
     assert fin_ratio(10.0, s) > 1.0
 
 
-@pytest.mark.parametrize("model", ["fvm", "fdm", "solid3d", "lumped", "analytic"])
-def test_fins_cool_more_than_the_plain_plate_in_every_model(model):
+@pytest.mark.parametrize("model", ["fvm", "fdm", "solid3d"])
+def test_fins_cool_more_than_the_plain_plate_in_every_model_that_has_blocks(model):
     plain = simulate(board(), SolverOptions(models=(model,), cell_mm=1.0)).results[model].t_max
     finned = simulate(board((15.0, 1.5, 8.0)), SolverOptions(models=(model,), cell_mm=1.0)).results[model].t_max
     assert finned < plain - 1.0, (model, plain, finned)

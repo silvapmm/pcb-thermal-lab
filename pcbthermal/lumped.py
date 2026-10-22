@@ -247,7 +247,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     @param cell_mm Raster size (mm) used to aggregate the real geometry into rings.
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
     """
-    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
+    blocks.require_no_blocks(problem)                            # These models have no metal blocks
     problem.validate()
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
@@ -381,7 +381,7 @@ def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_st
     @param theta_scheme 0.5 (Crank-Nicolson) or 1.0 (implicit Euler).
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
-    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
+    blocks.require_no_blocks(problem)                            # These models have no metal blocks
     net, systems = _unit_networks(problem, rings, cell_mm)
     if t_end is None:
         t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
@@ -525,5 +525,5 @@ def run_profile(problem, decisions, options, rings=10, cell_mm=1.0, progress=Non
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
-    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
+    blocks.require_no_blocks(problem)                            # These models have no metal blocks
     return profiles.run_windows(problem, decisions, options, _LumpedAdapter(problem, rings, cell_mm), "lumped", progress)

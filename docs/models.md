@@ -105,7 +105,7 @@ lateral conductance `k·t` per cell, heat capacity `ρ·c·t` (time simulation),
 and an exposed surface to the air `G = (h_face + h_extra)(A + t·L_edge)` (top or bottom coefficient of the board plus the heatsink's extra h, sides included). The heat therefore enters the block **where the block overlaps copper** (the intersection of the two planes);
 over bare laminate it must also cross the FR-4. The board face under the block no longer loses heat on its own. The block is taken as an isotropic plate with no gradient across its thickness (thin blocks; a 1 to 10 mm aluminium or copper plate is within 0.6 % of a 3D solid).
 `block_stats` and the report give its mean and maximum temperature and the heat entering and leaving; the Temperature tab has a "Metal block" view. A heatsink with thickness 0 stays the plain extra coefficient.
-Lumped and Analytic have no block: they use the equivalent plain coefficient `1/(R'' + 1/(h+h_extra))` and warn. SOR does not support blocks (direct and CG do). `python -m pcbthermal example block` runs the example board with a block.
+**Lumped and Analytic do not run with a block** (they are left out with a warning, and greyed in the Models panel while the board has one): the finite-volume models are the ones that can represent the spreading in the metal, its mass and the copper overlap. SOR does not support blocks (direct and CG do). `python -m pcbthermal example block` runs the example board with a block.
 
 ### 2.7 3D solid (finite volumes in three dimensions) (theory §4)
 

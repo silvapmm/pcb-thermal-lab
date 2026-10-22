@@ -222,7 +222,7 @@ A heatsink with `thickness > 0` is a plate of metal (conductivity `k`, heat capa
 
 `f` is the copper fill of the board layer there and `d_h` half a layer slab: **the heat enters the block mostly where the block overlaps copper** (the intersection of the two planes) through `R''`; over bare laminate it must also cross the FR-4 (a much larger resistance). The block is an isotropic plate without gradient across its thickness (valid while
 `h t/k` is small: aluminium or copper from 1 to 10 mm are within 0.6 % of the 3D solid); cells with no block have `10⁻⁹ W/K` to the ambient. The plate model reproduces the published spreading resistance of a small source on a plate within 4.5 % (Lee, Song, Au and Moran).
-**Lumped and Analytic have no blocks**: the block is replaced by the plain extra coefficient that gives the same heat through the interface and the exposed surface, `h_eq = 1/(R'' + 1/(h_face + h_extra))` (minus `h_face`), and the result carries a warning. SOR does not support blocks.
+**Lumped and Analytic do not run with a block** (decision of 2026-10-22): a network of rings or a cosine series on a uniform board cannot represent the spreading in the metal, the mass or the copper overlap, and the equivalent coefficient `h_eq = 1/(R'' + 1/(h_face + h_extra))` that was used before was 10 to 13 % off; `simulate` leaves them out with a warning and the models themselves raise an error. SOR does not support blocks.
 
 ## 8. Heat transfer coefficients: convection and radiation
 
