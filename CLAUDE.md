@@ -155,7 +155,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 
 ## Branches and Versions
 
-- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.0** (2026-10-22).
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.1** (2026-10-22).
 - `develop`: integration branch for the next version; feature work branches off it (`feature/<topic>`) and merges back when it is solid.
 - Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
@@ -213,6 +213,7 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 
 Record important decisions here, newest first, with date and reason.
 
+- 2026-10-22: **Released 2.4.1** (licensing only: the MIT text aligned in README, About box and CLAUDE.md after 2.4.0 had been tagged with the old text); `develop` merged into `main`, tag `v2.4.1`.
 - 2026-10-22: License decision (maintainer): the project stays MIT. README, CLAUDE.md, the About box and the roadmap were aligned with `LICENSE` (they said "All rights reserved"). A paid or proprietary model is not decided; if it comes, versions up to v2.4.0 stay MIT (old releases cannot be revoked) and the change applies from a later version.
 - 2026-10-22: Read FYPA (Tomachie fork), padne and altium_monkey for ideas (roadmap section 6, ideas 11 to 20): pass/fail checks with an exit code, result cache, regulator losses from efficiency, parameters in the CAD files with a sidecar, the electrical solution as heat source, probes, ParaView export, release automation, a visible disclaimer. All three are AGPL-3.0 and the project is MIT: ideas only, no code copied. WebFetch worked for github.com on this occasion (it failed for other hosts).
 - 2026-10-21: The interface between a heatsink and the board or the package is **one dielectric sheet with its own material and thickness** (`pad_thickness`, `pad_k`; the resistance t/k replaces the typed value when both are set). Roadmap section 6 collects the ideas found in similar projects (KiCad thermal plug-ins, pcb-sim-toolkit, electro-thermal simulators, commercial tools): KiCad import, power list from a BOM, electro-thermal (Joule) coupling, thermal-via tools, sweeps, component library, reports.
