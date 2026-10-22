@@ -159,3 +159,22 @@ def test_x2_attributes_and_the_layer_guess(tmp_path):
         f = tmp_path / name
         f.write_text(HEAD + "M02*\n")
         assert ng.classify(f) == expected, name
+
+
+def test_macro_comment_statement(tmp_path):
+    """!@brief A macro comment primitive ("0 text", no comma) is skipped. @param tmp_path pytest temp dir. @return None."""
+    t = HEAD + "%AMBOX*0 a comment*21,1,2.0,1.0,0,0,0*%\n%ADD10BOX*%\nD10*\n" + xy(10, 15, 3) + "M02*\n"
+    assert area(t, tmp_path) == pytest.approx(2.0, rel=0.02)
+
+
+def test_region_after_an_arc_region_starts_straight(tmp_path):
+    """!@brief A square region that follows a region closed with a G03 arc is a square (the interpolation mode is reset). @param tmp_path pytest temp dir. @return None."""
+    circle = "G36*\n" + xy(5, 5, 2) + "G03*\nX" + mm(5) + "Y" + mm(5) + "I" + mm(2) + "J0D01*\nG37*\n"
+    square = "G36*\n" + xy(15, 15, 2) + xy(18, 15, 1) + xy(18, 18, 1) + xy(15, 18, 1) + xy(15, 15, 1) + "G37*\n"
+    assert area(HEAD + circle + square + "M02*\n", tmp_path) == pytest.approx(math.pi * 4.0 + 9.0, rel=0.02)
+
+
+def test_nonstandard_aperture_is_reported_as_unsupported(tmp_path):
+    """!@brief A CAD-specific aperture shape raises NotImplementedError, not a file error. @param tmp_path pytest temp dir. @return None."""
+    with pytest.raises(NotImplementedError):
+        ng.Layer(HEAD + "%ADD13Rect-W1650000-H1650000-RO1.500*%\nM02*\n")

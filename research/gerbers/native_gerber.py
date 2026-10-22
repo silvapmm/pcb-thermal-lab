@@ -498,7 +498,8 @@ class Layer:
                             args = [float(v) for v in re.split(r"[xX]", par)] if par else []
                             self.apertures[num] = Aperture("M", [], [q for q in (_macro_primitive(*pr) for pr in macros[name](args, unit)) if q])
                         else:
-                            raise GerberError(f"unknown aperture shape {name}")
+                            # Some CAD tools (Upverter) write their own shapes such as "Rect-W..-H..": reported as unsupported, not as a broken file
+                            raise NotImplementedError(f"aperture shape {name} (non-standard) is not supported")
                     elif cmd.startswith("AM"):
                         # The macro body follows in the same extended command: statements separated by *
                         parts = [c.strip() for c in body.split("*") if c.strip()]
@@ -556,6 +557,7 @@ class Layer:
                         if contour:
                             self.ops.append(("region", dark, np.array(contour)))
                         in_region, contour = False, []
+                        mode = "G01"                                       # a region may end in a G03 arc; the next one starts straight (as other readers do)
                 elif letter == "X":
                     nx_ = _number(val, *fmt) * unit
                 elif letter == "Y":
@@ -635,6 +637,8 @@ class Layer:
                 if st.startswith("$"):                                       # variable definition $n=expression
                     n, ex = st.split("=", 1)
                     var[int(n[1:])] = _eval(ex, var)
+                    continue
+                if re.match(r"\s*0(\s|$)", st):                              # comment primitive "0 text" (no comma)
                     continue
                 parts = st.split(",")
                 code = int(parts[0])
