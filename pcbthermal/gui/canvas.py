@@ -8,12 +8,14 @@ coordinates are the board coordinates the physics core uses.
 
 import numpy as np
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import (QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
+from PySide6.QtGui import (QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
                            QTransform)
 from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPolygonItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
-                               QStyle)
+                               QMenu, QStyle)
 
+from .. import defaults
+from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
@@ -34,6 +36,30 @@ def _is_axis_aligned_rect(pts):
     return True
 
 
+def _clamped_position(item, value):
+    """!
+    @brief Position for a dragged item: snapped to the grid and kept inside the board.
+    @details The shape of the item (in its own coordinates) must stay inside the board rectangle, so a part, a zone or a via cannot be dragged off the board.
+    @param item ElementItem or ViaItem being moved (has `origin`, the position at which its shape is at the document coordinates).
+    @param value The position proposed by Qt (QPointF).
+    @return QPointF to apply.
+    """
+    view = item.view
+    x, y = value.x(), value.y()
+    if view.snap > 0:
+        s = view.snap
+        x, y = round(x / s) * s, round(y / s) * s
+    b = view.doc.problem.board
+    box = item.polygon().boundingRect() if hasattr(item, "polygon") else item.rect()      # Geometry only, without the pen
+    # Allowed range of the position: the shape's bounding box must lie in [0, W] x [0, H] (mm)
+    lo_x, hi_x = -box.left(), b.width * 1000.0 - box.right()
+    lo_y, hi_y = -box.top(), b.height * 1000.0 - box.bottom()
+    # A shape larger than the board cannot be placed inside it: it stays where it is
+    x = min(max(x, lo_x), hi_x) if lo_x <= hi_x + 1e-9 else item.origin.x()
+    y = min(max(y, lo_y), hi_y) if lo_y <= hi_y + 1e-9 else item.origin.y()
+    return QPointF(x, y)
+
+
 class ElementItem(QGraphicsPolygonItem):
     """!
     @brief A zone, heater or heatsink polygon on the canvas.
@@ -50,6 +76,7 @@ class ElementItem(QGraphicsPolygonItem):
         """
         super().__init__(QPolygonF([QPointF(x, y) for x, y in polygon_mm]))
         self.view, self.kind, self.index, self.layer = view, kind, index, layer
+        self.origin = QPointF(0.0, 0.0)                 # The polygon holds absolute coordinates: a move is the position
         self.setFlags(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable |
                       QGraphicsItem.ItemSendsGeometryChanges)
         self.label = None
@@ -88,9 +115,8 @@ class ElementItem(QGraphicsPolygonItem):
         @param value The value proposed by Qt (a QPointF position or the new selection state).
         @return The value Qt should apply (the position is snapped to the grid while dragging).
         """
-        if change == QGraphicsItem.ItemPositionChange and self.view.snap > 0 and self.scene() is not None:
-            s = self.view.snap
-            return QPointF(round(value.x() / s) * s, round(value.y() / s) * s)
+        if change == QGraphicsItem.ItemPositionChange and self.scene() is not None and not self.view._rebuilding:
+            return _clamped_position(self, value)
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.restyle()
         return super().itemChange(change, value)
@@ -122,6 +148,7 @@ class ViaItem(QGraphicsEllipseItem):
         r = max(diameter_mm / 2.0, 0.3)
         super().__init__(-r, -r, 2 * r, 2 * r)
         self.view, self.kind, self.index, self.layer = view, "via", index, -1
+        self.origin = QPointF(x_mm, y_mm)               # Its position is absolute: a move is the position minus this origin
         self.setPos(x_mm, y_mm)
         self.setFlags(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable |
                       QGraphicsItem.ItemSendsGeometryChanges)
@@ -146,9 +173,8 @@ class ViaItem(QGraphicsEllipseItem):
         @param value The value proposed by Qt (a QPointF position or the new selection state).
         @return The value Qt should apply (the position is snapped to the grid while dragging).
         """
-        if change == QGraphicsItem.ItemPositionChange and self.view.snap > 0 and self.scene() is not None:
-            s = self.view.snap
-            return QPointF(round(value.x() / s) * s, round(value.y() / s) * s)
+        if change == QGraphicsItem.ItemPositionChange and self.scene() is not None and not self.view._rebuilding:
+            return _clamped_position(self, value)
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.restyle()
         return super().itemChange(change, value)
@@ -177,8 +203,10 @@ class VertexHandle(QGraphicsRectItem):
         """
         super().__init__(-4, -4, 8, 8)
         self.view, self.index = view, index
-        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIgnoresTransformations |
-                      QGraphicsItem.ItemSendsGeometryChanges)
+        # Not ItemIsMovable: Qt moves every selected movable item with the one that is dragged, which dragged the whole selected polygon along with its handle.
+        # The handle follows the mouse by itself (mouseMoveEvent) and only reshapes the polygon.
+        self.setFlags(QGraphicsItem.ItemIgnoresTransformations | QGraphicsItem.ItemSendsGeometryChanges)
+        self.setAcceptedMouseButtons(Qt.LeftButton)
         self.setBrush(QBrush(QColor("white")))
         pen = QPen(QColor("#4c8dff"))
         pen.setWidthF(1.5)
@@ -202,6 +230,21 @@ class VertexHandle(QGraphicsRectItem):
                 self.view._handle_moved(self.index, value)
         return super().itemChange(change, value)
 
+    def mousePressEvent(self, event):
+        """!
+        @brief Take the click so the polygon under the handle is not dragged or reselected.
+        @param event QGraphicsSceneMouseEvent of the press.
+        """
+        event.accept()
+
+    def mouseMoveEvent(self, event):
+        """!
+        @brief Follow the mouse; itemChange snaps the position and reshapes the polygon live.
+        @param event QGraphicsSceneMouseEvent of the move.
+        """
+        self.setPos(event.scenePos())
+        event.accept()
+
     def mouseReleaseEvent(self, event):
         """!
         @brief Commit the new polygon when the drag ends.
@@ -221,7 +264,7 @@ class BoardView(QGraphicsView):
     message = Signal(str)                  # status text
     element_created = Signal(str, int)     # kind, index
 
-    TOOLS = ("select", "zone", "heater", "heatsink", "via")
+    TOOLS = ("select", "zone", "heater", "heatsink", "via", "outline")
 
     def __init__(self, doc, theme="dark", parent=None):
         """!
@@ -245,7 +288,7 @@ class BoardView(QGraphicsView):
 
         self.tool, self.polygon_mode, self.layer = "select", False, 0
         self.snap, self.show_grid, self.show_solver_grid, self.solver_cell = 1.0, True, False, 1.0
-        self.via_diameter = 0.3
+        self.via_diameter = None                    # None: the default via diameter of the user's defaults
         self._space = self._panning = self._external = self._rebuilding = False
         self._handle_lock = False
         self._pan_last = QPointF()
@@ -281,7 +324,8 @@ class BoardView(QGraphicsView):
                  "zone": "Zone: drag a rectangle (or click points in polygon mode).",
                  "heater": "Heater: drag a rectangle (or click points in polygon mode).",
                  "heatsink": "Heatsink: drag a rectangle on the top or bottom layer.",
-                 "via": "Via: click to place."}
+                 "via": "Via: click to place.",
+                 "outline": "Board outline: drag a rectangle or click the vertices (polygon mode); the board takes that shape. Esc cancels."}
         self.message.emit(hints[tool])
 
     def set_layer(self, layer):
@@ -558,11 +602,25 @@ class BoardView(QGraphicsView):
         b = self.doc.problem.board
         W, H = b.width * 1000.0, b.height * 1000.0
         board = QRectF(0, 0, W, H)
-        painter.fillRect(board, QColor(c["board"]))
+        path = None
+        if b.has_outline():
+            path = QPainterPath()
+            path.addPolygon(QPolygonF([QPointF(x * 1000.0, y * 1000.0) for x, y in b.outline]))
+            path.closeSubpath()
+            dash = QPen(QColor(c["muted"]), 0, Qt.DashLine)           # The box the outline sits in
+            dash.setCosmetic(True)
+            painter.setPen(dash)
+            painter.drawRect(board)
+            painter.fillPath(path, QColor(c["board"]))
+        else:
+            painter.fillRect(board, QColor(c["board"]))
         scale = abs(self.transform().m11())
         vis = rect.intersected(board)
         if vis.isEmpty():
             return
+        if path is not None:
+            painter.save()
+            painter.setClipPath(path)
         if self.show_grid:
             step = next((s for s in _GRID_STEPS if s * scale >= 14), _GRID_STEPS[-1])
             for width_step, key in ((step, "grid_minor"), (step * 5, "grid_major")):
@@ -588,12 +646,90 @@ class BoardView(QGraphicsView):
                 painter.setPen(pen)
                 painter.drawLines([QLineF(i * W / nx, 0, i * W / nx, H) for i in range(nx + 1)] +
                                   [QLineF(0, j * H / ny, W, j * H / ny) for j in range(ny + 1)])
+        if path is not None:
+            painter.restore()
         pen = QPen(QColor(c["accent"]))
         pen.setCosmetic(True)
         pen.setWidthF(1.5)
         painter.setPen(pen)
         painter.setBrush(Qt.NoBrush)
-        painter.drawRect(board)
+        if path is not None:
+            painter.drawPath(path)
+        else:
+            painter.drawRect(board)
+
+    def paintEvent(self, e):
+        """!
+        @brief Paint the scene, then the rulers on top of it.
+        @param e QPaintEvent.
+        """
+        super().paintEvent(e)
+        painter = QPainter(self.viewport())
+        try:
+            self._paint_rulers(painter)
+        finally:
+            painter.end()
+
+    def _paint_rulers(self, painter):
+        """!
+        @brief Rulers along the top and left edges (board millimetres) and a scale bar, adapted to the zoom.
+        @details The tick spacing is the smallest step from 1-2-5 series that leaves at least 60 pixels between labelled ticks, so the scale
+                 is readable at every zoom; the rulers always show the coordinates of the board, not of the window.
+        @param painter QPainter on the viewport.
+        """
+        c = th.colors(self.theme)
+        scale = abs(self.transform().m11())                 # Pixels per millimetre
+        if scale <= 0:
+            return
+        size = 18
+        w, h = self.viewport().width(), self.viewport().height()
+        bg = QColor(c["canvas"])
+        bg.setAlpha(225)
+        fg = QColor(c["text"])
+        painter.setRenderHint(QPainter.Antialiasing, False)
+        painter.fillRect(0, 0, w, size, bg)
+        painter.fillRect(0, 0, size, h, bg)
+        painter.setPen(QPen(fg))
+        font = painter.font()
+        font.setPointSizeF(7.5)
+        painter.setFont(font)
+        step = next((s for s in (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000) if s * scale >= 60), 1000)
+        minor = step / 5.0 if step * scale >= 100 else step / 2.0
+        origin = self.mapFromScene(QPointF(0.0, 0.0))        # Pixel of the board corner (0, 0)
+        # Horizontal ruler: x grows to the right
+        x0, x1 = (0 - origin.x()) / scale, (w - origin.x()) / scale
+        k = int(np.floor(x0 / minor))
+        while k * minor <= x1:
+            v = k * minor
+            px = origin.x() + v * scale
+            major = abs(v / step - round(v / step)) < 1e-6
+            painter.drawLine(int(px), size - (9 if major else 4), int(px), size)
+            if major and px > size:
+                painter.drawText(int(px) + 2, 10, f"{v:g}")
+            k += 1
+        # Vertical ruler: y grows upward in the board, downward on the screen
+        y_top, y_bot = (origin.y() - 0) / scale, (origin.y() - h) / scale      # Board y at the top and bottom of the window
+        k = int(np.floor(y_bot / minor))
+        while k * minor <= y_top:
+            v = k * minor
+            py = origin.y() - v * scale
+            major = abs(v / step - round(v / step)) < 1e-6
+            painter.drawLine(size - (9 if major else 4), int(py), size, int(py))
+            if major and py > size:
+                painter.save()
+                painter.translate(11, int(py) - 2)
+                painter.rotate(-90)
+                painter.drawText(0, 0, f"{v:g}")
+                painter.restore()
+            k += 1
+        painter.drawText(2, 12, "mm")
+        # Scale bar at the bottom left
+        bar = step * scale
+        x, y = size + 12, h - 14
+        painter.drawLine(int(x), y, int(x + bar), y)
+        painter.drawLine(int(x), y - 4, int(x), y + 4)
+        painter.drawLine(int(x + bar), y - 4, int(x + bar), y + 4)
+        painter.drawText(int(x + bar / 2 - 18), y - 6, f"{step:g} mm")
 
     # ------------------------------------------------------------------ mouse and keys
     def _snapped(self, p):
@@ -630,6 +766,122 @@ class BoardView(QGraphicsView):
                 self._draw_start = p
             return
         super().mousePressEvent(e)
+
+    # ------------------------------------------------------------------ context menu
+    @staticmethod
+    def default_size_mm(kind):
+        """!
+        @brief Side of the square shape dropped from the right-click menu, from the user's defaults.
+        @param kind "heater", "zone" or "heatsink".
+        @return Side in mm.
+        """
+        return float(defaults.load()["new_elements"][f"{kind}_size_mm"])
+
+    def contextMenuEvent(self, e):
+        """!
+        @brief Right click: edit the vertices of the shape under the cursor, or add an element on an empty spot.
+        @param e QContextMenuEvent.
+        """
+        if self.tool != "select" or self._poly_pts or self._draw_start is not None:
+            e.accept()
+            return
+        menu = self.build_context_menu(self.mapToScene(e.pos()))
+        if menu is not None:
+            menu.exec(e.globalPos())
+        e.accept()
+
+    def build_context_menu(self, scene_pt):
+        """!
+        @brief The right-click menu for a point of the board.
+        @details On a polygon (zone, heater, heatsink): add a vertex on the nearest edge, delete the vertex under the cursor (three stay at least), duplicate and delete the
+                 element. On a via: duplicate and delete. On an empty spot: add a heater, zone, heatsink or via centred there. The element under the cursor is selected first.
+        @param scene_pt QPointF in mm.
+        @return QMenu with the actions, or None when the point is outside every element and outside the board.
+        """
+        tol = 8.0 / max(abs(self.transform().m11()), 1e-9)                       # Eight pixels in mm
+        # Several elements can lie under the cursor (a full-board zone below a part below a via): the smallest kind wins
+        rank = {"via": 0, "heater": 1, "heatsink": 2, "zone": 3}
+        under = sorted((it for it in self.items(self.mapFromScene(scene_pt)) if hasattr(it, "kind")), key=lambda it: rank.get(it.kind, 9))
+        target = under[0] if under else None
+        menu = QMenu(self)
+        if target is not None:
+            self.set_selection([(target.kind, target.index)])
+            self.selection_changed.emit(self.selected_elements())
+            kind, i = target.kind, target.index
+            if kind != "via":
+                pts = self.doc.polygon_mm(getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[i])
+                add = menu.addAction("Add a vertex here")
+                add.setToolTip("Adds a point on the nearest edge; drag it to reshape the polygon.")
+                add.triggered.connect(lambda: self.add_vertex(kind, i, (scene_pt.x(), scene_pt.y())))
+                k, d = nearest_vertex(pts, (scene_pt.x(), scene_pt.y()))
+                dele = menu.addAction("Delete this vertex")
+                dele.setToolTip("Removes the vertex under the cursor; a polygon keeps at least three.")
+                dele.setEnabled(d <= tol * 1.5 and len(pts) > 3)
+                dele.triggered.connect(lambda: self.remove_vertex(kind, i, k))
+                menu.addSeparator()
+            dup = menu.addAction("Duplicate")
+            dup.triggered.connect(lambda: self.set_selection(self.doc.duplicate([(kind, i)])))
+            rem = menu.addAction(f"Delete {kind}")
+            rem.triggered.connect(lambda: self.doc.delete([(kind, i)]))
+            menu.addSeparator()
+        b = self.doc.problem.board
+        if not (0 <= scene_pt.x() <= b.width * 1000.0 and 0 <= scene_pt.y() <= b.height * 1000.0):
+            return menu if target is not None else None
+        p = self._snapped(scene_pt)
+        if target is None:
+            self.scene().clearSelection()
+        # On an element the new-element entries sit in a submenu; on an empty spot they are the menu
+        add_to = menu.addMenu("Add here") if target is not None else menu
+        for new_kind in ("heater", "zone", "heatsink"):                      # Not `kind`: the lambdas above close over it
+            act = add_to.addAction(f"Add {new_kind} here")
+            act.triggered.connect(lambda _c=False, k=new_kind: self.add_centered(k, p))
+        act = add_to.addAction("Add via here")
+        act.triggered.connect(lambda: self.element_created.emit("via", self.doc.add_via(p.x(), p.y(), self.via_diameter)))
+        return menu
+
+    def add_centered(self, kind, centre):
+        """!
+        @brief Drop a square heater, zone or heatsink centred on a point (kept inside the board).
+        @param kind "heater", "zone" or "heatsink".
+        @param centre QPointF in mm.
+        """
+        b = self.doc.problem.board
+        s = min(self.default_size_mm(kind), b.width * 1000.0, b.height * 1000.0)
+        x0 = min(max(centre.x() - s / 2, 0.0), b.width * 1000.0 - s)
+        y0 = min(max(centre.y() - s / 2, 0.0), b.height * 1000.0 - s)
+        self._create(kind, [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]])
+
+    def add_vertex(self, kind, index, point_mm):
+        """!
+        @brief Add a vertex on the edge of a shape nearest to a point.
+        @param kind "zone", "heater" or "heatsink".
+        @param index Element index.
+        @param point_mm (x, y) in mm.
+        """
+        el = getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[index]
+        pts, _ = insert_vertex(self.doc.polygon_mm(el), point_mm)
+        self.doc.set_polygon(kind, index, pts)
+        self.set_selection([(kind, index)])
+        self.message.emit("Vertex added: drag its handle to reshape the polygon.")
+
+    def remove_vertex(self, kind, index, vertex):
+        """!
+        @brief Delete one vertex of a shape (a polygon keeps at least three).
+        @param kind "zone", "heater" or "heatsink".
+        @param index Element index.
+        @param vertex Vertex index.
+        """
+        el = getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks"}[kind])[index]
+        pts = self.doc.polygon_mm(el)
+        if len(pts) <= 3:
+            self.message.emit("A polygon needs at least three vertices.")
+            return
+        new = np.delete(pts, vertex, axis=0)
+        if not polygon_is_simple(new):
+            self.message.emit("Not deleted: the polygon would cross itself.")
+            return
+        self.doc.set_polygon(kind, index, new)
+        self.set_selection([(kind, index)])
 
     def mouseDoubleClickEvent(self, e):
         """!
@@ -690,10 +942,15 @@ class BoardView(QGraphicsView):
             return
         super().mouseReleaseEvent(e)
         if self.tool == "select" and e.button() == Qt.LeftButton:
-            moved = [it for it in self.scene().selectedItems() if hasattr(it, "kind") and not it.pos().isNull()]
+            moved = [it for it in self.scene().selectedItems() if hasattr(it, "kind") and it.pos() != it.origin]
             if moved:
-                d = moved[0].pos()
-                self.doc.move([(it.kind, it.index) for it in moved], d.x(), d.y())
+                # Each item reports its own shift (a via's position is absolute, a polygon's is relative)
+                shifts = {}
+                for it in moved:
+                    d = it.pos() - it.origin
+                    shifts.setdefault((round(d.x(), 9), round(d.y(), 9)), []).append((it.kind, it.index))
+                for (dx, dy), group in shifts.items():
+                    self.doc.move(group, dx, dy)
 
     def keyPressEvent(self, e):
         """!
@@ -740,6 +997,14 @@ class BoardView(QGraphicsView):
         @param polygon_mm Vertices in mm.
         """
         layer = self.layer
+        if kind == "outline":
+            b = self.doc.problem.board
+            pts = np.clip(np.asarray(polygon_mm, dtype=float), [0.0, 0.0], [b.width * 1000.0, b.height * 1000.0])
+            if len(pts) < 3:
+                return
+            self.doc.set_outline(pts.tolist())
+            self.message.emit("Board outline set. Edit its vertices in the Board panel; the cells outside it are not solved.")
+            return
         if kind == "heatsink":
             last = self.doc.problem.board.layers - 1
             if layer not in (0, last):

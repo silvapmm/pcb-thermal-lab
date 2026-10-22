@@ -13,10 +13,12 @@ from typing import List, Optional
 import copy
 import json
 import math
+import os
 
 import numpy as np
 
-from .geometry import polygon_area
+from . import defaults
+from .geometry import coverage_fraction, polygon_area, polygon_is_simple
 
 
 @dataclass
@@ -33,6 +35,115 @@ class Materials:
     k_fr4_inplane: float = 0.9        # FR-4 conductivity along the plane (W/mK)
     rho_fr4: float = 1850.0           # FR-4 density (kg/m3)
     cp_fr4: float = 900.0             # FR-4 specific heat (J/kgK)
+
+
+@dataclass
+class Dielectric:
+    """!
+    @brief One dielectric layer (core or prepreg) between two adjacent copper layers, for the advanced stack-up.
+    @details The properties are those of the material in the thickness direction (k_through) and along the plane (k_inplane).
+    """
+    thickness: float = 0.3e-3         # Thickness (m)
+    name: str = "FR-4 (standard)"     # Material label (a DIELECTRICS entry or free text)
+    k_through: float = 0.3            # Conductivity across the thickness (W/mK)
+    k_inplane: float = 0.9            # Conductivity along the plane (W/mK)
+    rho: float = 1850.0               # Density (kg/m3)
+    cp: float = 900.0                 # Specific heat (J/kgK)
+
+
+# Typical dielectric materials, (label, k_through W/mK, k_inplane W/mK, rho kg/m3, cp J/kgK). Indicative values, always editable. They come from pcbthermal/data/defaults.json
+# (and the user's file, see defaults.py); the lists are filled by reload_libraries() at the end of this module and refilled in place when the user changes them.
+DIELECTRICS = []
+
+
+STACKUP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "stackups.json")   # Typical stack-ups by layer count (shipped; the user can put their own in the configuration folder)
+_STACKUP_CACHE = {}
+
+
+def load_stackup_templates(path=None):
+    """!
+    @brief The typical stack-up templates read from the JSON file (cached).
+    @param path File path (default: the file shipped with the package, `pcbthermal/data/stackups.json`).
+    @return Dict with the keys description, notes, sources and templates ({"2": {...}, "4": {...}, ...}).
+    @throws ValueError If the file is not a valid template file.
+    """
+    path = path or defaults.stackup_file()
+    stamp = (path, os.path.getmtime(path))
+    if _STACKUP_CACHE.get("stamp") != stamp:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if "templates" not in data or not isinstance(data["templates"], dict):
+            raise ValueError(f"{path}: no 'templates' table")
+        for key, t in data["templates"].items():
+            n = int(key)
+            if len(t.get("copper_um", [])) != n or (t.get("mode") == "advanced" and len(t.get("dielectrics", [])) != n - 1):
+                raise ValueError(f"{path}: template {key} needs {n} copper layers and {n - 1} dielectrics")
+        _STACKUP_CACHE.update(stamp=stamp, data=data)
+    return _STACKUP_CACHE["data"]
+
+
+def combine_sheets(sheets):
+    """!
+    @brief One dielectric gap that is made of several sheets in a row (for example a prepreg and a core, or two prepreg plies of different glass styles).
+    @details The sheets are in series for the heat that crosses the board and side by side for the heat that spreads along it:
+             through the thickness k = sum(t_i) / sum(t_i / k_i) (resistances add), in the plane k = sum(t_i k_i) / sum(t_i) (conductances add),
+             density the thickness-weighted mean, specific heat the mass-weighted mean. The thickness is the pressed thickness after lamination.
+    @param sheets List of dicts with thickness_um and material (a DIELECTRICS label); an optional k_through, k_inplane, rho and cp override the preset.
+    @return A Dielectric (name: the materials joined by " + ").
+    @throws ValueError If there is no sheet or a thickness is not positive.
+    """
+    if not sheets:
+        raise ValueError("a gap needs at least one sheet")
+    rows = []
+    for sh in sheets:
+        p = next((d for d in DIELECTRICS if d[0] == sh.get("material")), DIELECTRICS[0])
+        t = float(sh["thickness_um"]) * 1e-6
+        if t <= 0:
+            raise ValueError("every sheet needs a positive thickness")
+        rows.append((t, sh.get("k_through", p[1]), sh.get("k_inplane", p[2]), sh.get("rho", p[3]), sh.get("cp", p[4]), p[0]))
+    total = sum(r[0] for r in rows)
+    k_through = total / sum(r[0] / r[1] for r in rows)
+    k_inplane = sum(r[0] * r[2] for r in rows) / total
+    mass = sum(r[0] * r[3] for r in rows)
+    names = []
+    for r in rows:
+        if r[5] not in names:
+            names.append(r[5])
+    return Dielectric(total, " + ".join(names), k_through, k_inplane, mass / total, sum(r[0] * r[3] * r[4] for r in rows) / mass)
+
+
+def _gap_thickness_um(d):
+    """!
+    @brief Thickness in micrometres of a dielectric entry of a template (a single sheet or a list of sheets).
+    @param d Entry of the template's dielectrics.
+    @return Thickness in um.
+    """
+    return sum(s["thickness_um"] for s in d["sheets"]) if "sheets" in d else d["thickness_um"]
+
+
+def stackup_template(layers, path=None):
+    """!
+    @brief The typical stack-up for a number of copper layers.
+    @details The entry of the JSON file for that count; for a count that is not listed (3, 5, 7, ...) a generic one: 35 um outer copper, 15.2 um inner copper
+             and equal gaps that bring the board to the total thickness of the largest listed template with fewer layers.
+    @param layers Number of copper layers.
+    @param path Template file (default: the shipped one).
+    @return Dict with name, mode ("simple" or "advanced"), copper_um (list), dielectrics (list of dicts kind, thickness_um, material) and total_thickness_um.
+    """
+    data = load_stackup_templates(path)["templates"]
+    t = data.get(str(layers))
+    if t is not None:
+        out = copy.deepcopy(t)
+        out.setdefault("mode", "advanced")
+        out["total_thickness_um"] = out.get("total_thickness_um", sum(out["copper_um"]) + sum(_gap_thickness_um(d) for d in out["dielectrics"]))
+        return out
+    below = max((int(k) for k in data if int(k) < layers), default=min(int(k) for k in data))
+    ref = stackup_template(below, path)
+    copper = [35.0] + [15.2] * max(layers - 2, 0) + [35.0] if layers > 1 else [35.0]
+    gap = (ref["total_thickness_um"] - sum(copper)) / (layers - 1) if layers > 1 else 0.0
+    return {"name": f"{layers} layers, {ref['total_thickness_um'] / 1000:g} mm (generic: equal gaps)", "mode": "advanced" if layers > 1 else "simple",
+            "copper_um": copper, "total_thickness_um": ref["total_thickness_um"],
+            "dielectrics": [{"kind": "dielectric", "thickness_um": gap, "material": "FR-4 (standard)"} for _ in range(layers - 1)]}
 
 
 @dataclass
@@ -54,9 +165,156 @@ class Board:
     emissivity_top: float = 0.9                 # Emissivity of the top face (computed mode; solder mask about 0.9)
     emissivity_bottom: float = 0.9              # Emissivity of the bottom face (computed mode)
     air_speed: float = 0.0                      # Air speed along the board in m/s (computed mode; 0 = natural convection)
-    orientation: str = "horizontal"             # "horizontal" (top face up) or "vertical" (computed mode)
+    orientation: str = "horizontal"             # "horizontal" (layer 1 is the top face and looks up, the last layer looks down) or "vertical" (on its edge); computed mode
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
+    dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
+    outline: Optional[np.ndarray] = field(default=None, compare=False)   # Board outline (n, 2) in metres inside the width x height box; None = the whole rectangle
+
+    def apply_template(self, path=None):
+        """!
+        @brief Load the typical stack-up of the current number of layers (copper and dielectrics, or total thickness and copper for a simple board).
+        @details Advanced board: copper thickness per layer, one dielectric per gap with the thickness and material of the template (the properties of the
+                 material come from DIELECTRICS), total thickness = their sum. Simple board: total thickness of the template and the outer copper thickness on every layer.
+        @param path Template file (default: the shipped one).
+        @return The template dict used (its name tells which stack-up was loaded).
+        """
+        t = stackup_template(self.layers, path)
+        if self.dielectrics is None or t["mode"] == "simple":
+            if self.dielectrics is not None:
+                self.dielectrics = None                  # A single layer has no gaps to describe
+            self.thickness = t["total_thickness_um"] * 1e-6
+            self.copper_thickness = [t["copper_um"][0] * 1e-6] * self.layers
+            return t
+        self.copper_thickness = [c * 1e-6 for c in t["copper_um"]]
+        self.dielectrics = []
+        for d in t["dielectrics"]:
+            self.dielectrics.append(combine_sheets(d.get("sheets") or [d]))
+        self.thickness = self.total_thickness()
+        return t
+
+    def has_outline(self):
+        """!
+        @brief True when the board is not the full rectangle (an outline polygon is set).
+        @return bool.
+        """
+        return self.outline is not None
+
+    def cover(self, nx, ny, dx, dy, samples=4, minimum=0.01):
+        """!
+        @brief Fraction of every grid cell that lies on the board.
+        @details All ones for a rectangular board; otherwise the coverage of the outline polygon. Cells with less than `minimum` are taken as off the board.
+        @param nx Number of cells along x.
+        @param ny Number of cells along y.
+        @param dx Cell width in metres.
+        @param dy Cell height in metres.
+        @param samples Sub-samples per cell side.
+        @param minimum Smallest coverage kept.
+        @return Array (ny, nx) with values in [0, 1].
+        """
+        if self.outline is None:
+            return np.ones((ny, nx))
+        c = coverage_fraction(self.outline, nx, ny, dx, dy, samples)
+        return np.where(c >= minimum, c, 0.0)
+
+    def board_area(self):
+        """!
+        @brief Area of the board.
+        @return Area in square metres (the polygon area with an outline, width x height otherwise).
+        """
+        return polygon_area(self.outline) if self.outline is not None else self.width * self.height
+
+    def is_advanced(self):
+        """!
+        @brief True when the dielectrics are described one by one (advanced stack-up).
+        @return bool.
+        """
+        return self.dielectrics is not None
+
+    def total_thickness(self):
+        """!
+        @brief Total board thickness: the typed one in simple mode, copper plus dielectrics in advanced mode.
+        @return Thickness in metres.
+        """
+        if self.dielectrics is None:
+            return self.thickness
+        return float(sum(self.copper_thickness) + sum(d.thickness for d in self.dielectrics))
+
+    def make_advanced(self):
+        """!
+        @brief Switch to the advanced stack-up with dielectrics equal to the current simple ones (the same board, now editable per gap).
+        """
+        if self.dielectrics is None and self.layers > 1:
+            m = self.materials
+            gap = self.dielectric_thickness()
+            self.dielectrics = [Dielectric(gap, "FR-4 (standard)", m.k_fr4_through, m.k_fr4_inplane, m.rho_fr4, m.cp_fr4) for _ in range(self.layers - 1)]
+        elif self.dielectrics is None:
+            self.dielectrics = []
+        self.thickness = self.total_thickness()
+
+    def make_simple(self):
+        """!
+        @brief Return to the simple stack-up: equal gaps that share the total thickness, FR-4 of `materials`.
+        """
+        self.thickness = self.total_thickness()
+        self.dielectrics = None
+
+    def gap_thicknesses(self):
+        """!
+        @brief Thickness of every dielectric gap, top to bottom.
+        @return Array of length layers - 1 in metres.
+        """
+        if self.dielectrics is not None:
+            return np.array([d.thickness for d in self.dielectrics], dtype=float)
+        return np.full(max(self.layers - 1, 0), self.dielectric_thickness())
+
+    def gap_properties(self):
+        """!
+        @brief Properties of every dielectric gap, top to bottom.
+        @return Tuple of arrays (k_through, k_inplane, rho_cp) of length layers - 1; rho_cp in J/m3K.
+        """
+        n = max(self.layers - 1, 0)
+        if self.dielectrics is not None:
+            return (np.array([d.k_through for d in self.dielectrics], dtype=float), np.array([d.k_inplane for d in self.dielectrics], dtype=float),
+                    np.array([d.rho * d.cp for d in self.dielectrics], dtype=float))
+        m = self.materials
+        return np.full(n, m.k_fr4_through), np.full(n, m.k_fr4_inplane), np.full(n, m.rho_fr4 * m.cp_fr4)
+
+    def slab_thicknesses(self):
+        """!
+        @brief Thickness represented by every layer node: copper plus the part of the dielectric around it.
+        @details Simple stack-up: the total thickness shared equally among the layers (the original model). Advanced: the copper plus half of each
+                 adjacent gap, so the slabs add up to the total thickness.
+        @return Array of length layers in metres.
+        """
+        L = self.layers
+        if self.dielectrics is None:
+            return np.full(L, self.thickness / L)
+        d = self.gap_thicknesses()
+        half = np.zeros(L)
+        half[:-1] += d / 2.0
+        half[1:] += d / 2.0
+        return np.asarray(self.copper_thickness, dtype=float) + half
+
+    def layer_laminate(self):
+        """!
+        @brief In-plane conductivity and volumetric heat capacity of the dielectric part of every layer node.
+        @details The thickness-weighted mean of the two adjacent gaps (the single gap for the outer layers); the plain FR-4 values in simple mode.
+        @return Tuple of arrays (k_inplane in W/mK, rho_cp in J/m3K), each of length layers.
+        """
+        L = self.layers
+        k_ip, rho_cp = np.full(L, self.materials.k_fr4_inplane), np.full(L, self.materials.rho_fr4 * self.materials.cp_fr4)
+        if self.dielectrics is None or L < 2:
+            return k_ip, rho_cp
+        d = self.gap_thicknesses()
+        _, gk, gc = self.gap_properties()
+        for l in range(L):
+            gaps = [g for g in (l - 1, l) if 0 <= g < L - 1]
+            w = np.array([d[g] for g in gaps])
+            if w.sum() > 0:
+                k_ip[l] = float(np.dot(w, [gk[g] for g in gaps]) / w.sum())
+                rho_cp[l] = float(np.dot(w, [gc[g] for g in gaps]) / w.sum())
+        return k_ip, rho_cp
 
     def dielectric_thickness(self):
         """!
@@ -65,6 +323,8 @@ class Board:
         """
         if self.layers < 2:
             return 0.0
+        if self.dielectrics is not None:
+            return float(np.mean([d.thickness for d in self.dielectrics]))       # Mean of the gaps; use gap_thicknesses() for each one
         # Board thickness minus all copper, shared by the (layers - 1) dielectric gaps
         return (self.thickness - sum(self.copper_thickness)) / (self.layers - 1)
 
@@ -77,16 +337,33 @@ class Board:
             raise ValueError("layers must be >= 1")
         if len(self.copper_thickness) != self.layers:
             raise ValueError("copper_thickness must have one value per layer")
-        if min(self.width, self.height, self.thickness) <= 0:
+        if min(self.width, self.height, self.total_thickness()) <= 0:
             raise ValueError("board dimensions must be positive")
-        if self.layers > 1 and self.dielectric_thickness() <= 0:
+        if self.dielectrics is not None:
+            if len(self.dielectrics) != max(self.layers - 1, 0):
+                raise ValueError("the advanced stack-up needs one dielectric per gap between copper layers")
+            for d in self.dielectrics:
+                if d.thickness <= 0 or d.k_through <= 0 or d.k_inplane <= 0 or d.rho <= 0 or d.cp <= 0:
+                    raise ValueError("every dielectric needs a positive thickness, conductivities, density and specific heat")
+            if min(self.copper_thickness) <= 0:
+                raise ValueError("copper thickness must be positive")
+        elif self.layers > 1 and self.dielectric_thickness() <= 0:
             raise ValueError("the copper layers do not fit inside the board thickness")
+        if self.outline is not None:
+            o = np.asarray(self.outline, dtype=float)
+            if o.ndim != 2 or o.shape[1] != 2 or len(o) < 3:
+                raise ValueError("the board outline needs at least three vertices")
+            tol = 1e-9
+            if o.min() < -tol or o[:, 0].max() > self.width + tol or o[:, 1].max() > self.height + tol:
+                raise ValueError("the board outline must lie inside the width x height box")
+            if polygon_area(o) <= 0 or not polygon_is_simple(o):
+                raise ValueError("the board outline must be a simple polygon with a positive area")
         if self.h_top < 0 or self.h_bottom < 0:
             raise ValueError("heat transfer coefficients must be >= 0")
         if self.h_mode not in ("manual", "computed"):
             raise ValueError("h_mode must be 'manual' or 'computed'")
         if self.orientation not in ("horizontal", "vertical"):
-            raise ValueError("orientation must be 'horizontal' or 'vertical'")
+            raise ValueError("orientation must be 'horizontal' (layer 1 faces up) or 'vertical'")
         if not (0.0 <= self.emissivity_top <= 1.0 and 0.0 <= self.emissivity_bottom <= 1.0):
             raise ValueError("emissivity must be between 0 and 1")
         if self.air_speed < 0 or self.h_calibration <= 0:
@@ -337,8 +614,74 @@ class Heater:
     polygon: np.ndarray                         # Vertices (n, 2) in metres
     power: float                                # Dissipated power (W)
     name: str = ""                              # Optional label (for example the component name)
-    theta_jb: float = 0.0                       # Junction-to-board resistance (K/W); 0 = not used
+    theta: float = 0.0                          # Junction-to-pad resistance (K/W), worst case: all the power enters the board; 0 = plain source
     profile: Optional[object] = None            # SquareWave or TableProfile; None = constant power
+    tj_max: float = 0.0                         # Maximum junction temperature (degC); 0 = no limit
+    psi_jb: float = 0.0                         # Junction-to-board characterisation parameter (K/W) for the ring-temperature estimate; 0 = not used
+    power_tc: float = 0.0                       # Temperature coefficient of the power (1/K): P = P0 (1 + tc (Tj - 25 degC)); 0 = constant power
+    theta_jc_top: float = 0.0                   # Junction-to-case (top) resistance (K/W) of the top path; used only with theta_sa
+    theta_sa: float = 0.0                       # Heatsink-to-ambient resistance (K/W) on top of the package; 0 = no top path (worst case)
+    interface: float = 0.0                      # Interface between package top and heatsink (K cm2/W, over the contact area); 0 = perfect contact
+    contact_area: float = 0.0                   # Area of the package top that touches the heatsink through the interface (m2); 0 = the footprint
+    pad_thickness: float = 0.0                  # The dielectric sheet (paste, gap pad) between the package and the heatsink: thickness (m); 0 = use `interface`
+    pad_k: float = 0.0                          # Conductivity of that sheet (W/mK)
+    role: str = ""                              # "source" (a pure heat source: power and, if wanted, the interface under it), "component" (junction, package, top path); "" = inferred from the fields
+    base_interface: float = 0.0                 # Source: interface between the heater and the board (K cm2/W, over the footprint); 0 = direct contact
+    base_pad_thickness: float = 0.0             # Source: the sheet under it (paste, solder, adhesive): thickness (m); 0 = use `base_interface`
+    base_pad_k: float = 0.0                     # Source: conductivity of that sheet (W/mK)
+    family: str = ""                            # Component: name of the package family chosen (informative; the values are in the fields)
+    heatsink: str = ""                          # Component: name of the typical heatsink chosen for the package top (informative; theta_sa is the value used)
+
+    def is_component(self):
+        """!
+        @brief True for a component (junction, package, top path); False for a pure heat source.
+        @details An explicit role wins; files and heaters without one are components when any component field is set (so every board saved before the roles existed behaves as before).
+        @return bool.
+        """
+        if self.role:
+            return self.role == "component"
+        return any((self.theta, self.tj_max, self.psi_jb, self.power_tc, self.theta_jc_top, self.theta_sa, self.interface, self.contact_area, self.pad_thickness))
+
+    def base_interface_kcm2(self):
+        """!
+        @brief Resistance per area of the interface under a pure source.
+        @return K cm2/W: thickness / conductivity of the sheet when both are set, otherwise the typed `base_interface`.
+        """
+        if self.base_pad_thickness > 0 and self.base_pad_k > 0:
+            return self.base_pad_thickness / self.base_pad_k * 1e4
+        return self.base_interface
+
+    def junction_theta(self):
+        """!
+        @brief The resistance between the heat source and the board pad used for the temperature of the part.
+        @details A component: the junction-to-pad theta. A pure source: the interface under it divided by its footprint (0 = direct contact: the source is at the board temperature).
+        @return K/W.
+        """
+        if self.is_component():
+            return self.theta
+        area_cm2 = self.area() * 1e4
+        return self.base_interface_kcm2() / area_cm2 if area_cm2 > 0 else 0.0
+
+    def interface_kcm2(self):
+        """!
+        @brief Resistance per area of the interface between the package top and the heatsink.
+        @return K cm2/W: thickness / conductivity of the sheet when both are set, otherwise the typed `interface`.
+        """
+        if self.pad_thickness > 0 and self.pad_k > 0:
+            return self.pad_thickness / self.pad_k * 1e4
+        return self.interface
+
+    def top_resistance(self):
+        """!
+        @brief Total resistance of the top path, junction to ambient.
+        @details theta_jc_top + interface / footprint area + theta_sa, in series; the path exists only for a part with a junction
+                 resistance theta and a heatsink resistance theta_sa.
+        @return Resistance in K/W, or 0.0 when the heater has no top path.
+        """
+        if self.theta <= 0 or self.theta_sa <= 0:
+            return 0.0
+        area_cm2 = max((self.contact_area or self.area()) * 1e4, 1e-9)           # The paste covers the lid/case, which can differ from the footprint
+        return self.theta_jc_top + self.interface_kcm2() / area_cm2 + self.theta_sa
 
     def average_power(self):
         """!
@@ -386,8 +729,10 @@ class Via:
     x: float                                    # X position (m)
     y: float                                    # Y position (m)
     diameter: float                             # Finished hole diameter (m)
-    filled: bool = False                        # True for a copper-filled via (solid rod)
+    filled: bool = False                        # True for a copper-filled via (solid rod, electroplated copper fill)
     name: str = ""                              # Optional label
+    fill_k: float = 0.0                         # Conductivity (W/mK) of the fill of the barrel (epoxy resin about 0.3, conductive paste about 8, copper 385); 0 = open barrel
+    fill: str = ""                              # Name of the fill in the library (VIA_FILLS): informative, the conductivity above is what the models use
 
     def copper_area(self, plating):
         """!
@@ -401,6 +746,57 @@ class Via:
         # Hollow barrel: outer disc minus the empty core (the plating cannot exceed the radius)
         r_in = max(r - plating, 0.0)
         return math.pi * (r * r - r_in * r_in)
+
+    def thermal_area(self, plating, k_copper):
+        """!
+        @brief Copper-equivalent cross-section of the via for the conduction of heat along its axis.
+        @details The copper of the barrel (annulus, or the whole disc for the legacy `filled` flag) plus the fill of the core counted at its conductivity relative to copper:
+                 A = A_copper + (k_fill / k_copper) pi r_in^2 (the ratio is limited to 1). An epoxy resin (0.3 W/mK) adds about 0.1 % to a 0.3 mm via, a conductive paste
+                 (8 W/mK) about 5 %, a copper fill (385 W/mK) 3.3 times the plating.
+        @param plating Barrel plating thickness in metres.
+        @param k_copper Conductivity of copper in W/mK.
+        @return Area in square metres.
+        """
+        area = self.copper_area(plating)
+        if self.filled or self.fill_k <= 0.0:
+            return area
+        r_in = max(self.diameter / 2.0 - plating, 0.0)
+        return area + min(self.fill_k / k_copper, 1.0) * math.pi * r_in * r_in
+
+
+# What a via barrel can be filled with: (name, conductivity of the fill in W/mK, note). The usual "filled via" of a fabricator is an epoxy resin plug (IPC-4761 type V to VII,
+# often capped with plated copper to be solderable), which barely conducts; only the electroplated copper fill is a heat path. Metals for heatsinks: (name, conductivity W/mK,
+# volumetric heat capacity rho*cp J/m3K). Interface materials: (name, conductivity W/mK, thickness mm). Package families: (name, typical junction-to-pad resistance K/W,
+# typical junction-to-case (top) resistance K/W, typical Tj max degC, note).
+# All of them are read from pcbthermal/data/defaults.json plus the user's file (defaults.py) by reload_libraries(); the numbers and their sources are in that file.
+VIA_FILLS = []
+METALS = []
+INTERFACES = []
+PACKAGE_THETA = []
+HEATSINKS = []                                  # Heatsinks on a package: (name = "heatsink, flow", typical theta_SA in K/W, note with the source and the test conditions, heatsink, air flow)
+
+
+def reload_libraries():
+    """!
+    @brief (Re)fill the material libraries from the defaults in force, in place (the lists keep their identity, so modules that imported them see the change).
+    """
+    lib = defaults.load()["libraries"]
+    DIELECTRICS[:] = [(e["name"], e["k_through"], e["k_inplane"], e["rho"], e["cp"]) for e in lib["dielectrics"]]
+    VIA_FILLS[:] = [(e["name"], e["k_w_per_mk"], e.get("note", "")) for e in lib["via_fills"]]
+    METALS[:] = [(e["name"], e["k_w_per_mk"], e["rho_cp_j_per_m3k"]) for e in lib["metals"]]
+    INTERFACES[:] = [(e["name"], e["k_w_per_mk"], e["thickness_mm"]) for e in lib["interfaces"]]
+    HEATSINKS[:] = [(e["name"], e["theta_sa_k_per_w"], e.get("note", ""), e.get("heatsink", e["name"]), e.get("flow", "")) for e in lib["heatsinks"]]
+    PACKAGE_THETA[:] = [(e["name"], e["theta_k_per_w"], e.get("theta_jc_top_k_per_w", 0.0), e.get("tj_max_c", 0.0), e.get("note", "")) for e in lib["package_theta"]]
+
+
+def via_fill_k(name, default=0.0):
+    """!
+    @brief Conductivity of a named via fill from the library.
+    @param name Fill name (for example "Epoxy resin").
+    @param default Value returned when the name is not in the library.
+    @return W/mK.
+    """
+    return next((k for n, k, _ in VIA_FILLS if n == name), default)
 
 
 @dataclass
@@ -417,9 +813,32 @@ class Heatsink:
     h_extra: float                              # Added coefficient (W/m2K)
     name: str = ""                              # Optional label
     thickness: float = 0.0                      # Metal block thickness (m); 0 = a plain coefficient, no block
-    k: float = 205.0                            # Conductivity of the block (W/mK); aluminium 205, copper 385
-    rho_cp: float = 2.43e6                      # Volumetric heat capacity of the block (J/m3K); aluminium 2.43e6, copper 3.45e6
+    k: float = 204.0                            # Conductivity of the block (W/mK); aluminium 204, copper 386
+    rho_cp: float = 2.44e6                      # Volumetric heat capacity of the block (J/m3K); aluminium 2.44e6, copper 3.45e6
     contact_r: float = 5.0e-4                   # Interface resistance between the board and the block (m2K/W): pad thickness / k
+    fin_height: float = 0.0                     # Fins on the exposed face of the block: height (m); 0 = no fins (a plain plate)
+    fin_thickness: float = 0.0                  # Fin thickness (m)
+    fin_pitch: float = 0.0                      # Distance between the axes of two fins (m)
+    pad_thickness: float = 0.0                  # The dielectric sheet (gap pad, paste) between the board and the block: thickness (m); 0 = use contact_r
+    pad_k: float = 0.0                          # Conductivity of that sheet (W/mK)
+
+    def interface_resistance(self):
+        """!
+        @brief Resistance per area of the interface between the board and the block.
+        @details The dielectric sheet (the one sheet placed between board and heatsink, with its own material and thickness): thickness / conductivity when
+                 both are set, otherwise the typed contact_r.
+        @return Resistance in m2K/W.
+        """
+        if self.pad_thickness > 0 and self.pad_k > 0:
+            return self.pad_thickness / self.pad_k
+        return self.contact_r
+
+    def has_fins(self):
+        """!
+        @brief True if the block has plate fins (height, thickness and pitch all set).
+        @return Boolean.
+        """
+        return self.is_block() and self.fin_height > 0 and self.fin_thickness > 0 and self.fin_pitch > self.fin_thickness
 
     def is_block(self):
         """!
@@ -447,6 +866,38 @@ class Problem:
         @return Power in watts.
         """
         return float(sum(h.power for h in self.heaters))
+
+    def equivalent_rectangle(self):
+        """!
+        @brief Rectangular problem of the same area as a board with an outline (for the lumped and analytic models).
+        @details The box is scaled by s = sqrt(outline area / box area) in both directions, which keeps the aspect ratio and the board
+                 area, and every position is scaled by the same s: heater centres, via positions, zone and heatsink polygons. The heaters keep
+                 their size (so their power density is unchanged) and are pushed back inside the new box if needed. The outline is dropped.
+                 Measured against the FVM on the real shape: the area-equivalent box is within 0.2 to 3 % of the temperature rise for a
+                 circle with parts away from the edge, against 6 to 10 % too low with the bounding box (`docs/validation.md`).
+        @return Tuple (Problem without outline, s). For a board without outline: (a copy, 1.0).
+        """
+        q = copy.deepcopy(self)
+        b = q.board
+        if not b.has_outline():
+            return q, 1.0
+        # The outline lies inside the box, so s <= 1 (the new box is never larger than the old one)
+        s = math.sqrt(min(polygon_area(b.outline) / (b.width * b.height), 1.0))
+        b.outline = None
+        b.width, b.height = b.width * s, b.height * s
+        for z in q.zones:
+            z.polygon = z.polygon * s
+        for k in q.heatsinks:
+            k.polygon = k.polygon * s
+        for v in q.vias:
+            v.x, v.y = v.x * s, v.y * s
+        for h in q.heaters:
+            c = h.polygon.mean(axis=0)
+            moved = h.polygon - c + c * s                                   # Same size, scaled centre
+            lo, hi = moved.min(axis=0), moved.max(axis=0)
+            shift = np.maximum(-lo, 0.0) - np.maximum(hi - [b.width, b.height], 0.0)   # Back inside the box
+            h.polygon = moved + shift
+        return q, s
 
     def has_profiles(self):
         """!
@@ -482,6 +933,12 @@ class Problem:
         for h in self.heaters:
             if h.power < 0:
                 raise ValueError("heater power must be >= 0")
+            if h.theta < 0 or h.tj_max < 0 or h.psi_jb < 0 or h.base_interface < 0 or h.base_pad_thickness < 0 or h.role not in ("", "source", "component") or not -0.05 <= h.power_tc <= 0.05:
+                raise ValueError("a heater needs theta, tj_max and psi_jb >= 0 and a power temperature coefficient between -5 and 5 %/K")
+            if h.pad_thickness < 0 or h.pad_k < 0:
+                raise ValueError("the interface sheet needs a thickness and a conductivity >= 0")
+            if h.theta_jc_top < 0 or h.theta_sa < 0 or h.interface < 0 or h.contact_area < 0:
+                raise ValueError("theta_jc_top, theta_sa, the interface resistance and the contact area must be >= 0")
             if h.profile is not None:
                 h.profile.validate()
         for s in self.heatsinks:
@@ -489,6 +946,10 @@ class Problem:
                 raise ValueError("a heatsink must be on the top or the bottom layer")
             if s.thickness < 0 or s.k <= 0 or s.rho_cp <= 0 or s.contact_r < 0 or s.h_extra < 0:
                 raise ValueError("a heatsink needs h_extra, thickness and contact resistance >= 0 and k, heat capacity > 0")
+            if s.pad_thickness < 0 or s.pad_k < 0:
+                raise ValueError("the interface sheet needs a thickness and a conductivity >= 0")
+            if min(s.fin_height, s.fin_thickness, s.fin_pitch) < 0 or (s.fin_height > 0 and not s.fin_pitch > s.fin_thickness > 0):
+                raise ValueError("fins need a height, a thickness and a pitch larger than the thickness (all in mm, or all zero for no fins)")
 
     # ---------------------------------------------------------------- builder API (mm, layer 1 = top)
     @classmethod
@@ -551,7 +1012,8 @@ class Problem:
             self.add_zone(l, rect=(0, 0, w, h), fill=fill, name=f"plane L{l}")
         return self
 
-    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta_jb=0.0, profile=None):
+    def add_heater(self, layer, power, rect=None, polygon=None, name="", theta=0.0, profile=None, tj_max=0.0, psi_jb=0.0, power_tc=0.0,
+                   theta_jc_top=0.0, theta_sa=0.0, interface=0.0, contact_area_mm2=0.0, pad_thickness_mm=0.0, pad_k=0.0, role=""):
         """!
         @brief Add a heat source (layer 1 = top, geometry in mm, power in W).
         @param layer 1-based layer number.
@@ -559,29 +1021,54 @@ class Problem:
         @param rect Rectangle (x0, y0, x1, y1) in mm.
         @param polygon Polygon [[x, y], ...] in mm.
         @param name Optional label (for example the component).
-        @param theta_jb Junction-to-board resistance in K/W (adds a junction temperature to the report).
+        @param theta Junction-to-pad resistance in K/W (the datasheet's junction-to-bottom, junction-to-terminal or junction-to-case number
+               of a power part; adds the junction temperature to the report, worst case: all the power enters the board).
         @param profile Optional SquareWave; the heater power is then its average and `power` is ignored.
+        @param tj_max Maximum junction temperature in degC (0 = none): the report gives the margin and the power limit.
+        @param psi_jb Junction-to-board characterisation parameter in K/W (0 = none): the report adds Tj = ring temperature + psi P.
+        @param power_tc Temperature coefficient of the power in 1/K (0 = constant); P = P0 (1 + tc (Tj - 25 degC)) is solved with the board.
+        @param theta_jc_top Junction-to-case (top) resistance in K/W of the top path (used only with theta_sa).
+        @param theta_sa Resistance in K/W from the heatsink on top of the package to the ambient (0 = no top path: all the power enters the board).
+        @param interface Interface between package and heatsink in K cm2/W, divided by the contact area (0 = perfect contact).
+        @param contact_area_mm2 Area of the package top that touches the heatsink in mm2 (0 = the footprint; for a processor the lid).
+        @param pad_thickness_mm Thickness in mm of the dielectric sheet (paste, gap pad) between the package and the heatsink (0 = use `interface`).
+        @param pad_k Conductivity of that sheet in W/mK (with the thickness it gives the interface resistance).
+        @param role "source" (a pure heat source), "component" (junction, package, top path) or "" to infer it from the fields.
         @return self.
         """
-        h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta_jb)
+        h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta, None, float(tj_max), float(psi_jb), float(power_tc),
+                   float(theta_jc_top), float(theta_sa), float(interface), float(contact_area_mm2) * 1e-6, pad_thickness_mm * 1e-3, float(pad_k), role)
         h.set_profile(profile)
         self.heaters.append(h)
         return self
 
-    def add_via(self, x, y, diameter=0.3, filled=False, name=""):
+    def set_outline(self, polygon):
+        """!
+        @brief Give the board a non-rectangular outline (None restores the full rectangle).
+        @details The polygon lies inside the width x height box of the board (the bounding box is NOT changed); the area outside it is not board: no
+                 copper, no heat, no heat loss. The FVM, FDM and 3D solid solve any outline; the lumped and analytic models need a rectangle.
+        @param polygon List of [x, y] in mm, or None.
+        @return self.
+        """
+        self.board.outline = None if polygon is None else np.asarray(polygon, dtype=float) / 1000.0
+        return self
+
+    def add_via(self, x, y, diameter=0.3, filled=False, name="", fill_k=0.0, fill=""):
         """!
         @brief Add one via (mm).
         @param x X position in mm.
         @param y Y position in mm.
         @param diameter Finished hole diameter in mm.
-        @param filled True for a copper-filled via.
+        @param filled True for a copper-filled via (electroplated copper fill).
         @param name Optional label.
+        @param fill_k Conductivity in W/mK of the fill (epoxy resin about 0.3, conductive paste about 8, copper 385; see VIA_FILLS); 0 for an open barrel.
+        @param fill Name of the fill in the library (informative).
         @return self.
         """
-        self.vias.append(Via(x / 1000.0, y / 1000.0, diameter / 1000.0, filled, name))
+        self.vias.append(Via(x / 1000.0, y / 1000.0, diameter / 1000.0, filled, name, float(fill_k), fill))
         return self
 
-    def add_via_array(self, rect, nx, ny, diameter=0.3, filled=False):
+    def add_via_array(self, rect, nx, ny, diameter=0.3, filled=False, fill_k=0.0):
         """!
         @brief Add a regular nx x ny array of vias, centred in a rectangle.
         @param rect Rectangle (x0, y0, x1, y1) in mm.
@@ -589,17 +1076,18 @@ class Problem:
         @param ny Vias along y.
         @param diameter Finished hole diameter in mm.
         @param filled True for copper-filled vias.
+        @param fill_k Conductivity in W/mK of a non-copper fill (0 = open barrel).
         @return self.
         """
         x0, y0, x1, y1 = rect
         # Vias sit at the centres of an nx x ny grid of equal cells, so the array is symmetric in the rectangle
         for i in range(nx):
             for j in range(ny):
-                self.add_via(x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny, diameter, filled)
+                self.add_via(x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny, diameter, filled, fill_k=fill_k)
         return self
 
-    def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=205.0, rho_cp=2.43e6,
-                 contact_r=5.0e-4):
+    def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=204.0, rho_cp=2.44e6,
+                 contact_r=5.0e-4, fin_height_mm=0.0, fin_thickness_mm=0.0, fin_pitch_mm=0.0, pad_thickness_mm=0.0, pad_k=0.0):
         """!
         @brief Add a heatsink: extra heat transfer coefficient on an outer surface, optionally a metal block (mm, W/m2K).
         @param layer 1 (top) or the last layer (bottom).
@@ -611,10 +1099,16 @@ class Problem:
         @param k Conductivity of the block in W/mK.
         @param rho_cp Volumetric heat capacity of the block in J/m3K.
         @param contact_r Interface resistance in m2K/W (pad thickness divided by its conductivity).
+        @param fin_height_mm Height of the plate fins of the block in mm (0 = no fins).
+        @param fin_thickness_mm Thickness of a fin in mm.
+        @param fin_pitch_mm Distance between the axes of two fins in mm.
+        @param pad_thickness_mm Thickness in mm of the dielectric sheet (gap pad, paste) between the board and the block (0 = use contact_r).
+        @param pad_k Conductivity of that sheet in W/mK (with the thickness it gives the interface resistance thickness / k).
         @return self.
         """
         self.heatsinks.append(Heatsink(layer - 1, self._shape_m(rect, polygon), float(h_extra), name, thickness_mm / 1000.0,
-                               float(k), float(rho_cp), float(contact_r)))
+                               float(k), float(rho_cp), float(contact_r), fin_height_mm / 1000.0, fin_thickness_mm / 1000.0, fin_pitch_mm / 1000.0,
+                               pad_thickness_mm / 1000.0, float(pad_k)))
         return self
 
 
@@ -668,23 +1162,35 @@ def problem_from_dict(data, validate=True):
         orientation=b.get("orientation", "horizontal"),
         h_calibration=b.get("h_calibration", 1.0),
         materials=mat,
+        outline=_poly_mm(b["outline_mm"]) if b.get("outline_mm") else None,
+        dielectrics=[Dielectric(float(d["thickness_mm"]) / 1000.0, d.get("name", "FR-4 (standard)"), float(d.get("k_through", 0.3)),
+                                float(d.get("k_inplane", 0.9)), float(d.get("rho", 1850.0)), float(d.get("cp", 900.0)))
+                     for d in b["dielectrics"]] if "dielectrics" in b else None,
     )
     prob = Problem(board=board, name=data.get("name", "board"))
     for z in data.get("zones", []):
         prob.zones.append(Zone(z["layer"] - 1, _poly_mm(z["polygon_mm"]), z.get("fill", 1.0), z.get("name", "")))
     for h in data.get("heaters", []):
-        heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]),
-                        h.get("name", ""), float(h.get("theta_jb_k_per_w", 0.0)))
+        # "theta_jb_k_per_w" is the key of files saved before the junction resistance was renamed
+        heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]), h.get("name", ""),
+                        float(h.get("theta_k_per_w", h.get("theta_jb_k_per_w", 0.0))), None, float(h.get("tj_max_c", 0.0)),
+                        float(h.get("psi_jb_k_per_w", 0.0)), float(h.get("power_tc_per_k", 0.0)),
+                        float(h.get("theta_jc_top_k_per_w", 0.0)), float(h.get("theta_sa_k_per_w", 0.0)), float(h.get("interface_kcm2_per_w", 0.0)),
+                        float(h.get("contact_area_mm2", 0.0)) * 1e-6, float(h.get("pad_thickness_mm", 0.0)) * 1e-3, float(h.get("pad_k_w_per_mk", 0.0)),
+                        h.get("role", ""), float(h.get("base_interface_kcm2_per_w", 0.0)), float(h.get("base_pad_thickness_mm", 0.0)) * 1e-3,
+                        float(h.get("base_pad_k_w_per_mk", 0.0)), h.get("family", ""), h.get("heatsink", ""))
         if "profile" in h:
             heater.set_profile(_profile_from_dict(h["profile"]))
         prob.heaters.append(heater)
     for v in data.get("vias", []):
         prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
-                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", "")))
+                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", ""), float(v.get("fill_k_w_per_mk", 0.0)), v.get("fill", "")))
     for s in data.get("heatsinks", data.get("sinks", [])):    # "sinks" is the key of files saved before the rename
         prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
-                               float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 205.0)),
-                               float(s.get("rho_cp_j_per_m3k", 2.43e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4))))
+                               float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 204.0)),
+                               float(s.get("rho_cp_j_per_m3k", 2.44e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4)),
+                               float(s.get("fin_height_mm", 0.0)) / 1000.0, float(s.get("fin_thickness_mm", 0.0)) / 1000.0,
+                               float(s.get("fin_pitch_mm", 0.0)) / 1000.0, float(s.get("pad_thickness_mm", 0.0)) / 1000.0, float(s.get("pad_k_w_per_mk", 0.0))))
     if validate:
         prob.validate()
     return prob
@@ -815,7 +1321,7 @@ def problem_to_dict(prob):
         "name": prob.name,
         "board": {
             "width_mm": b.width * 1000.0, "height_mm": b.height * 1000.0,
-            "thickness_mm": b.thickness * 1000.0, "layers": b.layers,
+            "thickness_mm": b.total_thickness() * 1000.0, "layers": b.layers,
             "copper_thickness_mm": [c * 1000.0 for c in b.copper_thickness],
             "ambient_c": b.ambient, "h_top": b.h_top, "h_bottom": b.h_bottom, "h_side": b.h_side,
             "via_plating_mm": b.via_plating * 1000.0,
@@ -823,15 +1329,58 @@ def problem_to_dict(prob):
             "air_speed_m_per_s": b.air_speed, "orientation": b.orientation, "h_calibration": b.h_calibration,
             "k_copper": m.k_copper, "k_fr4_through": m.k_fr4_through, "k_fr4_inplane": m.k_fr4_inplane,
             "rho_copper": m.rho_copper, "cp_copper": m.cp_copper, "rho_fr4": m.rho_fr4, "cp_fr4": m.cp_fr4,
+            **({"outline_mm": poly(b.outline)} if b.outline is not None else {}),
+            **({"dielectrics": [{"thickness_mm": d.thickness * 1000.0, "name": d.name, "k_through": d.k_through, "k_inplane": d.k_inplane,
+                                 "rho": d.rho, "cp": d.cp} for d in b.dielectrics]} if b.dielectrics is not None else {}),
         },
         "zones": [{"layer": z.layer + 1, "polygon_mm": poly(z.polygon), "fill": z.fill, "name": z.name}
                   for z in prob.zones],
         "heaters": [dict({"layer": h.layer + 1, "power_w": h.power, "polygon_mm": poly(h.polygon), "name": h.name,
-                          "theta_jb_k_per_w": h.theta_jb},
+                          "theta_k_per_w": h.theta},
+                         **({"tj_max_c": h.tj_max} if h.tj_max else {}), **({"psi_jb_k_per_w": h.psi_jb} if h.psi_jb else {}),
+                         **({"power_tc_per_k": h.power_tc} if h.power_tc else {}),
+                         **({"theta_jc_top_k_per_w": h.theta_jc_top} if h.theta_jc_top else {}),
+                         **({"theta_sa_k_per_w": h.theta_sa} if h.theta_sa else {}),
+                         **({"interface_kcm2_per_w": h.interface} if h.interface else {}),
+                         **({"contact_area_mm2": h.contact_area * 1e6} if h.contact_area else {}),
+                         **({"pad_thickness_mm": h.pad_thickness * 1000.0, "pad_k_w_per_mk": h.pad_k} if h.pad_thickness and h.pad_k else {}),
+                         **({"role": h.role} if h.role else {}), **({"family": h.family} if h.family else {}), **({"heatsink": h.heatsink} if h.heatsink else {}),
+                         **({"base_interface_kcm2_per_w": h.base_interface} if h.base_interface else {}),
+                         **({"base_pad_thickness_mm": h.base_pad_thickness * 1000.0, "base_pad_k_w_per_mk": h.base_pad_k} if h.base_pad_thickness and h.base_pad_k else {}),
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
-                  "filled": v.filled, "name": v.name} for v in prob.vias],
+                  "filled": v.filled, "name": v.name, **({"fill": v.fill} if v.fill else {}),
+                  **({"fill_k_w_per_mk": v.fill_k} if v.fill_k else {})} for v in prob.vias],
         "heatsinks": [dict({"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name},
                        **({"thickness_mm": s.thickness * 1000.0, "k_w_per_mk": s.k, "rho_cp_j_per_m3k": s.rho_cp,
-                           "contact_r_m2k_per_w": s.contact_r} if s.is_block() else {})) for s in prob.heatsinks],
+                           "contact_r_m2k_per_w": s.contact_r} if s.is_block() else {}),
+                       **({"fin_height_mm": s.fin_height * 1000.0, "fin_thickness_mm": s.fin_thickness * 1000.0, "fin_pitch_mm": s.fin_pitch * 1000.0}
+                          if s.has_fins() else {}),
+                       **({"pad_thickness_mm": s.pad_thickness * 1000.0, "pad_k_w_per_mk": s.pad_k} if s.pad_thickness and s.pad_k else {})) for s in prob.heatsinks],
     }
+
+
+def new_problem(width_mm=None, height_mm=None, layers=None, name="untitled"):
+    """!
+    @brief An empty board with the user's defaults (defaults.json plus the user's file): size, layers, ambient, heat transfer, plating, materials.
+    @param width_mm Width in mm (default: the default of a new board).
+    @param height_mm Height in mm (default: the default of a new board).
+    @param layers Number of copper layers (default: the default of a new board).
+    @param name Project name.
+    @return A Problem without elements.
+    """
+    d = defaults.load()
+    nb = d["new_board"]
+    p = Problem.new(width_mm if width_mm is not None else nb["width_mm"], height_mm if height_mm is not None else nb["height_mm"],
+                    layers if layers is not None else int(nb["layers"]), name=name)
+    b = p.board
+    b.ambient, b.h_top, b.h_bottom = nb["ambient_c"], nb["h_top"], nb["h_bottom"]
+    b.h_side = nb["h_side"] if nb.get("edges_lose_heat", True) else None
+    b.via_plating = nb["via_plating_um"] * 1e-6
+    b.h_mode, b.emissivity_top, b.emissivity_bottom = nb["h_mode"], nb["emissivity_top"], nb["emissivity_bottom"]
+    b.orientation, b.air_speed, b.h_calibration = nb["orientation"], nb["air_speed"], nb["h_calibration"]
+    b.materials = Materials(**d["materials"])
+    return p
+
+
+reload_libraries()

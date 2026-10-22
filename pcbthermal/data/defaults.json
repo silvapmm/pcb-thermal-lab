@@ -1,0 +1,346 @@
+{
+  "description": "Defaults and material libraries of PCB Thermal Lab. This is the file shipped with the program. A user file (user_defaults.json in the configuration folder, see Preferences) overrides only what it contains: a library entry with the same name replaces the shipped one, a new name is added, and the names in 'removed' are hidden; any other value replaces the shipped value. All numbers are typical values to start from, never the data of your material or fabricator: edit them in Preferences or copy this file's structure.",
+  "version": 1,
+  "libraries": {
+    "via_fills": [
+      {
+        "name": "Open",
+        "k_w_per_mk": 0.0,
+        "note": "Plated barrel with an empty core: only the copper plating conducts heat (192 K/W for a 0.3 mm via through 1.6 mm)."
+      },
+      {
+        "name": "Epoxy resin",
+        "k_w_per_mk": 0.3,
+        "note": "Non-conductive epoxy plug, the usual 'filled via' of a fabricator (IPC-4761 types V to VII, often capped with plated copper). It conducts about as little as FR-4: no thermal gain. JLCPCB: about 0.3 W/mK."
+      },
+      {
+        "name": "Conductive paste",
+        "k_w_per_mk": 8.0,
+        "note": "Copper or silver loaded epoxy. JLCPCB quotes 8 W/mK; other sources 3 to 16. About +5 % on a 0.3 mm via."
+      },
+      {
+        "name": "Copper",
+        "k_w_per_mk": 385.0,
+        "note": "Electroplated copper fill (plated shut): a real heat path, 3.3 times the plating of a 0.3 mm via."
+      }
+    ],
+    "metals": [
+      {
+        "name": "Aluminium",
+        "k_w_per_mk": 204.0,
+        "rho_cp_j_per_m3k": 2440000.0,
+        "note": "Ferrotec material table: 204 W/mK, 2.71 g/cm3, 0.90 J/gK."
+      },
+      {
+        "name": "Copper",
+        "k_w_per_mk": 386.0,
+        "rho_cp_j_per_m3k": 3450000.0,
+        "note": "Ferrotec: 386 W/mK, 8.96 g/cm3, 0.385 J/gK."
+      },
+      {
+        "name": "Brass",
+        "k_w_per_mk": 111.0,
+        "rho_cp_j_per_m3k": 2910000.0,
+        "note": "Ferrotec: 111 W/mK, 8.49 g/cm3, 0.34 J/gK."
+      },
+      {
+        "name": "Carbon steel",
+        "k_w_per_mk": 54.0,
+        "rho_cp_j_per_m3k": 3850000.0,
+        "note": "Engineering ToolBox: 54 W/mK (heat capacity from a textbook)."
+      },
+      {
+        "name": "Stainless steel 304",
+        "k_w_per_mk": 14.4,
+        "rho_cp_j_per_m3k": 3690000.0,
+        "note": "Ferrotec: 13.8 to 14.4 W/mK, 8.01 g/cm3, 0.46 J/gK."
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "Thermal paste, good (measured 0.3 K·cm²/W)",
+        "k_w_per_mk": 1.5,
+        "thickness_mm": 0.05,
+        "note": "Apparent conductivity including the two contact resistances (ASTM D5470 measured totals: Arctic Silver 5 0.31 K cm2/W at 23.5 um)."
+      },
+      {
+        "name": "Paste, typical default (2 W/mK, 100 µm)",
+        "k_w_per_mk": 2.0,
+        "thickness_mm": 0.1,
+        "note": "A typical joint on a real heatsink."
+      },
+      {
+        "name": "Soft gap pad (3 W/mK, 0.5 mm)",
+        "k_w_per_mk": 3.0,
+        "thickness_mm": 0.5,
+        "note": "Gap pads are 1 to 6 W/mK and 0.5 to 1.2 mm."
+      },
+      {
+        "name": "Gap pad (1 W/mK, 0.5 mm)",
+        "k_w_per_mk": 1.0,
+        "thickness_mm": 0.5,
+        "note": ""
+      },
+      {
+        "name": "Hard gap pad (1 W/mK, 1 mm)",
+        "k_w_per_mk": 1.0,
+        "thickness_mm": 1.0,
+        "note": ""
+      }
+    ],
+    "dielectrics": [
+      {
+        "name": "FR-4 (standard)",
+        "k_through": 0.3,
+        "k_inplane": 0.9,
+        "rho": 1850.0,
+        "cp": 900.0,
+        "note": "Glass-reinforced epoxy: 0.29 to 0.34 W/mK across, about 0.9 in the plane."
+      },
+      {
+        "name": "FR-4 high Tg / filled",
+        "k_through": 0.4,
+        "k_inplane": 1.0,
+        "rho": 1900.0,
+        "cp": 900.0,
+        "note": ""
+      },
+      {
+        "name": "Polyimide (flex)",
+        "k_through": 0.15,
+        "k_inplane": 0.15,
+        "rho": 1420.0,
+        "cp": 1090.0,
+        "note": ""
+      },
+      {
+        "name": "PTFE ceramic (RO4350B type)",
+        "k_through": 0.69,
+        "k_inplane": 0.69,
+        "rho": 1860.0,
+        "cp": 830.0,
+        "note": ""
+      },
+      {
+        "name": "Metal-core dielectric (2 W/mK)",
+        "k_through": 2.0,
+        "k_inplane": 2.0,
+        "rho": 2300.0,
+        "cp": 900.0,
+        "note": ""
+      },
+      {
+        "name": "Alumina ceramic (96 %)",
+        "k_through": 24.0,
+        "k_inplane": 24.0,
+        "rho": 3750.0,
+        "cp": 800.0,
+        "note": ""
+      },
+      {
+        "name": "Aluminium nitride",
+        "k_through": 170.0,
+        "k_inplane": 170.0,
+        "rho": 3260.0,
+        "cp": 740.0,
+        "note": ""
+      }
+    ],
+    "package_theta": [
+      {
+        "name": "QFN / exposed pad",
+        "theta_k_per_w": 5.0,
+        "theta_jc_top_k_per_w": 27.0,
+        "tj_max_c": 150.0,
+        "note": "Indicative ranges from web summaries of vendor notes, NOT from a datasheet: use the datasheet value whenever there is one. θJC(top) 27 K/W is the TPS7A47 datasheet value (VQFN-20); the others are assumed typical for a plastic mould."
+      },
+      {
+        "name": "Power QFN",
+        "theta_k_per_w": 3.0,
+        "theta_jc_top_k_per_w": 30.0,
+        "tj_max_c": 150.0,
+        "note": "θJC(top) assumed (30 K/W, as in the CSD17308Q3 study)."
+      },
+      {
+        "name": "DFN",
+        "theta_k_per_w": 10.0,
+        "theta_jc_top_k_per_w": 30.0,
+        "tj_max_c": 150.0,
+        "note": "θJC(top) assumed."
+      },
+      {
+        "name": "D2PAK / TO-263",
+        "theta_k_per_w": 0.75,
+        "theta_jc_top_k_per_w": 25.0,
+        "tj_max_c": 175.0,
+        "note": "θJC(top) assumed."
+      },
+      {
+        "name": "TO-220",
+        "theta_k_per_w": 1.5,
+        "theta_jc_top_k_per_w": 20.0,
+        "tj_max_c": 175.0,
+        "note": "θJC(top) assumed; the metal tab is the usual heat path."
+      },
+      {
+        "name": "SOT-223 (junction to tab)",
+        "theta_k_per_w": 15.0,
+        "theta_jc_top_k_per_w": 40.0,
+        "tj_max_c": 150.0,
+        "note": "θJC(top) assumed."
+      },
+      {
+        "name": "SMA / SMB / SMC diode (junction to terminal)",
+        "theta_k_per_w": 20.0,
+        "theta_jc_top_k_per_w": 60.0,
+        "tj_max_c": 125.0,
+        "note": "The SMA value is the SS12 datasheet junction-to-terminal figure. θJC(top) assumed (60 K/W); Tj max 125 degC is the SS12 datasheet value."
+      },
+      {
+        "name": "Chip resistor 0603 (derived from its rating)",
+        "theta_k_per_w": 1000.0,
+        "theta_jc_top_k_per_w": 0.0,
+        "tj_max_c": 170.0,
+        "note": "Derived from a 0.1 W rating at 70 degC and a 170 degC limit. No top path (0 = not used); 170 degC is the limit of its derating curve."
+      }
+    ],
+    "heatsinks": [
+      {
+        "name": "Pin-fin 10×10, natural",
+        "heatsink": "Pin-fin 10×10",
+        "flow": "natural",
+        "theta_sa_k_per_w": 11.4,
+        "note": "Wakefield-Vette 901-10-1-18-2-B-0 (push-pin, 10 × 10 mm): 11.4 K/W in natural convection, 5.97 K/W with forced air (catalogue). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "Pin-fin 10×10, forced air",
+        "heatsink": "Pin-fin 10×10",
+        "flow": "forced air",
+        "theta_sa_k_per_w": 5.97,
+        "note": "Same part with forced air (the catalogue does not state the speed here). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "Adhesive pin 10×10×12.5, natural",
+        "heatsink": "Adhesive pin 10×10×12.5",
+        "flow": "natural",
+        "theta_sa_k_per_w": 26.3,
+        "note": "Fischer Elektronik ICK 10 × 10 × 12.5 mm, adhesive or foil mounting: 26.3 K/W (archived catalogue sheet). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 clip-on, thin, natural",
+        "heatsink": "TO-220 clip-on, thin",
+        "flow": "natural",
+        "theta_sa_k_per_w": 26.0,
+        "note": "Fischer Elektronik FK 242 SA 220 O: 26 K/W (distributor listing). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 clip-on, PF745, natural",
+        "heatsink": "TO-220 clip-on, PF745",
+        "flow": "natural",
+        "theta_sa_k_per_w": 23.1,
+        "note": "Aavid / Thermalloy PF745, 21.8 × 19.1 × 10 mm: 23.1 K/W (distributor listing). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 clip-on, FK 240, natural",
+        "heatsink": "TO-220 clip-on, FK 240",
+        "flow": "natural",
+        "theta_sa_k_per_w": 16.0,
+        "note": "Fischer Elektronik FK 240 SA 220 O: 16 K/W (distributor listing). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 board-level, natural",
+        "heatsink": "TO-220 board-level",
+        "flow": "natural",
+        "theta_sa_k_per_w": 10.5,
+        "note": "Wakefield-Vette 272-AB: 10.5 K/W in natural convection, 3.6 K/W at 400 LFM (2 m/s) (DigiKey listing). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "TO-220 board-level, 2 m/s",
+        "heatsink": "TO-220 board-level",
+        "flow": "2 m/s",
+        "theta_sa_k_per_w": 3.6,
+        "note": "Same part at 400 LFM (about 2 m/s). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "BGA 40×40×18, natural",
+        "heatsink": "BGA 40×40×18",
+        "flow": "natural",
+        "theta_sa_k_per_w": 7.68,
+        "note": "SAME Sky HSB16-404018 (adhesive): 7.68 K/W at 75 K rise, 10.8 K/W at 1 W; 2.5 K/W at 200 LFM (about 1 m/s) and 1.5 K/W at 400 LFM (about 2 m/s). Natural convection resistance falls as the rise grows (Boyd/Aavid quote it at a 75 K rise). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "BGA 40×40×18, 1 m/s",
+        "heatsink": "BGA 40×40×18",
+        "flow": "1 m/s",
+        "theta_sa_k_per_w": 2.5,
+        "note": "Same part at 200 LFM (about 1 m/s). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      },
+      {
+        "name": "BGA 40×40×18, 2 m/s",
+        "heatsink": "BGA 40×40×18",
+        "flow": "2 m/s",
+        "theta_sa_k_per_w": 1.5,
+        "note": "Same part at 400 LFM (about 2 m/s). A catalogue value for its own test conditions: yours depends on the air flow, orientation and mounting."
+      }
+    ]
+  },
+  "materials": {
+    "k_copper": 385.0,
+    "rho_copper": 8960.0,
+    "cp_copper": 385.0,
+    "k_fr4_through": 0.3,
+    "k_fr4_inplane": 0.9,
+    "rho_fr4": 1850.0,
+    "cp_fr4": 900.0
+  },
+  "new_board": {
+    "width_mm": 100.0,
+    "height_mm": 80.0,
+    "layers": 2,
+    "ambient_c": 25.0,
+    "h_top": 10.0,
+    "h_bottom": 15.0,
+    "edges_lose_heat": true,
+    "h_side": 10.0,
+    "via_plating_um": 25.0,
+    "h_mode": "manual",
+    "emissivity_top": 0.9,
+    "emissivity_bottom": 0.9,
+    "orientation": "horizontal",
+    "air_speed": 0.0,
+    "h_calibration": 1.0
+  },
+  "new_elements": {
+    "heater_power_w": 1.0,
+    "heater_size_mm": 5.0,
+    "zone_fill": 1.0,
+    "zone_size_mm": 10.0,
+    "via_diameter_mm": 0.3,
+    "via_fill": "Open",
+    "heatsink_h_extra": 20.0,
+    "heatsink_size_mm": 10.0,
+    "block_thickness_mm": 3.0,
+    "block_metal": "Aluminium",
+    "block_interface": "Paste, typical default (2 W/mK, 100 µm)",
+    "heater_kind": "source"
+  },
+  "calculator": {
+    "copper_uncertainty_pct": 25.0,
+    "h_uncertainty_pct": 30.0,
+    "theta_uncertainty_pct": 20.0,
+    "psi_jt_uncertainty_pct": 30.0,
+    "reading_uncertainty_k": 1.0
+  },
+  "solver": {
+    "models": [
+      "fvm",
+      "lumped",
+      "analytic"
+    ],
+    "cell_mm": 1.0,
+    "linear_solver": "direct",
+    "lumped_rings": 10,
+    "analytic_modes": 300,
+    "hotspot_c": 100.0
+  }
+}

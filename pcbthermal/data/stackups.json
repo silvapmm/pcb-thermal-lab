@@ -1,0 +1,105 @@
+{
+  "description": "Typical rigid PCB stack-ups loaded by default when the number of copper layers changes (Board.apply_template). Edit this file to change the defaults: thicknesses are in micrometres, layers and dielectrics are listed from the top face down, 'kind' is informative (core = cured laminate with copper foil on both faces, prepreg = glass cloth with resin that flows and bonds the layers in lamination). Every value is a typical number to start from, NOT the stack-up of your fabricator: replace it with the one your fabricator gives you.",
+  "notes": [
+    "Finished outer copper of 1 oz is about 35 um (an 18 um base foil plus about 17 to 20 um of plating); finished inner copper of 0.5 oz is about 15 to 17.5 um (JLCPCB quotes 15.2 um for 4 to 8 layers).",
+    "Between two copper layers there is glass-reinforced epoxy (FR-4: woven glass cloth in epoxy resin), as a core or as one or more prepreg sheets. The thickness in a gap is the one measured over a plane; over etched copper the resin fills the gap and the average is a little thicker.",
+    "The solder mask (about 15 to 25 um of polymer on each outer face) is not modelled: its resistance (20 um / 0.25 W/mK = 8e-5 m2K/W) is about a thousand times smaller than the film resistance of the air (1/h = 0.1 m2K/W at 10 W/m2K).",
+    "Layer counts that are not listed (3, 5, 7, 9, 11) use outer 35 um, inner 15.2 um and equal gaps that bring the board to the thickness of the next listed template below it.",
+    "Materials: names of the dielectric presets of the program (Board DIELECTRICS)."
+  ],
+  "sources": [
+    "JLCPCB 4-layer 1.6 mm stack-up JLC04161H-7628 (copper 35 / 15.2 / 15.2 / 35 um, 7628 prepreg 210.4 um, core 1065 um), from the JLCPCB help pages and impedance calculator",
+    "JLCPCB: 0.5 oz inner copper is 15.2 um finished for 4 to 8 layers; prepreg types 7628 / 3313 / 1080 / 2116",
+    "Weller PCB and JHYPCB 8-layer 1.6 mm guides (1080 prepreg outside, cores 0.18 to 0.35 mm, 1 oz outer copper, Tg170 for 8 layers or more)",
+    "PCBWay multilayer laminated structure page (1080 prepreg about 0.075 mm, 2116 about 0.13 mm before lamination)",
+    "JLCPCB impedance page (https://jlcpcb.com/impedance) and PCBWay stack-up pages (https://www.pcbway.com/multi-layer-laminated-structure.html) were compared with these templates on 2026-10-22: the maximum temperature of the example board differs by under 0.5 % (docs/validation.md section 14)",
+    "6, 8, 10 and 12-layer entries are constructed from these figures so that the layers add up to the nominal thickness; they are representative, not a fabricator's table"
+  ],
+  "templates": {
+    "1": {
+      "name": "1 layer, 1.6 mm, 35 um copper on laminate",
+      "mode": "simple",
+      "total_thickness_um": 1600,
+      "copper_um": [35],
+      "dielectrics": []
+    },
+    "2": {
+      "name": "2 layers, 1.6 mm (35 / 35 um copper, one 1.53 mm core)",
+      "mode": "advanced",
+      "copper_um": [35, 35],
+      "dielectrics": [
+        {"kind": "core", "thickness_um": 1530, "material": "FR-4 (standard)"}
+      ]
+    },
+    "4": {
+      "name": "4 layers, 1.6 mm (JLCPCB JLC04161H-7628: 35 / 15.2 / 15.2 / 35 um copper)",
+      "mode": "advanced",
+      "copper_um": [35, 15.2, 15.2, 35],
+      "dielectrics": [
+        {"kind": "prepreg", "thickness_um": 210.4, "material": "FR-4 (standard)"},
+        {"kind": "core", "thickness_um": 1065, "material": "FR-4 (standard)"},
+        {"kind": "prepreg", "thickness_um": 210.4, "material": "FR-4 (standard)"}
+      ]
+    },
+    "6": {
+      "name": "6 layers, 1.6 mm (35 / 4 x 15.2 / 35 um copper, two 0.52 mm cores)",
+      "mode": "advanced",
+      "copper_um": [35, 15.2, 15.2, 15.2, 15.2, 35],
+      "dielectrics": [
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 (standard)"},
+        {"kind": "core", "thickness_um": 519.4, "material": "FR-4 (standard)"},
+        {"kind": "prepreg", "thickness_um": 200, "material": "FR-4 (standard)"},
+        {"kind": "core", "thickness_um": 519.4, "material": "FR-4 (standard)"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 (standard)"}
+      ]
+    },
+    "8": {
+      "name": "8 layers, 1.6 mm (35 / 6 x 15.2 / 35 um copper, three 0.35 mm cores, high-Tg)",
+      "mode": "advanced",
+      "copper_um": [35, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 35],
+      "dielectrics": [
+        {"kind": "prepreg", "thickness_um": 76.4, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 351.9, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 351.9, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 351.9, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 76.4, "material": "FR-4 high Tg / filled"}
+      ]
+    },
+    "10": {
+      "name": "10 layers, 2.0 mm (35 / 8 x 15.2 / 35 um copper, four 0.33 mm cores, high-Tg)",
+      "mode": "advanced",
+      "copper_um": [35, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 35],
+      "dielectrics": [
+        {"kind": "prepreg", "thickness_um": 76.4, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 327.5, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 327.5, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 327.5, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 327.5, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 76.4, "material": "FR-4 high Tg / filled"}
+      ]
+    },
+    "12": {
+      "name": "12 layers, 2.4 mm (35 / 10 x 15.2 / 35 um copper, five 0.31 mm cores, high-Tg)",
+      "mode": "advanced",
+      "copper_um": [35, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 15.2, 35],
+      "dielectrics": [
+        {"kind": "prepreg", "thickness_um": 76.4, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 312.9, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 312.9, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 312.9, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 312.9, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 115.2, "material": "FR-4 high Tg / filled"},
+        {"kind": "core", "thickness_um": 312.9, "material": "FR-4 high Tg / filled"},
+        {"kind": "prepreg", "thickness_um": 76.4, "material": "FR-4 high Tg / filled"}
+      ]
+    }
+  }
+}

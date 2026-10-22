@@ -116,3 +116,138 @@ def cell_index_of_point(x, y, nx, ny, dx, dy):
     j = min(max(int(x // dx), 0), nx - 1)
     i = min(max(int(y // dy), 0), ny - 1)
     return i, j
+
+
+def edge_length_per_cell(poly, nx, ny, dx, dy):
+    """!
+    @brief Length of the polygon outline that lies inside every grid cell (the perimeter that exchanges heat through the board edge).
+    @details Every edge is sampled at steps of a tenth of the smaller cell side and each sample adds its step length to the cell that contains it;
+             a point on a cell border is counted in the cell above or to the right, so the total is the perimeter to within a fraction of a percent.
+    @param poly Closed polygon (n, 2) in metres (the last vertex joins the first).
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Array (ny, nx) of lengths in metres.
+    """
+    p = np.asarray(poly, dtype=float)
+    out = np.zeros((ny, nx))
+    step = min(dx, dy) / 10.0
+    for a, b in zip(p, np.roll(p, -1, axis=0)):
+        length = float(np.hypot(*(b - a)))
+        if length <= 0:
+            continue
+        n = max(int(np.ceil(length / step)), 1)
+        t = (np.arange(n) + 0.5) / n                             # Midpoints of the n pieces
+        x, y = a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])
+        j = np.clip((x // dx).astype(int), 0, nx - 1)
+        i = np.clip((y // dy).astype(int), 0, ny - 1)
+        np.add.at(out, (i, j), length / n)
+    return out
+
+
+def polygon_is_simple(poly):
+    """!
+    @brief True if the polygon does not cross itself (no two non-adjacent edges intersect).
+    @param poly Array-like (n, 2).
+    @return bool.
+    """
+    p = np.asarray(poly, dtype=float)
+    n = len(p)
+
+    def ccw(a, b, c):
+        return (c[1] - a[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    for i in range(n):
+        a, b = p[i], p[(i + 1) % n]
+        for j in range(i + 1, n):
+            if j == i or (j + 1) % n == i or (i + 1) % n == j:
+                continue                                         # Adjacent edges share a vertex
+            c, d = p[j], p[(j + 1) % n]
+            if ccw(a, b, c) * ccw(a, b, d) < 0 and ccw(c, d, a) * ccw(c, d, b) < 0:
+                return False
+    return True
+
+
+def nearest_active_cell(active, x, y, dx, dy, offset=0.5):
+    """!
+    @brief The active (on the board) cell or node nearest to a point.
+    @param active Boolean array (ny, nx).
+    @param x X coordinate in metres.
+    @param y Y coordinate in metres.
+    @param dx Spacing along x in metres.
+    @param dy Spacing along y in metres.
+    @param offset 0.5 for cell centres, 0 for nodes at the grid points.
+    @return Tuple (i, j) = (row, column).
+    """
+    ii, jj = np.nonzero(active)
+    d = np.hypot((jj + offset) * dx - x, (ii + offset) * dy - y)
+    k = int(np.argmin(d))
+    return int(ii[k]), int(jj[k])
+
+
+def rounded_rectangle(width, height, radius, segments=8):
+    """!
+    @brief Outline of a rectangle with rounded corners, as a polygon (each corner is an arc of `segments` edges).
+    @param width Width of the rectangle (any unit).
+    @param height Height of the rectangle (same unit).
+    @param radius Corner radius (same unit); limited to half of the shorter side.
+    @param segments Edges per quarter circle (8 gives a deviation of 0.5 % of the radius from the true arc).
+    @return List of [x, y], counter-clockwise from the lower-left corner's start.
+    """
+    r = min(float(radius), width / 2.0, height / 2.0)
+    pts = []
+    # Corner centres and the start angle of the arc of each corner, counter-clockwise from the lower-right corner
+    for cx, cy, a0 in ((width - r, r, -90.0), (width - r, height - r, 0.0), (r, height - r, 90.0), (r, r, 180.0)):
+        for k in range(segments + 1):
+            a = np.radians(a0 + 90.0 * k / segments)
+            pts.append([cx + r * np.cos(a), cy + r * np.sin(a)])
+    return pts
+
+
+def nearest_edge_point(poly, point):
+    """!
+    @brief Closest point of a polygon's boundary to a point.
+    @param poly Array-like (n, 2) of vertices (any length unit).
+    @param point (x, y) in the same unit.
+    @return Tuple (edge, q, distance): index i of the edge from vertex i to vertex i+1, the closest point q on it (array of 2) and its distance to `point`.
+    """
+    p = np.asarray(poly, dtype=float)
+    pt = np.asarray(point, dtype=float)
+    best = (0, p[0], float("inf"))
+    for i in range(len(p)):
+        a, b = p[i], p[(i + 1) % len(p)]
+        ab = b - a
+        n2 = float(np.dot(ab, ab))
+        # Projection parameter clamped to the segment (a degenerate edge falls back to its start)
+        t = 0.0 if n2 == 0.0 else min(max(float(np.dot(pt - a, ab)) / n2, 0.0), 1.0)
+        q = a + t * ab
+        d = float(np.hypot(*(pt - q)))
+        if d < best[2]:
+            best = (i, q, d)
+    return best
+
+
+def insert_vertex(poly, point):
+    """!
+    @brief Add a vertex to a polygon on the edge closest to a point, so the shape does not change until the new vertex is moved.
+    @param poly Array-like (n, 2) of vertices.
+    @param point (x, y) near the wanted edge, same unit.
+    @return Tuple (new vertices as an (n+1, 2) array, index of the new vertex).
+    """
+    p = np.asarray(poly, dtype=float)
+    edge, q, _ = nearest_edge_point(p, point)
+    return np.insert(p, edge + 1, q, axis=0), edge + 1
+
+
+def nearest_vertex(poly, point):
+    """!
+    @brief Vertex of a polygon closest to a point.
+    @param poly Array-like (n, 2) of vertices.
+    @param point (x, y) in the same unit.
+    @return Tuple (index, distance).
+    """
+    p = np.asarray(poly, dtype=float)
+    d = np.hypot(p[:, 0] - point[0], p[:, 1] - point[1])
+    k = int(np.argmin(d))
+    return k, float(d[k])

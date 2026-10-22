@@ -102,17 +102,21 @@ def test_transient_includes_the_mass_of_the_block():
     assert d.frames.shape[1] == 2 and d.t_max[-1] > 25.0
 
 
-def test_other_models_use_an_equivalent_coefficient_and_say_so():
+def test_lumped_and_analytic_run_with_a_block_in_steady_state():
     p = board()
     sim = simulate(p, SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=2.0))
-    assert any("metal block" in w for w in sim.results["lumped"].warnings)
-    assert any("metal block" in w for w in sim.results["analytic"].warnings)
-    assert not any("metal block" in w for w in sim.results["fvm"].warnings)
-    eq = blocks.plain_equivalent(p)
-    assert not eq.heatsinks[0].is_block() and eq.heatsinks[0].h_extra >= 0 and p.heatsinks[0].is_block()
+    assert list(sim.results) == ["fvm", "fdm", "lumped", "analytic"]
     assert "Metal block" in sim.report()
-    # A model without block layers still conserves energy and cools less than the bare board
-    assert sim.results["lumped"].t_max < fvm.solve_steady(board(False), 2.0).t_max + 30
+    rise = sim.results["fvm"].t_max - 25.0
+    for m in ("lumped", "analytic"):                                            # Block layer in the ring network / tile graph: within 6 % of the FVM
+        assert abs(sim.results[m].t_max - sim.results["fvm"].t_max) < 0.06 * rise, m
+    from pcbthermal import analytic, lumped
+    for module in (lumped,):                                                    # Their transients still refuse a block
+        with pytest.raises(ValueError, match="metal block"):
+            module.step_responses(p, cell_mm=2.0)
+    assert blocks.require_no_blocks(board(False)).heatsinks == board(False).heatsinks
+    with pytest.raises(ValueError, match="metal block"):
+        blocks.require_no_blocks(p)
 
 
 def test_checks_warn_about_a_block_without_copper_and_sor_refuses():
@@ -132,3 +136,19 @@ def test_profile_time_simulation_with_a_block():
     f = sim.profile_results["fvm"]
     assert f.resolved and f.frames.shape[1] == 2 and f.peak_map.shape[0] == 2
     assert f.peak > f.minimum and f.steady_peak_max > f.steady_average_max
+
+
+def test_presets_of_metals_and_interfaces():
+    from pcbthermal.model import INTERFACES, METALS, Heatsink
+    names = [m[0] for m in METALS]
+    assert names[:2] == ["Aluminium", "Copper"] and all(k > 0 and c > 1e6 for _, k, c in METALS)
+    assert (METALS[0][1], METALS[0][2]) == (Heatsink.__dataclass_fields__["k"].default, Heatsink.__dataclass_fields__["rho_cp"].default)
+    r = [t * 1e-3 / k * 1e4 for _, k, t in INTERFACES]                  # K cm2/W
+    assert r == sorted(r) and 0.3 < r[0] < 0.4 and 5.0 < r[-1] < 15.0   # From grease to a hard gap pad
+    # A worse interface heats the board more, a better metal cools it a little more
+    base = fvm.solve_steady(board(contact_r=INTERFACES[0][2] * 1e-3 / INTERFACES[0][1]), 2.0).t_max
+    worst = fvm.solve_steady(board(contact_r=INTERFACES[-1][2] * 1e-3 / INTERFACES[-1][1]), 2.0).t_max
+    assert worst > base
+    steel = fvm.solve_steady(board(k=METALS[3][1], rho_cp=METALS[3][2]), 2.0).t_max
+    copper = fvm.solve_steady(board(k=METALS[1][1], rho_cp=METALS[1][2]), 2.0).t_max
+    assert steel > copper

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Power calculator - help</title>
+<style>
+  body { font-family: "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.5; max-width: 62em; margin: 0 auto; padding: 1em 1.5em 4em; color: #1f2328; background: #ffffff; }
+  h1 { border-bottom: 2px solid #2563eb; padding-bottom: .2em; }
+  h2 { margin-top: 2em; border-bottom: 1px solid #d0d5dd; padding-bottom: .15em; }
+  h3 { margin-top: 1.4em; }
+  table { border-collapse: collapse; margin: .8em 0; }
+  th, td { border: 1px solid #c8ccd2; padding: .3em .6em; text-align: left; vertical-align: top; }
+  th { background: #eef0f3; }
+  code, kbd { background: #eef0f3; padding: 0 .3em; border-radius: 3px; font-family: Consolas, Menlo, monospace; }
+  .note { background: #fff7e0; border-left: 4px solid #e0a800; padding: .4em .8em; margin: .8em 0; }
+  .tip { background: #e8f3ff; border-left: 4px solid #2563eb; padding: .4em .8em; margin: .8em 0; }
+  nav li { margin: .1em 0; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1e2127; color: #e6e8eb; }
+    th { background: #2a2f37; } th, td { border-color: #3a414b; }
+    code, kbd { background: #2a2f37; }
+    .note { background: #3a331c; } .tip { background: #1c2d44; }
+    a { color: #7aa8ff; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Power calculator</h1>
+<p>The calculator answers one question: <b>how many watts does this part dissipate?</b> You give a temperature you measured, and it gives back the power. Use it when you do not know a part's power (a converter in a real circuit, a load you cannot read) and want to put the right number in the simulation.</p>
+
+<div class="tip"><b>Two routes, one answer.</b> They are two independent ways to the same number: pick <b>one</b> tab, you do not fill both. Route 1 solves the board you drew; Route 2 is a pencil-and-paper formula with a datasheet parameter. They are not connected to each other.</div>
+
+<h2>Route 1: from the drawn board</h2>
+<p>The program solves the board you drew in the editor at two powers and finds the power that makes the model read <i>your</i> temperature at the <i>point</i> you choose. Because the board problem is linear for fixed heat transfer, the temperature at a point is <code>T(P) = T(0) + R·P</code>, where <code>T(0)</code> is the heating caused by the other parts and <code>R</code> (kelvin per watt) is the <b>board resistance seen by that point</b>. So <code>P = (T measured − T(0)) / R</code>.</p>
+<div class="note"><b>The copper does not "give" the heat.</b> It decides <code>R</code>: a plane under the part spreads the heat, <code>R</code> is small, and the same temperature means more watts; a bare board has a large <code>R</code> and the same temperature means fewer watts. That is why the board you draw must be the real one: the answer is only as good as the drawn copper, vias, stack-up and air.</div>
+
+<h3>Measured at</h3>
+<table>
+<tr><th>Point</th><th>What it is</th><th>Needs</th></tr>
+<tr><td>Board ring (1 mm around the part)</td><td>Board temperature 0.5 to 1.5 mm outside the package, the point where the datasheet's ψJB takes the board temperature. A thermocouple taped on the copper next to the part.</td><td>nothing from the datasheet</td></tr>
+<tr><td>Hottest board point under the part</td><td>Maximum board temperature under the footprint.</td><td>nothing</td></tr>
+<tr><td>Mean board temperature under the part</td><td>Average under the footprint.</td><td>nothing</td></tr>
+<tr><td>Junction</td><td>The junction itself (a sense diode or the part's own sensor): <code>Tj = T board,max + θ·P</code>.</td><td>θ junction-pad</td></tr>
+<tr><td>Top of the package</td><td>Thermocouple or infrared reading of the case: <code>T top = Tj − ψJT·P</code>.</td><td>θ junction-pad and ψJT</td></tr>
+</table>
+
+<h3>The parameters (they are fields of the calculator)</h3>
+<ul>
+<li><b>θ junction-pad</b> (K/W): the datasheet's junction-to-case (bottom or exposed pad), junction-to-lead or junction-to-solder-point resistance. Never θJA. It starts at the value in the part's Properties; the number you type here is used for this calculation only.</li>
+<li><b>ψJT</b> (K/W): the datasheet's junction-to-top characterisation parameter. It is not a resistance (only part of the heat leaves through the top) and belongs to the datasheet's test board. Typically 0.3 to 5 K/W.</li>
+<li><b>Ambient</b>: the air temperature when you measured.</li>
+</ul>
+
+<h3>The uncertainty band and the case selector</h3>
+<p>The answer depends on things you only know approximately, so the calculator gives <b>three powers</b>:</p>
+<table>
+<tr><th>Case</th><th>Meaning</th><th>When to use it</th></tr>
+<tr><td><b>Best case</b></td><td>The lowest plausible power (the coolest assumptions)</td><td>To see the optimistic end</td></tr>
+<tr><td><b>Nominal</b></td><td>The calculation with your inputs as typed</td><td>The best single estimate</td></tr>
+<tr><td><b>Worst case</b></td><td>The highest plausible power (the hottest assumptions)</td><td>To check margins: Tj, power limit, hotspots, as a designer would</td></tr>
+</table>
+<p>Each source of doubt is moved alone to both ends of its uncertainty and the calculator is run again: the <b>copper</b> (default ±25 %), the <b>heat transfer</b> (±30 %), <b>θ</b> (±20 %), <b>ψJT</b> (±30 %) and the <b>reading</b> (±1 K). The deviations are combined as the root of the sum of squares, separately below and above the nominal power, which is how independent uncertainties are normally added (stacking all of them at once would give a range nobody has seen). The values are in <b>Preferences - Power calculator</b>. The table in the result shows what each source contributes, so you can see which one dominates.</p>
+<p>The selector <b>Power to use</b> chooses which of the three goes into the part when you press <b>Use as the power of this part</b>; the simulation then uses that single number. Nothing is changed in the models until you press the button, and it can be undone.</p>
+<div class="note"><b>Same board or a variant?</b> The power is fitted to the drawn board. If you simulate <i>that same board</i> with it, you reproduce your measurement and the errors of the copper cancel. If you simulate <i>variants</i> (more copper, a heatsink) the power is kept, which is physically right, but the board's error is not cancelled: use the worst case for margins.</div>
+
+<h3>The result</h3>
+<p>The power (nominal, best and worst), the temperatures the model reads at the nominal power (hottest board point, ring, junction, top), and the <b>board resistance</b> at the measured point in K/W.</p>
+
+<h2>Route 2: from a datasheet parameter</h2>
+<p>If you already know the junction temperature (a sense diode, a temperature output) the datasheet relation is enough: <code>P = (Tj − T reference) / parameter</code>, with the parameter and its reference point of the same definition: <b>ψJB</b> (reference: the board 1 mm from the package), <b>ψJT</b> (the top of the case) or <b>θ</b>. It uses no board model, so it is exact only on the datasheet's own board; ψ values are not thermal resistances (ψJB is within about 15 % of θJB). The result updates as you type; <b>Use as the power of this part</b> writes it into the part.</p>
+<p>The shortcut <code>P = (T top − T ambient)/(θJA − ψJT)</code> follows from the definitions but is <b>not offered</b>: θJA belongs to the JEDEC board, and with a θJA 30 % away from your board's it is 25 to 50 % off.</p>
+
+<h2>How good is it?</h2>
+<table>
+<tr><th>Check</th><th>Result</th></tr>
+<tr><td>TI CSD17308Q3 on its datasheet board (1 in², 2 oz): datasheet RθJA 46 K/W</td><td>model 46.8 K/W, power error −1.7 %</td></tr>
+<tr><td>JEDEC JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47-like, package assumed): datasheet RθJA 32.5 K/W</td><td>model 31.6 K/W, power error +3.0 %</td></tr>
+<tr><td>A wrong board: top copper half filled / copper 17.5 µm instead of 35 µm / no inner planes / no vias</td><td>power −13 % / −24 % / −34 % / −11 %</td></tr>
+<tr><td>Heat transfer ±30 %; θ ±20 %; ψJT ±1 K/W; 3 K of reading error</td><td>+6 / −9 %; ±7 %; ±6 %; ±8.5 %</td></tr>
+</table>
+<p>On the datasheet's own board the calculator is within 2 to 3 %; the large errors appear only when the drawn board is not the real one. <b>Everything depends on the copper.</b> That is why the band exists. A probe that touches the board cools it a little, and an infrared spot is too large for a small part. When the copper of the real board comes from Gerber files it will be exact and this dominant error goes away.</p>
+
+<h2>Limits</h2>
+<ul>
+<li>Steady state and constant power; a time-varying part is not covered.</li>
+<li>The heat of the part is assumed to go into the board. With a heatsink on the package use the part's θSA fields and the simulation instead of the top-of-package point.</li>
+<li>θ, ψJT and ψJB come from the datasheet's board and are estimates on yours.</li>
+</ul>
+
+<h2>More</h2>
+<p>Formulas, the validation tables, the sensitivity study, how the error could be reduced further and the sources are in <code>docs/calculators.md</code> of the project.</p>
+
+</body>
+</html>

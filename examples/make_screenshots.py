@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication                                  # no
 
 from pcbthermal import SolverOptions, simulate                              # noqa: E402
 from pcbthermal.examples import example_board, example_profile_board                               # noqa: E402
-from pcbthermal.gui.main_window import MainWindow                           # noqa: E402
+from pcbthermal.gui.main_window import TAB_PROFILE, TAB_RESULTS, TAB_STACKUP, MainWindow   # noqa: E402
 
 
 def main(out_dir):
@@ -44,6 +44,7 @@ def main(out_dir):
         win.grab().save(path)
         written.append(path)
 
+    win.canvas.fit()
     win.canvas.set_selection([("heater", 0)])
     win._on_canvas_selection([("heater", 0)])
     shot("editor.png")
@@ -54,7 +55,7 @@ def main(out_dir):
         win.results.tabs.setCurrentIndex(tab)
         shot(name)
 
-    win.tabs.setCurrentIndex(2)                                              # Results
+    win.tabs.setCurrentIndex(TAB_RESULTS)
     win.results.tabs.setCurrentWidget(win.results.animation)
     anim = win.results.animation
     anim.t_end.setValue(120.0)
@@ -65,10 +66,36 @@ def main(out_dir):
     anim.slider.setValue(int(anim.slider.maximum() * 0.55))
     shot("animation.png")
 
+    # Advanced stack-up: the cross-section tab
+    win._load_problem(example_board(), "example-4layer")
+    b = win.doc.problem.board
+    b.make_advanced()
+    b.copper_thickness = [70e-6, 35e-6, 35e-6, 70e-6]
+    b.dielectrics[0].thickness = 0.1e-3
+    b.dielectrics[1].thickness, b.dielectrics[1].name = 1.0e-3, "Metal-core dielectric (2 W/mK)"
+    b.dielectrics[1].k_through = b.dielectrics[1].k_inplane = 2.0
+    b.thickness = b.total_thickness()
+    win.doc.changed.emit()
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    shot("stackup.png")
+    win.doc.stack.setClean()                                                 # Loading the next example must not ask about the edits above
+
+    # A board with an outline: the L-shaped board and its temperature map
+    win._load_problem(example_board(), "example-outline")
+    win.doc.set_outline([[0, 0], [100, 0], [100, 30], [60, 30], [60, 80], [0, 80]])
+    win.doc.set_props("heater", 1, power=0.0, merge=False)
+    win.tabs.setCurrentIndex(0)
+    win.canvas.fit()
+    shot("outline.png")
+    win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)))
+    win.results.tabs.setCurrentIndex(1)
+    shot("outline_temperature.png")
+    win.doc.stack.setClean()
+
     # Power profiles: editor page and time simulation
     win._load_problem(example_profile_board(), "example-profile")
     win.show()
-    win.tabs.setCurrentIndex(1)
+    win.tabs.setCurrentIndex(TAB_PROFILE)
     win.profile_page.table.selectRow(1)
     win.profile_page.run_analysis()
     while not win.profile_page.decisions:

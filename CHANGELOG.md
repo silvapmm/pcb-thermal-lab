@@ -5,6 +5,58 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-22
+
+### Added
+- **Advanced stack-up** in all five models: copper thickness per layer and thickness, conductivities, density and specific heat per dielectric gap (presets for FR-4, high-Tg, polyimide, PTFE-ceramic, metal-core, alumina, AlN); the simple stack-up is unchanged. New **Stack-up tab** between Board and Power profile with the cross-section drawn in µm and mm (true or readable proportions), the total thickness, a click on a layer for its data, and the layer table. Validated against the exact series circuit (1e-6 K). `docs/models.md` section 8, `docs/validation.md` section 12.
+- **Board outline polygon** (any shape: presets, vertex table, outline tool `O`) in the FVM, FDM and 3D solid; the lumped and analytic models run on the rectangle of the same area (box and positions scaled by sqrt(area ratio)), with a warning in the Results summary; against the FVM on the real shape they are 0.2 to 3 % off for parts away from the edge (bounding box: 6 to 10 % cool), more near the edge (`docs/validation.md` section 13). Blank cells in the plots, edge loss along the outline, parts off the board still deliver their power. `docs/models.md` section 9.
+- **Top path of a part** (heatsink on the package): `theta_jc_top`, `interface`, `theta_sa`; within 0.4 to 0.8 K of a junction-node prototype (`examples/top_path_study.py`).
+- **Power calculator** (Simulation menu): the power of a part from a measured temperature, by the board model (`pcbthermal.inverse`) or from a datasheet ψ/θ parameter.
+- **Calculations in a separate process** (`pcbthermal/jobs.py`, `gui/compute.py`): a Cancel button and `Ctrl+.`, a window that never freezes, and a process that stops when the program closes or dies.
+- **Help menu**: an HTML user guide (`pcbthermal/help/index.html`, `F1`, in the program or in the browser) and an About box with version, author and project link.
+- **A tooltip on every control** (`gui/tips.py`, checked by `tests/test_tooltips.py`), rulers and a scale bar on the board, position and size fields for the selected shape, tab shortcuts `Ctrl+1` to `Ctrl+4`.
+- **Right-click menu on the board**: add a vertex on the nearest edge of a shape (then drag it), delete a vertex, duplicate, delete; on an empty spot add a heater, zone, heatsink or via there. The geometry is in `geometry.insert_vertex`.
+- **Properties panel in titled boxes** (Part, Junction, Package top, Interface, Heatsink on the package, Copper, Position and size, ...). A heatsink is *Manual input* (typed as **h** or as **θSA**, with the equivalent of the other shown) or *Metal block* (boxes Metal block, Interface, Fins, Extra cooling). New interface preset **Direct contact** (no material, R = 0).
+- **Simple stack-up and Materials moved to the Stack-up tab** (right of the cross-section; in the advanced mode the rows that only belong to the simple one are hidden); the Board panel keeps size, outline and environment.
+- **Typical stack-ups checked against fabricators' tables** (JLCPCB, PCBWay; Eurocircuits and Sierra catalogue limits): the maximum temperature moves by under 0.5 % between them (`examples/stackup_vendor_check.py`, `docs/validation.md` section 14).
+- `docs/roadmap.md` is now two lists (what has been implemented, what we want to implement); the Component evidence moved to `docs/research.md` with its bibliography; the fabricator sources are in `docs/validation.md` section 10.
+- **Metal block in the Lumped and Analytic models** (steady state): one more layer of the ring network, and a graph of tiles condensed into the Green-function correction; 2.0 % and 1.1 % off the FVM on average, 4.8 % and 4.3 % at most in 62 cases (the equivalent coefficient was 15 to 31 % off); no time simulation for them with a block. **Fields that do not apply are greyed**: the top path of a part without θ and θSA, the solver settings of a model that is not selected.
+- **Verification**: the fins against a 2D solution of one fin (24 cases within 0.08 %, `examples/fin_validation.py`), the 3D solid against Yovanovich's spreading resistance table (0.7 to 0.8 %) and a grid-convergence study (GCI 1.14 %, `examples/solid3d_verification.py`); `docs/validation.md` sections 15 and 16.
+- **Fix**: dragging a vertex handle no longer drags the whole selected polygon along (Qt moves every selected movable item with the dragged one); only the vertex follows the mouse. Switching a heatsink to a metal block no longer carries its manual `h` into the block's extra cooling (it starts at 0).
+- **Fix**: the side panels (Board, Simulation, Properties) are in scroll areas, so a field below the visible part (for example *Position and size* of a zone in a short window) can always be reached; the Properties dock gets a bit more height by default.
+- **Via fill**: a via barrel can be open, filled with epoxy resin (the usual fabricator "filled via", +0.1 %), conductive paste (+5 %) or electroplated copper (×3.3, −3.9 K on the example board); the old checkbox "Filled with copper" became the *Fill* list (old files read as before). **Power from the top of the package** in the power calculator (θ and ψJT); `docs/validation.md` sections 18 and 19 (the copper dominates the result: 11 to 45 % error for a wrong board).
+- **Preferences** (menu Edit, `Ctrl+,`): the material libraries (via fills, metals, interface materials, dielectrics, package families) and the defaults of a new board, of new elements, of the materials and of the solver live in `pcbthermal/data/defaults.json`; a user file in the configuration folder (`user_defaults.json`, only the differences) overrides them, is edited in the new window, can be exported, imported and reset, and the status bar, a start-up message and the About box say when it is in use. The via *Fill* list shows names only, with the typical conductivity in an editable field below.
+- **Power calculator** reworked: simpler name, the parameters (θ junction-pad, ψJT) inside the window, hints on every field and on every option of *Measured at*, a result with the temperatures at the power found and the board resistance, validated against two datasheet boards (`docs/calculators.md`, `examples/calculator_validation.py`). **The program starts with an empty board**; the example is in File - Open example. Preferences: one tab with four boxes for the defaults of new projects.
+- **Power calculator**: two tabs for the two independent routes, a window that keeps its size (unused parameters are greyed), a **Help** button with a formatted explanation, and an **uncertainty band** (best case / nominal / worst case from the copper ±25 %, heat transfer ±30 %, θ ±20 %, ψJT ±30 % and the reading ±1 K, editable in Preferences) with a selector for the power written into the part.
+- **Heater Type**: *Heat source* (power and the interface under it) or *Component* (junction, package, top path); the package family list fills the typical θ junction-pad, θJC(top) and Tj max from a library in Preferences (new columns); old files infer the type.
+- **Heatsink on the package**: two lists, the typical heatsink and its air flow (catalogue θSA with source and conditions, a library in Preferences, only the flows the catalogue gives) fill θSA, which stays editable; the boxes of the top path (package top, interface) appear as soon as θSA is above zero and are not shown without a heatsink; the family and heatsink notes are one short line with the source in the tooltip; the family note for a custom part reads "Custom: no typical values applied".
+- `docs/versions.md`: what was implemented in every version, where and how it is tested. `examples/stackup_outline_study.py`.
+
+- **Typical stack-ups by layer count** in an editable JSON file (`pcbthermal/data/stackups.json`), loaded when the number of layers changes and by *Load typical stack-up* on the Stack-up tab; `docs/models.md` section 12 lists them and what is inside the dielectric.
+- Interface material presets (paste, gap pads) for the heatsink on a package; θSA from the datasheet for the Heatsink element; rounded-corner preset, Subdivide button and `geometry.rounded_rectangle`; `docs/models.md` sections 13 and 14.
+
+- **Cooling model of the Heatsink**: *Coefficient* (extra h or θSA) or *Metal block, computed* from its thickness, metal, interface and **fins** (height, thickness, pitch: area gain with fin efficiency; warning when the fins are too close in still air). Contact area of a part's interface (lid or exposed top), body helper for θJC(top), several sheets in one dielectric gap (`combine_sheets`). `docs/models.md` sections 15 to 18.
+
+- The interface between a heatsink and the board or the package is **one dielectric sheet with its own material and thickness** (preset, thickness, conductivity, resulting K·cm²/W), for the metal block and for the heatsink on a part.
+
+### Changed
+- Changing the number of layers loads the typical stack-up of the new count (a 4-layer board is now 1.586 mm).
+- Tool keys are now `S Z H C V O` (Select, Zone, Heater, Heatsink/Cooling, Via, board Outline); `V` is the via tool.
+- The Environment panel hides the typed `h top` and `h bottom` in computed mode (they were only a starting guess), and every field shows its unit.
+- The edge loss of the FVM and FDM no longer adds the board edge conductance to the layers of metal blocks (it was counted twice).
+
+### Fixed
+- Dragging a via (or any element) no longer moves it by its own coordinates off the board; elements and selections cannot leave the board when dragged, nudged or moved.
+- Leaving the application no longer leaves a calculation running.
+
+### Added (earlier in this cycle)
+- **Parts**: a heater can be a part with a junction-to-pad resistance `theta` (worst case: all the power enters the board; the old `theta_jb` key still opens), a maximum junction temperature (margin, **power limit** and warning), `psi_jb` (second estimate from the board temperature in the ring around the package) and a **power temperature coefficient** (power solved together with the board, thermal runaway detected). Typical θ by package family, hints and a datasheet guide in the application; the Components tab shows the junction, margin and power limit. `docs/models.md` section 6, `docs/validation.md` section 9, `examples/component_study.py`, `tests/test_component.py`.
+- **Top path of a part** (heatsink on the package): `theta_jc_top`, `interface` (K·cm²/W over the footprint) and `theta_sa` (K/W) make the part a junction node joined to the board by θ and to the ambient through the top; the board receives only the power the top does not take (fixed-point loop around any model, together with the power coefficient). The report and the Components table give the top-path power and its share; steady-state models only. Within 0.4 to 0.8 K of the junction-node prototype on four chips; `examples/top_path_study.py`, `docs/models.md` section 6, `docs/validation.md` section 9.
+- `docs/research.md` for investigations before implementation.
+
+### Added
+- Metals (aluminium, copper, brass, carbon steel, stainless 304) and interface presets (good paste, default paste, gap pads) for the Heatsink block in the application; default block conductivity 204 W/mK (was 205); `examples/heatsink_study.py` and the typical values in `docs/roadmap.md` 1.9c.
+
 Next: the Component element (Package 2R, heat sink, passive areas) in its own version, then Gerber import and a variable stack-up (see `docs/roadmap.md`).
 
 ## [2.3.0] - 2026-10-16

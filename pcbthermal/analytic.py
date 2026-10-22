@@ -41,6 +41,7 @@ import numpy as np
 from scipy.special import k0
 
 from . import blocks
+from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 
@@ -115,7 +116,8 @@ def _effective_sheet(problem, cell_mm):
     b = problem.board
     m = b.materials
     W, H, L = b.width, b.height, b.layers
-    slab = b.thickness / L
+    slab = b.slab_thicknesses()                       # Per layer node (equal in the simple stack-up)
+    k_lam, rho_cp_lam = b.layer_laminate()
     nx = max(int(round(W * 1000.0 / cell_mm)), 2)
     ny = max(int(round(H * 1000.0 / cell_mm)), 2)
     dx, dy = W / nx, H / ny
@@ -131,10 +133,10 @@ def _effective_sheet(problem, cell_mm):
         fill_map[z.layer] = np.maximum(fill_map[z.layer],
                                        coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
     h_tot = float(b.h_top + b.h_bottom)
-    d_diel = b.dielectric_thickness()
-    g_diel = m.k_fr4_through / d_diel if L > 1 else 0.0                   # Vertical conductance per area (W/m2K)
+    d_diel = b.gap_thicknesses()                                          # (L-1,) one per gap
+    g_diel = b.gap_properties()[0] / d_diel if L > 1 else np.zeros(0)     # Vertical conductance per area of each gap (W/m2K)
     fill_mean = fill_map.mean(axis=(1, 2))
-    S_mean = fill_mean * m.k_copper * tc + m.k_fr4_inplane * (slab - fill_mean * tc)
+    S_mean = fill_mean * m.k_copper * tc + k_lam * (slab - fill_mean * tc)
     lam = float(np.sqrt(S_mean.sum() / h_tot)) if h_tot > 0 else W        # Spreading length of the whole stack
     centres = [(polygon_centroid(h.polygon), np.sqrt(polygon_area(h.polygon) / np.pi), h.power, h.layer)
                for h in problem.heaters if h.power > 0]
@@ -146,9 +148,9 @@ def _effective_sheet(problem, cell_mm):
         spread = np.zeros(L)
         for l in range(L):
             if l in heater_layers:
-                n_nb = (l > 0) + (l < L - 1)
+                g_adj = sum(g_diel[g] for g in (l - 1, l) if 0 <= g < L - 1)       # Conductance to the neighbouring layers
                 h_surf = (b.h_top if l == 0 else 0.0) + (b.h_bottom if l == L - 1 else 0.0)
-                lam_l = float(np.sqrt(S_mean[l] / max(h_surf + n_nb * g_diel, 1e-9)))
+                lam_l = float(np.sqrt(S_mean[l] / max(h_surf + g_adj, 1e-9)))
             else:
                 lam_l = lam
             w = np.zeros((ny, nx))
@@ -161,10 +163,10 @@ def _effective_sheet(problem, cell_mm):
             warnings.append(
                 f"copper coverage varies strongly around the heaters (spread {spread.max():.2f}); "
                 "the uniform-sheet assumption is weak, the FVM result is more reliable")
-    S = fill * m.k_copper * tc + m.k_fr4_inplane * (slab - fill * tc)           # (L,)
+    S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)                     # (L,)
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
-            "h_tot": h_tot, "d_diel": d_diel, "g_diel": g_diel}
+            "h_tot": h_tot, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam, "rho_cp_lam": rho_cp_lam}
 
 
 def _heater_unit_sources(problem, M, N):
@@ -191,6 +193,56 @@ def _heater_unit_sources(problem, M, N):
     return out
 
 
+def _block_tiles(problem, ntx, nty, tw, th, L):
+    """!
+    @brief The metal blocks as tile quantities for the Green-function correction (experimental).
+    @details The layers of the blocks are built on the tile grid with blocks.extra_layers (the same code the FVM uses). Each block face is a small graph of tiles: lateral
+             conductance k t between tiles, contact to the board layer over the copper of the tile, exposed surface to the ambient. Eliminating the block temperatures
+             leaves an effective conductance matrix on the board layer, B = D_link - D_link (K_b + D_amb + D_link)^-1 D_link (a Schur complement), which couples the tiles of the
+             block to each other: that is what lets the block spread the heat of the pad centre to the whole pad. The board face under the block no longer exchanges heat
+             with the air (a negative local conductance).
+    @param problem A Problem.
+    @param ntx Tiles along x.
+    @param nty Tiles along y.
+    @param tw Tile width in metres.
+    @param th Tile height in metres.
+    @param L Number of board layers.
+    @return List of dicts with layer (board layer), tiles (array of (row, col)), B (Schur matrix), face (W/K removed per tile), M (matrix to recover the block temperatures),
+            g_link, g_amb.
+    """
+    b = problem.board
+    fill_t = np.zeros((L, nty, ntx))
+    for z in problem.zones:
+        fill_t[z.layer] = np.maximum(fill_t[z.layer], coverage_fraction(z.polygon, ntx, nty, tw, th, 4) * z.fill)
+    area_t = np.full((nty, ntx), tw * th)
+    out = []
+    for ly in blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, ntx, nty, tw, th, n), area_t, fill_t, tw, th):
+        tiles = np.argwhere(ly["cov"] > 0)
+        index = -np.ones((nty, ntx), dtype=int)
+        index[tuple(tiles.T)] = np.arange(len(tiles))
+        n = len(tiles)
+        K = np.zeros((n, n))
+        S = ly["S"]
+        for axis, face_len, dist in ((1, th, tw), (0, tw, th)):                 # Lateral conduction of the block between neighbouring tiles
+            a = S[:, :-1] if axis == 1 else S[:-1, :]
+            c = S[:, 1:] if axis == 1 else S[1:, :]
+            g = Network._harmonic(a, c) * face_len / dist
+            ia = index[:, :-1] if axis == 1 else index[:-1, :]
+            ic = index[:, 1:] if axis == 1 else index[1:, :]
+            sel = (ia >= 0) & (ic >= 0) & (g > 0)
+            for i, j, gg in zip(ia[sel], ic[sel], g[sel]):
+                K[i, i] += gg; K[j, j] += gg; K[i, j] -= gg; K[j, i] -= gg
+        g_link = ly["g_link"][tuple(tiles.T)]
+        g_amb = ly["g_amb"][tuple(tiles.T)]
+        M = K + np.diag(g_amb + g_link)
+        Dl = np.diag(g_link)
+        B = Dl - Dl @ np.linalg.solve(M, Dl)
+        h_face = b.h_top if ly["face"] == 0 else b.h_bottom
+        face = h_face * tw * th * ly["cov"][tuple(tiles.T)]                      # Face conductance that the block hides
+        out.append({"layer": ly["board_layer"], "tiles": tiles, "B": B, "face": face, "M": M, "g_link": g_link, "g_amb": g_amb})
+    return out
+
+
 def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     """!
     @brief Analytic steady-state solution of the multilayer fin problem.
@@ -199,25 +251,31 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @param n_terms Number of cosine modes per direction (300 resolves heaters of a few mm).
     @param local_corrections If True vias and heatsinks are applied locally (Green-function update);
                              if False they are smeared over the board (the older, cruder model).
+    @note A metal block is a graph of tiles inside the Green-function correction (see _block_tiles) and needs the local corrections. Steady state only; against the FVM it is
+          within 1 % on average and 4.5 % at most (docs/validation.md section 17).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
-    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
+    blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
+    forced = blocks.has_blocks(problem) and not local_corrections           # A block is a local correction: it cannot be smeared over the board
+    local_corrections = local_corrections or forced
     sh = _effective_sheet(problem, cell_mm)
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     slab, nx, ny, dx, dy, xs, ys, tc = (sh[k] for k in ("slab", "nx", "ny", "dx", "dy", "xs", "ys", "tc"))
     power, warnings, fill, S, lam = sh["power"], sh["warnings"], sh["fill"], sh["S"], sh["lam"]
     h_tot, d_diel, g_diel = sh["h_tot"], sh["d_diel"], sh["g_diel"]
+    if forced:
+        warnings.append("the local corrections are on because a metal block needs them")
 
     # --- Surface coefficients and vertical conductance of the uniform problem
     h_l = np.zeros(L)
     h_l[0] += b.h_top
     h_l[L - 1] += b.h_bottom
-    g = g_diel
+    g = g_diel.copy()                                         # (L-1,) per gap
     if not local_corrections:
         for s in problem.heatsinks:
             h_l[s.layer] += s.h_extra * polygon_area(s.polygon) / (W * H)
         if L > 1:
-            g += m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / d_diel
+            g += m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / d_diel
 
     # --- Cosine coefficients of the heaters, one vector entry per layer
     M = N = n_terms
@@ -233,27 +291,35 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     for l in range(L):
         A[:, :, l, l] = S[l] * k2 + h_l[l]
         if l > 0:
-            A[:, :, l, l] += g
-            A[:, :, l, l - 1] -= g
+            A[:, :, l, l] += g[l - 1]
+            A[:, :, l, l - 1] -= g[l - 1]
         if l < L - 1:
-            A[:, :, l, l] += g
-            A[:, :, l, l + 1] -= g
+            A[:, :, l, l] += g[l]
+            A[:, :, l, l + 1] -= g[l]
     Ainv = np.linalg.inv(A)                                  # (M, N, L, L)
     a_mn = np.einsum("mnlk,mnk->mnl", Ainv, q_mn)            # (M, N, L)
 
     # --- Local corrections for vias and heatsinks through the tile Green-function system
     heatsink_extraction = 0.0
+    block_power = 0.0
     if local_corrections and (problem.vias or problem.heatsinks):
         ntx, nty, tw, th = _tile_grid(W, H, lam)
-        c_via = np.zeros((nty, ntx))
+        c_via = np.zeros((nty, ntx, max(L - 1, 0)))                    # Via conductance of each tile across each gap
         for v in problem.vias:
             a = min(max(int(v.x // tw), 0), ntx - 1)
             bb = min(max(int(v.y // th), 0), nty - 1)
-            c_via[bb, a] += m.k_copper * v.copper_area(b.via_plating) / d_diel if L > 1 else 0.0
+            if L > 1:
+                c_via[bb, a] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
         g_heatsink = np.zeros((L, nty, ntx))
         for s in problem.heatsinks:
+            if s.is_block():
+                continue                                       # A block is a graph of tiles of its own (below)
             g_heatsink[s.layer] += s.h_extra * tw * th * coverage_fraction(s.polygon, ntx, nty, tw, th, 8)
-        active = np.argwhere((c_via > 0) | (g_heatsink.sum(axis=0) > 0))        # (Nt, 2) = (row, col)
+        bt = _block_tiles(problem, ntx, nty, tw, th, L) if blocks.has_blocks(problem) else []
+        in_block = np.zeros((nty, ntx), dtype=bool)
+        for e in bt:
+            in_block[tuple(e["tiles"].T)] = True
+        active = np.argwhere((c_via.sum(axis=2) > 0) | (g_heatsink.sum(axis=0) > 0) | in_block)        # (Nt, 2) = (row, col)
         Nt = len(active)
         if Nt:
             rect = [(c * tw, (c + 1) * tw, r * th, (r + 1) * th) for r, c in active]
@@ -278,8 +344,8 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
             # Local conductance matrix C (W/K): vias couple adjacent layers, heatsinks go to ambient
             C = np.zeros((Nt * L, Nt * L))
             for r, (row, col) in enumerate(active):
-                cv = c_via[row, col]
                 for l in range(L - 1):
+                    cv = c_via[row, col, l]
                     i1, i2 = r * L + l, r * L + l + 1
                     C[i1, i1] += cv
                     C[i2, i2] += cv
@@ -287,7 +353,16 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                     C[i2, i1] -= cv
                 for l in range(L):
                     C[r * L + l, r * L + l] += g_heatsink[l, row, col]
+            pos = {(int(row), int(col)): r for r, (row, col) in enumerate(active)}
+            for e in bt:                                       # Metal blocks: the Schur matrix couples the tiles of the board layer under the block
+                rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
+                C[np.ix_(rows_e, rows_e)] += e["B"]
+                C[rows_e, rows_e] -= e["face"]                 # ... and the face under it no longer loses heat to the air
             y = np.linalg.solve(np.eye(Nt * L) + G @ C, y0.reshape(-1))
+            for e in bt:                                       # Heat taken by the exposed surface of every block
+                rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
+                phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
+                block_power += float((e["g_amb"] * phi).sum())
             f = -(C @ y).reshape(Nt, L)                       # Heat injected into every tile and layer (W)
             heatsink_extraction = float(sum(g_heatsink[l, row, col] * y[r * L + l]
                                         for r, (row, col) in enumerate(active) for l in range(L)))
@@ -306,12 +381,12 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
 
     l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
     # Heat leaving through the faces: the a_00 mode integrates each layer exactly
-    p_out = {"top": float(b.h_top * W * H * a_mn[0, 0, 0]),
+    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * a_mn[0, 0, 0]),
              "bottom": float(b.h_bottom * W * H * a_mn[0, 0, L - 1]),
              "heatsinks": float(heatsink_extraction if local_corrections else
                             sum(h_l[k] * W * H * a_mn[0, 0, k] for k in range(L))
                             - b.h_top * W * H * a_mn[0, 0, 0] - b.h_bottom * W * H * a_mn[0, 0, L - 1])}
-    edge_ratio = (b.h_side or 0.0) * 2 * (W + H) * b.thickness / max(h_tot * W * H, 1e-30)
+    edge_ratio = (b.h_side or 0.0) * 2 * (W + H) * b.total_thickness() / max(h_tot * W * H, 1e-30)
     if edge_ratio > 0.05:
         warnings.append(f"edge convection is about {edge_ratio * 100:.0f} % of the face convection but the "
                         "analytic model assumes insulated edges")
@@ -344,19 +419,19 @@ def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
     h_l[L - 1] += b.h_bottom
     for s in problem.heatsinks:
         h_l[s.layer] += heatsink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
-    g = sh["g_diel"]
+    g = sh["g_diel"].copy()
     if L > 1:
-        g += via_scale * m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / sh["d_diel"]
+        g += via_scale * m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / sh["d_diel"]
     k2 = ((np.arange(M) * np.pi / W) ** 2)[:, None] + ((np.arange(N) * np.pi / H) ** 2)[None, :]
     A = np.zeros((M, N, L, L))
     for l in range(L):
         A[:, :, l, l] = sh["S"][l] * k2 + h_l[l]
         if l > 0:
-            A[:, :, l, l] += g
-            A[:, :, l, l - 1] -= g
+            A[:, :, l, l] += g[l - 1]
+            A[:, :, l, l - 1] -= g[l - 1]
         if l < L - 1:
-            A[:, :, l, l] += g
-            A[:, :, l, l + 1] -= g
+            A[:, :, l, l] += g[l]
+            A[:, :, l, l + 1] -= g[l]
     return A
 
 
@@ -381,7 +456,7 @@ def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, heatsink_scale=1.0
     M = N = n_terms
     A = _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale)
     fill, tc, slab = sh["fill"], sh["tc"], sh["slab"]
-    c_l = fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * m.rho_fr4 * m.cp_fr4      # J/(m2 K)
+    c_l = fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * sh["rho_cp_lam"]      # J/(m2 K)
     cinv = 1.0 / np.sqrt(c_l)
     lam, V = np.linalg.eigh(A * cinv[None, None, :, None] * cinv[None, None, None, :])
     back = cinv[None, None, :, None] * V                    # a = back @ b
@@ -575,7 +650,7 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @param n_times Number of logarithmically spaced times.
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
-    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
+    blocks.require_no_blocks(problem)                            # These models have no metal blocks
     ms = _ModalSet(problem, cell_mm, n_terms)
     t_end = t_end or 10.0 * ms.tau
     times = np.geomspace(1e-5, t_end, n_times)
@@ -695,7 +770,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
-    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
+    blocks.require_no_blocks(problem)                            # These models have no metal blocks
     from . import profiles
     return profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic",
                                 progress)
@@ -714,7 +789,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     @param log_times True for logarithmically spaced times (resolves fast and slow parts), False for linear.
     @return TransientResult.
     """
-    problem = blocks.plain_equivalent(problem)                   # These models have no metal blocks
+    blocks.require_no_blocks(problem)                            # These models have no metal blocks
     from .results import TransientResult
     problem = problem.steady_copy("average") if problem.has_profiles() else problem
     ad = _AnalyticAdapter(problem, cell_mm, n_terms)
