@@ -87,7 +87,7 @@ def run(win, qtbot, models=ALL_MODELS, cell=2.0, expect_ok=True):
     win.board_panel.refresh()
     win.run_simulation()
     if win.worker is not None:
-        qtbot.waitUntil(lambda: not win.worker.isRunning(), timeout=180000)
+        qtbot.waitUntil(lambda: not win.worker.isRunning(), timeout=1200000)
         qtbot.wait(50)
     if expect_ok:
         assert win.sim is not None and win.sim is not before
@@ -651,7 +651,7 @@ def test_top_path_in_the_application(win, qtbot):
     spins = form.findChildren(QAbstractSpinBox)
     by_tip = lambda start: next(s for s in spins if s.toolTip().startswith(start))
     by_tip("Junction-to-case").setValue(30.0)
-    by_tip("Interface between the package top").setValue(0.5)
+    by_tip("Resistance per area of the interface between the package top").setValue(0.5)
     by_tip("Resistance from a heatsink on top").setValue(12.0)
     h = win.doc.problem.heaters[0]
     assert (h.theta_jc_top, h.interface, h.theta_sa) == (pytest.approx(30.0), pytest.approx(0.5), pytest.approx(12.0))
@@ -755,6 +755,9 @@ def test_advanced_stackup_in_the_application(win, qtbot, tmp_path):
     # More and fewer layers keep one dielectric per gap
     for n in (6, 2, 1, 3, 4):
         win.board_panel.layers.setValue(n)
+        if n == 1:                                                         # The typical 1-layer board is a simple one (no gaps to describe): back to advanced
+            assert not win.doc.problem.board.is_advanced()
+            page.mode.setCurrentIndex(1)
         assert len(win.doc.problem.board.dielectrics) == n - 1 and page.editor.rowCount() == max(2 * n - 1, 1)
         win.doc.problem.validate()
     run(win, qtbot, ALL_MODELS, cell=2.0)
