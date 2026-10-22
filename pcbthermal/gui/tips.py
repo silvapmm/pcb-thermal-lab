@@ -34,7 +34,7 @@ TIPS = {
     "diameter": "Finished hole diameter of the via in millimetres; the plating thickness is in the Materials box of the Stack-up tab.",
     "filled with copper": "A via filled with copper (solid rod) instead of a hollow plated barrel: much more conductive.",
     "block material": "Metal of the block pressed on the board (a preset sets the conductivity below; Custom keeps your value).",
-    "cooling model": "How the cooling of this area is described: a coefficient you give, or a metal block the program computes.",
+    "cooling model": "How the cooling of this area is described: manual input (you give h or the datasheet θSA) or a metal block the program computes (spreading in the metal, interface, optional fins; all models in steady state, the finite-volume ones also in time).",
     "block thickness": "Thickness of the metal block in millimetres.",
     "fin height": "Height of the fins of the block in millimetres (0 = plain plate).",
     "fin thickness": "Thickness of one fin in millimetres.",

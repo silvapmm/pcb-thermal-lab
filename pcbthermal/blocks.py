@@ -134,17 +134,29 @@ def has_blocks(problem):
     return any(s.is_block() for s in problem.heatsinks)
 
 
+def require_rectangle(problem):
+    """!
+    @brief Refuse a board with an outline polygon in the models that need a rectangle (lumped, analytic).
+    @details `simulate` solves the rectangle of the same area for them (`Problem.equivalent_rectangle`); calling the model directly on an outline is an error.
+    @param problem A Problem.
+    @return The same Problem.
+    @throws ValueError If the board has an outline polygon.
+    """
+    if problem.board.has_outline():
+        raise ValueError("this model needs a rectangular board: the board has an outline polygon (use the FVM, FDM or the 3D solid)")
+    return problem
+
+
 def require_no_blocks(problem):
     """!
-    @brief Refuse a problem with a metal block in the models that cannot represent one (lumped, analytic).
-    @details A block spreads heat sideways in the metal, stores heat, and touches the board only over the copper it overlaps; a network of rings or a cosine series on a
-             uniform board has none of that, and an equivalent coefficient was 10 to 13 % off (docs/validation.md), so these models do not run with a block.
+    @brief Refuse a problem with a metal block in the calculations that cannot represent one: the transients of the lumped and analytic models (their steady states do represent it).
+    @details The steady states of the lumped model (block layer in the ring network) and of the analytic model (graph of tiles in the Green-function correction) have the block;
+             their time simulations do not (the capacity of the block layer was never tested there), so they refuse it.
     @param problem A Problem.
     @return The same Problem.
     @throws ValueError If the problem has a metal block, or an outline polygon (these models need a rectangular board; `simulate` solves the rectangle of the same area).
     """
-    if problem.board.has_outline():
-        raise ValueError("this model needs a rectangular board: the board has an outline polygon (use the FVM, FDM or the 3D solid)")
+    require_rectangle(problem)
     if has_blocks(problem):
-        raise ValueError("this model cannot represent a metal block (spreading, mass, copper overlap): use the FVM, FDM or the 3D solid")
+        raise ValueError("this calculation does not support a metal block (the transient of the lumped and analytic models): use the FVM, FDM or the 3D solid")
     return problem

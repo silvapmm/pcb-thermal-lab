@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import blocks
-from ..api import NO_BLOCK_MODELS, suggest_cell_mm
+from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA
 from ..geometry import polygon_area, rounded_rectangle
 from . import tips
@@ -792,11 +792,11 @@ class Inspector(QWidget):
                             lay.addRow("", note)
                 else:
                     lay = box("Metal block")
-                    only = QLabel("Modelled by the FVM, FDM and 3D solid. The Lumped and Analytic models cannot represent a block and do not run with it.")
+                    only = QLabel("The FVM, FDM and 3D solid model the block fully. The Lumped and Analytic models have it in steady state only (within about 5 % of the FVM); their time simulation does not.")
                     only.setWordWrap(True)
                     only.setStyleSheet("font-size: 11px; color: gray;")
-                    only.setToolTip("The block spreads heat sideways in the metal, stores heat and touches the board only over the copper it overlaps: a network of rings or a "
-                                    "cosine series on a uniform board has none of that.")
+                    only.setToolTip("The Lumped model keeps the block as one more layer of its ring network and the Analytic model as a graph of tiles in its local "
+                                    "correction; both were within 5 % of the FVM in 62 test cases, with no time simulation.")
                     lay.addRow(only)
                     th = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
                     th.setToolTip("Thickness of the metal block pressed on this face. The heat enters the block only where the block overlaps copper of this layer, "
@@ -1109,18 +1109,9 @@ class SolverPanel(QWidget):
 
     def _update_availability(self, *_):
         """!
-        @brief Grey out what cannot apply: the models that cannot represent a metal block of this board, and the settings of models that are not selected.
-        @details The choice of the user stays in the options (it comes back when the block is removed); a greyed model is shown unchecked because it will not run.
+        @brief Grey out the settings of the models that are not selected.
         @param _ Ignored (extra arguments of the Qt signal).
         """
-        blocked = blocks.has_blocks(self.doc.problem)
-        self._updating = True
-        for k in NO_BLOCK_MODELS:
-            c = self.cb[k]
-            c.setEnabled(not blocked)
-            c.setToolTip(self._base_tips[k] + ("\n\nNot available: this board has a metal block, which only the FVM, FDM and 3D solid model." if blocked else ""))
-            c.setChecked(k in self.doc.options.models and not blocked)
-        self._updating = False
         on = lambda k: self.cb[k].isChecked()                                  # noqa: E731
         for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.rings, on("lumped"), "the Lumped model"),
                                     (self.modes, on("analytic"), "the Analytic model"), (self.local, on("analytic"), "the Analytic model")):
@@ -1170,13 +1161,7 @@ class SolverPanel(QWidget):
         """
         if self._updating:
             return
-        # A greyed model (metal block on the board) is not shown checked but keeps its place in the options for when the block goes away
-        models = tuple(k for k, c in self.cb.items() if c.isChecked() or (not c.isEnabled() and k in self.doc.options.models))
-        if not any(k not in NO_BLOCK_MODELS or self.cb[k].isEnabled() for k in models):          # Only greyed models left: the FVM takes over
-            models = models + ("fvm",)
-            self._updating = True
-            self.cb["fvm"].setChecked(True)
-            self._updating = False
+        models = tuple(k for k, c in self.cb.items() if c.isChecked())
         if not models:
             self._updating = True
             self.cb["fvm"].setChecked(True)

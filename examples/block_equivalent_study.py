@@ -8,6 +8,8 @@
             outer radius r2 = sqrt(A_p / pi), adiabatic edge). Per unit of contact area h_eq = 1 / (R'' + 1 / (h_exp (1 + eta A_out / A_c))), spread as an extra coefficient of
             (h_eq - h_face) A_c / A_p over the polygon. 'old' is the earlier equivalent (isothermal block over the whole polygon, no fin) for comparison.
          B. **The block as one more layer of the ring network** (Lumped only): the block layer of the FVM network is aggregated into rings like the board layers (`lumped.solve_steady(block_nodes=True)`).
+         C. **The block as a graph of tiles inside the Green-function correction** (Analytic only): the block temperatures are eliminated into a Schur complement that couples the
+            tiles of the board layer under the block (`analytic.solve_steady(block_tiles=True)`).
 
          The error is the difference of the maximum temperature divided by the FVM rise above ambient, in percent.
 
@@ -124,8 +126,8 @@ def main(limit=None):
     @param limit Optional maximum number of cases (quick runs).
     """
     rows = []
-    print("| Case | FVM rise (K) | old (L / A) | A fin (L / A) | B node (L) |")
-    print("| :-- | --: | --: | --: | --: |")
+    print("| Case | FVM rise (K) | old (L / A) | A fin (L / A) | B node (L) | C tiles (A) |")
+    print("| :-- | --: | --: | --: | --: | --: |")
     for label, p in cases()[:limit]:
         ref = fvm.solve_steady(p, 1.0)
         rise = ref.t_max - 25.0
@@ -134,11 +136,12 @@ def main(limit=None):
         for name, q in (("old", old), ("A", new)):
             e[name] = tuple((m.solve_steady(q, cell_mm=1.0).t_max - ref.t_max) / rise * 100.0 for m in (lumped, analytic))
         e["B"] = (lumped.solve_steady(p, cell_mm=1.0, block_nodes=True).t_max - ref.t_max) / rise * 100.0
-        rows.append((e["old"], e["A"], e["B"]))
-        print(f"| {label} | {rise:.1f} | {e['old'][0]:+.1f} / {e['old'][1]:+.1f} | {e['A'][0]:+.1f} / {e['A'][1]:+.1f} | {e['B']:+.1f} |", flush=True)
-    a = np.array([[r[0][0], r[0][1], r[1][0], r[1][1], r[2]] for r in rows])
-    print("\\nmean absolute error (%), max absolute error (%):")
-    for j, name in enumerate(("old Lumped", "old Analytic", "A Lumped", "A Analytic", "B Lumped")):
+        e["C"] = (analytic.solve_steady(p, cell_mm=1.0, block_tiles=True).t_max - ref.t_max) / rise * 100.0
+        rows.append((e["old"], e["A"], e["B"], e["C"]))
+        print(f"| {label} | {rise:.1f} | {e['old'][0]:+.1f} / {e['old'][1]:+.1f} | {e['A'][0]:+.1f} / {e['A'][1]:+.1f} | {e['B']:+.1f} | {e['C']:+.1f} |", flush=True)
+    a = np.array([[r[0][0], r[0][1], r[1][0], r[1][1], r[2], r[3]] for r in rows])
+    print("\nmean absolute error (%), max absolute error (%):")
+    for j, name in enumerate(("old Lumped", "old Analytic", "A Lumped", "A Analytic", "B Lumped", "C Analytic")):
         print(f"  {name:13s} {np.abs(a[:, j]).mean():5.1f}  {np.abs(a[:, j]).max():5.1f}")
 
 

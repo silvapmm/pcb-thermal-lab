@@ -41,6 +41,7 @@ import numpy as np
 from scipy.special import k0
 
 from . import blocks
+from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 
@@ -192,6 +193,56 @@ def _heater_unit_sources(problem, M, N):
     return out
 
 
+def _block_tiles(problem, ntx, nty, tw, th, L):
+    """!
+    @brief The metal blocks as tile quantities for the Green-function correction (experimental).
+    @details The layers of the blocks are built on the tile grid with blocks.extra_layers (the same code the FVM uses). Each block face is a small graph of tiles: lateral
+             conductance k t between tiles, contact to the board layer over the copper of the tile, exposed surface to the ambient. Eliminating the block temperatures
+             leaves an effective conductance matrix on the board layer, B = D_link - D_link (K_b + D_amb + D_link)^-1 D_link (a Schur complement), which couples the tiles of the
+             block to each other: that is what lets the block spread the heat of the pad centre to the whole pad. The board face under the block no longer exchanges heat
+             with the air (a negative local conductance).
+    @param problem A Problem.
+    @param ntx Tiles along x.
+    @param nty Tiles along y.
+    @param tw Tile width in metres.
+    @param th Tile height in metres.
+    @param L Number of board layers.
+    @return List of dicts with layer (board layer), tiles (array of (row, col)), B (Schur matrix), face (W/K removed per tile), M (matrix to recover the block temperatures),
+            g_link, g_amb.
+    """
+    b = problem.board
+    fill_t = np.zeros((L, nty, ntx))
+    for z in problem.zones:
+        fill_t[z.layer] = np.maximum(fill_t[z.layer], coverage_fraction(z.polygon, ntx, nty, tw, th, 4) * z.fill)
+    area_t = np.full((nty, ntx), tw * th)
+    out = []
+    for ly in blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, ntx, nty, tw, th, n), area_t, fill_t, tw, th):
+        tiles = np.argwhere(ly["cov"] > 0)
+        index = -np.ones((nty, ntx), dtype=int)
+        index[tuple(tiles.T)] = np.arange(len(tiles))
+        n = len(tiles)
+        K = np.zeros((n, n))
+        S = ly["S"]
+        for axis, face_len, dist in ((1, th, tw), (0, tw, th)):                 # Lateral conduction of the block between neighbouring tiles
+            a = S[:, :-1] if axis == 1 else S[:-1, :]
+            c = S[:, 1:] if axis == 1 else S[1:, :]
+            g = Network._harmonic(a, c) * face_len / dist
+            ia = index[:, :-1] if axis == 1 else index[:-1, :]
+            ic = index[:, 1:] if axis == 1 else index[1:, :]
+            sel = (ia >= 0) & (ic >= 0) & (g > 0)
+            for i, j, gg in zip(ia[sel], ic[sel], g[sel]):
+                K[i, i] += gg; K[j, j] += gg; K[i, j] -= gg; K[j, i] -= gg
+        g_link = ly["g_link"][tuple(tiles.T)]
+        g_amb = ly["g_amb"][tuple(tiles.T)]
+        M = K + np.diag(g_amb + g_link)
+        Dl = np.diag(g_link)
+        B = Dl - Dl @ np.linalg.solve(M, Dl)
+        h_face = b.h_top if ly["face"] == 0 else b.h_bottom
+        face = h_face * tw * th * ly["cov"][tuple(tiles.T)]                      # Face conductance that the block hides
+        out.append({"layer": ly["board_layer"], "tiles": tiles, "B": B, "face": face, "M": M, "g_link": g_link, "g_amb": g_amb})
+    return out
+
+
 def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     """!
     @brief Analytic steady-state solution of the multilayer fin problem.
@@ -200,14 +251,20 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @param n_terms Number of cosine modes per direction (300 resolves heaters of a few mm).
     @param local_corrections If True vias and heatsinks are applied locally (Green-function update);
                              if False they are smeared over the board (the older, cruder model).
+    @note A metal block is a graph of tiles inside the Green-function correction (see _block_tiles) and needs the local corrections. Steady state only; against the FVM it is
+          within 1 % on average and 4.5 % at most (docs/validation.md section 17).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
-    blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
+    forced = blocks.has_blocks(problem) and not local_corrections           # A block is a local correction: it cannot be smeared over the board
+    local_corrections = local_corrections or forced
     sh = _effective_sheet(problem, cell_mm)
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     slab, nx, ny, dx, dy, xs, ys, tc = (sh[k] for k in ("slab", "nx", "ny", "dx", "dy", "xs", "ys", "tc"))
     power, warnings, fill, S, lam = sh["power"], sh["warnings"], sh["fill"], sh["S"], sh["lam"]
     h_tot, d_diel, g_diel = sh["h_tot"], sh["d_diel"], sh["g_diel"]
+    if forced:
+        warnings.append("the local corrections are on because a metal block needs them")
 
     # --- Surface coefficients and vertical conductance of the uniform problem
     h_l = np.zeros(L)
@@ -244,6 +301,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
 
     # --- Local corrections for vias and heatsinks through the tile Green-function system
     heatsink_extraction = 0.0
+    block_power = 0.0
     if local_corrections and (problem.vias or problem.heatsinks):
         ntx, nty, tw, th = _tile_grid(W, H, lam)
         c_via = np.zeros((nty, ntx, max(L - 1, 0)))                    # Via conductance of each tile across each gap
@@ -254,8 +312,14 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 c_via[bb, a] += m.k_copper * v.copper_area(b.via_plating) / d_diel
         g_heatsink = np.zeros((L, nty, ntx))
         for s in problem.heatsinks:
+            if s.is_block():
+                continue                                       # A block is a graph of tiles of its own (below)
             g_heatsink[s.layer] += s.h_extra * tw * th * coverage_fraction(s.polygon, ntx, nty, tw, th, 8)
-        active = np.argwhere((c_via.sum(axis=2) > 0) | (g_heatsink.sum(axis=0) > 0))        # (Nt, 2) = (row, col)
+        bt = _block_tiles(problem, ntx, nty, tw, th, L) if blocks.has_blocks(problem) else []
+        in_block = np.zeros((nty, ntx), dtype=bool)
+        for e in bt:
+            in_block[tuple(e["tiles"].T)] = True
+        active = np.argwhere((c_via.sum(axis=2) > 0) | (g_heatsink.sum(axis=0) > 0) | in_block)        # (Nt, 2) = (row, col)
         Nt = len(active)
         if Nt:
             rect = [(c * tw, (c + 1) * tw, r * th, (r + 1) * th) for r, c in active]
@@ -289,7 +353,16 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                     C[i2, i1] -= cv
                 for l in range(L):
                     C[r * L + l, r * L + l] += g_heatsink[l, row, col]
+            pos = {(int(row), int(col)): r for r, (row, col) in enumerate(active)}
+            for e in bt:                                       # Metal blocks: the Schur matrix couples the tiles of the board layer under the block
+                rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
+                C[np.ix_(rows_e, rows_e)] += e["B"]
+                C[rows_e, rows_e] -= e["face"]                 # ... and the face under it no longer loses heat to the air
             y = np.linalg.solve(np.eye(Nt * L) + G @ C, y0.reshape(-1))
+            for e in bt:                                       # Heat taken by the exposed surface of every block
+                rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
+                phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
+                block_power += float((e["g_amb"] * phi).sum())
             f = -(C @ y).reshape(Nt, L)                       # Heat injected into every tile and layer (W)
             heatsink_extraction = float(sum(g_heatsink[l, row, col] * y[r * L + l]
                                         for r, (row, col) in enumerate(active) for l in range(L)))
@@ -308,7 +381,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
 
     l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
     # Heat leaving through the faces: the a_00 mode integrates each layer exactly
-    p_out = {"top": float(b.h_top * W * H * a_mn[0, 0, 0]),
+    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * a_mn[0, 0, 0]),
              "bottom": float(b.h_bottom * W * H * a_mn[0, 0, L - 1]),
              "heatsinks": float(heatsink_extraction if local_corrections else
                             sum(h_l[k] * W * H * a_mn[0, 0, k] for k in range(L))

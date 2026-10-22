@@ -158,7 +158,7 @@ def _heater_network(net, cov, layer, power, rings):
     g_bot = np.array([ring_sum(net.g_bottom[l]) for l in range(L)])
     g_heatsink = np.array([ring_sum(net.g_heatsink[l]) for l in range(L)])
     g_side = np.array([ring_sum(net.g_side[l]) for l in range(L)])
-    nb = net.n_board                                    # Board layers; a metal block adds layers after them (block_nodes)
+    nb = net.n_board                                    # Board layers; a metal block adds layers after them
     g_block = np.array([ring_sum(net.g_block[l]) for l in range(L)])
     gz = np.array([ring_sum(net.gz[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))
     links = [(a, b, ring_sum(g)) for a, b, g in net.extra_links]       # Contact of a block with its board face
@@ -258,23 +258,22 @@ def _footprint_coverage(net, heater):
     return cov
 
 
-def solve_steady(problem, rings=10, cell_mm=1.0, block_nodes=False):
+def solve_steady(problem, rings=10, cell_mm=1.0):
     """!
     @brief Steady-state solution of the offset-contour networks (one per heater) with superposition.
     @param problem A Problem.
     @param rings Number of rings outside each footprint (more rings = finer radial resolution).
     @param cell_mm Raster size (mm) used to aggregate the real geometry into rings.
-    @param block_nodes Experimental: True to keep the metal blocks as one more layer of the ring network (the block layer of the FVM network aggregated
-                       into rings); False (default) refuses a problem with a block.
+    @note A metal block is one more layer of the ring network: the block layer of the FVM network (conductance k t, contact to the board layer over the copper, exposed surface
+          with the fins) is aggregated into rings like the board layers. Steady state only; against the FVM it is within 2 % on average and 5 % at most (docs/validation.md section 17).
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
     """
-    if not block_nodes:
-        blocks.require_no_blocks(problem)                        # These models have no metal blocks
+    blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
     problem.validate()
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
-    net = Network(problem, nx, ny, assemble=False, with_blocks=block_nodes)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=True)       # A metal block is one more layer of the network
     L = net.nl
     nbl = net.n_board
     power = problem.total_power()

@@ -152,19 +152,11 @@ def test_fields_that_do_not_apply_are_greyed(win):
     assert "Greyed" in sp.solver.toolTip()
 
 
-def test_metal_block_greys_the_models_that_cannot_represent_it(win):
+def test_metal_block_keeps_every_model_available(win):
     sp = win.solver_panel
     win.doc.set_options(models=("fvm", "lumped", "analytic"))
-    assert sp.cb["lumped"].isEnabled() and sp.cb["lumped"].isChecked()
     win._load_problem(example_block_board(), "block")
-    assert not sp.cb["lumped"].isEnabled() and not sp.cb["analytic"].isEnabled()
-    assert not sp.cb["lumped"].isChecked() and "metal block" in sp.cb["lumped"].toolTip()
-    assert sp.cb["fvm"].isEnabled() and sp.cb["solid3d"].isEnabled()
-    assert "lumped" in win.doc.options.models                                    # The choice is kept for when the block goes away
-    sp.cb["fdm"].setChecked(True)                                                # Touching another box does not drop it
-    assert "lumped" in win.doc.options.models and "fdm" in win.doc.options.models
-    win._load_problem(example_board(), "plain")
-    assert sp.cb["lumped"].isEnabled() and sp.cb["lumped"].isChecked()
+    assert all(sp.cb[k].isEnabled() for k in sp.cb) and sp.cb["lumped"].isChecked() and sp.cb["analytic"].isChecked()
 
 
 def test_switching_to_a_metal_block_does_not_carry_the_manual_h(win):

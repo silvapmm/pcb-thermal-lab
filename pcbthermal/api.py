@@ -35,7 +35,6 @@ from .results import SteadyResult
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
-NO_BLOCK_MODELS = ("lumped", "analytic")           # Models that cannot represent a metal block: they are not run when the board has one
 RECTANGLE_ONLY = ("lumped", "analytic")           # Models that need a rectangular board: for an outline they run on the rectangle of the same area
 TIME_MODELS = MODEL_NAMES + ("fdm",)             # Models that also do the time simulation (the 3D solid is steady state only)
 
@@ -613,7 +612,11 @@ def _run_profiles(sim, progress, start):
     o = sim.options
     p = sim.effective_problem or sim.problem
     # The lumped and analytic models have no time simulation on a board with an outline (the rectangle of the same area is a steady-state device)
-    usable = tuple(m for m in o.models if not (m in RECTANGLE_ONLY and p.board.has_outline()))        # (blocks: the models without them are already out of o.models)
+    # Lumped and Analytic have no time simulation with a metal block either (the block layer is a steady-state aggregation)
+    usable = tuple(m for m in o.models if not (m in RECTANGLE_ONLY and (p.board.has_outline() or blocks.has_blocks(p))))
+    left_out = [m for m in o.models if m in RECTANGLE_ONLY and m not in usable]
+    if left_out:
+        sim.problem_warnings.append("time simulation not run for " + ", ".join(left_out) + " (no time simulation with a metal block or an outline)")
     ref = next((m for m in TIME_MODELS if m in usable), None)     # The FDM only if nothing else is selected; the 3D solid has no time simulation
     if ref is None:
         sim.profile_error = "select the FVM or the FDM (or Lumped/Analytic on a rectangular board) for the time simulation (the 3D solid is steady state only)"
@@ -659,16 +662,6 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     options.validate()
     problem.validate()
     sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm))
-    if blocks.has_blocks(problem):
-        # A metal block (spreading in the metal, mass, copper overlap) exists only in the finite-volume models
-        skipped = [m for m in options.models if m in NO_BLOCK_MODELS]
-        if skipped:
-            options = copy.deepcopy(options)
-            options.models = tuple(m for m in options.models if m not in NO_BLOCK_MODELS)
-            if not options.models:
-                raise ValueError("the board has a metal block: select the FVM, the FDM or the 3D solid (the lumped and analytic models cannot represent it)")
-            sim.options = options
-            sim.problem_warnings.append("not run, the board has a metal block that only the FVM, FDM and 3D solid model: " + ", ".join(skipped))
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)
@@ -688,6 +681,11 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
             sim.problem_warnings.append(f"the 3D solid was not run: {exc}")        # Too large: the other models still answer
             continue
         sim.seconds[name] = time.time() - t0
+    if blocks.has_blocks(problem):
+        for name, how in (("lumped", "one more layer of the ring network"), ("analytic", "a graph of tiles in the Green-function correction")):
+            if name in sim.results:
+                sim.results[name].warnings.append(f"the metal block is represented as {how}: within about 5 % of the FVM in the tests (docs/validation.md section 17); "
+                                                  "steady state only")
     sim.part_warnings = _part_warnings(sim) if sim.results else []
     if computed:
         ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in options.models))

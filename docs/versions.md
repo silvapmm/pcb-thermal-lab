@@ -68,7 +68,7 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 | Feature | Code | Tests / evidence |
 | :-- | :-- | :-- |
 | **Cooling model** of the Heatsink element: *Coefficient* (extra h or θSA) or *Metal block, computed* (the program does the rest); fields appear for the chosen model | `gui/panels.py` | `test_heatsink_part.py` |
-| **Fins on a metal block**: height, thickness, pitch; area gain with fin efficiency, in the FVM, FDM and 3D solid (lumped and analytic do not run with a block); warning for fins too close in still air | `blocks.fin_ratio`, `blocks.exposed_h`, `Heatsink.fin_*`, `solid3d.py`, `checks.py` | textbook formula to 1e-12, the five models, FVM/FDM/3D within 1 % (`validation.md` 12 D) |
+| **Fins on a metal block**: height, thickness, pitch; area gain with fin efficiency, in the FVM, FDM and 3D solid (lumped and analytic: steady state only); warning for fins too close in still air | `blocks.fin_ratio`, `blocks.exposed_h`, `Heatsink.fin_*`, `solid3d.py`, `checks.py` | textbook formula to 1e-12, the five models, FVM/FDM/3D within 1 % (`validation.md` 12 D) |
 | **Contact area** of a part's interface (lid or exposed top; empty = footprint) and the **body helper** (θJC(top) = t/(kA) from thickness and material), for processors and chips with a heatsink | `Heater.contact_area`, `gui/panels.py` | `test_heatsink_part.py` |
 | **Gaps of several sheets** (prepreg and core): `combine_sheets` (series through, parallel in plane), `"sheets"` in the templates | `model.combine_sheets` | exact formulas in `test_heatsink_part.py` |
 | **The interface is one dielectric sheet** between the heatsink and the board or the package, with its own material and thickness (`pad_thickness`, `pad_k`; resistance t/k; the typed resistance still works) | `Heatsink.interface_resistance`, `Heater.interface_kcm2`, `gui/panels.py _pad_rows`, `blocks.py`, `solid3d.py` | `test_heatsink_part.py`: same temperatures as the equivalent resistance, thicker sheet hotter, JSON, validation |
@@ -80,7 +80,7 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 
 | Feature | Code | Tests / evidence |
 | :-- | :-- | :-- |
-| Lumped and Analytic do not run with a metal block (left out with a warning; greyed in the Models panel); fields that do not apply are greyed (top path without θ and θSA, settings of models that are not selected) | `blocks.require_no_blocks`, `api.simulate`, `gui/panels.SolverPanel._update_availability`, `Inspector.rebuild` | `test_blocks.py`, `test_inspector_sections.py` |
+| Metal block in the Lumped (ring layer) and Analytic (tile graph, Schur complement) steady states, 1 to 2 % off on average; no time simulation for them with a block; fields that do not apply are greyed (top path without θ and θSA, settings of models that are not selected) | `lumped._heater_network`, `analytic._block_tiles`, `blocks.require_no_blocks`, `api.simulate`, `gui/panels.SolverPanel._update_availability`, `Inspector.rebuild` | `test_block_models.py`, `test_blocks.py`, `test_inspector_sections.py`, `examples/block_equivalent_study.py` |
 | Fins validated against an independent 2D solution of one fin (24 cases within 0.08 %) | `examples/fin_validation.py` | `test_fin_model.py`, `validation.md` section 15 |
 | 3D solid verified against Yovanovich's spreading-resistance table (0.7 to 0.8 %) and a grid-convergence study (GCI 1.14 %) | `examples/solid3d_verification.py` | `test_solid3d_verification.py`, `validation.md` section 16 |
 
