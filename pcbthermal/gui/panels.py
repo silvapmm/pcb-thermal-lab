@@ -641,93 +641,131 @@ class Inspector(QWidget):
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, fill=v))
                 lay.addRow("Copper fill", w)
             elif kind == "heater":
+                comp = el.is_component()
+                typ = QComboBox()
+                typ.addItem("Heat source", "source")
+                typ.addItem("Component", "component")
+                typ.setCurrentIndex(1 if comp else 0)
+                typ.setToolTip("Heat source: a power in watts over a footprint (nothing else), optionally with the interface (solder, paste) between it and the board. Component: a part "
+                               "with a junction, a package and, if you want, a heatsink on top (junction temperature, limit, top path). Switching to a source clears the component "
+                               "fields (it can be undone).")
+
+                def switch_type(_i, c=typ):
+                    want = c.currentData()
+                    if want == "source" and comp:
+                        self.doc.set_props(kind, i, role="source", theta=0.0, tj_max=0.0, psi_jb=0.0, power_tc=0.0, theta_jc_top=0.0, theta_sa=0.0, interface=0.0,
+                                           contact_area=0.0, pad_thickness=0.0, pad_k=0.0, family="", merge=False)
+                    elif want == "component" and not comp:
+                        self.doc.set_props(kind, i, role="component", merge=False)
+
+                typ.currentIndexChanged.connect(switch_type)
+                root.addRow("Type", typ)
                 lay = box("Part")
                 w = _spin(0, 1000, el.power, 3, 0.1, "W")
                 w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power=v))
+                w.setToolTip("Power dissipated by the part, in watts.")
                 lay.addRow("Power", w)
-                lay = box("Junction")
-                t = _spin(0, 5000, el.theta, 2, 0.5, "K/W")
-                t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta=v))
-                t.setToolTip("Junction-to-pad resistance of the part. Take the datasheet's junction-to-bottom or junction-to-pad number (θJC(bot), RθJC of a power "
-                             "MOSFET, θJ-L of a diode, Rth j-sp of an LED). Never θJA. Worst case: all the power enters the board. With only θJB or ψJB use the ψJB "
-                             "box below; with nothing, pick the package family (a typical value) or leave 0 (plain source: the report shows the board temperature "
-                             "under the part and says the junction is hotter).")
-                lay.addRow("θ junction-pad", t)
-                fam = QComboBox()
-                fam.addItem("Typical θ by package family...", None)
-                for label, th_ in PACKAGE_THETA:
-                    fam.addItem(f"{label}: {th_:g} K/W (typical)", th_)
-                fam.setToolTip("Indicative values by package family, not from your datasheet; they replace θ when chosen. Use the datasheet number when you have it.")
+                if not comp:
+                    base_form = box("Interface under the source", "The layer between the heater and the board copper (solder, paste, adhesive). Direct contact if nothing is set.")
+                    self._pad_rows(base_form, kind, i, el, heater=True, base=True)
+                    theta_now = el.junction_theta()
+                    info = QLabel(f"Resistance over the footprint: {theta_now:.2f} K/W" if theta_now > 0 else "Direct contact: the source is at the board temperature.")
+                    info.setToolTip("The interface resistance divided by the footprint area: the temperature of the source is the hottest board point under it plus this resistance times the power.")
+                    base_form.addRow(info)
+                else:
+                    lay = box("Junction")
+                    fam = QComboBox()
+                    fam.addItem("Custom", "")
+                    for entry in PACKAGE_THETA:
+                        fam.addItem(entry[0], entry[0])
+                    fam.setCurrentIndex(max(fam.findData(el.family), 0))
+                    fam.setToolTip("Package family: choosing one fills the typical θ junction-pad, θJC(top) and Tj max below (indicative values, not from your datasheet; they are a library "
+                                   "in Preferences). Replace them by the datasheet numbers whenever you have them.")
+                    typical = QLabel("")
+                    typical.setWordWrap(True)
+                    typical.setStyleSheet("font-size: 11px; color: gray;")
+                    typical.setToolTip("The typical values and the note of the chosen family, from the library.")
+                    entry = next((e for e in PACKAGE_THETA if e[0] == el.family), None)
+                    typical.setText((f"Typical for {entry[0]}: θ junction-pad {entry[1]:g} K/W, θJC(top) {entry[2]:g} K/W, Tj max {entry[3]:g} °C. {entry[4]}") if entry else
+                                    "No family chosen: type the datasheet values below.")
 
-                def pick_family(_idx, fam=fam, t=t):
-                    if fam.currentData() is not None:
-                        t.setValue(fam.currentData())
-                        fam.setCurrentIndex(0)
+                    def pick_family(_idx, c=fam):
+                        e = next((x for x in PACKAGE_THETA if x[0] == c.currentData()), None)
+                        if e is None:
+                            self.doc.set_props(kind, i, family="", merge=False)
+                        else:                                            # The typical values of the library go into the part
+                            fields = dict(theta=e[1], theta_jc_top=e[2], family=e[0])
+                            if e[3] > 0:
+                                fields["tj_max"] = e[3]
+                            self.doc.set_props(kind, i, merge=False, **fields)
 
-                fam.currentIndexChanged.connect(pick_family)
-                lay.addRow("", fam)
-                hint = QLabel("Use the datasheet's junction-to-bottom/pad number (θJC(bot), RθJC of a MOSFET, θJ-L), never θJA. Worst case: all the power enters the board. "
-                              "Only θJB or ψJB: fill ψJB below. Nothing: pick a family or leave 0.")
-                hint.setWordWrap(True)
-                hint.setStyleSheet("font-size: 11px; color: gray;")
-                lay.addRow(hint)
-                tj = _spin(0, 500, el.tj_max, 1, 5, "°C")
-                tj.setToolTip("Maximum junction temperature of the part (0 = no limit). The report gives the margin and the power limit.")
-                tj.valueChanged.connect(lambda v: self.doc.set_props(kind, i, tj_max=v))
-                lay.addRow("Tj max", tj)
-                psi = _spin(0, 500, el.psi_jb, 2, 0.5, "K/W")
-                psi.setToolTip("Junction-to-board characterisation parameter ψJB (0 = not used). The report adds Tj = mean board temperature in the ring "
-                               "0.5 to 1.5 mm around the package + ψJB·P, the least pessimistic estimate when the datasheet has no junction-to-pad number.")
-                psi.valueChanged.connect(lambda v: self.doc.set_props(kind, i, psi_jb=v))
-                lay.addRow("ψJB", psi)
-                tc = _spin(-5, 5, el.power_tc * 100.0, 3, 0.1, "%/K")
-                tc.setToolTip("Temperature coefficient of the dissipated power (0 = constant). A power MOSFET's Rds(on) rises about 0.3 to 0.7 %/K, so its loss grows "
-                              "with its junction temperature: P = P0 (1 + tc (Tj − 25 °C)), P0 the power typed above (at 25 °C). The program solves it together with "
-                              "the board and warns when there is no stable point (thermal runaway). Steady-state models only.")
-                tc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power_tc=v / 100.0))
-                lay.addRow("Power coefficient", tc)
-                lay = box("Heatsink on the package")
-                sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
-                sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
-                              "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
-                sa.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_sa=v))
-                lay.addRow("Heatsink θSA", sa)
-                top_active = el.theta > 0 and el.theta_sa > 0               # The top path needs both the junction resistance and the heatsink resistance
-                why = "" if top_active else "Greyed: the top path is used only when the junction-to-pad θ and the heatsink θSA are both above zero."
-                lay = box("Package top: junction to case", why)
-                lay.parentWidget().setEnabled(top_active)
-                jc = _spin(0, 5000, el.theta_jc_top, 2, 0.5, "K/W")
-                jc.setToolTip("Junction-to-case (top) resistance θJC(top) of the package, in series with the interface and the heatsink. Used only when the "
-                              "heatsink resistance below is set (a bare mould carries about 1 % of the heat and is ignored: worst case).")
-                jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
-                lay.addRow("θJC top", jc)
-                body_t = _spin(0, 50, 0.0, 2, 0.1, "mm")
-                body_m = QComboBox()
-                for label, k_ in (("Mould compound (0.9 W/mK)", 0.9), ("Thermally enhanced mould (2.3 W/mK)", 2.3), ("Alumina ceramic (24 W/mK)", 24.0),
-                                  ("Copper lid / heat spreader (385 W/mK)", 385.0)):
-                    body_m.addItem(label, k_)
-                body_t.setToolTip("Estimate θJC(top) when the datasheet has no value: the thickness of the package body above the die (a plastic QFN has 0.3 to 1 mm of mould). "
-                                  "θ = thickness / (k × contact area), one-dimensional through the body, no spreading: an upper bound for a small die under a larger "
-                                  "lid. A processor's datasheet θJC already includes its heat spreader and the paste under it: use that instead. 0 = not used.")
-                body_m.setToolTip("Material of the package body above the die (typical conductivities: mould 0.88 to 0.9 W/mK, enhanced mould 2.3 to 6, alumina 24, copper 385).")
+                    fam.currentIndexChanged.connect(pick_family)
+                    lay.addRow("Package family", fam)
+                    lay.addRow(typical)
+                    t = _spin(0, 5000, el.theta, 2, 0.5, "K/W")
+                    t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta=v))
+                    t.setToolTip("Junction-to-pad resistance of the part. Take the datasheet's junction-to-bottom or junction-to-pad number (θJC(bot), RθJC of a power "
+                                 "MOSFET, θJ-L of a diode, Rth j-sp of an LED). Never θJA. Worst case: all the power enters the board. With only θJB or ψJB use the ψJB "
+                                 "box below; with nothing, pick the package family (a typical value) or leave 0 (the report shows the board temperature under the part and "
+                                 "says the junction is hotter).")
+                    lay.addRow("θ junction-pad", t)
+                    tj = _spin(0, 500, el.tj_max, 1, 5, "°C")
+                    tj.setToolTip("Maximum junction temperature of the part (0 = no limit). The report gives the margin and the power limit.")
+                    tj.valueChanged.connect(lambda v: self.doc.set_props(kind, i, tj_max=v))
+                    lay.addRow("Tj max", tj)
+                    psi = _spin(0, 500, el.psi_jb, 2, 0.5, "K/W")
+                    psi.setToolTip("Junction-to-board characterisation parameter ψJB (0 = not used). The report adds Tj = mean board temperature in the ring "
+                                   "0.5 to 1.5 mm around the package + ψJB·P, the least pessimistic estimate when the datasheet has no junction-to-pad number.")
+                    psi.valueChanged.connect(lambda v: self.doc.set_props(kind, i, psi_jb=v))
+                    lay.addRow("ψJB", psi)
+                    tc = _spin(-5, 5, el.power_tc * 100.0, 3, 0.1, "%/K")
+                    tc.setToolTip("Temperature coefficient of the dissipated power (0 = constant). A power MOSFET's Rds(on) rises about 0.3 to 0.7 %/K, so its loss grows "
+                                  "with its junction temperature: P = P0 (1 + tc (Tj − 25 °C)), P0 the power typed above (at 25 °C). The program solves it together with "
+                                  "the board and warns when there is no stable point (thermal runaway). Steady-state models only.")
+                    tc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, power_tc=v / 100.0))
+                    lay.addRow("Power coefficient", tc)
+                    lay = box("Heatsink on the package")
+                    sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
+                    sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
+                                  "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
+                    sa.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_sa=v))
+                    lay.addRow("Heatsink θSA", sa)
+                    top_active = el.theta > 0 and el.theta_sa > 0               # The top path needs both the junction resistance and the heatsink resistance
+                    why = "" if top_active else "Greyed: the top path is used only when the junction-to-pad θ and the heatsink θSA are both above zero."
+                    lay = box("Package top: junction to case", why)
+                    lay.parentWidget().setEnabled(top_active)
+                    jc = _spin(0, 5000, el.theta_jc_top, 2, 0.5, "K/W")
+                    jc.setToolTip("Junction-to-case (top) resistance θJC(top) of the package, in series with the interface and the heatsink. Used only when the "
+                                  "heatsink resistance is set (a bare mould carries about 1 % of the heat and is ignored: worst case).")
+                    jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
+                    lay.addRow("θJC top", jc)
+                    body_t = _spin(0, 50, 0.0, 2, 0.1, "mm")
+                    body_m = QComboBox()
+                    for label, k_ in (("Mould compound (0.9 W/mK)", 0.9), ("Thermally enhanced mould (2.3 W/mK)", 2.3), ("Alumina ceramic (24 W/mK)", 24.0),
+                                      ("Copper lid / heat spreader (385 W/mK)", 385.0)):
+                        body_m.addItem(label, k_)
+                    body_t.setToolTip("Estimate θJC(top) when the datasheet has no value: the thickness of the package body above the die (a plastic QFN has 0.3 to 1 mm of mould). "
+                                      "θ = thickness / (k × contact area), one-dimensional through the body, no spreading: an upper bound for a small die under a larger "
+                                      "lid. A processor's datasheet θJC already includes its heat spreader and the paste under it: use that instead. 0 = not used.")
+                    body_m.setToolTip("Material of the package body above the die (typical conductivities: mould 0.88 to 0.9 W/mK, enhanced mould 2.3 to 6, alumina 24, copper 385).")
 
-                def from_body(_v, t=body_t, m=body_m, spin=jc, e=el):
-                    area = (e.contact_area or e.area())
-                    if t.value() > 0 and area > 0:
-                        spin.setValue(t.value() * 1e-3 / (m.currentData() * area))
+                    def from_body(_v, t=body_t, m=body_m, spin=jc, e=el):
+                        area = (e.contact_area or e.area())
+                        if t.value() > 0 and area > 0:
+                            spin.setValue(t.value() * 1e-3 / (m.currentData() * area))
 
-                body_t.valueChanged.connect(from_body)
-                body_m.currentIndexChanged.connect(from_body)
-                lay.addRow("Body thickness", body_t)
-                lay.addRow("Body material", body_m)
-                ca = _spin(0, 100000, el.contact_area * 1e6, 2, 5, "mm²")
-                ca.setToolTip("Area of the package top that touches the heatsink through the paste (0 = the footprint). For a processor it is the lid, for a chip with an "
-                              "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
-                ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))
-                lay.addRow("Contact area", ca)
-                pad_form = box("Interface: package top to heatsink", why)
-                pad_form.parentWidget().setEnabled(top_active)
-                self._pad_rows(pad_form, kind, i, el, heater=True)
+                    body_t.valueChanged.connect(from_body)
+                    body_m.currentIndexChanged.connect(from_body)
+                    lay.addRow("Body thickness", body_t)
+                    lay.addRow("Body material", body_m)
+                    ca = _spin(0, 100000, el.contact_area * 1e6, 2, 5, "mm²")
+                    ca.setToolTip("Area of the package top that touches the heatsink through the paste (0 = the footprint). For a processor it is the lid, for a chip with an "
+                                  "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
+                    ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))
+                    lay.addRow("Contact area", ca)
+                    pad_form = box("Interface: package top to heatsink", why)
+                    pad_form.parentWidget().setEnabled(top_active)
+                    self._pad_rows(pad_form, kind, i, el, heater=True)
             elif kind == "heatsink":
                 is_block = el.is_block()
                 mode = QComboBox()
@@ -913,7 +951,7 @@ class Inspector(QWidget):
             out.update(pad_thickness=pad[2] * 1e-3, pad_k=pad[1], contact_r=pad[2] * 1e-3 / pad[1])
         return out
 
-    def _pad_rows(self, lay, kind, index, el, heater):
+    def _pad_rows(self, lay, kind, index, el, heater, base=False):
         """!
         @brief The interface between a heatsink and the board or the package: one dielectric sheet (paste, gap pad) with its own material and thickness.
         @details Rows: a material preset (typical thickness and conductivity), the thickness (mm), the conductivity (W/mK) and the resulting resistance per area
@@ -922,15 +960,20 @@ class Inspector(QWidget):
         @param kind Element kind ("heater" or "heatsink").
         @param index Element index.
         @param el The element (a Heater for the package top, a Heatsink for a block on the board).
-        @param heater True for the interface on top of a part, False for the interface under a metal block.
+        @param heater True for the interface of a part, False for the interface under a metal block.
+        @param base True for the interface UNDER a pure heat source (between it and the board); False for the one on top of the package.
         """
-        where = "between the package top and the heatsink" if heater else "between the board and the block"
-        r_now = (el.interface_kcm2() if heater else el.interface_resistance() * 1e4)
+        where = "between the heater and the board" if base else ("between the package top and the heatsink" if heater else "between the board and the block")
+        r_now = el.base_interface_kcm2() if base else (el.interface_kcm2() if heater else el.interface_resistance() * 1e4)
+        t_now, k_now = (el.base_pad_thickness, el.base_pad_k) if base else (el.pad_thickness, el.pad_k)
 
         def write(thickness, conductivity, resistance):
             # Resistance in K cm2/W; the sheet fields are zero for a typed resistance
-            fields = dict(pad_thickness=thickness, pad_k=conductivity)
-            fields.update(interface=resistance) if heater else fields.update(contact_r=resistance * 1e-4)
+            if base:
+                fields = dict(base_pad_thickness=thickness, base_pad_k=conductivity, base_interface=resistance)
+            else:
+                fields = dict(pad_thickness=thickness, pad_k=conductivity)
+                fields.update(interface=resistance) if heater else fields.update(contact_r=resistance * 1e-4)
             self.doc.set_props(kind, index, merge=False, **fields)
 
         mat = QComboBox()
@@ -941,10 +984,10 @@ class Inspector(QWidget):
         mat.setToolTip(f"The one dielectric sheet {where} (thermal paste or gap pad): a preset fills its thickness and conductivity. "
                        "'Direct contact' means no material in between (for example bare copper pressed on the metal): thickness and resistance 0, the optimistic limit. Indicative values (apparent "
                        "conductivity including the contact resistances): check your material's datasheet. The sheet can have its own material and thickness.")
-        th = _spin(0, 20, el.pad_thickness * 1000, 3, 0.1, "mm")
+        th = _spin(0, 20, t_now * 1000, 3, 0.1, "mm")
         th.setToolTip(f"Thickness of the dielectric sheet {where} (paste 0.05 to 0.1 mm, gap pad 0.5 to 1.5 mm). With its conductivity it gives the interface "
                       "resistance thickness / k; 0 = type the resistance below instead.")
-        kk = _spin(0, 100, el.pad_k, 2, 0.5, "W/mK")
+        kk = _spin(0, 100, k_now, 2, 0.5, "W/mK")
         kk.setToolTip("Conductivity of the dielectric sheet (grease 1 to 5, gap pads 1 to 6 W/mK apparent; the datasheet's bulk value is higher than what a joint "
                       "gives because of the contact resistances).")
         res = _spin(0, 1000, r_now, 3, 0.1, "K·cm²/W")

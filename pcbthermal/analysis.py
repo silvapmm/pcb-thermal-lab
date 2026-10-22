@@ -135,14 +135,15 @@ def part_split(heater, t_max, power, ambient):
     @param ambient Ambient temperature in degC.
     @return Tuple (t_junction or None without theta in degC, power_top in W).
     """
-    if heater.theta <= 0:
+    theta = heater.junction_theta()                      # A component: its junction-to-pad theta; a pure source: the interface under it (0 = direct contact)
+    if theta <= 0:
         return None, 0.0
     r_top = heater.top_resistance()
     if r_top <= 0:
-        return t_max + power * heater.theta, 0.0
-    rise = (t_max - ambient + power * heater.theta) / (1.0 + heater.theta / r_top)
+        return t_max + power * theta, 0.0
+    rise = (t_max - ambient + power * theta) / (1.0 + theta / r_top)
     p_top = min(max(rise / r_top, 0.0), power)
-    return t_max + (power - p_top) * heater.theta, p_top
+    return t_max + (power - p_top) * theta, p_top
 
 
 def heater_stats(result, problem, powers=None):
@@ -172,7 +173,7 @@ def heater_stats(result, problem, powers=None):
                "power_nominal_w": h.power, "t_junction": tj, "t_ring": ring,
                "t_junction_psi": ring + (power - p_top) * h.psi_jb if (h.psi_jb > 0 and ring is not None) else None,
                "tj_max": h.tj_max, "margin_k": h.tj_max - device if h.tj_max > 0 else None, "p_limit_w": None,
-               "theta": h.theta, "psi_jb": h.psi_jb, "power_tc": h.power_tc,
+               "theta": h.junction_theta(), "psi_jb": h.psi_jb, "power_tc": h.power_tc,
                "power_top_w": p_top, "power_board_w": power - p_top, "r_top": h.top_resistance()}
         if h.tj_max > 0 and power > 0 and device > amb:
             row["p_limit_w"] = power * (h.tj_max - amb) / (device - amb)

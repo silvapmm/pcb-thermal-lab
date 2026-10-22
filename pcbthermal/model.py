@@ -625,6 +625,41 @@ class Heater:
     contact_area: float = 0.0                   # Area of the package top that touches the heatsink through the interface (m2); 0 = the footprint
     pad_thickness: float = 0.0                  # The dielectric sheet (paste, gap pad) between the package and the heatsink: thickness (m); 0 = use `interface`
     pad_k: float = 0.0                          # Conductivity of that sheet (W/mK)
+    role: str = ""                              # "source" (a pure heat source: power and, if wanted, the interface under it), "component" (junction, package, top path); "" = inferred from the fields
+    base_interface: float = 0.0                 # Source: interface between the heater and the board (K cm2/W, over the footprint); 0 = direct contact
+    base_pad_thickness: float = 0.0             # Source: the sheet under it (paste, solder, adhesive): thickness (m); 0 = use `base_interface`
+    base_pad_k: float = 0.0                     # Source: conductivity of that sheet (W/mK)
+    family: str = ""                            # Component: name of the package family chosen (informative; the values are in the fields)
+
+    def is_component(self):
+        """!
+        @brief True for a component (junction, package, top path); False for a pure heat source.
+        @details An explicit role wins; files and heaters without one are components when any component field is set (so every board saved before the roles existed behaves as before).
+        @return bool.
+        """
+        if self.role:
+            return self.role == "component"
+        return any((self.theta, self.tj_max, self.psi_jb, self.power_tc, self.theta_jc_top, self.theta_sa, self.interface, self.contact_area, self.pad_thickness))
+
+    def base_interface_kcm2(self):
+        """!
+        @brief Resistance per area of the interface under a pure source.
+        @return K cm2/W: thickness / conductivity of the sheet when both are set, otherwise the typed `base_interface`.
+        """
+        if self.base_pad_thickness > 0 and self.base_pad_k > 0:
+            return self.base_pad_thickness / self.base_pad_k * 1e4
+        return self.base_interface
+
+    def junction_theta(self):
+        """!
+        @brief The resistance between the heat source and the board pad used for the temperature of the part.
+        @details A component: the junction-to-pad theta. A pure source: the interface under it divided by its footprint (0 = direct contact: the source is at the board temperature).
+        @return K/W.
+        """
+        if self.is_component():
+            return self.theta
+        area_cm2 = self.area() * 1e4
+        return self.base_interface_kcm2() / area_cm2 if area_cm2 > 0 else 0.0
 
     def interface_kcm2(self):
         """!
@@ -730,7 +765,8 @@ class Via:
 
 # What a via barrel can be filled with: (name, conductivity of the fill in W/mK, note). The usual "filled via" of a fabricator is an epoxy resin plug (IPC-4761 type V to VII,
 # often capped with plated copper to be solderable), which barely conducts; only the electroplated copper fill is a heat path. Metals for heatsinks: (name, conductivity W/mK,
-# volumetric heat capacity rho*cp J/m3K). Interface materials: (name, conductivity W/mK, thickness mm). Package families: (name, typical junction-to-pad resistance K/W).
+# volumetric heat capacity rho*cp J/m3K). Interface materials: (name, conductivity W/mK, thickness mm). Package families: (name, typical junction-to-pad resistance K/W,
+# typical junction-to-case (top) resistance K/W, typical Tj max degC, note).
 # All of them are read from pcbthermal/data/defaults.json plus the user's file (defaults.py) by reload_libraries(); the numbers and their sources are in that file.
 VIA_FILLS = []
 METALS = []
@@ -747,7 +783,7 @@ def reload_libraries():
     VIA_FILLS[:] = [(e["name"], e["k_w_per_mk"], e.get("note", "")) for e in lib["via_fills"]]
     METALS[:] = [(e["name"], e["k_w_per_mk"], e["rho_cp_j_per_m3k"]) for e in lib["metals"]]
     INTERFACES[:] = [(e["name"], e["k_w_per_mk"], e["thickness_mm"]) for e in lib["interfaces"]]
-    PACKAGE_THETA[:] = [(e["name"], e["theta_k_per_w"]) for e in lib["package_theta"]]
+    PACKAGE_THETA[:] = [(e["name"], e["theta_k_per_w"], e.get("theta_jc_top_k_per_w", 0.0), e.get("tj_max_c", 0.0), e.get("note", "")) for e in lib["package_theta"]]
 
 
 def via_fill_k(name, default=0.0):
@@ -894,7 +930,7 @@ class Problem:
         for h in self.heaters:
             if h.power < 0:
                 raise ValueError("heater power must be >= 0")
-            if h.theta < 0 or h.tj_max < 0 or h.psi_jb < 0 or not -0.05 <= h.power_tc <= 0.05:
+            if h.theta < 0 or h.tj_max < 0 or h.psi_jb < 0 or h.base_interface < 0 or h.base_pad_thickness < 0 or h.role not in ("", "source", "component") or not -0.05 <= h.power_tc <= 0.05:
                 raise ValueError("a heater needs theta, tj_max and psi_jb >= 0 and a power temperature coefficient between -5 and 5 %/K")
             if h.pad_thickness < 0 or h.pad_k < 0:
                 raise ValueError("the interface sheet needs a thickness and a conductivity >= 0")
@@ -974,7 +1010,7 @@ class Problem:
         return self
 
     def add_heater(self, layer, power, rect=None, polygon=None, name="", theta=0.0, profile=None, tj_max=0.0, psi_jb=0.0, power_tc=0.0,
-                   theta_jc_top=0.0, theta_sa=0.0, interface=0.0, contact_area_mm2=0.0, pad_thickness_mm=0.0, pad_k=0.0):
+                   theta_jc_top=0.0, theta_sa=0.0, interface=0.0, contact_area_mm2=0.0, pad_thickness_mm=0.0, pad_k=0.0, role=""):
         """!
         @brief Add a heat source (layer 1 = top, geometry in mm, power in W).
         @param layer 1-based layer number.
@@ -994,10 +1030,11 @@ class Problem:
         @param contact_area_mm2 Area of the package top that touches the heatsink in mm2 (0 = the footprint; for a processor the lid).
         @param pad_thickness_mm Thickness in mm of the dielectric sheet (paste, gap pad) between the package and the heatsink (0 = use `interface`).
         @param pad_k Conductivity of that sheet in W/mK (with the thickness it gives the interface resistance).
+        @param role "source" (a pure heat source), "component" (junction, package, top path) or "" to infer it from the fields.
         @return self.
         """
         h = Heater(layer - 1, self._shape_m(rect, polygon), float(power), name, theta, None, float(tj_max), float(psi_jb), float(power_tc),
-                   float(theta_jc_top), float(theta_sa), float(interface), float(contact_area_mm2) * 1e-6, pad_thickness_mm * 1e-3, float(pad_k))
+                   float(theta_jc_top), float(theta_sa), float(interface), float(contact_area_mm2) * 1e-6, pad_thickness_mm * 1e-3, float(pad_k), role)
         h.set_profile(profile)
         self.heaters.append(h)
         return self
@@ -1136,7 +1173,9 @@ def problem_from_dict(data, validate=True):
                         float(h.get("theta_k_per_w", h.get("theta_jb_k_per_w", 0.0))), None, float(h.get("tj_max_c", 0.0)),
                         float(h.get("psi_jb_k_per_w", 0.0)), float(h.get("power_tc_per_k", 0.0)),
                         float(h.get("theta_jc_top_k_per_w", 0.0)), float(h.get("theta_sa_k_per_w", 0.0)), float(h.get("interface_kcm2_per_w", 0.0)),
-                        float(h.get("contact_area_mm2", 0.0)) * 1e-6, float(h.get("pad_thickness_mm", 0.0)) * 1e-3, float(h.get("pad_k_w_per_mk", 0.0)))
+                        float(h.get("contact_area_mm2", 0.0)) * 1e-6, float(h.get("pad_thickness_mm", 0.0)) * 1e-3, float(h.get("pad_k_w_per_mk", 0.0)),
+                        h.get("role", ""), float(h.get("base_interface_kcm2_per_w", 0.0)), float(h.get("base_pad_thickness_mm", 0.0)) * 1e-3,
+                        float(h.get("base_pad_k_w_per_mk", 0.0)), h.get("family", ""))
         if "profile" in h:
             heater.set_profile(_profile_from_dict(h["profile"]))
         prob.heaters.append(heater)
@@ -1302,6 +1341,9 @@ def problem_to_dict(prob):
                          **({"interface_kcm2_per_w": h.interface} if h.interface else {}),
                          **({"contact_area_mm2": h.contact_area * 1e6} if h.contact_area else {}),
                          **({"pad_thickness_mm": h.pad_thickness * 1000.0, "pad_k_w_per_mk": h.pad_k} if h.pad_thickness and h.pad_k else {}),
+                         **({"role": h.role} if h.role else {}), **({"family": h.family} if h.family else {}),
+                         **({"base_interface_kcm2_per_w": h.base_interface} if h.base_interface else {}),
+                         **({"base_pad_thickness_mm": h.base_pad_thickness * 1000.0, "base_pad_k_w_per_mk": h.base_pad_k} if h.base_pad_thickness and h.base_pad_k else {}),
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
                   "filled": v.filled, "name": v.name, **({"fill": v.fill} if v.fill else {}),

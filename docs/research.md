@@ -204,7 +204,9 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 
 **Why it feels like two things.** It is: a pure source has no junction, so θ, Tj max, ψJB, the power coefficient and the whole top path make no sense for it; and a component with a heatsink on top needs the chain above. Today a pure source can show all those boxes (greyed when they cannot apply).
 
-**Options to align (to discuss, nothing changed yet).**
+**Decided on 2026-10-22 (maintainer):** option 1 (a Type: heat source / component) is agreed; the family list fills the typical values and those values are settings (the library `package_theta` has now θ, θJC(top), Tj max and a note); the interface of a pure source is the one **under** the heater, between it and the board. The GUI was changed for this; the rest (naming, order of the boxes, the report of a source) is still to be tuned.
+
+**Options to align (to discuss).**
 1. A **Type** at the top of the heater: *Heat source* (power only, nothing else shown) or *Component* (junction, package, top path). A source could still carry a cooling on top without a junction (θ = 0: the case is the junction), a paste between a source and a metal block being what the user probably means by "an interface".
 2. The **family list** becomes a library of packages (Preferences) with several typical columns (θ junction-pad, θJC(top), ψJT, ψJB, body size) that fill the component's fields at once, with the typical values shown below and editable, like the via fill; each with its note and source, always marked as indicative.
 3. Clearer field names that say the datasheet line: *Junction-to-pad θ (RθJC bottom / θJ-L / Rth j-sp)*, *Junction-to-case top θJC(top)*, *Heatsink on the package θSA*.

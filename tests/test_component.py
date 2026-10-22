@@ -95,7 +95,7 @@ def test_files_and_the_package_presets():
         part(theta=-1.0).validate()
     with pytest.raises(ValueError):
         part(power_tc=0.5).validate()
-    assert len(PACKAGE_THETA) >= 6 and all(th > 0 for _, th in PACKAGE_THETA)
+    assert len(PACKAGE_THETA) >= 6 and all(e[1] > 0 and e[3] > 0 for e in PACKAGE_THETA)       # name, theta, theta_jc_top, tj_max, note
     # The datasheet case of the study: a 2 W MOSFET with 4.5 K/W adds 9 K to the board point under it
     r = fvm.solve_steady(part(), 0.5)
     assert analysis.heater_stats(r, part())[0]["t_junction"] - r.t_max == pytest.approx(9.0)
@@ -137,3 +137,27 @@ def test_top_path_with_power_coefficient_and_json_round_trip():
     assert row["power_w"] > 2.0 and row["power_top_w"] > 0                 # Hotter junction, more power, part of it leaves through the top
     with pytest.raises(ValueError):
         part(theta_sa=-1.0).validate()
+
+
+def test_heater_kinds_source_and_component_and_the_interface_under_a_source():
+    from pcbthermal import Problem, SolverOptions, simulate
+    p = Problem.new(50, 40, 2).add_zone(1, rect=(0, 0, 50, 40)).add_heater(1, 2.0, rect=(20, 15, 30, 25), name="A")                     # Nothing set: a source
+    p.add_heater(1, 2.0, rect=(35, 15, 45, 25), name="B", theta=5.0)                                                                      # Theta set: a component
+    a, b = p.heaters
+    assert not a.is_component() and b.is_component()
+    assert a.junction_theta() == 0.0 and b.junction_theta() == 5.0
+    a.role = "source"
+    a.base_interface = 3.0                                                                                                                # 3 K cm2/W over 1 cm2
+    assert a.junction_theta() == pytest.approx(3.0)
+    a.base_pad_thickness, a.base_pad_k = 0.1e-3, 2.0                                                                                      # A 0.1 mm sheet of 2 W/mK: 0.5 K cm2/W
+    assert a.base_interface_kcm2() == pytest.approx(0.5) and a.junction_theta() == pytest.approx(0.5)
+    b.role = "component"
+    q = problem_from_dict(problem_to_dict(p))
+    assert [h.role for h in q.heaters] == ["source", "component"] and q.heaters[0].base_pad_k == 2.0 and q.heaters[0].junction_theta() == pytest.approx(0.5)
+    rows = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()
+    assert rows[0]["t_junction"] == pytest.approx(rows[0]["t_max"] + 2.0 * 0.5, abs=1e-6)                                                # The source is theta x P above the board
+    assert rows[1]["t_junction"] == pytest.approx(rows[1]["t_max"] + 2.0 * 5.0, abs=1e-6)
+    old = problem_to_dict(p)
+    for h in old["heaters"]:
+        h.pop("role", None)
+    assert [h.is_component() for h in problem_from_dict(old).heaters] == [False, True]                                                    # Files without a kind keep working

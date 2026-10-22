@@ -627,11 +627,15 @@ def test_component_fields_in_the_application(win, qtbot):
     theta = next(s for s in spins["K/W"] if abs(s.value() - 6.0) < 1e-9)          # U1 of the example has 6 K/W
     theta.setValue(10.0)
     assert win.doc.problem.heaters[0].theta == pytest.approx(10.0)
-    family = next(c for c in form.findChildren(QComboBox) if c.itemText(0).startswith("Typical θ"))
-    family.setCurrentIndex(1)                                                      # The first family replaces theta with its typical value
-    assert win.doc.problem.heaters[0].theta == pytest.approx(5.0)
-    next(s for s in spins["°C"] if s.maximum() >= 500 and s.value() == 0.0).setValue(90.0)       # Tj max
-    next(s for s in spins["%/K"]).setValue(0.4)
+    family = next(c for c in form.findChildren(QComboBox) if c.itemText(0) == "Custom")
+    family.setCurrentIndex(1)                                                      # The first family fills theta, theta_JC(top) and Tj max with its typical values
+    h0 = win.doc.problem.heaters[0]
+    assert h0.theta == pytest.approx(5.0) and h0.theta_jc_top == pytest.approx(27.0) and h0.tj_max == pytest.approx(150.0)
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    spins = win.inspector.form_host.findChildren(QAbstractSpinBox)                 # The form was rebuilt
+    next(s for s in spins if s.toolTip().startswith("Maximum junction temperature")).setValue(90.0)
+    next(s for s in spins if s.suffix().strip() == "%/K").setValue(0.4)
     assert win.doc.problem.heaters[0].tj_max == pytest.approx(90.0) and win.doc.problem.heaters[0].power_tc == pytest.approx(0.004)
     run(win, qtbot, ALL_MODELS, cell=2.0)
     rv = win.results

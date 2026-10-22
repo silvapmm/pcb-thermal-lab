@@ -11,7 +11,7 @@ import pytest
 
 pytest.importorskip("pytestqt")
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QGroupBox
 
 from pcbthermal.examples import example_block_board, example_board
@@ -135,7 +135,7 @@ def test_fields_that_do_not_apply_are_greyed(win):
     from PySide6.QtWidgets import QGroupBox
     # Top path of a part: used only with both the junction-to-pad theta and the heatsink theta_SA
     h = win.doc.problem.heaters[0]
-    h.theta, h.theta_sa = 0.0, 0.0
+    h.theta, h.theta_sa, h.role = 0.0, 0.0, "component"
     select(win, "heater")
     boxes = {g.title(): g for g in win.inspector.form_host.findChildren(QGroupBox)}
     assert not boxes["Package top: junction to case"].isEnabled() and not boxes["Interface: package top to heatsink"].isEnabled() and boxes["Heatsink on the package"].isEnabled()
@@ -188,3 +188,46 @@ def test_side_panels_scroll_so_every_field_stays_reachable(win):
     assert area.isAncestorOf(x_spin)
     top_left = x_spin.mapTo(area.viewport(), x_spin.rect().topLeft())
     assert 0 <= top_left.y() < area.viewport().height()                          # After scrolling to it, the X field is inside the visible part
+
+
+def test_heater_type_source_or_component_with_the_interface_under_a_source_and_the_family_library(win):
+    from PySide6.QtWidgets import QGroupBox
+    from pcbthermal.model import PACKAGE_THETA
+    h = lambda: win.doc.problem.heaters[0]                                                       # noqa: E731
+    select(win, "heater")
+    typ = lambda: next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0) == "Heat source")      # noqa: E731
+    assert h().is_component() and typ().currentText() == "Component"                            # The example's U1 has a theta: a component
+    assert titles(win)[:2] == ["Part", "Junction"] and "Interface under the source" not in titles(win)
+    # Component -> source clears the component fields, shows only the power and the interface under it
+    typ().setCurrentIndex(0)
+    assert h().role == "source" and h().theta == 0.0 and h().theta_sa == 0.0 and h().tj_max == 0.0
+    select(win, "heater")
+    assert titles(win) == ["Part", "Interface under the source", "Position and size"]
+    mat = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0).startswith("Interface material"))
+    mat.setCurrentIndex(mat.findText("Soft gap pad", Qt.MatchStartsWith))
+    assert h().base_pad_thickness > 0 and h().base_pad_k == 3.0 and h().junction_theta() > 0           # The sheet under the source gives a resistance over the footprint
+    # Source -> component: the family fills the typical values
+    select(win, "heater")
+    typ().setCurrentIndex(1)
+    assert h().role == "component"
+    select(win, "heater")
+    fam = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0) == "Custom")
+    assert [fam.itemText(i) for i in range(1, fam.count())] == [e[0] for e in PACKAGE_THETA]
+    fam.setCurrentIndex(1)
+    e = PACKAGE_THETA[0]
+    assert h().family == e[0] and h().theta == e[1] and h().theta_jc_top == e[2] and h().tj_max == e[3]
+    select(win, "heater")
+    assert any(l.text().startswith(f"Typical for {e[0]}") for l in win.inspector.form_host.findChildren(__import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel))
+    # The typical values are a library in the settings: change one and the family fills the new value
+    from pcbthermal import defaults, model
+    full = defaults.load()
+    full["libraries"]["package_theta"][0]["theta_k_per_w"] = 7.5
+    defaults.save_user(full)
+    model.reload_libraries()
+    select(win, "heater")
+    fam = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0) == "Custom")
+    fam.setCurrentIndex(0)
+    select(win, "heater")
+    fam = next(c for c in win.inspector.form_host.findChildren(QComboBox) if c.itemText(0) == "Custom")
+    fam.setCurrentIndex(1)
+    assert h().theta == 7.5

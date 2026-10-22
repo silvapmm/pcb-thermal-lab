@@ -263,7 +263,7 @@ class Document(QObject):
             if kind == "zone":
                 pr.zones.append(Zone(layer, poly, new["zone_fill"], f"Zone {n}"))
             elif kind == "heater":
-                pr.heaters.append(Heater(layer, poly, new["heater_power_w"], f"U{n}"))
+                pr.heaters.append(Heater(layer, poly, new["heater_power_w"], f"U{n}", role=new.get("heater_kind", "source")))
             else:
                 last = pr.board.layers - 1
                 pr.heatsinks.append(Heatsink(last if layer != 0 else 0, poly, new["heatsink_h_extra"], f"Heatsink {n}"))
