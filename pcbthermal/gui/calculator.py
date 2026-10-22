@@ -2,7 +2,7 @@
 @file calculator.py
 @brief Power calculator: the power of a part from a measured temperature, by the board model or by a datasheet thermal parameter.
 @details Two routes (docs/models.md section 6):
-         * Board model: the temperature measured at a point (board 1 mm from the part, hottest point under it, its mean, or the junction with theta) and the
+         * Board model: the temperature measured at a point (board 1 mm from the part, hottest point under it, its mean, the junction with theta, or the top of the package with theta and psi_JT) and the
            ambient give the power that makes the drawn board reproduce it (inverse.power_from_temperature, run in the calculation process).
          * Datasheet: P = (Tj - T_reference) / parameter for a known junction temperature (a sense diode) with psi_JB, psi_JT or theta.
 """
@@ -58,11 +58,15 @@ class PowerCalculator(QDialog):
         self.heater.setToolTip("The part whose power is unknown. The other heaters keep the powers typed in the program.")
         self.point = QComboBox()
         for label, key in (("Board temperature 1 mm around the part (ring)", "ring"), ("Hottest board point under the part", "max"),
-                           ("Mean board temperature under the part", "mean"), ("Junction (needs θ junction-pad)", "junction")):
+                           ("Mean board temperature under the part", "mean"), ("Junction (needs θ junction-pad)", "junction"),
+                           ("Top of the package (needs θ junction-pad and ψJT)", "top")):
             self.point.addItem(label, key)
         self.point.setToolTip("Where the temperature was measured. The ring is the board 0.5 to 1.5 mm outside the package (the JEDEC point for ψJB): "
                               "use a thermocouple or an IR camera; an IR gun's spot is too large for a small part.")
         self.measured = _spin(-50, 400, 60.0, 1, "°C", "Measured temperature at that point.")
+        self.psi_jt = _spin(0, 500, 2.0, 2, "K/W", "ψJT of the datasheet (junction-to-top characterisation parameter), used only when the temperature is measured on the top of "
+                            "the package: Tj − Ttop = ψJT·P. Typically 0.3 to 5 K/W. The part needs its junction-to-pad θ (Properties panel). It belongs to the datasheet's "
+                            "test board: on yours it is an estimate.")
         self.ambient = _spin(-60, 200, doc.problem.board.ambient, 1, "°C", "Air temperature at the time of the measurement (the board's ambient is the default).")
         self.compute = QPushButton("Calculate")
         self.compute.setToolTip("Runs the board model (two or three solves) and finds the power that reproduces the measurement. The result is as good as the board drawn: "
@@ -74,7 +78,7 @@ class PowerCalculator(QDialog):
         self.use.setToolTip("Write the calculated power in the heater and keep the other settings.")
         self.use.setEnabled(False)
         self.use.clicked.connect(self._use)
-        for label, w in (("Part", self.heater), ("Measured at", self.point), ("Temperature", self.measured), ("Ambient", self.ambient)):
+        for label, w in (("Part", self.heater), ("Measured at", self.point), ("Temperature", self.measured), ("ψJT (top of the package)", self.psi_jt), ("Ambient", self.ambient)):
             f.addRow(label, w)
         f.addRow(self.compute)
         f.addRow(self.result)
@@ -128,7 +132,7 @@ class PowerCalculator(QDialog):
         self.result.setText("Calculating…")
         self.compute.setEnabled(False)
         self.worker = ProcessWorker("inverse", copy.deepcopy(self.doc.problem), self.heater.currentData(), self.measured.value(), self.point.currentData(),
-                                    self.ambient.value(), max(self.doc.options.cell_mm, 0.5))
+                                    self.ambient.value(), max(self.doc.options.cell_mm, 0.5), self.psi_jt.value())
         self.worker.done.connect(self._done)
         self.worker.failed.connect(self._failed)
         self.worker.cancelled.connect(lambda: self._failed("Cancelled."))

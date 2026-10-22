@@ -26,12 +26,12 @@ def part(power=2.0, h_mode="manual", theta=5.0):
     return p
 
 
-@pytest.mark.parametrize("point", ["max", "mean", "ring", "junction"])
+@pytest.mark.parametrize("point", ["max", "mean", "ring", "junction", "top"])
 def test_the_recovered_power_reproduces_the_measurement(point):
     truth = part(power=3.3)
     row = simulate(truth, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
-    measured = {"max": row["t_max"], "mean": row["t_mean"], "ring": row["t_ring"], "junction": row["t_junction"]}[point]
-    out = power_from_temperature(part(power=1.0), 0, measured, point=point, cell_mm=1.0)
+    measured = {"max": row["t_max"], "mean": row["t_mean"], "ring": row["t_ring"], "junction": row["t_junction"], "top": row["t_junction"] - 1.5 * 3.3}[point]
+    out = power_from_temperature(part(power=1.0), 0, measured, point=point, cell_mm=1.0, psi_jt=1.5)
     assert out["power_w"] == pytest.approx(3.3, rel=1e-3)
     if point in ("mean", "ring"):                         # The hottest point can move with the power when another heater is near: only then it is not affine
         assert out["linear"] and out["runs"] == 3
@@ -58,3 +58,21 @@ def test_ambient_of_the_measurement_and_errors():
     assert power_from_theta(100.0, 80.0, 10.0) == pytest.approx(2.0)
     with pytest.raises(ValueError):
         power_from_theta(70.0, 80.0, 10.0)
+
+
+def test_the_top_of_the_package_needs_theta_and_depends_on_the_board_and_psi():
+    """T_top = T_board,max + (theta - psi_JT) P: no theta is refused; a board with less copper gives a lower power for the same top temperature (the board is worse
+    per watt, so fewer watts explain the reading); a larger psi_JT, which lowers the top temperature per watt, gives more power."""
+    truth = part(power=3.0)
+    row = simulate(truth, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+    t_top = row["t_junction"] - 1.5 * 3.0
+    with pytest.raises(ValueError, match="theta"):
+        power_from_temperature(part(theta=0.0), 0, t_top, point="top", cell_mm=1.0, psi_jt=1.5)
+    with pytest.raises(ValueError, match="negative"):
+        power_from_temperature(part(), 0, t_top, point="top", cell_mm=1.0, psi_jt=-1.0)
+    poor = part()
+    poor.zones = poor.zones[:1]                                              # Only the top copper: worse spreading to the bottom face
+    assert power_from_temperature(poor, 0, t_top, point="top", cell_mm=1.0, psi_jt=1.5)["power_w"] < 3.0
+    low = power_from_temperature(part(), 0, t_top, point="top", cell_mm=1.0, psi_jt=1.0)["power_w"]
+    high = power_from_temperature(part(), 0, t_top, point="top", cell_mm=1.0, psi_jt=2.0)["power_w"]
+    assert low < 3.0 < high

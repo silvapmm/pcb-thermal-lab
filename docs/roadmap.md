@@ -11,6 +11,7 @@ Rule: when something is implemented it moves from the second list to the first i
 * **Parts (heaters)**: junction-to-pad `θ` in the worst case, junction limit with margin and power limit, `ψJB` ring estimate, power temperature coefficient with runaway detection, typical `θ` by package family, the top path (`θJC(top)`, body helper, contact area, interface sheet, `θSA`), power from a measured temperature or a datasheet parameter (Power calculator).
 * **Heatsinks**: extra coefficient typed as `h` or as `θSA`; metal block (all five models in steady state, FVM, FDM and 3D solid in time too) with thickness, metal presets, interface sheet (paste, gap pad, direct contact), plate fins with efficiency, exposed-surface coefficient; validated against the 3D solid within 1.8 %.
 * **Board**: variable stack-up (copper per layer, material and thickness per gap, simple and advanced modes, typical stack-ups for 1 to 12 layers checked against JLCPCB and PCBWay tables), outline polygon of any shape (FVM, FDM, 3D solid on the real shape; Lumped and Analytic on the rectangle of the same area), advanced stack-up in all five models.
+* **Vias and power calculator**: the via fill (open, epoxy resin, conductive paste, copper) and the power of a part from a board temperature, the junction or the top of the package (θ and ψJT), with the sensitivity to the copper measured (`validation.md` sections 18 and 19).
 * **Application**: PySide 6 editor with undo, polygon drawing and vertex handles, right-click menu (add or delete a vertex, add elements), rulers, properties in titled boxes, Stack-up tab with the cross-section and the simple stack-up fields, results views with animation, calculations in a cancellable separate process, HTML user guide, tooltips on every control.
 * **Quality**: documentation gate on every function, stress tests of the application, the 3D check of the layered models, studies in `examples/` that reproduce every table of `validation.md`.
 
@@ -29,6 +30,7 @@ Evidence for all of this is in `research.md` (sections E3 to E8 and R2 to R8).
 * **Interface with its own area** (contact patch) and the **air gap** outside it, and a side view with the vertical information (stack-up, component height, gap).
 * **Virtual JEDEC test**: the datasheet's own board built in the program, to predict `θJA`, `ΨJT`, `ΨJB` and compare with the datasheet (TPS7A47, CSD17308Q3), and to recover a missing package resistance from a `θJA` on a stated board.
 * **Passive areas** as component types (cooled area, contact to a fixed temperature, material patch) and a **component library** (typical `θJC`, `θJB`, `ψJB`, size and mass by family or part number; presets for processors with lid and paste).
+* **Calibrate the board from a second measurement** (the board ring and the top of the package, or two known powers) to correct the copper uncertainty that dominates the power calculator (11 to 45 % error for a wrong board).
 * LEDs: the fraction of the electrical power that becomes heat; temperature-dependent power beyond the linear coefficient.
 
 ### Import of copper and parts

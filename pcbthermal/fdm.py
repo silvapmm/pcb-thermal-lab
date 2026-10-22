@@ -172,7 +172,7 @@ class Network:
                 # tried and removes the constriction, giving temperatures 2 % too low against the 3D solid)
                 j = min(max(int(round(v.x / dx)), 0), nx - 1)
                 i = min(max(int(round(v.y / dy)), 0), ny - 1)
-                gz[:, i, j] += m.k_copper * v.copper_area(b.via_plating) / d
+                gz[:, i, j] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d
             couple(idx[:L - 1], idx[1:L], gz)
         for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
             couple(idx[a_layer], idx[b_layer], g)

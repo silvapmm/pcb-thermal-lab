@@ -84,6 +84,13 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 | Fins validated against an independent 2D solution of one fin (24 cases within 0.08 %) | `examples/fin_validation.py` | `test_fin_model.py`, `validation.md` section 15 |
 | 3D solid verified against Yovanovich's spreading-resistance table (0.7 to 0.8 %) and a grid-convergence study (GCI 1.14 %) | `examples/solid3d_verification.py` | `test_solid3d_verification.py`, `validation.md` section 16 |
 
+### Fifth batch (2026-10-22): vias and the power calculator
+
+| Feature | Code | Tests / evidence |
+| :-- | --: | --: |
+| Via fill: open, epoxy resin, conductive paste, electroplated copper (`Via.fill_k`, `Via.thermal_area`, `VIA_FILLS`, the *Fill* list; old files unchanged) | `model.py`, `fvm.py`, `fdm.py`, `analytic.py`, `solid3d.py`, `gui/panels.py` | `test_via_fill.py`; `validation.md` section 18 |
+| Power from the top of the package (`point="top"`, θ and ψJT) in the API, the job and the calculator | `inverse.py`, `jobs.py`, `gui/calculator.py` | `test_inverse.py`; `validation.md` section 19 |
+
 ### Changed behaviour
 
 - Changing the number of layers in the application now loads the typical stack-up of the new count (copper, dielectrics and total thickness in the advanced mode; total thickness and outer copper in the simple mode): a 4-layer board is 1.586 mm, a 10-layer board 2.0 mm.

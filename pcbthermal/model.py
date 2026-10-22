@@ -699,8 +699,9 @@ class Via:
     x: float                                    # X position (m)
     y: float                                    # Y position (m)
     diameter: float                             # Finished hole diameter (m)
-    filled: bool = False                        # True for a copper-filled via (solid rod)
+    filled: bool = False                        # True for a copper-filled via (solid rod, electroplated copper fill)
     name: str = ""                              # Optional label
+    fill_k: float = 0.0                         # Conductivity (W/mK) of a non-copper fill of the barrel (epoxy resin about 0.3, conductive paste about 8); 0 = open barrel
 
     def copper_area(self, plating):
         """!
@@ -715,6 +716,29 @@ class Via:
         r_in = max(r - plating, 0.0)
         return math.pi * (r * r - r_in * r_in)
 
+    def thermal_area(self, plating, k_copper):
+        """!
+        @brief Copper-equivalent cross-section of the via for the conduction of heat along its axis.
+        @details The copper of the barrel (annulus, or the whole disc for a copper fill) plus the fill of the core counted at its conductivity relative to copper:
+                 A = A_copper + (k_fill / k_copper) pi r_in^2. An epoxy resin (0.3 W/mK) adds about 0.1 % to a 0.3 mm via, a conductive paste (8 W/mK) about 5 %,
+                 a copper fill 3.3 times the plating.
+        @param plating Barrel plating thickness in metres.
+        @param k_copper Conductivity of copper in W/mK.
+        @return Area in square metres.
+        """
+        area = self.copper_area(plating)
+        if self.filled or self.fill_k <= 0.0:
+            return area
+        r_in = max(self.diameter / 2.0 - plating, 0.0)
+        return area + (self.fill_k / k_copper) * math.pi * r_in * r_in
+
+
+# What a via barrel can be filled with: (label, copper-filled, conductivity of a non-copper fill in W/mK). The usual "filled via" of a fabricator is an epoxy
+# resin plug (IPC-4761 type V to VII, often capped with plated copper to be solderable), which barely conducts; only the electroplated copper fill is a heat path.
+# Conductivities from fabricator pages (JLCPCB: non-conductive epoxy about 0.3, conductive copper-epoxy 8, plated copper about 400); other sources quote 3 to 16 for conductive
+# epoxy, so the value can be edited.
+VIA_FILLS = (("Open (hollow barrel)", False, 0.0), ("Epoxy resin, non-conductive (about 0.3 W/mK)", False, 0.3),
+             ("Conductive paste (copper or silver epoxy, about 8 W/mK)", False, 8.0), ("Copper, electroplated fill", True, 0.0))
 
 # Metals for heatsinks and spreaders: (name, conductivity W/mK, volumetric heat capacity rho*cp J/m3K). Aluminium, copper, brass and stainless from
 # the Ferrotec material table (204, 386, 111 and 13.8 W/mK; densities 2.71, 8.96, 8.49 and 8.01 g/cm3), carbon steel 54 W/mK from the Engineering
@@ -989,20 +1013,21 @@ class Problem:
         self.board.outline = None if polygon is None else np.asarray(polygon, dtype=float) / 1000.0
         return self
 
-    def add_via(self, x, y, diameter=0.3, filled=False, name=""):
+    def add_via(self, x, y, diameter=0.3, filled=False, name="", fill_k=0.0):
         """!
         @brief Add one via (mm).
         @param x X position in mm.
         @param y Y position in mm.
         @param diameter Finished hole diameter in mm.
-        @param filled True for a copper-filled via.
+        @param filled True for a copper-filled via (electroplated copper fill).
         @param name Optional label.
+        @param fill_k Conductivity in W/mK of a non-copper fill (epoxy resin about 0.3, conductive paste about 8; see VIA_FILLS); 0 for an open barrel.
         @return self.
         """
-        self.vias.append(Via(x / 1000.0, y / 1000.0, diameter / 1000.0, filled, name))
+        self.vias.append(Via(x / 1000.0, y / 1000.0, diameter / 1000.0, filled, name, float(fill_k)))
         return self
 
-    def add_via_array(self, rect, nx, ny, diameter=0.3, filled=False):
+    def add_via_array(self, rect, nx, ny, diameter=0.3, filled=False, fill_k=0.0):
         """!
         @brief Add a regular nx x ny array of vias, centred in a rectangle.
         @param rect Rectangle (x0, y0, x1, y1) in mm.
@@ -1010,13 +1035,14 @@ class Problem:
         @param ny Vias along y.
         @param diameter Finished hole diameter in mm.
         @param filled True for copper-filled vias.
+        @param fill_k Conductivity in W/mK of a non-copper fill (0 = open barrel).
         @return self.
         """
         x0, y0, x1, y1 = rect
         # Vias sit at the centres of an nx x ny grid of equal cells, so the array is symmetric in the rectangle
         for i in range(nx):
             for j in range(ny):
-                self.add_via(x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny, diameter, filled)
+                self.add_via(x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny, diameter, filled, fill_k=fill_k)
         return self
 
     def add_heatsink(self, layer, h_extra, rect=None, polygon=None, name="", thickness_mm=0.0, k=204.0, rho_cp=2.44e6,
@@ -1115,7 +1141,7 @@ def problem_from_dict(data, validate=True):
         prob.heaters.append(heater)
     for v in data.get("vias", []):
         prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
-                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", "")))
+                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", ""), float(v.get("fill_k_w_per_mk", 0.0))))
     for s in data.get("heatsinks", data.get("sinks", [])):    # "sinks" is the key of files saved before the rename
         prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
                                float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 204.0)),
@@ -1277,7 +1303,7 @@ def problem_to_dict(prob):
                          **({"pad_thickness_mm": h.pad_thickness * 1000.0, "pad_k_w_per_mk": h.pad_k} if h.pad_thickness and h.pad_k else {}),
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
-                  "filled": v.filled, "name": v.name} for v in prob.vias],
+                  "filled": v.filled, "name": v.name, **({"fill_k_w_per_mk": v.fill_k} if v.fill_k else {})} for v in prob.vias],
         "heatsinks": [dict({"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name},
                        **({"thickness_mm": s.thickness * 1000.0, "k_w_per_mk": s.k, "rho_cp_j_per_m3k": s.rho_cp,
                            "contact_r_m2k_per_w": s.contact_r} if s.is_block() else {}),

@@ -61,7 +61,7 @@ A PCB is a stack of very thin, highly conducting copper layers separated by poor
 
   and, where a via crosses the gap, through the barrel in parallel (a via connects **all** layers):
 
-      G_via = k_cu · A_via / d                  A_via = π[(D/2)² − (D/2 − t_plating)²]  (hollow) or π(D/2)² (filled)     [W/K]
+      G_via = k_cu · A_via / d                  A_via = π[(D/2)² − (D/2 − t_plating)²] + (k_fill / k_cu) π (D/2 − t_plating)²  (open barrel: k_fill = 0; epoxy resin 0.3; conductive paste 8) or π(D/2)² (electroplated copper fill)     [W/K]
 
 * **Ambient exchange**: the top layer loses `h_top` and the bottom layer `h_bottom` per unit area (both on the same layer for `L = 1`); a plain heatsink adds `h_extra` over its polygon;
   an edge cell of a layer loses `h_side · (edge length) · slab` through the board edge.

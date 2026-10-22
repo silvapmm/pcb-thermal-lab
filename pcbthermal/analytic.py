@@ -275,7 +275,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
         for s in problem.heatsinks:
             h_l[s.layer] += s.h_extra * polygon_area(s.polygon) / (W * H)
         if L > 1:
-            g += m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / d_diel
+            g += m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / d_diel
 
     # --- Cosine coefficients of the heaters, one vector entry per layer
     M = N = n_terms
@@ -309,7 +309,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
             a = min(max(int(v.x // tw), 0), ntx - 1)
             bb = min(max(int(v.y // th), 0), nty - 1)
             if L > 1:
-                c_via[bb, a] += m.k_copper * v.copper_area(b.via_plating) / d_diel
+                c_via[bb, a] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
         g_heatsink = np.zeros((L, nty, ntx))
         for s in problem.heatsinks:
             if s.is_block():
@@ -421,7 +421,7 @@ def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
         h_l[s.layer] += heatsink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
     g = sh["g_diel"].copy()
     if L > 1:
-        g += via_scale * m.k_copper * sum(v.copper_area(b.via_plating) for v in problem.vias) / (W * H) / sh["d_diel"]
+        g += via_scale * m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / sh["d_diel"]
     k2 = ((np.arange(M) * np.pi / W) ** 2)[:, None] + ((np.arange(N) * np.pi / H) ** 2)[None, :]
     A = np.zeros((M, N, L, L))
     for l in range(L):

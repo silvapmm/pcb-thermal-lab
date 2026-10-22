@@ -87,7 +87,7 @@ class Network:
             for v in problem.vias:
                 i, j = cell_index_of_point(v.x, v.y, nx, ny, dx, dy)
                 # The barrel conducts in parallel with the dielectric, across every gap
-                self.gz[:, i, j] += m.k_copper * v.copper_area(b.via_plating) / d
+                self.gz[:, i, j] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d
 
         # --- Conductance to ambient (W/K): top, bottom, heatsinks and edges are kept separate
         self.g_top = np.zeros((L, ny, nx))

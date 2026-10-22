@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem
 
 from .. import blocks
 from ..api import suggest_cell_mm
-from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA
+from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
 from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
@@ -847,16 +847,31 @@ class Inspector(QWidget):
                 x = _spin(0, 2000, el.x * 1000, 2, 0.5, "mm")
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")
                 d = _spin(0.05, 5, el.diameter * 1000, 2, 0.05, "mm")
-                fl = QCheckBox("Filled with copper")
-                fl.setChecked(el.filled)
+                fill = QComboBox()
+                for label, _copper, _k in VIA_FILLS:
+                    fill.addItem(label)
+                current = next((n for n, (_, c, k_) in enumerate(VIA_FILLS) if c == el.filled and abs(k_ - el.fill_k) < 1e-9), None)
+                if current is None:                                      # A conductivity typed in a file that is not one of the presets
+                    fill.addItem(f"Other fill ({el.fill_k:g} W/mK)")
+                    current = fill.count() - 1
+                fill.setCurrentIndex(current)
+                fill.setToolTip("What fills the barrel. A fabricator's 'filled via' is usually an epoxy resin plug (IPC-4761 types V to VII, often capped with plated "
+                                "copper so it can be soldered over): it barely conducts heat (about 0.3 W/mK against 385 for copper, +0.1 % of the barrel for a 0.3 mm via). "
+                                "A conductive paste (about 8 W/mK) adds about 5 %. Only an electroplated copper fill is a real heat path (3.3 times the plating of a 0.3 mm via). "
+                                "The capping copper over the ends is not modelled.")
                 x.valueChanged.connect(lambda v: self.doc.set_props(kind, i, x=v / 1000))
                 y.valueChanged.connect(lambda v: self.doc.set_props(kind, i, y=v / 1000))
                 d.valueChanged.connect(lambda v: self.doc.set_props(kind, i, diameter=v / 1000))
-                fl.toggled.connect(lambda v: self.doc.set_props(kind, i, filled=v, merge=False))
+
+                def pick_fill(idx):
+                    if idx < len(VIA_FILLS):
+                        self.doc.set_props(kind, i, filled=VIA_FILLS[idx][1], fill_k=VIA_FILLS[idx][2], merge=False)
+
+                fill.currentIndexChanged.connect(pick_fill)
                 lay.addRow("X", x)
                 lay.addRow("Y", y)
                 lay.addRow("Diameter", d)
-                lay.addRow("", fl)
+                lay.addRow("Fill", fill)
             if kind != "via":
                 self._geometry_rows(box("Position and size"), kind, i, el)
         tips.apply(self.form_host)

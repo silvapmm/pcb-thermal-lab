@@ -92,7 +92,7 @@ class Solid:
         via_frac = np.zeros((ny, nx))
         for v in problem.vias:
             if 0.0 <= v.x < W and 0.0 <= v.y < H:
-                via_frac[min(int(v.y / dy), ny - 1), min(int(v.x / dx), nx - 1)] += v.copper_area(b.via_plating) / A
+                via_frac[min(int(v.y / dy), ny - 1), min(int(v.x / dx), nx - 1)] += v.thermal_area(b.via_plating, b.materials.k_copper) / A
         via_frac = np.minimum(via_frac, 1.0)
 
         tc = np.asarray(b.copper_thickness)
