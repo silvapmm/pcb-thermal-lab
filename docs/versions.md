@@ -93,6 +93,8 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 
 | Preferences: libraries and defaults in JSON (shipped `defaults.json` + user `user_defaults.json` with only the differences), editor window, start-up notice; via fill by name with an editable typical value | `defaults.py`, `data/defaults.json`, `model.reload_libraries/new_problem`, `gui/preferences.py`, `gui/panels.py`, `gui/main_window.py` | `test_defaults.py` |
 
+| Power calculator reworked (name, parameters inside the window, hints, result with temperatures and board resistance), validated against datasheet boards; empty board at start-up | `gui/calculator.py`, `inverse.py`, `gui/app.py`, `examples/calculator_validation.py`, `docs/calculators.md` | `test_calculator_validation.py`, `test_inverse.py` |
+
 ### Changed behaviour
 
 - Changing the number of layers in the application now loads the typical stack-up of the new count (copper, dielectrics and total thickness in the advanced mode; total thickness and outer copper in the simple mode): a 4-layer board is 1.586 mm, a 10-layer board 2.0 mm.

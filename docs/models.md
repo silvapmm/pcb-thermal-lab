@@ -242,7 +242,9 @@ The Stack-up tab draws the cross-section with the thickness of every layer in µ
 * **Results**: the field outside the board is ambient and is blanked in the plots (`arrays["board_mask"]`); means are weighted by the cover; `Tmax` and `Tmin` are taken on the board; computed convection uses the real area and perimeter.
 * **Parametrisation**: a polygon in the file (`outline_mm`); in the application presets (rectangle, L, T, ellipse, chamfered corners), a vertex table, and the outline tool (`O`).
 
-## 10. Power from a measured temperature
+## 10. Power from a measured temperature (the Power calculator)
+
+**The formulas, the parameters, the validation tables, the limits and the sources of this calculator are in [`calculators.md`](calculators.md)**; what follows is the summary.
 
 `inverse.power_from_temperature(problem, index, measured_c, point, ambient_c)` finds the power of one heater that makes the board model reproduce a measured temperature at one point of the part: `ring` (board 0.5 to 1.5 mm around it, the JEDEC point of ψJB), `max` or `mean` (under the footprint), `junction` (needs θ) or `top` (the top of the package: needs θ and the datasheet ψJT, `T_top = T_board,max + (θ − ψJT) P`) or `junction` (needs θ).
 With the other heaters at their powers the temperature is affine in the power of the part, so two runs (the part at 0 and at one power) give the power and a third checks it; with computed convection the problem is not linear and a secant iteration finishes (typically a few more runs). `power_from_theta(Tj, T_ref, parameter)` is the datasheet relation `P = (Tj − T_ref)/θ` with ψJB, ψJT or θ.

@@ -34,7 +34,7 @@ def test_the_recovered_power_reproduces_the_measurement(point):
     out = power_from_temperature(part(power=1.0), 0, measured, point=point, cell_mm=1.0, psi_jt=1.5)
     assert out["power_w"] == pytest.approx(3.3, rel=1e-3)
     if point in ("mean", "ring"):                         # The hottest point can move with the power when another heater is near: only then it is not affine
-        assert out["linear"] and out["runs"] == 3
+        assert out["linear"] and out["runs"] == 4                  # Two runs to build the line, one to check it, one for the report of the temperatures
 
 
 def test_computed_convection_is_not_linear_and_still_converges():

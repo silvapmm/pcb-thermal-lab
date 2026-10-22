@@ -28,7 +28,7 @@ def test_guide_file_links_and_content():
     links = re.findall(r'href="#([^"]+)"', html)
     assert links and all(l in ids for l in links), [l for l in links if l not in ids]
     # The guide mentions every model, every part field, every tool key and every dielectric preset of the program
-    for word in ("FVM", "FDM", "Lumped", "Analytic", "3D solid", "θ junction-pad", "Tj max", "ψJB", "Power coefficient", "Heatsink θSA", "Board outline", "Manual input", "Preferences: defaults and libraries", "Everything depends on the copper", "epoxy resin plug", "Side panels", "Direct contact", "Greyed fields", "Add a vertex here", "rectangle of the same area",
+    for word in ("FVM", "FDM", "Lumped", "Analytic", "3D solid", "θ junction-pad", "Tj max", "ψJB", "Power coefficient", "Heatsink θSA", "Board outline", "Manual input", "Preferences: defaults and libraries", "everything depends on the copper", "empty board", "epoxy resin plug", "Side panels", "Direct contact", "Greyed fields", "Add a vertex here", "rectangle of the same area",
                  "Stack-up", "Power calculator", "Cancel", "F1", "Cooling model", "Metal block", "interface sheet", "contact area", "Prepreg", "Load typical stack-up", "stackups.json", __version__ if False else "Quick start"):
         assert word in html, word
     for entry in DIELECTRICS:

@@ -27,8 +27,7 @@ def main(argv=None):
     win = MainWindow()
     if len(argv) > 1 and os.path.exists(argv[1]):
         win.open_file(argv[1])
-    else:
-        win._load_problem(__import__("pcbthermal.examples", fromlist=["x"]).example_board(), "example-4layer")
+    # Without a file the program starts with an empty board (the defaults of a new board); the examples are in File - Open example
     win.show()
     return app.exec()
 

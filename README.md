@@ -17,7 +17,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically; animation of the heat evolution with GIF export.
 
 **Tools**
-- **Power calculator**: the power of a part from a measured temperature (by the drawn board, or from a datasheet ψ/θ parameter).
+- **Power calculator**: the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
 - **Interactive editor** (PySide 6): rectangles and polygons, rulers and a scale bar, undo/redo, background photo, dark and light themes, a tooltip on every field.
 - **Simulations run in a separate process**: the window never freezes, a run can be **cancelled** at any moment and nothing is left running when you close the program.
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.
@@ -32,7 +32,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Temperature](docs/images/results_temperature.png)
 
-Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md).
+Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
 ## Which model should I use?
 

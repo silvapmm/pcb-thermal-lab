@@ -54,6 +54,31 @@ def _temperature(problem, name, options, index, point, power, psi_jt=0.0):
     return row[key]
 
 
+def point_temperatures(problem, name, options, index, power, psi_jt=0.0):
+    """!
+    @brief Every temperature of a part that the calculator can use, with the part at a given power.
+    @param problem A Problem (it is not modified).
+    @param name Model name.
+    @param options SolverOptions.
+    @param index Index of the heater.
+    @param power Power in watts given to the heater.
+    @param psi_jt Datasheet psi_JT in K/W to give the top of the package (needs theta).
+    @return Dict with board_max, board_mean, ring (board 0.5 to 1.5 mm around the part), junction and top (None where the part has no theta, or psi_jt is 0) in degC.
+    """
+    pr = copy.deepcopy(problem)
+    pr.heaters[index].power = power
+    pr.heaters[index].profile = None
+    if pr.board.h_mode == "computed":
+        from .api import _solve_computed_h
+        res = _solve_computed_h(pr, name, options)[0]
+    else:
+        res = _run_model(pr, name, options)
+    row = heater_stats(res, pr)[index]
+    tj = row["t_junction"]
+    return {"board_max": row["t_max"], "board_mean": row["t_mean"], "ring": row["t_ring"], "junction": tj,
+            "top": (tj - psi_jt * power) if (tj is not None and psi_jt > 0) else None}
+
+
 def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=None, model="fvm", cell_mm=1.0, tolerance=1e-4, max_iter=20, psi_jt=0.0):
     """!
     @brief Power of one heater that makes the model reproduce a measured temperature.
@@ -67,7 +92,8 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
     @param tolerance Relative tolerance on the temperature rise of the check run.
     @param max_iter Largest number of secant iterations (with constant coefficients none is needed).
     @param psi_jt Datasheet junction-to-top parameter psi_JT in K/W, for point "top" (the temperature measured is that of the top of the case).
-    @return Dict: power_w, temperature_c (of the check run), rise_k (measured minus ambient), runs (number of model runs), linear (True if the affine estimate already matched).
+    @return Dict: power_w, temperature_c (of the check run), rise_k (measured minus ambient), runs (number of model runs), linear (True if the affine estimate already matched),
+            at_power (point_temperatures at the power found) and resistance_k_per_w (rise per watt at the measured point: what the copper, vias, stack-up and heat transfer give).
     @throws ValueError If the heater index, the point or the ambient is wrong, the measured temperature is not above the ambient, or the model has no such point.
     """
     if not 0 <= index < len(problem.heaters):
@@ -108,7 +134,9 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
         pb = max(pb + (amb + rise - tb) / slope, 1e-9)
         tb = _temperature(pr, model, options, index, point, pb, psi_jt)
         runs += 1
-    return {"power_w": pb, "temperature_c": tb, "rise_k": rise, "runs": runs, "linear": bool(linear)}
+    state = point_temperatures(pr, model, options, index, pb, psi_jt)
+    return {"power_w": pb, "temperature_c": tb, "rise_k": rise, "runs": runs + 1, "linear": bool(linear), "at_power": state,
+            "resistance_k_per_w": rise / pb if pb > 0 else float("inf")}
 
 
 def power_from_theta(t_junction_c, t_reference_c, theta_k_per_w):

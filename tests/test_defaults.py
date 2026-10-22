@@ -130,3 +130,28 @@ def test_preferences_window_edits_saves_resets_and_the_status_bar_says_so(qtbot,
     assert win2.doc.problem.board.ambient == 31.0
     from tests.test_tooltips import missing
     assert not missing(d, "preferences")                                                # Every control of the window explains itself
+
+
+def test_calculator_shows_the_parameters_its_point_needs_and_the_program_starts_empty(qtbot, tmp_path):
+    from PySide6.QtCore import QSettings
+    from pcbthermal.examples import example_board
+    from pcbthermal.gui.calculator import POINTS, PowerCalculator
+    from pcbthermal.gui.document import Document
+    from pcbthermal.gui.main_window import MainWindow
+    win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(win)
+    assert not win.doc.problem.heaters and not win.doc.problem.zones                      # An empty board: no example is loaded at start-up
+    assert win.a_calc.text() == "Power calculator…"
+    doc = Document()
+    doc.open_problem(example_board(), "example")
+    d = PowerCalculator(doc)
+    qtbot.addWidget(d)
+    d.show()
+    assert d.windowTitle() == "Power calculator"
+    for key, theta_visible, psi_visible in (("ring", False, False), ("max", False, False), ("junction", True, False), ("top", True, True)):
+        d.point.setCurrentIndex(d.point.findData(key))
+        assert d.theta.isVisible() == theta_visible and d.psi_jt.isVisible() == psi_visible
+    assert d.theta.value() == doc.problem.heaters[0].theta                                # Starts at the part's θ
+    assert all(d.point.itemData(i, 3) for i in range(d.point.count())) and len(POINTS) == d.point.count()      # A hint on every option
+    from tests.test_tooltips import missing
+    assert not missing(d, "calculator")

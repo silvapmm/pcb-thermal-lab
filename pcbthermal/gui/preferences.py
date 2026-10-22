@@ -28,7 +28,11 @@ LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name app
                 "interfaces": "Pastes and gap pads under a heatsink or a package: apparent conductivity (W/mK) and thickness (mm); the resistance is thickness / conductivity.",
                 "dielectrics": "Dielectrics of the stack-up: conductivity across and along the plane (W/mK), density (kg/m³) and specific heat (J/kgK).",
                 "package_theta": "Typical junction-to-pad resistance by package family (K/W): a starting value, never the datasheet's."}
-SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials", "solver": "Solver"}
+SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "solver": "Solver of a new project"}
+SECTION_HINTS = {"new_board": "The values a board starts with when you choose File - New board (and when the program starts).",
+                 "new_elements": "The values of an element when you draw it or add it from the right-click menu.",
+                 "materials": "Copper and the simple-stack-up dielectric of a new board. The dielectrics of the advanced stack-up are a library.",
+                 "solver": "The models and settings a new project starts with."}
 CHOICES = {"h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "linear_solver": ("direct", "cg", "sor")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
 TIPS = {
@@ -74,13 +78,12 @@ class PreferencesDialog(QDialog):
         self.info.setToolTip("Where the user's defaults are kept and what they change. Without that file the program uses the values shipped with it.")
         lay.addWidget(self.info)
         self.tabs = QTabWidget()
-        self.tabs.setToolTip("Libraries are tables of materials; the other tabs are the values a new board, a new element and a new project start with.")
+        self.tabs.setToolTip("Libraries are tables of materials (they appear in the lists of the program); the last tab holds the values a new board, a new element and a new project start with.")
         lay.addWidget(self.tabs, 1)
         self.tables, self.widgets = {}, {}
         for lib in defaults.LIBRARIES:
             self.tabs.addTab(self._library_tab(lib), LIBRARY_TITLES[lib])
-        for section in ("new_board", "new_elements", "materials", "solver"):
-            self.tabs.addTab(self._section_tab(section), SECTION_TITLES[section])
+        self.tabs.addTab(self._defaults_tab(), "Defaults for new projects")
         row = QHBoxLayout()
         self.save_btn = QPushButton("Save as my defaults")
         self.save_btn.setToolTip("Write what differs from the shipped defaults to the user file. New projects and the lists of the forms use it from now on.")
@@ -146,6 +149,26 @@ class PreferencesDialog(QDialog):
         row.addStretch(1)
         lay.addLayout(row)
         return w
+
+    def _defaults_tab(self):
+        """!
+        @brief One tab with the four groups of defaults (new board, new elements, materials, solver), each in its own box.
+        @return QWidget.
+        """
+        from PySide6.QtWidgets import QGroupBox, QScrollArea
+        host = QWidget()
+        lay = QVBoxLayout(host)
+        for section in ("new_board", "new_elements", "materials", "solver"):
+            box = QGroupBox(SECTION_TITLES[section])
+            box.setToolTip(SECTION_HINTS[section])
+            inner = QVBoxLayout(box)
+            inner.addWidget(self._section_tab(section))
+            lay.addWidget(box)
+        lay.addStretch(1)
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setWidget(host)
+        return area
 
     def _section_tab(self, section):
         """!
