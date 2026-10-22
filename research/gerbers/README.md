@@ -272,6 +272,41 @@ whose assembly takes the face conductances as given (stage 2 and 3 of `INTEGRATI
 Per layer, 1 mm cells, 0.1 mm pixels, one core: `lam` 0.00 to 0.02 s; the flow-based faces 0.6 s (200 000 pixels), 1.6 s (480 000), 2.7 s (800 000), 5.5 s (1 600 000 = 100 x 160 mm); the cell problem about the same.
 Peak memory about 830 bytes per pixel (1.3 GB for 1.6 M pixels): a larger board is processed in strips (not implemented here). The cost is paid once, at import, and the result is cached with the project.
 
+### 4.16 The Lumped and Analytic models (`study_lumped_analytic.py`)
+
+Both models take the copper only through the `fill` of the zones, so an imported mask can reach them through the public API with no change of the program: one zone per 1 mm cell whose `fill` gives, through the program's formula `S = b + f (a - b)`, the wanted conductance. 42 windows, 1 W on a 6 x 6 mm heater, error of the mean heater rise against the resolved 0.1 mm copper (MAE, bias in brackets):
+
+| conductance of the 1 mm cell | FVM | Lumped | Analytic |
+|---|---|---|---|
+| arithmetic fraction (today) | 11.9 % (-11.9) | 13.0 % (-13.0) | 18.6 % (-18.6) |
+| geometric mean | 2.6 % (-0.9) | 4.8 % (-3.8) | 12.2 % (-12.2) |
+| lambda 0.5 mean of the bounds | 2.9 % (-2.0) | 4.9 % (-4.4) | 12.5 % (-12.5) |
+| mean of the four flow-based faces | 4.0 % (-3.9) | 4.9 % (-4.2) | 12.4 % (-12.4) |
+
+* **Lumped** reads the sheet conductance of the FVM network and averages it over rings, so it inherits any better `S`: 13 % falls to about 4.8 %, and that residual is its own model error (it is about the same with the FVM-quality mapping), not the mapping's.
+* **Analytic** treats the board as one uniform sheet around the heater, so per-cell conductances do not help (12 % left). It needs one effective conductance weighted by the influence of the heater, K0(r / lambda). Arithmetic weighting is 18.6 % too cool; the weighted **geometric-type mean** (power mean with p between -0.2 and -0.1) gives MAE 5.9 %, the flow-based effective conductance of the window 7.1 %, the harmonic mean 24.7 % too warm.
+* Internet search (2026-10-22): nothing found that treats the copper fraction of a Lumped (thermal network) or cosine-series model of a PCB; the literature on effective conductivity of PCBs uses area-weighted (arithmetic) copper fractions for the in-plane value, which is what the program does today and what the numbers above show to be too cool on real layouts.
+
+### 4.17 The independent reader against gerbonara on gerbonara's own test files (`study_reader_conformance.py`)
+
+272 Gerber-like files of gerbonara's test resources (many CAD tools; each small file tests one feature), drawn by both readers on the same pixels (pixel = half the thinnest aperture, 0.02 to 0.2 mm). Files with a feature thinner than 1.5 pixels at the finest pixel (82) are left out. Of 164 files both readers draw, **149 agree within 3 % of the area** (median difference 0.04 %, median differing pixels 0.0 %); 6 are refused (5 Upverter files with a non-standard `Rect` aperture shape, 1 file with an image mirror `MIA1B0`), none is read by the independent reader and refused by gerbonara. Time: 51 s against 323 s (gerbonara + shapely sampling).
+
+The first run found four defects, now fixed and covered by tests: comment statements inside a macro (`0 text`), a straight region after a region closed by a G03 arc (the interpolation mode was not reset), a non-standard aperture shape reported as a file error instead of "unsupported". The 15 files that still disagree are almost all not copper layers (silkscreen and outline files with open contours, zero-length lines and strokes with arcs; 4 to 20 %); two small spec-test files differ on purpose: in `example_holes_dont_clear.gbr` and `example_am_exposure_modifier.gbr` the file itself states that an aperture hole or a macro clear primitive must **not** clear what was drawn before, which the independent reader follows (+7 % and +6 %) and gerbonara does not. The stroke differences on open outlines are not yet explained; they do not touch copper layers or the boards of the study.
+
+### 4.18 How the independent reader differs from the others (as read on 2026-10-22; details of the other projects from their documentation, not all verified by running them)
+
+| | independent reader (`native_gerber.py`) | gerbonara | pygerber | pcb-tools |
+|---|---|---|---|---|
+| licence | part of the project, NumPy only | Apache-2.0 | MIT | Apache-2.0, unmaintained |
+| what it produces | a pixel mask of the copper, directly | vector objects, can modify and write files | renders images (and 2D shapes) following the 2024.05 spec | objects, Cairo rendering |
+| dependencies | NumPy | several (including shapely in this study for sampling) | pydantic, pillow and others | Cairo, others |
+| Excellon | tolerant (Allegro, OrCAD comment tables, repeat command, slots); declared counts match | refuses some Allegro/OrCAD files | spec files | basic |
+| features | RS-274X without AB, LM/LR/LS, moire, mirror, scale; no writing | the most complete of these | the most spec-faithful in intent | older subset |
+| unsupported content | reported with an error | mostly handled | varies | silently wrong in places |
+| checked on | 8 real boards and 164 test files (149 agree) | the reference here, itself not a ground truth | not run in this study | not run in this study |
+
+Honest summary: the independent reader is not a better reader, it is a smaller one that does one job (rasterise copper and holes) with no library whose licence the closed product would have to carry. It supports fewer features, is validated on fewer files, and its remaining disagreements are on silkscreen/outline files and on two spec edge cases where it follows the spec text.
+
 ## 5. Without third-party libraries: the independent reader
 
 The research route (gerbonara + shapely) is only the **reference**. `native_gerber.py` reads the files and draws the pixel centres itself, written from the public Gerber layer format specification and common Excellon practice, with NumPy only:
