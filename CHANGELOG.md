@@ -17,6 +17,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 - **Properties panel in titled boxes** (Part, Junction, Package top, Interface, Heatsink on the package, Copper, Position and size, ...). A heatsink is *Manual input* (typed as **h** or as **θSA**, with the equivalent of the other shown) or *Metal block* (boxes Metal block, Interface, Fins, Extra cooling). New interface preset **Direct contact** (no material, R = 0).
 - **Simple stack-up and Materials moved to the Stack-up tab** (right of the cross-section); the Board panel keeps size, outline and environment.
 - **Typical stack-ups checked against fabricators' tables** (JLCPCB, PCBWay; Eurocircuits and Sierra catalogue limits): the maximum temperature moves by under 0.5 % between them (`examples/stackup_vendor_check.py`, `docs/validation.md` section 14).
+- `docs/roadmap.md` is now two lists (what has been implemented, what we want to implement); the Component evidence moved to `docs/research.md` with its bibliography; the fabricator sources are in `docs/validation.md` section 10.
 - `docs/versions.md`: what was implemented in every version, where and how it is tested. `examples/stackup_outline_study.py`.
 
 - **Typical stack-ups by layer count** in an editable JSON file (`pcbthermal/data/stackups.json`), loaded when the number of layers changes and by *Load typical stack-up* on the Stack-up tab; `docs/models.md` section 12 lists them and what is inside the dielectric.

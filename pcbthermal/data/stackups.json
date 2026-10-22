@@ -12,6 +12,7 @@
     "JLCPCB: 0.5 oz inner copper is 15.2 um finished for 4 to 8 layers; prepreg types 7628 / 3313 / 1080 / 2116",
     "Weller PCB and JHYPCB 8-layer 1.6 mm guides (1080 prepreg outside, cores 0.18 to 0.35 mm, 1 oz outer copper, Tg170 for 8 layers or more)",
     "PCBWay multilayer laminated structure page (1080 prepreg about 0.075 mm, 2116 about 0.13 mm before lamination)",
+    "JLCPCB impedance page (https://jlcpcb.com/impedance) and PCBWay stack-up pages (https://www.pcbway.com/multi-layer-laminated-structure.html) were compared with these templates on 2026-10-22: the maximum temperature of the example board differs by under 0.5 % (docs/validation.md section 14)",
     "6, 8, 10 and 12-layer entries are constructed from these figures so that the layers add up to the nominal thickness; they are representative, not a fabricator's table"
   ],
   "templates": {
