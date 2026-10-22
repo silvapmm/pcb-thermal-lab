@@ -29,3 +29,20 @@ def _no_modal_messages(monkeypatch):
         return
     monkeypatch.setattr(QMessageBox, "exec", lambda self: QMessageBox.Ok)
     monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Discard))     # Closing a modified document asks
+
+
+@pytest.fixture(autouse=True)
+def _private_config_folder(monkeypatch, tmp_path_factory):
+    """!
+    @brief Point the configuration folder to an empty temporary one, so a user's own defaults file never changes a test (and a test never writes into the real one).
+    @param monkeypatch pytest fixture.
+    @param tmp_path_factory pytest fixture.
+    """
+    folder = tmp_path_factory.mktemp("config")
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(folder))
+    try:
+        from pcbthermal import defaults, model
+        defaults._CACHE.pop("stamp", None)
+        model.reload_libraries()
+    except ImportError:
+        return

@@ -13,8 +13,9 @@ import numpy as np
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
-from ..api import SolverOptions
-from ..model import Dielectric, Heater, Problem, Heatsink, Via, Zone
+from .. import defaults
+from ..api import SolverOptions, default_options
+from ..model import Dielectric, Heater, Problem, Heatsink, Via, Zone, new_problem, via_fill_k
 from ..project import Project, load_project, project_from_dict, project_to_dict, save_project
 
 KINDS = ("zone", "heater", "heatsink", "via")
@@ -86,7 +87,7 @@ class Document(QObject):
         @param project Initial Project (default: an empty 100 x 80 mm, 2-layer board).
         """
         super().__init__()
-        self.project = project or Project(problem=Problem.new(100, 80, layers=2, name="untitled"))
+        self.project = project or Project(problem=new_problem(), options=default_options())
         self.path = None
         self.stack = QUndoStack(self)
         self.stack.cleanChanged.connect(self._clean_changed)
@@ -178,14 +179,14 @@ class Document(QObject):
         self.changed.emit()
 
     # ------------------------------------------------------------------ files
-    def new(self, width_mm=100.0, height_mm=80.0, layers=2):
+    def new(self, width_mm=None, height_mm=None, layers=None):
         """!
         @brief Start an empty board.
-        @param width_mm Width in mm.
-        @param height_mm Height in mm.
-        @param layers Number of copper layers.
+        @param width_mm Width in mm (default: the default of a new board).
+        @param height_mm Height in mm (default: the default of a new board).
+        @param layers Number of copper layers (default: the default of a new board).
         """
-        self._set_project(Project(problem=Problem.new(width_mm, height_mm, layers, name="untitled")), None)
+        self._set_project(Project(problem=new_problem(width_mm, height_mm, layers), options=default_options()), None)
 
     def open(self, path):
         """!
@@ -258,27 +259,31 @@ class Document(QObject):
 
         def mutate(proj):
             pr = proj.problem
+            new = defaults.load()["new_elements"]                              # The user's defaults for a new element
             if kind == "zone":
-                pr.zones.append(Zone(layer, poly, 1.0, f"Zone {n}"))
+                pr.zones.append(Zone(layer, poly, new["zone_fill"], f"Zone {n}"))
             elif kind == "heater":
-                pr.heaters.append(Heater(layer, poly, 1.0, f"U{n}"))
+                pr.heaters.append(Heater(layer, poly, new["heater_power_w"], f"U{n}"))
             else:
                 last = pr.board.layers - 1
-                pr.heatsinks.append(Heatsink(last if layer != 0 else 0, poly, 20.0, f"Heatsink {n}"))
+                pr.heatsinks.append(Heatsink(last if layer != 0 else 0, poly, new["heatsink_h_extra"], f"Heatsink {n}"))
 
         self.edit(f"Add {kind}", mutate)
         return self.count(kind) - 1
 
-    def add_via(self, x_mm, y_mm, diameter_mm=0.3):
+    def add_via(self, x_mm, y_mm, diameter_mm=None):
         """!
-        @brief Place a via.
+        @brief Place a via with the default fill.
         @param x_mm X in mm.
         @param y_mm Y in mm.
-        @param diameter_mm Hole diameter in mm.
+        @param diameter_mm Hole diameter in mm (default: the default via diameter).
         @return Index of the new via.
         """
+        new = defaults.load()["new_elements"]
+        d = diameter_mm if diameter_mm is not None else new["via_diameter_mm"]
+        fill = new["via_fill"]
         self.edit("Add via", lambda proj: proj.problem.vias.append(
-            Via(x_mm / 1000.0, y_mm / 1000.0, diameter_mm / 1000.0, False, f"V{len(proj.problem.vias) + 1}")))
+            Via(x_mm / 1000.0, y_mm / 1000.0, d / 1000.0, False, f"V{len(proj.problem.vias) + 1}", via_fill_k(fill), fill)))
         return self.count("via") - 1
 
     def set_polygon(self, kind, index, polygon_mm):

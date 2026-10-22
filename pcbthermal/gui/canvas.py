@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPix
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
                                QMenu, QStyle)
 
+from .. import defaults
 from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 
@@ -287,7 +288,7 @@ class BoardView(QGraphicsView):
 
         self.tool, self.polygon_mode, self.layer = "select", False, 0
         self.snap, self.show_grid, self.show_solver_grid, self.solver_cell = 1.0, True, False, 1.0
-        self.via_diameter = 0.3
+        self.via_diameter = None                    # None: the default via diameter of the user's defaults
         self._space = self._panning = self._external = self._rebuilding = False
         self._handle_lock = False
         self._pan_last = QPointF()
@@ -767,7 +768,14 @@ class BoardView(QGraphicsView):
         super().mousePressEvent(e)
 
     # ------------------------------------------------------------------ context menu
-    DEFAULT_SIZE_MM = {"heater": 5.0, "zone": 10.0, "heatsink": 10.0}           # Side of a shape dropped from the menu
+    @staticmethod
+    def default_size_mm(kind):
+        """!
+        @brief Side of the square shape dropped from the right-click menu, from the user's defaults.
+        @param kind "heater", "zone" or "heatsink".
+        @return Side in mm.
+        """
+        return float(defaults.load()["new_elements"][f"{kind}_size_mm"])
 
     def contextMenuEvent(self, e):
         """!
@@ -838,7 +846,7 @@ class BoardView(QGraphicsView):
         @param centre QPointF in mm.
         """
         b = self.doc.problem.board
-        s = min(self.DEFAULT_SIZE_MM[kind], b.width * 1000.0, b.height * 1000.0)
+        s = min(self.default_size_mm(kind), b.width * 1000.0, b.height * 1000.0)
         x0 = min(max(centre.x() - s / 2, 0.0), b.width * 1000.0 - s)
         y0 = min(max(centre.y() - s / 2, 0.0), b.height * 1000.0 - s)
         self._create(kind, [[x0, y0], [x0 + s, y0], [x0 + s, y0 + s], [x0, y0 + s]])

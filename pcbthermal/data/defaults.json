@@ -1,0 +1,59 @@
+{
+  "description": "Defaults and material libraries of PCB Thermal Lab. This is the file shipped with the program. A user file (user_defaults.json in the configuration folder, see Edit - Preferences) overrides only what it contains: a library entry with the same name replaces the shipped one, a new name is added, and the names in 'removed' are hidden; any other value replaces the shipped value. All numbers are typical values to start from, never the data of your material or fabricator: edit them in Preferences or copy this file's structure.",
+  "version": 1,
+  "libraries": {
+    "via_fills": [
+      {"name": "Open", "k_w_per_mk": 0.0, "note": "Plated barrel with an empty core: only the copper plating conducts heat (192 K/W for a 0.3 mm via through 1.6 mm)."},
+      {"name": "Epoxy resin", "k_w_per_mk": 0.3, "note": "Non-conductive epoxy plug, the usual 'filled via' of a fabricator (IPC-4761 types V to VII, often capped with plated copper). It conducts about as little as FR-4: no thermal gain. JLCPCB: about 0.3 W/mK."},
+      {"name": "Conductive paste", "k_w_per_mk": 8.0, "note": "Copper or silver loaded epoxy. JLCPCB quotes 8 W/mK; other sources 3 to 16. About +5 % on a 0.3 mm via."},
+      {"name": "Copper", "k_w_per_mk": 385.0, "note": "Electroplated copper fill (plated shut): a real heat path, 3.3 times the plating of a 0.3 mm via."}
+    ],
+    "metals": [
+      {"name": "Aluminium", "k_w_per_mk": 204.0, "rho_cp_j_per_m3k": 2.44e6, "note": "Ferrotec material table: 204 W/mK, 2.71 g/cm3, 0.90 J/gK."},
+      {"name": "Copper", "k_w_per_mk": 386.0, "rho_cp_j_per_m3k": 3.45e6, "note": "Ferrotec: 386 W/mK, 8.96 g/cm3, 0.385 J/gK."},
+      {"name": "Brass", "k_w_per_mk": 111.0, "rho_cp_j_per_m3k": 2.91e6, "note": "Ferrotec: 111 W/mK, 8.49 g/cm3, 0.34 J/gK."},
+      {"name": "Carbon steel", "k_w_per_mk": 54.0, "rho_cp_j_per_m3k": 3.85e6, "note": "Engineering ToolBox: 54 W/mK (heat capacity from a textbook)."},
+      {"name": "Stainless steel 304", "k_w_per_mk": 14.4, "rho_cp_j_per_m3k": 3.69e6, "note": "Ferrotec: 13.8 to 14.4 W/mK, 8.01 g/cm3, 0.46 J/gK."}
+    ],
+    "interfaces": [
+      {"name": "Thermal paste, good (measured 0.3 K·cm²/W)", "k_w_per_mk": 1.5, "thickness_mm": 0.05, "note": "Apparent conductivity including the two contact resistances (ASTM D5470 measured totals: Arctic Silver 5 0.31 K cm2/W at 23.5 um)."},
+      {"name": "Paste, typical default (2 W/mK, 100 µm)", "k_w_per_mk": 2.0, "thickness_mm": 0.10, "note": "A typical joint on a real heatsink."},
+      {"name": "Soft gap pad (3 W/mK, 0.5 mm)", "k_w_per_mk": 3.0, "thickness_mm": 0.5, "note": "Gap pads are 1 to 6 W/mK and 0.5 to 1.2 mm."},
+      {"name": "Gap pad (1 W/mK, 0.5 mm)", "k_w_per_mk": 1.0, "thickness_mm": 0.5, "note": ""},
+      {"name": "Hard gap pad (1 W/mK, 1 mm)", "k_w_per_mk": 1.0, "thickness_mm": 1.0, "note": ""}
+    ],
+    "dielectrics": [
+      {"name": "FR-4 (standard)", "k_through": 0.3, "k_inplane": 0.9, "rho": 1850.0, "cp": 900.0, "note": "Glass-reinforced epoxy: 0.29 to 0.34 W/mK across, about 0.9 in the plane."},
+      {"name": "FR-4 high Tg / filled", "k_through": 0.4, "k_inplane": 1.0, "rho": 1900.0, "cp": 900.0, "note": ""},
+      {"name": "Polyimide (flex)", "k_through": 0.15, "k_inplane": 0.15, "rho": 1420.0, "cp": 1090.0, "note": ""},
+      {"name": "PTFE ceramic (RO4350B type)", "k_through": 0.69, "k_inplane": 0.69, "rho": 1860.0, "cp": 830.0, "note": ""},
+      {"name": "Metal-core dielectric (2 W/mK)", "k_through": 2.0, "k_inplane": 2.0, "rho": 2300.0, "cp": 900.0, "note": ""},
+      {"name": "Alumina ceramic (96 %)", "k_through": 24.0, "k_inplane": 24.0, "rho": 3750.0, "cp": 800.0, "note": ""},
+      {"name": "Aluminium nitride", "k_through": 170.0, "k_inplane": 170.0, "rho": 3260.0, "cp": 740.0, "note": ""}
+    ],
+    "package_theta": [
+      {"name": "QFN / exposed pad", "theta_k_per_w": 5.0, "note": "Indicative ranges from web summaries of vendor notes, NOT from a datasheet: use the datasheet value whenever there is one."},
+      {"name": "Power QFN", "theta_k_per_w": 3.0, "note": ""},
+      {"name": "DFN", "theta_k_per_w": 10.0, "note": ""},
+      {"name": "D2PAK / TO-263", "theta_k_per_w": 0.75, "note": ""},
+      {"name": "TO-220", "theta_k_per_w": 1.5, "note": ""},
+      {"name": "SOT-223 (junction to tab)", "theta_k_per_w": 15.0, "note": ""},
+      {"name": "SMA / SMB / SMC diode (junction to terminal)", "theta_k_per_w": 20.0, "note": "The SMA value is the SS12 datasheet junction-to-terminal figure."},
+      {"name": "Chip resistor 0603 (derived from its rating)", "theta_k_per_w": 1000.0, "note": "Derived from a 0.1 W rating at 70 degC and a 170 degC limit."}
+    ]
+  },
+  "materials": {
+    "k_copper": 385.0, "rho_copper": 8960.0, "cp_copper": 385.0, "k_fr4_through": 0.3, "k_fr4_inplane": 0.9, "rho_fr4": 1850.0, "cp_fr4": 900.0
+  },
+  "new_board": {
+    "width_mm": 100.0, "height_mm": 80.0, "layers": 2, "ambient_c": 25.0, "h_top": 10.0, "h_bottom": 15.0, "edges_lose_heat": true, "h_side": 10.0,
+    "via_plating_um": 25.0, "h_mode": "manual", "emissivity_top": 0.9, "emissivity_bottom": 0.9, "orientation": "horizontal", "air_speed": 0.0, "h_calibration": 1.0
+  },
+  "new_elements": {
+    "heater_power_w": 1.0, "heater_size_mm": 5.0, "zone_fill": 1.0, "zone_size_mm": 10.0, "via_diameter_mm": 0.3, "via_fill": "Open",
+    "heatsink_h_extra": 20.0, "heatsink_size_mm": 10.0, "block_thickness_mm": 3.0, "block_metal": "Aluminium", "block_interface": "Paste, typical default (2 W/mK, 100 µm)"
+  },
+  "solver": {
+    "models": ["fvm", "lumped", "analytic"], "cell_mm": 1.0, "linear_solver": "direct", "lumped_rings": 10, "analytic_modes": 300, "hotspot_c": 100.0
+  }
+}

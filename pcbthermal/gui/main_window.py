@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBo
                                QVBoxLayout, QWidget)
 
 from .. import __version__
+from .. import defaults
 from .. import fvm
 from ..checks import check_problem
 from ..examples import example_board
@@ -23,6 +24,7 @@ from ..model import reference_problem
 from . import theme as th
 from .calculator import PowerCalculator
 from .help import AboutDialog, GuideWindow, open_guide_in_browser
+from .preferences import PreferencesDialog
 from .canvas import BoardView
 from . import compute
 from .compute import ProcessWorker
@@ -52,13 +54,14 @@ class NewBoardDialog(QDialog):
         self.setWindowTitle("New board")
         f = QFormLayout(self)
         self.w, self.h = QDoubleSpinBox(), QDoubleSpinBox()
-        for s, v in ((self.w, 100.0), (self.h, 80.0)):
+        nb = defaults.load()["new_board"]
+        for s, v in ((self.w, nb["width_mm"]), (self.h, nb["height_mm"])):
             s.setRange(5, 1000)
             s.setValue(v)
             s.setSuffix(" mm")
         self.layers = QSpinBox()
         self.layers.setRange(1, 12)
-        self.layers.setValue(2)
+        self.layers.setValue(int(nb["layers"]))
         f.addRow("Width", self.w)
         f.addRow("Height", self.h)
         f.addRow("Copper layers", self.layers)
@@ -182,8 +185,13 @@ class MainWindow(QMainWindow):
         self.coord_label = QLabel("")
         self.version_label = QLabel(f"v{__version__}")
         self.version_label.setToolTip("PCB Thermal Lab version")
+        self.defaults_label = QLabel("")
+        self.defaults_label.setToolTip("The program is using your own defaults and libraries (Edit - Preferences).")
+        self.statusBar().addPermanentWidget(self.defaults_label)
         self.statusBar().addPermanentWidget(self.coord_label)
         self.statusBar().addPermanentWidget(self.version_label)
+        self._show_defaults_state()
+        QTimer.singleShot(0, lambda: self._show_defaults_state(startup=True))        # The message waits until the window has finished starting (other messages come first)
 
         self.canvas.selection_changed.connect(self._on_canvas_selection)
         self.canvas.cursor_moved.connect(lambda x, y: self.coord_label.setText(f"x {x:7.2f} mm   y {y:7.2f} mm"))
@@ -318,6 +326,8 @@ class MainWindow(QMainWindow):
                                 tip="Find the power of a part from a measured temperature (board model) or a datasheet parameter")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
+        self.a_prefs = self._act("Preferences: defaults and libraries…", self.show_preferences, "Ctrl+,",
+                                 tip="Edit the material libraries and the defaults of a new board, new elements and the solver; they are kept in a JSON file")
         self.a_guide = self._act("User guide", self.show_guide, "F1", tip="Parameters, models and how to read the results")
         self.a_guide_web = self._act("User guide in the browser", open_guide_in_browser, tip="Open the user guide in the web browser")
         self.a_keys = self._act("Keyboard shortcuts", self.show_shortcuts)
@@ -337,7 +347,7 @@ class MainWindow(QMainWindow):
                   self.a_export_json, None, self.a_quit):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&Edit")
-        for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall):
+        for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
         for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, None,
@@ -744,6 +754,33 @@ class MainWindow(QMainWindow):
         """
         self._run_edits = None
         panel.set_running(False, "Cancelled.")
+
+    def _show_defaults_state(self, startup=False):
+        """!
+        @brief Say in the status bar when the user's defaults file is in use (and what it changes).
+        @param startup True at start-up: a message is also shown for a few seconds.
+        """
+        text = defaults.diff_text()
+        if defaults.has_user_file() and text:
+            self.defaults_label.setText("Custom defaults")
+            self.defaults_label.setToolTip(f"Your defaults file is in use: {defaults.user_file()}\nIt changes {text}.\nEdit - Preferences to change or reset it.")
+            if startup:
+                self.statusBar().showMessage(f"Custom defaults in use ({text}): {defaults.user_file()}", 8000)
+        else:
+            self.defaults_label.setText("")
+            self.defaults_label.setToolTip("The program is using the shipped defaults (Edit - Preferences).")
+
+    def show_preferences(self):
+        """!
+        @brief Open the preferences window; after it, refresh what depends on the libraries.
+        """
+        d = PreferencesDialog(self)
+        d.exec()
+        if d.saved:
+            self._show_defaults_state()
+            self.inspector.rebuild()
+            self.stackup_page.refresh()
+            self.statusBar().showMessage("Defaults saved. New boards and elements use them; open boards keep their values.", 6000)
 
     def show_calculator(self):
         """!

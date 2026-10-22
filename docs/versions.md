@@ -91,6 +91,8 @@ Work of the branch `claude/eloquent-dijkstra-safezy` (from `feature/component-el
 | Via fill: open, epoxy resin, conductive paste, electroplated copper (`Via.fill_k`, `Via.thermal_area`, `VIA_FILLS`, the *Fill* list; old files unchanged) | `model.py`, `fvm.py`, `fdm.py`, `analytic.py`, `solid3d.py`, `gui/panels.py` | `test_via_fill.py`; `validation.md` section 18 |
 | Power from the top of the package (`point="top"`, θ and ψJT) in the API, the job and the calculator | `inverse.py`, `jobs.py`, `gui/calculator.py` | `test_inverse.py`; `validation.md` section 19 |
 
+| Preferences: libraries and defaults in JSON (shipped `defaults.json` + user `user_defaults.json` with only the differences), editor window, start-up notice; via fill by name with an editable typical value | `defaults.py`, `data/defaults.json`, `model.reload_libraries/new_problem`, `gui/preferences.py`, `gui/panels.py`, `gui/main_window.py` | `test_defaults.py` |
+
 ### Changed behaviour
 
 - Changing the number of layers in the application now loads the typical stack-up of the new count (copper, dielectrics and total thickness in the advanced mode; total thickness and outer copper in the simple mode): a 4-layer board is 1.586 mm, a 10-layer board 2.0 mm.

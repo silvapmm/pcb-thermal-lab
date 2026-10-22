@@ -5,6 +5,7 @@
 
 from pathlib import Path
 
+from .. import defaults
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QIcon, QTextCursor
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout
@@ -90,7 +91,8 @@ class AboutDialog(QDialog):
             "with power profiles, computed convection, parts with junction temperature and any board shape.</p>"
             f"<p>Author: {__author__}<br>"
             f"Project: <a href=\"{__project_url__}\">{__project_url__}</a><br>"
-            "Copyright © 2025 Pedro Silva. See the LICENSE file of the project for the terms.</p>")
+            "Copyright © 2025 Pedro Silva. See the LICENSE file of the project for the terms.</p>"
+            + (f"<p>Custom defaults in use: {defaults.diff_text()}<br>{defaults.user_file()}</p>" if defaults.has_user_file() and defaults.diff_text() else ""))
         self.text.setTextFormat(Qt.RichText)
         self.text.setOpenExternalLinks(True)
         self.text.setWordWrap(True)

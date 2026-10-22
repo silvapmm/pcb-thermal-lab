@@ -29,6 +29,7 @@ import math
 
 from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
+from . import defaults
 from .checks import check_problem
 from .model import Problem
 from .results import SteadyResult
@@ -647,6 +648,25 @@ def _run_profiles(sim, progress, start):
     except profiles.ProfileError as exc:
         sim.profile_error = str(exc)
     sim.seconds["profile"] = time.time() - t0
+
+
+def default_options():
+    """!
+    @brief The solver settings a new project starts with: the defaults of the program (defaults.json plus the user's file).
+    @return SolverOptions (the models of the defaults that exist; at least the FVM).
+    """
+    d = defaults.load()["solver"]
+    o = SolverOptions()
+    models = tuple(m for m in d.get("models", ()) if m in MODEL_NAMES + COMPARISON_MODELS) or ("fvm",)
+    for key, val in (("models", models), ("cell_mm", d.get("cell_mm")), ("linear_solver", d.get("linear_solver")), ("lumped_rings", d.get("lumped_rings")),
+                     ("analytic_modes", d.get("analytic_modes")), ("hotspot_c", d.get("hotspot_c"))):
+        if val is not None:
+            setattr(o, key, val)
+    try:
+        o.validate()
+    except ValueError:                                   # A bad user value: fall back to the built-in settings
+        o = SolverOptions()
+    return o
 
 
 def simulate(problem, options=None, progress: Optional[Callable[[str, float], None]] = None):

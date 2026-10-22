@@ -17,6 +17,7 @@ import os
 
 import numpy as np
 
+from . import defaults
 from .geometry import coverage_fraction, polygon_area, polygon_is_simple
 
 
@@ -50,19 +51,12 @@ class Dielectric:
     cp: float = 900.0                 # Specific heat (J/kgK)
 
 
-# Typical dielectric materials, (label, k_through W/mK, k_inplane W/mK, rho kg/m3, cp J/kgK). Indicative values, always editable
-DIELECTRICS = (
-    ("FR-4 (standard)", 0.3, 0.9, 1850.0, 900.0),
-    ("FR-4 high Tg / filled", 0.4, 1.0, 1900.0, 900.0),
-    ("Polyimide (flex)", 0.15, 0.15, 1420.0, 1090.0),
-    ("PTFE ceramic (RO4350B type)", 0.69, 0.69, 1860.0, 830.0),
-    ("Metal-core dielectric (2 W/mK)", 2.0, 2.0, 2300.0, 900.0),
-    ("Alumina ceramic (96 %)", 24.0, 24.0, 3750.0, 800.0),
-    ("Aluminium nitride", 170.0, 170.0, 3260.0, 740.0),
-)
+# Typical dielectric materials, (label, k_through W/mK, k_inplane W/mK, rho kg/m3, cp J/kgK). Indicative values, always editable. They come from pcbthermal/data/defaults.json
+# (and the user's file, see defaults.py); the lists are filled by reload_libraries() at the end of this module and refilled in place when the user changes them.
+DIELECTRICS = []
 
 
-STACKUP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "stackups.json")   # Typical stack-ups by layer count (editable)
+STACKUP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "stackups.json")   # Typical stack-ups by layer count (shipped; the user can put their own in the configuration folder)
 _STACKUP_CACHE = {}
 
 
@@ -73,7 +67,7 @@ def load_stackup_templates(path=None):
     @return Dict with the keys description, notes, sources and templates ({"2": {...}, "4": {...}, ...}).
     @throws ValueError If the file is not a valid template file.
     """
-    path = path or STACKUP_FILE
+    path = path or defaults.stackup_file()
     stamp = (path, os.path.getmtime(path))
     if _STACKUP_CACHE.get("stamp") != stamp:
         with open(path, encoding="utf-8") as fh:
@@ -701,7 +695,8 @@ class Via:
     diameter: float                             # Finished hole diameter (m)
     filled: bool = False                        # True for a copper-filled via (solid rod, electroplated copper fill)
     name: str = ""                              # Optional label
-    fill_k: float = 0.0                         # Conductivity (W/mK) of a non-copper fill of the barrel (epoxy resin about 0.3, conductive paste about 8); 0 = open barrel
+    fill_k: float = 0.0                         # Conductivity (W/mK) of the fill of the barrel (epoxy resin about 0.3, conductive paste about 8, copper 385); 0 = open barrel
+    fill: str = ""                              # Name of the fill in the library (VIA_FILLS): informative, the conductivity above is what the models use
 
     def copper_area(self, plating):
         """!
@@ -719,9 +714,9 @@ class Via:
     def thermal_area(self, plating, k_copper):
         """!
         @brief Copper-equivalent cross-section of the via for the conduction of heat along its axis.
-        @details The copper of the barrel (annulus, or the whole disc for a copper fill) plus the fill of the core counted at its conductivity relative to copper:
-                 A = A_copper + (k_fill / k_copper) pi r_in^2. An epoxy resin (0.3 W/mK) adds about 0.1 % to a 0.3 mm via, a conductive paste (8 W/mK) about 5 %,
-                 a copper fill 3.3 times the plating.
+        @details The copper of the barrel (annulus, or the whole disc for the legacy `filled` flag) plus the fill of the core counted at its conductivity relative to copper:
+                 A = A_copper + (k_fill / k_copper) pi r_in^2 (the ratio is limited to 1). An epoxy resin (0.3 W/mK) adds about 0.1 % to a 0.3 mm via, a conductive paste
+                 (8 W/mK) about 5 %, a copper fill (385 W/mK) 3.3 times the plating.
         @param plating Barrel plating thickness in metres.
         @param k_copper Conductivity of copper in W/mK.
         @return Area in square metres.
@@ -730,34 +725,39 @@ class Via:
         if self.filled or self.fill_k <= 0.0:
             return area
         r_in = max(self.diameter / 2.0 - plating, 0.0)
-        return area + (self.fill_k / k_copper) * math.pi * r_in * r_in
+        return area + min(self.fill_k / k_copper, 1.0) * math.pi * r_in * r_in
 
 
-# What a via barrel can be filled with: (label, copper-filled, conductivity of a non-copper fill in W/mK). The usual "filled via" of a fabricator is an epoxy
-# resin plug (IPC-4761 type V to VII, often capped with plated copper to be solderable), which barely conducts; only the electroplated copper fill is a heat path.
-# Conductivities from fabricator pages (JLCPCB: non-conductive epoxy about 0.3, conductive copper-epoxy 8, plated copper about 400); other sources quote 3 to 16 for conductive
-# epoxy, so the value can be edited.
-VIA_FILLS = (("Open (hollow barrel)", False, 0.0), ("Epoxy resin, non-conductive (about 0.3 W/mK)", False, 0.3),
-             ("Conductive paste (copper or silver epoxy, about 8 W/mK)", False, 8.0), ("Copper, electroplated fill", True, 0.0))
-
-# Metals for heatsinks and spreaders: (name, conductivity W/mK, volumetric heat capacity rho*cp J/m3K). Aluminium, copper, brass and stainless from
-# the Ferrotec material table (204, 386, 111 and 13.8 W/mK; densities 2.71, 8.96, 8.49 and 8.01 g/cm3), carbon steel 54 W/mK from the Engineering
-# ToolBox table (its heat capacity is a textbook value). The user can always type other numbers.
-METALS = (("Aluminium", 204.0, 2.44e6), ("Copper", 386.0, 3.45e6), ("Brass", 111.0, 2.91e6), ("Carbon steel", 54.0, 3.85e6),
-          ("Stainless steel 304", 14.4, 3.69e6))
-
-# Interface materials between the board (or a package) and a metal: (name, conductivity W/mK, thickness mm). Assumed typical values inside the ranges
-# found in the literature (grease 7-20 um at best and 1-5 W/mK in practice, gap pads 1-6 W/mK and 0.5-1.2 mm); the resistance per area is t/k. Measured totals
-# (ASTM D5470, Electronics Cooling 2014): Arctic Silver 5 paste 0.31 K cm2/W at 23.5 um, a ceramic paste 0.41, a 1.6 mm gap pad 12; so k here is an apparent value that includes the two contact resistances.
-INTERFACES = (("Thermal paste, good (measured 0.3 K·cm²/W)", 1.5, 0.05), ("Paste, typical default (2 W/mK, 100 µm)", 2.0, 0.10),
-              ("Soft gap pad (3 W/mK, 0.5 mm)", 3.0, 0.5), ("Gap pad (1 W/mK, 0.5 mm)", 1.0, 0.5), ("Hard gap pad (1 W/mK, 1 mm)", 1.0, 1.0))
+# What a via barrel can be filled with: (name, conductivity of the fill in W/mK, note). The usual "filled via" of a fabricator is an epoxy resin plug (IPC-4761 type V to VII,
+# often capped with plated copper to be solderable), which barely conducts; only the electroplated copper fill is a heat path. Metals for heatsinks: (name, conductivity W/mK,
+# volumetric heat capacity rho*cp J/m3K). Interface materials: (name, conductivity W/mK, thickness mm). Package families: (name, typical junction-to-pad resistance K/W).
+# All of them are read from pcbthermal/data/defaults.json plus the user's file (defaults.py) by reload_libraries(); the numbers and their sources are in that file.
+VIA_FILLS = []
+METALS = []
+INTERFACES = []
+PACKAGE_THETA = []
 
 
-# Typical junction-to-pad resistances by package family, K/W: indicative ranges from web summaries of vendor notes, NOT from a datasheet (QFN 2-10,
-# power QFN 1-5, DFN 5-15, D2PAK 0.5-1, TO-220 1-2, SOT-223 junction to tab about 15; the SMA diode 20 is the SS12 datasheet value; the 0603 resistor
-# is derived from a 0.1 W rating at 70 degC and a 170 degC limit). To be replaced by the datasheet value whenever there is one.
-PACKAGE_THETA = (("QFN / exposed pad", 5.0), ("Power QFN", 3.0), ("DFN", 10.0), ("D2PAK / TO-263", 0.75), ("TO-220", 1.5),
-                 ("SOT-223 (junction to tab)", 15.0), ("SMA / SMB / SMC diode (junction to terminal)", 20.0), ("Chip resistor 0603 (derived from its rating)", 1000.0))
+def reload_libraries():
+    """!
+    @brief (Re)fill the material libraries from the defaults in force, in place (the lists keep their identity, so modules that imported them see the change).
+    """
+    lib = defaults.load()["libraries"]
+    DIELECTRICS[:] = [(e["name"], e["k_through"], e["k_inplane"], e["rho"], e["cp"]) for e in lib["dielectrics"]]
+    VIA_FILLS[:] = [(e["name"], e["k_w_per_mk"], e.get("note", "")) for e in lib["via_fills"]]
+    METALS[:] = [(e["name"], e["k_w_per_mk"], e["rho_cp_j_per_m3k"]) for e in lib["metals"]]
+    INTERFACES[:] = [(e["name"], e["k_w_per_mk"], e["thickness_mm"]) for e in lib["interfaces"]]
+    PACKAGE_THETA[:] = [(e["name"], e["theta_k_per_w"]) for e in lib["package_theta"]]
+
+
+def via_fill_k(name, default=0.0):
+    """!
+    @brief Conductivity of a named via fill from the library.
+    @param name Fill name (for example "Epoxy resin").
+    @param default Value returned when the name is not in the library.
+    @return W/mK.
+    """
+    return next((k for n, k, _ in VIA_FILLS if n == name), default)
 
 
 @dataclass
@@ -1013,7 +1013,7 @@ class Problem:
         self.board.outline = None if polygon is None else np.asarray(polygon, dtype=float) / 1000.0
         return self
 
-    def add_via(self, x, y, diameter=0.3, filled=False, name="", fill_k=0.0):
+    def add_via(self, x, y, diameter=0.3, filled=False, name="", fill_k=0.0, fill=""):
         """!
         @brief Add one via (mm).
         @param x X position in mm.
@@ -1021,10 +1021,11 @@ class Problem:
         @param diameter Finished hole diameter in mm.
         @param filled True for a copper-filled via (electroplated copper fill).
         @param name Optional label.
-        @param fill_k Conductivity in W/mK of a non-copper fill (epoxy resin about 0.3, conductive paste about 8; see VIA_FILLS); 0 for an open barrel.
+        @param fill_k Conductivity in W/mK of the fill (epoxy resin about 0.3, conductive paste about 8, copper 385; see VIA_FILLS); 0 for an open barrel.
+        @param fill Name of the fill in the library (informative).
         @return self.
         """
-        self.vias.append(Via(x / 1000.0, y / 1000.0, diameter / 1000.0, filled, name, float(fill_k)))
+        self.vias.append(Via(x / 1000.0, y / 1000.0, diameter / 1000.0, filled, name, float(fill_k), fill))
         return self
 
     def add_via_array(self, rect, nx, ny, diameter=0.3, filled=False, fill_k=0.0):
@@ -1141,7 +1142,7 @@ def problem_from_dict(data, validate=True):
         prob.heaters.append(heater)
     for v in data.get("vias", []):
         prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
-                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", ""), float(v.get("fill_k_w_per_mk", 0.0))))
+                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", ""), float(v.get("fill_k_w_per_mk", 0.0)), v.get("fill", "")))
     for s in data.get("heatsinks", data.get("sinks", [])):    # "sinks" is the key of files saved before the rename
         prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
                                float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 204.0)),
@@ -1303,7 +1304,8 @@ def problem_to_dict(prob):
                          **({"pad_thickness_mm": h.pad_thickness * 1000.0, "pad_k_w_per_mk": h.pad_k} if h.pad_thickness and h.pad_k else {}),
                          **({"profile": _profile_to_dict(h.profile)} if h.profile else {})) for h in prob.heaters],
         "vias": [{"x_mm": v.x * 1000.0, "y_mm": v.y * 1000.0, "diameter_mm": v.diameter * 1000.0,
-                  "filled": v.filled, "name": v.name, **({"fill_k_w_per_mk": v.fill_k} if v.fill_k else {})} for v in prob.vias],
+                  "filled": v.filled, "name": v.name, **({"fill": v.fill} if v.fill else {}),
+                  **({"fill_k_w_per_mk": v.fill_k} if v.fill_k else {})} for v in prob.vias],
         "heatsinks": [dict({"layer": s.layer + 1, "polygon_mm": poly(s.polygon), "h_extra": s.h_extra, "name": s.name},
                        **({"thickness_mm": s.thickness * 1000.0, "k_w_per_mk": s.k, "rho_cp_j_per_m3k": s.rho_cp,
                            "contact_r_m2k_per_w": s.contact_r} if s.is_block() else {}),
@@ -1311,3 +1313,29 @@ def problem_to_dict(prob):
                           if s.has_fins() else {}),
                        **({"pad_thickness_mm": s.pad_thickness * 1000.0, "pad_k_w_per_mk": s.pad_k} if s.pad_thickness and s.pad_k else {})) for s in prob.heatsinks],
     }
+
+
+def new_problem(width_mm=None, height_mm=None, layers=None, name="untitled"):
+    """!
+    @brief An empty board with the user's defaults (defaults.json plus the user's file): size, layers, ambient, heat transfer, plating, materials.
+    @param width_mm Width in mm (default: the default of a new board).
+    @param height_mm Height in mm (default: the default of a new board).
+    @param layers Number of copper layers (default: the default of a new board).
+    @param name Project name.
+    @return A Problem without elements.
+    """
+    d = defaults.load()
+    nb = d["new_board"]
+    p = Problem.new(width_mm if width_mm is not None else nb["width_mm"], height_mm if height_mm is not None else nb["height_mm"],
+                    layers if layers is not None else int(nb["layers"]), name=name)
+    b = p.board
+    b.ambient, b.h_top, b.h_bottom = nb["ambient_c"], nb["h_top"], nb["h_bottom"]
+    b.h_side = nb["h_side"] if nb.get("edges_lose_heat", True) else None
+    b.via_plating = nb["via_plating_um"] * 1e-6
+    b.h_mode, b.emissivity_top, b.emissivity_bottom = nb["h_mode"], nb["emissivity_top"], nb["emissivity_bottom"]
+    b.orientation, b.air_speed, b.h_calibration = nb["orientation"], nb["air_speed"], nb["h_calibration"]
+    b.materials = Materials(**d["materials"])
+    return p
+
+
+reload_libraries()

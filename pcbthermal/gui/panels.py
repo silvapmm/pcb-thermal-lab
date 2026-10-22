@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import blocks
+from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
 from ..geometry import polygon_area, rounded_rectangle
@@ -742,7 +743,7 @@ class Inspector(QWidget):
                     if block != is_block:
                         # The extra h of a manual heatsink is its own coolant coefficient: carried into a block it would add cooling to the exposed surface that
                         # nobody asked for, so a new block starts at 0 and a heatsink going back to manual input gets the default again
-                        self.doc.set_props(kind, i, thickness=3e-3 if block else 0.0, h_extra=0.0 if block else 20.0, merge=False)
+                        self.doc.set_props(kind, i, **self._block_defaults(), merge=False) if block else self.doc.set_props(kind, i, thickness=0.0, h_extra=defaults.value("new_elements", "heatsink_h_extra"), merge=False)
 
                 mode.currentIndexChanged.connect(switch)
                 root.addRow("Cooling model", mode)                 # A single field: no box of its own
@@ -804,7 +805,7 @@ class Inspector(QWidget):
                     th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
                     lay.addRow("Block thickness", th)
                     mat = QComboBox()
-                    presets = METALS + (("Custom", None, None),)
+                    presets = list(METALS) + [("Custom", None, None)]
                     for label, k_, c_ in presets:
                         mat.addItem(label, (k_, c_))
                     cur = next((n for n, (_, k_, c_) in enumerate(presets) if k_ == el.k and c_ == el.rho_cp), len(presets) - 1)
@@ -848,34 +849,69 @@ class Inspector(QWidget):
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")
                 d = _spin(0.05, 5, el.diameter * 1000, 2, 0.05, "mm")
                 fill = QComboBox()
-                for label, _copper, _k in VIA_FILLS:
-                    fill.addItem(label)
-                current = next((n for n, (_, c, k_) in enumerate(VIA_FILLS) if c == el.filled and abs(k_ - el.fill_k) < 1e-9), None)
-                if current is None:                                      # A conductivity typed in a file that is not one of the presets
-                    fill.addItem(f"Other fill ({el.fill_k:g} W/mK)")
-                    current = fill.count() - 1
+                for name_, _k, _note in VIA_FILLS:
+                    fill.addItem(name_)
+                names = [e[0] for e in VIA_FILLS]
+                if el.fill in names:
+                    current = names.index(el.fill)
+                elif el.filled:                                          # A file written before the fills had names: a copper-filled via
+                    current = next((n for n, e in enumerate(VIA_FILLS) if e[1] >= 300.0), 0)
+                else:
+                    current = next((n for n, e in enumerate(VIA_FILLS) if abs(e[1] - el.fill_k) < 1e-9), None)
+                    if current is None:
+                        fill.addItem("Custom")
+                        current = fill.count() - 1
                 fill.setCurrentIndex(current)
-                fill.setToolTip("What fills the barrel. A fabricator's 'filled via' is usually an epoxy resin plug (IPC-4761 types V to VII, often capped with plated "
-                                "copper so it can be soldered over): it barely conducts heat (about 0.3 W/mK against 385 for copper, +0.1 % of the barrel for a 0.3 mm via). "
-                                "A conductive paste (about 8 W/mK) adds about 5 %. Only an electroplated copper fill is a real heat path (3.3 times the plating of a 0.3 mm via). "
-                                "The capping copper over the ends is not modelled.")
+                fill.setToolTip("What fills the barrel (Open, Epoxy resin, Conductive paste, Copper): choosing one fills in its typical conductivity below, which you can change. "
+                                "The list is a library in Edit - Preferences. A fabricator's 'filled via' is usually an epoxy resin plug: it keeps the hole closed but "
+                                "barely conducts heat. Only an electroplated copper fill is a real heat path.")
+                fill_k = _spin(0, 500, el.fill_k if not (el.filled and not el.fill_k) else 385.0, 2, 1, "W/mK")
+                fill_k.setToolTip("Conductivity of the fill used for this via (W/mK). It starts at the typical value of the chosen fill and can be edited for this via; the typical "
+                                  "values are in Edit - Preferences (Libraries - via fills). 0 = open barrel.")
+                typical = QLabel("")
+                typical.setWordWrap(True)
+                typical.setStyleSheet("font-size: 11px; color: gray;")
+                typical.setToolTip("The typical conductivity and the note of the chosen fill, from the library.")
+                entry = VIA_FILLS[current] if current < len(VIA_FILLS) else None
+                typical.setText(f"Typical: {entry[1]:g} W/mK. {entry[2]}" if entry else "Custom value.")
                 x.valueChanged.connect(lambda v: self.doc.set_props(kind, i, x=v / 1000))
                 y.valueChanged.connect(lambda v: self.doc.set_props(kind, i, y=v / 1000))
                 d.valueChanged.connect(lambda v: self.doc.set_props(kind, i, diameter=v / 1000))
 
                 def pick_fill(idx):
-                    if idx < len(VIA_FILLS):
-                        self.doc.set_props(kind, i, filled=VIA_FILLS[idx][1], fill_k=VIA_FILLS[idx][2], merge=False)
+                    if idx < len(VIA_FILLS):                              # The typical value of the library goes into this via
+                        self.doc.set_props(kind, i, filled=False, fill_k=VIA_FILLS[idx][1], fill=VIA_FILLS[idx][0], merge=False)
+
+                def edit_k(v):
+                    # An edited value stays with this via; the name is kept as the family it started from
+                    self.doc.set_props(kind, i, filled=False, fill_k=v, merge=True)
 
                 fill.currentIndexChanged.connect(pick_fill)
+                fill_k.valueChanged.connect(edit_k)
                 lay.addRow("X", x)
                 lay.addRow("Y", y)
                 lay.addRow("Diameter", d)
                 lay.addRow("Fill", fill)
+                lay.addRow("Fill conductivity", fill_k)
+                lay.addRow(typical)
             if kind != "via":
                 self._geometry_rows(box("Position and size"), kind, i, el)
         tips.apply(self.form_host)
         self._updating = False
+
+    @staticmethod
+    def _block_defaults():
+        """!
+        @brief Properties of a new metal block from the user's defaults: thickness, metal and interface material.
+        @return Dict of Heatsink fields (the extra h starts at 0).
+        """
+        new = defaults.load()["new_elements"]
+        metal = next((m for m in METALS if m[0] == new["block_metal"]), METALS[0])
+        pad = next((i for i in INTERFACES if i[0] == new["block_interface"]), None)
+        out = dict(thickness=new["block_thickness_mm"] * 1e-3, h_extra=0.0, k=metal[1], rho_cp=metal[2])
+        if pad is not None:
+            out.update(pad_thickness=pad[2] * 1e-3, pad_k=pad[1], contact_r=pad[2] * 1e-3 / pad[1])
+        return out
 
     def _pad_rows(self, lay, kind, index, el, heater):
         """!

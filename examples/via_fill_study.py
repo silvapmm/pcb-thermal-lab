@@ -29,19 +29,19 @@ def main():
     print("| Fill | k of the fill (W/mK) | A equivalent (mm²) | R of one 0.3 mm via, 1.6 mm long (K/W) | vs open |")
     print("| :-- | --: | --: | --: | --: |")
     base = None
-    for label, copper, k in VIA_FILLS:
-        v = Via(0.0, 0.0, 0.3e-3, copper, "", k)
+    for label, k, _note in VIA_FILLS:
+        v = Via(0.0, 0.0, 0.3e-3, False, "", k)
         a = v.thermal_area(plating, k_cu)
         r = length / (k_cu * a)
         base = base or r
-        print(f"| {label} | {'385' if copper else (f'{k:g}' if k else '-')} | {a * 1e6:.4f} | {r:.1f} | {100 * (r / base - 1):+.0f} % |")
+        print(f"| {label} | {f'{k:g}' if k else '-'} | {a * 1e6:.4f} | {r:.1f} | {100 * (r / base - 1):+.0f} % |")
     print("\n| Fill | example board Tmax (°C) | change vs open (K) |")
     print("| :-- | --: | --: |")
     t0 = None
-    for label, copper, k in VIA_FILLS:
+    for label, k, _note in VIA_FILLS:
         p = example_board()
         for v in p.vias:
-            v.filled, v.fill_k = copper, k
+            v.filled, v.fill_k = False, k
         t = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5)).results["fvm"].t_max
         t0 = t0 or t
         print(f"| {label} | {t:.2f} | {t - t0:+.2f} |", flush=True)
