@@ -186,6 +186,31 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 2. Heatsink on a component: K/W only (R8, spreading is 1 to 4 % of the chain for aluminium and copper)?
 3. Heatsink scenarios (natural scaling, forced factors): later (`docs/roadmap.md`, "What we want to implement", Component).
 
+## Open now: the heater as a pure source or as a component (to align, 2026-10-22)
+
+**The situation.** One `Heater` carries two different things. (1) A **heat source**: a power in watts over a footprint on one layer ("5 W and that is it"). (2) A **component**: a part with a junction, a package and a way to the air through its top. All the fields are in the same form today:
+
+| Box in Properties | Fields | What it is | Where the number comes from | When it is used |
+| :-- | :-- | :-- | :-- | :-- |
+| Part | Power | heat dissipated | you (or the Power calculator) | always |
+| Junction | θ junction-pad (K/W) | resistance from the junction to the pad / board under the part | datasheet: RθJC(bottom or exposed pad), θJ-L, Rth j-sp (never θJA); or the family list | to report `Tj = T_board,max + P_board·θ`; without it the report gives the board temperature under the part only |
+| Junction | *Typical θ by package family* (list) | fills θ with an indicative value | the library `package_theta` (web summaries, **not** datasheets) | only as a starting value, always replaced by the datasheet number |
+| Junction | Tj max, ψJB, Power coefficient | junction limit (margin, power limit), second estimate of Tj from the board ring, power that changes with temperature | datasheet | optional reports and the power loop |
+| Heatsink on the package | θSA (K/W) | resistance from a heatsink on top of the package to the air | the heatsink's datasheet at your air flow | **switches the top path on** (needs θ > 0 too) |
+| Package top: junction to case | θJC(top), body thickness and material (helper), contact area | resistance through the package top, estimated from the body, area of the lid | datasheet RθJC(top); the helper `t/(k·A)` when it is missing | only when the top path is on |
+| Interface: package top to heatsink | paste or pad (material, thickness, conductivity, resistance), divided by the contact area | the paste between package and heatsink | presets or the supplier | only when the top path is on |
+
+**How they connect.** The top path is a chain `junction → θJC(top) → interface/contact area → θSA → ambient` in parallel with the way down through the board (`θ`). The program shares the power between the two: `Tj − Ta = (T_board,max − Ta + P·θ)/(1 + θ/R_top)`, with `R_top = θJC(top) + interface/area + θSA`; the heat that goes up is **not** put into the board (the board receives `P − P_top`), so a heatsink on the package cools the board too. Without θ or without θSA there is no top path and all the power enters the board (the worst case).
+
+**Why it feels like two things.** It is: a pure source has no junction, so θ, Tj max, ψJB, the power coefficient and the whole top path make no sense for it; and a component with a heatsink on top needs the chain above. Today a pure source can show all those boxes (greyed when they cannot apply).
+
+**Options to align (to discuss, nothing changed yet).**
+1. A **Type** at the top of the heater: *Heat source* (power only, nothing else shown) or *Component* (junction, package, top path). A source could still carry a cooling on top without a junction (θ = 0: the case is the junction), a paste between a source and a metal block being what the user probably means by "an interface".
+2. The **family list** becomes a library of packages (Preferences) with several typical columns (θ junction-pad, θJC(top), ψJT, ψJB, body size) that fill the component's fields at once, with the typical values shown below and editable, like the via fill; each with its note and source, always marked as indicative.
+3. Clearer field names that say the datasheet line: *Junction-to-pad θ (RθJC bottom / θJ-L / Rth j-sp)*, *Junction-to-case top θJC(top)*, *Heatsink on the package θSA*.
+4. The order of the boxes follows the heat: Part → Junction → Package top → Interface → Heatsink on the package, shown as a chain, with the live Tj and the heat share (top / board) below.
+5. The datasheet "Thermal information" table mapped line by line to the fields (TI: RθJC(bot) → θ, RθJC(top) → θJC(top), ψJT → calculator, ψJB → ψJB) in the help.
+
 ## Evidence for the junction node and the Foster chain (moved from the roadmap, 2026-10-22)
 
 The part of the Component element that is **not implemented**: a junction node (JESD15-3 two-resistor model), a heat-sink node with capacity and the Foster chain for package transients. The implemented part (junction-to-pad `θ`, the junction limit, `ψJB`, the power coefficient, the top path with `θJC(top)`, the interface and `θSA`) is in `docs/models.md` section 6 and `docs/validation.md` section 9. The numbers `[n]` refer to the references at the end of this file.

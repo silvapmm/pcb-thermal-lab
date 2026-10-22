@@ -863,11 +863,11 @@ class Inspector(QWidget):
                         current = fill.count() - 1
                 fill.setCurrentIndex(current)
                 fill.setToolTip("What fills the barrel (Open, Epoxy resin, Conductive paste, Copper): choosing one fills in its typical conductivity below, which you can change. "
-                                "The list is a library in Edit - Preferences. A fabricator's 'filled via' is usually an epoxy resin plug: it keeps the hole closed but "
+                                "The list is a library in Preferences. A fabricator's 'filled via' is usually an epoxy resin plug: it keeps the hole closed but "
                                 "barely conducts heat. Only an electroplated copper fill is a real heat path.")
                 fill_k = _spin(0, 500, el.fill_k if not (el.filled and not el.fill_k) else 385.0, 2, 1, "W/mK")
                 fill_k.setToolTip("Conductivity of the fill used for this via (W/mK). It starts at the typical value of the chosen fill and can be edited for this via; the typical "
-                                  "values are in Edit - Preferences (Libraries - via fills). 0 = open barrel.")
+                                  "values are in Preferences (Libraries - via fills). 0 = open barrel.")
                 typical = QLabel("")
                 typical.setWordWrap(True)
                 typical.setStyleSheet("font-size: 11px; color: gray;")

@@ -204,3 +204,30 @@ def test_calculator_uncertainties_are_defaults_that_can_be_changed(qtbot):
     full["calculator"]["copper_uncertainty_pct"] = 40.0
     defaults.save_user(full)
     assert defaults.value("calculator", "copper_uncertainty_pct") == 40.0 and "calculator" in defaults.diff_text()
+
+
+def test_help_sits_before_close_and_preferences_has_a_power_calculator_tab(qtbot, tmp_path):
+    from PySide6.QtCore import QSettings
+    from pcbthermal.examples import example_board
+    from pcbthermal.gui.calculator import PowerCalculator
+    from pcbthermal.gui.document import Document
+    from pcbthermal.gui.main_window import MainWindow
+    from pcbthermal.gui.preferences import PreferencesDialog
+    doc = Document()
+    doc.open_problem(example_board(), "example")
+    d = PowerCalculator(doc)
+    qtbot.addWidget(d)
+    d.show()
+    assert d.help_btn.geometry().right() < d.close_btn.geometry().left()                      # Help right before Close
+    assert d.help_btn.y() == d.close_btn.y()
+    assert d.use2.minimumWidth() >= 240
+    win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(win)
+    assert win.a_prefs.text() == "Preferences…"
+    p = PreferencesDialog(win)
+    qtbot.addWidget(p)
+    assert p.windowTitle() == "Preferences"
+    assert [p.tabs.tabText(i) for i in range(p.tabs.count())][-2:] == ["Defaults for new projects", "Power calculator"]
+    p.widgets[("calculator", "copper_uncertainty_pct")].setValue(40.0)
+    p.save()
+    assert defaults.value("calculator", "copper_uncertainty_pct") == 40.0

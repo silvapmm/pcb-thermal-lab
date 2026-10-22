@@ -186,7 +186,7 @@ class MainWindow(QMainWindow):
         self.version_label = QLabel(f"v{__version__}")
         self.version_label.setToolTip("PCB Thermal Lab version")
         self.defaults_label = QLabel("")
-        self.defaults_label.setToolTip("The program is using your own defaults and libraries (Edit - Preferences).")
+        self.defaults_label.setToolTip("The program is using your own defaults and libraries (Preferences).")
         self.statusBar().addPermanentWidget(self.defaults_label)
         self.statusBar().addPermanentWidget(self.coord_label)
         self.statusBar().addPermanentWidget(self.version_label)
@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
                                 tip="Find the power of a part from a temperature you measured (drawn board, or a datasheet parameter)")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
-        self.a_prefs = self._act("Preferences: defaults and libraries…", self.show_preferences, "Ctrl+,",
+        self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
                                  tip="Edit the material libraries and the defaults of a new board, new elements and the solver; they are kept in a JSON file")
         self.a_guide = self._act("User guide", self.show_guide, "F1", tip="Parameters, models and how to read the results")
         self.a_guide_web = self._act("User guide in the browser", open_guide_in_browser, tip="Open the user guide in the web browser")
@@ -763,12 +763,12 @@ class MainWindow(QMainWindow):
         text = defaults.diff_text()
         if defaults.has_user_file() and text:
             self.defaults_label.setText("Custom defaults")
-            self.defaults_label.setToolTip(f"Your defaults file is in use: {defaults.user_file()}\nIt changes {text}.\nEdit - Preferences to change or reset it.")
+            self.defaults_label.setToolTip(f"Your defaults file is in use: {defaults.user_file()}\nIt changes {text}.\nPreferences to change or reset it.")
             if startup:
                 self.statusBar().showMessage(f"Custom defaults in use ({text}): {defaults.user_file()}", 8000)
         else:
             self.defaults_label.setText("")
-            self.defaults_label.setToolTip("The program is using the shipped defaults (Edit - Preferences).")
+            self.defaults_label.setToolTip("The program is using the shipped defaults (Preferences).")
 
     def show_preferences(self):
         """!

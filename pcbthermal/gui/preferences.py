@@ -28,7 +28,7 @@ LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name app
                 "interfaces": "Pastes and gap pads under a heatsink or a package: apparent conductivity (W/mK) and thickness (mm); the resistance is thickness / conductivity.",
                 "dielectrics": "Dielectrics of the stack-up: conductivity across and along the plane (W/mK), density (kg/m³) and specific heat (J/kgK).",
                 "package_theta": "Typical junction-to-pad resistance by package family (K/W): a starting value, never the datasheet's."}
-SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power calculator: uncertainties", "solver": "Solver of a new project"}
+SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power calculator", "solver": "Solver of a new project"}
 SECTION_HINTS = {"new_board": "The values a board starts with when you choose File - New board (and when the program starts).",
                  "new_elements": "The values of an element when you draw it or add it from the right-click menu.",
                  "materials": "Copper and the simple-stack-up dielectric of a new board. The dielectrics of the advanced stack-up are a library.",
@@ -73,7 +73,7 @@ class PreferencesDialog(QDialog):
         @param parent Qt parent.
         """
         super().__init__(parent)
-        self.setWindowTitle("Preferences: defaults and libraries")
+        self.setWindowTitle("Preferences")
         self.resize(760, 560)
         self.data = defaults.load()                         # The working copy: shipped plus the user's file
         self.saved = False                                  # True once Save or Reset changed the files
@@ -90,6 +90,7 @@ class PreferencesDialog(QDialog):
         for lib in defaults.LIBRARIES:
             self.tabs.addTab(self._library_tab(lib), LIBRARY_TITLES[lib])
         self.tabs.addTab(self._defaults_tab(), "Defaults for new projects")
+        self.tabs.addTab(self._calculator_tab(), "Power calculator")
         row = QHBoxLayout()
         self.save_btn = QPushButton("Save as my defaults")
         self.save_btn.setToolTip("Write what differs from the shipped defaults to the user file. New projects and the lists of the forms use it from now on.")
@@ -164,7 +165,7 @@ class PreferencesDialog(QDialog):
         from PySide6.QtWidgets import QGroupBox, QScrollArea
         host = QWidget()
         lay = QVBoxLayout(host)
-        for section in ("new_board", "new_elements", "materials", "calculator", "solver"):
+        for section in ("new_board", "new_elements", "materials", "solver"):
             box = QGroupBox(SECTION_TITLES[section])
             box.setToolTip(SECTION_HINTS[section])
             inner = QVBoxLayout(box)
@@ -175,6 +176,23 @@ class PreferencesDialog(QDialog):
         area.setWidgetResizable(True)
         area.setWidget(host)
         return area
+
+    def _calculator_tab(self):
+        """!
+        @brief The tab of the power calculator: how uncertain each input is (the band best case / nominal / worst case).
+        @return QWidget.
+        """
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        note = QLabel("The Power calculator gives a best case, a nominal and a worst case power. Each source of doubt is moved alone to both ends of its uncertainty (±, below) "
+                      "and the effects are added as the root of the sum of squares. Change the percentages to what you know about your board and your measurement.")
+        note.setWordWrap(True)
+        note.setStyleSheet("font-size: 11px; color: gray;")
+        note.setToolTip(SECTION_HINTS["calculator"])
+        lay.addWidget(note)
+        lay.addWidget(self._section_tab("calculator"))
+        lay.addStretch(1)
+        return w
 
     def _section_tab(self, section):
         """!

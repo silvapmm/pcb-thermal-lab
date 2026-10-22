@@ -1,5 +1,5 @@
 {
-  "description": "Defaults and material libraries of PCB Thermal Lab. This is the file shipped with the program. A user file (user_defaults.json in the configuration folder, see Edit - Preferences) overrides only what it contains: a library entry with the same name replaces the shipped one, a new name is added, and the names in 'removed' are hidden; any other value replaces the shipped value. All numbers are typical values to start from, never the data of your material or fabricator: edit them in Preferences or copy this file's structure.",
+  "description": "Defaults and material libraries of PCB Thermal Lab. This is the file shipped with the program. A user file (user_defaults.json in the configuration folder, see Preferences) overrides only what it contains: a library entry with the same name replaces the shipped one, a new name is added, and the names in 'removed' are hidden; any other value replaces the shipped value. All numbers are typical values to start from, never the data of your material or fabricator: edit them in Preferences or copy this file's structure.",
   "version": 1,
   "libraries": {
     "via_fills": [
