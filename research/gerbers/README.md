@@ -46,8 +46,8 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `LOG.md` | Dated log: what was read in full, from a summary or from memory; what was reproduced and what not. |
 | `requirements.txt` | NumPy and SciPy; gerbonara, shapely and the comparison tools only for the cross-checks. |
 | `docs/` | For when the work is adopted: `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the literature status). The project documents are not edited on this branch. |
-| `figures/` | `fig_01` to `fig_08`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end, 08 its set-up (heater, holes, cells). |
-| `tests/` | 71 fast tests (about 21 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`), the import path (`test_importer.py`, needs the program's dependencies). |
+| `figures/` | `fig_01` to `fig_09`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end, 08 its set-up (heater, holes, cells), 09 our board in the five models. |
+| `tests/` | 73 fast tests (about 27 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`), the import path (`test_importer.py`, needs the program's dependencies), the nets against a KiCad file (`test_kicad_nets.py`, needs the Stormduino files). |
 | **`lib/`** | |
 | `lib/native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 attributes (file function, aperture functions, net names), the layer classifier, Excellon, coverage masks. |
 | `lib/conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
@@ -56,6 +56,7 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `lib/readers.py`, `lib/gerber_geometry.py`, `lib/windows.py` | One interface to the readers; the vector route (gerbonara + shapely); the 42 windows of 36 mm of the mapping studies. |
 | `lib/boards_synthetic.py`, `lib/our_board.py` | The synthetic board generator of the tests; **a board of our own** (IC, circular tracks, nets, vias, drill file), 4.30. |
 | `lib/importer.py` | **The import path end to end**: files to masks, holes and nets, a `Problem` with vias, face conductances and `FaceNetwork` for the program's FVM (4.31). |
+| `lib/kicad_pcb.py` | A small reader of `.kicad_pcb` (5.x): nets, tracks, vias, pads, zones; the independent truth of the nets (4.33). |
 | `lib/paths.py` | The folders (`DATA`, `OUT`, `FIGURES`, `REPO`). |
 | **`scripts/`** | |
 | `scripts/fetch_boards.py` | Downloads the public test boards into `data/` (licences differ, section 9). |
@@ -69,7 +70,8 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `scripts/study_angles.py`, `study_net_joule.py`, `study_vias_nets.py` | Tracks at any angle (4.23); the heat of a net (4.20); holes, vias and nets (4.29). |
 | `scripts/study_sampson_boundary.py`, `study_post_board.py`, `study_coverage.py`, `study_coverage_real.py` | The regime of Sampson's article and its board analogue (4.25, 4.28); coverage masks (4.26). |
 | `scripts/study_import_end_to_end.py`, `study_import_readers.py` | The import on the Stormduino and on our board against the program as it is; the same with another reader (4.31). |
-| `scripts/make_figures.py` | Draws the eight figures into `figures/`. |
+| `scripts/study_kicad_nets.py`, `study_models_our_board.py` | The nets against a KiCad project (4.33); our board in the five models (4.34; the second runs against the patched copy of the program). |
+| `scripts/make_figures.py` | Draws the nine figures into `figures/`. |
 
 ## 4. How to run, and the results
 
@@ -555,6 +557,45 @@ Conditions of every run in 4.31: heater 6 x 6 mm, 1 W, on the top layer, centred
 * **Stormduino**: the heater sits on a solid copper pour (fraction 1.00 under it), so the heat spreads well (38 K mean); the cells around it are a mixture of pour and traces, and that is where the fill fraction loses connectivity and the program is 15 % cool.
 * **Our board**: the heater sits on the exposed pad of the IC (fraction 0.29 under the 6 mm block: the pad, four vias, the pads and thin radial tracks); the heat leaves along 0.2 mm tracks and the 0.8 mm spoke (115 K mean). Here the cells are copper-poor, the fill fraction gives 5 % cool and the flow-based faces 2 to 4 % hot.
 * The heater is a footprint on the top layer, not a part from the file: the position was chosen by hand (the layer and part assignment is the missing interface, 4.31).
+
+### 4.33 Are the polygons tied to the right nets? A check against a KiCad project (`kicad_pcb.py`, `study_kicad_nets.py`, `tests/test_kicad_nets.py`)
+
+Until now the net of a piece of copper was taken from the Gerber attributes and checked only against itself (4.20, 4.29). The Stormduino (KiCad 5, MIT) has its Gerbers **and** its `.kicad_pcb`, and its Gerbers carry no net attributes, so the check can be independent: the nets come from the CAD file, the copper from the Gerbers. `lib/kicad_pcb.py` reads the CAD file (nets, tracks, vias, pads with the module rotation applied, zones); `study_kicad_nets.py` splits the copper of each layer into 8-connected pieces, joins the two layers through the 109 plated holes of the drill file, and asks where the objects of the CAD file fall.
+
+| Question | Result |
+| :-- | :-- |
+| Do the objects of the CAD file (3 points per track, vias on both layers, pads) lie on the copper our reader drew? (position, y axis, rotation, units) | 1380 of 1380 track points, 48 of 48 via points, 281 of 281 pad points |
+| Does any piece of copper hold objects of two nets (a short, or a reader error)? | 0 of 170 pieces |
+| Do the plated holes join a piece on both layers? | 109 of 109 |
+| Does any joined group hold two nets? | 0 of 66 groups |
+| Do the nets split into the same number of separate pieces in the Gerbers and in the CAD file's own geometry (tracks, vias, pads)? Nets without a zone fill | 55 of 56 equal |
+
+What the separate pieces are: `+5V` and `+3V3` are two pieces each, and `Net-(J2-PadS1)` (the USB shield) four, **in the CAD file as well as in the Gerbers** (a net that the designer left in several pieces, mechanical pads), so these are not errors of the reader. The one difference, `Net-(J2-PadA7)` (one group in the Gerbers, two in my geometric reading of the CAD file), is most probably the crude overlap test used for the CAD side (a track end within a pad radius); it was not examined further. The two GND zones (fills) are connected in the Gerbers into one group; the CAD-side count of GND (32) ignores zone fills, so GND is not compared.
+
+**Conclusion**: with nets given by a netlist (here the `.kicad_pcb`), the polygons of the Gerbers are tied to them by connectivity and position without a conflict, on a real board of 58 nets and 109 holes. With Gerber net attributes (4.29) the same follows from the files alone. Limits: one board; KiCad 5 (version 20171130) only; zone fills not compared net by net; the CAD side is my own small reader (it agreed with the Gerbers on position at the pixel, which also checks it). Fetch the CAD file with `scripts/fetch_boards.py storm`.
+
+### 4.34 Our board in the five models (`study_models_our_board.py`, figure 9)
+
+![Figure 9: the five models on our IC board: the heater rise from the fine mask and from the four cell mappings, and the error of each against the model's own fine run](figures/fig_09_models_our_board.png)
+
+*Figure 9 (`figures/fig_09_models_our_board.png`): left, the mean rise of the heater (1 W, 6 x 6 mm, one layer, copper 10 % of the board) from the fine mask and the four 1 mm cell mappings in each model; right, the error against the model's own fine run. The 3D solid is cut (262 to 392 K).*
+
+Run against a copy of the program with the additive zone union (4.27), without the plated holes (one layer: only the mapping of the copper is tested). Mean rise over the heater (K):
+
+| | FVM | FDM | Lumped | Analytic | 3D solid |
+| :-- | --: | --: | --: | --: | --: |
+| fine mask, each its own truth | 114.9 | 109.8 | 106.4 | 96.6 | 322.2 |
+| arithmetic fraction (today) | 109.1 (-5.0 %) | 101.9 (-7.2 %) | 128.0 (+20.2 %) | 96.9 (+0.4 %) | 262.3 (-18.6 %) |
+| geometric | +12.7 % | +13.0 % | +38.9 % | +21.5 % | +21.9 % |
+| lambda 0.5 | +10.3 % | +10.5 % | +36.3 % | +18.9 % | +14.9 % |
+| mean of the flow-based faces | +8.1 % | +8.9 % | +34.9 % | +19.4 % | -1.1 % |
+
+Reading it:
+
+* **The models are not the same physics**: against the FVM fine run, the FDM is -4.4 %, the Lumped -7.3 %, the Analytic -16.0 % (its uniform-conductance idealisation of a board that is mostly bare laminate round a pad), and the 3D solid +180 %, which is not a plausible result and is **not explained** (the 3D solid already failed on fine cells, README 4.27; here it is also far off at 1 mm, 262 K against 109 K, on a board where it matched on the example board). It is not used as a check.
+* **Putting the copper in a cell value (what a model without directional faces can take) is worse than the faces**: the flow-based mean gives +8.1 % in the FVM, but the same flow-based conductances as faces gave +4.0 % in 4.31 (binary mask), because the program's harmonic mean of two cell values is not the face conductance; a cell value loses the direction (here the heat leaves along radial tracks).
+* On this copper-poor board the fill fraction is the *closest* in the FVM and FDM (-5 to -7 %) and the mappings that fix the Stormduino are 8 to 13 % hot: the sign of the error depends on the board, as in 4.31. For the Lumped (+20 % already today, because its rings take the cell values) every cell mapping makes it worse; the Analytic's +0.4 % today is a cancellation (it is 16 % cool of the FVM by itself).
+* Consequence for the intermediate layer: the faces are worth using only in models that can take faces (FVM; FDM and the 3D solid after a change); the Lumped and the Analytic need their own reduction of the mask (4.16), not a cell value.
 
 ## 5. Without third-party libraries: the independent reader
 

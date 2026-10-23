@@ -12,6 +12,8 @@ same as the research solver to 3e-12.
 
 ## 0. Why not import the copper as polygons (zones), and why an interface at all
 
+*Answer to "do the models have to change, or an intermediate layer?" (2026-10-23, README 4.31 and 4.34): both, in a fixed order. The intermediate layer is the importer (`lib/importer.py` today, `pcbthermal/copper.py` in the design below): it turns files into per-layer face conductances, vias and nets and hands the model data it already understands, so the program's physics and file format do not change. The FVM then needs only to accept faces instead of the harmonic mean of cell values (done in the prototype by the `FaceNetwork` subclass, without editing `fvm.py`); the FDM and the 3D solid need the same small change; the Lumped and the Analytic cannot take faces and need their own reduction of the mask. Handing every model a cell value instead (the cheap way, no model change) was measured on our board: +8 to +13 % in the FVM and FDM, +35 % in the Lumped.*
+
 *Status 2026-10-23: the import stage itself exists as research code, `lib/importer.py` (README 4.31, figure 7): reading, vias, face conductances and a `FaceNetwork` for the FVM. The interface (layer confirmation, outline, heaters) and the FDM/3D faces are still design only.*
 
 The question ("is a Gerber not just copper as polygons, like the zones we draw?") has a short answer: **in geometry yes, in what the solver does with it no, and the solver is where the work is.** Facts checked in the code and by tests (README 4.27):

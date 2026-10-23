@@ -39,6 +39,9 @@ BOARDS = {
               "MIT", "https://github.com/ohguma/analog_gyro_2021"),
 }
 
+# name -> {file on disk: full URL} for files outside the Gerber folder (the CAD file used as the truth of the nets, README 4.33)
+EXTRA = {"storm": {"stormduino.kicad_pcb": "https://raw.githubusercontent.com/Chromico/stormduino/master/stormduino%20Rev2.kicad_pcb"}}
+
 
 def fetch(name):
     """!
@@ -57,6 +60,12 @@ def fetch(name):
         with urllib.request.urlopen(url, timeout=60) as r:
             dest.write_bytes(r.read())
         print(f"  {name}/{local}  <- {remote}")
+    for local, url in EXTRA.get(name, {}).items():
+        dest = out / local
+        if not dest.exists():
+            with urllib.request.urlopen(url, timeout=60) as r:
+                dest.write_bytes(r.read())
+            print(f"  {name}/{local}  <- {url}")
     print(f"{name}: licence {lic}; {origin}")
 
 

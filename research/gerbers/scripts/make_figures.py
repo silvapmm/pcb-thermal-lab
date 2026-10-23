@@ -369,6 +369,44 @@ def fig_import_setup():
     plt.close(fig)
 
 
+def fig_models_our_board():
+    """!
+    @brief The five models of the program on our IC board (needs out/models_our_board.npz from study_models_our_board.py): the mean rise of the heater from the fine mask and from the four cell mappings, and the error of each mapping against the model's own fine run.
+    @return None.
+    """
+    path = CACHE / "models_our_board.npz"
+    if not path.exists():
+        print("figure 09 skipped: run study_models_our_board.py first")
+        return
+    d = np.load(path)
+    models, maps, truth, coarse = list(d["models"]), list(d["maps"]), d["truth"], d["coarse"]
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5))
+    x = np.arange(len(models))
+    wd = 0.15
+    cols = ["#222222", "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
+    series = [("fine mask (own truth)", truth)] + [(m, coarse[i]) for i, m in enumerate(maps)]
+    for k, (lab, v) in enumerate(series):
+        axs[0].bar(x + (k - 2) * wd, v, wd, label=lab, color=cols[k])
+    axs[0].set_ylim(0, 160)                                                   # the 3D solid is far above (260 to 390 K) and is cut
+    axs[0].set_xticks(x)
+    axs[0].set_xticklabels(models)
+    axs[0].set_ylabel("mean rise over the heater (K)")
+    axs[0].set_title("our IC board, 1 W in 6 x 6 mm: the 3D solid (262 to 392 K) is cut", fontsize=9)
+    axs[0].legend(fontsize=7)
+    for k, i in enumerate(range(len(maps))):
+        err = 100 * (coarse[i] / truth - 1)
+        axs[1].bar(x + (k - 1.5) * 0.18, err, 0.18, label=maps[i], color=cols[k + 1])
+    axs[1].axhline(0, color="k", linewidth=0.6)
+    axs[1].set_xticks(x)
+    axs[1].set_xticklabels(models)
+    axs[1].set_ylabel("error against the model's own fine run (%)")
+    axs[1].set_title("1 mm cells with the cell value of each mapping (positive = too hot)", fontsize=9)
+    axs[1].legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_09_models_our_board.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the three figures.
@@ -383,6 +421,7 @@ def main():
     fig_gerber_render()
     fig_import_end_to_end()
     fig_import_setup()
+    fig_models_our_board()
     print("figures in", OUT)
 
 
