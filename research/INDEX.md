@@ -5,6 +5,7 @@ This file is kept apart from `research/README.md` (which the Gerber branch keeps
 | Area | Folder | Status | Question |
 | :-- | :-- | :-- | :-- |
 | Import | `gerbers/` | open | How to turn Gerber copper into grid conductances. |
+| Board | `outline/` | implemented (2.4.0) | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | Board | `via-fill/` | implemented (2.4.0) | What fills a via barrel and how much it matters. |
 
 Third-party boards used to validate studies are downloaded by a script into the folder's git-ignored `data/` and are never committed; each folder's README states their licences.
