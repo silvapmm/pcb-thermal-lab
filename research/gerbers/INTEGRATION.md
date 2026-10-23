@@ -10,6 +10,16 @@ same as the research solver to 3e-12.
 +45 % (0.5) and +42 % (0.25), and four exact-value tests by 0.05 to 0.07 K. A zone fill is a density typed by a person; its pattern is unknown, and no function of the fraction is right for a grid, stripes and islands
 (7 to 43 % too cool with the arithmetic value, -20 to +22 % with the geometric one). The imported copper therefore gets **its own element**, and the zone fill keeps its meaning.
 
+## 0. Why not import the copper as polygons (zones), and why an interface at all
+
+The question ("is a Gerber not just copper as polygons, like the zones we draw?") has a short answer: **in geometry yes, in what the solver does with it no, and the solver is where the work is.** Facts checked in the code and by tests (README 4.27):
+
+1. **`Zone` is one polygon and a scalar fill**: `Zone(layer, polygon (n, 2), fill, name)`, no holes and no islands. Gerber copper is polygons with holes (one layer of an Uno clone: 103 polygons, 80 holes, 43 285 vertices, README 4.1), so a layer would be thousands of zones, with holes cut by splitting.
+2. **Zones are combined per cell with a maximum, not a sum** (`fvm.py:72`, `fdm.py:133`, `solid3d.py:91`, `analytic.py:134` and `216`, `checks.py:34`): two zones that each cover half a cell give half a zone's copper. Copper tiled in many abutting polygons therefore loses copper in every shared cell: +7 % (FVM) to +17 % (FDM) hotter for the same copper cut into strips (`tests/test_program_union.py`). Drawn zones are usually few and large, so it rarely shows today.
+3. **Each cell takes the fraction of copper and mixes it arithmetically** (`S = f k_cu t_cu + k_lam (slab - f t_cu)`, the coverage sampled 4 x 4 per cell). For a big solid zone the cells are 0 or 1 except at the edges and this is exact; for fine copper (tracks, clearances, hatch) almost every cell is partial and the arithmetic mix is the 10 to 23 % cool bias of the research. So polygons would work mechanically, with a different union rule and holes, and still give the biased answer.
+4. **What changes is the mapping from geometry to conductance, not the format.** The copper can be held as polygons (shapely) or as a mask; what matters is that it is drawn on a fine grid (coverage mask, README 4.26) and mapped to the faces of the model's own grid. The same engine could serve the drawn zones too (rasterise the polygon finely, map the cells; the exact-aligned rectangles stay exact), which would give one mapping for drawn and imported copper; `fill < 1` (hatching) keeps its formula or gets a declared pattern.
+5. **Why an interface**: not for the physics, but for what the files do not say. Which file is which copper layer (the X2 file function usually tells, older sets only the name), units of a drill file without one, the board outline, which plated holes are vias (aperture functions tell when written), the stack-up (the Gerber job file may carry thicknesses, to be checked), the nets (when written), and the pixel that the thinnest track needs (a warning to the user). A first version can be a command-line import with the defaults and a confirmation list; a dialog is for confirming and correcting those guesses, and for showing the copper that was understood (a preview of the mask and the nets).
+
 ## 1. Where the copper fraction enters today
 
 | File | Lines | What happens |

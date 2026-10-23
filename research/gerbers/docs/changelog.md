@@ -8,3 +8,4 @@ Text that was added to the Unreleased section of `CHANGELOG.md`; kept here until
 - `research/gerbers`: synthetic Gerber files of known area made with gerbonara and a comparison of the independent reader with gerbonara, pygerber and pcb-tools; the reader tolerates a G code line without its star.
 - `research/gerbers`: angle sweep of thin tracks (area, connectivity, resistance), nine-point stencil option in the net solver, figure script.
 - `research/gerbers`: CONCLUSIONS.md, boundary-limited scenarios (Sampson regime), tests of the claims (58 tests).
+- `research/gerbers`: coverage masks, tests of every model with the mapped conductance, union-rule finding with tests, vias and nets (`nets.py`), a post-mounted board analogue, 64 tests.

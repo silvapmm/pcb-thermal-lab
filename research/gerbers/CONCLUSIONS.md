@@ -1,6 +1,6 @@
 # Conclusions: importing Gerber copper into the thermal grid
 
-Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`study_*.py`) and, where it is a claim that can break, a test (`tests/`, 58 tests in 8 s with NumPy and SciPy only; `python -m pytest -q tests` from this folder). Nothing in `pcbthermal/` was changed.
+Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`study_*.py`) and, where it is a claim that can break, a test (`tests/`, 64 tests in about 13 s; `python -m pytest -q tests` from this folder; the two program tests need the program's dependencies and one geometry test needs shapely). Nothing in `pcbthermal/` was changed.
 
 ## 1. Where we stand
 
@@ -9,7 +9,10 @@ Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a se
 3. **A good mapping exists and is cheap**: the flow-based face conductances (a local conduction problem between two cell centres) are within 0.3 to 3.6 % in every case tested, 5.5 s per 100 x 160 mm layer once at import. **This is Sampson's method (2005, article 2017), not ours.** Lambda 0.5 (the geometric mean of the two Wiener bounds per direction) is almost as good at no cost (1.0 to 3.2 %), and is the quick mode (section 3 below, README 4.4).
 4. **Zone fill must keep its formula**; imported copper gets its own element (README 4.10, `INTEGRATION.md`).
 5. **Resolution matters more than the reader**: at most half the thinnest track per pixel for area and connectivity, 8 to 10 pixels across for the resistance of a thin track; binary masks lose or invent area on thin copper; a lattice-aligned track as wide as the pixel can vanish (README 4.3, 4.22, 4.23).
-6. **Nets and Joule heat are feasible**: the net comes from the file (pads and tracks; zone fills may carry none, so use connectivity), and `joule.py` turns a current into a heat map that sums exactly to I²R (README 4.20).
+6. **A coverage (grey-level) mask is a better default than a binary one**: at the same 0.1 mm grid it cuts the error of the flow-based faces from 6.5 to 4.1 % on 21 real 20 mm windows and by a factor 3 to 4 on thin-track layouts; part of the gain compensates a small bias of the mapping (README 4.26).
+7. **The program's zones cannot carry fine copper as they are**: a zone is one polygon without holes, and zones are combined per cell with a maximum instead of a sum, so copper tiled in many polygons loses copper in each shared cell (+7 % FVM to +17 % FDM; test). The import needs its own path (mapping and data model), and one line of the program (an additive union) is advisable independently (README 4.27, `INTEGRATION.md` section 0).
+8. **Vias and nets map from the files**: plated holes (X2 file function of the drill file) matched to the via pads (aperture function) and their nets give the program's vias and the connection of polygons across layers; on a real 4-layer KiCad board 225 of 225 vias have the same net on all four layers (README 4.29).
+9. **Nets and Joule heat are feasible**: the net comes from the file (pads and tracks; zone fills may carry none, so use connectivity), and `joule.py` turns a current into a heat map that sums exactly to I²R (README 4.20).
 
 ## 2. How this differs from the three Electronics Cooling articles
 
@@ -49,6 +52,12 @@ Other validated results:
 
 | Claim | Number | Where | Test |
 | :-- | :-- | :-- | :-- |
+| Every model, 42 real windows against the resolved sheet, MAE % for arithmetic fill / geometric / lambda 0.5 / flow mean (additive-union copy of the program) | FVM 11.9 / 2.6 / 2.9 / 4.0; FDM 15.9 / 7.1 / 7.8 / 7.8; Lumped 13.0 / 4.8 / 4.9 / 4.9; Analytic 18.6 / 12.2 / 12.5 / 12.4; 3D solid not usable (+43 % already, 49 to 70) | 4.27 | `study_lumped_analytic.py` |
+| Every model against itself on the fine mask (4 windows) | FVM 11.6 to 1.3 to 1.9; FDM 8.1 to 2.4 to 3.1; Lumped and Analytic are reduced models, judge them against the physics | 4.27 | `study_models_self.py` |
+| Program unions zones by maximum: the same copper in 0.5 mm strips is hotter | +7 % FVM, +17 % FDM, +10 % 3D solid, +7 % Analytic, +8 % Lumped | 4.27 | `test_union_by_maximum_loses_copper_when_zones_share_cells` |
+| Coverage mask against binary at 0.1 mm (21 real windows, truth 0.025 mm): flow-based faces | 6.5 to 4.1 % (thin-track boards 15.8 to 4.6 and 11.3 to 2.8) | 4.26 | `study_coverage.py`, `study_coverage_real.py`, `test_coverage_keeps_the_area_of_thin_tracks` |
+| Post-mounted board analogue: smeared model against the bitmap, maximum rise | -81 to -90 % without convection (factor 5 to 10; the article: 26), -28 to -35 % with 10 W/m2K | 4.28 | `study_post_board.py` |
+| Vias and nets: 225 vias of a 4-layer KiCad board, net equal on all four layers | 225 of 225; 68 of 68 plated component holes of the X2 test set agree on both layers | 4.29 | `study_vias_nets.py`, `tests/test_nets.py` |
 | Published 10 % copper example: along 39.6 (article ~40), across 0.655 W/m K (article 0.65) | exact | 4.21 | `test_published_parallel_and_series_example` |
 | Blackmore's tile formulas = `low` bound + arithmetic fraction | exact | 4.21 | `test_blackmore_tile_formulas_are_the_lower_bound_and_the_arithmetic_mean` |
 | Through the program's `fvm.Network` only the conductances change | agreement 3e-12 | 4.14 | `prototype_in_program.py` (needs the program) |
@@ -71,22 +80,23 @@ Other validated results:
 * Cells of 2 mm and larger: every method is limited by the grid (a 6 mm heater is 3 cells).
 * The reader: no aperture blocks, mirrored/rotated/scaled apertures, moire or image mirror; a drill file with no unit is refused; net names exist only when the CAD tool writes them (zone fills often have none); the Ucamco specification and test files were not read (host blocked).
 * Four formulas (2D Bruggeman, Hashin-Shtrikman, Dykhne duality, the Ucamco text on aperture holes) are from memory, checked by limits only (`docs/literature.md`).
-* Sampson's headline case (copper absent over large areas around posts, no convection) is not reproduced at his scale; our stripes boards reproduce the direction and part of the size of the effect.
+* Sampson's board cannot be rebuilt (its bitmaps are figures); the analogue of 4.28 reproduces the mechanism (smearing predicts 10 to 19 % of the real rise without convection, a factor 5 to 10 where the article has 26) but not the size, and uses one equivalent sheet with an invented perforation. The 3D solid, the only model with real slabs, cannot be used as a check of the mapping (4.27).
 * The synthetic random board of the test is one deterministic case, a regression check and not a statistic; the statistics are the 42 windows.
 
 ## 5. Recommendations and decisions left to the maintainer
 
 1. **Stage 1 (smallest useful)**: imported copper as its own element with the **flow-based faces** for FVM, FDM and the 3D solid; **lambda 0.5** as the quick mode; Lumped reads the result unchanged; Analytic gets one effective conductance per layer. Keep `Zone.fill` as it is (`INTEGRATION.md`).
-2. **Import settings the program should enforce**: pixel at most half the thinnest track found in the file (and a warning when a track is thinner than the pixel); 8-connected labelling for any question of "which piece is which"; a pixel of at most 0.1 mm for copper, finer for nets with thin tracks.
+2. **Import settings the program should enforce**: draw the copper as a coverage mask (4 x 4 sub-samples) at 0.1 mm; a pixel at most half the thinnest track found in the file (and a warning when a track is thinner than the pixel); 8-connected labelling for any question of "which piece is which"; finer pixels for the resistance of thin tracks.
+   **Independently of the import**, change the program's zone union from a maximum to an additive coverage (non-overlapping zones add up; overlapping ones are capped at 1): the maximum loses copper in every cell shared by several zones (4.27).
 3. **Nets**: use the X2 net attribute when present, infer by connectivity for the rest, and let the user assign a piece otherwise; the heat of a net needs the current (user input) and the terminals; vias between layers and `rho(T)` coupling come later (README 4.20).
 4. **Honest labelling in the documents of the program**: the method is Sampson's; the mappings are compared in this research; there is no measurement yet.
-5. **Two validation scenarios to add**: Sampson's copper-stops-before-the-posts case at board scale, and Guenin's local vertical overlap against the 3D solid (`docs/literature.md`, section 6). A measurement on one real board would turn the whole study from "agrees with the resolved model" into "agrees with the world".
+5. **Two validation scenarios still to add**: Sampson's own board (needs its bitmaps; the analogue is in 4.28) and Guenin's local vertical overlap against the 3D solid (`docs/literature.md`, section 6; the 3D solid itself needs checking at fine cells first, 4.27). A measurement on one real board would turn the whole study from "agrees with the resolved model" into "agrees with the world".
 6. **Open decisions** (the maintainer's): which stage enters the program; the zone `pattern` for hatched zones; whether to try the finer-pixel / nine-point repeat of the mapping studies first; whether to download the Ucamco example data sets as extra conformance files.
 
 ## 6. How to reproduce
 
 ```
-python -m pytest -q tests                      # 58 tests, about 8 s (NumPy and SciPy)
+python -m pytest -q tests                      # 64 tests, about 13 s
 python study_sampson_boundary.py               # section 4.25, about 10 minutes
 python compare_readers.py synthetic            # needs gerbonara, pygerber, pcb-tools, shapely, pillow
 python make_figures.py                         # the pictures in figures/
