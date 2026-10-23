@@ -31,6 +31,7 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | Lumped and Analytic | Lumped inherits a better `S` (13 % to 4.8 %); Analytic needs one effective conductance, a heater-influence-weighted geometric-type mean (18.6 % to 5.9 %), section 4.16. |
 | Scope | Copper layers 50 of 52 non-empty classified files drawn; drills 38 of 38 read, 35 of 35 identical to gerbonara (after fixing inverted TZ/LZ and other defects); reader refuses what it cannot do, including a drill file with no unit (4.19). |
 | Nets and heat | The X2 attribute `TO.N` gives the net of pads and tracks; zone fills may carry none; `joule.py` solves the current in a net and returns `I²R` per cell (4.20). |
+| Other tools | On 14 files of known area the independent reader equals gerbonara + shapely and pcb-tools (binary) to the digit; the error is the pixel (thin tracks), a grey-level coverage keeps 4.4 % where binary masks lose 22 % at 0.1 mm; pygerber is strict and heavier, pcb-tools failed on real boards (4.22). |
 | Reader conformance | 149 of 164 comparable gerbonara test files agree within 3 % of the area; 6 refused as unsupported (4.17). |
 | Cell size | 0.6 and 1.0 mm cells map well; at 2 mm every method is limited by the grid itself (the 6 mm heater has 3 x 3 cells). |
 
@@ -56,9 +57,10 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `docs/` | Documents for when the work is adopted: research summary, changelog text, `CLAUDE.md` entries, roadmap line (the project documents are not edited on this branch). |
 | `docs/literature.md` | What was read of the literature and what could not be opened. |
 | `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not. |
+| `make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara, and the comparison with gerbonara, pygerber and pcb-tools (4.22). Needs `pip install gerbonara pygerber pcb-tools shapely pillow`. |
 | `joule.py`, `study_net_joule.py` | Current in a net and the heat it makes (4.20). |
 | `study_reader_scope.py` | Which copper layers and drill files the reader handles (4.19). |
-| `tests/` | 48 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
+| `tests/` | 49 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
 | `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |
 
 ## 4. How to run, and the results
@@ -339,6 +341,33 @@ On the KiCad panel (1 A, 35 µm copper, terminals on the two farthest pads of th
 ### 4.21 Literature status (`docs/literature.md`)
 
 The three Electronics Cooling articles could **not** be opened in this session (the environment's network policy denies the host, HTTP 403), so the points below rest on search summaries only; the formulas of Bruggeman, Hashin-Shtrikman and Dykhne are still from memory and checked only by the tests (limits and duality). What the summaries do confirm is in `docs/literature.md`. The aperture-hole behaviour used in 4.17 comes from the comments inside gerbonara's test files, not from the Ucamco text.
+
+### 4.22 Against the other Python tools, on files of known area (`make_synthetic.py`, `compare_readers.py`)
+
+**Tools** (installed from PyPI on 2026-10-23): gerbonara 1.6.3 (Apache-2.0), pygerber 2.4.3 (MIT, raster renderer with anti-aliasing), pcb-tools 0.1.6 (cairo renderer, anti-aliased; it does not run on Python 3.13 as installed, `gerber.read` uses the removed `'rU'` file mode, so the text is passed to `gerber.loads`), and the independent reader. **Files**: made with gerbonara's own writer, so none of the readers wrote them, and the exact copper area comes from an independent shapely construction (buffered lines with round caps, polygons, differences): 7 single tracks of 0.03 to 0.3 mm, the same seven together, at 45 degrees, a plane with 28 clear holes of 0.1 to 1.2 mm, a plane with 1600 holes of 0.3 mm at 0.5 mm pitch (webs of 0.2 mm), a cross hatch (0.2 mm lines, 0.8 mm pitch), a plane with a clear ring, an island and a clear slot, and a random board of 60 tracks (0.1 to 0.4 mm) and 40 pads. Error of the copper area against the exact area (mean absolute over the 14 files, signed mean in brackets), by pixel size:
+
+| tool | 0.1 mm | 0.05 mm | 0.025 mm | 0.0125 mm |
+| :-- | --: | --: | --: | --: |
+| independent reader (centre sampling) | 22.3 % (+3.3) | 7.8 % (+2.7) | 1.4 % (-1.0) | 3.7 % (-3.7) |
+| gerbonara, vector area (no raster) | 0.01 % | 0.01 % | 0.01 % | 0.00 % |
+| gerbonara + shapely, centre sampling | 20.8 % (+1.7) | 8.6 % (+1.9) | 1.3 % (-1.2) | 3.7 % (-3.7) |
+| pcb-tools, pixels above 50 % | 21.9 % (+3.9) | 7.8 % (+7.2) | 1.3 % (-1.3) | 3.7 % (-3.7) |
+| **pcb-tools, grey level (coverage)** | **4.4 % (-1.6)** | **2.6 % (-2.6)** | 1.4 % (-1.4) | 0.02 % |
+| pygerber (cleaned file) | 30.3 % (+24.0) | 8.1 % (+1.5) | 1.9 % (-1.9) | 4.1 % (-4.1) |
+
+(the 0.0125 mm column holds only the 9 files with the thinnest tracks, so it is not comparable with the others.)
+
+What this shows:
+
+1. **The independent reader gives the same raster as gerbonara + shapely and as pcb-tools above 50 %** (file by file the numbers coincide to the printed digit). On these files nothing separates the readers; **the error is the pixel**, not the reader. A track narrower than 1.5 pixels is rounded to 0, 1 or 2 pixels: 0.03 mm vanishes at 0.1 mm (-100 %), 0.05 mm doubles (+100 %), 0.075 mm gains a third, 0.15 mm loses a third. Only the vector area is exact.
+2. **Binary masks lose or invent area on thin copper; a coverage (grey-level) mask does not**: pcb-tools' anti-aliased coverage keeps 4.4 % at 0.1 mm against 22 % for any binary mask. For the thermal mapping this suggests rendering at a finer pixel and averaging (coverage per coarse pixel), or keeping the pixel at most half the thinnest track (as 4.3 already said). Not yet tested in the conduction solver.
+3. **pygerber is the worst at coarse pixels** (a 0.03 mm track draws as 0.1 mm: +233 %) and it **did not parse any of gerbonara's 47 written files as they are** (gerbonara writes `G75` without its `*` and an obsolete `%IPPOS*%`; a cleaned copy parses). Its grammar is strict, which is a feature for conformance and a handicap for tolerance.
+4. **The independent reader accepts the same files** (it now tolerates a lone `G75` line, found by this test), runs in 0.04 s per file on average against 0.19 s (gerbonara + shapely), 0.06 s (pcb-tools) and 0.23 s (pygerber).
+5. **Planes, holes, islands, clear slots and hatches are exact for every tool** at 0.1 mm (errors 0.0 to 0.4 %), except the perforated plane at 0.1 mm (+6 %: the 0.2 mm webs are 2 pixels wide with 0.5 mm holes, so the rounding of the holes shows) and pcb-tools' hatch (-2 %).
+
+**The eight real boards** (top copper layer, reference gerbonara's vector area): independent reader 0.23 % at 0.1 mm and 0.14 % at 0.05 mm (mean absolute); gerbonara + shapely sampling 0.67 % and 0.14 %; pygerber 1.6 % and 1.3 % low, but it failed to parse 4 of the 16 runs; **pcb-tools 63 % low** on the real boards (clear polarity and region handling; not investigated, so no conclusion is drawn about its quality in general). Times per board: 0.6 s independent, 0.9 s pcb-tools, 3.0 s gerbonara + shapely, 5.7 s pygerber.
+
+Limits of this comparison: area only (the position of the pixels was not compared between tools; for gerbonara and the independent reader it was, section 5); pygerber's and pcb-tools' defaults were used (one render setting each); the bounds of the pcb-tools render had to be given explicitly (its automatic bounds cut the image); versions are those on PyPI on the day; other tools (KiCad's gerbview, tracespace, gerbv) were not run.
 
 ## 5. Without third-party libraries: the independent reader
 
