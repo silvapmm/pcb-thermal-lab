@@ -456,6 +456,89 @@ def fig_tools_and_pixel():
     plt.close(fig)
 
 
+def fig_kicad_pixels():
+    """!
+    @brief The nets against the KiCad project, pixel by pixel: the copper drawn from the `.kicad_pcb` (coloured by net) next to the Gerber copper and the pixels where they differ, for both layers; then the share of every net's CAD pixels that lie on Gerber copper.
+    @return None.
+    """
+    import json
+    z = np.load(CACHE / "kicad_pixels.npz")
+    res = json.loads((CACHE / "kicad_pixels.json").read_text())
+    shape = tuple(int(v) for v in z["shape"])
+
+    def unp(key):
+        """!
+        @brief Unpack a stored boolean mask.
+        @param key Name in the archive.
+        @return Boolean array.
+        """
+        return np.unpackbits(z[key])[: shape[0] * shape[1]].reshape(shape).astype(bool)
+
+    palette = {"GND": "#1f77b4", "+5V": "#ff7f0e", "/DTR": "#2ca02c", "+3V3": "#d62728", "/D13": "#9467bd", "/VIN": "#8c564b", "/D12": "#e377c2", "/D11": "#7f7f7f"}
+    import kicad_pcb
+    from paths import DATA
+    nets = kicad_pcb.read(DATA / "storm" / "stormduino.kicad_pcb")["nets"]
+    colour = np.full((len(nets) + 1, 3), 0.62)
+    for nid, nm in nets.items():
+        if nm in palette:
+            colour[nid] = matplotlib.colors.to_rgb(palette[nm])
+    from scipy import ndimage
+    fig, axs = plt.subplots(2, 3, figsize=(15, 9.6))
+    for li, name in enumerate(("F.Cu (top)", "B.Cu (bottom)")):
+        net, kind = z[f"net_{li}"], z[f"kind_{li}"]
+        cad_img = np.where((kind > 0)[..., None], colour[np.clip(net, 0, len(nets))], np.array([0.04, 0.26, 0.13]))
+        gerber = unp(f"gerber_{li}")
+        green, gold = np.array([0.04, 0.26, 0.13]), np.array([0.86, 0.62, 0.27])
+        diff = np.ones(shape + (3,))
+        grow = np.ones((7, 7), bool)
+        diff[ndimage.binary_dilation(unp(f"onlyk_far_{li}"), grow)] = (0.1, 0.3, 0.9)
+        diff[ndimage.binary_dilation(unp(f"onlyg_far_{li}"), grow)] = (0.9, 0.1, 0.1)
+        r = res["layers"]["F.Cu" if li == 0 else "B.Cu"]
+        axs[li, 0].imshow(cad_img, interpolation="antialiased")
+        axs[li, 0].set_title(f"{name}: copper drawn from the .kicad_pcb, coloured by net\n(grey: the other 50 nets)", fontsize=9)
+        axs[li, 1].imshow(np.where(gerber[..., None], gold, green), interpolation="antialiased")
+        axs[li, 1].set_title(f"{name}: copper our reader draws from the Gerber", fontsize=9)
+        axs[li, 2].imshow(diff, interpolation="nearest")
+        axs[li, 2].set_title(f"where they differ by more than one pixel (0.05 mm)\nred: only Gerber {r['only_gerber_beyond_one_pixel']:,} px; blue: only CAD {r['only_cad_beyond_one_pixel']:,} px (of {r['gerber_pixels']:,})", fontsize=8.5)
+        for a in axs[li]:
+            a.set_xticks([])
+            a.set_yticks([])
+    fig.suptitle("Stormduino (KiCad 5, MIT): the nets of the CAD file against the copper of the Gerbers, pixel by pixel", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.savefig(OUT / "fig_13_kicad_nets_against_gerber.png", dpi=105)
+    plt.close(fig)
+    # per net: the share of the CAD pixels of the net that lie on Gerber copper
+    items = sorted(((v["on_gerber_copper"] / v["cad_pixels"], k, v["cad_pixels"]) for k, v in res["nets"].items()))
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5.4), gridspec_kw={"width_ratios": [1.6, 1]})
+    axs[0].bar(range(len(items)), [100 * (1 - r) for r, _, _ in items], color="#2a6f97")
+    axs[0].set_yscale("log")
+    axs[0].set_xlabel("the 57 nets of the project with copper, sorted")
+    axs[0].set_ylabel("CAD pixels of the net without Gerber copper (%)")
+    axs[0].set_title("every net: how much of the copper the CAD file draws is missing in the Gerber", fontsize=9)
+    for i, (r, k, px) in enumerate(items[-4:]):
+        axs[0].text(len(items) - 4 + i, 100 * (1 - r), k, rotation=90, ha="center", va="bottom", fontsize=6)
+    layers = res["layers"]
+    labels = ["F.Cu", "B.Cu"]
+    both = [layers[n]["both"] for n in labels]
+    only_g = [layers[n]["only_gerber"] - layers[n]["only_gerber_beyond_one_pixel"] for n in labels]
+    only_g_far = [layers[n]["only_gerber_beyond_one_pixel"] for n in labels]
+    only_k = [layers[n]["only_cad"] for n in labels]
+    x = np.arange(2)
+    axs[1].bar(x, both, color="#e0a458", label="on both")
+    axs[1].bar(x, only_g, bottom=both, color="#f4b6b6", label="only Gerber, within 1 px of a CAD edge")
+    axs[1].bar(x, only_g_far, bottom=np.array(both) + np.array(only_g), color="#d62728", label="only Gerber, farther")
+    axs[1].set_ylim(min(both) * 0.97, (max(both) + max(only_g) + max(only_g_far)) * 1.005)
+    axs[1].set_xticks(x)
+    axs[1].set_xticklabels(labels)
+    axs[1].set_ylabel("copper pixels (0.05 mm)")
+    axs[1].set_title(f"pixels on each layer; only CAD: {only_k[0]} and {only_k[1]}", fontsize=9)
+    axs[1].legend(fontsize=7, loc="lower right")
+    fig.suptitle("The nets of the KiCad project against the Gerber copper (README 4.46)", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "fig_14_kicad_nets_per_net.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -470,6 +553,7 @@ def main():
     fig_render_compare()
     fig_how_equal()
     fig_tools_and_pixel()
+    fig_kicad_pixels()
     print("figures in", OUT)
 
 

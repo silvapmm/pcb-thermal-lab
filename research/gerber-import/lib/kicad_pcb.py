@@ -71,7 +71,9 @@ def read(path):
         out["vias"].append({"p": (float(at[1]), float(at[2])), "size": float(_find(v, "size")[1]), "drill": float(_find(v, "drill")[1]), "net": int(_find(v, "net")[1]), "layers": _find(v, "layers")[1:]})
     for z in _all(root, "zone"):
         pts = _find(_find(z, "polygon"), "pts")
-        out["zones"].append({"net": int(_find(z, "net")[1]), "layer": _find(z, "layer")[1], "outline": [(float(p[1]), float(p[2])) for p in _all(pts, "xy")]})
+        out["zones"].append({"net": int(_find(z, "net")[1]), "layer": _find(z, "layer")[1], "outline": [(float(p[1]), float(p[2])) for p in _all(pts, "xy")],
+                           "min_thickness": float((_find(z, "min_thickness") or ["", "0.254"])[1]),
+                           "filled": [[(float(q[1]), float(q[2])) for q in _all(_find(fp, "pts"), "xy")] for fp in _all(z, "filled_polygon")]})
     for m in _all(root, "module"):
         at = _find(m, "at")
         mx, my, mrot = float(at[1]), float(at[2]), float(at[3]) if len(at) > 3 else 0.0
@@ -82,7 +84,9 @@ def read(path):
             net = _find(p, "net")
             drill = _find(p, "drill")
             size = _find(p, "size")
-            out["pads"].append({"p": (mx + px * math.cos(th) + py * math.sin(th), my - px * math.sin(th) + py * math.cos(th)),
+            rr = _find(p, "roundrect_rratio")
+            out["pads"].append({"angle": float(pat[3]) if len(pat) > 3 else mrot, "rratio": float(rr[1]) if rr else 0.25,
+                                "p": (mx + px * math.cos(th) + py * math.sin(th), my - px * math.sin(th) + py * math.cos(th)),
                                 "net": int(net[1]) if net else 0, "layers": _find(p, "layers")[1:], "kind": p[2], "shape": p[3],
                                 "drill": float(drill[-1]) if drill and drill[-1].replace(".", "").isdigit() else 0.0,
                                 "size": (float(size[1]), float(size[2])) if size else (0.0, 0.0), "module": m[1] if len(m) > 1 else ""})

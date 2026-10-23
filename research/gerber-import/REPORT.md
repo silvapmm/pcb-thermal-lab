@@ -108,6 +108,10 @@ The independent reader differs from the vector truth in **72 of 4.49 million cop
 
 *Figure 11: left, the pixels that differ on 12 layers (grid lined up with the file and shifted grid); middle, the distance of each to the exact edge; right, how the difference falls when the vector truth draws circles with more segments (the truth's 16 segments per quarter circle make it slightly smaller than the true circle).*
 
+![The nets of the CAD file against the Gerber copper](figures/fig_13_kicad_nets_against_gerber.png)
+
+*Figure 13: the Stormduino's nets drawn from its `.kicad_pcb` (left) against the copper our reader draws from the Gerbers (middle) and the pixels where they differ by more than a pixel (right, README 4.46): 99.998 % of the 2.25 million pixels the CAD file assigns to its nets lie on Gerber copper; the Gerber copper without a CAD object is 0.13 % (top) and 0.16 % (bottom).*
+
 ## 4. Differences from the methods already known
 
 | | our converter | gerbonara (+ shapely) | pcb-tools | pygerber |

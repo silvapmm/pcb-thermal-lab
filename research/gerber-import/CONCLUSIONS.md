@@ -9,7 +9,8 @@ Written on branch `research/gerbers` (phase 1 of three of the Gerber research, s
 3. **The nets agree with the CAD file of a real project** (Stormduino, KiCad 5, MIT; README 4.33): every object of the `.kicad_pcb` lies on the copper read (1380 of 1380 track points, 48 of 48 via points, 281 of 281 pad points), no piece of copper or group joined through the 109 plated holes holds two nets, and 55 of 56 nets without a zone fill split into the same pieces as in the CAD file. The one difference (`Net-(J2-PadA7)`) is most probably the crude overlap test of the CAD side; it was not examined.
 4. **The files give what the next phases need**: `importer.import_board` returns the box, a binary and a coverage mask per layer (pixel at most half the thinnest track, with a warning), the holes with pad, kind and net, and warnings; no program is needed (README 4.30, `tests/test_importer.py`).
 5. **Same copper, pixel by pixel** (README 4.45, figures 9 to 12): drawn by four tools the layer looks the same, and against the vector truth the independent reader differs in 85 of 4.76 million copper pixels on 12 layers of 8 boards, all within 0.042 pixel of an exact edge; most of what remains is the truth's own 16-segment circles (with 128 segments, 12 pixels differ on the Stormduino top layer instead of 478).
-6. **The pixel matters more than the reader**: another reader (gerbonara + shapely) changes the thermal result by 0.01 to 0.04 % (phase 2, 4.31); binary masks lose or invent area on thin copper and a lattice-aligned track as wide as the pixel can vanish (`tests/test_reader_claims.py`); a coverage mask keeps the area.
+6. **The nets against the KiCad project, pixel by pixel** (README 4.46, figures 13 and 14): drawn from its own `.kicad_pcb`, 99.998 % of the 2.25 million pixels the CAD file assigns to the 57 nets of the Stormduino lie on Gerber copper, and the Gerber copper without a CAD object farther than a pixel is 0.13 % (top) and 0.16 % (bottom).
+7. **The pixel matters more than the reader**: another reader (gerbonara + shapely) changes the thermal result by 0.01 to 0.04 % (phase 2, 4.31); binary masks lose or invent area on thin copper and a lattice-aligned track as wide as the pixel can vanish (`tests/test_reader_claims.py`); a coverage mask keeps the area.
 
 ## 2. The validated numbers
 
@@ -24,6 +25,7 @@ Written on branch `research/gerbers` (phase 1 of three of the Gerber research, s
 | Net pieces by connectivity; wire keeps its net | | 4.20 | `test_net_pieces_are_found_by_connectivity_and_a_thin_wire_keeps_its_net` |
 | Our IC board as a bench: nine nets in one piece each and no short, 16 holes with the right nets | 2 tests | 4.30 | `tests/test_our_board_bench.py` |
 | Nets of the Stormduino against its `.kicad_pcb` | 1380/1380, 48/48, 281/281 objects on copper; 0 pieces or groups with two nets; 55 of 56 nets split alike | 4.33 | `study_kicad_nets.py`, `tests/test_kicad_nets.py` |
+| Nets of the Stormduino against its `.kicad_pcb`, every pixel | 2,246,366 of 2,246,416 CAD pixels of the 57 nets on Gerber copper; Gerber copper without a CAD object farther than 1 px: 0.13 % (top), 0.16 % (bottom) | 4.46 | `study_kicad_pixels.py`, `tests/test_kicad_pixels.py` |
 | Reader with another reader in the whole thermal chain | 0.01 to 0.04 % in the heater temperature (phase 2) | 4.31 | `gerber-models/scripts/study_import_readers.py` |
 
 ## 3. What is not validated, and the limits
