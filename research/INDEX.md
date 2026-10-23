@@ -13,4 +13,4 @@ This file is kept apart from `research/README.md` (which the Gerber branch keeps
 | Board | `outline/` | implemented (2.4.0) | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | Board | `via-fill/` | implemented (2.4.0) | What fills a via barrel and how much it matters. |
 
-Third-party boards used to validate studies are downloaded by a script into the folder's git-ignored `data/` and are never committed; each folder's README states their licences.
+Everything in `research/` that is ours (documents, scripts, figures) is MIT like the rest of the repository (see the README of the project). Third-party boards used to validate studies are downloaded by a script into the folder's git-ignored `data/` and are never committed; each folder's README states their licences.
