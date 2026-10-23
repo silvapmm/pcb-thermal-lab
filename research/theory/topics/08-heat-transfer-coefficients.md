@@ -38,7 +38,7 @@ Textbook air properties and closed forms, 1 to 3 % (`tests/`); `docs/validation.
 ## 7. Sources
 
 * Correlations, properties and radiation: [IncroperaDeWitt].
-* Vertical plate: [ChurchillChu1975]. Blending of natural and forced convection: [ChurchillBlend] (journal details from memory).
+* Vertical plate: [ChurchillChu1975] (citation and the form of the expression, with 0.825, 0.387 and 8/27, confirmed by secondary sources; the paper not opened). Blending of natural and forced convection: [ChurchillBlend] (the paper of 1977 exists; that the program's cube-root rule is the one of that paper is **not confirmed**).
 * Property fits: [AirProperties].
 
 *What was read and what was not verified:* equations are from `docs/theory.md` section 8 (read in full); the original publications were not opened. The curves of the figure are illustrative: natural convection drawn as `1.3 dT^(1/4)` (only the shape of the growth, not a correlation of the program) and radiation from the linearised formula with emissivity 0.9.

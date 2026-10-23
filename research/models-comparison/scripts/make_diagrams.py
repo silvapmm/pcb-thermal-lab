@@ -2,7 +2,7 @@
 @file make_diagrams.py
 @brief Schematic diagrams of the five models of the program: how each one represents the board (cells, nodes, rings, cosine modes, slabs).
 @details Pure drawing, no data. Writes figures/fig_04_the_five_models_schematic.png.
-         Also writes figures/fig_05_where_models_fail.png (the cases where the reduced models fail).
+         Also writes figures/fig_05_where_models_fail.png (the cases where the reduced models fail) and figures/fig_06_measurement_setup.png (the planned measurement on a physical board).
          Run: .venv/bin/python research/models-comparison/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -150,6 +150,44 @@ def where_models_fail(path):
     dk.save(fig, path, "Where the reduced models stop being reliable (error against the FVM, README 2)")
 
 
+def measurement_setup(path):
+    """!
+    @brief Draw the planned measurement on a physical board: a heater resistor of known electrical power, thermocouples at several distances, an infrared camera looking at a painted area, an ambient thermocouple and a still-air enclosure, with the chain from the reading to the comparison with the models (docs/measurement-protocol.md).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 5.6, 1, 2, ratios=[1.1, 1])
+    a = axs[0]
+    a.set_xlim(0, 12); a.set_ylim(0, 9)
+    a.add_patch(Rectangle((0.5, 0.5), 11, 7.6, fc="none", ec="grey", ls="--"))
+    a.text(6, 8.4, "still-air enclosure (nothing blows on the board)", ha="center", fontsize=8, color="grey")
+    dk.layer(a, 2.0, 2.4, 8.0, 0.25, "#e0a458"); dk.layer(a, 2.0, 2.65, 8.0, 0.6, "#9bbf8a")
+    for x in (3.0, 4.5, 6.0, 7.5):
+        a.add_patch(Rectangle((x - 0.15, 3.25), 0.3, 0.3, fc="#2ca02c", ec="k"))
+    a.text(5.25, 3.9, "thermocouples at 1, 5, 10, 15 mm", fontsize=7.5, ha="center", color="#2ca02c")
+    dk.box(a, 2.2, 3.25, 0.8, 0.5, "R", "#f4b6b6", size=7)
+    a.text(1.0, 4.2, "heater resistor,\nV and I measured\n(4 wires): P known", fontsize=7.5, va="bottom")
+    a.add_patch(Polygon([[5.0, 7.6], [7.0, 7.6], [6.4, 6.2], [5.6, 6.2]], fc="#d9d9d9", ec="k"))
+    a.text(6.0, 7.0, "IR camera", ha="center", fontsize=7)
+    a.plot([6.0, 8.6], [6.2, 3.25], ":", color="grey"); a.add_patch(Rectangle((8.3, 3.25), 0.6, 0.15, fc="k"))
+    a.text(10.0, 4.3, "area painted matt black\n(known emissivity)", fontsize=7.5, ha="center")
+    a.add_patch(Rectangle((10.7, 5.0), 0.3, 0.3, fc="#1f77b4", ec="k")); a.text(10.9, 5.5, "ambient\nthermocouple", fontsize=7, ha="center")
+    dk.layer(a, 3.2, 1.6, 0.2, 0.8, "#b9c4cc"); dk.layer(a, 8.6, 1.6, 0.2, 0.8, "#b9c4cc")
+    a.text(6, 1.0, "board on thin supports, horizontal, layer 1 up", ha="center", fontsize=8)
+    a.text(6, 0.1, "", fontsize=1)
+    a = axs[1]
+    a.set_xlim(0, 10); a.set_ylim(0, 9)
+    a.text(5, 8.4, "from the reading to the comparison", ha="center", fontsize=9, fontweight="bold")
+    steps = [("measure the board:\ncopper thickness, stack-up,\nemissivity of a coupon", 7.0), ("steady state at three powers\n(checks the non-linearity of h)", 5.6),
+             ("run the five models on the\nGerber of the same board", 4.2), ("compare in K and in % of the rise,\nwith the uncertainty of the reading", 2.8),
+             ("fit h on one power, predict\nthe others (calibrate_convection)", 1.4)]
+    for t, y in steps:
+        dk.box(a, 1.2, y - 0.5, 7.6, 1.0, t, "#cfe3f5", size=7.5)
+    for y in (7.0, 5.6, 4.2, 2.8):
+        dk.arrow(a, 5, y - 0.5, 5, y - 0.9)
+    dk.save(fig, path, "Planned: a measurement on a physical board (docs/measurement-protocol.md)")
+
+
 def main():
     """!
     @brief Draw the five models and save the figure.
@@ -163,6 +201,7 @@ def main():
     analytic(axs[3])
     solid3d(axs[4])
     dk.save(fig, OUT / "fig_04_the_five_models_schematic.png", "The five models of the program: how each one represents the board")
+    measurement_setup(OUT / "fig_06_measurement_setup.png")
     where_models_fail(OUT / "fig_05_where_models_fail.png")
 
 

@@ -12,14 +12,14 @@ One list for every topic of this folder. Each entry has a **key** (used in the `
 | **N** | named and wanted, but could not be opened (host blocked, login wall) or not yet obtained |
 | **L** | local: an own computation in the repository (a study script), not a publication |
 
-This file only records what the repository already says. Nothing here was added from a new search. The list of what should still be read to close the gaps is at the end (section 14).
+This file records what the repository already says, **plus one round of checks made later** from the session: the web search tool worked (it returns summaries, so what it confirms has status S), the page-fetch tool and direct downloads were blocked for every host tried (Wikipedia, Ucamco, Mouser, the ReadTheDocs pages), and only the Python package index could be read (status R for package metadata). That round confirmed the citations of Churchill and Chu (1975), Churchill (1977), Culham and Yovanovich (1998), Patankar (1980), Milton and Torquato (2002), Briggs and others (2000), the Nexperia note on Foster and Cauer, the version and licence of pyamg; it could not find Lee et al. (1995) at all. The properties of the 2D effective-medium formulas were checked numerically in `scripts/check_mapping_formulas.py`. The list of what should still be read to close the gaps is at the end (section 14).
 
-Topic numbers: 01 layered idealisation, 02 finite volumes, 03 finite differences, 04 3D solid, 05 Lumped rings, 06 Analytic series, 07 time stepping, 08 heat transfer coefficients, 09 parts and the junction, 10 power profiles, 11 metal blocks and fins, 12 Foster chain (planned), 13 heatsink scenarios (planned), 14 virtual JEDEC test and known-power reference (planned), 15 import and power list (planned), 16 multigrid (planned), 17 copper mapping and the tensor, 18 spreading resistance, 19 nets, current and Joule heat, 20 board outline, 21 vias and fills, 22 stack-up, 23 the Power calculator.
+Topic numbers (30 orientation, 31 program architecture and API, 32 the removed program against the current one, 33 time-dependent results were added after 24 to 29; 24 to 29: 24 thermal interfaces and metals, 25 contact area, air gap and chain, 26 plate spreading, 27 datasheet numbers and compact models, 28 continuum and sources, 29 verification ladder): 01 layered idealisation, 02 finite volumes, 03 finite differences, 04 3D solid, 05 Lumped rings, 06 Analytic series, 07 time stepping, 08 heat transfer coefficients, 09 parts and the junction, 10 power profiles, 11 metal blocks and fins, 12 Foster chain (planned), 13 heatsink scenarios (planned), 14 virtual JEDEC test and known-power reference (planned), 15 import and power list (planned), 16 multigrid (planned), 17 copper mapping and the tensor, 18 spreading resistance, 19 nets, current and Joule heat, 20 board outline, 21 vias and fills, 22 stack-up, 23 the Power calculator.
 
 ## 1. Numerical methods: finite volumes, differences, time, solvers, verification
 
 ### [Patankar1980]
-S. V. Patankar, *Numerical Heat Transfer and Fluid Flow*, 1980 (publisher and edition not recorded in the repository). **Status M.** Used for the finite-volume discretisation, harmonic means of the conductivity at interfaces and the theta method of time stepping (`docs/theory.md` section 12). Topics 02, 03, 07.
+S. V. Patankar, *Numerical Heat Transfer and Fluid Flow*, Hemisphere (McGraw-Hill), 1980, xiii + 197 pages (publisher and size from library catalogue records seen in a search; the book itself was not opened). **Status M** for the content, **S** for the citation. Used for the finite-volume discretisation, harmonic means of the conductivity at interfaces and the theta method of time stepping (`docs/theory.md` section 12). Topics 02, 03, 07.
 
 ### [EymardGallouetHerbin]
 R. Eymard, T. Gallouët, R. Herbin, *Finite Volume Methods*, https://raphaeleh.github.io/PUBLI/bookevol.pdf. **Status S** (cited in `docs/validation.md` section 10 for the statement that a finite-volume method is a balance on every cell, so the energy is conserved locally and globally, while finite differences work on point values). Topics 02, 03.
@@ -55,7 +55,13 @@ Fourier-series multilayer analytical models against finite elements, 1 to 4 % in
 A comparison of finite differences and finite volumes on 1D steady conduction, https://link.springer.com/chapter/10.1007/978-981-97-0037-0_9. **Status N** (login wall; not read). Topic 03.
 
 ### [Pyamg]
-pyamg, algebraic multigrid (named in `docs/roadmap.md`, "Solvers and validation"); no reference or documentation page is recorded. **Status N.** Topic 16.
+PyAMG: Algebraic Multigrid Solvers in Python, https://github.com/pyamg/pyamg ; developed by L. Olson, J. Schroder and B. Southworth; licence MIT, version 5.3.0 (PyPI metadata, read through the package index, the one host reachable from the session); requires NumPy and SciPy; paper in the Journal of Open Source Software, doi 10.21105/joss.05495 (named on the package page). Named in `docs/roadmap.md`, "Solvers and validation". **Status R for the package metadata, N for the paper.** Topic 16.
+
+### [Briggs2000]
+W. L. Briggs, V. E. Henson, S. F. McCormick, *A Multigrid Tutorial*, 2nd edition, SIAM, 2000. **Status S** (citation seen in course notes found by a search; the book was not opened): the standard introduction to the V-cycle, restriction, prolongation and smoothing. Topic 16.
+
+### [McCormickTamstorf]
+S. McCormick and R. Tamstorf, a multigrid primer (https://grandmaster.colorado.edu/~stevem/mgprimer.pdf, found in a search). **Status S** (snippet): V-cycles aim for a convergence factor per cycle bounded independently of the grid at a cost proportional to the number of unknowns of the finest level; covers the V-cycle, the W-cycle and full multigrid. Lecture notes found with it state that the smoother damps the high-frequency error and the coarse grid handles the smooth error. Topic 16.
 
 ### [SciPySuperLU]
 SciPy's sparse direct solver (SuperLU) with the symmetric minimum-degree ordering is the program's direct solver (`docs/theory.md` section 2); the library documentation is not recorded as a source. **Status M.** Topic 02.
@@ -66,7 +72,7 @@ SciPy's sparse direct solver (SuperLU) with the symmetric minimum-degree orderin
 H. S. Carslaw and J. C. Jaeger, *Conduction of Heat in Solids* (edition not recorded). **Status M.** Fourier-series solutions, Green functions of the fin equation (K0), disc sources (I0, I1) (`docs/theory.md` section 12). Topics 05, 06, 18.
 
 ### [Lee1995]
-S. Lee, S. Song, V. Au, K. P. Moran, constriction/spreading resistance model for electronics packaging, 1995 (the venue is not recorded in the repository). **Status M**; `research/block-and-fins/README.md` says it "could not be read and was not used". The program's plate model is compared with the published spreading resistance of a small source on a plate (+4.5 %, `docs/theory.md` section 7). Topics 11, 18.
+S. Lee, S. Song, V. Au, K. P. Moran, constriction/spreading resistance model for electronics packaging, 1995 (the venue is not recorded in the repository; a search for the title and the 1995 ASME/JSME conference found no record of it, so even the citation is unconfirmed). **Status M/N**; `research/block-and-fins/README.md` says it "could not be read and was not used". The program's plate model is compared with the published spreading resistance of a small source on a plate (+4.5 %, `docs/theory.md` section 7). Topics 11, 18.
 
 ### [EC1998Spreading]
 Electronics Cooling, "Calculating spreading resistance in heat sinks", 1998. **Status M** (named in `docs/theory.md` section 12; address not recorded). Topic 18.
@@ -86,10 +92,13 @@ W. Elenbaas (1942), optimum spacing of vertical parallel plates in natural conve
 ## 3. Convection and radiation
 
 ### [ChurchillChu1975]
-S. W. Churchill and H. H. S. Chu (1975), correlation for natural convection on a vertical plate. **Status M**; the journal details (Int. J. Heat Mass Transfer 18, 1323) are from memory and were not checked. Topic 08.
+S. W. Churchill and H. H. S. Chu, *Correlating Equations for Laminar and Turbulent Free Convection from a Vertical Plate*, Int. J. Heat Mass Transfer 18 (11) (1975) 1323-1329, doi 10.1016/0017-9310(75)90243-4 (citation and the form of the single expression with the constants 0.825, 0.387 and the exponent 8/27 confirmed by secondary sources in a search, among them the documentation of the `ht` library; the paper itself was not opened). **Status S** (the form used in `convection.py` matches). Topic 08.
+
+### [LloydMoran1974]
+J. R. Lloyd and W. R. Moran (1974), natural convection from horizontal plates, with a characteristic length `L = A/P` that collapses circular, square, rectangular and triangular plates; cited by `docs/models.md` section 18. The publication details are not recorded and the paper was not opened. **Status M.** Topic 30.
 
 ### [ChurchillBlend]
-S. W. Churchill, the blending rule for combining natural and forced convection, `h = (h_n^3 + h_f^3)^(1/3)` (`docs/theory.md` sections 8 and 12 name it "Churchill's blending rule"; the exact publication is not recorded; it is Churchill 1977, AIChE J. 23, from memory). **Status M.** Topic 08.
+S. W. Churchill, *A comprehensive correlating equation for laminar, assisting, forced and free convection*, AIChE Journal 23 (1) (1977) 10 (the citation is confirmed by reference lists of other papers in a search). The blending rule used by the program, `h = (h_n^3 + h_f^3)^(1/3)` (`docs/theory.md` sections 8 and 12 call it "Churchill's blending rule"), was **not confirmed** by any text read: whether it is the exponent-3 rule of this paper is from memory. **Status S for the citation, M for the rule.** Topic 08.
 
 ### [AirProperties]
 Dry air at 1 atm, Sutherland-type fits for viscosity and conductivity between 250 and 450 K, as used in `convection.py` (`docs/theory.md` section 8): the program's fits are checked against textbook values (1 to 3 %), no single source is recorded. **Status M.** Topic 08.
@@ -151,7 +160,7 @@ Infineon, *OptiMOS Power MOSFET Datasheet Explanation*, AN 2012-03, https://www.
 Datasheets read for the parts (`docs/research.md`, evidence list): Texas Instruments CSD17308Q3 (SLPS262C, https://www.ti.com/lit/ds/symlink/csd17308q3.pdf; RthetaJC 4.5, RthetaJA 46 typical and 58 maximum on 1 in2 of 2 oz copper), LMR36510 (SNVSBD7B, https://www.ti.com/lit/ds/symlink/lmr36510.pdf), TPS7A47 (https://www.ti.com/lit/ds/symlink/tps7a47.pdf; RthetaJA 32.5, theta-JC(bot) 1.7, psi-JT 0.3, psi-JB 11.9 K/W); SX Semiconductor SS12 to SS120 (**R**); SS54 SMC rectifier (**R**); Vishay WSL power metal strip resistors (https://www.vishay.com/docs/30100/wsl.pdf, **R**: power rating at 70 C and the derating curve). Samsung LED high-power datasheets: the thermal figures came from a search summary and the files were **not read** (**N**). Topics 09, 14.
 
 ### [Nexperia-AN11261]
-Nexperia, AN11261, *Using RC thermal models* (Foster and Cauer networks), https://mouser.com/pdfDocs/AN11261-3.pdf. **Status S** (listed in the roadmap and research notes; the roadmap says "listed only, not evaluated"). Topic 12.
+Nexperia, AN11261, *Using RC thermal models* (Foster and Cauer networks), https://mouser.com/pdfDocs/AN11261-3.pdf (the older NXP edition; the current one is Rev. 5.0, March 2021; the host cannot be opened from the session). **Status S**: a search summary says that a Foster model comes from fitting a curve to `Zth` (a one-dimensional RC chain whose values do **not** correspond to places in the device), that a Cauer model maps to physical layers and gives access to internal nodes and can be connected to external networks (heatsink, PCB), that `Zth` is measured from step power pulses of different lengths and reaches a plateau equal to `Rth` after about a second, and that for a square pulse `Zth` read from the datasheet times the power gives the rise, while pulsed or sinusoidal power needs the RC ladder. Nexperia's own device models use a Foster network (for example eight `Rth, Cth` pairs for one MOSFET). Topic 12.
 
 ### [TI-SLUAAT8]
 Texas Instruments SLUAAT8, *Using MOSFET Transient Thermal Impedance Curves in Your Design*, https://www.ti.com/lit/pdf/sluaat8 (repetitive pulses, `D + (1 - D) z(t)`). **Status S.** Topic 12.
@@ -169,6 +178,30 @@ The forced-convection factors on theta-SA (1, 0.31, 0.18 and 0.10 at 0, 1, 2.5 a
 
 ### [ASTMD5470]
 ASTM D5470, thermal interface material measurement: named through Electronics Cooling (2014) in `docs/theory.md` section 12; the standard was not read. **Status M.** Topics 09, 11.
+
+### [MetalTables]
+Metal property tables read by the heatsink study (`docs/research.md` R2): Ferrotec material table and Engineering ToolBox (aluminium 204 W/mK, 2.71 g/cm3, 0.90 J/gK; copper 386, 8.96, 0.385; brass 111, 8.49, 0.34; stainless 304 about 14, 8.01, 0.46; carbon steel 54, 0.49 J/gK, a textbook value). Addresses not recorded. **Status R as recorded.** Topic 24.
+
+### [GreaseValues]
+Typical thermal grease and pad values read by the heatsink study (`docs/research.md` R2): bond line of 7 to 20 um at best and 0.05 to 0.1 K cm2/W in the laboratory (Dow Corning); in assembly 25 to 100 um and 1 to 5 W/mK; gap pads 1 to 6 W/mK and 0.5 to 1.2 mm; adhesives 0.5 to more than 6 W/mK; phase-change pads like grease above 55 to 60 C. Addresses not recorded. **Status R as recorded.** Topic 24.
+
+### [ECD5470RoundRobin]
+Electronics Cooling (2014) on ASTM D5470 thermal interface measurements, an inter-laboratory round robin: a paste 32 mm2K/W = 0.32 K cm2/W at 300 kPa (30.9 at a 23.5 um bond line), a ceramic paste 41 mm2K/W, a 1.575 mm gap pad 12.1 K cm2/W at 690 kPa; the joint formula `R = BLT/(kA) + (R''c1 + R''c2)/A`. Address not recorded. **Status R as recorded.** Topic 24.
+
+### [ECHowToSelectHeatsink]
+Electronics Cooling, "How to select a heat sink": `Rja = Rjc + Rcs + Rsa`, `Rsa = (Ts - Ta)/Q - Rjc - Rcs`, spreading of a source much smaller than the base adds 5 to 30 %, the volumetric performance `C = R V` of 500 to 800 cm3K/W in natural convection falling to 150-250, 80-150 and 50-80 at 1, 2.5 and 5 m/s, interface values 0.07 to 0.81 in2 C/W. Address not recorded (the notes in `docs/research.md` R6 cite it by title). **Status R as recorded.** Topics 13, 24.
+
+### [AlphaNovatech]
+Alpha Novatech and similar heatsink catalogues: natural convection `W = beta dT^1.25`, so the resistance falls as `dT^(-0.25)` (a heatsink at 30 K rise 1.257 times worse than at 75 K); a bad orientation about 25 % worse; anodised aluminium (emissivity about 0.8) against bare (about 0.1). Address not recorded. **Status R as recorded.** Topic 13.
+
+### [ECSimpleSpreading2004]
+Electronics Cooling, "Simple formulas for estimating thermal spreading resistance" (2004): reported errors -2 to +5 %. Address not recorded. **Status S** (named in `docs/research.md` R3). Topics 25, 26.
+
+### [GapHandbooks]
+Heat-transfer handbooks, the documentation of the `ht` library and Purdue ME 418 notes, as named by `docs/research.md` R3, for conduction of still air across a gap, radiation between parallel faces and the critical Rayleigh number of a horizontal layer (1708). Addresses not recorded. **Status R as recorded.** Topic 25.
+
+### [Hollands]
+The Hollands correlation for natural convection in a horizontal layer heated from below, named in `docs/research.md` R3 for gaps above about 7 mm; the publication is not recorded. **Status M.** Topic 25.
 
 ## 6. Inverse problems and power estimation
 
@@ -192,6 +225,9 @@ Pohanka and Raudensky, thermocouple disturbance of the field in inverse problems
 ### [EC2010Tiled]
 Electronics Cooling (2010) on tiled conductivity maps of PCBs, quoted in `docs/theory.md` section 12; see [Blackmore2010]. **Status R through a converted text** (below). Topics 04, 17.
 
+### [EC1998Conduction]
+Electronics Cooling, *Conduction heat transfer in a printed circuit board*, May 1998, https://www.electronics-cooling.com/1998/05/conduction-heat-transfer-in-a-printed-circuit-board/ (found in a search for [CulhamYovanovich1998]; not opened). **Status N.** Topic 17.
+
 ### [Shen2019]
 Y. Shen, H. Wang, F. Blaabjerg, H. Zhao, T. Long, *Thermal Modeling and Design Optimization of PCB Vias and Pads*, IEEE Trans. Power Electronics (2019), https://tenglong.eng.cam.ac.uk/files/thermalmodelinganddesignoptimizationofpcbviasandpads.pdf. **Status S** (abstract and structure read: analytical via-array and pad models verified by CFD and measurements). Topic 21.
 
@@ -213,7 +249,7 @@ B. Guenin, *Strategies for the Thermal Modeling of Metal Traces on Printed Circu
 B. Blackmore, *Creating PCB Thermal Conductivity Maps Using Image Processing*, Electronics Cooling, 13 September 2010, https://www.electronics-cooling.com/2010/09/creating-pcb-thermal-conductivity-maps-using-image-processing/ (validation in Blackmore, SEMI-THERM 2009, pp. 76-86). **Status R** (converted text). His tile formulas are the `lambda = 0` bound of the program's mappings. Topic 17.
 
 ### [CulhamYovanovich1998]
-Culham and Yovanovich, *Factors Effecting the Calculation of Effective Conductivity in Printed Circuit Boards*, ITHERM 1998 (cited by Blackmore). **Status N** (not obtained). Topic 17.
+J. R. Culham and M. M. Yovanovich, *Factors affecting the calculation of effective conductivity in printed circuit boards*, Proc. Sixth Intersociety Conference on Thermal and Thermomechanical Phenomena in Electronic Systems (ITherm'98), pp. 460-467 (1998) (citation from a 2019 Springer chapter that cites it, seen in a search). Secondhand: the paper treats the board as one homogeneous body with an effective conductivity and compares three averaging schemes, and later work reports that volumetric weighting overestimates the effective conductivity, especially normal to the board; that agrees with [Sampson2017]. **Status S for the citation, N for the paper.** Topic 17.
 
 ### [Lush2004]
 A. Lush, *Modeling Heat Conduction in Printed Circuit Boards Using Finite Element Analysis*, Electronics Cooling, May 2004 (cited by Blackmore and Sampson). **Status N.** Topic 17.
@@ -228,10 +264,10 @@ L. J. Durlofsky, *Upscaling and gridding of fine scale geological models for flo
 J. B. Keller (1964) and A. M. Dykhne (1970): duality of two-phase two-dimensional conductivity, the effective conductivity of a self-dual isotropic microstructure at equal fractions is sqrt(k1 k2). **Status S** (dates and statement from search summaries: arXiv:1105.0954, cond-mat/0410073, a 2017 note in Comptes Rendus Mecanique). Topic 17.
 
 ### [HashinShtrikman]
-Z. Hashin and S. Shtrikman, optimal bounds on the effective conductivity of isotropic composites; the explicit 2D forms used in `conduction.py`, and the 2D Bruggeman equation `k^2 - (a - b)(2f - 1)k - ab = 0`, are **from memory**, checked only against their limits by `tests/test_conduction.py` (f = 0 and 1, equal phases, sqrt(ab) at f = 1/2, ordering of the bounds). **Status M.** Topic 17.
+Z. Hashin and S. Shtrikman, *J. Mech. Phys. Solids* 11 (1963) 127-140 (citation from a search snippet): optimal bounds on the effective conductivity of isotropic composites. The explicit 2D forms used in `conduction.py` and the 2D Bruggeman equation `k^2 - (a - b)(2f - 1)k - ab = 0` were written from memory and, in this work, **checked by their properties** (`research/theory/scripts/check_mapping_formulas.py`, not by a textbook): the Bruggeman root satisfies `f (a - k)/(a + k) + (1 - f)(b - k)/(b + k) = 0` to 2e-16; it gives sqrt(ab) at f = 1/2 and `k(f) k(1 - f) = ab` (the Keller-Dykhne duality); the Hashin-Shtrikman bounds bracket the Bruggeman value and are bracketed by the two Wiener bounds; and the upper bound is the dual of the lower one (`1 / HS_upper = HS_lower` of the dual medium) to 1e-15. Searches also report that the Bruggeman equation in 2D is self-dual and lies between the Hashin-Shtrikman bounds (arXiv 2512.20401 and 2503.18715, search summaries). **Status S for the properties, M for the textbook form.** Topic 17.
 
 ### [Milton2002]
-G. W. Milton, *The Theory of Composites* (2002); and S. Torquato, *Random Heterogeneous Materials* (2002): the places to check the 2D closed forms. **Status N** (named in `research/gerber-models/docs/literature.md`, not obtained; years from memory). Topic 17.
+G. W. Milton, *The Theory of Composites*, Cambridge University Press, 2002 (Cambridge Monographs on Applied and Computational Mathematics, vol. 6; it has a chapter on the Hashin-Shtrikman bounds and one on duality transformations in two-dimensional media); and S. Torquato, *Random Heterogeneous Materials: Microstructure and Macroscopic Properties*, Springer, 2002 (another listing says 2001): the places to check the 2D closed forms. Both exist per catalogue records seen in a search; no 2D formula was seen in them. **Status S for the citations, N for the content.** Topic 17.
 
 ### [Wiener1912]
 O. Wiener, bounds of the effective conductivity of a two-phase medium (parallel and series, arithmetic and harmonic means); the program's `low` and `up` bounds. Named in the research code; no publication details are recorded. **Status M.** Topic 17.
@@ -259,7 +295,7 @@ Open-source thermal and power-integrity projects read as web summaries for ideas
 ## 10. File formats, readers, outline
 
 ### [UcamcoGerber]
-Ucamco, *The Gerber Layer Format Specification*, https://www.ucamco.com/en/gerber. **Status N**: the specification was not read (the host is blocked); the maintainer pasted the text of the Ucamco format page (not the specification), which says that attributes carry net names and the function of an object (`TO.N`, `TA.AperFunction`) and that a job file exists. Topics 15, 19, 20.
+Ucamco, *The Gerber Layer Format Specification*, https://www.ucamco.com/en/gerber (the latest revision named by encyclopedia pages in a search is 2024.05; revision 2023.08 in an older copy). **Status N**: the specification was not read (the host is blocked); searches confirmed, from KiCad's source and forum posts, `TF.FileFunction` examples such as `Copper,L1,Top` (L1 is always the top copper), drill spans `1,4`, and the `G04 #@!` comment form of `TF` and `TA` attributes; the syntax of `TO.N` was **not** confirmed by any result. The maintainer pasted the text of the Ucamco format page (not the specification), which says that attributes carry net names and the function of an object (`TO.N`, `TA.AperFunction`) and that a job file exists. Topics 15, 19, 20.
 
 ### [Gerbonara]
 gerbonara, https://pypi.org/project/gerbonara/ (documentation https://gerbolyze.gitlab.io/gerbonara); licence Apache-2.0 (PyPI, version 1.6.3); its companion shapely (https://shapely.readthedocs.io/) is BSD-3-Clause. **Status R as a tool** (used as the vector reference of `research/gerber-import`). Topics 15, 20.
@@ -287,6 +323,7 @@ These are not publications; they are the repository's own studies that give numb
 | `[L-outline]` | `research/outline/` (the rectangle of the same area) | 20 |
 | `[L-stackup]` | `research/stackup/` | 22 |
 | `[L-via]` | `research/via-fill/` | 21 |
+| `[L-legacy]` | the removed wxPython program (tag `legacy-wxpython-1.0.0`, commit `641da87`) run on the example board, `docs/validation.md` section 6 | 32 |
 | `[L-gerber]` | `research/gerber-import/`, `research/gerber-models/`, `research/gerber-nets/` (reader, mappings, tensor, nets) | 15, 17, 19, 20 |
 
 ## 12. Textbooks and standards that the project documents name but that were not opened
@@ -299,7 +336,7 @@ Numbers and facts with their source are quoted; no text, figure or file of a thi
 
 ## 14. What should be read next to close the gaps
 
-1. The texts that are named as the base of a method and were not opened: Patankar (1980), Carslaw and Jaeger, Incropera and DeWitt, Churchill and Chu (1975) and the Churchill blending rule, Lee et al. (1995), Culham and Yovanovich (1998), Lush (2004), Milton and Torquato for the 2D closed forms, the Ucamco specification.
-2. For the planned topics: the Foster and Cauer networks (Nexperia AN11261, read in full), a multigrid text and the pyamg documentation (none is recorded yet), Elenbaas and Bar-Cohen and Rohsenow in the originals.
+1. The texts that are named as the base of a method and were not opened (some now have a confirmed citation, none was read): Patankar (1980), Carslaw and Jaeger, Incropera and DeWitt, Churchill and Chu (1975), Churchill (1977) and whether the program's blending rule is its rule, Lee et al. (1995) (the citation itself is unconfirmed), Culham and Yovanovich (1998), Lush (2004), Milton and Torquato for the 2D closed forms, the Ucamco specification, Briggs and others for multigrid.
+2. For the planned topics: the Nexperia note AN11261 in full (only a summary was seen), Briggs and others and the pyamg documentation, Elenbaas and Bar-Cohen and Rohsenow in the originals.
 3. The JEDEC standards themselves (JESD51 family), IPC-4761 and IPC-2152.
 4. Replace every "M" and "S" entry by a read source, or keep the statement marked, when a topic is adopted into `docs/theory.md`.

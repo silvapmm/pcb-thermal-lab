@@ -2,7 +2,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/roadmap.md`): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/roadmap.md` and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_16.
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -566,6 +566,468 @@ def layered_idealisation(path):
     dk.save(fig, path, "The layered idealisation: nodes, gaps, faces and the energy balance (theory section 1.2)")
 
 
+def air_gap(path):
+    """!
+    @brief Plot the heat transfer coefficient across an air gap under a block that does not touch the board: conduction of still air k/g plus radiation between parallel faces, with the values of the table of docs/research.md R3 and the gap above which natural convection starts.
+    @param path Output file.
+    @return None.
+    """
+    import matplotlib.pyplot as plt
+    fig, axs = plt.subplots(1, 2, figsize=(14, 4.8), gridspec_kw={"width_ratios": [1, 1.2]})
+    a = axs[0]; a.axis("off"); a.set_xlim(0, 10); a.set_ylim(0, 8)
+    dk.layer(a, 0.6, 1.0, 8.8, 0.4, CU); dk.layer(a, 0.6, 1.4, 8.8, 0.9, dk.FR4)
+    dk.layer(a, 0.6, 3.6, 8.8, 0.9, dk.METAL, "block", size=8)
+    dk.layer(a, 3.4, 2.3, 3.2, 1.3, "#f3d9b1", "interface\n(contact)", size=7)
+    for x in (1.3, 2.2, 7.4, 8.3):
+        dk.arrow(a, x, 3.55, x, 2.35, color=dk.HEAT, width=1.0)
+    a.text(1.8, 4.9, "outside the contact:\nthe board face is not insulated", ha="center", fontsize=8)
+    a.annotate("", (0.35, 3.6), (0.35, 2.3), arrowprops={"arrowstyle": "<->"}); a.text(0.15, 2.95, "g", fontsize=9, ha="right")
+    a.text(5, 7.4, "a gap g between the board and the block", ha="center", fontsize=9, fontweight="bold")
+    a.text(5, 6.2, "h = k_air / g  +  h_rad,   h_rad = 4 sigma T^3 / (1/e1 + 1/e2 - 1)", ha="center", fontsize=8)
+    a.text(5, 0.3, "natural convection in the gap only above the critical Rayleigh number (1708):\nconduction rules for gaps up to about 7 mm at 60 K and 12 mm at 20 K", ha="center", fontsize=8)
+    a = axs[1]
+    g = np.linspace(0.3, 14, 200)
+    k = 0.028
+    a.loglog(g, k / (g * 1e-3), color=dk.BLUE, label="conduction of still air, k/g (k = 0.028 W/mK)")
+    a.loglog(g, k / (g * 1e-3) + 6, color=dk.HEAT, label="+ radiation 6 W/m2K (anodised block, emissivity 0.8)")
+    a.loglog(g, k / (g * 1e-3) + 0.7, color="#2ca02c", label="+ radiation 0.7 W/m2K (bare aluminium, emissivity 0.1)")
+    for gg, hh in ((0.5, 57), (1, 29), (2, 15), (5, 6)):
+        a.plot(gg, hh, "ks", ms=6)
+        a.annotate(f"{hh}", (gg, hh), (gg * 1.08, hh * 1.15), fontsize=8)
+    a.axvspan(7, 12, color="grey", alpha=0.2)
+    a.text(8.0, 40, "natural convection\nstarts here", fontsize=8)
+    a.set_xlabel("gap g (mm)"); a.set_ylabel("h across the gap (W/m2K)")
+    a.set_title("the gap coefficient (black squares: the values of the table in docs/research.md R3)", fontsize=9)
+    a.legend(fontsize=7.5, loc="lower left"); a.grid(alpha=0.3, which="both")
+    dk.save(fig, path, "A block that does not touch the board: conduction and radiation across the gap (research notes R3)")
+
+
+def level_chain(path):
+    """!
+    @brief Draw the chain of levels of a part with a heatsink on top and a block under the board: junction, package top, interface, heatsink, board, interface, block, with the heat split (docs/research.md R5).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 5.4, 1, 2, ratios=[1, 1.15])
+    a = axs[0]; a.set_xlim(0, 10); a.set_ylim(0, 9)
+    dk.layer(a, 0.5, 1.6, 9, 0.35, CU); dk.layer(a, 0.5, 1.95, 9, 0.8, dk.FR4)
+    dk.layer(a, 2.2, 0.9, 5.6, 0.2, "#f3d9b1"); dk.layer(a, 1.4, 0.2, 7.2, 0.7, dk.METAL, "block under the board", size=7)
+    dk.box(a, 3.9, 2.9, 2.2, 0.9, "package", "#d9d9d9", size=8); dk.box(a, 4.45, 3.15, 1.1, 0.35, "J", "#f4b6b6", size=7)
+    dk.layer(a, 3.9, 3.9, 2.2, 0.15, "#f3d9b1")
+    dk.layer(a, 3.6, 4.05, 2.8, 0.8, dk.METAL, "heatsink", size=8)
+    for x in (3.8, 4.5, 5.2, 5.9):
+        dk.layer(a, x, 4.85, 0.12, 1.1, dk.METAL)
+    dk.arrow(a, 5.0, 3.3, 5.0, 3.88, color=dk.HEAT); dk.arrow(a, 5.0, 3.15, 5.0, 2.6, color=dk.HEAT)
+    a.text(7.2, 3.4, "up: theta_JC(top)\n+ interface/A + theta_SA", fontsize=7.5)
+    a.text(7.2, 2.1, "down: theta, board,\nfaces, block", fontsize=7.5)
+    a.text(5, 8.2, "the levels of one part", ha="center", fontsize=9, fontweight="bold")
+    a = axs[1]; a.set_xlim(0, 12); a.set_ylim(0, 9)
+    a.text(6, 8.4, "the same as a network (every level one conductance)", ha="center", fontsize=9, fontweight="bold")
+    dk.box(a, 0.3, 4.0, 1.2, 1.0, "J", "#f4b6b6")
+    dk.resistor(a, 1.5, 3.7, 6.6, "theta_JC(top)"); dk.resistor(a, 3.7, 5.9, 6.6, "R''/A"); dk.resistor(a, 5.9, 8.1, 6.6, "theta_SA")
+    dk.box(a, 8.7, 6.2, 1.6, 0.8, "air", dk.AIR)
+    a.plot([0.9, 0.9], [5.0, 6.6], "k"); a.plot([0.9, 1.5], [6.6, 6.6], "k")
+    dk.resistor(a, 1.5, 3.7, 2.4, "theta (footprint)"); a.plot([0.9, 0.9], [4.0, 2.4], "k"); a.plot([0.9, 1.5], [2.4, 2.4], "k")
+    dk.box(a, 3.7, 2.0, 2.2, 0.8, "board cells", "#cfe3f5"); dk.box(a, 6.4, 2.0, 1.8, 0.8, "faces h", "#cfe3f5")
+    dk.resistor(a, 5.9, 6.4, 2.4); dk.box(a, 8.7, 2.0, 1.6, 0.8, "air", dk.AIR); dk.resistor(a, 8.2, 8.7, 2.4)
+    dk.arrow(a, 4.8, 2.0, 4.8, 1.2); dk.box(a, 3.7, 0.2, 2.2, 0.9, "interface + block", "#e8e8e8", size=7)
+    a.text(8.0, 0.8, "the heat from J splits in the inverse ratio of the two chains;\nthe effects are not additive:\ntop heatsink 37 K, block 9 K, both 40 K (MOSFET example)", fontsize=7.5, ha="center")
+    dk.save(fig, path, "Many levels in a chain: package, interface, board, interface, metal (research notes R5)")
+
+
+def plate_spreading(path):
+    """!
+    @brief Plot the extra resistance of the base plate of a heatsink under a small source as a share of the top chain, with the values of the table of docs/research.md R8, and draw the section with the spreading in the base.
+    @param path Output file.
+    @return None.
+    """
+    import matplotlib.pyplot as plt
+    fig, axs = plt.subplots(1, 2, figsize=(14, 4.8), gridspec_kw={"width_ratios": [1, 1.2]})
+    a = axs[0]; a.axis("off"); a.set_xlim(0, 10); a.set_ylim(0, 8)
+    dk.layer(a, 1, 1.5, 8, 0.8, dk.METAL, "base plate", size=8)
+    dk.box(a, 4.2, 0.4, 1.6, 0.9, "source", "#f4b6b6", size=8)
+    for x0, x1 in ((4.6, 2.2), (5.4, 7.8), (4.8, 3.6), (5.2, 6.4)):
+        a.annotate("", (x1, 2.4), (x0, 1.35), arrowprops={"arrowstyle": "->", "color": dk.HEAT, "connectionstyle": "arc3,rad=0.25"})
+    for x in (1.8, 3.0, 4.2, 5.4, 6.6, 7.8):
+        dk.arrow(a, x, 2.4, x, 4.2, color=dk.BLUE, width=1.0)
+    a.text(5, 5.0, "film to the air over the whole top (the catalogue theta_SA)", ha="center", fontsize=8)
+    a.text(5, 7.2, "spreading in the base under a small source", ha="center", fontsize=9, fontweight="bold")
+    a.text(5, 6.3, "extra resistance = R(plate) - R(catalogue test source)", ha="center", fontsize=8)
+    a = axs[1]
+    names = ["Al 1 mm", "Al 3 mm", "Cu 3 mm", "steel 1 mm", "steel 3 mm"]
+    s33 = [3.6, 1.6, 0.9, 13.5, 6.1]
+    s5 = [3.2, 1.3, 0.7, 12.0, 5.0]
+    x = np.arange(len(names))
+    a.bar(x - 0.2, s33, 0.4, color="#1f77b4", label="3.3 mm source (chain 46.6 K/W)")
+    a.bar(x + 0.2, s5, 0.4, color="#ff7f0e", label="5 mm source (chain 41 K/W)")
+    a.set_xticks(x); a.set_xticklabels(names); a.set_ylabel("share of the top chain (%)")
+    a.set_title("base spreading as a share of the whole top chain (table of research notes R8)", fontsize=9)
+    a.legend(fontsize=8); a.grid(alpha=0.3, axis="y")
+    dk.save(fig, path, "Heatsink on a component: plate or only K/W? (research notes R8)")
+
+
+def continuum(path):
+    """!
+    @brief Draw the continuum problem of theory section 1.1: the conduction equation in the board and in a block, the exchange with the air on every face, the edges, and the heater as a uniform power over a footprint.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(14, 5.2, 1, 2)
+    a = axs[0]; a.set_xlim(0, 12); a.set_ylim(0, 9)
+    a.add_patch(Polygon([[1.5, 2.0], [8.5, 2.0], [10.5, 3.6], [3.5, 3.6]], fc=dk.FR4, ec="k"))
+    a.add_patch(Polygon([[1.5, 2.0], [3.5, 3.6], [3.5, 2.9], [1.5, 1.3]], fc="#c8dcb9", ec="k"))
+    a.add_patch(Polygon([[1.5, 1.3], [8.5, 1.3], [8.5, 2.0], [1.5, 2.0]], fc="#b4cca3", ec="k"))
+    a.add_patch(Polygon([[4.4, 2.5], [5.8, 2.5], [6.2, 2.85], [4.8, 2.85]], fc="#f4b6b6", ec="k"))
+    a.text(5.3, 2.67, "q", ha="center", va="center", fontsize=8)
+    for x, y in ((3.3, 3.0), (6.8, 3.2), (8.4, 2.6)):
+        dk.arrow(a, x, y + 0.2, x, y + 1.8, color=dk.HEAT)
+    a.text(8.2, 5.4, "-k dT/dn = h (T - T_amb)\nh = h_conv + h_rad", fontsize=8.5)
+    dk.arrow(a, 9.6, 1.6, 11.3, 1.6, color=dk.HEAT); a.text(10.4, 1.9, "h_side", fontsize=8, ha="center")
+    a.text(6, 8.2, "the board (and any block) as a solid", ha="center", fontsize=9, fontweight="bold")
+    a = axs[1]; a.set_xlim(0, 10); a.set_ylim(0, 9)
+    a.text(5, 8.2, "what the equations say", ha="center", fontsize=9, fontweight="bold")
+    a.text(5, 6.4, "rho c dT/dt = div(k grad T) + q", ha="center", fontsize=12)
+    a.text(5, 4.9, "k is a tensor: (k_ip, k_ip, k_th) for FR-4, k_cu for copper, k for a metal block", ha="center", fontsize=8.5)
+    a.text(5, 3.8, "faces: exchange with the air by convection and radiation, h in W/m2K", ha="center", fontsize=8.5)
+    a.text(5, 2.7, "edges: h_side, or insulated", ha="center", fontsize=8.5)
+    a.text(5, 1.6, "sources: the power P of a heater spread uniformly over a footprint (a polygon on one layer)", ha="center", fontsize=8.5)
+    a.text(5, 0.5, "steady state: dT/dt = 0", ha="center", fontsize=8.5, style="italic")
+    dk.save(fig, path, "The continuum problem (theory section 1.1)")
+
+
+def coverage(path):
+    """!
+    @brief Draw how a footprint polygon becomes the source vector of a heater: each cell is sampled on an s x s lattice, the coverage is the fraction of samples inside the polygon (even-odd test), and the power is shared in proportion, so it is exact for any grid (theory section 1.3). The coverages are computed here for a triangle.
+    @param path Output file.
+    @return None.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.path import Path as MPath
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5.2), gridspec_kw={"width_ratios": [1.3, 1]})
+    tri = np.array([[1.3, 1.2], [5.6, 2.1], [2.7, 5.4]])
+    poly = MPath(tri)
+    n = 7
+    s = 8
+    cov = np.zeros((n, n))
+    for i in range(n):
+        for j in range(n):
+            xs = i + (np.arange(s) + 0.5) / s
+            ys = j + (np.arange(s) + 0.5) / s
+            X, Y = np.meshgrid(xs, ys)
+            cov[j, i] = poly.contains_points(np.c_[X.ravel(), Y.ravel()]).mean()
+    a = axs[0]
+    a.imshow(cov, origin="lower", extent=(0, n, 0, n), cmap="Reds", vmin=0, vmax=1.2)
+    for i in range(n + 1):
+        a.axhline(i, color="grey", lw=0.5); a.axvline(i, color="grey", lw=0.5)
+    a.add_patch(Polygon(tri, fill=False, ec="k", lw=2))
+    xs = 3 + (np.arange(s) + 0.5) / s
+    ys = 2 + (np.arange(s) + 0.5) / s
+    X, Y = np.meshgrid(xs, ys)
+    inside = poly.contains_points(np.c_[X.ravel(), Y.ravel()])
+    a.scatter(X.ravel()[inside], Y.ravel()[inside], s=5, c="k"); a.scatter(X.ravel()[~inside], Y.ravel()[~inside], s=5, c="w", edgecolors="k", linewidths=0.4)
+    for i in range(n):
+        for j in range(n):
+            if cov[j, i] > 0:
+                a.text(i + 0.5, j + 0.5, f"{cov[j, i]:.2f}", ha="center", va="center", fontsize=7, color="k" if cov[j, i] < 0.7 else "w")
+    a.set_xlim(0, n); a.set_ylim(0, n); a.set_aspect("equal"); a.set_xticks([]); a.set_yticks([])
+    a.set_title("coverage of each cell: fraction of the 8 x 8 samples inside the footprint\n(the cell at the lower right shows its samples: black inside, white outside)", fontsize=9)
+    a = axs[1]; a.axis("off"); a.set_xlim(0, 10); a.set_ylim(0, 9)
+    a.text(5, 8.3, "from coverage to source", ha="center", fontsize=9, fontweight="bold")
+    a.text(5, 6.6, "Q_i = P c_i / sum(c)", ha="center", fontsize=13)
+    a.text(5, 5.0, "the weights sum to 1: the power is exact\nwhatever the grid", ha="center", fontsize=9)
+    a.text(5, 3.4, f"here: sum of the coverages = {cov.sum():.2f} cells,\nthe triangle has area {0.5 * abs((tri[1, 0] - tri[0, 0]) * (tri[2, 1] - tri[0, 1]) - (tri[1, 1] - tri[0, 1]) * (tri[2, 0] - tri[0, 0])):.2f} cells", ha="center", fontsize=9)
+    a.text(5, 1.6, "a footprint smaller than a sample sends all the power\nto the cell of its centroid\ncopper fill of a cell: f = max over zones (c_zone x fill)", ha="center", fontsize=8.5)
+    dk.save(fig, path, "Sources and geometry: sub-sampled coverage and an exact power (theory section 1.3)")
+
+
+def ladder(path):
+    """!
+    @brief Draw the verification ladder of theory section 11: the checks from exact solutions up to the comparison between models, with the results of docs/theory.md, and the rung that is still missing (a physical board).
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(14, 6.4)
+    ax.set_xlim(0, 14); ax.set_ylim(0, 8.2)
+    rungs = [
+        ("exact answers", "energy balance 1e-12 to 1e-9 on every board; the RC solution of a uniform board (Euler 1st order, Crank-Nicolson 2nd); closed form of the power loop 0.05 K; 1D series circuit 1e-6 K", "#d9efd0"),
+        ("solvers against each other", "direct, CG and SOR agree to 1e-8 K on five boards", "#d9efd0"),
+        ("published solutions", "Yovanovich's table within 0.7 to 0.8 % (2 % at epsilon 0.1); plate model +4.5 % (Lee et al.); convection correlations 1 to 3 %", "#cfe3f5"),
+        ("independent 3D solutions", "3D solid and a finite-element solid: layered models within 0.4 to 2.2 % (FVM); 3D solid 0.2 % on three boards, +-4 % on a heater-sized pad", "#cfe3f5"),
+        ("models against each other", "20 scenarios, four models and the 3D solid (the Lumped and Analytic models fail in known cases and the input checks warn)", "#f3d9b1"),
+        ("a physical board", "NOT DONE: no model has been compared with measurements; calibrate_convection fits one measurement", "#f4b6b6"),
+    ]
+    for k, (t, d, c) in enumerate(rungs):
+        y = 6.9 - 1.2 * k
+        dk.box(ax, 0.3 + 0.35 * k, y, 3.2, 0.9, t, c, size=8, bold=(k == 5))
+        ax.text(4.0 + 0.35 * k, y + 0.45, d, va="center", fontsize=7.8)
+    dk.arrow(ax, 0.1, 0.4, 0.1, 7.8, color="grey")
+    ax.text(0.0, 8.0, "more independent, more convincing", fontsize=8, color="grey")
+    dk.save(fig, path, "The verification ladder (theory section 11)")
+
+
+def orientation(path):
+    """!
+    @brief Draw the board orientations the program knows (horizontal with layer 1 up, vertical) and plot the Nusselt number against the Rayleigh number of the three natural-convection laws (hot face up, hot face down, vertical plate), the laws of theory section 8 with air properties held constant (illustrative).
+    @param path Output file.
+    @return None.
+    """
+    import matplotlib.pyplot as plt
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5.0), gridspec_kw={"width_ratios": [1.1, 1]})
+    a = axs[0]; a.axis("off"); a.set_xlim(0, 12); a.set_ylim(0, 9)
+    for x0, lab in ((0.5, "hot face up"), (4.3, "hot face down")):
+        dk.layer(a, x0, 3.0, 3.0, 0.3, dk.FR4, size=7)
+        a.text(x0 + 1.5, 2.4, lab, ha="center", fontsize=8)
+    for x in (1.0, 2.0, 3.0):
+        dk.arrow(a, x, 3.4, x, 5.0, color=dk.HEAT, width=1.2)
+    for x in (4.8, 5.8, 6.8):
+        dk.arrow(a, x, 2.9, x, 1.5, color=dk.HEAT, width=0.8)
+    a.text(2.0, 5.4, "layer 1 looks up:\nthe upper face loses more", ha="center", fontsize=7.5)
+    a.text(5.8, 1.0, "the last layer looks down", ha="center", fontsize=7.5)
+    dk.layer(a, 9.2, 1.2, 0.3, 4.2, dk.FR4)
+    for y in (2.0, 3.2, 4.4):
+        dk.arrow(a, 9.6, y, 9.6, y + 1.0, color=dk.HEAT, width=1.0); dk.arrow(a, 9.1, y, 9.1, y + 1.0, color=dk.HEAT, width=1.0)
+    a.text(9.4, 0.5, "vertical:\nboth faces alike", ha="center", fontsize=7.5)
+    a.text(6, 8.3, "the two orientations of the Board panel", ha="center", fontsize=9, fontweight="bold")
+    a.text(6, 7.0, "typed coefficients ignore the orientation; tilted boards are not considered;\na colder-than-air face swaps up and down", ha="center", fontsize=8)
+    a = axs[1]
+    Ra = np.logspace(3, 10, 200)
+    Pr = 0.71
+    up = np.where(Ra <= 1e7, 0.54 * Ra ** 0.25, 0.15 * Ra ** (1 / 3))
+    down = 0.27 * Ra ** 0.25
+    vert = (0.825 + 0.387 * Ra ** (1 / 6) / (1 + (0.492 / Pr) ** (9 / 16)) ** (8 / 27)) ** 2
+    a.loglog(Ra, up, color=dk.HEAT, label="horizontal, hot face up")
+    a.loglog(Ra, down, color=dk.BLUE, label="horizontal, hot face down (half of face up at the same Ra)")
+    a.loglog(Ra, vert, color="#2ca02c", label="vertical plate (Churchill and Chu), Pr = 0.71")
+    a.set_xlabel("Rayleigh number"); a.set_ylabel("Nusselt number")
+    a.set_title("the laws of the program (theory section 8)", fontsize=9)
+    a.legend(fontsize=7.5); a.grid(alpha=0.3, which="both")
+    dk.save(fig, path, "Board orientation, kept simple (models section 18)")
+
+
+def architecture(path):
+    """!
+    @brief Draw how the program is organised for a user of the API and the command line: the problem builder, the options, simulate (checks, the models, profiles and time), the results and what is saved, with the application and the command line on top and the separate calculation process (models section 7).
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(14, 6.0)
+    ax.set_xlim(0, 14); ax.set_ylim(0, 8)
+    dk.box(ax, 0.2, 6.2, 3.0, 1.2, "Problem\n(board, zones, heaters,\nvias, heatsinks)", "#cfe3f5", size=8)
+    dk.box(ax, 0.2, 4.2, 3.0, 1.2, "SolverOptions\n(models, cell size, solver,\ncomputed h, profiles)", "#cfe3f5", size=8)
+    dk.box(ax, 4.2, 4.6, 2.8, 2.4, "simulate()\n\n1 input checks\n2 run the models\n3 profile decision\n   and time simulation", "#f3d9b1", size=8, bold=True)
+    for k, (t, c) in enumerate((("FVM (reference)", "#d9efd0"), ("FDM", "#e8e8e8"), ("Lumped (LPTN)", "#e8e8e8"), ("Analytic", "#e8e8e8"), ("3D solid (steady)", "#e8e8e8"))):
+        dk.box(ax, 8.0, 6.7 - 0.95 * k, 2.4, 0.75, t, c, size=7.5)
+    dk.box(ax, 11.2, 4.6, 2.6, 2.4, "Simulation\n\ntable, error against\nthe FVM, energy\nbalance, warnings", "#f4b6b6", size=8)
+    dk.box(ax, 11.2, 1.8, 2.6, 1.6, "save()\nreport, JSON, CSV\nfields, figures", "#e8e8e8", size=8)
+    for (x0, y0, x1, y1) in ((3.2, 6.8, 4.2, 6.2), (3.2, 4.8, 4.2, 5.2), (7.0, 5.8, 8.0, 6.2), (10.4, 6.0, 11.2, 5.9), (12.5, 4.6, 12.5, 3.4)):
+        dk.arrow(ax, x0, y0, x1, y1)
+    dk.box(ax, 0.2, 1.4, 3.0, 1.6, "command line\npython -m pcbthermal\nrun, transient, solvers,\ncalibrate, convert, example", "#d9d9d9", size=7.5)
+    dk.box(ax, 4.2, 1.4, 3.0, 1.6, "application (PySide 6)\nruns a job in a separate\nprocess (cancel = terminate)", "#d9d9d9", size=7.5)
+    ax.text(8.0, 2.4, "the sparse solvers must not run in two\nthreads at once: the application\nserialises its calculations (one lock)", fontsize=8, va="center")
+    for x in (1.7, 5.7):
+        dk.arrow(ax, x, 3.0, 5.0 if x > 3 else 2.6, 4.2 if x > 3 else 4.2, color="grey")
+    dk.save(fig, path, "Python API and command line: the flow from a problem to a report (models section 7)")
+
+
+def legacy(path):
+    """!
+    @brief Plot the error on the temperature rise of the removed wxPython program and of the current models on the same example board (the table of docs/validation.md section 6), on a symmetric logarithmic axis.
+    @param path Output file.
+    @return None.
+    """
+    import matplotlib.pyplot as plt
+    rows = [("old Analytic basic", 851), ("old Lumped basic", -88), ("old Analytic advanced", 55845), ("old Lumped advanced", 597),
+            ("old FDM 10 mm", 64), ("old FDM 2 mm", -15), ("old FDM 1 mm", -32), ("old FDM 1 mm tight", -5.5),
+            ("FVM 1 mm", 0.0), ("FDM 1 mm", -2.4), ("Lumped", -1.9), ("Analytic", -1.9)]
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5.4), gridspec_kw={"width_ratios": [1.5, 1]})
+    a = axs[0]
+    names = [r[0] for r in rows]; vals = [r[1] for r in rows]
+    cols = ["#d62728"] * 8 + ["#2ca02c"] * 4
+    a.barh(range(len(rows)), vals, color=cols)
+    a.set_xscale("symlog", linthresh=1.0); a.set_yticks(range(len(rows))); a.set_yticklabels(names, fontsize=8); a.invert_yaxis()
+    a.axvline(0, color="k", lw=0.8)
+    a.set_xlabel("error on the temperature rise (%, symmetric log axis)")
+    a.set_title("same example board (reference 85.81 C): the removed program (red) and the current models (green)", fontsize=9)
+    a.grid(alpha=0.3, axis="x", which="both")
+    a = axs[1]; a.axis("off"); a.set_xlim(0, 10); a.set_ylim(0, 9)
+    a.text(5, 8.4, "what went wrong in the old FDM", ha="center", fontsize=9, fontweight="bold")
+    items = ["a stopping rule on the step size (false convergence):\n  the error grows when the mesh is refined (1 mm: -32 %)",
+             "a heater power that depended on the grid\n  (10 mm mesh: 8.17 W injected for 5.50 W)",
+             "no lateral conduction in FR-4; solid vias;\n  heatsinks on inner layers ignored",
+             "boundary nodes with a full cell",
+             "not the finite-difference idea: a correct FDM\n  lands within about 1 % of the FVM"]
+    for k, t in enumerate(items):
+        a.text(0.3, 7.2 - 1.4 * k, "- " + t, fontsize=8, va="center")
+    dk.save(fig, path, "The removed wxPython program against the current one (validation section 6)")
+
+
+def time_results(path):
+    """!
+    @brief Plot the time-dependent checks of docs/validation.md section 7: the maximum error of implicit Euler and Crank-Nicolson against the step (first and second order) and the hottest point after a power step in the FVM against the FDM and the Analytic model, with the values of that section.
+    @param path Output file.
+    @return None.
+    """
+    import matplotlib.pyplot as plt
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4.8))
+    a = axs[0]
+    dts = np.array([1, 2, 4, 8.0])
+    eul = np.array([3.06, 1.67, 0.87, 0.45]); cn = np.array([0.315, 0.077, 0.019, 0.005])
+    a.loglog(dts, eul, "o-", color=dk.BLUE, label="implicit Euler")
+    a.loglog(dts, cn, "s-", color=dk.HEAT, label="Crank-Nicolson")
+    a.loglog(dts, eul[0] / dts, "--", color="grey", label="order 1"); a.loglog(dts, cn[0] / dts ** 2, ":", color="grey", label="order 2")
+    a.set_xlabel("steps per original step (dt, dt/2, dt/4, dt/8)"); a.set_ylabel("maximum error over three time constants (K)")
+    a.set_title("exact RC check (time constant 109.1 s, steady rise 40 K)", fontsize=9); a.legend(fontsize=7.5); a.grid(alpha=0.3, which="both")
+    a = axs[1]
+    t1 = np.array([0, 0.12, 0.82, 3.6, 15, 60, 120.0])
+    fvm = [25.0, 30.4, 43.6, 53.3, 61.3, 70.7, 76.6]; fdm = [25.0, 30.3, 43.1, 52.7, 60.6, 70.0, 75.9]
+    a.semilogx(np.maximum(t1, 0.05), fvm, "o-", color=dk.BLUE, label="FVM"); a.semilogx(np.maximum(t1, 0.05), fdm, "s--", color=dk.HEAT, label="FDM")
+    a.set_xlabel("time (s)"); a.set_ylabel("hottest point (C)"); a.set_title("step animation, example board at 2 mm:\nFDM within 0.7 C of the FVM", fontsize=9)
+    a.legend(fontsize=8); a.grid(alpha=0.3, which="both")
+    a = axs[2]
+    t2 = np.array([0, 0.12, 0.35, 0.82, 1.8, 3.6, 7.4, 15, 30, 60, 120.0])
+    fv = [25.0, 30.5, 37.4, 44.0, 49.3, 53.7, 57.7, 61.7, 66.1, 71.2, 77.1]; an = [25.0, 30.6, 37.4, 43.4, 48.0, 52.0, 55.8, 59.8, 64.1, 69.4, 76.0]
+    a.semilogx(np.maximum(t2, 0.05), fv, "o-", color=dk.BLUE, label="FVM"); a.semilogx(np.maximum(t2, 0.05), an, "^--", color="#2ca02c", label="Analytic (vias calibrated per heater)")
+    a.set_xlabel("time (s)"); a.set_ylabel("hottest point (C)"); a.set_title("step animation, 4 W + 1.5 W at 1 mm:\nAnalytic within 2 C at every time", fontsize=9)
+    a.legend(fontsize=8); a.grid(alpha=0.3, which="both")
+    dk.save(fig, path, "Time-dependent results (validation section 7)")
+
+
+def input_checks(path):
+    """!
+    @brief Draw the situations that the input checks warn about on one board: a heater partly outside, a heater with no copper under it, a copper edge across a footprint, a heater only a few cells wide, overlapping heaters, a via outside the board, a metal block with no copper under it (models section 3).
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(16, 6.2)
+    ax.set_xlim(0, 17); ax.set_ylim(0, 8)
+    ax.add_patch(Rectangle((0.5, 1.0), 9.0, 6.0, fc=dk.FR4, ec="k", lw=1.5))
+    ax.add_patch(Rectangle((0.5, 1.0), 4.4, 3.2, fc=CU, ec="none", alpha=0.7))
+    ax.add_patch(Rectangle((5.2, 4.6), 3.2, 2.0, fc=CU, ec="none", alpha=0.7))
+    items = [
+        (Rectangle((9.0, 5.6), 1.4, 1.0, fc="#f4b6b6", ec="k"), (9.7, 6.1), "1"),
+        (Rectangle((1.0, 4.6), 1.2, 1.0, fc="#f4b6b6", ec="k"), (1.6, 5.1), "2"),
+        (Rectangle((4.3, 2.2), 1.2, 1.0, fc="#f4b6b6", ec="k"), (4.9, 2.7), "3"),
+        (Rectangle((6.6, 1.3), 0.22, 1.4, fc="#f4b6b6", ec="k"), (6.7, 2.0), "4"),
+        (Rectangle((2.2, 1.4), 1.0, 0.8, fc="#f4b6b6", ec="k"), (2.7, 1.8), "5"),
+        (Rectangle((2.7, 1.6), 1.0, 0.8, fc="#e8b6b6", ec="k"), (3.2, 2.0), ""),
+    ]
+    for patch, (x, y), n in items:
+        ax.add_patch(patch)
+    ax.text(9.7, 6.1, "1", ha="center", va="center", fontsize=9, fontweight="bold")
+    ax.text(1.6, 5.1, "2", ha="center", va="center", fontsize=9, fontweight="bold")
+    ax.text(4.9, 2.7, "3", ha="center", va="center", fontsize=9, fontweight="bold")
+    ax.text(7.35, 2.0, "4", ha="left", va="center", fontsize=9, fontweight="bold")
+    ax.text(2.2, 2.45, "5", ha="center", va="bottom", fontsize=9, fontweight="bold")
+    ax.add_patch(Circle((9.9, 2.5), 0.12, fc="k")); ax.text(10.15, 2.5, "6", va="center", fontsize=9, fontweight="bold")
+    ax.add_patch(Rectangle((6.0, 4.8), 2.0, 1.4, fc=dk.METAL, ec="k", alpha=0.8)); ax.text(7.0, 5.5, "7", ha="center", va="center", fontsize=9, fontweight="bold")
+    txt = ["1  heater partly outside the board: its power is moved onto the part inside",
+           "2  no copper under a heater",
+           "3  a copper edge or hatching crosses a footprint: Lumped and Analytic unreliable",
+           "4  a heater only a few cells wide (the cell is larger than the part)",
+           "5  overlapping heaters",
+           "6  a via (or a zone) outside the board",
+           "7  a metal block with no copper under it, or an almost perfect contact",
+           "   and: zero total power"]
+    for k, t in enumerate(txt):
+        ax.text(10.7 if False else 9.9 + 0.0, 7.4 - 0.0, "", fontsize=1)
+    for k, t in enumerate(txt):
+        ax.text(0.5, 0.55 - 0.0 * k, "", fontsize=1)
+    ax.text(10.9, 7.3, "what the checks warn about", fontsize=9, fontweight="bold", va="top")
+    for k, t in enumerate(txt):
+        ax.text(10.9, 6.7 - 0.62 * k, t, fontsize=7.2, va="top")
+    ax.text(0.5, 0.3, "check_problem never blocks a run: each warning says what is wrong and what to do; they are also shown live under the Run button", fontsize=8, style="italic")
+    dk.save(fig, path, "The input checks: what makes a result doubtful (models section 3)")
+
+
+def curved_boards(path):
+    """!
+    @brief Draw a rounded corner as a polygon with 4, 8, 16 and 32 edges and plot the area lost against the number of edges, computed from the closed form of an inscribed polygon and compared with the values of docs/models.md section 14.
+    @param path Output file.
+    @return None.
+    """
+    import matplotlib.pyplot as plt
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5.0), gridspec_kw={"width_ratios": [1.2, 1]})
+    a = axs[0]; a.set_aspect("equal"); a.axis("off")
+    r = 1.0
+    for k, n in enumerate((4, 8, 16, 32)):
+        ox = k * 2.6
+        th = np.linspace(0, np.pi / 2, 200)
+        a.plot(ox + r - r * np.cos(th), r - r * np.sin(th) * 0 + 0 * th + (r * np.sin(th)) - r + 0, color="#bbbbbb", lw=0)   # placeholder keeps the axes
+        # corner at the origin of the local frame: arc centre (r, r), arc from (0, r) to (r, 0)
+        ang = np.linspace(np.pi, 1.5 * np.pi, n + 1)
+        px = ox + r + r * np.cos(ang); py = r + r * np.sin(ang)
+        a.fill([ox + 0, *px, ox + 0], [0, *py, 0], color="#f3d9b1", ec="none")
+        a.plot(ox + r + r * np.cos(np.linspace(np.pi, 1.5 * np.pi, 100)), r + r * np.sin(np.linspace(np.pi, 1.5 * np.pi, 100)), "k--", lw=0.8)
+        a.plot(px, py, "o-", color=dk.HEAT, ms=3, lw=1.2)
+        a.text(ox + 0.9, -0.35, f"{n} edges", ha="center", fontsize=8)
+    a.set_title("the polygon lies inside the true arc and loses a sliver of area", fontsize=9)
+    a = axs[1]
+    n = np.array([4, 8, 16, 32])
+    piece = (1 - (2 * n / np.pi) * np.sin(np.pi / (2 * n))) * (np.pi / 4) / (1 - np.pi / 4) * 100
+    board = piece / 100 * 4 * (1 - np.pi / 4) * 144 / (2400 - 4 * (1 - np.pi / 4) * 144) * 100
+    a.loglog(n, piece, "o-", color=dk.HEAT, label="corner piece (computed)")
+    a.loglog(n, board, "s-", color=dk.BLUE, label="whole 60 x 40 mm board, 12 mm corners (computed)")
+    for x, y in zip(n, [9.3, 2.4, 0.6, 0.15]): a.plot(x, y, "k^", ms=7)
+    for x, y in zip(n, [0.51, 0.13, 0.03, 0.008]): a.plot(x, y, "kv", ms=7)
+    a.plot([], [], "k^", label="values in docs/models.md 14 (piece)"); a.plot([], [], "kv", label="values in docs/models.md 14 (board)")
+    a.set_xlabel("edges per corner"); a.set_ylabel("area error (%)")
+    a.set_title("the closed form reproduces the values of the documentation", fontsize=9)
+    a.legend(fontsize=7.5); a.grid(alpha=0.3, which="both")
+    dk.save(fig, path, "Curved boards are polygons: edges against area error (models section 14)")
+
+
+def prepreg(path):
+    """!
+    @brief Draw several sheets in one dielectric gap (a prepreg and a core) combined as resistances in series through the thickness and conductances in parallel in the plane, and plot the sensitivity of the rise to the stack-up numbers with the values of docs/models.md section 17.
+    @param path Output file.
+    @return None.
+    """
+    import matplotlib.pyplot as plt
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5.0), gridspec_kw={"width_ratios": [1, 1.1]})
+    a = axs[0]; a.axis("off"); a.set_xlim(0, 10); a.set_ylim(0, 9)
+    dk.layer(a, 1.0, 6.2, 5.0, 0.35, CU, "copper", size=7)
+    dk.layer(a, 1.0, 5.6, 5.0, 0.6, "#b8d8a6", "prepreg: t1, k1", size=7)
+    dk.layer(a, 1.0, 3.2, 5.0, 2.4, dk.FR4, "core: t2, k2", size=7)
+    dk.layer(a, 1.0, 2.85, 5.0, 0.35, CU, "copper", size=7)
+    a.annotate("", (6.4, 6.55), (6.4, 2.85), arrowprops={"arrowstyle": "<->"}); a.text(6.6, 4.7, "gap = t1 + t2", fontsize=8)
+    a.text(1.0, 8.2, "several sheets in one gap, one effective sheet:", fontsize=9, fontweight="bold")
+    a.text(1.0, 7.5, "through:  k = sum(t) / sum(t / k)      (series)", fontsize=8.5)
+    a.text(1.0, 1.9, "in plane:  k = sum(t k) / sum(t)      (parallel)", fontsize=8.5)
+    a.text(1.0, 1.2, "density by thickness, specific heat by mass", fontsize=8.5)
+    a.text(1.0, 0.4, "the pressed thickness counts, not the nominal one before lamination", fontsize=8, style="italic")
+    a = axs[1]
+    names = ["copper thickness +-15 %", "dielectric k +-30 % (with vias)", "dielectric k +-30 % (no vias)", "dielectric thickness +-10 %", "prepreg 0.25 against cores 0.35"]
+    lo = [-5.0, -0.8, -2.3, -0.4, -0.1]; hi = [5.0, 1.0, 3.3, 0.4, 0.1]
+    y = np.arange(len(names))
+    a.barh(y, hi, color="#d62728", label="up"); a.barh(y, lo, color="#1f77b4", label="down")
+    a.set_yticks(y); a.set_yticklabels(names, fontsize=8); a.invert_yaxis(); a.axvline(0, color="k", lw=0.8)
+    a.set_xlabel("change of the temperature rise (%) for the plus and minus change of the number")
+    a.set_title("how much each stack-up number matters (typical 4 layers, 3 W, nine vias)", fontsize=9); a.grid(alpha=0.3, axis="x")
+    dk.save(fig, path, "Prepreg and sheets in a gap (models section 17)")
+
+
+def why_agree(path):
+    """!
+    @brief Draw why the FVM and the Analytic model give about the same numbers: they solve the same layered model (one exactly, one numerically), the real board differs from it by an error they share, and part of the agreement was tuned (validation section 4).
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(14, 5.6)
+    ax.set_xlim(0, 14); ax.set_ylim(0, 8)
+    dk.box(ax, 0.3, 3.2, 3.6, 1.8, "the layered model\n(sheets, vertical resistances,\none h per face)", "#cfe3f5", size=8.5, bold=True)
+    dk.box(ax, 5.2, 5.6, 3.2, 1.5, "FVM: its numerical solution\n(mesh error 0.2 to 1 %)", "#d9efd0", size=8)
+    dk.box(ax, 5.2, 3.5, 3.2, 1.5, "Analytic: its exact solution on\na uniform sheet; tuned to the FVM", "#d9efd0", size=8)
+    dk.box(ax, 5.2, 1.0, 3.2, 1.6, "3D solid / finite elements:\nthe independent check\n(no tuning)", "#f3d9b1", size=8)
+    dk.box(ax, 10.2, 3.2, 3.5, 1.8, "the real board", "#e8e8e8", size=9, bold=True)
+    for (x0, y0, x1, y1) in ((3.9, 4.6, 5.2, 6.2), (3.9, 4.1, 5.2, 4.2), (10.2, 3.8, 8.4, 2.4), (13.0, 3.2, 8.4, 1.8)):
+        dk.arrow(ax, x0, y0, x1, y1)
+    ax.text(9.3, 6.6, "agree: two correct solutions\nof one model", fontsize=8, ha="left", color="#2a7d2a")
+    ax.text(10.2, 6.1, "the model error (0.4 to 3 % against\nthe 3D solid) is shared by both", fontsize=8, ha="left")
+    ax.text(0.3, 1.6, "they diverge where the geometry is not uniform\nnear a heater: pads, copper edges, corners", fontsize=8.5)
+    ax.text(0.3, 0.5, "so 'FVM = more precise' does not hold in general:\nwhat the FVM has is freedom of geometry", fontsize=8.5, style="italic")
+    dk.save(fig, path, "Why the FVM and the Analytic model agree (validation section 4)")
+
+
 def main():
     """!
     @brief Draw and save every figure of this folder.
@@ -578,7 +1040,11 @@ def main():
                                     ("profile_decision", profile_decision), ("metal_block", metal_block),
                                     ("foster_chain_planned", foster_chain), ("heatsink_scaling_planned", heatsink_scaling),
                                     ("virtual_jedec_planned", virtual_jedec), ("import_to_power_planned", import_to_power),
-                                    ("multigrid_planned", multigrid)), start=1):
+                                    ("multigrid_planned", multigrid), ("air_gap", air_gap), ("level_chain", level_chain),
+                                    ("plate_spreading", plate_spreading), ("continuum", continuum), ("coverage", coverage),
+                                    ("verification_ladder", ladder), ("orientation", orientation), ("architecture", architecture),
+                                    ("legacy_vs_current", legacy), ("time_results", time_results), ("input_checks", input_checks),
+                                    ("curved_boards", curved_boards), ("prepreg", prepreg), ("why_fvm_analytic_agree", why_agree)), start=1):
         fn(OUT / f"fig_{k:02d}_{name}.png")
 
 

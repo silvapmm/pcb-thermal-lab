@@ -21,12 +21,12 @@ def keys_defined():
     return set(re.findall(r"^### \[([^\]]+)\]", text, flags=re.M))
 
 
-def test_there_are_23_topics():
+def test_there_are_37_topics():
     """!
-    @brief The folder holds the 23 topic files, numbered without gaps.
+    @brief The folder holds the 37 topic files, numbered without gaps.
     @return None.
     """
-    assert [p.name[:2] for p in TOPICS] == [f"{i:02d}" for i in range(1, 24)]
+    assert [p.name[:2] for p in TOPICS] == [f"{i:02d}" for i in range(1, 38)]
 
 
 def test_every_image_and_link_exists():

@@ -36,6 +36,6 @@ Agreement with the direct solver to 1e-8 K on the five boards of the solver stud
 ## 6. Sources
 
 * The measurement is own computation (`docs/roadmap.md`; the solver study `research/models-comparison/scripts/solver_equivalence.py`).
-* The library: [Pyamg] (named, no reference recorded). A reference text for multigrid has not been chosen or obtained (BIBLIOGRAPHY section 14).
+* The library: [Pyamg] (MIT licence, version 5.3.0, needs only NumPy and SciPy). The standard introduction: [Briggs2000]; a primer with the cost statement (a convergence factor per cycle bounded independently of the grid at a cost proportional to the unknowns): [McCormickTamstorf] (both seen through search summaries, not opened).
 
-*What was read and what was not verified:* the description of the V-cycle is general numerical-analysis knowledge written here without a source; only the timing is measured in this project.
+*What was read and what was not verified:* the description of the V-cycle matches the course notes found by a search (pre-smoothing, restriction of the residual, a coarse-grid correction, prolongation, post-smoothing; the smoother damps the high-frequency error and the coarse grid handles the smooth error), which were not opened; only the timing is measured in this project.

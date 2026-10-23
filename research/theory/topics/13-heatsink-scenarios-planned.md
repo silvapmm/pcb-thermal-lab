@@ -23,6 +23,10 @@ A catalogue `theta_SA` is given for a flow condition (natural convection at a st
 
 To place the three effects on one heatsink: the air speed shifts the whole curve, the rise tilts it, the spacing sets the channel. It also shows what is **not** modelled today (the choking of a closed fin array).
 
+## 3b. What the research simulated (MOSFET, top chain `theta_JC(top)` 30 K/W assumed + paste 4.6 + `theta_SA`, constant board `h`)
+
+With a 12 K/W catalogue value at a 75 K rise, the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and Tj 70.4 C against 68.1 C with the fixed number (+2.3 K; at 4 W the other way: 113.9 against 111.1 C); the same heatsink at 1, 2.5 and 5 m/s gives 65.7, 64.5 and 63.6 C. The scenarios change Tj by 2 to 7 K because `theta_JC(top)` limits the path: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `theta_JC(top)` (metal lid, bare die). That is why the scenario is worth a switch and the fixed value a good default. Proposed scenarios: *fixed* (default), *natural* (`theta_SA = theta_ref (dT_ref / dT)^0.25`, solved in the loop of topic 08), *forced* (`theta_natural f(v)`). Altitude and a finer fin pitch are noted: the 0.80 at 3000 m of one source is ambiguous between a resistance and a factor and was not used.
+
 ## 4. Proposed acceptance tests
 
 Catalogue values of `theta_SA` against the geometry model within the scatter of the catalogue; the factors against the volumetric guide; the non-linearity checked by the Picard loop of topic 08.
@@ -35,6 +39,6 @@ Catalogue values of `theta_SA` against the geometry model within the scatter of 
 
 * Factors 1, 0.31, 0.18, 0.10 and the spread of the estimate: [VolumetricGuide] (as recorded in `docs/research.md` R3). Catalogue values and test conditions: [HeatsinkCatalogues].
 * Channel effect: Elenbaas (1942), Bar-Cohen and Rohsenow (1984): [ElenbaasBCR] (not read; constants not used).
-* Natural-convection scaling: [IncroperaDeWitt] (the `Ra^(1/4)` law).
+* Natural-convection scaling `W = beta dT^1.25`, orientation and finish: [AlphaNovatech]; the chain `Rja = Rjc + Rcs + Rsa` and the volumetric performance of a heatsink: [ECHowToSelectHeatsink]; the `Ra^(1/4)` law: [IncroperaDeWitt].
 
 *What was read and what was not verified:* the factors are quoted from the project documents; the natural-convection curve of the figure is illustrative; nothing of this is validated against a datasheet.

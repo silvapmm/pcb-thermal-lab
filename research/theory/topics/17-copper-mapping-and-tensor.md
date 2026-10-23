@@ -56,7 +56,7 @@ The gate thresholds were chosen on the same boards; a held-out test is open. Not
 ## 7. Sources
 
 * The flow-based faces are Sampson's method: [Sampson2017] (converted text); tile formulas by pixel counting: [Blackmore2010]; strategies for traces and the local copper near the package: [Guenin2015]. Not obtained: [CulhamYovanovich1998], [Lush2004].
-* Upscaling and transmissibility: [Durlofsky2005]. Power-law averaging: [PowerLawAveraging]. Duality in 2D: [KellerDykhne]. Bruggeman and Hashin-Shtrikman closed forms (from memory, checked by limits only): [HashinShtrikman], [Milton2002] (to check), [Wiener1912].
+* Upscaling and transmissibility: [Durlofsky2005]. Power-law averaging: [PowerLawAveraging]. Duality in 2D: [KellerDykhne]. Bruggeman and Hashin-Shtrikman closed forms (written from memory, then **checked by their properties** in `research/theory/scripts/check_mapping_formulas.py`: the Bruggeman root satisfies its defining equation to 2e-16, gives sqrt(ab) at one half and obeys the duality `k(f) k(1 - f) = ab`; the Hashin-Shtrikman bounds bracket it and lie between the Wiener bounds; the upper bound is the dual of the lower to 1e-15; not compared with a textbook): [HashinShtrikman], [Milton2002] (to check), [Wiener1912]. Earlier work on the effective conductivity of boards: [CulhamYovanovich1998], [EC1998Conduction].
 * Structure tensor and coherence: [StructureTensor]. Nine-point cell-centred schemes: [AgelasEymardHerbin2009]; the non-existence of a monotone linear scheme: [Positivity9pt].
 * Own computation: [L-gerber].
 

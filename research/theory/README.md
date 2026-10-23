@@ -43,10 +43,24 @@ Code and documents are those of `develop`; "inv." is the investigation that hold
 | 21 | [Vias and fills](topics/21-vias-and-fills.md) | in program | `via-fill` fig. 4 | `model.py` | validation 18 | inv. `via-fill` |
 | 22 | [Stack-up](topics/22-stack-up.md) | in program | `stackup` fig. 4 | `model.py`, `data/stackups.json` | validation 12, 14 | inv. `stackup` |
 | 23 | [Power calculator](topics/23-power-calculator.md) | in program | `power-calculator` fig. 4 | `inverse.py` | calculators | inv. `power-calculator` |
+| 24 | [Thermal interfaces and metals](topics/24-thermal-interfaces-and-metals.md) | in program | `component-heatsink` fig. 4 | `model.py` (`METALS`, `INTERFACES`) | research R2, models 15, 16 | inv. `component-heatsink` |
+| 25 | [Contact area, air gap, chain of levels](topics/25-contact-area-gap-and-chain.md) | contact area in program; gap and chain researched | figs. 17, 18 | `blocks.py` | research R3, R5 | inv. `component-heatsink` |
+| 26 | [Plate spreading on a component](topics/26-plate-spreading-on-a-component.md) | decided (K/W only) | fig. 19 | - | research R3, R8 | inv. `component-heatsink` |
+| 27 | [Datasheet numbers and compact models](topics/27-datasheet-numbers-and-compact-models.md) | `theta` and top path in program; node not | `component-heatsink` figs. 6, 2 | `analysis.py` | research E3 to E8 | inv. `component-heatsink` |
+| 28 | [Continuum problem and sources](topics/28-continuum-and-sources.md) | in program | figs. 20, 21 | `model.py`, `geometry.py` | theory 1.1, 1.3 | `validation.md` |
+| 29 | [Verification ladder](topics/29-verification-ladder.md) | in program | fig. 22 | `tests/` | theory 11, validation | inv. `models-comparison`, `solid3d-verification` |
+| 30 | [Board orientation](topics/30-board-orientation.md) | in program | fig. 23 | `convection.py` | models 18 | `tests/test_orientation.py` |
+| 31 | [Program architecture and API](topics/31-program-architecture-and-api.md) | in program | fig. 24 | `api.py`, `cli.py`, `jobs.py` | models 7, 8 | `tests/` |
+| 32 | [The removed program against the current one](topics/32-legacy-program-against-current.md) | history | fig. 25 | tag `legacy-wxpython-1.0.0` | validation 6 | inv. `models-comparison` |
+| 33 | [Time-dependent results](topics/33-time-dependent-results.md) | in program | fig. 26 | `fvm.py`, `profiles.py` | validation 7 | `tests/test_fvm.py`, `test_profiles.py` |
+| 34 | [Input checks](topics/34-input-checks.md) | in program | fig. 27 | `checks.py` | models 3 | `tests/` |
+| 35 | [Curved boards](topics/35-curved-boards.md) | in program | fig. 28 | `geometry.py` | models 14 | `tests/test_templates.py` |
+| 36 | [Prepreg and sheets in a gap](topics/36-prepreg-and-sheets-in-a-gap.md) | in program | fig. 29 | `model.py` (`combine_sheets`) | models 17 | inv. `stackup` |
+| 37 | [Why the FVM and the Analytic model agree](topics/37-why-fvm-and-analytic-agree.md) | explanation | fig. 30 | - | validation 4 | inv. `models-comparison` |
 
 ### 3.1 Diagrams and illustrations
 
-The 16 pictures drawn in this folder (figures 1 to 16 in `figures/`, one script, shared shapes in `research/diagram_kit.py`) are embedded in topics 01 to 16. Topics 17 to 23 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
+The 30 pictures drawn in this folder (figures 1 to 30 in `figures/`, one script, shared shapes in `research/diagram_kit.py`) are embedded in topics 01 to 16, 25, 26 and 28 to 37. Topics 17 to 24 and 27 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
 
 | File | Drawn in | Topic |
 | :-- | :-- | :-- |
@@ -66,8 +80,59 @@ The 16 pictures drawn in this folder (figures 1 to 16 in `figures/`, one script,
 | `figures/fig_14_virtual_jedec_planned.png` | this folder | 14 |
 | `figures/fig_15_import_to_power_planned.png` | this folder | 15 |
 | `figures/fig_16_multigrid_planned.png` | this folder | 16 |
+| `figures/fig_17_air_gap.png` | this folder | 25 |
+| `figures/fig_18_level_chain.png` | this folder | 25 |
+| `figures/fig_19_plate_spreading.png` | this folder | 26 |
+| `figures/fig_20_continuum.png` | this folder | 28 |
+| `figures/fig_21_coverage.png` | this folder | 28 |
+| `figures/fig_22_verification_ladder.png` | this folder | 29 |
+| `figures/fig_23_orientation.png` | this folder | 30 |
+| `figures/fig_24_architecture.png` | this folder | 31 |
+| `figures/fig_25_legacy_vs_current.png` | this folder | 32 |
+| `figures/fig_26_time_results.png` | this folder | 33 |
+| `figures/fig_27_input_checks.png` | this folder | 34 |
+| `figures/fig_28_curved_boards.png` | this folder | 35 |
+| `figures/fig_29_prepreg.png` | this folder | 36 |
+| `figures/fig_30_why_fvm_analytic_agree.png` | this folder | 37 |
 
 Curves that are only illustrative (the shape of a series, a fixed point with arbitrary numbers, a pulse train) say so in their italic line; no number of these pictures is a result. The numbers quoted in the topics come from the project documents and the READMEs of the investigations and are marked with the source.
+
+### 3.2 Coverage of the project documents
+
+Every section that explains a model, an equation or a method has a picture, in this folder or in an investigation. Result sections are covered by the data figures of the investigations. Nothing was left without a picture except what is listed under "No picture needed".
+
+| Document, section | Topic (picture here) | Or the investigation's figures |
+| :-- | :-- | :-- |
+| theory 1.1, 1.2, 1.3 | 28, 01, 28 | |
+| theory 2, 3, 4, 5, 6 | 02, 03, 04, 05, 06 | |
+| theory 7, 8, 9, 10 | 11, 08, 09, 10 | |
+| theory 11, 12 | 29, bibliography | |
+| models 1 | 01, 28 | |
+| models 2 (the five models) | 02 to 06 | `models-comparison` fig. 4 |
+| models 3 input checks | 34 | |
+| models 4 power profiles, 5 heat transfer, 6 parts | 10, 08, 09 and 27 | `component-heatsink` figs. 1, 5, 6 |
+| models 7 API and command line, 8 the application, 11 the calculation process | 31 | screenshots of the application in `docs/images/` (project documents) |
+| models 8 stack-up, 12 typical stack-ups, 17 prepreg | 22, 22, 36 | `stackup` figs. 1 to 5 |
+| models 9 outline, 14 curved boards | 20, 35 | `outline` figs. 1 to 5 |
+| models 10 power from a temperature | 23 | `power-calculator` figs. 4, 5 |
+| models 13 where the heat goes, 15 block and fins, 16 paste and package body | 09, 25, 27; 11, 24; 24, 27 | `component-heatsink`, `block-and-fins` |
+| models 18 orientation | 30 | |
+| validation 1, 2 scenarios | 29 | `models-comparison` figs. 1, 2, 5 |
+| validation 3 and 3.1 the 3D solid and the outer copper | 04, 18, 29 | `solid3d-verification` figs. 1 to 5 |
+| validation 4 FVM and Analytic agree | 37 | |
+| validation 5 solvers | 02 | `models-comparison` fig. 3 |
+| validation 6 the removed program | 32 | |
+| validation 7 time | 33, 07 | |
+| validation 8 computed `h`, 9 parts | 08, 09 | |
+| validation 12 to 14 stack-up, outline, calculator, process, typical stack-ups | 22, 20, 23, 31 | `stackup`, `outline`, `power-calculator` |
+| validation 15, 17 fins and the block in Lumped and Analytic | 11 | `block-and-fins` figs. 1 to 5 |
+| validation 16 the 3D solid verified | 04, 18 | `solid3d-verification` figs. 1, 2, 6 |
+| validation 18, 19 via fill, power from the top of the package | 21, 23 | `via-fill`, `power-calculator` |
+| calculators 1 to 5 | 23, 14 | `power-calculator` figs. 1 to 5 |
+| roadmap: planned items | 12 to 16, 19, 15 | `gerber-nets`, `gerber-models` |
+| research R2 to R6, R8, E3 to E8 | 24 to 27, 13 | `component-heatsink` |
+
+**No picture needed:** `validation` 10 (literature) and 11 (how to reproduce: commands), `roadmap` "Ideas from similar projects and tools" (a table of tools, no method of ours), `research` R7 (presentation notes) and the open questions for the maintainer, `calculators` 4 and 5 (commands and sources), the `models.md` and `theory.md` sections that are only lists of parameters.
 
 ## 4. Folder layout
 
@@ -75,9 +140,10 @@ Curves that are only illustrative (the shape of a series, a fixed point with arb
 | :-- | :-- |
 | `README.md` | this index |
 | `BIBLIOGRAPHY.md` | every source: key, citation, address, reading status, topics that use it; the list of what to read next |
-| `topics/` | the 23 topic files |
-| `figures/` | `fig_01` to `fig_16` |
-| `scripts/make_diagrams.py` | draws the 16 figures (no data, no program) |
+| `topics/` | the 37 topic files |
+| `figures/` | `fig_01` to `fig_30` |
+| `scripts/make_diagrams.py` | draws the 30 figures (no data, no program) |
+| `scripts/check_mapping_formulas.py` | numerical check of the properties of the 2D effective-medium formulas (the only confirmation they have) |
 | `docs/theory-figures.md` | where each topic goes in the project documents when it is adopted |
 | `tests/test_theory.py` | the checks of this folder: every figure and link exists, every bibliography key used in a topic is defined, every topic has the sections |
 
@@ -88,8 +154,7 @@ Curves that are only illustrative (the shape of a series, a fixed point with arb
 
 ## 5. Still to write
 
-* Theory sections without a topic file: `docs/theory.md` 1.1 (the continuum problem), 1.3 (sources and geometry: sub-sampled coverage, exact power), 11 (verification summary). The coverage of 1.3 is described in topic 02.
-* Items of `docs/research.md` (R2 to R8, E3 to E8: heatsink larger than its contact, chains of many levels, the datasheet conversions) are drawn in `research/component-heatsink/`; they get a topic when they are decided.
+* Every section of `docs/theory.md`, the sections of `docs/models.md` that explain a model (7 API, 18 orientation included) and the sections 6 and 7 of `docs/validation.md` now have a topic; the other result sections of `docs/validation.md` are covered by the figures of the investigations named in the table (models-comparison, solid3d-verification, block-and-fins, via-fill, stackup, outline, power-calculator). Every section of `docs/theory.md` has a topic (1.1 and 1.3 are topic 28, 11 is topic 29, 12 is the bibliography). The items of `docs/research.md` R2 to R8 and E3 to E8 are topics 24 to 27, R4 and the open questions about the heater as a source or a component are in topic 27; R7 (vertical information and presentation) and the open questions for the maintainer are design notes without physics and have no topic.
 * The topics of the planned work (12 to 16) say what would be built; they become formulation and results when the work is done, and their text moves into `docs/theory.md` with the picture.
 
 ## 6. Adoption
@@ -99,5 +164,6 @@ A topic is adopted when the maintainer decides: its text is folded into `docs/th
 ## What was read and what was not verified
 
 * **Read in full**: `docs/theory.md` (all sections), the parts of `docs/models.md`, `docs/roadmap.md`, `docs/calculators.md` and `docs/validation.md` named in the topics, and the READMEs and literature notes of the investigations named in topics 17 to 23. The topic files restate them; they add structure, the pictures, the paths and the bibliography, not new results.
-* **Not opened in this work**: every textbook and standard of `BIBLIOGRAPHY.md` marked M or N; the statements taken from them are marked "(memory)" or "(from the project documents)" there. Sources marked S were seen as search summaries by the earlier work that cites them.
+* **Not opened in this work**: every textbook and standard of `BIBLIOGRAPHY.md` marked M or N; the statements taken from them are marked "(memory)" or "(from the project documents)" there. Sources marked S were seen as search summaries, by the earlier work that cites them or by the later round of checks described at the top of the bibliography (web search worked, page fetch and downloads were blocked, only the package index was readable).
+* **Checked numerically here**: the properties of the Bruggeman and Hashin-Shtrikman formulas (`scripts/check_mapping_formulas.py`), the area loss of a polygon corner (topic 35, figure 28), the coverage sum against the polygon area (topic 28, figure 21). Everything else in the topics is copied from the project documents.
 * **Not verified**: the planned topics (12 to 16) describe intended behaviour; the formulas of topic 12 and 16 are general textbook knowledge written without a source; the pictures are explanations, not tests.

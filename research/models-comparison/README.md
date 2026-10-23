@@ -18,6 +18,10 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 
 *Figure 5 (`figures/fig_05_where_models_fail.png`): the cases where the Lumped and Analytic models stop being reliable, drawn as boards: copper edge across a heater, heater in a corner, long thin heater, next to an ordinary board (errors of section 2).*
 
+![Figure 6](figures/fig_06_measurement_setup.png)
+
+*Figure 6 (`figures/fig_06_measurement_setup.png`): the planned measurement on a physical board (a plan, not a result): a heater of known electrical power, thermocouples at several distances, an infrared camera on a painted area, an ambient thermocouple and a still-air enclosure; and the chain from the reading to the comparison with the models (`docs/measurement-protocol.md`).*
+
 ## 2. Findings in short
 
 * On ordinary boards every model is within a few percent of the FVM (FDM about 2 % low where a via is sampled at the nearest node, 3D solid within 1 % above, Lumped within 4 % and Analytic within 2 %). Energy balance closes to 1e-11 in every model.
@@ -33,8 +37,9 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 | `accuracy_study.py`, `stress_study.py` | The scenario lists for the Lumped and Analytic models (accuracy; stress cases). |
 | `scripts/solver_equivalence.py` | Direct, CG and SOR on five boards (section 4.4; about 5 seconds). |
 | `scripts/make_figures.py` | Draws the three figures (about 5 minutes). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 to 6; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_06`; figures 4 to 6 are diagrams and illustrations (`make_diagrams.py`). |
+| `docs/measurement-protocol.md` | The protocol of a measurement on a physical board (a plan: nothing was measured). |
 | (see also) | The comparison also uses `../solid3d-verification/fem3d_validation.py` with `--fem`. |
 
 ```sh
@@ -247,5 +252,5 @@ Own computation. The removed program is documented by its code at tag `legacy-wx
 
 ## What was read and what was not verified
 
-* Not verified: no measurement of a physical board.
+* Not verified: no measurement of a physical board. A protocol for the first one (one board, a heater of known power, three powers, five models, the agreement criterion fixed beforehand) is in `docs/measurement-protocol.md`: it is a plan, nothing was built or measured.
 * Sections 4.5 to 4.7 are copied from `docs/validation.md` and were **not** re-run here (legacy code removed; time results come from tests); CG shows 3.3e-12 K against 1.8e-12 K in the old table (a solver detail).
