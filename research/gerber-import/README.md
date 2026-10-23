@@ -95,7 +95,7 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-impo
 | `scripts/study_validation_boards.py` | The copper area, pieces and holes of every layer of the eight boards against the vector truth (4.41). |
 | `scripts/study_vias_nets.py`, `study_kicad_nets.py` | Holes, vias and nets (4.29); the nets against a KiCad project (4.33). |
 | `scripts/make_figures.py` | Draws the figure. |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 6). |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 and 7). |
 
 ## 4. How to run, and the results
 
@@ -135,6 +135,10 @@ The first run found four defects, now fixed and covered by tests: comment statem
 Honest summary: the independent reader is not a better reader, it is a smaller one that does one job (rasterise copper and holes) with no library whose licence the closed product would have to carry. It supports fewer features, is validated on fewer files, and its remaining disagreements are on silkscreen/outline files and on two spec edge cases where it follows the spec text.
 
 ### 4.19 What can be read: copper layers and drill files (`study_reader_scope.py`)
+
+![Figure 7](figures/fig_07_what_the_files_draw.png)
+
+*Figure 7 (`figures/fig_07_what_the_files_draw.png`): what the files draw: the operations of a Gerber copper layer (flash, draw, arc, region, clear polarity) and the plated holes of a drill file, a via and a component hole (illustration, no data).*
 
 Only copper layers and drills matter for the program (silkscreen, mask, paste and assembly are ignored; the classifier uses the X2 file function or the file name). On gerbonara's test resources and the downloaded boards:
 

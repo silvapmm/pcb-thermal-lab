@@ -113,7 +113,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
 | `scripts/make_figures.py` | Draws the twelve figures into `figures/`. |
-| `scripts/make_diagrams.py` | Draws the schematic diagrams (figures 13 and 14). |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 16). |
 
 ## 4. How to run, and the results
 
@@ -310,6 +310,10 @@ Limits: research solver and boards only (the program's `fvm.py` has no diagonal 
 
 ### 4.7 Copper thickness (`study_contrast.py`)
 
+![Figure 16](figures/fig_16_copper_thickness_scale.png)
+
+*Figure 16 (`figures/fig_16_copper_thickness_scale.png`): the four copper thicknesses in proportion, with the contrast with the laminate and the bias of the fill fraction at 0.6 mm cells (numbers of the table below; the laminate is not to scale).*
+
 MAE (bias) for 18, 35, 70 and 140 µm of copper (contrast copper / laminate 4.8, 9.4, 18.7, 37.4):
 
 | Copper | Method | 0.6 mm | 1.0 mm | 2.0 mm |
@@ -381,6 +385,10 @@ Does drawing the copper as a coverage per pixel (4 x 4 sub-samples averaged, `na
 ## 4.C Real layers, patterns and other scenarios
 
 ### 4.11 Regular patterns: what "fill 0.5" means (`study_patterns.py`, `study_patterns_two_layer.py`)
+
+![Figure 15](figures/fig_15_same_fill_different_copper.png)
+
+*Figure 15 (`figures/fig_15_same_fill_different_copper.png`): five copper patterns of about 50 % fill and the error of the program's fill fraction on each (the numbers of the table below, over a plane).*
 
 Synthetic patterns of about 50 % copper (pitch 1 mm), single layer and a two-layer board as the program models it (patterned top over a full plane, or over bare laminate). Error of the block-mean
 temperature of the top layer (%), cells of 1 mm; positive = too hot:
