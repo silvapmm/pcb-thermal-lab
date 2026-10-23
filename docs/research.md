@@ -2,7 +2,7 @@
 
 This file collects investigations that are **not implemented yet**: what was read, what was simulated, what is still open. It is used until the work is implemented;
 then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/roadmap.md`, the scripts stay in `examples/`, and this file goes back to the empty template below.
-Values marked *assumed* are not from a datasheet. Everything is reproducible with the scripts named in each section.
+Values marked *assumed* are not from a datasheet. Everything is reproducible with the scripts named in each section. A copy of these notes, with the studies, their results and the figures, is in `research/component-heatsink/` (README, NOTES.md).
 
 ## Open now: the Component element (junction node, heatsink scenarios, Foster chain)
 
