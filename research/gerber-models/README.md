@@ -112,6 +112,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_diagonal.py` | The nine-point experiment on the tracks and on the 42 windows (4.44; about 15 minutes). |
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
+| `scripts/study_diagonal_gate.py` | A detector of the cells that should get diagonal faces: the share is decided cell by cell from the cell tensor and compared with the fixed shares (4.48; results being written). |
 | `scripts/make_figures.py` | Draws the data figures (1 to 12 and 18) into `figures/`. |
 | `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 17). |
 

@@ -153,13 +153,14 @@ def faces5_as9(gx, gy):
     return gx, gy, z, z.copy()
 
 
-def hybrid_faces(S, n, alpha=1.0):
+def hybrid_faces(S, n, alpha=1.0, gate=None):
     """!
     @brief Flow-based axial faces plus the diagonal conduction they miss: the cell tensor gives the conductance along each diagonal, (kxx + kyy) / 2 +- kxy, and the diagonal pair adds what the axial faces do not already deliver along it.
     @details The axial faces are the flow-based ones (the mapping of README 4.4 to 4.13, unchanged); the diagonal pair of a cell has the conductance max(k_diagonal - (cx + cy) / 2, 0) / 2, where cx and cy are the cell values of the flow-based faces (the mean of the two faces of the cell), so an axis-aligned conductor and a uniform cell get no diagonal faces.
     @param S Pixel sheet conductances (ny, nx), whole cells of n x n pixels.
     @param n Pixels per cell side.
     @param alpha Share of the missing diagonal conduction that is added (1 = all of it).
+    @param gate Optional function (kxx, kyy, kxy) -> array (cy, cx) of shares in 0..1 that replaces `alpha` cell by cell: the detector of the cells whose diagonal conduction should be added (README 4.47).
     @return tuple (gx, gy, gd1, gd2) with the shapes of `solve9`.
     """
     gx, gy = cd.dual_faces(S, n, 0)
@@ -173,6 +174,8 @@ def hybrid_faces(S, n, alpha=1.0):
     cyv[1:, :] += gy
     cyv[1:-1, :] /= 2.0
     kxx, kyy, kxy = cell_tensor(S, n)
+    if gate is not None:
+        alpha = gate(kxx, kyy, kxy)
     mean_k = 0.5 * (kxx + kyy)
     base = 0.5 * (cxv + cyv)
     c1 = alpha * np.maximum(mean_k + kxy - base, 0.0) / 2.0
