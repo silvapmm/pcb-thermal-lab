@@ -18,6 +18,8 @@ import conduction as cd
 import joule
 import make_synthetic as ms
 import native_gerber as ng
+import our_board
+import scenarios as sc
 import windows
 from study_net_joule import disc, net_pads
 
@@ -97,14 +99,18 @@ def synthetic_nets_gerber():
     return t + "M02*\n"
 
 
-def fig_nets():
+def fig_nets(text=None, target="VIN", filename="fig_02_nets_and_joule.png", title=None, pix=0.05):
     """!
-    @brief A synthetic board of our own coloured by net, and the potential and Joule heat of net VIN at 1 A.
+    @brief A synthetic board of our own coloured by net, and the potential and Joule heat of one net at 1 A between its two farthest pads.
+    @param text Gerber text (default: the small board of figure 02).
+    @param target Net to solve.
+    @param filename Output file name in figures/.
+    @param title Title of the first panel (default: the generic one).
+    @param pix Pixel size (mm).
     @return None.
     """
-    layer = ng.Layer(synthetic_nets_gerber())
+    layer = ng.Layer(synthetic_nets_gerber() if text is None else text)
     bb = layer.bbox()
-    pix = 0.05
     # Anchor the pixel lattice so that no track edge falls exactly on a pixel centre (a tie that would make a 0.25 mm neck 0.30 mm wide, README 4.23): pixel centres at multiples of 0.05 mm in y and at odd multiples of 0.025 mm in x
     x_left, y_top = np.floor((bb[0] - 0.2) / pix) * pix, (np.ceil((bb[3] + 0.2) / pix) + 0.5) * pix
     w, h = bb[2] + 0.2 - x_left, y_top - (bb[1] - 0.2)
@@ -129,9 +135,9 @@ def fig_nets():
     fig, axs = plt.subplots(1, 3, figsize=(16, 5.6))
     ext = (cv_all.x0, cv_all.x0 + lab.shape[1] * pix, cv_all.y0 - lab.shape[0] * pix, cv_all.y0)
     axs[0].imshow(img, cmap=ListedColormap(cols), vmin=0, vmax=len(cols) - 1, interpolation="nearest", extent=ext)      # fixed limits: a net keeps its colour whichever labels occur
-    axs[0].set_title(f"synthetic board with X2 net attributes: {len(nets)} nets (colours), grey would be copper with no net", fontsize=9)
-    # Joule heat of one net: the largest piece of VIN with two or more pads, between its two farthest pads, 1 A
-    net = "VIN"
+    axs[0].set_title(title or f"synthetic board with X2 net attributes: {len(nets)} nets (colours), grey would be copper with no net", fontsize=9)
+    # Joule heat of one net: the largest piece of the target net with two or more pads, between its two farthest pads, 1 A
+    net = target
     pads = np.array(net_pads(layer, net))
     pieces = [c for c, v in owner.items() if v == {net}]
     sizes = np.bincount(lab.ravel())
@@ -156,7 +162,7 @@ def fig_nets():
         ax.plot(pa[:, 0], pa[:, 1], "w.", ms=3)
         ax.plot([pa[i][0], pa[j][0]], [pa[i][1], pa[j][1]], "wo", ms=7, mfc="none")
     fig.tight_layout()
-    fig.savefig(OUT / "fig_02_nets_and_joule.png", dpi=110)
+    fig.savefig(OUT / filename, dpi=110)
     plt.close(fig)
 
 
@@ -196,6 +202,43 @@ def fig_mapping():
     plt.close(fig)
 
 
+def fig_board_thermal():
+    """!
+    @brief The IC board of our own (our_board.py) as a thermal problem: 1 W under the IC, border held at 0 K, h = 10 W/m2K. The temperature rise resolved pixel by pixel, and the difference of the 1 mm cell models (fill fraction today, flow-based faces) from it.
+    @return None.
+    """
+    layer = ng.Layer(our_board.gerber_text())
+    cv = ng.Canvas(0.0, our_board.SIZE, our_board.SIZE, our_board.SIZE, 0.1)
+    layer.draw(cv)
+    S = cd.sheet_of(cv.mask[::-1])
+    power, fixed, (y0, y1, x0, x1) = sc.box_scenario(S.shape, 0.1, 6.0)
+    ref = sc.pixel_reference(S, 0.1, power, 10.0, fixed)
+    n = 10
+    cy, cx = S.shape[0] // n, S.shape[1] // n
+    pw = power.reshape(cy, n, cx, n).sum(axis=(1, 3))
+    fx = cd.cell_blocks(fixed, n).mean(axis=(2, 3)) >= 0.5
+    ref_cells = ref.reshape(cy, n, cx, n).mean(axis=(1, 3))
+    faces = sc.coarse_faces(S, n, cd.S_CU, cd.S_LAM)
+    fig, axs = plt.subplots(1, 3, figsize=(16, 5.4))
+    ext = (0, our_board.SIZE, 0, our_board.SIZE)
+    im = axs[0].imshow(ref[::-1], cmap="inferno", interpolation="nearest", extent=ext)
+    axs[0].contour(cv.mask[::-1].astype(float), levels=[0.5], colors="w", linewidths=0.3, extent=ext, origin="lower")
+    axs[0].set_title("resolved temperature rise (K): 1 W under the IC, border at 0 K", fontsize=9)
+    fig.colorbar(im, ax=axs[0])
+    for ax, key, label in ((axs[1], "fill fraction (today)", "fill fraction per 1 mm cell (today)"), (axs[2], "flow-based faces", "flow-based faces on 1 mm cells")):
+        gx, gy = faces[key]
+        T = sc.solve_general(gx, gy, 1.0, pw, 10.0, fx)
+        d = T - ref_cells
+        im = ax.imshow(d[::-1], cmap="RdBu_r", vmin=-15, vmax=15, interpolation="nearest", extent=ext)
+        ax.set_title(f"{label}: difference from the resolved field (K)\nheater mean {100 * (T[y0 // n:y1 // n, x0 // n:x1 // n].mean() / ref[y0:y1, x0:x1].mean() - 1):+.1f} %", fontsize=9)
+        fig.colorbar(im, ax=ax)
+    for ax in axs:
+        ax.set_xlabel("mm")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_05_ic_board_thermal.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the three figures.
@@ -205,6 +248,8 @@ def main():
     fig_angles()
     fig_nets()
     fig_mapping()
+    fig_nets(our_board.gerber_text(), "S1", "fig_04_ic_board_nets_and_joule.png", f"our IC board (our_board.py): {our_board.N_SIG} signal nets on circular arcs and GND (nine colours)", pix=0.025)
+    fig_board_thermal()
     print("figures in", OUT)
 
 

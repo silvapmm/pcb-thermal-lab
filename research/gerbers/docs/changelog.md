@@ -9,3 +9,4 @@ Text that was added to the Unreleased section of `CHANGELOG.md`; kept here until
 - `research/gerbers`: angle sweep of thin tracks (area, connectivity, resistance), nine-point stencil option in the net solver, figure script.
 - `research/gerbers`: CONCLUSIONS.md, boundary-limited scenarios (Sampson regime), tests of the claims (58 tests).
 - `research/gerbers`: coverage masks, tests of every model with the mapped conductance, union-rule finding with tests, vias and nets (`nets.py`), a post-mounted board analogue, 64 tests.
+- `research/gerbers`: `our_board.py` (an IC board of our own with circular tracks, nets, vias and a drill file) as a test bench and for figures 04 and 05; the third-party figures replaced; 68 tests.

@@ -1,6 +1,6 @@
 # Conclusions: importing Gerber copper into the thermal grid
 
-Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`study_*.py`) and, where it is a claim that can break, a test (`tests/`, 64 tests in about 13 s; `python -m pytest -q tests` from this folder; the two program tests need the program's dependencies and one geometry test needs shapely). Nothing in `pcbthermal/` was changed.
+Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`study_*.py`) and, where it is a claim that can break, a test (`tests/`, 68 tests in about 17 s; `python -m pytest -q tests` from this folder; the two program tests need the program's dependencies and one geometry test needs shapely). Nothing in `pcbthermal/` was changed.
 
 ## 1. Where we stand
 
@@ -57,6 +57,7 @@ Other validated results:
 | Program unions zones by maximum: the same copper in 0.5 mm strips is hotter | +7 % FVM, +17 % FDM, +10 % 3D solid, +7 % Analytic, +8 % Lumped | 4.27 | `test_union_by_maximum_loses_copper_when_zones_share_cells` |
 | Coverage mask against binary at 0.1 mm (21 real windows, truth 0.025 mm): flow-based faces | 6.5 to 4.1 % (thin-track boards 15.8 to 4.6 and 11.3 to 2.8) | 4.26 | `study_coverage.py`, `study_coverage_real.py`, `test_coverage_keeps_the_area_of_thin_tracks` |
 | Post-mounted board analogue: smeared model against the bitmap, maximum rise | -81 to -90 % without convection (factor 5 to 10; the article: 26), -28 to -35 % with 10 W/m2K | 4.28 | `study_post_board.py` |
+| A board of our own (`our_board.py`): nine nets in one piece each and no short, 16 holes with the right nets, arc net resistance within +15 % of the hand count, fill fraction -5.6 % and flow-based faces +4.4 % at 1 mm cells | 4 tests | 4.30 | `tests/test_our_board.py` |
 | Vias and nets: 225 vias of a 4-layer KiCad board, net equal on all four layers | 225 of 225; 68 of 68 plated component holes of the X2 test set agree on both layers | 4.29 | `study_vias_nets.py`, `tests/test_nets.py` |
 | Published 10 % copper example: along 39.6 (article ~40), across 0.655 W/m K (article 0.65) | exact | 4.21 | `test_published_parallel_and_series_example` |
 | Blackmore's tile formulas = `low` bound + arithmetic fraction | exact | 4.21 | `test_blackmore_tile_formulas_are_the_lower_bound_and_the_arithmetic_mean` |
@@ -96,7 +97,7 @@ Other validated results:
 ## 6. How to reproduce
 
 ```
-python -m pytest -q tests                      # 64 tests, about 13 s
+python -m pytest -q tests                      # 68 tests, about 17 s
 python study_sampson_boundary.py               # section 4.25, about 10 minutes
 python compare_readers.py synthetic            # needs gerbonara, pygerber, pcb-tools, shapely, pillow
 python make_figures.py                         # the pictures in figures/

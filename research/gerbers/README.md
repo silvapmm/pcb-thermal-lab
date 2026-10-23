@@ -61,13 +61,14 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara, and the comparison with gerbonara, pygerber and pcb-tools (4.22). Needs `pip install gerbonara pygerber pcb-tools shapely pillow`. |
 | `study_gerber_writer.py` | Files written with Ucamco's `gerber-writer` (thermal pads, arcs, regions) read by the reader and gerbonara (4.24). Needs `pip install gerber-writer`. |
 | `study_angles.py`, `make_figures.py` | Tracks at any angle: area, connectivity, resistance (4.23); `make_figures.py` writes the pictures to `figures/`. |
-| `figures/` | The pictures, named `fig_NN_topic.png` in order of creation (committed on purpose, the README files link to them): 01 angles on the pixel grid (our own synthetic tracks), 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT). |
+| `figures/` | The pictures, named `fig_NN_topic.png` in order of creation (committed on purpose, the README files link to them): 01 angles on the pixel grid (our own synthetic tracks), 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 and 05 our IC board (nets, Joule heat, thermal maps). |
 | `scenarios.py`, `study_sampson_boundary.py` | Boundary-limited scenarios: fixed-temperature posts or border, no convection, stripes and 42 windows (4.25). |
 | `CONCLUSIONS.md` | The conclusions, the comparison with the three articles, the table of validated numbers with the test of each claim, the limits and the decisions left open. |
 | `study_coverage.py`, `study_coverage_real.py`, `study_models_self.py`, `study_post_board.py`, `study_vias_nets.py`, `nets.py`, `boards_synthetic.py` | Coverage masks (4.26), every model of the program (4.27), the post-mounted board analogue (4.28), vias and nets (4.29); the synthetic board generator. |
+| `our_board.py`, `tests/test_our_board.py` | A board of our own (IC, circular tracks, nets, vias, drill file) used as a test bench and for figures 04 and 05 (4.30). |
 | `joule.py`, `study_net_joule.py` | Current in a net and the heat it makes (4.20). |
 | `study_reader_scope.py` | Which copper layers and drill files the reader handles (4.19). |
-| `tests/` | 64 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
+| `tests/` | 68 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
 | `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |
 
 ## 4. How to run, and the results
@@ -496,6 +497,20 @@ The article's board (6 layers, 100 x 125 mm, four posts, traces that stop short 
 * **KiCad X2 test set** (2 layers, 80 holes, all variants): 76 plated, 4 non-plated; in the variant with aperture attributes 68 plated holes are classified `component` with a pad on both layers and the same net on both (68 of 68, no conflict), 8 plated holes have no pad found (`unknown`); without aperture attributes 30 are `unknown`, which shows how much the attributes give. The nets of this test file are all `N/C` (a pads-only test board).
 * **Vias seen from the pads, a real 4-layer board** (`charliewatch-v2`, KiCad 7, no drill file in the test set): 225 vias found as `ViaPad` flashes at the same position on all four layers, **225 of 225 with the same net on the four layers**, none conflicting, none without a net, every via joining four layers; the nets with most vias are `/X3` (19), `/X1` (18). So the Gerber files do give the polygons-to-nets mapping on every layer and the via connections between layers, when the CAD tool writes the attributes.
 * **Polygons to nets**: yes, by the net attribute of the objects (pads, tracks) and by connectivity for the rest (4.20); a net across layers is the union of its pieces joined by its vias. Files from tools that do not write the attribute give no nets.
+
+### 4.30 A board of our own as a bench: an IC with circular tracks (`our_board.py`, `tests/test_our_board.py`, figures 04 and 05)
+
+Because the third-party test boards cannot be pictured (4.9), the repository has a board of its own that can be drawn, tested and published freely: `our_board.py` writes it as RS-274X with X2 attributes (file function, aperture functions `Conductor`, `SMDPad,CuDef`, `ViaPad`, `ComponentPad`, net names) and as an Excellon drill file with the X2 file function. 40 x 40 mm, an IC in the middle (a 2.4 mm exposed pad with four thermal vias and eight 0.8 x 0.35 mm pads), **eight signal nets that leave the IC radially and run round it on circular arcs (up to 150°, tracks of 0.2 mm, circles 1 mm apart) to 0.8 mm test points with plated holes**, and a ground net (exposed pad, a 0.8 mm spoke, a 0.8 mm ring of radius 18.5 mm with four vias). Copper is 10 % of the area.
+
+![Figure 4: our IC board coloured by net, potential and Joule heat of net S1 at 1 A](figures/fig_04_ic_board_nets_and_joule.png)
+
+*Figure 4 (`figures/fig_04_ic_board_nets_and_joule.png`): left, the nine nets found by the reader; middle and right, potential and Joule heat density of net S1 (a radial stub and a 150° arc, 229 squares) at 1 A between its IC pad and its test point: R = 119 mΩ and 119 mW (35 µm copper, 0.025 mm pixels); the hand count of 229 squares gives 110 mΩ, so the five-point grid is 8 % high on a curved 8-pixel track, as 4.23 predicts.*
+
+![Figure 5: temperature rise resolved at 0.1 mm for 1 W under the IC, and the difference of the fill fraction and of the flow-based faces on 1 mm cells](figures/fig_05_ic_board_thermal.png)
+
+*Figure 5 (`figures/fig_05_ic_board_thermal.png`): 1 W in a 6 x 6 mm block under the IC, border held at 0 K, h = 10 W/m²K; left, the temperature rise resolved at 0.1 mm (110 K mean over the heater); middle and right, the difference of the 1 mm cell models from it. The fill fraction (today) is 5.6 % cool, concentrated in the copper-poor cells round the IC; the flow-based faces are +4.4 % (geometric mean +13 %, lambda 0.5 +6 %, tile bound +13 %); without convection -8.2 % and +5.1 %.*
+
+The tests use the board as a bench (4 tests, 7 s): nine nets, each one 8-connected piece, no pixel of a net within a pixel of another net (no short, clearance of at least 0.05 mm), the nets do not overlap; the 16 plated holes (8 vias, 8 test points) found with the right net by position (`nets.hole_report`), the drill file's X2 function read; the resistance of the longest arc net within +15 % of its squares and its heat equal to I²R; and the mapping to the thermal grid (fill fraction cool, geometric mean hot, flow-based faces within 8 %). To use it elsewhere: `import our_board`; `our_board.gerber_text()`, `drill_text()`, `holes()`, `net_name(k)`, `squares(k)`, `write(folder)`.
 
 ## 5. Without third-party libraries: the independent reader
 
