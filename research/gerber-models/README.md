@@ -113,6 +113,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
 | `scripts/make_figures.py` | Draws the twelve figures into `figures/`. |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams (figures 13 and 14). |
 
 ## 4. How to run, and the results
 
@@ -567,6 +568,10 @@ Geometry that needs no interpretation, so the differences are the models and the
 
 ### 4.37 How to validate the models on the rectangle board, and why the FVM looks worse (`study_rect_convergence.py`, `tests/test_rect_board.py`)
 
+![Figure 14](figures/fig_14_validation_chain_schematic.png)
+
+*Figure 14 (`figures/fig_14_validation_chain_schematic.png`): the validation chain on the rectangle board: convergence to each model's own limit and distance to an independent formulation (diagram, numbers of this section).*
+
 In 4.35 the Lumped and the Analytic showed errors near 0 % where the FVM showed -7 %. That compared each model with *itself*: the FVM sees the 0.4 mm shift of the copper (its cells change), the two reduced models do not, and they sit 16 and 26 % **below** the FVM anyway. A model that does not react to the grid is not accurate, it is insensitive. The validation therefore asks two separate questions: does each model converge to its own limit, and how far are the limits from each other and from an independent reference.
 
 Mean heater rise (K) of the program's own zones, two layers, by cell size (`out/study_rect_convergence.txt`):
@@ -680,6 +685,10 @@ So **boards without partial copper do not change; a hatched zone changes by tens
 The conclusion: do not change the zone formula; give the imported copper its own element.
 
 ### 4.39 Measured impact of the two proposed corrections to the program (`study_fix_impact.py`)
+
+![Figure 13](figures/fig_13_laminate_single_layer_schematic.png)
+
+*Figure 13 (`figures/fig_13_laminate_single_layer_schematic.png`): the 3D solid under a single copper layer, without and with the laminate slab: 346.1 K against 174.0 K (diagram, numbers of this section).*
 
 ![Figure 11: how the zones of a layer are combined cell by cell](figures/fig_11_zone_union.png)
 

@@ -83,6 +83,7 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-nets
 | `lib/pdn.py` | DC network of the copper with voltage sources, current sinks and links (resistors between pieces); the energy balance. |
 | `scripts/study_net_joule.py`, `study_angles.py`, `study_pdn_links.py` | The heat of a net (4.20), tracks at any angle (4.23), sources, sinks and links (4.40). |
 | `scripts/make_figures.py` | Draws the five figures. |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams (figures 6 and 7). |
 
 ## 4. How to run, and the results
 
@@ -92,6 +93,10 @@ cd research/gerber-nets && ../../.venv/bin/python -m pytest -q tests        # 11
 ```
 
 ### 4.20 Nets: how much does the 5 V net heat up? (`joule.py`, `study_net_joule.py`, `tests/test_joule.py`)
+
+![Figure 6](figures/fig_06_joule_chain_schematic.png)
+
+*Figure 6 (`figures/fig_06_joule_chain_schematic.png`): from the mask of a net to its Joule heat in the cells (diagram).*
 
 **Can polygons be mapped to a net? Yes, if the CAD tool wrote it.** KiCad (and others) write the X2 object attribute `%TO.N,<net>*%` before the objects of a net (`%TD*%` ends it). The reader now keeps the net of every operation (`Layer.nets`, `Layer.net_names()`, `Layer.draw(canvas, nets=[...])`; a step and repeat keeps it). Limits found on the two KiCad 7 files of the test set: the pads and tracks carry a net, **the zone fills did not** (one 428 mm² fill on the top layer touches no labelled object, 64 % of that layer's copper), and the net names of a panel repeat on every board (`Board_0-/X9` 25 times), so one name is several separate pieces. Hence the working rule of the study: the net of a piece of **connected copper** is the net of the labelled objects it contains (149 of 176 pieces on the top layer have exactly one net, none has two). Files from tools that do not write the attribute (EasyEDA, Fritzing, most older ones) need the net from the user (click a piece) or from a netlist.
 
@@ -141,6 +146,10 @@ In 4.33 the Stormduino's `+5V` is two pieces of copper in the CAD file as well a
 * **Not done**: no net with links was solved; no piece-by-piece examination of the Stormduino's split nets.
 
 ### 4.40 Sources, sinks and links: the electrical side (`pdn.py`, `study_pdn_links.py`, `tests/test_pdn.py`, figure 4)
+
+![Figure 7](figures/fig_07_electro_thermal_loop_schematic.png)
+
+*Figure 7 (`figures/fig_07_electro_thermal_loop_schematic.png`): the proposed order of work of the electrical side and the electro-thermal loop (diagram, a proposal, not built).*
 
 The question: how could the sinks and resistors be done in the application, and has anyone done it. What is known (from web searches, snippets only; the repositories of kicad-electrothermal-sim and padne returned 404 to the fetch tool; the Altium host could not be resolved; nothing was read in full): commercial power-integrity tools model **supply pins as voltage sources, loads as current sinks (a current per pad or per device), series elements as resistances, and the copper as a resistor network**; in the DC case the capacitances are shorted and the analysis is the solution of that network (OpenROAD PDNSim documentation snippet; Altium PDN Analyzer: source voltage and internal resistance, load as a current sink). In `docs/roadmap.md` (on `develop`) FYPA and padne are listed with text directives on `DESIGNATOR.PAD` endpoints, a sidecar file and the current solution as heat source (AGPL: ideas only).
 
