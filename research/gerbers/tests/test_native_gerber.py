@@ -178,3 +178,55 @@ def test_nonstandard_aperture_is_reported_as_unsupported(tmp_path):
     """!@brief A CAD-specific aperture shape raises NotImplementedError, not a file error. @param tmp_path pytest temp dir. @return None."""
     with pytest.raises(NotImplementedError):
         ng.Layer(HEAD + "%ADD13Rect-W1650000-H1650000-RO1.500*%\nM02*\n")
+
+
+def test_net_attribute_selects_objects(tmp_path):
+    """!@brief The X2 object attribute TO.N names the net of the objects that follow, TD ends it, and a net can be drawn alone. @param tmp_path pytest temp dir. @return None."""
+    t = (HEAD + "%ADD10C,2.0*%\nD10*\n%TO.N,5V*%\n" + xy(5, 25, 3) + "%TO.N,GND*%\n" + xy(15, 25, 3) + "%TD*%\n" + xy(25, 25, 3) + "M02*\n")
+    p = tmp_path / "n.gbr"
+    p.write_text(t)
+    layer = ng.Layer(t)
+    assert layer.net_names() == ["5V", "GND"]
+    one = math.pi
+    for nets, expected in ((None, 3 * one), (["5V"], one), (["5V", "GND"], 2 * one)):
+        cv = ng.Canvas(0.0, 30.0, 30.0, 30.0, 0.02)
+        layer.draw(cv, nets)
+        assert float(cv.mask.sum() * 0.02 ** 2) == pytest.approx(expected, rel=0.02)
+
+
+def test_step_and_repeat_keeps_the_net(tmp_path):
+    """!@brief The copies made by a step and repeat belong to the net of the original. @param tmp_path pytest temp dir. @return None."""
+    t = HEAD + "%ADD10C,1.0*%\nD10*\n%TO.N,A*%\n%SRX2Y1I4.0J0*%\n" + xy(2, 20, 3) + "%SR*%\nM02*\n"
+    layer = ng.Layer(t)
+    assert layer.nets == ["A", "A"]
+
+
+def test_excellon_zero_suppression_format_pattern_and_unit_codes(tmp_path):
+    """!@brief Excellon TZ keeps trailing zeros (leading omitted), LZ keeps leading zeros; "000.000" and FILE_FORMAT give the format; M72 is inch; tool lines may carry F and S before C. @param tmp_path pytest temp dir. @return None."""
+    def holes(body):
+        f = tmp_path / "d.drl"
+        f.write_text(body)
+        return [(round(x, 4), round(y, 4), round(d, 4)) for x, y, d, _ in ng.read_drill(f)]
+    assert holes("M48\nMETRIC,TZ\nT1C0.3\n%\nT1\nX1757Y7325\nM30\n") == [(1.757, 7.325, 0.3)]                      # TZ, 3.3: leading zeros omitted
+    assert holes("M48\nMETRIC,LZ\nT1C0.3\n%\nT1\nX0175Y0732\nM30\n") == [(17.5, 73.2, 0.3)]                      # LZ: trailing zeros omitted, padded on the right
+    assert holes("M48\nMETRIC,TZ,000.000\nT1C0.5\n%\nT1\nX+26000Y+438400\nM30\n") == [(26.0, 438.4, 0.5)]
+    assert holes("M48\n;FILE_FORMAT=2:4\nINCH,TZ\nT1C0.01\n%\nT1\nX+10000Y+0\nM30\n") == [(25.4, 0.0, 0.254)]
+    assert holes("M48\nMETRIC,0000.00\nT1C1.0\n%\nT1\nX+004398Y+003842\nM30\n") == [(43.98, 38.42, 1.0)]
+    assert holes("M48\nM72\nT1C0.0400\n%\nT1\nX9250Y4064\nM30\n") == [(23.495, 10.3226, 1.016)]                  # inch, default 2.4
+    assert holes("M48\nMETRIC\nT1F00S00C0.300\n%\nT1\nX1.5Y2.5\nM30\n") == [(1.5, 2.5, 0.3)]
+
+
+def test_excellon_route_with_several_segments(tmp_path):
+    """!@brief A routed path with modal G01 coordinates gives one hole per segment, each continuing from the previous point. @param tmp_path pytest temp dir. @return None."""
+    f = tmp_path / "r.drl"
+    f.write_text("M48\nMETRIC,TZ\nT1C1.0\n%\nT1\nG00X10000Y1000\nM15\nG01Y3000\nY5000\nM16\nX20000Y2000\nM30\n")
+    h = ng.read_drill(f)
+    assert [(round(x, 3), round(y, 3)) for x, y, _, _ in h] == [(10.0, 2.0), (10.0, 4.0), (20.0, 2.0)]
+
+
+def test_excellon_without_unit_is_refused(tmp_path):
+    """!@brief A drill file with no unit information is refused instead of guessed. @param tmp_path pytest temp dir. @return None."""
+    f = tmp_path / "u.drl"
+    f.write_text("%\nT1C.015\nX01095Y01056\nM30\n")
+    with pytest.raises(NotImplementedError):
+        ng.read_drill(f)

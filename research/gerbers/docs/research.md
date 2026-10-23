@@ -32,3 +32,9 @@ Branch `research/gerbers`; scripts, tests, tables, sources and the design of the
 
 **Open.** Which stage enters the program and the decision on the zone `pattern` (and what to do with existing files that use `fill` below 1: the arithmetic value is the optimistic limit); validation on a thick-copper multi-layer board of a real design and against a measurement (none exists in the project); the layer-assignment dialog; what the Lumped and Analytic models do with a mask; processing of very large boards in strips. When it is implemented the findings fold into `models.md`, `theory.md` and `validation.md`, and this section is removed.
 
+## Update 2026-10-23
+
+* **Scope** (`study_reader_scope.py`): copper layers 50 of 52 non-empty classified files drawn (2 Upverter files refused); Excellon files 38 of 38 read, and on the 35 that gerbonara also reads the holes are identical. The comparison found and fixed real defects (inverted `TZ`/`LZ`, format pattern, `M71`/`M72`, tool lines with `F`/`S`, multi-segment routes); a drill file without a unit is refused.
+* **Nets**: the reader keeps the X2 net of every object. Pads and tracks carry it in KiCad files, zone fills did not in the test set, so the net of a piece of connected copper is taken from the labelled objects it contains. `joule.py` solves the current of a net between two terminals and gives `I²R` per cell (checked against closed forms). Missing for a real feature: the current per net/pad, vias between layers, `rho(T)` coupling, the interface.
+* **Literature**: the three Electronics Cooling articles and the Ucamco text could not be opened (network policy); see `literature.md` for what is confirmed and what is still from memory.
+

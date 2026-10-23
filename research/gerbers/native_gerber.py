@@ -452,6 +452,8 @@ class Layer:
         @throws GerberError For a file that cannot be understood.
         """
         self.ops = []                  # (kind, dark, args): kind "flash", "stroke", "region"
+        self.nets = []                 # net name (or None) of every operation, from the X2 object attribute TO.N (KiCad, Altium, ... write it); same length as ops
+        self._net = None
         self._last_d = 1               # a coordinate block without a D code repeats the previous one
         self.negative = False
         self.attributes = {}           # X2 file attributes, for example {"FileFunction": ["Copper", "L1", "Top"]}
@@ -510,6 +512,11 @@ class Layer:
                         dark = cmd[2] == "D"
                     elif cmd.startswith("IPNEG"):
                         self.negative = True
+                    elif cmd.startswith("TO.N"):                                      # object attribute: the net of the objects that follow
+                        names = [v.strip() for v in cmd[5:].split(",") if v.strip()]
+                        self._net = names[0] if names else None
+                    elif cmd == "TD" or cmd.startswith("TD.N"):                      # delete the object attributes (all, or the net)
+                        self._net = None
                     elif cmd.startswith("TF."):                                      # X2 file attributes: FileFunction, FilePolarity, ...
                         key, _, val = cmd[3:].partition(",")
                         self.attributes[key] = [v.strip() for v in val.split(",")]
@@ -555,7 +562,7 @@ class Layer:
                         region_start = (x, y)
                     elif g == 37:
                         if contour:
-                            self.ops.append(("region", dark, np.array(contour)))
+                            self._add(("region", dark, np.array(contour)))
                         in_region, contour = False, []
                         mode = "G01"                                       # a region may end in a G03 arc; the next one starts straight (as other readers do)
                 elif letter == "X":
@@ -586,7 +593,7 @@ class Layer:
                 self._last_d = op
             if op == 2:                                                       # move
                 if in_region and contour:
-                    self.ops.append(("region", dark, np.array(contour)))
+                    self._add(("region", dark, np.array(contour)))
                     contour = []
                 x, y = nx2, ny2
                 if in_region:
@@ -608,17 +615,17 @@ class Layer:
                 else:
                     px, py = x, y
                     for qx, qy in pts:
-                        self.ops.append(("stroke", dark, (ap, px, py, qx, qy)))
+                        self._add(("stroke", dark, (ap, px, py, qx, qy)))
                         px, py = qx, qy
                 x, y = nx2, ny2
             elif op == 3:                                                     # flash
                 x, y = nx2, ny2
                 if ap is not None:
-                    self.ops.append(("flash", dark, (ap, x, y)))
+                    self._add(("flash", dark, (ap, x, y)))
             else:
                 x, y = nx2, ny2
         if in_region and contour:
-            self.ops.append(("region", dark, np.array(contour)))
+            self._add(("region", dark, np.array(contour)))
         if sr:
             self._close_sr(sr)
 
@@ -657,26 +664,49 @@ class Layer:
         """
         nx, ny, dx, dy, start = sr
         block = self.ops[start:]
+        block_nets = self.nets[start:]
         for i in range(nx):
             for j in range(ny):
                 if i == 0 and j == 0:
                     continue
-                for kind, dark, a in block:
+                for (kind, dark, a), net in zip(block, block_nets):
                     ox, oy = i * dx, j * dy
+                    self._net = net
                     if kind == "flash":
-                        self.ops.append((kind, dark, (a[0], a[1] + ox, a[2] + oy)))
+                        self._add((kind, dark, (a[0], a[1] + ox, a[2] + oy)))
                     elif kind == "stroke":
-                        self.ops.append((kind, dark, (a[0], a[1] + ox, a[2] + oy, a[3] + ox, a[4] + oy)))
+                        self._add((kind, dark, (a[0], a[1] + ox, a[2] + oy, a[3] + ox, a[4] + oy)))
                     else:
-                        self.ops.append((kind, dark, a + np.array([ox, oy])))
+                        self._add((kind, dark, a + np.array([ox, oy])))
 
-    def draw(self, canvas):
+    def _add(self, op):
         """!
-        @brief Draw every operation on a canvas, in file order.
-        @param canvas Canvas.
+        @brief Append an operation together with the net attribute that is active now.
+        @param op Tuple (kind, dark, args).
         @return None.
         """
-        for kind, dark, a in self.ops:
+        self.ops.append(op)
+        self.nets.append(self._net)
+
+    def net_names(self):
+        """!
+        @brief The nets named in the file (X2 object attribute TO.N), in order of appearance.
+        @return List of names; empty when the file carries no net information.
+        """
+        return list(dict.fromkeys(n for n in self.nets if n))
+
+    def draw(self, canvas, nets=None):
+        """!
+        @brief Draw every operation on a canvas, in file order.
+        @details With `nets` only the dark operations of those nets are drawn; clear operations are always drawn (an approximation: a clear object removes copper of any net).
+        @param canvas Canvas.
+        @param nets Optional collection of net names to draw (None draws everything).
+        @return None.
+        """
+        wanted = None if nets is None else set(nets)
+        for (kind, dark, a), net in zip(self.ops, self.nets):
+            if wanted is not None and dark and net not in wanted:
+                continue
             if kind == "flash":
                 canvas.flash(a[0], a[1], a[2], dark)
             elif kind == "stroke":
@@ -820,12 +850,16 @@ def read_drill(path):
     tool = None
     in_header = True
     slot_start = None
+    cur_g = None                                                              # routing mode: "0" (move), "1" (cut) or None (drill hits)
     last = (0.0, 0.0)
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
             continue
         if line.startswith(";"):
+            ff = re.match(r";\s*FILE_FORMAT\s*=\s*(\d+):(\d+)", line)
+            if ff:                                                          # P-CAD, Altium: the format as a comment (integer:decimal digits)
+                nint, ndec = int(ff.group(1)), int(ff.group(2))
             m = re.match(r";\s*T(\d+)\s+Holesize\s+\d+\.\s*=\s*([\d.]+)", line)
             if m:
                 u = re.search(r"\b(MILS|MM|INCH)\b", line)
@@ -835,19 +869,24 @@ def read_drill(path):
             continue
         if line.upper().startswith(("METRIC", "INCH")):
             unit = 25.4 if line.upper().startswith("INCH") else 1.0
-            zeros = "T" if "TZ" in line.upper() else "L"
-            m = re.search(r"(\d)[.:](\d)", line)
+            # Excellon names the zeros that are KEPT (LZ = leading zeros kept, trailing omitted; TZ = trailing zeros kept, leading omitted), the opposite of the Gerber FS wording
+            zeros = "L" if "TZ" in line.upper() else "T" if "LZ" in line.upper() else zeros
+            m = re.search(r"(0+)\.(0+)", line) or re.search(r"(\d)[.:](\d)", line)   # "000.000" (digits before and after the point) or "3.3"
             if m:
-                nint, ndec = int(m.group(1)), int(m.group(2))
+                nint, ndec = (len(m.group(1)), len(m.group(2))) if m.group(1).startswith("0") and len(m.group(1)) + len(m.group(2)) > 2 else (int(m.group(1)), int(m.group(2)))
+            continue
+        if line in ("M71", "M72"):                                          # the unit as a code: M71 metric, M72 inch
+            unit = 25.4 if line == "M72" else 1.0
             continue
         if line == "%" or line.startswith("M95"):
             in_header = False
             continue
-        m = re.match(r"T(\d+)(?:C([\d.]+))?", line)
+        m = re.match(r"T(\d+)(.*)$", line)
         if m and not re.match(r"T\d+[XY]", line):
             tool = int(m.group(1))
-            if m.group(2):
-                sizes[tool] = float(m.group(2)) * (unit or 1.0)
+            c = re.search(r"C([\d.]+)", m.group(2))                      # other parameters (F, S, B, H, Z) may precede the diameter
+            if c:
+                sizes[tool] = float(c.group(1)) * (unit or 1.0)
             continue
         rep = re.match(r"R(\d+)(?:X([-+]?[\d.]+))?(?:Y([-+]?[\d.]+))?$", line)
         if rep and holes and nint is not None:                              # repeat the last hole n more times with an offset (Allegro, Excellon "R" command)
@@ -859,12 +898,22 @@ def read_drill(path):
                 holes.append((hx + k * ddx, hy + k * ddy, hd, hp))
             last = (hx + n * ddx, hy + n * ddy)
             continue
+        if line in ("M16", "M17", "G05"):                                    # tool up / end of the route / back to drilling
+            slot_start, cur_g = None, None
+            continue
         g = re.match(r"G0([01])", line)
+        if g:
+            cur_g = g.group(1)
         if g or line.startswith(("X", "Y")):
             if g and not in_header:                                           # a routed slot: G00 (start), M15 (tool down), G01 (end), M16 (tool up)
                 line = line[3:]
             if unit is None:                                                  # no METRIC or INCH line: inch when the file talks about mils or inches (Allegro)
-                unit = 25.4 if re.search(r"INCH|MILS", text.upper()) else 1.0
+                if re.search(r"INCH|MILS", text.upper()):
+                    unit = 25.4
+                elif re.search(r"\bMM\b|METRIC", text.upper()):
+                    unit = 1.0
+                else:                                                         # no unit anywhere (a file without header): guessing would place the holes 25 times wrong
+                    raise NotImplementedError("Excellon file without unit information (no METRIC, INCH, M71 or M72): the unit must be chosen by the user")
             if nint is None:
                 nint, ndec = (2, 4) if unit == 25.4 else (3, 3)
             mx = re.search(r"X([-+]?[\d.]+)", line)
@@ -875,12 +924,12 @@ def read_drill(path):
             x = _number(mx.group(1), nint, ndec, zeros) * unit if mx else last[0]
             y = _number(my.group(1), nint, ndec, zeros) * unit if my else last[1]
             last = (x, y)
-            if g and g.group(1) == "0":
+            if cur_g == "0":
                 slot_start = (x, y)
-            elif g:
-                if slot_start is not None:                                    # one hole at the middle of the slot
+            elif cur_g == "1":
+                if slot_start is not None:                                    # one hole at the middle of every straight segment of the route (a slot has one, a path several)
                     holes.append(((slot_start[0] + x) / 2, (slot_start[1] + y) / 2, sizes.get(tool, 0.0), plated.get(tool)))
-                    slot_start = None
+                slot_start = (x, y)                                           # the route continues from here (modal G01 coordinates)
             else:
                 holes.append((x, y, sizes.get(tool, 0.0), plated.get(tool)))
     return holes

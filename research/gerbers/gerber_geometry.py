@@ -132,8 +132,9 @@ def drill_holes(path):
     """
     out = []
     for o in ExcellonFile.open(str(path)).objects:
+        k = 25.4 if getattr(o, "unit", "mm") in ("in", "inch") else 1.0          # gerbonara keeps the unit of the file
         if hasattr(o, "x"):
-            out.append((o.x, o.y, o.tool.diameter))
+            out.append((o.x * k, o.y * k, o.tool.diameter * k))
         else:
-            out.append(((o.x1 + o.x2) / 2, (o.y1 + o.y2) / 2, o.tool.diameter))
+            out.append(((o.x1 + o.x2) / 2 * k, (o.y1 + o.y2) / 2 * k, o.tool.diameter * k))
     return out

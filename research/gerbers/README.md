@@ -1,7 +1,7 @@
 # Gerber import: from copper vectors to the conductances of the grid
 
 Research branch `research/gerbers` (started 2026-10-22). **Nothing in `pcbthermal/` was changed**: this folder holds the studies, their tests and the
-conclusions, so that the work can be repeated and the decision taken later. The summary for the project documents is in `docs/research.md` (section
+conclusions, so that the work can be repeated and the decision taken later. The summary for the project documents is in [`docs/research.md`](docs/research.md) (this folder) (section
 "Gerber import"); how the result would enter the program, line by line, is in [`INTEGRATION.md`](INTEGRATION.md).
 
 ## 1. The questions
@@ -29,6 +29,8 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | In the program | The same numbers through `pcbthermal.fvm.Network` (agreement with the research solver to 3e-12): only the conductances change. **Applying the geometric mean to the program's `Zone.fill` would change a hatched zone by +26 to +45 %** and four exact-value tests by 0.05 to 0.07 K: the zone fill and the imported copper must stay separate things. |
 | Time response | Heat capacity stays an arithmetic average; with the new conductances the response follows the steady one (0.7 to 3.2 % at 120 s). |
 | Lumped and Analytic | Lumped inherits a better `S` (13 % to 4.8 %); Analytic needs one effective conductance, a heater-influence-weighted geometric-type mean (18.6 % to 5.9 %), section 4.16. |
+| Scope | Copper layers 50 of 52 non-empty classified files drawn; drills 38 of 38 read, 35 of 35 identical to gerbonara (after fixing inverted TZ/LZ and other defects); reader refuses what it cannot do, including a drill file with no unit (4.19). |
+| Nets and heat | The X2 attribute `TO.N` gives the net of pads and tracks; zone fills may carry none; `joule.py` solves the current in a net and returns `I²R` per cell (4.20). |
 | Reader conformance | 149 of 164 comparable gerbonara test files agree within 3 % of the area; 6 refused as unsupported (4.17). |
 | Cell size | 0.6 and 1.0 mm cells map well; at 2 mm every method is limited by the grid itself (the 6 mm heater has 3 x 3 cells). |
 
@@ -52,8 +54,11 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `study_lumped_analytic.py` | The mappings in the program's Lumped and Analytic models through the public API (4.16). |
 | `study_reader_conformance.py` | The native reader against gerbonara on gerbonara's own test files (4.17). |
 | `docs/` | Documents for when the work is adopted: research summary, changelog text, `CLAUDE.md` entries, roadmap line (the project documents are not edited on this branch). |
+| `docs/literature.md` | What was read of the literature and what could not be opened. |
 | `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not. |
-| `tests/` | 37 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
+| `joule.py`, `study_net_joule.py` | Current in a net and the heat it makes (4.20). |
+| `study_reader_scope.py` | Which copper layers and drill files the reader handles (4.19). |
+| `tests/` | 48 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
 | `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |
 
 ## 4. How to run, and the results
@@ -312,6 +317,29 @@ The first run found four defects, now fixed and covered by tests: comment statem
 
 Honest summary: the independent reader is not a better reader, it is a smaller one that does one job (rasterise copper and holes) with no library whose licence the closed product would have to carry. It supports fewer features, is validated on fewer files, and its remaining disagreements are on silkscreen/outline files and on two spec edge cases where it follows the spec text.
 
+### 4.19 What can be read: copper layers and drill files (`study_reader_scope.py`)
+
+Only copper layers and drills matter for the program (silkscreen, mask, paste and assembly are ignored; the classifier uses the X2 file function or the file name). On gerbonara's test resources and the downloaded boards:
+
+* **Copper**: 54 files are classified as copper layers; 50 are drawn by the independent reader, 2 are refused (Upverter files with a non-standard `Rect` aperture), 2 had no content. Against gerbonara + shapely: 45 of 50 within 3 % of the area, median difference 0.02 %, worst 16.2 %. 8 files carry net names.
+* **Drills**: 38 files look like Excellon. All 38 are read by the independent reader; gerbonara reads 35 (it refuses the OrCAD, the PADS file without header and a file with a deliberate syntax error). **On the 35 read by both, the holes are identical (positions to 0.01 mm, diameters to 1 µm) in all 35**, after the fixes below.
+* **The first drill comparison found real errors in the reader** (the earlier claim "identical" had compared only the hole *counts*): the Excellon zero options were inverted (`TZ` keeps trailing zeros and omits leading ones, `LZ` the opposite; the Gerber wording is the reverse), the format written as `000.000` or `0000.00` in the header or as `;FILE_FORMAT=3:3` in a comment was ignored, `M71`/`M72` as the unit were ignored, a tool line such as `T1F00S00C0.300` lost its diameter, and a routed path with several `G01` segments gave one hole instead of one per segment. All fixed and covered by tests (`test_excellon_*`). A file with no unit anywhere (a PADS drill without header) is now **refused** ("choose the unit") instead of guessed: a wrong guess would place every hole 25 times wrong.
+* **So: can any Gerber be read? No, and the reader says why.** Supported: RS-274X with the features of section 5; Excellon from 15 CAD tools in the test set. Refused with a message: aperture blocks, mirrored/rotated/scaled apertures, moire, image offset/mirror/scale, non-standard aperture shapes, a drill file without a unit. Plated and non-plated holes are told apart only when the file says so (comments, X2 `FileFunction` of the drill file). The layer assignment (which file is which copper layer) comes from the X2 attribute or the name, and the user confirms it.
+
+### 4.20 Nets: how much does the 5 V net heat up? (`joule.py`, `study_net_joule.py`, `tests/test_joule.py`)
+
+**Can polygons be mapped to a net? Yes, if the CAD tool wrote it.** KiCad (and others) write the X2 object attribute `%TO.N,<net>*%` before the objects of a net (`%TD*%` ends it). The reader now keeps the net of every operation (`Layer.nets`, `Layer.net_names()`, `Layer.draw(canvas, nets=[...])`; a step and repeat keeps it). Limits found on the two KiCad 7 files of the test set: the pads and tracks carry a net, **the zone fills did not** (one 428 mm² fill on the top layer touches no labelled object, 64 % of that layer's copper), and the net names of a panel repeat on every board (`Board_0-/X9` 25 times), so one name is several separate pieces. Hence the working rule of the study: the net of a piece of **connected copper** is the net of the labelled objects it contains (149 of 176 pieces on the top layer have exactly one net, none has two). Files from tools that do not write the attribute (EasyEDA, Fritzing, most older ones) need the net from the user (click a piece) or from a netlist.
+
+**The heat of a net.** With the net mask, the sheet resistance `Rs = rho / t` (copper 1.68e-8 ohm m at 20 °C, +0.393 %/K) and two terminals, `joule.solve_net` solves div(grad V / Rs) = 0 on the pixels (4-connected, face conductance 1/Rs, harmonic mean when `Rs` varies) and returns the resistance, the potential and the Joule power of every pixel, whose sum is exactly `I²R`. `joule.to_cells` sums it into the cells of the thermal grid (the total is conserved), which is exactly the heat source the models need. Checks (6 tests): a strip gives `Rs (L-1)/W` to 1e-9, a width step is a series circuit (within 3 %, the constriction adds a spreading term), parallel strips, the cell sum, and unconnected or overlapping terminals are refused.
+
+On the KiCad panel (1 A, 35 µm copper, terminals on the two farthest pads of the largest piece of each net): the signal nets of 22 mm span give 80 mΩ (81 mW at 1 A, hottest 1 mm cell 3.6 mW), a 11.6 mm net 31 mΩ, the GND piece of 388 mm² 4.6 mΩ (hottest cell 0.2 mW). Quick sanity check: 0.2 mm tracks of 22 mm are 110 squares of 0.5 mΩ, about 55 mΩ before the pads and bends.
+
+**Is it possible in the future? Yes**, and the pieces exist; what is missing, in order: (1) the current of the net (a number from the user, a table by net, or later the output of an electrical solve); (2) the terminals (which pads source and sink the current; for a power net with several loads, a list of currents per pad, solved as one Laplace problem with several sinks); (3) the vias and plated holes joining layers (the same Laplace problem on a stack, with the via barrel resistance); (4) the coupling with temperature, `rho(T)`: a fixed-point loop between the electrical and the thermal solve (the program already has such a loop for the power coefficient, `api._solve_with_tc`); (5) the user interface (pick a net, enter the current, see the heat map and the voltage drop). The voltage drop and the hot spots (current crowding at a neck) come out of the same solve.
+
+### 4.21 Literature status (`docs/literature.md`)
+
+The three Electronics Cooling articles could **not** be opened in this session (the environment's network policy denies the host, HTTP 403), so the points below rest on search summaries only; the formulas of Bruggeman, Hashin-Shtrikman and Dykhne are still from memory and checked only by the tests (limits and duality). What the summaries do confirm is in `docs/literature.md`. The aperture-hole behaviour used in 4.17 comes from the comments inside gerbonara's test files, not from the Ucamco text.
+
 ## 5. Without third-party libraries: the independent reader
 
 The research route (gerbonara + shapely) is only the **reference**. `native_gerber.py` reads the files and draws the pixel centres itself, written from the public Gerber layer format specification and common Excellon practice, with NumPy only:
@@ -383,6 +411,6 @@ All but the Stormduino come from the test resources of gerbonara (https://gitlab
 * gerbonara, https://pypi.org/project/gerbonara/ (Apache-2.0); shapely and GEOS, https://shapely.readthedocs.io/.
 * Ucamco, *The Gerber Layer Format Specification* (free download from https://www.ucamco.com/en/gerber): the reference of `native_gerber.py` (not copied; the document was not read in full in this session, only its availability was confirmed; the reader was written from the format as commonly documented and checked against real files).
 * Durlofsky, *Upscaling and gridding of fine scale geological models for flow simulation* (2005), https://pangea.stanford.edu/departments/ere/dropbox/SmartFields/SFC_publications/2005_Durlofsky_upsc_grid_review_ifrs.pdf (local, extended-local and global upscaling; transmissibility).
-* Power-law averaging of permeability (exponents between -1 and 1; the geometric mean for isotropic 2D media), https://ccg-server.engineering.ualberta.ca/CCG%20Publications/Other/CVD%20Papers/02-Conference/2002/power-law-averaging02.PDF. The 2D two-phase result of Dykhne (1971) and the closed form of the 2D Bruggeman and Hashin-Shtrikman formulas are quoted from memory (checked here only against their limits by the tests).
+* Power-law averaging of permeability (exponents between -1 and 1; the geometric mean for isotropic 2D media), https://ccg-server.engineering.ualberta.ca/CCG%20Publications/Other/CVD%20Papers/02-Conference/2002/power-law-averaging02.PDF. The 2D two-phase result of Keller (1964) and Dykhne (1970) (dates from a search summary) and the closed form of the 2D Bruggeman and Hashin-Shtrikman formulas are quoted from memory (checked here only against their limits by the tests).
 * Electronics Cooling: *Problem: effective thermal conductivity* (2017), *Strategies for the thermal modeling of metal traces on printed circuit boards* (2015), *Creating PCB thermal conductivity maps using image processing* (2010), *Modeling heat conduction in printed circuit boards using finite element analysis* (2004).
 * The four projects of section 7 (repositories linked there).

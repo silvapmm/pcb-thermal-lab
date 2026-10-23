@@ -8,4 +8,5 @@ Studies that are not part of the program. Rule (maintainer, 2026-10-23): on a re
 | `gerbers/docs/research.md` | Summary of the open investigation (formerly a section of the project `docs/research.md`). |
 | `gerbers/docs/changelog.md` | Changelog text for when the work is adopted. |
 | `gerbers/docs/decisions-log.md` | Structure line and Decisions Log entries for `CLAUDE.md`, for when the work is adopted. |
+| `gerbers/docs/literature.md` | Literature status: what was read, what only in a summary, what is from memory. |
 | `gerbers/docs/roadmap-entry.md` | The roadmap line for when the work is adopted. |

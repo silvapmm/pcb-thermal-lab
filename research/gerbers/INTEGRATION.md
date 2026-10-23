@@ -37,6 +37,10 @@ def pattern_mask(kind, pitch, fill, polygon, pixel):    # hatch lines, cross-hat
 * **Zones without a pattern** (all the existing files): nothing changes, bit for bit.
 * **Imported copper and patterned zones**: the model takes the face conductances from `CopperMask.conductances` instead of the harmonic mean of `S`.
 
+### Do the current models have to change?
+
+Only where the cell conductances are read, and only when imported copper exists. Without imported copper nothing changes: the zones, the fill formula and every test stay as they are. With it: `fvm.py`, `fdm.py` and `solid3d.py` take the face conductances of the layer from the mask instead of the harmonic mean of the cell values (about one function each, the matrices keep their shape and the solvers are untouched); `lumped.py` needs nothing, it already reads `net.S` of the FVM network; `analytic.py` gets one effective conductance per layer (influence-weighted geometric-type mean) instead of the average fraction. A heat source from a net (`joule.py`, `README.md` 4.20) enters as ordinary power per cell and needs no model change at all.
+
 ### What each model does
 
 * `fvm.py`: after `self.S`, if a layer has a mask, store its face conductances (`gx`, `gy` per layer); `_assemble` (lines 210-213 and 277-280) uses the stored faces for those layers and the harmonic mean of `S` for the others. The vias, the vertical links, the losses, the blocks and the capacity are untouched.
