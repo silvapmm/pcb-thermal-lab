@@ -40,3 +40,9 @@ Branch `research/gerbers`; scripts, tests, tables, sources and the design of the
 * **Other tools** (`compare_readers.py`, 4.22): on 14 gerbonara-written files of known area the independent reader gives the same raster as gerbonara + shapely and as pcb-tools above 50 %; the error is the pixel, not the reader. A grey-level coverage (pcb-tools) keeps 4.4 % where binary masks give 22 % at 0.1 mm: render finer and average, to test in the conduction solver. pygerber is strict (did not parse any file written by gerbonara without cleaning) and slower; pcb-tools was 63 % low on real boards.
 * **Angles** (`study_angles.py`, 4.23): area exact except ±6 % at exactly 45° on the lattice; a track as narrow as the pixel breaks into pieces with 4-connectivity (one piece with 8-connectivity); the five-point conduction stencil is too resistive for tilted thin tracks (1.6 at 2 px across, 1.06 to 1.13 at 12 to 6 px), the nine-point one is angle-independent but biased (+4 % at 8 px). For nets: connectivity from 8-connected labelling or the vector geometry, pixel at least 8 to 10 across the thinnest track for resistances.
 
+Pictures (in `../figures/`): `fig_01_angles_pixel_grid.png` (thin tracks at an angle on the pixel grid), `fig_02_kicad_nets_and_joule.png` (nets of a KiCad board, potential and Joule heat of one net), `fig_03_copper_mapping_to_cells.png` (real copper, fraction per cell, flow-based against arithmetic conductance).
+
+![thin tracks on the pixel grid](../figures/fig_01_angles_pixel_grid.png)
+![nets and Joule heat](../figures/fig_02_kicad_nets_and_joule.png)
+![copper mapping to cells](../figures/fig_03_copper_mapping_to_cells.png)
+

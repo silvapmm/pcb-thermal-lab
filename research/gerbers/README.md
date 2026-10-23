@@ -59,7 +59,8 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `docs/literature.md` | What was read of the literature and what could not be opened. |
 | `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not. |
 | `make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara, and the comparison with gerbonara, pygerber and pcb-tools (4.22). Needs `pip install gerbonara pygerber pcb-tools shapely pillow`. |
-| `study_angles.py`, `make_figures.py` | Tracks at any angle: area, connectivity, resistance; pictures in `out/figures/` (4.23). |
+| `study_angles.py`, `make_figures.py` | Tracks at any angle: area, connectivity, resistance (4.23); `make_figures.py` writes the pictures to `figures/`. |
+| `figures/` | The pictures, named `fig_NN_topic.png` in order of creation (committed on purpose, the README files link to them): 01 angles on the pixel grid, 02 KiCad nets and Joule heat, 03 copper mapping to cells. |
 | `joule.py`, `study_net_joule.py` | Current in a net and the heat it makes (4.20). |
 | `study_reader_scope.py` | Which copper layers and drill files the reader handles (4.19). |
 | `tests/` | 49 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
@@ -116,6 +117,10 @@ traces that come out **interrupted**:
 The reference also depends a little on the pixel (single layer, 5 x 5 mm heater): 0.2 mm +2.1 %, 0.1 mm +0.2 % against 0.05 mm.
 
 ### 4.4 The mappings on 42 windows (`study_mapping.py`)
+
+![Figure 3: a real 36 mm window, the copper fraction per 1 mm cell and the ratio of the flow-based to the arithmetic cell conductance](figures/fig_03_copper_mapping_to_cells.png)
+
+*Figure 3 (`figures/fig_03_copper_mapping_to_cells.png`): window of the `chibi` board; the fraction of copper per 1 mm cell (what the program uses today) and where the flow-based conductance is lower (red) or higher (blue) than the arithmetic one.*
 
 Methods (all give the face conductances the solver uses; for the first four the face is the harmonic mean of the two cells, as the FVM does):
 
@@ -336,6 +341,10 @@ Only copper layers and drills matter for the program (silkscreen, mask, paste an
 
 **The heat of a net.** With the net mask, the sheet resistance `Rs = rho / t` (copper 1.68e-8 ohm m at 20 °C, +0.393 %/K) and two terminals, `joule.solve_net` solves div(grad V / Rs) = 0 on the pixels (4-connected, face conductance 1/Rs, harmonic mean when `Rs` varies) and returns the resistance, the potential and the Joule power of every pixel, whose sum is exactly `I²R`. `joule.to_cells` sums it into the cells of the thermal grid (the total is conserved), which is exactly the heat source the models need. Checks (6 tests): a strip gives `Rs (L-1)/W` to 1e-9, a width step is a series circuit (within 3 %, the constriction adds a spreading term), parallel strips, the cell sum, and unconnected or overlapping terminals are refused.
 
+![Figure 2: KiCad top copper coloured by net, potential and Joule heat of one net at 1 A](figures/fig_02_kicad_nets_and_joule.png)
+
+*Figure 2 (`figures/fig_02_kicad_nets_and_joule.png`): left, the nets of a KiCad board (grey: a zone fill with no net); middle and right, potential and Joule heat density of net `/X9` at 1 A; the dead-end spur carries no current (black).*
+
 On the KiCad panel (1 A, 35 µm copper, terminals on the two farthest pads of the largest piece of each net): the signal nets of 22 mm span give 80 mΩ (81 mW at 1 A, hottest 1 mm cell 3.6 mW), a 11.6 mm net 31 mΩ, the GND piece of 388 mm² 4.6 mΩ (hottest cell 0.2 mW). Quick sanity check: 0.2 mm tracks of 22 mm are 110 squares of 0.5 mΩ, about 55 mΩ before the pads and bends.
 
 **Is it possible in the future? Yes**, and the pieces exist; what is missing, in order: (1) the current of the net (a number from the user, a table by net, or later the output of an electrical solve); (2) the terminals (which pads source and sink the current; for a power net with several loads, a list of currents per pad, solved as one Laplace problem with several sinks); (3) the vias and plated holes joining layers (the same Laplace problem on a stack, with the via barrel resistance); (4) the coupling with temperature, `rho(T)`: a fixed-point loop between the electrical and the thermal solve (the program already has such a loop for the power coefficient, `api._solve_with_tc`); (5) the user interface (pick a net, enter the current, see the heat map and the voltage drop). The voltage drop and the hot spots (current crowding at a neck) come out of the same solve.
@@ -373,7 +382,11 @@ Limits of this comparison: area only (the position of the pixels was not compare
 
 ### 4.23 Tracks at an angle: area, connectivity and resistance on the grid (`study_angles.py`, `make_figures.py`)
 
-Until now only 45° had been tried (7 widths together, 4.22). A 30 mm track written with gerbonara at 0 to 90° in steps of 7.5° (widths 0.1 to 0.3 mm, pixels 0.1, 0.05 and 0.025 mm) gives the following. Pictures: `out/figures/1_angles.png` (git-ignored, regenerate with `make_figures.py`).
+Until now only 45° had been tried (7 widths together, 4.22). A 30 mm track written with gerbonara at 0 to 90° in steps of 7.5° (widths 0.1 to 0.3 mm, pixels 0.1, 0.05 and 0.025 mm) gives the following. Picture (regenerate with `make_figures.py`):
+
+![Figure 1: thin tracks at 30 and 45 degrees on three pixel sizes; colour = one 4-connected piece](figures/fig_01_angles_pixel_grid.png)
+
+*Figure 1 (`figures/fig_01_angles_pixel_grid.png`): the 0.1 mm track at 30° is 10 pieces at a 0.1 mm pixel and one piece from 0.05 mm; the 0.2 mm track is one piece everywhere but its edge is a staircase.*
 
 * **Area**: within 0.5 % at every angle except exactly 45°, where it is **±6 %** (the edge of the track runs exactly through the pixel centres of the lattice and the tie goes one way or the other, +6 % or -6 % depending on width; 0.1 mm wide at a 0.1 mm pixel: -29 %). A 45° track on a 0.05 or 0.1 mm coordinate grid is common in real layouts, so this is not a rare case. Adding a half-pixel offset or a coverage (grey-level) mask removes the tie.
 * **Connectivity**: a track as narrow as the pixel falls to pieces with 4-connected pixels at any angle but 0 and 90° (0.1 mm at a 0.1 mm pixel: 38 pieces at 7.5°, 111 at 30°, 213 at 45°; the conduction solver has no path at all). **With 8-connected labelling it is one piece again** (1/1/1) as long as the track is at least one pixel wide; a track thinner than the pixel (0.05 mm at 0.1 mm, 0.03 mm at 0.05 mm) is broken whatever the connectivity, because centre sampling misses it.

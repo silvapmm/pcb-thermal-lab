@@ -1,6 +1,6 @@
 """!
 @file make_figures.py
-@brief Pictures of what the research does, written to out/figures/ (git-ignored): thin tracks on the pixel grid, nets and the Joule heat of one net on a KiCad board, and the mapping of real copper to cells.
+@brief Pictures of what the research does, written to figures/ (committed, linked from the README files): thin tracks on the pixel grid, nets and the Joule heat of one net on a KiCad board, and the mapping of real copper to cells.
 @details Needs numpy, scipy, matplotlib, shapely and gerbonara. Run: python make_figures.py
 """
 
@@ -22,7 +22,7 @@ import windows
 from study_net_joule import disc, net_pads
 from study_reader_conformance import DEST
 
-OUT = Path(__file__).resolve().parent / "out" / "figures"
+OUT = Path(__file__).resolve().parent / "figures"          # kept in the repository on purpose: the README files link to them
 
 
 def labelled_cmap(n, seed=1):
@@ -65,7 +65,7 @@ def fig_angles():
             ax.set_xticks([]); ax.set_yticks([])
     fig.suptitle("A thin track at an angle on the pixel grid (colour = one 4-connected piece)", fontsize=11)
     fig.tight_layout()
-    fig.savefig(OUT / "1_angles.png", dpi=110)
+    fig.savefig(OUT / "fig_01_angles_pixel_grid.png", dpi=110)
     plt.close(fig)
 
 
@@ -126,7 +126,7 @@ def fig_nets():
         ax.plot(pa[:, 0], pa[:, 1], "w.", ms=3)
         ax.plot([pa[i][0], pa[j][0]], [pa[i][1], pa[j][1]], "wo", ms=7, mfc="none")
     fig.tight_layout()
-    fig.savefig(OUT / "2_nets_and_joule.png", dpi=110)
+    fig.savefig(OUT / "fig_02_kicad_nets_and_joule.png", dpi=110)
     plt.close(fig)
 
 
@@ -160,7 +160,7 @@ def fig_mapping():
     for ax in axs:
         ax.set_xlabel("mm")
     fig.tight_layout()
-    fig.savefig(OUT / "3_mapping.png", dpi=110)
+    fig.savefig(OUT / "fig_03_copper_mapping_to_cells.png", dpi=110)
     plt.close(fig)
 
 
