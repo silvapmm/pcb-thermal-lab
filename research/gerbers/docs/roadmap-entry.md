@@ -1,0 +1,5 @@
+# Roadmap entry for the research branch
+
+Line that was changed in `docs/roadmap.md`; kept here until the maintainer decides.
+
+* **Gerber and Excellon import** of the copper per layer (candidate library `gerbonara` [1]): rasterise on a fine grid (pixel of at most half the thinnest trace) and map the copper to the cells; drills with plating become vias. **Researched on branch `research/gerbers`** (`docs/research.md`, `research/gerbers/README.md`, `INTEGRATION.md`): the file is read without third-party libraries (NumPy only); the plain fill fraction per cell is 10 to 18 % too cool on real copper because it hides trace connectivity, while the flow-based face conductances from a 0.1 mm mask are within 0.3 to 2 %; the fill of a hand-drawn zone must keep its formula (a declared pattern would use the same path); not implemented. Limits to state: the fill fraction hides trace connectivity (half-filled may be one long trace or two disconnected pieces); the Analytic model keeps the layer average plus local corrections; solder-mask openings matter for emissivity, not conduction. Needs a layer-assignment step in the GUI and a validation against a board also drawn by hand.
