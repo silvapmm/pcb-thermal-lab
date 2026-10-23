@@ -1,0 +1,8 @@
+# Log: power calculator
+
+| Date | What |
+| :-- | :-- |
+| 2026-10-22 | The maintainer asked for the power of a part from a measured top temperature and noticed a large difference from the datasheet number. `power_from_top_study.py` showed the copper dominates; datasheets read: Renesas thermal characterisation note, Richtek AN061, ROHM application note 65AN114E, TI SLRR012, Microchip article, and for the JEDEC board ROHM 64AN113E (as read, addresses in `docs/validation.md` section 19). `calculator_calibration_study.py` compared a known-power reference, a two-point fit and a band; the band was implemented, the two-point fit kept as a study. `calculator_validation.py` checked the calculator on the CSD17308Q3 datasheet board and a JEDEC 2s2p exposed-pad QFN. |
+| 2026-10-23 | Folder created: the three scripts moved from `examples/`; figures added. All three studies were run again on this date and reproduce the numbers of `docs/calculators.md` section 2 and `docs/validation.md` section 19 (46.8 K/W, 31.6 K/W, the −13 to −45 % rows, the calibration tables). `calculator_validation.py` prints a fourth row (the 58 K/W datasheet maximum, +26.9 %, not a target) and does not print the "JEDEC board without vias" row (67.4 K/W) that the manual quotes; that row comes from the test. |
+
+Assumed, not from a datasheet: the TPS7A47-like package data (5 × 5 mm body, 3.15 mm pad, 3 × 3 vias). Not verified: no measurement of a physical board.
