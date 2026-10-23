@@ -32,7 +32,7 @@ Most of the gain comes from the copper pad; touching the bare laminate around th
 
 ## 4. The air gap
 
-Across a thin air gap the heat goes by **conduction of still air**, `h = k_air / g` (k about 0.028 W/mK at 55 C: 28 W/m2K for 1 mm), plus **radiation between parallel faces**, `h_r = 4 sigma T^3 / (1/e1 + 1/e2 - 1)` (6 W/m2K for an anodised block of emissivity 0.8, 0.7 for bare aluminium of 0.1, against the board's 0.9). Natural convection inside the gap starts only above the critical Rayleigh number of a horizontal layer (1708): conduction rules for gaps up to about 7 mm at 60 K and about 12 mm at 20 K; above that the Hollands correlation raises `h = Nu k / g`. With the gap instead of an insulated face (MOSFET, bare aluminium, tj in C):
+Across a thin air gap the heat goes by **conduction of still air**, `h = k_air / g` (k about 0.028 W/mK at 55 C: 28 W/m2K for 1 mm), plus **radiation between parallel faces**, `h_r = 4 sigma T^3 / (1/e1 + 1/e2 - 1)` (6 W/m2K for an anodised block of emissivity 0.8, 0.7 for bare aluminium of 0.1, against the board's 0.9). Natural convection inside the gap starts only above the critical Rayleigh number of a horizontal layer (1708): conduction rules for gaps up to about 7 mm at 60 K and about 12 mm at 20 K; above that the Hollands correlation raises `h = Nu k / g`. As implemented in the Python `ht` library (source read; see the bibliography for a correction of its documentation), the 1984 form is `Nu = 1 + [1 - 1708/Ra]* [k1 + 2 (Ra^(1/3)/k2)^(1 - ln(Ra^(1/3)/k2))]* + [(Ra/5803)^(1/3) - 1]*` with `k1 = 1.44/(1 + 0.018/Pr + 0.00136/Pr^2)` and `k2 = 75 exp(1.5 Pr^(-0.5))`, and `Nu = 1` below `Ra_c = 1708` (checked: 69.03 for Pr 5.54 and Gr 3.21e8). Which Hollands paper the research notes mean is not recorded. With the gap instead of an insulated face (MOSFET, bare aluminium, tj in C):
 
 | Gap | patch 25 mm | 12 mm | 6 mm | none |
 | :-- | --: | --: | --: | --: |
@@ -67,7 +67,7 @@ The junction node of the chain study is a prototype outside the program; the gap
 
 ## 8. Sources
 
-* Conduction of still air, radiation between parallel faces, Rayleigh criterion for a horizontal layer: heat-transfer handbooks, the `ht` documentation and a university course note, as named in the research notes: [GapHandbooks]; the correlation for a larger gap: [Hollands].
+* Conduction of still air, radiation between parallel faces, Rayleigh criterion for a horizontal layer: heat-transfer handbooks, the `ht` documentation and a university course note, as named in the research notes: [GapHandbooks]; the correlation for a larger gap: [Hollands], [HtLibrary].
 * Spreading resistance of a plate and the 5 % correlation: [YovanovichMuzychkaEllison], [Lee1995], [EC1998Spreading], [ECSimpleSpreading2004].
 * Own computation: [L-parts].
 

@@ -143,7 +143,9 @@ Every section that explains a model, an equation or a method has a picture, in t
 | `topics/` | the 37 topic files |
 | `figures/` | `fig_01` to `fig_30` |
 | `scripts/make_diagrams.py` | draws the 30 figures (no data, no program) |
-| `scripts/check_mapping_formulas.py` | numerical check of the properties of the 2D effective-medium formulas (the only confirmation they have) |
+| `scripts/check_mapping_formulas.py` | numerical check of the properties of the 2D effective-medium formulas |
+| `scripts/check_correlations.py` | numerical checks of the correlations quoted by the compilation: 2D Hashin-Shtrikman and the Keller-Dykhne product, Bar-Cohen and Rohsenow, Elenbaas, Churchill-Chu against the worked example of the `ht` library, Hollands (with the correction found), the printed-board conductivities |
+| `docs/reference-compilation.md` | the maintainer's reference compilation, as received, with what this repository checked of it |
 | `docs/theory-figures.md` | where each topic goes in the project documents when it is adopted |
 | `tests/test_theory.py` | the checks of this folder: every figure and link exists, every bibliography key used in a topic is defined, every topic has the sections |
 
@@ -165,5 +167,6 @@ A topic is adopted when the maintainer decides: its text is folded into `docs/th
 
 * **Read in full**: `docs/theory.md` (all sections), the parts of `docs/models.md`, `docs/roadmap.md`, `docs/calculators.md` and `docs/validation.md` named in the topics, and the READMEs and literature notes of the investigations named in topics 17 to 23. The topic files restate them; they add structure, the pictures, the paths and the bibliography, not new results.
 * **Not opened in this work**: every textbook and standard of `BIBLIOGRAPHY.md` marked M or N; the statements taken from them are marked "(memory)" or "(from the project documents)" there. Sources marked S were seen as search summaries, by the earlier work that cites them or by the later round of checks described at the top of the bibliography (web search worked, page fetch and downloads were blocked, only the package index was readable).
+* **Read in this work**: the source of the Python `ht` package (version 1.2.0, MIT: the Hollands and Churchill-Chu functions and their worked examples), which showed that its documentation and its code differ in the Hollands formula. The maintainer's reference compilation (kept in `docs/reference-compilation.md`) is a second-hand source: what it read, it read; this repository only checked its numbers.
 * **Checked numerically here**: the properties of the Bruggeman and Hashin-Shtrikman formulas (`scripts/check_mapping_formulas.py`), the area loss of a polygon corner (topic 35, figure 28), the coverage sum against the polygon area (topic 28, figure 21). Everything else in the topics is copied from the project documents.
 * **Not verified**: the planned topics (12 to 16) describe intended behaviour; the formulas of topic 12 and 16 are general textbook knowledge written without a source; the pictures are explanations, not tests.

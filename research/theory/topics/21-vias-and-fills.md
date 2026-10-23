@@ -20,7 +20,7 @@ and `A_plating = pi [(D/2)^2 - (D/2 - t_plating)^2]`. An electroplated copper fi
 
 ## 3. What the fill does
 
-The usual fabricator "filled via" is an **epoxy resin plug** (IPC-4761 types V to VII): it keeps the hole closed and the surface flat, and conducts like FR-4 (192.1 against 192.4 K/W, no gain). A conductive paste helps a little (about -5 %). Only an **electroplated copper fill** is a real heat path: the resistance of one 0.3 mm via falls by 69 %, and on the example board the maximum temperature falls by 3.9 K. Guides give roughly 4 thermal vias about 40 K/W and 16 vias about 10 K/W.
+The usual fabricator "filled via" is an **epoxy resin plug** (IPC-4761 types V to VII of its seven types I to VII: tenting, plugging, filling, capping): it keeps the hole closed and the surface flat, and conducts like FR-4 (192.1 against 192.4 K/W, no gain). A conductive paste helps a little (about -5 %). Only an **electroplated copper fill** is a real heat path: the resistance of one 0.3 mm via falls by 69 %, and on the example board the maximum temperature falls by 3.9 K. Guides give roughly 4 thermal vias about 40 K/W and 16 vias about 10 K/W.
 
 ## 4. Limits
 
@@ -32,7 +32,7 @@ The barrel is a lumped area, the lateral effect of the wall is neglected, vias a
 
 ## 6. Sources
 
-* Fill types and materials: [ViaGuides] (JLCPCB, ALLPCB, Atlas PCB; IPC-4761 not read). Copper, via thermal resistances and board area: [TI-AN2020]. Via arrays and pads, analytical models checked by CFD and measurements: [Shen2019] (abstract and structure).
+* Fill types and materials: [ViaGuides] (JLCPCB, ALLPCB, Atlas PCB; the standard IPC-4761 not read: [IPC4761]). Copper, via thermal resistances and board area: [TI-AN2020]. Via arrays and pads, analytical models checked by CFD and measurements: [Shen2019] (abstract and structure).
 * Own computation: [L-via].
 
 *What was read and what was not verified:* from `research/via-fill/README.md` (read in full); the fabricator pages as recorded; IPC-4761 itself was not read.

@@ -47,6 +47,14 @@ Putting the pieces together gives the **multilayer fin equation** (steady state)
 
 **Energy balance.** Integrating (1) over the board makes every internal exchange cancel, and what is left is `sum h_l integral theta_l dA + integral of the edge losses = sum P`: the heat that leaves by every path equals the power injected. Every result reports this balance (10^-12 to 10^-9 on all the test boards).
 
+## 4b. The whole board as one conductivity (a check of the sheet formulas)
+
+Seen from outside, a board of several layers has an in-plane and a through-plane conductivity. For layers in parallel and in series:
+
+    k_in-plane      = sum(k_i t_i) / sum(t_i)           k_through-plane = sum(t_i) / sum(t_i / k_i)           trace layer: k_i = f_i k_Cu
+
+(`f_i` the copper coverage of layer `i`). The Electronics Cooling article of 1998 works the example of a 1.59 mm board with four 35 um copper layers (70 um in total, `k_Cu` 390, `k_FR4` 0.25 W/mK) and finds about 17.4 W/mK in plane and 0.26 W/mK through the thickness; the formulas give **17.41 and 0.2615** (`scripts/check_correlations.py`). The in-plane value is the program's `S_l` summed over the layers divided by the thickness; the through-plane value is the series of the vertical conductances of the chain. The article's message agrees with topic 17: once a continuous copper path exists in the heat-flow direction it dominates, and an effective conductivity of the whole board hides it; the program keeps one node per layer instead.
+
 ## 5. What it assumes and where it is wrong
 
 * No gradient across a copper layer, none across the thin dielectric laterally: the gap is a 1D resistance, so there is no spreading **inside** the gap. This costs 0.4 to 2 % against the 3D solid.
@@ -72,6 +80,7 @@ Putting the pieces together gives the **multilayer fin equation** (steady state)
 
 * Equation (1), the fin equation and the sheet conductance: [IncroperaDeWitt] (fin and sheet equations), [CarslawJaeger].
 * The same architecture (a Fourier series for the insulating layers with a lateral finite-volume discretisation of the metal layers) found against COMSOL and measurements: [PMC11410250].
+* The series and parallel conductivities of the whole board, with a worked example reproduced here: [EC1998Conduction].
 * The numbers (0.4 to 2.2 %, 1e-4, 1e-7) come from the repository's own validation: [L-validation], [L-solid3d].
 
 *What was read and what was not verified:* the formulas are copied from `docs/theory.md` section 1.2 (read in full); the textbooks are from the project documents, not opened here.

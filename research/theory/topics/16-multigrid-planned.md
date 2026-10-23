@@ -21,6 +21,10 @@ Simple iterations (Jacobi, Gauss-Seidel, SOR) remove the oscillating part of the
 
 The cost per cycle is proportional to the number of unknowns and the error drops by a roughly constant factor per cycle, so the total work grows linearly. **Algebraic** multigrid (the library named in the roadmap is pyamg) builds the coarse levels from the matrix itself, no geometry needed, which suits the program's cell networks with vias, blocks and outlines.
 
+## 2b. The two-grid algebra (from the primer)
+
+With a smoother `G` (for example Richardson, `G = I - L/||L||`), a restriction `R` and a prolongation `P`, the Galerkin coarse operator is `L_c = R L P` and one coarse-grid correction is `v <- v - P L_c^(-1) R (L v - g)`. The two-grid error operator is `TG = G T`, `T = I - P L_c^(-1) R L` (an energy-orthogonal projector); the V-cycle replaces the exact coarse solve by one recursive visit of the coarser level (the W-cycle by two). If the strong approximation property holds, a V(0,1)-cycle has `||MV||^2 <= 1 - 1/C` in the energy norm, with `C` independent of the grid; full multigrid reduces the error by about `2^(-(m+1/2))` per level for an order-`m` discretisation, and for the model Poisson problem a V(2,1)-cycle is usually enough. The cost of a cycle is proportional to the unknowns of the finest level, which is why the total work grows linearly. The algebraic variant builds `P` and the coarse levels from the matrix, no geometry needed.
+
 ## 3. What was measured
 
 On the example board, algebraic multigrid pays only above about **500,000 unknowns**: 987,000 unknowns took 8.0 s against 12.8 s for CG, and the direct solver did not fit in memory. It would stay an **optional dependency**, chosen above a threshold. All the solvers agree to 1e-8 K.

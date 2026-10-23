@@ -19,6 +19,10 @@ In **computed** mode each outer face gets `h = h_c + h_r` from the mean temperat
 
 `calibrate_convection` finds `C_cal` by bisection on `ln C_cal` so that the model reproduces one measured temperature. The orientation is horizontal (layer 1 faces up), top-down or vertical; tilted boards and the facing-down option were dropped for simplicity.
 
+## 2b. The laminar form of the vertical plate
+
+Churchill and Chu also give a form for the laminar range (Rayleigh up to about 1e9), `Nu = 0.68 + 0.670 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)`, said to be slightly more accurate there; the program uses the all-range form above. Compared at Pr 0.71 (`scripts/check_correlations.py`) the laminar form is +6.6 % at Ra 1e5, -5.2 % at 1e7 and -25 % at 1e9 (the all-range form includes the turbulent rise), so for a vertical board with Rayleigh numbers of 1e5 to 1e6 the choice moves `h_n` by a few percent. Nothing is changed in the program; the all-range form reproduces the worked example of the textbook to the digit (Nu 147.16 at Pr 0.69, Gr 2.63e9).
+
 ## 3. Limits
 
 Correlations of isothermal plates (20 to 30 % on a board with hot spots), the edge coefficient is typed, there are no enclosure view factors, the time simulation and the animation keep the steady-state coefficients. No model has been compared with a physical board yet.
@@ -39,6 +43,6 @@ Textbook air properties and closed forms, 1 to 3 % (`tests/`); `docs/validation.
 
 * Correlations, properties and radiation: [IncroperaDeWitt].
 * Vertical plate: [ChurchillChu1975] (citation and the form of the expression, with 0.825, 0.387 and 8/27, confirmed by secondary sources; the paper not opened). Blending of natural and forced convection: [ChurchillBlend] (the paper of 1977 exists; that the program's cube-root rule is the one of that paper is **not confirmed**).
-* Property fits: [AirProperties].
+* Property fits: [AirProperties]. The laminar form and the general rule for blending asymptotes (the structure of Churchill's mixing rule): [ChurchillUsagi]; a software implementation read for the worked example: [HtLibrary].
 
 *What was read and what was not verified:* equations are from `docs/theory.md` section 8 (read in full); the original publications were not opened. The curves of the figure are illustrative: natural convection drawn as `1.3 dT^(1/4)` (only the shape of the growth, not a correlation of the program) and radiation from the linearised formula with emissivity 0.9.

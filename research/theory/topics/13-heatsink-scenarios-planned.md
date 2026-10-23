@@ -27,6 +27,15 @@ To place the three effects on one heatsink: the air speed shifts the whole curve
 
 With a 12 K/W catalogue value at a 75 K rise, the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and Tj 70.4 C against 68.1 C with the fixed number (+2.3 K; at 4 W the other way: 113.9 against 111.1 C); the same heatsink at 1, 2.5 and 5 m/s gives 65.7, 64.5 and 63.6 C. The scenarios change Tj by 2 to 7 K because `theta_JC(top)` limits the path: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `theta_JC(top)` (metal lid, bare die). That is why the scenario is worth a switch and the fixed value a good default. Proposed scenarios: *fixed* (default), *natural* (`theta_SA = theta_ref (dT_ref / dT)^0.25`, solved in the loop of topic 08), *forced* (`theta_natural f(v)`). Altitude and a finer fin pitch are noted: the 0.80 at 3000 m of one source is ambiguous between a resistance and a factor and was not used.
 
+## 3c. The channel between fins: the correlations that exist (not used by the program)
+
+For isothermal vertical plates in a symmetric channel of spacing `S` and height `L` (air), with `Ra* = Ra_S (S/L) = g beta dT S^4 / (nu alpha L)`:
+
+    Elenbaas:                  Nu = (Ra*/24) [1 - exp(-35/Ra*)]^(3/4)         (0.1 < Ra* < 1e5)
+    Bar-Cohen and Rohsenow:    Nu_S = [576/Ra*^2 + 2.873/Ra*^(1/2)]^(-1/2)     (a Churchill-Usagi blend, n = -2)
+
+Both tend to the fully developed value `Ra*/24` at small `Ra*` (closely spaced fins: the boundary layers meet and choke the flow) and to the single-plate value (about `0.62 Ra*^(1/4)` for Elenbaas, `0.590 Ra*^(1/4)` for the composite) at large `Ra*` (widely spaced fins: no interaction, but less area). The optimum spacing is where the two meet: a channel Rayleigh number of about 50 (Elenbaas, quoted by Simons), `S_opt about 2.714 L / Ra_L^(1/4)` in the composite (`2.714^4 = 54.3`, written from memory and to confirm). These formulas were checked for internal consistency (`scripts/check_correlations.py`); they are **not** in the program, whose fins assume a uniform coefficient, and none has been validated against a catalogue `theta_SA`.
+
 ## 4. Proposed acceptance tests
 
 Catalogue values of `theta_SA` against the geometry model within the scatter of the catalogue; the factors against the volumetric guide; the non-linearity checked by the Picard loop of topic 08.
@@ -38,7 +47,7 @@ Catalogue values of `theta_SA` against the geometry model within the scatter of 
 ## 6. Sources
 
 * Factors 1, 0.31, 0.18, 0.10 and the spread of the estimate: [VolumetricGuide] (as recorded in `docs/research.md` R3). Catalogue values and test conditions: [HeatsinkCatalogues].
-* Channel effect: Elenbaas (1942), Bar-Cohen and Rohsenow (1984): [ElenbaasBCR] (not read; constants not used).
+* Channel effect: Elenbaas (1942), Bar-Cohen and Rohsenow (1984): [ElenbaasBCR] (the forms above come from secondary sources, not the originals); optimum channel Rayleigh number and the Elenbaas form as reported by Simons: [Simons2002]; the blending structure: [ChurchillUsagi].
 * Natural-convection scaling `W = beta dT^1.25`, orientation and finish: [AlphaNovatech]; the chain `Rja = Rjc + Rcs + Rsa` and the volumetric performance of a heatsink: [ECHowToSelectHeatsink]; the `Ra^(1/4)` law: [IncroperaDeWitt].
 
 *What was read and what was not verified:* the factors are quoted from the project documents; the natural-convection curve of the figure is illustrative; nothing of this is validated against a datasheet.

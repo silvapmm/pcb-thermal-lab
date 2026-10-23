@@ -53,6 +53,6 @@ One board, one heater, still air, steady state (and at most one step); no enclos
 
 ## 8. Sources
 
-The Power calculator document for the limits of thermocouples, infrared and emissivity (`docs/calculators.md`, [PohankaRaudensky], [OSTI21026063] through `research/theory/BIBLIOGRAPHY.md`); the roadmap for the non-linearity of the convection; the validation document for the sensitivity to the copper.
+The standard ASME V&V 20 for the frame of comparing a simulation with data (`E = S - D`, a validation uncertainty combined from the numerical, input and experimental parts, an interval rather than pass or fail; `research/theory/BIBLIOGRAPHY.md`, [ASMEVV20]); the Power calculator document for the limits of thermocouples, infrared and emissivity (`docs/calculators.md`, [PohankaRaudensky], [OSTI21026063] through `research/theory/BIBLIOGRAPHY.md`); the roadmap for the non-linearity of the convection; the validation document for the sensitivity to the copper.
 
 *What was read and what was not verified:* the protocol is written from the repository's own documents (read in full); no instrument specification was consulted and none is quoted.

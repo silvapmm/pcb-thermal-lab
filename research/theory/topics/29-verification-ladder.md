@@ -40,6 +40,6 @@ Energy balance and solvers: `tests/`, `research/models-comparison/` (figure 3). 
 
 ## 5. Sources
 
-* Verification and validation practice (grid convergence index): [Roache]. The exact solution used: [Yovanovich2003]. The numbers: [L-validation], [L-solid3d].
+* Verification and validation practice (grid convergence index): [Roache]; the standard that frames a comparison with data as an error `E = S - D` with a validation uncertainty and not as pass or fail: [ASMEVV20]. The exact solution used: [Yovanovich2003]. The numbers: [L-validation], [L-solid3d].
 
 *What was read and what was not verified:* the table is from `docs/theory.md` section 11 (read in full); there is no measurement of a physical board.
