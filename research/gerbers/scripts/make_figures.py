@@ -312,6 +312,63 @@ def fig_import_end_to_end():
     plt.close(fig)
 
 
+def fig_import_setup():
+    """!
+    @brief The set-up of the end-to-end runs (needs out/import_end_to_end.npz): where the 6 x 6 mm heater is on each board, the holes, a 20 mm window round the heater with the 1 mm thermal cells, the copper fraction per cell that the program uses today, and the reference temperature in the window.
+    @return None.
+    """
+    path = CACHE / "import_end_to_end.npz"
+    if not path.exists():
+        print("figure 08 skipped: run study_import_end_to_end.py first")
+        return
+    d = np.load(path)
+    fig, axs = plt.subplots(2, 4, figsize=(17, 8.6))
+    green, gold = np.array([0.04, 0.26, 0.13]), np.array([0.86, 0.62, 0.27])
+    for r, (tag, name) in enumerate((("storm", "Stormduino (MIT)"), ("ours", "our IC board"))):
+        cov, holes, hx, ref = d[f"{tag}_cov"], d[f"{tag}_holes"], d[f"{tag}_heater"], d[f"{tag}_fine"]
+        h, w = ref.shape
+        x0, x1 = max(0, int(hx[0] - 10)), min(w, int(hx[0] + 10))
+        y0, y1 = max(0, int(hx[1] - 10)), min(h, int(hx[1] + 10))
+        rgb = np.where(cov[..., None] > 0.5, gold, green)
+        # overview: whole board, window (white) and heater (cyan)
+        a = axs[r, 0]
+        a.imshow(rgb, extent=(0, w, 0, h), interpolation="nearest")
+        for x, y, dd in holes:
+            a.add_patch(plt.Circle((x, y), max(dd, 0.35) / 2.0 + 0.2, facecolor="#101010", edgecolor="w", linewidth=0.3))
+        a.add_patch(plt.Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False, edgecolor="w", linewidth=1.0, linestyle="--"))
+        a.add_patch(plt.Rectangle((hx[0] - 3, hx[1] - 3), 6, 6, fill=False, edgecolor="c", linewidth=1.4))
+        a.set_title(f"{name}: top copper, {len(holes)} plated holes (black)\nwindow 20 x 20 mm (dashed), heater 6 x 6 mm, 1 W (cyan)", fontsize=8)
+        # zoom with the 1 mm thermal cells
+        a = axs[r, 1]
+        a.imshow(rgb[::-1][h * 10 - y1 * 10: h * 10 - y0 * 10][:, x0 * 10: x1 * 10] if False else rgb[(h - y1) * 10:(h - y0) * 10, x0 * 10:x1 * 10], extent=(x0, x1, y0, y1), interpolation="nearest")
+        for x, y, dd in holes:
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                a.add_patch(plt.Circle((x, y), max(dd, 0.35) / 2.0, facecolor="#101010", edgecolor="w", linewidth=0.3))
+        a.set_xticks(range(x0, x1 + 1)); a.set_yticks(range(y0, y1 + 1)); a.grid(color="w", linewidth=0.3, alpha=0.6)
+        a.tick_params(labelsize=5)
+        a.add_patch(plt.Rectangle((hx[0] - 3, hx[1] - 3), 6, 6, fill=False, edgecolor="c", linewidth=1.6))
+        a.set_title("window with the 1 mm cells of the thermal grid\n(copper from the 0.1 mm mask; heater = 6 x 6 cells)", fontsize=8)
+        # copper fraction per cell: what the program's one-zone-per-cell path would use
+        frac = cov.reshape(h, 10, w, 10).mean(axis=(1, 3))[::-1]
+        a = axs[r, 2]
+        im = a.imshow(frac[h - y1:h - y0, x0:x1], extent=(x0, x1, y0, y1), cmap="viridis", vmin=0, vmax=1, interpolation="nearest")
+        a.add_patch(plt.Rectangle((hx[0] - 3, hx[1] - 3), 6, 6, fill=False, edgecolor="w", linewidth=1.4))
+        a.set_title(f"copper fraction per cell (the program's fill today)\nmean under the heater {frac[int(hx[1]-3):int(hx[1]+3), int(hx[0]-3):int(hx[0]+3)].mean():.2f}", fontsize=8)
+        fig.colorbar(im, ax=a, fraction=0.046)
+        # reference temperature in the window
+        a = axs[r, 3]
+        im = a.imshow(ref[y0:y1, x0:x1], origin="lower", extent=(x0, x1, y0, y1), cmap="inferno", interpolation="nearest")
+        a.add_patch(plt.Rectangle((hx[0] - 3, hx[1] - 3), 6, 6, fill=False, edgecolor="c", linewidth=1.4))
+        a.set_title(f"reference temperature rise (K), max {ref.max():.0f} K\nheater block mean {ref[int(hx[1]-3):int(hx[1]+3), int(hx[0]-3):int(hx[0]+3)].mean():.0f} K", fontsize=8)
+        fig.colorbar(im, ax=a, fraction=0.046)
+        for c in range(4):
+            axs[r, c].set_xlabel("mm")
+    fig.suptitle("Set-up of the end-to-end runs: heater 6 x 6 mm, 1 W on the top layer; 10 W/m2K on both faces; insulated edges; 1.6 mm board, 35 um copper; plated holes as vias", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_08_import_setup.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the three figures.
@@ -325,6 +382,7 @@ def main():
     fig_board_thermal()
     fig_gerber_render()
     fig_import_end_to_end()
+    fig_import_setup()
     print("figures in", OUT)
 
 

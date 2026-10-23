@@ -46,7 +46,7 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `LOG.md` | Dated log: what was read in full, from a summary or from memory; what was reproduced and what not. |
 | `requirements.txt` | NumPy and SciPy; gerbonara, shapely and the comparison tools only for the cross-checks. |
 | `docs/` | For when the work is adopted: `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the literature status). The project documents are not edited on this branch. |
-| `figures/` | `fig_01` to `fig_07`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end. |
+| `figures/` | `fig_01` to `fig_08`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end, 08 its set-up (heater, holes, cells). |
 | `tests/` | 71 fast tests (about 21 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`), the import path (`test_importer.py`, needs the program's dependencies). |
 | **`lib/`** | |
 | `lib/native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 attributes (file function, aperture functions, net names), the layer classifier, Excellon, coverage masks. |
@@ -69,7 +69,7 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `scripts/study_angles.py`, `study_net_joule.py`, `study_vias_nets.py` | Tracks at any angle (4.23); the heat of a net (4.20); holes, vias and nets (4.29). |
 | `scripts/study_sampson_boundary.py`, `study_post_board.py`, `study_coverage.py`, `study_coverage_real.py` | The regime of Sampson's article and its board analogue (4.25, 4.28); coverage masks (4.26). |
 | `scripts/study_import_end_to_end.py`, `study_import_readers.py` | The import on the Stormduino and on our board against the program as it is; the same with another reader (4.31). |
-| `scripts/make_figures.py` | Draws the seven figures into `figures/`. |
+| `scripts/make_figures.py` | Draws the eight figures into `figures/`. |
 
 ## 4. How to run, and the results
 
@@ -543,6 +543,18 @@ Two boards, a 6 mm heater of 1 W on the top layer, mean temperature of the heate
 **The choice of reader is not what matters.** The same pipeline with gerbonara + shapely instead of the independent reader (Stormduino): copper area +0.07 % (top) and +0.11 % (bottom), 0.07 to 0.11 % of the pixels differ, and the heater temperature differs by 0.01 to 0.04 % (reference 38.142 K against 38.158 K; coverage faces 36.138 K against 36.142 K).
 
 Limits: two boards, one heater each; no measurement; the 3D solid was not used as a check (unusable at fine cells, cause not investigated); the sign of the error of our board is hot, the Stormduino cool, so the flow-based faces are not a bias-free method, only a much smaller one.
+
+### 4.32 Where the heater is: the set-up of the end-to-end runs (`make_figures.py`, figure 8)
+
+![Figure 8: the two boards, the heater, the holes, the 1 mm cells, the copper fraction per cell and the reference temperature](figures/fig_08_import_setup.png)
+
+*Figure 8 (`figures/fig_08_import_setup.png`): columns, left to right: the top copper of the whole board with the 109 (above) and 16 (below) plated holes in black, the 20 x 20 mm window (dashed) and the 6 x 6 mm heater of 1 W (cyan); the window with the 1 mm cells of the thermal grid; the copper fraction of each cell (what the program's fill uses today); the reference temperature rise in the window.*
+
+Conditions of every run in 4.31: heater 6 x 6 mm, 1 W, on the top layer, centred at (33, 27) mm on the Stormduino and at (20, 20) mm on our board; 10 W/m²K on both faces, insulated edges, 1.6 mm board, 35 µm copper, 1 mm cells, plated holes as vias. What the figure shows:
+
+* **Stormduino**: the heater sits on a solid copper pour (fraction 1.00 under it), so the heat spreads well (38 K mean); the cells around it are a mixture of pour and traces, and that is where the fill fraction loses connectivity and the program is 15 % cool.
+* **Our board**: the heater sits on the exposed pad of the IC (fraction 0.29 under the 6 mm block: the pad, four vias, the pads and thin radial tracks); the heat leaves along 0.2 mm tracks and the 0.8 mm spoke (115 K mean). Here the cells are copper-poor, the fill fraction gives 5 % cool and the flow-based faces 2 to 4 % hot.
+* The heater is a footprint on the top layer, not a part from the file: the position was chosen by hand (the layer and part assignment is the missing interface, 4.31).
 
 ## 5. Without third-party libraries: the independent reader
 

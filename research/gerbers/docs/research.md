@@ -22,4 +22,4 @@ Ready to paste into the project `docs/research.md` as a section "Open now: Gerbe
 
 **Open decisions for the maintainer**: which stage enters the program (`INTEGRATION.md`); the zone `pattern` for hatched zones; the additive union of zones; a repeat of the mapping studies with finer pixels or the nine-point stencil; the Ucamco test files and example data sets as extra conformance material (download by the maintainer, never committed).
 
-Pictures (`../figures/`): `fig_01_angles_pixel_grid.png`, `fig_02_nets_and_joule.png`, `fig_03_copper_mapping_to_cells.png`, `fig_04_ic_board_nets_and_joule.png`, `fig_05_ic_board_thermal.png`, `fig_06_ic_board_gerber_render.png`, `fig_07_import_end_to_end.png`.
+Pictures (`../figures/`): `fig_01_angles_pixel_grid.png`, `fig_02_nets_and_joule.png`, `fig_03_copper_mapping_to_cells.png`, `fig_04_ic_board_nets_and_joule.png`, `fig_05_ic_board_thermal.png`, `fig_06_ic_board_gerber_render.png`, `fig_07_import_end_to_end.png`, `fig_08_import_setup.png`.

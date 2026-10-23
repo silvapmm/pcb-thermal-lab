@@ -16,7 +16,7 @@ Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a se
 
 ## 1b. Where we stand with importing Gerbers with our code (2026-10-23)
 
-The path exists as research code (`lib/importer.py`, README 4.31, figure 7): files, copper masks, holes, nets and vias, a `Problem` with the vias, face conductances, and a solve through the program's own `fvm.Network`. On the Stormduino (2 layers, 109 vias) the heater temperature is -15.1 % with the program's mapping and -2.1 % (binary) or -5.3 % (coverage) with imported faces; on our IC board -5.0 % against +4.0 % and +2.1 %. Another reader changes the result by 0.01 to 0.04 %. **Missing**: the step where the user confirms layers and outline, several heaters, directional faces in the FDM and the 3D solid, component leads, any measurement.
+The path exists as research code (`lib/importer.py`, README 4.31 and 4.32, figures 7 and 8): files, copper masks, holes, nets and vias, a `Problem` with the vias, face conductances, and a solve through the program's own `fvm.Network`. On the Stormduino (2 layers, 109 vias) the heater temperature is -15.1 % with the program's mapping and -2.1 % (binary) or -5.3 % (coverage) with imported faces; on our IC board -5.0 % against +4.0 % and +2.1 %. Another reader changes the result by 0.01 to 0.04 %. **Missing**: the step where the user confirms layers and outline, several heaters, directional faces in the FDM and the 3D solid, component leads, any measurement.
 
 ## 2. How this differs from the three Electronics Cooling articles
 
