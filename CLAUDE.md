@@ -92,7 +92,8 @@ Mandatory, and applies to everything that ends up in the repository history or o
   messages, PR titles, PR descriptions and comments, release notes and issue text are all in **English**.
   Talking to the maintainer in Portuguese does not change this.
 - **Branch names**: ASCII, lowercase, kebab-case, with a type prefix: `feature/<topic>`, `fix/<topic>`,
-  `docs/<topic>`, for example `feature/component-models`. No accents, spaces or Portuguese words.
+  `docs/<topic>`, for example `feature/component-models`, and `research/<topic>` for studies that do not change the program, for example `research/gerbers`.
+  No accents, spaces or Portuguese words.
   Long-lived branches are only `main` and `develop`.
 - **Commit messages**: imperative mood ("Add", "Fix", "Remove"), a subject of at most 72 characters
   without a final period, then a blank line and a body that explains *why* when it is not obvious.
@@ -131,6 +132,8 @@ tests/                 pytest suite (about 300 tests; GUI tests run offscreen; t
 examples/              example boards (.pcbt.json), csv_profiles/ (documented CSV power-profile example), validation_study.py (all models, every scenario; tables of docs/validation.md), accuracy_study.py and stress_study.py (the scenario lists), solver_equivalence.py, fem3d_validation.py (3D solid), copper_dissipation.py (outer copper against heatsink), component_study.py (what a package resistance and a top path add on five real parts), top_path_study.py (the top path of the program against the junction-node prototype), outline_rectangle_study.py (Lumped/Analytic on the rectangle of the same area against the FVM on the real outline)
 docs/                  versions.md (what was implemented in every version), models.md (models, features, API), theory.md (every equation and approximation of every model; update it with any model change), calculators.md (the auxiliary calculators: formulas, validation, limits, sources), validation.md (every scenario in every model, 3D check, history), roadmap.md (what is implemented and what we want to implement), research.md (open investigations, empty when nothing is pending), images/
 ico/                   application icon
+research/              one folder per investigation (see "Research branches"), not part of the program
+  research/<topic>/    everything about that investigation: code, studies, tests, README with the results, INTEGRATION.md, docs/
 ```
 
 The original wxPython program (`core/`, `ui/`, `main.py`, `config.py`) was removed in release 2.0.0;
@@ -182,6 +185,18 @@ merges, PRs, and tags. The maintainer set these rules (2026-10-16):
 - **Before editing this file**: replace only the section you mean to change. A range replacement
   once deleted this section by accident (restored on 2026-10-16).
 
+## Research branches
+
+Maintainer's rule (2026-10-23): an investigation that does not change the program is done on its own branch and in its own folder.
+
+- **Branch**: `research/<topic>`, created from `develop`, for example `research/gerbers`. Commits and pushes on a research branch are authorised by this rule. Never touch `develop` or `main`, and do not open a PR unless asked.
+- **Folder**: `research/<topic>/` holds everything about the investigation: the code (readers, solvers, prototypes), the studies (`study_*.py`), the tests (`tests/`), a `README.md` with the results and sources, an `INTEGRATION.md` with the design for the program, and a `docs/` subfolder with the text to adopt later (research summary, changelog text, CLAUDE.md entries, roadmap line). `research/README.md` is the index of all investigations.
+- **Project documents stay untouched** on a research branch: `README.md`, `CHANGELOG.md`, `CLAUDE.md` and everything in `docs/` must stay identical to `develop` (merge `develop` into the branch to keep them so; never rewrite history). New documents go only in `research/<topic>/`.
+- **Tests**: run only the tests of the investigation (`research/<topic>/tests`), not the whole battery, unless the program changes.
+- **Data**: downloaded boards, caches and outputs are never committed (`data/`, `out/`, `*.npz` in the folder's `.gitignore`); respect the licences of what is downloaded.
+- **Adoption**: when the maintainer decides to adopt the work, a `feature/<topic>` branch off `develop` implements it in `pcbthermal/` following the normal rules (documentation, tooltips, user guide, tests, whole battery), and the findings are folded into the project documents; the `research/<topic>/` folder stays as the record.
+- **Honest records**: say what was read in full and what only from a summary or from memory, and mark numbers that were not reproduced.
+
 ## Before every commit: update the documentation (mandatory)
 
 Maintainer's rule (2026-10-21): **no commit without updating, in the same commit, every file the change touches.** Go through this list each time and update what applies:
@@ -213,6 +228,7 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 
 Record important decisions here, newest first, with date and reason.
 
+- 2026-10-23: Research branches and folders (maintainer): investigations live on `research/<topic>` branches and in `research/<topic>/` folders; the project documents are not edited there. First case: `research/gerbers` (Gerber import and the mapping of copper to the grid cells).
 - 2026-10-22: **Released 2.4.1** (licensing only: the MIT text aligned in README, About box and CLAUDE.md after 2.4.0 had been tagged with the old text); `develop` merged into `main`, tag `v2.4.1`.
 - 2026-10-22: License decision (maintainer): the project stays MIT. README, CLAUDE.md, the About box and the roadmap were aligned with `LICENSE` (they said "All rights reserved"). A paid or proprietary model is not decided; if it comes, versions up to v2.4.0 stay MIT (old releases cannot be revoked) and the change applies from a later version.
 - 2026-10-22: Read FYPA (Tomachie fork), padne and altium_monkey for ideas (roadmap section 6, ideas 11 to 20): pass/fail checks with an exit code, result cache, regulator losses from efficiency, parameters in the CAD files with a sidecar, the electrical solution as heat source, probes, ParaView export, release automation, a visible disclaimer. All three are AGPL-3.0 and the project is MIT: ideas only, no code copied. WebFetch worked for github.com on this occasion (it failed for other hosts).
