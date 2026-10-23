@@ -25,7 +25,7 @@ import scenarios as sc
 import windows
 from nets import disc, net_pads
 
-from paths import FIGURES as OUT                           # kept in the repository on purpose: the README files link to them
+from paths import FIGURES as OUT, OUT as CACHE                           # kept in the repository on purpose: the README files link to them
 
 
 def labelled_cmap(n, seed=1):
@@ -273,6 +273,45 @@ def fig_gerber_render():
     plt.close(fig)
 
 
+def fig_import_end_to_end():
+    """!
+    @brief The import path end to end on two boards (needs out/import_end_to_end.npz from study_import_end_to_end.py): the copper and holes imported from the files, the temperature of the top layer resolved at the pixel grid, and the difference of the program as it is and of the imported path from it.
+    @return None.
+    """
+    path = CACHE / "import_end_to_end.npz"
+    if not path.exists():
+        print("figure 07 skipped: run study_import_end_to_end.py first")
+        return
+    d = np.load(path)
+    fig, axs = plt.subplots(2, 4, figsize=(17, 8.6))
+    for r, (tag, name) in enumerate((("storm", "Stormduino (MIT), 2 layers, 109 plated holes"), ("ours", "our IC board, 1 layer, 16 plated holes"))):
+        cov, holes, hx = d[f"{tag}_cov"], d[f"{tag}_holes"], d[f"{tag}_heater"]
+        ref, today, imp = d[f"{tag}_fine"], d[f"{tag}_today"], d[f"{tag}_flow_coverage"]
+        h, w = ref.shape
+        ext = (0, w, 0, h)
+        green, gold = np.array([0.04, 0.26, 0.13]), np.array([0.86, 0.62, 0.27])
+        axs[r, 0].imshow(np.where(cov[..., None] > 0.5, gold, green), extent=ext, interpolation="nearest")      # the mask has 10 pixels per mm, the board h x w mm
+        for x, y, dd in holes:
+            axs[r, 0].add_patch(plt.Circle((x, y), max(dd, 0.35) / 2.0 + 0.2, facecolor="#101010", edgecolor="w", linewidth=0.3))
+        axs[r, 0].add_patch(plt.Rectangle((hx[0] - 3, hx[1] - 3), 6, 6, fill=False, edgecolor="c", linewidth=1.2))
+        axs[r, 0].set_title(f"{name}\ntop copper from the Gerber, holes from the drill file, heater (cyan)", fontsize=8)
+        im = axs[r, 1].imshow(ref, origin="lower", extent=ext, cmap="inferno")
+        axs[r, 1].set_title("temperature rise of the top layer (K)\nreference: the program on the pixel grid (0.1 mm)", fontsize=8)
+        fig.colorbar(im, ax=axs[r, 1], fraction=0.046)
+        lim = 0.15 * ref.max()
+        for c, (fld, label) in enumerate(((today, "the program as it is (one zone per cell, fill = copper fraction)"), (imp, "imported path (flow-based faces, coverage mask)")), start=2):
+            sl = (slice(int(hx[1] - 3), int(hx[1] + 3)), slice(int(hx[0] - 3), int(hx[0] + 3)))
+            err = 100 * (fld[sl].mean() / ref[sl].mean() - 1)
+            im = axs[r, c].imshow(fld - ref, origin="lower", extent=ext, cmap="RdBu_r", vmin=-lim, vmax=lim)
+            axs[r, c].set_title(f"{label}\ndifference from the reference (K); heater mean {err:+.1f} %", fontsize=8)
+            fig.colorbar(im, ax=axs[r, c], fraction=0.046)
+        for c in range(4):
+            axs[r, c].set_xlabel("mm")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_07_import_end_to_end.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the three figures.
@@ -285,6 +324,7 @@ def main():
     fig_nets(our_board.gerber_text(), "S1", "fig_04_ic_board_nets_and_joule.png", f"our IC board (our_board.py): {our_board.N_SIG} signal nets on circular arcs and GND (nine colours)", pix=0.025)
     fig_board_thermal()
     fig_gerber_render()
+    fig_import_end_to_end()
     print("figures in", OUT)
 
 
