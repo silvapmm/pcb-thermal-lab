@@ -230,3 +230,9 @@ def test_excellon_without_unit_is_refused(tmp_path):
     f.write_text("%\nT1C.015\nX01095Y01056\nM30\n")
     with pytest.raises(NotImplementedError):
         ng.read_drill(f)
+
+
+def test_g_code_line_without_star(tmp_path):
+    """!@brief A lone G code line without its star (written by gerbonara) does not swallow the next command. @param tmp_path pytest temp dir. @return None."""
+    t = "%MOMM*%\n%FSLAX45Y45*%\nG75\n%LPD*%\n%ADD10C,2.0*%\nD10*\nX000500000Y000500000D03*\nM02*\n"
+    assert area(t, tmp_path, box=(0.0, 10.0, 10.0, 10.0)) == pytest.approx(math.pi, rel=0.02)

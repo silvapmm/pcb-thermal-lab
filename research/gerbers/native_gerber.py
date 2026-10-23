@@ -34,6 +34,8 @@ def _blocks(text):
     @return List of tuples (kind, text) with kind "ext" or "data".
     """
     out = []
+    # Some writers (gerbonara) leave the star off a lone G code line ("G75"); without it the block would swallow the next command
+    text = re.sub(r"(?m)^(G\d{1,2})[ \t]*$", r"\1*", text)
     pos, n = 0, len(text)
     while pos < n:
         c = text[pos]
