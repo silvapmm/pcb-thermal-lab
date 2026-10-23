@@ -18,8 +18,8 @@ Written on branch `research/gerbers` (phase 1 of three of the Gerber research, s
 | Vias and nets: 225 vias of a 4-layer KiCad board, net equal on all four layers | 225 of 225; 68 of 68 plated component holes of the X2 test set agree on both layers | 4.29 | `study_vias_nets.py`, `tests/test_nets.py` |
 | Reader area vs gerbonara + shapely, 8 real boards | 0.0 to 0.9 % average per board | 5 | `study_native_check.py` |
 | Reader on 14 files of known area: same raster as gerbonara + shapely and pcb-tools (binary) | to the digit; error is the pixel | 4.22 | `compare_readers.py`, `tests/test_native_gerber.py` |
-| Reader, files of gerbonara's test set | 149 of 164 comparable within 3 % | 4.17 | `study_reader_conformance.py` |
-| Drills, 35 files read by both tools | 35 identical | 4.19 | `study_reader_scope.py`, `test_excellon_*` |
+| Reader, files of gerbonara's test set | 161 of 164 comparable within 3 % (149 before the vector reference was fixed) | 4.17 | `study_reader_conformance.py` |
+| Drills, 34 files read by both tools | 34 identical (36 of 38 read, 2 without a unit refused) | 4.19 | `study_reader_scope.py`, `test_excellon_*` |
 | gerber-writer files: arcs and thermal macros | -0.04 % (gerbonara -0.00 %; an earlier -8.57 % was our wrapper ignoring arcs) | 4.24 | `study_gerber_writer.py`, `test_vector_reference_includes_the_circular_tracks` |
 | Net pieces by connectivity; wire keeps its net | | 4.20 | `test_net_pieces_are_found_by_connectivity_and_a_thin_wire_keeps_its_net` |
 | Our IC board as a bench: nine nets in one piece each and no short, 16 holes with the right nets | 2 tests | 4.30 | `tests/test_our_board_bench.py` |

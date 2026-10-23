@@ -6,7 +6,7 @@ Ready to paste into the project `docs/research.md` as a section when the maintai
 
 **Answers** (numbers in the README of the folder):
 
-* **Reading: done without libraries.** `lib/native_gerber.py` (NumPy only) draws copper layers and reads drills: same raster as gerbonara + shapely at the pixel, 149 of 164 comparable files of gerbonara's test set agree within 3 % of the area, 35 of 35 drill files identical, X2 attributes (file function, aperture functions, net names) read (README 4.17 to 4.19, 4.22, 4.24).
+* **Reading: done without libraries.** `lib/native_gerber.py` (NumPy only) draws copper layers and reads drills: same raster as gerbonara + shapely at the pixel, 161 of 164 comparable files of gerbonara's test set agree within 3 % of the area, 34 of 34 drill files read by both identical, X2 attributes (file function, aperture functions, net names) read (README 4.17 to 4.19, 4.22, 4.24).
 * **Vias and nets** (4.29): holes from the drill file matched to pads by position, aperture function and net; 225 of 225 vias of a real 4-layer board have one net on the four layers.
 * **Nets against a CAD file** (4.33): Stormduino Gerbers + `.kicad_pcb`: 1380/1380 track points, 48/48 via points and 281/281 pad points on our copper; no piece or joined group with two nets; 55 of 56 nets without a zone fill split like the CAD file.
 * **Import** (`lib/importer.py`): box, binary and coverage mask per layer, holes with pad, kind and net, warnings; no program needed.

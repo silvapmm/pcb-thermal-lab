@@ -18,6 +18,6 @@ Not for the physics, but for what the files do not say: which file is which laye
 ## 3. Costs and risks
 
 * No new dependency; gerbonara and shapely stay as a test reference (the NumPy reader agrees with them to 0.0 to 0.9 % of the area on 8 real boards and to the digit on 14 files of known area).
-* The reader was written from the format as commonly documented, the Ucamco specification was not read in full; 149 of 164 comparable gerbonara test files agree within 3 % of the area, 6 are refused as unsupported (README 4.17).
+* The reader was written from the format as commonly documented, the Ucamco specification was not read in full; 161 of 164 comparable gerbonara test files agree within 3 % of the area, 6 are refused as unsupported (README 4.17).
 * Non-rectangular outlines are only a box in the importer; the polygon outline is a separate item (`Board.outline` exists in the program).
 * Documentation rules when adopted (`CLAUDE.md`): user guide, tooltips, `docs/validation.md`, tests, the whole battery.

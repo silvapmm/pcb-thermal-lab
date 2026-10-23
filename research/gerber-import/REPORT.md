@@ -70,7 +70,7 @@ mean absolute area error over 12 layers: binary 0.1 mm 0.14 %, binary 0.05 mm 0.
 | our reader (centre sampling) | 22.3 % | 7.8 % | 1.4 % | the same raster as gerbonara + shapely and pcb-tools (binary) to the digit; the error is the pixel |
 | gerbonara, vector area | 0.01 % | 0.01 % | 0.01 % | exact, but no raster |
 | gerbonara + shapely, sampled | 20.8 % | 8.6 % | 1.3 % | |
-| pcb-tools, pixels above 50 % | 21.9 % | 7.8 % | 1.3 % | **63 % low on the 8 real boards** (not investigated) |
+| pcb-tools, pixels above 50 % | 21.9 % | 7.8 % | 1.3 % | **63 % low on the 8 real boards** (an average: an empty image on 2 of the 4 boards run, -100 %) |
 | pcb-tools, grey level | **4.4 %** | **2.6 %** | 1.4 % | a grey-level (coverage) mask keeps thin tracks |
 | pygerber | 30.3 % | 8.1 % | 1.9 % | strict grammar: parsed none of gerbonara's 47 written files as they are |
 
@@ -78,9 +78,9 @@ A track narrower than 1.5 pixels is rounded to 0, 1 or 2 pixels with any binary 
 
 ### 3.3 Reader scope and conformance (4.17, 4.19, 4.24)
 
-* gerbonara's own 272 test files: of the 164 both readers draw, **149 agree within 3 % of the area** (median 0.04 %); 6 are refused as unsupported; the 15 that disagree are mostly silkscreen and outline files.
-* 54 copper layers classified, 50 drawn, 2 refused (non-standard `Rect` aperture), 2 empty; 45 of 50 within 3 % of gerbonara's area.
-* Drills: all 38 files read; on the 35 gerbonara also reads, **the holes are identical (positions to 0.01 mm, diameters to 1 µm) in all 35**.
+* gerbonara's own 272 test files: of the 164 both readers draw, **161 agree within 3 % of the area** (median 0.02 %); 6 are refused as unsupported; the 3 that disagree are two spec-test files that differ on purpose and one silkscreen file (149 agreed before the arcs of the vector reference were fixed).
+* 62 copper layers classified, 58 drawn, 2 refused (non-standard `Rect` aperture), 2 empty; 58 of 58 within 3 % of gerbonara's area (45 of 50 before the arcs of the vector reference were fixed).
+* Drills: 36 of 38 files read (2 files without a unit are refused on purpose); on the 34 gerbonara also reads, **the holes are identical (positions to 0.01 mm, diameters to 1 µm) in all 34**.
 * Files written by Ucamco's `gerber-writer`: -0.04 % on the tilted tracks and the arc path; gerbonara's vector area is -0.00 % (an earlier -8.57 % was our wrapper ignoring arcs, fixed, see section 5).
 
 ### 3.4 Nets and vias (4.29, 4.33)
@@ -114,7 +114,7 @@ The independent reader differs from the vector truth in **72 of 4.49 million cop
 | :-- | :-- | :-- | :-- | :-- |
 | Output | pixel masks, holes with net | vector objects, can write files | objects, Cairo image | image (anti-aliased) |
 | Dependencies | NumPy | several (shapely for sampling) | Cairo and others | pydantic, pillow, others |
-| Area on real boards | 0.14 % (0.05 % coverage) | 0.67 % sampled, exact as vectors | 63 % low (unexplained) | 1.6 % low, 4 of 16 runs failed |
+| Area on real boards | 0.14 % (0.05 % coverage) | 0.67 % sampled, exact as vectors | 63 % low on average (empty image on 2 of 4 boards) | 1.6 % low, 4 of 16 runs failed |
 | Excellon | tolerant: Allegro, OrCAD comment tables, repeat, slots | refuses 3 of 38 | basic | spec files |
 | Unsupported content | reported with an error | mostly handled | silently wrong in places | varies |
 | Features | fewer (no aperture blocks, LM/LR/LS, moire, mirror, scale; no writing) | the most complete | older subset | spec-faithful in intent |
