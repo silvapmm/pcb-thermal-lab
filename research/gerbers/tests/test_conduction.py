@@ -181,3 +181,28 @@ def test_dual_faces_do_not_depend_on_the_batch_size():
     a = cd.dual_faces(S, 10, 2, batch_pixels=10 ** 9)
     b = cd.dual_faces(S, 10, 2, batch_pixels=3000)
     assert np.allclose(a[0], b[0], rtol=1e-9) and np.allclose(a[1], b[1], rtol=1e-9)
+
+
+def test_published_parallel_and_series_example():
+    """!@brief The worked example of Sampson (Electronics Cooling, 2017): 10 % copper (391 W/m K) and 90 % board (0.59 W/m K) gives about 40 W/m K when the traces run along the flow and 0.65 W/m K across it. @return None."""
+    blk = np.full((1, 1, 10, 10), 0.59)
+    blk[:, :, :, 0] = 391.0                                                # one column of ten is copper: a stripe along y
+    low_x, low_y, up_x, up_y = (v[0, 0] for v in cd.map_bounds(blk))
+    assert low_y == pytest.approx(0.1 * 391 + 0.9 * 0.59, rel=1e-9)         # along the stripe: parallel, volume weighted (the article rounds 39.6 to 40)
+    assert up_y == pytest.approx(low_y, rel=1e-9)                           # a stripe pattern has no cross flow: both bounds agree
+    assert low_x == pytest.approx(1.0 / (0.1 / 391 + 0.9 / 0.59), rel=1e-9)  # across the stripe: series
+    assert low_x == pytest.approx(0.65, abs=0.01)                           # the article's value
+    assert up_x == pytest.approx(low_x, rel=1e-9)
+
+
+def test_blackmore_tile_formulas_are_the_lower_bound_and_the_arithmetic_mean():
+    """!@brief Blackmore's tile method (2010): kz = area-weighted mean, kx = rows in parallel of series chains. The first is the arithmetic fraction mapping, the second the `low` bound. @return None."""
+    rng = np.random.default_rng(5)
+    mask = rng.random((1, 1, 8, 8)) < 0.4
+    blk = np.where(mask, 391.0, 0.59)
+    kz = blk.mean()
+    kx_rows = np.mean([1.0 / np.sum(1.0 / blk[0, 0, r, :] / 8.0) for r in range(8)])    # each row: series chain of 8 pixels; rows in parallel (mean of the row conductances)
+    low_x = cd.map_bounds(blk)[0][0, 0]
+    assert low_x == pytest.approx(kx_rows, rel=1e-9)
+    f = mask.mean()
+    assert kz == pytest.approx(cd.map_power(np.array(f), 1.0, 391.0, 0.59), rel=1e-9)
