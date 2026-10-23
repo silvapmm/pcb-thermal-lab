@@ -17,3 +17,5 @@ Ready to paste into the project `docs/research.md` as a section when the maintai
 **Open decisions for the maintainer**: the layer/outline confirmation step; board outline polygons; whether to add other CAD formats for the net check.
 
 Picture (`../figures/`): `fig_01_gerber_render.png`.
+
+* **Validation report** (`REPORT.md`, README 4.41): the converter on all 12 copper layers of the 8 boards: area 0.14 % (0.05 % with a coverage mask), connected pieces identical on 12 of 12 layers, 109 of 109 holes on the Stormduino, nets agree with the KiCad file; differences from gerbonara, pcb-tools and pygerber tabulated.

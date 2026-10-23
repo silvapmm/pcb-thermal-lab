@@ -1,6 +1,6 @@
 # Gerber import, phase 3: nets with voltage and current (Joule heat, links, sources and sinks)
 
-Status: **open**, a research branch (`research/gerbers`, started 2026-10-22): **nothing in `pcbthermal/` was changed**. This folder is **phase 3 of three** of the Gerber research, which started as one study and was split on 2026-10-23: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and how, in [`LOG.md`](LOG.md); the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.40) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open and early** (the electrical side is a prototype and a design, a good start but still green), a research branch (`research/gerbers`, started 2026-10-22): **nothing in `pcbthermal/` was changed**. This folder is **phase 3 of three** of the Gerber research, which started as one study and was split on 2026-10-23: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and how, in [`LOG.md`](LOG.md); the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.40) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
 
 ### Where the sections are
 
@@ -46,6 +46,9 @@ Status: **open**, a research branch (`research/gerbers`, started 2026-10-22): **
 | 4.38 | `gerber-models` | The mappings as selectable options |
 | 4.39 | `gerber-models` | Measured impact of the two proposed corrections to the program |
 | 4.40 | `gerber-nets` **(this folder)** | Sources, sinks and links: the electrical side |
+| 4.41 | `gerber-import` | The converter on every board, layer by layer |
+| 4.42 | `gerber-models` | The thinnest track and the angle |
+| 4.43 | `gerber-models` | Every mapping on every board, in one table |
 
 ## 1. The questions
 

@@ -1,6 +1,6 @@
 # Conclusions, phase 1: reading the files
 
-Written 2026-10-23 on branch `research/gerbers` (phase 1 of three of the Gerber research, split from one study on 2026-10-23: `research/gerber-import`, `research/gerber-models`, `research/gerber-nets`; the section numbers 4.1 to 4.40 are those of the original study, see the table in `README.md`). Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`scripts/`) and, where it is a claim that can break, a test (`tests/`, 39 tests in about 7 s; `cd research/gerber-import && python -m pytest -q tests`; one geometry test needs shapely and the KiCad check needs the Stormduino files from `scripts/fetch_boards.py`). Nothing in `pcbthermal/` was changed.
+Written 2026-10-23 on branch `research/gerbers` (phase 1 of three of the Gerber research, split from one study on 2026-10-23: `research/gerber-import`, `research/gerber-models`, `research/gerber-nets`; the section numbers 4.1 to 4.40 are those of the original study, see the table in `README.md`). The evidence is gathered in [`REPORT.md`](REPORT.md). Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`scripts/`) and, where it is a claim that can break, a test (`tests/`, 39 tests in about 7 s; `cd research/gerber-import && python -m pytest -q tests`; one geometry test needs shapely and the KiCad check needs the Stormduino files from `scripts/fetch_boards.py`). Nothing in `pcbthermal/` was changed.
 
 ## 1. Where we stand
 

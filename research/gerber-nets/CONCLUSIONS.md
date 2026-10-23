@@ -1,6 +1,6 @@
 # Conclusions, phase 3: nets with voltage and current
 
-Written 2026-10-23 on branch `research/gerbers` (phase 3 of three of the Gerber research, split from one study on 2026-10-23: `research/gerber-import`, `research/gerber-models`, `research/gerber-nets`; the section numbers 4.1 to 4.40 are those of the original study, see the table in `README.md`). Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`scripts/`) and, where it is a claim that can break, a test (`tests/`, 11 tests in about 1 s; `cd research/gerber-nets && python -m pytest -q tests`). Nothing in `pcbthermal/` was changed.
+Maturity: early (a prototype and a design, not yet joined to a thermal run); the direction is good. Written 2026-10-23 on branch `research/gerbers` (phase 3 of three of the Gerber research, split from one study on 2026-10-23: `research/gerber-import`, `research/gerber-models`, `research/gerber-nets`; the section numbers 4.1 to 4.40 are those of the original study, see the table in `README.md`). Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`scripts/`) and, where it is a claim that can break, a test (`tests/`, 11 tests in about 1 s; `cd research/gerber-nets && python -m pytest -q tests`). Nothing in `pcbthermal/` was changed.
 
 ## 1. Where we stand
 

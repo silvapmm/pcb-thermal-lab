@@ -18,3 +18,5 @@ Ready to paste into the project `docs/research.md` as a section when the maintai
 **Open decisions for the maintainer**: which stage enters the program (`INTEGRATION.md`); the zone `pattern` for hatched zones; the union of zones by sample point and the 3D laminate fix (a `fix/<topic>` branch); the option `copper_mapping`.
 
 Pictures (`../figures/`): `fig_01_copper_mapping_to_cells.png`, `fig_02_ic_board_thermal.png`, `fig_03_import_end_to_end.png`, `fig_04_import_setup.png`, `fig_05_models_our_board.png`, `fig_06_rect_board_models.png`.
+
+* **Thin tracks and angles** (README 4.42): a 0.05 mm track already cools a 6 mm heater by 3 %; the mask recognises a track if the pixel is at most half its width; the 1 mm cells reproduce 96 to 98 % of an axis-aligned track's effect but 38 to 53 % (flow-based faces) of a 45-degree one: isolated diagonal copper is the largest residual error. **Eleven boards** (4.43): lambda 0.5, cell problem and flow-based faces 1.3 to 1.5 % against 6.2 % for the fill fraction. Guide: `REPORT.md`.

@@ -1,6 +1,6 @@
 # Conclusions, phase 2: the copper in the simulation models
 
-Written 2026-10-23 on branch `research/gerbers` (phase 2 of three of the Gerber research, split from one study on 2026-10-23: `research/gerber-import`, `research/gerber-models`, `research/gerber-nets`; the section numbers 4.1 to 4.40 are those of the original study, see the table in `README.md`). Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`scripts/`) and, where it is a claim that can break, a test (`tests/`, 29 tests in about 49 s; `cd research/gerber-models && python -m pytest -q tests`; they need the program's dependencies). Nothing in `pcbthermal/` was changed.
+Written 2026-10-23 on branch `research/gerbers` (phase 2 of three of the Gerber research, split from one study on 2026-10-23: `research/gerber-import`, `research/gerber-models`, `research/gerber-nets`; the section numbers 4.1 to 4.40 are those of the original study, see the table in `README.md`). Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`scripts/`) and, where it is a claim that can break, a test (`tests/`, 30 tests in about 1 minute; `cd research/gerber-models && python -m pytest -q tests`; they need the program's dependencies). Nothing in `pcbthermal/` was changed.
 
 ## 1. Where we stand
 
@@ -12,7 +12,8 @@ Written 2026-10-23 on branch `research/gerbers` (phase 2 of three of the Gerber 
 6. **The program's zones cannot carry fine copper as they are** (README 4.27, 4.39): a zone is one polygon without holes, and zones are combined per cell with a maximum, so copper tiled in many polygons loses copper in each shared cell (+7 % FVM to +17 % FDM; test). The import needs its own path; and the combination can be corrected independently: **by the maximum per sample point, not by an additive rule** (the additive rule double counts overlapping zones, -7.8 %, and failed four program tests); the example boards do not move.
 7. **The program can take the faces without a change of algorithm** (4.14, 4.31): `fvm.Network` with the face conductances replaced, vertical couplings, vias and losses untouched, agrees with the research solver to 3e-12 and with its own formula to 1e-6 K. On the Stormduino the heater temperature error goes from -15.1 % to -2.1 % (binary) / -5.3 % (coverage); on our board from -5.0 % to +4.0 % / +2.1 %.
 8. **The five models are not the same physics** (4.34, 4.35, 4.37): on rectangles the FVM and FDM converge to the same value, the Lumped is 16 % and the Analytic 26 % below, the 3D solid (two layers) 7 to 9 % above; the grid matters for drawn rectangles too (6 % on the FVM at 1 mm when the copper is between cells). The 3D solid had no laminate under a single copper layer (346 against 174 K): the earlier "unusable" was this.
-9. **Mappings as an option** (4.38): flow-based faces, lambda 0.5 and the cell problem (mean error 1.9, 2.5, 1.7 %) beat the fill fraction (6.5 %) on all four boards; design `SolverOptions.copper_mapping` with `fill` as the default.
+9. **Mappings as an option** (4.38, 4.43): on eleven boards lambda 0.5, the cell problem and the flow-based faces (mean error 1.3, 1.4, 1.5 %) beat the fill fraction (6.2 %); the three are equivalent; design `SolverOptions.copper_mapping` with `fill` as the default.
+10. **Thin tracks and angles** (4.42): the mask recognises a track if the pixel is at most half its width (a coverage mask keeps the area of any); a track of 0.05 mm already cools a 6 mm heater by 3 %; the 1 mm cells reproduce 96 to 98 % of an axis-aligned track's effect but only 38 to 53 % (flow-based faces) of a 45-degree one (the fill fraction 63 to 106 %): **isolated diagonal copper on a coarse grid is the largest known residual error**, a property of the four-neighbour network.
 
 ## 2. How this differs from the three Electronics Cooling articles
 
@@ -65,7 +66,8 @@ Other validated results:
 | Import end to end on two boards, through the program's FVM | Stormduino -15.1 to -2.1 / -5.3 %; our board -5.0 to +4.0 / +2.1 %; another reader 0.01 to 0.04 % | 4.31 | `study_import_end_to_end.py`, `tests/test_importer.py` |
 | Rectangle board: convergence | FVM and FDM to the same value (1 %); 1 mm FVM +1.3 % (edges on cells) and -6.4 % (off); Lumped -16 %, Analytic -26 %, 3D +7 to +9 % of the FVM | 4.35, 4.37 | `study_rect_convergence.py`, `tests/test_rect_board.py` |
 | Our board in the five models, mappings as cell values | FVM +8 to +13 %, FDM +9 to +13 %, Lumped +35 % | 4.34 | `study_models_our_board.py` |
-| Every mapping as an option, four boards, mean absolute error | fill 6.5 %, flow 1.9 %, lambda 2.5 %, cell problem 1.7 % | 4.38 | `study_mapping_options.py` |
+| Every mapping as an option, eleven boards, mean absolute error | fill 6.2 %, lambda 1.3 %, cell problem 1.4 %, flow 1.5 % | 4.38, 4.43 | `study_mapping_options.py`, `study_boards_matrix.py` |
+| One track across the heater: share of its cooling reproduced by the 1 mm cells | 96 to 98 % at 0 degrees; 38 to 53 % (flow), 63 to 106 % (fill) at 45 degrees | 4.42 | `study_track_width_angle.py`, `tests/test_track_width_angle.py` |
 | Corrections to the program | strips -7.8 % FVM, -17.5 % FDM, -10 % 3D; overlap exact; example boards 0; single layer 3D 346 to 174 K | 4.39 | `study_fix_impact.py` |
 
 ## 4. What is not validated, and the limits
@@ -86,7 +88,8 @@ Other validated results:
 2. **Independently of the import, correct the combination of zones** by the maximum per sample point (`geometry.zone_fill`; 4.39) and the laminate of the 3D solid under a single copper layer, in a `fix/<topic>` branch off `develop` with the whole battery.
 3. **Honest labelling in the documents of the program**: the method is Sampson's; the mappings are compared in this research; there is no measurement yet.
 4. **Two validation scenarios still to add**: Sampson's own board (needs its bitmaps; the analogue is in 4.28) and Guenin's local vertical overlap against the 3D solid (`docs/literature.md`, section 6). A measurement on one real board would turn the whole study from "agrees with the resolved model" into "agrees with the world".
-5. **Open decisions** (the maintainer's): which stage enters the program; the zone `pattern` for hatched zones; whether to try the finer-pixel / nine-point repeat of the mapping studies first.
+5. **To continue with the copper mapping** (REPORT.md section 8): diagonal couplings in the network and the mapping that goes with them (the residual error of 4.42); one measurement of a real board; the mapping studies with a finer pixel and a nine-point reference; more boards (power, heavy copper, metal core, many diagonals).
+6. **Open decisions** (the maintainer's): which stage enters the program; which mapping is the default of an import; the zone `pattern` for hatched zones.
 
 ## 6. How to reproduce
 

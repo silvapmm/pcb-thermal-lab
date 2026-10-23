@@ -263,6 +263,54 @@ def fig_rect_board():
     plt.close(fig)
 
 
+def fig_track_width_angle():
+    """!
+    @brief The thinnest track and the angle (needs out/track_width_angle.json from study_track_width_angle.py): what a track does to the heater, whether the binary mask keeps it in one piece, and the share of its cooling that the 1 mm cells reproduce at 0 and 45 degrees.
+    @return None.
+    """
+    import json
+    import study_track_width_angle as st
+    path = CACHE / "track_width_angle.json"
+    if not path.exists():
+        print("figure 07 skipped: run study_track_width_angle.py first")
+        return
+    d = json.loads(path.read_text())
+    W, A = st.WIDTHS, st.ANGLES
+    fig, axs = plt.subplots(2, 2, figsize=(13, 9))
+    for th in A:
+        axs[0, 0].plot(W, [d[f"{w}/{th}"]["effect"] for w in W], marker="o", label=f"{th} deg")
+    axs[0, 0].set_xscale("log")
+    axs[0, 0].set_xlabel("track width (mm)")
+    axs[0, 0].set_ylabel("heater temperature change with the track (%)")
+    axs[0, 0].set_title("what one track across a 6 mm heater does (reference): even 0.05 mm cools it by 2 to 3 %", fontsize=8)
+    axs[0, 0].legend(fontsize=7)
+    x = np.arange(len(W))
+    for k, th in enumerate(A):
+        axs[0, 1].bar(x + (k - 1.5) * 0.2, [d[f"{w}/{th}"]["pieces"]["0.1"] for w in W], 0.2, label=f"{th} deg")
+    axs[0, 1].axhline(1, color="k", linewidth=0.6)
+    axs[0, 1].set_yscale("symlog", linthresh=1)
+    axs[0, 1].set_xticks(x)
+    axs[0, 1].set_xticklabels([str(w) for w in W], fontsize=7)
+    axs[0, 1].set_xlabel("track width (mm)")
+    axs[0, 1].set_ylabel("8-connected pieces in the binary mask at 0.1 mm")
+    axs[0, 1].set_title("recognition: 1 = the track is one piece; 0 = lost; many = broken (at 0.05 mm pixels every track is 1)", fontsize=8)
+    axs[0, 1].legend(fontsize=7)
+    names = {"fill fraction (today)": "fill fraction (today)", "geometric mean": "geometric mean", "lambda 0.5": "lambda 0.5", "flow-based faces": "flow-based faces", "flow-based, margin 20 %": "flow-based, margin 20 %"}
+    for ax, th in ((axs[1, 0], 0), (axs[1, 1], 45)):
+        for m in st.METHODS:
+            ax.plot(W, [st.capture(d, "coverage 0.1", m, w, th) for w in W], marker="o", label=names[m])
+        ax.axhline(100, color="k", linewidth=0.6)
+        ax.set_xscale("log")
+        ax.set_ylim(0, 130)
+        ax.set_xlabel("track width (mm)")
+        ax.set_ylabel("share of the track's cooling reproduced by the 1 mm cells (%)")
+        ax.set_title(f"track at {th} degrees (coverage mask at 0.1 mm)", fontsize=9)
+        ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_07_track_width_angle.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -275,6 +323,7 @@ def main():
     fig_import_setup()
     fig_models_our_board()
     fig_rect_board()
+    fig_track_width_angle()
     print("figures in", OUT)
 
 
