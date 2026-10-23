@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.4.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-288%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.4.1-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-288%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -96,6 +96,7 @@ Short release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Versions and branches
 
+- Version **2.4.1** (2026-10-22): the MIT License stated consistently (LICENSE, README, About box, CLAUDE.md) and a note that results are not validated against a physical board; no change to the models.
 - Version **2.4.0** (2026-10-22): parts with junction temperature, a heatsink on the package, advanced stack-up, board outlines, cancellable calculation process, power calculator, help and tooltips (details in [`docs/versions.md`](docs/versions.md)).
 - Version **2.3.0** (2026-10-17): the finite-difference model also does animation, step responses and power profiles; metal blocks; the 3D solid model.
 - Version **2.2.0** (2026-10-16): power tables from CSV files, a finite-difference model, a per-heater analytic transient, a 3D-solid validation and clean documents.
@@ -106,4 +107,6 @@ Short release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Author and license
 
-Pedro Silva, PMS Labs. (C) 2025 Pedro Silva. All rights reserved (see `LICENSE`).
+Pedro Silva, PMS Labs. Released under the MIT License (see `LICENSE`).
+
+The results are a design aid and have not been validated against measurements of a physical board (see `docs/validation.md`); verify critical results by measurement. Third-party libraries (NumPy, SciPy, Matplotlib, PySide 6 and others) keep their own licenses.

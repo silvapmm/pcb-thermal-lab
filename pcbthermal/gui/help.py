@@ -91,7 +91,7 @@ class AboutDialog(QDialog):
             "with power profiles, computed convection, parts with junction temperature and any board shape.</p>"
             f"<p>Author: {__author__}<br>"
             f"Project: <a href=\"{__project_url__}\">{__project_url__}</a><br>"
-            "Copyright © 2025 Pedro Silva. See the LICENSE file of the project for the terms.</p>"
+            "Copyright © 2025-2026 Pedro Silva (PMS Labs). Released under the MIT License (see the LICENSE file).</p>"
             + (f"<p>Custom defaults in use: {defaults.diff_text()}<br>{defaults.user_file()}</p>" if defaults.has_user_file() and defaults.diff_text() else ""))
         self.text.setTextFormat(Qt.RichText)
         self.text.setOpenExternalLinks(True)

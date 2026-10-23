@@ -10,6 +10,16 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ---
 
+## 2.4.1 - 2026-10-22: licensing
+
+| Feature | Code | Tests / evidence |
+| :-- | :-- | :-- |
+| MIT License stated consistently (copyright 2025-2026 Pedro Silva, PMS Labs) in `LICENSE`, README, About box and `CLAUDE.md`; note that results are a design aid not validated against a physical board | `LICENSE`, `README.md`, `gui/help.py` | `test_help.py`, `test_version.py` |
+
+No change to the models or the interface. Limits: a paid or proprietary model is not decided; versions up to 2.4.0 stay MIT.
+
+---
+
 ## 2.4.0 - 2026-10-22: parts, stack-up, outline, tools
 
 Work of the branches `feature/component-element` and `feature/junction-node` (merged through `develop`).
