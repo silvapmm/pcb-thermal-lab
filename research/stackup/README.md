@@ -19,23 +19,23 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2
 
 | File | What it is |
 | :-- | :-- |
-| `stackup_outline_study.py` | Tables of the advanced stack-up in five models, the outline (see `../outline/`), the sensitivity to the stack-up numbers, the finned block. |
-| `stackup_vendor_check.py` | The example board with the program's templates and with the published tables of seven fabricators entered layer by layer. |
-| `make_figures.py` | Draws the three figures (runs both studies and reads the tables they print). |
+| `scripts/stackup_outline_study.py` | Tables of the advanced stack-up in five models, the outline (see `../outline/`), the sensitivity to the stack-up numbers, the finned block. |
+| `scripts/stackup_vendor_check.py` | The example board with the program's templates and with the published tables of seven fabricators entered layer by layer. |
+| `scripts/make_figures.py` | Draws the three figures (runs both studies and reads the tables they print). |
 | `figures/` | `fig_01` to `fig_03`. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
 
 ```sh
-.venv/bin/python research/stackup/stackup_outline_study.py   # about 10 seconds
-.venv/bin/python research/stackup/stackup_vendor_check.py    # about 2 seconds
-.venv/bin/python research/stackup/make_figures.py
+.venv/bin/python research/stackup/scripts/stackup_outline_study.py   # about 10 seconds
+.venv/bin/python research/stackup/scripts/stackup_vendor_check.py    # about 2 seconds
+.venv/bin/python research/stackup/scripts/make_figures.py
 ```
 
 ### 4.1 Exact checks and the advanced stack-up in five models
 
-`python research/stackup/stackup_outline_study.py` prints the two tables; `tests/test_stackup.py`, `tests/test_outline.py`, `tests/test_inverse.py` and `tests/test_compute.py` hold the checks.
+`python research/stackup/scripts/stackup_outline_study.py` prints the two tables; `tests/test_stackup.py`, `tests/test_outline.py`, `tests/test_inverse.py` and `tests/test_compute.py` hold the checks.
 Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 × 6 mm heater of 3 W, typed 12 W/m²K on both faces, FVM at 1 mm.
 
 
@@ -68,7 +68,7 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 
 ### 4.2 Sensitivity to the stack-up numbers
 
-**C. Sensitivity to the stack-up numbers** (`python research/stackup/stackup_outline_study.py`; the typical 4-layer stack-up of `stackups.json`, base rise 84.5 K):
+**C. Sensitivity to the stack-up numbers** (`python research/stackup/scripts/stackup_outline_study.py`; the typical 4-layer stack-up of `stackups.json`, base rise 84.5 K):
 
 | Change | Rise [K] | Change in the rise |
 | :-- | --: | --: |
@@ -88,7 +88,7 @@ Without the vias under the part (base rise 93.4 K) the same ±30 % in the dielec
 
 ### 4.3 The typical stack-ups against fabricators' tables
 
-`python research/stackup/stackup_vendor_check.py` solves the example board (FVM, 2 mm) with the program's template of each layer count and with the published tables of seven fabricators entered layer by layer.
+`python research/stackup/scripts/stackup_vendor_check.py` solves the example board (FVM, 2 mm) with the program's template of each layer count and with the published tables of seven fabricators entered layer by layer.
 
 **What was found online.** Complete layer tables: JLCPCB (4 layers with 7628, 3313, 1080 and 2116 prepreg; 6 layers JLC06161H-3313), PCBWay (76 four-layer tables, 1 oz or 1.5 oz inner copper; an older blog table for 6 and 8 layers), OSH Park (4 layers, FR408HR), Bittele 7pcb (2 to 10 layers, 0.062 in, 1 oz), PCBGOGO (4, 6, 8 layers, 0.4 to 2.4 mm), AdvancedPCB (one 4-layer sample; the 6, 8 and 10-layer drawings are images). NextPCB gives only the prepreg thicknesses in text (2116 0.125 mm, 1080 0.077 mm, 7628 0.2 mm, central prepreg of the 6-layer 0.103 mm; the cores are in drawings). Eurocircuits does not publish tables as text: its builds are chosen in the configurator (about 940 predefined builds); the catalogue is cores of 100, 200, 360 and 710 µm with 12, 18, 35 or 70 µm foil and prepregs PR1080 70 µm, PR2116 120 µm, PR7628 180 µm; pooled boards are 1.55 mm (6 layers and more) and 1.00 mm (4 layers). Sierra Circuits (Proto Express) gives a nominal 1.57 mm, minimum core and dielectric 4 mil, and makes the final stack-up per order. For Eurocircuits, Sierra and NextPCB no complete layer table could be read, so they are checked only against the catalogue values (every prepreg and core of the templates is inside the catalogues: 76 to 210 µm prepreg, 330 to 1065 µm core).
 

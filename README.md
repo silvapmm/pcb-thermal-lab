@@ -105,6 +105,10 @@ Short release notes: [`CHANGELOG.md`](CHANGELOG.md).
 - `main`: released versions, tagged `vMAJOR.MINOR.PATCH`. `develop`: integration branch for the next version. Work happens on feature branches.
 - Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the application (title bar, status bar, About) and in every report.
 
+## Research
+
+The investigations behind the models (what was simulated, compared and read, with figures) are in [`research/`](research/INDEX.md), one folder per investigation; the scripts that reproduce the tables of `docs/validation.md` are there.
+
 ## Author and license
 
 Pedro Silva, PMS Labs. Released under the MIT License (see `LICENSE`).

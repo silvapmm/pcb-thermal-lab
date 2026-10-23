@@ -19,19 +19,19 @@ Status: **implemented**; the comparison is repeated whenever a model changes. In
 
 | File | What it is |
 | :-- | :-- |
-| `validation_study.py` | Every scenario in every model and the grid study (the tables of section 4.2; about 1.5 minutes alone). |
+| `scripts/validation_study.py` | Every scenario in every model and the grid study (the tables of section 4.2; about 1.5 minutes alone). |
 | `accuracy_study.py`, `stress_study.py` | The scenario lists for the Lumped and Analytic models (accuracy; stress cases). |
-| `solver_equivalence.py` | Direct, CG and SOR on five boards (section 4.4; about 5 seconds). |
-| `make_figures.py` | Draws the three figures (about 5 minutes). |
+| `scripts/solver_equivalence.py` | Direct, CG and SOR on five boards (section 4.4; about 5 seconds). |
+| `scripts/make_figures.py` | Draws the three figures (about 5 minutes). |
 | `figures/` | `fig_01` to `fig_03`. |
 | `LOG.md` | What was read and how; what was not reproduced. (The comparison also uses `../solid3d-verification/fem3d_validation.py` with `--fem`.) |
 
 ```sh
-.venv/bin/python research/models-comparison/validation_study.py [--fem]    # --fem adds the 3D finite-element solid (scikit-fem)
-.venv/bin/python research/models-comparison/accuracy_study.py
-.venv/bin/python research/models-comparison/stress_study.py
-.venv/bin/python research/models-comparison/solver_equivalence.py
-.venv/bin/python research/models-comparison/make_figures.py
+.venv/bin/python research/models-comparison/scripts/validation_study.py [--fem]    # --fem adds the 3D finite-element solid (scikit-fem)
+.venv/bin/python research/models-comparison/scripts/accuracy_study.py
+.venv/bin/python research/models-comparison/scripts/stress_study.py
+.venv/bin/python research/models-comparison/scripts/solver_equivalence.py
+.venv/bin/python research/models-comparison/scripts/make_figures.py
 ```
 
 ## 4. Results
@@ -52,7 +52,7 @@ Every model closes the energy balance below 1e-11 (heat out equals power in).
 
 ### 4.2 Many scenarios, every model
 
-`python research/models-comparison/validation_study.py`
+`python research/models-comparison/scripts/validation_study.py`
 
 | Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
 | :-- | --: | --: | --: | --: | --: | :-: |
@@ -144,7 +144,7 @@ Output of `accuracy_study.py` (Lumped and Analytic on the scenarios) and `stress
 
 ### 4.4 Linear solvers: direct, conjugate gradients, SOR
 
-`python research/models-comparison/solver_equivalence.py`. Same boards, same physics, different ways of solving `K θ = Q`:
+`python research/models-comparison/scripts/solver_equivalence.py`. Same boards, same physics, different ways of solving `K θ = Q`:
 
 | Board | Solver | Tmax [°C] | max diff to direct [K] | Residual | Sweeps | Time [s] |
 | :-- | :-- | --: | --: | --: | --: | --: |

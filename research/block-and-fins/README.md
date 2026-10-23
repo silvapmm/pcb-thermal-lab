@@ -17,23 +17,23 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2
 
 | File | What it is |
 | :-- | :-- |
-| `fin_validation.py` | The fin formula against a 2D finite-volume solution of one fin (24 cases). |
-| `block_equivalent_study.py` | Three approaches to the block in the Lumped and Analytic models against the FVM, on 74 cases. |
-| `make_figures.py` | Draws the three figures (runs both studies and reads what they print). |
+| `scripts/fin_validation.py` | The fin formula against a 2D finite-volume solution of one fin (24 cases). |
+| `scripts/block_equivalent_study.py` | Three approaches to the block in the Lumped and Analytic models against the FVM, on 74 cases. |
+| `scripts/make_figures.py` | Draws the three figures (runs both studies and reads what they print). |
 | `figures/` | `fig_01` to `fig_03`. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how, and a correction. |
 
 ## 4. How to run, and the results
 
 ```sh
-.venv/bin/python research/block-and-fins/fin_validation.py            # under a second
-.venv/bin/python research/block-and-fins/block_equivalent_study.py    # about 15 seconds
-.venv/bin/python research/block-and-fins/make_figures.py
+.venv/bin/python research/block-and-fins/scripts/fin_validation.py            # under a second
+.venv/bin/python research/block-and-fins/scripts/block_equivalent_study.py    # about 15 seconds
+.venv/bin/python research/block-and-fins/scripts/make_figures.py
 ```
 
 ### 4.1 The fins against a 2D fin
 
-`python research/block-and-fins/fin_validation.py` (and `tests/test_fin_model.py`). The program replaces the fins by an area gain and an efficiency (`blocks.fin_ratio`): per unit of base area `(1 − t/p) + 2 Hc η/p`, `Hc = H + t/2`, `η = tanh(m Hc)/(m Hc)`, `m = √(2h/(k t))` (straight fin, convecting tip taken as an adiabatic tip at the corrected length; Incropera and DeWitt). Here the same fin is solved as a two-dimensional conduction problem (width `t`, height `H`, root at 1 K, convection `h` on both faces and on the tip, 12 × 240 finite volumes), which keeps the transverse temperature drop and the real tip.
+`python research/block-and-fins/scripts/fin_validation.py` (and `tests/test_fin_model.py`). The program replaces the fins by an area gain and an efficiency (`blocks.fin_ratio`): per unit of base area `(1 − t/p) + 2 Hc η/p`, `Hc = H + t/2`, `η = tanh(m Hc)/(m Hc)`, `m = √(2h/(k t))` (straight fin, convecting tip taken as an adiabatic tip at the corrected length; Incropera and DeWitt). Here the same fin is solved as a two-dimensional conduction problem (width `t`, height `H`, root at 1 K, convection `h` on both faces and on the tip, 12 × 240 finite volumes), which keeps the transverse temperature drop and the real tip.
 
 | Metal | k (W/mK) | h (W/m²K) | fin | efficiency | 2D (W/m/K) | formula (W/m/K) | difference |
 | :-- | --: | --: | :-- | --: | --: | --: | --: |
@@ -54,7 +54,7 @@ All 24 cases of the script (four metals, h = 10, 30, 100 W/m²K, two fin sizes, 
 
 ### 4.2 The block in the Lumped and Analytic models
 
-`python research/block-and-fins/block_equivalent_study.py` compares the Lumped and Analytic models with the FVM, which has the block, on 74 cases: four block and pad geometries (a 30 × 30 pad in a 60 × 60 block, 50 × 40 in 90 × 70, pad equal to the 40 × 40 block, 20 × 20 in 80 × 60), blocks of 1, 3 and 6 mm of aluminium, 3 mm of copper, 1 and 3 mm of steel, interface 1, 5 and 20 K·cm²/W, and two finned blocks (15/1.5/8 mm). Error: difference of the maximum temperature divided by the FVM rise, in percent (negative = too cool).
+`python research/block-and-fins/scripts/block_equivalent_study.py` compares the Lumped and Analytic models with the FVM, which has the block, on 74 cases: four block and pad geometries (a 30 × 30 pad in a 60 × 60 block, 50 × 40 in 90 × 70, pad equal to the 40 × 40 block, 20 × 20 in 80 × 60), blocks of 1, 3 and 6 mm of aluminium, 3 mm of copper, 1 and 3 mm of steel, interface 1, 5 and 20 K·cm²/W, and two finned blocks (15/1.5/8 mm). Error: difference of the maximum temperature divided by the FVM rise, in percent (negative = too cool).
 
 | Approach | Lumped mean / max | Analytic mean / max |
 | :-- | --: | --: |

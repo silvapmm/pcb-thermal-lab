@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "research" / "solid3d-verification"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "research" / "solid3d-verification" / "scripts"))
 import copper_dissipation as cd                                       # noqa: E402
 from pcbthermal import fdm, fvm                                       # noqa: E402
 

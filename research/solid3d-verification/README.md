@@ -19,24 +19,24 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2
 
 | File | What it is |
 | :-- | :-- |
-| `solid3d_verification.py` | The analytical benchmark (Yovanovich) and the grid-convergence study of the 3D solid. |
-| `fem3d_validation.py` | The independent 3D finite-element solid (scikit-fem, **not** in `requirements.txt`: `pip install scikit-fem`), also used by `models-comparison/validation_study.py --fem`. |
-| `copper_dissipation.py` | The pad-size sweep and copper against heatsink, in every model and the FEM (`--fem`). |
-| `make_figures.py` | Draws the three figures (needs scikit-fem for the third; about 90 seconds). |
+| `scripts/solid3d_verification.py` | The analytical benchmark (Yovanovich) and the grid-convergence study of the 3D solid. |
+| `scripts/fem3d_validation.py` | The independent 3D finite-element solid (scikit-fem, **not** in `requirements.txt`: `pip install scikit-fem`), also used by `models-comparison/validation_study.py --fem`. |
+| `scripts/copper_dissipation.py` | The pad-size sweep and copper against heatsink, in every model and the FEM (`--fem`). |
+| `scripts/make_figures.py` | Draws the three figures (needs scikit-fem for the third; about 90 seconds). |
 | `figures/` | `fig_01` to `fig_03`. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
 
 ```sh
-.venv/bin/python research/solid3d-verification/solid3d_verification.py      # about 25 seconds
-.venv/bin/python research/solid3d-verification/copper_dissipation.py --fem  # about 45 seconds, needs scikit-fem
-.venv/bin/python research/solid3d-verification/make_figures.py              # about 90 seconds
+.venv/bin/python research/solid3d-verification/scripts/solid3d_verification.py      # about 25 seconds
+.venv/bin/python research/solid3d-verification/scripts/copper_dissipation.py --fem  # about 45 seconds, needs scikit-fem
+.venv/bin/python research/solid3d-verification/scripts/make_figures.py              # about 90 seconds
 ```
 
 ### 4.1 Verification of the 3D solid: Yovanovich and grid convergence
 
-`python research/solid3d-verification/solid3d_verification.py` (and `tests/test_solid3d_verification.py`). Two checks that do not use another solver of this project.
+`python research/solid3d-verification/scripts/solid3d_verification.py` (and `tests/test_solid3d_verification.py`). Two checks that do not use another solver of this project.
 
 **Analytical benchmark.** The spreading resistance of an isoflux circular source of radius `a` on a long cylinder of radius `b` (insulated sides, cooled at the far end) is tabulated by Yovanovich (2003, Table 3) as `ψ = 4 a k Rs` against `ε = a/b` (the mean source temperature minus the one-dimensional resistances). The 3D solid solves a square block of the same area (`b = W/√π`, 50 mm, `k = 1` W/mK, thickness `1.5 b`, 40 slabs, cell 1 mm, 96-sided circle):
 
@@ -61,9 +61,9 @@ The square tube instead of the circle, the staircase representation of the circl
 
 ### 4.2 The layered models against an independent 3D finite-element solid, and copper against heatsink
 
-`python research/models-comparison/validation_study.py --fem` (scikit-fem, offline, not in `requirements.txt`).
+`python research/models-comparison/scripts/validation_study.py --fem` (scikit-fem, offline, not in `requirements.txt`).
 
-**The 3D model** (`research/solid3d-verification/fem3d_validation.py`): a tensor mesh of trilinear hexahedral elements; copper slabs with their true thickness (one element across), FR-4 gaps with four elements across,
+**The 3D model** (`research/solid3d-verification/scripts/fem3d_validation.py`): a tensor mesh of trilinear hexahedral elements; copper slabs with their true thickness (one element across), FR-4 gaps with four elements across,
 copper where a zone exists and FR-4 where it does not; anisotropic FR-4 (0.3 through, 0.9 in plane); convection on the top, bottom and edge facets; the heater as a heat flux on its footprint on the top face;
 a heatsink as an extra coefficient on the bottom facets inside its polygon; **a via as a copper rod with the copper area of the plated barrel** (0.147 mm square for a 0.3 mm via with a 25 µm wall, since the wall itself is far below
 the mesh), through the whole thickness, with mesh lines refined around every rod. It does not use the "one node per copper layer" idea of the four models, so it measures the error of that idea. Element size 1 mm in the board plane
@@ -78,7 +78,7 @@ Maximum temperature of the top face [°C] and error of every model on the rise (
 | 2 layers, 20 mm top pad | 136.2 | 133.7 (−2.2 %) | 131.7 (−4.0 %) | 138.0 (+1.6 %) | 131.1 (−4.5 %) | 109.6 (−23.9 %) |
 | example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.9 (+0.5 %) | 85.2 (−0.6 %) | 85.6 (−0.0 %) | 84.7 (−1.5 %) | 84.7 (−1.5 %) |
 
-**Metal block** (a heatsink with a thickness; `research/solid3d-verification/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; 100 × 80 mm, 2 layers, 5 W, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated; FVM and FDM at 1 mm; error on the rise):
+**Metal block** (a heatsink with a thickness; `research/solid3d-verification/scripts/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; 100 × 80 mm, 2 layers, 5 W, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated; FVM and FDM at 1 mm; error on the rise):
 
 | Case | 3D FEM [°C] | FVM | FDM |
 | :-- | --: | --: | --: |
@@ -95,7 +95,7 @@ The block is always within 1.8 % of the solid. (An earlier version of this scrip
 
 ### 3.1 Does the outer copper dissipate and spread heat (against a heatsink)?
 
-`python research/solid3d-verification/copper_dissipation.py [--fem]`. Board 100 × 80 mm, 2 layers, 5 W on a 10 × 10 mm heater on top, copper only on the top layer (a square pad centred on the heater), no vias, `h_top` 10 and `h_bottom` 15 W/m²K.
+`python research/solid3d-verification/scripts/copper_dissipation.py [--fem]`. Board 100 × 80 mm, 2 layers, 5 W on a 10 × 10 mm heater on top, copper only on the top layer (a square pad centred on the heater), no vias, `h_top` 10 and `h_bottom` 15 W/m²K.
 Maximum temperature [°C] against the 3D finite-element solid (error on the rise; the 3D FV column is the program's own `solid3d`):
 
 | Top copper pad | 3D FEM | FVM | FDM | 3D solid (FV) | Lumped | Analytic |

@@ -23,22 +23,22 @@ Status: **mostly implemented** (θ junction-pad, junction limit, power coefficie
 
 | File | What it is |
 | :-- | :-- |
-| `component_study.py` | Real parts (CSD17308Q3, TPS7A47, LMR36510, SS12, a 0603 resistor) at three levels: plain heater, junction offset, top path. |
-| `package_prototype.py` | A MOSFET as a simple heater and as a junction node, outside the program. |
-| `top_path_study.py` | The program's top path against the junction-node prototype on the four chips. |
-| `chain_study.py` | Several levels in one chain: junction, pad, board, interface, metal block, package top, interface, heatsink. |
-| `heatsink_study.py` | Top heatsink with different pastes and pads; block under the board by metal and interface. |
-| `heatsink_convection_study.py` | A heatsink known only by its resistance: fixed, natural scaling, forced convection. |
-| `base_spreading_study.py` | The extra resistance of a heatsink base for a small component (3D conduction). |
-| `block_contact_study.py` | A plate model against a published spreading example; a big block touching the board only in a patch; temperature-dependent power. |
-| `make_figures.py` | Draws the four figures (about 1.5 minutes). |
+| `scripts/component_study.py` | Real parts (CSD17308Q3, TPS7A47, LMR36510, SS12, a 0603 resistor) at three levels: plain heater, junction offset, top path. |
+| `scripts/package_prototype.py` | A MOSFET as a simple heater and as a junction node, outside the program. |
+| `scripts/top_path_study.py` | The program's top path against the junction-node prototype on the four chips. |
+| `scripts/chain_study.py` | Several levels in one chain: junction, pad, board, interface, metal block, package top, interface, heatsink. |
+| `scripts/heatsink_study.py` | Top heatsink with different pastes and pads; block under the board by metal and interface. |
+| `scripts/heatsink_convection_study.py` | A heatsink known only by its resistance: fixed, natural scaling, forced convection. |
+| `scripts/base_spreading_study.py` | The extra resistance of a heatsink base for a small component (3D conduction). |
+| `scripts/block_contact_study.py` | A plate model against a published spreading example; a big block touching the board only in a patch; temperature-dependent power. |
+| `scripts/make_figures.py` | Draws the four figures (about 1.5 minutes). |
 | `figures/` | `fig_01` to `fig_04`. |
 | `NOTES.md` | The running research notes of `docs/research.md` (what was read, what was simulated, open questions). |
 | `INTEGRATION.md`, `LOG.md` | What entered the program and what is open; what was read and how. |
 
 ## 4. How to run, and the results
 
-Every study is run from the repository root, for example `.venv/bin/python research/component-heatsink/component_study.py` (each takes 2 to 40 seconds). The outputs below were produced on 2026-10-23.
+Every study is run from the repository root, for example `.venv/bin/python research/component-heatsink/scripts/component_study.py` (each takes 2 to 40 seconds). The outputs below were produced on 2026-10-23.
 
 ### 4.1 Real parts at three levels (`component_study.py`)
 
@@ -246,7 +246,7 @@ Extra resistance of a 40 x 40 mm heatsink base (catalogue 12 K/W) for a small co
 
 ### 4.9 The junction temperature in the program (validation)
 
-`python research/component-heatsink/component_study.py`, `research/component-heatsink/block_contact_study.py` (power coefficient) and `tests/test_component.py`. Five parts of the datasheets read on 2026-10-17 (`docs/models.md` section 6) on a 60 × 60 mm, 2-layer board with a copper pad under the part on both faces (vias under footprints of 3 mm and more), computed natural convection, FVM at 0.5 mm. Level 0 is the plain source (the hottest board point under the part); level 1 adds θ.
+`python research/component-heatsink/scripts/component_study.py`, `research/component-heatsink/scripts/block_contact_study.py` (power coefficient) and `tests/test_component.py`. Five parts of the datasheets read on 2026-10-17 (`docs/models.md` section 6) on a 60 × 60 mm, 2-layer board with a copper pad under the part on both faces (vias under footprints of 3 mm and more), computed natural convection, FVM at 0.5 mm. Level 0 is the plain source (the hottest board point under the part); level 1 adds θ.
 
 | Part | P [W] | θ [K/W] | Pad | Board under part | Tj | P·θ | Share of the rise |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
@@ -266,7 +266,7 @@ Extra resistance of a 40 x 40 mm heatsink base (catalogue 12 K/W) for a small co
 * **`ψJB` route** (`Tj = T_ring + ψJB·P`, ring 0.5 to 1.5 mm outside the body, pad 25 mm): LDO 93.7 °C and buck 65.1 °C against 87.4 and 62.8 °C with `θJC(bot)`; with `θJB` as θ 102.7 and 70.2 °C.
 * **Datasheet check** (CSD17308Q3, 1 W on its own board of 1 in² of 2 oz copper, computed natural convection): `RθJA` 46.7 K/W against the datasheet's typical 46 and maximum 58; on a minimum pad of 5 mm (assumed size) 164 against the maximum 165 K/W.
 * **Power temperature coefficient** against the closed form `ΔT = P0 R/(1 − tc P0 R)` on a linear board (the FVM, Lumped and Analytic models, `tests/test_component.py`): agreement to 0.05 K; for the MOSFET 2 W at 25 °C (107.6 °C without feedback) the junction reaches 138.6, 165.8 and 210 °C for 0.33, 0.5 and 0.67 %/K, with the power rising to 2.75, 3.41 and 4.48 W; a coefficient of 3 %/K has no stable point and the program says so.
-* **Top path** (`python research/component-heatsink/top_path_study.py`, `tests/test_component.py`; θJC(top) of the part, 0.5 K·cm²/W paste, 12 K/W clip-on heatsink, pad 25 mm): the heatsink takes 41 to 51 % of the heat and lowers `Tj` of the chips by 15 to 38 K. Against the junction-node prototype of `research/component-heatsink/package_prototype.py` (uniform conductance under the footprint) the program is 0.4 to 0.8 K higher and the top share differs by one point.
+* **Top path** (`python research/component-heatsink/scripts/top_path_study.py`, `tests/test_component.py`; θJC(top) of the part, 0.5 K·cm²/W paste, 12 K/W clip-on heatsink, pad 25 mm): the heatsink takes 41 to 51 % of the heat and lowers `Tj` of the chips by 15 to 38 K. Against the junction-node prototype of `research/component-heatsink/scripts/package_prototype.py` (uniform conductance under the footprint) the program is 0.4 to 0.8 K higher and the top share differs by one point.
 
 | Part | Tj without top path | Tj program | Top share | Tj node prototype | Top share |
 | :-- | --: | --: | --: | --: | --: |

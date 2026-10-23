@@ -19,24 +19,24 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2
 
 | File | What it is |
 | :-- | :-- |
-| `calculator_validation.py` | The calculator against two datasheet boards (about 40 seconds). |
-| `power_from_top_study.py` | Sensitivity of the power recovered from the top temperature to the board and the data (about 10 seconds). |
-| `calculator_calibration_study.py` | Known-power reference, two-point fit and the band, on the example board (about 2.5 minutes; a study, not part of the program). |
-| `make_figures.py` | Draws the three figures (runs the three studies; about 3 minutes). |
+| `scripts/calculator_validation.py` | The calculator against two datasheet boards (about 40 seconds). |
+| `scripts/power_from_top_study.py` | Sensitivity of the power recovered from the top temperature to the board and the data (about 10 seconds). |
+| `scripts/calculator_calibration_study.py` | Known-power reference, two-point fit and the band, on the example board (about 2.5 minutes; a study, not part of the program). |
+| `scripts/make_figures.py` | Draws the three figures (runs the three studies; about 3 minutes). |
 | `figures/` | `fig_01` to `fig_03`. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ```sh
-.venv/bin/python research/power-calculator/calculator_validation.py
-.venv/bin/python research/power-calculator/power_from_top_study.py
-.venv/bin/python research/power-calculator/calculator_calibration_study.py
-.venv/bin/python research/power-calculator/make_figures.py
+.venv/bin/python research/power-calculator/scripts/calculator_validation.py
+.venv/bin/python research/power-calculator/scripts/power_from_top_study.py
+.venv/bin/python research/power-calculator/scripts/calculator_calibration_study.py
+.venv/bin/python research/power-calculator/scripts/make_figures.py
 .venv/bin/python -m pytest -q tests/test_calculator_validation.py tests/test_inverse.py
 ```
 
 ## 4. Validation: three routes, three tables
 
-### 4.1 Against datasheets (`research/power-calculator/calculator_validation.py`, `tests/test_calculator_validation.py`)
+### 4.1 Against datasheets (`research/power-calculator/scripts/calculator_validation.py`, `tests/test_calculator_validation.py`)
 
 A datasheet gives RθJA for a *stated* board. Built in the program, that board must return the datasheet's thermal resistance: the calculator must give 1 W when the junction is `RθJA` above ambient. Computed natural convection and radiation, horizontal board, still air.
 
@@ -52,7 +52,7 @@ A datasheet gives RθJA for a *stated* board. Built in the program, that board m
 * The ψJT row only checks that the top-of-package point is consistent with the junction point; the model has no top path in the JEDEC case, so ψJT cannot be predicted (that needs the junction node of the roadmap).
 * Tests: the three rows above with tolerances of 3 % (CSD17308Q3) and 5 % (JEDEC), and the factor of about two for the missing vias.
 
-### 4.2 Sensitivity to the board and to the data (`research/power-calculator/power_from_top_study.py`, `docs/validation.md` section 19)
+### 4.2 Sensitivity to the board and to the data (`research/power-calculator/scripts/power_from_top_study.py`, `docs/validation.md` section 19)
 
 Part of 2 W, θ = 6 K/W, ψJT = 2 K/W on the example board; the top reading is made on the real board and the power is recovered on a drawn board that differs:
 
@@ -76,7 +76,7 @@ Part of 2 W, θ = 6 K/W, ψJT = 2 K/W on the example board; the top reading is m
 
 On a known board the model's own temperature at every point (max, mean, ring, junction, top) gives back the power within 0.1 %, with constant and with computed heat transfer coefficients; a part without θ is refused for the junction and the top; a board with less copper gives a lower power for the same top temperature; a larger ψJT gives a larger power.
 
-### 4.4 How to reduce the error (`research/power-calculator/calculator_calibration_study.py`)
+### 4.4 How to reduce the error (`research/power-calculator/scripts/calculator_calibration_study.py`)
 
 The large deltas of table 2.2 come from one thing: the board resistance `R` (kelvin per watt at the measured point) of the *drawn* board is not that of the *real* board, mostly because of the copper. Three ways to cope were tried on the same example (U1 at 2 W; the drawn board has half or a quarter of the real copper; thermocouples at 1 mm and 10 mm from the part; the study is not part of the program yet):
 

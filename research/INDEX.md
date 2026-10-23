@@ -1,6 +1,6 @@
 # Index of the investigations (by area of the program)
 
-This file is kept apart from `research/README.md` (which the Gerber branch keeps editing) and will be merged into it later. One folder per investigation, named after the question; every folder has a `README.md` (results in numbered sections), `LOG.md` (what was read and how, what was not verified), figures in `figures/` and, when the work is in the program, `IMPLEMENTED.md`; open work has `INTEGRATION.md` and `docs/` instead.
+This file is kept apart from `research/README.md` (which the Gerber branch keeps editing) and will be merged into it later. One folder per investigation, named after the question, with the same layout everywhere: the root holds what is read (`README.md` with the results in numbered sections, `LOG.md` with what was read and how and what was not verified, and `IMPLEMENTED.md` when the work is in the program or `INTEGRATION.md` and `docs/` when it is open), `figures/` the pictures and `scripts/` all the Python (`lib/` only for shared code). Run a script from the repository root, for example `.venv/bin/python research/via-fill/scripts/study_via_fill.py`.
 
 | Area | Folder | Status | Question |
 | :-- | :-- | :-- | :-- |

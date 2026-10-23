@@ -2,7 +2,7 @@
 @file test_docs.py
 @brief Documentation gate: every module, class, function and method must be documented in Doxygen style.
 
-@details Rules enforced on the `pcbthermal` package and on `examples/`:
+@details Rules enforced on the `pcbthermal` package, on `examples/` and on `research/<topic>/scripts/`:
 - a module docstring with @file and @brief,
 - a class docstring with @brief,
 - a function or method docstring with @brief (constructors may list only their parameters),
@@ -17,7 +17,8 @@ import pathlib
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SOURCES = sorted(list((ROOT / "pcbthermal").rglob("*.py")) + list((ROOT / "examples").glob("*.py")))
+SOURCES = sorted(list((ROOT / "pcbthermal").rglob("*.py")) + list((ROOT / "examples").glob("*.py"))
+                 + [f for f in (ROOT / "research").glob("*/scripts/*.py") if f.parent.parent.name != "gerbers"])      # research/<topic>/scripts (the Gerber research is kept by its own session)
 
 
 def _returns_value(fn):

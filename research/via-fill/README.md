@@ -17,8 +17,8 @@ A fabricator's "filled via" is not a copper-filled via. Does the fill of the bar
 
 | File | What it is |
 | :-- | :-- |
-| `study_via_fill.py` | The study: resistance of one via and effect on the example board for every fill (prints the tables below). |
-| `make_figures.py` | Draws the three figures of this folder. |
+| `scripts/study_via_fill.py` | The study: resistance of one via and effect on the example board for every fill (prints the tables below). |
+| `scripts/make_figures.py` | Draws the three figures of this folder. |
 | `figures/` | `fig_01` to `fig_03`. |
 | `IMPLEMENTED.md` | Where the result lives in the program and how it is tested. |
 | `LOG.md` | What was read and how, what was not verified. |
@@ -26,8 +26,8 @@ A fabricator's "filled via" is not a copper-filled via. Does the fill of the bar
 ## 4. How to run, and the results
 
 ```sh
-.venv/bin/python research/via-fill/study_via_fill.py      # about 1 minute: the two tables below
-.venv/bin/python research/via-fill/make_figures.py        # the figures
+.venv/bin/python research/via-fill/scripts/study_via_fill.py      # about 1 minute: the two tables below
+.venv/bin/python research/via-fill/scripts/make_figures.py        # the figures
 ```
 
 ### 4.1 Resistance of one via (0.3 mm, 25 µm plating, 1.6 mm long)

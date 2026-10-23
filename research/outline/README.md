@@ -17,21 +17,21 @@ The finite volumes, the finite differences and the 3D solid handle any board out
 
 | File | What it is |
 | :-- | :-- |
-| `outline_rectangle_study.py` | The study: five outlines, four layouts, three rectangles, error of the lumped and analytic models against the FVM on the real shape. |
-| `make_figures.py` | Draws the three figures. |
+| `scripts/outline_rectangle_study.py` | The study: five outlines, four layouts, three rectangles, error of the lumped and analytic models against the FVM on the real shape. |
+| `scripts/make_figures.py` | Draws the three figures. |
 | `figures/` | `fig_01` to `fig_03`. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
 
 ```sh
-.venv/bin/python research/outline/outline_rectangle_study.py      # prints the table below (several minutes)
-.venv/bin/python research/outline/make_figures.py                 # the figures (about 3 minutes)
+.venv/bin/python research/outline/scripts/outline_rectangle_study.py      # prints the table below (several minutes)
+.venv/bin/python research/outline/scripts/make_figures.py                 # the figures (about 3 minutes)
 ```
 
 ### 4.1 The method
 
-`python research/outline/outline_rectangle_study.py` prints the table; `tests/test_outline.py` checks that the rectangle of the same area keeps the area, the part sizes and the original problem, and that it beats the bounding box on an ellipse.
+`python research/outline/scripts/outline_rectangle_study.py` prints the table; `tests/test_outline.py` checks that the rectangle of the same area keeps the area, the part sizes and the original problem, and that it beats the bounding box on an ellipse.
 Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) moved to the positions of the *Parts* column, FVM at 1 mm on the real outline as the reference, lumped and analytic at 1 mm. Error = difference of the maximum temperature divided by the FVM rise above ambient, in percent (negative = too cool), shown as lumped / analytic.
 
 ![The outlines, the bounding box and the rectangle of the same area](figures/fig_01_outlines_and_rectangles.png)
