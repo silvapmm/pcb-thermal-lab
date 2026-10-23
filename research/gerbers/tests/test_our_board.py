@@ -12,9 +12,9 @@ import conduction as cd
 import joule
 import native_gerber as ng
 import nets
+from nets import disc, net_pads
 import our_board as ob
 import scenarios as sc
-from study_net_joule import disc, net_pads
 
 EIGHT = np.ones((3, 3))
 

@@ -1,8 +1,6 @@
 # Gerber import: from copper vectors to the conductances of the grid
 
-Research branch `research/gerbers` (started 2026-10-22). **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md).** **Nothing in `pcbthermal/` was changed**: this folder holds the studies, their tests and the
-conclusions, so that the work can be repeated and the decision taken later. The summary for the project documents is in [`docs/research.md`](docs/research.md) (this folder) (section
-"Gerber import"); how the result would enter the program, line by line, is in [`INTEGRATION.md`](INTEGRATION.md).
+Status: **open**, a research branch (`research/gerbers`, started 2026-10-22): **nothing in `pcbthermal/` was changed**. This folder holds the studies, their tests and the conclusions, so that the work can be repeated and the decision taken later. **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program, line by line, is in [`INTEGRATION.md`](INTEGRATION.md); what was read and how, in [`LOG.md`](LOG.md); the text that would go into the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"): documents in the root, executable Python in `scripts/`, shared code in `lib/`, `tests/`, `figures/`, `docs/`.
 
 ## 1. The questions
 
@@ -38,48 +36,47 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 
 ## 3. Folder layout
 
-| File | What it is |
+Scripts are run from the repository root (`research/gerbers/.venv/bin/python research/gerbers/scripts/<script>.py`) and import the modules of `lib/` through `scripts/_bootstrap.py`; the tests find `lib/` and `scripts/` through `tests/conftest.py`. `data/` (downloaded boards, conformance and synthetic files), `out/` (caches and results) and `.venv/` are git-ignored.
+
+| Path | What it is |
 | :-- | :-- |
-| `native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 file function, a layer classifier, Excellon (metric and inch, comment tool tables, repeats, slots). |
-| `readers.py` | One interface for the studies: the native reader (default) or gerbonara + shapely (`GERBER_READER=shapely`); the paths of the boards. |
-| `gerber_geometry.py` | The vector route: Gerber to shapely polygons (polarity-aware union), used as the reference and for the exact areas. Needs gerbonara and shapely. |
-| `conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
-| `fetch_boards.py` | Downloads the public test boards into `data/` (git-ignored; licences differ, section 8). |
-| `windows.py` | 42 windows of 36 x 36 mm (0.1 mm pixels) from 7 boards; fixed seed. |
-| `study_raster_error.py` | Area, thin traces, pixel size (4.2, 4.3). |
-| `study_native_check.py` | The native reader against gerbonara + shapely (section 5). |
-| `study_mapping.py`, `study_fine_scan.py`, `study_scalar_formulas.py`, `study_contrast.py`, `study_heater_size.py`, `study_transient.py` | The mappings on the 42 windows and their parameters (4.4 to 4.10). |
-| `study_patterns.py`, `study_patterns_two_layer.py` | Hatch, cross-hatch, squares, perforated plane: one layer and over a plane or bare laminate (4.11). |
-| `study_two_layer.py`, `study_multilayer_real.py` | Two layers with plated holes; a real four-layer board, thin and heavy copper (4.12, 4.13). |
-| `prototype_in_program.py` | The mappings through the program's own `fvm.Network` (4.14). |
-| `bench_mapping_cost.py` | Time and memory of the mappings on board-sized layers (4.15). |
-| `study_lumped_analytic.py` | The mappings in the program's Lumped and Analytic models through the public API (4.16). |
-| `study_reader_conformance.py` | The native reader against gerbonara on gerbonara's own test files (4.17). |
-| `docs/` | Documents for when the work is adopted: research summary, changelog text, `CLAUDE.md` entries, roadmap line (the project documents are not edited on this branch). |
-| `docs/literature.md` | What was read of the literature and what could not be opened. |
-| `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not. |
-| `make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara, and the comparison with gerbonara, pygerber and pcb-tools (4.22). Needs `pip install gerbonara pygerber pcb-tools shapely pillow`. |
-| `study_gerber_writer.py` | Files written with Ucamco's `gerber-writer` (thermal pads, arcs, regions) read by the reader and gerbonara (4.24). Needs `pip install gerber-writer`. |
-| `study_angles.py`, `make_figures.py` | Tracks at any angle: area, connectivity, resistance (4.23); `make_figures.py` writes the pictures to `figures/`. |
-| `figures/` | The pictures, named `fig_NN_topic.png` in order of creation (committed on purpose, the README files link to them): 01 angles on the pixel grid (our own synthetic tracks), 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 and 05 our IC board (nets, Joule heat, thermal maps). |
-| `scenarios.py`, `study_sampson_boundary.py` | Boundary-limited scenarios: fixed-temperature posts or border, no convection, stripes and 42 windows (4.25). |
-| `CONCLUSIONS.md` | The conclusions, the comparison with the three articles, the table of validated numbers with the test of each claim, the limits and the decisions left open. |
-| `study_coverage.py`, `study_coverage_real.py`, `study_models_self.py`, `study_post_board.py`, `study_vias_nets.py`, `nets.py`, `boards_synthetic.py` | Coverage masks (4.26), every model of the program (4.27), the post-mounted board analogue (4.28), vias and nets (4.29); the synthetic board generator. |
-| `our_board.py`, `tests/test_our_board.py` | A board of our own (IC, circular tracks, nets, vias, drill file) used as a test bench and for figures 04 and 05 (4.30). |
-| `joule.py`, `study_net_joule.py` | Current in a net and the heat it makes (4.20). |
-| `study_reader_scope.py` | Which copper layers and drill files the reader handles (4.19). |
-| `tests/` | 68 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
-| `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |
+| `README.md` | This file: the questions, the findings, the layout, and the results in numbered sections. |
+| `CONCLUSIONS.md` | The conclusions, the comparison with the three articles, the validated numbers with the test of each claim, the limits and the decisions left open. |
+| `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not (section 0: why not polygons and why an interface). |
+| `LOG.md` | Dated log: what was read in full, from a summary or from memory; what was reproduced and what not. |
+| `requirements.txt` | NumPy and SciPy; gerbonara, shapely and the comparison tools only for the cross-checks. |
+| `docs/` | For when the work is adopted: `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the literature status). The project documents are not edited on this branch. |
+| `figures/` | `fig_01` to `fig_06`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render). |
+| `tests/` | 68 fast tests (about 17 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`). |
+| **`lib/`** | |
+| `lib/native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 attributes (file function, aperture functions, net names), the layer classifier, Excellon, coverage masks. |
+| `lib/conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
+| `lib/scenarios.py` | Boundary-limited scenarios (posts, held border) and the comparison of the mappings against a resolved reference. |
+| `lib/joule.py`, `lib/nets.py` | Current and Joule heat of a net; holes, vias, pads and nets matched by position. |
+| `lib/readers.py`, `lib/gerber_geometry.py`, `lib/windows.py` | One interface to the readers; the vector route (gerbonara + shapely); the 42 windows of 36 mm of the mapping studies. |
+| `lib/boards_synthetic.py`, `lib/our_board.py` | The synthetic board generator of the tests; **a board of our own** (IC, circular tracks, nets, vias, drill file), 4.30. |
+| `lib/paths.py` | The folders (`DATA`, `OUT`, `FIGURES`, `REPO`). |
+| **`scripts/`** | |
+| `scripts/fetch_boards.py` | Downloads the public test boards into `data/` (licences differ, section 9). |
+| `scripts/study_raster_error.py`, `study_native_check.py` | Area, thin traces, pixel size (4.2, 4.3); the reader against gerbonara + shapely (section 5). |
+| `scripts/study_mapping.py`, `study_fine_scan.py`, `study_scalar_formulas.py`, `study_contrast.py`, `study_heater_size.py`, `study_transient.py` | The mappings on the 42 windows and their parameters (4.4 to 4.10). |
+| `scripts/study_patterns.py`, `study_patterns_two_layer.py`, `study_two_layer.py`, `study_multilayer_real.py` | Regular patterns, two layers with plated holes, a real four-layer board (4.11 to 4.13). |
+| `scripts/prototype_in_program.py`, `bench_mapping_cost.py` | The mappings through the program's own `fvm.Network` (4.14); time and memory (4.15). |
+| `scripts/study_lumped_analytic.py`, `study_models_self.py` | The mappings in the five models of the program (4.16, 4.27; run against a copy of the program with an additive zone union, set `PYTHONPATH`). |
+| `scripts/study_reader_conformance.py`, `study_reader_scope.py`, `study_gerber_writer.py` | The reader against gerbonara's test files, copper layers and drills, and Ucamco's `gerber-writer` (4.17, 4.19, 4.24; the last needs `pip install gerber-writer`). |
+| `scripts/make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara; the comparison with gerbonara, pygerber and pcb-tools (4.22; needs `pip install gerbonara pygerber pcb-tools shapely pillow`). |
+| `scripts/study_angles.py`, `study_net_joule.py`, `study_vias_nets.py` | Tracks at any angle (4.23); the heat of a net (4.20); holes, vias and nets (4.29). |
+| `scripts/study_sampson_boundary.py`, `study_post_board.py`, `study_coverage.py`, `study_coverage_real.py` | The regime of Sampson's article and its board analogue (4.25, 4.28); coverage masks (4.26). |
+| `scripts/make_figures.py` | Draws the six figures into `figures/`. |
 
 ## 4. How to run, and the results
 
 ```sh
 python3 -m venv research/gerbers/.venv && research/gerbers/.venv/bin/pip install -r research/gerbers/requirements.txt
-cd research/gerbers
-.venv/bin/python fetch_boards.py                 # once
-.venv/bin/python -m pytest -q tests              # 34 tests, about 3 s
-.venv/bin/python study_mapping.py                # 2 min (4 cores); builds the windows on first use
-# the others: study_raster_error (3 min), study_fine_scan (2), study_scalar_formulas (1), study_contrast (7), study_heater_size (2), study_transient (1),
+research/gerbers/.venv/bin/python research/gerbers/scripts/fetch_boards.py          # once
+research/gerbers/.venv/bin/python -m pytest -q research/gerbers/tests                # 68 tests, about 17 s
+research/gerbers/.venv/bin/python research/gerbers/scripts/study_mapping.py          # 2 min (4 cores); builds the windows on first use
+# the others, from the repository root in the same way: study_raster_error (3 min), study_fine_scan (2), study_scalar_formulas (1), study_contrast (7), study_heater_size (2), study_transient (1),
 # study_patterns (1), study_patterns_two_layer (3), study_two_layer (2), study_multilayer_real (5), study_native_check (1), prototype_in_program (3, needs the repository's dependencies)
 ```
 
@@ -509,6 +506,10 @@ Because the third-party test boards cannot be pictured (4.9), the repository has
 ![Figure 5: temperature rise resolved at 0.1 mm for 1 W under the IC, and the difference of the fill fraction and of the flow-based faces on 1 mm cells](figures/fig_05_ic_board_thermal.png)
 
 *Figure 5 (`figures/fig_05_ic_board_thermal.png`): 1 W in a 6 x 6 mm block under the IC, border held at 0 K, h = 10 W/m²K; left, the temperature rise resolved at 0.1 mm (110 K mean over the heater); middle and right, the difference of the 1 mm cell models from it. The fill fraction (today) is 5.6 % cool, concentrated in the copper-poor cells round the IC; the flow-based faces are +4.4 % (geometric mean +13 %, lambda 0.5 +6 %, tile bound +13 %); without convection -8.2 % and +5.1 %.*
+
+![Figure 6: our IC board drawn as a Gerber viewer would draw it, and a close-up of the IC](figures/fig_06_ic_board_gerber_render.png)
+
+*Figure 6 (`figures/fig_06_ic_board_gerber_render.png`): the Gerber of the board as read by the independent reader (copper in gold on the board, plated holes in black, test points named), and a close-up of the IC at 0.0125 mm pixels: the exposed pad with its four thermal vias, the eight pads and the radial tracks.*
 
 The tests use the board as a bench (4 tests, 7 s): nine nets, each one 8-connected piece, no pixel of a net within a pixel of another net (no short, clearance of at least 0.05 mm), the nets do not overlap; the 16 plated holes (8 vias, 8 test points) found with the right net by position (`nets.hole_report`), the drill file's X2 function read; the resistance of the longest arc net within +15 % of its squares and its heat equal to I²R; and the mapping to the thermal grid (fill fraction cool, geometric mean hot, flow-based faces within 8 %). To use it elsewhere: `import our_board`; `our_board.gerber_text()`, `drill_text()`, `holes()`, `net_name(k)`, `squares(k)`, `write(folder)`.
 

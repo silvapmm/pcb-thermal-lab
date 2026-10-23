@@ -1,10 +1,10 @@
 # Index of the investigations (by area of the program)
 
-This file is kept apart from `research/README.md` (which the Gerber branch keeps editing) and will be merged into it later. One folder per investigation, named after the question, with the same layout everywhere: the root holds what is read (`README.md` with the results in numbered sections, `LOG.md` with what was read and how and what was not verified, and `IMPLEMENTED.md` when the work is in the program or `INTEGRATION.md` and `docs/` when it is open), `figures/` the pictures and `scripts/` all the Python (`lib/` only for shared code). Run a script from the repository root, for example `.venv/bin/python research/via-fill/scripts/study_via_fill.py`.
+This file is the index; `research/README.md` holds the layout rules, the rules for figures and the licence notes of the pictures. One folder per investigation, named after the question, with the same layout everywhere: the root holds what is read (`README.md` with the numbered results, `INTEGRATION.md` or `IMPLEMENTED.md`, `LOG.md`), plus `figures/`, `docs/`, `tests/`, `scripts/` (all the executable Python) and `lib/` (shared code, only when needed).
 
 | Area | Folder | Status | Question |
 | :-- | :-- | :-- | :-- |
-| Import | `gerbers/` | open | How to turn Gerber copper into grid conductances. |
+| Import | `gerbers/` | open (start with `gerbers/CONCLUSIONS.md`) | How to turn Gerber copper into grid conductances: an independent reader without licences, the mappings compared on real boards and in all five models, nets and the heat of a net, vias, a board of our own as a test bench. |
 | Parts | `component-heatsink/` | implemented in part (2.3.0, 2.4.0); junction node and heatsink scenarios open | The part, its top path, interfaces, heatsinks and the metal block. |
 | Tools | `power-calculator/` | implemented (2.4.0) | The watts of a part from a measured temperature: validation, sensitivity, how to reduce the error. |
 | Models | `models-comparison/` | implemented (repeated at each change) | The five models against the FVM on 19 scenarios, the grids, the solvers and the time results. |

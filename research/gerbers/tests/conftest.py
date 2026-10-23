@@ -1,9 +1,11 @@
 """!
 @file conftest.py
-@brief Puts the research folder on the import path so the tests import the modules of research/gerbers directly.
+@brief Puts research/gerbers/lib and research/gerbers/scripts on the import path so the tests import the modules and the studies directly.
 """
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+HERE = Path(__file__).resolve().parents[1]
+for sub in ("lib", "scripts"):
+    sys.path.insert(0, str(HERE / sub))

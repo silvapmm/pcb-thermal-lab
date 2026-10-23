@@ -97,9 +97,9 @@ Other validated results:
 ## 6. How to reproduce
 
 ```
-python -m pytest -q tests                      # 68 tests, about 17 s
-python study_sampson_boundary.py               # section 4.25, about 10 minutes
-python compare_readers.py synthetic            # needs gerbonara, pygerber, pcb-tools, shapely, pillow
-python make_figures.py                         # the pictures in figures/
+research/gerbers/.venv/bin/python -m pytest -q research/gerbers/tests                    # 68 tests, about 17 s
+research/gerbers/.venv/bin/python research/gerbers/scripts/study_sampson_boundary.py     # section 4.25, about 10 minutes
+research/gerbers/.venv/bin/python research/gerbers/scripts/compare_readers.py synthetic  # needs gerbonara, pygerber, pcb-tools, shapely, pillow
+research/gerbers/.venv/bin/python research/gerbers/scripts/make_figures.py               # the pictures in figures/
 ```
-The boards are downloaded by `fetch_boards.py` and `study_reader_conformance.py` into `data/` (git-ignored; their licences differ).
+The boards are downloaded by `scripts/fetch_boards.py` and `scripts/study_reader_conformance.py` into `data/` (git-ignored; their licences differ). The layout of the folder is described in `README.md`, section 3; what was read and how in `LOG.md`.
