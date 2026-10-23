@@ -59,11 +59,12 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `docs/literature.md` | What was read of the literature and what could not be opened. |
 | `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not. |
 | `make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara, and the comparison with gerbonara, pygerber and pcb-tools (4.22). Needs `pip install gerbonara pygerber pcb-tools shapely pillow`. |
+| `study_gerber_writer.py` | Files written with Ucamco's `gerber-writer` (thermal pads, arcs, regions) read by the reader and gerbonara (4.24). Needs `pip install gerber-writer`. |
 | `study_angles.py`, `make_figures.py` | Tracks at any angle: area, connectivity, resistance (4.23); `make_figures.py` writes the pictures to `figures/`. |
 | `figures/` | The pictures, named `fig_NN_topic.png` in order of creation (committed on purpose, the README files link to them): 01 angles on the pixel grid, 02 KiCad nets and Joule heat, 03 copper mapping to cells. |
 | `joule.py`, `study_net_joule.py` | Current in a net and the heat it makes (4.20). |
 | `study_reader_scope.py` | Which copper layers and drill files the reader handles (4.19). |
-| `tests/` | 52 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
+| `tests/` | 53 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
 | `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |
 
 ## 4. How to run, and the results
@@ -400,6 +401,18 @@ Until now only 45° had been tried (7 widths together, 4.22). A 30 mm track writ
 * **For nets** (section 4.20): the question "which piece belongs to which net" is a question of connectivity, so it should not be answered from a coarse raster. Cheap and sound: label with 8-connectivity at a pixel not larger than the thinnest track, and for anything thinner use the vector geometry (shapely polygons that touch) or the objects' own net attribute. In the worst case, a thin wire that joins two copper areas must be kept as an explicit link, as the maintainer noted.
 
 The same sweep says something about the mapping of copper to cells (4.4 to 4.14): those studies used the same four-neighbour solves, but their features (stripes, hatch, real copper at 0.1 mm) are mostly 3 pixels wide or more and their results were validated against the same four-neighbour solve of the fine mask, so the *relative* comparison between mappings holds; the *absolute* resistance of a very thin tilted track in that reference is too high by the percentages above. Not yet repeated with finer pixels or with the nine-point stencil.
+
+### 4.24 A third writer: Ucamco's `gerber-writer` (`study_gerber_writer.py`)
+
+The Ucamco format page (supplied by the maintainer, `docs/literature.md` section 5) names `gerber-writer`, a Python library for writing Gerber X2 files. Files written with it (thermal and rounded-thermal pads, rectangles, a rounded rectangle, a regular polygon, a circle, four tilted tracks, a path with a quarter-circle arc, a pentagon region) test the reader on a writer it has never seen. Copper area against the exact value (shapely construction for the tracks and the arc; the region is 300 mm²; the pads have no hand formula, so the reference there is gerbonara):
+
+| file | independent reader | gerbonara 1.6.3 (vector) |
+| :-- | --: | --: |
+| 6 pads, with `Thermal` and `RoundedThermal` aperture macros | +0.08 % (against gerbonara) | (reference) |
+| 4 tilted tracks and a path with a quarter-circle arc | **-0.04 %** | **-8.57 %** |
+| pentagon region | -0.01 % | 0.00 % |
+
+Findings: (1) **the reader handles the thermal-pad macros and the arc path**; (2) **gerbonara's vector area is 8.6 % low on the arc file** (cause not investigated), so a tool used as a reference is not ground truth, as section 4.22 already said; (3) gerber-writer writes its attributes in the compatibility form `G04 #@! TF.FileFunction,Copper,L1,Top*`, which the reader did not understand (file not classified as copper, net names lost): **fixed**, both forms are read now (`test_attributes_written_as_comments`). gerber-writer has no argument for a net name, so this file set does not test nets. Gerber-writer's `ChamferedRectangle` was not exercised.
 
 ## 5. Without third-party libraries: the independent reader
 

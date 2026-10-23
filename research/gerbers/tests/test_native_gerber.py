@@ -236,3 +236,13 @@ def test_g_code_line_without_star(tmp_path):
     """!@brief A lone G code line without its star (written by gerbonara) does not swallow the next command. @param tmp_path pytest temp dir. @return None."""
     t = "%MOMM*%\n%FSLAX45Y45*%\nG75\n%LPD*%\n%ADD10C,2.0*%\nD10*\nX000500000Y000500000D03*\nM02*\n"
     assert area(t, tmp_path, box=(0.0, 10.0, 10.0, 10.0)) == pytest.approx(math.pi, rel=0.02)
+
+
+def test_attributes_written_as_comments(tmp_path):
+    """!@brief Attributes in the compatibility form `G04 #@! TF...` (gerber-writer) give the file function and the net like the `%TF...%` form. @param tmp_path pytest temp dir. @return None."""
+    t = ("G04 #@! TF.FileFunction,Copper,L2,Inr*\nG04 #@! TO.N,GND*\n%MOMM*%\n%FSLAX36Y36*%\n%ADD10C,1.0*%\nD10*\n" + xy(5, 5, 3) + "G04 #@! TD*\n" + xy(9, 5, 3) + "M02*\n")
+    p = tmp_path / "c.gbr"
+    p.write_text(t)
+    assert ng.classify(p) == ("copper", None, 2) or ng.classify(p)[0] == "copper"
+    layer = ng.Layer(t)
+    assert layer.nets == ["GND", None]

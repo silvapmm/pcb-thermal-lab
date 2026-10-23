@@ -27,6 +27,17 @@ class GerberError(ValueError):
 # Parsing
 # --------------------------------------------------------------------------------------------------------------------------------
 
+def _attributes_as_commands(text):
+    """!
+    @brief Turn attributes written as comments into extended commands.
+    @details The Gerber specification allows (and the gerber-writer library writes) the attributes in the compatibility form `G04 #@! TF.FileFunction,Copper,L1,Top*`, which an older reader
+             ignores as a comment; they carry the file function, the aperture functions and the net names, so they are rewritten as `%TF.FileFunction,Copper,L1,Top*%`.
+    @param text File content.
+    @return Text with the attribute comments as extended commands.
+    """
+    return re.sub(r"G04\s+#@!\s+(T[FAOD][^*]*)\*", r"%\1*%", text)
+
+
 def _blocks(text):
     """!
     @brief Split a Gerber file into its blocks: extended commands (between % signs) and ordinary data blocks (ended by *).
@@ -34,6 +45,7 @@ def _blocks(text):
     @return List of tuples (kind, text) with kind "ext" or "data".
     """
     out = []
+    text = _attributes_as_commands(text)
     # Some writers (gerbonara) leave the star off a lone G code line ("G75"); without it the block would swallow the next command
     text = re.sub(r"(?m)^(G\d{1,2})[ \t]*$", r"\1*", text)
     pos, n = 0, len(text)
@@ -809,7 +821,7 @@ def classify(path):
     name = p.name.lower()
     if p.suffix.lower() in (".gbr", ".ger", ".art", ".gtl", ".gbl", ".gko", ".gm1", ".gts", ".gbs", ".gto", ".gbo", ".gtp", ".gbp", ".pho", ".gdo", ".cmp", ".sol", ""):
         try:
-            head = p.read_text(errors="replace")[:4000]
+            head = _attributes_as_commands(p.read_text(errors="replace")[:4000])
         except OSError:
             head = ""
         m = re.search(r"%TF\.FileFunction,([^*%]*)", head)
