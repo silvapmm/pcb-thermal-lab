@@ -1,6 +1,6 @@
 """!
 @file make_figures.py
-@brief Pictures of what the research does, written to figures/ (committed, linked from the README files): thin tracks on the pixel grid, nets and the Joule heat of one net on a synthetic board with X2 net attributes (our own, no licence issue), and the mapping of real copper to cells.
+@brief Pictures of what the research does, written to figures/ (committed, linked from the README files): thin tracks on the pixel grid, nets and the Joule heat of one net on a KiCad board, and the mapping of real copper to cells.
 @details Needs numpy, scipy, matplotlib, shapely and gerbonara. Run: python make_figures.py
 """
 
@@ -20,6 +20,7 @@ import make_synthetic as ms
 import native_gerber as ng
 import windows
 from study_net_joule import disc, net_pads
+from study_reader_conformance import DEST
 
 OUT = Path(__file__).resolve().parent / "figures"          # kept in the repository on purpose: the README files link to them
 
@@ -68,40 +69,12 @@ def fig_angles():
     plt.close(fig)
 
 
-def synthetic_nets_gerber():
-    """!
-    @brief Write a small synthetic top-copper Gerber with X2 net attributes (our own geometry, 40 x 26 mm, three nets) and return its text.
-    @details VIN: a 0.8 mm track with a 0.25 mm neck and a dead-end spur; SIG: a 0.3 mm track with a 45 degree detour; GND: a 1.6 mm track with three pads.
-    @return str Gerber text.
-    """
-    def xy(x, y):
-        return f"X{int(round(x * 1e6))}Y{int(round(y * 1e6))}"
-
-    out = ["%FSLAX46Y46*%", "%MOMM*%", "%LPD*%", "%ADD10C,2.400000*%", "%ADD11C,0.800000*%", "%ADD12C,0.250000*%", "%ADD13C,0.400000*%", "%ADD14C,0.300000*%", "%ADD15C,1.600000*%", "G01*"]
-
-    def net(name, strokes, pads):
-        out.append(f"%TO.N,{name}*%")
-        for ap, pts in strokes:
-            out.append(f"D{ap}*")
-            out.append(xy(*pts[0]) + "D02*")
-            out.extend(xy(*pt) + "D01*" for pt in pts[1:])
-        out.append("D10*")
-        out.extend(xy(*pt) + "D03*" for pt in pads)
-        out.append("%TD*%")
-
-    net("VIN", [(11, [(3, 4), (14, 4)]), (12, [(14, 4), (24, 4)]), (11, [(24, 4), (37, 4)]), (13, [(10, 4), (10, 10)])], [(3, 4), (37, 4)])
-    net("SIG", [(14, [(3, 20), (15, 20), (20, 15), (25, 20), (37, 20)])], [(3, 20), (37, 20)])
-    net("GND", [(15, [(3, 12.5), (37, 12.5)])], [(3, 12.5), (20, 12.5), (37, 12.5)])
-    out.append("M02*")
-    return "\n".join(out) + "\n"
-
-
 def fig_nets():
     """!
-    @brief The top copper of a synthetic board coloured by net, and the potential and Joule heat of one net at 1 A.
+    @brief The top copper of a KiCad board coloured by net, and the potential and Joule heat of one net at 1 A.
     @return None.
     """
-    layer = ng.Layer(synthetic_nets_gerber())
+    layer = ng.Layer((DEST / "zero-length-lines__charliewatch-v2.panel-F_Cu.gbr").read_text())
     bb = layer.bbox()
     pix = 0.05
     w, h = bb[2] - bb[0] + 0.4, bb[3] - bb[1] + 0.4
@@ -121,14 +94,14 @@ def fig_nets():
         if len(v) == 1:
             img[lab == c] = idx[next(iter(v))]
     img[(lab > 0) & (img == 0)] = len(nets) + 1                         # copper without a net: grey
-    cm = plt.get_cmap("tab10")(np.arange(10))
-    cols = np.vstack([[0.08, 0.08, 0.08, 1], [cm[k % 10] for k in range(len(nets))], [[0.55, 0.55, 0.55, 1]]])
-    fig, axs = plt.subplots(1, 3, figsize=(16, 4.4))
+    cm = plt.get_cmap("tab20")(np.linspace(0, 1, 20))
+    cols = np.vstack([[0.08, 0.08, 0.08, 1], [cm[k % 20] for k in range(len(nets))], [[0.55, 0.55, 0.55, 1]]])
+    fig, axs = plt.subplots(1, 3, figsize=(16, 5.6))
     ext = (cv_all.x0, cv_all.x0 + lab.shape[1] * pix, cv_all.y0 - lab.shape[0] * pix, cv_all.y0)
-    axs[0].imshow(img, cmap=ListedColormap(cols), vmin=0, vmax=len(cols) - 1, interpolation="nearest", extent=ext)       # fixed range: the colour of a net must not depend on which labels occur
-    axs[0].set_title(f"synthetic top copper, {len(nets)} nets (one colour each)\nVIN has a neck and a dead-end spur", fontsize=9)
+    axs[0].imshow(img, cmap=ListedColormap(cols), interpolation="nearest", extent=ext)
+    axs[0].set_title(f"top copper of a KiCad board: {len(nets)} nets (colours)\ngrey = copper with no net (a 428 mm2 zone fill)", fontsize=9)
     # Joule heat of one net: the largest piece of X9 with two or more pads, between its two farthest pads, 1 A
-    net = "VIN"
+    net = "Board_0-/X9"
     pads = np.array(net_pads(layer, net))
     pieces = [c for c, v in owner.items() if v == {net}]
     sizes = np.bincount(lab.ravel())
@@ -144,7 +117,7 @@ def fig_nets():
     y0, y1, x0, x1 = max(ys.min() - 20, 0), ys.max() + 20, max(xs.min() - 20, 0), xs.max() + 20
     ext2 = (cv_all.x0 + x0 * pix, cv_all.x0 + x1 * pix, cv_all.y0 - y1 * pix, cv_all.y0 - y0 * pix)
     im = axs[1].imshow(np.where(mask, v, np.nan)[y0:y1, x0:x1], cmap="viridis", interpolation="nearest", extent=ext2)
-    axs[1].set_title(f"net {net}: potential at 1 A, R = {r * 1000:.0f} mOhm (35 um copper)", fontsize=9)
+    axs[1].set_title(f"net {net.split('-')[-1]}: potential at 1 A, R = {r * 1000:.0f} mOhm (35 um copper)", fontsize=9)
     fig.colorbar(im, ax=axs[1], label="V")
     im = axs[2].imshow(np.where(mask, q / pix ** 2 * 1000.0, np.nan)[y0:y1, x0:x1], cmap="inferno", interpolation="nearest", extent=ext2, norm=LogNorm(vmin=max(q.max() / pix ** 2 * 1000.0 * 1e-3, 1e-12), vmax=q.max() / pix ** 2 * 1000.0))
     axs[2].set_title(f"Joule heat density, total {q.sum() * 1000:.0f} mW (= I2R); pads are the dots", fontsize=9)
@@ -153,7 +126,7 @@ def fig_nets():
         ax.plot(pa[:, 0], pa[:, 1], "w.", ms=3)
         ax.plot([pa[i][0], pa[j][0]], [pa[i][1], pa[j][1]], "wo", ms=7, mfc="none")
     fig.tight_layout()
-    fig.savefig(OUT / "fig_02_nets_and_joule.png", dpi=110)
+    fig.savefig(OUT / "fig_02_kicad_nets_and_joule.png", dpi=110)
     plt.close(fig)
 
 
@@ -162,10 +135,8 @@ def fig_mapping():
     @brief One real window: the 0.1 mm copper mask, the fill fraction per 1 mm cell (today) and the ratio of the flow-based cell conductance to the arithmetic one.
     @return None.
     """
-    windows.BOARDS = ["storm"]                                              # Stormduino (MIT) only: the other boards have other licences
-    windows.FILE = windows.OUT / "windows_storm.npz"
     masks, meta = windows.load()
-    k = 1
+    k = 9
     mask = masks[k]
     S = cd.sheet_of(mask[::-1])
     n = 10                                                              # pixels per 1 mm cell
@@ -179,12 +150,12 @@ def fig_mapping():
     arith = cd.map_power(f, 1.0, a, b)
     fig, axs = plt.subplots(1, 3, figsize=(16, 5.4))
     axs[0].imshow(mask, cmap="copper", interpolation="nearest", extent=(0, 36, 0, 36))
-    axs[0].set_title(f"Stormduino (MIT): 36 x 36 mm of real copper, 0.1 mm pixels", fontsize=9)
+    axs[0].set_title(f"{meta[k][0]}: 36 x 36 mm of real copper, 0.1 mm pixels", fontsize=9)
     im = axs[1].imshow(f[::-1], cmap="viridis", vmin=0, vmax=1, interpolation="nearest", extent=(0, 36, 0, 36))
     axs[1].set_title("copper fraction of each 1 mm cell (what the program uses today)", fontsize=9)
     fig.colorbar(im, ax=axs[1])
     im = axs[2].imshow((flow / arith)[::-1], cmap="RdBu", vmin=0.2, vmax=1.8, interpolation="nearest", extent=(0, 36, 0, 36))
-    axs[2].set_title("flow-based / arithmetic cell conductance\nred (< 1): the fraction overestimates it (board too cool)\nblue (> 1): it underestimates", fontsize=8)
+    axs[2].set_title("flow-based cell conductance / arithmetic one\nred (< 1): the fraction overestimates the conductance (board too cool)\nblue (> 1): it underestimates", fontsize=9)
     fig.colorbar(im, ax=axs[2])
     for ax in axs:
         ax.set_xlabel("mm")

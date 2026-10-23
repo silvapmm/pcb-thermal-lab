@@ -120,7 +120,7 @@ The reference also depends a little on the pixel (single layer, 5 x 5 mm heater)
 
 ![Figure 3: a real 36 mm window, the copper fraction per 1 mm cell and the ratio of the flow-based to the arithmetic cell conductance](figures/fig_03_copper_mapping_to_cells.png)
 
-*Figure 3 (`figures/fig_03_copper_mapping_to_cells.png`): window of the Stormduino board (MIT licence, https://github.com/Chromico/stormduino; downloaded by `fetch_boards.py`, never committed); the fraction of copper per 1 mm cell (what the program uses today) and where the flow-based conductance is lower (red) or higher (blue) than the arithmetic one.*
+*Figure 3 (`figures/fig_03_copper_mapping_to_cells.png`): window of the `chibi` board; the fraction of copper per 1 mm cell (what the program uses today) and where the flow-based conductance is lower (red) or higher (blue) than the arithmetic one.*
 
 Methods (all give the face conductances the solver uses; for the first four the face is the harmonic mean of the two cells, as the FVM does):
 
@@ -341,9 +341,9 @@ Only copper layers and drills matter for the program (silkscreen, mask, paste an
 
 **The heat of a net.** With the net mask, the sheet resistance `Rs = rho / t` (copper 1.68e-8 ohm m at 20 °C, +0.393 %/K) and two terminals, `joule.solve_net` solves div(grad V / Rs) = 0 on the pixels (4-connected, face conductance 1/Rs, harmonic mean when `Rs` varies) and returns the resistance, the potential and the Joule power of every pixel, whose sum is exactly `I²R`. `joule.to_cells` sums it into the cells of the thermal grid (the total is conserved), which is exactly the heat source the models need. Checks (6 tests): a strip gives `Rs (L-1)/W` to 1e-9, a width step is a series circuit (within 3 %, the constriction adds a spreading term), parallel strips, the cell sum, and unconnected or overlapping terminals are refused.
 
-![Figure 2: a synthetic top copper coloured by net, potential and Joule heat of one net at 1 A](figures/fig_02_nets_and_joule.png)
+![Figure 2: KiCad top copper coloured by net, potential and Joule heat of one net at 1 A](figures/fig_02_kicad_nets_and_joule.png)
 
-*Figure 2 (`figures/fig_02_nets_and_joule.png`): a small synthetic board of our own (`make_figures.py`, X2 net attributes written by hand: three nets, 40 x 26 mm); left, the nets by colour; middle and right, potential and Joule heat density of net `VIN` at 1 A (35 µm copper): R = 32 mΩ and 32 mW (= I²R), against about 34 mΩ by hand (24 mm of 0.8 mm track and 10 mm of 0.25 mm neck: 70 squares of 0.48 mΩ); the neck is where the heat is, the dead-end spur carries no current (black). The earlier version of this figure rendered a KiCad board of the gerbonara test set, whose licence could not be confirmed, so it was replaced.*
+*Figure 2 (`figures/fig_02_kicad_nets_and_joule.png`): left, the nets of a KiCad board (grey: a zone fill with no net); middle and right, potential and Joule heat density of net `/X9` at 1 A; the dead-end spur carries no current (black).*
 
 On the KiCad panel (1 A, 35 µm copper, terminals on the two farthest pads of the largest piece of each net): the signal nets of 22 mm span give 80 mΩ (81 mW at 1 A, hottest 1 mm cell 3.6 mW), a 11.6 mm net 31 mΩ, the GND piece of 388 mm² 4.6 mΩ (hottest cell 0.2 mW). Quick sanity check: 0.2 mm tracks of 22 mm are 110 squares of 0.5 mΩ, about 55 mΩ before the pads and bends.
 
