@@ -10,11 +10,15 @@ Status: **mostly implemented** (θ junction-pad, junction limit, power coefficie
 4. What do the interface material, the metal of a block under the board and the base of a heatsink matter?
 5. How should a heatsink known only by its sink-to-ambient resistance behave (natural-convection scaling, forced air)?
 
-### 1.1 Diagram
+### 1.1 Diagrams and illustrations
 
 ![A part with its top path as schematics](figures/fig_05_part_and_top_path_schematic.png)
 
 *Figure 5 (`figures/fig_05_part_and_top_path_schematic.png`): A part with its top path as schematics: 1, the section of a package on the board with a heatsink on top and its two paths from the junction (theta_JB through the pad and the board, theta_JC(top) through the paste and the heatsink); 2, the network behind it and the fixed-point loop that the program uses instead of a junction node; 3, the whole chain from the junction to the air.*
+
+![Figure 6](figures/fig_06_package_sections.png)
+
+*Figure 6 (`figures/fig_06_package_sections.png`): a package on the board without and with a heatsink: the die (junction), the mould, the pad and vias, and how much of the heat takes the path up (about 1 % bare, 41 to 51 % with a 12 K/W clip-on heatsink and paste).*
 
 ## 2. Findings in short
 

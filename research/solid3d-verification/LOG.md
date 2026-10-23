@@ -7,3 +7,4 @@
 
 Read: Yovanovich's Table 3 values were taken from the published table as recorded in the script (the paper itself was not re-read). Not verified: no measurement of a physical board.
 - Schematic diagram added (`scripts/make_diagrams.py`, figure 4): drawn, not computed; the numbers it quotes are those of this README.
+- A second picture added to `scripts/make_diagrams.py` (figure 5): a drawing of the real situation (a section or a top view), not a block diagram; every number in it is quoted from this README.

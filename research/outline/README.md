@@ -6,11 +6,15 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `outline
 
 The finite volumes, the finite differences and the 3D solid handle any board outline (cells outside it are pinned to ambient). The Lumped model (rings) and the Analytic model (cosine series) are built on a rectangle. What is the best rectangle to run them on when the board has an outline?
 
-### 1.1 Diagram
+### 1.1 Diagrams and illustrations
 
 ![The rule for a board with an outline](figures/fig_04_outline_to_rectangle_schematic.png)
 
 *Figure 4 (`figures/fig_04_outline_to_rectangle_schematic.png`): The rule for a board with an outline: the board (a T) with its bounding box, the rectangle of the same area on which the Lumped and Analytic models run (box and positions scaled by the square root of the area ratio, the parts keep their size) and the three steps with the accuracy found.*
+
+![Figure 5](figures/fig_05_cells_on_an_outline.png)
+
+*Figure 5 (`figures/fig_05_cells_on_an_outline.png`): a T-shaped board on the finite-volume grid: cells outside the board (cover 0, pinned to ambient), full cells and cells cut by the edge (cover fraction written in the cell).*
 
 ## 2. Findings in short
 
@@ -25,8 +29,8 @@ The finite volumes, the finite differences and the 3D solid handle any board out
 | :-- | :-- |
 | `scripts/outline_rectangle_study.py` | The study: five outlines, four layouts, three rectangles, error of the lumped and analytic models against the FVM on the real shape. |
 | `scripts/make_figures.py` | Draws the three figures. |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results

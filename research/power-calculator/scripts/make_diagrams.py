@@ -2,6 +2,7 @@
 @file make_diagrams.py
 @brief Schematic diagrams of the power calculator: the board model run backwards (two runs, an affine relation, the watts), and the band of the answer from the one-at-a-time effects.
 @details Pure drawing; the line in the second panel is the affine relation T(P) = T0 + c P that the calculator uses, with illustrative numbers. Writes figures/fig_04_calculator_schematic.png.
+         Also writes figures/fig_05_reading_points_and_copper.png (the temperature reading points and the copper drawn against the real one).
          Run: .venv/bin/python research/power-calculator/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -9,6 +10,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
+
+from matplotlib.patches import Circle, Polygon, Rectangle                 # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import diagram_kit as dk                                           # noqa: E402
@@ -78,6 +81,45 @@ def band(ax):
     ax.set_title("3. the band of the answer", fontsize=9)
 
 
+def reading_points(path):
+    """!
+    @brief Draw where the temperature of a part can be read (junction, case top, board) on the section of a package, and the drawn copper against the real copper that dominates the error (README 2).
+    @param path Output file.
+    @return None.
+    """
+    fig, (a1, a2) = dk.canvas(14, 5.2, 1, 2, ratios=[1.1, 1])
+    a1.set_xlim(0, 10)
+    a1.set_ylim(-0.8, 7.2)
+    dk.layer(a1, 0.5, 1.0, 9.0, 1.3, dk.FR4)
+    a1.text(1.8, 1.65, "board", ha="center", va="center", fontsize=7.5)
+    dk.layer(a1, 0.5, 2.3, 9.0, 0.2, dk.COPPER)
+    dk.layer(a1, 0.5, 0.8, 9.0, 0.2, dk.COPPER)
+    dk.layer(a1, 2.6, 2.5, 4.8, 0.15, "#bbbbbb")
+    dk.layer(a1, 2.7, 2.65, 4.6, 2.0, "#555555")
+    a1.add_patch(Rectangle((3.9, 2.8), 2.2, 0.5, facecolor="#f4b6b6", edgecolor="k"))
+    for (x, y, t, c) in ((5.0, 3.05, "Tj (die)", "k"), (5.0, 4.9, "T case top", dk.BLUE), (1.6, 2.75, "T board", dk.BLUE)):
+        a1.plot([x], [y if y != 3.05 else 3.05], "o", color=c, markersize=6)
+    a1.text(5.0, 3.55, "junction Tj", ha="center", fontsize=7, color="white")
+    a1.text(5.0, 5.25, "case top (thermocouple): psi_JT", ha="center", fontsize=7.5, color=dk.BLUE)
+    a1.text(1.6, 3.25, "board next\nto the pad", ha="center", fontsize=7.5, color=dk.BLUE)
+    dk.arrow(a1, 5.0, 2.8, 5.0, 0.6, color=dk.HEAT, width=1.8)
+    a1.text(7.9, 1.65, "theta: junction\nto the board", fontsize=7, ha="center", va="center")
+    a1.text(5, 6.9, "which temperature was read", ha="center", fontsize=9, fontweight="bold")
+    a1.text(5, -0.6, "the calculator runs the board model twice and reads the line T(P) at the point you measured", ha="center", fontsize=7, style="italic")
+    # drawn board against real board
+    a2.set_xlim(0, 12)
+    a2.set_ylim(-1.6, 7.6)
+    a2.set_aspect("equal")
+    a2.text(6, 7.1, "the copper is what dominates the error", ha="center", fontsize=9, fontweight="bold")
+    for x0, copper, label in ((0.2, (0.8, 0.8, 4.2, 4.2), "real board:\nlarge copper plane"), (6.3, (2.2, 2.2, 1.8, 1.8), "drawn board:\nonly the pad")):
+        a2.add_patch(Rectangle((x0, 0.2), 5.4, 5.4, facecolor=dk.FR4, edgecolor="k"))
+        a2.add_patch(Rectangle((x0 + copper[0] - 0.5, copper[1] - 0.5 + 0.2), copper[2], copper[3], facecolor=dk.COPPER, edgecolor="k"))
+        a2.add_patch(Rectangle((x0 + 2.0, 2.0), 1.4, 1.4, facecolor="#c0392b", edgecolor="k"))
+        a2.text(x0 + 2.7, 5.9, label, ha="center", va="bottom", fontsize=7.5)
+    a2.text(6, -0.3, "drawn copper not the real one: -11 to -45 % in the power found\nheat transfer, theta, psi_JT and a 3 K reading error: 5 to 9 % each", ha="center", va="top", fontsize=7.5, color=dk.HEAT)
+    dk.save(fig, path, "The power calculator: what is measured, and what the drawing must get right")
+
+
 def main():
     """!
     @brief Draw the three panels and save the figure.
@@ -89,6 +131,7 @@ def main():
     affine(axs[1])
     band(axs[2])
     dk.save(fig, OUT / "fig_04_calculator_schematic.png", "The power calculator: schematics")
+    reading_points(OUT / "fig_05_reading_points_and_copper.png")
 
 
 if __name__ == "__main__":

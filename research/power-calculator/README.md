@@ -8,11 +8,15 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). The manual of the
 2. How wrong can the answer be when the drawn board is not the real one, and which input dominates?
 3. How can the error be reduced?
 
-### 1.1 Diagram
+### 1.1 Diagrams and illustrations
 
 ![The power calculator as schematics](figures/fig_04_calculator_schematic.png)
 
 *Figure 4 (`figures/fig_04_calculator_schematic.png`): The power calculator as schematics: 1, how the watts are found (the board model run twice, the line T(P) = T0 + c P, the watts from the reading); 2, that line and the reading on it; 3, the band of the answer from the one-at-a-time effects of the uncertain inputs combined by root sum of squares.*
+
+![Figure 5](figures/fig_05_reading_points_and_copper.png)
+
+*Figure 5 (`figures/fig_05_reading_points_and_copper.png`): left, the section of a package with the three places a temperature can be read (junction, case top, board); right, the real copper against the drawn copper, which dominates the error (-11 to -45 %).*
 
 ## 2. Findings in short
 
@@ -29,8 +33,8 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). The manual of the
 | `scripts/power_from_top_study.py` | Sensitivity of the power recovered from the top temperature to the board and the data (about 10 seconds). |
 | `scripts/calculator_calibration_study.py` | Known-power reference, two-point fit and the band, on the example board (about 2.5 minutes; a study, not part of the program). |
 | `scripts/make_figures.py` | Draws the three figures (runs the three studies; about 3 minutes). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ```sh

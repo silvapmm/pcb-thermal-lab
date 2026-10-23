@@ -8,11 +8,15 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `solid3d
 2. How far are the layered models (FVM, FDM, Lumped, Analytic: one node per copper layer) from a real 3D solution, for uniform boards, small copper pads, vias, heatsinks and metal blocks?
 3. Does the outer copper dissipate and spread heat like a heatsink, and where do the models fail?
 
-### 1.1 Diagram
+### 1.1 Diagrams and illustrations
 
 ![The layered models against the 3D solid](figures/fig_04_layered_vs_3d_schematic.png)
 
 *Figure 4 (`figures/fig_04_layered_vs_3d_schematic.png`): The layered models against the 3D solid: 1, one node per copper layer with the sheet conductance in the plane and a conductance between nodes; 2, the 3D solid with real slabs, several laminate slabs per gap and a via as a copper rod; 3, the verification ladder from exact solutions to an independent finite-element solution.*
+
+![Figure 5](figures/fig_05_heat_spreading_layered_and_3d.png)
+
+*Figure 5 (`figures/fig_05_heat_spreading_layered_and_3d.png`): heat spreading under a small heater: one node per copper layer in the layered models, a fan inside the laminate in the 3D solid, and a one-sided copper pad that dissipates by itself.*
 
 ## 2. Findings in short
 
@@ -29,8 +33,8 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `solid3d
 | `scripts/fem3d_validation.py` | The independent 3D finite-element solid (scikit-fem, **not** in `requirements.txt`: `pip install scikit-fem`), also used by `models-comparison/validation_study.py --fem`. |
 | `scripts/copper_dissipation.py` | The pad-size sweep and copper against heatsink, in every model and the FEM (`--fem`). |
 | `scripts/make_figures.py` | Draws the three figures (needs scikit-fem for the third; about 90 seconds). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results

@@ -2,11 +2,16 @@
 @file make_diagrams.py
 @brief Schematic diagrams of a part with its top path: the cross-section (die, pad, board, paste, heatsink), the junction-node network with the program's fixed-point loop, and the heatsink chain.
 @details No numbers are computed; the shares quoted (a bare mould about 1 % of the heat, a clip-on heatsink with paste 41 to 51 %) are those of the README of this folder. Writes figures/fig_05_part_and_top_path_schematic.png.
+         Also writes figures/fig_06_package_sections.png (a part with and without a heatsink, sections).
          Run: .venv/bin/python research/component-heatsink/scripts/make_diagrams.py (from the repository root).
 """
 
 import sys
 from pathlib import Path
+
+import numpy as np
+
+from matplotlib.patches import Circle, Polygon, Rectangle                 # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import diagram_kit as dk                                           # noqa: E402
@@ -86,6 +91,53 @@ def chain(ax):
     ax.set_title("3. all the levels in one chain", fontsize=9)
 
 
+def package(ax, x, heatsink, title, share):
+    """!
+    @brief Draw the section of a package on the board (die, mould, pad, vias) with or without a heatsink on top and the two paths of the heat.
+    @param ax Axes.
+    @param x Left of the drawing.
+    @param heatsink True to put a heatsink with paste on the package.
+    @param title Title of the drawing.
+    @param share Text with the share of the heat going up.
+    @return None.
+    """
+    dk.layer(ax, x, 1.0, 6.0, 1.3, dk.FR4)
+    ax.text(x + 0.7, 1.65, "board", ha="center", va="center", fontsize=7)
+    dk.layer(ax, x, 2.3, 6.0, 0.2, dk.COPPER)
+    dk.layer(ax, x, 0.8, 6.0, 0.2, dk.COPPER)
+    for vx in (x + 2.3, x + 3.0, x + 3.7):
+        ax.add_patch(Rectangle((vx - 0.1, 0.8), 0.2, 1.7, facecolor=dk.COPPER, edgecolor="k"))
+    dk.layer(ax, x + 1.4, 2.5, 3.2, 0.15, "#bbbbbb")
+    dk.layer(ax, x + 1.5, 2.65, 3.0, 1.4, "#555555", "mould")
+    ax.text(x + 3.0, 2.0, "", fontsize=6)
+    ax.add_patch(Rectangle((x + 2.4, 2.75), 1.2, 0.35, facecolor="#f4b6b6", edgecolor="k"))
+    ax.text(x + 3.0, 2.92, "die: Tj", ha="center", va="center", fontsize=6.5)
+    if heatsink:
+        dk.layer(ax, x + 1.5, 4.05, 3.0, 0.12, "#e8d98c")
+        dk.layer(ax, x + 1.2, 4.17, 3.6, 0.4, dk.METAL)
+        for k in range(5):
+            dk.layer(ax, x + 1.3 + k * 0.7, 4.57, 0.25, 1.2, dk.METAL)
+    dk.arrow(ax, x + 3.0, 2.7, x + 3.0, 0.5, color=dk.HEAT, width=3.0 if not heatsink else 1.8)
+    dk.arrow(ax, x + 3.0, 3.6 if not heatsink else 4.0, x + 3.0, 4.6 if not heatsink else 6.0, color=dk.HEAT, width=0.8 if not heatsink else 2.4)
+    ax.text(x + 3.0, 6.6, title, ha="center", fontsize=9, fontweight="bold")
+    ax.text(x + 5.05, 1.65, "theta_JB:\nthe pad and\nthe vias", ha="center", fontsize=6.5, va="center")
+    ax.text(x + 3.0, 0.05, share, ha="center", va="top", fontsize=7.5, color=dk.HEAT)
+
+
+def package_sections(path):
+    """!
+    @brief Draw a part on the board without and with a heatsink: where the junction is and how much of the heat each path takes (README 2).
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(13, 5.4)
+    ax.set_xlim(-0.5, 14)
+    ax.set_ylim(-1.0, 7.1)
+    package(ax, 0.0, False, "bare mould", "up through the mould: about 1 % (0.6 to 1.4 %)\nthe rest goes down into the board")
+    package(ax, 7.0, True, "clip-on heatsink with paste (12 K/W)", "up through paste and heatsink: 41 to 51 %\nTj lower by 16 to 40 K")
+    dk.save(fig, path, "The junction and its two paths: a part with and without a heatsink on top")
+
+
 def main():
     """!
     @brief Draw the three panels and save the figure.
@@ -101,6 +153,7 @@ def main():
     network(axes[1])
     chain(axes[2])
     dk.save(fig, OUT / "fig_05_part_and_top_path_schematic.png", "The part, its top path and its heatsink: schematics")
+    package_sections(OUT / "fig_06_package_sections.png")
 
 
 if __name__ == "__main__":

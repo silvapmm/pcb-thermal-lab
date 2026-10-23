@@ -6,11 +6,15 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Script: `study_vi
 
 A fabricator's "filled via" is not a copper-filled via. Does the fill of the barrel change the temperature of a part, and which fills are worth choosing?
 
-### 1.1 Diagram
+### 1.1 Diagrams and illustrations
 
 ![The via fills as cross-sections](figures/fig_04_via_fills_schematic.png)
 
 *Figure 4 (`figures/fig_04_via_fills_schematic.png`): The via fills as cross-sections: an open barrel, a resin plug (0.3 W/mK), conductive paste (8 W/mK) and an electroplated copper fill (385 W/mK), with the heat path down the barrel and the thermal area it gives.*
+
+![Figure 5](figures/fig_05_via_array_under_a_part.png)
+
+*Figure 5 (`figures/fig_05_via_array_under_a_part.png`): a 3 x 3 via array under a part (top view), the section with the heat going down the barrels, and the resistance of nine vias in parallel for an open barrel and for a copper fill.*
 
 ## 2. Findings in short
 
@@ -25,8 +29,8 @@ A fabricator's "filled via" is not a copper-filled via. Does the fill of the bar
 | :-- | :-- |
 | `scripts/study_via_fill.py` | The study: resistance of one via and effect on the example board for every fill (prints the tables below). |
 | `scripts/make_figures.py` | Draws the three figures of this folder. |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 | `IMPLEMENTED.md` | Where the result lives in the program and how it is tested. |
 | `LOG.md` | What was read and how, what was not verified. |
 

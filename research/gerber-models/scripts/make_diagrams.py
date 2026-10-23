@@ -1,7 +1,7 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the Gerber models phase: the laminate the 3D solid lacks under a single copper layer (README 4.39) and the chain of references used to validate the models on the rectangle board (README 4.37).
-@details Pure drawing, no data and no program; every number is quoted from the README sections named. Writes figures/fig_13_laminate_single_layer_schematic.png, figures/fig_14_validation_chain_schematic.png, figures/fig_15_same_fill_different_copper.png and figures/fig_16_copper_thickness_scale.png.
+@details Pure drawing, no data and no program; every number is quoted from the README sections named. Writes figures/fig_13_laminate_single_layer_schematic.png, figures/fig_14_validation_chain_schematic.png, figures/fig_15_same_fill_different_copper.png figures/fig_16_copper_thickness_scale.png and figures/fig_17_gap_detour.png.
          Run: .venv/bin/python research/gerber-models/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -152,6 +152,36 @@ def thickness(path):
     dk.save(fig, path, "Copper thickness in proportion (laminate not to scale): heat path and bias of the fill fraction")
 
 
+def gap_detour(path):
+    """!
+    @brief Draw the section of a copper layer cut by a clearance for thin and for thick copper (the heat must go down into the laminate and back up) and the cell the fill fraction replaces it with (README 4.7 and 4.4).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 4.8, 1, 3)
+    for a in axs:
+        a.set_xlim(0, 10)
+        a.set_ylim(-1.6, 7.0)
+    for a, um, h, title in ((axs[0], 18, 0.25, "thin copper (18 um)"), (axs[1], 140, 1.0, "thick copper (140 um)")):
+        dk.layer(a, 0.5, 2.4, 9.0, 1.4, dk.FR4)
+        dk.layer(a, 0.5, 3.8, 3.7, h, dk.COPPER)
+        dk.layer(a, 5.8, 3.8, 3.7, h, dk.COPPER)
+        a.text(5, 3.95 + h, "clearance", ha="center", fontsize=7, style="italic")
+        a.annotate("", (7.6, 3.75), (2.4, 3.75), arrowprops={"arrowstyle": "->", "color": dk.HEAT, "linewidth": 1.6, "connectionstyle": "arc3,rad=0.45"})
+        a.text(5, 6.2, title, ha="center", fontsize=9, fontweight="bold")
+        a.text(5, 1.9, "across the clearance the heat goes down\ninto the laminate and back up", ha="center", va="top", fontsize=7.5)
+    axs[0].text(5, 0.5, "contrast copper / laminate 4.8:\nthe copper is a weaker conductor, so the detour matters less", ha="center", va="top", fontsize=7.5)
+    axs[1].text(5, 0.5, "contrast 37.4: the copper conducts far better than the\ndetour, so the clearance is a strong barrier", ha="center", va="top", fontsize=7.5)
+    a = axs[2]
+    dk.layer(a, 0.5, 2.4, 9.0, 1.4, dk.FR4)
+    dk.layer(a, 0.5, 3.8, 9.0, 0.5, "#e9c48f")
+    a.annotate("", (9.0, 4.05), (1.0, 4.05), arrowprops={"arrowstyle": "->", "color": dk.HEAT, "linewidth": 1.6})
+    a.text(5, 6.2, "what the fill fraction sees", ha="center", fontsize=9, fontweight="bold")
+    a.text(5, 1.9, "the cell is smeared into a half-strength sheet:\nthe heat crosses the gap as if there were copper", ha="center", va="top", fontsize=7.5)
+    a.text(5, 0.5, "too cool: 5.7 % (18 um) to 14.9 % (140 um) at 0.6 mm cells", ha="center", va="top", fontsize=7.5, color=dk.HEAT)
+    dk.save(fig, path, "A clearance in the copper: the vertical detour and why the average hides it (README 4.7)")
+
+
 def main():
     """!
     @brief Draw and save the diagrams of this folder.
@@ -162,6 +192,7 @@ def main():
     chain(OUT / "fig_14_validation_chain_schematic.png")
     patterns(OUT / "fig_15_same_fill_different_copper.png")
     thickness(OUT / "fig_16_copper_thickness_scale.png")
+    gap_detour(OUT / "fig_17_gap_detour.png")
 
 
 if __name__ == "__main__":

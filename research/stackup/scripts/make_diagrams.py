@@ -2,11 +2,16 @@
 @file make_diagrams.py
 @brief Schematic diagrams of the stack-up: the simple mode (equal gaps, the thickness shared by the layers) against the advanced mode (copper per layer, material and thickness per gap), the thickness that each node represents and the vertical conductance between nodes as a series of half gaps.
 @details Pure drawing, symbolic labels. Writes figures/fig_04_stackup_schematic.png.
+         Also writes figures/fig_05_stackup_to_scale.png (the 4-layer stack-up in true proportions).
          Run: .venv/bin/python research/stackup/scripts/make_diagrams.py (from the repository root).
 """
 
 import sys
 from pathlib import Path
+
+import numpy as np
+
+from matplotlib.patches import Circle, Polygon, Rectangle                 # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import diagram_kit as dk                                           # noqa: E402
@@ -85,6 +90,42 @@ def series(ax):
     ax.set_title("3. the vertical chain, and what it was found to matter", fontsize=9)
 
 
+def stackup_to_scale(path):
+    """!
+    @brief Draw the 4-layer stack-up of the program (JLCPCB table) to scale and what each of its numbers is worth for the temperature (README 2).
+    @param path Output file.
+    @return None.
+    """
+    fig, (a1, a2) = dk.canvas(13, 6.2, 1, 2, ratios=[1, 1.2])
+    layers = [("copper", 35, dk.COPPER), ("prepreg 7628", 210.4, "#c9d8a8"), ("copper", 15.2, dk.COPPER), ("core", 1065, dk.FR4), ("copper", 15.2, dk.COPPER), ("prepreg 7628", 210.4, "#c9d8a8"), ("copper", 35, dk.COPPER)]
+    total = sum(t for _, t, _ in layers)
+    a1.set_xlim(0, 10)
+    a1.set_ylim(-0.8, 8.4)
+    y = 7.6
+    for name, t, c in layers:
+        h = 7.0 * t / total
+        a1.add_patch(Rectangle((0.4, y - h), 4.0, h, facecolor=c, edgecolor="k", linewidth=0.8))
+        a1.text(4.6, y - h / 2, f"{name}  {t:g} um", va="center", fontsize=7.5)
+        y -= h
+    a1.text(2.4, 8.1, "4 layers, to scale", ha="center", fontsize=9, fontweight="bold")
+    a1.text(2.4, 0.4 - 0.5, f"total {total:.1f} um = 1.586 mm\nthe copper is a thin line against the laminate", ha="center", va="top", fontsize=7.5)
+    # what matters
+    a2.set_xlim(0, 12)
+    a2.set_ylim(-0.8, 8.4)
+    a2.text(6, 8.1, "what each number is worth (README 2 and 4)", ha="center", fontsize=9, fontweight="bold")
+    items = [("finished outer copper 15 % thinner", 5.7, "+5.7 % of the rise"), ("dielectric conductivity and thickness", 1.0, "about 1 %"),
+             ("another fabricator's dielectric split (upper end)", 1.5, "0.2 to 1.5 % of the rise")]
+    for k, (name, v, label) in enumerate(items):
+        yy = 6.3 - k * 1.7
+        a2.text(0.1, yy + 0.65, name, fontsize=7.5)
+        a2.add_patch(Rectangle((0.1, yy - 0.2), v * 1.2, 0.7, facecolor=dk.HEAT if v > 5 else "#c9c9c9", edgecolor="k"))
+        a2.text(v * 1.2 + 0.3, yy + 0.15, label, va="center", fontsize=7.5)
+    a2.text(0.1, 1.55, "copper weight, heavy against half-ounce", fontsize=7.5)
+    a2.text(0.1, 0.95, "70 to 102 K of rise on the same board (ceramic core: 71 K)", fontsize=7.5, color=dk.HEAT)
+    a2.text(6, -0.4, "the three bars share one scale (percent of the rise); the copper weight is in kelvin", ha="center", fontsize=7, style="italic")
+    dk.save(fig, path, "The 4-layer stack-up in true proportions and what its numbers matter")
+
+
 def main():
     """!
     @brief Draw the three panels and save the figure.
@@ -96,6 +137,7 @@ def main():
     advanced(axs[1])
     series(axs[2])
     dk.save(fig, OUT / "fig_04_stackup_schematic.png", "The stack-up: schematics")
+    stackup_to_scale(OUT / "fig_05_stackup_to_scale.png")
 
 
 if __name__ == "__main__":

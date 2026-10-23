@@ -2,11 +2,16 @@
 @file make_diagrams.py
 @brief Schematic diagrams of the layered models against the 3D solid: one node per copper layer with sheet conductances, against real slabs with the vertical gradient resolved, and the verification ladder against exact and independent references.
 @details Pure drawing; the accuracy numbers quoted (FVM within 0.4 to 2.4 % of the 3D rise, Lumped 2 to 7 %, Analytic 0.2 % on uniform copper and up to 24 % with a 20 mm pad) are those of the README of this folder. Writes figures/fig_04_layered_vs_3d_schematic.png.
+         Also writes figures/fig_05_heat_spreading_layered_and_3d.png (spreading under a small heater, layered and 3D).
          Run: .venv/bin/python research/solid3d-verification/scripts/make_diagrams.py (from the repository root).
 """
 
 import sys
 from pathlib import Path
+
+import numpy as np
+
+from matplotlib.patches import Circle, Polygon, Rectangle                 # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import diagram_kit as dk                                           # noqa: E402
@@ -79,6 +84,49 @@ def ladder(ax):
     ax.set_title("3. how the solid and the layered models were verified", fontsize=9)
 
 
+def spreading(path):
+    """!
+    @brief Draw a small heater on a copper pad: the heat leaving through the thickness and the layered model's single node per layer, and the outer copper that dissipates by itself (README 2).
+    @param path Output file.
+    @return None.
+    """
+    fig, (a1, a2, a3) = dk.canvas(15, 5.0, 1, 3)
+    for a in (a1, a2, a3):
+        a.set_xlim(0, 10)
+        a.set_ylim(-1.0, 8.0)
+    # layered: one node per copper layer, heat moves in the plane
+    dk.layer(a1, 0.5, 5.3, 9.0, 0.2, dk.COPPER)
+    dk.layer(a1, 0.5, 3.5, 9.0, 1.8, dk.FR4)
+    dk.layer(a1, 0.5, 3.3, 9.0, 0.2, dk.COPPER)
+    dk.box(a1, 4.0, 6.0, 2.0, 0.8, "heater", "#f4b6b6", size=8)
+    for x in (1.2, 8.8):
+        dk.arrow(a1, 5.0, 5.4, x, 5.4, color=dk.HEAT, width=1.0)
+    dk.arrow(a1, 5.0, 5.3, 5.0, 3.4, color=dk.HEAT, width=1.4)
+    for y in (5.4, 3.4):
+        a1.plot([5.0], [y], "ks", markersize=6)
+    a1.text(5, 7.6, "layered models", ha="center", fontsize=9, fontweight="bold")
+    a1.text(5, 2.6, "one node per copper layer:\nheat spreads in the plane of the node\nand through one conductance between nodes", ha="center", va="top", fontsize=7.5)
+    # 3D: heat also spreads in a cone inside the laminate
+    dk.layer(a2, 0.5, 5.3, 9.0, 0.2, dk.COPPER)
+    dk.layer(a2, 0.5, 3.5, 9.0, 1.8, dk.FR4)
+    dk.layer(a2, 0.5, 3.3, 9.0, 0.2, dk.COPPER)
+    dk.box(a2, 4.0, 6.0, 2.0, 0.8, "heater", "#f4b6b6", size=8)
+    for k in range(-3, 4):
+        a2.annotate("", (5.0 + k * 0.9, 3.45), (5.0 + k * 0.18, 5.3), arrowprops={"arrowstyle": "->", "color": dk.HEAT, "linewidth": 1.0})
+    a2.text(5, 7.6, "3D solid", ha="center", fontsize=9, fontweight="bold")
+    a2.text(5, 2.6, "real slabs: the heat also fans out inside\nthe laminate; on uniform boards the layered\nmodels land within 0.7 % of it", ha="center", va="top", fontsize=7.5)
+    # one-sided pad dissipating
+    dk.layer(a3, 0.5, 3.5, 9.0, 1.8, dk.FR4)
+    dk.layer(a3, 2.5, 5.3, 5.0, 0.25, dk.COPPER)
+    dk.box(a3, 4.0, 6.0, 2.0, 0.8, "heater", "#f4b6b6", size=8)
+    dk.arrow(a3, 5.0, 6.0, 5.0, 5.6, color=dk.HEAT, width=1.4)
+    for x in (2.8, 3.6, 6.4, 7.2):
+        dk.arrow(a3, x, 5.7, x, 6.9, color=dk.BLUE, width=1.0)
+    a3.text(5, 7.6, "copper pad on one side, no vias", ha="center", fontsize=9, fontweight="bold")
+    a3.text(5, 2.6, "the pad dissipates and spreads by itself;\nLumped up to +107 %, Analytic up to -63 %\n(the input checks warn)", ha="center", va="top", fontsize=7.5, color=dk.HEAT)
+    dk.save(fig, path, "Heat spreading in the layered models and in the 3D solid (README 2)")
+
+
 def main():
     """!
     @brief Draw the three panels and save the figure.
@@ -90,6 +138,7 @@ def main():
     slabs(axs[1])
     ladder(axs[2])
     dk.save(fig, OUT / "fig_04_layered_vs_3d_schematic.png", "The layered models and the 3D solid: schematics")
+    spreading(OUT / "fig_05_heat_spreading_layered_and_3d.png")
 
 
 if __name__ == "__main__":

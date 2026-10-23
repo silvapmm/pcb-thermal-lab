@@ -8,3 +8,4 @@
 
 Read in full, from summaries, or from memory: see `NOTES.md` section by section. The factors for forced air come from a guide (Electronics Cooling, 1995) and were compared with a few catalogue values only. θJC(top) of the MOSFET and the Schottky are assumed. Not verified: no measurement of a physical part; the junction node was only prototyped.
 - Schematic diagram added (`scripts/make_diagrams.py`, figure 5): drawn, not computed; the numbers it quotes are those of this README.
+- A second picture added to `scripts/make_diagrams.py` (figure 6): a drawing of the real situation (a section or a top view), not a block diagram; every number in it is quoted from this README.

@@ -7,3 +7,4 @@
 Read in full or from search snippets: the fabricator layer tables were taken from the pages found; two tables (PCBWay's old 8-layer blog table, PCBGOGO's 6-layer table) do not add up to their stated thickness and are shown as published. The addresses were not saved.
 Not verified: no measurement of a physical board.
 - Schematic diagram added (`scripts/make_diagrams.py`, figure 4): drawn, not computed; the numbers it quotes are those of this README.
+- A second picture added to `scripts/make_diagrams.py` (figure 5): a drawing of the real situation (a section or a top view), not a block diagram; every number in it is quoted from this README.

@@ -8,11 +8,15 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 2. Does each model converge with the grid?
 3. Do the linear solvers (direct, conjugate gradients, SOR) give the same temperatures, and what was wrong with the original program's SOR?
 
-### 1.1 Diagram
+### 1.1 Diagrams and illustrations
 
 ![How each of the five models represents the board](figures/fig_04_the_five_models_schematic.png)
 
 *Figure 4 (`figures/fig_04_the_five_models_schematic.png`): How each of the five models represents the board: cell-centred finite volumes (FVM, the reference), node-centred finite differences (FDM), rings around the footprint (Lumped), cosine modes (Analytic) and real slabs with via rods (3D solid).*
+
+![Figure 5](figures/fig_05_where_models_fail.png)
+
+*Figure 5 (`figures/fig_05_where_models_fail.png`): the cases where the Lumped and Analytic models stop being reliable, drawn as boards: copper edge across a heater, heater in a corner, long thin heater, next to an ordinary board (errors of section 2).*
 
 ## 2. Findings in short
 
@@ -29,8 +33,8 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 | `accuracy_study.py`, `stress_study.py` | The scenario lists for the Lumped and Analytic models (accuracy; stress cases). |
 | `scripts/solver_equivalence.py` | Direct, CG and SOR on five boards (section 4.4; about 5 seconds). |
 | `scripts/make_figures.py` | Draws the three figures (about 5 minutes). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 | `LOG.md` | What was read and how; what was not reproduced. (The comparison also uses `../solid3d-verification/fem3d_validation.py` with `--fem`.) |
 
 ```sh

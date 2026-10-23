@@ -7,11 +7,15 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `fin_val
 1. Is the formula that replaces the fins of a metal block by an area gain and an efficiency right?
 2. Can the Lumped and Analytic models represent a metal block (a heat spreader under the board), and with what error against the FVM, which solves it natively?
 
-### 1.1 Diagram
+### 1.1 Diagrams and illustrations
 
 ![The metal block and its fins as schematics](figures/fig_04_block_and_fins_schematic.png)
 
 *Figure 4 (`figures/fig_04_block_and_fins_schematic.png`): The metal block and its fins as schematics: 1, the block under the board and the heat path; 2, the same path as thermal resistances (the board faces in parallel); 3, the efficiency of a fin as a function of mL, with the range of the 24 validated cases shaded; 4, the three ways of representing a block in the Lumped and Analytic models, with their mean error against the FVM.*
+
+![Figure 5](figures/fig_05_block_section.png)
+
+*Figure 5 (`figures/fig_05_block_section.png`): the section of a board on a finned metal block (the part, the board, the interface patch, the block, the fins) and one plate fin with the temperature falling along it; the efficiency range and the 0.08 % are those of section 2.*
 
 ## 2. Findings in short
 
@@ -26,8 +30,8 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `fin_val
 | `scripts/fin_validation.py` | The fin formula against a 2D finite-volume solution of one fin (24 cases). |
 | `scripts/block_equivalent_study.py` | Three approaches to the block in the Lumped and Analytic models against the FVM, on 74 cases. |
 | `scripts/make_figures.py` | Draws the three figures (runs both studies and reads what they print). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how, and a correction. |
 
 ## 4. How to run, and the results

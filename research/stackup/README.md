@@ -8,11 +8,15 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `stackup
 2. How sensitive is the temperature to each stack-up number?
 3. Are the program's typical stack-up templates (`pcbthermal/data/stackups.json`) close to what fabricators publish?
 
-### 1.1 Diagram
+### 1.1 Diagrams and illustrations
 
 ![The stack-up as schematics](figures/fig_04_stackup_schematic.png)
 
 *Figure 4 (`figures/fig_04_stackup_schematic.png`): The stack-up as schematics: 1, the simple mode (equal gaps, the thickness shared by the layers); 2, the advanced mode (copper per layer, material and thickness per gap; each node is the copper plus half of each adjacent gap); 3, the vertical chain as a series of half gaps and what it was found to matter.*
+
+![Figure 5](figures/fig_05_stackup_to_scale.png)
+
+*Figure 5 (`figures/fig_05_stackup_to_scale.png`): the program's 4-layer stack-up in true proportions (35 / 15.2 / 15.2 / 35 um copper, 7628 prepreg 210.4 um, core 1065 um) and what each number is worth for the temperature.*
 
 ## 2. Findings in short
 
@@ -28,8 +32,8 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `stackup
 | `scripts/stackup_outline_study.py` | Tables of the advanced stack-up in five models, the outline (see `../outline/`), the sensitivity to the stack-up numbers, the finned block. |
 | `scripts/stackup_vendor_check.py` | The example board with the program's templates and with the published tables of seven fabricators entered layer by layer. |
 | `scripts/make_figures.py` | Draws the three figures (runs both studies and reads the tables they print). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results

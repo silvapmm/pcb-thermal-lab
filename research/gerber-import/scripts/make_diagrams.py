@@ -1,7 +1,7 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagram of the check of the nets against a CAD file (README 4.33): where the nets come from, what is compared and what came out.
-@details Pure drawing, no data and no program; the numbers are those of README section 4.33 (Stormduino, KiCad 5). Writes figures/fig_06_nets_check_schematic.png and figures/fig_07_what_the_files_draw.png.
+@details Pure drawing, no data and no program; the numbers are those of README section 4.33 (Stormduino, KiCad 5). Writes figures/fig_06_nets_check_schematic.png figures/fig_07_what_the_files_draw.png and figures/fig_08_excellon_zeros.png.
          Run: .venv/bin/python research/gerber-import/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -94,6 +94,36 @@ def what_the_files_draw(path):
     dk.save(fig, path, "What the files draw: the operations of a Gerber layer and the holes of a drill file")
 
 
+def excellon_zeros(path):
+    """!
+    @brief Draw how the same digits of a drill file give two different hole positions depending on which zeros the header says are omitted (README 4.19), and why comparing only the hole counts missed it.
+    @param path Output file.
+    @return None.
+    """
+    fig, (a1, a2) = dk.canvas(14, 5.0, 1, 2, ratios=[1.2, 1])
+    a1.set_xlim(0, 12)
+    a1.set_ylim(-0.6, 8)
+    a1.text(6, 7.6, "one line of a drill file, two readings (format 3.3, mm)", ha="center", fontsize=9, fontweight="bold")
+    dk.box(a1, 3.0, 5.6, 6.0, 1.0, "X1275  Y830", "#ffffff", size=11)
+    dk.box(a1, 0.2, 2.4, 5.4, 2.0, "header says TZ:\ntrailing zeros are kept,\nleading ones omitted\n\ndigits padded on the left:\n001275 -> X = 1.275 mm\n000830 -> Y = 0.830 mm", "#e3f1df", size=7.5)
+    dk.box(a1, 6.4, 2.4, 5.4, 2.0, "header says LZ:\nleading zeros are kept,\ntrailing ones omitted\n\ndigits padded on the right:\n127500 -> X = 127.500 mm\n830000 -> Y = 830.000 mm", "#f4b6b6", size=7.5)
+    dk.arrow(a1, 5.0, 5.6, 2.9, 4.4)
+    dk.arrow(a1, 7.0, 5.6, 9.1, 4.4)
+    a1.text(6, 1.3, "the reader had the two options swapped: Excellon names the zeros that are KEPT,\nthe Gerber wording names the ones that are omitted", ha="center", va="top", fontsize=7.5, style="italic")
+    # the board and where the holes land
+    a2.set_xlim(-2, 14)
+    a2.set_ylim(-3, 6)
+    a2.set_aspect("equal")
+    a2.add_patch(Rectangle((0, 0), 4.0, 3.0, facecolor=dk.FR4, edgecolor="k"))
+    a2.plot([0.7], [0.7], "o", color="k", markersize=7)
+    a2.text(2, 3.4, "right reading:\nthe hole is on the board", ha="center", fontsize=7.5)
+    a2.add_patch(Rectangle((7.0, 0), 4.0, 3.0, facecolor=dk.FR4, edgecolor="k"))
+    a2.annotate("", (13.3, 0.7), (11.1, 0.7), arrowprops={"arrowstyle": "->", "color": dk.HEAT})
+    a2.text(9, 3.4, "wrong reading:\nthe hole lands far off the board", ha="center", fontsize=7.5, color=dk.HEAT)
+    a2.text(6, -0.9, "the hole counts were the same, so a comparison of counts said\n\"identical\"; only comparing positions found it", ha="center", va="top", fontsize=7.5, style="italic")
+    dk.save(fig, path, "Excellon zero suppression: the same digits, two positions (README 4.19)")
+
+
 def main():
     """!
     @brief Draw and save the diagrams of this folder.
@@ -102,6 +132,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     nets_check(OUT / "fig_06_nets_check_schematic.png")
     what_the_files_draw(OUT / "fig_07_what_the_files_draw.png")
+    excellon_zeros(OUT / "fig_08_excellon_zeros.png")
 
 
 if __name__ == "__main__":

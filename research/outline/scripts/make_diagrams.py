@@ -2,6 +2,7 @@
 @file make_diagrams.py
 @brief Schematic diagrams of the outline rule: a board with an outline, the bounding box, and the rectangle of the same area on which the Lumped and Analytic models are run, with the positions scaled and the field stretched back.
 @details Pure drawing. Writes figures/fig_04_outline_to_rectangle_schematic.png.
+         Also writes figures/fig_05_cells_on_an_outline.png (the grid on a T board and the cell cover).
          Run: .venv/bin/python research/outline/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -9,7 +10,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from matplotlib.patches import Polygon, Rectangle
+
+from matplotlib.patches import Circle, Polygon, Rectangle                 # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import diagram_kit as dk                                           # noqa: E402
@@ -48,6 +50,55 @@ def draw_board(ax, title):
     ax.set_title(title, fontsize=9)
 
 
+def blend(cover):
+    """!
+    @brief Colour of a cell from its cover fraction: ambient blue (0) to laminate green (1).
+    @param cover Fraction of the cell on the board, 0 to 1.
+    @return tuple RGB colour.
+    """
+    blue = np.array([0xcf, 0xe3, 0xf5]) / 255.0
+    green = np.array([0x9b, 0xbf, 0x8a]) / 255.0
+    return tuple(blue + (green - blue) * cover)
+
+
+def cell_cover(path):
+    """!
+    @brief Draw the grid of the finite volumes on a T-shaped board: cells fully on the board, cells partly on it (cover fraction) and cells outside it, pinned to ambient.
+    @param path Output file.
+    @return None.
+    """
+    from matplotlib.path import Path as MPath
+    poly = [(0, 6), (12, 6), (12, 9), (7.4, 9), (7.4, 14), (4.6, 14), (4.6, 9), (0, 9)]
+    poly = [(x, y) for x, y in poly]
+    mp = MPath(poly + [poly[0]])
+    sub = np.linspace(0.125, 0.875, 4)
+    fig, (a1, a2) = dk.canvas(12, 6.0, 1, 2, ratios=[1.5, 1])
+    a1.set_xlim(-0.5, 13.5)
+    a1.set_ylim(5.4, 15.9)
+    a1.set_aspect("equal")
+    # tilt the board outline by half a cell so that some cells are cut by the edge
+    off = 0.35
+    shifted = MPath([(x + off, y + off) for x, y in poly + [poly[0]]])
+    for i in range(13):
+        for j in range(6, 15):
+            pts = [(i + a, j + b) for a in sub for b in sub]
+            cover = shifted.contains_points(pts).mean()
+            color = blend(cover)
+            a1.add_patch(Rectangle((i, j), 1, 1, facecolor=color, edgecolor="#777777", linewidth=0.5))
+            if 0 < cover < 1:
+                a1.text(i + 0.5, j + 0.5, f"{cover:.2f}", ha="center", va="center", fontsize=5.5)
+    a1.add_patch(Polygon([(x + off, y + off) for x, y in poly], fill=False, edgecolor="k", linewidth=2))
+    a1.text(6, 15.5, "the grid on a T-shaped board", ha="center", fontsize=9, fontweight="bold")
+    # legend
+    a2.set_xlim(0, 8)
+    a2.set_ylim(0, 8)
+    for k, (c, t) in enumerate((("#cfe3f5", "cover 0: outside the board,\npinned to the ambient temperature"), (dk.FR4, "cover 1: a full cell of the board"), (blend(0.5), "0 < cover < 1: a cell cut by the edge,\nits conduction and its heat loss\nscale with the covered part"))):
+        a2.add_patch(Rectangle((0.3, 6.0 - k * 2.0), 0.9, 0.9, facecolor=c, edgecolor="k"))
+        a2.text(1.5, 6.45 - k * 2.0, t, va="center", fontsize=7.5)
+    a2.text(4, 1.0, "the FVM, the FDM and the 3D solid use this cover;\nthe Lumped and Analytic models cannot (rings, cosine\nseries), so they run on the rectangle of the same area", ha="center", va="top", fontsize=7.5, style="italic")
+    dk.save(fig, path, "A board outline on the grid of the finite volumes: the cell cover")
+
+
 def main():
     """!
     @brief Draw the three panels and save the figure.
@@ -79,6 +130,7 @@ def main():
     ax.text(5, 0.5, "same-area rectangle: within 0.2 to 3 % away from the edge;\nnear the edge or in a T arm 10 to 18 % cool (documented, warned);\nthe bounding box alone is 6 to 10 % cool on a circle", ha="center", fontsize=7.5, style="italic")
     ax.set_title("3. the rule, and how well it works", fontsize=9)
     dk.save(fig, OUT / "fig_04_outline_to_rectangle_schematic.png", "Lumped and Analytic on a board with an outline: the equivalent rectangle")
+    cell_cover(OUT / "fig_05_cells_on_an_outline.png")
 
 
 if __name__ == "__main__":

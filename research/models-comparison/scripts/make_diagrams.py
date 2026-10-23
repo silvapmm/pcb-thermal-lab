@@ -2,6 +2,7 @@
 @file make_diagrams.py
 @brief Schematic diagrams of the five models of the program: how each one represents the board (cells, nodes, rings, cosine modes, slabs).
 @details Pure drawing, no data. Writes figures/fig_04_the_five_models_schematic.png.
+         Also writes figures/fig_05_where_models_fail.png (the cases where the reduced models fail).
          Run: .venv/bin/python research/models-comparison/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -9,7 +10,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from matplotlib.patches import Circle, Rectangle
+
+from matplotlib.patches import Circle, Polygon, Rectangle                 # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import diagram_kit as dk                                           # noqa: E402
@@ -114,6 +116,40 @@ def solid3d(ax):
     ax.set_title("3D solid\nfinite volumes with real slabs", fontsize=9)
 
 
+def board_case(ax, title, copper, heater, result):
+    """!
+    @brief Draw one top view of a board with a copper zone and a heater, with the error the Lumped and Analytic models make on it.
+    @param ax Axes.
+    @param title Title of the drawing.
+    @param copper Copper zone as (x, y, width, height) on a 10 x 7 board.
+    @param heater Heater as (x, y, width, height).
+    @param result Text with the errors.
+    @return None.
+    """
+    ax.set_xlim(0, 10)
+    ax.set_ylim(-1.6, 8.0)
+    ax.set_aspect("equal")
+    ax.add_patch(Rectangle((0, 0), 10, 7, facecolor=dk.FR4, edgecolor="k"))
+    ax.add_patch(Rectangle(copper[:2], copper[2], copper[3], facecolor=dk.COPPER, edgecolor="k"))
+    ax.add_patch(Rectangle(heater[:2], heater[2], heater[3], facecolor="#c0392b", edgecolor="k"))
+    ax.text(5, 7.5, title, ha="center", fontsize=9, fontweight="bold")
+    ax.text(5, -0.3, result, ha="center", va="top", fontsize=7.5, color=dk.HEAT)
+
+
+def where_models_fail(path):
+    """!
+    @brief Draw the cases where the Lumped and Analytic models stop being reliable, next to an ordinary one (README 2).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 4.6, 1, 4)
+    board_case(axs[0], "ordinary board", (0.5, 0.5, 9.0, 6.0), (4.0, 2.7, 2.0, 1.6), "every model within a few\npercent of the FVM")
+    board_case(axs[1], "copper edge across a heater", (0.5, 0.5, 4.5, 6.0), (3.6, 2.7, 2.8, 1.6), "Lumped -27 %, Analytic -25 %\n(the input checks warn)")
+    board_case(axs[2], "heater in a corner", (0.5, 0.5, 9.0, 6.0), (0.7, 0.7, 1.8, 1.6), "Lumped -8.7 %")
+    board_case(axs[3], "long thin heater", (0.5, 0.5, 9.0, 6.0), (1.0, 3.2, 8.0, 0.6), "Lumped +9.5 %")
+    dk.save(fig, path, "Where the reduced models stop being reliable (error against the FVM, README 2)")
+
+
 def main():
     """!
     @brief Draw the five models and save the figure.
@@ -127,6 +163,7 @@ def main():
     analytic(axs[3])
     solid3d(axs[4])
     dk.save(fig, OUT / "fig_04_the_five_models_schematic.png", "The five models of the program: how each one represents the board")
+    where_models_fail(OUT / "fig_05_where_models_fail.png")
 
 
 if __name__ == "__main__":

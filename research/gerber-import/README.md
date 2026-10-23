@@ -95,7 +95,7 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-impo
 | `scripts/study_validation_boards.py` | The copper area, pieces and holes of every layer of the eight boards against the vector truth (4.41). |
 | `scripts/study_vias_nets.py`, `study_kicad_nets.py` | Holes, vias and nets (4.29); the nets against a KiCad project (4.33). |
 | `scripts/make_figures.py` | Draws the figure. |
-| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 and 7). |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 to 8). |
 
 ## 4. How to run, and the results
 
@@ -139,6 +139,10 @@ Honest summary: the independent reader is not a better reader, it is a smaller o
 ![Figure 7](figures/fig_07_what_the_files_draw.png)
 
 *Figure 7 (`figures/fig_07_what_the_files_draw.png`): what the files draw: the operations of a Gerber copper layer (flash, draw, arc, region, clear polarity) and the plated holes of a drill file, a via and a component hole (illustration, no data).*
+
+![Figure 8](figures/fig_08_excellon_zeros.png)
+
+*Figure 8 (`figures/fig_08_excellon_zeros.png`): the same digits of a drill line read with the two zero options: 1.275 mm on the board or 127.500 mm far off it; the counts of holes were equal, only the positions differed.*
 
 Only copper layers and drills matter for the program (silkscreen, mask, paste and assembly are ignored; the classifier uses the X2 file function or the file name). On gerbonara's test resources and the downloaded boards:
 

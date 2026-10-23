@@ -113,7 +113,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
 | `scripts/make_figures.py` | Draws the twelve figures into `figures/`. |
-| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 16). |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 17). |
 
 ## 4. How to run, and the results
 
@@ -313,6 +313,10 @@ Limits: research solver and boards only (the program's `fvm.py` has no diagonal 
 ![Figure 16](figures/fig_16_copper_thickness_scale.png)
 
 *Figure 16 (`figures/fig_16_copper_thickness_scale.png`): the four copper thicknesses in proportion, with the contrast with the laminate and the bias of the fill fraction at 0.6 mm cells (numbers of the table below; the laminate is not to scale).*
+
+![Figure 17](figures/fig_17_gap_detour.png)
+
+*Figure 17 (`figures/fig_17_gap_detour.png`): a clearance in the copper for thin and thick copper (the heat goes down into the laminate and back up) and the half-strength sheet the fill fraction replaces it with; the biases are those of the table below.*
 
 MAE (bias) for 18, 35, 70 and 140 µm of copper (contrast copper / laminate 4.8, 9.4, 18.7, 37.4):
 
