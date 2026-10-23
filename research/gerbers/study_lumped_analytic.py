@@ -16,7 +16,10 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))          # the repository root, to import pcbthermal
+try:
+    import pcbthermal                                                      # noqa: F401  (a copy of the program on PYTHONPATH is used as it is)
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))          # the repository root, to import pcbthermal
 
 from pcbthermal import Problem, SolverOptions, simulate                # noqa: E402
 from pcbthermal.analysis import heater_stats                           # noqa: E402

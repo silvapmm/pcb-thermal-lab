@@ -246,3 +246,17 @@ def test_attributes_written_as_comments(tmp_path):
     assert ng.classify(p) == ("copper", None, 2) or ng.classify(p)[0] == "copper"
     layer = ng.Layer(t)
     assert layer.nets == ["GND", None]
+
+
+def test_coverage_keeps_the_area_of_thin_tracks(tmp_path):
+    """!@brief A 0.05 mm track at a 0.1 mm pixel vanishes or doubles in a binary mask but keeps its area (within 5 %) in the coverage mask; a flat region is exact. @param tmp_path pytest temp dir. @return None."""
+    t = HEAD + "%ADD10C,0.05*%\nD10*\n" + xy(1.0, 1.03, 2) + xy(9.0, 1.03, 1) + "M02*\n"
+    expected = 8.0 * 0.05 + math.pi * 0.025 ** 2
+    cov = ng.render_coverage(t, 0.0, 4.0, 10.0, 4.0, 0.1, supersample=4)
+    assert float(cov.sum() * 0.1 ** 2) == pytest.approx(expected, rel=0.05)
+    binary = ng.Layer(t)
+    cv = ng.Canvas(0.0, 4.0, 10.0, 4.0, 0.1)
+    binary.draw(cv)
+    assert abs(float(cv.mask.sum() * 0.1 ** 2) / expected - 1.0) > 0.3        # the binary mask misses (or doubles) it
+    flat = HEAD + "G36*\n" + xy(1, 1, 2) + xy(3, 1, 1) + xy(3, 3, 1) + xy(1, 3, 1) + xy(1, 1, 1) + "G37*\nM02*\n"
+    assert float(ng.render_coverage(flat, 0.0, 4.0, 4.0, 4.0, 0.1).sum() * 0.01) == pytest.approx(4.0, rel=0.01)
