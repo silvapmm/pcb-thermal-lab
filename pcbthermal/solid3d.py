@@ -18,7 +18,7 @@
          exactly over its footprint on the copper slab of its layer.
 
          The result has the same layout as the FVM (one temperature per copper layer: the temperature of its slab), so the plots and tables work.
-         Only the steady state is implemented. The model needs no other package than SciPy; the offline FEM script (examples/fem3d_validation.py,
+         Only the steady state is implemented. The model needs no other package than SciPy; the offline FEM script (research/solid3d-verification/scripts/fem3d_validation.py,
          scikit-fem) checks this model in turn.
 """
 

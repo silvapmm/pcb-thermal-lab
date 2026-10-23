@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "research", "block-and-fins", "scripts"))
 
 import block_equivalent_study as study                                         # noqa: E402
 from pcbthermal import SolverOptions, analytic, fvm, lumped, simulate          # noqa: E402

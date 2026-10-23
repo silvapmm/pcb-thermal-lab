@@ -10,7 +10,7 @@
          0.5 to 1.5 mm around it (the point where the JEDEC definition of psi_JB takes the board temperature), the junction (needs theta) or **the top of the package**
          (needs theta and the datasheet psi_JT: T_top = T_junction - psi_JT P, with T_junction = T_board,max + theta P, so T_top = T_board,max + (theta - psi_JT) P).
          Which board is drawn matters: the board temperature under the part is a function of the copper, the vias, the stack-up and the heat transfer, so the same top
-         temperature gives different powers on different boards (examples/power_from_top_study.py).
+         temperature gives different powers on different boards (research/power-calculator/scripts/power_from_top_study.py).
          The result is only as good as the board in the model (copper, vias, stack-up, heat transfer) and as the thermocouple (a probe that touches the board
          cools it a little and reads a few kelvin low on a small part): see docs/models.md section 6.
 """
