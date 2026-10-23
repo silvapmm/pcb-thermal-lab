@@ -365,7 +365,8 @@ def fig_render_compare():
         fig, axs = plt.subplots(2, 4, figsize=size)
         for j, name in enumerate(names):
             axs[0, j].imshow(_paint(masks[name][crop]), interpolation="antialiased")
-            axs[0, j].set_title(name, fontsize=9)
+            shown = {"independent reader": "OUR reader\n(native_gerber.py, NumPy only)", "gerbonara + shapely (truth)": "REFERENCE: gerbonara + shapely\n(exact vector geometry)", "pygerber": "pygerber\n(other tool, raster)", "pcb-tools": "pcb-tools\n(other tool, raster)"}
+            axs[0, j].set_title(shown.get(name, name), fontsize=9, fontweight="bold" if name == "independent reader" else "normal")
             if name.startswith("gerbonara"):
                 # the reference has no difference with itself: the panel shows its own polygon approximation of circles (16 segments per quarter turn) against the finer one
                 coarse = masks["gerbonara + shapely, default 16 segments"]
@@ -380,7 +381,7 @@ def fig_render_compare():
             for a in (axs[0, j], axs[1, j]):
                 a.set_xticks([])
                 a.set_yticks([])
-        fig.suptitle(f"The top copper of the Stormduino drawn by four tools ({tag}); below, the difference with the vector truth (red: only the tool has copper, blue: only the truth has it)", fontsize=10)
+        fig.suptitle(f"The same Gerber file (Stormduino top copper) drawn by our reader and three others ({tag}). \nTop: the picture each draws. Bottom: the pixels where it differs from the reference (red: only that tool has copper, blue: only the reference has it)", fontsize=10)
         fig.tight_layout(rect=(0, 0, 1, 0.94), h_pad=3.0)
         fig.savefig(OUT / fname, dpi=110)
         plt.close(fig)
