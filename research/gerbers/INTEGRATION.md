@@ -12,6 +12,8 @@ same as the research solver to 3e-12.
 
 ## 0. Why not import the copper as polygons (zones), and why an interface at all
 
+*Status 2026-10-23: the import stage itself exists as research code, `lib/importer.py` (README 4.31, figure 7): reading, vias, face conductances and a `FaceNetwork` for the FVM. The interface (layer confirmation, outline, heaters) and the FDM/3D faces are still design only.*
+
 The question ("is a Gerber not just copper as polygons, like the zones we draw?") has a short answer: **in geometry yes, in what the solver does with it no, and the solver is where the work is.** Facts checked in the code and by tests (README 4.27):
 
 1. **`Zone` is one polygon and a scalar fill**: `Zone(layer, polygon (n, 2), fill, name)`, no holes and no islands. Gerber copper is polygons with holes (one layer of an Uno clone: 103 polygons, 80 holes, 43 285 vertices, README 4.1), so a layer would be thousands of zones, with holes cut by splitting.

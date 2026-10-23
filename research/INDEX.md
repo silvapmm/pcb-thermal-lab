@@ -4,7 +4,7 @@ This file is the index; `research/README.md` holds the layout rules, the rules f
 
 | Area | Folder | Status | Question |
 | :-- | :-- | :-- | :-- |
-| Import | `gerbers/` | open (start with `gerbers/CONCLUSIONS.md`) | How to turn Gerber copper into grid conductances: an independent reader without licences, the mappings compared on real boards and in all five models, nets and the heat of a net, vias, a board of our own as a test bench. |
+| Import | `gerbers/` | open (start with `gerbers/CONCLUSIONS.md`) | How to turn Gerber copper into grid conductances: an independent reader without licences, the mappings compared on real boards and in all five models, nets and the heat of a net, vias, a board of our own as a test bench, the import path end to end (`lib/importer.py`). |
 | Parts | `component-heatsink/` | implemented in part (2.3.0, 2.4.0); junction node and heatsink scenarios open | The part, its top path, interfaces, heatsinks and the metal block. |
 | Tools | `power-calculator/` | implemented (2.4.0) | The watts of a part from a measured temperature: validation, sensitivity, how to reduce the error. |
 | Models | `models-comparison/` | implemented (repeated at each change) | The five models against the FVM on 19 scenarios, the grids, the solvers and the time results. |

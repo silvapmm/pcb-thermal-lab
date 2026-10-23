@@ -46,8 +46,8 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `LOG.md` | Dated log: what was read in full, from a summary or from memory; what was reproduced and what not. |
 | `requirements.txt` | NumPy and SciPy; gerbonara, shapely and the comparison tools only for the cross-checks. |
 | `docs/` | For when the work is adopted: `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the literature status). The project documents are not edited on this branch. |
-| `figures/` | `fig_01` to `fig_06`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render). |
-| `tests/` | 68 fast tests (about 17 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`). |
+| `figures/` | `fig_01` to `fig_07`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end. |
+| `tests/` | 71 fast tests (about 21 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`), the import path (`test_importer.py`, needs the program's dependencies). |
 | **`lib/`** | |
 | `lib/native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 attributes (file function, aperture functions, net names), the layer classifier, Excellon, coverage masks. |
 | `lib/conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
@@ -55,6 +55,7 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `lib/joule.py`, `lib/nets.py` | Current and Joule heat of a net; holes, vias, pads and nets matched by position. |
 | `lib/readers.py`, `lib/gerber_geometry.py`, `lib/windows.py` | One interface to the readers; the vector route (gerbonara + shapely); the 42 windows of 36 mm of the mapping studies. |
 | `lib/boards_synthetic.py`, `lib/our_board.py` | The synthetic board generator of the tests; **a board of our own** (IC, circular tracks, nets, vias, drill file), 4.30. |
+| `lib/importer.py` | **The import path end to end**: files to masks, holes and nets, a `Problem` with vias, face conductances and `FaceNetwork` for the program's FVM (4.31). |
 | `lib/paths.py` | The folders (`DATA`, `OUT`, `FIGURES`, `REPO`). |
 | **`scripts/`** | |
 | `scripts/fetch_boards.py` | Downloads the public test boards into `data/` (licences differ, section 9). |
@@ -67,7 +68,8 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `scripts/make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara; the comparison with gerbonara, pygerber and pcb-tools (4.22; needs `pip install gerbonara pygerber pcb-tools shapely pillow`). |
 | `scripts/study_angles.py`, `study_net_joule.py`, `study_vias_nets.py` | Tracks at any angle (4.23); the heat of a net (4.20); holes, vias and nets (4.29). |
 | `scripts/study_sampson_boundary.py`, `study_post_board.py`, `study_coverage.py`, `study_coverage_real.py` | The regime of Sampson's article and its board analogue (4.25, 4.28); coverage masks (4.26). |
-| `scripts/make_figures.py` | Draws the six figures into `figures/`. |
+| `scripts/study_import_end_to_end.py`, `study_import_readers.py` | The import on the Stormduino and on our board against the program as it is; the same with another reader (4.31). |
+| `scripts/make_figures.py` | Draws the seven figures into `figures/`. |
 
 ## 4. How to run, and the results
 
@@ -512,6 +514,35 @@ Because the third-party test boards cannot be pictured (4.9), the repository has
 *Figure 6 (`figures/fig_06_ic_board_gerber_render.png`): the Gerber of the board as read by the independent reader (copper in gold on the board, plated holes in black, test points named), and a close-up of the IC at 0.0125 mm pixels: the exposed pad with its four thermal vias, the eight pads and the radial tracks.*
 
 The tests use the board as a bench (4 tests, 7 s): nine nets, each one 8-connected piece, no pixel of a net within a pixel of another net (no short, clearance of at least 0.05 mm), the nets do not overlap; the 16 plated holes (8 vias, 8 test points) found with the right net by position (`nets.hole_report`), the drill file's X2 function read; the resistance of the longest arc net within +15 % of its squares and its heat equal to I²R; and the mapping to the thermal grid (fill fraction cool, geometric mean hot, flow-based faces within 8 %). To use it elsewhere: `import our_board`; `our_board.gerber_text()`, `drill_text()`, `holes()`, `net_name(k)`, `squares(k)`, `write(folder)`.
+
+### 4.31 The import path end to end (`importer.py`, `study_import_end_to_end.py`, `study_import_readers.py`, `tests/test_importer.py`, figure 7)
+
+Until now the pieces were studied apart. `lib/importer.py` chains them: Gerber and Excellon files, copper masks (binary and coverage), plated holes matched to pads and nets (`hole_report`), a `pcbthermal` `Problem` with one `Via` per plated hole and no zones, the face conductances of the copper (flow-based, lambda 0.5), and a `fvm.Network` subclass (`FaceNetwork`) that replaces the lateral couplings of each layer by those faces and keeps the program's vertical couplings and convection. Nothing in `pcbthermal/` is changed.
+
+| Stage | State |
+| :-- | :-- |
+| Read copper and drills | done (NumPy reader); warns when an aperture is thinner than two pixels |
+| Holes, pads, nets | done (`hole_report`); each plated hole becomes a `Via` at its position |
+| Copper to face conductances | done (flow-based and lambda 0.5, binary or coverage) |
+| Solve with the program's FVM | done through `FaceNetwork`; with the program's own formula the faces reproduce its run to 1e-6 K (plumbing check, test) |
+| Layer assignment, board outline, several heaters, user confirmation of what was read | **not done** (an interface, `INTEGRATION.md` section 0) |
+| Directional faces in the FDM and the 3D solid | **not done** (only the FVM takes them) |
+| Leads and pads of components, a physical measurement | **not done / not available** |
+
+Two boards, a 6 mm heater of 1 W on the top layer, mean temperature of the heater against the reference resolved on the 0.1 mm pixel grid (negative = too cool). The 0.1 mm binary reference lacks features thinner than the pixel, so the coverage result is not necessarily wrong where it differs from it by a few percent.
+
+| Board | Program as it is (fill fraction) | Faces, binary mask | Faces, coverage mask | Lambda 0.5, binary | Lambda 0.5, coverage |
+| :-- | --: | --: | --: | --: | --: |
+| Stormduino (MIT, 69 x 54 mm, 2 layers, 109 vias) | -15.1 % | -2.1 % | -5.3 % | -2.1 % | -5.1 % |
+| Our IC board (40 x 40 mm, 1 layer, 16 holes) | -5.0 % | +4.0 % | +2.1 % | +5.8 % | +4.8 % |
+
+![Figure 7: the imported board, the reference and the program as it is, against the imported faces](figures/fig_07_import_end_to_end.png)
+
+*Figure 7 (`figures/fig_07_import_end_to_end.png`): the temperature of the Stormduino and of our IC board for the three runs and the difference of each from the reference; the import reduces the error of the program's own mapping from 15 % to 2 to 5 % on the Stormduino and from 5 % to 2 to 4 % on our board.*
+
+**The choice of reader is not what matters.** The same pipeline with gerbonara + shapely instead of the independent reader (Stormduino): copper area +0.07 % (top) and +0.11 % (bottom), 0.07 to 0.11 % of the pixels differ, and the heater temperature differs by 0.01 to 0.04 % (reference 38.142 K against 38.158 K; coverage faces 36.138 K against 36.142 K).
+
+Limits: two boards, one heater each; no measurement; the 3D solid was not used as a check (unusable at fine cells, cause not investigated); the sign of the error of our board is hot, the Stormduino cool, so the flow-based faces are not a bias-free method, only a much smaller one.
 
 ## 5. Without third-party libraries: the independent reader
 

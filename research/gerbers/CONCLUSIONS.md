@@ -1,6 +1,6 @@
 # Conclusions: importing Gerber copper into the thermal grid
 
-Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`study_*.py`) and, where it is a claim that can break, a test (`tests/`, 68 tests in about 17 s; `python -m pytest -q tests` from this folder; the two program tests need the program's dependencies and one geometry test needs shapely). Nothing in `pcbthermal/` was changed.
+Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`study_*.py`) and, where it is a claim that can break, a test (`tests/`, 71 tests in about 21 s; `python -m pytest -q tests` from this folder; the two program tests need the program's dependencies and one geometry test needs shapely). Nothing in `pcbthermal/` was changed.
 
 ## 1. Where we stand
 
@@ -13,6 +13,10 @@ Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a se
 7. **The program's zones cannot carry fine copper as they are**: a zone is one polygon without holes, and zones are combined per cell with a maximum instead of a sum, so copper tiled in many polygons loses copper in each shared cell (+7 % FVM to +17 % FDM; test). The import needs its own path (mapping and data model), and one line of the program (an additive union) is advisable independently (README 4.27, `INTEGRATION.md` section 0).
 8. **Vias and nets map from the files**: plated holes (X2 file function of the drill file) matched to the via pads (aperture function) and their nets give the program's vias and the connection of polygons across layers; on a real 4-layer KiCad board 225 of 225 vias have the same net on all four layers (README 4.29).
 9. **Nets and Joule heat are feasible**: the net comes from the file (pads and tracks; zone fills may carry none, so use connectivity), and `joule.py` turns a current into a heat map that sums exactly to I²R (README 4.20).
+
+## 1b. Where we stand with importing Gerbers with our code (2026-10-23)
+
+The path exists as research code (`lib/importer.py`, README 4.31, figure 7): files, copper masks, holes, nets and vias, a `Problem` with the vias, face conductances, and a solve through the program's own `fvm.Network`. On the Stormduino (2 layers, 109 vias) the heater temperature is -15.1 % with the program's mapping and -2.1 % (binary) or -5.3 % (coverage) with imported faces; on our IC board -5.0 % against +4.0 % and +2.1 %. Another reader changes the result by 0.01 to 0.04 %. **Missing**: the step where the user confirms layers and outline, several heaters, directional faces in the FDM and the 3D solid, component leads, any measurement.
 
 ## 2. How this differs from the three Electronics Cooling articles
 
