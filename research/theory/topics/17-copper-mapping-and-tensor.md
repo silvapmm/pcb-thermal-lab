@@ -29,8 +29,8 @@ For a cell with copper fraction `f`, phase conductances `a = S_cu`, `b = S_lam`:
 | arithmetic (fill fraction) | `f a + (1 - f) b` | exact along the flow; upper Wiener bound |
 | harmonic | `(f/a + (1 - f)/b)^(-1)` | exact across the flow; lower Wiener bound |
 | geometric | `a^f b^(1-f)` | self-dual isotropic structure at `f = 1/2` gives `sqrt(a b)` (Keller, Dykhne) |
-| Bruggeman (2D) | root of `k^2 - (a - b)(2f - 1)k - a b = 0` | random mixture; `sqrt(a b)` at `f = 1/2` |
-| Hashin-Shtrikman | lower `b + f / (1/(a - b) + (1 - f)/(2b))`, upper `a + (1 - f) / (1/(b - a) + f/(2a))` | the tightest bounds from the fraction alone |
+| Bruggeman (2D) | root of `k^2 - (a - b)(2f - 1)k - a b = 0`, which is the d = 2 case of `sum_i f_i (s_i - k)/(s_i + (d - 1) k) = 0` | random mixture; self-dual: `sqrt(a b)` at `f = 1/2` and `k(f) k(1 - f) = a b` |
+| Hashin-Shtrikman | lower `b + f / (1/(a - b) + (1 - f)/(2b))`, upper `a + (1 - f) / (1/(b - a) + f/(2a))` (the d = 2 case of `s_1 + f_2 / (1/(s_2 - s_1) + f_1/(d s_1))`) | the tightest bounds from the fraction alone for an isotropic mixture |
 | directional `lambda` | `low^(1 - lambda) up^lambda`, `lambda = 0.5` is the geometric mean of the two Wiener bounds from the pixels | `lambda = 0` is Blackmore's tile formula |
 | **cell problem** | solve conduction on the cell with an affine boundary condition | numerical upscaling; exact for the cell |
 | **flow-based faces** | one local problem per **pair** of neighbouring cells on the window from centre to centre; the face conductance is the heat flow per kelvin | Sampson's method; transmissibility upscaling of reservoir grids |

@@ -1,0 +1,16 @@
+# Roadmap entry: open points of the research branch
+
+Text added to `docs/roadmap.md` (section "Open points of the research branch") at the maintainer's request, kept here as the record.
+
+### Open points of the research branch (so that they are not forgotten)
+
+Notes from the work on `research/gerbers` (details in the folders named; nothing of this is in the program).
+
+* **A measurement on a physical board.** No model has been compared with one. The protocol (one board, a heater of known electrical power, thermocouples at 1, 5, 10 and 15 mm, an infrared map, three powers, the five models, the agreement criterion fixed beforehand) is `research/models-comparison/docs/measurement-protocol.md`; nothing was built or measured.
+* **Two corrections to the program, measured and not applied** (`research/gerber-models/README.md` 4.39): the zones of a layer combined by the maximum **per sample point** (today the maximum per cell loses the copper of two zones that abut inside a cell; 5 to 15 % cool on real copper) and the laminate slab under a single copper layer in the 3D solid (346.1 K against 174.0 K). They need a `fix/<topic>` branch off `develop` and the whole battery.
+* **Diagonal faces (nine-point links) did not pass the held-out test** (`research/gerber-models/README.md` 4.50): the gate of 4.48 gains 0.1 points instead of 0.4 on 60 new windows, nothing on a board never used, and is worse at 0.5 mm cells; the best diagonal share depends on the cell size. Needed before anything enters the program: a share that depends on the ratio of the cell to the track width, tested on boards with many diagonal tracks that were not used to choose it.
+* **Copper mapping as an option** (`SolverOptions.copper_mapping`: `fill` by default, `lambda`, `cell_problem`, `flow`): designed in `research/gerber-models/INTEGRATION.md`, not implemented.
+* **Formulas written from memory.** The 2D Bruggeman equation `k^2 - (a - b)(2f - 1)k - ab = 0` and the 2D Hashin-Shtrikman bounds are used by the mapping research. Their properties were checked numerically (`research/theory/scripts/check_mapping_formulas.py`) and their general-dimension forms with d = 2 were seen in search summaries, but no textbook was opened: to check against Milton, *The Theory of Composites* (chapters on the Hashin-Shtrikman bounds and on duality in two dimensions) and Torquato, *Random Heterogeneous Materials*.
+* **Sources to open** (status in `research/theory/BIBLIOGRAPHY.md`): the textbooks Patankar (1980), Incropera and DeWitt, Carslaw and Jaeger, Milton (2002), Torquato (2002), Briggs and others (2000); the papers Hashin and Shtrikman (1963), Keller (1964), Dykhne (1970), Churchill and Chu (1975), Churchill (1977, to confirm that the program's blending rule is its rule), Culham and Yovanovich (ITherm 1998), Lush (Electronics Cooling, 2004), Lee and others (1995, the citation itself could not be confirmed), Elenbaas (1942), Bar-Cohen and Rohsenow (1984), the Hollands correlation; the standards JEDEC JESD15-3 and the JESD51 family, IPC-4761, IPC-2152, ASTM D5470, ASME V&V 20, and the Ucamco Gerber specification.
+* **Pictures for what is planned**: every planned model has a drawing in `research/theory/` (topics 12 to 16); a theory or plan section without a picture is incomplete (`CLAUDE.md`).
+
