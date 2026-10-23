@@ -83,7 +83,7 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-nets
 | `lib/pdn.py` | DC network of the copper with voltage sources, current sinks and links (resistors between pieces); the energy balance. |
 | `scripts/study_net_joule.py`, `study_angles.py`, `study_pdn_links.py` | The heat of a net (4.20), tracks at any angle (4.23), sources, sinks and links (4.40). |
 | `scripts/make_figures.py` | Draws the five figures. |
-| `scripts/make_diagrams.py` | Draws the schematic diagrams (figures 6 and 7). |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 to 9). |
 
 ## 4. How to run, and the results
 
@@ -93,6 +93,10 @@ cd research/gerber-nets && ../../.venv/bin/python -m pytest -q tests        # 11
 ```
 
 ### 4.20 Nets: how much does the 5 V net heat up? (`joule.py`, `study_net_joule.py`, `tests/test_joule.py`)
+
+![Figure 8](figures/fig_08_track_in_squares.png)
+
+*Figure 8 (`figures/fig_08_track_in_squares.png`): a track as a row of squares of sheet resistance (R = Rs x squares, 100 squares of 0.48 mohm for a 0.2 mm x 20 mm track in 35 um copper: 48 mohm), the section with the heat leaving through the board and the air, and what the electrical side must be given (current, terminals, links; a voltage carries no current).*
 
 ![Figure 6](figures/fig_06_joule_chain_schematic.png)
 
@@ -146,6 +150,10 @@ In 4.33 the Stormduino's `+5V` is two pieces of copper in the CAD file as well a
 * **Not done**: no net with links was solved; no piece-by-piece examination of the Stormduino's split nets.
 
 ### 4.40 Sources, sinks and links: the electrical side (`pdn.py`, `study_pdn_links.py`, `tests/test_pdn.py`, figure 4)
+
+![Figure 9](figures/fig_09_where_the_power_goes.png)
+
+*Figure 9 (`figures/fig_09_where_the_power_goes.png`): the plan of the scenario below (piece A with the 5 V source, a 0.1 ohm link, piece B with the 1.5 A sink, a floating piece) and the split of the 7.5 W: 7262.7 mW in the load, 225 mW in the link, 12.3 mW in all the copper.*
 
 ![Figure 7](figures/fig_07_electro_thermal_loop_schematic.png)
 

@@ -593,6 +593,86 @@ def fig_clearance_cell():
     plt.close(fig)
 
 
+def _flow_window(mask):
+    """!
+    @brief Heat conduction across one square window of the copper mask: potential 1 on the left edge, 0 on the right, no flow through the top and bottom, pixel faces with the harmonic mean of the two sheet conductances (the local problem of the flow-based faces).
+    @param mask Boolean array (rows, cols), True = copper.
+    @return Tuple (potential, flux x, flux y at the pixel centres, effective sheet conductance of the window in W/K).
+    """
+    import scipy.sparse as sp
+    import scipy.sparse.linalg as spla
+    n, m = mask.shape
+    S = cd.sheet_of(mask)
+    idx = np.arange(n * m).reshape(n, m)
+    gx = 2 * S[:, :-1] * S[:, 1:] / (S[:, :-1] + S[:, 1:])
+    gy = 2 * S[:-1, :] * S[1:, :] / (S[:-1, :] + S[1:, :])
+    rows, cols, vals = [], [], []
+    for a, b, g in ((idx[:, :-1], idx[:, 1:], gx), (idx[:-1, :], idx[1:, :], gy)):
+        a, b, g = a.ravel(), b.ravel(), g.ravel()
+        rows += [a, b, a, b]
+        cols += [a, b, b, a]
+        vals += [g, g, -g, -g]
+    K = sp.csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n * m, n * m))
+    fixed = np.zeros((n, m), bool)
+    fixed[:, 0] = fixed[:, -1] = True
+    v = np.zeros((n, m))
+    v[:, 0] = 1.0
+    free = ~fixed.ravel()
+    rhs = -K[:, ~free] @ v.ravel()[~free]
+    sol = spla.spsolve(K[free][:, free].tocsc(), rhs[free])
+    v = v.ravel()
+    v[free] = sol
+    v = v.reshape(n, m)
+    qx = np.zeros((n, m))
+    qy = np.zeros((n, m))
+    fx = gx * (v[:, :-1] - v[:, 1:])
+    fy = gy * (v[:-1, :] - v[1:, :])
+    qx[:, :-1] += fx / 2
+    qx[:, 1:] += fx / 2
+    qy[:-1, :] += fy / 2
+    qy[1:, :] += fy / 2
+    return v, qx, -qy, float(fx[:, 0].sum())
+
+
+def fig_cell_flow():
+    """!
+    @brief What the flow-based face conductance looks at: heat crossing a window of three copper patterns (stripes across the flow, stripes along it, a bar with a clearance), with the heat-flow lines and the effective conductance next to the fill-fraction average.
+    @return None.
+    """
+    n = 60
+    across = np.zeros((n, n), bool)
+    for k in range(6):
+        across[:, 10 * k + 2:10 * k + 7] = True
+    along = np.zeros((n, n), bool)
+    for k in range(6):
+        along[10 * k + 2:10 * k + 7, :] = True
+    detour = np.zeros((n, n), bool)
+    detour[22:38, :] = True
+    detour[:, 28:32] = False
+    detour[28:32, 28:32] = True                      # a clearance across the bar with a thin neck left in it
+    cases = (("stripes across the heat flow", across), ("stripes along the heat flow", along), ("a bar cut by a clearance with a thin neck", detour))
+    fig, axs = plt.subplots(1, 3, figsize=(15, 6.4))
+    for ax, (title, mask) in zip(axs, cases):
+        v, qx, qy, s_eff = _flow_window(mask)
+        f = mask.mean()
+        s_fill = f * cd.S_CU + (1 - f) * cd.S_LAM
+        s_geo = cd.S_CU ** f * cd.S_LAM ** (1 - f)
+        mag = np.hypot(qx, qy)
+        green, gold = np.array([0.04, 0.26, 0.13]), np.array([0.86, 0.62, 0.27])
+        ax.imshow(np.where(mask[..., None], gold, green), extent=(0, n, 0, n))
+        grid = np.arange(n) + 0.5
+        # the width of a line follows the heat flux in that pixel, so the heat is seen going where the copper is
+        ax.streamplot(grid, grid, qx[::-1], qy[::-1], color="white", density=1.6, linewidth=2.2 * (mag[::-1] / mag.max()) ** 0.5 + 0.2, arrowsize=0.8)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(title, fontsize=9, fontweight="bold")
+        ax.set_xlabel(f"copper fraction {f:.2f}\nheat actually crosses with S = {s_eff * 1e3:.2f} mW/K\nfill fraction would say {s_fill * 1e3:.2f} ({s_fill / s_eff:.1f} x), geometric mean {s_geo * 1e3:.2f} ({s_geo / s_eff:.1f} x)", fontsize=8)
+    fig.suptitle("What the flow-based face conductance computes: heat crossing a window (hot on the left, cold on the right; white lines: heat flow, thicker where more heat passes)", fontsize=10)
+    fig.tight_layout(rect=(0, 0.02, 1, 0.94))
+    fig.savefig(OUT / "fig_18_cell_flow_lines.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -611,6 +691,7 @@ def main():
     fig_pipeline()
     fig_zone_union()
     fig_clearance_cell()
+    fig_cell_flow()
     print("figures in", OUT)
 
 

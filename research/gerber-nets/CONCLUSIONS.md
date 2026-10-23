@@ -4,6 +4,14 @@ Maturity: early (a prototype and a design, not yet joined to a thermal run); the
 
 ## 1. Where we stand
 
+![A track as squares of copper](figures/fig_08_track_in_squares.png)
+
+*Figure 8: a track as a row of squares of sheet resistance, and what the electrical side must be given.*
+
+![Where the power goes](figures/fig_09_where_the_power_goes.png)
+
+*Figure 9: a source, a link and a load; the link carries the whole current.*
+
 1. **Nets and Joule heat are feasible**: the net comes from the file (pads and tracks; zone fills may carry none, so use connectivity), and `joule.py` turns a current into a heat map that sums exactly to I²R (README 4.20).
 2. **Tracks at any angle on the pixel grid**: area exact except at 45 degrees on the lattice (±6 %); a track as narrow as the pixel breaks into pieces with 4-connectivity (not with 8); the five-point stencil is up to 2 times too resistive on a tilted 1.5 to 2 pixel track and 6 % at 12 pixels across (4.23).
 3. **Separate pieces of one net** (4.36): on the Stormduino `+5V` and `+3V3` are two pieces each and the USB shield four, in the CAD file as well as in the Gerbers; pieces of one net are joined outside the copper (a header, a jumper, a bead, a fuse, a shunt, or a route left unfinished). The Joule heat of a piece is the I²R of the current that flows in its copper; the **voltage of a net carries no current**, so the input is a **current per pad** (or a power and a voltage), and a piece with no source or load pad has no current and no heat.

@@ -1,12 +1,15 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the nets phase: from the mask of a net to its Joule heat (README 4.20) and the proposed order of work up to the electro-thermal loop (CONCLUSIONS 4).
-@details Pure drawing, no data and no program; the numbers are those of README 4.20 and 4.23 and the loop is a proposal, not built. Writes figures/fig_06_joule_chain_schematic.png and figures/fig_07_electro_thermal_loop_schematic.png.
+@details Pure drawing, no data and no program; the numbers are those of README 4.20 and 4.23 and the loop is a proposal, not built. Writes figures/fig_06_joule_chain_schematic.png figures/fig_07_electro_thermal_loop_schematic.png, figures/fig_08_track_in_squares.png and figures/fig_09_where_the_power_goes.png.
          Run: .venv/bin/python research/gerber-nets/scripts/make_diagrams.py (from the repository root).
 """
 
 import sys
 from pathlib import Path
+
+import numpy as np
+from matplotlib.patches import Rectangle
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import diagram_kit as dk                                           # noqa: E402
@@ -63,6 +66,73 @@ def loop(path):
     dk.save(fig, path, "Order of work of the electrical side and the electro-thermal loop")
 
 
+def track_in_squares(path):
+    """!
+    @brief Draw a track as a row of squares of sheet resistance (R = Rs x squares) with its section, the current in the copper and where the heat goes, and the arithmetic for a 0.2 mm track.
+    @param path Output file.
+    @return None.
+    """
+    rho, t = 1.68e-8, 35e-6                        # copper resistivity (ohm m) and finished 1 oz thickness (m), as in README 4.20
+    rs = rho / t                                   # sheet resistance, ohm per square
+    fig, (a1, a2) = dk.canvas(14, 5.4, 2, 1, ratios=None)
+    a1.set_xlim(0, 14)
+    a1.set_ylim(-1.2, 4.0)
+    for k in range(10):
+        a1.add_patch(Rectangle((1.0 + k * 1.1, 1.4), 1.1, 1.1, facecolor=dk.COPPER, edgecolor="k"))
+        a1.text(1.55 + k * 1.1, 1.95, "1", ha="center", va="center", fontsize=8)
+    dk.arrow(a1, 0.2, 1.95, 0.9, 1.95, color=dk.HEAT, width=2.0)
+    dk.arrow(a1, 12.1, 1.95, 12.9, 1.95, color=dk.HEAT, width=2.0)
+    a1.text(0.55, 2.4, "I", color=dk.HEAT, fontsize=9, ha="center")
+    a1.text(6.0, 3.3, "plan view: a track is a row of squares, each one the sheet resistance Rs = rho / t", ha="center", fontsize=9, fontweight="bold")
+    a1.text(6.0, 0.6, f"copper 1.68e-8 ohm m, 35 um: Rs = {rs * 1e3:.2f} mohm per square; a track 0.2 mm wide and 20 mm long is 100 squares: R = {100 * rs * 1e3:.0f} mohm\n(a bend, a pad, a neck change the number of squares: the solver counts them on the pixels)", ha="center", va="top", fontsize=8)
+    a2.set_xlim(0, 14)
+    a2.set_ylim(-1.2, 5.0)
+    dk.layer(a2, 1.0, 1.0, 5.0, 1.6, dk.FR4)
+    a2.text(1.9, 1.8, "laminate", ha="center", fontsize=8)
+    dk.layer(a2, 2.4, 2.6, 2.2, 0.35, dk.COPPER)
+    a2.text(3.5, 3.15, "copper track, section", ha="center", fontsize=8)
+    dk.arrow(a2, 3.5, 2.6, 3.5, 1.2, color=dk.HEAT, width=1.3)
+    for x in (2.6, 4.4):
+        dk.arrow(a2, x, 2.95, x, 4.0, color=dk.BLUE, width=1.0)
+    a2.text(3.5, 0.5, "I squared R is made in the copper\nand leaves through the board and the air", ha="center", va="top", fontsize=8)
+    a2.text(9.5, 4.0, "what the electrical side must be given", ha="center", fontsize=9, fontweight="bold")
+    a2.text(9.5, 3.0, "the current of the net and which pads source and sink it\n(a voltage is the same on a whole net and carries no current)\nthe resistance of any link: 0 ohm, bead, shunt, fuse", ha="center", va="top", fontsize=8)
+    a2.text(9.5, 0.9, "what it then gives the thermal model:\nheat in the cells of the grid, exactly I squared R", ha="center", va="top", fontsize=8, color=dk.HEAT)
+    dk.save(fig, path, "A track as squares of copper: where its resistance and its heat come from (README 4.20)")
+
+
+def where_the_power_goes(path):
+    """!
+    @brief Draw the plan of the source, the link and the load of the scenario of README 4.40 and the split of the 7.5 W between the copper, the link and the load.
+    @param path Output file.
+    @return None.
+    """
+    fig, (a1, a2) = dk.canvas(14, 4.8, 1, 2, ratios=[1.3, 1])
+    a1.set_xlim(0, 14)
+    a1.set_ylim(-0.8, 6.0)
+    a1.add_patch(Rectangle((0.3, 1.8), 4.2, 2.6, facecolor=dk.COPPER, edgecolor="k"))
+    a1.add_patch(Rectangle((4.5, 2.8), 2.2, 0.5, facecolor=dk.COPPER, edgecolor="k"))
+    a1.add_patch(Rectangle((8.3, 2.0), 3.4, 2.2, facecolor=dk.COPPER, edgecolor="k"))
+    a1.add_patch(Rectangle((6.7, 2.7), 1.6, 0.7, facecolor="#cfe3f5", edgecolor="k"))
+    a1.text(7.5, 3.05, "link\n0.1 ohm", ha="center", va="center", fontsize=7)
+    a1.text(2.4, 3.1, "piece A\n5 V source", ha="center", va="center", fontsize=8)
+    a1.text(10.0, 3.1, "piece B\n1.5 A sink (the IC)", ha="center", va="center", fontsize=8)
+    dk.arrow(a1, 6.7, 3.05, 8.4, 3.05, color=dk.HEAT, width=2.0)
+    a1.add_patch(Rectangle((12.2, 4.6), 1.5, 0.9, facecolor="#e8e8e8", edgecolor="k", linestyle="--"))
+    a1.text(12.95, 5.05, "floating\npiece: no\ncurrent, no heat", ha="center", va="center", fontsize=6.5)
+    a1.text(7, 5.6, "two pieces of one net joined by a part", ha="center", fontsize=9, fontweight="bold")
+    a1.text(7, 0.9, "the current of piece B must cross the link: the link, not the copper,\nis the part that carries the whole current", ha="center", va="top", fontsize=8, style="italic")
+    a2.set_xlim(0, 10)
+    a2.set_ylim(-0.8, 6.0)
+    a2.text(5, 5.6, "where the source's power goes", ha="center", fontsize=9, fontweight="bold")
+    for k, (name, mw, color) in enumerate((("load (the IC)", 7262.7, "#9bbf8a"), ("link", 225.0, "#f4b6b6"), ("copper", 12.3, dk.COPPER))):
+        y = 4.2 - k * 1.5
+        a2.add_patch(Rectangle((0.2, y), 8.5 * (mw / 7500.0) if mw > 100 else 0.05, 0.8, facecolor=color, edgecolor="k"))
+        a2.text(0.3, y + 1.0, f"{name}: {mw:g} mW", fontsize=8)
+    a2.text(5, -0.1, "source 7500.001 mW: balance closes to 0.002 mW;\nthe link makes 18 times the heat of all the copper", ha="center", va="top", fontsize=8, color=dk.HEAT)
+    dk.save(fig, path, "A source, a link and a load: what carries the current and what heats (README 4.40)")
+
+
 def main():
     """!
     @brief Draw and save the diagrams of this folder.
@@ -71,6 +141,8 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     joule_chain(OUT / "fig_06_joule_chain_schematic.png")
     loop(OUT / "fig_07_electro_thermal_loop_schematic.png")
+    track_in_squares(OUT / "fig_08_track_in_squares.png")
+    where_the_power_goes(OUT / "fig_09_where_the_power_goes.png")
 
 
 if __name__ == "__main__":

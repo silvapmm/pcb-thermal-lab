@@ -112,7 +112,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_diagonal.py` | The nine-point experiment on the tracks and on the 42 windows (4.44; about 15 minutes). |
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
-| `scripts/make_figures.py` | Draws the twelve figures into `figures/`. |
+| `scripts/make_figures.py` | Draws the data figures (1 to 12 and 18) into `figures/`. |
 | `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 17). |
 
 ## 4. How to run, and the results
@@ -132,6 +132,10 @@ from the same mask, so the error of a mapping is isolated from the fidelity of t
 ## 4.A The problem and the mappings compared
 
 ### 4.4 The mappings on 42 windows (`study_mapping.py`)
+
+![Figure 18](figures/fig_18_cell_flow_lines.png)
+
+*Figure 18 (`figures/fig_18_cell_flow_lines.png`, computed by `make_figures.fig_cell_flow` with the library's solver): what the flow-based face conductance looks at. Heat crosses a window of three copper patterns (hot on the left, cold on the right; white lines: heat flow, thicker where more heat passes) and the effective conductance of the window is compared with the fill-fraction average and the geometric mean: across stripes the fill fraction is 2.8 times too conductive, along them it is right, and a bar cut by a clearance with a thin neck passes its heat through the neck. This is the physics every mapping tries to condense into one number per cell face.*
 
 ![Figure 12: one cell with a clearance across it and what each mapping says](figures/fig_12_clearance_cell.png)
 

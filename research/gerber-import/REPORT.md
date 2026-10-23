@@ -1,6 +1,6 @@
 # Validation report: does the Gerber converter work?
 
-Phase 1 of the Gerber research (`research/gerber-import`). **Question**: can the program take the Gerber and Excellon files of a board and obtain from them the copper of every layer, the holes and the nets, correctly, without any third-party library? **Answer: yes, for copper layers, drills and nets, on every board we have; the error of the copper area is 0.14 % on average (0.05 % with a coverage mask), the connected pieces and the holes are identical to the reference, and the nets agree with the CAD file of a real KiCad project.** What it cannot do is listed in section 6. All numbers come from scripts in `scripts/` and tests in `tests/` (39 tests, 7 s); the sections of `README.md` (4.x) have the details.
+Phase 1 of the Gerber research (`research/gerber-import`). **Question**: can the program take the Gerber and Excellon files of a board and obtain from them the copper of every layer, the holes and the nets, correctly, without any third-party library? **Answer: yes, for copper layers, drills and nets, on every board we have; the error of the copper area is 0.14 % on average (0.05 % with a coverage mask), the connected pieces and the holes are identical to the reference, and the nets agree with the CAD file of a real KiCad project.** What it cannot do is listed in section 6. All numbers come from scripts in `scripts/` and tests in `tests/` (41 tests, 8 s); the sections of `README.md` (4.x) have the details.
 
 ## 1. What the converter does
 
@@ -50,10 +50,10 @@ pcbrnd   F         5659.7    -0.02%    -0.06%    -0.02%         83/83           
 pcad     F         2780.2    +0.47%    +0.55%    -0.15%        445/445                            0/-
 dip      F         3125.8    +0.00%    +0.13%    -0.03%        123/123                            0/-
 fritz    F         1697.8    +0.05%    +0.13%    +0.11%        200/200                            0/-
-alleg    F         3115.9    -0.16%    +0.01%    -0.03%        166/166                    283/refused
+alleg    F         3115.8    -0.16%    +0.02%    -0.02%        166/166                    283/refused
 alleg    L2        4512.1    +0.05%    -0.05%    -0.03%         28/28                     283/refused
-alleg    L3        4388.9    +0.05%    -0.08%    -0.02%         28/28                     283/refused
-alleg    B         3714.0    -0.01%    -0.14%    +0.02%        136/136                    283/refused
+alleg    L3        4388.8    +0.06%    -0.07%    -0.02%         28/28                     283/refused
+alleg    B         3713.8    -0.01%    -0.13%    +0.02%        136/136                    283/refused
 
 mean absolute area error over 12 layers: binary 0.1 mm 0.14 %, binary 0.05 mm 0.13 %, coverage 0.1 mm 0.05 % (maximum [0.47, 0.55, 0.15])
 ```
@@ -68,7 +68,7 @@ mean absolute area error over 12 layers: binary 0.1 mm 0.14 %, binary 0.05 mm 0.
 | Tool | 0.1 mm | 0.05 mm | 0.025 mm | Comment |
 | :-- | --: | --: | --: | :-- |
 | our reader (centre sampling) | 22.3 % | 7.8 % | 1.4 % | the same raster as gerbonara + shapely and pcb-tools (binary) to the digit; the error is the pixel |
-| gerbonara, vector area | 0.01 % | 0.01 % | 0.01 % | exact, but no raster; 8.6 % low on one arc file (4.24) |
+| gerbonara, vector area | 0.01 % | 0.01 % | 0.01 % | exact, but no raster |
 | gerbonara + shapely, sampled | 20.8 % | 8.6 % | 1.3 % | |
 | pcb-tools, pixels above 50 % | 21.9 % | 7.8 % | 1.3 % | **63 % low on the 8 real boards** (not investigated) |
 | pcb-tools, grey level | **4.4 %** | **2.6 %** | 1.4 % | a grey-level (coverage) mask keeps thin tracks |
@@ -81,7 +81,7 @@ A track narrower than 1.5 pixels is rounded to 0, 1 or 2 pixels with any binary 
 * gerbonara's own 272 test files: of the 164 both readers draw, **149 agree within 3 % of the area** (median 0.04 %); 6 are refused as unsupported; the 15 that disagree are mostly silkscreen and outline files.
 * 54 copper layers classified, 50 drawn, 2 refused (non-standard `Rect` aperture), 2 empty; 45 of 50 within 3 % of gerbonara's area.
 * Drills: all 38 files read; on the 35 gerbonara also reads, **the holes are identical (positions to 0.01 mm, diameters to 1 µm) in all 35**.
-* Files written by Ucamco's `gerber-writer`: -0.04 % on the tilted tracks and the arc path where gerbonara's vector area is -8.57 %.
+* Files written by Ucamco's `gerber-writer`: -0.04 % on the tilted tracks and the arc path; gerbonara's vector area is -0.00 % (an earlier -8.57 % was our wrapper ignoring arcs, fixed, see section 5).
 
 ### 3.4 Nets and vias (4.29, 4.33)
 
@@ -95,6 +95,18 @@ A track narrower than 1.5 pixels is rounded to 0, 1 or 2 pixels with any binary 
 ![Figure 1: our IC board as the converter draws it](figures/fig_01_gerber_render.png)
 
 *Figure 1 (`figures/fig_01_gerber_render.png`): our own IC board read from its Gerber: copper, plated holes and test points; the close-up shows the exposed pad with its thermal vias.*
+
+### 3.5 The same board drawn by four tools, pixel by pixel (4.45)
+
+![The top copper of the Stormduino drawn by four tools and the difference with the vector truth](figures/fig_09_render_compare_whole_board.png)
+
+*Figure 9: the Stormduino top copper by the independent reader, gerbonara + shapely (the truth), pygerber and pcb-tools; below, the pixels that differ (red: only the tool, blue: only the truth).*
+
+The independent reader differs from the vector truth in **72 of 4.49 million copper pixels** on the whole layer at 0.025 mm (pcb-tools: 9,084; pygerber: 68,445, along the edges, after a bounding-box alignment and a 50 % threshold of my own). On the 12 layers of the 8 boards at 0.1 mm, 85 pixels out of 4.76 million differ on a grid that avoids ties, **all within 0.042 pixel of an exact edge** (a pixel centre that close to an edge goes either way; a reading error would sit far from any edge):
+
+![How equal the reader is: pixels that differ on 12 layers, distance to the edge, the truth's own circle approximation](figures/fig_11_how_equal_the_reader_is.png)
+
+*Figure 11: left, the pixels that differ on 12 layers (grid lined up with the file and shifted grid); middle, the distance of each to the exact edge; right, how the difference falls when the vector truth draws circles with more segments (the truth's 16 segments per quarter circle make it slightly smaller than the true circle).*
 
 ## 4. Differences from the methods already known
 
@@ -113,19 +125,20 @@ A track narrower than 1.5 pixels is rounded to 0, 1 or 2 pixels with any binary 
 
 ## 5. Errors found and fixed while validating
 
-The comparisons found real defects, all fixed and covered by tests: the Excellon zero options (`TZ`/`LZ`) were inverted (found only when positions, not counts, were compared); the format written as `000.000`, `0000.00` or `;FILE_FORMAT=3:3` was ignored; `M71`/`M72` and a tool line `T1F00S00C0.300` lost their meaning; a routed path with several segments gave one hole; a lone `G75` (gerbonara's writer omits the `*`) swallowed the next command; attributes written as `G04 #@!` comments (`gerber-writer`) were ignored; comment statements inside a macro, a region after a region closed by an arc and a non-standard aperture shape were mishandled. A drill file with no unit is now refused instead of guessed. An earlier claim ("drills identical") that had compared only the counts was wrong and is corrected in the README.
+The comparisons found real defects, all fixed and covered by tests: **the vector reference of our own wrapper ignored stroked arcs** (G02/G03 draws), so our board's circular tracks were missing (41 mm2 instead of 164 mm2) and an arc file looked 8.6 % low in gerbonara; found by the pixel-by-pixel comparison of 4.45; the Excellon zero options (`TZ`/`LZ`) were inverted (found only when positions, not counts, were compared); the format written as `000.000`, `0000.00` or `;FILE_FORMAT=3:3` was ignored; `M71`/`M72` and a tool line `T1F00S00C0.300` lost their meaning; a routed path with several segments gave one hole; a lone `G75` (gerbonara's writer omits the `*`) swallowed the next command; attributes written as `G04 #@!` comments (`gerber-writer`) were ignored; comment statements inside a macro, a region after a region closed by an arc and a non-standard aperture shape were mishandled. A drill file with no unit is now refused instead of guessed. An earlier claim ("drills identical") that had compared only the counts was wrong and is corrected in the README.
 
 ## 6. What is not validated
 
 * No comparison with a manufactured board or a physical measurement; the reference is another reader or a CAD file.
 * The nets were checked against a CAD file on **one** board and KiCad 5 only; zone fills were not compared net by net (they carry no net in the Gerber: the net comes from connectivity).
 * Not supported (reported, the file refused): aperture blocks, mirrored/rotated/scaled apertures, moire, image offset/mirror/scale, a drill file without a unit; the polygon outline of a non-rectangular board is not drawn (the box only).
+* The pixel-by-pixel comparison against pygerber and pcb-tools depends on my alignment and threshold; why pygerber differs by 1.5 % along the edges was not examined.
 * All boards are public hobby designs; the Ucamco specification was not read in full; pcb-tools and pygerber were run with their defaults.
 
 ## 7. How to reproduce
 
 ```
-cd research/gerber-import && python -m pytest -q tests                                   # 39 tests, 7 s
+cd research/gerber-import && python -m pytest -q tests                                   # 41 tests, 8 s
 .venv/bin/python research/gerber-import/scripts/fetch_boards.py                           # the boards and the CAD file into data/
 .venv/bin/python research/gerber-import/scripts/study_validation_boards.py                # section 3.1, about 3 minutes (needs gerbonara and shapely)
 .venv/bin/python research/gerber-import/scripts/compare_readers.py synthetic              # section 3.2 (needs gerbonara, pygerber, pcb-tools, shapely, pillow)

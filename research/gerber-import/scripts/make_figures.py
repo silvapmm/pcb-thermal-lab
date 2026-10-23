@@ -298,6 +298,159 @@ def fig_reader_pipeline():
     plt.close(fig)
 
 
+def _paint(mask):
+    """!
+    @brief Colour a copper mask like a board viewer: gold copper on dark green.
+    @param mask Boolean array.
+    @return numpy.ndarray RGB image.
+    """
+    green, gold = np.array([0.04, 0.26, 0.13]), np.array([0.86, 0.62, 0.27])
+    return np.where(mask[..., None], gold, green)
+
+
+def _diff_image(mask, truth, grow):
+    """!
+    @brief The pixels where a tool and the vector truth disagree, on white: red where only the tool has copper, blue where only the truth has it (enlarged so that single pixels can be seen).
+    @param mask Boolean array of the tool.
+    @param truth Boolean array of the vector truth.
+    @param grow Radius in pixels by which each differing pixel is enlarged for display.
+    @return numpy.ndarray RGB image.
+    """
+    from scipy import ndimage
+    img = np.ones(mask.shape + (3,))
+    only_tool, only_truth = mask & ~truth, ~mask & truth
+    if grow:
+        k = np.ones((2 * grow + 1, 2 * grow + 1), bool)
+        only_tool, only_truth = ndimage.binary_dilation(only_tool, k), ndimage.binary_dilation(only_truth, k)
+    img[only_truth] = (0.1, 0.3, 0.9)
+    img[only_tool] = (0.9, 0.1, 0.1)
+    return img
+
+
+def _render_compare_data():
+    """!
+    @brief The masks and the numbers written by study_render_compare.py.
+    @return Tuple (dict of boolean masks by tool, dict of results).
+    """
+    import json
+    z = np.load(CACHE / "render_compare.npz")
+    shape = tuple(int(v) for v in z["storm_shape"])
+    masks = {}
+    for key, label in (("storm_independent", "independent reader"), ("storm_gerbonara", "gerbonara + shapely (truth)"), ("storm_pygerber", "pygerber"), ("storm_pcb-tools", "pcb-tools")):
+        masks[label] = np.unpackbits(z[key])[: shape[0] * shape[1]].reshape(shape).astype(bool)
+    return masks, json.loads((CACHE / "render_compare.json").read_text())
+
+
+def fig_render_compare():
+    """!
+    @brief The same board drawn by four tools, and where each differs from the vector truth: the whole top copper of the Stormduino, then a close-up.
+    @return None.
+    """
+    masks, res = _render_compare_data()
+    truth = masks["gerbonara + shapely (truth)"]
+    names = list(masks)
+    rows = res["storm_top"]["tools"]
+    # the close-up: the 12 x 8 mm window with the most copper edge, found on a coarse grid
+    from scipy import ndimage
+    edge = ndimage.binary_dilation(truth, iterations=1) ^ truth
+    win_h, win_w = int(8 / 0.025), int(12 / 0.025)
+    integral = edge.astype(np.int32).cumsum(0).cumsum(1)
+    best, at = -1, (0, 0)
+    for r in range(0, truth.shape[0] - win_h, 80):
+        for c in range(0, truth.shape[1] - win_w, 80):
+            v = integral[r + win_h, c + win_w] - integral[r, c + win_w] - integral[r + win_h, c] + integral[r, c]
+            if v > best:
+                best, at = v, (r, c)
+    for tag, crop, grow, size, fname in (("whole", (slice(None), slice(None)), 2, (15, 7.4), "fig_09_render_compare_whole_board.png"), ("close-up", (slice(at[0], at[0] + win_h), slice(at[1], at[1] + win_w)), 0, (15, 5.6), "fig_10_render_compare_close_up.png")):
+        fig, axs = plt.subplots(2, 4, figsize=size)
+        for j, name in enumerate(names):
+            axs[0, j].imshow(_paint(masks[name][crop]), interpolation="antialiased")
+            axs[0, j].set_title(name, fontsize=9)
+            if name.startswith("gerbonara"):
+                axs[1, j].text(0.5, 0.5, "the reference:\nexact vector geometry\nsampled at the pixel centres", ha="center", va="center", fontsize=9, transform=axs[1, j].transAxes)
+            else:
+                axs[1, j].imshow(_diff_image(masks[name][crop], truth[crop], grow), interpolation="nearest")
+                n_diff = int((masks[name][crop] ^ truth[crop]).sum())
+                share = 100.0 * n_diff / max(int(truth[crop].sum()), 1)
+                axs[1, j].set_title(f"{n_diff:,} pixels differ ({share:.3f} % of the copper shown)", fontsize=8.5)
+            for a in (axs[0, j], axs[1, j]):
+                a.set_xticks([])
+                a.set_yticks([])
+        fig.suptitle(f"The top copper of the Stormduino drawn by four tools ({tag}); below, the difference with the vector truth (red: only the tool has copper, blue: only the truth has it)", fontsize=10)
+        fig.tight_layout(rect=(0, 0, 1, 0.94), h_pad=3.0)
+        fig.savefig(OUT / fname, dpi=110)
+        plt.close(fig)
+
+
+def fig_how_equal():
+    """!
+    @brief How equal the independent reader is: the pixels that differ on 12 copper layers (aligned grid and shifted grid), how far each lies from the exact edge, the effect of the truth's own circle approximation and of the pixel size.
+    @return None.
+    """
+    import json
+    res = json.loads((CACHE / "render_compare.json").read_text())
+    layers = res["layers"]
+    labels = [f"{r['board']} {r['layer']}" for r in layers]
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5.2), gridspec_kw={"width_ratios": [1.5, 1, 1]})
+    x = np.arange(len(layers))
+    axs[0].bar(x - 0.2, [r["aligned"]["differing_fraction_percent"] for r in layers], 0.4, label="grid lined up with the file's coordinates", color="#e0a458")
+    axs[0].bar(x + 0.2, [r["shifted"]["differing_fraction_percent"] for r in layers], 0.4, label="grid shifted by an odd amount", color="#2a6f97")
+    axs[0].set_yscale("log")
+    axs[0].set_xticks(x)
+    axs[0].set_xticklabels(labels, rotation=60, ha="right", fontsize=8)
+    axs[0].set_ylabel("pixels that differ (% of the copper)")
+    axs[0].set_title("12 copper layers, 0.1 mm pixels: the reader against the vector truth", fontsize=9)
+    axs[0].legend(fontsize=7)
+    dist = np.concatenate([np.array(r["shifted"]["edge_distance_px"]) for r in layers])
+    axs[1].hist(dist, bins=40, color="#2a6f97")
+    axs[1].set_yscale("log")
+    axs[1].set_xlabel("distance of a differing pixel to the exact edge (pixels)")
+    axs[1].set_ylabel("pixels")
+    axs[1].set_title(f"{dist.size:,} differing pixels, the farthest {dist.max():.3f} px from an edge\n(a reading error would sit far from any edge)", fontsize=9)
+    seg = res["truth_segments"]
+    axs[2].bar([str(r["segments_per_quarter"]) for r in seg], [r["differing_pixels"] for r in seg], color="#6a994e")
+    axs[2].set_yscale("log")
+    axs[2].set_xlabel("segments per quarter circle in the vector truth")
+    axs[2].set_ylabel("pixels that differ (Stormduino top, 0.025 mm)")
+    axs[2].set_title("the truth draws circles as polygons: finer polygons,\nfewer differences", fontsize=9)
+    for i, r in enumerate(seg):
+        axs[2].text(i, r["differing_pixels"], f"{r['area_difference_percent']:+.4f} %", ha="center", va="bottom", fontsize=7)
+    fig.suptitle("How equal is the independent reader to the vector truth (README 4.45)", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "fig_11_how_equal_the_reader_is.png", dpi=110)
+    plt.close(fig)
+
+
+def fig_tools_and_pixel():
+    """!
+    @brief The share of the copper that differs from the vector truth for each tool (whole Stormduino top layer) and the pixels that differ against the pixel size.
+    @return None.
+    """
+    import json
+    res = json.loads((CACHE / "render_compare.json").read_text())
+    tools = res["storm_top"]["tools"]
+    names = [n for n in tools if not n.startswith("gerbonara")]
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4.6))
+    vals = [tools[n]["differing_fraction_percent"] for n in names]
+    axs[0].bar(names, vals, color=["#2a6f97", "#c9a227", "#b5651d"])
+    axs[0].set_yscale("log")
+    axs[0].set_ylabel("pixels that differ (% of the copper)")
+    axs[0].set_title("Stormduino top copper, 0.025 mm pixels", fontsize=9)
+    for i, v in enumerate(vals):
+        axs[0].text(i, v, f"{v:.3f} %", ha="center", va="bottom", fontsize=8)
+    sweep = res["pixel_sweep"]
+    axs[1].bar([f"{r['pixel_mm']} mm" for r in sweep], [r["differing_pixels"] for r in sweep], color="#2a6f97")
+    axs[1].set_ylabel("pixels that differ")
+    axs[1].set_xlabel("pixel size")
+    for i, r in enumerate(sweep):
+        axs[1].text(i, r["differing_pixels"], f"{r['differing_area_mm2']:.3f} mm2", ha="center", va="bottom", fontsize=8)
+    axs[1].set_title(f"independent reader against the vector truth: of {sweep[0]['area_truth_mm2']:.0f} mm2 of copper,\nat most {max(r['differing_area_mm2'] for r in sweep):.2f} mm2 differ at any pixel size", fontsize=9)
+    fig.suptitle("The independent reader and two raster renderers against the vector truth (README 4.45)", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "fig_12_tools_and_pixel_size.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -309,6 +462,9 @@ def main():
     fig_stormduino_nets()
     fig_mask_explained()
     fig_reader_pipeline()
+    fig_render_compare()
+    fig_how_equal()
+    fig_tools_and_pixel()
     print("figures in", OUT)
 
 

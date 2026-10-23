@@ -1,6 +1,6 @@
 # Gerber import, phase 1: reading the files (copper, drills, nets, vias)
 
-Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 1 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (does the converter work: the boards, the results, the errors and the differences from other tools) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.40) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 1 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (does the converter work: the boards, the results, the errors and the differences from other tools) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.45) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
 
 ### Where the sections are
 
@@ -47,6 +47,7 @@ Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbtherm
 | 4.39 | `gerber-models` | Measured impact of the two proposed corrections to the program |
 | 4.40 | `gerber-nets` | Sources, sinks and links: the electrical side |
 | 4.41 | `gerber-import` **(this folder)** | The converter on every board, layer by layer |
+| 4.45 | `gerber-import` **(this folder)** | Is it the same copper? Four tools, pixel by pixel |
 | 4.42 | `gerber-models` | The thinnest track and the angle |
 | 4.43 | `gerber-models` | Every mapping on every board, in one table |
 | 4.44 | `gerber-models` | Diagonal couplings: the nine-point experiment |
@@ -68,6 +69,7 @@ A Gerber file is vector data: strokes with a width, flashes and filled regions; 
 | Reading without libraries | `native_gerber.py` (NumPy only) draws the copper directly from the file: within 0.9 % of the copper area of the gerbonara route (max 2.5 %), same board boxes, same drills; unsupported features are reported, not guessed. |
 | Scope | Copper layers 50 of 52 non-empty classified files drawn; drills 38 of 38 read, 35 of 35 identical to gerbonara (after fixing inverted TZ/LZ and other defects); reader refuses what it cannot do, including a drill file with no unit (4.19). |
 | Other tools | On 14 files of known area the independent reader equals gerbonara + shapely and pcb-tools (binary) to the digit; the error is the pixel (thin tracks), a grey-level coverage keeps 4.4 % where binary masks lose 22 % at 0.1 mm; pygerber is strict and heavier, pcb-tools failed on real boards (4.22). |
+| Same copper, pixel by pixel | On 12 layers of 8 boards the independent reader and the vector truth differ in 122 of 4.76 million copper pixels, all within 0.045 px of an exact edge; against the truth with finer circles the difference shrinks (4.45). |
 | Reader conformance | 149 of 164 comparable gerbonara test files agree within 3 % of the area; 6 refused as unsupported (4.17). |
 | Holes, pads, nets | The plated holes of the drill file match the pads (aperture function) and nets by position: 225 of 225 vias of a real four-layer board have one net on the four layers, 68 of 68 plated component holes of the X2 set agree on both layers (4.29). |
 | **Nets against a CAD file** | Stormduino (KiCad 5, MIT): every object of the `.kicad_pcb` lies on the copper read (1380 of 1380 track points, 48 of 48 via points, 281 of 281 pad points); no piece of copper or group joined through the 109 plated holes holds two nets; 55 of 56 nets without a zone fill split into the same pieces as in the CAD file (4.33). |
@@ -83,7 +85,7 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-impo
 | `README.md`, `CONCLUSIONS.md`, `INTEGRATION.md` | The results in numbered sections, the conclusions, how the reader would enter the program |
 | `docs/` | `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (what the project documents would get when the work is adopted). |
 | `figures/` | `fig_01_gerber_render.png` (our IC board as the reader draws it), `fig_02_validation_summary.png` (the readers on files of known area, our reader on 12 layers), `fig_03_stormduino_nets.png` (the Stormduino coloured by the KiCad nets), `fig_04_mask_explained.png` (the mask on one thin track: vector, binary, coverage, cell fraction), `fig_05_reader_pipeline.png` (the reader and the matching of holes, pads and nets as diagrams). |
-| `tests/` | 39 tests (7 s): the reader (`test_native_gerber.py`, `test_geometry.py`, `test_reader_claims.py`), nets and holes (`test_nets.py`, `test_our_board_bench.py`), the import (`test_importer.py`), the nets against a KiCad file (`test_kicad_nets.py`, needs `data/storm`). |
+| `tests/` | 41 tests (8 s): the reader (`test_native_gerber.py`, `test_geometry.py`, `test_reader_claims.py`), nets and holes (`test_nets.py`, `test_our_board_bench.py`), the import (`test_importer.py`), the nets against a KiCad file (`test_kicad_nets.py`, needs `data/storm`). |
 | `lib/native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 attributes (file function, aperture functions, net names), the layer classifier, Excellon, coverage masks. |
 | `lib/importer.py` | **The import**: files to the board box, masks, holes with pad and net, warnings (`import_board`). |
 | `lib/nets.py`, `lib/kicad_pcb.py` | Holes, vias, pads and nets matched by position; a small reader of `.kicad_pcb` (5.x) as the independent truth of the nets. |
@@ -92,17 +94,18 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-impo
 | `scripts/fetch_boards.py` | Downloads the public test boards and the CAD file into `data/` (licences differ, section 9). |
 | `scripts/study_native_check.py`, `study_reader_conformance.py`, `study_reader_scope.py`, `study_gerber_writer.py` | The reader against gerbonara + shapely, against gerbonara's test files, copper layers and drills, and Ucamco's `gerber-writer` (section 5, 4.17, 4.19, 4.24). |
 | `scripts/make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara; the comparison with gerbonara, pygerber and pcb-tools (4.22). |
+| `scripts/study_render_compare.py` | The same board drawn by the independent reader, gerbonara + shapely, pygerber and pcb-tools, compared pixel by pixel; how far each differing pixel lies from the exact edge (4.45). |
 | `scripts/study_validation_boards.py` | The copper area, pieces and holes of every layer of the eight boards against the vector truth (4.41). |
 | `scripts/study_vias_nets.py`, `study_kicad_nets.py` | Holes, vias and nets (4.29); the nets against a KiCad project (4.33). |
-| `scripts/make_figures.py` | Draws the figure. |
+| `scripts/make_figures.py` | Draws the data figures (1 to 5 and 9 to 12). |
 | `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 to 8). |
 
 ## 4. How to run, and the results
 
 ```sh
-python3 -m venv .venv && .venv/bin/pip install -r research/gerber-import/requirements.txt   # once (this session used research/gerbers/.venv)
+python3 -m venv .venv && .venv/bin/pip install -r research/gerber-import/requirements.txt   # once (with the packages of the comparison tools: gerbonara, shapely, pygerber, pcb-tools, gerber-writer, pillow)
 .venv/bin/python research/gerber-import/scripts/fetch_boards.py                              # once
-cd research/gerber-import && ../../.venv/bin/python -m pytest -q tests                       # 39 tests, 7 s
+cd research/gerber-import && ../../.venv/bin/python -m pytest -q tests                       # 41 tests, 8 s
 ```
 
 All numbers below come from the independent reader unless the section says otherwise.
@@ -185,10 +188,10 @@ The Ucamco format page (supplied by the maintainer, `docs/literature.md` section
 | file | independent reader | gerbonara 1.6.3 (vector) |
 | :-- | --: | --: |
 | 6 pads, with `Thermal` and `RoundedThermal` aperture macros | +0.08 % (against gerbonara) | (reference) |
-| 4 tilted tracks and a path with a quarter-circle arc | **-0.04 %** | **-8.57 %** |
+| 4 tilted tracks and a path with a quarter-circle arc | **-0.04 %** | -0.00 % (it was -8.57 % before the defect of our wrapper was fixed, see below) |
 | pentagon region | -0.01 % | 0.00 % |
 
-Findings: (1) **the reader handles the thermal-pad macros and the arc path**; (2) **gerbonara's vector area is 8.6 % low on the arc file** (cause not investigated), so a tool used as a reference is not ground truth, as section 4.22 already said; (3) gerber-writer writes its attributes in the compatibility form `G04 #@! TF.FileFunction,Copper,L1,Top*`, which the reader did not understand (file not classified as copper, net names lost): **fixed**, both forms are read now (`test_attributes_written_as_comments`). gerber-writer has no argument for a net name, so this file set does not test nets. Gerber-writer's `ChamferedRectangle` was not exercised.
+Findings: (1) **the reader handles the thermal-pad macros and the arc path**; (2) **an earlier run showed gerbonara's vector area 8.6 % low on the arc file, and this was our own error**: `gerber_geometry.primitive_polygon`, the wrapper that turns gerbonara's primitives into polygons, ignored stroked arcs (found later by the pixel comparison of 4.45; fixed, regression test `test_vector_reference_includes_the_circular_tracks`), so the table now reads -0.00 %; the statement "a tool used as a reference is not ground truth" of 4.22 stands in general, but this example was not evidence of it; (3) gerber-writer writes its attributes in the compatibility form `G04 #@! TF.FileFunction,Copper,L1,Top*`, which the reader did not understand (file not classified as copper, net names lost): **fixed**, both forms are read now (`test_attributes_written_as_comments`). gerber-writer has no argument for a net name, so this file set does not test nets. Gerber-writer's `ChamferedRectangle` was not exercised.
 
 ### 4.29 Vias and nets (`nets.py`, `study_vias_nets.py`, `tests/test_nets.py`)
 
@@ -230,6 +233,60 @@ What the separate pieces are: `+5V` and `+3V3` are two pieces each, and `Net-(J2
 ### 4.41 The converter on every board, layer by layer (`study_validation_boards.py`, `REPORT.md`, figures 2 and 3)
 
 The validation report [`REPORT.md`](REPORT.md) collects the evidence in one place. New here: the reader, run on **all 12 copper layers of the 8 real boards**, against the vector area of gerbonara + shapely: mean absolute error 0.14 % (binary 0.1 mm), 0.13 % (0.05 mm), 0.05 % (coverage 0.1 mm), maximum 0.55 %; the connected pieces are identical in number on all 12 layers (28 to 445 per layer); 109 of 109 holes on the Stormduino. Figure 2 summarises the readers on files of known area and our reader on the 12 layers; figure 3 shows the Stormduino as the converter reads it, coloured by the nets of its KiCad file.
+
+### 4.45 Is it the same copper? The same board drawn by four tools, and the difference pixel by pixel (`study_render_compare.py`, figures 9 to 12)
+
+The claim to test: the independent reader draws **the same copper** as the exact vector geometry of gerbonara + shapely, on real boards, not only the same total area. The method: every tool draws the same layer, the pixels are compared one by one against the vector truth (the exact polygons sampled at the pixel centres), and every pixel that differs is located against the exact edge.
+
+![Figure 9](figures/fig_09_render_compare_whole_board.png)
+
+*Figure 9 (`figures/fig_09_render_compare_whole_board.png`): the whole top copper of the Stormduino (KiCad, MIT) at 0.025 mm drawn by the independent reader, gerbonara + shapely (the truth), pygerber and pcb-tools; below, the pixels where each differs from the truth (red: only the tool has copper, blue: only the truth has it; each differing pixel is enlarged to 5 x 5 pixels for display).*
+
+![Figure 10](figures/fig_10_render_compare_close_up.png)
+
+*Figure 10 (`figures/fig_10_render_compare_close_up.png`): a close-up of the 12 x 8 mm window with the most copper edge, same layout; the counts are those of the window.*
+
+**The four tools on the Stormduino top copper (whole layer, 0.025 mm pixels, 4.49 million copper pixels):**
+
+| Tool | Pixels that differ from the truth | % of the copper | Only the tool has copper | Only the truth has it |
+| :-- | --: | --: | --: | --: |
+| independent reader | 72 | 0.0016 % | 72 | 0 |
+| pcb-tools (cairo, anti-aliased, 50 % threshold) | 9,084 | 0.20 % | 4,476 | 4,608 |
+| pygerber (raster, anti-aliased, 50 % threshold) | 68,445 | 1.52 % | 41,178 | 27,267 |
+
+The rasters of pygerber and pcb-tools are the tools' own images, placed on the common grid by the bounding box of the copper and the best shift of at most 6 pixels (pygerber (0, 1) pixel, pcb-tools none) and thresholded at 50 %; their differences lie along the edges (figures 9 and 10), which is what a half-pixel offset or a different anti-aliasing gives. **That was not examined further**: these two numbers say how a raster renderer compares on a pixel by pixel basis, not that either tool is wrong.
+
+![Figure 11](figures/fig_11_how_equal_the_reader_is.png)
+
+*Figure 11 (`figures/fig_11_how_equal_the_reader_is.png`): left, the pixels that differ on the 12 copper layers of the 8 boards at 0.1 mm, on a grid lined up with the file's coordinates and on a grid shifted by an odd amount (log scale); middle, the distance of each differing pixel to the exact edge of the copper; right, the effect of the truth's own polygon approximation of circles.*
+
+![Figure 12](figures/fig_12_tools_and_pixel_size.png)
+
+*Figure 12 (`figures/fig_12_tools_and_pixel_size.png`): left, the share of the copper that differs for each tool; right, the pixels (and area) that differ for the independent reader against the pixel size.*
+
+**All 12 copper layers, 0.1 mm pixels, independent reader against the vector truth:**
+
+| Board | Layer | Copper pixels | Differ, grid lined up | Differ, shifted grid | % of the copper | Area difference |
+| :-- | :-- | --: | --: | --: | --: | --: |
+| storm | F | 280,383 | 118 | 3 | 0.0011 % | +0.0011 % |
+| storm | B | 302,606 | 106 | 3 | 0.0010 % | +0.0010 % |
+| chibi | F | 649,389 | 2,652 | 5 | 0.0008 % | +0.0008 % |
+| easyeda | F | 629,698 | 1 | 5 | 0.0008 % | +0.0008 % |
+| pcbrnd | F | 566,202 | 5 | 1 | 0.0002 % | +0.0002 % |
+| pcad | F | 264,816 | 10,750 | 2 | 0.0007 % | +0.0007 % |
+| dip | F | 313,242 | 0 | 0 | 0.0000 % | +0.0000 % |
+| fritz | F | 169,959 | 9 | 5 | 0.0029 % | +0.0029 % |
+| alleg | F | 311,394 | 24 | 25 | 0.0080 % | +0.0080 % |
+| alleg | L2 | 451,511 | 12 | 9 | 0.0020 % | +0.0007 % |
+| alleg | L3 | 438,875 | 29 | 19 | 0.0043 % | +0.0043 % |
+| alleg | B | 371,448 | 33 | 45 | 0.0121 % | +0.0089 % |
+
+* **The independent reader and the vector truth draw the same copper**: on the shifted grid **122 pixels differ out of 4.76 million copper pixels** over the 12 layers (0.0000 to 0.0121 % per layer, area difference at most 0.0089 %), and every one of them lies **within 0.045 pixel of the exact edge of the copper**: a pixel centre that falls that close to an edge can go either way, while a real reading error (a missing track, a shifted pad, a wrong aperture) would sit far from any edge. The 4.5 micrometres are the reader's own arc tolerance: it cuts an arc into chords at most 0.005 mm from the true arc (`ARC_TOLERANCE`), and the pixels it draws differently are the ones that chord moves across a pixel centre. Along the edge distances there is no tail: the farthest differing pixel is at 0.045 px (0.0045 mm = 4.5 micrometres).
+* **Why the grid lined up with the file can differ more**: the coordinates in the files are multiples of 0.01 or 0.05 mm, so on a grid that lines up with them (as 0.1 mm pixels from a round origin do) many pixel centres fall exactly on an edge and go either way (pcad: 10,750 pixels; chibi: 2,652); even those lie within 0.040 px of an edge (13,739 differing pixels in total). The shifted grid removes the ties.
+* **The remaining difference is the truth's, not ours**: gerbonara + shapely draw round ends, pads and arcs as polygons with 16 segments per quarter circle (an inscribed polygon, a little smaller than the circle). With 16 segments the reader has +0.0107 % more copper than the truth and 478 pixels differ (Stormduino top, 0.025 mm); with 32, 64 and 128 segments the figures fall to +0.0032, +0.0008 and +0.0003 % and to 142, 35 and 12 pixels. The tables above use 64 segments. So the independent reader is closer to the true circle than the reference polygons are.
+* **Against the pixel size** (shifted grid, Stormduino top, 2,809 mm2 of copper): 0, 3, 5 and 35 pixels at 0.2, 0.1, 0.05 and 0.025 mm, that is at most 0.030 mm2 (0.001 %) of the copper at any size.
+* **A defect of the reference found by this comparison** (fixed, with a regression test): `gerber_geometry.primitive_polygon` ignored stroked arcs (`gp.Arc`, a G02/G03 draw), so the vector reference of our own board (circular tracks) had 41 mm2 of copper where the board has 164 mm2, and the earlier comparison of 4.24 reported "gerbonara's vector area 8.6 % low" on an arc file: that was our wrapper, not gerbonara (now -0.00 %). The arc chords of the reference were also made finer (1 micrometre instead of gerbonara's 10). On the real boards only `alleg` has arcs in its copper and its numbers moved slightly (the tables above are after the fix).
+* **What this does and does not show**: it shows that on 12 layers of 8 real boards from 8 different CAD tools the independent reader and the vector route give the same mask, up to sampling ties and the polygonisation of circles. It does not show that either is right about what the file means (both read the same RS-274X semantics; the check against a third tool is 4.22 and against a KiCad project 4.33); and the pixel counts of the other two tools depend on my alignment and threshold. The study uses the readers of this folder and gerbonara 1.6.3, shapely 2.2.0, pygerber 2.4.3 and pcb-tools 0.1.6, installed for this run.
 
 ## 5. Without third-party libraries: the independent reader
 

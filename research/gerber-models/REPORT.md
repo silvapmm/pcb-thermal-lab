@@ -18,6 +18,14 @@ The program's finite-volume model works on square cells (0.6 to 2 mm) and knows 
 
 ### 1.2 What the copper fraction hides
 
+![Heat crossing three copper windows](figures/fig_17_gap_detour.png)
+
+*Figure 17: a clearance in the copper, the vertical detour of the heat and the half-strength sheet the fill fraction replaces it with.*
+
+![The flow-based face conductance](figures/fig_18_cell_flow_lines.png)
+
+*Figure 18: the heat crossing three windows of copper (across stripes, along stripes, a bar cut by a clearance): what the flow-based face conductance computes, against the fill-fraction average.*
+
 ![Figure 12: one cell with a clearance across it and what each mapping says](figures/fig_12_clearance_cell.png)
 
 *Figure 12 (`figures/fig_12_clearance_cell.png`): a 1 mm cell with a 0.2 mm clearance across it and a 0.2 mm neck: the copper fraction is 0.84 and the fill fraction gives the cell a conductance of 8.0 laminates, the numerical cell problem 5.3 and lambda 0.5 5.4: the fill fraction behaves as if the copper were joined. Too high a conductance means too cool a board, which is the bias of the fill fraction on real copper.*

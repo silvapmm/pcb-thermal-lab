@@ -21,13 +21,15 @@ from shapely import affinity
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import unary_union
 
+ARC_ERROR_MM = 1e-3                           # largest distance (mm) between an arc and the chords that replace it (gerbonara's default is 0.01)
+
 from readers import DATA, board_files        # noqa: E402,F401  (the path helpers live in readers.py, which needs no third-party geometry library)
 
 
 def primitive_polygon(p):
     """!
     @brief One gerbonara graphic primitive as a shapely polygon.
-    @param p A gerbonara primitive (Line, Circle, Rectangle or ArcPoly), in millimetres.
+    @param p A gerbonara primitive (Line, Arc, Circle, Rectangle or ArcPoly), in millimetres.
     @return shapely polygon, or None for a primitive that has no area (or an unknown kind).
     """
     if isinstance(p, gp.Line):
@@ -40,9 +42,13 @@ def primitive_polygon(p):
     if isinstance(p, gp.Rectangle):
         r = box(p.x - p.w / 2, p.y - p.h / 2, p.x + p.w / 2, p.y + p.h / 2)
         return affinity.rotate(r, p.rotation, origin=(p.x, p.y), use_radians=True)
+    if isinstance(p, gp.Arc):
+        # A stroked arc (a G02/G03 draw): gerbonara describes it as a band between two arcs with round ends; it was ignored here until the pixel
+        # comparison of README 4.45 found 123 mm2 of circular tracks missing from the vector reference of our own board
+        p = p.to_arc_poly()
     if isinstance(p, gp.ArcPoly):
         try:
-            p = p.approximate_arcs()                  # arcs of a region become short chords
+            p = p.approximate_arcs(max_error=ARC_ERROR_MM)   # arcs become short chords, at most ARC_ERROR_MM from the true arc
         except Exception:                             # older gerbonara: keep the vertices as they are
             pass
         pts = list(p.outline)
