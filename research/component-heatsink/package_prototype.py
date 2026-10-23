@@ -6,7 +6,7 @@ The part is the Texas Instruments CSD17308Q3 (SON 3.3 x 3.3 mm). Datasheet numbe
 maximum 58 K/W on 1 in2 of 2 oz copper on a 1.5 x 1.5 in, 1.52 mm FR-4 board, 165 K/W maximum on the minimum pad, Tj max 150 degC. The datasheet gives no
 junction-to-top-of-case resistance; the top path is explored with assumed values.
 
-Usage: python examples/package_prototype.py
+Usage: python research/component-heatsink/package_prototype.py
 """
 
 import os
@@ -16,7 +16,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import Problem, convection, fvm          # noqa: E402
 

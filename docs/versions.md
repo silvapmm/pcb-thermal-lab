@@ -33,7 +33,7 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 | **psi_JB**: second estimate from the board temperature in the ring 0.5 to 1.5 mm around the part | `analysis._ring_mean` | |
 | **Power temperature coefficient**: `P = P0 (1 + c (Tj - 25))` solved with the board, thermal runaway detected | `api._solve_with_tc` | matches the closed form to 0.05 K in three models |
 | Package-family typical values, hints, datasheet guide, warning when theta looks like a theta_JA | `model.PACKAGE_THETA`, `gui/panels.py` | `validation.md` section 9 |
-| **Top path** (heatsink on the package): `theta_jc_top`, `interface`, `theta_sa`; the part becomes a junction node, the board gets only the power the top does not take; fixed-point loop around any model | `analysis.part_split`, `api._solve_with_tc` | within 0.4 to 0.8 K of the junction-node prototype (`examples/top_path_study.py`) |
+| **Top path** (heatsink on the package): `theta_jc_top`, `interface`, `theta_sa`; the part becomes a junction node, the board gets only the power the top does not take; fixed-point loop around any model | `analysis.part_split`, `api._solve_with_tc` | within 0.4 to 0.8 K of the junction-node prototype (`research/component-heatsink/top_path_study.py`) |
 
 ### Variable stack-up (simple and advanced)
 
@@ -50,7 +50,7 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 | Outline presets, vertex table, outline tool | `gui/panels.py`, `gui/canvas.py` | |
 | Right-click menu: add/delete a vertex, duplicate, delete, add an element on an empty spot | `gui/canvas.BoardView.build_context_menu`, `geometry.insert_vertex/nearest_vertex` | `test_context_menu.py` |
 | Properties panel in boxes; heatsink manual input as h or θSA; Direct contact interface; simple stack-up and materials in the Stack-up tab | `gui/panels.Inspector.rebuild`, `gui/stackup.StackupPage.add_parameters` | `test_inspector_sections.py` (also: advanced mode hides the simple-only rows; side panels scroll), `test_tooltips.py`, `test_heatsink_part.py` |
-| Lumped and Analytic on an outline: rectangle of the same area (box and positions scaled by sqrt(area ratio), parts keep their size, field stretched back), warning in the Results summary, no time simulation for them | `model.Problem.equivalent_rectangle`, `api._run_model`, `api.simulate`, `gui/main_window._confirm_rectangle`, `examples/outline_rectangle_study.py` | `test_outline.py` (area, sizes, beats the bounding box), `test_gui_stress.py` (cancel and confirm); `docs/validation.md` section 13 |
+| Lumped and Analytic on an outline: rectangle of the same area (box and positions scaled by sqrt(area ratio), parts keep their size, field stretched back), warning in the Results summary, no time simulation for them | `model.Problem.equivalent_rectangle`, `api._run_model`, `api.simulate`, `gui/main_window._confirm_rectangle`, `research/outline/outline_rectangle_study.py` | `test_outline.py` (area, sizes, beats the bounding box), `test_gui_stress.py` (cancel and confirm); `docs/validation.md` section 13 |
 
 ### Application
 
@@ -82,7 +82,7 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 | **Contact area** of a part's interface (lid or exposed top; empty = footprint) and the **body helper** (θJC(top) = t/(kA) from thickness and material), for processors and chips with a heatsink | `Heater.contact_area`, `gui/panels.py` | `test_heatsink_part.py` |
 | **Gaps of several sheets** (prepreg and core): `combine_sheets` (series through, parallel in plane), `"sheets"` in the templates | `model.combine_sheets` | exact formulas in `test_heatsink_part.py` |
 | **The interface is one dielectric sheet** between the heatsink and the board or the package, with its own material and thickness (`pad_thickness`, `pad_k`; resistance t/k; the typed resistance still works) | `Heatsink.interface_resistance`, `Heater.interface_kcm2`, `gui/panels.py _pad_rows`, `blocks.py`, `solid3d.py` | `test_heatsink_part.py`: same temperatures as the equivalent resistance, thicker sheet hotter, JSON, validation |
-| Sensitivity of the temperature to the stack-up numbers (dielectric k, thickness, copper) | `examples/stackup_outline_study.py` | `validation.md` 12 C |
+| Sensitivity of the temperature to the stack-up numbers (dielectric k, thickness, copper) | `research/stackup/stackup_outline_study.py` | `validation.md` 12 C |
 | Orientation worded by faces (top up / top down / vertical) | `gui/panels.py` | |
 | Documentation: `docs/models.md` sections 15 to 18 (computed block, paste and processors, prepreg, orientation) | | |
 
@@ -90,9 +90,9 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 
 | Feature | Code | Tests / evidence |
 | :-- | :-- | :-- |
-| Metal block in the Lumped (ring layer) and Analytic (tile graph, Schur complement) steady states, 1 to 2 % off on average; no time simulation for them with a block; fields that do not apply are greyed (top path without θ and θSA, settings of models that are not selected) | `lumped._heater_network`, `analytic._block_tiles`, `blocks.require_no_blocks`, `api.simulate`, `gui/panels.SolverPanel._update_availability`, `Inspector.rebuild` | `test_block_models.py`, `test_blocks.py`, `test_inspector_sections.py`, `examples/block_equivalent_study.py` |
-| Fins validated against an independent 2D solution of one fin (24 cases within 0.08 %) | `examples/fin_validation.py` | `test_fin_model.py`, `validation.md` section 15 |
-| 3D solid verified against Yovanovich's spreading-resistance table (0.7 to 0.8 %) and a grid-convergence study (GCI 1.14 %) | `examples/solid3d_verification.py` | `test_solid3d_verification.py`, `validation.md` section 16 |
+| Metal block in the Lumped (ring layer) and Analytic (tile graph, Schur complement) steady states, 1 to 2 % off on average; no time simulation for them with a block; fields that do not apply are greyed (top path without θ and θSA, settings of models that are not selected) | `lumped._heater_network`, `analytic._block_tiles`, `blocks.require_no_blocks`, `api.simulate`, `gui/panels.SolverPanel._update_availability`, `Inspector.rebuild` | `test_block_models.py`, `test_blocks.py`, `test_inspector_sections.py`, `research/block-and-fins/block_equivalent_study.py` |
+| Fins validated against an independent 2D solution of one fin (24 cases within 0.08 %) | `research/block-and-fins/fin_validation.py` | `test_fin_model.py`, `validation.md` section 15 |
+| 3D solid verified against Yovanovich's spreading-resistance table (0.7 to 0.8 %) and a grid-convergence study (GCI 1.14 %) | `research/solid3d-verification/solid3d_verification.py` | `test_solid3d_verification.py`, `validation.md` section 16 |
 
 ### Fifth batch (2026-10-22): vias and the power calculator
 
@@ -103,7 +103,7 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 
 | Preferences: libraries and defaults in JSON (shipped `defaults.json` + user `user_defaults.json` with only the differences), editor window, start-up notice; via fill by name with an editable typical value | `defaults.py`, `data/defaults.json`, `model.reload_libraries/new_problem`, `gui/preferences.py`, `gui/panels.py`, `gui/main_window.py` | `test_defaults.py` |
 
-| Power calculator reworked (name, parameters inside the window, hints, result with temperatures and board resistance), validated against datasheet boards; empty board at start-up | `gui/calculator.py`, `inverse.py`, `gui/app.py`, `examples/calculator_validation.py`, `docs/calculators.md` | `test_calculator_validation.py`, `test_inverse.py` |
+| Power calculator reworked (name, parameters inside the window, hints, result with temperatures and board resistance), validated against datasheet boards; empty board at start-up | `gui/calculator.py`, `inverse.py`, `gui/app.py`, `research/power-calculator/calculator_validation.py`, `docs/calculators.md` | `test_calculator_validation.py`, `test_inverse.py` |
 
 | Power calculator: tabs per route, constant window size, Help window, uncertainty band with best / nominal / worst selector (`inverse.power_band`, `calculator` defaults) | `inverse.py`, `jobs.py`, `gui/calculator.py`, `help/calculator.html`, `defaults.json` | `test_inverse.py` (band), `test_defaults.py` (window, selector, routes) |
 
@@ -130,7 +130,7 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 | **Metal block** (a Heatsink with a thickness): extra node layer in the FVM and FDM, lateral conduction, mass, contact over the copper it overlaps through an interface resistance, material and interface presets | `blocks.py`, `gui/panels.py` | `test_blocks.py`; within 1.8 % of the 3D solid |
 | **Sink renamed Heatsink** everywhere (old files with `sinks` still open) | `model.py` | |
 | **3D solid** model: the board as a real solid with a slab per copper layer and per dielectric gap, vias with their real copper area, metal blocks; steady state | `solid3d.py` | `test_solid3d.py`; within 0.2 % of an independent finite-element solid on three boards |
-| Studies: copper that dissipates needs no element; what a package resistance and a top path add on five real parts | `examples/copper_dissipation.py`, `examples/component_study.py`, `test_copper.py` | `validation.md` section 3.1, `roadmap.md` 1.9b |
+| Studies: copper that dissipates needs no element; what a package resistance and a top path add on five real parts | `research/solid3d-verification/copper_dissipation.py`, `research/component-heatsink/component_study.py`, `test_copper.py` | `validation.md` section 3.1, `roadmap.md` 1.9b |
 
 ---
 
@@ -141,10 +141,10 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 | **Power tables and CSV files** (`TableProfile`, repeating or one-shot, import/export, `run --profile`) | `model.TableProfile`, `profile_io.py`, `examples/csv_profiles/` | `test_profiles.py`, stress tests with bad CSV files |
 | Analytic transient with vias and heatsinks (one modal system per heater, scaled to the local steady response); animation of the power step also for the Analytical model | `analytic.py` | curve within 2.5 °C of the FVM (10 °C before) |
 | **FDM** comparison model (node-centred finite differences, area sampling by default) | `fdm.py` | `test_fdm.py`; FDM within about 1 % of the FVM |
-| About 40 % faster direct solves (symmetric sparse ordering) | `fvm.ORDERING` | `examples/solver_equivalence.py` |
+| About 40 % faster direct solves (symmetric sparse ordering) | `fvm.ORDERING` | `research/models-comparison/solver_equivalence.py` |
 | `calibrate_convection` and `pcbthermal calibrate` | `api.py`, `cli.py` | |
-| Independent 3D finite-element check with vias and heatsinks (offline, scikit-fem) | `examples/fem3d_validation.py` | `validation.md` section 3 |
-| Documentation cut to `models.md`, `validation.md`, `roadmap.md` | `docs/` | `validation.md` is regenerated by `examples/validation_study.py` |
+| Independent 3D finite-element check with vias and heatsinks (offline, scikit-fem) | `research/solid3d-verification/fem3d_validation.py` | `validation.md` section 3 |
+| Documentation cut to `models.md`, `validation.md`, `roadmap.md` | `docs/` | `validation.md` is regenerated by `research/models-comparison/validation_study.py` |
 | Stress test of the application (every example with every model, every view, odd boards, edits during a run, random actions) | `tests/test_gui_stress.py` | found one real bug: a result arriving after an edit was shown as current |
 
 Fixed: that bug; the abort when two background calculations ran at the same time (SuperLU is not safe in two threads: they now wait for each other); node fields in the plots, hotspot list and overlay.

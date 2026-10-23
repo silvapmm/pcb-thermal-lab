@@ -6,7 +6,7 @@
          box, which ignores the outline, (b) the rectangle of the same area (`Problem.equivalent_rectangle`, what the program does), (c) a box 10 % larger than
          the bounding box. The error is the difference of the maximum temperature divided by the FVM rise above ambient, in percent (negative = too cool).
 
-Usage: python examples/outline_rectangle_study.py
+Usage: python research/outline/outline_rectangle_study.py
 """
 
 import copy
@@ -17,7 +17,7 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 
 from pcbthermal import SolverOptions, simulate                        # noqa: E402
 from pcbthermal.examples import example_board                         # noqa: E402

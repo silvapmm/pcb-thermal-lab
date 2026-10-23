@@ -6,13 +6,13 @@
          Outline: the same board with an L, T, round and chamfered shape; the 3D solid is the independent check of the FVM.
          The tables are the ones of docs/validation.md section 12.
 
-Usage: python examples/stackup_outline_study.py
+Usage: python research/stackup/stackup_outline_study.py
 """
 
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import numpy as np                                                    # noqa: E402
 

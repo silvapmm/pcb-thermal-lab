@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "research" / "solid3d-verification"))
 import copper_dissipation as cd                                       # noqa: E402
 from pcbthermal import Problem, SolverOptions, fvm, simulate, solid3d  # noqa: E402
 from pcbthermal.examples import example_board, example_profile_board   # noqa: E402

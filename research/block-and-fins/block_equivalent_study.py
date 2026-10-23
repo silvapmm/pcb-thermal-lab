@@ -13,7 +13,7 @@
 
          The error is the difference of the maximum temperature divided by the FVM rise above ambient, in percent.
 
-Usage: python examples/block_equivalent_study.py
+Usage: python research/block-and-fins/block_equivalent_study.py
 """
 
 import copy
@@ -25,7 +25,7 @@ import sys
 import numpy as np
 from scipy.special import i0, i1, k0, k1
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import Problem, SolverOptions, analytic, blocks, fvm, lumped, simulate     # noqa: E402,F401
 from pcbthermal.geometry import coverage_fraction, polygon_area                              # noqa: E402

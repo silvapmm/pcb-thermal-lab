@@ -9,14 +9,14 @@
          * level 3 (not computed): full DELPHI / Foster chain (needs data that manufacturers do not publish).
          Datasheet numbers: see docs/roadmap.md section 1.6. Values marked "assumed" are not in the datasheet.
 
-Usage: python examples/component_study.py
+Usage: python research/component-heatsink/component_study.py
 """
 
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
 
 import package_prototype as proto                                     # noqa: E402

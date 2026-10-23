@@ -7,7 +7,7 @@
          Here the same fin is solved as a 2D conduction problem (width t, height H, root at a fixed temperature, convection h on both faces and on the tip, uniform h),
          which keeps the transverse temperature drop and the real tip, and the heat of the fin is compared with 2 Hc eta h theta_b.
 
-Usage: python examples/fin_validation.py
+Usage: python research/block-and-fins/fin_validation.py
 """
 
 import math
@@ -18,7 +18,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 def fin_heat_2d(k, h, t, height, nx=12, ny=240):

@@ -11,7 +11,7 @@
          C. **An uncertainty band**: the calculator is run with the copper, the heat transfer and theta at the ends of their uncertainty and the range of powers is reported.
          Error = recovered power / 2 W - 1.
 
-Usage: python examples/calculator_calibration_study.py
+Usage: python research/power-calculator/calculator_calibration_study.py
 """
 
 import copy
@@ -21,7 +21,7 @@ import sys
 import numpy as np
 from scipy.optimize import least_squares
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import SolverOptions                                        # noqa: E402
 from pcbthermal.api import _run_model                                       # noqa: E402

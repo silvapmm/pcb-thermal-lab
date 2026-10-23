@@ -5,14 +5,14 @@
 @details The program splits the power with a fixed-point loop around any model (analysis.part_split): Tj = T_max under the footprint + P_board theta, P_board = P - (Tj - T_amb) / R_top.
          The prototype (package_prototype.py) joins a junction node to the footprint cells with a uniform conductance 1/theta, which is about 3 K below the worst-case convention without a heatsink.
 
-Usage: python examples/top_path_study.py
+Usage: python research/component-heatsink/top_path_study.py
 """
 
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
 
 import component_study as cs                                          # noqa: E402

@@ -6,7 +6,7 @@
          under the source and the spreading in the plate. The plate is solved in 3D (finite volumes, uniform film h = 1/(R0 A) on the top face, other faces insulated, a uniform flux on
          a centred square on the bottom face); the extra resistance is (mean temperature rise of the source / power) minus R0.
 
-Usage: python examples/base_spreading_study.py
+Usage: python research/component-heatsink/base_spreading_study.py
 """
 
 import numpy as np

@@ -2,14 +2,14 @@
 @file stress_study.py
 @brief Stress cases for the Lumped and Analytic models: where do they stop being reliable?
 
-Usage: python examples/stress_study.py [--markdown table.md]
+Usage: python research/models-comparison/stress_study.py [--markdown table.md]
 """
 
 import argparse
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import Problem, analytic, check_problem, fvm, lumped   # noqa: E402
 

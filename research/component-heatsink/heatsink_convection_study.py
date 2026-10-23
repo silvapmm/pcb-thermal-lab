@@ -7,14 +7,14 @@
          convection, 150-250 at 1 m/s, 80-150 at 2.5 m/s and 50-80 at 5 m/s (Electronics Cooling, "How to select a heat sink"), i.e. factors of about 0.31, 0.18 and 0.10 on the
          natural value. Chain: Rja = Rjc + Rcs + Rsa. The study keeps the board coefficients constant (as chain_study.py).
 
-Usage: python examples/heatsink_convection_study.py
+Usage: python research/component-heatsink/heatsink_convection_study.py
 """
 
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
 
 import component_study as cs                                          # noqa: E402

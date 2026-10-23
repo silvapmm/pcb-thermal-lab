@@ -5,13 +5,13 @@
 @details Published layer tables (JLCPCB, PCBWay, OSH Park, AdvancedPCB, Bittele 7pcb and PCBGOGO pages, 2026-10-22) are entered layer by layer and the example board is solved with the FVM at 2 mm.
          The program's own templates (`pcbthermal/data/stackups.json`) are the reference rows. Results are in `docs/validation.md` section 14.
 
-Usage: python examples/stackup_vendor_check.py
+Usage: python research/stackup/stackup_vendor_check.py
 """
 
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import copy
 from pcbthermal import simulate, SolverOptions

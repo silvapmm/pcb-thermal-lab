@@ -2,7 +2,7 @@
 @file solver_equivalence.py
 @brief Do the sparse-matrix solvers and SOR give the same temperatures? One table over several boards.
 
-Usage: python examples/solver_equivalence.py [--markdown table.md]
+Usage: python research/models-comparison/solver_equivalence.py [--markdown table.md]
 """
 
 import argparse
@@ -10,7 +10,7 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import Problem, fvm                      # noqa: E402
 from pcbthermal.examples import example_board             # noqa: E402

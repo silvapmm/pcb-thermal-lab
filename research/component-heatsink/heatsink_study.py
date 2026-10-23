@@ -5,14 +5,14 @@
 @details Typical interface values (sources in docs/roadmap.md 1.9c): grease 7 to 20 um bond line at best and 0.05 to 0.1 K cm2/W in the laboratory (Dow Corning), 25 to 100 um and 1 to 5 W/mK in practice;
          gap pads 1 to 6 W/mK and 0.5 to 1.2 mm; the presets below are assumed typical values, always editable.
 
-Usage: python examples/heatsink_study.py
+Usage: python research/component-heatsink/heatsink_study.py
 """
 
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
 
 import component_study as cs                                          # noqa: E402

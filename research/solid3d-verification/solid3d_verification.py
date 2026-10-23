@@ -10,7 +10,7 @@
          (2) **Grid convergence** (Richardson extrapolation and the grid convergence index of Roache, ASME V&V 20): a square source aligned with the cells, so that every mesh
              represents it exactly, solved with the cell size halved twice; the observed order, the extrapolated value and the GCI of the fine mesh are printed.
 
-Usage: python examples/solid3d_verification.py
+Usage: python research/solid3d-verification/solid3d_verification.py
 """
 
 import math
@@ -19,7 +19,7 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import Problem, solid3d                                # noqa: E402
 from pcbthermal.geometry import coverage_fraction                       # noqa: E402

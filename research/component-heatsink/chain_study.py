@@ -6,14 +6,14 @@
          theta_JC(top) + interface/A + heatsink; the block under the board is the Heatsink layer of the program (interface, lateral conduction, exposed surface).
          The coefficients of the board faces are kept constant (the values the computed-h iteration gives for the board alone) so that the cases are comparable.
 
-Usage: python examples/chain_study.py
+Usage: python research/component-heatsink/chain_study.py
 """
 
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
 
 import numpy as np                                                    # noqa: E402

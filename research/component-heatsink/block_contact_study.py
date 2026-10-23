@@ -9,14 +9,14 @@
             the block layer is masked, the rest of the block faces an air gap).
          3. The same MOSFET with Rds(on) rising with temperature (power = P0 (1 + alpha (Tj - 25))).
 
-Usage: python examples/block_contact_study.py
+Usage: python research/component-heatsink/block_contact_study.py
 """
 
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
 
 import numpy as np                                                    # noqa: E402

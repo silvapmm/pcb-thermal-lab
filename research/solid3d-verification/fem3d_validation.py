@@ -7,7 +7,7 @@ between FR-4 slabs, anisotropic FR-4, convection on the faces and edges, the hea
 therefore does not use the "one node per copper layer" idea of the three models of the program, and gives a reference for the
 error of that idea. The maximum surface temperature under the heater is compared with the FVM, Lumped and Analytic models.
 
-Usage: python examples/fem3d_validation.py            (needs scikit-fem: pip install scikit-fem; not in requirements.txt)
+Usage: python research/solid3d-verification/fem3d_validation.py            (needs scikit-fem: pip install scikit-fem; not in requirements.txt)
 """
 
 import os
@@ -16,7 +16,7 @@ import time
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import scipy.sparse as sp                                                  # noqa: E402
 import scipy.sparse.linalg as spla                                       # noqa: E402

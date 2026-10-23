@@ -6,14 +6,14 @@ Values marked *assumed* are not from a datasheet. Everything is reproducible wit
 
 ## Open now: the Component element (junction node, heatsink scenarios, Foster chain)
 
-**Decided (2026-10-17) and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md` 1.11); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented on 2026-10-21 (`docs/models.md` section 6, `docs/validation.md` section 9, `examples/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
+**Decided (2026-10-17) and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md` 1.11); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented on 2026-10-21 (`docs/models.md` section 6, `docs/validation.md` section 9, `research/component-heatsink/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
 
-Reproduce: `examples/component_study.py`, `examples/heatsink_study.py`, `examples/block_contact_study.py`.
+Reproduce: `research/component-heatsink/component_study.py`, `research/component-heatsink/heatsink_study.py`, `research/component-heatsink/block_contact_study.py`.
 
 ### Implemented on 2026-10-17 and what stays open from it
 
 The junction-to-pad resistance θ (worst case), the junction limit with its margin and power limit, the `ψJB` ring estimate, the power temperature coefficient and the package-family typical values are implemented and documented in `docs/models.md` section 6 and `docs/validation.md` section 9 (the datasheet table, the study on five parts and the sensitivity are there).
-What stays here is the **top path** of the study, behind the top path now implemented (2026-10-21; junction node joined to the footprint by `1/θ` and to the ambient through `θJC(top)` + interface + heatsink; `examples/component_study.py`, level 2):
+What stays here is the **top path** of the study, behind the top path now implemented (2026-10-21; junction node joined to the footprint by `1/θ` and to the ambient through `θJC(top)` + interface + heatsink; `research/component-heatsink/component_study.py`, level 2):
 
 | Part | Tj without top path | Bare mould (heat through the top) | With a 12 K/W clip-on heatsink (heat through the top) | θJC(top) |
 | :-- | --: | --: | --: | --: |
@@ -50,7 +50,7 @@ A bare mould carries about 1 % of the heat (2 to 4 K); a heatsink takes 41 to 51
 **Confirmed on the web (2026-10-17)**: the resistance of a thermal joint is `R_joint = BLT/(k·A) + (R''c1 + R''c2)/A` (bond line over bulk conductivity plus a contact resistance at each face; ASTM D5470 fits both from measurements at several thicknesses). Measured totals (Electronics Cooling, ASTM D5470 round robin, 2014): Arctic Silver 5 paste **32 mm²K/W = 0.32 K cm²/W** at 300 kPa (30.9 at a 23.5 µm bond line), a ceramic paste 41 mm²K/W = 0.41 K cm²/W, a 1.575 mm gap pad **12.1 K cm²/W** at 690 kPa. So a good paste is 0.3 to 0.4 K cm²/W, not the 0.1 of laboratory greases, and the *apparent* conductivity (thickness over measured resistance) is well below the bulk value of the data sheets.
 Presets (resistance per area, with the apparent `k`): good paste 1.5 W/mK × 50 µm = 0.33 K cm²/W (matches the measured pastes); **paste, default when unknown** 2 W/mK × 100 µm = 0.5; soft gap pad 3 × 0.5 mm = 1.7; gap pad 1 × 0.5 mm = 5; hard gap pad 1 × 1 mm = 10. On a package the resistance is `R''/A` (K/W): 0.5 K cm²/W over 3.3 × 3.3 mm is 4.6 K/W.
 
-**Simulated** (`python examples/heatsink_study.py`, parts of section 1.9b, pad 25 mm, 12 K/W clip-on heatsink on top of the package, Tj in °C and heat share through the top):
+**Simulated** (`python research/component-heatsink/heatsink_study.py`, parts of section 1.9b, pad 25 mm, 12 K/W clip-on heatsink on top of the package, Tj in °C and heat share through the top):
 
 | Part | no heatsink | good paste 0.33 | default paste 0.5 | soft pad 1.7 | gap pad 5 | hard pad 10 |
 | :-- | --: | --: | --: | --: | --: | --: |
@@ -136,7 +136,7 @@ Open: how much of the board's own convection to keep under a block outside the i
 ```
 Heat from `J` splits between the top chain and the board in the inverse ratio of their resistances; the board's share spreads sideways, leaves through its faces and, where the block touches it, through the block.
 
-**Simulation** (`python examples/chain_study.py`; junction node, board faces at constant `h` from the board alone, pad 25 mm, default paste 0.5 K cm²/W, heatsink 12 K/W on top, aluminium block 30 × 30 × 3 mm under the board):
+**Simulation** (`python research/component-heatsink/chain_study.py`; junction node, board faces at constant `h` from the board alone, pad 25 mm, default paste 0.5 K cm²/W, heatsink 12 K/W on top, aluminium block 30 × 30 × 3 mm under the board):
 
 | Part | Case | Tj [°C] | Heat through the top | Heat through the block |
 | :-- | :-- | --: | --: | --: |
@@ -167,7 +167,7 @@ Interface values of the same article: 0.07 to 0.81 in²°C/W (0.45 to 5.2 K cm²
 2. *Natural convection*: `θsa = θref·(ΔTref/ΔT)^0.25` (`ΔTref` from the datasheet, default 75 K), with `ΔT` the heatsink's own rise, solved by the same fixed-point loop as the computed `h` (converges in a few iterations);
 3. *Forced*: `θsa = θnatural × f(v)` with `f` 1, 0.31, 0.18, 0.10 for 0, 1, 2.5 and 5 m/s, or the points of the datasheet curve.
 One environment setting would drive all of it: the air speed already used for the board faces (computed `h`) sets the heatsink scenario too, and the orientation sets the factor (a vertical board and vertical fins are the good case).
-**Simulation** (`python examples/heatsink_convection_study.py`; MOSFET with the top chain `θJC(top)` 30 (assumed) + default paste 4.6 + `θsa`, board `h` constant): with a 12 K/W catalogue value at 75 K the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and `Tj` 70.4 °C against 68.1 °C with the fixed number (+2.3 K, +4 K at 4 W the other way: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s gives 65.7, 64.5 and 63.6 °C. The **scenarios change `Tj` by 2 to 7 K here because `θJC(top)` (30 K/W) limits the path**: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `θJC(top)` (metal lid, bare die), which is why the scenario is worth a switch but the fixed value is a good default.
+**Simulation** (`python research/component-heatsink/heatsink_convection_study.py`; MOSFET with the top chain `θJC(top)` 30 (assumed) + default paste 4.6 + `θsa`, board `h` constant): with a 12 K/W catalogue value at 75 K the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and `Tj` 70.4 °C against 68.1 °C with the fixed number (+2.3 K, +4 K at 4 W the other way: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s gives 65.7, 64.5 and 63.6 °C. The **scenarios change `Tj` by 2 to 7 K here because `θJC(top)` (30 K/W) limits the path**: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `θJC(top)` (metal lid, bare die), which is why the scenario is worth a switch but the fixed value is a good default.
 
 ### R7. Vertical information and presentation (noted 2026-10-17)
 
@@ -177,7 +177,7 @@ One environment setting would drive all of it: the air speed already used for th
 ### R8. Heatsink on a component: plate or only K/W? (topic under discussion, 2026-10-17)
 
 **Question**: is a plate model of the heatsink base (spreading in the metal) needed on top of a component, or is the catalogue `θsa` in K/W enough? The catalogue value already contains the spreading of the catalogue's own test source; what a small component adds is the conduction through the base under it and the spreading in the plate.
-**Simulation** (`python examples/base_spreading_study.py`; 3D finite-volume plate 40 × 40 mm, uniform film `h = 1/(R0·A)` on the top, source on the bottom, catalogue 12 K/W; extra resistance on the mean temperature of the source, and its share of the whole top chain `θJC(top)` + paste + `θsa` = 46.6 K/W for the 3.3 mm MOSFET, 41 K/W for the 5 mm LDO):
+**Simulation** (`python research/component-heatsink/base_spreading_study.py`; 3D finite-volume plate 40 × 40 mm, uniform film `h = 1/(R0·A)` on the top, source on the bottom, catalogue 12 K/W; extra resistance on the mean temperature of the source, and its share of the whole top chain `θJC(top)` + paste + `θsa` = 46.6 K/W for the 3.3 mm MOSFET, 41 K/W for the 5 mm LDO):
 
 | Base | 3.3 mm source | 5 mm source |
 | :-- | --: | --: |
@@ -334,7 +334,7 @@ The board reference temperature of a `ΨJB` estimate and the 1 mm ring are outpu
 
 ### E8 Prototype on a real part: is the junction node worth it? (2026-10-16)
 
-`examples/package_prototype.py` (outside the program) simulates the TI CSD17308Q3 power MOSFET (SON 3.3 × 3.3 mm, `RthJC` 4.5 K/W to the drain pad, `Tj` max 150 °C) on the datasheet's own board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, a square copper pad on the top, still air with the computed `h`) in two ways:
+`research/component-heatsink/package_prototype.py` (outside the program) simulates the TI CSD17308Q3 power MOSFET (SON 3.3 × 3.3 mm, `RthJC` 4.5 K/W to the drain pad, `Tj` max 150 °C) on the datasheet's own board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, a square copper pad on the top, still air with the computed `h`) in two ways:
 **offset** = what the program does today (the heat enters the board under the footprint, `Tj = T_max under the footprint + P·θ`) and **node** = a junction node joined to the footprint by a uniform conductance `1/θ` (the block-and-plate of JESD15-3) plus an optional path through the top.
 
 | Test | Datasheet | Offset | Node |

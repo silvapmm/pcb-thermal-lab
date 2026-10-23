@@ -11,13 +11,13 @@
              traces, two 74.2 x 74.2 mm planes of 35 µm; the bottom and top traces are not drawn (a few percent of copper). Datasheet RθJA 32.5 K/W.
          The heat transfer coefficients are computed (natural convection and radiation, horizontal board).
 
-Usage: python examples/calculator_validation.py
+Usage: python research/power-calculator/calculator_validation.py
 """
 
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import Problem                                            # noqa: E402
 from pcbthermal.inverse import power_from_temperature                     # noqa: E402

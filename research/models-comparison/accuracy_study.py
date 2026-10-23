@@ -2,7 +2,7 @@
 @file accuracy_study.py
 @brief Accuracy of the simplified models against the FVM on the example board and its variants.
 
-Usage: python examples/accuracy_study.py [--markdown table.md]
+Usage: python research/models-comparison/accuracy_study.py [--markdown table.md]
 """
 
 import argparse
@@ -10,7 +10,7 @@ import copy
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import analytic, fvm, lumped                                    # noqa: E402
 from pcbthermal.examples import example_board                                   # noqa: E402

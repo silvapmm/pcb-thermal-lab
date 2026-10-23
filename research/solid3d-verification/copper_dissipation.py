@@ -11,7 +11,7 @@ import os
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 from pcbthermal import Problem, analytic, fdm, fvm, lumped, solid3d
 
 FEM = "--fem" in sys.argv
@@ -48,7 +48,7 @@ def run(p, cell=1.0):
            "solid3d": solid3d.solve_steady(p, cell).t_max, "lumped": lumped.solve_steady(p, cell).t_max,
            "analytic": analytic.solve_steady(p, cell).t_max}
     if FEM:
-        sys.path.insert(0, "examples")
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import fem3d_validation as f3
         out["fem"] = f3.solve_fem(p, 1.0)["t_max"]
     return out

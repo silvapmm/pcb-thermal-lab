@@ -2,14 +2,14 @@
 @file validation_study.py
 @brief The same scenarios solved by every model, printed as the tables of docs/validation.md.
 
-Usage: python examples/validation_study.py [--fem]    (--fem adds the 3D finite-element solid; needs scikit-fem, several minutes)
+Usage: python research/models-comparison/validation_study.py [--fem]    (--fem adds the 3D finite-element solid; needs scikit-fem, several minutes)
 """
 
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
 
 from pcbthermal import analytic, check_problem, fdm, fvm, lumped, solid3d  # noqa: E402

@@ -9,14 +9,14 @@
          P = (T_top - T_amb) / (theta_JA - psi_JT) is shown for a theta_JA that is 30 % off the real board (a JEDEC board is not your board).
          Error = recovered power / 2 W - 1.
 
-Usage: python examples/power_from_top_study.py
+Usage: python research/power-calculator/power_from_top_study.py
 """
 
 import copy
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pcbthermal import SolverOptions, simulate                            # noqa: E402
 from pcbthermal.examples import example_board                             # noqa: E402
