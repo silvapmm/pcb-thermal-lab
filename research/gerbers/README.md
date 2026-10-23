@@ -61,7 +61,7 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara, and the comparison with gerbonara, pygerber and pcb-tools (4.22). Needs `pip install gerbonara pygerber pcb-tools shapely pillow`. |
 | `study_gerber_writer.py` | Files written with Ucamco's `gerber-writer` (thermal pads, arcs, regions) read by the reader and gerbonara (4.24). Needs `pip install gerber-writer`. |
 | `study_angles.py`, `make_figures.py` | Tracks at any angle: area, connectivity, resistance (4.23); `make_figures.py` writes the pictures to `figures/`. |
-| `figures/` | The pictures, named `fig_NN_topic.png` in order of creation (committed on purpose, the README files link to them): 01 angles on the pixel grid, 02 KiCad nets and Joule heat, 03 copper mapping to cells. |
+| `figures/` | The pictures, named `fig_NN_topic.png` in order of creation (committed on purpose, the README files link to them): 01 angles on the pixel grid (our own synthetic tracks), 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT). |
 | `scenarios.py`, `study_sampson_boundary.py` | Boundary-limited scenarios: fixed-temperature posts or border, no convection, stripes and 42 windows (4.25). |
 | `CONCLUSIONS.md` | The conclusions, the comparison with the three articles, the table of validated numbers with the test of each claim, the limits and the decisions left open. |
 | `study_coverage.py`, `study_coverage_real.py`, `study_models_self.py`, `study_post_board.py`, `study_vias_nets.py`, `nets.py`, `boards_synthetic.py` | Coverage masks (4.26), every model of the program (4.27), the post-mounted board analogue (4.28), vias and nets (4.29); the synthetic board generator. |
@@ -122,9 +122,9 @@ The reference also depends a little on the pixel (single layer, 5 x 5 mm heater)
 
 ### 4.4 The mappings on 42 windows (`study_mapping.py`)
 
-![Figure 3: a real 36 mm window, the copper fraction per 1 mm cell and the ratio of the flow-based to the arithmetic cell conductance](figures/fig_03_copper_mapping_to_cells.png)
+![Figure 3: a 36 mm window of the Stormduino board, the copper fraction per 1 mm cell and the ratio of the flow-based to the arithmetic cell conductance](figures/fig_03_copper_mapping_to_cells.png)
 
-*Figure 3 (`figures/fig_03_copper_mapping_to_cells.png`): window of the `chibi` board; the fraction of copper per 1 mm cell (what the program uses today) and where the flow-based conductance is lower (red) or higher (blue) than the arithmetic one.*
+*Figure 3 (`figures/fig_03_copper_mapping_to_cells.png`): a window of the top copper of the Stormduino board (Stormduino Rev 2.2, MIT licence, https://github.com/Chromico/stormduino, downloaded by `fetch_boards.py storm`; window 2 of the fixed-seed set); the fraction of copper per 1 mm cell (what the program uses today) and where the flow-based conductance is lower (red) or higher (blue) than the arithmetic one.*
 
 Methods (all give the face conductances the solver uses; for the first four the face is the harmonic mean of the two cells, as the FVM does):
 
@@ -345,11 +345,11 @@ Only copper layers and drills matter for the program (silkscreen, mask, paste an
 
 **The heat of a net.** With the net mask, the sheet resistance `Rs = rho / t` (copper 1.68e-8 ohm m at 20 °C, +0.393 %/K) and two terminals, `joule.solve_net` solves div(grad V / Rs) = 0 on the pixels (4-connected, face conductance 1/Rs, harmonic mean when `Rs` varies) and returns the resistance, the potential and the Joule power of every pixel, whose sum is exactly `I²R`. `joule.to_cells` sums it into the cells of the thermal grid (the total is conserved), which is exactly the heat source the models need. Checks (6 tests): a strip gives `Rs (L-1)/W` to 1e-9, a width step is a series circuit (within 3 %, the constriction adds a spreading term), parallel strips, the cell sum, and unconnected or overlapping terminals are refused.
 
-![Figure 2: KiCad top copper coloured by net, potential and Joule heat of one net at 1 A](figures/fig_02_kicad_nets_and_joule.png)
+![Figure 2: a synthetic board with X2 net attributes coloured by net, potential and Joule heat of net VIN at 1 A](figures/fig_02_nets_and_joule.png)
 
-*Figure 2 (`figures/fig_02_kicad_nets_and_joule.png`): left, the nets of a KiCad board (grey: a zone fill with no net); middle and right, potential and Joule heat density of net `/X9` at 1 A; the dead-end spur carries no current (black).*
+*Figure 2 (`figures/fig_02_nets_and_joule.png`): a small synthetic Gerber of our own (`make_figures.synthetic_nets_gerber`, 40 x 26 mm, three nets written with the X2 attribute `%TO.N,<net>*%` ended by `%TD*%`). Left, the three nets (VIN, SIG, GND) found by the reader; middle and right, potential and Joule heat density of net VIN at 1 A between its two pads (35 µm copper): R = 32 mΩ and 32 mW (30.7 to 32.4 mΩ for pixels of 0.0125 to 0.05 mm; by hand 70 squares of 0.48 mΩ = 34 mΩ, 32 mΩ when the 2.4 mm of track under the end pads is left out). The heat sits in the 0.25 mm neck and the 0.4 mm dead-end spur carries no current (black). The pixel lattice is anchored so that no track edge falls on a pixel centre; otherwise the neck is drawn 0.30 mm wide and R is 29 mΩ (section 4.23).*
 
-On the KiCad panel (1 A, 35 µm copper, terminals on the two farthest pads of the largest piece of each net): the signal nets of 22 mm span give 80 mΩ (81 mW at 1 A, hottest 1 mm cell 3.6 mW), a 11.6 mm net 31 mΩ, the GND piece of 388 mm² 4.6 mΩ (hottest cell 0.2 mW). Quick sanity check: 0.2 mm tracks of 22 mm are 110 squares of 0.5 mΩ, about 55 mΩ before the pads and bends.
+On a real KiCad panel (the `charliewatch-v2` files of gerbonara's test set, used here for statistics only, not drawn; 1 A, 35 µm copper, terminals on the two farthest pads of the largest piece of each net): the signal nets of 22 mm span give 80 mΩ (81 mW at 1 A, hottest 1 mm cell 3.6 mW), a 11.6 mm net 31 mΩ, the GND piece of 388 mm² 4.6 mΩ (hottest cell 0.2 mW). Quick sanity check: 0.2 mm tracks of 22 mm are 110 squares of 0.5 mΩ, about 55 mΩ before the pads and bends.
 
 **Is it possible in the future? Yes**, and the pieces exist; what is missing, in order: (1) the current of the net (a number from the user, a table by net, or later the output of an electrical solve); (2) the terminals (which pads source and sink the current; for a power net with several loads, a list of currents per pad, solved as one Laplace problem with several sinks); (3) the vias and plated holes joining layers (the same Laplace problem on a stack, with the via barrel resistance); (4) the coupling with temperature, `rho(T)`: a fixed-point loop between the electrical and the thermal solve (the program already has such a loop for the power coefficient, `api._solve_with_tc`); (5) the user interface (pick a net, enter the current, see the heat map and the voltage drop). The voltage drop and the hot spots (current crowding at a neck) come out of the same solve.
 
@@ -551,7 +551,7 @@ The files are **not** in the repository (`data/` is git-ignored). `fetch_boards.
 | Key | Board | Licence (as stated by the source) |
 | :-- | :-- | :-- |
 | `storm` | Stormduino Rev 2.2, an Arduino Uno clone (KiCad), 68.6 x 53.4 mm, 2 layers | MIT |
-| `chibi` | chibi_2024 (KiCad), 100 x 78 mm | CC BY-SA |
+| `chibi` | chibi_2024 (KiCad), 100 x 78 mm (https://github.com/jaseg/7segstuff) | "CC BY-SA" as copied from the gerbonara test resources; **not confirmed at the source** (no licence file found at the repository root). Used for statistics only; no picture of it is kept |
 | `easyeda` | an EasyEDA export | not stated |
 | `pcbrnd` | epl_isolatedpwr (pcb-rnd) | GPL-2 |
 | `pcad` | zxnet_usb (P-CAD) | GPL-3 |
@@ -559,7 +559,7 @@ The files are **not** in the repository (`data/` is git-ignored). `fetch_boards.
 | `fritz` | analog_gyro_2021 (Fritzing) | MIT |
 | `alleg` | a 4-layer Cadence Allegro board (tracespace issue 371), inches | not stated |
 
-All but the Stormduino come from the test resources of gerbonara (https://gitlab.com/gerbolyze/gerbonara), each with the licence of its own folder.
+All but the Stormduino come from the test resources of gerbonara (https://gitlab.com/gerbolyze/gerbonara), each with the licence of its own folder; the licences of those folders could not be read or confirmed at their sources, so **no picture of any of them is kept in the repository** (the figures use our own synthetic boards and the MIT-licensed Stormduino).
 
 ## 10. Sources
 

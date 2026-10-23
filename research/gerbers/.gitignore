@@ -3,3 +3,4 @@ data/
 out/
 *.npz
 __pycache__/
+.venv/
