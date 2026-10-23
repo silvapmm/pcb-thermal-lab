@@ -10,6 +10,12 @@ The program's finite-volume model works on square cells (0.6 to 2 mm) and knows 
 
 *Figure 1 (`figures/fig_01_copper_mapping_to_cells.png`): a 36 mm window of the top copper of the Stormduino (MIT), the copper fraction per 1 mm cell (what the program uses today) and where the flow-based conductance differs from it.*
 
+### 1.1 The whole chain in one diagram
+
+![Figure 10: from the Gerber file to the temperature](figures/fig_10_pipeline.png)
+
+*Figure 10 (`figures/fig_10_pipeline.png`): blue, phase 1 (reading, `research/gerber-import`); orange, this folder (the mask becomes face conductances and runs through the program's network); green, phase 3 (nets and the electrical side). The mask is the common currency; thick boxes are the key steps.*
+
 ## 2. The methods compared
 
 All are tried on the same masks and judged against the same reference: **the mask solved as it is, pixel by pixel, at 0.1 mm**, with the program's own network. The error is that of the mean temperature rise over a heated block.
@@ -89,7 +95,11 @@ Where the articles are ahead: Blackmore validates against a physical measurement
 * **Does it matter thermally?** Yes: one 0.05 mm track across a 6 mm heater cools it by 3 %, a 0.1 mm track by 5.8 %, 0.3 mm by 15 %, 1 mm by 35 %.
 * **Does it handle angles?** The reading does (any angle, area within 0.5 % except lattice ties at 45 degrees). The 1 mm cells do **not** on an isolated diagonal: at 0 degrees every mapping except the geometric one reproduces 96 to 98 % of the track's effect; at 45 degrees the flow-based faces reproduce 38 to 53 %, lambda 0.5 40 to 72 %, the fill fraction 63 to 106 %. The cause is the grid (x and y faces only, diagonal heat flows in a staircase), not the copper reading.
 
-### 6.1 Diagonal couplings, simulated (section 4.44, figure 8)
+### 6.1 Diagonal couplings, simulated (section 4.44, figures 8 and 9)
+
+![Figure 9: how the cells are linked, five-point against nine-point, and the real face conductances of a diagonal track](figures/fig_09_diagonal_faces.png)
+
+*Figure 9 (`figures/fig_09_diagonal_faces.png`): top, the program's network links a cell to its 4 neighbours (heat on a diagonal must zig-zag through x and y faces) and the experiment adds 4 links to the diagonal neighbours (red: falling to the right, green: rising); bottom, the real face conductances (line width) of a 0.3 mm track at 45 degrees on 1 mm cells, with the flow-based faces only (the track is carried by a staircase of x and y faces) and with the diagonal faces added (a red line along the track).*
 
 ![Figure 8: the nine-point experiment](figures/fig_08_diagonal.png)
 

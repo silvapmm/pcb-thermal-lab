@@ -176,6 +176,57 @@ def fig_stormduino_nets():
     plt.close(fig)
 
 
+def fig_mask_explained():
+    """!
+    @brief The mask explained on one thin track: the vector of the file, the binary mask at 0.1 mm (centre sampling) with its pieces, the coverage mask (4 x 4 sub-samples) and the copper fraction of each 1 mm cell.
+    @return None.
+    """
+    import math
+    from scipy import ndimage
+    from boards_synthetic import HEAD, mm
+    size, w, th = 4.0, 0.075, 20.0
+    c, s_ = math.cos(math.radians(th)), math.sin(math.radians(th))
+    text = HEAD + f"%ADD10C,{w}*%\nD10*\nX{mm(0.2)}Y{mm(1.0)}D02*\nX{mm(0.2 + 3.7 * c)}Y{mm(1.0 + 3.7 * s_)}D01*\nM02*\n"
+    layer = ng.Layer(text)
+    cv = ng.Canvas(0.0, size, size, size, 0.1)
+    layer.draw(cv)
+    binary = cv.mask
+    cov = ng.render_coverage(layer, 0.0, size, size, size, 0.1, 4)
+    _, pieces = ndimage.label(binary, structure=np.ones((3, 3)))
+    ext = (0, size, 0, size)
+    fig, axs = plt.subplots(1, 4, figsize=(18, 4.9))
+    x0, y0, x1, y1 = 0.2, 1.0, 0.2 + 3.7 * c, 1.0 + 3.7 * s_
+    nx_, ny_ = -s_ * w / 2, c * w / 2
+    for ax in axs:
+        ax.set_xlim(0, size)
+        ax.set_ylim(0, size)
+        ax.set_aspect("equal")
+        for k in range(int(size) + 1):
+            ax.axhline(k, color="k", linewidth=0.8)
+            ax.axvline(k, color="k", linewidth=0.8)
+        ax.set_xlabel("mm; black lines: the 1 mm cells of the thermal grid")
+    axs[0].add_patch(plt.Polygon([(x0 + nx_, y0 + ny_), (x1 + nx_, y1 + ny_), (x1 - nx_, y1 - ny_), (x0 - nx_, y0 - ny_)], facecolor="#b8651b"))
+    axs[0].set_title(f"1. the Gerber: a vector, a stroke 0.075 mm wide at {th:.0f} degrees\n(exact width and angle, no pixels)", fontsize=9)
+    axs[1].imshow(binary, extent=ext, cmap="Greys", vmin=0, vmax=1.6, interpolation="nearest")
+    for k in range(41):
+        axs[1].axhline(k * 0.1, color="0.85", linewidth=0.2)
+        axs[1].axvline(k * 0.1, color="0.85", linewidth=0.2)
+    axs[1].set_title(f"2. binary mask, 0.1 mm pixel (centre sampling):\n{pieces} separate pieces, the track is broken", fontsize=9)
+    im = axs[2].imshow(cov, extent=ext, cmap="YlOrBr", vmin=0, vmax=1, interpolation="nearest")
+    fig.colorbar(im, ax=axs[2], fraction=0.046, label="copper fraction of the pixel")
+    axs[2].set_title("3. coverage mask, 0.1 mm pixel (4 x 4 sub-samples):\nevery pixel keeps its share of copper, the area is exact", fontsize=9)
+    n = 10
+    frac = cov.reshape(int(size), n, int(size), n).mean(axis=(1, 3))
+    axs[3].imshow(frac, extent=ext, cmap="YlOrBr", vmin=0, vmax=0.12, interpolation="nearest")
+    for i in range(int(size)):
+        for j in range(int(size)):
+            axs[3].text(j + 0.5, size - i - 0.5, f"{frac[i, j]:.3f}", ha="center", va="center", fontsize=7)
+    axs[3].set_title("4. what the program uses today: the copper fraction of each cell\n(one number: it does not say whether the copper is connected)", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_04_mask_explained.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -185,6 +236,7 @@ def main():
     fig_gerber_render()
     fig_validation()
     fig_stormduino_nets()
+    fig_mask_explained()
     print("figures in", OUT)
 
 

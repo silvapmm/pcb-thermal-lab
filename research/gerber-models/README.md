@@ -53,6 +53,12 @@ Status: **open**, a research branch (`research/gerbers`, started 2026-10-22): **
 
 ## 1. The questions
 
+The whole chain from the Gerber file to the temperature is drawn in Figure 10:
+
+![Figure 10: from the Gerber file to the temperature](figures/fig_10_pipeline.png)
+
+*Figure 10 (`figures/fig_10_pipeline.png`): blue, phase 1; orange, this folder; green, phase 3; the mask is the common currency.*
+
 The program's finite-volume model works on a grid of square cells and, today, knows only one number per cell and layer: the **fraction of copper** (and, for a zone, the fill typed by the user). Phase 2 takes the masks of phase 1 and asks how to put them in the simulation models.
 
 1. How should fine copper be turned into the conductances of a grid of squares? The fill fraction is badly biased; better mappings exist and the best are within 0.3 to 3.6 % (4.4 to 4.13, 4.38).
@@ -90,7 +96,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `REPORT.md` | **The guide**: the problem, the methods compared, the boards, the results on 11 boards and 42 windows, the differences from the known methods, thin tracks and angles, what to do next. |
 | `README.md`, `CONCLUSIONS.md`, `INTEGRATION.md`, `LOG.md` | The full record in numbered sections (grouped 4.A to 4.F), the conclusions, how the mapping would enter the program (and the two corrections), the dated log. |
 | `docs/` | `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the three articles, what was read and how). |
-| `figures/` | `fig_01` to `fig_08`: 01 copper mapping to cells (a window of the Stormduino, MIT), 02 our IC board thermal maps, 03 the import end to end, 04 its set-up (heater, holes, cells), 05 our board in the five models, 06 the rectangle board in the five models, 07 the thinnest track and the angle, 08 the nine-point experiment. |
+| `figures/` | `fig_01` to `fig_10`: 01 copper mapping to cells (a window of the Stormduino, MIT), 02 our IC board thermal maps, 03 the import end to end, 04 its set-up (heater, holes, cells), 05 our board in the five models, 06 the rectangle board in the five models, 07 the thinnest track and the angle, 08 the nine-point experiment, 09 how the cells are linked (five-point and nine-point diagram), 10 the whole chain from the Gerber to the temperature. |
 | `tests/` | 33 tests (about 1.5 minutes): the solvers and mappings (`test_conduction.py`, `test_claims.py`), the board as a thermal bench (`test_our_board_models.py`), the import to the program (`test_importer.py`), the program's union rule (`test_program_union.py`), the rectangle board in the models (`test_rect_board.py`), the thinnest track and the angle (`test_track_width_angle.py`), the nine-point prototype (`test_diagonal.py`). Most need the program's dependencies. |
 | `lib/conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
 | `lib/scenarios.py` | Boundary-limited scenarios (posts, held border) and the comparison of the mappings against a resolved reference. |
@@ -106,7 +112,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_diagonal.py` | The nine-point experiment on the tracks and on the 42 windows (4.44; about 15 minutes). |
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
-| `scripts/make_figures.py` | Draws the eight figures into `figures/`. |
+| `scripts/make_figures.py` | Draws the ten figures into `figures/`. |
 
 ## 4. How to run, and the results
 
@@ -267,6 +273,10 @@ So **a track of any width is recognised if the pixel is at most half its width**
 | flow + diagonal, 0.25 |   66   62   62   64   66   69   75   87 |   65   69   51   59   55   57   64   89 |
 | flow + diagonal, 0.5 |   70   67   68   70   72   76   80   90 |   80   86   64   78   72   74   79   94 |
 | flow + diagonal, 1.0 |   80   77   78   82   84   87   90   95 |  110  120   88  112  102  104  104  102 |
+
+![Figure 9: how the cells are linked: five-point and nine-point, and the real face conductances of a 45-degree track](figures/fig_09_diagonal_faces.png)
+
+*Figure 9 (`figures/fig_09_diagonal_faces.png`): top, the program's network links a cell to its 4 neighbours and the experiment adds 4 links to the diagonal neighbours (red: falling to the right, green: rising); the track at 45 degrees is carried by a staircase of x and y faces or by one diagonal face; bottom, the real face conductances (line width) of a 0.3 mm track at 45 degrees on 1 mm cells without and with the diagonal faces.*
 
 ![Figure 8: the nine-point experiment: tracks at 30 and 45 degrees and the 42 real windows](figures/fig_08_diagonal.png)
 

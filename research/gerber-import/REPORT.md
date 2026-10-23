@@ -6,6 +6,14 @@ Phase 1 of the Gerber research (`research/gerber-import`), written 2026-10-23. *
 
 `importer.import_board(roles)` takes the files of a set (copper layers from the top, an optional outline, drill files) and returns the board box, **a binary and a coverage mask per copper layer** (pixel at most half the thinnest track, with a warning), **the plated holes with their pad, kind and net**, and warnings. It is the NumPy-only reader `native_gerber.py` (RS-274X with apertures, macros, arcs, regions, polarity, step and repeat, X2 attributes; Excellon) plus `nets.py` (holes, pads and nets matched by position). It needs no program and no new dependency. What is done with the masks (conductances, the thermal models) is phase 2; the current in the nets is phase 3.
 
+### 1.1 The mask, step by step
+
+![Figure 4: the mask explained on one thin track](figures/fig_04_mask_explained.png)
+
+*Figure 4 (`figures/fig_04_mask_explained.png`): a 0.075 mm track at 20 degrees. 1, the Gerber is a vector with exact width and angle; 2, a binary mask at 0.1 mm (the pixel is copper when its centre is inside the stroke) breaks the track into 9 pieces; 3, the coverage mask keeps in every pixel the share of copper (4 x 4 sub-samples), so the area is exact and the track is continuous; 4, the program today keeps one number per 1 mm cell, the copper fraction, which says how much copper there is but not whether it is connected.*
+
+**Where the mask is used**: it is the common input of everything that follows (the diagram of the chain is Figure 10 of `research/gerber-models`): phase 2 turns it into the sheet conductance of every pixel and from there into the face conductances of the cells (the pixel sets the resolution of that step: at most half the thinnest track); phase 3 takes the mask of one net as the domain where the current is solved; and the pixel-by-pixel solution of the same mask is the reference against which every mapping is judged.
+
 ## 2. The test material
 
 | Material | What | Where |

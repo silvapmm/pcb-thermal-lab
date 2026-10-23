@@ -356,6 +356,176 @@ def fig_diagonal():
     plt.close(fig)
 
 
+def fig_diagonal_faces():
+    """!
+    @brief Diagrams of the cell network: the five-point and the nine-point links of a cell, the staircase that heat follows along a diagonal track, and the real face conductances (line width) of a 0.3 mm track at 45 degrees with the five-point flow-based faces and with the diagonal faces added.
+    @return None.
+    """
+    import math
+    import diagonal as dg
+    from boards_synthetic import HEAD, mm
+    fig = plt.figure(figsize=(17, 9.5))
+    gs = fig.add_gridspec(2, 3, height_ratios=[1, 1.15])
+    # (a) the five-point cell
+    ax = fig.add_subplot(gs[0, 0])
+    ax.set_xlim(-1.6, 1.6)
+    ax.set_ylim(-2.1, 1.6)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    for gx in (-1, 0, 1):
+        for gy in (-1, 0, 1):
+            ax.add_patch(plt.Rectangle((gx - 0.45, gy - 0.45), 0.9, 0.9, fill=(gx == 0 and gy == 0), facecolor="#f2c27b", edgecolor="k", linewidth=0.8))
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        ax.annotate("", (dx * 0.98, dy * 0.98), (dx * 0.5, dy * 0.5), arrowprops={"arrowstyle": "<->", "color": "#1f77b4", "linewidth": 2})
+    ax.set_title("the program's network: a cell is linked to its 4 neighbours\n(one x face and one y face per cell pair)", fontsize=9)
+    ax.text(0, -1.85, "heat on a diagonal must zig-zag through x and y faces", ha="center", fontsize=8)
+    # (b) the nine-point cell
+    ax = fig.add_subplot(gs[0, 1])
+    ax.set_xlim(-1.6, 1.6)
+    ax.set_ylim(-2.1, 1.6)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    for gx in (-1, 0, 1):
+        for gy in (-1, 0, 1):
+            ax.add_patch(plt.Rectangle((gx - 0.45, gy - 0.45), 0.9, 0.9, fill=(gx == 0 and gy == 0), facecolor="#f2c27b", edgecolor="k", linewidth=0.8))
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        ax.annotate("", (dx * 0.98, dy * 0.98), (dx * 0.5, dy * 0.5), arrowprops={"arrowstyle": "<->", "color": "#1f77b4", "linewidth": 2})
+    for dx, dy in ((1, -1), (-1, 1)):
+        ax.annotate("", (dx * 0.98, dy * 0.98), (dx * 0.42, dy * 0.42), arrowprops={"arrowstyle": "<->", "color": "#d62728", "linewidth": 2})
+    for dx, dy in ((1, 1), (-1, -1)):
+        ax.annotate("", (dx * 0.98, dy * 0.98), (dx * 0.42, dy * 0.42), arrowprops={"arrowstyle": "<->", "color": "#2ca02c", "linewidth": 2})
+    ax.set_title("the experiment: 4 more links to the diagonal neighbours\n(red: d1 pair, falling to the right; green: d2 pair, rising; blue: axial, as before)", fontsize=9)
+    ax.text(0, -1.85, "diagonal conductance = what the cell tensor says\nthe axial faces do not already deliver", ha="center", fontsize=8)
+    # (c) the staircase
+    ax = fig.add_subplot(gs[0, 2])
+    ax.set_xlim(0, 6)
+    ax.set_ylim(0, 6)
+    ax.set_aspect("equal")
+    ax.set_xticks(range(7))
+    ax.set_yticks(range(7))
+    ax.grid(color="0.8")
+    ax.tick_params(labelsize=6)
+    ax.plot([0.3, 5.7], [5.7, 0.3], color="#b8651b", linewidth=9, alpha=0.6, solid_capstyle="round")
+    pts = [(0.5 + i, 5.5 - i) for i in range(6)]
+    for i in range(5):
+        (x0, y0), (x1, y1) = pts[i], pts[i + 1]
+        ax.annotate("", (x1, y0), (x0, y0), arrowprops={"arrowstyle": "->", "color": "#1f77b4", "linewidth": 1.8})
+        ax.annotate("", (x1, y1), (x1, y0), arrowprops={"arrowstyle": "->", "color": "#1f77b4", "linewidth": 1.8})
+        ax.annotate("", (x1 - 0.08, y1 + 0.08), (x0 + 0.08, y0 - 0.08), arrowprops={"arrowstyle": "->", "color": "#d62728", "linewidth": 1.8, "linestyle": "--"})
+    ax.set_title("a track at 45 degrees (brown) across 1 mm cells:\nblue = x then y faces (staircase), red = one diagonal face", fontsize=9)
+    # real faces, five-point and hybrid
+    size = 10.0
+    c, s_ = math.cos(math.radians(135)), math.sin(math.radians(135))             # falling to the right, the d1 direction of the array
+    text = HEAD + "%ADD10C,0.3*%\nD10*\n" + f"X{mm(size / 2 - 8 * c)}Y{mm(size / 2 - 8 * s_)}D02*\nX{mm(size / 2 + 8 * c)}Y{mm(size / 2 + 8 * s_)}D01*\nM02*\n"
+    layer = ng.Layer(text)
+    cov = ng.render_coverage(layer, 0.0, size, size, size, 0.1, 4)
+    S = cd.S_LAM + cov * (cd.S_CU - cd.S_LAM)
+    gx, gy = cd.dual_faces(S, 10, 0)
+    hx, hy, d1, d2 = dg.hybrid_faces(S, 10, 1.0)
+    ny, nx = gx.shape[0], gy.shape[1]
+    def lw(g):
+        """!
+        @brief Line width in points of a face: thin for the laminate, thick for a face that carries copper.
+        @param g Face conductance (W/K).
+        @return float Width.
+        """
+        return 0.3 + 16.0 * max(g - cd.S_LAM, 0.0) / (cd.S_CU - cd.S_LAM)
+    for k, (title, diag) in enumerate((("a 0.3 mm track falling at 45 degrees: the flow-based faces of the five-point network\n(line width = conductance above the laminate)", False), ("the same plus the diagonal faces (red: d1, along the track)\nall the missing conduction, share 1", True))):
+        ax = fig.add_subplot(gs[1, k if k == 0 else 1:3 if k == 1 else 2])
+        ax.imshow(cov, extent=(0, nx, 0, ny), cmap="YlOrBr", vmin=-0.3, vmax=1.4, interpolation="nearest", alpha=0.55)
+        for i in range(ny):
+            for j in range(nx - 1):
+                ax.plot([j + 0.5, j + 1.5], [ny - i - 0.5, ny - i - 0.5], color="#1f77b4", linewidth=lw(gx[i, j]), solid_capstyle="butt")
+        for i in range(ny - 1):
+            for j in range(nx):
+                ax.plot([j + 0.5, j + 0.5], [ny - i - 0.5, ny - i - 1.5], color="#1f77b4", linewidth=lw(gy[i, j]), solid_capstyle="butt")
+        if diag:
+            for i in range(ny - 1):
+                for j in range(nx - 1):
+                    ax.plot([j + 0.5, j + 1.5], [ny - i - 0.5, ny - i - 1.5], color="#d62728", linewidth=lw(d1[i, j]) if d1[i, j] > 1e-9 else 0.0, solid_capstyle="butt")
+                    ax.plot([j + 1.5, j + 0.5], [ny - i - 0.5, ny - i - 1.5], color="#2ca02c", linewidth=lw(d2[i, j]) if d2[i, j] > 1e-9 else 0.0, solid_capstyle="butt")
+        ax.set_xlim(0, nx)
+        ax.set_ylim(0, ny)
+        ax.set_aspect("equal")
+        ax.set_title(title, fontsize=9)
+        ax.set_xlabel("mm (1 mm cells)")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_09_diagonal_faces.png", dpi=105)
+    plt.close(fig)
+
+
+def fig_pipeline():
+    """!
+    @brief The data flow of the whole Gerber research as a diagram: files, mask, conductance of the pixels, cells, mappings, the program's network and, in parallel, the nets and the electrical side, with the folder of each step.
+    @return None.
+    """
+    fig, ax = plt.subplots(figsize=(17, 8.2))
+    ax.set_xlim(0, 17)
+    ax.set_ylim(0, 8.2)
+    ax.axis("off")
+    cols = {"1": "#cfe3f5", "2": "#fbe3c2", "3": "#d6ecd0"}
+
+    def box(x, y, w, h, text, phase, bold=False):
+        """!
+        @brief A rounded box with a text.
+        @param x Left.
+        @param y Bottom.
+        @param w Width.
+        @param h Height.
+        @param text Label.
+        @param phase "1", "2" or "3" (colour).
+        @param bold True for a key step.
+        @return None.
+        """
+        ax.add_patch(plt.matplotlib.patches.FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.05,rounding_size=0.15", facecolor=cols[phase], edgecolor="k", linewidth=2.0 if bold else 0.9))
+        ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=8)
+
+    def arrow(x0, y0, x1, y1, label=""):
+        """!
+        @brief An arrow with an optional label.
+        @param x0 Start x.
+        @param y0 Start y.
+        @param x1 End x.
+        @param y1 End y.
+        @param label Text near the middle.
+        @return None.
+        """
+        ax.annotate("", (x1, y1), (x0, y0), arrowprops={"arrowstyle": "->", "linewidth": 1.4})
+        if label:
+            ax.text((x0 + x1) / 2, (y0 + y1) / 2 + 0.18, label, ha="center", fontsize=7, style="italic")
+    box(0.2, 6.0, 2.4, 1.5, "Gerber and Excellon files\n(copper layers, drills,\nX2 attributes)", "1")
+    box(3.3, 6.0, 2.6, 1.5, "independent reader\nnative_gerber.py\n(NumPy only)", "1", True)
+    box(6.6, 6.0, 2.8, 1.5, "MASK per layer\nbinary and coverage\n(pixel <= half the\nthinnest track)", "1", True)
+    box(6.6, 3.9, 2.8, 1.5, "holes, pads, nets\n(position, aperture\nfunction, X2 nets;\nchecked on a KiCad file)", "1")
+    arrow(2.6, 6.75, 3.3, 6.75)
+    arrow(5.9, 6.75, 6.6, 6.75)
+    arrow(4.6, 6.0, 7.0, 5.4, "")
+    box(10.1, 6.0, 2.6, 1.5, "sheet conductance\nof every pixel\nS = S_lam + f (S_cu - S_lam)", "2")
+    box(13.2, 6.0, 3.5, 1.5, "cut into cells (n x n pixels)\nand MAPPED to face conductances:\nfill (today), lambda 0.5,\ncell problem, flow-based faces", "2", True)
+    arrow(9.4, 6.75, 10.1, 6.75)
+    arrow(12.7, 6.75, 13.2, 6.75)
+    box(13.2, 3.9, 3.5, 1.5, "optional: diagonal faces\n(tensor of the cell, share 0.5)\nfor diagonal tracks", "2")
+    arrow(14.95, 6.0, 14.95, 5.4, "")
+    box(10.1, 1.7, 3.0, 1.6, "the program's FVM network\n(faces replaced; vias,\nconvection and sources\nare the program's)", "2", True)
+    arrow(14.2, 3.9, 12.6, 3.3)
+    arrow(13.9, 6.0, 12.0, 3.3, "")
+    box(13.9, 1.7, 2.8, 1.6, "temperatures\nof the five models,\nerror against the\npixel-by-pixel reference", "2")
+    arrow(13.1, 2.5, 13.9, 2.5)
+    box(3.3, 3.9, 2.8, 1.5, "net of a piece of copper\n(mask of one net)", "3")
+    arrow(7.0, 4.65, 6.1, 4.65, "")
+    box(3.3, 1.7, 2.8, 1.6, "current and Joule heat:\nsources, sinks, links\n(pdn.py, joule.py)", "3", True)
+    arrow(4.7, 3.9, 4.7, 3.3)
+    box(6.6, 1.7, 2.8, 1.6, "heat per cell\n(sums to I^2 R)\nadded as a source", "3")
+    arrow(6.1, 2.5, 6.6, 2.5)
+    arrow(9.4, 2.5, 10.1, 2.5, "heat source")
+    ax.text(0.2, 0.9, "blue: phase 1, research/gerber-import (no program needed)     orange: phase 2, research/gerber-models     green: phase 3, research/gerber-nets (prototype)", fontsize=9)
+    ax.text(0.2, 0.4, "thick boxes: the key steps. The mask is the common currency of the research: the mapping to the cells and the nets are two uses of it.", fontsize=8, style="italic")
+    ax.set_title("From the Gerber file to the temperature: the whole chain and where each step lives", fontsize=11)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_10_pipeline.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -370,6 +540,8 @@ def main():
     fig_rect_board()
     fig_track_width_angle()
     fig_diagonal()
+    fig_diagonal_faces()
+    fig_pipeline()
     print("figures in", OUT)
 
 
