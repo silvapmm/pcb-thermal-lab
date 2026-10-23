@@ -112,6 +112,7 @@ class Aperture:
         @param macro List of macro primitives (already evaluated) for kind "M".
         """
         self.kind, self.p, self.macro = kind, params, macro or []
+        self.func = ""                 # X2 aperture function (TA.AperFunction): "ViaPad", "ComponentPad", "SMDPad,CuDef", "Conductor", ... ; empty when the file has none
         # Radius that contains the whole aperture around its origin (for the bounding box of a flash)
         if kind == "C":
             self.radius = params[0] / 2
@@ -468,6 +469,7 @@ class Layer:
         self.ops = []                  # (kind, dark, args): kind "flash", "stroke", "region"
         self.nets = []                 # net name (or None) of every operation, from the X2 object attribute TO.N (KiCad, Altium, ... write it); same length as ops
         self._net = None
+        self._aper_func = ""
         self._last_d = 1               # a coordinate block without a D code repeats the previous one
         self.negative = False
         self.attributes = {}           # X2 file attributes, for example {"FileFunction": ["Copper", "L1", "Top"]}
@@ -510,9 +512,11 @@ class Layer:
                             if name == "P" and len(vals) < 2:
                                 raise GerberError("polygon aperture needs a diameter and a number of vertices")
                             self.apertures[num] = Aperture(name, [v * unit if (name != "P" or k in (0, 3)) else v for k, v in enumerate(vals)])
+                            self.apertures[num].func = self._aper_func
                         elif name in macros:
                             args = [float(v) for v in re.split(r"[xX]", par)] if par else []
                             self.apertures[num] = Aperture("M", [], [q for q in (_macro_primitive(*pr) for pr in macros[name](args, unit)) if q])
+                            self.apertures[num].func = self._aper_func
                         else:
                             # Some CAD tools (Upverter) write their own shapes such as "Rect-W..-H..": reported as unsupported, not as a broken file
                             raise NotImplementedError(f"aperture shape {name} (non-standard) is not supported")
@@ -529,8 +533,13 @@ class Layer:
                     elif cmd.startswith("TO.N"):                                      # object attribute: the net of the objects that follow
                         names = [v.strip() for v in cmd[5:].split(",") if v.strip()]
                         self._net = names[0] if names else None
-                    elif cmd == "TD" or cmd.startswith("TD.N"):                      # delete the object attributes (all, or the net)
-                        self._net = None
+                    elif cmd.startswith("TA.AperFunction"):                          # aperture attribute: applies to the apertures defined after it
+                        self._aper_func = cmd[len("TA.AperFunction,"):].strip()
+                    elif cmd == "TD" or cmd.startswith("TD.N") or cmd.startswith("TD.AperFunction"):   # delete attributes (all, the net, or the aperture function)
+                        if cmd == "TD" or cmd.startswith("TD.N"):
+                            self._net = None
+                        if cmd == "TD" or cmd.startswith("TD.AperFunction"):
+                            self._aper_func = ""
                     elif cmd.startswith("TF."):                                      # X2 file attributes: FileFunction, FilePolarity, ...
                         key, _, val = cmd[3:].partition(",")
                         self.attributes[key] = [v.strip() for v in val.split(",")]
@@ -702,6 +711,17 @@ class Layer:
         self.ops.append(op)
         self.nets.append(self._net)
 
+    def flashes(self):
+        """!
+        @brief The dark flashes (pads) of the layer with their position, size, aperture function and net.
+        @return List of tuples (x mm, y mm, diameter mm (the circle that contains the pad), function string, net name or None).
+        """
+        out = []
+        for (kind, dark, a), net in zip(self.ops, self.nets):
+            if kind == "flash" and dark:
+                out.append((a[1], a[2], 2.0 * a[0].radius, a[0].func, net))
+        return out
+
     def net_names(self):
         """!
         @brief The nets named in the file (X2 object attribute TO.N), in order of appearance.
@@ -786,6 +806,28 @@ def render(path, x_left, y_top, width_mm, height_mm, pix_mm):
     return cv.mask
 
 
+def render_coverage(layer, x_left, y_top, width_mm, height_mm, pix_mm, supersample=4):
+    """!
+    @brief Copper coverage of every pixel (0 to 1) by drawing at a finer pixel and averaging blocks of supersample x supersample sub-pixels.
+    @details A binary mask loses or invents area on features thinner than about two pixels; the coverage keeps the area (a 0.05 mm track at a 0.1 mm pixel contributes half a pixel of copper).
+    @param layer Parsed Layer (or the text of a Gerber file).
+    @param x_left X of the left edge of the window (mm).
+    @param y_top Y of the top edge of the window (mm).
+    @param width_mm Window width (mm).
+    @param height_mm Window height (mm).
+    @param pix_mm Pixel size of the result (mm).
+    @param supersample Sub-pixels per side (the drawing pixel is pix_mm / supersample).
+    @return float array (rows, cols) with the copper fraction of each pixel.
+    """
+    if isinstance(layer, str):
+        layer = Layer(layer)
+    cv = Canvas(x_left, y_top, width_mm, height_mm, pix_mm / supersample)
+    layer.draw(cv)
+    ny, nx = cv.mask.shape[0] // supersample, cv.mask.shape[1] // supersample
+    m = cv.mask[:ny * supersample, :nx * supersample].reshape(ny, supersample, nx, supersample)
+    return m.mean(axis=(1, 3))
+
+
 def layer_bbox(path):
     """!
     @brief Bounding box of everything drawn in a Gerber file (the board outline layer gives the board box).
@@ -849,6 +891,21 @@ def classify(path):
 # Excellon
 # --------------------------------------------------------------------------------------------------------------------------------
 
+def drill_function(path):
+    """!
+    @brief The X2 file function of an Excellon file, written by KiCad (and others) in a comment: `; #@! TF.FileFunction,Plated,1,4,PTH`.
+    @param path Excellon file.
+    @return Tuple (plated True/False/None when the file does not say, first copper layer or None, last copper layer or None).
+    """
+    for line in Path(path).read_text(errors="replace").splitlines()[:40]:
+        m = re.match(r";\s*#@!\s*TF\.FileFunction,([^,*]+)(?:,(\d+),(\d+))?", line.strip())
+        if m:
+            kind = m.group(1)
+            plated = True if kind == "Plated" else False if kind == "NonPlated" else None
+            return plated, (int(m.group(2)) if m.group(2) else None), (int(m.group(3)) if m.group(3) else None)
+    return None, None, None
+
+
 def read_drill(path):
     """!
     @brief Read the drilled holes of an Excellon file (and the tool sizes that some CAD tools only write in comments).
@@ -858,6 +915,7 @@ def read_drill(path):
     @return List of tuples (x mm, y mm, diameter mm, plated bool or None when the file does not say).
     """
     text = Path(path).read_text(errors="replace")
+    file_plated = drill_function(path)[0]                                       # from the X2 comment, used for the holes whose tool says nothing
     unit, zeros, ndec, nint = None, "L", None, None
     sizes, plated = {}, {}
     holes = []
@@ -942,8 +1000,8 @@ def read_drill(path):
                 slot_start = (x, y)
             elif cur_g == "1":
                 if slot_start is not None:                                    # one hole at the middle of every straight segment of the route (a slot has one, a path several)
-                    holes.append(((slot_start[0] + x) / 2, (slot_start[1] + y) / 2, sizes.get(tool, 0.0), plated.get(tool)))
+                    holes.append(((slot_start[0] + x) / 2, (slot_start[1] + y) / 2, sizes.get(tool, 0.0), plated.get(tool) if plated.get(tool) is not None else file_plated))
                 slot_start = (x, y)                                           # the route continues from here (modal G01 coordinates)
             else:
-                holes.append((x, y, sizes.get(tool, 0.0), plated.get(tool)))
+                holes.append((x, y, sizes.get(tool, 0.0), plated.get(tool) if plated.get(tool) is not None else file_plated))
     return holes

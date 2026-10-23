@@ -15,42 +15,7 @@ import conduction as cd
 import native_gerber as ng
 import scenarios as sc
 
-HEAD = "%FSLAX36Y36*%\n%MOMM*%\n"
-
-
-def mm(v):
-    """!
-    @brief A length in mm as the integer string of a 3.6 coordinate format.
-    @param v Length (mm).
-    @return String.
-    """
-    return str(int(round(v * 1e6)))
-
-
-def random_board_text(seed=11, tracks=110, pads=70, size=36.0):
-    """!
-    @brief A Gerber text with random round tracks (0.15 to 0.5 mm, up to 14 mm long, any angle) and round pads (0.8 to 2 mm), plus a ground pour with a few clearance holes.
-    @param seed Random seed.
-    @param tracks Number of tracks.
-    @param pads Number of pads.
-    @param size Board side (mm).
-    @return Gerber text.
-    """
-    rng = np.random.default_rng(seed)
-    widths = (0.15, 0.2, 0.3, 0.5)
-    t = HEAD + "".join(f"%ADD{10 + i}C,{w}*%\n" for i, w in enumerate(widths)) + "".join(f"%ADD{20 + i}C,{d}*%\n" for i, d in enumerate((0.8, 1.2, 2.0)))
-    # A pour on the left third with holes cut by clear flashes, then tracks and pads on top
-    t += "G36*\n" + f"X{mm(0)}Y{mm(0)}D02*\nX{mm(12)}Y{mm(0)}D01*\nX{mm(12)}Y{mm(size)}D01*\nX{mm(0)}Y{mm(size)}D01*\nX{mm(0)}Y{mm(0)}D01*\nG37*\n"
-    t += "%LPC*%\n%ADD30C,1.0*%\nD30*\n" + "".join(f"X{mm(x)}Y{mm(y)}D03*\n" for x, y in rng.uniform(1, 11, (20, 2))) + "%LPD*%\n"
-    for _ in range(tracks):
-        x, y = rng.uniform(1, size - 1, 2)
-        a, ln = rng.uniform(0, 2 * math.pi), rng.uniform(2, 14)
-        x2, y2 = min(max(x + ln * math.cos(a), 0.5), size - 0.5), min(max(y + ln * math.sin(a), 0.5), size - 0.5)
-        t += f"D{10 + int(rng.integers(4))}*\nX{mm(x)}Y{mm(y)}D02*\nX{mm(x2)}Y{mm(y2)}D01*\n"
-    for _ in range(pads):
-        x, y = rng.uniform(1, size - 1, 2)
-        t += f"D{20 + int(rng.integers(3))}*\nX{mm(x)}Y{mm(y)}D03*\n"
-    return t + "M02*\n"
+from boards_synthetic import HEAD, mm, random_board_text                  # noqa: E402
 
 
 def draw(text, size, pix):

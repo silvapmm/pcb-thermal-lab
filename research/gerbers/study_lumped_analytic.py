@@ -7,7 +7,7 @@
          S = b + f (a - b), the conductance wanted for that cell. Four conductances per cell are compared (from the 0.1 mm mask of 42 windows): the arithmetic fraction (today), the geometric mean,
          the mean of the two directional conductances of the bounds mapping (lambda 0.5) and the mean of the four flow-based faces of the cell. The three models are run by the program itself (`simulate`);
          the reference is the 0.1 mm mask solved pixel by pixel. Error of the mean temperature rise of the 6 x 6 mm heater. Needs the repository's dependencies.
-         Run: python study_lumped_analytic.py (about 6 minutes).
+         Run: python study_lumped_analytic.py (about 15 minutes with the five models).
 """
 
 import sys
@@ -27,7 +27,7 @@ import windows                                                         # noqa: E
 WIN, PIX = windows.WIN, windows.PIX
 CELL = 1.0                                                             # mm: the Lumped and Analytic models of the application work on 0.5 to 1 mm rasters
 VARIANTS = ("arithmetic (today)", "geometric", "lam 0.5 mean", "dual faces mean")
-MODELS = ("fvm", "lumped", "analytic")
+MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
 
 
 def make_problem():
