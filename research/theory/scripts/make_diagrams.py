@@ -1,9 +1,9 @@
 """!
 @file make_diagrams.py
-@brief Pictures for the theory of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/roadmap.md`): what each equation or method does, drawn.
+@brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/roadmap.md`): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/roadmap.md` and `docs/research.md`. Curves that are only
          illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_16.
-         Run: .venv/bin/python research/theory-diagrams/scripts/make_diagrams.py (from the repository root).
+         Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
 
 import sys

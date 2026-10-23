@@ -1,0 +1,40 @@
+# 13. Planned: heatsink scenarios (air speed, temperature rise, fin spacing)
+
+![Heatsink scenarios](../figures/fig_13_heatsink_scaling_planned.png)
+
+*Figure 13 (`figures/fig_13_heatsink_scaling_planned.png`): left, the forced-convection factors on a catalogue `theta_SA` (1, 0.31, 0.18, 0.10 at 0, 1, 2.5 and 5 m/s; an estimate: about 15 % for a large heatsink, up to 50 % for a small one); middle, natural convection, `theta_SA` falling as `dT^(-0.25)` from a reference rise (illustrative); right, a fin array seen from the side: the channel between fins and the spacing that chokes or wastes the flow.*
+
+Where it fits in the section of a part: `research/component-heatsink/figures/fig_03_heatsink_convection_scenarios.png` and `fig_05_part_and_top_path_schematic.png`.
+
+**Status: planned, partly researched** (`docs/roadmap.md` "Heatsink air flow", `docs/research.md` R3 and R6). Implemented today: a typed `theta_SA` or a typical heatsink from an eleven-entry library with its test conditions; metal block with plate fins and a uniform coefficient.
+
+## 1. The problem
+
+A catalogue `theta_SA` is given for a flow condition (natural convection at a stated rise, or a fan). On a board it changes with the temperature rise, the air speed and the fin geometry. One number cannot cover the scenarios.
+
+## 2. Ideas, each with the formula to be tested
+
+* **Other air speed (estimated)**: `theta_SA(v) = theta_SA(natural) f(v)` with `f` from the volumetric guide (1, 0.31, 0.18, 0.10 at 0, 1, 2.5, 5 m/s), always marked as an estimate. Default: linked to the board air speed, with an override for a heatsink that has its own fan.
+* **Natural convection with the rise**: `theta_SA proportional to dT^(-0.25)` from a reference rise (the same exponent as the natural-convection correlation of topic 08).
+* **From the geometry** (fin height, thickness, pitch, metal): the channel effect between fins, the Elenbaas / Bar-Cohen and Rohsenow composite correlation, compared with the catalogue `theta_SA`. The constants of the composite correlation could not be read in the sources found, so none is used yet; the fins of topic 11 assume a uniform coefficient and are validated only for that.
+* **Heatsinks with a fan** (catalogue assemblies, for example 40 mm sets of about 1.1 K/W) as library entries; pin fins; orientation.
+
+## 3. What the picture is for
+
+To place the three effects on one heatsink: the air speed shifts the whole curve, the rise tilts it, the spacing sets the channel. It also shows what is **not** modelled today (the choking of a closed fin array).
+
+## 4. Proposed acceptance tests
+
+Catalogue values of `theta_SA` against the geometry model within the scatter of the catalogue; the factors against the volumetric guide; the non-linearity checked by the Picard loop of topic 08.
+
+## 5. Related topics
+
+08 (`h` and its temperature dependence), 09 (the top path), 11 (fins and block).
+
+## 6. Sources
+
+* Factors 1, 0.31, 0.18, 0.10 and the spread of the estimate: [VolumetricGuide] (as recorded in `docs/research.md` R3). Catalogue values and test conditions: [HeatsinkCatalogues].
+* Channel effect: Elenbaas (1942), Bar-Cohen and Rohsenow (1984): [ElenbaasBCR] (not read; constants not used).
+* Natural-convection scaling: [IncroperaDeWitt] (the `Ra^(1/4)` law).
+
+*What was read and what was not verified:* the factors are quoted from the project documents; the natural-convection curve of the figure is illustrative; nothing of this is validated against a datasheet.
