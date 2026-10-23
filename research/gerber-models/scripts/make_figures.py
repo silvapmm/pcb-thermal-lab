@@ -311,6 +311,51 @@ def fig_track_width_angle():
     plt.close(fig)
 
 
+def fig_diagonal():
+    """!
+    @brief The nine-point experiment (needs out/diagonal.json from study_diagonal.py): the share of a track's cooling reproduced at 30 and 45 degrees by the five-point mappings and by the diagonal variants, and the error of every method on the 42 real windows.
+    @return None.
+    """
+    import json
+    import study_track_width_angle as st
+    path = CACHE / "diagonal.json"
+    if not path.exists():
+        print("figure 08 skipped: run study_diagonal.py first")
+        return
+    d = json.loads(path.read_text())
+    a, b = d["a"], d["b"]
+    W = st.WIDTHS
+    names = ["fill fraction (today)", "flow-based faces", "tensor, nine-point", "flow + diagonal 0.25", "flow + diagonal 0.5", "flow + diagonal"]
+    labels = ["fill fraction (today)", "flow-based faces", "tensor, nine-point", "flow + diagonal, 0.25", "flow + diagonal, 0.5", "flow + diagonal, 1.0"]
+    fig, axs = plt.subplots(1, 3, figsize=(17, 5.2), gridspec_kw={"width_ratios": [1, 1, 1.1]})
+    for ax, th in ((axs[0], 30), (axs[1], 45)):
+        for m, lab in zip(names, labels):
+            ax.plot(W, [a[f"{w}/{th}"][m]["9"] for w in W], marker="o", label=lab)
+        ax.axhline(100, color="k", linewidth=0.6)
+        ax.set_xscale("log")
+        ax.set_ylim(0, 135)
+        ax.set_xlabel("track width (mm)")
+        ax.set_ylabel("share of the track's cooling reproduced (%)")
+        ax.set_title(f"track at {th} degrees (nine-point reference)", fontsize=9)
+    axs[0].legend(fontsize=7)
+    use = ["fill fraction (today)", "lambda 0.5", "flow-based faces", "cell problem", "tensor, nine-point", "flow + diagonal 0.25", "flow + diagonal 0.5", "flow + diagonal"]
+    x = np.arange(len(use))
+    mae = [np.abs(np.array(b[m]["9"])).mean() for m in use]
+    bias = [np.array(b[m]["9"]).mean() for m in use]
+    axs[2].bar(x, mae, color="#1f77b4", label="mean absolute error")
+    axs[2].plot(x, bias, "o", color="#d62728", label="bias (negative = too cool)")
+    axs[2].axhline(0, color="k", linewidth=0.6)
+    axs[2].set_ylim(-6, 8)
+    axs[2].set_xticks(x)
+    axs[2].set_xticklabels(["fill (today)", "lambda 0.5", "flow", "cell problem", "tensor 9-pt", "flow+diag 0.25", "flow+diag 0.5", "flow+diag 1.0"], rotation=40, ha="right", fontsize=7)
+    axs[2].set_ylabel("error of the heater rise on 42 real windows (%)")
+    axs[2].set_title("42 real windows, 1 mm cells (the fill fraction, 21 %, is cut)", fontsize=9)
+    axs[2].legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_08_diagonal.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -324,6 +369,7 @@ def main():
     fig_models_our_board()
     fig_rect_board()
     fig_track_width_angle()
+    fig_diagonal()
     print("figures in", OUT)
 
 

@@ -49,6 +49,7 @@ Status: **open**, a research branch (`research/gerbers`, started 2026-10-22): **
 | 4.41 | `gerber-import` | The converter on every board, layer by layer |
 | 4.42 | `gerber-models` **(this folder)** | The thinnest track and the angle |
 | 4.43 | `gerber-models` **(this folder)** | Every mapping on every board, in one table |
+| 4.44 | `gerber-models` **(this folder)** | Diagonal couplings: the nine-point experiment |
 
 ## 1. The questions
 
@@ -76,6 +77,7 @@ The program's finite-volume model works on a grid of square cells and, today, kn
 | **Import end to end** | Gerber to the program's own FVM: heater error -15.1 % today against -2.1 % (binary) and -5.3 % (coverage) with imported faces on the Stormduino, -5.0 % against +4.0 % and +2.1 % on our board; another reader changes it by 0.01 to 0.04 % (4.31). |
 | **Five models** | On rectangles the FVM and FDM converge to the same value; the Lumped is 16 % and the Analytic 26 % below the FVM; the 3D solid (two layers) is 7 to 9 % above (4.35, 4.37). |
 | **Mapping as an option** | Mean absolute error on eleven boards: fill 6.2 %, **lambda 0.5 1.3 %, cell problem 1.4 %, flow-based faces 1.5 %** (4.38, 4.43). |
+| **Diagonal couplings** | A hybrid (the flow-based faces plus the diagonal conduction they miss, damped by 0.5) raises the share of a 45-degree track's cooling reproduced from 37 to 84 % to 64 to 94 % and keeps the 42 real windows at 1.77 % (flow-based faces 1.85 %); undamped it fixes the diagonal (88 to 120 %) but is 3.1 % on the windows with a -2.8 % bias (4.44). |
 | **Thin tracks and angles** | The mask recognises a track if the pixel is at most half its width; a 0.05 mm track already cools a 6 mm heater by 3 %; at 0 degrees the cells reproduce 96 to 98 % of a track's effect, at 45 degrees only 38 to 53 % (flow-based faces) against 63 to 106 % (fill fraction): isolated diagonal copper on a coarse grid is the largest known residual error (4.42). |
 | **Two corrections to the program** | Zones combined per sample point instead of per cell (copper in abutting zones no longer lost: -7.8 % FVM, -17.5 % FDM on strips; the additive rule is wrong); laminate under a single copper layer in the 3D solid (346 K to 174 K); the example boards do not move (4.39). |
 
@@ -88,10 +90,11 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `REPORT.md` | **The guide**: the problem, the methods compared, the boards, the results on 11 boards and 42 windows, the differences from the known methods, thin tracks and angles, what to do next. |
 | `README.md`, `CONCLUSIONS.md`, `INTEGRATION.md`, `LOG.md` | The full record in numbered sections (grouped 4.A to 4.F), the conclusions, how the mapping would enter the program (and the two corrections), the dated log. |
 | `docs/` | `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the three articles, what was read and how). |
-| `figures/` | `fig_01` to `fig_07`: 01 copper mapping to cells (a window of the Stormduino, MIT), 02 our IC board thermal maps, 03 the import end to end, 04 its set-up (heater, holes, cells), 05 our board in the five models, 06 the rectangle board in the five models, 07 the thinnest track and the angle. |
-| `tests/` | 30 tests (about 1 minute): the solvers and mappings (`test_conduction.py`, `test_claims.py`), the board as a thermal bench (`test_our_board_models.py`), the import to the program (`test_importer.py`), the program's union rule (`test_program_union.py`), the rectangle board in the models (`test_rect_board.py`), the thinnest track and the angle (`test_track_width_angle.py`). Most need the program's dependencies. |
+| `figures/` | `fig_01` to `fig_08`: 01 copper mapping to cells (a window of the Stormduino, MIT), 02 our IC board thermal maps, 03 the import end to end, 04 its set-up (heater, holes, cells), 05 our board in the five models, 06 the rectangle board in the five models, 07 the thinnest track and the angle, 08 the nine-point experiment. |
+| `tests/` | 33 tests (about 1.5 minutes): the solvers and mappings (`test_conduction.py`, `test_claims.py`), the board as a thermal bench (`test_our_board_models.py`), the import to the program (`test_importer.py`), the program's union rule (`test_program_union.py`), the rectangle board in the models (`test_rect_board.py`), the thinnest track and the angle (`test_track_width_angle.py`), the nine-point prototype (`test_diagonal.py`). Most need the program's dependencies. |
 | `lib/conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
 | `lib/scenarios.py` | Boundary-limited scenarios (posts, held border) and the comparison of the mappings against a resolved reference. |
+| `lib/diagonal.py` | **The nine-point experiment**: a network with diagonal faces, the nine-point fine reference, a cell tensor from local problems, and the hybrid faces (4.44). |
 | `lib/faces.py` | **From the masks to the program**: the program's `Problem` for the imported board, the face conductances of every layer (`METHODS`), `FaceNetwork` (the program's FVM with those faces), `solve_today`, `solve_fine`. |
 | `scripts/study_raster_error.py`, `study_mapping.py`, `study_scalar_formulas.py`, `study_fine_scan.py`, `study_contrast.py`, `study_heater_size.py`, `study_transient.py` | Raster error and thin traces, the mappings on the 42 windows and their parameters (4.2 to 4.9). |
 | `scripts/study_patterns.py`, `study_patterns_two_layer.py`, `study_two_layer.py`, `study_multilayer_real.py` | Regular patterns, two layers with plated holes, a real four-layer board (4.11 to 4.13). |
@@ -100,14 +103,15 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_sampson_boundary.py`, `study_post_board.py`, `study_coverage.py`, `study_coverage_real.py` | The regime of Sampson's article and its board analogue (4.25, 4.28); coverage masks (4.26). |
 | `scripts/study_import_end_to_end.py`, `study_import_readers.py`, `study_mapping_options.py` | The import on the Stormduino and our board; the same with another reader; every mapping as an option (4.31, 4.38). |
 | `scripts/study_models_our_board.py`, `study_models_rect_board.py`, `study_rect_convergence.py` | Our board and the rectangle board in the five models, and their convergence (4.34, 4.35, 4.37). |
+| `scripts/study_diagonal.py` | The nine-point experiment on the tracks and on the 42 windows (4.44; about 15 minutes). |
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
-| `scripts/make_figures.py` | Draws the seven figures into `figures/`. |
+| `scripts/make_figures.py` | Draws the eight figures into `figures/`. |
 
 ## 4. How to run, and the results
 
 ```sh
-cd research/gerber-models && PYTHONPATH= ../../.venv/bin/python -m pytest -q tests          # 30 tests, about 1 minute
+cd research/gerber-models && PYTHONPATH= ../../.venv/bin/python -m pytest -q tests          # 33 tests, about 1.5 minutes
 .venv/bin/python research/gerber-models/scripts/study_mapping.py                              # 2 min (4 cores); builds the windows on first use
 # the others, from the repository root in the same way: study_raster_error (3 min), study_fine_scan (2), study_scalar_formulas (1), study_contrast (7), study_heater_size (2), study_transient (1),
 # study_patterns (1), study_patterns_two_layer (3), study_two_layer (2), study_multilayer_real (5), prototype_in_program (3), study_import_end_to_end (10), study_mapping_options (5)
@@ -242,6 +246,52 @@ So **a track of any width is recognised if the pixel is at most half its width**
 * **Consequence**: the mappings of this research are right for axis-aligned and mostly-connected copper (real boards, 4.4 to 4.13, are mostly Manhattan) and weak on **isolated diagonal tracks on a coarse grid**. This does not contradict the board results (a diagonal track amid planes and pads is supported by the rest), but it is the largest known residual error.
 
 **4. What would be needed to go on** (also in `CONCLUSIONS.md`): diagonal couplings in the network (a nine-point stencil, or a conductance tensor with a cross term per cell) with the mapping that goes with it; a test on boards with many diagonal tracks; the same study with 0.5 and 0.25 mm cells; a track on the board edge or near a part. Limits of this study: one track, one heater of 6 mm, laminate FR-4 and 35 µm copper, 1 mm cells; widths down to 0.05 mm only.
+
+### 4.44 Diagonal couplings: the nine-point experiment (`diagonal.py`, `study_diagonal.py`, `tests/test_diagonal.py`, figure 8)
+
+**Why.** 4.42 found that isolated diagonal copper is the largest known residual error: the network couples a cell to its four neighbours only, so heat that follows a track at 30 or 45 degrees goes in a staircase of x and y faces, and the flow-based faces reproduce only 38 to 53 % of a 45-degree track's cooling. The experiment adds **faces to the four diagonal neighbours** and simulates the result.
+
+**What was built** (`lib/diagonal.py`, research code; the program's network is not changed):
+* `solve9`: the sheet network with axial and diagonal faces (the same conduction, losses and held cells as the five-point solver; with zero diagonals it is the five-point solver to 1e-9, a test).
+* `pixel_reference9`: the fine reference with the isotropic nine-point stencil (axial 2/3, diagonal 1/6), closer to the continuum than the five-point one on thin tilted copper (4.23). **The two references agree**: the effect of a track on the heater differs by at most 0.4 points (for example 0.3 mm at 45 degrees: -12.0 % with five points, -12.1 % with nine), so the diagonal result below is not an artefact of the reference.
+* `cell_tensor`: a conductance tensor (kxx, kyy, kxy) per cell from two local problems with an affine boundary condition (the potential on the whole boundary is x, then y), normalised so a uniform cell gives (S, S, 0). A first version with four directional solves gave a spurious cross term for an axis-aligned track that lies off the cell centre (it lost 25 % of the conduction at 0 degrees) and was replaced; the test checks that a horizontal strip has no cross term wherever it lies.
+* Two ways to use the tensor: the **pure tensor** with the standard nine-point stencil (axial `kxx - |kxy|`, one diagonal pair of `|kxy|`), and the **hybrid**: the flow-based axial faces unchanged plus the diagonal conduction they miss (the conductance along each diagonal, `(kxx + kyy)/2 +- kxy`, minus what the axial faces already deliver), multiplied by a share `alpha` (1, 0.5, 0.25).
+
+**Results** (coverage mask at 0.1 mm, 1 mm cells, share of a track's cooling reproduced against the nine-point reference):
+
+| Method | 30 degrees, widths 0.05 / 0.075 / 0.1 / 0.15 / 0.2 / 0.3 / 0.5 / 1 mm | 45 degrees, same widths |
+| :-- | :-- | :-- |
+| fill fraction (today) |  105   97   92   86   82   77   76   84 |   98   90   66   71   62   62   68   82 |
+| flow-based faces |   61   57   57   58   59   62   69   85 |   50   51   37   40   38   38   48   84 |
+| tensor, nine-point (cell tensor only) |   72   69   70   72   74   76   77   76 |   84   93   68   89   80   82   76   74 |
+| flow + diagonal, 0.25 |   66   62   62   64   66   69   75   87 |   65   69   51   59   55   57   64   89 |
+| flow + diagonal, 0.5 |   70   67   68   70   72   76   80   90 |   80   86   64   78   72   74   79   94 |
+| flow + diagonal, 1.0 |   80   77   78   82   84   87   90   95 |  110  120   88  112  102  104  104  102 |
+
+![Figure 8: the nine-point experiment: tracks at 30 and 45 degrees and the 42 real windows](figures/fig_08_diagonal.png)
+
+*Figure 8 (`figures/fig_08_diagonal.png`): left and middle, the share of a track's cooling reproduced at 30 and 45 degrees; right, the error of every method on the 42 real windows (1 mm cells, nine-point reference).*
+
+The same 42 real windows (the heater at 12 to 18 mm, 1 mm cells, error of the mean heater rise against the nine-point reference):
+
+| Method | mean absolute error | bias | worst window |
+| :-- | --: | --: | --: |
+| fill fraction (today) | 20.99 % | -20.97 % | 35.1 % |
+| lambda 0.5 | 2.24 % | +1.69 % | 9.6 % |
+| flow-based faces | 1.85 % | +1.33 % | 5.9 % |
+| cell problem | 3.43 % | +3.36 % | 10.8 % |
+| tensor, nine-point | 5.31 % | -5.03 % | 13.2 % |
+| flow + diagonal, 0.25 | 1.54 % | +0.18 % | 4.4 % |
+| flow + diagonal, 0.5 | 1.77 % | -0.88 % | 5.6 % |
+| flow + diagonal, 1.0 | 3.13 % | -2.79 % | 7.7 % |
+
+* **The diagonal conduction is real and recoverable**: at 45 degrees the flow-based faces reproduce 37 to 84 % of a track's cooling and the hybrid 88 to 120 % (alpha 1) or 64 to 94 % (alpha 0.5); at 30 degrees 57 to 85 % against 77 to 95 % (alpha 1); at 0 degrees nothing changes (98 to 110 %, the hybrid adds no diagonal faces to an axis-aligned conductor).
+* **The price is on real boards**: with all the missing conduction added (alpha 1) the 42 windows get 3.1 % mean error and a bias of -2.8 % (too cool), against 1.85 % and +1.3 % for the flow-based faces: complex cells get conduction that is not there (planes, L-shapes), so the correction over-adds.
+* **A share of 0.5 is the compromise**: 1.77 % on the windows (the flow-based faces: 1.85 %, so no worse), bias -0.9 %, and half the diagonal error (45 degrees: mean deviation from 100 % of 23 points against 52). A share of 0.25 is the best on the windows (1.54 %, bias +0.2 %) and halves less of the diagonal error (37 points).
+* **The pure tensor is not good enough**: it reproduces 68 to 93 % at 45 degrees but 73 to 100 % at 0 degrees (where the cell problem alone gives 99 to 111 %) and has 5.3 % error and -5.0 % bias on the windows: the affine boundary condition smears conductors that lie near the edge of the cell.
+* **So the answer to "does adding diagonal faces fix it" is: yes for a lone diagonal, but only a damped, hybrid form is safe on real boards**, and the damping is a fudge factor chosen on the windows (nothing here says 0.5 is right for other boards). The next step is a detector: add the diagonal conduction only to cells where it is a single dominant diagonal conductor (a strong anisotropy of the cell tensor along a diagonal), not where the copper is a plane or a corner.
+
+Limits: research solver and boards only (the program's `fvm.py` has no diagonal faces; adding them is a change of the matrix assembly, `INTEGRATION.md` section 9); one heater size and one cell size (1 mm); the held-border scenario of the studies; alpha chosen on the same windows it is tested on (no held-out set).
 
 ### 4.7 Copper thickness (`study_contrast.py`)
 

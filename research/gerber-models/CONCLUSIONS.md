@@ -1,6 +1,6 @@
 # Conclusions, phase 2: the copper in the simulation models
 
-Written 2026-10-23 on branch `research/gerbers` (phase 2 of three of the Gerber research, split from one study on 2026-10-23: `research/gerber-import`, `research/gerber-models`, `research/gerber-nets`; the section numbers 4.1 to 4.40 are those of the original study, see the table in `README.md`). Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`scripts/`) and, where it is a claim that can break, a test (`tests/`, 30 tests in about 1 minute; `cd research/gerber-models && python -m pytest -q tests`; they need the program's dependencies). Nothing in `pcbthermal/` was changed.
+Written 2026-10-23 on branch `research/gerbers` (phase 2 of three of the Gerber research, split from one study on 2026-10-23: `research/gerber-import`, `research/gerber-models`, `research/gerber-nets`; the section numbers 4.1 to 4.40 are those of the original study, see the table in `README.md`). Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`scripts/`) and, where it is a claim that can break, a test (`tests/`, 33 tests in about 1.5 minutes; `cd research/gerber-models && python -m pytest -q tests`; they need the program's dependencies). Nothing in `pcbthermal/` was changed.
 
 ## 1. Where we stand
 
@@ -14,6 +14,7 @@ Written 2026-10-23 on branch `research/gerbers` (phase 2 of three of the Gerber 
 8. **The five models are not the same physics** (4.34, 4.35, 4.37): on rectangles the FVM and FDM converge to the same value, the Lumped is 16 % and the Analytic 26 % below, the 3D solid (two layers) 7 to 9 % above; the grid matters for drawn rectangles too (6 % on the FVM at 1 mm when the copper is between cells). The 3D solid had no laminate under a single copper layer (346 against 174 K): the earlier "unusable" was this.
 9. **Mappings as an option** (4.38, 4.43): on eleven boards lambda 0.5, the cell problem and the flow-based faces (mean error 1.3, 1.4, 1.5 %) beat the fill fraction (6.2 %); the three are equivalent; design `SolverOptions.copper_mapping` with `fill` as the default.
 10. **Thin tracks and angles** (4.42): the mask recognises a track if the pixel is at most half its width (a coverage mask keeps the area of any); a track of 0.05 mm already cools a 6 mm heater by 3 %; the 1 mm cells reproduce 96 to 98 % of an axis-aligned track's effect but only 38 to 53 % (flow-based faces) of a 45-degree one (the fill fraction 63 to 106 %): **isolated diagonal copper on a coarse grid is the largest known residual error**, a property of the four-neighbour network.
+11. **Diagonal couplings, simulated** (4.44): faces to the four diagonal neighbours (a hybrid: the flow-based axial faces plus the diagonal conduction they miss) raise the share of a 45-degree track's cooling reproduced from 37 to 84 % to 88 to 120 % (64 to 94 % damped by 0.5) with no change at 0 degrees; on the 42 real windows the undamped version over-adds (3.1 % error, -2.8 % bias) and the version damped by 0.5 keeps the flow-based faces' accuracy (1.77 % against 1.85 %). The damping is a fudge factor chosen on the same windows; a detector of single dominant diagonal conductors is the next step.
 
 ## 2. How this differs from the three Electronics Cooling articles
 
@@ -67,6 +68,7 @@ Other validated results:
 | Rectangle board: convergence | FVM and FDM to the same value (1 %); 1 mm FVM +1.3 % (edges on cells) and -6.4 % (off); Lumped -16 %, Analytic -26 %, 3D +7 to +9 % of the FVM | 4.35, 4.37 | `study_rect_convergence.py`, `tests/test_rect_board.py` |
 | Our board in the five models, mappings as cell values | FVM +8 to +13 %, FDM +9 to +13 %, Lumped +35 % | 4.34 | `study_models_our_board.py` |
 | Every mapping as an option, eleven boards, mean absolute error | fill 6.2 %, lambda 1.3 %, cell problem 1.4 %, flow 1.5 % | 4.38, 4.43 | `study_mapping_options.py`, `study_boards_matrix.py` |
+| Diagonal couplings: share of a 45-degree track's cooling (flow-based faces / hybrid alpha 0.5 / alpha 1), and the 42 windows | 37 to 84 % / 64 to 94 % / 88 to 120 %; windows 1.85 % / 1.77 % / 3.13 % | 4.44 | `study_diagonal.py`, `tests/test_diagonal.py` |
 | One track across the heater: share of its cooling reproduced by the 1 mm cells | 96 to 98 % at 0 degrees; 38 to 53 % (flow), 63 to 106 % (fill) at 45 degrees | 4.42 | `study_track_width_angle.py`, `tests/test_track_width_angle.py` |
 | Corrections to the program | strips -7.8 % FVM, -17.5 % FDM, -10 % 3D; overlap exact; example boards 0; single layer 3D 346 to 174 K | 4.39 | `study_fix_impact.py` |
 
@@ -88,7 +90,7 @@ Other validated results:
 2. **Independently of the import, correct the combination of zones** by the maximum per sample point (`geometry.zone_fill`; 4.39) and the laminate of the 3D solid under a single copper layer, in a `fix/<topic>` branch off `develop` with the whole battery.
 3. **Honest labelling in the documents of the program**: the method is Sampson's; the mappings are compared in this research; there is no measurement yet.
 4. **Two validation scenarios still to add**: Sampson's own board (needs its bitmaps; the analogue is in 4.28) and Guenin's local vertical overlap against the 3D solid (`docs/literature.md`, section 6). A measurement on one real board would turn the whole study from "agrees with the resolved model" into "agrees with the world".
-5. **To continue with the copper mapping** (REPORT.md section 8): diagonal couplings in the network and the mapping that goes with them (the residual error of 4.42); one measurement of a real board; the mapping studies with a finer pixel and a nine-point reference; more boards (power, heavy copper, metal core, many diagonals).
+5. **To continue with the copper mapping** (REPORT.md section 8): a detector of cells with a single dominant diagonal conductor for the diagonal faces (4.44), and the nine-point faces in the program's network; one measurement of a real board; the mapping studies with a finer pixel and a nine-point reference; more boards (power, heavy copper, metal core, many diagonals).
 6. **Open decisions** (the maintainer's): which stage enters the program; which mapping is the default of an import; the zone `pattern` for hatched zones.
 
 ## 6. How to reproduce

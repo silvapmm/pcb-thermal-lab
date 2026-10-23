@@ -89,6 +89,14 @@ Where the articles are ahead: Blackmore validates against a physical measurement
 * **Does it matter thermally?** Yes: one 0.05 mm track across a 6 mm heater cools it by 3 %, a 0.1 mm track by 5.8 %, 0.3 mm by 15 %, 1 mm by 35 %.
 * **Does it handle angles?** The reading does (any angle, area within 0.5 % except lattice ties at 45 degrees). The 1 mm cells do **not** on an isolated diagonal: at 0 degrees every mapping except the geometric one reproduces 96 to 98 % of the track's effect; at 45 degrees the flow-based faces reproduce 38 to 53 %, lambda 0.5 40 to 72 %, the fill fraction 63 to 106 %. The cause is the grid (x and y faces only, diagonal heat flows in a staircase), not the copper reading.
 
+### 6.1 Diagonal couplings, simulated (section 4.44, figure 8)
+
+![Figure 8: the nine-point experiment](figures/fig_08_diagonal.png)
+
+*Figure 8 (`figures/fig_08_diagonal.png`): see section 4.44.*
+
+Faces to the four diagonal neighbours were added to the research network (`lib/diagonal.py`) and the track and window studies repeated, with a nine-point fine reference that agrees with the five-point one to 0.4 points. **A hybrid (the flow-based faces plus the diagonal conduction they miss) fixes the lone diagonal**: at 45 degrees the share of the track's cooling reproduced goes from 37 to 84 % to 88 to 120 % (all of the missing conduction) or 64 to 94 % (half of it), and nothing changes at 0 degrees. **On the 42 real windows all of it over-adds** (3.1 % error, -2.8 % bias against 1.85 % and +1.3 %), half of it keeps the windows at 1.77 % (no worse than the flow-based faces) and a quarter at 1.54 %. A pure tensor stencil is worse (5.3 %). So a damped hybrid is safe and halves the diagonal error; the damping is a fudge factor, and the next step is to add the diagonal conduction only where a cell holds a single dominant diagonal conductor.
+
 ## 7. The five models and the program
 
 * On rectangles the **FVM and FDM converge to the same value**; the **Lumped is 16 % and the Analytic 26 % below**, the **3D solid** (two layers) 7 to 9 % above (4.35, 4.37). The cell mappings change the Lumped and Analytic by 0 to 12 %, less than the choice of model.
@@ -97,7 +105,7 @@ Where the articles are ahead: Blackmore validates against a physical measurement
 
 ## 8. What to do to keep discussing and improving the copper mapping
 
-1. **Diagonal copper** (the largest known residual error): add diagonal couplings to the network (a nine-point stencil, or a conductance tensor with a cross term per cell) and the mapping that goes with it; repeat `study_track_width_angle.py` and `study_boards_matrix.py` on boards with many diagonal tracks.
+1. **Diagonal copper**: done as an experiment (6.1): the hybrid with a share of 0.5 halves the error on a lone diagonal and keeps real windows as they are; to do: a detector of cells with a single dominant diagonal conductor instead of a global share, a held-out set of boards with many diagonal tracks, and the nine-point faces in the program's `fvm.py` (`INTEGRATION.md` section 9).
 2. **A measurement**: one real board with a heater and a thermocouple or an infrared image is the only thing that turns "agrees with the resolved model" into "agrees with the world".
 3. **Finer reference and pixel**: repeat the mapping studies with a 0.05 mm pixel and the nine-point stencil for the reference; repeat the track study with 0.5 and 0.25 mm cells.
 4. **More boards**: power boards, heavy copper (up to 140 µm: the fill error grows to 18 %), metal-core, boards with many diagonal tracks.
@@ -110,7 +118,7 @@ Every number is against a resolved mask of the **same physics**, never a measure
 ## 10. How to reproduce
 
 ```
-cd research/gerber-models && python -m pytest -q tests                                   # 30 tests, about 1 minute
+cd research/gerber-models && python -m pytest -q tests                                   # 33 tests, about 1.5 minutes
 PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_boards_matrix.py        # section 4.1, about 15 minutes
 PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_track_width_angle.py    # section 6, about 5 minutes
 .venv/bin/python research/gerber-models/scripts/study_mapping.py                           # section 4.2, about 3 minutes

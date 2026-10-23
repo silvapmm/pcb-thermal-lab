@@ -49,6 +49,7 @@ Status: **open and early** (the electrical side is a prototype and a design, a g
 | 4.41 | `gerber-import` | The converter on every board, layer by layer |
 | 4.42 | `gerber-models` | The thinnest track and the angle |
 | 4.43 | `gerber-models` | Every mapping on every board, in one table |
+| 4.44 | `gerber-models` | Diagonal couplings: the nine-point experiment |
 
 ## 1. The questions
 

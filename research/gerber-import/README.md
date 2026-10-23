@@ -49,6 +49,7 @@ Status: **open**, a research branch (`research/gerbers`, started 2026-10-22): **
 | 4.41 | `gerber-import` **(this folder)** | The converter on every board, layer by layer |
 | 4.42 | `gerber-models` | The thinnest track and the angle |
 | 4.43 | `gerber-models` | Every mapping on every board, in one table |
+| 4.44 | `gerber-models` | Diagonal couplings: the nine-point experiment |
 
 ## 1. The questions
 

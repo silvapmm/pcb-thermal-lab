@@ -100,3 +100,10 @@ Only where the cell conductances are read, and only when imported copper exists.
 2. **Laminate under a single copper layer in `solid3d.py`**: one slab of the laminate below the copper when `layers == 1` (it was a bare 35 µm sheet). The peak of a single-layer pad board goes from 346 to 174 K (the same board with a second, empty layer: 174.5 K); nothing else moves.
 
 Both were applied to copies of the program outside the repository; adopting them is a normal change on a `fix/<topic>` branch with the documentation, tests and whole battery (rules in CLAUDE.md).
+
+## 9. Diagonal faces in the network (design, prototype `lib/diagonal.py`, README 4.44)
+
+* **What changes in the program**: `fvm.py` `_assemble` (and `fdm.py`, `solid3d.py` for the plan couplings) add, per cell, two diagonal couplings (`[i, j]` to `[i + 1, j + 1]` and `[i, j + 1]` to `[i + 1, j]`) with their own conductance arrays; a model without them is the present five-point network, so every existing board is unchanged (the prototype's `solve9` with zero diagonals equals the five-point solver to 1e-9).
+* **What the import gives**: the flow-based axial faces as in section 2, and the diagonal conductance of each cell from the cell tensor (`diagonal.hybrid_faces`), multiplied by a share (0.5 in the experiment). Zones drawn by the user have no diagonal faces.
+* **What the experiment says**: a lone diagonal track is reproduced at 64 to 94 % (45 degrees, share 0.5) instead of 37 to 84 %, the 42 real windows stay at 1.77 % (1.85 % without); with the whole missing conduction the windows get worse (3.1 %, -2.8 % bias). **Not ready for the program**: the share is a fudge factor and a detector of single dominant diagonal conductors is missing; the Lumped and the Analytic would not use the diagonal faces.
+
