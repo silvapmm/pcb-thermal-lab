@@ -143,4 +143,4 @@ representing each copper layer by one node and the dielectric between two layers
 
 ## 6. Sources
 
-Yovanovich, M. M., "Thermal resistances of circular source on finite circular cylinder with side and end cooling", J. Electronic Packaging 125 (2003) 169 to 177, Table 3 (as used by `solid3d_verification.py`); Roache, grid convergence index, ASME V&V 20 (method; the standard was not read, the formula is the common three-grid GCI with safety factor 1.25). Own computation for the rest.
+Yovanovich, J. Electronic Packaging 125 (2003) 169 to 177, Table 3 (as cited in the header of `solid3d_verification.py`; the title of the paper is not recorded here); Roache, grid convergence index, ASME V&V 20 (method; the standard was not read, the formula is the common three-grid GCI with safety factor 1.25). Own computation for the rest.
