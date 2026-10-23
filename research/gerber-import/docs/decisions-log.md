@@ -7,7 +7,7 @@ Ready to apply to `CLAUDE.md` when the maintainer adopts the work. Nothing here 
 * **Project Structure, `research/` block**: the Gerber research is three folders, `research/gerber-import/`, `research/gerber-models/` and `research/gerber-nets/` (see `research/INDEX.md`); the example paragraph that names `research/gerbers/` is replaced accordingly.
 * **Research branches, "Folder content and layout"**: the clause "except the Gerber research" can read "and are checked by `tests/test_docs.py`" (the Python of the three folders passes it).
 
-* **Research branches, "Folder content and layout"**: the clause "`LOG.md` (dated entries: ...)" can read "`LOG.md` (entries: ...)": the maintainer does not want dates in the research documents (the documents of the three Gerber folders carry none).
+* **Research branches, "Folder content and layout"**: the folder layout has no `LOG.md` and no `IMPLEMENTED.md` (they were a diary that git already keeps and a map of the program that `docs/versions.md` already holds): what was read in full, from a summary or from memory, and what was not verified, is the last section of the README; and the research documents carry no dates.
 
 * **Research branches, "Folder content and layout"**: add "every folder has schematic diagrams that explain how the thing works (`scripts/make_diagrams.py`, shapes in `research/diagram_kit.py`), linked from the README" (maintainer's rule: every research module has schemes and diagrams).
 

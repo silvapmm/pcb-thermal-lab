@@ -1,6 +1,6 @@
 # Gerber import, phase 3: nets with voltage and current (Joule heat, links, sources and sinks)
 
-Status: **open and early** (the electrical side is a prototype and a design, a good start but still green), a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 3 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and how, in [`LOG.md`](LOG.md); the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.40) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open and early** (the electrical side is a prototype and a design, a good start but still green), a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 3 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.40) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
 
 ### Where the sections are
 
@@ -75,7 +75,7 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-nets
 
 | Path | What it is |
 | :-- | :-- |
-| `README.md`, `CONCLUSIONS.md`, `INTEGRATION.md`, `LOG.md` | The results in numbered sections, the conclusions, the design for the electrical side, the log. |
+| `README.md`, `CONCLUSIONS.md`, `INTEGRATION.md` | The results in numbered sections, the conclusions, the design for the electrical side |
 | `docs/` | `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`. |
 | `figures/` | `fig_01` to `fig_05`: 01 tracks at angles on the pixel grid, 02 nets and Joule heat of a synthetic board (X2 attributes), 03 our IC board (nets and Joule heat of net S1), 04 the electrical prototype with a link, 05 the diagrams of the electrical network (pieces and link, equivalent circuit, pixel mesh, energy balance). |
 | `tests/` | 11 tests (1 s): the Joule solver (`test_joule.py`), the electrical prototype (`test_pdn.py`), a tilted track (`test_track_angle.py`), the arc net of our board (`test_our_board_nets.py`). |
@@ -198,3 +198,11 @@ How it could be made in the application (design; the details are in `INTEGRATION
 * Altium PDN Analyzer example guide (source voltage and internal resistance, a load as a current sink, shapes with a resistance that dropped a 5 V rail to 4.5 V), https://altium.com/documentation/altium-nexus/pdn-analyzer-example-guide-v2 (search excerpts).
 * Cadence, *The influence of the Joule heating effect on PCBs and ICs*, and the IR drop analysis pages, https://resources.pcb.cadence.com/ (search excerpts).
 * FYPA and padne (AGPL-3.0; ideas only, listed in `docs/roadmap.md` on `develop`).
+
+## What was read and what was not verified
+
+**Read in full**: the converted text of the three Electronics Cooling articles supplied by the maintainer (equations of article 1 reconstructed by the converter; tables and figures missing); the Ucamco format page supplied by the maintainer. **Read in part or from a summary**: the Gerber specification (not read; the host is blocked), the Electronics Cooling pages themselves (blocked), gerbonara, pygerber and pcb-tools through their behaviour on files, not their code. **From memory, checked by limits only**: the closed forms of Bruggeman and Hashin-Shtrikman and the duality of Keller and Dykhne.
+
+**Reproduced** (numbers in `README.md`): the ranking of the mappings, the reader against four other tools, the example of Sampson (40 and 0.65 W/m K) and the tile formulas of Blackmore. **Not reproduced**: Sampson's board (its bitmaps are figures; an analogue was built), Blackmore's validation (no measurement, no board). **Not verified**: any comparison with a physical measurement; the licences of the gerbonara test boards (statistics only, no picture of them is kept); the behaviour of the 3D solid at fine cells.
+
+* Split nets (4.36): two web searches, snippets only, nothing read in full; the Stormduino's split nets were not examined piece by piece. The electrical prototype (4.40) is reproduced here; the web part was two searches and four failed fetches (kicad-electrothermal-sim and padne returned 404, the Altium host could not be resolved), nothing read in full.

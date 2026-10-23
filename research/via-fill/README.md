@@ -1,6 +1,6 @@
 # What fills a via barrel, and how much it matters for heat
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Script: `study_via_fill.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Script: `study_via_fill.py`; figures: `make_figures.py`.
 
 ## 1. The question
 
@@ -31,8 +31,6 @@ A fabricator's "filled via" is not a copper-filled via. Does the fill of the bar
 | `scripts/make_figures.py` | Draws the three figures of this folder. |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
-| `IMPLEMENTED.md` | Where the result lives in the program and how it is tested. |
-| `LOG.md` | What was read and how, what was not verified. |
 
 ## 4. How to run, and the results
 
@@ -86,3 +84,8 @@ Fabricator pages, not the IPC standard, which was not read:
 1. JLCPCB, https://jlcpcb.com/blog/via-filling-guide (table of fill materials and IPC-4761 types V to VII).
 2. ALLPCB, https://www.allpcb.com/allelectrohub/how-to-choose-the-optimal-via-fill-material-for-pcb-design.
 3. Thermal via array article, https://www.atlaspcb.com/blog/thermal-via-pcb-heat-dissipation-array-design (192 °C/W per via; its 185 K/W for an epoxy-filled via is not a model of the fill).
+
+## What was read and what was not verified
+
+* Not verified: the quoted conductivities of the fills (fabricator pages only); nothing measured on a physical board.
+* Not implemented: the plated cap over a capped via, the solder resistance of a via-in-pad.

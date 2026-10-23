@@ -1,6 +1,6 @@
 # Research summary, phase 1: Gerber import, reading the files
 
-Ready to paste into the project `docs/research.md` as a section when the maintainer adopts the work. Everything is reproducible from `research/gerber-import/` (README sections, `CONCLUSIONS.md`, `LOG.md`); nothing in `pcbthermal/` was changed.
+Ready to paste into the project `docs/research.md` as a section when the maintainer adopts the work. Everything is reproducible from `research/gerber-import/` (README sections, `CONCLUSIONS.md`); nothing in `pcbthermal/` was changed.
 
 ## Open now: Gerber import, reading the files
 

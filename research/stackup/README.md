@@ -1,6 +1,6 @@
 # The stack-up: advanced mode, typical templates and fabricators' tables
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `stackup_outline_study.py` (sections 4.1 and 4.2) and `stackup_vendor_check.py` (section 4.3); figures: `make_figures.py`.
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `stackup_outline_study.py` (sections 4.1 and 4.2) and `stackup_vendor_check.py` (section 4.3); figures: `make_figures.py`.
 
 ## 1. The questions
 
@@ -34,7 +34,6 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `stackup
 | `scripts/make_figures.py` | Draws the three figures (runs both studies and reads the tables they print). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
-| `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
 
@@ -134,10 +133,16 @@ Without the vias under the part (base rise 93.4 K) the same ±30 % in the dielec
 ## 5. Limits of this study
 
 * One board (the example board with 9 vias under a part), FVM at 1 to 2 mm; the temperatures are for that board.
-* The fabricator tables are as published on their pages (read from search snippets and pages, see `LOG.md`); two of them do not add up to their stated thickness and are shown as published.
+* The fabricator tables are as published on their pages (read from search snippets and pages, see the last section); two of them do not add up to their stated thickness and are shown as published.
 * No blind or buried vias, sequential lamination, heavy copper or metal-core boards were checked against a fabricator table.
 * No measurement of a physical board.
 
 ## 6. Sources
 
 Fabricator pages read: JLCPCB (4 and 6 layers), PCBWay (76 four-layer tables and an older blog table), OSH Park (FR408HR), Bittele 7pcb, PCBGOGO, AdvancedPCB (one 4-layer sample); NextPCB gives only prepreg thicknesses in text. The pages are named in `docs/validation.md` section 14; their addresses were not recorded in this repository, so this list is as read, not a citation list.
+
+## What was read and what was not verified
+
+* Read in full or from search snippets: the fabricator layer tables were taken from the pages found; two tables (PCBWay's old 8-layer blog table, PCBGOGO's 6-layer table) do not add up to their stated thickness and are shown as published. The addresses were not saved.
+* Not verified: no measurement of a physical board.
+* Not implemented: blind and buried vias, sequential lamination, heavy-copper and metal-core fabricator tables.

@@ -1,6 +1,6 @@
 # The 3D solid and the layered models: verification against exact and independent references
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `solid3d_verification.py`, `fem3d_validation.py`, `copper_dissipation.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `solid3d_verification.py`, `fem3d_validation.py`, `copper_dissipation.py`; figures: `make_figures.py`.
 
 ## 1. The questions
 
@@ -35,7 +35,6 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `solid3d
 | `scripts/make_figures.py` | Draws the three figures (needs scikit-fem for the third; about 90 seconds). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
-| `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
 
@@ -155,3 +154,8 @@ representing each copper layer by one node and the dielectric between two layers
 ## 6. Sources
 
 Yovanovich, J. Electronic Packaging 125 (2003) 169 to 177, Table 3 (as cited in the header of `solid3d_verification.py`; the title of the paper is not recorded here); Roache, grid convergence index, ASME V&V 20 (method; the standard was not read, the formula is the common three-grid GCI with safety factor 1.25). Own computation for the rest.
+
+## What was read and what was not verified
+
+* Read: Yovanovich's Table 3 values were taken from the published table as recorded in the script (the paper itself was not re-read). Not verified: no measurement of a physical board.
+* Not implemented: a time simulation of the 3D solid (steady state only); the FEM solid inside the program (it stays an offline cross-check, scikit-fem is not a dependency).

@@ -2,7 +2,7 @@
 
 Studies that are not part of the program, one folder per investigation (the index is [`INDEX.md`](INDEX.md)). The rules are in `CLAUDE.md`, section "Research branches"; in short:
 
-* **Layout of a folder**: the root holds what is read (`README.md` with the numbered results, `INTEGRATION.md` or `IMPLEMENTED.md`, `LOG.md`); `figures/`, `docs/`, `tests/`; `scripts/` holds all the executable Python (run from the repository root, `study_<question>.py` and `make_figures.py`); `lib/` only when the studies share code.
+* **Layout of a folder**: the root holds what is read (`README.md` with the numbered results, ending with what was read and what was not verified; `INTEGRATION.md` with the design for entering the program, when the work is not in it yet); `figures/`, `docs/`, `tests/`; `scripts/` holds all the executable Python (run from the repository root, `study_<question>.py` and `make_figures.py`); `lib/` only when the studies share code.
 * **On a research branch** the project documents (`README.md`, `CHANGELOG.md`, `CLAUDE.md`, `docs/`) are not edited; the text that would go into them when the work is adopted is kept in `research/<topic>/docs/`.
 * **Data**: downloaded boards, caches and outputs go in `data/` and `out/`, git-ignored and never committed (a fetch script is kept instead); the licences of what is downloaded are respected.
 

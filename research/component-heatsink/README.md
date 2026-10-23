@@ -45,7 +45,7 @@ Status: **mostly implemented** (θ junction-pad, junction limit, power coefficie
 | `scripts/make_diagrams.py` | Draws the schematic diagram (figure 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figure 5 is the schematic diagram. |
 | `NOTES.md` | The running research notes of `docs/research.md` (what was read, what was simulated, open questions). |
-| `INTEGRATION.md`, `LOG.md` | What entered the program and what is open; what was read and how. |
+| `INTEGRATION.md` | What entered the program and what is open. |
 
 ## 4. How to run, and the results
 
@@ -299,3 +299,8 @@ Extra resistance of a 40 x 40 mm heatsink base (catalogue 12 K/W) for a small co
 ## 6. Sources
 
 See `NOTES.md` (the references of every section, from JEDEC-based application notes of TI, Renesas, Richtek, ROHM and Microchip to the heatsink catalogues) and `docs/models.md` for the typical-heatsink list. Where a source was only seen in a search summary, `NOTES.md` says so.
+
+## What was read and what was not verified
+
+* Read in full, from summaries, or from memory: see `NOTES.md` section by section. The factors for forced air come from a guide (Electronics Cooling, 1995) and were compared with a few catalogue values only. θJC(top) of the MOSFET and the Schottky are assumed. Not verified: no measurement of a physical part; the junction node was only prototyped.
+* An earlier draft said "1 to 3 K" for the junction offset; the table was re-read from the output and corrected to 2.5 to 10 K. All eight scripts reproduce the numbers of `NOTES.md` and `docs/validation.md` section 9.

@@ -1,6 +1,6 @@
 # The metal block and its fins: models and verification
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `fin_validation.py` and `block_equivalent_study.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `fin_validation.py` and `block_equivalent_study.py`; figures: `make_figures.py`.
 
 ## 1. The questions
 
@@ -32,7 +32,6 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `fin_val
 | `scripts/make_figures.py` | Draws the three figures (runs both studies and reads what they print). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
-| `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how, and a correction. |
 
 ## 4. How to run, and the results
 
@@ -109,3 +108,10 @@ The FVM, the FDM and the 3D solid agree within 1 % on a finned block (the same f
 ## 6. Sources
 
 Incropera and DeWitt (fin efficiency, straight fin with a corrected length); static condensation and Kron reduction of a network (references in section 4.2); Elenbaas (1942) and Bar-Cohen and Rohsenow (1984) for the channel effect, known from the searches and not read in full. See `docs/validation.md` sections 15 and 17 for the other addresses.
+
+## What was read and what was not verified
+
+* Not verified: no measured heatsink; the fin array channel effect; the Lee et al. formulas (not read).
+* While reproducing the study two corrections were made: the script still called flags that no longer exist (`block_nodes`, `block_tiles`) and the case count was 74, not 62 (4 geometries x 6 thickness/metal pairs x 3 interfaces + 2 finned); the documents were corrected.
+* The spreading-resistance literature of Lee, Song, Au and Moran (1995) could not be read and was not used.
+* Not implemented: the channel effect between fins; a time simulation with a block in Lumped and Analytic.

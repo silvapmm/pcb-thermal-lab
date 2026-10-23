@@ -1,6 +1,6 @@
 # Index of the investigations (by area of the program)
 
-This file is the index; `research/README.md` holds the layout rules, the rules for figures and the licence notes of the pictures. One folder per investigation, named after the question, with the same layout everywhere: the root holds what is read (`README.md` with the numbered results, `INTEGRATION.md` or `IMPLEMENTED.md`, `LOG.md`), plus `figures/`, `docs/`, `tests/`, `scripts/` (all the executable Python) and `lib/` (shared code, only when needed).
+This file is the index; `research/README.md` holds the layout rules, the rules for figures and the licence notes of the pictures. One folder per investigation, named after the question, with the same layout everywhere: the root holds what is read (`README.md` with the numbered results, ending with what was read and what was not verified; `INTEGRATION.md` when the work is not in the program yet), plus `figures/`, `docs/`, `tests/`, `scripts/` (all the executable Python) and `lib/` (shared code, only when needed).
 
 | Area | Folder | Status | Question |
 | :-- | :-- | :-- | :-- |

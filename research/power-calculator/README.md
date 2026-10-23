@@ -1,6 +1,6 @@
 # The power calculator: the watts of a part from a measured temperature
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). The manual of the calculator (formulas, routes, the band) stays in `docs/calculators.md`; this folder holds the studies behind it. Studies: `calculator_validation.py`, `power_from_top_study.py`, `calculator_calibration_study.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). The manual of the calculator (formulas, routes, the band) stays in `docs/calculators.md`; this folder holds the studies behind it. Studies: `calculator_validation.py`, `power_from_top_study.py`, `calculator_calibration_study.py`; figures: `make_figures.py`.
 
 ## 1. The questions
 
@@ -35,7 +35,6 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). The manual of the
 | `scripts/make_figures.py` | Draws the three figures (runs the three studies; about 3 minutes). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
-| `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ```sh
 .venv/bin/python research/power-calculator/scripts/calculator_validation.py
@@ -137,3 +136,9 @@ The large deltas of table 2.2 come from one thing: the board resistance `R` (kel
 9. *Theoretical and experimental characterization of heat dissipation in a board-level microelectronic component*, https://www.osti.gov/etdeweb/biblio/21026063 (black paint for a usable infrared reading; validation against finite elements and a thermal test die).
 10. JEDEC JESD51-1 (electrical test method, K-factor of a temperature-sensitive parameter), index pages https://www.jedec.org/node/3931 and https://www.vektrex.com/news-articles/measuring-led-junction-temperature-tj/ (K-factor definition, low sensing current; the standard itself is behind a login and was not read).
 11. Estimation of conductivity and heat transfer from board temperatures: IIT Palakkad, *Studies on influence of anisotropic thermal conductivity* (inverse estimation of in-plane conductivity of PCBs with different copper layouts), https://publications.iitpkd.ac.in/publication/studies-on-influence-of-anisotropic-thermal-conductivity-1; Pohanka and Raudensky, thermocouple disturbance of the field in inverse problems, https://engmechx.it.cas.cz/improc/2002/Pohanka.pdf; a Missouri S&T poster notes that fitting k and h together is weakly identifiable for a good conductor.
+
+## What was read and what was not verified
+
+* Assumed, not from a datasheet: the TPS7A47-like package data (5 × 5 mm body, 3.15 mm pad, 3 × 3 vias). Not verified: no measurement of a physical board.
+* `calculator_validation.py` prints a fourth row (the 58 K/W datasheet maximum, +26.9 %, not a target) and does not print the "JEDEC board without vias" row (67.4 K/W) that the manual quotes; that row comes from the test.
+* Not implemented: the known-power reference (fits only parts with a controllable dissipation; the copper error it removes also goes away with Gerber or KiCad import), the two-point fit (a study only), the datasheet shortcut θJA − ψJT.

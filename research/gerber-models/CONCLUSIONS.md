@@ -102,4 +102,4 @@ cd research/gerber-models && python -m pytest -q tests                          
 .venv/bin/python research/gerber-models/scripts/study_fix_impact.py max                 # and additive, union, union_lam with the patched copies on PYTHONPATH; then --compare
 .venv/bin/python research/gerber-models/scripts/make_figures.py                         # the pictures in figures/
 ```
-The boards are in `research/gerber-import/data` (`research/gerber-import/scripts/fetch_boards.py`; git-ignored; their licences differ). The layout of the folder is described in `README.md`, section 3; what was read and how in `LOG.md`.
+The boards are in `research/gerber-import/data` (`research/gerber-import/scripts/fetch_boards.py`; git-ignored; their licences differ). The layout of the folder is described in `README.md`, section 3; what was read and what was not verified in the last section of `README.md`.

@@ -35,7 +35,7 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 | `scripts/make_figures.py` | Draws the three figures (about 5 minutes). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
-| `LOG.md` | What was read and how; what was not reproduced. (The comparison also uses `../solid3d-verification/fem3d_validation.py` with `--fem`.) |
+| (see also) | The comparison also uses `../solid3d-verification/fem3d_validation.py` with `--fem`. |
 
 ```sh
 .venv/bin/python research/models-comparison/scripts/validation_study.py [--fem]    # --fem adds the 3D finite-element solid (scikit-fem)
@@ -244,3 +244,8 @@ Air properties agree with textbook values within 1 to 3 %; the three models agre
 ## 6. Sources
 
 Own computation. The removed program is documented by its code at tag `legacy-wxpython-1.0.0`; literature on FDM and FVM and on PCB thermal models is listed in `docs/validation.md` section 10.
+
+## What was read and what was not verified
+
+* Not verified: no measurement of a physical board.
+* Sections 4.5 to 4.7 are copied from `docs/validation.md` and were **not** re-run here (legacy code removed; time results come from tests); CG shows 3.3e-12 K against 1.8e-12 K in the old table (a solver detail).

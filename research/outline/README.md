@@ -1,6 +1,6 @@
 # Lumped and Analytic models on a board with an outline
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `outline_rectangle_study.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `outline_rectangle_study.py`; figures: `make_figures.py`.
 
 ## 1. The question
 
@@ -31,7 +31,6 @@ The finite volumes, the finite differences and the 3D solid handle any board out
 | `scripts/make_figures.py` | Draws the three figures. |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
-| `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
 
@@ -95,3 +94,8 @@ The T-shaped board with the parts at the centre (FVM, 1 mm cells, same colour sc
 ## 6. Sources
 
 Own computation only; no literature was used for this study.
+
+## What was read and what was not verified
+
+* Not verified: no physical board measurement; the study uses one board and two parts.
+* Not implemented: scaling about the area centroid of the outline (tried, no consistent gain), parts inside the cut region, holes.
