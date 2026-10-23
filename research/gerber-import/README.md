@@ -240,7 +240,7 @@ The claim to test: the independent reader draws **the same copper** as the exact
 
 ![Figure 9](figures/fig_09_render_compare_whole_board.png)
 
-*Figure 9 (`figures/fig_09_render_compare_whole_board.png`): the whole top copper of the Stormduino (KiCad, MIT) at 0.025 mm drawn by the independent reader, gerbonara + shapely (the truth), pygerber and pcb-tools; below, the pixels where each differs from the truth (red: only the tool has copper, blue: only the truth has it; each differing pixel is enlarged to 5 x 5 pixels for display).*
+*Figure 9 (`figures/fig_09_render_compare_whole_board.png`): the whole top copper of the Stormduino (KiCad, MIT) at 0.025 mm drawn by the independent reader, gerbonara + shapely (the truth), pygerber and pcb-tools; below, the pixels where each differs from the truth (red: only the tool has copper, blue: only the truth has it; each differing pixel is enlarged for display). The truth cannot differ from itself, so its panel shows the difference of gerbonara's own default circles (16 segments per quarter turn) from the finer ones used as the truth (64): 424 pixels, all blue, along pads, vias and round ends.*
 
 ![Figure 10](figures/fig_10_render_compare_close_up.png)
 
@@ -251,6 +251,7 @@ The claim to test: the independent reader draws **the same copper** as the exact
 | Tool | Pixels that differ from the truth | % of the copper | Only the tool has copper | Only the truth has it |
 | :-- | --: | --: | --: | --: |
 | independent reader | 72 | 0.0016 % | 72 | 0 |
+| gerbonara + shapely with its default 16-segment circles (against the 64-segment truth) | 424 | 0.0094 % | 0 | 424 |
 | pcb-tools (cairo, anti-aliased, 50 % threshold) | 9,084 | 0.20 % | 4,476 | 4,608 |
 | pygerber (raster, anti-aliased, 50 % threshold) | 68,445 | 1.52 % | 41,178 | 27,267 |
 

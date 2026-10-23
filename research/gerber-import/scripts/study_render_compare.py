@@ -164,13 +164,18 @@ def part1(results, store):
     shifts = {}
     masks["pygerber"], shifts["pygerber"] = align(pygerber_mask(path, pix), tr)
     masks["pcb-tools"], shifts["pcb-tools"] = align(pcbtools_mask(path, pix, ((window[0], window[0] + window[2]), (y0 - 0.5, y1 + 0.5))), tr)
+    # gerbonara as the program of this folder calls it by default draws circles with 16 segments per quarter: kept to show its own difference from the finer truth
+    set_segments(16)
+    geom16, _ = gg.load_copper(path)
+    masks["gerbonara + shapely, default 16 segments"] = truth(geom16, window, pix)
+    set_segments(TRUTH_SEGMENTS)
     rows = {}
     for name, m in masks.items():
         diff = int((m ^ tr).sum())
         rows[name] = {"copper_pixels": int(m.sum()), "differing_pixels": diff, "differing_fraction_percent": 100.0 * diff / int(tr.sum()), "only_in_tool": int((m & ~tr).sum()), "only_in_truth": int((~m & tr).sum()), "shift": shifts.get(name)}
     results["storm_top"] = {"pixel_mm": pix, "shape": list(tr.shape), "window_mm": list(window), "tools": rows}
     for name, m in masks.items():
-        store["storm_" + name.split(" ")[0]] = np.packbits(m)
+        store["storm_" + ("gerbonara16" if "16 segments" in name else name.split(" ")[0])] = np.packbits(m)
     store["storm_shape"] = np.array(tr.shape)
     store["storm_window"] = np.array(window)
     # distance of the pixels where our reader differs to the exact edge, at this resolution

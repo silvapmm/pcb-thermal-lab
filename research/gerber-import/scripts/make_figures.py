@@ -336,7 +336,7 @@ def _render_compare_data():
     z = np.load(CACHE / "render_compare.npz")
     shape = tuple(int(v) for v in z["storm_shape"])
     masks = {}
-    for key, label in (("storm_independent", "independent reader"), ("storm_gerbonara", "gerbonara + shapely (truth)"), ("storm_pygerber", "pygerber"), ("storm_pcb-tools", "pcb-tools")):
+    for key, label in (("storm_independent", "independent reader"), ("storm_gerbonara", "gerbonara + shapely (truth)"), ("storm_pygerber", "pygerber"), ("storm_pcb-tools", "pcb-tools"), ("storm_gerbonara16", "gerbonara + shapely, default 16 segments")):
         masks[label] = np.unpackbits(z[key])[: shape[0] * shape[1]].reshape(shape).astype(bool)
     return masks, json.loads((CACHE / "render_compare.json").read_text())
 
@@ -348,7 +348,7 @@ def fig_render_compare():
     """
     masks, res = _render_compare_data()
     truth = masks["gerbonara + shapely (truth)"]
-    names = list(masks)
+    names = [n for n in masks if "16 segments" not in n]
     rows = res["storm_top"]["tools"]
     # the close-up: the 12 x 8 mm window with the most copper edge, found on a coarse grid
     from scipy import ndimage
@@ -361,13 +361,17 @@ def fig_render_compare():
             v = integral[r + win_h, c + win_w] - integral[r, c + win_w] - integral[r + win_h, c] + integral[r, c]
             if v > best:
                 best, at = v, (r, c)
-    for tag, crop, grow, size, fname in (("whole", (slice(None), slice(None)), 2, (15, 7.4), "fig_09_render_compare_whole_board.png"), ("close-up", (slice(at[0], at[0] + win_h), slice(at[1], at[1] + win_w)), 0, (15, 5.6), "fig_10_render_compare_close_up.png")):
+    for tag, crop, grow, size, fname in (("whole", (slice(None), slice(None)), 5, (15, 7.4), "fig_09_render_compare_whole_board.png"), ("close-up", (slice(at[0], at[0] + win_h), slice(at[1], at[1] + win_w)), 0, (15, 5.6), "fig_10_render_compare_close_up.png")):
         fig, axs = plt.subplots(2, 4, figsize=size)
         for j, name in enumerate(names):
             axs[0, j].imshow(_paint(masks[name][crop]), interpolation="antialiased")
             axs[0, j].set_title(name, fontsize=9)
             if name.startswith("gerbonara"):
-                axs[1, j].text(0.5, 0.5, "the reference:\nexact vector geometry\nsampled at the pixel centres", ha="center", va="center", fontsize=9, transform=axs[1, j].transAxes)
+                # the reference has no difference with itself: the panel shows its own polygon approximation of circles (16 segments per quarter turn) against the finer one
+                coarse = masks["gerbonara + shapely, default 16 segments"]
+                n_diff = int((coarse[crop] ^ truth[crop]).sum())
+                axs[1, j].imshow(_diff_image(coarse[crop], truth[crop], grow), interpolation="nearest")
+                axs[1, j].set_title(f"the reference itself: default 16-segment circles\nagainst 64: {n_diff:,} pixels differ", fontsize=8.5)
             else:
                 axs[1, j].imshow(_diff_image(masks[name][crop], truth[crop], grow), interpolation="nearest")
                 n_diff = int((masks[name][crop] ^ truth[crop]).sum())
