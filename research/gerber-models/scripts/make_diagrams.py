@@ -1,7 +1,7 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the Gerber models phase: the laminate the 3D solid lacks under a single copper layer (README 4.39) and the chain of references used to validate the models on the rectangle board (README 4.37).
-@details Pure drawing, no data and no program; every number is quoted from the README sections named. Writes figures/fig_13_laminate_single_layer_schematic.png, figures/fig_14_validation_chain_schematic.png, figures/fig_15_same_fill_different_copper.png figures/fig_16_copper_thickness_scale.png and figures/fig_17_gap_detour.png.
+@details Pure drawing, no data and no program; every number is quoted from the README sections named. Writes figures/fig_13_laminate_single_layer_schematic.png, figures/fig_14_validation_chain_schematic.png, figures/fig_15_same_fill_different_copper.png figures/fig_16_copper_thickness_scale.png and figures/fig_17_gap_detour.png and figures/fig_23_flow_window_schematic.png.
          Run: .venv/bin/python research/gerber-models/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -182,6 +182,56 @@ def gap_detour(path):
     dk.save(fig, path, "A clearance in the copper: the vertical detour and why the average hides it (README 4.7)")
 
 
+def flow_window(path):
+    """!
+    @brief Draw how the flow-based face conductance is made: the fill-fraction cell value, the harmonic mean of two neighbours (what the FVM does with cell values) and the window from centre to centre of two cells that the flow-based method solves (README 4.4).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 4.6, 1, 3)
+    for a in axs:
+        a.set_xlim(0, 10)
+        a.set_ylim(0, 7)
+    # Panel 1: cell values are made first, then averaged across the face
+    a = axs[0]
+    a.add_patch(Rectangle((0.8, 2), 3.8, 3.8, fc="#f3d9b1", ec="k"))
+    a.add_patch(Rectangle((4.6, 2), 3.8, 3.8, fc="#f3d9b1", ec="k"))
+    a.add_patch(Rectangle((1.6, 2.8), 2.2, 2.2, fc="#c97a2b", ec="none"))
+    a.add_patch(Rectangle((5.4, 3.6), 2.2, 0.5, fc="#c97a2b", ec="none"))
+    a.text(2.7, 6.2, "cell 1: S1", ha="center", fontsize=8)
+    a.text(6.5, 6.2, "cell 2: S2", ha="center", fontsize=8)
+    dk.arrow(a, 2.7, 1.8, 6.5, 1.8, color="k", style="<->")
+    a.text(4.6, 1.0, "face = harmonic mean of S1 and S2\n(each cell value is already an average)", ha="center", fontsize=7.5)
+    a.text(5, 6.8, "1. cell values, then the face", ha="center", fontsize=9, fontweight="bold")
+    # Panel 2: the window from centre to centre
+    a = axs[1]
+    a.add_patch(Rectangle((0.8, 2), 3.8, 3.8, fc="#f3d9b1", ec="k"))
+    a.add_patch(Rectangle((4.6, 2), 3.8, 3.8, fc="#f3d9b1", ec="k"))
+    a.add_patch(Rectangle((1.6, 2.8), 2.2, 2.2, fc="#c97a2b", ec="none"))
+    a.add_patch(Rectangle((5.4, 3.6), 2.2, 0.5, fc="#c97a2b", ec="none"))
+    a.add_patch(Rectangle((2.7, 2), 3.8, 3.8, fc="none", ec="#d62728", lw=2.2, ls="--"))
+    a.plot([2.7, 6.5], [3.9, 3.9], "k:", lw=0.8)
+    a.text(2.7, 6.2, "centre 1", ha="center", fontsize=8, color="#d62728")
+    a.text(6.5, 6.2, "centre 2", ha="center", fontsize=8, color="#d62728")
+    a.text(4.6, 1.0, "the window (n x n pixels) from centre to centre\ncovers half of each cell and the face between them", ha="center", fontsize=7.5)
+    a.text(5, 6.8, "2. the window of the face", ha="center", fontsize=9, fontweight="bold")
+    # Panel 3: a conduction problem on the window, hot left, cold right, insulated top and bottom
+    a = axs[2]
+    a.add_patch(Rectangle((1.5, 2), 7, 3.8, fc="#f3d9b1", ec="k"))
+    a.add_patch(Rectangle((1.5, 2.8), 2.0, 2.2, fc="#c97a2b", ec="none"))
+    a.add_patch(Rectangle((6.5, 3.6), 2.0, 0.5, fc="#c97a2b", ec="none"))
+    a.plot([1.5, 1.5], [2, 5.8], color="#d62728", lw=5)
+    a.plot([8.5, 8.5], [2, 5.8], color="#1f77b4", lw=5)
+    a.text(1.0, 3.9, "T = 1", rotation=90, ha="center", va="center", fontsize=8, color="#d62728")
+    a.text(9.0, 3.9, "T = 0", rotation=90, ha="center", va="center", fontsize=8, color="#1f77b4")
+    a.text(5, 6.1, "top and bottom insulated", ha="center", fontsize=7.5, style="italic")
+    for y in (3.0, 3.9, 4.7):
+        dk.arrow(a, 2.2, y, 7.8, y if y != 3.0 else 3.9 if False else y, color=dk.HEAT, width=1.0)
+    a.text(5, 1.0, "face conductance = heat that crosses / (1 K)\n= the effective conductance of the window", ha="center", fontsize=7.5)
+    a.text(5, 6.8, "3. one local problem", ha="center", fontsize=9, fontweight="bold")
+    dk.save(fig, path, "The flow-based face conductance: one local conduction problem per pair of cells (README 4.4)")
+
+
 def main():
     """!
     @brief Draw and save the diagrams of this folder.
@@ -193,6 +243,7 @@ def main():
     patterns(OUT / "fig_15_same_fill_different_copper.png")
     thickness(OUT / "fig_16_copper_thickness_scale.png")
     gap_detour(OUT / "fig_17_gap_detour.png")
+    flow_window(OUT / "fig_23_flow_window_schematic.png")
 
 
 if __name__ == "__main__":

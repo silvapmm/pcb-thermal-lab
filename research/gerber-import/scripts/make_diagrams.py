@@ -1,7 +1,7 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagram of the check of the nets against a CAD file (README 4.33): where the nets come from, what is compared and what came out.
-@details Pure drawing, no data and no program; the numbers are those of README section 4.33 (Stormduino, KiCad 5). Writes figures/fig_06_nets_check_schematic.png figures/fig_07_what_the_files_draw.png figures/fig_08_excellon_zeros.png and figures/fig_16_outline_how.png.
+@details Pure drawing, no data and no program; the numbers are those of README section 4.33 (Stormduino, KiCad 5). Writes figures/fig_06_nets_check_schematic.png figures/fig_07_what_the_files_draw.png figures/fig_08_excellon_zeros.png and figures/fig_16_outline_how.png and figures/fig_17_nets_from_files.png.
          Run: .venv/bin/python research/gerber-import/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -166,6 +166,44 @@ def outline_how(path):
     dk.save(fig, path, "Reading the board outline from the profile layer: centre line, even-odd rule, closed contour (README 4.47)")
 
 
+def nets_from_files(path):
+    """!
+    @brief Draw how the nets of a board are found from the files: the X2 attributes of the Gerber (net name per object), the pieces of copper on one layer, and the plated holes that join the pieces of two layers into one net (README 4.29 and 4.33).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 5.2, 1, 3)
+    for a in axs:
+        a.set_xlim(0, 10)
+        a.set_ylim(0, 7)
+    a = axs[0]
+    a.text(5, 6.5, "1. the file names the net", ha="center", fontsize=9, fontweight="bold")
+    a.text(0.4, 5.3, "%TO.N,GND*%\nD10*  X10Y10D03*   (flash: a pad)\nX10Y10D02*  X40Y10D01*  (draw: a track)\n%TO.N,SIG1*%\nX20Y30D03*", fontsize=7.5, family="monospace", va="top")
+    dk.box(a, 0.6, 0.6, 3.6, 1.3, "X2 attribute\nTO.N = net name", "#cfe3f5", size=8)
+    dk.box(a, 5.4, 0.6, 3.8, 1.3, "no attribute:\nnet = unknown", "#f4b6b6", size=8)
+    a = axs[1]
+    a.text(5, 6.5, "2. pieces of copper on one layer", ha="center", fontsize=9, fontweight="bold")
+    for x0, x1, col in ((0.8, 4.2, "#c97a2b"), (5.6, 9.2, "#3b7dd8")):
+        a.add_patch(Rectangle((x0, 4.0), x1 - x0, 0.45, fc=col, ec="none"))
+    a.add_patch(Rectangle((2.3, 2.8), 0.5, 1.2, fc="#c97a2b", ec="none"))
+    a.text(3.4, 3.1, "track + pad: one piece", fontsize=7, style="italic", va="center")
+    a.text(2.5, 5.0, "piece A: GND", ha="center", fontsize=8, color="#c97a2b")
+    a.text(7.4, 5.0, "piece B: SIG1", ha="center", fontsize=8, color="#3b7dd8")
+    a.text(5, 1.3, "8-connected pixels make a piece; two nets in one\npiece would be a short (0 of 170 pieces)", ha="center", fontsize=7.5)
+    a = axs[2]
+    a.text(5, 6.5, "3. a plated hole joins two layers", ha="center", fontsize=9, fontweight="bold")
+    dk.layer(a, 0.8, 5.2, 8.4, 0.3, "#c97a2b")
+    a.text(0.9, 5.75, "top copper", fontsize=7.5)
+    dk.layer(a, 0.8, 2.2, 8.4, 0.3, "#c97a2b")
+    a.text(0.9, 1.85, "bottom copper", fontsize=7.5)
+    dk.layer(a, 0.8, 2.5, 8.4, 2.7, dk.FR4)
+    a.add_patch(Rectangle((4.5, 2.2), 0.2, 3.3, fc="#e9c48f", ec="k", lw=0.6))
+    a.add_patch(Rectangle((5.3, 2.2), 0.2, 3.3, fc="#e9c48f", ec="k", lw=0.6))
+    a.text(5, 3.8, "plated\nhole", ha="center", fontsize=8)
+    a.text(5, 1.2, "the drill file gives the position;\nthe pieces on both layers under it\nbelong to one net (109 of 109 join)", ha="center", va="top", fontsize=7.5)
+    dk.save(fig, path, "Where the nets come from: attributes, pieces of copper, plated holes (README 4.29, 4.33)")
+
+
 def main():
     """!
     @brief Draw and save the diagrams of this folder.
@@ -176,6 +214,7 @@ def main():
     what_the_files_draw(OUT / "fig_07_what_the_files_draw.png")
     excellon_zeros(OUT / "fig_08_excellon_zeros.png")
     outline_how(OUT / "fig_16_outline_how.png")
+    nets_from_files(OUT / "fig_17_nets_from_files.png")
 
 
 if __name__ == "__main__":

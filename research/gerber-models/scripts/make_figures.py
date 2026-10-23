@@ -795,6 +795,60 @@ def _tensor_cells(n=40, pix=0.025):
     return out
 
 
+def fig_mapping_curves():
+    """!
+    @brief The mapping formulas explained: the cell conductance (in laminates) against the copper fraction for the arithmetic mean (fill fraction), the geometric mean, the harmonic mean, Bruggeman and the Hashin-Shtrikman bounds, with the numerical cell problem of four arrangements of the same fraction (stripes along and across the flow, checkerboard, random) as points, and the four arrangements drawn.
+    @return None.
+    """
+    n = 20
+    f = np.linspace(0.02, 0.98, 97)
+    sc_, sl_ = cd.S_CU, cd.S_LAM
+    fig = plt.figure(figsize=(15, 6.2))
+    gs = fig.add_gridspec(2, 4, width_ratios=[2.6, 0.9, 0.9, 0.0001], wspace=0.25, hspace=0.35)
+    ax = fig.add_subplot(gs[:, 0])
+    ref = sl_
+    ax.semilogy(f, cd.map_power(f, 1) / ref, color="#d62728", lw=2, label="arithmetic = fill fraction (today)")
+    ax.semilogy(f, cd.map_power(f, 0) / ref, color="#1f77b4", lw=1.6, label="geometric mean")
+    ax.semilogy(f, cd.map_power(f, -1) / ref, color="#2ca02c", lw=1.6, label="harmonic mean")
+    ax.semilogy(f, cd.map_bruggeman(f) / ref, "k--", lw=1.4, label="Bruggeman (random mixture)")
+    ax.fill_between(f, cd.map_hashin_shtrikman(f, "lower") / ref, cd.map_hashin_shtrikman(f, "upper") / ref, color="grey", alpha=0.25, label="Hashin-Shtrikman bounds")
+    rng = np.random.default_rng(3)
+    pats = {}
+    fs = [0.15, 0.3, 0.5, 0.7, 0.85]
+    marks = {"along": ("^", "#d62728"), "across": ("v", "#2ca02c"), "checker": ("s", "#1f77b4"), "random": ("o", "k")}
+    pts = {k: [] for k in marks}
+    for fr in fs:
+        w = int(round(fr * n))
+        al = np.zeros((n, n), bool); al[:w, :] = True                  # stripes along x: rows of copper in parallel
+        ac = np.zeros((n, n), bool); ac[:, :w] = True                  # stripes across x: copper and laminate in series
+        ck = (np.add.outer(np.arange(n) // 2, np.arange(n) // 2) % 2 == 0)
+        rd = rng.random((n, n)) < fr
+        for key, m in (("along", al), ("across", ac), ("checker", ck), ("random", rd)):
+            S = np.where(m, sc_, sl_)[None]
+            sx, _ = cd.map_cell_problem(S.reshape(1, 1, n, n))
+            pts[key].append((m.mean(), float(sx[0, 0]) / ref))
+            if fr == 0.5:
+                pats[key] = m
+    for key, (mk, col) in marks.items():
+        xs, ys = zip(*pts[key])
+        ax.plot(xs, ys, mk, color=col, ms=7, mfc="none", mew=1.6, label=f"cell problem: {key}")
+    ax.set_xlabel("copper fraction of the cell")
+    ax.set_ylabel("cell conductance for flow along x (laminates)")
+    ax.set_title("one number per cell from the fraction alone, against the cell problem", fontsize=9)
+    ax.legend(fontsize=7, loc="upper left")
+    ax.grid(alpha=0.3, which="both")
+    for i, key in enumerate(("along", "across", "checker", "random")):
+        a2 = fig.add_subplot(gs[i // 2, 1 + i % 2])
+        a2.imshow(pats[key], cmap="copper", interpolation="nearest")
+        a2.set_xticks([]); a2.set_yticks([])
+        a2.annotate("", (n - 0.5, -2.2), (-0.5, -2.2), arrowprops={"arrowstyle": "->", "color": "#d62728"}, annotation_clip=False)
+        a2.set_title(f"{key} (f = 0.5; orange = copper)" + ("\ncorners only touch" if key == "checker" else ""), fontsize=7.5, color=marks[key][1])
+    fig.suptitle("The mapping formulas: the fraction alone cannot tell the arrangements apart, the cell problem can (README 4.4)", fontsize=10)
+    fig.subplots_adjust(top=0.86, bottom=0.1, left=0.06, right=0.97)
+    fig.savefig(OUT / "fig_22_mapping_formulas.png", dpi=105)
+    plt.close(fig)
+
+
 def fig_cell_tensor():
     """!
     @brief What the cell tensor is: four 1 mm cells with the heat flux inside them when the boundary potential is x, and each cell's conductance ellipse (axes: the eigenvalues of the tensor, orientation: the principal direction) with its coherence.
@@ -950,6 +1004,7 @@ def main():
     fig_clearance_cell()
     fig_cell_flow()
     fig_diagonal_gate()
+    fig_mapping_curves()
     fig_cell_tensor()
     fig_tensor_in_use()
     print("figures in", OUT)

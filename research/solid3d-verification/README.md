@@ -32,9 +32,10 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 | `scripts/solid3d_verification.py` | The analytical benchmark (Yovanovich) and the grid-convergence study of the 3D solid. |
 | `scripts/fem3d_validation.py` | The independent 3D finite-element solid (scikit-fem, **not** in `requirements.txt`: `pip install scikit-fem`), also used by `models-comparison/validation_study.py --fem`. |
 | `scripts/copper_dissipation.py` | The pad-size sweep and copper against heatsink, in every model and the FEM (`--fem`). |
-| `scripts/make_figures.py` | Draws the three figures (needs scikit-fem for the third; about 90 seconds). |
+| `scripts/study_spreading_axisymmetric.py` | The axisymmetric finite-volume solver of the spreading resistance (third independent check of Yovanovich's table); writes `out/spreading.json` (git-ignored). |
+| `scripts/make_figures.py` | Draws the four data figures (needs scikit-fem for the third and the output of the axisymmetric study for the fourth; about 90 seconds). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
+| `figures/` | `fig_01` to `fig_06` (figure 6 explains spreading resistance); figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 
 ## 4. How to run, and the results
 
@@ -144,6 +145,27 @@ representing each copper layer by one node and the dielectric between two layers
 
 *Figure 3: `figures/fig_03_copper_pad_models_vs_fem.png`.*
 
+### 4.3 Spreading resistance explained, and a third independent check
+
+Heat that leaves a small source into a much larger body has to spread out first, and the extra temperature rise that this costs is the **spreading resistance** `Rs` (K/W); `ψ = 4 a k Rs` makes it dimensionless (`a` source radius, `k` conductivity). The smaller the source compared with the body (`ε = a/b` small), the longer the path of the heat and the larger `ψ`. This is what happens under every heater of a board, and it is why the layered models use a sheet conductance in the plane.
+
+`python research/solid3d-verification/scripts/study_spreading_axisymmetric.py` solves the same problem with a third, independent code: axisymmetric finite volumes (one radial coordinate, one axial, square cells, an isoflux disc on a flux tube of radius `b` and length `2 b`, insulated side, cooled far face), written for this study and sharing nothing with `pcbthermal/solid3d.py`. Results (`ψ`, 400 cells per radius):
+
+| ε = a/b | Table 3 (isoflux) | axisymmetric solver | difference |
+| --: | --: | --: | --: |
+| 0.1 | 0.9401 | 0.9249 | -1.6 % |
+| 0.2 | 0.8009 | 0.7932 | -1.0 % |
+| 0.3 | 0.6649 | 0.6597 | -0.8 % |
+| 0.4 | 0.5337 | 0.5298 | -0.7 % |
+
+The solver converges at first order (the flux changes by a step at the edge of the source, which a cell-centred scheme resolves to one cell): at ε = 0.2 the values for 100, 200 and 400 cells per radius are 0.7716, 0.7857 and 0.7932, and the Richardson extrapolation (order one assumed, not measured) is **0.8006 against 0.8009**. The program's 3D solid is +0.8 % (0.8076) and +0.7 % at ε = 0.3: the table lies between the two solvers, which approach it from opposite sides (the square tube and the staircase circle of the 3D solid, the first-order edge of the axisymmetric one), so neither reproduces it to better than their own discretisation error.
+
+![Spreading resistance explained](figures/fig_06_spreading_resistance_explained.png)
+
+*Figure 6 (`figures/fig_06_spreading_resistance_explained.png`): left, the temperature (colour, logarithmic) and the heat flow (white lines) of a circular source on a flux tube at ε = 0.3: the lines fan out under the source and become parallel farther down, and the hot region is the spreading; middle, `ψ` against ε from the axisymmetric solver, Yovanovich's table and the program's 3D solid; right, the error of the axisymmetric solver against the table as the cell is refined (order one).*
+
+Limits: the flux tube of the table is circular, the 3D solid's is square; the extrapolation assumes first order; only the isoflux source is checked.
+
 ## 5. Limits of this study
 
 * The 3D finite-element solid and the 3D finite-volume solid share a modelling choice for vias (a copper rod of the barrel's copper area) and the fin ratio, so they do not test the vias and fins independently.
@@ -158,4 +180,5 @@ Yovanovich, J. Electronic Packaging 125 (2003) 169 to 177, Table 3 (as cited in 
 ## What was read and what was not verified
 
 * Read: Yovanovich's Table 3 values were taken from the published table as recorded in the script (the paper itself was not re-read). Not verified: no measurement of a physical board.
+* Reproduced: the axisymmetric solver was written and run here (section 4.3); its agreement is with the same table value recorded in the script, not with the paper.
 * Not implemented: a time simulation of the 3D solid (steady state only); the FEM solid inside the program (it stays an offline cross-check, scikit-fem is not a dependency).

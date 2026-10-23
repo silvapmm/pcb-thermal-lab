@@ -105,7 +105,7 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-impo
 | `scripts/study_validation_boards.py` | The copper area, pieces and holes of every layer of the eight boards against the vector truth (4.41). |
 | `scripts/study_vias_nets.py`, `study_kicad_nets.py` | Holes, vias and nets (4.29); the nets against a KiCad project (4.33). |
 | `scripts/make_figures.py` | Draws the data figures (1 to 5 and 9 to 15). |
-| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 to 8 and 16). |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 to 8, 16 and 17). |
 
 ## 4. How to run, and the results
 
@@ -218,6 +218,10 @@ Because the third-party test boards cannot be pictured (4.9), the repository has
 The tests use the board as a bench (`tests/test_our_board_bench.py`, 2 tests): nine nets, each one 8-connected piece, no pixel of a net within a pixel of another net (no short, clearance of at least 0.05 mm), the nets do not overlap; the 16 plated holes (8 vias, 8 test points) found with the right net by position (`nets.hole_report`), the drill file's X2 function read. The same board is a bench for the current of a net (gerber-nets 4.30, figure 3) and for the mapping to the thermal grid (gerber-models 4.30, figure 2). To use it elsewhere: `import our_board`; `our_board.gerber_text()`, `drill_text()`, `holes()`, `net_name(k)`, `squares(k)`, `write(folder)`.
 
 ### 4.33 Are the polygons tied to the right nets? A check against a KiCad project (`kicad_pcb.py`, `study_kicad_nets.py`, `tests/test_kicad_nets.py`)
+
+![Figure 17](figures/fig_17_nets_from_files.png)
+
+*Figure 17 (`figures/fig_17_nets_from_files.png`): where the nets come from: the X2 attribute names the net of each object (without it the net is unknown), pieces of 8-connected copper pixels on one layer carry one net each, and a plated hole of the drill file joins the pieces of two layers under it into one net (diagram, no data; numbers from 4.29 and 4.33).*
 
 ![Figure 6](figures/fig_06_nets_check_schematic.png)
 

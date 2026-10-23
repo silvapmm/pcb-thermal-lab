@@ -118,8 +118,8 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
 | `scripts/study_diagonal_gate.py` | A detector of the cells that should get diagonal faces: the share is decided cell by cell from the cell tensor and compared with the fixed shares (4.48). |
-| `scripts/make_figures.py` | Draws the data figures (1 to 12 and 18 to 21) into `figures/`. |
-| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 17). |
+| `scripts/make_figures.py` | Draws the data figures (1 to 12 and 18 to 22) into `figures/`. |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 17 and 23). |
 
 ## 4. How to run, and the results
 
@@ -138,6 +138,14 @@ from the same mask, so the error of a mapping is isolated from the fidelity of t
 ## 4.A The problem and the mappings compared
 
 ### 4.4 The mappings on 42 windows (`study_mapping.py`)
+
+![Figure 23](figures/fig_23_flow_window_schematic.png)
+
+*Figure 23 (`figures/fig_23_flow_window_schematic.png`): how the flow-based face conductance is made. Left, the usual way: each cell gets one value (an average) and the face is the harmonic mean of the two; middle, the window of n x n pixels that runs from the centre of one cell to the centre of its neighbour (dashed); right, one conduction problem on that window (hot side left, cold side right, top and bottom insulated), whose heat flow per kelvin is the face conductance. The copper pattern is seen as it is, not as an average.*
+
+![Figure 22](figures/fig_22_mapping_formulas.png)
+
+*Figure 22 (`figures/fig_22_mapping_formulas.png`, computed with the library): the mapping formulas against the cell problem. Left, the cell conductance (in laminate units, contrast 9.4) against the copper fraction for the arithmetic mean (the fill fraction used today, which is the exact answer only for stripes along the flow), the geometric and harmonic means, Bruggeman and the Hashin-Shtrikman bounds, with the numerical cell problem of 20 x 20 pixel cells as points: stripes along the flow sit on the arithmetic curve, stripes across the flow on the harmonic one, random mixtures lie between and near Bruggeman; the arrangements at f = 0.5 are drawn on the right. The same fraction gives conductances 2.9 times apart at f = 0.5 (stripes along against stripes across), which is why a fraction alone cannot be the whole answer. The checkerboard lies below the harmonic mean only because its squares touch at corners and the pixel network has five-point links: a limit of the pixel network, not a property of the formula.*
 
 ![Figure 18](figures/fig_18_cell_flow_lines.png)
 

@@ -100,6 +100,67 @@ def fig_pads():
     plt.close(fig)
 
 
+def fig_spreading():
+    """!
+    @brief What spreading resistance is: the temperature and the heat flow of a circular source on a flux tube (axisymmetric solver, eps = 0.3), the dimensionless resistance against eps from that solver with Yovanovich's table and the program's 3D solid, and how the axisymmetric solver converges with the grid.
+    @return None.
+    """
+    import json
+    out = HERE.parent / "out"
+    res = json.loads((out / "spreading.json").read_text())
+    T = np.load(out / "spreading_field.npz")["T"].astype(float)
+    nz, nr = T.shape
+    fig = plt.figure(figsize=(16, 6.4))
+    gs = fig.add_gridspec(1, 3, width_ratios=[1.15, 1, 0.9], wspace=0.3)
+    ax = fig.add_subplot(gs[0, 0])
+    step = 6
+    Tm = np.concatenate([T[:, ::-1], T], axis=1)               # mirrored: the whole section of the tube
+    ext = (-1, 1, -2, 0)
+    im = ax.imshow(np.log10(np.maximum(Tm, 1e-3)), extent=ext, aspect="equal", cmap="inferno", vmin=-0.3, vmax=np.log10(Tm.max()))
+    r = (np.arange(nr) + 0.5) / nr
+    z = -(np.arange(nz) + 0.5) / nr
+    dTdz, dTdr = np.gradient(T, -1.0 / nr, 1.0 / nr)
+    qz, qr = -dTdz, -dTdr                                        # heat flux (k = 1): towards falling temperature, z points up
+    rr = np.concatenate([-r[::-1], r])
+    qrm = np.concatenate([-qr[:, ::-1], qr], axis=1)
+    qzm = np.concatenate([qz[:, ::-1], qz], axis=1)
+    ax.streamplot(rr, z[::-1], qrm[::-1], qzm[::-1], color="white", density=1.1, linewidth=0.6, arrowsize=0.7)
+    ax.plot([-0.3, 0.3], [0, 0], color="#2ca02c", linewidth=5, solid_capstyle="butt")
+    ax.text(0, 0.06, "source, radius a (heat Q)", ha="center", fontsize=8, color="#2ca02c")
+    ax.annotate("", (0.3, -0.12), (0.0, -0.12), arrowprops={"arrowstyle": "<->", "color": "w"})
+    ax.text(0.15, -0.2, "a", color="w", ha="center", fontsize=9)
+    ax.annotate("", (1.0, -0.35), (0.0, -0.35), arrowprops={"arrowstyle": "<->", "color": "w"})
+    ax.text(0.5, -0.45, "b", color="w", ha="center", fontsize=9)
+    ax.text(0, -2.12, "cooled face (T = 0); the sides are insulated", ha="center", fontsize=8)
+    ax.set_title("a circular source on a flux tube, eps = a / b = 0.3\n(colour: log temperature; white: heat flow)", fontsize=9, fontweight="bold", pad=18)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax = fig.add_subplot(gs[0, 1])
+    eps = [r_["eps"] for r_ in res["rows"]]
+    ax.plot(eps, [r_["psi"] for r_ in res["rows"]], "-", color="#1f77b4", label="axisymmetric finite volumes (400 cells per radius)")
+    ax.plot([0.1, 0.2, 0.3, 0.4], [0.9401, 0.8009, 0.6649, 0.5337], "ks", markersize=7, label="Yovanovich (2003), Table 3")
+    ax.plot([0.2, 0.3], [0.8076, 0.6698], "^", color="#d62728", markersize=8, label="the program's 3D solid (square tube)")
+    ax.set_xlabel("eps = a / b")
+    ax.set_ylabel("psi = 4 a k Rs (dimensionless spreading resistance)")
+    ax.set_title("the farther the heat has to spread (small source), the larger psi", fontsize=9)
+    ax.legend(fontsize=7.5)
+    ax.grid(alpha=0.3)
+    ax = fig.add_subplot(gs[0, 2])
+    nrs = [s_["cells_per_radius"] for s_ in res["sweep_eps02"]]
+    errs = [abs(s_["psi"] / 0.8009 - 1) * 100 for s_ in res["sweep_eps02"]]
+    ax.loglog(nrs, errs, "o-", color="#1f77b4", label="axisymmetric solver, eps = 0.2")
+    ax.loglog(nrs, [errs[0] * nrs[0] / n for n in nrs], "--", color="grey", label="order one")
+    ax.set_xlabel("cells per radius")
+    ax.set_ylabel("error against the table (%)")
+    ax.set_title(f"error halves with each halving of the cell;\nextrapolated {res['extrapolated_eps02']:.4f} against 0.8009", fontsize=9)
+    ax.legend(fontsize=7.5)
+    ax.grid(alpha=0.3, which="both")
+    fig.suptitle("Spreading resistance: heat leaving a small source into a large body, from a third solver (README 4.3)", fontsize=10)
+    fig.subplots_adjust(top=0.84, bottom=0.12, left=0.04, right=0.98)
+    fig.savefig(OUT / "fig_06_spreading_resistance_explained.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the three figures.
@@ -109,6 +170,7 @@ def main():
     fig_psi()
     fig_gci()
     fig_pads()
+    fig_spreading()
     print("figures in", OUT)
 
 
