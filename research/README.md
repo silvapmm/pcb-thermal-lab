@@ -4,7 +4,7 @@ Studies that are not part of the program. Rule (maintainer, 2026-10-23): on a re
 
 | Path | What it is |
 | :-- | :-- |
-| `gerbers/` | Everything about the Gerber import: independent reader, mapping of copper to grid conductances, studies, tests, `README.md` with the results, `INTEGRATION.md` with the design. |
+| `gerbers/` | Everything about the Gerber import (start with `gerbers/CONCLUSIONS.md`): independent reader, mapping of copper to grid conductances, studies, tests, `README.md` with the results, `INTEGRATION.md` with the design. |
 | `gerbers/docs/research.md` | Summary of the open investigation (formerly a section of the project `docs/research.md`). |
 | `gerbers/docs/changelog.md` | Changelog text for when the work is adopted. |
 | `gerbers/docs/decisions-log.md` | Structure line and Decisions Log entries for `CLAUDE.md`, for when the work is adopted. |

@@ -46,4 +46,5 @@ Pictures (in `../figures/`): `fig_01_angles_pixel_grid.png` (thin tracks at an a
 ![nets and Joule heat](../figures/fig_02_kicad_nets_and_joule.png)
 ![copper mapping to cells](../figures/fig_03_copper_mapping_to_cells.png)
 * **Ucamco page and gerber-writer** (4.24): the format page confirms net names and aperture functions as standard attributes and mentions the job file (stack-up data: idea, not checked); files written with `gerber-writer` (thermal pads, arcs) are read within 0.1 % of the exact area, gerbonara was 8.6 % low on the arc file; attributes written as `G04 #@!` comments are now understood.
+* **Conclusions** compiled in `../CONCLUSIONS.md` (README 4.25 adds the boundary-limited regime of Sampson: fill fraction 22.6 % cool on real windows with the border held and no convection, flow-based faces 2.3 %; stripes: -49 % across, scalar mappings fail in one direction, directional mappings +6 to +7.5 %); 58 tests including `tests/test_claims.py`.
 

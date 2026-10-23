@@ -1,6 +1,6 @@
 # Gerber import: from copper vectors to the conductances of the grid
 
-Research branch `research/gerbers` (started 2026-10-22). **Nothing in `pcbthermal/` was changed**: this folder holds the studies, their tests and the
+Research branch `research/gerbers` (started 2026-10-22). **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md).** **Nothing in `pcbthermal/` was changed**: this folder holds the studies, their tests and the
 conclusions, so that the work can be repeated and the decision taken later. The summary for the project documents is in [`docs/research.md`](docs/research.md) (this folder) (section
 "Gerber import"); how the result would enter the program, line by line, is in [`INTEGRATION.md`](INTEGRATION.md).
 
@@ -62,9 +62,11 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `study_gerber_writer.py` | Files written with Ucamco's `gerber-writer` (thermal pads, arcs, regions) read by the reader and gerbonara (4.24). Needs `pip install gerber-writer`. |
 | `study_angles.py`, `make_figures.py` | Tracks at any angle: area, connectivity, resistance (4.23); `make_figures.py` writes the pictures to `figures/`. |
 | `figures/` | The pictures, named `fig_NN_topic.png` in order of creation (committed on purpose, the README files link to them): 01 angles on the pixel grid, 02 KiCad nets and Joule heat, 03 copper mapping to cells. |
+| `scenarios.py`, `study_sampson_boundary.py` | Boundary-limited scenarios: fixed-temperature posts or border, no convection, stripes and 42 windows (4.25). |
+| `CONCLUSIONS.md` | The conclusions, the comparison with the three articles, the table of validated numbers with the test of each claim, the limits and the decisions left open. |
 | `joule.py`, `study_net_joule.py` | Current in a net and the heat it makes (4.20). |
 | `study_reader_scope.py` | Which copper layers and drill files the reader handles (4.19). |
-| `tests/` | 53 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
+| `tests/` | 58 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
 | `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |
 
 ## 4. How to run, and the results
@@ -413,6 +415,15 @@ The Ucamco format page (supplied by the maintainer, `docs/literature.md` section
 | pentagon region | -0.01 % | 0.00 % |
 
 Findings: (1) **the reader handles the thermal-pad macros and the arc path**; (2) **gerbonara's vector area is 8.6 % low on the arc file** (cause not investigated), so a tool used as a reference is not ground truth, as section 4.22 already said; (3) gerber-writer writes its attributes in the compatibility form `G04 #@! TF.FileFunction,Copper,L1,Top*`, which the reader did not understand (file not classified as copper, net names lost): **fixed**, both forms are read now (`test_attributes_written_as_comments`). gerber-writer has no argument for a net name, so this file set does not test nets. Gerber-writer's `ChamferedRectangle` was not exercised.
+
+### 4.25 The regime of Sampson's article: heat that must reach fixed-temperature posts, no convection (`scenarios.py`, `study_sampson_boundary.py`)
+
+Sampson (2017) found smearing worst when the heat has to cross copper-free regions to posts with little convection. Two families of cases, reference = the mask solved pixel by pixel, error of the mean rise over the heater (1 W, 6 x 6 mm):
+
+* **42 real windows (36 mm) with the whole border held at 0 K**: with no convection (h = 0) MAE of the fill fraction 22.6 % (all cool, worst 37 %), geometric mean 4.8 %, tile method (Blackmore, the lower bound) 11.0 % (all hot), lambda 0.5 2.8 %, flow-based faces **2.3 %** (worst 6.6 %); with h = 10 W/m²K: 20.8, 4.2, 9.7, 2.4, **2.1 %**. The ranking is the one of 4.4 and the errors are about twice those of the insulated-edge case.
+* **Copper stripes** (0.5 mm wide, 1 mm pitch, a block of 34 mm in a 36 mm board, posts of 3 x 6 mm at the middle of two opposite edges, no convection), 1 mm cells: heat **across** the stripes: fill fraction **-48.7 %**, geometric mean -13.6 %, tile, lambda and flow-based faces +6.0 %; heat **along** them: fill fraction -19.9 %, geometric mean **+34.9 %**, the three directional mappings +7.5 %. A scalar (the fill fraction or the geometric mean) cannot be right in both directions; the directional mappings can. With 0.3 mm stripes the figures are -44.3 / -1.1 / +6.2 (across) and -17.4 / +46.7 / +7.5 (along).
+* **What was not reproduced**: Sampson's board gives 236 °C against 9 °C with smearing (a factor of 26); our stripes give a factor of about 2 in the rise. His traces do not reach the posts over large areas and his board is 100 x 125 mm with 6 layers; ours is a 36 mm single sheet, so the size of his effect is not tested here, only its direction. The cases of 2 mm cells were left out of the tables because the 3 mm posts and the 6 mm heater are not aligned with a 2 mm grid (they are then misrepresented, an artefact of the setup).
+* The residual +6 to +7.5 % of the directional mappings on the stripes is the coarse representation of the posts and of the heater edges at 1 mm cells.
 
 ## 5. Without third-party libraries: the independent reader
 

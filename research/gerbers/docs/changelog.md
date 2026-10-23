@@ -7,3 +7,4 @@ Text that was added to the Unreleased section of `CHANGELOG.md`; kept here until
 - `research/gerbers`: drill reader fixed against 35 gerbonara test files (Excellon zero options, format pattern, unit codes, tool parameters, routed paths; a file without a unit is refused), the reader keeps the X2 net of every object, `joule.py` computes the current of a net and its Joule heat per cell, 48 tests, `docs/literature.md` records what could and could not be read.
 - `research/gerbers`: synthetic Gerber files of known area made with gerbonara and a comparison of the independent reader with gerbonara, pygerber and pcb-tools; the reader tolerates a G code line without its star.
 - `research/gerbers`: angle sweep of thin tracks (area, connectivity, resistance), nine-point stencil option in the net solver, figure script.
+- `research/gerbers`: CONCLUSIONS.md, boundary-limited scenarios (Sampson regime), tests of the claims (58 tests).
