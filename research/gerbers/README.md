@@ -28,6 +28,8 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | **Flow-based faces** | The most robust: 0.6 to 0.9 % (single layer), 0.4 to 1.3 % (two layers), 0.3 to 2.0 % (four layers), 0.9 to 3.4 % on every regular pattern at 1 mm cells (diagonal stripes included). It costs 5.5 s per 1.6 M pixels (a 100 x 160 mm layer at 0.1 mm), once, at import. |
 | In the program | The same numbers through `pcbthermal.fvm.Network` (agreement with the research solver to 3e-12): only the conductances change. **Applying the geometric mean to the program's `Zone.fill` would change a hatched zone by +26 to +45 %** and four exact-value tests by 0.05 to 0.07 K: the zone fill and the imported copper must stay separate things. |
 | Time response | Heat capacity stays an arithmetic average; with the new conductances the response follows the steady one (0.7 to 3.2 % at 120 s). |
+| Lumped and Analytic | Lumped inherits a better `S` (13 % to 4.8 %); Analytic needs one effective conductance, a heater-influence-weighted geometric-type mean (18.6 % to 5.9 %), section 4.16. |
+| Reader conformance | 149 of 164 comparable gerbonara test files agree within 3 % of the area; 6 refused as unsupported (4.17). |
 | Cell size | 0.6 and 1.0 mm cells map well; at 2 mm every method is limited by the grid itself (the 6 mm heater has 3 x 3 cells). |
 
 ## 3. Folder layout
@@ -47,8 +49,10 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `study_two_layer.py`, `study_multilayer_real.py` | Two layers with plated holes; a real four-layer board, thin and heavy copper (4.12, 4.13). |
 | `prototype_in_program.py` | The mappings through the program's own `fvm.Network` (4.14). |
 | `bench_mapping_cost.py` | Time and memory of the mappings on board-sized layers (4.15). |
+| `study_lumped_analytic.py` | The mappings in the program's Lumped and Analytic models through the public API (4.16). |
+| `study_reader_conformance.py` | The native reader against gerbonara on gerbonara's own test files (4.17). |
 | `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not. |
-| `tests/` | 34 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
+| `tests/` | 37 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
 | `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |
 
 ## 4. How to run, and the results

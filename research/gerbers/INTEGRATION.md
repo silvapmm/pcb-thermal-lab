@@ -40,7 +40,7 @@ def pattern_mask(kind, pitch, fill, polygon, pixel):    # hatch lines, cross-hat
 ### What each model does
 
 * `fvm.py`: after `self.S`, if a layer has a mask, store its face conductances (`gx`, `gy` per layer); `_assemble` (lines 210-213 and 277-280) uses the stored faces for those layers and the harmonic mean of `S` for the others. The vias, the vertical links, the losses, the blocks and the capacity are untouched.
-* `fdm.py`: the same on the nodes (the face between two nodes comes from the mask); `solid3d.py`: `kx`, `ky` per slab from the cell conductances; `lumped.py`: reads `net.S`: give it the mean of the two directional values of the layer; `analytic.py`: keeps the average fraction (the series model has no direction).
+* `fdm.py`: the same on the nodes (the face between two nodes comes from the mask); `solid3d.py`: `kx`, `ky` per slab from the cell conductances; `lumped.py`: reads `net.S`: give it the mean of the two directional values of the layer (measured: 13 % falls to 4.8 %, `README.md` 4.16); `analytic.py`: keeps ONE effective conductance per layer, but not the arithmetic fraction (18.6 % too cool): the mean weighted by the heater's influence K0(r/lambda), as a power mean with p between -0.2 and -0.1 (MAE 5.9 %), or the flow-based conductance of the window (7.1 %); per-cell values do not help it (12 %).
 * The GUI: an element "Imported copper" per layer (a preview of the mask, the pixel size, the layers assigned), the zone's `pattern` and `pitch`, tooltips and the user guide (CLAUDE.md rules).
 
 ## 3. Storage and import
