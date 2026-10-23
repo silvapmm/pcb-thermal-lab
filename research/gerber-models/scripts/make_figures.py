@@ -673,6 +673,68 @@ def fig_cell_flow():
     plt.close(fig)
 
 
+def fig_diagonal_gate():
+    """!
+    @brief The detector of the cells that get diagonal faces: on a real window, the copper, the coherence of every 1 mm cell (cross term of the cell tensor over its mean conductance) and the share of diagonal conduction the gate gives it; then the results of the gates on the 42 windows and on the tracks.
+    @return None.
+    """
+    import json
+    import diagonal as dg
+    windows.BOARDS = ["storm"]                                          # Stormduino (MIT): the only board whose licence allows a picture of it
+    windows.FILE = windows.OUT / "windows_storm.npz"
+    masks, meta = windows.load()
+    mask = masks[1]
+    S = cd.sheet_of(mask[::-1])
+    kxx, kyy, kxy = dg.cell_tensor(S, 10)
+    rho = np.abs(kxy) / (0.5 * (kxx + kyy))
+    gate = np.clip((rho - 0.05) / 0.20, 0, 1)
+    res = json.loads((CACHE / "diagonal_gate.json").read_text())
+    fig = plt.figure(figsize=(16, 9.4))
+    gs = fig.add_gridspec(2, 3, height_ratios=[1, 0.9])
+    ax = fig.add_subplot(gs[0, 0])
+    ax.imshow(mask, cmap="copper", interpolation="nearest", extent=(0, 36, 0, 36))
+    ax.set_title("Stormduino (MIT): 36 x 36 mm of real copper", fontsize=9)
+    ax = fig.add_subplot(gs[0, 1])
+    im = ax.imshow(rho[::-1], cmap="magma", vmin=0, vmax=0.5, interpolation="nearest", extent=(0, 36, 0, 36))
+    ax.set_title("coherence of each 1 mm cell: |kxy| / mean(kxx, kyy)\n(0: uniform, crossing or axis-aligned; high: one diagonal conductor)", fontsize=9)
+    fig.colorbar(im, ax=ax)
+    ax = fig.add_subplot(gs[0, 2])
+    ax.imshow(mask, cmap="copper", interpolation="nearest", extent=(0, 36, 0, 36), alpha=0.55)
+    ys, xs = np.nonzero(gate[::-1] > 0)
+    ax.scatter(xs + 0.5, ys + 0.5, s=18 + 60 * gate[::-1][ys, xs], c=gate[::-1][ys, xs], cmap="cool", vmin=0, vmax=1, edgecolors="k", linewidths=0.3)
+    ax.set_title(f"cells that get diagonal faces (gate > 0): {int((gate > 0).sum())} of {gate.size}\ncolour and size: the share of the missing diagonal conduction added", fontsize=9)
+    for a in fig.axes[:3]:
+        a.set_xlabel("mm")
+    ax = fig.add_subplot(gs[1, 0])
+    b = res["b"]
+    names = list(b)
+    mae = [np.mean(np.abs(b[m])) for m in names]
+    ax.barh(range(len(names)), mae, color=["#9bbf8a" if "coherence" in m or "ramp" in m else "#c9c9c9" for m in names])
+    ax.set_yticks(range(len(names)))
+    ax.set_yticklabels([m.replace("coherence ramp", "ramp") for m in names], fontsize=7.5)
+    ax.invert_yaxis()
+    for i, m in enumerate(names):
+        ax.text(mae[i], i, f"  {mae[i]:.2f} (bias {np.mean(b[m]):+.2f})", va="center", fontsize=7.5)
+    ax.set_xlabel("mean absolute error of the heater rise, 42 real windows (%)")
+    ax.set_title("42 real windows against the nine-point pixel reference", fontsize=9)
+    ax.set_xlim(0, max(mae) * 1.6)
+    ax = fig.add_subplot(gs[1, 1:])
+    a_ = res["a"]
+    widths = sorted({float(k.split("/")[0]) for k in a_})
+    for m, colour in (("flow-based, no diagonals", "#7f7f7f"), ("fixed 1.0", "#d62728"), ("fixed 0.5", "#ff7f0e"), ("coherence ramp 0.05 to 0.25", "#2ca02c"), ("coherence ramp 0.10 to 0.40", "#1f77b4")):
+        ax.plot(widths, [a_[f"{w}/45"][m] for w in widths], "o-", color=colour, label=m, linewidth=1.6)
+    ax.axhline(100, color="k", linewidth=0.8, linestyle="--")
+    ax.set_xscale("log")
+    ax.set_xlabel("track width (mm)")
+    ax.set_ylabel("share of the track's cooling reproduced (%)")
+    ax.set_title("a track at 45 degrees (the gates leave the 0 degree results unchanged); 100 % is right", fontsize=9)
+    ax.legend(fontsize=7.5)
+    fig.suptitle("A detector for the diagonal faces: the cell's own conductance tensor decides where they are added (README 4.48)", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "fig_19_diagonal_gate.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -692,6 +754,7 @@ def main():
     fig_zone_union()
     fig_clearance_cell()
     fig_cell_flow()
+    fig_diagonal_gate()
     print("figures in", OUT)
 
 

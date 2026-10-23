@@ -1,6 +1,6 @@
 # Gerber import, phase 2: the copper in the simulation models (mapping to conductances, the five models)
 
-Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 2 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (the problem, the methods, the boards, the results and what to do next, in plain order) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.40) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 2 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (the problem, the methods, the boards, the results and what to do next, in plain order) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.48) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
 
 ### Where the sections are
 
@@ -50,6 +50,10 @@ Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbtherm
 | 4.42 | `gerber-models` **(this folder)** | The thinnest track and the angle |
 | 4.43 | `gerber-models` **(this folder)** | Every mapping on every board, in one table |
 | 4.44 | `gerber-models` **(this folder)** | Diagonal couplings: the nine-point experiment |
+| 4.45 | `gerber-import` | Is it the same copper? Four tools, pixel by pixel |
+| 4.46 | `gerber-import` | The nets against the KiCad project, pixel by pixel |
+| 4.47 | `gerber-import` | The board outline from the profile layer |
+| 4.48 | `gerber-models` **(this folder)** | A detector for the diagonal faces |
 
 ## 1. The questions
 
@@ -112,8 +116,8 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_diagonal.py` | The nine-point experiment on the tracks and on the 42 windows (4.44; about 15 minutes). |
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
-| `scripts/study_diagonal_gate.py` | A detector of the cells that should get diagonal faces: the share is decided cell by cell from the cell tensor and compared with the fixed shares (4.48; results being written). |
-| `scripts/make_figures.py` | Draws the data figures (1 to 12 and 18) into `figures/`. |
+| `scripts/study_diagonal_gate.py` | A detector of the cells that should get diagonal faces: the share is decided cell by cell from the cell tensor and compared with the fixed shares (4.48). |
+| `scripts/make_figures.py` | Draws the data figures (1 to 12, 18 and 19) into `figures/`. |
 | `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 17). |
 
 ## 4. How to run, and the results
@@ -312,6 +316,32 @@ The same 42 real windows (the heater at 12 to 18 mm, 1 mm cells, error of the me
 * **So the answer to "does adding diagonal faces fix it" is: yes for a lone diagonal, but only a damped, hybrid form is safe on real boards**, and the damping is a fudge factor chosen on the windows (nothing here says 0.5 is right for other boards). The next step is a detector: add the diagonal conduction only to cells where it is a single dominant diagonal conductor (a strong anisotropy of the cell tensor along a diagonal), not where the copper is a plane or a corner.
 
 Limits: research solver and boards only (the program's `fvm.py` has no diagonal faces; adding them is a change of the matrix assembly, `INTEGRATION.md` section 9); one heater size and one cell size (1 mm); the held-border scenario of the studies; alpha chosen on the same windows it is tested on (no held-out set).
+
+### 4.48 A detector for the diagonal faces (`diagonal.hybrid_faces(gate=...)`, `study_diagonal_gate.py`, figure 19)
+
+4.44 left an open item: a detector of the cells with a single dominant diagonal conductor, so that the diagonal conduction is added only where it belongs (the hybrid adds it with the same share in every cell, and 0.5 was a compromise: a copper plane or a crossing of two diagonals does not need it).
+
+**What the literature gives** (web searches, snippets only; the sources were not read in full). The usual detector in image analysis is the **structure tensor**: the smoothed product of the gradients, whose largest eigenvector is the dominant orientation and whose *coherence* ((l1 - l2) / (l1 + l2), 1 for a pure orientation, 0 for an isotropic structure) says how much a direction dominates ([notes on the structure tensor, DTU](https://people.compute.dtu.dk/vand/notes/ST_intro.pdf); [Brox et al.](https://www.mia.uni-saarland.de/Publications/brox-pp141.pdf); [G'MIC tutorial](https://gmic.eu/oldtutorial/_structuretensors.html)). On a binary mask the gradient exists only on the edges of the copper, so the tensor describes the edges, not the conductor, and depends on the smoothing scale against the track width (my own reasoning, no source). In finite volumes the **cross term of the conductivity tensor** is what a nine-point stencil represents: the five-point stencil cannot carry it and gives strong grid-orientation effects, and cell-centred nine-point schemes for heterogeneous, anisotropic media exist ([Agelas, Eymard and Herbin, 2009](https://comptes-rendus.academie-sciences.fr/mathematique/item/10.1016/j.crma.2009.03.013.pdf)); a linear nine-point scheme that is also monotone and second-order does not exist on distorted meshes or for any anisotropic diffusion ([a positivity paper](https://journal.global-sci.org/intro/article_detail/cicp/12482.html)), so overshoots of the diagonal faces are to be expected, not a bug. Nothing found describes the detector asked for here (which cells get diagonal faces), nor the upscaling of a conductance tensor from a fine mask with a nine-point stencil.
+
+**The detector used.** The cell's own conductance tensor already is the physical analogue of the structure tensor: it comes from the cell problem (energy of the two fields with an affine boundary condition), so it measures the *conduction*, not the edges, and needs no smoothing scale. Its coherence is `|kxy| / mean(kxx, kyy)`: zero for a uniform cell, for two crossing diagonals (their cross terms cancel) and for an axis-aligned conductor, large when one diagonal conductor dominates. The gate is a ramp of the coherence between two thresholds that sets the share of the missing diagonal conduction added in that cell (`hybrid_faces(S, n, gate=...)`); a second variant also asks the principal axis to lie between 22.5 and 67.5 degrees of the x axis (|2 kxy| > |kxx - kyy|).
+
+![Figure 19: the detector on a real window and its results](figures/fig_19_diagonal_gate.png)
+
+*Figure 19 (`figures/fig_19_diagonal_gate.png`): top, a Stormduino window, the coherence of every 1 mm cell and the cells the gate (0.05 to 0.25) gives diagonal faces (333 of 1,296); bottom left, the mean absolute error of the heater rise on the 42 windows; bottom right, the share of a 45-degree track's cooling reproduced against the width.*
+
+| Variant | 42 windows, MAE % (bias) | Worst window % | 45-degree tracks, share reproduced (0.05 / 0.1 / 0.2 / 0.3 / 1.0 mm) |
+| :-- | --: | --: | :-- |
+| flow-based faces, no diagonals | 1.85 (+1.33) | 5.9 | 50 / 37 / 38 / 38 / 84 % |
+| diagonal share 1.0 in every cell | 3.13 (-2.79) | 7.7 | 110 / 88 / 102 / 104 / 102 % |
+| diagonal share 0.5 in every cell | 1.77 (-0.88) | 5.6 | 80 / 64 / 72 / 74 / 94 % |
+| **gate: coherence ramp 0.05 to 0.25** | **1.43 (+0.51)** | **4.3** | 60 / 61 / 99 / 103 / 84 % |
+| gate: coherence ramp 0.10 to 0.40 | 1.57 (+0.93) | 5.3 | 50 / 45 / 69 / 73 / 84 % |
+| gate 0.05 to 0.25 and principal axis 22.5 to 67.5 degrees | 1.44 (+0.61) | 4.4 | same as the ramp |
+
+* **The gate is better than the fixed shares on the real windows**: 1.43 % against 1.85 % (no diagonals), 1.77 % (share 0.5) and 3.13 % (share 1.0), and the worst window falls from 5.6 to 4.3 %. The principal-axis condition adds nothing (1.44 %, the same tracks).
+* **On the 45-degree tracks it is right where the track is of a width the cell can see** (0.15 to 0.3 mm: 99 to 106 %), and it does not do the job for the thinnest tracks (0.05 and 0.1 mm: 60 %) nor completely for the widest (0.5 mm: 80 %, 1 mm: 84 %, the same as without diagonals), where the coherence stays under the threshold; a fixed share of 1.0 reproduces all of them but is the worst on real boards (a bias of -2.8 %: it adds diagonal conduction to cells that have none). The tracks at 0 degrees are unchanged by every gate.
+* **False positives are visible** in figure 19: some cells along rows of round pads get a small share (the cyan points).
+* **Limits**: the thresholds were chosen by trying two ramps on the same 42 windows they are tested on (no held-out set); one cell size (1 mm); one board family for the windows; the references are the nine-point pixel networks of 4.44, not a measurement. It is a promising detector, not a finished one: the open points are the thin and the wide tracks and a held-out test.
 
 ### 4.7 Copper thickness (`study_contrast.py`)
 

@@ -135,7 +135,7 @@ Faces to the four diagonal neighbours were added to the research network (`lib/d
 
 ## 8. What to do to keep discussing and improving the copper mapping
 
-1. **Diagonal copper**: done as an experiment (6.1): the hybrid with a share of 0.5 halves the error on a lone diagonal and keeps real windows as they are; to do: a detector of cells with a single dominant diagonal conductor instead of a global share, a held-out set of boards with many diagonal tracks, and the nine-point faces in the program's `fvm.py` (`INTEGRATION.md` section 9).
+1. **Diagonal copper**: done as an experiment (6.1): the hybrid with a share of 0.5 halves the error on a lone diagonal and keeps real windows as they are; first detector done (README 4.48: the cell tensor's coherence as a gate, 1.43 % on the 42 windows against 1.77 %, not yet tested on a held-out set); to do: test it on other boards; a detector of cells with a single dominant diagonal conductor instead of a global share, a held-out set of boards with many diagonal tracks, and the nine-point faces in the program's `fvm.py` (`INTEGRATION.md` section 9).
 2. **A measurement**: one real board with a heater and a thermocouple or an infrared image is the only thing that turns "agrees with the resolved model" into "agrees with the world".
 3. **Finer reference and pixel**: repeat the mapping studies with a 0.05 mm pixel and the nine-point stencil for the reference; repeat the track study with 0.5 and 0.25 mm cells.
 4. **More boards**: power boards, heavy copper (up to 140 µm: the fill error grows to 18 %), metal-core, boards with many diagonal tracks.
