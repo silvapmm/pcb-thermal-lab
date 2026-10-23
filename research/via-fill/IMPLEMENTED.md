@@ -1,6 +1,6 @@
 # Via fill: what entered the program
 
-Released in **2.4.0** (2026-10-22).
+Released in **2.4.0**.
 
 | What | Where |
 | :-- | :-- |

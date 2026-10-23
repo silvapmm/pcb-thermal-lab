@@ -1,11 +1,17 @@
 # The metal block and its fins: models and verification
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2026-10-16 and 2026-10-22; moved to this folder on 2026-10-23. Studies: `fin_validation.py` and `block_equivalent_study.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `fin_validation.py` and `block_equivalent_study.py`; figures: `make_figures.py`.
 
 ## 1. The questions
 
 1. Is the formula that replaces the fins of a metal block by an area gain and an efficiency right?
 2. Can the Lumped and Analytic models represent a metal block (a heat spreader under the board), and with what error against the FVM, which solves it natively?
+
+### 1.1 Diagram
+
+![The metal block and its fins as schematics](figures/fig_04_block_and_fins_schematic.png)
+
+*Figure 4 (`figures/fig_04_block_and_fins_schematic.png`): The metal block and its fins as schematics: 1, the block under the board and the heat path; 2, the same path as thermal resistances (the board faces in parallel); 3, the efficiency of a fin as a function of mL, with the range of the 24 validated cases shaded; 4, the three ways of representing a block in the Lumped and Analytic models, with their mean error against the FVM.*
 
 ## 2. Findings in short
 
@@ -20,7 +26,8 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2
 | `scripts/fin_validation.py` | The fin formula against a 2D finite-volume solution of one fin (24 cases). |
 | `scripts/block_equivalent_study.py` | Three approaches to the block in the Lumped and Analytic models against the FVM, on 74 cases. |
 | `scripts/make_figures.py` | Draws the three figures (runs both studies and reads what they print). |
-| `figures/` | `fig_01` to `fig_03`. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how, and a correction. |
 
 ## 4. How to run, and the results
@@ -86,7 +93,7 @@ All 24 cases of the script (four metals, h = 10, 30, 100 W/m²K, two fin sizes, 
 | fins 15 × 1.5 mm, pitch 12 mm | 3.5 | 66.4 | 66.3 | 66.8 | 77.8 | 75.5 |
 | fins 30 × 1.5 mm, pitch 8 mm | 8.4 | 53.2 | 53.2 | 53.6 | 62.4 | 59.3 |
 
-The FVM, the FDM and the 3D solid agree within 1 % on a finned block (the same fin ratio in all three); the lumped and analytic models were 10 to 13 % high on a board with a block (they replaced it by an equivalent coefficient) and since 2026-10-22 they have the block as a ring layer and as a tile graph, 1 to 2 % off on average (section 17; section 15 for the fins).
+The FVM, the FDM and the 3D solid agree within 1 % on a finned block (the same fin ratio in all three); the lumped and analytic models were 10 to 13 % high on a board with a block (they replaced it by an equivalent coefficient) and now they have the block as a ring layer and as a tile graph, 1 to 2 % off on average (section 17; section 15 for the fins).
 
 ## 5. Limits of this study
 
@@ -97,4 +104,4 @@ The FVM, the FDM and the 3D solid agree within 1 % on a finned block (the same f
 
 ## 6. Sources
 
-Incropera and DeWitt (fin efficiency, straight fin with a corrected length); static condensation and Kron reduction of a network (references in section 4.2); Elenbaas (1942) and Bar-Cohen and Rohsenow (1984) for the channel effect, known from the searches of 2026-10-22 and not read in full. See `docs/validation.md` sections 15 and 17 for the other addresses.
+Incropera and DeWitt (fin efficiency, straight fin with a corrected length); static condensation and Kron reduction of a network (references in section 4.2); Elenbaas (1942) and Bar-Cohen and Rohsenow (1984) for the channel effect, known from the searches and not read in full. See `docs/validation.md` sections 15 and 17 for the other addresses.

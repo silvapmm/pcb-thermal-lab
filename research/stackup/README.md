@@ -1,12 +1,18 @@
 # The stack-up: advanced mode, typical templates and fabricators' tables
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2026-10-21 and 2026-10-22; moved to this folder on 2026-10-23. Studies: `stackup_outline_study.py` (sections 4.1 and 4.2) and `stackup_vendor_check.py` (section 4.3); figures: `make_figures.py`.
+Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `stackup_outline_study.py` (sections 4.1 and 4.2) and `stackup_vendor_check.py` (section 4.3); figures: `make_figures.py`.
 
 ## 1. The questions
 
 1. Does an advanced stack-up (copper per layer, material and thickness per gap) work in all five models, and does it add a model error?
 2. How sensitive is the temperature to each stack-up number?
 3. Are the program's typical stack-up templates (`pcbthermal/data/stackups.json`) close to what fabricators publish?
+
+### 1.1 Diagram
+
+![The stack-up as schematics](figures/fig_04_stackup_schematic.png)
+
+*Figure 4 (`figures/fig_04_stackup_schematic.png`): The stack-up as schematics: 1, the simple mode (equal gaps, the thickness shared by the layers); 2, the advanced mode (copper per layer, material and thickness per gap; each node is the copper plus half of each adjacent gap); 3, the vertical chain as a series of half gaps and what it was found to matter.*
 
 ## 2. Findings in short
 
@@ -22,7 +28,8 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2
 | `scripts/stackup_outline_study.py` | Tables of the advanced stack-up in five models, the outline (see `../outline/`), the sensitivity to the stack-up numbers, the finned block. |
 | `scripts/stackup_vendor_check.py` | The example board with the program's templates and with the published tables of seven fabricators entered layer by layer. |
 | `scripts/make_figures.py` | Draws the three figures (runs both studies and reads the tables they print). |
-| `figures/` | `fig_01` to `fig_03`. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
@@ -123,10 +130,10 @@ Without the vias under the part (base rise 93.4 K) the same ±30 % in the dielec
 ## 5. Limits of this study
 
 * One board (the example board with 9 vias under a part), FVM at 1 to 2 mm; the temperatures are for that board.
-* The fabricator tables are as published on their pages on 2026-10-22 (read from search snippets and pages, see `LOG.md`); two of them do not add up to their stated thickness and are shown as published.
+* The fabricator tables are as published on their pages (read from search snippets and pages, see `LOG.md`); two of them do not add up to their stated thickness and are shown as published.
 * No blind or buried vias, sequential lamination, heavy copper or metal-core boards were checked against a fabricator table.
 * No measurement of a physical board.
 
 ## 6. Sources
 
-Fabricator pages read on 2026-10-22: JLCPCB (4 and 6 layers), PCBWay (76 four-layer tables and an older blog table), OSH Park (FR408HR), Bittele 7pcb, PCBGOGO, AdvancedPCB (one 4-layer sample); NextPCB gives only prepreg thicknesses in text. The pages are named in `docs/validation.md` section 14; their addresses were not recorded in this repository, so this list is as read, not a citation list.
+Fabricator pages read: JLCPCB (4 and 6 layers), PCBWay (76 four-layer tables and an older blog table), OSH Park (FR408HR), Bittele 7pcb, PCBGOGO, AdvancedPCB (one 4-layer sample); NextPCB gives only prepreg thicknesses in text. The pages are named in `docs/validation.md` section 14; their addresses were not recorded in this repository, so this list is as read, not a citation list.

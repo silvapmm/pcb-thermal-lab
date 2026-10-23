@@ -1,12 +1,18 @@
 # The 3D solid and the layered models: verification against exact and independent references
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2026-10-16 and 2026-10-22; moved to this folder on 2026-10-23. Studies: `solid3d_verification.py`, `fem3d_validation.py`, `copper_dissipation.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `solid3d_verification.py`, `fem3d_validation.py`, `copper_dissipation.py`; figures: `make_figures.py`.
 
 ## 1. The questions
 
 1. Does the program's own 3D solid (`pcbthermal/solid3d.py`) reproduce an exact solution and converge with the mesh?
 2. How far are the layered models (FVM, FDM, Lumped, Analytic: one node per copper layer) from a real 3D solution, for uniform boards, small copper pads, vias, heatsinks and metal blocks?
 3. Does the outer copper dissipate and spread heat like a heatsink, and where do the models fail?
+
+### 1.1 Diagram
+
+![The layered models against the 3D solid](figures/fig_04_layered_vs_3d_schematic.png)
+
+*Figure 4 (`figures/fig_04_layered_vs_3d_schematic.png`): The layered models against the 3D solid: 1, one node per copper layer with the sheet conductance in the plane and a conductance between nodes; 2, the 3D solid with real slabs, several laminate slabs per gap and a via as a copper rod; 3, the verification ladder from exact solutions to an independent finite-element solution.*
 
 ## 2. Findings in short
 
@@ -23,7 +29,8 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2
 | `scripts/fem3d_validation.py` | The independent 3D finite-element solid (scikit-fem, **not** in `requirements.txt`: `pip install scikit-fem`), also used by `models-comparison/validation_study.py --fem`. |
 | `scripts/copper_dissipation.py` | The pad-size sweep and copper against heatsink, in every model and the FEM (`--fem`). |
 | `scripts/make_figures.py` | Draws the three figures (needs scikit-fem for the third; about 90 seconds). |
-| `figures/` | `fig_01` to `fig_03`. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results

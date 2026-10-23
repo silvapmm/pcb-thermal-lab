@@ -1,10 +1,16 @@
 # Lumped and Analytic models on a board with an outline
 
-Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2026-10-22; moved to this folder on 2026-10-23. Studies: `outline_rectangle_study.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see `IMPLEMENTED.md`). Studies: `outline_rectangle_study.py`; figures: `make_figures.py`.
 
 ## 1. The question
 
 The finite volumes, the finite differences and the 3D solid handle any board outline (cells outside it are pinned to ambient). The Lumped model (rings) and the Analytic model (cosine series) are built on a rectangle. What is the best rectangle to run them on when the board has an outline?
+
+### 1.1 Diagram
+
+![The rule for a board with an outline](figures/fig_04_outline_to_rectangle_schematic.png)
+
+*Figure 4 (`figures/fig_04_outline_to_rectangle_schematic.png`): The rule for a board with an outline: the board (a T) with its bounding box, the rectangle of the same area on which the Lumped and Analytic models run (box and positions scaled by the square root of the area ratio, the parts keep their size) and the three steps with the accuracy found.*
 
 ## 2. Findings in short
 
@@ -19,7 +25,8 @@ The finite volumes, the finite differences and the 3D solid handle any board out
 | :-- | :-- |
 | `scripts/outline_rectangle_study.py` | The study: five outlines, four layouts, three rectangles, error of the lumped and analytic models against the FVM on the real shape. |
 | `scripts/make_figures.py` | Draws the three figures. |
-| `figures/` | `fig_01` to `fig_03`. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results

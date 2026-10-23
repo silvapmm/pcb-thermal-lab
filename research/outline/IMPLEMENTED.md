@@ -1,6 +1,6 @@
 # Outline on the Lumped and Analytic models: what entered the program
 
-Released in **2.4.0** (2026-10-22).
+Released in **2.4.0**.
 
 | What | Where |
 | :-- | :-- |

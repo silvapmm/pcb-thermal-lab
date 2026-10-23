@@ -1,12 +1,18 @@
 # The five models against each other: scenarios, grids, solvers, time
 
-Status: **implemented**; the comparison is repeated whenever a model changes. Investigated from 2026-10-16; moved to this folder on 2026-10-23. Studies: `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`; figures: `make_figures.py`.
+Status: **implemented**; the comparison is repeated whenever a model changes. Studies: `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`; figures: `make_figures.py`.
 
 ## 1. The questions
 
 1. How far are the other models (FDM, 3D solid, Lumped, Analytic) from the FVM, the reference, on the example board and on 19 scenarios, and where do they stop being reliable?
 2. Does each model converge with the grid?
 3. Do the linear solvers (direct, conjugate gradients, SOR) give the same temperatures, and what was wrong with the original program's SOR?
+
+### 1.1 Diagram
+
+![How each of the five models represents the board](figures/fig_04_the_five_models_schematic.png)
+
+*Figure 4 (`figures/fig_04_the_five_models_schematic.png`): How each of the five models represents the board: cell-centred finite volumes (FVM, the reference), node-centred finite differences (FDM), rings around the footprint (Lumped), cosine modes (Analytic) and real slabs with via rods (3D solid).*
 
 ## 2. Findings in short
 
@@ -23,7 +29,8 @@ Status: **implemented**; the comparison is repeated whenever a model changes. In
 | `accuracy_study.py`, `stress_study.py` | The scenario lists for the Lumped and Analytic models (accuracy; stress cases). |
 | `scripts/solver_equivalence.py` | Direct, CG and SOR on five boards (section 4.4; about 5 seconds). |
 | `scripts/make_figures.py` | Draws the three figures (about 5 minutes). |
-| `figures/` | `fig_01` to `fig_03`. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 4; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_04`; figure 4 is the schematic diagram. |
 | `LOG.md` | What was read and how; what was not reproduced. (The comparison also uses `../solid3d-verification/fem3d_validation.py` with `--fem`.) |
 
 ```sh
@@ -106,7 +113,7 @@ The FVM rises monotonically to its limit (within 0.2 % from 1 mm; the via array 
 
 *Figure 2: `figures/fig_02_grid_convergence_of_the_models.png`.*
 
-Output of `accuracy_study.py` (Lumped and Analytic on the scenarios) and `stress_study.py` (their stress cases), 2026-10-23:
+Output of `accuracy_study.py` (Lumped and Analytic on the scenarios) and `stress_study.py` (their stress cases):
 
 | Case | FVM Tmax [°C] | Lumped Tmax | Lumped ΔT error | Analytic Tmax | Analytic ΔT error | Analytic warns |
 | :-- | --: | --: | --: | --: | --: | :-: |
@@ -170,7 +177,7 @@ Direct, CG and SOR with the residual criterion agree to **1e-8 K** or better on 
 
 ### 4.5 The removed wxPython program against the current one
 
-(Recorded from the review of 2026-10-16; the old code is in git history at tag `legacy-wxpython-1.0.0`, so these numbers are not re-run here.)
+(Recorded from the review; the old code is in git history at tag `legacy-wxpython-1.0.0`, so these numbers are not re-run here.)
 
 Same example board (reference 85.81 °C). Old numbers were obtained by running the original code (git tag `legacy-wxpython-1.0.0`, commit `641da87` with the comparison script).
 

@@ -1,6 +1,6 @@
 # The part, its top path and its heatsinks: junction temperature, interfaces and metal blocks
 
-Status: **mostly implemented** (θ junction-pad, junction limit, power coefficient, the top path, the interface sheet, the typical heatsink list, the metal block); the junction node (JESD15-3 two-resistor), the heatsink scenarios (θSA with the temperature rise, forced air, fin channel effect) and the Foster chain are **open** (see `INTEGRATION.md`). Investigated from 2026-10-16 to 2026-10-22; moved to this folder on 2026-10-23. The long running notes (what was read, section by section) are in `NOTES.md`.
+Status: **mostly implemented** (θ junction-pad, junction limit, power coefficient, the top path, the interface sheet, the typical heatsink list, the metal block); the junction node (JESD15-3 two-resistor), the heatsink scenarios (θSA with the temperature rise, forced air, fin channel effect) and the Foster chain are **open** (see `INTEGRATION.md`). The long running notes (what was read, section by section) are in `NOTES.md`.
 
 ## 1. The questions
 
@@ -9,6 +9,12 @@ Status: **mostly implemented** (θ junction-pad, junction limit, power coefficie
 3. What does a top path (θJC(top), paste, heatsink) change, and how well does the program's fixed-point loop reproduce a junction-node network?
 4. What do the interface material, the metal of a block under the board and the base of a heatsink matter?
 5. How should a heatsink known only by its sink-to-ambient resistance behave (natural-convection scaling, forced air)?
+
+### 1.1 Diagram
+
+![A part with its top path as schematics](figures/fig_05_part_and_top_path_schematic.png)
+
+*Figure 5 (`figures/fig_05_part_and_top_path_schematic.png`): A part with its top path as schematics: 1, the section of a package on the board with a heatsink on top and its two paths from the junction (theta_JB through the pad and the board, theta_JC(top) through the paste and the heatsink); 2, the network behind it and the fixed-point loop that the program uses instead of a junction node; 3, the whole chain from the junction to the air.*
 
 ## 2. Findings in short
 
@@ -32,13 +38,14 @@ Status: **mostly implemented** (θ junction-pad, junction limit, power coefficie
 | `scripts/base_spreading_study.py` | The extra resistance of a heatsink base for a small component (3D conduction). |
 | `scripts/block_contact_study.py` | A plate model against a published spreading example; a big block touching the board only in a patch; temperature-dependent power. |
 | `scripts/make_figures.py` | Draws the four figures (about 1.5 minutes). |
-| `figures/` | `fig_01` to `fig_04`. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 5; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_05`; figure 5 is the schematic diagram. |
 | `NOTES.md` | The running research notes of `docs/research.md` (what was read, what was simulated, open questions). |
 | `INTEGRATION.md`, `LOG.md` | What entered the program and what is open; what was read and how. |
 
 ## 4. How to run, and the results
 
-Every study is run from the repository root, for example `.venv/bin/python research/component-heatsink/scripts/component_study.py` (each takes 2 to 40 seconds). The outputs below were produced on 2026-10-23.
+Every study is run from the repository root, for example `.venv/bin/python research/component-heatsink/scripts/component_study.py` (each takes 2 to 40 seconds). The outputs below were produced.
 
 ### 4.1 Real parts at three levels (`component_study.py`)
 
@@ -246,7 +253,7 @@ Extra resistance of a 40 x 40 mm heatsink base (catalogue 12 K/W) for a small co
 
 ### 4.9 The junction temperature in the program (validation)
 
-`python research/component-heatsink/scripts/component_study.py`, `research/component-heatsink/scripts/block_contact_study.py` (power coefficient) and `tests/test_component.py`. Five parts of the datasheets read on 2026-10-17 (`docs/models.md` section 6) on a 60 × 60 mm, 2-layer board with a copper pad under the part on both faces (vias under footprints of 3 mm and more), computed natural convection, FVM at 0.5 mm. Level 0 is the plain source (the hottest board point under the part); level 1 adds θ.
+`python research/component-heatsink/scripts/component_study.py`, `research/component-heatsink/scripts/block_contact_study.py` (power coefficient) and `tests/test_component.py`. Five parts of the datasheets read (`docs/models.md` section 6) on a 60 × 60 mm, 2-layer board with a copper pad under the part on both faces (vias under footprints of 3 mm and more), computed natural convection, FVM at 0.5 mm. Level 0 is the plain source (the hottest board point under the part); level 1 adds θ.
 
 | Part | P [W] | θ [K/W] | Pad | Board under part | Tj | P·θ | Share of the rise |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
