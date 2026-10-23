@@ -735,6 +735,201 @@ def fig_diagonal_gate():
     plt.close(fig)
 
 
+def _cell_field(mask):
+    """!
+    @brief The heat flux in a cell of copper when the potential on the whole boundary of the cell is x (an affine boundary condition, the condition the cell tensor is built from): pixel faces with the harmonic mean of the sheet conductances, five-point stencil.
+    @param mask Boolean array (rows, cols), True = copper.
+    @return tuple (qx, qy) heat flux per pixel, qx along the columns, qy upwards.
+    """
+    import scipy.sparse as sp
+    import scipy.sparse.linalg as spla
+    n, m = mask.shape
+    S = cd.sheet_of(mask)
+    idx = np.arange(n * m).reshape(n, m)
+    gx = 2 * S[:, :-1] * S[:, 1:] / (S[:, :-1] + S[:, 1:])
+    gy = 2 * S[:-1, :] * S[1:, :] / (S[:-1, :] + S[1:, :])
+    rows, cols, vals = [], [], []
+    for a, b, g in ((idx[:, :-1], idx[:, 1:], gx), (idx[:-1, :], idx[1:, :], gy)):
+        a, b, g = a.ravel(), b.ravel(), g.ravel()
+        rows += [a, b, a, b]
+        cols += [a, b, b, a]
+        vals += [g, g, -g, -g]
+    K = sp.csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n * m, n * m))
+    ring = np.zeros((n, m), bool)
+    ring[0, :] = ring[-1, :] = ring[:, 0] = ring[:, -1] = True
+    v = np.where(ring, np.tile(np.arange(m, dtype=float), (n, 1)), 0.0).ravel()
+    free = ~ring.ravel()
+    rhs = -K[:, ~free] @ v[~free]
+    v[free] = spla.spsolve(K[free][:, free].tocsc(), rhs[free])
+    v = v.reshape(n, m)
+    qx = np.zeros((n, m))
+    qy = np.zeros((n, m))
+    fx = gx * (v[:, :-1] - v[:, 1:])
+    fy = gy * (v[:-1, :] - v[1:, :])
+    qx[:, :-1] += fx / 2
+    qx[:, 1:] += fx / 2
+    qy[:-1, :] += fy / 2
+    qy[1:, :] += fy / 2
+    return qx, -qy
+
+
+def _tensor_cells(n=40, pix=0.025):
+    """!
+    @brief Four 1 mm cells at 0.025 mm pixels: a track at 45 degrees, a track along x, two crossing diagonals and a copper plane with a round clearance, with their cell tensors.
+    @param n Pixels per cell side.
+    @param pix Pixel size (mm).
+    @return list of (title, mask, (kxx, kyy, kxy) as multiples of the sheet conductance of copper).
+    """
+    import diagonal as dg
+    y, x = np.mgrid[0:n, 0:n]
+    xc, yc = (x + 0.5) * pix, (y + 0.5) * pix
+    w = 0.2
+    diag1 = np.abs((xc - 0.5) - (yc - 0.5)) / np.sqrt(2) <= w / 2
+    diag2 = np.abs((xc - 0.5) + (yc - 0.5)) / np.sqrt(2) <= w / 2
+    along = np.abs(yc - 0.5) <= w / 2
+    plane = np.hypot(xc - 0.5, yc - 0.5) > 0.22
+    out = []
+    for title, m in (("a track at 45 degrees", diag1), ("a track along x", along), ("two crossing diagonals", diag1 | diag2), ("a plane with a round clearance", plane)):
+        kxx, kyy, kxy = dg.cell_tensor(cd.sheet_of(m), n)
+        out.append((title, m, tuple(float(v[0, 0] / cd.S_CU) for v in (kxx, kyy, kxy))))
+    return out
+
+
+def fig_cell_tensor():
+    """!
+    @brief What the cell tensor is: four 1 mm cells with the heat flux inside them when the boundary potential is x, and each cell's conductance ellipse (axes: the eigenvalues of the tensor, orientation: the principal direction) with its coherence.
+    @return None.
+    """
+    from matplotlib.patches import Ellipse
+    cells = _tensor_cells()
+    fig, axs = plt.subplots(2, 4, figsize=(16, 8.2), gridspec_kw={"height_ratios": [1.1, 1]})
+    for j, (title, mask, (kxx, kyy, kxy)) in enumerate(cells):
+        qx, qy = _cell_field(mask)
+        green, gold = np.array([0.04, 0.26, 0.13]), np.array([0.86, 0.62, 0.27])
+        ax = axs[0, j]
+        ax.imshow(np.where(mask[..., None], gold, green), extent=(0, 1, 0, 1), origin="upper")
+        step = 3
+        yy, xx = np.mgrid[0:mask.shape[0]:step, 0:mask.shape[1]:step]
+        mag = np.hypot(qx, qy)
+        sel = (slice(None, None, step), slice(None, None, step))
+        scale = mag.max()
+        ax.quiver((xx + 0.5) / mask.shape[1], 1 - (yy + 0.5) / mask.shape[0], (qx[sel] / scale), (qy[sel] / scale), color="white", scale=22, width=0.004, headwidth=3.5, pivot="mid")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(title, fontsize=9.5, fontweight="bold")
+        ax.set_xlabel(f"kxx {kxx:.3f}   kyy {kyy:.3f}   kxy {kxy:+.3f}  (x S_Cu)", fontsize=8.5)
+        # the conductance ellipse: half axes proportional to the eigenvalues of [[kxx, kxy], [kxy, kyy]]
+        a2 = axs[1, j]
+        T = np.array([[kxx, kxy], [kxy, kyy]])
+        lam, vec = np.linalg.eigh(T)
+        ang = np.degrees(np.arctan2(vec[1, 1], vec[0, 1]))
+        coh = abs(kxy) / (0.5 * (kxx + kyy))
+        a2.add_patch(Ellipse((0, 0), 2 * max(lam[1], 1e-3), 2 * max(lam[0], 1e-3), angle=-ang, facecolor="#9bbf8a", edgecolor="k", alpha=0.85))
+        a2.add_patch(plt.Circle((0, 0), 0.5 * (kxx + kyy), fill=False, linestyle="--", edgecolor="grey"))
+        a2.axhline(0, color="k", linewidth=0.6)
+        a2.axvline(0, color="k", linewidth=0.6)
+        a2.set_xlim(-1.05, 1.05)
+        a2.set_ylim(-1.05, 1.05)
+        a2.set_aspect("equal")
+        a2.set_xticks([])
+        a2.set_yticks([])
+        a2.set_xlabel(f"eigenvalues {lam[1]:.3f}, {lam[0]:.3f}; principal axis {ang % 180:.0f} deg (y down)\ncoherence |kxy| / mean(kxx, kyy) = {coh:.2f}", fontsize=8.5)
+    axs[0, 0].set_ylabel("heat flux inside the cell\n(boundary potential = x:\nthe gradient points along x)", fontsize=8.5)
+    axs[1, 0].set_ylabel("conductance ellipse\n(dashed: a uniform cell of\nthe same mean)", fontsize=8.5)
+    fig.suptitle("The cell tensor: how a cell of real copper conducts heat in x, in y and across (white arrows: the heat flux when the potential on the boundary is x; a track at 45 degrees sends the heat along itself, not along the gradient)", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.94), h_pad=3.5)
+    fig.savefig(OUT / "fig_20_cell_tensor.png", dpi=105)
+    plt.close(fig)
+
+
+def fig_tensor_in_use():
+    """!
+    @brief How the tensor is used: the nine-point stencil it gives to a cell with a 45-degree track (axial links kxx - |kxy|, kyy - |kxy| and a diagonal link |kxy|), and the temperature of a 6 mm heater over a 0.2 mm track at 45 degrees on 1 mm cells with the five-point network, with the gated nine-point network, and the resolved reference.
+    @return None.
+    """
+    import diagonal as dg
+    import scenarios as sc
+    import study_diagonal_gate as sg
+    import study_track_width_angle as st
+    cells = _tensor_cells()
+    kxx, kyy, kxy = cells[0][2]
+    fig = plt.figure(figsize=(17, 9.2))
+    gs = fig.add_gridspec(2, 5, height_ratios=[1, 1], width_ratios=[1, 1, 1, 1, 0.04], hspace=0.5, wspace=0.28, left=0.03, right=0.97, top=0.9, bottom=0.07)
+    ax = fig.add_subplot(gs[0, 0])
+    ax.set_xlim(-0.4, 2.4)
+    ax.set_ylim(-0.6, 2.4)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    xs, ys = np.meshgrid([0, 1, 2], [0, 1, 2])
+    cx_, cy_, dd = kxx - abs(kxy), kyy - abs(kxy), abs(kxy)
+    for i in range(3):
+        for j in range(3):
+            if i < 2:
+                ax.plot([i, i + 1], [j, j], color="#1f77b4", linewidth=1 + 14 * cx_ / (kxx + 1e-9))
+            if j < 2:
+                ax.plot([i, i], [j, j + 1], color="#1f77b4", linewidth=1 + 14 * cy_ / (kyy + 1e-9))
+            if i < 2 and j < 2:
+                ax.plot([i, i + 1], [j + 1, j], color="#d62728", linewidth=1 + 14 * dd / (kxx + 1e-9), alpha=0.9)       # copper runs from top left to bottom right
+    ax.scatter(xs.ravel(), ys.ravel(), s=70, color="k", zorder=3)
+    ax.text(1.0, -0.35, f"axial links: kxx - |kxy| = {cx_:.3f}, kyy - |kxy| = {cy_:.3f}\ndiagonal link: |kxy| = {dd:.3f}   (x S_Cu)\n(the track of the experiment runs the other way:\nthe other diagonal pair)", ha="center", va="top", fontsize=8)
+    ax.set_title("the stencil of a cell with a 45-degree track:\nblue axial links, red diagonal link", fontsize=9, fontweight="bold")
+    ax = fig.add_subplot(gs[1, 0])
+    ax.axis("off")
+    ax.text(0.0, 1.0, "how the tensor becomes links\n\nflux q = - K grad(u), K = [[kxx, kxy], [kxy, kyy]]\nthe five-point network only has kxx and kyy:\nheat that follows a diagonal track has to\nzigzag through x and y faces, and each face is\nshort of the real conduction\n\nthe nine-point stencil adds the diagonal link:\naxial = kxx - |kxy|, kyy - |kxy|, diagonal = |kxy|\n(the standard stencil of kxx uxx + kyy uyy + 2 kxy uxy)", va="top", fontsize=8.8)
+    # the experiment: a 6 mm heater on a track at 45 degrees on a 16 mm window
+    layer = st.ng.Layer(st.track_text(0.2, 45))
+    _, ct = st.masks(layer, st.PIX_TRUTH)
+    Sc = st.sheet(ct)
+    p_t, f_t, h_t = sc.box_scenario(Sc.shape, st.PIX_TRUTH, 6.0)
+    Tref = dg.pixel_reference9(Sc, st.PIX_TRUTH, p_t, 10.0, f_t)
+    nref = int(round(1.0 / st.PIX_TRUTH))
+    ref_cells = Tref.reshape(Tref.shape[0] // nref, nref, Tref.shape[1] // nref, nref).mean(axis=(1, 3))
+    _, c01 = st.masks(layer, 0.1)
+    S = st.sheet(c01)
+    p0, f0, h0 = sc.box_scenario(S.shape, 0.1, 6.0)
+    n = 10
+    cy, cx = S.shape[0] // n, S.shape[1] // n
+    pw = p0[:cy * n, :cx * n].reshape(cy, n, cx, n).sum(axis=(1, 3))
+    fx = cd.cell_blocks(f0, n).mean(axis=(2, 3)) >= 0.5
+    gx, gy = cd.dual_faces(S, n, 0)
+    T5 = dg.solve9(*dg.faces5_as9(gx, gy), 0.1 * n, pw, 10.0, fx)
+    Tg = dg.solve9(*dg.hybrid_faces(S, n, gate=sg.GATES["coherence ramp 0.05 to 0.25"]), 0.1 * n, pw, 10.0, fx)
+    y0, y1, x0, x1 = h0[0] // n, h0[1] // n, h0[2] // n, h0[3] // n
+    mean = lambda T: T[y0:y1, x0:x1].mean()
+    # the temperature the heater would have without the track, for the coarse network and for the fine reference: how much of the track's cooling each reproduces (as in study_diagonal_gate.py)
+    S0 = np.full(S.shape, cd.S_LAM)
+    gx0, gy0 = cd.dual_faces(S0, n, 0)
+    T0 = dg.solve9(*dg.faces5_as9(gx0, gy0), 0.1 * n, pw, 10.0, fx)
+    Tref0 = dg.pixel_reference9(np.full(Sc.shape, cd.S_LAM), st.PIX_TRUTH, p_t, 10.0, f_t)
+    ref_effect = 1 - Tref[h_t[0]:h_t[1], h_t[2]:h_t[3]].mean() / Tref0[h_t[0]:h_t[1], h_t[2]:h_t[3]].mean()
+    vmax = float(ref_cells.max())
+    for k, (T, name) in enumerate(((ref_cells, "resolved reference (0.025 mm pixels, nine-point)"), (T5, "1 mm cells, five-point network"), (Tg, "1 mm cells, nine-point with the gate"))):
+        a = fig.add_subplot(gs[0, k + 1])
+        im = a.imshow(T, cmap="inferno", vmin=0, vmax=vmax, extent=(0, 16, 0, 16), interpolation="nearest")
+        a.add_patch(plt.Rectangle((5, 5), 6, 6, fill=False, edgecolor="cyan", linewidth=1.2))
+        a.plot([0, 16], [0, 16], "--", color="white", linewidth=0.9, alpha=0.8)                      # the track (0.2 mm wide, 45 degrees)
+        share = 100 * (1 - mean(T) / mean(T0)) / ref_effect
+        a.set_title(f"{name}\nmean rise under the heater {mean(T):.1f} K", fontsize=9)
+        a.set_xlabel(f"share of the track's cooling reproduced: {share:.0f} %" if k else "mm", fontsize=8.5)
+        a.contour(np.linspace(0, 16, T.shape[1]) + 0, np.linspace(16, 0, T.shape[0]) + 0, T, levels=6, colors="white", linewidths=0.4)
+    fig.colorbar(im, cax=fig.add_subplot(gs[0, 4]), label="temperature rise (K)")
+    ax = fig.add_subplot(gs[1, 1:4])
+    d5, dg9 = T5 - ref_cells, Tg - ref_cells
+    lim = max(abs(d5).max(), abs(dg9).max())
+    xs_ = np.arange(cx) + 0.5
+    ax.plot(xs_, np.diag(ref_cells[::-1]), "k-", linewidth=2, label="reference, along the diagonal (the track)")
+    ax.plot(xs_, np.diag(T5[::-1]), "o-", color="#d62728", label="five-point network")
+    ax.plot(xs_, np.diag(Tg[::-1]), "s-", color="#2ca02c", label="nine-point with the gate")
+    ax.set_xlabel("position along the track's diagonal (1 mm cells)")
+    ax.set_ylabel("temperature rise (K)")
+    ax.set_title("temperature along the track: the track is a heat path; the five-point network misses it (red), the nine-point stencil with the gate follows the reference", fontsize=8.8)
+    ax.legend(fontsize=8)
+    fig.suptitle("How the cell tensor is used: it gives each cell diagonal links, and a heater over a diagonal track is cooled the way the real copper cools it (README 4.49)", fontsize=10)
+    fig.savefig(OUT / "fig_21_tensor_in_use.png", dpi=105)
+    plt.close(fig)
+    print("tensor in use: mean rise reference %.2f, five-point %.2f, gated %.2f, no track %.2f; track effect in the reference %.1f %%" % (mean(ref_cells), mean(T5), mean(Tg), mean(T0), 100 * ref_effect))
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -755,6 +950,8 @@ def main():
     fig_clearance_cell()
     fig_cell_flow()
     fig_diagonal_gate()
+    fig_cell_tensor()
+    fig_tensor_in_use()
     print("figures in", OUT)
 
 

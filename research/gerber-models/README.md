@@ -1,6 +1,6 @@
 # Gerber import, phase 2: the copper in the simulation models (mapping to conductances, the five models)
 
-Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 2 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (the problem, the methods, the boards, the results and what to do next, in plain order) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.48) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 2 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (the problem, the methods, the boards, the results and what to do next, in plain order) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.49) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
 
 ### Where the sections are
 
@@ -54,6 +54,7 @@ Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbtherm
 | 4.46 | `gerber-import` | The nets against the KiCad project, pixel by pixel |
 | 4.47 | `gerber-import` | The board outline from the profile layer |
 | 4.48 | `gerber-models` **(this folder)** | A detector for the diagonal faces |
+| 4.49 | `gerber-models` **(this folder)** | The cell tensor: what it is and how it is used |
 
 ## 1. The questions
 
@@ -117,7 +118,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
 | `scripts/study_diagonal_gate.py` | A detector of the cells that should get diagonal faces: the share is decided cell by cell from the cell tensor and compared with the fixed shares (4.48). |
-| `scripts/make_figures.py` | Draws the data figures (1 to 12, 18 and 19) into `figures/`. |
+| `scripts/make_figures.py` | Draws the data figures (1 to 12 and 18 to 21) into `figures/`. |
 | `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 17). |
 
 ## 4. How to run, and the results
@@ -342,6 +343,42 @@ Limits: research solver and boards only (the program's `fvm.py` has no diagonal 
 * **On the 45-degree tracks it is right where the track is of a width the cell can see** (0.15 to 0.3 mm: 99 to 106 %), and it does not do the job for the thinnest tracks (0.05 and 0.1 mm: 60 %) nor completely for the widest (0.5 mm: 80 %, 1 mm: 84 %, the same as without diagonals), where the coherence stays under the threshold; a fixed share of 1.0 reproduces all of them but is the worst on real boards (a bias of -2.8 %: it adds diagonal conduction to cells that have none). The tracks at 0 degrees are unchanged by every gate.
 * **False positives are visible** in figure 19: some cells along rows of round pads get a small share (the cyan points).
 * **Limits**: the thresholds were chosen by trying two ramps on the same 42 windows they are tested on (no held-out set); one cell size (1 mm); one board family for the windows; the references are the nine-point pixel networks of 4.44, not a measurement. It is a promising detector, not a finished one: the open points are the thin and the wide tracks and a held-out test.
+
+### 4.49 The cell tensor: what it is and how it is used (`diagonal.cell_tensor`, `diagonal.hybrid_faces`, figures 20 and 21)
+
+**What it is.** A cell of the thermal grid (1 mm square) contains real copper: tracks, gaps, pads. How does the cell conduct heat? Along x, along y, and, if a track crosses it at an angle, *across*: a temperature gradient along x makes the heat follow the diagonal track, so it also flows in y. That is a symmetric 2 x 2 matrix, the **conductance tensor of the cell**,
+
+`K = [[kxx, kxy], [kxy, kyy]]`, and the heat flux is `q = - K grad(u)`.
+
+`kxx` and `kyy` are the conductances along the two axes (what the five-point network of the program can carry); **`kxy` is the cross term**: zero when the cell conducts along the axes only (a uniform plane, an axis-aligned track, two crossing diagonals whose cross terms cancel) and different from zero when one diagonal conductor dominates. The values are sheet conductances in W/K (a square piece of the sheet), written below as multiples of the sheet conductance of copper. The picture of a tensor is an **ellipse**: its half axes are the eigenvalues, its orientation is the direction in which the cell conducts best.
+
+![Figure 20: four cells, the heat flux in them and their conductance ellipses](figures/fig_20_cell_tensor.png)
+
+*Figure 20 (`figures/fig_20_cell_tensor.png`, computed with the library): top, four 1 mm cells (0.025 mm pixels) and the heat flux inside them (white arrows) when the potential on the whole boundary of the cell is x, so that the gradient points along x and the heat flows against it; bottom, the conductance ellipse of each cell (dashed: a uniform cell with the same mean). In the 45-degree track the heat goes along the track (it has a y component although the gradient has none): the ellipse is tilted and `kxy` is not zero. A track along x gives an ellipse along x and `kxy` = 0; two crossing diagonals and a plane with a clearance give circles (`kxy` = 0).*
+
+| Cell | kxx | kyy | kxy | Eigenvalues | Principal axis | Coherence |kxy| / mean(kxx, kyy) |
+| :-- | --: | --: | --: | :-- | :-- | --: |
+| a track at 45 degrees (0.2 mm) | 0.251 | 0.251 | +0.078 | 0.329 and 0.173 | 45 degrees | **0.31** |
+| a track along x (0.2 mm) | 0.281 | 0.152 | 0.000 | 0.281 and 0.152 | 0 degrees | 0.00 |
+| two crossing diagonals | 0.401 | 0.401 | 0.000 | 0.401 and 0.401 | none (a circle) | 0.00 |
+| a plane with a round clearance | 0.766 | 0.766 | 0.000 | 0.766 and 0.766 | none (a circle) | 0.00 |
+
+**How it is computed** (`diagonal.cell_tensor`). The cell is a small grid of pixels, each with the sheet conductance of copper or of laminate. Two local conduction problems are solved on it, with the potential on the whole boundary of the cell equal to x (first) and to y (second), a condition that is *affine* on the boundary, the same for every cell. The heat dissipated in each problem (sum over the pixel links of conductance x potential difference squared) divided by that of a uniform cell gives `kxx` and `kyy`, and the mixed term (potential difference in x times in y) gives `kxy`. Four directional solves, with two sides held and two insulated, were tried first and gave a spurious cross term (25 % lost) for an axis-aligned track that happened to lie off the centre of the cell; the affine condition removed it (described in 4.44).
+
+**How it is used.**
+
+1. **Links.** The five-point network of the program has one x face and one y face per cell pair; heat that follows a diagonal track has to zigzag through them and each face falls short of the real conduction. The standard nine-point stencil for `kxx uxx + kyy uyy + 2 kxy uxy` adds a diagonal link: axial links `kxx - |kxy|` and `kyy - |kxy|` and a diagonal link `|kxy|` (the pair along the diagonal the copper runs).
+2. **The hybrid.** The axial faces stay the flow-based ones (4.4 to 4.13); the diagonal link adds the conduction the axial faces miss (`diagonal.hybrid_faces`).
+3. **The gate (4.48).** The coherence `|kxy| / mean(kxx, kyy)` decides in which cells the diagonal link is added: zero for a plane or a crossing, large for one dominant diagonal.
+
+![Figure 21: the stencil, and a heater over a diagonal track with the three networks](figures/fig_21_tensor_in_use.png)
+
+*Figure 21 (`figures/fig_21_tensor_in_use.png`, computed with the library): top left, the nine-point stencil of a cell with a 45-degree track (blue axial links, red diagonal link, line widths proportional to the conductances); top, the temperature of a 6 mm heater of 1 W (cyan square) over a 0.2 mm track at 45 degrees (white dashed line) on a 16 mm window held at 0 K along the border: the resolved reference at 0.025 mm pixels, the five-point network on 1 mm cells and the nine-point network with the gate; bottom, the temperature along the track. The five-point network is too hot under the heater (105.8 K against 93.1 K): it reproduces 38 % of what the track does (the track lowers the reference by 8.6 %); the gated nine-point network gives 100.1 K and reproduces 99 %. Without the track the heater would reach 109.4 K.*
+
+* **What it buys**: a heater over a diagonal track is cooled the way the copper cools it, without a finer grid; the gate keeps the diagonal links out of cells that do not need them (a fixed share in every cell reproduces tracks but spoils real boards, 4.48).
+* **What it is not**: a measurement, or a replacement for the cell solves: it needs the pixel mask of the cell, so it belongs to the import path, not to hand-drawn zones; one tensor per cell cannot represent two different conductors in the same cell (a track and a plane edge): it gives their average ellipse.
+* **Limits**: the nine-point stencil is not monotone for strong anisotropy (the literature says no linear nine-point scheme is, 4.48), so overshoots are possible; the experiment is one track, one width (0.2 mm) and one heater; the gate thresholds come from the 42 windows (4.48); the figure uses the five-point stencil to draw the flux inside the cell, the tensor itself uses the isotropic nine-point weights of the pixel network.
+* **Sign convention**: `x` is the column and `y` the row of the array (down in a picture); `kxy > 0` when the copper runs from the top left to the bottom right (as in the 45-degree cell of figure 20); the track of figure 21 runs from the bottom left to the top right, so it uses the other diagonal pair (`kxy < 0`).
 
 ### 4.7 Copper thickness (`study_contrast.py`)
 
