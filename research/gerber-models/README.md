@@ -55,6 +55,7 @@ Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbtherm
 | 4.47 | `gerber-import` | The board outline from the profile layer |
 | 4.48 | `gerber-models` **(this folder)** | A detector for the diagonal faces |
 | 4.49 | `gerber-models` **(this folder)** | The cell tensor: what it is and how it is used |
+| 4.50 | `gerber-models` **(this folder)** | Held-out test of the diagonal gate: it does not hold up |
 
 ## 1. The questions
 
@@ -117,6 +118,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_diagonal.py` | The nine-point experiment on the tracks and on the 42 windows (4.44; about 15 minutes). |
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
+| `scripts/study_diagonal_heldout.py` | The held-out test of the gate (4.50): new windows, an unused board, other cell sizes and other track angles (about 3 hours). |
 | `scripts/study_diagonal_gate.py` | A detector of the cells that should get diagonal faces: the share is decided cell by cell from the cell tensor and compared with the fixed shares (4.48). |
 | `scripts/make_figures.py` | Draws the data figures (1 to 12 and 18 to 22) into `figures/`. |
 | `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 13 to 17 and 23). |
@@ -347,10 +349,10 @@ Limits: research solver and boards only (the program's `fvm.py` has no diagonal 
 | gate: coherence ramp 0.10 to 0.40 | 1.57 (+0.93) | 5.3 | 50 / 45 / 69 / 73 / 84 % |
 | gate 0.05 to 0.25 and principal axis 22.5 to 67.5 degrees | 1.44 (+0.61) | 4.4 | same as the ramp |
 
-* **The gate is better than the fixed shares on the real windows**: 1.43 % against 1.85 % (no diagonals), 1.77 % (share 0.5) and 3.13 % (share 1.0), and the worst window falls from 5.6 to 4.3 %. The principal-axis condition adds nothing (1.44 %, the same tracks).
+* **(Corrected by 4.50: this does not hold on held-out data.) The gate is better than the fixed shares on the real windows**: 1.43 % against 1.85 % (no diagonals), 1.77 % (share 0.5) and 3.13 % (share 1.0), and the worst window falls from 5.6 to 4.3 %. The principal-axis condition adds nothing (1.44 %, the same tracks).
 * **On the 45-degree tracks it is right where the track is of a width the cell can see** (0.15 to 0.3 mm: 99 to 106 %), and it does not do the job for the thinnest tracks (0.05 and 0.1 mm: 60 %) nor completely for the widest (0.5 mm: 80 %, 1 mm: 84 %, the same as without diagonals), where the coherence stays under the threshold; a fixed share of 1.0 reproduces all of them but is the worst on real boards (a bias of -2.8 %: it adds diagonal conduction to cells that have none). The tracks at 0 degrees are unchanged by every gate.
 * **False positives are visible** in figure 19: some cells along rows of round pads get a small share (the cyan points).
-* **Limits**: the thresholds were chosen by trying two ramps on the same 42 windows they are tested on (no held-out set); one cell size (1 mm); one board family for the windows; the references are the nine-point pixel networks of 4.44, not a measurement. It is a promising detector, not a finished one: the open points are the thin and the wide tracks and a held-out test.
+* **Limits**: the thresholds were chosen by trying two ramps on the same 42 windows they are tested on (no held-out set); one cell size (1 mm); one board family for the windows; the references are the nine-point pixel networks of 4.44, not a measurement. It is a promising detector, not a finished one: the open points are the thin and the wide tracks and a held-out test. **The held-out test was done (4.50) and the gate did not hold up: the gain on real windows falls from 0.4 to 0.1 points, vanishes on a board never used and at 0.5 mm, and the best share depends on the cell size.**
 
 ### 4.49 The cell tensor: what it is and how it is used (`diagonal.cell_tensor`, `diagonal.hybrid_faces`, figures 20 and 21)
 
@@ -383,10 +385,49 @@ Limits: research solver and boards only (the program's `fvm.py` has no diagonal 
 
 *Figure 21 (`figures/fig_21_tensor_in_use.png`, computed with the library): top left, the nine-point stencil of a cell with a 45-degree track (blue axial links, red diagonal link, line widths proportional to the conductances); top, the temperature of a 6 mm heater of 1 W (cyan square) over a 0.2 mm track at 45 degrees (white dashed line) on a 16 mm window held at 0 K along the border: the resolved reference at 0.025 mm pixels, the five-point network on 1 mm cells and the nine-point network with the gate; bottom, the temperature along the track. The five-point network is too hot under the heater (105.8 K against 93.1 K): it reproduces 38 % of what the track does (the track lowers the reference by 8.6 %); the gated nine-point network gives 100.1 K and reproduces 99 %. Without the track the heater would reach 109.4 K.*
 
-* **What it buys**: a heater over a diagonal track is cooled the way the copper cools it, without a finer grid; the gate keeps the diagonal links out of cells that do not need them (a fixed share in every cell reproduces tracks but spoils real boards, 4.48).
+* **What it buys**: a heater over a diagonal track is cooled the way the copper cools it, without a finer grid; the gate keeps the diagonal links out of cells that do not need them (a fixed share in every cell reproduces tracks but spoils real boards at 0.5 and 1.0 mm, 4.48); **but the gate itself did not hold up on held-out data (4.50)**.
 * **What it is not**: a measurement, or a replacement for the cell solves: it needs the pixel mask of the cell, so it belongs to the import path, not to hand-drawn zones; one tensor per cell cannot represent two different conductors in the same cell (a track and a plane edge): it gives their average ellipse.
-* **Limits**: the nine-point stencil is not monotone for strong anisotropy (the literature says no linear nine-point scheme is, 4.48), so overshoots are possible; the experiment is one track, one width (0.2 mm) and one heater; the gate thresholds come from the 42 windows (4.48); the figure uses the five-point stencil to draw the flux inside the cell, the tensor itself uses the isotropic nine-point weights of the pixel network.
+* **Limits**: the nine-point stencil is not monotone for strong anisotropy (the literature says no linear nine-point scheme is, 4.48), so overshoots are possible; the experiment is one track, one width (0.2 mm) and one heater; the gate thresholds come from the 42 windows (4.48) and did not hold up on held-out data (4.50); the figure uses the five-point stencil to draw the flux inside the cell, the tensor itself uses the isotropic nine-point weights of the pixel network.
 * **Sign convention**: `x` is the column and `y` the row of the array (down in a picture); `kxy > 0` when the copper runs from the top left to the bottom right (as in the 45-degree cell of figure 20); the track of figure 21 runs from the bottom left to the top right, so it uses the other diagonal pair (`kxy < 0`).
+
+### 4.50 Held-out test of the diagonal gate: it does not hold up (`study_diagonal_heldout.py`, figure 24)
+
+4.48 chose the gate by trying two ramps on the 42 windows it was then tested on, and said a held-out test was open. This section is that test: the gates are **unchanged** (none is retuned) and run on data they never saw. Errors are against the same nine-point pixel reference as 4.48.
+
+![Figure 24: the held-out test of the diagonal gate](figures/fig_24_diagonal_heldout.png)
+
+*Figure 24 (`figures/fig_24_diagonal_heldout.png`): left, the mean absolute error of the mean heater rise of every variant on 60 new windows at three cell sizes (0.5, 1.0 and 2.0 mm); middle, the layers of the Allegro board that was never used (1.0 mm cells); right, the share of a tilted track's cooling that each variant reproduces at 15, 30, 60 and 75 degrees (tracks of 0.15 to 0.3 mm).*
+
+**Data.** (1) 42 new windows of the same seven boards with another seed (disjoint in position from the 42, but the same boards, so not fully independent); (2) 18 windows of three layers (B, L2, L3) of the Allegro board, a board that was in no earlier window; (3) the same windows at 0.5 and 2.0 mm cells (the gate was chosen at 1.0 mm); (4) tracks at 15, 30, 60 and 75 degrees (the gate was chosen on 0 and 45). 60 windows in all.
+
+**Mean absolute error of the heater rise (bias), in %:**
+
+| Variant | 0.5 mm cells | **1.0 mm cells** | 2.0 mm cells | Allegro layers, 1.0 mm |
+| :-- | --: | --: | --: | --: |
+| no diagonals (flow-based faces) | **1.26 (-0.48)** | 1.86 (+1.13) | 4.23 (+4.20) | 2.60 |
+| diagonal share 1.0 in every cell | 3.40 (-3.02) | 3.12 (-1.86) | **2.76 (+0.50)** | **2.23** |
+| diagonal share 0.5 in every cell | 2.32 (-1.85) | 2.17 (-0.46) | 2.81 (+2.23) | 2.35 |
+| gate: coherence ramp 0.05 to 0.25 | 1.52 (-0.85) | 1.76 (+0.60) | 3.64 (+3.58) | 2.58 |
+| gate: coherence ramp 0.10 to 0.40 | 1.35 (-0.65) | 1.75 (+0.87) | 3.99 (+3.94) | 2.57 |
+
+**Share of a tilted track's cooling reproduced (%), tracks of 0.15 to 0.3 mm, 1.0 mm cells:**
+
+| Variant | 15 degrees | 30 degrees | 60 degrees | 75 degrees |
+| :-- | --: | --: | --: | --: |
+| no diagonals | 82 | 60 | 60 | 82 |
+| diagonal share 1.0 | 88 | 84 | 84 | 88 |
+| diagonal share 0.5 | 85 | 73 | 73 | 85 |
+| gate 0.05 to 0.25 | 83 | 74 | 74 | 83 |
+| gate 0.10 to 0.40 | 82 | 65 | 65 | 82 |
+
+**What it says (an earlier claim corrected).**
+* **The gain of the gate on real windows does not carry over.** In 4.48 the gate (1.43 %) beat "no diagonals" (1.85 %) and the fixed shares at 1.0 mm. On the 60 new windows at the same cell size it is 1.76 % against 1.86 %: a gain of 0.1 points, down from 0.4 and well inside what these windows can resolve. On the unused Allegro layers it is 2.58 % against 2.60 %: none.
+* **It depends on the cell size.** At 0.5 mm the best variant is no diagonals (1.26 %), and every addition makes it worse; at 2.0 mm the best is the fixed share of 1.0 (2.76 %), and the gate (3.64 %) only recovers part of the bias. The sign of the bias of "no diagonals" changes with the cell (-0.5, +1.1, +4.2 %): the missing diagonal conduction matters more the coarser the cell is against the track, so **a share or a threshold calibrated at one cell size cannot be right at the others.**
+* **On tilted tracks it helps, partly.** At 30 and 60 degrees the gate (0.05 to 0.25) reproduces 74 % of a track's cooling against 60 % with no diagonals; at 15 and 75 degrees 83 against 82. The fixed share 1.0 reproduces 84 to 88 % at every angle but is the worst on real windows at 0.5 and 1.0 mm (a bias of -3.0 and -1.9 %).
+* **The principal-axis condition changes nothing here either** (1.51 against 1.52 % at 0.5 mm, 1.76 against 1.76 % at 1.0 mm).
+* **Verdict.** The gate is **not** a validated detector. The cell tensor and its coherence stay useful as a diagnostic (which cells have one dominant diagonal conductor), but nothing in the program should depend on the thresholds. What would be needed: a share that depends on the ratio of the cell to the track width (the bias of "no diagonals" suggests it), tested on boards with many diagonal tracks that were not used to choose it, and a physical measurement (`research/models-comparison/docs/measurement-protocol.md`).
+
+**Limits.** The 42 new windows come from the same seven boards as the original ones (different places); the only fully new board is the Allegro (18 windows, three layers of one board); the references are the nine-point pixel networks, not a measurement; the track study covers one heater of 6 mm.
 
 ### 4.7 Copper thickness (`study_contrast.py`)
 
@@ -854,6 +895,7 @@ None of them maps the copper to the cell conductances as above: the mesh project
 
 **Reproduced** (numbers in `README.md`): the ranking of the mappings, the reader against four other tools, the example of Sampson (40 and 0.65 W/m K) and the tile formulas of Blackmore. **Not reproduced**: Sampson's board (its bitmaps are figures; an analogue was built), Blackmore's validation (no measurement, no board). **Not verified**: any comparison with a physical measurement; the licences of the gerbonara test boards (statistics only, no picture of them is kept); the behaviour of the 3D solid at fine cells.
 
+* **Held-out test of the diagonal gate (4.50)**: run in full (60 windows at three cell sizes, 32 tilted tracks), about three hours; the gate did not hold up and the earlier statement of 4.48 was corrected there. The 18 Allegro windows come from a board that was in none of the earlier sets; the other 42 are new places on the old boards.
 * **Re-run (all of them now)**: `study_coverage`, `study_coverage_real`, `study_lumped_analytic`, `study_models_self` (with the copy of the program that adds the coverage of abutting zones, as the script says: the FVM, FDM, Lumped, Analytic and 3D solid columns of the second table of 4.27 reproduce to the digit; run on the unmodified program the FDM, Lumped and Analytic columns differ, because the program's union rule distorts a field made of small zones), `study_sampson_boundary`, `study_post_board` (the table of 4.28 reproduces), `study_contrast` (4.7 to the digit), `study_multilayer_real`, `study_patterns_two_layer` (4.11), `study_transient`, `study_import_readers` (4.31, to the digit), `study_raster_error` (4.2, to the digit) and, new, `study_diagonal_gate` (4.48). For `study_coverage`, `study_coverage_real`, `study_lumped_analytic`, `study_multilayer_real`, `study_patterns_two_layer`, `study_sampson_boundary`, `study_transient` and `study_contrast` 78 to 100 % of the numbers with one decimal in the output appear in this README (the others are rows it does not print); `study_models_self` and `study_post_board` were compared by hand with their tables. The two-layer rectangle-board study still differs in the cell-mapping rows when run against the original program (it needs the additive-union copy, as the script says).
 * The two proposed corrections to the program were measured on copies outside the repository; the program's tests that touch zones, the 3D solid, the outline and the stack-up were run on the copies (57 passed, 2 GUI errors for lack of `pytest-qt`), the whole battery was not.
 * The share alpha of the hybrid diagonal faces was chosen on the same 42 windows it is tested on (no held-out set).

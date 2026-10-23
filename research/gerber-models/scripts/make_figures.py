@@ -984,6 +984,46 @@ def fig_tensor_in_use():
     print("tensor in use: mean rise reference %.2f, five-point %.2f, gated %.2f, no track %.2f; track effect in the reference %.1f %%" % (mean(ref_cells), mean(T5), mean(Tg), mean(T0), 100 * ref_effect))
 
 
+def fig_diagonal_heldout():
+    """!
+    @brief The held-out test of the diagonal gate: the mean absolute error of every variant on 60 new windows at three cell sizes, on the layers of the Allegro board, and the share of the cooling of a tilted track reproduced at 15, 30, 60 and 75 degrees.
+    @return None.
+    """
+    import json
+    d = json.loads((CACHE / "diagonal_heldout.json").read_text())
+    names = ["flow-based, no diagonals", "fixed 1.0", "fixed 0.5", "coherence ramp 0.05 to 0.25", "coherence ramp 0.10 to 0.40"]
+    labels = ["no diagonals", "fixed 1.0", "fixed 0.5", "gate 0.05 to 0.25", "gate 0.10 to 0.40"]
+    cols = ["#7f7f7f", "#d62728", "#ff9896", "#1f77b4", "#aec7e8"]
+    fig, axs = plt.subplots(1, 3, figsize=(16, 5.0), gridspec_kw={"width_ratios": [1.3, 0.8, 1.1]})
+    ax = axs[0]
+    sizes = ["5", "10", "20"]
+    w = 0.16
+    for k, nm in enumerate(names):
+        ys = [np.mean([abs(x[1]) for x in d["windows"][sz][nm]]) for sz in sizes]
+        ax.bar(np.arange(3) + (k - 2) * w, ys, w, color=cols[k], label=labels[k])
+    ax.set_xticks(range(3)); ax.set_xticklabels(["0.5 mm cells", "1.0 mm (the size it was chosen at)", "2.0 mm cells"], fontsize=8)
+    ax.set_ylabel("mean absolute error of the heater rise (%)")
+    ax.set_title("60 new windows (42 of the same boards, 18 of an unused board)", fontsize=9); ax.legend(fontsize=7.5); ax.grid(alpha=0.3, axis="y")
+    ax = axs[1]
+    for k, nm in enumerate(names):
+        e = [x[1] for x in d["windows"]["10"][nm] if x[0].startswith("alleg")]
+        ax.bar(k, np.mean(np.abs(e)), color=cols[k])
+    ax.set_xticks(range(5)); ax.set_xticklabels(labels, rotation=40, ha="right", fontsize=7.5)
+    ax.set_title("only the Allegro layers (never used), 1 mm", fontsize=9); ax.grid(alpha=0.3, axis="y")
+    ax = axs[2]
+    angs = ["15", "30", "60", "75"]
+    for k, nm in enumerate(names):
+        ys = [np.mean([d["tracks"][f"{wd}/{a}"][nm] for wd in (0.15, 0.2, 0.3)]) for a in angs]
+        ax.plot(angs, ys, "o-", color=cols[k], label=labels[k])
+    ax.axhline(100, color="k", lw=0.6, ls=":")
+    ax.set_xlabel("track angle (degrees)"); ax.set_ylabel("share of the track's cooling reproduced (%)")
+    ax.set_title("tilted tracks of 0.15 to 0.3 mm (angles the gate never saw)", fontsize=9); ax.grid(alpha=0.3)
+    fig.suptitle("Held-out test of the diagonal gate (README 4.50): the gain seen on the 42 windows does not carry over", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "fig_24_diagonal_heldout.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -1007,6 +1047,7 @@ def main():
     fig_mapping_curves()
     fig_cell_tensor()
     fig_tensor_in_use()
+    fig_diagonal_heldout()
     print("figures in", OUT)
 
 

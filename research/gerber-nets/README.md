@@ -55,6 +55,7 @@ Status: **open and early** (the electrical side is a prototype and a design, a g
 | 4.47 | `gerber-import` | The board outline from the profile layer |
 | 4.48 | `gerber-models` | A detector for the diagonal faces |
 | 4.49 | `gerber-models` | The cell tensor: what it is and how it is used |
+| 4.50 | `gerber-models` | Held-out test of the diagonal gate: it does not hold up |
 
 ## 1. The questions
 

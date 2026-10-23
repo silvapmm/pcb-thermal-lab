@@ -55,6 +55,7 @@ Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbtherm
 | 4.44 | `gerber-models` | Diagonal couplings: the nine-point experiment |
 | 4.48 | `gerber-models` | A detector for the diagonal faces |
 | 4.49 | `gerber-models` | The cell tensor: what it is and how it is used |
+| 4.50 | `gerber-models` | Held-out test of the diagonal gate: it does not hold up |
 
 ## 1. The questions
 
