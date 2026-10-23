@@ -1,0 +1,6 @@
+# NumPy and SciPy only; the program's own dependencies (see the repository requirements.txt) for the studies that run pcbthermal; matplotlib for the figures.
+# Same virtual environment as research/gerber-import (see its requirements.txt).
+numpy>=1.24
+scipy>=1.11
+matplotlib>=3.7
+pytest>=7
