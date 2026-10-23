@@ -1,6 +1,6 @@
 # Gerber import, phase 1: reading the files (copper, drills, nets, vias)
 
-Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 1 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (does the converter work: the boards, the results, the errors and the differences from other tools) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.46) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 1 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (does the converter work: the boards, the results, the errors and the differences from other tools) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.47) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
 
 ### Where the sections are
 
@@ -49,6 +49,7 @@ Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbtherm
 | 4.41 | `gerber-import` **(this folder)** | The converter on every board, layer by layer |
 | 4.45 | `gerber-import` **(this folder)** | Is it the same copper? Four tools, pixel by pixel |
 | 4.46 | `gerber-import` **(this folder)** | The nets against the KiCad project, pixel by pixel |
+| 4.47 | `gerber-import` **(this folder)** | The board outline from the profile layer |
 | 4.42 | `gerber-models` | The thinnest track and the angle |
 | 4.43 | `gerber-models` | Every mapping on every board, in one table |
 | 4.44 | `gerber-models` | Diagonal couplings: the nine-point experiment |
@@ -98,10 +99,11 @@ Scripts are run from the repository root (`.venv/bin/python research/gerber-impo
 | `scripts/make_synthetic.py`, `compare_readers.py` | Files of known area made with gerbonara; the comparison with gerbonara, pygerber and pcb-tools (4.22). |
 | `scripts/study_render_compare.py` | The same board drawn by the independent reader, gerbonara + shapely, pygerber and pcb-tools, compared pixel by pixel; how far each differing pixel lies from the exact edge (4.45). |
 | `scripts/study_kicad_pixels.py` | The Stormduino's `.kicad_pcb` drawn on the pixel grid, by net, against the Gerber copper (4.46). |
+| `scripts/study_outline.py`, `lib/outline.py` | The board outline from the profile layer: the strokes, the even-odd region, the closed-contour check, the polygon (4.47). |
 | `scripts/study_validation_boards.py` | The copper area, pieces and holes of every layer of the eight boards against the vector truth (4.41). |
 | `scripts/study_vias_nets.py`, `study_kicad_nets.py` | Holes, vias and nets (4.29); the nets against a KiCad project (4.33). |
-| `scripts/make_figures.py` | Draws the data figures (1 to 5 and 9 to 14). |
-| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 to 8). |
+| `scripts/make_figures.py` | Draws the data figures (1 to 5 and 9 to 15). |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and illustrations (figures 6 to 8 and 16). |
 
 ## 4. How to run, and the results
 
@@ -314,6 +316,41 @@ The rasters of pygerber and pcb-tools are the tools' own images, placed on the c
 * **What it adds to 4.33**: the same agreement, now over every pixel of both layers and not over 1,709 points, and it shows where the CAD file and the Gerber differ at all. Together with 4.33 (no piece holds two nets, 55 of 56 nets split into the same pieces) it says the nets of the CAD file are carried by the copper of the Gerbers.
 * **Two details found while building it**: KiCad plots a filled zone with a stroke of the minimum thickness along its outline, so the Gerber copper extends 0.127 mm beyond the filled polygon (without it, 2 % of the layer was "only in the Gerber"); and a pad without a net (a mounting pad) is copper with net 0, which must not be taken as "no object" (without that, 4 mounting pads appeared as 8.6 mm2 differences).
 * **Limits**: one board; KiCad 5 only; the rasteriser is ours (rounded rectangles, ovals and the zone stroke are modelled, board graphics and text on copper layers are not, and there are none on this board's copper layers); the Gerbers were written by the same CAD tool as the file, so this checks the reader and the association, not the CAD tool.
+
+### 4.47 The board outline: the profile layer (`lib/outline.py`, `study_outline.py`, `tests/test_outline.py`, figures 15 and 16)
+
+**What the files say** (web searches, snippets only; the Ucamco specification itself was not opened, so none of this is quoted from it). The outline of a board is its own layer, the *profile*, marked by the X2 file attribute `%TF.FileFunction,Profile,NP*%` (`NP`: not plated; a viewer that checks attributes reports the attribute invalid without it, [DipTrace forum](https://diptrace.com/forum/viewtopic.php?p=33620)); the attribute is the standard way to tie every file to its layer ([Gerber format](https://en.wikipedia.org/wiki/Gerber_format)). A profile layer is required in fabrication data, and Altium describes it as a connected, closed path generated from the board shape ([Altium](https://altium.com/documentation/node/304685/printable/print?version=22)). Practice reported by users and fabricators: the outline is **strokes, not a filled polygon** (a fabricator rejected an Edge.Cuts file that held a filled polygon, [KiCad forum](https://forum.kicad.info/t/kicad-edge-cuts-rejected-by-jlcpcb/27159)); the contour must be **closed, without gaps or segments that almost touch** ([KiCad forum](https://forum.kicad.info/t/gerber-file-errors-due-to-edge-cuts-not-connected/9467)); the board is cut along the **centre line** of the stroke ([KiCad forum](https://forum.kicad.info/t/how-to-define-the-board-outline-pcb-edge/32166)); the layer should hold nothing else, and the outline is best delivered as a separate file with one unbroken path ([MacroFab](https://help.macrofab.com/knowledge/how-to-ensure-the-board-outline-is-correct)). Router tolerances of a few tenths of a millimetre (0.10 to 0.15 mm) are a fabricator figure, not a parser one. **No source gave a rule for how large a gap a reader should close**, so none is closed here: an open contour is reported.
+
+![Figure 16: reading the board outline from the profile layer](figures/fig_16_outline_how.png)
+
+*Figure 16 (`figures/fig_16_outline_how.png`): 1, the stroke is a band and the cut runs along its centre line; 2, the even-odd rule: the number of strokes crossed along a row says whether a pixel is board, a cut-out or outside (a row that runs along a stroke is wrong, a column is not, so rows and columns vote); 3, a closed contour keeps its interior in, a gap lets the outside reach the board.*
+
+**Method.** The independent reader draws the strokes on the pixel grid (a zero-width aperture, written by some CAD tools, is given a width of one and a half pixel). The background is split into connected pieces; the one that reaches the border of the window is the outside; every other piece is board or cut-out by the even-odd rule along rows and columns (a piece is board when most of its pixels have an odd number of strokes on one side, in both directions). The contour is **closed** when almost no board-like pixel is connected to the outside; otherwise it is flagged. The board polygon is the contour of the mask simplified with the Douglas-Peucker rule (0.7 pixel). No segment chaining is needed, so arcs, slots and cut-outs are handled by the same code. The reference is gerbonara + shapely: the strokes buffered and unioned, the board being the interior rings of that union nested once.
+
+![Figure 15: the board outline of the Stormduino and two synthetic boards](figures/fig_15_board_outline.png)
+
+*Figure 15 (`figures/fig_15_board_outline.png`): black strokes, green board region, red polygon extracted, blue dashed bounding box. Left, the Stormduino (MIT): a 9-vertex polygon of 3,604 mm2 where the bounding box says 3,660 (the board has a cut corner on one side); middle, a synthetic board with rounded corners drawn with arcs and a slot (outer polygon of 43 vertices, the slot as a 4-vertex hole of 41 mm2); right, the same board with a gap of 0.2 mm in the bottom side: flagged as not closed (474,204 board pixels connect to the outside).*
+
+| File | Aperture widths (file unit) | Contour found closed | Board area, mask (mm2) | Board area, vector (mm2) | Pixels that differ | Polygon vertices |
+| :-- | :-- | :-- | --: | --: | --: | :-- |
+| Stormduino | 0.05 | yes | 3606.7 | 3605.1 | 0 | 9 |
+| chibi | 0.1, 0.15 | yes | 7773.3 | 7773.3 | 0 | 4 |
+| easyeda | 0.01 | yes | 7077.6 | 7077.0 | 22 | 34 |
+| pcad | none found by the width scan | yes | 7453.5 | 7453.8 | 0 | 16 |
+| dip | 0.0055 | yes | 4527.3 | 4527.9 | 0 | 4 |
+| fritz (zero-width aperture) | 0.0 | yes | 8037.4 | 8056.7 | 7,085 | 182 |
+| pcbrnd (outline and routing in one file) | 0.01, 0.0787, 0.08, 0.4291 | yes | 9910.3 | 10279.8 | 147,460 | 44 |
+| synthetic, rounded corners | 0.1 | yes | 1185.5 | 1185.5 | 40 | 43 |
+| synthetic, with a slot | 0.1 | yes | 1144.1 | 1146.9 | 1,160 | 43 + 4 |
+| synthetic, gap 0.05 mm | 0.1 | yes (the round ends overlap) | 1185.5 | 1185.5 | 40 | 43 |
+| synthetic, gap 0.2 mm | 0.1 | **no** | (not trusted) | - | - | - |
+| synthetic, gap 0.5 mm | 0.1 | **no** | (not trusted) | - | - | - |
+
+* **It works on the boards with a plain outline**: the Stormduino, chibi, easyeda, pcad and dip give the same board area as the vector construction to 0.01 % (the Stormduino 0 pixels differing at 0.05 mm), and the polygon has the right number of vertices (4 for a rectangle, 9 for the Stormduino's cut corner). A gap that leaves the round ends overlapping (0.05 mm with a 0.1 mm stroke) is not a gap for a fabricator either and is read as closed; gaps of 0.2 and 0.5 mm are reported as open.
+* **It does not work, and says so, when the layer is not a plain outline**: `pcbrnd` writes the outline and routing paths in one file with four aperture widths (0.01 inch for the contour, 0.08 and 0.43 inch for routing: the strokes are tool paths), and the board area differs by 3.6 % from the vector construction (which is itself ambiguous there). The file has several widths, which the study reports so that a caller can refuse it. `fritz` draws with a zero-width aperture (the reader widens it) and differs by 0.24 %; its polygon list has extra contours (182 vertices for the largest) that were not examined.
+* **The bounding box is not the board**: the Stormduino's area is 1.5 % below its bounding box (3,607 against 3,660 mm2) because of one cut corner.
+* **The mask and the polygon are the inner edge of the stroke band**; the cut is along the centre line, half a stroke further out (0.05 mm for a 0.1 mm line), which a user of the polygon has to add (for the Stormduino the stroke is 0.05 mm: 0.025 mm).
+* **Limits**: this is the contour as strokes of one or more widths along the centre line; board outlines drawn as regions or as a filled polygon, mixed layers, and gaps a fabricator would accept are not handled, and no gap is closed. The mask is as exact as the pixel; the polygon is simplified (0.7 pixel: 0.035 mm at 0.05 mm). What the program needs (`Board.outline`, a polygon) is this polygon in millimetres; the mapping to its own axes and the confirmation step (which layer is the profile) are in `INTEGRATION.md`. Not read: the Ucamco specification of the profile; the behaviour of other readers on open contours.
 
 ## 5. Without third-party libraries: the independent reader
 

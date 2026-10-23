@@ -40,7 +40,7 @@ Written on branch `research/gerbers` (phase 1 of three of the Gerber research, s
 1. **Import settings the program should enforce**: draw the copper as a coverage mask (4 x 4 sub-samples) at 0.1 mm; a pixel at most half the thinnest track found in the file (and a warning when a track is thinner than the pixel); 8-connected labelling for any question of "which piece is which".
 2. **Use the NumPy-only reader** (no new dependency, no licence question); keep gerbonara + shapely only as a test reference.
 3. **Nets**: X2 net attribute when present, connectivity for the rest, a netlist (`.kicad_pcb` or a netlist file) as the check or the source, and the user assigns a piece otherwise.
-4. **Missing for a real import**: the step where the user confirms layers, outline and which holes are vias (a Gerber cannot tell a via from a component pad); board outline polygons; the form of the inputs (decided later by the maintainer).
+4. **Missing for a real import**: the step where the user confirms layers, outline and which holes are vias (a Gerber cannot tell a via from a component pad); the board outline polygon from the profile layer exists as a prototype (README 4.47) and needs that confirmation; the form of the inputs (decided later by the maintainer).
 5. **Open decisions**: whether to download the Ucamco example data sets as extra conformance files; whether to support more CAD formats than KiCad for the check of the nets.
 
 ## 5. How to reproduce

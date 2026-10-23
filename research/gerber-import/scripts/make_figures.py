@@ -539,6 +539,44 @@ def fig_kicad_pixels():
     plt.close(fig)
 
 
+def fig_board_outline():
+    """!
+    @brief The board outline read from the profile layer: the Stormduino (strokes, board region, polygon against the bounding box), a synthetic board with rounded corners and a slot, and the same board with a gap in the contour (flagged as not closed).
+    @return None.
+    """
+    import json
+    import outline
+    z = np.load(CACHE / "outline.npz")
+    recs = {r["label"]: r for r in json.loads((CACHE / "outline.json").read_text()) if "error" not in r}
+    fig, axs = plt.subplots(1, 3, figsize=(16, 5.6))
+    for ax, label, title in zip(axs, ("storm", "synthetic slot", "synthetic gap0.2"), ("Stormduino (MIT): the board is not its bounding box", "synthetic board: rounded corners (arcs) and a slot", "synthetic board with a gap of 0.2 mm in the bottom side")):
+        shape = tuple(int(v) for v in z[label + "|shape"])
+        win = tuple(float(v) for v in z[label + "|window"])
+        mask = np.unpackbits(z[label])[: shape[0] * shape[1]].reshape(shape).astype(bool)
+        strokes = np.unpackbits(z[label + "|strokes"])[: shape[0] * shape[1]].reshape(shape).astype(bool)
+        img = np.ones(shape + (3,)) * 0.97
+        img[mask] = (0.62, 0.78, 0.55)
+        img[strokes] = (0.1, 0.1, 0.1)
+        extent = (win[0], win[0] + win[2], win[1] - win[3], win[1])
+        ax.imshow(img, extent=extent, interpolation="nearest")
+        for poly in outline.polygons(mask, win, recs[label]["pixel_mm"], 0.7)[:3]:
+            ax.plot(poly[:, 0], poly[:, 1], "-", color="#d62728", linewidth=1.2)
+            ax.plot(poly[:, 0], poly[:, 1], "o", color="#d62728", markersize=3.5)
+        r, c = np.where(strokes)
+        px = recs[label]["pixel_mm"]
+        x0, x1, y0, y1 = win[0] + c.min() * px, win[0] + c.max() * px, win[1] - r.max() * px, win[1] - r.min() * px
+        ax.plot([x0, x1, x1, x0, x0], [y0, y0, y1, y1, y0], "--", color="#1f77b4", linewidth=1.0)
+        rec = recs[label]
+        txt = f"board {rec['board_area_mask_mm2']:.0f} mm2, bounding box {(x1 - x0) * (y1 - y0):.0f} mm2\n" + ("contour closed" if rec["closed_found"] else f"contour NOT closed: {rec['leaked_pixels']:,} board pixels connect to the outside")
+        ax.set_title(title, fontsize=9, fontweight="bold")
+        ax.set_xlabel(txt + ("; polygon: " + ", ".join(f"{q['vertices']} vertices" for q in rec["polygons"][:2]) if rec["polygons"] else ""), fontsize=8)
+        ax.set_aspect("equal")
+    fig.suptitle("The board outline from the profile layer (README 4.47): black strokes, green board region (even-odd rule), red polygon extracted, blue dashed bounding box", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "fig_15_board_outline.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -554,6 +592,7 @@ def main():
     fig_how_equal()
     fig_tools_and_pixel()
     fig_kicad_pixels()
+    fig_board_outline()
     print("figures in", OUT)
 
 

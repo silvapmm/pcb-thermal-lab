@@ -16,7 +16,7 @@ Ready to paste into the project `docs/research.md` as a section when the maintai
 
 **Not validated**: the reader against a manufactured board; the nets on more than one board and CAD format; the Ucamco specification was not read in full.
 
-**Open decisions for the maintainer**: the layer/outline confirmation step; board outline polygons; whether to add other CAD formats for the net check.
+**Open decisions for the maintainer**: the layer/outline confirmation step (the outline polygon from the profile layer is prototyped, README 4.47); whether to add other CAD formats for the net check.
 
 Pictures (`../figures/`): `fig_01_gerber_render.png`, and the comparison of the tools in `fig_09` to `fig_12`.
 
