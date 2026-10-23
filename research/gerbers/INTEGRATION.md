@@ -91,3 +91,19 @@ Only where the cell conductances are read, and only when imported copper exists.
 * Heat capacity and the through-thickness conduction stay arithmetic; the time response follows the steady one (`study_transient.py`).
 * How the Lumped and Analytic models should use a mask is open: they average over rings or regions much larger than a cell.
 * The zone `pattern` needs a decision of the maintainer: which patterns, which default for files that already use `fill` below 1 (kept as it is, with a warning that the arithmetic value is the optimistic limit?).
+
+## 7. The electrical side: sources, sinks and links (design, prototype in `lib/pdn.py`, README 4.40)
+
+* **What is added**: `Problem.electrical` with named terminals (position and size of a pad, net) and the elements `vsource` (volts), `isink` (amps) and `link` (ohms between two terminals); the part (`Heater`) may carry a `current` and a `net`. Absent = nothing changes, bit for bit.
+* **Where it plugs in**: after the copper mask exists (the same pixels that give the face conductances), `pdn.solve` gives the potential, the Joule heat per pixel and the power of every link; `joule.to_cells` adds it to the source term of the thermal grid; the existing fixed-point loop of `api._solve_with_tc` adds the resistivity of copper rising 0.39 %/K. The thermal models do not change: the heat enters as one more source.
+* **Why the links matter**: in the prototype scenario a 0.1 ohm link carries 18 times the heat of all the copper of a 1.5 A rail; pieces of one net that are not joined by copper are normally joined by such a part, so the part list (value of the 0 ohm, ferrite, shunt or fuse) is what the electrical side needs from the design.
+* **Inputs, to be decided later** (maintainer, 2026-10-23): the electrical data may be passed as an extra argument of the import (a sidecar file next to the project, or a KiCad netlist plus part fields) or typed in a pads table; the research leaves the form open.
+* **Open**: vias in the network; regulators (load as constant power); time dependence; ratings (IPC-2152).
+
+## 8. Two corrections to the program found by the research, with their measured impact (README 4.39)
+
+1. **Combine zones by the maximum per sample point, not per cell** (`geometry.zone_fill`, used by `fvm.py`, `fdm.py`, `solid3d.py`, `analytic.py`, `checks.py` in place of the loop with `np.maximum`). Copper tiled in abutting zones is no longer lost (-7.8 % FVM, -17.5 % FDM, -10 % 3D on 0.5 mm strips: back to the single-zone value); overlapping zones keep the larger fill; **the example boards do not move at all**. The simpler additive rule double counts overlap (-7.8 %) and failed four program tests: not proposed.
+2. **Laminate under a single copper layer in `solid3d.py`**: one slab of the laminate below the copper when `layers == 1` (it was a bare 35 µm sheet). The peak of a single-layer pad board goes from 346 to 174 K (the same board with a second, empty layer: 174.5 K); nothing else moves.
+
+Both were applied to copies of the program outside the repository; adopting them is a normal change on a `fix/<topic>` branch with the documentation, tests and whole battery (rules in CLAUDE.md).
+

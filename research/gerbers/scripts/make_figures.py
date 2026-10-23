@@ -443,6 +443,39 @@ def fig_rect_board():
     plt.close(fig)
 
 
+def fig_pdn_links():
+    """!
+    @brief The electrical scenario on the rectangle board (needs out/pdn_links.npz from study_pdn_links.py): potential and Joule heat of the copper with a 5 V source, a 1.5 A load and a 0.1 ohm link between two pieces of one net.
+    @return None.
+    """
+    path = CACHE / "pdn_links.npz"
+    if not path.exists():
+        print("figure 11 skipped: run study_pdn_links.py first")
+        return
+    d = np.load(path)
+    V, q, mask = d["V"], d["q"], d["mask"]
+    ext = (0, 40, 0, 30)
+    fig, axs = plt.subplots(1, 2, figsize=(14, 5))
+    pot = np.ma.masked_where(~mask | np.isnan(V), V)
+    im = axs[0].imshow(pot, origin="lower", extent=ext, cmap="viridis", interpolation="nearest")
+    axs[0].imshow(np.ma.masked_where(~(mask & np.isnan(V)), np.ones(mask.shape)), origin="lower", extent=ext, cmap="Greys", vmin=0, vmax=2, interpolation="nearest")
+    fig.colorbar(im, ax=axs[0], fraction=0.046, label="V")
+    axs[0].set_title("potential: 5 V at the source pad; the grey pieces are floating (no pad: no current)", fontsize=9)
+    heat = np.ma.masked_where(~mask | (q <= 0), np.log10(np.maximum(q, 1e-12)))
+    im = axs[1].imshow(heat, origin="lower", extent=ext, cmap="inferno", interpolation="nearest")
+    fig.colorbar(im, ax=axs[1], fraction=0.046, label="log10 of W per pixel (0.2 mm)")
+    axs[1].set_title("Joule heat of the copper: 12.6 mW in all; the 0.1 ohm link makes 225 mW", fontsize=9)
+    for a in axs:
+        a.annotate("5 V in", (6, 11), (6, 24), color="w" if a is axs[1] else "k", fontsize=8, arrowprops={"arrowstyle": "->"})
+        a.annotate("0.1 ohm link\n(bead)", (31, 15.0), (29, 24.5), color="c", fontsize=8, arrowprops={"arrowstyle": "->", "color": "c"})
+        a.annotate("1.5 A load", (15, 7), (4, 5), color="c", fontsize=8, arrowprops={"arrowstyle": "->", "color": "c"})
+        a.plot([35, 25], [15, 7], color="c", linestyle=":", linewidth=1.2)
+        a.set_xlabel("mm")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_11_pdn_links.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the three figures.
@@ -459,6 +492,7 @@ def main():
     fig_import_setup()
     fig_models_our_board()
     fig_rect_board()
+    fig_pdn_links()
     print("figures in", OUT)
 
 

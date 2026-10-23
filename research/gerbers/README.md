@@ -46,8 +46,8 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `LOG.md` | Dated log: what was read in full, from a summary or from memory; what was reproduced and what not. |
 | `requirements.txt` | NumPy and SciPy; gerbonara, shapely and the comparison tools only for the cross-checks. |
 | `docs/` | For when the work is adopted: `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the literature status). The project documents are not edited on this branch. |
-| `figures/` | `fig_01` to `fig_10`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end, 08 its set-up (heater, holes, cells), 09 our board in the five models, 10 the rectangle board. |
-| `tests/` | 73 fast tests (about 27 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`), the import path (`test_importer.py`, needs the program's dependencies), the nets against a KiCad file (`test_kicad_nets.py`, needs the Stormduino files). |
+| `figures/` | `fig_01` to `fig_11`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end, 08 its set-up (heater, holes, cells), 09 our board in the five models, 10 the rectangle board, 11 the electrical prototype. |
+| `tests/` | 77 tests (about 51 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`), the import path (`test_importer.py`, needs the program's dependencies), the nets against a KiCad file (`test_kicad_nets.py`, needs the Stormduino files), the rectangle board in the models (`test_rect_board.py`, needs the program), the electrical prototype (`test_pdn.py`). |
 | **`lib/`** | |
 | `lib/native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 attributes (file function, aperture functions, net names), the layer classifier, Excellon, coverage masks. |
 | `lib/conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
@@ -58,6 +58,7 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `lib/importer.py` | **The import path end to end**: files to masks, holes and nets, a `Problem` with vias, face conductances and `FaceNetwork` for the program's FVM (4.31). |
 | `lib/kicad_pcb.py` | A small reader of `.kicad_pcb` (5.x): nets, tracks, vias, pads, zones; the independent truth of the nets (4.33). |
 | `lib/rect_board.py` | The board of squares and rectangles (one floating, a thin track), shiftable off the cell edges (4.35). |
+| `lib/pdn.py` | The DC network of the copper with voltage sources, current sinks and links; energy balance (4.40). |
 | `lib/paths.py` | The folders (`DATA`, `OUT`, `FIGURES`, `REPO`). |
 | **`scripts/`** | |
 | `scripts/fetch_boards.py` | Downloads the public test boards into `data/` (licences differ, section 9). |
@@ -73,7 +74,8 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `scripts/study_import_end_to_end.py`, `study_import_readers.py` | The import on the Stormduino and on our board against the program as it is; the same with another reader (4.31). |
 | `scripts/study_kicad_nets.py`, `study_models_our_board.py` | The nets against a KiCad project (4.33); our board in the five models (4.34; the second runs against the patched copy of the program). |
 | `scripts/study_models_rect_board.py` | The five models on the rectangle board, one or two layers (4.35; needs the patched copy of the program). |
-| `scripts/make_figures.py` | Draws the ten figures into `figures/`. |
+| `scripts/study_rect_convergence.py`, `study_mapping_options.py`, `study_fix_impact.py`, `study_pdn_links.py` | Convergence of the models (4.37); every mapping as an option (4.38); the measured impact of the proposed corrections, one run per variant of the program then `--compare` (4.39); sources, sinks and links (4.40). |
+| `scripts/make_figures.py` | Draws the eleven figures into `figures/`. |
 
 ## 4. How to run, and the results
 
@@ -628,6 +630,100 @@ In 4.33 the Stormduino's `+5V` is two pieces of copper in the CAD file as well a
 * **What the literature search gave (2026-10-23, two web searches, snippets only)**: commercial power-integrity tools (Cadence Allegro IR drop, Altium PDN Analyzer, Altair PollEx) treat nets as sources and sinks with a current per pad and report I²R per shape and per via; an Altium guide describes shapes with a small resistance each that dropped a 5 V rail to 4.5 V; a Siemens/FloEFD study of a four-layer board uses nets as connections between copper regions and components. **Nothing found describes the case of islands bridged by components, or an inference of current from voltage alone**; I did not read any of these documents in full. The KiCad electro-thermal plug-ins listed in section 7 were read earlier from their descriptions only.
 * **What would not work**: inferring the current of a piece from the voltage of the net (voltage is the same on a whole net and carries no current); a piece without pads or links is left out. **What would**: a table "pad: current" read from a netlist and a power budget (the KiCad schematic, or the user), plus the link elements, feeding `joule.solve_net` piece by piece, and the heat added to the board model as a source per cell (the Joule layer, 4.20).
 * **Not done**: no net with links was solved; no piece-by-piece examination of the Stormduino's split nets.
+
+### 4.37 How to validate the models on the rectangle board, and why the FVM looks worse (`study_rect_convergence.py`, `tests/test_rect_board.py`)
+
+In 4.35 the Lumped and the Analytic showed errors near 0 % where the FVM showed -7 %. That compared each model with *itself*: the FVM sees the 0.4 mm shift of the copper (its cells change), the two reduced models do not, and they sit 16 and 26 % **below** the FVM anyway. A model that does not react to the grid is not accurate, it is insensitive. The validation therefore asks two separate questions: does each model converge to its own limit, and how far are the limits from each other and from an independent reference.
+
+Mean heater rise (K) of the program's own zones, two layers, by cell size (`out/study_rect_convergence.txt`):
+
+| Cell (mm) | FVM edges on cells | FDM | 3D solid | FVM copper 0.4 mm off | FDM | 3D solid |
+| :-- | --: | --: | --: | --: | --: | --: |
+| 2 | 94.90 | 83.45 | 101.78 | 89.11 | 82.32 | 93.82 |
+| 1 | 99.32 | 88.49 | 109.22 | 91.03 | 85.96 | 96.67 |
+| 0.5 | 98.43 | 92.19 | 107.33 | 94.79 | 90.15 | 103.18 |
+| 0.25 | 98.12 | 95.33 | 106.49 | 96.01 | 93.42 | 104.29 |
+| 0.1 | 98.00 | 96.97 | - | 97.30 | 96.22 | - |
+
+* The FVM and the FDM **converge to the same value** (98.0 and 97.0 K; 97.3 and 96.2 K): the two discretisations of the same layered model agree to 1 % at 0.1 mm. The FVM is closest to its limit from 1 mm for aligned copper (+1.3 %), the FDM needs 0.25 mm (-2.7 %).
+* The 1 mm FVM is 6.4 % low when the copper edges fall between cells because a cell half covered is given half a copper sheet (README 4.4 explains why this is biased cool); it is the grid, and it goes away with cells that are 0.25 mm or finer or with a better mapping (4.38).
+* The Lumped (82.5 K, -15.8 %) and the Analytic (72.2 K, -26.3 %) do not depend on the cell (they use their own geometry) and are a **different physics** (rings, one effective conductance): the model, not the grid, is the choice.
+* The 3D solid converges to 104 to 106 K, **+7 to +9 % above the layered FVM**: the real laminate lets heat go through the thickness and spread in 3D, which the layered idealisation does not. This is the independent physical check available here (a different formulation of the same equations), and it says the layered models are on the cool side by 7 to 9 % for a heater on a small pad. A measurement would be the real validation, and there is none.
+* **As tests**: `tests/test_rect_board.py` (2 tests, 24 s, needs the program): the FVM at 0.25 mm within 1.5 % of 0.1 mm; the 1 mm error between 0 and 3 % for aligned copper and between 4 and 9 % off the cells; the FDM within 4 % of the FVM fine run; the Lumped and the Analytic 10 to 30 % below the FVM; the 3D solid (two layers) 4 to 12 % above it.
+
+### 4.38 The mappings as selectable options (`importer.METHODS`, `study_mapping_options.py`)
+
+The request: implement the different models and compare them as an option. `importer.layer_faces(sheets, ib, problem, method)` now takes every mapping of the research as a method, and the table runs each through the program's FVM on four boards (error of the mean heater rise against the 0.1 mm pixel grid, binary mask, 1 mm cells, 6 x 6 mm heater):
+
+| Mapping | Stormduino | Our IC board | Rectangles on cells | Rectangles 0.4 mm off | mean of the absolute values |
+| :-- | --: | --: | --: | --: | --: |
+| fill (the program today) | -15.1 | -5.0 | +1.0 | -4.8 | 6.5 |
+| geometric | -4.8 | +12.7 | +1.2 | +0.5 | 4.8 |
+| Bruggeman | -6.6 | +15.1 | +1.2 | +0.6 | 5.9 |
+| Hashin-Shtrikman lower | +6.9 | +18.2 | +1.2 | +3.3 | 7.4 |
+| Hashin-Shtrikman upper | -11.3 | +3.5 | +1.1 | -2.2 | 4.5 |
+| Wiener lower (low bound) | +3.9 | +12.1 | +1.1 | +1.1 | 4.6 |
+| Wiener upper | -7.4 | -0.1 | +1.1 | +0.6 | 2.3 |
+| lambda 0.5 | -2.1 | +5.8 | +1.1 | +0.9 | 2.5 |
+| cell problem | -0.6 | +4.1 | +1.1 | +0.9 | 1.7 |
+| flow-based faces | -2.1 | +4.0 | +1.1 | -0.3 | 1.9 |
+
+* **Yes: Sampson's flow-based faces approximate better than the fill fraction on every board here, and so do lambda 0.5 and the numerical cell problem** (mean absolute error 1.9, 2.5 and 1.7 % against 6.5 %). The three from the pixels are within 0.6 % of each other on the rectangles. The cell problem is 1.7 % and the flow-based faces 1.9 %: not a difference this study can resolve with four boards.
+* The mappings that use only the fraction (geometric, Bruggeman, Hashin-Shtrikman) are right on regular copper and wrong in sign and size on real boards (-5 to +18 %): they cannot know whether clearances cut the paths.
+* The Wiener upper bound is 2.3 % on average but is -7.4 % on the Stormduino and -0.1 % on our board; it is lucky on one board, not a method (it is an upper bound on conductance that the copper pattern happens to approach).
+* **As an option of the program** (design, nothing implemented): `SolverOptions.copper_mapping` with the default `fill` (the program as it is, bit for bit), and `lambda`, `cell_problem`, `flow` for imported or patterned copper, the choice recorded in the report; the table above, run on the boards of a user, is the way to choose. No board was run with different cell sizes or heater sizes in this table (4.4 to 4.13 did that for fill, geometric, lambda and flow: the order of the methods did not change).
+
+### 4.39 Measured impact of the two proposed corrections to the program (`study_fix_impact.py`)
+
+Two corrections have been proposed: how zones are combined (4.27) and the laminate of the 3D solid under a single copper layer (4.35). Both were applied to copies of the program outside the repository and measured; nothing in `pcbthermal/` was changed. Variants: **additive** (`min(fill + coverage, 1)`, the first idea), **union** (`geometry.zone_fill`: the maximum per sample point of the 4 x 4 lattice of every cell, then the mean: overlapping zones keep the larger fill, abutting zones add up) and **union + laminate**. Peak rise (K) in the program as it is, then the change:
+
+| Case | Program today (FVM / FDM / 3D) | additive | union | union + laminate |
+| :-- | :-- | :-- | :-- | :-- |
+| One zone (reference) | 139.4 / 139.4 / 140.9 | 0 | 0 | 3D +1.6 % |
+| The same copper in 40 abutting strips of 0.5 mm | 151.2 / 169.0 / 156.5 | -7.8 / -17.5 / -10.0 % | -7.8 / -17.5 / -10.0 % (back to the reference) | same, 3D -8.5 % |
+| Two overlapping zones of fill 0.5 (must equal one zone of 0.5) | 151.2 / 151.2 / 156.5 | **-7.8 / -7.8 / -10.0 % (wrong)** | 0 | 0 |
+| Fills 0.8 and 0.4 overlapping partly | 145.3 / 145.6 / 148.6 | -1.4 / -2.2 / -1.8 % | 0 / -0.4 / 0 % | same |
+| Example boards (4, 4 and 2 layers), all five models | - | 0 | 0 | 0 |
+| Single-layer board, pad 10 x 10 mm | 155.4 / 150.3 / **346.1** | 0 | 0 | **3D -49.6 % (174.0 K)** |
+| Two-layer board, same pad | 164.2 / 156.4 / 174.5 | 0 | 0 | 0 |
+
+* **The additive rule is wrong**: it fixes the strips but double counts overlapping zones (-7.8 %), which users draw. An earlier run of the program's test battery with it had failed three outline tests and one inspector test for that reason. **The per-sample union fixes the strips (151.2 to 139.4 K) and leaves overlapping zones exact**, so it is the proposal.
+* **No change at all on the example boards or on any board with disjoint, cell-aligned zones**: the correction only moves boards with copper in several zones sharing cells.
+* The 3D solid on one copper layer drops from 346 to 174 K and then agrees with the same board built with two layers (174.5 K).
+* Cost: `zone_fill` evaluates each zone on its bounding box with 16 sample points per cell, the same work as the present coverage, so no measurable change in run time was seen (not timed).
+* Program tests with both corrections (the five files that touch zones, the 3D solid, the outline and the stack-up): **57 passed** (the 3D solid and its verification, outline, stack-up, copper, heatsink and template tests); 2 errors, both GUI tests that need the `pytest-qt` fixture `qtbot`, which the research environment lacks, not failures of the change. The whole battery was not run (this is a measurement on copies of the program, not an adoption).
+* The correction of the 3D solid alone passes the 3D solid, outline, stack-up and via-fill tests (41 passed; one test needs `pytest-qt`, which the research environment lacks).
+* Not measured: a board with an outline, with heatsinks or with vias on single-layer 3D (the via area in the added laminate slab uses the same formula as the gaps, not separately checked); time simulations (the 3D solid has none).
+
+### 4.40 Sources, sinks and links: the electrical side (`pdn.py`, `study_pdn_links.py`, `tests/test_pdn.py`, figure 11)
+
+The question: how could the sinks and resistors be done in the application, and has anyone done it. What is known (from web searches on 2026-10-23, snippets only; the repositories of kicad-electrothermal-sim and padne returned 404 to the fetch tool; the Altium host could not be resolved; nothing was read in full): commercial power-integrity tools model **supply pins as voltage sources, loads as current sinks (a current per pad or per device), series elements as resistances, and the copper as a resistor network**; in the DC case the capacitances are shorted and the analysis is the solution of that network (OpenROAD PDNSim documentation snippet; Altium PDN Analyzer: source voltage and internal resistance, load as a current sink). In `docs/roadmap.md` (on `develop`) FYPA and padne are listed with text directives on `DESIGNATOR.PAD` endpoints, a sidecar file and the current solution as heat source (AGPL: ideas only).
+
+`lib/pdn.py` is the prototype of that design. Terminals are named sets of pixels (the copper under a pad), elements are `vsource`, `isink` and `link`, the unknowns are the pixel potentials and one node per terminal. A piece with no voltage source floats: no current, no heat. Scenario (`study_pdn_links.py`, figure 11): the rectangle board with 5 V at the large pad, a **0.1 ohm link** (a bead or a shunt) from the 8 x 8 mm pad to a second piece of the same net, a 1.5 A sink on that piece:
+
+![Figure 11: potential and Joule heat of the copper with a source, a link and a sink](figures/fig_11_pdn_links.png)
+
+*Figure 11 (`figures/fig_11_pdn_links.png`): left, the potential (the grey pieces are floating); right, the Joule heat per pixel on a log scale; the black pixels are the equipotential pad terminals.*
+
+| Quantity | Value |
+| :-- | --: |
+| voltage at the load pad | 4.8418 V (drop 0.158 V: 0.008 V in the copper, 0.150 V across the link) |
+| heat of the copper | 12.3 mW (large pad, track and pad 10.1 mW; second piece 2.2 mW; floating square and thin track 0) |
+| heat of the link | **225 mW** (1.5 A through 0.1 ohm) |
+| the load (V at its pad x current) | 7262.7 mW: this is the power of the IC |
+| balance: source 7500.001 mW | copper + link + load, difference 0.002 mW |
+
+* **The link makes 18 times the heat of all the copper**: for a net in several pieces the bridge element, not the copper, is the part to model. The copper of a 5 V rail at 1.5 A in this board heats by 12 mW, a ferrite bead of 0.1 ohm by 225 mW.
+* The load power comes out of the network (V at the pad times the current) and can feed the thermal model as the power of the IC; the voltage matters only there.
+* The pad currents are inputs (power budget, datasheet, netlist), not inferable from the copper; **a floating piece needs nothing**.
+
+How it could be made in the application (design; the details are in `INTEGRATION.md`, section 7):
+
+1. **Data**: `Problem.electrical`, a list of named terminals (a pad position and size per terminal, a net) and elements `vsource`, `isink`, `link`, stored in the project file; absent = nothing changes. The existing `Heater` gets an optional `current` and `net` so that a part's power budget and its sink are one thing: `P = V_pad * I` and the heat in the footprint are then consistent.
+2. **Where the values come from**: typed in a pads table (Components), read from the KiCad netlist and part fields (research branch 4.33, and the roadmap's sidecar idea), links from the netlist: the parts that join two pieces of one net (0 ohm, ferrite, shunt, fuse) with their resistance from the field `Value` or a library.
+3. **Solve**: per copper layer, the network above on the same mask that gives the face conductances (the pixels already exist); vias join the layers through their barrel resistance; the temperature dependence of the resistivity (+0.39 %/K) closes in the same fixed-point loop that `api._solve_with_tc` already has; the Joule heat per cell is added to the source term of the thermal grid (`joule.to_cells`).
+4. **Outputs**: voltage drop and current density per net, heat per piece, per link and per via, a warning for a link or a track beyond its rating (IPC-2152 is the usual check, not implemented here).
+5. **Not done**: nothing of this has been joined to a thermal run; the vias of a multilayer net; time dependence; the regulators (a load that depends on its input voltage: constant power, FYPA's regulator model). The sheet resistance used is a constant 0.48 mohm/square at 20 degrees.
 
 ## 5. Without third-party libraries: the independent reader
 

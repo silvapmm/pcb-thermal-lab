@@ -25,7 +25,7 @@ from paths import OUT
 MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
 
 
-LAYERS = int(sys.argv[1]) if len(sys.argv) > 1 else 1                  # copper layers of the board; the copper is always on the top one
+LAYERS = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 1                  # copper layers of the board; the copper is always on the top one
 
 
 def make_problem(shift):

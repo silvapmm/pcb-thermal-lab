@@ -1,6 +1,6 @@
 # Conclusions: importing Gerber copper into the thermal grid
 
-Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`study_*.py`) and, where it is a claim that can break, a test (`tests/`, 73 tests in about 27 s; `python -m pytest -q tests` from this folder; the two program tests need the program's dependencies and one geometry test needs shapely). Nothing in `pcbthermal/` was changed.
+Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a section of `README.md` (numbers, tables, limits), a script (`study_*.py`) and, where it is a claim that can break, a test (`tests/`, 77 tests in about 51 s; `python -m pytest -q tests` from this folder; the two program tests need the program's dependencies and one geometry test needs shapely). Nothing in `pcbthermal/` was changed.
 
 ## 1. Where we stand
 
@@ -17,6 +17,13 @@ Written 2026-10-23 on branch `research/gerbers`. Everything quoted here has a se
 ## 1b. Where we stand with importing Gerbers with our code (2026-10-23)
 
 The path exists as research code (`lib/importer.py`, README 4.31 and 4.32, figures 7 and 8): files, copper masks, holes, nets and vias, a `Problem` with the vias, face conductances, and a solve through the program's own `fvm.Network`. On the Stormduino (2 layers, 109 vias) the heater temperature is -15.1 % with the program's mapping and -2.1 % (binary) or -5.3 % (coverage) with imported faces; on our IC board -5.0 % against +4.0 % and +2.1 %. Another reader changes the result by 0.01 to 0.04 %. **Nets checked against a KiCad project** (Stormduino, README 4.33): every object of the `.kicad_pcb` lies on our copper (1380 + 48 + 281 of the same number), no piece or group joined through the 109 plated holes holds two nets, and 55 of 56 nets without a zone fill split into the same pieces as in the CAD file. **Our board in the five models** (4.34): the cell-value mappings that help the FVM on the Stormduino are 8 to 13 % hot here and worse in the Lumped; the faces help only models that can take faces. **Rectangle board** (4.35): the 3D solid is valid from two copper layers (a single layer has no laminate under it in `solid3d.py`: the earlier "unusable" was this); the Lumped and Analytic differ from the FVM by 16 and 26 % on rectangles, more than any mapping does; the grid matters for drawn rectangles too. **Split nets** (4.36): the sense of inferring heat from net pieces needs a current per pad, not a voltage. **Missing**: the step where the user confirms layers and outline, several heaters, directional faces in the FDM and the 3D solid, component leads, any measurement.
+
+## 1c. Answers to the questions of 2026-10-23 (README 4.37 to 4.40)
+
+* **Validation on the rectangle board**: the FVM and FDM converge to the same value (1 %), the 1 mm FVM is 6 % low when the copper edges fall between cells, the Lumped and Analytic are a different physics (-16 and -26 %), the 3D solid converges 7 to 9 % above the layered FVM; the "worse FVM" was a comparison of each model with itself (4.37, `tests/test_rect_board.py`).
+* **Mappings as an option**: the flow-based faces, lambda 0.5 and the cell problem (mean error 1.9, 2.5, 1.7 %) beat the fill fraction (6.5 %) on all four boards; design `SolverOptions.copper_mapping` (4.38).
+* **Impact of the corrections**: union by sample point fixes the strips (-7.8 % FVM, -17.5 % FDM) and leaves overlapping zones and the example boards unchanged; the additive rule is wrong; the laminate under one layer takes the 3D peak from 346 to 174 K (4.39).
+* **Sources, sinks and links**: a link of 0.1 ohm makes 225 mW against 12 mW for all the copper of a 1.5 A rail; pad currents are inputs; the prototype closes the energy balance (4.40).
 
 ## 2. How this differs from the three Electronics Cooling articles
 

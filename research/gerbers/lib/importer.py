@@ -160,29 +160,47 @@ def layer_sheets(ib, problem, kind="coverage"):
     return out
 
 
+METHODS = ("fill", "geometric", "bruggeman", "hs_lower", "hs_upper", "wiener_low", "wiener_up", "lambda", "cell_problem", "flow")
+
+
 def layer_faces(sheets, ib, problem, method="flow"):
     """!
     @brief The face conductances of the cells of every layer.
     @param sheets List of pixel sheet conductance arrays.
     @param ib Imported board.
     @param problem Problem (for the phases).
-    @param method "flow" (flow-based faces), "lambda" (lambda 0.5) or "fill" (the program's own formula).
+    @param method One of METHODS: "fill" (the program's own formula, arithmetic fraction), "geometric", "bruggeman", "hs_lower", "hs_upper" (from the fraction alone); "wiener_low", "wiener_up", "lambda" (lambda 0.5), "cell_problem" (from the pixels, directional cell values); "flow" (flow-based faces, Sampson's method).
     @return List of (gx, gy) per layer.
+    @throws ValueError If the method is not known.
     """
+    if method not in METHODS:
+        raise ValueError(f"unknown mapping {method!r}; known: {', '.join(METHODS)}")
     n = int(round(ib.cell / ib.pix))
     out = []
     for l, S in enumerate(sheets):
         a, b = phases(problem, l)
         if method == "flow":
             out.append(cd.dual_faces(S, n, 0))
+            continue
+        blk = cd.cell_blocks(S, n)
+        if method == "lambda":
+            sx, sy = cd.map_lambda(blk, 0.5)
+        elif method in ("wiener_low", "wiener_up"):
+            lx, ly, ux, uy = cd.map_bounds(blk)
+            sx, sy = (lx, ly) if method == "wiener_low" else (ux, uy)
+        elif method == "cell_problem":
+            sx, sy = cd.map_cell_problem(blk)
         else:
-            blk = cd.cell_blocks(S, n)
-            if method == "lambda":
-                sx, sy = cd.map_lambda(blk, 0.5)
-            else:
-                f = ((blk - b) / (a - b)).mean(axis=(2, 3))
+            f = ((blk - b) / (a - b)).mean(axis=(2, 3))
+            if method == "fill":
                 sx = sy = cd.map_power(f, 1.0, a, b)
-            out.append(cd.faces_from_cells(sx, sy))
+            elif method == "geometric":
+                sx = sy = cd.map_power(f, 0.0, a, b)
+            elif method == "bruggeman":
+                sx = sy = cd.map_bruggeman(f, a, b)
+            else:
+                sx = sy = cd.map_hashin_shtrikman(f, "lower" if method == "hs_lower" else "upper", a, b)
+        out.append(cd.faces_from_cells(sx, sy))
     return out
 
 
