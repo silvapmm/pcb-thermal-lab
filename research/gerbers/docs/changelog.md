@@ -1,9 +1,0 @@
-# Changelog entries for the research branch
-
-Text that was added to the Unreleased section of `CHANGELOG.md`; kept here until the maintainer decides what enters the project documents.
-
-### Research
-- `research/gerbers` (branch `research/gerbers`, not part of the program): an independent Gerber and Excellon reader that needs only NumPy, the mapping of copper to the conductances of a square grid (flow-based faces, directional bounds, geometric mean), studies on 8 real boards (single layer, two layers with plated holes, a four-layer board, regular patterns, thick copper, heater sizes, time response), a prototype through the program's own FVM network, 37 tests, the Lumped and Analytic models (Lumped inherits a better conductance, 13 % to 4.8 %; Analytic needs one influence-weighted effective conductance, 18.6 % to 5.9 %), the reader against 164 files of gerbonara's test set (149 agree within 3 %) and the design of the integration. The fill fraction used today is 10 to 18 % too cool on real copper; the flow-based faces are within 0.3 to 3.4 %; the fill of a hatched zone must keep its formula. See `research/gerbers/README.md`, `research/gerbers/INTEGRATION.md` and `docs/research.md`.
-- `research/gerbers`: drill reader fixed against 35 gerbonara test files (Excellon zero options, format pattern, unit codes, tool parameters, routed paths; a file without a unit is refused), the reader keeps the X2 net of every object, `joule.py` computes the current of a net and its Joule heat per cell, 48 tests, `docs/literature.md` records what could and could not be read.
-- `research/gerbers`: synthetic Gerber files of known area made with gerbonara and a comparison of the independent reader with gerbonara, pygerber and pcb-tools; the reader tolerates a G code line without its star.
-- `research/gerbers`: angle sweep of thin tracks (area, connectivity, resistance), nine-point stencil option in the net solver, figure script.

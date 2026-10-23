@@ -12,7 +12,7 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ## Unreleased: the investigations in `research/`
 
-The studies of `examples/` moved to `research/<topic>/` (eight folders plus `gerbers`), with documents and figures; no change to the program except the case count in a tooltip (62 → 74) and test paths. See `research/INDEX.md`.
+The studies of `examples/` moved to `research/<topic>/` (eight folders; the Gerber research stays on its own branch), with documents and figures; no change to the program except the case count in a tooltip (62 → 74) and test paths. See `research/INDEX.md`.
 
 ---
 

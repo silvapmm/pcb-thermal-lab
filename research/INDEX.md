@@ -4,7 +4,7 @@ This file is kept apart from `research/README.md` (which the Gerber branch keeps
 
 | Area | Folder | Status | Question |
 | :-- | :-- | :-- | :-- |
-| Import | `gerbers/` | open | How to turn Gerber copper into grid conductances. |
+| Import | `gerbers/` | open, **lives on the branch `research/gerbers`** (not in `develop`) | How to turn Gerber copper into grid conductances. |
 | Parts | `component-heatsink/` | implemented in part (2.3.0, 2.4.0); junction node and heatsink scenarios open | The part, its top path, interfaces, heatsinks and the metal block. |
 | Tools | `power-calculator/` | implemented (2.4.0) | The watts of a part from a measured temperature: validation, sensitivity, how to reduce the error. |
 | Models | `models-comparison/` | implemented (repeated at each change) | The five models against the FVM on 19 scenarios, the grids, the solvers and the time results. |

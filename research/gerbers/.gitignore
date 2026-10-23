@@ -1,5 +1,0 @@
-# Downloaded boards (licences differ: never commit them), generated windows and logs
-data/
-out/
-*.npz
-__pycache__/
