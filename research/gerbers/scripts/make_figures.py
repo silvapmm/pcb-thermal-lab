@@ -407,6 +407,42 @@ def fig_models_our_board():
     plt.close(fig)
 
 
+def fig_rect_board():
+    """!
+    @brief The board of squares and rectangles and the five models on it (needs out/models_rect_board_2l.npz and _1l.npz from study_models_rect_board.py): the layout with the heater, and the error of the program's own zones on 1 mm cells against each model's fine run for copper on the cell edges and between them.
+    @return None.
+    """
+    p2, p1 = CACHE / "models_rect_board_2l.npz", CACHE / "models_rect_board_1l.npz"
+    if not (p2.exists() and p1.exists()):
+        print("figure 10 skipped: run study_models_rect_board.py 1 and 2 first")
+        return
+    import rect_board as rb
+    fig, axs = plt.subplots(1, 3, figsize=(16, 4.8), gridspec_kw={"width_ratios": [1.3, 1, 1]})
+    a = axs[0]
+    a.imshow(rb.mask(0.0), origin="lower", extent=(0, rb.W, 0, rb.H), cmap="YlOrBr", vmin=-0.2, vmax=1.3)
+    for r in rb.rects(0.4):
+        a.add_patch(plt.Rectangle((r[0], r[1]), r[2] - r[0], r[3] - r[1], fill=False, edgecolor="k", linestyle="--", linewidth=0.7))
+    hx = rb.heater(0.0)
+    a.add_patch(plt.Rectangle((hx[0], hx[1]), hx[2] - hx[0], hx[3] - hx[1], fill=False, edgecolor="c", linewidth=1.6))
+    a.set_xticks(range(0, 41, 5)); a.set_yticks(range(0, 31, 5)); a.grid(color="w", linewidth=0.3)
+    a.set_title("rect_board: copper (gold), heater 6 x 6 mm 1 W (cyan);\nthe same copper moved 0.4 mm (dashed): off the 1 mm cell edges", fontsize=8)
+    models = ["fvm", "fdm", "lumped", "analytic", "solid3d"]
+    for ax, path, title in ((axs[1], p1, "one copper layer"), (axs[2], p2, "two layers (bottom empty)")):
+        d = np.load(path)
+        x = np.arange(len(models))
+        for k, (tag, lab, col) in enumerate((("s0", "edges on the cells", "#2ca02c"), ("s4", "edges between cells (0.4 mm)", "#d62728"))):
+            err = 100 * (d[f"{tag}_native"] / d[f"{tag}_truth"] - 1)
+            ax.bar(x + (k - 0.5) * 0.35, err, 0.35, label=lab, color=col)
+        ax.axhline(0, color="k", linewidth=0.6)
+        ax.set_xticks(x); ax.set_xticklabels(models)
+        ax.set_ylabel("program's own zones, 1 mm cells, against fine run (%)")
+        ax.set_title(title, fontsize=9)
+        ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_10_rect_board_models.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the three figures.
@@ -422,6 +458,7 @@ def main():
     fig_import_end_to_end()
     fig_import_setup()
     fig_models_our_board()
+    fig_rect_board()
     print("figures in", OUT)
 
 

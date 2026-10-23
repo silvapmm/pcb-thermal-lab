@@ -46,7 +46,7 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `LOG.md` | Dated log: what was read in full, from a summary or from memory; what was reproduced and what not. |
 | `requirements.txt` | NumPy and SciPy; gerbonara, shapely and the comparison tools only for the cross-checks. |
 | `docs/` | For when the work is adopted: `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the literature status). The project documents are not edited on this branch. |
-| `figures/` | `fig_01` to `fig_09`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end, 08 its set-up (heater, holes, cells), 09 our board in the five models. |
+| `figures/` | `fig_01` to `fig_10`, committed on purpose, linked from the README files: 01 angles on the pixel grid, 02 nets and Joule heat (our own synthetic board with X2 net attributes), 03 copper mapping to cells (a window of the Stormduino board, MIT), 04 to 06 our IC board (nets and Joule heat, thermal maps, the Gerber render), 07 the import end to end, 08 its set-up (heater, holes, cells), 09 our board in the five models, 10 the rectangle board. |
 | `tests/` | 73 fast tests (about 27 s): the solvers and mappings, the Gerber and Excellon readers on synthetic files, nets and holes, the claims (`test_claims.py`), the program's union rule (`test_program_union.py`, needs the program's dependencies), our board (`test_our_board.py`), the import path (`test_importer.py`, needs the program's dependencies), the nets against a KiCad file (`test_kicad_nets.py`, needs the Stormduino files). |
 | **`lib/`** | |
 | `lib/native_gerber.py` | **Independent reader and rasteriser (NumPy only)**: RS-274X (apertures, macros, arcs, regions, polarity, step and repeat), X2 attributes (file function, aperture functions, net names), the layer classifier, Excellon, coverage masks. |
@@ -57,6 +57,7 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `lib/boards_synthetic.py`, `lib/our_board.py` | The synthetic board generator of the tests; **a board of our own** (IC, circular tracks, nets, vias, drill file), 4.30. |
 | `lib/importer.py` | **The import path end to end**: files to masks, holes and nets, a `Problem` with vias, face conductances and `FaceNetwork` for the program's FVM (4.31). |
 | `lib/kicad_pcb.py` | A small reader of `.kicad_pcb` (5.x): nets, tracks, vias, pads, zones; the independent truth of the nets (4.33). |
+| `lib/rect_board.py` | The board of squares and rectangles (one floating, a thin track), shiftable off the cell edges (4.35). |
 | `lib/paths.py` | The folders (`DATA`, `OUT`, `FIGURES`, `REPO`). |
 | **`scripts/`** | |
 | `scripts/fetch_boards.py` | Downloads the public test boards into `data/` (licences differ, section 9). |
@@ -71,7 +72,8 @@ Scripts are run from the repository root (`research/gerbers/.venv/bin/python res
 | `scripts/study_sampson_boundary.py`, `study_post_board.py`, `study_coverage.py`, `study_coverage_real.py` | The regime of Sampson's article and its board analogue (4.25, 4.28); coverage masks (4.26). |
 | `scripts/study_import_end_to_end.py`, `study_import_readers.py` | The import on the Stormduino and on our board against the program as it is; the same with another reader (4.31). |
 | `scripts/study_kicad_nets.py`, `study_models_our_board.py` | The nets against a KiCad project (4.33); our board in the five models (4.34; the second runs against the patched copy of the program). |
-| `scripts/make_figures.py` | Draws the nine figures into `figures/`. |
+| `scripts/study_models_rect_board.py` | The five models on the rectangle board, one or two layers (4.35; needs the patched copy of the program). |
+| `scripts/make_figures.py` | Draws the ten figures into `figures/`. |
 
 ## 4. How to run, and the results
 
@@ -473,7 +475,7 @@ Reading it:
 * **FVM**: the reference. The cell field reproduces the research solver to 0.0 % (aligned zones), and the mapping takes it from 11.9 to 2.6 to 4.0 % against the resolved sheet and from 11.6 to 1.3 to 1.9 % against itself.
 * **FDM**: the mapping halves the error against the sheet (15.9 to 7.1 to 7.8 %) and brings the coarse run onto its own fine run (8.1 to 2.4 to 3.1 %). A node-centred grid at 1 mm stays a few percent cool against the cell-centred reference.
 * **Lumped and Analytic** are reduced models whose fine run averages the conductance around rings or over the board with an arithmetic weight, so against *themselves* the mapping looks worse (2.5 to 11 %, 0.2 to 8 %) while against the *physical* sheet it is better (Lumped 13.0 to 4.8 %, Analytic 18.6 to 12.2 %, and 5.9 % with one effective conductance, 4.16). A reduced model is not its own truth; judge it against the physics.
-* **3D solid**: not usable as a check of the mapping here. Against the sheet it is already +43 % hot with the arithmetic fill and gets worse as the conductance drops, and against itself its fine run (0.1 mm cells) gives 121 to 496 K where the FVM gives 62 to 95 K on the same copper, so its result depends on the cell size far more than on the mapping. On uniform boards it is close (+3.3 % full copper, +8.6 % half, against the sheet reference), and with no copper at all it gives 924 K against 157 K for the FVM (it seems to use a lower in-plane conductivity for the bare laminate); not investigated, it is the comparison model of the program and belongs to the maintainer's list.
+* **3D solid**: not usable as a check of the mapping here. Against the sheet it is already +43 % hot with the arithmetic fill and gets worse as the conductance drops, and against itself its fine run (0.1 mm cells) gives 121 to 496 K where the FVM gives 62 to 95 K on the same copper, so its result depends on the cell size far more than on the mapping. On uniform boards it is close (+3.3 % full copper, +8.6 % half, against the sheet reference), and with no copper at all it gives 924 K against 157 K for the FVM (it seems to use a lower in-plane conductivity for the bare laminate); not investigated, it is the comparison model of the program and belongs to the maintainer's list. **Correction (4.35): the cause is that the program's 3D solid has no laminate under a single copper layer (all these windows are single-layer); it is valid from two layers.**
 * **What was not tested**: directional face conductances in the FDM and the 3D solid (only the FVM has the prototype of 4.14); the FDM and the 3D solid need the faces to be taken from the mask as in `INTEGRATION.md`.
 
 ### 4.28 An analogue of the post-mounted board of Sampson (`study_post_board.py`)
@@ -544,7 +546,7 @@ Two boards, a 6 mm heater of 1 W on the top layer, mean temperature of the heate
 
 **The choice of reader is not what matters.** The same pipeline with gerbonara + shapely instead of the independent reader (Stormduino): copper area +0.07 % (top) and +0.11 % (bottom), 0.07 to 0.11 % of the pixels differ, and the heater temperature differs by 0.01 to 0.04 % (reference 38.142 K against 38.158 K; coverage faces 36.138 K against 36.142 K).
 
-Limits: two boards, one heater each; no measurement; the 3D solid was not used as a check (unusable at fine cells, cause not investigated); the sign of the error of our board is hot, the Stormduino cool, so the flow-based faces are not a bias-free method, only a much smaller one.
+Limits: two boards, one heater each; no measurement; the 3D solid was not used as a check (single-layer boards: it has no laminate under one copper layer, 4.35); the sign of the error of our board is hot, the Stormduino cool, so the flow-based faces are not a bias-free method, only a much smaller one.
 
 ### 4.32 Where the heater is: the set-up of the end-to-end runs (`make_figures.py`, figure 8)
 
@@ -592,10 +594,40 @@ Run against a copy of the program with the additive zone union (4.27), without t
 
 Reading it:
 
-* **The models are not the same physics**: against the FVM fine run, the FDM is -4.4 %, the Lumped -7.3 %, the Analytic -16.0 % (its uniform-conductance idealisation of a board that is mostly bare laminate round a pad), and the 3D solid +180 %, which is not a plausible result and is **not explained** (the 3D solid already failed on fine cells, README 4.27; here it is also far off at 1 mm, 262 K against 109 K, on a board where it matched on the example board). It is not used as a check.
+* **The models are not the same physics**: against the FVM fine run, the FDM is -4.4 %, the Lumped -7.3 %, the Analytic -16.0 % (its uniform-conductance idealisation of a board that is mostly bare laminate round a pad), and the 3D solid +180 %, which is not a plausible result and is **not explained** (the 3D solid already failed on fine cells, README 4.27; here it is also far off at 1 mm, 262 K against 109 K, on a board where it matched on the example board). It is not used as a check. **Correction (4.35): the cause is the missing laminate under a single copper layer in `solid3d.py`.**
 * **Putting the copper in a cell value (what a model without directional faces can take) is worse than the faces**: the flow-based mean gives +8.1 % in the FVM, but the same flow-based conductances as faces gave +4.0 % in 4.31 (binary mask), because the program's harmonic mean of two cell values is not the face conductance; a cell value loses the direction (here the heat leaves along radial tracks).
 * On this copper-poor board the fill fraction is the *closest* in the FVM and FDM (-5 to -7 %) and the mappings that fix the Stormduino are 8 to 13 % hot: the sign of the error depends on the board, as in 4.31. For the Lumped (+20 % already today, because its rings take the cell values) every cell mapping makes it worse; the Analytic's +0.4 % today is a cancellation (it is 16 % cool of the FVM by itself).
 * Consequence for the intermediate layer: the faces are worth using only in models that can take faces (FVM; FDM and the 3D solid after a change); the Lumped and the Analytic need their own reduction of the mask (4.16), not a cell value.
+
+### 4.35 A board of squares and rectangles in the five models (`rect_board.py`, `study_models_rect_board.py`, figure 10)
+
+![Figure 10: the rectangle board and the error of the program's own zones on 1 mm cells in the five models](figures/fig_10_rect_board_models.png)
+
+*Figure 10 (`figures/fig_10_rect_board_models.png`): left, the board (40 x 30 mm, six rectangles and squares, one of them floating, heater 6 x 6 mm of 1 W under the large pad) and the same copper moved 0.4 mm (dashed); middle and right, the error of the program's own zones on 1 mm cells against each model's fine run (0.1 mm cells), for the copper edges on the cells (green) and between them (red), with one copper layer and with two (bottom empty).*
+
+Geometry that needs no interpretation, so the differences are the models and the grid, not the copper. Mean heater rise (K), 2 copper layers (the fair setting for the 3D solid, see below), edges on the cells:
+
+| | FVM | FDM | Lumped | Analytic | 3D solid |
+| :-- | --: | --: | --: | --: | --: |
+| zones, 0.1 mm cells (each its own truth) | 98.0 | 96.9 | 82.5 | 72.2 | 106.1 |
+| the same zones, 1 mm cells (the program's fill) | +1.3 % | -9.0 % | +3.0 % | +0.1 % | +3.0 % |
+| same, copper moved 0.4 mm | -6.9 % | -11.3 % | -0.4 % | -0.2 % | -8.9 % |
+| against the FVM fine run | 0 | -1.1 % | -15.8 % | -26.3 % | +8.3 % |
+
+* **Aligned rectangles are not exact either in the FDM** (-9 %): the node-centred grid puts half a cell of copper at each edge; the FVM, Lumped, Analytic and 3D solid are within 1 to 3 %. With the copper off the cell edges the fill fraction costs the FVM 5 to 7 % and the FDM 11 %: **the grid, not the Gerber, is the cause**, so the mapping of 4.4 to 4.13 is also needed for drawn rectangles that do not fall on the cells.
+* **The Lumped (-16 %) and the Analytic (-26 %) differ from the FVM on the physics**, even on rectangles (they idealise the spreading; 4.16): their cell mappings change them by only 0 to 12 %, so the choice of model matters more than the mapping.
+* **The cause of the 3D solid's odd results on single-layer boards** (322 K on our board against 115 K in the FVM, 4.34; +150 % here with one layer): `solid3d.py` builds the laminate as gap slabs *between* copper layers, so a **one-layer board has no laminate under the copper** (a 35 µm sheet instead of 1.6 mm). Checked by bisection (`out/` runs): full-board copper agrees (61.4 against 59.7 K), no copper gives 924 against 166 K, and the same pad with a second, empty layer gives 128.6 against 116.7 K (+10 %). So the 3D solid is valid from two layers; with one layer it is wrong in the program itself (not only in this study) and should be reported to the maintainer. It is not a cell-size problem; the earlier failure "at fine cells" (4.27) was this.
+* The comparison of the mask path with the program's own zones is by construction here (the same rectangles); a Gerber of the board was not written.
+
+### 4.36 Separate pieces of one net: what they are and what could be inferred (a proposal, `study_kicad_nets.py`)
+
+In 4.33 the Stormduino's `+5V` is two pieces of copper in the CAD file as well as in the Gerbers, `+3V3` two, the USB shield four. The maintainer's remark: such pieces are normally tied by vias and inner layers, and few should float; and an idea: two pieces of the same net, with the voltage and current known, could allow an inference.
+
+* **What the separate pieces are (from the data, not examined piece by piece)**: on a 2-layer board the pieces were already joined through the 109 plated holes, so what remains is a gap in copper. In a real design that is a connection made **outside the copper**: a through-hole part or a header whose pins share the net (a pin header, a jumper), a connector pad, a part that bridges them (0 ohm link, fuse, ferrite bead, shunt), or an unfinished route. Which one it is was not checked on the Stormduino (the CAD file names the parts, my small reader did not keep their references). On boards with inner planes and more vias the number of such pieces is lower; the four-layer board of 4.29 was not run through this test.
+* **Is the idea sound?** Physically yes. The Joule heat of a piece is I²R of the current that actually flows through its copper: the current enters at the pads of sources, leaves at the pads of loads, and its path inside a piece depends only on the piece's shape (`joule.py`). Two pieces of one net have the same voltage only if something connects them; if only a load pad sits in a piece and the supply pad in the other, the current has to cross the part that links them, so that part carries the whole current (a link with its own resistance and heat) and the pieces' heat follows from the currents of each pad. If the piece holds no source or load pad it carries no current and has no Joule heat, whatever the voltage. The voltage is not needed for the heat of the copper, only to turn a power into a current (I = P / V), so the **input needed is a current (or power and voltage) per pad, not per net**; the link elements (0 ohm, fuse, shunt: their resistance) would be part of the interface.
+* **What the literature search gave (2026-10-23, two web searches, snippets only)**: commercial power-integrity tools (Cadence Allegro IR drop, Altium PDN Analyzer, Altair PollEx) treat nets as sources and sinks with a current per pad and report I²R per shape and per via; an Altium guide describes shapes with a small resistance each that dropped a 5 V rail to 4.5 V; a Siemens/FloEFD study of a four-layer board uses nets as connections between copper regions and components. **Nothing found describes the case of islands bridged by components, or an inference of current from voltage alone**; I did not read any of these documents in full. The KiCad electro-thermal plug-ins listed in section 7 were read earlier from their descriptions only.
+* **What would not work**: inferring the current of a piece from the voltage of the net (voltage is the same on a whole net and carries no current); a piece without pads or links is left out. **What would**: a table "pad: current" read from a netlist and a power budget (the KiCad schematic, or the user), plus the link elements, feeding `joule.solve_net` piece by piece, and the heat added to the board model as a source per cell (the Joule layer, 4.20).
+* **Not done**: no net with links was solved; no piece-by-piece examination of the Stormduino's split nets.
 
 ## 5. Without third-party libraries: the independent reader
 
