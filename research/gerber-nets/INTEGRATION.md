@@ -7,8 +7,10 @@ Questions from the maintainer: *how could the sinks and resistances be implement
 * **What is added**: `Problem.electrical` with named terminals (position and size of a pad, net) and the elements `vsource` (volts), `isink` (amps) and `link` (ohms between two terminals); the part (`Heater`) may carry a `current` and a `net`. Absent = nothing changes, bit for bit.
 * **Where it plugs in**: after the copper mask exists (the same pixels that give the face conductances), `pdn.solve` gives the potential, the Joule heat per pixel and the power of every link; `joule.to_cells` adds it to the source term of the thermal grid; the existing fixed-point loop of `api._solve_with_tc` adds the resistivity of copper rising 0.39 %/K. The thermal models do not change: the heat enters as one more source.
 * **Why the links matter**: in the prototype scenario a 0.1 ohm link carries 18 times the heat of all the copper of a 1.5 A rail; pieces of one net that are not joined by copper are normally joined by such a part, so the part list (value of the 0 ohm, ferrite, shunt or fuse) is what the electrical side needs from the design.
-* **Inputs, to be decided later** (maintainer, 2026-10-23): the electrical data may be passed as an extra argument of the import (a sidecar file next to the project, or a KiCad netlist plus part fields) or typed in a pads table; the research leaves the form open.
+* **Inputs, to be decided later** (maintainer): the electrical data may be passed as an extra argument of the import (a sidecar file next to the project, or a KiCad netlist plus part fields) or typed in a pads table; the research leaves the form open.
 * **Open**: vias in the network; regulators (load as constant power); time dependence; ratings (IPC-2152).
+
+The network is drawn in Figure 5 of `README.md` (`figures/fig_05_network_diagram.png`): pieces and link, equivalent circuit, resistor mesh and energy balance.
 
 ## Order of work (proposal)
 

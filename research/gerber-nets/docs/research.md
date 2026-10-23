@@ -1,8 +1,8 @@
 # Research summary, phase 3: nets with voltage and current
 
-Ready to paste into the project `docs/research.md` as a section when the maintainer adopts the work (updated 2026-10-23). Everything is reproducible from `research/gerber-nets/` (README sections, `CONCLUSIONS.md`, `LOG.md`); nothing in `pcbthermal/` was changed.
+Ready to paste into the project `docs/research.md` as a section when the maintainer adopts the work. Everything is reproducible from `research/gerber-nets/` (README sections, `CONCLUSIONS.md`, `LOG.md`); nothing in `pcbthermal/` was changed.
 
-## Open now: nets with voltage and current (2026-10-23)
+## Open now: nets with voltage and current
 
 **Answers** (numbers in the README of the folder):
 

@@ -1,8 +1,8 @@
 # Research summary, phase 2: the copper in the simulation models
 
-Ready to paste into the project `docs/research.md` as a section when the maintainer adopts the work (updated 2026-10-23). Everything is reproducible from `research/gerber-models/` (README sections, `CONCLUSIONS.md`, `LOG.md`); nothing in `pcbthermal/` was changed.
+Ready to paste into the project `docs/research.md` as a section when the maintainer adopts the work. Everything is reproducible from `research/gerber-models/` (README sections, `CONCLUSIONS.md`, `LOG.md`); nothing in `pcbthermal/` was changed.
 
-## Open now: the copper in the simulation models (2026-10-23)
+## Open now: the copper in the simulation models
 
 **Answers** (numbers in the README of the folder):
 

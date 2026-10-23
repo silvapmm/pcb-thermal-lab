@@ -1,6 +1,6 @@
 # Gerber import, phase 2: the copper in the simulation models (mapping to conductances, the five models)
 
-Status: **open**, a research branch (`research/gerbers`, started 2026-10-22): **nothing in `pcbthermal/` was changed**. This folder is **phase 2 of three** of the Gerber research, which started as one study and was split on 2026-10-23: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (the problem, the methods, the boards, the results and what to do next, in plain order) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and how, in [`LOG.md`](LOG.md); the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.40) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 2 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (the problem, the methods, the boards, the results and what to do next, in plain order) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and how, in [`LOG.md`](LOG.md); the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.40) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
 
 ### Where the sections are
 
@@ -94,9 +94,9 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | Path | What it is |
 | :-- | :-- |
 | `REPORT.md` | **The guide**: the problem, the methods compared, the boards, the results on 11 boards and 42 windows, the differences from the known methods, thin tracks and angles, what to do next. |
-| `README.md`, `CONCLUSIONS.md`, `INTEGRATION.md`, `LOG.md` | The full record in numbered sections (grouped 4.A to 4.F), the conclusions, how the mapping would enter the program (and the two corrections), the dated log. |
+| `README.md`, `CONCLUSIONS.md`, `INTEGRATION.md`, `LOG.md` | The full record in numbered sections (grouped 4.A to 4.F), the conclusions, how the mapping would enter the program (and the two corrections), the log. |
 | `docs/` | `research.md` summary, `changelog.md`, `decisions-log.md`, `roadmap-entry.md`, `literature.md` (the three articles, what was read and how). |
-| `figures/` | `fig_01` to `fig_10`: 01 copper mapping to cells (a window of the Stormduino, MIT), 02 our IC board thermal maps, 03 the import end to end, 04 its set-up (heater, holes, cells), 05 our board in the five models, 06 the rectangle board in the five models, 07 the thinnest track and the angle, 08 the nine-point experiment, 09 how the cells are linked (five-point and nine-point diagram), 10 the whole chain from the Gerber to the temperature. |
+| `figures/` | `fig_01` to `fig_12`: 01 copper mapping to cells (a window of the Stormduino, MIT), 02 our IC board thermal maps, 03 the import end to end, 04 its set-up (heater, holes, cells), 05 our board in the five models, 06 the rectangle board in the five models, 07 the thinnest track and the angle, 08 the nine-point experiment, 09 how the cells are linked (five-point and nine-point diagram), 10 the whole chain from the Gerber to the temperature, 11 how the zones are combined, 12 what the copper fraction hides in a cell with a clearance. |
 | `tests/` | 33 tests (about 1.5 minutes): the solvers and mappings (`test_conduction.py`, `test_claims.py`), the board as a thermal bench (`test_our_board_models.py`), the import to the program (`test_importer.py`), the program's union rule (`test_program_union.py`), the rectangle board in the models (`test_rect_board.py`), the thinnest track and the angle (`test_track_width_angle.py`), the nine-point prototype (`test_diagonal.py`). Most need the program's dependencies. |
 | `lib/conduction.py` | The conduction solvers (one layer, two, a stack) and **every mapping**: power mean, Bruggeman, Hashin-Shtrikman, bounds, lambda, cell problem, flow-based faces. |
 | `lib/scenarios.py` | Boundary-limited scenarios (posts, held border) and the comparison of the mappings against a resolved reference. |
@@ -112,7 +112,7 @@ Scripts are run from the repository root with `PYTHONPATH=.` when a copy of the 
 | `scripts/study_diagonal.py` | The nine-point experiment on the tracks and on the 42 windows (4.44; about 15 minutes). |
 | `scripts/study_track_width_angle.py`, `study_boards_matrix.py` | The thinnest track and the angle (4.42); every mapping on eleven boards (4.43). |
 | `scripts/study_fix_impact.py` | The measured impact of the two proposed corrections, one run per variant of the program then `--compare` (4.39). |
-| `scripts/make_figures.py` | Draws the ten figures into `figures/`. |
+| `scripts/make_figures.py` | Draws the twelve figures into `figures/`. |
 
 ## 4. How to run, and the results
 
@@ -131,6 +131,10 @@ from the same mask, so the error of a mapping is isolated from the fidelity of t
 ## 4.A The problem and the mappings compared
 
 ### 4.4 The mappings on 42 windows (`study_mapping.py`)
+
+![Figure 12: one cell with a clearance across it and what each mapping says](figures/fig_12_clearance_cell.png)
+
+*Figure 12 (`figures/fig_12_clearance_cell.png`): a 1 mm cell with a 0.2 mm clearance across it and a 0.2 mm neck (copper fraction 0.84): the fill fraction gives it a conductance of 8.0 laminates, the numerical cell problem 5.3, lambda 0.5 5.4, the two Wiener bounds 4.7 and 6.2: the fill fraction behaves as if the copper were joined, and a conductance too high means a board too cool.*
 
 ![Figure 1: a 36 mm window of the Stormduino board, the copper fraction per 1 mm cell and the ratio of the flow-based to the arithmetic cell conductance](figures/fig_01_copper_mapping_to_cells.png)
 
@@ -219,7 +223,7 @@ The reference also depends a little on the pixel (single layer, 5 x 5 mm heater)
 
 ### 4.42 The thinnest track and the angle (`study_track_width_angle.py`, figure 7)
 
-**Questions** (maintainer, 2026-10-23): what is the smallest track the chain recognises, and does it handle angles? Two separate things must be told apart: what the **reader and the mask** recognise (a geometric question), and what the **1 mm cells of the thermal model** make of it (a thermal one).
+**Questions** (maintainer): what is the smallest track the chain recognises, and does it handle angles? Two separate things must be told apart: what the **reader and the mask** recognise (a geometric question), and what the **1 mm cells of the thermal model** make of it (a thermal one).
 
 **Set-up.** One track of width w (0.05 to 1.0 mm) at an angle of 0, 15, 30 or 45 degrees crosses the middle of a 16 x 16 mm window under a 6 x 6 mm heater of 1 W (border ring of 1 mm held at 0 K, 10 W/m²K on both faces; the board is symmetric, so 60, 75 and 90 degrees repeat 30, 15 and 0). Reference: the track as a coverage mask (sub-pixel area) on a **0.025 mm pixel** solved pixel by pixel. Candidates: the 1 mm cells from the binary or the coverage mask at 0.1 or 0.05 mm, with four mappings. The heater temperature of the 1 mm cells has a **baseline error of +7.4 % even with no copper** (a 6 mm heater and a held border on 1 mm cells: the grid, not the mapping), so the figure of merit is the **share of the track's cooling that the cells reproduce** (100 % = the track is fully felt; defined in the script).
 
@@ -487,7 +491,7 @@ Both models take the copper only through the `fill` of the zones, so an imported
 
 * **Lumped** reads the sheet conductance of the FVM network and averages it over rings, so it inherits any better `S`: 13 % falls to about 4.8 %, and that residual is its own model error (it is about the same with the FVM-quality mapping), not the mapping's.
 * **Analytic** treats the board as one uniform sheet around the heater, so per-cell conductances do not help (12 % left). It needs one effective conductance weighted by the influence of the heater, K0(r / lambda). Arithmetic weighting is 18.6 % too cool; the weighted **geometric-type mean** (power mean with p between -0.2 and -0.1) gives MAE 5.9 %, the flow-based effective conductance of the window 7.1 %, the harmonic mean 24.7 % too warm.
-* Internet search (2026-10-22): nothing found that treats the copper fraction of a Lumped (thermal network) or cosine-series model of a PCB; the literature on effective conductivity of PCBs uses area-weighted (arithmetic) copper fractions for the in-plane value, which is what the program does today and what the numbers above show to be too cool on real layouts.
+* Internet search: nothing found that treats the copper fraction of a Lumped (thermal network) or cosine-series model of a PCB; the literature on effective conductivity of PCBs uses area-weighted (arithmetic) copper fractions for the in-plane value, which is what the program does today and what the numbers above show to be too cool on real layouts.
 
 ### 4.27 Every model of the program (`study_lumped_analytic.py`, `study_models_self.py`, `tests/test_program_union.py`)
 
@@ -677,6 +681,10 @@ The conclusion: do not change the zone formula; give the imported copper its own
 
 ### 4.39 Measured impact of the two proposed corrections to the program (`study_fix_impact.py`)
 
+![Figure 11: how the zones of a layer are combined cell by cell](figures/fig_11_zone_union.png)
+
+*Figure 11 (`figures/fig_11_zone_union.png`): two zones that abut and two that overlap, and the cell fill that each rule gives (dashed: the right one): the maximum per cell loses half the copper of two abutting zones, the additive rule double counts overlapping zones, the maximum per sample point is right in both.*
+
 Two corrections have been proposed: how zones are combined (4.27) and the laminate of the 3D solid under a single copper layer (4.35). Both were applied to copies of the program outside the repository and measured; nothing in `pcbthermal/` was changed. Variants: **additive** (`min(fill + coverage, 1)`, the first idea), **union** (`geometry.zone_fill`: the maximum per sample point of the 4 x 4 lattice of every cell, then the mean: overlapping zones keep the larger fill, abutting zones add up) and **union + laminate**. Peak rise (K) in the program as it is, then the change:
 
 | Case | Program today (FVM / FDM / 3D) | additive | union | union + laminate |
@@ -708,7 +716,7 @@ Three things came out of the study: **a vector is not needed** (a mask at 0.1 mm
 5. **Import**: Gerber copper and outline, Excellon holes (a Gerber cannot tell a via from a component pad: a filter by diameter and a preview), the layer assignment pre-filled from the X2 attribute or the file name; KiCad (`.kicad_pcb`, text) for parts, stack-up and the via/pad distinction.
 6. **Before any change**: `docs/validation.md` section, the equations in `docs/theory.md`, the user guide and tooltips, tests, a layer-by-layer validation on a thick-copper board of a real design, and the effect on the existing examples (`INTEGRATION.md`).
 
-## 6. How other projects do it (read on 2026-10-22; for ideas only, no code copied)
+## 6. How other projects do it (for ideas only, no code copied)
 
 | Project | Geometry | Grid or mesh |
 | :-- | :-- | :-- |

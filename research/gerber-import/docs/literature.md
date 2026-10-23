@@ -1,6 +1,6 @@
 # Literature status for the Gerber reader (phase 1)
 
-Updated 2026-10-23. What was read about the Gerber format and how. The literature of the mapping of copper to cells (Sampson, Blackmore, Guenin) is in `research/gerber-models/docs/literature.md`.
+What was read about the Gerber format and how. The literature of the mapping of copper to cells (Sampson, Blackmore, Guenin) is in `research/gerber-models/docs/literature.md`.
 
 ## How the articles were obtained
 

@@ -197,6 +197,102 @@ def fig_pdn_links():
     plt.close(fig)
 
 
+def fig_network_diagram():
+    """!
+    @brief Diagrams of the electrical prototype: pieces of one net joined by a link, the equivalent circuit with the numbers of the scenario, the pixel network of a piece of copper and the energy balance.
+    @return None.
+    """
+    from matplotlib.patches import Rectangle, FancyBboxPatch
+    fig, axs = plt.subplots(2, 2, figsize=(16, 9.4))
+    # 1. pieces of copper, terminals, link, floating piece
+    ax = axs[0, 0]
+    ax.set_xlim(0, 20)
+    ax.set_ylim(0, 10)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    ax.add_patch(Rectangle((0.5, 3), 6, 4, facecolor="#e0a458", edgecolor="k"))
+    ax.add_patch(Rectangle((6.5, 4.5), 4, 1, facecolor="#e0a458", edgecolor="k"))
+    ax.add_patch(Rectangle((12.5, 3), 6, 4, facecolor="#e0a458", edgecolor="k"))
+    ax.add_patch(Rectangle((7.5, 8), 3, 1.5, facecolor="0.8", edgecolor="k", linestyle="--"))
+    ax.add_patch(Rectangle((1, 4.2), 1.6, 1.6, facecolor="#2ca02c", edgecolor="k"))
+    ax.add_patch(Rectangle((16.4, 4.2), 1.6, 1.6, facecolor="#d62728", edgecolor="k"))
+    ax.add_patch(Rectangle((10.0, 4.5), 0.5, 1.0, facecolor="#1f77b4", edgecolor="k"))
+    ax.add_patch(Rectangle((12.5, 4.5), 0.5, 1.0, facecolor="#1f77b4", edgecolor="k"))
+    ax.text(1.8, 5.0, "5 V\nsource", ha="center", va="center", fontsize=7, color="w")
+    ax.text(17.2, 5.0, "1.5 A\nsink", ha="center", va="center", fontsize=7, color="w")
+    ax.annotate("", (12.5, 5.0), (10.5, 5.0), arrowprops={"arrowstyle": "-", "linewidth": 0})
+    ax.text(11.5, 6.4, "link: 0.1 ohm\n(bead, shunt,\njumper, fuse)", ha="center", fontsize=8, color="#1f77b4")
+    ax.plot([10.5, 12.5], [5.0, 5.0], color="#1f77b4", linewidth=2, linestyle=":")
+    ax.text(3.5, 7.4, "piece A (one net)", ha="center", fontsize=8)
+    ax.text(15.5, 7.4, "piece B (the same net)", ha="center", fontsize=8)
+    ax.text(9, 7.6, "floating piece: no pad of a source or a load,\nno current, no heat", ha="center", fontsize=7, color="0.3")
+    ax.set_title("1. one net in several pieces: the copper does not join A and B;\na part does (the link). Currents are inputs per pad", fontsize=9)
+    # 2. equivalent circuit
+    ax = axs[0, 1]
+    ax.set_xlim(0, 20)
+    ax.set_ylim(0, 8)
+    ax.axis("off")
+    def res(x0, x1, y, label, color="k"):
+        """!
+        @brief A resistor symbol.
+        @param x0 Left.
+        @param x1 Right.
+        @param y Height.
+        @param label Text.
+        @param color Colour.
+        @return None.
+        """
+        ax.plot([x0, x0 + 0.5], [y, y], color=color)
+        ax.add_patch(Rectangle((x0 + 0.5, y - 0.35), x1 - x0 - 1, 0.7, fill=False, edgecolor=color, linewidth=1.5))
+        ax.plot([x1 - 0.5, x1], [y, y], color=color)
+        ax.text((x0 + x1) / 2, y + 0.7, label, ha="center", fontsize=8, color=color)
+    ax.add_patch(plt.Circle((1.2, 4), 0.7, fill=False, linewidth=1.5))
+    ax.text(1.2, 4, "5 V", ha="center", va="center", fontsize=8)
+    ax.plot([1.9, 3], [4, 4], color="k")
+    res(3, 7, 4, "copper A\n(10.1 mW)")
+    res(7, 11, 4, "link 0.1 ohm\n(225 mW)", "#1f77b4")
+    res(11, 15, 4, "copper B\n(2.2 mW)")
+    ax.plot([15, 16.3], [4, 4], color="k")
+    ax.annotate("", (17.8, 2.4), (17.8, 5.6), arrowprops={"arrowstyle": "->", "linewidth": 2, "color": "#d62728"})
+    ax.plot([16.3, 17.8, 17.8], [4, 4, 5.6], color="k")
+    ax.text(18.2, 4, "1.5 A\nload\n7263 mW", fontsize=8, color="#d62728", va="center")
+    ax.plot([1.2, 1.2, 17.8, 17.8], [3.3, 1.8, 1.8, 2.4], color="k")
+    ax.text(9.5, 1.2, "return (ground)", ha="center", fontsize=8)
+    ax.text(9.5, 7.1, "the load takes V at its pad x I = 4.84 V x 1.5 A: that is the power of the IC", ha="center", fontsize=8)
+    ax.set_title("2. the equivalent circuit of the scenario (values of the prototype)", fontsize=9)
+    # 3. pixel network
+    ax = axs[1, 0]
+    ax.set_xlim(-0.5, 8.5)
+    ax.set_ylim(-0.5, 5.5)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    for i in range(9):
+        for j in range(6):
+            if i < 8:
+                ax.plot([i, i + 1], [j, j], color="#b8651b", linewidth=1.6)
+            if j < 5:
+                ax.plot([i, i], [j, j + 1], color="#b8651b", linewidth=1.6)
+            ax.plot(i, j, "o", color="k", markersize=3)
+    ax.add_patch(FancyBboxPatch((-0.3, 1.7), 0.6, 1.6, boxstyle="round,pad=0.05", facecolor="#2ca02c", alpha=0.7))
+    ax.add_patch(FancyBboxPatch((7.7, 1.7), 0.6, 1.6, boxstyle="round,pad=0.05", facecolor="#d62728", alpha=0.7))
+    ax.text(3.9, -0.45, "each link is the sheet resistance Rs = rho / t = 0.48 mohm per square (35 um copper);\nthe pad terminal is one node tied to the pixels under it", ha="center", fontsize=8)
+    ax.set_title("3. inside a piece: a mesh of resistors, one per pixel pair;\nthe pad terminals hold the potential or take the current", fontsize=9)
+    # 4. energy balance
+    ax = axs[1, 1]
+    names = ["source (5 V x 1.5 A)", "load: the IC (4.84 V x 1.5 A)", "link 0.1 ohm", "copper (all pieces)", "balance error"]
+    vals = [7500.0, 7262.7, 225.0, 12.3, 0.002]
+    ax.barh(names[::-1], vals[::-1], color=["#999999", "#e0a458", "#1f77b4", "#d62728", "#2ca02c"])
+    for k, v in enumerate(vals[::-1]):
+        ax.text(v * 1.1, k, f"{v:g} mW", va="center", fontsize=8)
+    ax.set_xscale("log")
+    ax.set_xlim(1e-3, 1e5)
+    ax.set_xlabel("power (mW, log scale)")
+    ax.set_title("4. the energy balance closes: source = copper + link + load\n(the copper is 0.16 % of the power; the link 3 %; the IC the rest)", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_05_network_diagram.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -207,6 +303,7 @@ def main():
     fig_nets()
     fig_nets(our_board.gerber_text(), "S1", "fig_03_ic_board_nets_and_joule.png", f"our IC board (our_board.py): {our_board.N_SIG} signal nets on circular arcs and GND (nine colours)", pix=0.025)
     fig_pdn_links()
+    fig_network_diagram()
     print("figures in", OUT)
 
 

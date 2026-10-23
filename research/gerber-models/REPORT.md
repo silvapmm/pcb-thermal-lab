@@ -1,6 +1,6 @@
 # Report: the copper in the simulation models (the mapping of copper to the thermal grid)
 
-Phase 2 of the Gerber research (`research/gerber-models`), written 2026-10-23. This is the guide to the folder: it says the problem, the methods, the boards, the results and the open points in plain order; `README.md` holds the full record, section by section (4.2 to 4.43).
+Phase 2 of the Gerber research (`research/gerber-models`). This is the guide to the folder: it says the problem, the methods, the boards, the results and the open points in plain order; `README.md` holds the full record, section by section (4.2 to 4.43).
 
 ## 1. The problem in one paragraph
 
@@ -15,6 +15,12 @@ The program's finite-volume model works on square cells (0.6 to 2 mm) and knows 
 ![Figure 10: from the Gerber file to the temperature](figures/fig_10_pipeline.png)
 
 *Figure 10 (`figures/fig_10_pipeline.png`): blue, phase 1 (reading, `research/gerber-import`); orange, this folder (the mask becomes face conductances and runs through the program's network); green, phase 3 (nets and the electrical side). The mask is the common currency; thick boxes are the key steps.*
+
+### 1.2 What the copper fraction hides
+
+![Figure 12: one cell with a clearance across it and what each mapping says](figures/fig_12_clearance_cell.png)
+
+*Figure 12 (`figures/fig_12_clearance_cell.png`): a 1 mm cell with a 0.2 mm clearance across it and a 0.2 mm neck: the copper fraction is 0.84 and the fill fraction gives the cell a conductance of 8.0 laminates, the numerical cell problem 5.3 and lambda 0.5 5.4: the fill fraction behaves as if the copper were joined. Too high a conductance means too cool a board, which is the bias of the fill fraction on real copper.*
 
 ## 2. The methods compared
 
@@ -85,7 +91,7 @@ fill 9.7 / 11.3 / 11.1 %, geometric 2.2 / 2.4 / 3.0 %, tile (low bound) 2.6 / 4.
 
 Where the articles are ahead: Blackmore validates against a physical measurement; Sampson treats a post-mounted board at a very different scale (our analogue reproduces the mechanism, a factor 5 to 10 where he has 26). What is new here: the ranking of ten mappings against the resolved solution on real boards and patterns, the lambda mix of the Wiener bounds, the check in all five models, the import chain, the track study.
 
-## 6. Thin tracks and angles (section 4.42; the questions of 2026-10-23)
+## 6. Thin tracks and angles (section 4.42; the questions asked)
 
 ![Figure 7: the thinnest track and the angle](figures/fig_07_track_width_angle.png)
 
@@ -112,6 +118,12 @@ Faces to the four diagonal neighbours were added to the research network (`lib/d
 * On rectangles the **FVM and FDM converge to the same value**; the **Lumped is 16 % and the Analytic 26 % below**, the **3D solid** (two layers) 7 to 9 % above (4.35, 4.37). The cell mappings change the Lumped and Analytic by 0 to 12 %, less than the choice of model.
 * Through the program's own `fvm.Network` only the conductances change (agreement with the research solver 3e-12): on the Stormduino the heater error goes from -15.1 % to -2.1 %, on our board from -5.0 % to +4.0 % (4.31).
 * **Two corrections to the program were found and measured** (4.39): zones combined by the maximum per sample point (strips: -7.8 % FVM, -17.5 % FDM; overlapping zones and the example boards unchanged) and the laminate under a single copper layer in the 3D solid (346 to 174 K).
+
+### 7.1 How the program combines zones
+
+![Figure 11: how the zones of a layer are combined cell by cell](figures/fig_11_zone_union.png)
+
+*Figure 11 (`figures/fig_11_zone_union.png`): two zones that abut and two that overlap, and the cell fill that each rule gives (dashed: the right one). The maximum per cell (the program today) loses half the copper of two abutting zones; the additive rule double counts overlapping zones; the maximum per sample point is right in both.*
 
 ## 8. What to do to keep discussing and improving the copper mapping
 

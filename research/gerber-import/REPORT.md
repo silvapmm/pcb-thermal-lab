@@ -1,12 +1,18 @@
 # Validation report: does the Gerber converter work?
 
-Phase 1 of the Gerber research (`research/gerber-import`), written 2026-10-23. **Question**: can the program take the Gerber and Excellon files of a board and obtain from them the copper of every layer, the holes and the nets, correctly, without any third-party library? **Answer: yes, for copper layers, drills and nets, on every board we have; the error of the copper area is 0.14 % on average (0.05 % with a coverage mask), the connected pieces and the holes are identical to the reference, and the nets agree with the CAD file of a real KiCad project.** What it cannot do is listed in section 6. All numbers come from scripts in `scripts/` and tests in `tests/` (39 tests, 7 s); the sections of `README.md` (4.x) have the details.
+Phase 1 of the Gerber research (`research/gerber-import`). **Question**: can the program take the Gerber and Excellon files of a board and obtain from them the copper of every layer, the holes and the nets, correctly, without any third-party library? **Answer: yes, for copper layers, drills and nets, on every board we have; the error of the copper area is 0.14 % on average (0.05 % with a coverage mask), the connected pieces and the holes are identical to the reference, and the nets agree with the CAD file of a real KiCad project.** What it cannot do is listed in section 6. All numbers come from scripts in `scripts/` and tests in `tests/` (39 tests, 7 s); the sections of `README.md` (4.x) have the details.
 
 ## 1. What the converter does
 
 `importer.import_board(roles)` takes the files of a set (copper layers from the top, an optional outline, drill files) and returns the board box, **a binary and a coverage mask per copper layer** (pixel at most half the thinnest track, with a warning), **the plated holes with their pad, kind and net**, and warnings. It is the NumPy-only reader `native_gerber.py` (RS-274X with apertures, macros, arcs, regions, polarity, step and repeat, X2 attributes; Excellon) plus `nets.py` (holes, pads and nets matched by position). It needs no program and no new dependency. What is done with the masks (conductances, the thermal models) is phase 2; the current in the nets is phase 3.
 
-### 1.1 The mask, step by step
+### 1.1 How the reader works
+
+![Figure 5: the reader, from the commands of the files to the mask, the holes and the nets](figures/fig_05_reader_pipeline.png)
+
+*Figure 5 (`figures/fig_05_reader_pipeline.png`): left, a Gerber file is read command by command (apertures, draws, flashes, regions, polarity, net attributes) into the state of the file and drawn as primitives on a canvas, which gives the copper mask and the net of every object; an Excellon file gives the holes; right, a hole is matched by position with the pads of every copper layer and their net, which makes it a via or a component hole and joins the layers.*
+
+### 1.2 The mask, step by step
 
 ![Figure 4: the mask explained on one thin track](figures/fig_04_mask_explained.png)
 

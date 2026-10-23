@@ -526,6 +526,73 @@ def fig_pipeline():
     plt.close(fig)
 
 
+def fig_zone_union():
+    """!
+    @brief How the program combines the zones of a layer, drawn for two cases: two zones that abut (each covers half of the cell) and two zones that overlap (fill 0.5 each): the maximum per cell, the additive rule and the maximum per sample point, with the fill each gives.
+    @return None.
+    """
+    from matplotlib.patches import Rectangle
+    fig, axs = plt.subplots(2, 3, figsize=(15, 8.5))
+    cases = (("two zones that abut: each covers half of the cell, fill 1", [(0.0, 0.5, 1.0), (0.5, 1.0, 1.0)], (0.5, 1.0, 1.0), 1.0),
+             ("two zones that overlap: the same area, fill 0.5 each", [(0.0, 1.0, 0.5), (0.0, 1.0, 0.5)], (0.5, 1.0, 0.5), 0.5))
+    methods = ("maximum per cell (the program today)", "additive rule (the first idea)", "maximum per sample point (the correction)")
+    for r, (title, zones, fills, right) in enumerate(cases):
+        for m, method in enumerate(methods):
+            ax = axs[r, m]
+            ax.set_xlim(-0.35, 2.3)
+            ax.set_ylim(-0.25, 1.1)
+            ax.set_aspect("equal")
+            ax.axis("off")
+            ax.add_patch(Rectangle((0, 0), 1, 1, fill=False, edgecolor="k", linewidth=1.6))
+            for k, (z0, z1, f) in enumerate(zones):
+                ax.add_patch(Rectangle((z0, 0.04 * k), z1 - z0, 0.92, facecolor="#e0a458", alpha=0.5, edgecolor="#b8651b"))
+            ok = abs(fills[m] - right) < 1e-9
+            ax.add_patch(Rectangle((1.5, 0), 0.6, fills[m], facecolor="#2ca02c" if ok else "#d62728", edgecolor="k"))
+            ax.add_patch(Rectangle((1.5, 0), 0.6, right, fill=False, edgecolor="k", linestyle="--"))
+            ax.text(1.8, -0.15, f"cell fill {fills[m]:.1f}" + ("" if ok else "  (wrong)"), ha="center", fontsize=9)
+            if r == 0:
+                ax.set_title(method, fontsize=9)
+            if m == 0:
+                ax.text(-0.12, 0.5, title.replace(": ", ":\n"), fontsize=8, va="center", ha="right", rotation=90, transform=ax.transData)
+    fig.suptitle("how the zones of a layer are combined cell by cell (dashed: the right fill); the per-sample rule is right in both cases", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "fig_11_zone_union.png", dpi=105)
+    plt.close(fig)
+
+
+def fig_clearance_cell():
+    """!
+    @brief What the copper fraction hides: one cell of 10 x 10 pixels with a clearance across it and a narrow neck, and the conductance along x that each mapping gives it.
+    @return None.
+    """
+    n = 10
+    mask = np.ones((n, n), bool)
+    mask[:, 4:6] = False
+    mask[4:6, 4:6] = True
+    S = cd.S_LAM + mask * (cd.S_CU - cd.S_LAM)
+    blk = S[None, None, :, :]
+    f = float(mask.mean())
+    fill = float(cd.map_power(np.array([[f]]), 1.0, cd.S_CU, cd.S_LAM)[0, 0])
+    lo, up = float(cd.map_bounds(blk)[0][0, 0]), float(cd.map_bounds(blk)[2][0, 0])
+    lam, cp = float(cd.map_lambda(blk, 0.5)[0][0, 0]), float(cd.map_cell_problem(blk)[0][0, 0])
+    fig, axs = plt.subplots(1, 2, figsize=(13, 5), gridspec_kw={"width_ratios": [1, 1.6]})
+    axs[0].imshow(mask, cmap="YlOrBr", vmin=-0.3, vmax=1.3, interpolation="nearest")
+    axs[0].set_title(f"one 1 mm cell (10 x 10 pixels): copper brown, a 0.2 mm clearance\nacross it with a 0.2 mm neck; copper fraction {f:.2f}", fontsize=9)
+    axs[0].set_xlabel("heat flows left to right and has to pass through the neck")
+    axs[0].set_xticks([])
+    axs[0].set_yticks([])
+    names = ["fill fraction\n(the program today)", "Wiener low\n(a bound)", "lambda 0.5", "cell problem", "Wiener up\n(a bound)"]
+    vals = [fill, lo, lam, cp, up]
+    axs[1].bar(names, [v / cd.S_LAM for v in vals], color=["#d62728", "#999999", "#1f77b4", "#1f77b4", "#999999"])
+    for i, v in enumerate(vals):
+        axs[1].text(i, v / cd.S_LAM + 0.1, f"{v / cd.S_LAM:.1f}", ha="center", fontsize=9)
+    axs[1].set_ylabel("conductance along x of the cell\n(in units of the laminate's)")
+    axs[1].set_title("what each mapping says: the fill fraction averages the copper as if it were joined,\nthe others see the neck. Too high a conductance means too cool a board:\nthat is the bias of the fill fraction on real copper", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_12_clearance_cell.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -542,6 +609,8 @@ def main():
     fig_diagonal()
     fig_diagonal_faces()
     fig_pipeline()
+    fig_zone_union()
+    fig_clearance_cell()
     print("figures in", OUT)
 
 

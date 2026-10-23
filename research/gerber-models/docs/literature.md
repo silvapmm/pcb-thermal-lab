@@ -1,6 +1,6 @@
 # Literature status for the Gerber / copper-mapping research
 
-Updated 2026-10-23. An honest record of what was read, how, and what is still open.
+An honest record of what was read, how, and what is still open.
 
 ## How the articles were obtained
 

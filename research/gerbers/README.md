@@ -1,6 +1,6 @@
 # research/gerbers (moved)
 
-The Gerber research (branch `research/gerbers`) was one study until 2026-10-23, when it was split in three folders, each with its own README, conclusions, integration design, log, tests, figures and docs:
+The Gerber research (branch `research/gerbers`) was one study until it was split in three folders, each with its own README, conclusions, integration design, log, tests, figures and docs:
 
 | Phase | Folder | Subject |
 | :-- | :-- | :-- |

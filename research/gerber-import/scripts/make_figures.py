@@ -227,6 +227,77 @@ def fig_mask_explained():
     plt.close(fig)
 
 
+def fig_reader_pipeline():
+    """!
+    @brief The reader as a diagram: how the commands of a Gerber file become copper pixels, how an Excellon file becomes holes, and how a hole, a pad and a net are matched by position.
+    @return None.
+    """
+    from matplotlib.patches import FancyBboxPatch, Circle, Rectangle
+    fig, axs = plt.subplots(1, 2, figsize=(17, 6.6), gridspec_kw={"width_ratios": [1.5, 1]})
+    ax = axs[0]
+    ax.set_xlim(0, 15)
+    ax.set_ylim(0, 8)
+    ax.axis("off")
+
+    def box(x, y, w, h, text, color="#cfe3f5", bold=False):
+        """!
+        @brief A box with a text.
+        @param x Left.
+        @param y Bottom.
+        @param w Width.
+        @param h Height.
+        @param text Label.
+        @param color Fill.
+        @param bold True for a key step.
+        @return None.
+        """
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.05,rounding_size=0.12", facecolor=color, edgecolor="k", linewidth=2 if bold else 0.9))
+        ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=7.5)
+
+    def arrow(x0, y0, x1, y1):
+        """!
+        @brief An arrow.
+        @param x0 Start x.
+        @param y0 Start y.
+        @param x1 End x.
+        @param y1 End y.
+        @return None.
+        """
+        ax.annotate("", (x1, y1), (x0, y0), arrowprops={"arrowstyle": "->", "linewidth": 1.3})
+    box(0.1, 5.2, 3.4, 2.4, "Gerber file (RS-274X)\n%FSLAX46Y46*%  %MOMM*%\n%ADD10C,0.2*%   aperture\nD10*  X1Y1D02*  X5Y3D01*   draw\nX2Y2D03*   flash\nG36 ... G37*   region\n%LPC*%   clear polarity\n%TO.N,GND*%   net")
+    box(4.2, 5.2, 3.0, 2.4, "state of the file\nunits, format, current\naperture, polarity,\nnet attribute,\nstep and repeat", bold=True)
+    box(7.9, 5.2, 3.2, 2.4, "primitives drawn on a canvas\nstroke with a round or\nrectangular aperture,\nflash, arc, region,\nmacro; dark adds,\nclear removes", bold=True)
+    box(11.8, 5.2, 3.0, 2.4, "copper MASK\nbinary (centre of the\npixel) and coverage\n(4 x 4 sub-samples)\n+ the net of every\nobject", "#fbe3c2", True)
+    for x0, x1 in ((3.5, 4.2), (7.2, 7.9), (11.1, 11.8)):
+        arrow(x0, 6.4, x1, 6.4)
+    box(0.1, 1.6, 3.4, 2.4, "Excellon drill file\nM71 / METRIC   unit\nT1C0.300   tool, diameter\nX044500Y002000   hole\n; #@! TF.FileFunction,\nPlated,1,2,PTH")
+    box(4.2, 1.6, 3.0, 2.4, "zero omission, format,\nunit, repeat, routed\nslots; a file with no\nunit is refused", bold=True)
+    box(7.9, 1.6, 3.2, 2.4, "holes\n(x, y, diameter,\nplated or not)")
+    box(11.8, 1.6, 3.0, 2.4, "matched by POSITION\nwith the pads of every\ncopper layer: hole + pad\n+ net = via or\ncomponent hole", "#d6ecd0", True)
+    for x0, x1 in ((3.5, 4.2), (7.2, 7.9), (11.1, 11.8)):
+        arrow(x0, 2.8, x1, 2.8)
+    arrow(13.3, 5.2, 13.3, 4.0)
+    ax.text(7.4, 0.6, "everything is written to be tolerant of the CAD tool and strict about what it cannot do:\nunsupported features (aperture blocks, mirrored or rotated apertures, ...) are reported and the file refused", ha="center", fontsize=8, style="italic")
+    ax.set_title("the reader: from the commands of the files to the mask, the holes and the nets", fontsize=10)
+    ax = axs[1]
+    ax.set_xlim(-6, 6)
+    ax.set_ylim(-5.2, 5)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    for k, (y, name) in enumerate(((2.2, "top copper (F)"), (-2.6, "bottom copper (B)"))):
+        ax.add_patch(Rectangle((-5, y - 1.7), 10, 3.4, facecolor="#e0a458", alpha=0.35, edgecolor="k"))
+        ax.add_patch(Circle((0, y), 1.2, facecolor="#e0a458", edgecolor="k"))
+        ax.add_patch(Circle((0, y), 0.5, facecolor="k"))
+        ax.text(-4.8, y + 1.45, name, fontsize=8)
+        ax.text(2.0, y, "pad: aperture function ViaPad or\nComponentPad, net GND" if k == 0 else "pad: net GND", fontsize=7.5, va="center")
+    ax.plot([0, 0], [-1.9, 1.7], color="k", linestyle=":")
+    ax.text(0, 4.2, "hole at (x, y), 0.4 mm, plated (drill file)\nits centre lies on a pad on every layer, with the same net:\nthe hole is a via and the layers are joined", ha="center", fontsize=8)
+    ax.set_title("matching a hole, its pads and the net by position\n(Stormduino: 109 of 109 holes join the two layers)", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_05_reader_pipeline.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures of this investigation.
@@ -237,6 +308,7 @@ def main():
     fig_validation()
     fig_stormduino_nets()
     fig_mask_explained()
+    fig_reader_pipeline()
     print("figures in", OUT)
 
 
