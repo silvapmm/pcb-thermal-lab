@@ -1,5 +1,5 @@
 """!
-@file via_fill_study.py
+@file study_via_fill.py
 @brief What fills a via barrel and how much it matters for heat: open, epoxy resin, conductive paste, electroplated copper.
 
 @details A via is a copper barrel (plating, 25 um by default) around a core that is either open or filled. The conduction along the axis of the barrel is
@@ -7,14 +7,14 @@
          The fabricator's usual "filled via" is an epoxy resin plug (IPC-4761 types V to VII, often capped with plated copper to be solderable), which is almost a heat-wise nothing.
          Part 1 prints the resistance of one via through 1.6 mm; part 2 the maximum temperature of the example board (3 x 3 vias of 0.3 mm under U1) for every fill.
 
-Usage: python examples/via_fill_study.py
+Usage: python research/via-fill/study_via_fill.py   (from the repository root; about 1 minute)
 """
 
 import math
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))      # repository root: research/via-fill/ is two levels down
 
 from pcbthermal import SolverOptions, simulate                           # noqa: E402
 from pcbthermal.examples import example_board                            # noqa: E402
