@@ -28,7 +28,25 @@ def resistivity(temperature_c, rho20=RHO_CU_20C, alpha=ALPHA_CU):
     return rho20 * (1.0 + alpha * (temperature_c - 20.0))
 
 
-def solve_net(mask, sheet_ohm, source, sink, current):
+def _edges(stencil):
+    """!
+    @brief The pixel pairs that are linked, with their weight.
+    @details "4": the four axial neighbours, weight 1 (the classical five-point stencil, exact for the axes and too resistive for a thin track at an angle: the current has to follow a staircase).
+             "9": the isotropic nine-point stencil: axial neighbours 2/3 and diagonal neighbours 1/6 (they add up to the same conductance across a straight cut, and the Laplacian is
+             isotropic to a higher order, so a tilted wide track conducts like a straight one). Weights are positive, so it is still a valid conductance network.
+    @param stencil "4" or "9".
+    @return List of (slice of the first pixel, slice of the second pixel, weight).
+    @throws ValueError For another stencil.
+    """
+    allr, c1, c2 = slice(None), slice(0, -1), slice(1, None)
+    if stencil == "4":
+        return [((allr, c1), (allr, c2), 1.0), ((c1, allr), (c2, allr), 1.0)]
+    if stencil == "9":
+        return [((allr, c1), (allr, c2), 2.0 / 3.0), ((c1, allr), (c2, allr), 2.0 / 3.0), ((c1, c1), (c2, c2), 1.0 / 6.0), ((c1, c2), (c2, c1), 1.0 / 6.0)]
+    raise ValueError("stencil must be '4' or '9'")
+
+
+def solve_net(mask, sheet_ohm, source, sink, current, stencil="4"):
     """!
     @brief Potential, resistance and Joule power of a net between two terminals.
     @details Pixels are 4-connected; the face between two pixels conducts 1 / sheet_ohm for square pixels. The terminals are held at a potential (source at 1, sink at 0) and the
@@ -38,6 +56,7 @@ def solve_net(mask, sheet_ohm, source, sink, current):
     @param source Boolean array like mask: where the current enters.
     @param sink Boolean array like mask: where the current leaves.
     @param current Total current (A).
+    @param stencil "4" (axial links) or "9" (isotropic nine-point links, see `_edges`).
     @return Tuple (R, V, q): resistance between the terminals (ohm), potential array (V, nan outside the solved part), Joule power per pixel (W, zero outside).
     @throws ValueError If the terminals are empty or not connected through the mask.
     """
@@ -54,10 +73,10 @@ def solve_net(mask, sheet_ohm, source, sink, current):
     g = 1.0 / rs
     rows, cols, vals = [], [], []
     # Horizontal and vertical faces between two copper pixels; the face conductance is the series of the two half pixels (harmonic mean of the pixel conductances)
-    for sl_a, sl_b in (((slice(None), slice(0, -1)), (slice(None), slice(1, None))), ((slice(0, -1), slice(None)), (slice(1, None), slice(None)))):
+    for sl_a, sl_b, wt in _edges(stencil):
         both = mask[sl_a] & mask[sl_b]
         ga, gb = g[sl_a][both], g[sl_b][both]
-        gf = 2.0 * ga * gb / (ga + gb)
+        gf = wt * 2.0 * ga * gb / (ga + gb)
         rows.append(idx[sl_a][both]); cols.append(idx[sl_b][both]); vals.append(gf)
     r, c, v = np.concatenate(rows), np.concatenate(cols), np.concatenate(vals)
     n = int(mask.sum())
@@ -90,10 +109,10 @@ def solve_net(mask, sheet_ohm, source, sink, current):
     # Joule power: half of every face's (dV)^2 g to each of its two pixels
     q = np.zeros(mask.shape)
     vv = np.where(np.isnan(volt), 0.0, volt)
-    for sl_a, sl_b in (((slice(None), slice(0, -1)), (slice(None), slice(1, None))), ((slice(0, -1), slice(None)), (slice(1, None), slice(None)))):
+    for sl_a, sl_b, wt in _edges(stencil):
         both = mask[sl_a] & mask[sl_b] & ~np.isnan(volt[sl_a]) & ~np.isnan(volt[sl_b])
         ga, gb = g[sl_a], g[sl_b]
-        gf = 2.0 * ga * gb / (ga + gb)
+        gf = wt * 2.0 * ga * gb / (ga + gb)
         p = np.where(both, gf * (vv[sl_a] - vv[sl_b]) ** 2, 0.0)
         q[sl_a] += 0.5 * p
         q[sl_b] += 0.5 * p

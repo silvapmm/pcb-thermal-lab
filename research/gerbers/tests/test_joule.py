@@ -77,3 +77,23 @@ def test_overlapping_terminals_are_refused():
     k[:, 0] = True
     with pytest.raises(ValueError):
         joule.solve_net(m, RS, s, k, 1.0)
+
+
+def test_nine_point_stencil_matches_the_straight_strip_and_fixes_a_tilted_one():
+    """!@brief The nine-point stencil gives the same R for a straight strip and a much smaller error for a strip at 45 degrees than the five-point stencil. @return None."""
+    m, s, k = strip(10, 50)
+    r4, _, _ = joule.solve_net(m, RS, s, k, 1.0, stencil="4")
+    r9, _, q9 = joule.solve_net(m, RS, s, k, 1.0, stencil="9")
+    assert r9 == pytest.approx(r4, rel=0.05)                      # a pixel row at an insulated wall misses its diagonal links: about 1/(3 W) too resistive
+    assert q9.sum() == pytest.approx(r9, rel=1e-9)
+    n = 120
+    yy, xx = np.mgrid[:n, :n]
+    tilt = (np.abs(xx - yy) <= 6) & (xx + yy > 20) & (xx + yy < 2 * n - 20)       # a band at 45 degrees, 13 pixels wide across x
+    src = tilt & (xx + yy <= 24)
+    snk = tilt & (xx + yy >= 2 * n - 24)
+    width = 13 / np.sqrt(2.0)
+    length = (2 * n - 24 - 24) / np.sqrt(2.0)
+    ideal = RS * length / width
+    e4 = abs(joule.solve_net(tilt, RS, src, snk, 1.0, stencil="4")[0] / ideal - 1)
+    e9 = abs(joule.solve_net(tilt, RS, src, snk, 1.0, stencil="9")[0] / ideal - 1)
+    assert e9 < e4                                                  # better, but not exact: the walls of a narrow band still cost a few percent
