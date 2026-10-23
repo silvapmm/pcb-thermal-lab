@@ -5,6 +5,7 @@ This file is kept apart from `research/README.md` (which the Gerber branch keeps
 | Area | Folder | Status | Question |
 | :-- | :-- | :-- | :-- |
 | Import | `gerbers/` | open | How to turn Gerber copper into grid conductances. |
+| Models | `block-and-fins/` | implemented (2.3.0, 2.4.0) | Metal block and fins: the fin formula, and the block in the Lumped and Analytic models. |
 | Board | `outline/` | implemented (2.4.0) | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | Board | `via-fill/` | implemented (2.4.0) | What fills a via barrel and how much it matters. |
 

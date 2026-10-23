@@ -895,7 +895,7 @@ class Inspector(QWidget):
                     only.setWordWrap(True)
                     only.setStyleSheet("font-size: 11px; color: gray;")
                     only.setToolTip("The Lumped model keeps the block as one more layer of its ring network and the Analytic model as a graph of tiles in its local "
-                                    "correction; both were within 5 % of the FVM in 62 test cases, with no time simulation.")
+                                    "correction; both were within 5 % of the FVM in 74 test cases, with no time simulation.")
                     lay.addRow(only)
                     th = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
                     th.setToolTip("Thickness of the metal block pressed on this face. The heat enters the block only where the block overlaps copper of this layer, "

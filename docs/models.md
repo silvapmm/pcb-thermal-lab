@@ -105,14 +105,14 @@ lateral conductance `k·t` per cell, heat capacity `ρ·c·t` (time simulation),
 and an exposed surface to the air `G = (h_face + h_extra)(A + t·L_edge)` (top or bottom coefficient of the board plus the heatsink's extra h, sides included). The heat therefore enters the block **where the block overlaps copper** (the intersection of the two planes);
 over bare laminate it must also cross the FR-4. The board face under the block no longer loses heat on its own. The block is taken as an isotropic plate with no gradient across its thickness (thin blocks; a 1 to 10 mm aluminium or copper plate is within 0.6 % of a 3D solid).
 `block_stats` and the report give its mean and maximum temperature and the heat entering and leaving; the Temperature tab has a "Metal block" view. A heatsink with thickness 0 stays the plain extra coefficient.
-| Model | Metal block | Time simulation with a block | Error against the FVM (62 cases) |
+| Model | Metal block | Time simulation with a block | Error against the FVM (74 cases) |
 | :-- | :-- | :-- | :-- |
 | FVM, FDM | one more node layer under the block | yes | reference / compared with the 3D solid within 1.8 % |
 | 3D solid | pad slabs of the block | no (steady state only) | within 1 % of the FVM on a finned block |
 | Lumped | one more layer of the ring network | no | 2.0 % mean, 4.8 % max |
 | Analytic | graph of tiles in the Green-function correction (Schur complement) | no | 1.1 % mean, 4.3 % max |
 
-**Lumped and Analytic have the block in steady state** (Lumped: one more layer of the ring network; Analytic: a graph of tiles in the Green-function correction; `theory.md` section 7; both within about 5 % of the FVM in 62 cases, `validation.md` section 17). Their time simulation does not support a block and the summary says so; the FVM, FDM and 3D solid have it in time too. SOR does not support blocks (direct and CG do). `python -m pcbthermal example block` runs the example board with a block.
+**Lumped and Analytic have the block in steady state** (Lumped: one more layer of the ring network; Analytic: a graph of tiles in the Green-function correction; `theory.md` section 7; both within about 5 % of the FVM in 74 cases, `validation.md` section 17). Their time simulation does not support a block and the summary says so; the FVM, FDM and 3D solid have it in time too. SOR does not support blocks (direct and CG do). `python -m pcbthermal example block` runs the example board with a block.
 
 ### 2.7 3D solid (finite volumes in three dimensions) (theory §4)
 

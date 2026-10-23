@@ -7,9 +7,9 @@
             + extra h); the part of the block outside the contact is an annular fin of conductance k t (single-sided, m = sqrt(h_exp / (k t)), inner radius r1 = sqrt(A_c / pi),
             outer radius r2 = sqrt(A_p / pi), adiabatic edge). Per unit of contact area h_eq = 1 / (R'' + 1 / (h_exp (1 + eta A_out / A_c))), spread as an extra coefficient of
             (h_eq - h_face) A_c / A_p over the polygon. 'old' is the earlier equivalent (isothermal block over the whole polygon, no fin) for comparison.
-         B. **The block as one more layer of the ring network** (Lumped only): the block layer of the FVM network is aggregated into rings like the board layers (`lumped.solve_steady(block_nodes=True)`).
+         B. **The block as one more layer of the ring network** (Lumped only): the block layer of the FVM network is aggregated into rings like the board layers (`lumped.solve_steady`, which handles the block by default since 2026-10-22`).
          C. **The block as a graph of tiles inside the Green-function correction** (Analytic only): the block temperatures are eliminated into a Schur complement that couples the
-            tiles of the board layer under the block (`analytic.solve_steady(block_tiles=True)`).
+            tiles of the board layer under the block (`analytic.solve_steady`, which handles the block by default since 2026-10-22).
 
          The error is the difference of the maximum temperature divided by the FVM rise above ambient, in percent.
 
@@ -135,8 +135,8 @@ def main(limit=None):
         e = {}
         for name, q in (("old", old), ("A", new)):
             e[name] = tuple((m.solve_steady(q, cell_mm=1.0).t_max - ref.t_max) / rise * 100.0 for m in (lumped, analytic))
-        e["B"] = (lumped.solve_steady(p, cell_mm=1.0, block_nodes=True).t_max - ref.t_max) / rise * 100.0
-        e["C"] = (analytic.solve_steady(p, cell_mm=1.0, block_tiles=True).t_max - ref.t_max) / rise * 100.0
+        e["B"] = (lumped.solve_steady(p, cell_mm=1.0).t_max - ref.t_max) / rise * 100.0
+        e["C"] = (analytic.solve_steady(p, cell_mm=1.0).t_max - ref.t_max) / rise * 100.0
         rows.append((e["old"], e["A"], e["B"], e["C"]))
         print(f"| {label} | {rise:.1f} | {e['old'][0]:+.1f} / {e['old'][1]:+.1f} | {e['A'][0]:+.1f} / {e['A'][1]:+.1f} | {e['B']:+.1f} | {e['C']:+.1f} |", flush=True)
     a = np.array([[r[0][0], r[0][1], r[1][0], r[1][1], r[2], r[3]] for r in rows])
