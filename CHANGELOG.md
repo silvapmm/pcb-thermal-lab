@@ -6,7 +6,8 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ## [Unreleased]
 
 ### Changed
-- **Investigations in `research/`**: every study that used to live in `examples/` moved to its own folder (`component-heatsink`, `block-and-fins`, `solid3d-verification`, `outline`, `stackup`, `power-calculator`, `models-comparison`, `via-fill`), each with a README of numbered results, `figures/`, `IMPLEMENTED.md` or `INTEGRATION.md`, a `LOG.md` and all the Python in `scripts/`; the Gerber research (`research/gerbers/`) was merged in. The index is `research/INDEX.md`. `examples/` keeps the example boards and the screenshot script. Reproducing the block study found that it called flags that no longer exist (fixed) and that its case count was 74, not 62 (documents corrected).
+- Licences: everything of ours (code, documents, research, screenshots, icon) is stated as MIT in the README and `CLAUDE.md`; the README lists the licence of every dependency (NumPy, SciPy, Matplotlib, PySide 6 and the test tools) and what the LGPL of Qt means for a bundled executable; `CLAUDE.md` has a Licences section; the roadmap states gerbonara's licence (Apache-2.0).
+- **Investigations in `research/`**: every study that used to live in `examples/` moved to its own folder (`component-heatsink`, `block-and-fins`, `solid3d-verification`, `outline`, `stackup`, `power-calculator`, `models-comparison`, `via-fill`), each with a README of numbered results, `figures/`, `IMPLEMENTED.md` or `INTEGRATION.md`, a `LOG.md` and all the Python in `scripts/`. The Gerber research stays on its own branch `research/gerbers`. The index is `research/INDEX.md`. `examples/` keeps the example boards and the screenshot script. Reproducing the block study found that it called flags that no longer exist (fixed) and that its case count was 74, not 62 (documents corrected).
 
 ## [2.4.1] - 2026-10-22
 

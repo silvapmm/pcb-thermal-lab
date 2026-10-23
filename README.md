@@ -111,6 +111,16 @@ The investigations behind the models (what was simulated, compared and read, wit
 
 ## Author and license
 
-Pedro Silva, PMS Labs. Released under the MIT License (see `LICENSE`).
+Pedro Silva, PMS Labs. Released under the MIT License (see `LICENSE`). The licence covers **everything that is ours** in this repository: the code (`pcbthermal/`, `examples/`, `tests/`), the documents (`README.md`, `CHANGELOG.md`, `docs/`, the user guide in `pcbthermal/help/`), the investigations (`research/`: documents, scripts and figures), the screenshots in `docs/images/` and the application icon in `ico/`. What is not ours keeps its owner's licence: the libraries below, the quoted sources (figures, catalogue numbers and short extracts are cited with their origin) and any downloaded board, which is never committed.
 
-The results are a design aid and have not been validated against measurements of a physical board (see `docs/validation.md`); verify critical results by measurement. Third-party libraries (NumPy, SciPy, Matplotlib, PySide 6 and others) keep their own licenses.
+The results are a design aid and have not been validated against measurements of a physical board (see `docs/validation.md`); verify critical results by measurement. Third-party libraries are **not** part of this repository (they are installed from `requirements.txt` by `pip`) and keep their own licences. Read from the installed packages on 2026-10-23 (the exact text is in each package):
+
+| Library | Used for | Licence |
+| :-- | :-- | :-- |
+| NumPy 2.5 | physics core | BSD-3-Clause (the wheel also carries 0BSD, MIT, Zlib and CC0 parts) |
+| SciPy 1.18 | sparse solvers, physics | BSD-3-Clause |
+| Matplotlib 3.11 | figures | Matplotlib licence (based on the Python Software Foundation licence, BSD-compatible) |
+| PySide 6.12 (Qt for Python) | the desktop application | LGPL-3.0 **or** GPL-2.0 **or** GPL-3.0 (Qt also sells a commercial licence) |
+| pytest, pytest-qt, pytest-timeout | tests only | MIT |
+
+The MIT licence of this project and these licences are compatible: the code here only imports the libraries. If you **distribute a bundled application** that contains PySide 6 and Qt (for example a frozen executable), the LGPL conditions of Qt apply to that bundle (include the LGPL text and the notices, allow the Qt libraries to be replaced, and provide or offer the Qt source); this repository does not bundle them. This is not legal advice. The studies in `research/` may also use scikit-fem (BSD) as an offline cross-check; downloaded boards are never committed and keep their own licences.

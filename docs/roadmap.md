@@ -96,7 +96,7 @@ The ideas, in the order of value for the effort (all future work):
 8. **Cooling presets and enclosure**: an air-speed preset by fan, a closed box with an internal air temperature rise (a first step towards conjugate heat transfer, no CFD).
 9. **Local mesh refinement or a triangular mesh** near parts and along curved outlines (large work, only if the boards that matter are large), and **release automation** (CI with lint, documentation gate and tests; a standalone program on a version tag).
 
-**Licences**: FYPA, padne and altium_monkey are AGPL-3.0; this project is MIT (see the `LICENSE` file). Their code must not be copied here; their ideas and file formats can be used (Gerber, Excellon, KiCad and Altium formats are public or reverse-documented) and any import has to be written independently.
+**Licences**: FYPA, padne and altium_monkey are AGPL-3.0; this project is MIT (see the `LICENSE` file; the licences of the libraries it uses are in the README). Their code must not be copied here; their ideas and file formats can be used (Gerber, Excellon, KiCad and Altium formats are public or reverse-documented) and any import has to be written independently.
 
 ### Deferred
 
@@ -104,7 +104,7 @@ Neural-network surrogates; reduced-order models (only if transients become too s
 
 ## References
 
-1. gerbonara, https://pypi.org/project/gerbonara/ (documentation https://gerbolyze.gitlab.io/gerbonara); listed only, not installed or evaluated (licence, apertures, regions and clear polarity to check).
+1. gerbonara, https://pypi.org/project/gerbonara/ (documentation https://gerbolyze.gitlab.io/gerbonara); listed only, not evaluated here (apertures, regions and clear polarity to check); licence checked on 2026-10-23: Apache-2.0 (PyPI, version 1.6.3), compatible with an MIT project that only imports it. Its companion shapely is BSD-3-Clause.
 2. Nexperia, AN11261, *Using RC thermal models* (Foster and Cauer networks), https://mouser.com/pdfDocs/AN11261-3.pdf; Texas Instruments SLUAAT8, *Using MOSFET Transient Thermal Impedance Curves in Your Design*, https://www.ti.com/lit/pdf/sluaat8 (repetitive pulses, `D + (1 − D) z(t)`).
 3. The datasheets, JEDEC standards and application notes behind the Component element (JESD15-3, JESD51 family, TI SPRA953B and AN-2020, Renesas, Richtek, Infineon, Vishay and others) are listed at the end of `research.md`.
 4. Fabricator stack-up tables used in `docs/validation.md` section 14 are listed in its Literature section (JLCPCB, PCBWay, Eurocircuits, Sierra Circuits).
