@@ -51,6 +51,7 @@ knows only one number per cell and layer: the **fraction of copper** (and, for a
 | `bench_mapping_cost.py` | Time and memory of the mappings on board-sized layers (4.15). |
 | `study_lumped_analytic.py` | The mappings in the program's Lumped and Analytic models through the public API (4.16). |
 | `study_reader_conformance.py` | The native reader against gerbonara on gerbonara's own test files (4.17). |
+| `docs/` | Documents for when the work is adopted: research summary, changelog text, `CLAUDE.md` entries, roadmap line (the project documents are not edited on this branch). |
 | `INTEGRATION.md` | How the result would be applied in the program: where, what changes, what does not. |
 | `tests/` | 37 fast tests (1 s): exact and limiting cases of the solvers and mappings, the Gerber and Excellon readers on synthetic files. |
 | `requirements.txt` | NumPy and SciPy; gerbonara and shapely only for the cross-checks. |

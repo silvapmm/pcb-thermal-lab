@@ -1,6 +1,6 @@
 # Research notes: Gerber import and the mapping of copper to the grid
 
-Moved here from `docs/research.md` (maintainer's rule, 2026-10-23: the project documents stay untouched on this branch; research documents live in `research/`). Details, tables and sources: [`../gerbers/README.md`](../gerbers/README.md); design of the integration: [`../gerbers/INTEGRATION.md`](../gerbers/INTEGRATION.md).
+Moved here from `docs/research.md` (maintainer's rule, 2026-10-23: the project documents stay untouched on this branch; research documents live in `research/`). Details, tables and sources: [`../README.md`](../README.md); design of the integration: [`../INTEGRATION.md`](../INTEGRATION.md).
 
 ## Open now: Gerber import and the mapping of copper to the grid (2026-10-22)
 
