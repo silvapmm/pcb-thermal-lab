@@ -9,6 +9,7 @@ This file is the index; `research/README.md` holds the layout rules, the rules f
 | Import 3 | `gerber-nets/` | open, early, **lives on the research branch (not in `develop`)**; start with `gerber-nets/CONCLUSIONS.md` | Nets with voltage and current: the Joule heat of a net, tracks at any angle, sources, sinks and links between pieces of one net (design and prototype). |
 | Parts | `component-heatsink/` | implemented in part (2.3.0, 2.4.0); junction node and heatsink scenarios open | The part, its top path, interfaces, heatsinks and the metal block. |
 | Tools | `power-calculator/` | implemented (2.4.0) | The watts of a part from a measured temperature: validation, sensitivity, how to reduce the error. |
+| Theory | `theory-diagrams/` | open, **lives on the research branch** | Pictures of the theory of every model and of the planned work: what each equation or method does. |
 | Models | `models-comparison/` | implemented (repeated at each change) | The five models against the FVM on 19 scenarios, the grids, the solvers and the time results. |
 | Models | `solid3d-verification/` | implemented (2.3.0, 2.4.0) | Does the 3D solid reproduce an exact solution; how far are the layered models from a 3D solution. |
 | Models | `block-and-fins/` | implemented (2.3.0, 2.4.0) | Metal block and fins: the fin formula, and the block in the Lumped and Analytic models. |
