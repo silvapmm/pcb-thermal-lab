@@ -158,6 +158,15 @@ class Solid:
                 kz = via_frac * m.k_copper + (1.0 - via_frac) * g_kz[l]
                 for _ in range(n_diel):
                     add("fr4", l, gaps[l] / n_diel, g_kip[l], kz)
+        if L == 1:
+            # A one-layer board has no gap, but its laminate is still there under the copper: the slab of the layered models (thickness minus
+            # copper, FR-4 of `materials`) as dielectric slabs, so it spreads heat sideways and the bottom face loses heat through it.
+            # Without it the board was only its copper (a 20 mm pad on a 60 mm board read 120 degC against about 74 in the other models)
+            t_lam = float(b.slab_thicknesses()[0] - tc[0])
+            if t_lam > 0:
+                kz = via_frac * m.k_copper + (1.0 - via_frac) * m.k_fr4_through
+                for _ in range(n_diel):
+                    add("fr4", 0, t_lam / n_diel, m.k_fr4_inplane, kz)
         last_board = len(slabs) - 1
         if 1 in faces:
             for kind, dz, kx, kz in block_slabs(1):

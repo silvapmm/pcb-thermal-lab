@@ -161,3 +161,12 @@ def test_heater_kinds_source_and_component_and_the_interface_under_a_source():
     for h in old["heaters"]:
         h.pop("role", None)
     assert [h.is_component() for h in problem_from_dict(old).heaters] == [False, True]                                                    # Files without a kind keep working
+
+
+def test_a_power_loop_that_does_not_settle_is_reported():
+    s0 = simulate(part(), SolverOptions(models=("fvm",), cell_mm=1.0))
+    r_total = (s0.heater_rows()[0]["t_junction"] - 25.0) / 2.0
+    tc = 0.9 / (2.0 * r_total)                                           # loop gain 0.9: stable, but 0.9^80 is far from 1e-5
+    run = simulate(part(power_tc=tc), SolverOptions(models=("fvm",), cell_mm=1.0))
+    assert run.reference.extras["power_tc_iterations"] == 80.0 and not run.reference.extras["thermal_runaway"]
+    assert any("did not settle" in w for w in run.warnings)

@@ -106,7 +106,7 @@ the solution exists, is unique and obeys the maximum principle (`θ ≥ 0`, no t
 
 with `ϑ = 1` (implicit Euler, first order, robust) or `ϑ = 1/2` (Crank-Nicolson, second order); both are unconditionally stable for the diffusion equation (each eigenmode of rate `λ` is multiplied by `(1 − (1−ϑ)λΔt)/(1 + ϑλΔt)`, of modulus below 1 for `ϑ ≥ 1/2`).
 One LU factorisation is needed per distinct `Δt`, so the steps are built in a few stages: the animation uses ten stages with `Δt_j = Δt₀ 2^j` (`Δt₀ = t_end/(m(2¹⁰ − 1))`, `m` steps per stage); the **step responses** use `Δt_j = Δt₀ r^j` with `r = 3`, four steps per stage, 18 stages,
-`Δt₀ = t_end(r − 1)/(4(r^{18} − 1))`, `t_end = 10 τ` and `τ = ΣC/ΣG_amb` (the uniform-board time constant; the hottest point reaches 63 % much sooner).
+`Δt₀ = t_end(r − 1)/(4(r^{18} − 1))`, `t_end = 10 τ` and `τ = ΣC/ΣG_amb` (the uniform-board time constant; the hottest point reaches 63 % much sooner). `ΣG_amb` leaves out the 1 W/K that pins the cells off a board with an outline: it keeps the matrix regular but is not a path to the air. The board mean of a transient weights every cell by its board area, as the steady mean does.
 The **step response** `Z_i(t)` is the rise of the hottest point of heater `i` per watt; `R_th,i = Z_i(∞)`.
 
 **Accuracy**: second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). The example board converges monotonically (within 0.2 % from 1 mm). The layered idealisation of section 1.2 is the model error (0.4 to 2.2 % against the 3D solid).
@@ -127,7 +127,7 @@ The transient machinery of the FVM is reused unchanged (`fvm.transient_from_netw
 ## 4. 3D solid: finite volumes in three dimensions
 
 `solid3d.py` drops the "one node per copper layer" idea. The plan grid is the FVM's (`nx × ny`, same cells); across the thickness the stack is cut into **real slabs** from the top face down:
-a copper slab of thickness `t_cu,l` for each layer, `n_diel = 4` equal slabs of `d/4` in each dielectric gap, and for a block under (or over) the board a **pad slab** (the interface, thickness `R''·1 W/mK`, conductivity 1 W/mK so that its resistance per area is exactly `R''`)
+a copper slab of thickness `t_cu,l` for each layer, `n_diel = 4` equal slabs of `d/4` in each dielectric gap (a one-layer board has no gap: its laminate, the slab of the layered models minus the copper, is cut into `n_diel` FR-4 slabs under the copper, so it spreads heat and the bottom face loses heat through it), and for a block under (or over) the board a **pad slab** (the interface, thickness `R''·1 W/mK`, conductivity 1 W/mK so that its resistance per area is exactly `R''`)
 followed by `n` metal slabs (`n = round(thickness/1 mm)`, 1 to 6). Every cell of every slab has one unknown; there are `n_slabs × nx × ny` unknowns (refused above 2·10⁶).
 
 **Cell materials** (volume averages on the structured grid, the tiled-conductivity method of PCB thermal models):
@@ -221,7 +221,7 @@ A heatsink with `thickness > 0` is a plate of metal (conductivity `k`, heat capa
     board face under the block  its coefficient is multiplied by (1 − c)
 
 `f` is the copper fill of the board layer there and `d_h` half a layer slab: **the heat enters the block mostly where the block overlaps copper** (the intersection of the two planes) through `R''`; over bare laminate it must also cross the FR-4 (a much larger resistance). The block is an isotropic plate without gradient across its thickness (valid while
-`h t/k` is small: aluminium or copper from 1 to 10 mm are within 0.6 % of the 3D solid); cells with no block have `10⁻⁹ W/K` to the ambient. The plate model reproduces the published spreading resistance of a small source on a plate within 4.5 % (Lee, Song, Au and Moran).
+`h t/k` is small: aluminium or copper from 1 to 10 mm are within 0.6 % of the 3D solid); cells with no block have `10⁻⁹ W/K` to the ambient. The plate model reproduces the published spreading resistance of a small source on a plate (Seri Lee, Electronics Cooling 1998: aluminium 100 × 100 × 1.3 mm, source 25 × 25 mm, `R₀` 1.0 K/W) within +0.6 %, −0.8 % and −4.6 % at the centre, the edge midpoint and the corner (0.66, 1.29 and 2.38 K/W in the article, which claims about 5 %), on any cell from 0.4 to 1.7 mm. The +4.5 % quoted before was a 24 mm source: the check placed the source with `round()`, which rounds halves to even.
 **Lumped and Analytic have the block in steady state** (2026-10-22). An equivalent coefficient `h_eq = 1/(R'' + 1/(h_face + h_extra))` (isothermal block, even with the contact area and an annular fin for the part outside it) was 8 to 31 % off because the block spreads the heat of the pad centre to the whole pad, which a uniform coefficient cannot do; what works is to keep the block's lateral conduction:
 * **Lumped**: the block layer of the FVM network (sheet conductance `k t` per cell, contact conductance to the board layer over the copper `c A (f/R'' + (1−f)/(R'' + r_half))`, exposed surface and edge `h_exp (A c + t L_edge)` to the ambient, `h_exp = h_face·fin_ratio + h_extra`) is summed over the rings like the board layers: one more layer of unknowns per ring, lateral links between rings with the same contour formulas (infinite where the block does not reach), vertical link `g_link` summed per ring to the heater's layer. The board face under the block loses nothing.
 * **Analytic**: on the tile grid of the local corrections the same block layer is built with `blocks.extra_layers`; the block temperatures `φ` obey `(K_b + D_amb + D_link) φ = D_link y_b` (`K_b` the lateral conductances between tiles, `y_b` the board-layer temperatures of the tiles), so the heat they take from the board is `f = D_link (y_b − φ) = B y_b` with the Schur complement `B = D_link − D_link (K_b + D_amb + D_link)^-1 D_link`, a dense matrix that couples the tiles of the block among themselves. `B` is added to the local conductance matrix `C` of the correction `(I + G C) y = y_0` (the static condensation of finite-element codes, or Kron reduction of a network), together with the negative conductance `−h_face·A·cov` for the face that the block hides. This is exact for the tile model; the error left is the tile size and the sheet averaging of the uniform problem.
@@ -233,7 +233,7 @@ In "computed" mode each outer face gets `h = h_c + h_r` (`convection.py`, mean f
 
 * **Air** (dry, 1 atm, Sutherland-type fits, 250 to 450 K): `μ = 1.458·10⁻⁶ T^{3/2}/(T + 110.4)`, `k = 2.648·10⁻³ T^{3/2}/(T + 245.4·10^{−12/T})`, `ρ = p/(R T)`, `ν = μ/ρ`, `α = k/(ρ c_p)`, `Pr = μ c_p/k`, `β = 1/T`.
 * **Rayleigh number**: `Ra = g β |ΔT| L³/(ν α)`, with `L = area/perimeter` for a horizontal plate and the height for a vertical one.
-* **Natural convection, horizontal plate**: hot face up `Nu = 0.54 Ra^{1/4}` (`Ra ≤ 10⁷`), `0.15 Ra^{1/3}` above; hot face down `Nu = 0.27 Ra^{1/4}` (the roles swap for a face colder than the air). **Vertical plate** (Churchill and Chu): `Nu = (0.825 + 0.387 Ra^{1/6}/[1 + (0.492/Pr)^{9/16}]^{8/27})²`. `h_n = Nu k/L`.
+* **Natural convection, horizontal plate**: hot face up `Nu = 0.54 Ra^{1/4}` (`Ra ≤ 10⁷`), `0.15 Ra^{1/3}` above; hot face down `Nu = 0.27 Ra^{1/4}` (the roles swap for a face colder than the air). **Vertical plate** (Churchill and Chu, the general form for all Ra): `Nu = (0.825 + 0.387 Ra^{1/6}/[1 + (0.492/Pr)^{9/16}]^{8/27})²`. `h_n = Nu k/L`. The same authors give a laminar form for `Ra < 10⁹`, `Nu = 0.68 + 0.670 Ra^{1/4}/[1 + (0.492/Pr)^{9/16}]^{4/9}`, which differs by +7 % to −25 % between `Ra` 10⁴ and 10⁹ but moves the maximum temperature of a vertical board by only −0.7 to +0.2 % of the rise (`research/effective-conductivity/`); the program keeps the general form.
 * **Forced convection**, flat plate along the flow: `Nu = 0.664 Re^{1/2} Pr^{1/3}` (`Re < 5·10⁵`), `(0.037 Re^{4/5} − 871) Pr^{1/3}` above, `Re = u L/ν`, `h_f = Nu k/L`.
 * **Mixed**: `h_c = C_cal (h_n³ + h_f³)^{1/3}` (Churchill's rule), `C_cal` the calibration multiplier of the convection.
 * **Radiation** to surroundings at the air temperature, linearised: `h_r = ε σ (T_s² + T_a²)(T_s + T_a)` (absolute temperatures, view factor 1).
@@ -274,7 +274,7 @@ A heater may carry a repeating profile (`SquareWave`, `TableProfile`) or a one-s
 | Time stepping | exact RC solution of a uniform board | Euler first order, Crank-Nicolson second order (`validation.md` 7) |
 | Layered idealisation | the 3D solid and an independent finite-element solid | 0.4 to 2.2 % (FVM), `validation.md` 3 |
 | 3D solid | finite-element solid, convergence in slabs and cells | 0.2 % on three boards, ±4 % on a heater-sized pad |
-| Plate (block) model | published spreading resistance (Lee et al.) | +4.5 % |
+| Plate (block) model | published spreading resistance (Seri Lee, 1998) | +0.6 % centre, −0.8 % edge, −4.6 % corner |
 | Convection correlations | textbook air properties, closed forms | 1 to 3 % |
 | Parts | closed form `ΔT = P₀R/(1 − αP₀R)` | 0.05 K |
 | Mesh and model comparison | 20 scenarios, four models and the 3D solid | `validation.md` 2 |
@@ -287,6 +287,6 @@ The models have **not** been compared with measurements of a physical board in t
 * Incropera and DeWitt, *Fundamentals of Heat and Mass Transfer*: fin and sheet equations, natural and forced convection correlations, radiation.
 * Churchill and Chu (1975), vertical plate natural convection; Churchill's blending rule for mixed convection.
 * Carslaw and Jaeger, *Conduction of Heat in Solids*: Fourier-series solutions, Green functions of the fin equation (`K₀`), disc sources (`I₀, I₁`).
-* Lee, Song, Au and Moran (1995), constriction/spreading resistance for electronics packaging; Electronics Cooling, "Calculating spreading resistance in heat sinks" (1998).
+* Seri Lee, "Calculating spreading resistance in heat sinks", Electronics Cooling (January 1998), the numerical example of the plate check. A paper of Lee, Song, Au and Moran (1995) that the earlier documents cited for it has not been located.
 * JEDEC JESD15-3 (two-resistor model), JESD51 family (θJA, θJB, θJC, ψ definitions); datasheets of the parts in `models.md` section 6.
 * Electronics Cooling (2010) on tiled conductivity maps of PCBs; (2014) on ASTM D5470 thermal interface measurements.

@@ -5,6 +5,12 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **Boards with an outline: time constant, step responses and transient mean** (FVM, FDM). The cells off the board are pinned to ambient with 1 W/K, and that pin was counted as a path to the air: a round board had a time constant of 0.02 s instead of about 107 s, so the step responses used by the power profiles stopped at 12 % of the steady resistance and the animation length offered was about one second; the transient mean counted the cells off the board at the ambient (46.8 instead of 51.7 °C). `docs/validation.md` section 20.
+- **3D solid on a one-layer board**: the laminate under the copper was missing (the board was only its copper), so a 20 mm pad read 120 °C against about 74 °C in the other models; the laminate is now four FR-4 slabs, and the 3D solid is within 0.8 % of an independent 3D solver.
+- **Power temperature coefficient and top path**: a loop that does not settle in 80 iterations (a board close to thermal runaway) now gives a warning instead of returning its last iterate silently.
+- Documents: the plate check of the metal block is +0.6 %, −0.8 % and −4.6 % from Seri Lee's article (centre, edge, corner), not +4.5 % (the check placed the source with `round()`, which made it 24 mm); the source is the Electronics Cooling article of Seri Lee (1998).
+
 ### Changed
 - Licences: everything of ours (code, documents, research, screenshots, icon) is stated as MIT in the README and `CLAUDE.md`; the README lists the licence of every dependency (NumPy, SciPy, Matplotlib, PySide 6 and the test tools) and what the LGPL of Qt means for a bundled executable; `CLAUDE.md` has a Licences section; the roadmap states gerbonara's licence (Apache-2.0).
 - **Investigations in `research/`**: every study that used to live in `examples/` moved to its own folder (`component-heatsink`, `block-and-fins`, `solid3d-verification`, `outline`, `stackup`, `power-calculator`, `models-comparison`, `via-fill`), each with a README of numbered results, `figures/`, `IMPLEMENTED.md` or `INTEGRATION.md`, a `LOG.md` and all the Python in `scripts/`. The Gerber research stays on its own branch `research/gerbers`. The index is `research/INDEX.md`. `examples/` keeps the example boards and the screenshot script. Reproducing the block study found that it called flags that no longer exist (fixed) and that its case count was 74, not 62 (documents corrected).

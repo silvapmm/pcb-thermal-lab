@@ -158,3 +158,27 @@ def test_lumped_and_analytic_on_an_ellipse_beat_the_bounding_box():
         assert sim.results[m].T.shape[0] == sim.results["fvm"].T.shape[0] and sim.results[m].dx > 0
         x, y = sim.results[m].t_max_location[1:]
         assert 0 <= x <= p.board.width and 0 <= y <= p.board.height                               # Back in the real box
+
+
+ROUND = [[30 + 29.9 * math.cos(a), 30 + 29.9 * math.sin(a)] for a in np.linspace(0, 2 * math.pi, 64, endpoint=False)]
+
+
+@pytest.mark.parametrize("model", ["fvm", "fdm"])
+def test_time_constant_and_step_responses_leave_out_the_cells_off_the_board(model):
+    # The cells off a round board are pinned to ambient with 1 W/K; counted as a path to the air they made the time constant 0.2 s instead of
+    # about 100 s, and the step responses stopped long before the steady state
+    square, disc = board(width=60, height=60, heater=(27, 27, 33, 33)), board(ROUND, width=60, height=60, heater=(27, 27, 33, 33))
+    assert fvm.estimate_time_constant(disc) == pytest.approx(fvm.estimate_time_constant(square), rel=0.05)
+    from pcbthermal import fdm
+    times, z, rth = (fvm.step_responses(disc, cell_mm=2.0) if model == "fvm" else fdm.step_responses(disc, cell_mm=2.0))
+    assert times[-1] > 100.0 and z[0, -1] == pytest.approx(rth[0], rel=1e-3)
+
+
+def test_transient_mean_counts_only_the_board():
+    p = board(ROUND, width=60, height=60, heater=(27, 27, 33, 33))
+    tr = fvm.solve_transient(p, 200.0, n_out=10, cell_mm=2.0)
+    net = fvm.Network(p, 30, 30)
+    w = net.cover * net.dx * net.dy
+    last = tr.frames[-1]
+    assert tr.t_mean[-1] == pytest.approx((last * w).sum() / (last.shape[0] * w.sum()), rel=1e-12)
+    assert tr.t_mean[-1] > last.mean()                                    # the plain mean counted the cells at ambient off the board

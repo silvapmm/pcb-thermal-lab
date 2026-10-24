@@ -24,6 +24,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 * On a uniform board the four layered models land on the 3D answer within 0.7 %; with vias and a heatsink (the example board) within 1.5 %; the FVM follows an independent 3D finite-element solid within 2.2 % for any pad of 20 mm or more.
 * The **Lumped and Analytic models are unreliable for a one-sided copper pad without vias** (Lumped up to +107 %, Analytic up to −63 %); the input checks warn.
 * The outer copper dissipates and spreads by itself; a heatsink works through the copper under it.
+* **A defect found in a later review, now corrected in the program** (4.4): on a one-layer board the 3D solid had no laminate (only the copper), so a 20 mm pad read 120 °C against about 74 °C; with the laminate it reads 81.9 °C and is within 0.8 % of an independent 3D solver with full copper.
 
 ## 3. Folder layout
 
@@ -33,16 +34,18 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 | `scripts/fem3d_validation.py` | The independent 3D finite-element solid (scikit-fem, **not** in `requirements.txt`: `pip install scikit-fem`), also used by `models-comparison/validation_study.py --fem`. |
 | `scripts/copper_dissipation.py` | The pad-size sweep and copper against heatsink, in every model and the FEM (`--fem`). |
 | `scripts/study_spreading_axisymmetric.py` | The axisymmetric finite-volume solver of the spreading resistance (third independent check of Yovanovich's table); writes `out/spreading.json` (git-ignored). |
-| `scripts/make_figures.py` | Draws the four data figures (needs scikit-fem for the third and the output of the axisymmetric study for the fourth; about 90 seconds). |
+| `scripts/study_one_layer_board.py` | A one-layer board in the five models, and the 3D solid without its laminate (the old behaviour; about 30 seconds). |
+| `scripts/make_figures.py` | Draws the data figures 1 to 3, 6 and 7 (needs scikit-fem for the third and the output of the axisymmetric study for the sixth; about 2 minutes). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_06` (figure 6 explains spreading resistance); figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
+| `figures/` | `fig_01` to `fig_07` (figure 6 explains spreading resistance, figure 7 is the one-layer board); figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 
 ## 4. How to run, and the results
 
 ```sh
 .venv/bin/python research/solid3d-verification/scripts/solid3d_verification.py      # about 25 seconds
 .venv/bin/python research/solid3d-verification/scripts/copper_dissipation.py --fem  # about 45 seconds, needs scikit-fem
-.venv/bin/python research/solid3d-verification/scripts/make_figures.py              # about 90 seconds
+.venv/bin/python research/solid3d-verification/scripts/study_one_layer_board.py     # section 4.3, about 30 seconds
+.venv/bin/python research/solid3d-verification/scripts/make_figures.py              # about 2 minutes
 ```
 
 ### 4.1 Verification of the 3D solid: Yovanovich and grid convergence
@@ -166,6 +169,21 @@ The solver converges at first order (the flux changes by a step at the edge of t
 
 Limits: the flux tube of the table is circular, the 3D solid's is square; the extrapolation assumes first order; only the isoflux source is checked.
 
+### 4.4 A one-layer board (a defect, corrected)
+
+The 3D solid builds its slabs from the copper layers and the dielectric gaps; a one-layer board has no gap, so the board was its 35 µm of copper alone: no laminate to spread the heat sideways and nothing between the copper and the bottom face. The program now adds the laminate of the layered models (the slab minus the copper, FR-4 of the materials) as four slabs under the copper. `scripts/study_one_layer_board.py`, 60 × 60 × 1.6 mm, 35 µm copper, 1 W on 6 × 6 mm, 1 mm cells, maximum temperature in °C (the last column is the 3D solid on a board whose laminate is reduced to 1 µm, what it used to see):
+
+| copper | FVM | FDM | 3D solid | Lumped | Analytic | 3D solid before |
+| :-- | --: | --: | --: | --: | --: | --: |
+| full copper | 56.43 | 56.43 | 57.38 | 56.84 | 56.53 | 58.72 |
+| 20 mm pad | 75.22 | 73.12 | 81.92 | 72.36 | 74.53 | 119.97 |
+
+With full copper the 3D solid is 3 % of the rise above the layered models and with a 20 mm pad 13 %: in the 3D solid the bottom face loses heat through 1.6 mm of FR-4 (0.3 W/mK), in the layered models the bottom coefficient acts on the copper node itself. An independent 3D finite-volume solver (`research/effective-conductivity/lib/layered3d.py` on the branch `research/gerbers`; full copper, FR-4 isotropic at 0.3 W/mK so that both can represent it, 0.5 mm cells) gives a rise of 33.71 K against 33.43 K for the 3D solid (−0.8 %) and 32.78 K for the FVM (−2.8 %). Regression test: `tests/test_solid3d.py` (`test_a_one_layer_board_keeps_its_laminate`).
+
+![A one-layer board in the 3D solid before and after, and the models on it](figures/fig_07_one_layer_board.png)
+
+*Figure 7: `figures/fig_07_one_layer_board.png`: left and middle, the cross-section as the 3D solid saw it (copper only) and sees it now (copper on four slabs of laminate, the heat reaching the bottom face through it; not to scale); right, the maximum temperature of the five models and of the 3D solid before the correction.*
+
 ## 5. Limits of this study
 
 * The 3D finite-element solid and the 3D finite-volume solid share a modelling choice for vias (a copper rod of the barrel's copper area) and the fin ratio, so they do not test the vias and fins independently.
@@ -182,3 +200,4 @@ Yovanovich, J. Electronic Packaging 125 (2003) 169 to 177, Table 3 (as cited in 
 * Read: Yovanovich's Table 3 values were taken from the published table as recorded in the script (the paper itself was not re-read). Not verified: no measurement of a physical board.
 * Reproduced: the axisymmetric solver was written and run here (section 4.3); its agreement is with the same table value recorded in the script, not with the paper.
 * Not implemented: a time simulation of the 3D solid (steady state only); the FEM solid inside the program (it stays an offline cross-check, scikit-fem is not a dependency).
+* One-layer board (4.4): the old behaviour is imitated by a board whose laminate is 1 µm thick, not by running the old code; the independent solver of `research/effective-conductivity/` is the reference for full copper only (it has no patterned copper), so the 20 mm pad has no independent reference.

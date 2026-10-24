@@ -41,7 +41,7 @@ from scipy.linalg import lu_factor, lu_solve
 from scipy.special import ive
 
 from . import profiles
-from .fvm import Network
+from .fvm import Network, board_time_constant
 from . import blocks
 from .geometry import coverage_fraction, polygon_centroid
 from .results import SteadyResult
@@ -408,7 +408,7 @@ def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_st
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
     net, systems = _unit_networks(problem, rings, cell_mm)
     if t_end is None:
-        t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
+        t_end = 10.0 * board_time_constant(net)
     dt0 = t_end / (per_stage * (ratio ** stages - 1.0) / (ratio - 1.0))
     times, z = [], []
     rth = np.array([_own_point(s, s["theta"].ravel()) for s in systems])

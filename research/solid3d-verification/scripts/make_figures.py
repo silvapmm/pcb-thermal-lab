@@ -3,7 +3,8 @@
 @brief Pictures of the 3D solid verification, written to figures/ (committed, linked from the README files).
 
 @details fig_01: dimensionless spreading resistance of a circular source, Yovanovich's Table 3 against the 3D solid; fig_02: grid convergence of the source temperature with the
-         Richardson extrapolation; fig_03: maximum temperature of every model against the independent 3D finite-element solid for growing copper pads. Needs scikit-fem for fig_03.
+         Richardson extrapolation; fig_03: maximum temperature of every model against the independent 3D finite-element solid for growing copper pads (needs scikit-fem); fig_06: what spreading resistance is, from the
+         axisymmetric solver (needs out/spreading.json); fig_07: the slabs of a one-layer board in the 3D solid before and after the laminate was added, and the five models on it.
 Usage: python research/solid3d-verification/scripts/make_figures.py   (from the repository root; about 2 minutes)
 """
 
@@ -21,6 +22,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
 sys.path.insert(0, str(HERE))
 import solid3d_verification as sv                                                # noqa: E402
+import study_one_layer_board as ol                                               # noqa: E402
 
 OUT = HERE.parent / "figures"          # kept in the repository on purpose: the README files link to them
 
@@ -158,12 +160,55 @@ def fig_spreading():
     fig.suptitle("Spreading resistance: heat leaving a small source into a large body, from a third solver (README 4.3)", fontsize=10)
     fig.subplots_adjust(top=0.84, bottom=0.12, left=0.04, right=0.98)
     fig.savefig(OUT / "fig_06_spreading_resistance_explained.png", dpi=105)
+
+
+def fig_one_layer():
+    """!
+    @brief The cross-section of a one-layer board as the 3D solid saw it (copper only) and sees it now (copper on four slabs of laminate), and the models on it.
+    @return None.
+    """
+    from pcbthermal import SolverOptions, simulate
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4.4), gridspec_kw={"width_ratios": [1, 1, 1.6]})
+    for ax, title, lam in ((axs[0], "before: the copper only", False), (axs[1], "now: copper on the laminate (4 slabs)", True)):
+        ax.set_xlim(0, 10)
+        ax.set_ylim(-0.6, 3.2)
+        ax.axis("off")
+        ax.add_patch(plt.Rectangle((3.5, 2.55), 3.0, 0.25, fc="#dc2626", ec="k"))
+        ax.text(5, 2.95, "part, 1 W", ha="center", fontsize=8)
+        ax.add_patch(plt.Rectangle((1, 2.35), 8, 0.2, fc="#d97706", ec="k"))
+        ax.text(9.2, 2.45, "copper 35 um", fontsize=7, va="center")
+        if lam:
+            for k in range(4):
+                ax.add_patch(plt.Rectangle((1, 2.35 - 0.55 * (k + 1)), 8, 0.55, fc="#bbf7d0", ec="#15803d"))
+            ax.text(9.2, 1.25, "FR-4 1.565 mm\n(4 slabs)", fontsize=7, va="center")
+            ax.annotate("", xy=(5, 0.05), xytext=(5, 2.3), arrowprops=dict(arrowstyle="->", color="#dc2626"))
+            ax.annotate("", xy=(1.2, 1.6), xytext=(4, 2.0), arrowprops=dict(arrowstyle="->", color="#dc2626"))
+            ax.text(5.2, 0.15, "bottom face: h through the laminate", fontsize=7)
+        else:
+            ax.annotate("", xy=(1.2, 2.45), xytext=(4, 2.45), arrowprops=dict(arrowstyle="->", color="#dc2626"))
+            ax.text(5, 1.9, "bottom face: h on the copper\nno laminate to spread the heat", fontsize=7, ha="center")
+        ax.set_title(title, fontsize=9)
+    models = ("fvm", "fdm", "solid3d", "lumped", "analytic")
+    cols = {"fvm": "#1d4ed8", "fdm": "#9ca3af", "solid3d": "#059669", "lumped": "#d97706", "analytic": "#7c3aed"}
+    x = np.arange(2)
+    for k, m in enumerate(models):
+        vals = [simulate(ol.board(pad), SolverOptions(models=(m,), cell_mm=1.0)).results[m].t_max for pad in (False, True)]
+        axs[2].bar(x + (k - 2.5) * 0.13, vals, 0.13, color=cols[m], label=m)
+    old = [simulate(ol.board(pad, thickness_mm=0.036), SolverOptions(models=("solid3d",), cell_mm=1.0)).results["solid3d"].t_max for pad in (False, True)]
+    axs[2].bar(x + 2.5 * 0.13, old, 0.13, color="#fecaca", ec="#dc2626", label="3D solid before")
+    axs[2].set_xticks(x)
+    axs[2].set_xticklabels(["full copper", "20 mm pad"])
+    axs[2].set_ylabel("maximum temperature (C)")
+    axs[2].set_title("60 x 60 x 1.6 mm, one layer, 1 W on 6 x 6 mm", fontsize=9)
+    axs[2].legend(fontsize=7, ncol=2)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_07_one_layer_board.png", dpi=110)
     plt.close(fig)
 
 
 def main():
     """!
-    @brief Make the three figures.
+    @brief Make the data figures (1 to 3, 6 and 7; the diagrams 4 and 5 are drawn by make_diagrams.py).
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
@@ -171,6 +216,7 @@ def main():
     fig_gci()
     fig_pads()
     fig_spreading()
+    fig_one_layer()
     print("figures in", OUT)
 
 
