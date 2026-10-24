@@ -2,7 +2,7 @@
 @file stackup_vendor_check.py
 @brief How much does the maximum temperature of the example board change between the program's typical stack-ups and the published ones of fabricators?
 
-@details Published layer tables (JLCPCB, PCBWay, OSH Park, AdvancedPCB, Bittele 7pcb and PCBGOGO pages, 2026-10-22) are entered layer by layer and the example board is solved with the FVM at 2 mm.
+@details Published layer tables (JLCPCB, PCBWay, OSH Park, AdvancedPCB, Bittele 7pcb and PCBGOGO pages) are entered layer by layer and the example board is solved with the FVM at 2 mm.
          The program's own templates (`pcbthermal/data/stackups.json`) are the reference rows. Results are in `docs/validation.md` section 14.
 
 Usage: python research/stackup/scripts/stackup_vendor_check.py

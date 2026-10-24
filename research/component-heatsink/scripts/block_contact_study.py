@@ -2,7 +2,7 @@
 @file block_contact_study.py
 @brief Research on heatsinks larger than their contact: the plate model against a published spreading-resistance example, a big block touching the board only in a patch, and the effect of a temperature-dependent power.
 
-@details 1. A plate with a small uniform source and a uniform film coefficient, against the numerical example of Lee, Song, Au and Moran (Electronics Cooling,
+@details 1. A plate with a small uniform source and a uniform film coefficient, against the numerical example of Seri Lee (Electronics Cooling,
             "Calculating spreading resistance in heat sinks", 1998): aluminium 100 x 100 x 1.3 mm, k = 200 W/mK, catalogue resistance R0 = 1.0 K/W, source 25 x 25 mm,
             maximum constriction resistance Rc = 0.66 K/W (total 1.66 K/W).
          2. A 40 x 40 x 3 mm aluminium block under the MOSFET board whose contact with the board is only a patch (prototype: the contact conductance of

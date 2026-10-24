@@ -7,9 +7,9 @@
             + extra h); the part of the block outside the contact is an annular fin of conductance k t (single-sided, m = sqrt(h_exp / (k t)), inner radius r1 = sqrt(A_c / pi),
             outer radius r2 = sqrt(A_p / pi), adiabatic edge). Per unit of contact area h_eq = 1 / (R'' + 1 / (h_exp (1 + eta A_out / A_c))), spread as an extra coefficient of
             (h_eq - h_face) A_c / A_p over the polygon. 'old' is the earlier equivalent (isothermal block over the whole polygon, no fin) for comparison.
-         B. **The block as one more layer of the ring network** (Lumped only): the block layer of the FVM network is aggregated into rings like the board layers (`lumped.solve_steady`, which handles the block by default since 2026-10-22`).
+         B. **The block as one more layer of the ring network** (Lumped only): the block layer of the FVM network is aggregated into rings like the board layers (`lumped.solve_steady`, which handles the block by default`).
          C. **The block as a graph of tiles inside the Green-function correction** (Analytic only): the block temperatures are eliminated into a Schur complement that couples the
-            tiles of the board layer under the block (`analytic.solve_steady`, which handles the block by default since 2026-10-22).
+            tiles of the board layer under the block (`analytic.solve_steady`, which handles the block by default).
 
          The error is the difference of the maximum temperature divided by the FVM rise above ambient, in percent.
 

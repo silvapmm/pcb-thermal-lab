@@ -1,17 +1,6 @@
-# The part and its heatsinks: what entered the program and what is open
+# The part and its heatsinks: what is still open
 
-## Implemented (2.3.0 and 2.4.0)
-
-| What | Where |
-| :-- | :-- |
-| θ junction-pad (worst case: all the power enters the board), `Tj = T_board,max + P·θ`; the junction limit with margin and power limit; `ψJB` ring estimate; power temperature coefficient (`power_tc`, fixed-point loop, runaway detection) | `pcbthermal/model.py` (`Heater`), `pcbthermal/analysis.py`, `pcbthermal/api.py` (`_solve_with_tc`) |
-| Package families (typical θ, θJC(top), Tj max; library `package_theta`) | `pcbthermal/data/defaults.json`, `model.PACKAGE_THETA` |
-| The top path: θJC(top) + interface/contact area + θSA in parallel with θ, solved as a fixed-point loop around any model (`analysis.part_split`); steady state only | `pcbthermal/analysis.py`, `pcbthermal/api.py` |
-| The interface as one dielectric sheet (`pad_thickness`, `pad_k`), the interface under a pure heat source (`base_interface*`), presets (library `interfaces`) | `pcbthermal/model.py` |
-| Heater type: heat source or component; typical heatsinks (library `heatsinks`, heatsink and air flow) | `pcbthermal/gui/panels.py`, `pcbthermal/data/defaults.json` |
-| The metal block under the board (see `../block-and-fins/`) | `pcbthermal/blocks.py` |
-| Tests | `tests/test_component.py`, `tests/test_heatsink_part.py`, `tests/test_gui_stress.py` |
-| Project documents | `docs/validation.md` section 9, `docs/models.md`, `docs/theory.md`, `docs/versions.md`, `CHANGELOG.md`, `pcbthermal/help/index.html` |
+What is already in the program (releases 2.3.0 and 2.4.0: the junction-to-pad resistance with its limit, the package families, the top path, the interface as one sheet, the heater types and typical heatsinks) is described in the program's `docs/versions.md`, `docs/models.md` and `docs/theory.md`; this file keeps only what is still open.
 
 ## Open (in `docs/roadmap.md`)
 
