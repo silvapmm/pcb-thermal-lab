@@ -42,3 +42,17 @@ Add after the definitions of the layer equation:
 ## 6. `pcbthermal/data/stackups.json`, `sources`
 
 The fifth source says the JLCPCB and PCBWay tables give a maximum temperature "under 0.5 %" from the templates. With the corrected comparison it is up to 2.0 % of the rise with outer copper only (the dielectric split) and up to 13 % with a plane on every inner layer (because the templates use 0.5 oz inner copper and most tables 1 oz). Suggested text: "... were compared with these templates: with outer copper only the maximum temperature of the example board moves by 0.2 to 2.0 % of the rise; with inner planes the 0.5 oz inner copper of the templates is 5 to 8 K hotter than 1 oz (research/stackup/README.md section 4.3)". This is program data: a `fix/` branch, not this one.
+
+## 7. `pcbthermal/data/stackups.json`, inner copper of the templates (study of 2026-10-24, README section 4.5)
+
+Measured on the example board with a full plane on every inner layer (FVM 2 mm; the 3D solid agrees within 0.06 K on 4 and 6 layers): inner copper of 35 µm instead of 15.2 µm lowers the maximum temperature by 7.1 K (4 layers, 90.40 -> 83.27 °C), 7.9 K (6 layers, 84.80 -> 76.89), 7.8 K (8 layers, 79.72 -> 71.88), 7.6 K (10 layers, 78.76 -> 71.15) and 7.5 K (12 layers, 78.22 -> 70.77), when the dielectrics are thinned to keep the total thickness (11 to 14 % of the rise); with unchanged dielectrics the numbers are 0.2 to 0.7 K smaller. A true 0.5 oz base foil (17.5 µm) changes only 1.1 to 1.3 K. The 2-layer template has no inner copper.
+
+If the maintainer chooses to switch (a `fix/` branch, not this one), edit in `stackups.json`:
+
+* `copper_um`: replace every inner value `15.2` by `35` in the entries "4", "6", "8", "10" and "12" (outer `35` stays); for example "4": `[35, 35, 35, 35]`.
+* `dielectrics`: to keep the nominal board thickness, scale every `thickness_um` of the entry by `f = (total - sum(copper)) / sum(dielectrics)`: f = 0.9733 (4 layers: 210.4 -> 204.8, 1065 -> 1036.6), 0.9461 (6 layers), 0.9174 (8 layers), 0.9124 (10 layers), 0.9091 (12 layers) (computed by `variant()` in `research/stackup/scripts/study_inner_copper_1oz.py`); or leave the dielectrics unchanged and let the board be 0.04 to 0.2 mm thicker (the total of the entry name, "1.6 mm", would then be wrong). Leaving them unchanged costs only 0.2 to 0.7 K.
+* `name` of each entry: "(35 / 4 x 15.2 / 35 um copper ...)" becomes "(35 / 4 x 35 / 35 um ...)"; the first `notes` line ("finished inner copper of 0.5 oz is about 15 to 17.5 um") and the sentence for layer counts not listed ("inner 15.2 um") change to say 1 oz (about 35 um) is used and 0.5 oz (15.2 um, the JLCPCB standard) is the hotter, conservative alternative.
+* The 4-layer entry is a copy of the JLCPCB table JLC04161H-7628 (15.2 µm inner): switching it makes it no longer that table. Option: keep "4" as JLCPCB and add the 1 oz variant as a second named template, which needs a code change (`Board.apply_template` picks by layer count).
+* The sentence "differs by under 0.5 %" (section 6 above) must be reworded in either case.
+
+The choice (keep 0.5 oz, switch to 1 oz, or offer both) belongs to the maintainer: 0.5 oz is the conservative (hotter) end and the JLCPCB standard; 1 oz is the figure of most other published tables and agrees with the PCBWay and PCBGOGO 4 and 6-layer tables within 0.1 to 0.6 K.

@@ -23,13 +23,14 @@ HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "figures"          # kept in the repository on purpose: the README files link to them
 
 
-def run(script):
+def run(script, *args):
     """!
     @brief Run one study of this folder and return what it prints.
     @param script File name of the study.
+    @param args Extra command-line arguments of the study.
     @return str Standard output.
     """
-    return subprocess.run([sys.executable, str(HERE / script)], capture_output=True, text=True, check=True).stdout
+    return subprocess.run([sys.executable, str(HERE / script), *args], capture_output=True, text=True, check=True).stdout
 
 
 def table(text, header):
@@ -124,9 +125,45 @@ def fig_sensitivity(text):
     plt.close(fig)
 
 
+def fig_inner_copper():
+    """!
+    @brief Maximum temperature with 15.2 um and 35 um inner copper for every template, with the published tables (planes on every inner layer) as markers.
+    @return None.
+    """
+    fvm = run("study_inner_copper_1oz.py", "--no-3d").split("Model solid3d")[0]
+    data = {}
+    for ln in fvm.splitlines():
+        c = [x.strip() for x in ln.strip("|").split("|")]
+        if ln.startswith("|") and c[0].isdigit():
+            data[(int(c[0]), c[1])] = float(c[3])
+    # Published tables with a full plane on every inner layer, from the vendor check (section 4.3)
+    pub = {}
+    for ln in run("stackup_vendor_check.py").splitlines():
+        m = re.match(r"(\d)L (.+?)\s+total ([\d.]+) mm\s+Tmax ([\d.]+)\s+planes ([\d.]+)", ln)
+        if m and "program" not in m.group(2):
+            pub.setdefault(int(m.group(1)), []).append(float(m.group(5)))
+    layers = [2, 4, 6, 8, 10, 12]
+    x = np.arange(len(layers))
+    fig, ax = plt.subplots(figsize=(10, 4.8))
+    for k, (name, col, lab) in enumerate((("shipped 15.2", "#1d4ed8", "shipped, 15.2 um inner"),
+                                          ("35, same thickness", "#d97706", "35 um inner, same total thickness"),
+                                          ("35, dielectrics unchanged", "#9ca3af", "35 um inner, dielectrics unchanged"))):
+        ax.bar(x - 0.27 + 0.27 * k, [data.get((n, name), data.get((n, "shipped 15.2"))) for n in layers], 0.27, color=col, label=lab)
+    for i, n in enumerate(layers):
+        if n in pub:
+            ax.scatter([i] * len(pub[n]), pub[n], marker="D", color="black", zorder=3, s=14, label="published tables (planes)" if i == 1 else None)
+    ax.set_xticks(x); ax.set_xticklabels([f"{n} layers" for n in layers])
+    ax.set_ylim(60, 105); ax.set_ylabel("Tmax of the example board (degC)")
+    ax.set_title("A plane on every inner layer: 1 oz inner copper is 7 to 8 K cooler than the shipped 15.2 um (2 layers: no inner copper)", fontsize=9)
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_06_inner_copper_1oz.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
-    @brief Make the three figures.
+    @brief Make the figures.
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
@@ -134,6 +171,7 @@ def main():
     text = run("stackup_outline_study.py")
     fig_stacks(text)
     fig_sensitivity(text)
+    fig_inner_copper()
     print("figures in", OUT)
 
 

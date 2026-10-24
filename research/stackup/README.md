@@ -1,6 +1,6 @@
 # The stack-up: advanced mode, typical templates and fabricators' tables
 
-Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `stackup_outline_study.py` (sections 4.1 and 4.2), `stackup_vendor_check.py` (section 4.3) and `study_dielectric_sensitivity.py` (section 4.4); figures: `make_figures.py`. Reviewed on 2026-10-24 on the corrected program (section 7).
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `stackup_outline_study.py` (sections 4.1 and 4.2), `stackup_vendor_check.py` (section 4.3) `study_dielectric_sensitivity.py` (section 4.4) and `study_inner_copper_1oz.py` (section 4.5); figures: `make_figures.py`. Reviewed on 2026-10-24 on the corrected program (section 7).
 
 ## 1. The questions
 
@@ -32,6 +32,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 | `scripts/stackup_outline_study.py` | Tables of the advanced stack-up in five models, the outline (see `../outline/`), the sensitivity to the stack-up numbers, the finned block. |
 | `scripts/stackup_vendor_check.py` | The example board with the program's templates and with the published tables of seven fabricators entered layer by layer. |
 | `scripts/study_dielectric_sensitivity.py` | The sensitivity of section 4.2 repeated on one-layer, two-layer and four-layer boards, against the independent 3D solver `../effective-conductivity/lib/layered3d.py`. |
+| `scripts/study_inner_copper_1oz.py` | The templates with 15.2 µm and 35 µm inner copper (section 4.5). |
 | `scripts/make_figures.py` | Draws the three figures (runs both studies and reads the tables they print). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
@@ -42,6 +43,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 .venv/bin/python research/stackup/scripts/stackup_outline_study.py        # about 2 minutes
 .venv/bin/python research/stackup/scripts/stackup_vendor_check.py         # about 15 seconds
 .venv/bin/python research/stackup/scripts/study_dielectric_sensitivity.py  # about 2 minutes
+.venv/bin/python research/stackup/scripts/study_inner_copper_1oz.py  # about 3 minutes (--no-3d: 1 minute)
 .venv/bin/python research/stackup/scripts/make_figures.py                  # about 2 minutes
 .venv/bin/python research/stackup/scripts/make_diagrams.py
 ```
@@ -154,6 +156,46 @@ Until this review the 6 and 8-layer boards had **no bottom copper** (the script 
 * "The dielectric conductivity and thickness move the temperature by about 1 %, the copper by 5 %" holds on the board it was measured on (4 layers, full copper, vias: +1.1 / -0.9 % and +5.6 / -4.3 % here, against +1.0 / -0.8 % and +5.7 / -4.4 % on the anisotropic board of section 4.2). Without vias the dielectric conductivity is worth 2 to 3 %; **on a one-layer board with a pad it is the first parameter** (+8.7 / -6.1 % for ±30 %), and the laminate thickness is worth 1.4 to 1.6 %. On a one-layer board with full copper the laminate barely matters (the copper spreads the heat over the whole board, which then loses it through the top film) but the copper is worth 6.5 to 8.6 %.
 * The "copper weight" of the earlier statement is a ±15 % spread of the finished copper, not a change of weight: half-ounce against two-ounce outer copper moves the rise by 30 % (section 4.1).
 * Limits: one source size, one coefficient (12 W/m²K), insulated edges, FR-4 isotropic in this table (the program's default is 0.9 W/mK in the plane); the board with vias has no independent value (the independent solver has no vias; the 3D solid column of section 4.1 is the check there).
+
+### 4.5 Inner copper of the templates: 0.5 oz (15.2 µm) against 1 oz (35 µm)
+
+`python research/stackup/scripts/study_inner_copper_1oz.py` (about 3 minutes; `--no-3d` skips the 3D solid) repeats the example board of section 4.3 (FVM, 2 mm, full plane on every inner layer, bottom plane on the last layer) with every template of the program and with the inner copper changed; the outer copper stays 35 µm. Variants: as shipped (15.2 µm); 35 µm with the dielectrics unchanged (the board gets thicker); 35 µm with the same total thickness (every dielectric of the template is scaled by one factor, the extra copper is taken out of the resin); 17.5 µm (a true 0.5 oz base foil), dielectrics unchanged. The difference is against the shipped template, in K and in % of its rise over the 25 °C ambient.
+
+| Layers | Variant | Total (mm) | Tmax FVM (°C) | Difference (K) | Difference (% of the rise) | Tmax 3D solid (°C) |
+| :-- | :-- | --: | --: | --: | --: | --: |
+| 2 | shipped (no inner copper) | 1.600 | 100.99 | 0 | 0 | |
+| 4 | shipped 15.2 µm | 1.586 | 90.40 | 0 | 0 | 90.46 |
+| 4 | 35 µm, dielectrics unchanged | 1.626 | 83.46 | −6.94 | −10.6 | 83.51 |
+| 4 | 35 µm, same thickness | 1.586 | 83.27 | −7.13 | −10.9 | 83.31 |
+| 4 | 17.5 µm, dielectrics unchanged | 1.591 | 89.34 | −1.06 | −1.6 | 89.39 |
+| 6 | shipped 15.2 µm | 1.600 | 84.80 | 0 | 0 | 84.83 |
+| 6 | 35 µm, dielectrics unchanged | 1.679 | 77.30 | −7.50 | −12.5 | 77.33 |
+| 6 | 35 µm, same thickness | 1.600 | 76.89 | −7.90 | −13.2 | 76.92 |
+| 6 | 17.5 µm, dielectrics unchanged | 1.609 | 83.54 | −1.26 | −2.1 | 83.56 |
+| 8 | shipped 15.2 µm | 1.600 | 79.72 | 0 | 0 | |
+| 8 | 35 µm, dielectrics unchanged | 1.719 | 72.44 | −7.28 | −13.3 | |
+| 8 | 35 µm, same thickness | 1.600 | 71.88 | −7.83 | −14.3 | |
+| 8 | 17.5 µm, dielectrics unchanged | 1.614 | 78.43 | −1.28 | −2.3 | |
+| 10 | shipped 15.2 µm | 2.000 | 78.76 | 0 | 0 | |
+| 10 | 35 µm, dielectrics unchanged | 2.158 | 71.78 | −6.98 | −13.0 | |
+| 10 | 35 µm, same thickness | 2.000 | 71.15 | −7.61 | −14.2 | |
+| 10 | 17.5 µm, dielectrics unchanged | 2.018 | 77.51 | −1.25 | −2.3 | |
+| 12 | shipped 15.2 µm | 2.400 | 78.22 | 0 | 0 | |
+| 12 | 35 µm, dielectrics unchanged | 2.598 | 71.46 | −6.76 | −12.7 | |
+| 12 | 35 µm, same thickness | 2.400 | 70.77 | −7.45 | −14.0 | |
+| 12 | 17.5 µm, dielectrics unchanged | 2.423 | 77.00 | −1.22 | −2.3 | |
+
+(The 3D solid was run for 4 and 6 layers only, for time; it agrees with the FVM within 0.06 K and gives the same differences to 0.01 K, so the effect is not an artefact of the FVM's layer model.)
+
+![Inner copper of the templates](figures/fig_06_inner_copper_1oz.png)
+
+*Figure 6: `figures/fig_06_inner_copper_1oz.png` (black diamonds: the published tables of section 4.3 with a plane on every inner layer).*
+
+* **Size of the effect**: 1 oz (35 µm) inner copper cools the board by 6.8 to 7.5 K with the dielectrics unchanged and by 7.1 to 7.9 K at the same total thickness (11 to 14 % of the rise); the 4-layer template is the smallest (−10.6 / −10.9 %), the 8 to 12-layer ones the largest (−13 to −14 %). Thinning the dielectrics to keep the thickness adds only 0.2 to 0.7 K: the copper, not the thickness, is what matters. A true 0.5 oz base foil (17.5 µm) gives only −1.1 to −1.3 K. The 2-layer template has no inner copper and does not change.
+* **Against the published tables (planes on every inner layer, section 4.3)**: the 4-layer template with 35 µm at the same thickness (83.27 °C) is within 0.3 K of PCBWay (82.98) and within 1.6 K of the AdvancedPCB (84.12) and OSH Park (84.83, 17.5 µm inner but 43.2 µm outer) tables; the shipped 15.2 µm template is 7.4 K above PCBWay. For 6 layers the 35 µm template (76.89) is within 0.1 to 0.6 K of the PCBWay blog (76.97) and PCBGOGO (77.52) tables, against 84.80 shipped. For 8 layers the 35 µm template (71.88) is 1.7 to 2.8 K below the three published tables (73.55 to 74.70), whose dielectrics are thinner at the cores, so the shipped 79.72 is 5.0 to 6.2 K above them and the 1 oz variant is 1.7 to 2.8 K below: the published tables fall between the two variants, nearer to 1 oz.
+* **Which tables use which copper** (as recorded in this folder, section 4.3 and `stackups.json`): 0.5 oz (15.2 µm) inner copper is the JLCPCB specification for 4 to 8 layers (the source line of `stackups.json`; the JLC04161H-7628 and JLC06161H-3313 tables, and the independent collection of JLCPCB impedance templates, give 15.2 µm); 1 oz (about 35 µm) inner copper is quoted by PCBWay (four-layer tables and the older 6 and 8-layer blog table), PCBGOGO, Bittele 7pcb (1 oz, 35.6 µm) and AdvancedPCB (1 oz, 34.3 µm); OSH Park gives 17.5 µm inner (0.5 oz) with 43.2 µm outer. Whether JLCPCB sells a 1 oz inner option was not checked.
+* **Which default is better**: the 0.5 oz template is the conservative one (hotter, by 7 to 8 K, 11 to 14 % of the rise, with planes) and is the real JLCPCB standard construction; the 1 oz one is the more common figure in other fabricators' tables and brings the 4 and 6-layer templates within 0.1 to 0.6 K of PCBWay/PCBGOGO (the 8-layer one stays 1.7 to 2.8 K cooler than the published tables). Without inner planes (zones only on the outer layers) the inner copper plays no part and the choice changes nothing. With the inner copper typed by the user, the template only matters until they edit it.
+* **The decision (keep 0.5 oz or switch the inner copper to 35 µm, or ship both templates) is the maintainer's.** The proposed change to `stackups.json` is in `docs/for-the-project-documents.md`, section 7. Not covered: heavy inner copper (2 oz), partial planes (an inner layer is usually a signal layer with 30 to 70 % copper, so the true effect is between the two variants), other boards.
 
 ## 5. Limits of this study
 
