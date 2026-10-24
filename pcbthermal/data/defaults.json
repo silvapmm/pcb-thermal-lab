@@ -307,6 +307,7 @@
     "emissivity_top": 0.9,
     "emissivity_bottom": 0.9,
     "orientation": "horizontal",
+    "natural_form": "general",
     "air_speed": 0.0,
     "h_calibration": 1.0
   },

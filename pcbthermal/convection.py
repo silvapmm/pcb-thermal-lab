@@ -13,6 +13,7 @@ SIGMA = 5.670374419e-8          # Stefan-Boltzmann constant (W/m2K4)
 G = 9.80665                     # Gravity (m/s2)
 P_ATM = 101325.0                # Air pressure (Pa)
 R_AIR = 287.05                  # Specific gas constant of air (J/kgK)
+NATURAL_FORMS = ("general", "laminar")   # Forms of the vertical-plate natural convection correlation (Board.natural_form)
 CP_AIR = 1007.0                 # Specific heat of air (J/kgK), within 1 % between 250 and 450 K
 
 
@@ -62,18 +63,31 @@ def h_natural_horizontal(t_surface, t_ambient, length, facing_up):
     return nu * props["k"] / length, ra
 
 
-def h_natural_vertical(t_surface, t_ambient, height):
+def h_natural_vertical(t_surface, t_ambient, height, form="general"):
     """!
-    @brief Natural convection coefficient of a vertical plate (Churchill and Chu, full Ra range).
-    @details Nu = (0.825 + 0.387 Ra^(1/6) / [1 + (0.492/Pr)^(9/16)]^(8/27))^2.
+    @brief Natural convection coefficient of a vertical plate (Churchill and Chu, two forms).
+    @details "general" (the default, the full Ra range): Nu = (0.825 + 0.387 Ra^(1/6) / [1 + (0.492/Pr)^(9/16)]^(8/27))^2.
+             "laminar" (the same authors' laminar form, meant for Ra < 1e9): Nu = 0.68 + 0.670 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9).
+             Churchill and Chu (1975) itself has not been opened. The general form equals the library `ht` (1.2.0) to machine precision; `ht` has no laminar
+             form, whose Ra^(1/4) term equals the laminar boundary-layer solution of an isothermal plate (LeFevre's Prandtl fit) within 0.21 %, the 0.68 being
+             the leading-edge correction (docs/validation.md section 22).
+             The laminar form is +7 % of the general one at Ra 1e4, +2 % at 1e6, -5 % at 1e7 and -25 % at 1e9
+             (research/effective-conductivity, README 4.7).
     @param t_surface Mean surface temperature in degC.
     @param t_ambient Air temperature in degC.
     @param height Plate height in metres.
+    @param form "general" or "laminar".
     @return Tuple (h in W/m2K, Rayleigh number).
+    @throws ValueError If the form is not one of the two.
     """
+    if form not in NATURAL_FORMS:
+        raise ValueError(f"natural convection form must be one of {NATURAL_FORMS}, not '{form}'")
     props = air_properties(0.5 * (t_surface + t_ambient))
     ra = rayleigh(max(abs(t_surface - t_ambient), 1e-3), height, props)
-    nu = (0.825 + 0.387 * ra ** (1.0 / 6.0) / (1.0 + (0.492 / props["pr"]) ** (9.0 / 16.0)) ** (8.0 / 27.0)) ** 2
+    if form == "laminar":
+        nu = 0.68 + 0.670 * ra ** 0.25 / (1.0 + (0.492 / props["pr"]) ** (9.0 / 16.0)) ** (4.0 / 9.0)
+    else:
+        nu = (0.825 + 0.387 * ra ** (1.0 / 6.0) / (1.0 + (0.492 / props["pr"]) ** (9.0 / 16.0)) ** (8.0 / 27.0)) ** 2
     return nu * props["k"] / height, ra
 
 
@@ -115,8 +129,8 @@ def board_h(board, t_top, t_bottom):
     @details Natural and forced convection are blended as (h_n^3 + h_f^3)^(1/3) (Churchill's rule for mixed convection),
              the calibration multiplier scales the convection only, and radiation is added. Orientation "horizontal" has the
              top face (layer 1) looking up and the bottom face looking down; "vertical" uses the plate correlation with the
-             board height for both faces. A board mounted upside down is a board whose layers are numbered the other way round.
-    @param board Board with h_mode, emissivity_top, emissivity_bottom, air_speed, orientation and h_calibration.
+             board height for both faces, in the form chosen by `natural_form` ("general" or "laminar"). A board mounted upside down is a board whose layers are numbered the other way round.
+    @param board Board with h_mode, emissivity_top, emissivity_bottom, air_speed, orientation, natural_form and h_calibration.
     @param t_top Mean temperature of the top face in degC.
     @param t_bottom Mean temperature of the bottom face in degC.
     @return Tuple (h_top, h_bottom, info) with W/m2K and a dict of the parts (convection, radiation, Rayleigh numbers).
@@ -132,7 +146,7 @@ def board_h(board, t_top, t_bottom):
     # Layer 1 is the top face and looks up, the last layer looks down: the mounting is fixed by the layer numbering
     for name, ts, eps, up in (("top", t_top, board.emissivity_top, True), ("bottom", t_bottom, board.emissivity_bottom, False)):
         if board.orientation == "vertical":
-            hn, ra = h_natural_vertical(ts, ta, board.height)
+            hn, ra = h_natural_vertical(ts, ta, board.height, getattr(board, "natural_form", "general"))
         else:
             hn, ra = h_natural_horizontal(ts, ta, length, up)
         hf = h_forced(ts, ta, board.air_speed, board.width)
