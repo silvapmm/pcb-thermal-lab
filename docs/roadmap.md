@@ -17,6 +17,7 @@ Rule: when something is implemented it moves from the second list to the first i
 * **Power calculator band**: best case / nominal / worst case from the uncertainty of the copper, heat transfer, θ, ψJT and the reading, combined as the root of the sum of squares; the case chosen is the power written in the part.
 * **Preferences**: material libraries and defaults of a new board, new elements, materials and solver in a JSON file with a user override (`Preferences`).
 * **Application**: PySide 6 editor with undo, polygon drawing and vertex handles, right-click menu (add or delete a vertex, add elements), rulers, properties in titled boxes, Stack-up tab with the cross-section and the simple stack-up fields, results views with animation, calculations in a cancellable separate process, HTML user guide, tooltips on every control.
+* **Model corrections after a review** (`validation.md` section 20): the time constant and the step responses of a board with an outline leave out the cells off the board, the 3D solid keeps the laminate of a one-layer board, the transient mean counts only the board, and a power loop that does not settle is reported.
 * **Quality**: documentation gate on every function, stress tests of the application, the 3D check of the layered models, studies in `examples/` that reproduce every table of `validation.md`.
 
 ## What we want to implement
@@ -63,6 +64,7 @@ Evidence for all of this is in `research.md` (sections E3 to E8 and R2 to R8).
 
 * **Multigrid** (optional, low priority): measured on the example board, algebraic multigrid (`pyamg`) pays only above about 500 000 unknowns (987 000 unknowns: 8.0 s against 12.8 s for CG; the direct solver does not fit in memory); it would stay an optional dependency chosen above a threshold. All solvers agree to 1e-8 K.
 * **A measurement of a physical board** (absolute accuracy; also calibrates the convection multiplier, `pcbthermal calibrate`): none of the models has been compared with a physical board yet. The disclaimer that the results are a design aid, to be validated by measurement, should appear in the About box, the user guide and every report.
+* **Lumped: the ring count** (found in the review, `validation.md` section 20): the result moves by up to 1 % from one millimetre of source size to the next and does not converge with more rings (40 rings are 3 to 5 % above the FVM where 10 are within 2 %); the ring geometry was tuned at 10 rings. A ring construction that converges would make the model's accuracy independent of that choice.
 * Done: the 3D solid against Yovanovich's spreading table and a grid-convergence study, the fins against a 2D fin (`validation.md` sections 15 and 16). Open: a transient comparison against the 3D solid; a thick-copper case; the 3D solid with the package.
 
 ### Ideas from similar projects and tools (research of 2026-10-21 and 22)

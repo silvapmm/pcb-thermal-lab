@@ -2,7 +2,7 @@
 @file block_contact_study.py
 @brief Research on heatsinks larger than their contact: the plate model against a published spreading-resistance example, a big block touching the board only in a patch, and the effect of a temperature-dependent power.
 
-@details 1. A plate with a small uniform source and a uniform film coefficient, against the numerical example of Lee, Song, Au and Moran (Electronics Cooling,
+@details 1. A plate with a small uniform source and a uniform film coefficient, against the numerical example of Seri Lee (Electronics Cooling,
             "Calculating spreading resistance in heat sinks", 1998): aluminium 100 x 100 x 1.3 mm, k = 200 W/mK, catalogue resistance R0 = 1.0 K/W, source 25 x 25 mm,
             maximum constriction resistance Rc = 0.66 K/W (total 1.66 K/W).
          2. A 40 x 40 x 3 mm aluminium block under the MOSFET board whose contact with the board is only a patch (prototype: the contact conductance of
@@ -27,7 +27,7 @@ import component_study as cs                                          # noqa: E4
 from pcbthermal import SolverOptions, blocks, simulate               # noqa: E402
 
 
-def plate_check(n=100, side=100.0, t_mm=1.3, k=200.0, r0=1.0, src=25.0):
+def plate_check(n=200, side=100.0, t_mm=1.3, k=200.0, r0=1.0, src=25.0):
     """!
     @brief Maximum minus mean surface temperature of a plate with a centred square source, per watt, by finite differences on the plan (thin plate: k t lateral conductance).
     @param n Cells per side.
@@ -48,7 +48,9 @@ def plate_check(n=100, side=100.0, t_mm=1.3, k=200.0, r0=1.0, src=25.0):
     off = off + off.T
     K = sp.diags(np.asarray(off.sum(axis=1)).ravel() + h * d * d) - off
     q = np.zeros((n, n))
-    lo, hi = int(round((side - src) / 2 / (side / n))), int(round((side + src) / 2 / (side / n)))
+    # floor(x + 0.5), not round(): Python rounds halves to even, which put a 25 mm source on 24 cells of 1 mm (37.5 -> 38, 62.5 -> 62)
+    # and read +4.5 %; with n = 200 (0.5 mm) the source edges fall on cell edges and the source keeps its size
+    lo, hi = int(np.floor((side - src) / 2 / (side / n) + 0.5 + 1e-9)), int(np.floor((side + src) / 2 / (side / n) + 0.5 + 1e-9))
     q[lo:hi, lo:hi] = 1.0 / ((hi - lo) ** 2)               # One watt over the source
     theta = spla.spsolve(K.tocsc(), q.ravel()).reshape(n, n)
     mean = float((theta * h * d * d).sum())                # Equals r0 times the power

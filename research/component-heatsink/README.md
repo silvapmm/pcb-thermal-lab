@@ -216,7 +216,9 @@ Extra resistance of a 40 x 40 mm heatsink base (catalogue 12 K/W) for a small co
 
 ### 4.8 A block larger than its contact, and power rising with temperature (`block_contact_study.py`)
 
-1. Plate against Lee et al.: maximum constriction resistance 0.69 K/W (paper 0.66), total 1.69 K/W (paper 1.66)
+1. Plate against Lee et al.: maximum constriction resistance 0.66 K/W (paper 0.66), total 1.66 K/W (paper 1.66)
+
+An earlier run read 0.69 K/W (+4.5 %): on 1 mm cells `round()` rounded the source edges 37.5 and 62.5 mm to the even cells 38 and 62, a 24 mm source; the script now uses 0.5 mm cells and rounds halves up, and the 25 mm source gives 0.664 K/W (+0.6 %; `research/effective-conductivity/` 4.8 A).
 
 2. MOSFET 2 W, Al block 40 x 40 x 3 mm under the board, contact only in a centred patch (default interface 5 K cm2/W)
 | Contact patch | Tj [degC] |

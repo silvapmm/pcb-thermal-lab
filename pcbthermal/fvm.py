@@ -118,9 +118,11 @@ class Network:
             self.g_side[:L, 0, :] += b.h_side * dx * sl
             self.g_side[:L, -1, :] += b.h_side * dx * sl
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
-        if not self.active.all():
-            # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0)
-            self.g_amb[:, ~self.active] += 1.0
+        # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0).
+        # The pin is kept apart (g_pin) because it is not a path to the air: the time constant must leave it out
+        self.g_pin = np.zeros_like(self.g_amb)
+        self.g_pin[:, ~self.active] = 1.0
+        self.g_amb = self.g_amb + self.g_pin
 
         # --- Heat sources (W): the requested power is spread exactly over the covered cells.
         # The unit-power distribution of every heater (weights that sum to 1) is kept, so that the source of a
@@ -164,6 +166,7 @@ class Network:
         for name in ("g_top", "g_bottom", "g_heatsink", "g_side"):
             setattr(self, name, np.concatenate([getattr(self, name), zeros]))
         self.g_block = np.concatenate([self.g_block, np.stack([ly["g_amb"] for ly in layers])])
+        # (g_pin is built after the blocks, so it already has their layers)
         for k, ly in enumerate(layers):
             idx = nb + k
             self.extra_links.append((ly["board_layer"], idx, ly["g_link"]))
@@ -451,6 +454,7 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
     ny, nx = net.ny, net.nx
     nb = getattr(net, "n_board", net.nl)
     steady_theta, _ = net.solve_steady()
+    weights = mean_weights(net)                             # Board area of every cell or node: the mean leaves out what is off the board
 
     # --- Time grid: every frame is one time step, and the steps are built so that few distinct dt occur
     # (one LU factorisation per distinct dt). Linear: one dt. Logarithmic: dt doubles stage after stage.
@@ -472,6 +476,7 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
     x = np.zeros(N)                                         # Rise above ambient, starts at zero
     frames = {0: x.reshape(net.nl, ny, nx)[:nb] + ambient}
     cache = {}
+    kept = set(keep.tolist())
     for k, dt in enumerate(dts, start=1):
         key = round(float(dt), 12)
         if key not in cache:
@@ -480,12 +485,13 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
             cache[key] = (spla.splu(A, permc_spec=ORDERING), B)
         lu, B = cache[key]
         x = lu.solve(B @ x + q)
-        if k in set(keep.tolist()):
+        if k in kept:
             frames[k] = x.reshape(net.nl, ny, nx)[:nb] + ambient
     frames = np.asarray([frames[k] for k in keep])
+    inside = weights > 0
     return TransientResult(
-        times=times, t_max=frames.reshape(len(times), -1).max(axis=1),
-        t_mean=frames.reshape(len(times), -1).mean(axis=1), frames=frames,
+        times=times, t_max=frames[:, :, inside].reshape(len(times), -1).max(axis=1),
+        t_mean=(frames * weights).sum(axis=(1, 2, 3)) / (nb * weights.sum()), frames=frames,
         steady_t_max=float(steady_theta[:nb].max() + ambient), ambient=ambient, grid=grid,
     )
 
@@ -528,7 +534,7 @@ def step_responses_from_network(net, t_end=None, ratio=3.0, per_stage=4, stages=
     @return Tuple (times, z, rth).
     """
     if t_end is None:
-        t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
+        t_end = 10.0 * board_time_constant(net)
     Q = net.Qw_matrix.toarray()                                   # (cells, heaters), unit power each
     rth = (spla.splu(net.K.tocsc(), permc_spec=ORDERING).solve(Q)).max(axis=0)
     # Step sizes: per_stage steps of dt0 * ratio^j for j = 0..stages-1, scaled so that they sum to t_end
@@ -563,4 +569,27 @@ def estimate_time_constant(problem, cell_mm=5.0):
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
     net = Network(problem, nx, ny, assemble=False, with_blocks=False)
-    return float(net.C.sum() / net.g_amb.sum())
+    return board_time_constant(net)
+
+
+def board_time_constant(net):
+    """!
+    @brief Total heat capacity over the total conductance to the ambient of a network, C_total / G_total.
+    @details The conductance that pins the cells or nodes off a board with an outline (g_pin, 1 W/K each) keeps the matrix regular but is not a
+             path to the air; it is left out (counting it gave 0.2 s instead of about 100 s on a round board of 100 mm).
+    @param net A network with C, g_amb and optionally g_pin (fvm.Network, fdm.Network).
+    @return Time constant in seconds.
+    """
+    g = net.g_amb.sum() - (net.g_pin.sum() if getattr(net, "g_pin", None) is not None else 0.0)
+    return float(net.C.sum() / g)
+
+
+def mean_weights(net):
+    """!
+    @brief Weights of the board mean over the grid of a network: the board area of every cell (FVM) or node (FDM).
+    @param net A network (fvm.Network has cover and dx, dy; fdm.Network has area).
+    @return Array (ny, nx) in m2, zero off the board.
+    """
+    if getattr(net, "area", None) is not None:
+        return np.asarray(net.area, dtype=float)
+    return np.asarray(net.cover, dtype=float) * net.dx * net.dy
