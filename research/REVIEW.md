@@ -29,7 +29,7 @@ What the independent `reviewer` agent has checked in each research folder, so th
 | `gerber-models/` | not reviewed | | no | Five models on real boards: depends on every correction. Section 4.39 proposes two corrections to the program. |
 | `gerber-nets/` | not reviewed | | not applicable | Design and prototype. |
 
-## Open points found while merging `develop` into this branch
+## Notes
 
-* `docs/roadmap.md` on this branch holds a section "Open points of the research branch" that `develop` does not have; the rule says the project documents stay identical to `develop` on a research branch. Decision for the maintainer: move that text to `research/*/docs/roadmap-entry.md` or accept it as part of the adoption.
-* The figure numbers of `models-comparison/` and `solid3d-verification/` collided between the two sides of the merge; the diagrams of this branch were renumbered (8 to 10 and 8) because `docs/` links the figures of `develop`.
+* The open points that used to sit in `docs/roadmap.md` of this branch are in `gerber-models/docs/roadmap-entry-open-points.md`.
+* The figure numbers of `models-comparison/` and `solid3d-verification/` collided between the two sides of a merge with `develop`; the diagrams of this branch were renumbered (8 to 10 and 8) because `docs/` links the figures of `develop`.
