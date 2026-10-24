@@ -40,6 +40,21 @@ def plate_convergence(cells=(25, 50, 100, 200, 400)):
     return out
 
 
+def alignment_sweep(ns=range(60, 241, 4)):
+    """!
+    @brief The centre value of the thin plate for many cell sizes (n cells over 100 mm): the error swings with how the source edges fall on the cells, not with the resolution.
+    @param ns Cells per side to try.
+    @return list of (cell size in mm, edge offset in cells, error against the article in percent).
+    """
+    out = []
+    for n in ns:
+        d = 100.0 / n
+        edge = 37.5 / d
+        off = abs(edge - round(edge))                              # distance of the source edge from the nearest cell edge, in cells
+        out.append((d, off, 100.0 * (lee.rc_2d("centre", n=n) / lee.PAPER["centre"] - 1.0)))
+    return out
+
+
 def laminar_patch():
     """!
     @brief Replace the vertical-plate coefficient of the program by the laminar form below Ra = 1e9 (in memory only).
@@ -127,6 +142,10 @@ def main():
     print("| --: | --: | --: | --: |")
     for n, v in pc.items():
         print(f"| {100.0 / n:g} | " + " | ".join(f"{v[p]:.3f} ({100 * (v[p] / lee.PAPER[p] - 1):+.1f} %)" for p in lee.PAPER) + " |", flush=True)
+    sweep = alignment_sweep()
+    out["alignment"] = sweep
+    print(f"\nA2. Centre value for {len(sweep)} cell sizes (1.67 to 0.42 mm): error against the article from {min(e for _, _, e in sweep):+.1f} to {max(e for _, _, e in sweep):+.1f} %; "
+          f"with the source edge on a cell edge (offset 0): {np.mean([e for _, o, e in sweep if o < 0.05]):+.1f} % on average, half a cell off (offset 0.5): {np.mean([e for _, o, e in sweep if o > 0.45]):+.1f} %", flush=True)
     rows = run_forms()
     out["forms"] = rows
     print("\nB. Laminar form of the vertical-plate correlation on the program (FVM, computed h, maximum temperature)")

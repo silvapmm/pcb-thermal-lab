@@ -1,4 +1,4 @@
-# What could enter the program from this investigation
+# What could enter the program from this investigation (the investigation is closed)
 
 Nothing here is needed for the program to be right on the boards it is made for: the five models agree with an independent 3D solver within 0.3 % on a Cu / FR4 / Cu coupon and the published cases are reproduced. Three optional proposals remain; none is implemented, and each one needs the maintainer's decision and a `fix/` or `feature/` branch off `develop` with the whole battery.
 

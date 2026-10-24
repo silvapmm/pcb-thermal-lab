@@ -1,6 +1,6 @@
 # Effective conductivity, spreading resistance and the layered idealisation: published test cases reproduced
 
-Status: **open, no change to the program required**; two optional proposals and a reference solver are in `INTEGRATION.md`. Studies: `study_culham_1998.py`, `study_lee_spreading.py`, `study_program_vs_coupon.py`, `study_muzychka_2003.py`, `study_natural_convection.py`; solver: `lib/layered3d.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics), one numbering.
+Status: **closed**. No change to the program is required; the optional proposals, with their measured impact, and the reference solver are in `INTEGRATION.md`, the corrections and text for the project documents in `docs/for-the-project-documents.md`. What stays open is listed in section 6. Studies: `study_culham_1998.py`, `study_lee_spreading.py`, `study_program_vs_coupon.py`, `study_muzychka_2003.py`, `study_natural_convection.py`, `study_biot_definitions.py`, `study_corrections_impact.py`, `study_channel_correlations.py`; solver: `lib/layered3d.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics), one numbering.
 
 ## 1. The questions
 
@@ -239,7 +239,15 @@ Worked example of the library `ht` (Pr 0.69, Grashof 2.63e9, Ra = Gr Pr): genera
 | 0.5 | 0.664 (+0.6 %) | 1.280 (-0.8 %) | 2.270 (-4.6 %) |
 | 0.25 | 0.664 (+0.6 %) | 1.280 (-0.8 %) | 2.270 (-4.6 %) |
 
-The `+4.5 %` is the 1 mm cell: the 25 mm source of the check has its edges half a cell off the grid (37.5 mm on 1 mm cells) and the centre value swings between -8 and +4 % with the cell. Once the edges coincide with cell edges the model is within **+0.6 %, -0.8 % and -4.6 %** of the article at the centre, the edge and the corner (the article claims about 5 %). The documents should say that, with the cell size and the alignment of the source.
+The `+4.5 %` is the 1 mm cell with the source edge half a cell off the grid (37.5 mm on 1 mm cells): see the schematic below. Sweeping 46 cell sizes between 1.7 and 0.4 mm shows that the error of the centre value follows the **alignment**, not the resolution: Centre value for 46 cell sizes (1.67 to 0.42 mm): error against the article from +0.5 to +5.8 %; with the source edge on a cell edge (offset 0): +0.5 % on average, half a cell off (offset 0.5): +1.9 %. With the edges on cell edges the model is within **+0.6 %, -0.8 % and -4.6 %** of the article at the centre, the edge and the corner (the article claims about 5 %). The documents should say that, with the cell size and the alignment of the source.
+
+![The source edge against the cell grid](figures/fig_16_source_edge_on_the_grid.png)
+
+*Figure 16: `figures/fig_16_source_edge_on_the_grid.png`.*
+
+![The plate check against the alignment of the source edge](figures/fig_14_plate_alignment_sweep.png)
+
+*Figure 14: `figures/fig_14_plate_alignment_sweep.png`.*
 
 **B. The laminar form of Churchill and Chu** (patched in memory in place of the general form below Ra 1e9), on the example board and a bare two-layer board turned to the vertical, FVM, computed coefficients:
 
@@ -260,6 +268,10 @@ C. Thick-plate criterion q'' t / (2 k) / rise over the 74 metal-block cases: max
    largest: pad 20x20 in block 80x60, 3 mm steel, R''=1 Kcm²/W (0.42 %)
 
 The check would **never fire on the cases the program is built for** (largest 0.42 %, a 3 mm steel block); it is a safety net for a thick, poorly conducting layer typed by the user.
+
+![The corrections and proposals with their measured impact](figures/fig_15_corrections_map.png)
+
+*Figure 15: `figures/fig_15_corrections_map.png`.*
 
 ![What the corrections change](figures/fig_12_corrections_impact.png)
 
@@ -316,6 +328,10 @@ The two agree within 5.5 % over five decades; the spacing that dissipates the mo
 The models need no change for the boards they are made for. The optional proposals (an input check for a thick, poorly conducting plate; the laminar form of Churchill and Chu as an option; the solver as a test helper) and what should stay out (an effective conductivity of the stack) are in `INTEGRATION.md`; the corrections and text for the project documents are in `docs/for-the-project-documents.md`.
 
 ## 6. Limits
+
+**What stays open** (nothing blocks the program): the plateau of the paper above Biot 60 (4.9); the paper's `1.62` mm against the layers' `1.6501` mm; the Bar-Cohen and Rohsenow correlation and the paper of Churchill and Chu, read only through secondary sources; the unread pages of the scans listed in `research/theory/docs/sources-to-obtain.md`.
+
+**Limits of the study**
 
 * The independent solver is checked against the publications only to 2 to 6 % on the layer orders; the cause of the steady shortfall is not isolated. The figures read from plots are good to about 0.5 W/mK.
 * The five models were compared on a board that they can represent; the paper's cases with an outer dielectric above the copper could not be run in them.

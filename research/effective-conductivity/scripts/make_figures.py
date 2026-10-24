@@ -1,7 +1,7 @@
 """!
 @file make_figures.py
 @brief Data figures of the effective-conductivity investigation, drawn from the JSON files that the studies write in out/ (run the studies first; make_diagrams.py draws the schematics).
-@details Writes figures/fig_03_layer_orders_k_eff.png, fig_04_size_location_biot.png, fig_06_lee_spreading.png, fig_07_program_vs_coupon.png, fig_08_muzychka_and_the_thickness_rule.png, fig_10_natural_convection_forms.png, fig_11_biot_definitions.png, fig_12_corrections_impact.png and fig_13_channel_correlations.png.
+@details Writes figures/fig_03_layer_orders_k_eff.png, fig_04_size_location_biot.png, fig_06_lee_spreading.png, fig_07_program_vs_coupon.png, fig_08_muzychka_and_the_thickness_rule.png, fig_10_natural_convection_forms.png, fig_11_biot_definitions.png, fig_12_corrections_impact.png, fig_13_channel_correlations.png and fig_14_plate_alignment_sweep.png.
          Run: .venv/bin/python research/effective-conductivity/scripts/make_figures.py (from the repository root; a few seconds).
 """
 
@@ -281,6 +281,33 @@ def corrections_impact(ci):
     plt.close(fig)
 
 
+def alignment(ci):
+    """!
+    @brief The centre value of the plate check for many cell sizes, coloured by how far the source edge is from a cell edge.
+    @param ci Content of corrections_impact.json.
+    @return None.
+    """
+    d = np.array([a for a, _, _ in ci["alignment"]])
+    off = np.array([o for _, o, _ in ci["alignment"]])
+    err = np.array([e for _, _, e in ci["alignment"]])
+    fig, axs = plt.subplots(1, 2, figsize=(12, 4.4))
+    sc = axs[0].scatter(d, err, c=off, cmap="viridis", s=36)
+    axs[0].axhline(0, color="k", lw=0.8)
+    axs[0].invert_xaxis()
+    axs[0].set_xlabel("cell size (mm)")
+    axs[0].set_ylabel("centre value against Seri Lee (%)")
+    axs[0].set_title("The error follows the alignment of the source edge, not the resolution", fontsize=9)
+    fig.colorbar(sc, ax=axs[0], label="distance of the source edge from a cell edge (cells)")
+    axs[1].scatter(off, err, color="#1d4ed8", s=30)
+    axs[1].set_xlabel("distance of the source edge from the nearest cell edge (cells)")
+    axs[1].set_ylabel("error (%)")
+    axs[1].set_title("Aligned (0): +0.5 %; half a cell off (0.5): up to +5.8 %", fontsize=9)
+    axs[1].axhline(0, color="k", lw=0.8)
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_14_plate_alignment_sweep.png", dpi=110)
+    plt.close(fig)
+
+
 def channel(ch):
     """!
     @brief The two channel correlations and the optimum spacing.
@@ -314,7 +341,7 @@ def channel(ch):
 
 def main():
     """!
-    @brief Draw the nine data figures.
+    @brief Draw the ten data figures.
     @return None.
     """
     FIG.mkdir(parents=True, exist_ok=True)
@@ -328,6 +355,7 @@ def main():
     biot_definitions(load("biot_definitions"))
     corrections_impact(load("corrections_impact"))
     channel(load("channel_correlations"))
+    alignment(load("corrections_impact"))
     print("figures in", FIG)
 
 

@@ -1,7 +1,7 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the effective-conductivity investigation: the test coupon and the definition of the solid-body resistance, the five layer orders, the source positions of the plate, and why one node through the thickness underestimates the surface of a thick plate.
-@details Pure drawing, no data; the numbers are those of the tables of README.md. Writes figures/fig_01_coupon_and_definition.png, fig_02_five_layer_orders.png, fig_05_plate_source_positions.png and fig_09_through_thickness_gradient.png.
+@details Pure drawing, no data; the numbers are those of the tables of README.md. Writes figures/fig_01_coupon_and_definition.png, fig_02_five_layer_orders.png, fig_05_plate_source_positions.png, fig_09_through_thickness_gradient.png, fig_15_corrections_map.png and fig_16_source_edge_on_the_grid.png.
          Run: .venv/bin/python research/effective-conductivity/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -119,9 +119,55 @@ def gradient(path):
     dk.save(fig, path, "One temperature node through the thickness: exact for a thin or highly conducting layer, low by q'' t / 2k at the surface under a source otherwise")
 
 
+def corrections_map(path):
+    """!
+    @brief The corrections and proposals of this investigation with their measured impact and their status.
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(14, 5.6)
+    ax.set_xlim(0, 14)
+    ax.set_ylim(0, 5.6)
+    cols = [("documents only", 0.3, "#cfe3f5"), ("optional, in the program", 5.0, "#fbe3c2"), ("stays out of the program", 9.7, "#e8e8e8")]
+    for title, x, c in cols:
+        dk.box(ax, x, 4.7, 4.0, 0.7, title, c, bold=True, size=9)
+    dk.box(ax, 0.3, 2.9, 4.0, 1.5, "plate check of the documents\nattribution to Seri Lee (1998)\n'+4.5 %' becomes +0.6, -0.8, -4.6 %\n(centre, edge, corner, aligned cells)", "#cfe3f5", size=8)
+    dk.box(ax, 0.3, 0.8, 4.0, 1.7, "impact on results: none\nthe 1 mm check read +4 % because the\n25 mm source sat half a cell off the grid\n(+0.5 % aligned, up to +5.8 % off)", "#ffffff", size=8)
+    dk.box(ax, 5.0, 3.5, 4.0, 0.9, "laminar form of Churchill and Chu\nvertical boards: -0.7 to +0.2 % of the rise", "#fbe3c2", size=8)
+    dk.box(ax, 5.0, 2.3, 4.0, 0.9, "thick-plate check q'' t / 2k\n74 block cases: at most 0.42 % (never fires)", "#fbe3c2", size=8)
+    dk.box(ax, 5.0, 0.8, 4.0, 1.2, "independent solver as a test helper\n(checked against 6 published numbers\nand a closed form)", "#fbe3c2", size=8)
+    dk.box(ax, 9.7, 3.0, 4.0, 1.4, "an effective conductivity of the stack\nk_e from 15 to 5 W/mK with the layer order;\nthe means can be 70 % off", "#e8e8e8", size=8)
+    dk.box(ax, 9.7, 0.8, 4.0, 1.7, "the program keeps one node per copper\nlayer and a resistor per gap: the order\nis represented, nothing to homogenise", "#ffffff", size=8)
+    dk.arrow(ax, 7.0, 3.5, 7.0, 3.2)
+    dk.arrow(ax, 7.0, 2.3, 7.0, 2.0)
+    dk.save(fig, path, "The corrections and proposals, with their measured impact (README 4.8)")
+
+
+def source_edge(path):
+    """!
+    @brief The 25 mm source edge on 1 mm and on 0.5 mm cells: half a cell off the grid, and on it.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(11, 3.6, nrows=1, ncols=2)
+    for ax, d, title in zip(axs, (1.0, 0.5), ("1 mm cells: the edge at 37.5 mm is half a cell off", "0.5 mm cells: the edge falls on a cell edge")):
+        ax.set_xlim(34, 42)
+        ax.set_ylim(0, 4)
+        ax.set_aspect("equal")
+        for x in np.arange(34, 42.01, d):
+            ax.plot([x, x], [0, 4], color="#9ca3af", lw=0.6)
+        for y in np.arange(0, 4.01, d):
+            ax.plot([34, 42], [y, y], color="#9ca3af", lw=0.6)
+        ax.add_patch(Rectangle((37.5, 0.0), 4.5, 4.0, fc=dk.HEAT, alpha=0.35, ec="none"))
+        ax.plot([37.5, 37.5], [0, 4], color=dk.HEAT, lw=2)
+        ax.text(37.6, 3.6, "source edge", color=dk.HEAT, fontsize=8)
+        ax.set_title(title, fontsize=9)
+    dk.save(fig, path, "Why the plate check of the documents read +4.5 %: the source edge against the cell grid")
+
+
 def main():
     """!
-    @brief Draw the four diagrams.
+    @brief Draw the six diagrams.
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
@@ -129,6 +175,8 @@ def main():
     orders(OUT / "fig_02_five_layer_orders.png")
     positions(OUT / "fig_05_plate_source_positions.png")
     gradient(OUT / "fig_09_through_thickness_gradient.png")
+    corrections_map(OUT / "fig_15_corrections_map.png")
+    source_edge(OUT / "fig_16_source_edge_on_the_grid.png")
     print("diagrams in", OUT)
 
 
