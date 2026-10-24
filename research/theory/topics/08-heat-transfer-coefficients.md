@@ -23,6 +23,8 @@ In **computed** mode each outer face gets `h = h_c + h_r` from the mean temperat
 
 Churchill and Chu also give a form for the laminar range (Rayleigh up to about 1e9), `Nu = 0.68 + 0.670 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)`, said to be slightly more accurate there; the program uses the all-range form above. Compared at Pr 0.71 (`scripts/check_correlations.py`) the laminar form is +6.6 % at Ra 1e5, -5.2 % at 1e7 and -25 % at 1e9 (the all-range form includes the turbulent rise), so for a vertical board with Rayleigh numbers of 1e5 to 1e6 the choice moves `h_n` by a few percent. Nothing is changed in the program; the all-range form reproduces the worked example of the textbook to the digit (Nu 147.16 at Pr 0.69, Gr 2.63e9).
 
+The all-range form of the program reproduces the worked example of the library `ht` to the digit (`Nu` 147.16 at Pr 0.69 and a Grashof number of 2.63e9, which the library takes as its argument). On a board of 50, 100 and 200 mm height at 10 to 80 K the laminar form changes the coefficient by +6.5 % to -10 % (`research/effective-conductivity/` 4.7), inside the +-30 % assigned to `h`; no change is proposed until the paper is read.
+
 ## 3. Limits
 
 Correlations of isothermal plates (20 to 30 % on a board with hot spots), the edge coefficient is typed, there are no enclosure view factors, the time simulation and the animation keep the steady-state coefficients. No model has been compared with a physical board yet.

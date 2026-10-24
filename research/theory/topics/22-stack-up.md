@@ -17,6 +17,8 @@ The vertical structure of the board: copper thickness per layer and the material
 * **The one number that matters is the finished outer copper**: a 15 % thinner finish raises the rise by 5.7 %; dielectric conductivity and thickness move it by about 1 %.
 * The typical templates (`pcbthermal/data/stackups.json`, 1 to 12 layers) are loaded when the layer count changes; only the 4-layer entry is a published fabricator table (JLCPCB, to the last digit); the others are constructed to add up. Other fabricators' dielectric splits move the maximum temperature by 0.1 to 1.7 C.
 
+* **The effective conductivity of a laminate is not a property of the stack**: for the same copper and FR4 it goes from 15 to 5 W/mK with the order of the layers, falls to 0.4 W/mK when the source covers the whole board and has a maximum near 8 W/mK for a source of a quarter of the board; none of the series, parallel, arithmetic, geometric or harmonic means is a good estimate (up to 70 % off) ([CulhamYovanovich1998], reproduced within 2 to 6 % by `research/effective-conductivity/`). The program does not homogenise: a node per copper layer and a resistor per gap represent the order.
+
 ## 3. Open ideas
 
 An outer dielectric (solder mask) above the top copper and below the bottom copper, a material per copper layer (alloys, plated copper), a library of fabricator stack-ups (Eurocircuits and Sierra Circuits publish no table that could be read).
@@ -27,6 +29,6 @@ An outer dielectric (solder mask) above the top copper and below the bottom copp
 
 ## 5. Sources
 
-* Fabricator tables: [StackupTables]. The copper and via notes: [TI-AN2020]. Own computation: [L-stackup], [L-validation].
+* Effective conductivity and the order of the layers: [CulhamYovanovich1998], [Lemczyk1992] (the method of its first pages). Fabricator tables: [StackupTables]. The copper and via notes: [TI-AN2020]. Own computation: [L-stackup], [L-validation].
 
 *What was read and what was not verified:* from `research/stackup/README.md` and `docs/validation.md` 14 (read in full); the addresses of some pages were not recorded in the stack-up README, so that list is as read, not a citation list.

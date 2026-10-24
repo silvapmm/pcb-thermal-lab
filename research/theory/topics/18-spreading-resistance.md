@@ -24,6 +24,9 @@ Every heater of a board is a small source on a large body: the sheet conductance
 * A **third, independent solver** (axisymmetric finite volumes, written for this study) gives -1.6, -1.0, -0.8 and -0.7 % at 0.1, 0.2, 0.3 and 0.4 at 400 cells per radius. It converges at first order (the flux changes by a step at the source edge): 0.7716, 0.7857, 0.7932 at 100, 200, 400 cells per radius for `epsilon = 0.2`, extrapolating to **0.8006 against 0.8009**. The table lies between the two solvers, which approach it from opposite sides.
 * Grid convergence of the 3D solid on a square source aligned with every mesh: observed order 1.68, GCI of the fine mesh 1.14 %.
 
+* **Seri Lee's plate** (aluminium 100 x 100 x 1.3 mm, source 25 x 25 mm, 1 K/W film): an independent 3D solver gives 0.668, 1.284 and 2.275 K/W for the source at the centre, the edge midpoint and the corner against the article's 0.66, 1.29 and 2.38 (+1.2, -0.4 and -4.4 %); the thin plate of conductance `k t` gives the same (`research/effective-conductivity/` 4.4, [EC1998Spreading]).
+* **The cases of Muzychka, Culham and Yovanovich** (a cross of five sources, 80.62 against 80.61 C and a mean of 78.90 against 78.87; two sources on a 300 mm plate within 1 % of the rise): [Muzychka2003], `research/effective-conductivity/` 4.6. For an edge source the resistance is twice, and for a corner source four times, that of the mirrored centred system (method of images).
+
 ## 4. Limits
 
 The flux tube of the table is circular and the 3D solid's is square; the extrapolation assumes first order; only the isoflux source is checked. The layered models add the 0.4 to 2.2 % of the layered idealisation on top.

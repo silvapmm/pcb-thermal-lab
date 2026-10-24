@@ -60,6 +60,11 @@ Seen from outside, a board of several layers has an in-plane and a through-plane
 * No gradient across a copper layer, none across the thin dielectric laterally: the gap is a 1D resistance, so there is no spreading **inside** the gap. This costs 0.4 to 2 % against the 3D solid.
 * The top and bottom coefficients act directly on the outer layer node (the half slab in series is neglected, 1e-4 of the film resistance).
 * One temperature per layer under a footprint (no gradient across a heater).
+* **No gradient through the thickness of a layer**: with the heat entering at the top face and leaving at the bottom, the surface under a source is hotter than the layer node by `q'' t / (2 k)`. Measured against an independent 3D solver (`research/effective-conductivity/` 4.6): 2.3 % of the rise for a 10 mm plate of `k` 50, 13 % for `k` 10 (predicted 13.2 %, observed 12.8 %); 0.0001 K for 35 um of copper. It is irrelevant for the copper layers and matters only for a thick, poorly conducting layer or block.
+
+![One temperature node through the thickness](../../effective-conductivity/figures/fig_09_through_thickness_gradient.png)
+
+*Figure: `research/effective-conductivity/figures/fig_09_through_thickness_gradient.png`.*
 * The 2D copper is a cell average: it hides how the copper is connected (topic 17), the error that matters most on real boards.
 
 ## 6. How the program does it
@@ -72,6 +77,8 @@ Seen from outside, a board of several layers has an in-plane and a through-plane
 * The exact 1D series circuit of an advanced stack-up (test in `tests/`), `docs/validation.md` section 12; folder `research/stackup/`.
 * The pictures of the five models side by side: `research/models-comparison/figures/fig_04_the_five_models_schematic.png`.
 
+* The five models against an independent 3D solver on a Cu / FR4 / Cu coupon of the literature (50 x 50 mm, 2.5 W, source areas of 1 % to 100 %): within 0.3 % (FDM 1.2 % at 1 %), `research/effective-conductivity/` 4.5.
+
 ## 8. Related topics
 
 02 (the discretisation), 04 (the check), 17 (copper to cells), 21 (vias), 22 (stack-up).
@@ -83,4 +90,4 @@ Seen from outside, a board of several layers has an in-plane and a through-plane
 * The series and parallel conductivities of the whole board, with a worked example reproduced here: [EC1998Conduction].
 * The numbers (0.4 to 2.2 %, 1e-4, 1e-7) come from the repository's own validation: [L-validation], [L-solid3d].
 
-*What was read and what was not verified:* the formulas are copied from `docs/theory.md` section 1.2 (read in full); the textbooks are from the project documents, not opened here.
+*What was read and what was not verified:* the through-thickness rule and the coupon comparison are our own computations against cases published by [CulhamYovanovich1998] and [Muzychka2003] (read, see the bibliography); the formulas are copied from `docs/theory.md` section 1.2 (read in full); the textbooks are from the project documents, not opened here.
