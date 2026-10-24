@@ -63,7 +63,7 @@ A PCB is a stack of very thin, highly conducting copper layers separated by poor
 
       G_via = k_cu · A_via / d                  A_via = π[(D/2)² − (D/2 − t_plating)²] + (k_fill / k_cu) π (D/2 − t_plating)²  (open barrel: k_fill = 0; epoxy resin 0.3; conductive paste 8) or π(D/2)² (electroplated copper fill)     [W/K]
 
-* **Ambient exchange**: the top layer loses `h_top` and the bottom layer `h_bottom` per unit area (both on the same layer for `L = 1`); a plain heatsink adds `h_extra` over its polygon;
+* **Ambient exchange**: the top layer loses `h_top` and the bottom layer `h_bottom` per unit area (a one-layer board: `h_bottom` on its last laminate node, section 1.4); a plain heatsink adds `h_extra` over its polygon;
   an edge cell of a layer loses `h_side · (edge length) · slab` through the board edge.
 * **Heat capacity per area** of a layer: `c_l = f ρc_cu t_cu + (slab − f t_cu) ρc_fr4`.
 
@@ -75,6 +75,18 @@ with `h_l` nonzero only on the outer layers and `q_l` the heater power density o
 **Energy balance**: integrating (1) over the board (all internal exchanges cancel) gives `Σ h_l ∫θ_l dA + ∫ edge losses = Σ P`: the heat leaving by every path equals the power injected. Every result reports this balance.
 **Limits of the idealisation**: no gradient across a copper layer or across the thin dielectric laterally (the gap is a 1D resistance: no spreading inside the gap, which costs 0.4 to 2 % against the 3D solid, section 4); the top and bottom coefficients act directly on the outer layer node
 (the half slab of FR-4 or copper in series is neglected, 10⁻⁴ of the film resistance); one temperature per layer under a footprint.
+
+### 1.4 A one-layer board: the laminate nodes
+
+A board with two or more layers has copper on both outer faces, so the films act on copper nodes. A one-layer board has copper on the top face only and a laminate of thickness `t_lam = slab − t_cu` under it. With one node, both films acted on that node and the heat reached the bottom face without crossing the laminate (against an independent 3D solver the FVM was 0.9 to 4.4 % low with full copper and 10 % low with a 20 mm pad, `validation.md` section 21). The FVM, FDM and Lumped models now cut the laminate into `n = 2` gaps `g = t_lam/n` (`laminate.py`):
+
+    copper node:     slab t_cu + g/2,   S = f k_cu t_cu + k_ip (t_cu + g/2 − f t_cu),   h_top
+    laminate node j: slab g (the last one g/2),   S = k_ip · slab,   c = ρc_fr4 · slab,   h_bottom on the last
+    between nodes:   G = k_th A / g
+
+the construction of a board whose lower layers carry no copper. The results keep one layer (the copper); the bottom face temperature used for the computed coefficients is that of the last laminate node. Uniform board heated all over: `θ = P / (A (h_top + 1/(1/h_bottom + t_lam/k_th)))`, exactly (`tests/test_laminate.py`). The Analytic model keeps one node and uses that series coefficient as its `h_bottom`. Number of nodes: 1, 2, 3, 4 give −4.1, −2.5, −1.8, −1.5 % on a bare 20 mm pad (FVM against the independent solver) and under 0.3 % with full copper from two on.
+
+![A one-layer board in the layered models, before and after](../research/models-comparison/figures/fig_07_one_layer_laminate_nodes.png)
 
 ### 1.3 Sources and geometry
 
@@ -155,7 +167,7 @@ The heater power goes to the copper slab of its layer with the weights of sectio
 `lumped.py` reduces the FVM network, per heater, to a few unknowns per layer, using the fact that the temperature field of a heater depends mostly on **distance from its footprint**.
 
 **Rings.** The distance `δ(x, y)` of every cell to the footprint is computed (Euclidean distance transform; 0 inside). Ring 0 is the footprint; rings `k = 1..R` hold the cells with `δ ∈ (E_{k−1}, E_k]`, with geometric edges
-`E_k = ρ₁ (ρ_max/ρ₁)^{(k−1)/(R−1)}`, `ρ₁ = min(max(1.5 min(Δx,Δy), 0.04 ρ_max), 0.5 ρ_max)`, `ρ_max = max δ` (rings with no cell are dropped). Any footprint shape and the real board outline are followed; no circular approximation.
+`E_k = ρ₁ (ρ_max/ρ₁)^{(k−1)/(R−1)}`, `ρ₁ = min(max(1.5 min(Δx,Δy), 0.04 ρ_max), 0.5 ρ_max)`, `ρ_max = max δ`; edges closer than one cell, `max(Δx, Δy)`, are merged (`lumped.ring_edges`): a ring thinner than the raster holds a count of cells that does not match its width, so its contour length came out short and its resistance high, and the result grew with the ring count (+3 to +13 % with 40 rings; `validation.md` section 21); rings with no cell are dropped. Any footprint shape and the real board outline are followed; no circular approximation.
 For layer `l` and ring `k` the real cells are aggregated: `S_{l,k}` mean sheet conductance, the sums of `G_amb` by path, of `G_z` (dielectric and vias) and of `C`, and the ring **thickness** `Δ_k` (distance span) and its **contour length** `L_k = (N_k Δx Δy)/Δ_k` (`N_k` cells).
 
 **Lateral resistances** between the area-mean temperatures of consecutive rings (heat crosses the offset contours):
@@ -190,7 +202,7 @@ and the layers decouple by mode into a tridiagonal `L × L` system
 
     A_mn a_mn = q_mn            A_mn = diag(S_l k²_mn + h_l) + g · Λ                    (2)
 
-where `Λ` is the graph Laplacian of the layer chain (`Λ_ll = number of neighbours`, `Λ_{l,l±1} = −1`) and `h_l` the surface coefficient of the layer (zero for inner layers). The **mode (0,0)** is the uniform-board limit `P/(h_tot W H)`: it integrates each layer exactly, so the heat out of the faces is read from it.
+where `Λ` is the graph Laplacian of the layer chain (`Λ_ll = number of neighbours`, `Λ_{l,l±1} = −1`) and `h_l` the surface coefficient of the layer (zero for inner layers; for a one-layer board `h_bottom` is in series with the laminate, `1/(1/h_bottom + t_lam/k_th)`, section 1.4). The **mode (0,0)** is the uniform-board limit `P/(h_tot W H)`: it integrates each layer exactly, so the heat out of the faces is read from it.
 **Source**: the heater is replaced by the axis-aligned rectangle `[x₁,x₂] × [y₁,y₂]` with the same area and centroid (aspect ratio of the bounding box); its cosine coefficients are
 
     q_mn = P · ε_m ε_n · I_x(m) I_y(n) / (W H · area),   ε₀ = 1, ε_{m>0} = 2,   I_x(0) = x₂ − x₁,   I_x(m) = (sin(k x₂) − sin(k x₁))/k,  k = mπ/W

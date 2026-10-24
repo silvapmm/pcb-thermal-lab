@@ -1216,7 +1216,7 @@ class SolverPanel(QWidget):
         self.local = QCheckBox("Local via and heatsink corrections")
         self.hot = _spin(-50, 1000, 100, 1, 5, "°C")
         self.solver.setToolTip("How the finite-volume system is solved: sparse direct (exact, default), conjugate gradients, or SOR (to compare; slow).")
-        self.rings.setToolTip("Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint).")
+        self.rings.setToolTip("Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint). Rings narrower than one cell are merged, so 10 is enough and more change nothing.")
         self.modes.setToolTip("Cosine modes per direction of the analytical series (more modes resolve smaller parts).")
         self.local.setToolTip("Add the local corrections of vias and heatsinks to the analytical series (the Green function of the fin equation around each one).")
         f.addRow("Cell size", cell_row)

@@ -56,3 +56,14 @@ def test_analytic_forces_the_local_corrections_for_a_block_and_the_transients_st
     assert any("local corrections" in w for w in r.warnings)
     with pytest.raises(ValueError, match="metal block"):
         lumped.step_responses(p, cell_mm=2.0)
+
+
+def test_analytic_energy_balance_with_a_block_leaves_out_the_hidden_face():
+    # The a_00 mode counts the whole face; the face under a block does not lose heat to the air, so its share is taken off (the balance was 9 % off)
+    from pcbthermal import Problem, SolverOptions, simulate
+    from pcbthermal.examples import example_block_board
+    one = Problem.new(60, 40, 1).add_zone(1, rect=(10, 10, 50, 30)).add_heater(1, 1.0, rect=(25, 15, 31, 21))
+    one.add_heatsink(1, 10.0, rect=(15, 12, 45, 28), thickness_mm=3.0)
+    for p in (one, example_block_board()):
+        r = simulate(p, SolverOptions(models=("analytic",), cell_mm=1.0)).results["analytic"]
+        assert abs(r.balance_error) < 1e-9

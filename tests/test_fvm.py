@@ -8,7 +8,7 @@ import copy
 import numpy as np
 import pytest
 
-from pcbthermal import fvm
+from pcbthermal import fvm, laminate
 from pcbthermal.model import Heater, Heatsink, Via, reference_problem
 
 
@@ -19,12 +19,14 @@ def test_energy_balance_is_exact():
 
 
 def test_uniform_plate_matches_closed_form():
-    # A heater covering the whole board on a single layer with insulated edges gives a uniform
-    # temperature rise P / ((h_top + h_bottom) * A) exactly
+    # A heater covering the whole board on a single layer with insulated edges gives a uniform rise: the top film on the copper node,
+    # the bottom film in series with the laminate under it (laminate.py), P / (A (h_top + 1 / (1/h_bottom + t_lam / k_through))) exactly
     p = reference_problem(layers=1, heater_mm=100.0, power=10.0)
     p.board.h_side = None
     r = fvm.solve_steady(p, cell_mm=5.0)
-    expected = p.board.ambient + 10.0 / ((p.board.h_top + p.board.h_bottom) * 0.1 * 0.1)
+    b = p.board
+    t_lam = b.thickness - b.copper_thickness[0]
+    expected = b.ambient + 10.0 / ((b.h_top + 1.0 / (1.0 / b.h_bottom + t_lam / b.materials.k_fr4_through)) * 0.1 * 0.1)
     assert r.t_max == pytest.approx(expected, abs=1e-6)
     assert r.t_min == pytest.approx(expected, abs=1e-6)
 
@@ -138,16 +140,18 @@ def test_sor_step_criterion_of_the_original_program_stops_early():
     assert abs(s.balance_error) > 0.05             # and the heat balance is visibly violated
 
 
-def _uniform_slab():
-    # One layer, heater over the whole board, insulated edges: the temperature is uniform, so the
-    # problem reduces to C * dtheta/dt = P - G * theta with an exact exponential solution
+def _uniform_slab(monkeypatch):
+    # One layer, heater over the whole board, insulated edges: the temperature is uniform, so the problem reduces to
+    # C * dtheta/dt = P - G * theta with an exact exponential solution. That closed form is the one of a single node: the laminate nodes of a
+    # one-layer board are switched off, since what is tested here is the time integrator
+    monkeypatch.setattr(laminate, "LAMINATE_NODES", 0)
     p = reference_problem(layers=1, heater_mm=100.0, power=10.0)
     p.board.h_side = None
     return p
 
 
-def test_transient_matches_exact_exponential_and_has_the_right_order():
-    p = _uniform_slab()
+def test_transient_matches_exact_exponential_and_has_the_right_order(monkeypatch):
+    p = _uniform_slab(monkeypatch)
     net = fvm.Network(p, 8, 8, assemble=False)
     C, G, P = net.C.sum(), net.g_amb.sum(), net.Q.sum()
     tau = C / G

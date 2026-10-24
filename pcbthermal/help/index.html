@@ -198,7 +198,7 @@ over the copper it overlaps through the interface resistance (grease or paste 0.
 <tr><td>Models</td><td>Which models to run (section 9). FVM is the reference.</td></tr>
 <tr><td>Cell size (mm)</td><td>Size of the solver cells. Smaller is more accurate and slower; <b>Auto</b> picks a quarter of the smallest part. The number of unknowns is shown. Halve it once to check the result does not change.</td></tr>
 <tr><td>FVM solver</td><td>Sparse direct (exact, default), conjugate gradients, or SOR (slow, kept for comparison).</td></tr>
-<tr><td>Lumped rings</td><td>Number of rings of the thermal network of each heater.</td></tr>
+<tr><td>Lumped rings</td><td>Number of rings of the thermal network of each heater. Rings narrower than one cell are merged, so more rings than the cell size can show change nothing (10 is enough).</td></tr>
 <tr><td>Analytic modes</td><td>Number of cosine modes per direction (more resolve smaller parts).</td></tr>
 <tr><td>Local via and heatsink corrections</td><td>Apply vias and heatsinks locally in the analytical model instead of smearing them.</td></tr>
 <tr><td>Hotspot limit (°C)</td><td>Temperature above which an area is reported as a hotspot.</td></tr>
@@ -210,7 +210,7 @@ over the copper it overlaps through the interface resistance (grease or paste 0.
 They differ in how they solve it.</p>
 <table>
 <tr><th></th><th>FVM (reference)</th><th>FDM</th><th>Lumped network (LPTN)</th><th>Analytic (Fourier series)</th><th>3D solid</th></tr>
-<tr><td><b>What it is</b></td><td>Board cut into cells (finite volumes), one node per layer and cell</td><td>The same equations on grid points (finite differences)</td><td>A small network of resistances per heater, built from the real footprint</td><td>Closed-form solution of a uniform multilayer board with local corrections</td><td>The board as a real 3D solid with every layer and gap as slabs (on a one-layer board, the laminate under the copper as well)</td></tr>
+<tr><td><b>What it is</b></td><td>Board cut into cells (finite volumes), one node per layer and cell (a one-layer board: the copper node and two laminate nodes under it)</td><td>The same equations on grid points (finite differences)</td><td>A small network of resistances per heater, built from the real footprint</td><td>Closed-form solution of a uniform multilayer board with local corrections</td><td>The board as a real 3D solid with every layer and gap as slabs (on a one-layer board, the laminate under the copper as well)</td></tr>
 <tr><td><b>Best for</b></td><td>The number you sign off, any geometry, hotspots, junction temperatures, time behaviour</td><td>Checking the FVM's discretisation</td><td>Fast exploration and sweeps</td><td>Instant answers on near-uniform boards, an independent check</td><td>Checking the "one node per layer" idea on your board (small pads, copper edges, thick blocks)</td></tr>
 <tr><td><b>Time</b></td><td>about 0.1 s to seconds</td><td>similar</td><td>about 10 ms</td><td>about 50 ms</td><td>0.1 to 10 s</td></tr>
 <tr><td><b>Time simulation, animation</b></td><td>yes</td><td>yes</td><td>power profiles yes, animation no</td><td>yes</td><td>no (steady state only)</td></tr>
