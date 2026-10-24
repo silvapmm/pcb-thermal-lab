@@ -22,7 +22,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from . import blocks, laminate
-from .geometry import edge_length_per_cell, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
+from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
 from .results import SteadyResult, TransientResult
 
 # Column ordering of the sparse LU: the thermal matrices are symmetric, and the symmetric minimum-degree ordering gives about half
@@ -116,7 +116,7 @@ class Network:
             self._add_blocks(layers)
         if b.h_side and b.has_outline():
             # Edge of a non-rectangular board: the length of the outline inside every cell times the slab thickness
-            edge = edge_length_per_cell(b.outline, nx, ny, dx, dy) * self.active
+            edge = edge_length_on_board(b.outline, nx, ny, dx, dy, self.active)
             self.g_side[:L] += b.h_side * slab[:, None, None] * edge[None]
         elif b.h_side:
             # Each edge cell exposes a face of (cell edge length) x (slab thickness)
@@ -166,7 +166,7 @@ class Network:
         """
         b = self.problem.board
         if b.has_outline():
-            return edge_length_per_cell(b.outline, self.nx, self.ny, self.dx, self.dy) * self.active
+            return edge_length_on_board(b.outline, self.nx, self.ny, self.dx, self.dy, self.active)
         e = np.zeros((self.ny, self.nx))
         e[:, 0] += self.dy
         e[:, -1] += self.dy
