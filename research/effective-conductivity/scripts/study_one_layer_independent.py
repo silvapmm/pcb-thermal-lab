@@ -1,15 +1,18 @@
 """!
 @file study_one_layer_independent.py
-@brief Does the corrected 3D solid of the program agree with the independent solver on a one-layer board, and how far is the layered node?
+@brief Do the corrected models of the program agree with the independent solver on a one-layer board, and how far were they before the corrections?
 
 @details A review of the models found that the 3D solid had no laminate on a one-layer board (no dielectric gap, so the board was its copper alone); the
          program now builds the laminate of the layered models as four FR-4 slabs under the copper. This study runs a 60 x 60 mm one-layer board with full 35 um
          copper and a 6 x 6 mm part of 1 W, FR-4 isotropic at 0.3 W/mK (so that the independent solver, which has isotropic slabs, represents the same board),
          the film coefficients of a new board (10 W/m2K on the top face, under the part as well, and 15 on the bottom), for board thicknesses of 0.8, 1.6 and
          3.2 mm, in the independent solver (`lib/layered3d.py`), the 3D solid, the FVM and the 3D solid without its laminate (a board whose laminate is 1 um, what
-         it used to see); then the 1.6 mm board with a 20 x 20 mm copper pad instead of full copper (the copper slab of the independent solver is copper in the pad
+         it used to see), the FVM with the laminate nodes switched off (laminate.LAMINATE_NODES = 0 in memory: one node with both films on it, the FVM before
+         the correction of 0ea5f07) and the FDM, Lumped and Analytic models as they are now; then the 1.6 mm board with a 20 x 20 mm copper pad instead of full copper (the copper slab of the independent solver is copper in the pad
          and FR-4 elsewhere, the volume average the 3D solid uses on cells that the pad covers or not), the case where the laminate matters. The metric is the rise
-         of the hottest copper cell. Run: .venv/bin/python research/effective-conductivity/scripts/study_one_layer_independent.py
+         of the hottest copper cell. An earlier version had a column "FVM, laminate in series under the bottom film (candidate)", which typed
+         1 / (1/h + t_lam/k) as the bottom coefficient; once the program has laminate nodes that counts the laminate twice, so it was replaced by the FVM before
+         the correction. Run: .venv/bin/python research/effective-conductivity/scripts/study_one_layer_independent.py
          (from the repository root; about 1 minute).
 """
 
@@ -25,6 +28,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(HERE.parent / "lib"))
 import layered3d as L                                          # noqa: E402
 from pcbthermal import Problem, SolverOptions, simulate        # noqa: E402
+from pcbthermal import laminate                                # noqa: E402
 from pcbthermal.model import Materials                         # noqa: E402
 
 K_FR4, CU, H_TOP, H_BOTTOM, CELL = 0.3, 35e-6, 10.0, 15.0, 0.5
@@ -77,17 +81,19 @@ def program(thickness_mm, model, pad=False):
     return simulate(board(thickness_mm, pad), SolverOptions(models=(model,), cell_mm=CELL)).results[model].t_max - 25.0
 
 
-def program_series_bottom(thickness_mm, pad=False):
+def program_before(thickness_mm, pad=False):
     """!
-    @brief The FVM with the bottom film in series with the laminate (the candidate of INTEGRATION.md 5), imitated by typing the equivalent bottom coefficient.
+    @brief The FVM before the correction of the one-layer boards: the laminate nodes switched off in memory, so the copper node carries the laminate and both films.
     @param thickness_mm Board thickness in mm.
     @param pad True for a 20 x 20 mm copper pad at the centre, False for full copper.
     @return float Rise in K.
     """
-    p = board(thickness_mm, pad)
-    t_lam = thickness_mm * 1e-3 - CU
-    p.board.h_bottom = 1.0 / (1.0 / H_BOTTOM + t_lam / K_FR4)       # film and laminate in series, per unit area
-    return simulate(p, SolverOptions(models=("fvm",), cell_mm=CELL)).results["fvm"].t_max - 25.0
+    saved = laminate.LAMINATE_NODES
+    laminate.LAMINATE_NODES = 0                                    # nodes() returns None: the one-node board of the program before 0ea5f07
+    try:
+        return program(thickness_mm, "fvm", pad)
+    finally:
+        laminate.LAMINATE_NODES = saved
 
 
 def main():
@@ -96,18 +102,20 @@ def main():
     @return None.
     """
     rows = {}
-    print("| copper | board thickness (mm) | independent 3D (K) | 3D solid | FVM | 3D solid without the laminate (before) | FVM, laminate in series under the bottom film (candidate) |")
-    print("| :-- | --: | --: | --: | --: | --: | --: |")
+    others = ("fdm", "lumped", "analytic")
+    print("| copper | board thickness (mm) | independent 3D (K) | 3D solid | 3D solid without the laminate (before) | FVM | FVM before (one node) | " + " | ".join(o.upper() if o == "fdm" else o.capitalize() for o in others) + " |")
+    print("| :-- | --: | --: | --: | --: | --: | --: | " + " | ".join("--:" for _ in others) + " |")
     for pad, ts in ((False, THICKNESSES_MM), (True, (1.6,))):
         for t in ts:
             ref = independent(t, pad)
             s3, fv = program(t, "solid3d", pad), program(t, "fvm", pad)
             old = simulate(board(CU * 1e3 + 0.001, pad), SolverOptions(models=("solid3d",), cell_mm=CELL)).results["solid3d"].t_max - 25.0
-            ser = program_series_bottom(t, pad)
+            fv_old = program_before(t, pad)
+            rest = {o: program(t, o, pad) for o in others}
             label = "20 mm pad" if pad else "full"
-            rows[f"{label} {t:g}"] = {"pad": pad, "thickness_mm": t, "independent": ref, "solid3d": s3, "fvm": fv, "solid3d_before": old, "fvm_series": ser}
-            print(f"| {label} | {t:g} | {ref:.2f} | {s3:.2f} ({100 * (s3 / ref - 1):+.1f} %) | {fv:.2f} ({100 * (fv / ref - 1):+.1f} %) | {old:.2f} ({100 * (old / ref - 1):+.1f} %) "
-                  f"| {ser:.2f} ({100 * (ser / ref - 1):+.1f} %) |", flush=True)
+            rows[f"{label} {t:g}"] = {"pad": pad, "thickness_mm": t, "independent": ref, "solid3d": s3, "solid3d_before": old, "fvm": fv, "fvm_before": fv_old, **rest}
+            cell = lambda v: f"{v:.2f} ({100 * (v / ref - 1):+.1f} %)"
+            print(f"| {label} | {t:g} | {ref:.2f} | {cell(s3)} | {cell(old)} | {cell(fv)} | {cell(fv_old)} | " + " | ".join(cell(rest[o]) for o in others) + " |", flush=True)
     (HERE.parent / "out").mkdir(exist_ok=True)
     (HERE.parent / "out" / "one_layer_independent.json").write_text(json.dumps(rows, indent=1))
 

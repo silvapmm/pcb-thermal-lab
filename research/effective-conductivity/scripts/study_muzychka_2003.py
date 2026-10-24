@@ -5,7 +5,7 @@
          the paper gives the centroid and mean temperature of each source and the mean temperature of the bottom face (84.97, 80.56, 108.43, 101.81, 53.06 C by its solution, the last being the mean of the whole top face: 52.78 C of the bottom face plus Q t / (k A) = 0.28 K; 85.95, 80.20, 109.92, 101.26, 53.06 by the
          Fourier series of Culham and Yovanovich). Case 3: five 20 x 20 mm sources of 5 W in a cross at the centre of a 100 x 100 x 10 mm plate, k = 50 W/mK, h = 50 W/m2K, ambient 25 C: maximum temperature at the centre
          80.61 C and area-weighted mean source temperature 78.87 C. The layered models of the program represent such a plate as one copper layer of 10 mm with the conductivity of the plate on a laminate of 0.01 % of it (thin-plate approximation,
-         Biot number h t / k = 0.01 to 0.1); the thickness of the case-3 plate is then varied from 0.1 to 10 mm to show where one temperature node through the thickness stops being a good idea. Run: .venv/bin/python research/effective-conductivity/scripts/study_muzychka_2003.py (from the repository root; about 2 minutes).
+         Biot number h t / k = 0.01 to 0.1); the thickness of the case-3 plate is then varied from 0.1 to 10 mm to show where one temperature node through the thickness stops being a good idea. Run: .venv/bin/python research/effective-conductivity/scripts/study_muzychka_2003.py [--mesh-check] (from the repository root; about 2 minutes; --mesh-check adds 30 to 50 minutes).
 """
 
 import json
@@ -45,18 +45,19 @@ def centroid_value(field, dx, cx, cy):
     return float(field[j - 1:j + 1, i - 1:i + 1].mean())
 
 
-def independent(case):
+def independent(case, n_sub=6):
     """!
     @brief Source temperatures and base mean by the independent 3D solver.
     @param case Case dictionary.
-    @return dict with centroid, mean (lists, C), base (C, the mean of the bottom face, equal to the ambient plus Q / (h A)), top_mean (C, the mean of the whole top face), the maximum surface temperature,
+    @param n_sub Sub-slabs through the plate.
+    @return dict with centroid, mean (lists, C), area_mean (C, the area-weighted mean source temperature), base (C, the mean of the bottom face, equal to the ambient plus Q / (h A)), top_mean (C, the mean of the whole top face), the maximum surface temperature,
             thick_mean (list, C: the mean over each source of the temperature averaged through the thickness, the quantity one node per layer represents) and gradient (list, K: mean surface
             temperature of each source minus thick_mean) with bound (list, K: q'' t / (2 k), the gradient if all the heat of the source crossed the plate under it).
     """
     n = int(round(case["w"] / case["dx"]))
     rects = [tuple(v * 1e-3 for v in r) for r, _ in case["sources"]]
     pw = [p for _, p in case["sources"]]
-    res = L.solve(case["dx"] * 1e-3, n, n, [(case["t"] * 1e-3, case["k"], 6)], rects, pw, 0.0, case["h"])
+    res = L.solve(case["dx"] * 1e-3, n, n, [(case["t"] * 1e-3, case["k"], n_sub)], rects, pw, 0.0, case["h"])
     cen = [AMB + centroid_value(res["surface_top"], case["dx"], (r[0] + r[2]) / 2 * 1e3, (r[1] + r[3]) / 2 * 1e3) for r in rects]
     dz = np.asarray(res["dz"])
     tbar = (res["T"] * dz[:, None, None]).sum(axis=0) / dz.sum()          # temperature averaged through the thickness
@@ -65,7 +66,9 @@ def independent(case):
     thick = [float(tbar[m].mean()) for m in masks]
     grad = [d["mean"] - t for d, t in zip(res["per_source"], thick)]
     bound = [p / ((r[2] - r[0]) * (r[3] - r[1])) * case["t"] * 1e-3 / (2 * case["k"]) for r, p in zip(rects, pw)]
-    return {"centroid": cen, "mean": [AMB + d["mean"] for d in res["per_source"]], "base": AMB + res["mean_wall"], "top_mean": AMB + res["top_surface_mean"], "max": AMB + float(res["surface_top"].max()),
+    areas = [(r[2] - r[0]) * (r[3] - r[1]) for r in rects]
+    area_mean = AMB + sum(a * d["mean"] for a, d in zip(areas, res["per_source"])) / sum(areas)   # the area-weighted mean source temperature of the paper's case 3
+    return {"centroid": cen, "mean": [AMB + d["mean"] for d in res["per_source"]], "area_mean": area_mean, "base": AMB + res["mean_wall"], "top_mean": AMB + res["top_surface_mean"], "max": AMB + float(res["surface_top"].max()),
             "thick_mean": [AMB + t for t in thick], "gradient": grad, "bound": bound}
 
 
@@ -125,9 +128,28 @@ def thickness_sweep(thicknesses=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0), models=("fvm", 
     return out
 
 
+def mesh_check():
+    """!
+    @brief The independent solver on both cases with the cells halved and twice the sub-slabs, and the film test of the node: the FVM with the film in series with half the plate, 1 / (1/h + t / (2 k)).
+    @details Case 1a on 1.25 mm cells with 12 sub-slabs takes most of the 30 to 50 minutes; run with --mesh-check.
+    @return dict case -> {"fine": independent() on the fine mesh, "fvm_half_plate": program() with the film in series with half the plate}.
+    """
+    out = {}
+    for name, (dx, cell) in (("1a", (1.25, 2.5)), ("3", (0.5, 1.0))):
+        case = CASES[name]
+        fine = independent(dict(case, dx=dx), n_sub=12)
+        h_half = 1.0 / (1.0 / case["h"] + case["t"] * 1e-3 / (2.0 * case["k"]))
+        half = program(dict(case, h=h_half), "fvm", cell)
+        out[name] = {"fine": fine, "fvm_half_plate": half}
+        print(f"  case {name}, cells {dx:g} mm and 12 sub-slabs: centroid {np.round(fine['centroid'], 2).tolist()[:2]}, mean {np.round(fine['mean'], 2).tolist()[:2]}, "
+              f"max {fine['max']:.2f}, area-weighted mean {fine['area_mean']:.2f}; FVM with the film in series with half the plate: mean {np.round(half['mean'], 2).tolist()[:2]} "
+              f"against the 3D thickness mean {np.round(fine['thick_mean'], 2).tolist()[:2]}", flush=True)
+    return out
+
+
 def main():
     """!
-    @brief Print both cases and write out/muzychka_2003.json for the figures.
+    @brief Print both cases and write out/muzychka_2003.json for the figures (with --mesh-check, also the mesh check and the film test of the node).
     @return None.
     """
     out = {}
@@ -135,7 +157,7 @@ def main():
         ind = independent(case)
         out[name] = {"paper": case["paper"], "independent": ind, "program": {}}
         print(f"\nCase {name}: paper {case['paper']}")
-        print(f"  independent 3D solver: centroid {np.round(ind['centroid'], 2).tolist()}, mean {np.round(ind['mean'], 2).tolist()}, bottom mean {ind['base']:.2f}, top-face mean {ind['top_mean']:.2f}, max {ind['max']:.2f}")
+        print(f"  independent 3D solver: centroid {np.round(ind['centroid'], 2).tolist()}, mean {np.round(ind['mean'], 2).tolist()}, bottom mean {ind['base']:.2f}, top-face mean {ind['top_mean']:.2f}, max {ind['max']:.2f}, area-weighted mean source temperature {ind['area_mean']:.2f}")
         print(f"  through-thickness mean over each source {np.round(ind['thick_mean'], 2).tolist()}; surface minus that mean {np.round(ind['gradient'], 2).tolist()} K against q'' t / (2 k) {np.round(ind['bound'], 2).tolist()} K")
         for m in MODELS:
             r = program(case, m, 2.5 if name == "1a" else 1.0)
@@ -144,6 +166,9 @@ def main():
                 print(f"  {m}: centroid {np.round(r['centroid'], 2).tolist()}, mean {np.round(r['mean'], 2).tolist()}, max {r['max']:.2f}", flush=True)
     print("\nCase 3 plate, growing thickness (rise of the centre of the cross):")
     out["thickness"] = thickness_sweep()
+    if "--mesh-check" in sys.argv:
+        print("\nMesh check of the independent solver, and the film of the node in series with half the plate:")
+        out["mesh_check"] = mesh_check()
     (HERE.parent / "out").mkdir(exist_ok=True)
     (HERE.parent / "out" / "muzychka_2003.json").write_text(json.dumps(out, indent=1, default=float))
 

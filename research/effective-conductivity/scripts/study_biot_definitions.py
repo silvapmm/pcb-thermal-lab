@@ -5,7 +5,7 @@
          Theories tested here, each by recomputing the effective conductivity of the same laminate: (A) mean wall temperature over the free top face and the bottom (the definition used elsewhere in this folder);
          (B) over the bottom only; (C) over the free top face only; (D) weighted by the heat flux; (E) the ambient (an ideal sink); and the variant with the film on the bottom face only. The mechanism is shown
          by comparing the solid-body resistance of the laminate with the series resistance of the stack under the footprint of the source, `sum t_i / (k_i A_source)`, which is what the heat meets when
-         the films are so strong that it does not need to spread.
+         the films are so strong that it does not need to spread; and repeats h = 1000 W/m2K on three cell sizes (the fall is not a mesh effect).
          Run: .venv/bin/python research/effective-conductivity/scripts/study_biot_definitions.py (from the repository root; about 3 minutes).
 """
 
@@ -101,6 +101,16 @@ def plateau_check(h=1e4, k_plateau=4.8, dx=1.25e-3, n=40, power=2.5):
     return {"top_fr4_bound": t1 / (k1 * a_src), "sideways_escape": 1.0 / (k1 * 4 * 25e-3), "laminate": lam, "plateau_layer": plateau, "h": h}
 
 
+def mesh_check(h=1e3, cells=((2.5e-3, 20), (1.25e-3, 40), (0.625e-3, 80))):
+    """!
+    @brief The effective conductivity at a high film coefficient on three cell sizes (definition A), to show that the fall above Bi 60 is not a mesh effect.
+    @param h Film coefficient in W/m2K.
+    @param cells Tuples (cell size in m, cells per side) covering the 50 mm coupon.
+    @return list of (cell size in mm, effective conductivity in W/mK).
+    """
+    return [(dx * 1e3, keff(cu.LAYERS[3], h, h, MODES[0], dx=dx, n=n)[0]) for dx, n in cells]
+
+
 def main():
     """!
     @brief Print the tables and write out/biot_definitions.json for the figures.
@@ -115,6 +125,9 @@ def main():
           f"{pc['top_fr4_bound'] / pc['plateau_layer']:.1f} times below the bound")
     hs = (0.1, 1.0, 10.0, 100.0, 1e3, 1e4, 1e5)
     out = {"series_under_source": series, "h": list(hs), "modes": {}, "bottom_only_film": [], "R_solid": [], "plateau_check": pc}
+    mc = mesh_check()
+    out["mesh_check"] = mc
+    print(f"Mesh check at h = 1000 W/m2K (definition A): " + ", ".join(f"{k:.2f} W/mK with {d:g} mm cells" for d, k in mc))
     print(f"Series resistance of the stack under the footprint of the source: {series:.2f} K/W")
     print("| h (W/m2K) | Bi = h L / k1 | " + " | ".join(MODES) + " | film on the bottom only | R_solid (A) (K/W) |")
     print("| --: | --: | " + " | ".join("--:" for _ in MODES) + " | --: | --: |")

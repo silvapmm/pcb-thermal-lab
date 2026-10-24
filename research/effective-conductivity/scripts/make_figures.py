@@ -346,7 +346,7 @@ def channel(ch):
 
 def one_layer(ol):
     """!
-    @brief The one-layer board: a sketch of the board with the pad and the slabs, and the rise in the independent solver, the 3D solid before and after the correction, and the FVM.
+    @brief The one-layer board: a sketch of the board with the pad and the slabs, and the rise in the independent solver, the 3D solid and the FVM before and after the corrections.
     @param ol Content of one_layer_independent.json.
     @return None.
     """
@@ -366,20 +366,21 @@ def one_layer(ol):
     ax.text(5, 1.0, "laminate: FR-4 1.565 mm, 0.3 W/mK (4 slabs in the 3D solid, 8 in the solver)", ha="center", fontsize=7.5)
     ax.annotate("", xy=(5, 1.45), xytext=(5, 3.15), arrowprops=dict(arrowstyle="->", color="#dc2626"))
     ax.annotate("", xy=(1.0, 2.6), xytext=(3.6, 3.1), arrowprops=dict(arrowstyle="->", color="#dc2626"))
-    ax.text(5, 0.4, "bottom face: film of 15 W/m2K through the laminate", ha="center", fontsize=7.5)
+    ax.text(5, 0.4, "bottom face: film of 15 W/m2K under the laminate", ha="center", fontsize=7.5)
     ax.set_title("The one-layer board of the check (not to scale)", fontsize=9)
     keys = list(ol)
     x = np.arange(len(keys))
     for k, (name, col, lab) in enumerate((("independent", C["this"], "independent 3D solver"), ("solid3d", C["solid3d"], "3D solid (corrected)"),
-                                         ("solid3d_before", "#fecaca", "3D solid before (no laminate)"), ("fvm", C["fvm"], "FVM (one node)"),
-                                         ("fvm_series", "#9ca3af", "FVM, laminate in series under the bottom film (candidate)"))):
+                                         ("solid3d_before", "#fecaca", "3D solid before (no laminate)"), ("fvm", C["fvm"], "FVM (two laminate nodes, corrected)"),
+                                         ("fvm_before", "#9ca3af", "FVM before (one node, both films on it)"))):
         axs[1].bar(x + (k - 2) * 0.16, [ol[c][name] for c in keys], 0.16, color=col, ec="#dc2626" if name == "solid3d_before" else None, label=lab)
     axs[1].set_xticks(x)
     axs[1].set_xticklabels([("20 mm pad, " if ol[c]["pad"] else "full copper, ") + f"{ol[c]['thickness_mm']:g} mm" for c in keys], fontsize=8)
     axs[1].set_ylabel("rise of the hottest copper cell (K)")
     pad = next(c for c in keys if ol[c]["pad"])
     axs[1].set_title(f"With the pad the laminate matters: corrected {100 * (ol[pad]['solid3d'] / ol[pad]['independent'] - 1):+.1f} %, "
-                     f"before {100 * (ol[pad]['solid3d_before'] / ol[pad]['independent'] - 1):+.0f} %, FVM {100 * (ol[pad]['fvm'] / ol[pad]['independent'] - 1):+.0f} %", fontsize=9)
+                     f"before {100 * (ol[pad]['solid3d_before'] / ol[pad]['independent'] - 1):+.0f} %; FVM {100 * (ol[pad]['fvm'] / ol[pad]['independent'] - 1):+.1f} %, "
+                     f"before {100 * (ol[pad]['fvm_before'] / ol[pad]['independent'] - 1):+.0f} %", fontsize=9)
     axs[1].legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(FIG / "fig_17_one_layer_independent.png", dpi=110)
@@ -388,7 +389,7 @@ def one_layer(ol):
 
 def main():
     """!
-    @brief Draw the ten data figures.
+    @brief Draw the eleven data figures.
     @return None.
     """
     FIG.mkdir(parents=True, exist_ok=True)

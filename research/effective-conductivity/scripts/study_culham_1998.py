@@ -4,9 +4,9 @@
 @details The coupon is a 50 x 50 mm block of five layers (FR4 0.5263 mm, copper 0.0356 mm), a concentric 25 x 25 mm source of 2.5 W on the top face (the rest of the top face and the bottom face convect
          with h = 5 W/m2K, the sides are insulated). The paper replaces the laminate by a single layer of the same thickness and boundary conditions whose solid-body resistance
          (mean source temperature minus mean wall temperature, over the power) is the same, and calls its conductivity the effective conductivity. Studies: A the order of the layers (the five cases of
-         the paper's Table 2), B the relative size of the source (epsilon = source area / board area), C the source position, D the film coefficient (Biot number), and the series and parallel limits.
+         the paper's Table 2), B the relative size of the source (epsilon = source area / board area), C the source position, D the film coefficient (Biot number), and the series and parallel limits; and the base case with the stack thinned to the 1.62 mm the text states.
          The reference values are those printed in the text (15.02, 5.00, 8.28, +42 %, +67 %, 17.62, 0.42, 9.02, 2.71, 0.82) or read from the plotted points of the figures (marked "plot", about +-0.5 W/mK).
-         Run: .venv/bin/python research/effective-conductivity/scripts/study_culham_1998.py (from the repository root; about 5 minutes).
+         Run: .venv/bin/python research/effective-conductivity/scripts/study_culham_1998.py [--mesh-check] (from the repository root; about 15 minutes, 2 more with --mesh-check).
 """
 
 import json
@@ -75,6 +75,35 @@ def centred(side):
     return (c - side / 2, c - side / 2, c + side / 2, c + side / 2)
 
 
+def thickness_check(total=1.62e-3):
+    """!
+    @brief The base case (FR4-Cu-FR4-Cu-FR4) with the three FR4 layers thinned so that the stack has the 1.62 mm of the paper's text instead of the 1.6501 mm its layers add to.
+    @param total Total thickness in m.
+    @return tuple (FR4 layer thickness in m, effective conductivity in W/mK).
+    """
+    fr4 = (total - 2 * CU[0]) / 3
+    layers = [(fr4, FR4[1]) if k < 100 else (t, k) for t, k in LAYERS[3]]
+    return fr4, effective(layers, centred(25e-3))[0]
+
+
+def mesh_check(cells=(2.5e-3, 1.25e-3, 0.625e-3, 0.5e-3)):
+    """!
+    @brief The effective conductivity of the base case on several cell sizes, to show that the steady shortfall against the paper is not a mesh effect.
+    @param cells Cell sizes in m (the 25 mm source edges must fall on cell edges).
+    @return list of (cell size in mm, effective conductivity in W/mK).
+    """
+    global DX, N
+    saved = DX, N
+    out = []
+    try:
+        for dx in cells:
+            DX, N = dx, int(round(50e-3 / dx))
+            out.append((dx * 1e3, effective(LAYERS[3], centred(25e-3))[0]))
+    finally:
+        DX, N = saved
+    return out
+
+
 def main():
     """!
     @brief Run the studies, print the tables and write out/culham_1998.json for the figures.
@@ -122,6 +151,14 @@ def main():
         ref, how = BIOT[h]
         out["biot"][h] = {"Bi": bi, "k_eff": ke, "paper": ref, "how": how}
         print(f"| {h:g} | {bi:.3g} | {ke:.2f} | {ref} | {100 * (ke / ref - 1):+.1f} % |", flush=True)
+    fr4, ke = thickness_check()
+    out["thickness_check"] = {"fr4_mm": fr4 * 1e3, "k_eff": ke}
+    print(f"\nBase case with the stack thinned to the 1.62 mm of the text (FR4 layers of {fr4 * 1e3:.4f} mm): {ke:.2f} W/mK, "
+          f"{100 * (ke / 8.28 - 1):+.1f} % from the paper's 8.28 (1.6501 mm: {out['sizes'][0.25]['k_eff']:.2f})")
+    if "--mesh-check" in sys.argv:
+        mc = mesh_check()
+        out["mesh_check"] = mc
+        print("Base case on several cell sizes: " + ", ".join(f"{k:.2f} W/mK with {d:g} mm cells" for d, k in mc))
     (HERE.parent / "out").mkdir(exist_ok=True)
     (HERE.parent / "out" / "culham_1998.json").write_text(json.dumps(out, indent=1))
 
