@@ -363,15 +363,15 @@ Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) m
 
 | Outline | Parts | Area ratio | FVM Tmax | bounding box | same area (used) | 1.1 × box |
 | :-- | :-- | --: | --: | --: | --: | --: |
-| ellipse | example | 0.783 | 90.8 | -9.3 / -9.3 | -1.9 / +0.4 | -16.3 / -15.1 |
+| ellipse | example | 0.783 | 90.8 | -9.3 / -9.3 | -1.8 / +0.5 | -16.2 / -15.0 |
 | ellipse | centre | 0.783 | 114.3 | -7.4 / -5.8 | +0.9 / +2.9 | -9.9 / -11.5 |
-| ellipse | off-centre | 0.783 | 104.4 | -10.4 / -8.8 | -2.0 / -0.6 | -15.8 / -13.9 |
-| ellipse | near the edge | 0.783 | 119.7 | -16.5 / -14.0 | -10.2 / -5.8 | -21.2 / -19.3 |
-| L | near the edge | 0.750 | 115.8 | -12.9 / -10.3 | -6.2 / +0.1 | -17.8 / -15.8 |
+| ellipse | off-centre | 0.783 | 104.4 | -10.4 / -8.7 | -2.0 / -0.6 | -15.7 / -13.8 |
+| ellipse | near the edge | 0.783 | 119.7 | -16.4 / -14.0 | -10.1 / -5.7 | -21.2 / -19.2 |
+| L | near the edge | 0.750 | 115.6 | -12.7 / -10.1 | -6.0 / +0.3 | -17.7 / -15.6 |
 | T | example | 0.667 | 109.1 | -29.0 / -29.0 | -17.8 / -16.0 | -34.5 / -33.5 |
-| T | centre | 0.667 | 123.4 | -16.0 / -14.5 | +0.0 / -0.4 | -18.2 / -19.7 |
+| T | centre | 0.667 | 123.4 | -15.9 / -14.5 | -1.7 / -0.4 | -18.2 / -19.7 |
 | chamfer | example | 0.964 | 86.4 | -2.9 / -2.9 | -2.8 / -1.8 | -10.3 / -9.1 |
-| chamfer | centre | 0.964 | 110.1 | -2.9 / -1.2 | -3.5 / +0.4 | -5.5 / -7.2 |
+| chamfer | centre | 0.964 | 110.1 | -2.9 / -1.2 | -3.4 / +0.4 | -5.5 / -7.2 |
 | chamfer | off-centre | 0.964 | 99.1 | -3.9 / -2.1 | -4.8 / -0.8 | -9.6 / -7.6 |
 | chamfer | near the edge | 0.964 | 112.6 | -9.6 / -7.0 | -9.7 / -5.7 | -14.8 / -12.7 |
 | rounded | example | 0.984 | 86.1 | -2.3 / -2.3 | -3.0 / -2.0 | -9.8 / -8.5 |
@@ -381,6 +381,7 @@ Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) m
 
 * Enlarging the box (the idea of growing outwards) is the worst choice in every row: more area means more convection, so the board runs 10 to 20 % too cool. Shrinking to the same area is the best on average, and the error is always on the cool side.
 * For a strongly cut shape (ellipse, L, T; area ratio below 0.8) the bounding box ignores 20 to 33 % of the board and is 6 to 29 % cool; the same-area rectangle brings parts away from the edge to within 0.2 to 3 %.
+* Edge of the outline (2026-10-24): the FVM reference used to drop part of the edge loss in two ways, a side lying exactly on a grid line (a T of 60 mm counted 170 of 240 mm of perimeter) and the slivers of board that a slanted or curved side leaves in cells taken as off the board (2 to 6 % of the perimeter of a disc, an ellipse or a turned square, at every cell size). With both corrected (`geometry.edge_length_per_cell`, `geometry.edge_length_on_board`) the L row moves (reference 115.8 to 115.6 °C, errors -6.2 / +0.1 to -6.0 / +0.3) and the ellipse rows move by at most 0.1 point; the T, chamfer and rounded rows do not change. The T centre and chamfer centre entries were also refreshed to what the study prints now (they were left over from before the Lumped ring correction, not from this change). Checks against independent references (`tests/test_outline.py`): the edge length counted by the FVM and the FDM equals the perimeter of the polygon within 0.1 % for a rectangle, an L, a T and its mirror image, squares turned by 3 to 45 degrees, a disc and an ellipse; the round board of 80 mm with an edge film of 100 W/m²K (the radial solution of `research/outline/scripts/study_disc_reference.py`, 2000 rings) had an FVM time constant of 85.23 s against 84.51 s in closed form and a board mean rise 0.64 % high, now 84.52 s and 0.02 % (the FDM, never affected, 0.03 %); a 40 mm square turned by 3 degrees (edge film 100 W/m²K, 1 mm cells) read 0.98 K hotter than the same square on the grid (rise about 62 K), now 0.09 K.
 * Where it fails: a part near the edge of the real board or in the arm of a T has less board to spread into than the scaled rectangle gives it (10 to 18 % cool). For nearly rectangular outlines (chamfer, rounded: area ratio above 0.95) the three boxes differ by a few percent either way and the same-area box is not better than the bounding box (lumped 3 to 5 % cool). Scaling about the area centroid of the outline instead of the box centre gave no consistent gain (tried, not kept).
 * Not covered: parts in the cut region (they are off the board), holes, outlines with more than one lobe, and the time simulation (not available for these two models on an outline).
 
@@ -512,11 +513,11 @@ A review of the models (the code read against `theory.md`) found two defects and
 | board | τ, pin counted (before) | τ (now) |
 | :-- | --: | --: |
 | square 60 × 60 mm | 106.99 s | 107.0 s |
-| round, 59.8 mm across | 0.02 s | 107.1 s |
+| round, 59.8 mm across | 0.02 s | 107.0 s |
 
-On the round board the step response now ends at 1071 s on the steady resistance (30.464 K/W, FVM and FDM to four digits); with the old length (0.2 s) it ended at 3.670 K/W, 12 % of it, so the average-or-resolve decision of a power profile on such a board saw almost no thermal mass. Tests: `tests/test_outline.py` (`test_time_constant_and_step_responses_leave_out_the_cells_off_the_board`).
+On the round board the step response now ends at 1070 s on the steady resistance (30.452 K/W in the FVM, 30.472 in the FDM, each to four digits); with the old length (0.2 s) it ended at 3.670 K/W, 12 % of it, so the average-or-resolve decision of a power profile on such a board saw almost no thermal mass. Tests: `tests/test_outline.py` (`test_time_constant_and_step_responses_leave_out_the_cells_off_the_board`).
 
-**The transient mean of a board with an outline** counted the cells off the board at the ambient: on the round board at 600 s it read 46.84 °C against 51.71 °C for the board itself; it is now weighted by the board area of every cell (node), like the steady mean (`test_transient_mean_counts_only_the_board`).
+**The transient mean of a board with an outline** counted the cells off the board at the ambient: on the round board at 600 s it read 46.82 °C against 51.68 °C for the board itself; it is now weighted by the board area of every cell (node), like the steady mean (`test_transient_mean_counts_only_the_board`).
 
 **The 3D solid on a one-layer board** built its slabs from the dielectric gaps only, and a one-layer board has none: the board was its 35 µm of copper. It now has the laminate of the layered models (the slab minus the copper, FR-4 of the materials) as four slabs under the copper. `research/solid3d-verification/scripts/study_one_layer_board.py`, 60 × 60 × 1.6 mm, 1 W on 6 × 6 mm, 1 mm cells, maximum temperature in °C:
 

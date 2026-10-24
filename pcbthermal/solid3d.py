@@ -29,7 +29,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .fvm import ORDERING
-from .geometry import coverage_fraction, edge_length_per_cell, nearest_active_cell, polygon_centroid
+from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
 from .results import SteadyResult
 
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
@@ -298,7 +298,7 @@ class Solid:
         # Edges of the board
         if b.h_side and b.has_outline():
             # Non-rectangular board: the outline length inside every cell, through half a cell of the slab's own material
-            edge = edge_length_per_cell(b.outline, nx, ny, dx, dy) * self.active
+            edge = edge_length_on_board(b.outline, nx, ny, dx, dy, self.active)
             on = edge > 0
             for s in range(first_board, last_board + 1):
                 sl = slabs[s]
