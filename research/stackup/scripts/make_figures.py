@@ -5,7 +5,7 @@
 @details The numbers come from running the two studies of this folder and reading the tables they print, so the pictures cannot disagree with them.
          fig_01: maximum temperature of the example board with the program's typical stack-up and the published ones of fabricators;
          fig_02: rise of the hottest point for several stack-ups, in the five models; fig_03: sensitivity of the rise to the stack-up numbers.
-Usage: python research/stackup/scripts/make_figures.py   (from the repository root; about 15 seconds)
+Usage: python research/stackup/scripts/make_figures.py   (from the repository root; about 2 minutes)
 """
 
 import re
@@ -71,7 +71,7 @@ def fig_vendors():
             ax.text(x[2] + 0.1, k, f"{x[2]:.1f}", va="center", fontsize=7)
         ax.set_title(f"{layers} layers", fontsize=10)
         ax.set_xlabel("Tmax of the example board (°C)")
-    fig.suptitle("Program templates (blue) against published fabricator stack-ups: the dielectric split moves Tmax by 0.1 to 1.7 °C; OSH Park (orange) has thicker outer copper", fontsize=10)
+    fig.suptitle("Program templates (blue) against published fabricator stack-ups: the dielectric split moves Tmax by 0.1 to 1.5 °C; OSH Park (orange) has thicker outer copper", fontsize=10)
     fig.tight_layout()
     fig.savefig(OUT / "fig_01_vendor_stackups.png", dpi=110)
     plt.close(fig)

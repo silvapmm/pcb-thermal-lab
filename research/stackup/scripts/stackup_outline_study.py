@@ -117,6 +117,17 @@ def sensitivity():
     for name, f in cases:
         r = run(f)
         print(f"| {name} | {r:.1f} | {100 * (r / base - 1):+.1f} % |", flush=True)
+
+    def run_novias(modify):
+        p = board("same")
+        p.board.apply_template()
+        p.vias = []                                                              # the same board without the nine vias under the part
+        modify(p.board)
+        return rises(p, ("fvm",))["fvm"]
+
+    b0 = run_novias(lambda b: None)
+    lo, hi = run_novias(scale_k(0.7)), run_novias(scale_k(1.3))
+    print(f"\nWithout the vias under the part: base rise {b0:.1f} K; dielectric k through -30 % / +30 %: {100 * (lo / b0 - 1):+.1f} % / {100 * (hi / b0 - 1):+.1f} %")
     d = combine_sheets([{"thickness_um": 105, "material": "FR-4 (standard)"}, {"thickness_um": 105, "material": "FR-4 (standard)"}])
     print(f"\nTwo plies of 105 µm of the same prepreg are one gap of {d.thickness * 1e6:.0f} µm with k through {d.k_through:.2f} W/mK: the plies matter only through their total pressed thickness and, when their materials differ, through the series formula.")
 

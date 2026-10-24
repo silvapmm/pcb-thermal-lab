@@ -85,7 +85,7 @@ def series(ax):
     dk.resistor(ax, 4.2, 7.2, 6, "d_(i+1) / (2 k_(i+1))")
     ax.plot([7.2, 8.0], [6, 6], color="k")
     ax.text(7.8, 6.5, "node i+1", fontsize=8)
-    dk.box(ax, 0.8, 1.9, 10.4, 3.2, "findings: the dielectric conductivity and\nthickness move the temperature by about 1 %,\nthe copper weight by about 5 %;\nequal gaps in the advanced mode agree with\nthe simple mode within 0.1 K;\nan exact 1D series-circuit test checks the chain", "#fbe3c2", size=7.5)
+    dk.box(ax, 0.8, 1.9, 10.4, 3.2, "findings (4 layers, vias): dielectric k ±30 %\nand thickness ±10 % move the rise by about 1 %,\nthe finished copper ±15 % by about 5 %\n(a one-layer pad: k ±30 % moves it 6 to 9 %);\nequal gaps in the advanced mode agree with\nthe simple mode within 0.1 K;\nan exact 1D series-circuit test checks the chain", "#fbe3c2", size=7.5)
     ax.text(6, 0.7, "typical stack-ups by layer count: pcbthermal/data/stackups.json\n(only the 4-layer one is a published fabricator table)", ha="center", fontsize=7, style="italic")
     ax.set_title("3. the vertical chain, and what it was found to matter", fontsize=9)
 
@@ -113,8 +113,8 @@ def stackup_to_scale(path):
     a2.set_xlim(0, 12)
     a2.set_ylim(-0.8, 8.4)
     a2.text(6, 8.1, "what each number is worth (README 2 and 4)", ha="center", fontsize=9, fontweight="bold")
-    items = [("finished outer copper 15 % thinner", 5.7, "+5.7 % of the rise"), ("dielectric conductivity and thickness", 1.0, "about 1 %"),
-             ("another fabricator's dielectric split (upper end)", 1.5, "0.2 to 1.5 % of the rise")]
+    items = [("finished outer copper 15 % thinner", 5.7, "+5.7 % of the rise"), ("dielectric conductivity and thickness (4 layers, vias)", 1.0, "about 1 % (one-layer pad: 6 to 9 %)"),
+             ("another fabricator's dielectric split (upper end)", 1.5, "0.2 to 2.0 % of the rise")]
     for k, (name, v, label) in enumerate(items):
         yy = 6.3 - k * 1.7
         a2.text(0.1, yy + 0.65, name, fontsize=7.5)
