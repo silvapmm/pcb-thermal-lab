@@ -12,20 +12,23 @@ The finite volumes, the finite differences and the 3D solid handle any board out
 * Growing the box outwards (1.1 × the bounding box) is the worst choice everywhere: more area means more convection, so the board runs 10 to 20 % too cool.
 * The bounding box is 6 to 10 % cool on a circle and up to 29 % on a T; the same-area rectangle is within 0.2 to 3 % away from the edge.
 * It fails near the edge of the real board or in the arm of a T (10 to 18 % cool). The program says so in a warning in the Results summary.
+* **A defect found in a later review, now corrected in the program** (4.4): the cells off the board are pinned to ambient with 1 W/K, and that pin was counted in the board time constant, so a round board had 0.02 s instead of 107 s and the step responses of the power profiles stopped at 12 % of the steady resistance.
 
 ## 3. Folder layout
 
 | File | What it is |
 | :-- | :-- |
 | `scripts/outline_rectangle_study.py` | The study: five outlines, four layouts, three rectangles, error of the lumped and analytic models against the FVM on the real shape. |
-| `scripts/make_figures.py` | Draws the three figures. |
-| `figures/` | `fig_01` to `fig_03`. |
+| `scripts/study_outline_time_constant.py` | The time constant, the step response and the transient mean of a round board, with the pin of the off-board cells counted (the old rule) and left out (seconds). |
+| `scripts/make_figures.py` | Draws the four figures. |
+| `figures/` | `fig_01` to `fig_04`. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
 
 ```sh
 .venv/bin/python research/outline/scripts/outline_rectangle_study.py      # prints the table below (several minutes)
+.venv/bin/python research/outline/scripts/study_outline_time_constant.py # section 4.4 (about 20 seconds)
 .venv/bin/python research/outline/scripts/make_figures.py                 # the figures (about 3 minutes)
 ```
 
@@ -75,11 +78,32 @@ The T-shaped board with the parts at the centre (FVM, 1 mm cells, same colour sc
 
 *Figure 2: `figures/fig_02_t_outline_maps.png`.*
 
+### 4.4 The time constant of a board with an outline (a defect, corrected)
+
+The FVM and the FDM keep a cell (node) for every point of the box; the cells off the board carry no heat and are pinned to the ambient with 1 W/K so that the matrix stays regular. The board time constant `τ = ΣC / ΣG` sets the length of the step responses that the power profiles use to decide between the average and the resolved power (ten time constants) and the animation length the application offers (five). The pin was counted in `ΣG`; it is now kept apart (`g_pin`) and left out (`fvm.board_time_constant`). `scripts/study_outline_time_constant.py`, a 60 mm two-layer board with full copper and 2 W on 6 × 6 mm, 2 mm cells:
+
+| board | τ, pin counted (before) | τ (now) |
+| :-- | --: | --: |
+| square 60 × 60 mm | 106.99 s | 107.0 s |
+| round, 59.8 mm across | 0.02 s | 107.1 s |
+
+| step response of the round board | end | steady resistance | end / steady |
+| :-- | --: | --: | --: |
+| FVM, now | 1071 s, 30.464 K/W | 30.464 K/W | 1.0000 |
+| FDM, now | 1070 s, 30.472 K/W | 30.472 K/W | 1.0000 |
+| FVM with the old length (0.2 s) | 3.670 K/W | 30.464 K/W | 0.1205 |
+
+The transient mean counted the cells off the board at the ambient too: at 600 s it read 46.84 °C for the round board against 51.71 °C for the board itself; it is now weighted by the board area of every cell. The square and the round board have the same time constant because heat capacity and loss both scale with the board area. Regression tests in `tests/test_outline.py`.
+
+![The cells off a round board, the time constant with and without their pin, and the step response](figures/fig_04_outline_time_constant.png)
+
+*Figure 4: `figures/fig_04_outline_time_constant.png`: left, the round board on its 2 mm grid (grey cells are off the board and pinned); middle, the time constant of the square and the round board, pin counted and left out; right, the step response of the round board, full length and cut at 0.2 s.*
+
 ## 5. Limits of this study
 
 * One board (the example board), two parts, five outline presets; the numbers are for those layouts, not a guarantee.
 * The reference is the FVM at 1 mm, not a measurement; the FVM, FDM and 3D solid agree on the example board to within about 1 % (`docs/validation.md` section 1), so the choice of reference does not change the ranking.
-* Not covered: parts in the cut region, holes, outlines with several lobes, the time simulation.
+* Not covered: parts in the cut region, holes, outlines with several lobes; the time simulation only through the time constant, the step response and the transient mean of one round board (4.4).
 
 ## 6. Sources
 

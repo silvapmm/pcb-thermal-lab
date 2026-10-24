@@ -3,7 +3,8 @@
 @brief Pictures of the outline study, written to figures/ (committed, linked from the README files).
 
 @details fig_01: the five outline presets with the bounding box and the rectangle of the same area; fig_02: the FVM temperature map on a T-shaped board and
-         on its same-area rectangle; fig_03: the error of the lumped model for the three rectangles on every outline and layout (the table of the README).
+         on its same-area rectangle; fig_03: the error of the lumped model for the three rectangles on every outline and layout (the table of the README); fig_04: the cells off a
+         round board, the board time constant with and without their pin, and the step response that the power profiles use, full length and cut short.
 Usage: python research/outline/scripts/make_figures.py   (from the repository root; about 3 minutes)
 """
 
@@ -22,6 +23,7 @@ sys.path.insert(0, HERE)
 from pcbthermal import SolverOptions, simulate                                   # noqa: E402
 from pcbthermal.geometry import points_in_polygon, polygon_area                  # noqa: E402
 import outline_rectangle_study as st                                             # noqa: E402
+import study_outline_time_constant as tc                                         # noqa: E402
 
 OUT = Path(HERE).parent / "figures"          # kept in the repository on purpose: the README files link to them
 
@@ -106,15 +108,62 @@ def fig_errors():
     plt.close(fig)
 
 
+def fig_time_constant():
+    """!
+    @brief The cells off a round board (pinned to ambient), the time constant with and without the pin, and the step response full length and cut short.
+    @return None.
+    """
+    from pcbthermal import fvm
+    disc, square = tc.board(tc.ROUND), tc.board()
+    net = fvm.Network(disc, 30, 30, assemble=False, with_blocks=False)
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4.4))
+    axs[0].imshow(np.where(net.active, net.cover, np.nan), origin="lower", extent=(0, 60, 0, 60), cmap="Oranges", vmin=0, vmax=1.3)
+    axs[0].imshow(np.where(net.active, np.nan, 1.0), origin="lower", extent=(0, 60, 0, 60), cmap="Greys", vmin=0, vmax=2)
+    for x in np.arange(0, 60.1, 2.0):
+        axs[0].plot([x, x], [0, 60], color="#d1d5db", lw=0.3)
+        axs[0].plot([0, 60], [x, x], color="#d1d5db", lw=0.3)
+    o = np.array(tc.ROUND + [tc.ROUND[0]])
+    axs[0].plot(o[:, 0], o[:, 1], "k-", lw=1.2)
+    axs[0].add_patch(plt.Rectangle((27, 27), 6, 6, fc="#dc2626", ec="k"))
+    axs[0].text(2, 2, "grey: off the board,\npinned to ambient (1 W/K)", fontsize=8)
+    axs[0].set_title("Round board on its 2 mm grid: orange = board cover", fontsize=9)
+    axs[0].set_xlabel("x (mm)")
+    rows = [("square", *tc.time_constants(square)), ("round", *tc.time_constants(disc))]
+    x = np.arange(2)
+    axs[1].bar(x - 0.2, [r[1] for r in rows], 0.4, color="#9ca3af", label="pin counted (before)")
+    axs[1].bar(x + 0.2, [r[2] for r in rows], 0.4, color="#1d4ed8", label="pin left out (now)")
+    for k, r in enumerate(rows):
+        axs[1].text(k - 0.2, r[1] + 2, f"{r[1]:.2f} s", ha="center", fontsize=8)
+        axs[1].text(k + 0.2, r[2] + 2, f"{r[2]:.0f} s", ha="center", fontsize=8)
+    axs[1].set_xticks(x)
+    axs[1].set_xticklabels(["square 60 mm", "round, 59.8 mm"])
+    axs[1].set_ylabel("board time constant C / G (s)")
+    axs[1].set_title("The pin is not a path to the air", fontsize=9)
+    axs[1].legend(fontsize=8)
+    t, z, r = fvm.step_responses(disc, cell_mm=2.0)
+    t0, z0, _ = fvm.step_responses(disc, cell_mm=2.0, t_end=10.0 * rows[1][1])
+    axs[2].semilogx(t, z[0], "-", color="#1d4ed8", label="now: ten time constants")
+    axs[2].semilogx(t0, z0[0], "-", color="#dc2626", lw=2, label="before: cut at 0.2 s")
+    axs[2].axhline(r[0], color="k", ls=":", label=f"steady resistance {r[0]:.1f} K/W")
+    axs[2].set_xlabel("time (s)")
+    axs[2].set_ylabel("rise of the hottest point per watt (K/W)")
+    axs[2].set_title("Step response used by the power profiles (FVM)", fontsize=9)
+    axs[2].legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_04_outline_time_constant.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
-    @brief Make the three figures.
+    @brief Make the four figures.
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
     fig_shapes()
     fig_maps()
     fig_errors()
+    fig_time_constant()
     print("figures in", OUT)
 
 

@@ -199,8 +199,10 @@ class Network:
             self.g_side[:L, 0, :] += b.h_side * wx[None, :] * sl
             self.g_side[:L, -1, :] += b.h_side * wx[None, :] * sl
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
-        if not self.active.all():
-            self.g_amb[:, ~self.active] += 1.0                  # Nodes off the board are pinned to ambient (they carry no heat)
+        # Nodes off the board are pinned to ambient (they carry no heat); the pin is kept apart because it is not a path to the air
+        self.g_pin = np.zeros_like(self.g_amb)
+        self.g_pin[:, ~self.active] = 1.0
+        self.g_amb = self.g_amb + self.g_pin
         rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(self.g_amb.ravel())
         self.K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()
 

@@ -75,3 +75,19 @@ def test_solid3d_in_the_api_and_with_profiles():
     assert "fvm" in prof.profile_results and "solid3d" not in prof.profile_results   # Steady state only
     only = simulate(example_profile_board(), SolverOptions(models=("solid3d",), cell_mm=4.0))
     assert only.profile_error and "steady state only" in only.profile_error
+
+
+def test_a_one_layer_board_keeps_its_laminate():
+    # The 3D solid built no dielectric slab for a one-layer board, so the board was only its copper: a 20 mm pad read 120 degC against about 74
+    p = Problem.new(60.0, 60.0, layers=1, thickness_mm=1.6, copper_um=35)
+    p.add_zone(1, rect=(20, 20, 40, 40))
+    p.add_heater(1, 1.0, rect=(27, 27, 33, 33), name="U")
+    net = solid3d.Solid(p, 1.0)
+    assert sum(sl["kind"] == "fr4" for sl in net.slabs) == 4
+    assert sum(sl["dz"][0, 0] for sl in net.slabs) == pytest.approx(1.6e-3)
+    r, f = solid3d.solve_steady(p, 1.0), fvm.solve_steady(p, 1.0)
+    assert abs(r.balance_error) < 1e-9
+    assert rise_error(r.t_max, f.t_max) < 0.15                            # the laminate under the copper and the bottom face through it: about 10 % above the layered node
+    full = Problem.new(60.0, 60.0, layers=1, thickness_mm=1.6, copper_um=35).add_full_copper()
+    full.add_heater(1, 1.0, rect=(27, 27, 33, 33), name="U")
+    assert rise_error(solid3d.solve_steady(full, 1.0).t_max, fvm.solve_steady(full, 1.0).t_max) < 0.04

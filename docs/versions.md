@@ -10,6 +10,14 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ---
 
+## Unreleased: model corrections after a review
+
+* **Outline boards** (`fvm.py`, `fdm.py`, `lumped.py`): the 1 W/K pin of the cells or nodes off the board is a separate array `g_pin`; `fvm.board_time_constant(net)` (`ΣC / (ΣG_amb − Σg_pin)`) replaces the plain `C.sum() / g_amb.sum()` in `estimate_time_constant`, `step_responses_from_network` (FVM and FDM) and the Lumped step responses; `fvm.mean_weights(net)` gives the board area of every cell (FVM) or node (FDM), used for the transient mean and to keep the off-board cells out of the transient maximum. Tests: `tests/test_outline.py` (time constant and step responses on a round board, transient mean). Study: `research/outline/scripts/study_outline_time_constant.py`.
+* **3D solid, one layer** (`solid3d.py`): a one-layer board gets `n_diel` FR-4 slabs of `slab − copper` under the copper (the laminate of the layered models; vias in parallel as in a gap). Test: `tests/test_solid3d.py` (`test_a_one_layer_board_keeps_its_laminate`). Study: `research/solid3d-verification/scripts/study_one_layer_board.py`.
+* **Part power loop** (`api._solve_with_tc`): a warning when the powers do not settle in 80 iterations. Test: `tests/test_component.py`.
+* **Plate check** (`research/component-heatsink/scripts/block_contact_study.py`): 0.5 mm cells and halves rounded up; documents corrected (`theory.md` sections 7, 8 and 11, `research.md`, `validation.md`).
+* Found and not changed: the Lumped model does not converge with the ring count (`validation.md` section 20, `roadmap.md`).
+
 ## Unreleased: the investigations in `research/`
 
 The studies of `examples/` moved to `research/<topic>/` (eight folders; the Gerber research stays on its own branch), with documents and figures; no change to the program except the case count in a tooltip (62 → 74) and test paths. See `research/INDEX.md`.

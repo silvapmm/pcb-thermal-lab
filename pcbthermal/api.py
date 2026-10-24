@@ -387,7 +387,7 @@ def _solve_with_tc(problem, name, options, computed):
              part of P to the ambient through the top and only the rest enters the board (analysis.part_split). Both are a fixed-point loop around the solve,
              like the computed heat transfer coefficients; the board receives the power that is not taken by the top. Without either it is a plain solve.
              The loop stops when the board powers change by less than 1e-5 (relative), or reports a thermal runaway when the device passes 1500 degC or the
-             power grows 50 times (no stable operating point).
+             power grows 50 times (no stable operating point); after 80 iterations without either it warns that the powers did not settle.
     @param problem A Problem (steady powers; it is not modified).
     @param name Model name.
     @param options SolverOptions.
@@ -409,7 +409,7 @@ def _solve_with_tc(problem, name, options, computed):
     pr = copy.deepcopy(problem)
     totals = list(base)                      # Power dissipated by every part
     board = list(base)                       # Power that enters the board (the total minus the top path)
-    runaway = False
+    runaway, settled = False, False
     for it in range(1, 81):
         for h, pw in zip(pr.heaters, board):
             h.power = pw
@@ -426,12 +426,17 @@ def _solve_with_tc(problem, name, options, computed):
             runaway = runaway or device > 1500.0 or (b > 0 and total > 50.0 * b)
         change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new_board, board)), default=0.0)
         if runaway or change < 1e-5:
+            settled = not runaway
             break                                                   # `totals` still pairs with the board power of the last solve
         totals, board = new_total, new_board
     res.extras["power_tc_iterations"] = float(it)
     res.extras["thermal_runaway"] = float(runaway)
     if runaway:
         res.warnings.append("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)")
+    elif not settled:
+        # Close to runaway the fixed point converges slowly; the result is the last iterate, not the operating point
+        res.warnings.append(f"the powers of the parts did not settle in {it} iterations (last relative change {change:.1e}): "
+                            "the board is close to thermal runaway and the temperatures are underestimated")
     return res, hh, totals
 
 
