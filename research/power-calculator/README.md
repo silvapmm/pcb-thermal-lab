@@ -1,6 +1,6 @@
 # The power calculator: the watts of a part from a measured temperature
 
-Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). The manual of the calculator (formulas, routes, the band) stays in `docs/calculators.md`; this folder holds the studies behind it. Studies: `calculator_validation.py`, `power_from_top_study.py`, `calculator_calibration_study.py`; figures: `make_figures.py`.
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). The manual of the calculator (formulas, routes, the band) stays in `docs/calculators.md`; this folder holds the studies behind it. Studies: `calculator_validation.py`, `power_from_top_study.py`, `calculator_calibration_study.py`, `study_power_band.py`, `study_design_term_coverage.py`; figures: `make_figures.py`.
 
 ## 1. The questions
 
@@ -23,7 +23,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 * On the datasheet's own board the calculator is within 2 to 3 %: CSD17308Q3 46.8 against 46 K/W (−1.7 %), a JEDEC 2s2p exposed-pad QFN with 9 vias 31.6 against 32.5 K/W (+3 %, via array assumed), at 0.5 mm cells. With finer cells the two rows move to −2.3 % and +1.3 % (section 4.5). Part of the CSD17308Q3 agreement is a model error: on that board the FVM's board resistance is 2.4 % below an independent 3D solver (the program's 3D solid is within 0.1 %), so a converged 3D answer would be about 4 % off the datasheet (section 4.6). The JEDEC row depends on how the bottom layer of the test board is read: a 70 µm plane there instead of traces gives +23 % (section 4.5).
 * **The copper dominates the error** when the drawn board is not the real one (−11 to −45 %); heat transfer, θ, ψJT and a 3 K reading error each move the result 5 to 9 %.
 * A datasheet shortcut `P = (T_top − T_amb)/(θJA − ψJT)` is the worst of the routes (+50 / −25 % for θJA 30 % off) and is not offered.
-* A known-power reference removes the copper error but only fits parts whose dissipation can be fixed (not implemented); a two-point fit is badly conditioned (±1 K moves the copper multiplier from 1.05 to 3.9); an uncertainty band (best, nominal, worst) is implemented.
+* A known-power reference removes the copper error but only fits parts whose dissipation can be fixed (not implemented); a two-point fit is badly conditioned (±1 K moves the copper multiplier from 1.05 to 3.9); an uncertainty band (best, nominal, worst) is implemented; with the board-description (design) term of the program (default level *Drawn by hand*) it is wider than the numbers-only band quoted in sections 4.4 and 4.7, and it brings 2 of the 4 badly drawn boards inside (section 4.7).
 
 ## 3. Folder layout
 
@@ -32,7 +32,8 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 | `scripts/calculator_validation.py` | The calculator against two datasheet boards, plus the JEDEC board without vias (about 7 minutes). |
 | `scripts/power_from_top_study.py` | Sensitivity of the power recovered from the top temperature to the board and the data (about 10 seconds). |
 | `scripts/calculator_calibration_study.py` | Known-power reference, two-point fit and the band, on the example board (about 5 minutes; a study, not part of the program). |
-| `scripts/study_power_band.py` | The band of the program (`inverse.power_band`) on the example of `docs/calculators.md` 1.1b, and whether it holds the true power when the drawn board differs (about 5 minutes). |
+| `scripts/study_power_band.py [level]` | The band of the program (`inverse.power_band`) on the example of `docs/calculators.md` 1.1b, and whether it holds the true power when the drawn board differs (about 2 minutes per level; default level `none`, the numbers-only band; `hand` is the default of the program). |
+| `scripts/study_design_term_coverage.py [levels]` | The coverage table of `docs/calculators.md` 1.1c: the four badly drawn boards at the design levels none, cad, hand and estimated, and the example band at every level (about 6 minutes). |
 | `scripts/study_cell_size.py` | The datasheet rows at 1 to 0.25 mm cells, and the JEDEC row with a bottom plane (about 30 minutes). |
 | `scripts/study_independent_datasheet_board.py` | The board resistance of the CSD17308Q3 board in the FVM, the 3D solid and the independent solver of `solid3d-verification/lib/layered3d.py`; the affine-in-power check (about 2 minutes). |
 | `scripts/make_figures.py` | Draws the three figures (runs the first three studies; about 15 minutes). |
@@ -105,7 +106,7 @@ The large deltas of section 4.2 come from one thing: the board resistance `R` (k
 
 * **A. A known-power reference** (best): read the same thermocouple once with the part at a power you know (a dummy load, or the part in a state whose dissipation is known) and scale the model so that it reproduces that reading before looking for the unknown power. It does not need the copper at all, only that the board answers linearly (constant heat transfer; with computed convection a few percent of non-linearity remain, which the model can correct). It survives ±1 K of reading error with ±5 %. This is what the literature does: a heater of known input is used to calibrate the board before the unknown source is estimated (Chen-type inverse heat-transfer methods, ~10 % in the studies found) and resistors of known power calibrate thermal-imaging power estimates (mean error 10 % with consumer cameras above 300 mW).
 * **B. Two measurement points**: two board temperatures at different distances give the power and the copper at once (the fall with distance tells how well the board spreads the heat, the level tells the power). With perfect readings it is exact, but it is **badly conditioned**: ±1 K moves the fitted copper multiplier from 1.05 to 3.9 and the power by ±17 %, because a copper change and a power change look alike at two close points. It is worth it only with good thermocouples and points far enough apart; it is not a substitute for A.
-* **C. An uncertainty band**: run the calculator with the copper and the heat transfer at the ends of their uncertainty and report the range, instead of one number. On the example: copper ×0.75 / ×1.25 gives 1.80 / 2.16 W (−9.8 % / +7.8 %), heat transfer −30 % / +30 % gives 1.69 / 2.24 W (−15 % / +12 %). It does not remove the error but says how big it can be.
+* **C. An uncertainty band**: run the calculator with the copper and the heat transfer at the ends of their uncertainty and report the range, instead of one number. On the example: copper ×0.75 / ×1.25 gives 1.80 / 2.16 W (−9.8 % / +7.8 %), heat transfer −30 % / +30 % gives 1.69 / 2.24 W (−15 % / +12 %). It does not remove the error but says how big it can be. (These two lines are the copper and the heat transfer terms alone; the band of the program also has θ, ψJT, the reading and, by default, the design terms of section 4.7. This study was re-run on the current program and prints the same numbers.)
 * **D. Measure the right thing**: an electrical temperature-sensitive parameter of the junction (the diode forward voltage at a low sensing current, calibrated with the K-factor of JESD51-1) gives Tj without θ and ψ; a black paint of known emissivity on the case makes an infrared reading usable; a thermocouple touching the board disturbs the field, so its contact resistance matters. These remove errors of the *measurement*, not of the board.
 * **E. Know the board better**: weigh or measure the copper (area and thickness of every layer), count the vias, take the stack-up from the fabricator, and measure `h` with a part of known power (that is A again).
 
@@ -154,7 +155,7 @@ With the program's FR-4 (0.3 through, 0.9 in-plane) the FVM gives 47.2 K/W and t
 
 ### 4.7 The band of the program and whether it holds the true power (`scripts/study_power_band.py`, review of 2026-10-24)
 
-The example table of `docs/calculators.md` 1.1b (U1 at 2 W, θ 6, ψJT 2, default uncertainties: copper 25 %, heat transfer 30 %, θ 20 %, ψJT 30 %, reading 1 K) is printed by this script and reproduced to the last digit: board ring 2.00 / 1.62 / 2.31 W, top of the package 2.00 / 1.69 / 2.27 W (nominal / best / worst). Computed on a drawn board that differs from the real one (top of the package):
+The example table of `docs/calculators.md` 1.1b (U1 at 2 W, θ 6, ψJT 2, default uncertainties: copper 25 %, heat transfer 30 %, θ 20 %, ψJT 30 %, reading 1 K) is printed by this script (`study_power_band.py none`, the band without the design term) and reproduced to the last digit: board ring 2.00 / 1.62 / 2.31 W, top of the package 2.00 / 1.69 / 2.27 W (nominal / best / worst). The numbers of this subsection up to the next paragraph are **without** the design term (level `none`); re-run on the current program (with the edge, 3D limit and inner-copper changes) level `none` prints exactly the same digits as quoted here, for both parts. Computed on a drawn board that differs from the real one (top of the package):
 
 | Drawn board | nominal (W) | best (W) | worst (W) | true 2 W inside |
 | :-- | --: | --: | --: | :-- |
@@ -164,6 +165,27 @@ The example table of `docs/calculators.md` 1.1b (U1 at 2 W, θ 6, ψJT 2, defaul
 | no inner planes | 1.312 | 1.109 | 1.484 | no |
 
 The band covers the uncertainty of numbers (copper thickness ±25 %, h ±30 %, θ, ψJT, reading); it does not cover a drawing error (a plane or a pad that is missing, copper half the real thickness): in three of four cases the true power is above the worst case. `docs/calculators.md` 1.1b says "use the worst case for margins"; that holds only when the board is drawn right.
+
+**With the design term** (`inverse.power_band`, `docs/calculators.md` 1.1c; `study_design_term_coverage.py`, 1 mm cells, true 2 W, power recovered at the top of the package; best to worst case in W):
+
+| Drawn board | nominal | none (numbers only) | cad (fabrication files) | hand (program default) | estimated |
+| :-- | --: | :-- | :-- | :-- | :-- |
+| top copper half filled (hatched) | 1.735 | 1.474–1.956 out | 1.462–1.967 out | 1.396–2.012 **in** (0.012 W from the edge) | 1.177–2.113 **in** |
+| copper 17.5 µm instead of 35 µm | 1.519 | 1.288–1.715 out | 1.275–1.725 out | 1.207–1.766 out | 0.999–1.858 out |
+| no vias under the part | 1.780 | 1.505–2.014 in | 1.492–2.024 in | 1.422–2.064 in | 1.196–2.157 in |
+| no inner planes | 1.312 | 1.109–1.484 out | 1.096–1.531 out | 1.029–1.646 out | 0.831–1.818 out |
+| **cases inside** | | 1 of 4 | 1 of 4 | 2 of 4 | 2 of 4 |
+
+The example band (drawn board = real board, nominal / best / worst in W) at every level:
+
+| Measured at | none | cad | hand (default) | estimated |
+| :-- | :-- | :-- | :-- | :-- |
+| board ring | 2.00 / 1.62 / 2.31 | 2.00 / 1.61 / 2.32 | 2.00 / 1.56 / 2.34 | 2.00 / 1.37 / 2.41 |
+| top of the package | 2.00 / 1.69 / 2.27 | 2.00 / 1.67 / 2.28 | 2.00 / 1.60 / 2.31 | 2.00 / 1.36 / 2.40 |
+
+* The default level changes every band quoted before: the ring band 1.62–2.31 W becomes 1.56–2.34 W and the top band 1.69–2.27 W becomes 1.60–2.31 W (the values printed by the program review are reproduced: ring 2.00 / 1.56 / 2.34, top 2.00 / 1.60 / 2.31). The best case falls by 0.06 to 0.09 W, the worst case rises by 0.03 to 0.04 W; the nominal never moves. At `hand` the design terms at the top add: coverage 1.90–2.00, copper weight 1.79–2.16, inner planes 1.94–2.00, vias 1.97–2.02 W (this equals `docs/calculators.md` 1.1b).
+* The design term brings the hatched pad inside the band at `hand` (by 0.012 W) and `estimated`, not at `cad`; the missing vias are inside at every level (the band without the term was already wide enough, and no via is drawn, so the vias term is not run); the half-weight copper and the missing planes stay outside even at `estimated` (worst case 1.86 and 1.82 W against 2 W). The coverage table of `docs/calculators.md` 1.1c is reproduced to the last digit in the columns none, hand and estimated; the column cad is new here.
+* The two out-of-band cases are errors of +100 % of copper or a full plane, larger than the amplitudes of the levels (50 % at `estimated`, assumed, not fitted); the result is a statement about those amplitudes, not a measurement of how often designers draw this wrong.
 
 ## 5. Limits
 

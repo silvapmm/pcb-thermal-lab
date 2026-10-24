@@ -7,7 +7,9 @@
          numbers of the example table in docs/calculators.md 1.1b. Part 2 draws boards that differ from the real one (the cases of power_from_top_study.py) and says
          whether the true 2 W falls inside the band computed on the drawn board, i.e. whether the band is wide enough for the board errors a designer really makes.
 
-Usage: .venv/bin/python research/power-calculator/scripts/study_power_band.py   (from the repository root; about 2 minutes)
+Usage: .venv/bin/python research/power-calculator/scripts/study_power_band.py [level]   (from the repository root; about 2 minutes per level)
+         level is the design level of the band (none, cad, hand, estimated); the default is none, the band as it was before the design-uncertainty term, whose numbers
+         are those of the README section 4.7. The coverage with the design term at every level is study_design_term_coverage.py.
 """
 
 import copy
@@ -39,6 +41,9 @@ def main():
     @brief Print the band table and the coverage table.
     @return None.
     """
+    level = sys.argv[1] if len(sys.argv) > 1 else "none"                  # The design level of the band (none = numbers only)
+    unc = {"design_level": level}
+    print(f"Design level: {level}\n")
     real = top.true_board()
     res = simulate(real, SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
     row = heater_stats(res, real)[0]
@@ -46,8 +51,8 @@ def main():
     print("Part 1: the band on the drawn board = the real board (default uncertainties of the program)\n")
     print("| Measured at | nominal | best case | worst case | what each source moves (W) |")
     print("| :-- | --: | --: | --: | :-- |")
-    print(f"| board ring | {describe(power_band(real, 0, t_ring, point='ring', cell_mm=1.0))} |", flush=True)
-    print(f"| top of the package | {describe(power_band(real, 0, t_top, point='top', cell_mm=1.0, psi_jt=top.PSI_JT))} |", flush=True)
+    print(f"| board ring | {describe(power_band(real, 0, t_ring, point='ring', cell_mm=1.0, uncertainty=unc))} |", flush=True)
+    print(f"| top of the package | {describe(power_band(real, 0, t_top, point='top', cell_mm=1.0, psi_jt=top.PSI_JT, uncertainty=unc))} |", flush=True)
 
     print("\nPart 2: is the true 2 W inside the band computed on a drawn board that differs from the real one? (top of the package)\n")
     print("| Drawn board | nominal (W) | best (W) | worst (W) | 2 W inside |")
@@ -58,7 +63,7 @@ def main():
     d = copy.deepcopy(real); d.vias = []; cases["no vias under the part"] = d
     d = copy.deepcopy(real); d.zones = [d.zones[0]]; cases["no inner planes"] = d
     for label, drawn in cases.items():
-        out = power_band(drawn, 0, t_top, point="top", cell_mm=1.0, psi_jt=top.PSI_JT)
+        out = power_band(drawn, 0, t_top, point="top", cell_mm=1.0, psi_jt=top.PSI_JT, uncertainty=unc)
         inside = "yes" if out["best_w"] <= top.P_TRUE <= out["worst_w"] else "no"
         print(f"| {label} | {out['power_w']:.3f} | {out['best_w']:.3f} | {out['worst_w']:.3f} | {inside} |", flush=True)
 
