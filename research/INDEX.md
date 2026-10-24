@@ -8,9 +8,9 @@ This file is kept apart from `research/README.md` (which the Gerber branch keeps
 | Parts | `component-heatsink/` | implemented in part (2.3.0, 2.4.0); junction node and heatsink scenarios open | The part, its top path, interfaces, heatsinks and the metal block. |
 | Tools | `power-calculator/` | implemented (2.4.0) | The watts of a part from a measured temperature: validation, sensitivity, how to reduce the error. |
 | Models | `models-comparison/` | implemented (repeated at each change) | The five models against the FVM on 19 scenarios, the grids, the solvers and the time results. |
-| Models | `solid3d-verification/` | implemented (2.3.0, 2.4.0) | Does the 3D solid reproduce an exact solution; how far are the layered models from a 3D solution. |
+| Models | `solid3d-verification/` | implemented (2.3.0, 2.4.0; one-layer laminate corrected after 2.4.1) | Does the 3D solid reproduce an exact solution; how far are the layered models from a 3D solution. |
 | Models | `block-and-fins/` | implemented (2.3.0, 2.4.0) | Metal block and fins: the fin formula, and the block in the Lumped and Analytic models. |
-| Board | `outline/` | implemented (2.4.0) | Which rectangle for the Lumped and Analytic models on a board with an outline. |
+| Board | `outline/` | implemented (2.4.0; time constant corrected after 2.4.1) | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | Board | `via-fill/` | implemented (2.4.0) | What fills a via barrel and how much it matters. |
 
 Everything in `research/` that is ours (documents, scripts, figures) is MIT like the rest of the repository (see the README of the project). Third-party boards used to validate studies are downloaded by a script into the folder's git-ignored `data/` and are never committed; each folder's README states their licences.
