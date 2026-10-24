@@ -121,29 +121,52 @@ def _gap_thickness_um(d):
     return sum(s["thickness_um"] for s in d["sheets"]) if "sheets" in d else d["thickness_um"]
 
 
-def stackup_template(layers, path=None):
+INNER_COPPER_OZ = {0.5: None, 1.0: 35.0}        # Inner copper weight (oz) offered by the templates -> finished thickness in um (None: the value of the template, 15.2 um)
+
+
+def stackup_template(layers, path=None, inner_oz=0.5):
     """!
     @brief The typical stack-up for a number of copper layers.
     @details The entry of the JSON file for that count; for a count that is not listed (3, 5, 7, ...) a generic one: 35 um outer copper, 15.2 um inner copper
              and equal gaps that bring the board to the total thickness of the largest listed template with fewer layers.
+             With `inner_oz` = 1 (and at least one inner layer) every inner copper layer becomes 35 um and every dielectric keeps the thickness of the
+             template, so the board is thicker than the nominal by (35 - 15.2) um per inner layer (+0.04 mm for 4 layers to +0.20 mm for 12, 2.5 to 8 %,
+             inside the +-10 % thickness tolerance of fabricators). Fabricators do not scale the dielectrics of a build when the copper changes,
+             they pick another build; against their 1 oz builds this rule is the closest of the ones tried (research/stackup/README.md section 4.6).
+             The result is derived from the shipped template, it is not a published fabricator table (key `derived`).
     @param layers Number of copper layers.
     @param path Template file (default: the shipped one).
+    @param inner_oz Inner copper weight in oz: 0.5 (15.2 um, JLCPCB standard, the template as it is; default) or 1 (35 um).
     @return Dict with name, mode ("simple" or "advanced"), copper_um (list), dielectrics (list of dicts kind, thickness_um, material) and total_thickness_um.
+    @throws ValueError If `inner_oz` is not 0.5 or 1.
     """
+    if inner_oz not in INNER_COPPER_OZ:
+        raise ValueError("inner copper weight must be 0.5 or 1 oz")
     data = load_stackup_templates(path)["templates"]
     t = data.get(str(layers))
     if t is not None:
         out = copy.deepcopy(t)
         out.setdefault("mode", "advanced")
         out["total_thickness_um"] = out.get("total_thickness_um", sum(out["copper_um"]) + sum(_gap_thickness_um(d) for d in out["dielectrics"]))
-        return out
-    below = max((int(k) for k in data if int(k) < layers), default=min(int(k) for k in data))
-    ref = stackup_template(below, path)
-    copper = [35.0] + [15.2] * max(layers - 2, 0) + [35.0] if layers > 1 else [35.0]
-    gap = (ref["total_thickness_um"] - sum(copper)) / (layers - 1) if layers > 1 else 0.0
-    return {"name": f"{layers} layers, {ref['total_thickness_um'] / 1000:g} mm (generic: equal gaps)", "mode": "advanced" if layers > 1 else "simple",
-            "copper_um": copper, "total_thickness_um": ref["total_thickness_um"],
-            "dielectrics": [{"kind": "dielectric", "thickness_um": gap, "material": "FR-4 (standard)"} for _ in range(layers - 1)]}
+    else:
+        below = max((int(k) for k in data if int(k) < layers), default=min(int(k) for k in data))
+        ref = stackup_template(below, path)
+        copper = [35.0] + [15.2] * max(layers - 2, 0) + [35.0] if layers > 1 else [35.0]
+        gap = (ref["total_thickness_um"] - sum(copper)) / (layers - 1) if layers > 1 else 0.0
+        out = {"name": f"{layers} layers, {ref['total_thickness_um'] / 1000:g} mm (generic: equal gaps)", "mode": "advanced" if layers > 1 else "simple",
+               "copper_um": copper, "total_thickness_um": ref["total_thickness_um"],
+               "dielectrics": [{"kind": "dielectric", "thickness_um": gap, "material": "FR-4 (standard)"} for _ in range(layers - 1)]}
+    inner_um = INNER_COPPER_OZ[inner_oz]
+    if inner_um is None or layers < 3 or out["mode"] == "simple":
+        return out                                                      # 0.5 oz is the template as it is (bit-identical); no inner layers: nothing to change
+    added = inner_um * (layers - 2) - sum(out["copper_um"][1:-1])        # Extra copper of the inner layers in um
+    out["copper_um"] = [out["copper_um"][0]] + [inner_um] * (layers - 2) + [out["copper_um"][-1]]
+    # The dielectrics are kept as they are (what fabricators do: they pick another build, they do not thin the dielectrics in proportion),
+    # so the board grows by the extra copper
+    out["total_thickness_um"] = out["total_thickness_um"] + added
+    out["name"] = f"{out['name']} - derived: {inner_oz:g} oz ({inner_um:g} um) inner copper, dielectrics of the template, board {out['total_thickness_um'] / 1000:.3f} mm (not a fabricator table)"
+    out["derived"] = True
+    return out
 
 
 @dataclass
@@ -170,17 +193,19 @@ class Board:
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
     dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
+    template_inner_oz: float = 0.5              # Inner copper weight the typical stack-up templates load: 0.5 (15.2 um, JLCPCB standard) or 1 (35 um); see stackup_template
     outline: Optional[np.ndarray] = field(default=None, compare=False)   # Board outline (n, 2) in metres inside the width x height box; None = the whole rectangle
 
     def apply_template(self, path=None):
         """!
         @brief Load the typical stack-up of the current number of layers (copper and dielectrics, or total thickness and copper for a simple board).
         @details Advanced board: copper thickness per layer, one dielectric per gap with the thickness and material of the template (the properties of the
-                 material come from DIELECTRICS), total thickness = their sum. Simple board: total thickness of the template and the outer copper thickness on every layer.
+                 material come from DIELECTRICS), total thickness = their sum. The inner copper weight is `template_inner_oz` (0.5 by default; 1 gives 35 um inner copper
+                 and dielectrics scaled to the same total, see stackup_template). Simple board: total thickness of the template and the outer copper thickness on every layer.
         @param path Template file (default: the shipped one).
         @return The template dict used (its name tells which stack-up was loaded).
         """
-        t = stackup_template(self.layers, path)
+        t = stackup_template(self.layers, path, self.template_inner_oz)
         if self.dielectrics is None or t["mode"] == "simple":
             if self.dielectrics is not None:
                 self.dielectrics = None                  # A single layer has no gaps to describe
@@ -371,6 +396,8 @@ class Board:
             raise ValueError("emissivity must be between 0 and 1")
         if self.air_speed < 0 or self.h_calibration <= 0:
             raise ValueError("air speed must be >= 0 and the calibration multiplier > 0")
+        if self.template_inner_oz not in INNER_COPPER_OZ:
+            raise ValueError("template_inner_oz must be 0.5 or 1")
         if self.h_mode == "manual" and self.h_top + self.h_bottom <= 0 and not self.h_side:
             raise ValueError("the board has no path to ambient (all coefficients are zero)")
 
@@ -1164,6 +1191,7 @@ def problem_from_dict(data, validate=True):
         air_speed=b.get("air_speed_m_per_s", 0.0),
         orientation=b.get("orientation", "horizontal"),
         h_calibration=b.get("h_calibration", 1.0),
+        template_inner_oz=float(b.get("template_inner_oz", 0.5)),
         natural_form=b.get("natural_form", "general"),               # Old files have no such key
         materials=mat,
         outline=_poly_mm(b["outline_mm"]) if b.get("outline_mm") else None,
@@ -1334,6 +1362,7 @@ def problem_to_dict(prob):
             "natural_form": b.natural_form,
             "k_copper": m.k_copper, "k_fr4_through": m.k_fr4_through, "k_fr4_inplane": m.k_fr4_inplane,
             "rho_copper": m.rho_copper, "cp_copper": m.cp_copper, "rho_fr4": m.rho_fr4, "cp_fr4": m.cp_fr4,
+            **({"template_inner_oz": b.template_inner_oz} if b.template_inner_oz != 0.5 else {}),      # Only when not the default: older files and default saves stay identical
             **({"outline_mm": poly(b.outline)} if b.outline is not None else {}),
             **({"dielectrics": [{"thickness_mm": d.thickness * 1000.0, "name": d.name, "k_through": d.k_through, "k_inplane": d.k_inplane,
                                  "rho": d.rho, "cp": d.cp} for d in b.dielectrics]} if b.dielectrics is not None else {}),
