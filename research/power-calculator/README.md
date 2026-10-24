@@ -12,7 +12,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 
 ![The power calculator as schematics](figures/fig_04_calculator_schematic.png)
 
-*Figure 4 (`figures/fig_04_calculator_schematic.png`): The power calculator as schematics: 1, how the watts are found (the board model run twice, the line T(P) = T0 + c P, the watts from the reading); 2, that line and the reading on it; 3, the band of the answer from the one-at-a-time effects of the uncertain inputs combined by root sum of squares.*
+*Figure 4 (`figures/fig_04_calculator_schematic.png`): The power calculator as schematics: 1, how the watts are found (the board model run twice, the line T(P) = T0 + c P, the watts from the reading); 2, that line and the reading on it; 3, the band of the answer from the one-at-a-time effects of the uncertain inputs combined by root sum of squares. The two-run line is exact for fixed heat transfer coefficients; with computed convection a third run finds the deviation and a secant iteration finishes the answer (section 4.6).*
 
 ![Figure 5](figures/fig_05_reading_points_and_copper.png)
 
@@ -20,7 +20,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 
 ## 2. Findings in short
 
-* On the datasheet's own board the calculator is within 2 to 3 %: CSD17308Q3 46.8 against 46 K/W (−1.7 %), a JEDEC 2s2p exposed-pad QFN with 9 vias 31.6 against 32.5 K/W (+3 %, package data assumed).
+* On the datasheet's own board the calculator is within 2 to 3 %: CSD17308Q3 46.8 against 46 K/W (−1.7 %), a JEDEC 2s2p exposed-pad QFN with 9 vias 31.6 against 32.5 K/W (+3 %, via array assumed), at 0.5 mm cells. With finer cells the two rows move to −2.3 % and +1.3 % (section 4.5). Part of the CSD17308Q3 agreement is a model error: on that board the FVM's board resistance is 2.4 % below an independent 3D solver (the program's 3D solid is within 0.1 %), so a converged 3D answer would be about 4 % off the datasheet (section 4.6). The JEDEC row depends on how the bottom layer of the test board is read: a 70 µm plane there instead of traces gives +23 % (section 4.5).
 * **The copper dominates the error** when the drawn board is not the real one (−11 to −45 %); heat transfer, θ, ψJT and a 3 K reading error each move the result 5 to 9 %.
 * A datasheet shortcut `P = (T_top − T_amb)/(θJA − ψJT)` is the worst of the routes (+50 / −25 % for θJA 30 % off) and is not offered.
 * A known-power reference removes the copper error but only fits parts whose dissipation can be fixed (not implemented); a two-point fit is badly conditioned (±1 K moves the copper multiplier from 1.05 to 3.9); an uncertainty band (best, nominal, worst) is implemented.
@@ -29,10 +29,13 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 
 | File | What it is |
 | :-- | :-- |
-| `scripts/calculator_validation.py` | The calculator against two datasheet boards (about 40 seconds). |
+| `scripts/calculator_validation.py` | The calculator against two datasheet boards, plus the JEDEC board without vias (about 7 minutes). |
 | `scripts/power_from_top_study.py` | Sensitivity of the power recovered from the top temperature to the board and the data (about 10 seconds). |
-| `scripts/calculator_calibration_study.py` | Known-power reference, two-point fit and the band, on the example board (about 2.5 minutes; a study, not part of the program). |
-| `scripts/make_figures.py` | Draws the three figures (runs the three studies; about 3 minutes). |
+| `scripts/calculator_calibration_study.py` | Known-power reference, two-point fit and the band, on the example board (about 5 minutes; a study, not part of the program). |
+| `scripts/study_power_band.py` | The band of the program (`inverse.power_band`) on the example of `docs/calculators.md` 1.1b, and whether it holds the true power when the drawn board differs (about 5 minutes). |
+| `scripts/study_cell_size.py` | The datasheet rows at 1 to 0.25 mm cells, and the JEDEC row with a bottom plane (about 30 minutes). |
+| `scripts/study_independent_datasheet_board.py` | The board resistance of the CSD17308Q3 board in the FVM, the 3D solid and the independent solver of `solid3d-verification/lib/layered3d.py`; the affine-in-power check (about 2 minutes). |
+| `scripts/make_figures.py` | Draws the three figures (runs the first three studies; about 15 minutes). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
 | `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
 
@@ -40,6 +43,9 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 .venv/bin/python research/power-calculator/scripts/calculator_validation.py
 .venv/bin/python research/power-calculator/scripts/power_from_top_study.py
 .venv/bin/python research/power-calculator/scripts/calculator_calibration_study.py
+.venv/bin/python research/power-calculator/scripts/study_power_band.py
+.venv/bin/python research/power-calculator/scripts/study_cell_size.py
+.venv/bin/python research/power-calculator/scripts/study_independent_datasheet_board.py
 .venv/bin/python research/power-calculator/scripts/make_figures.py
 .venv/bin/python -m pytest -q tests/test_calculator_validation.py tests/test_inverse.py
 ```
@@ -53,12 +59,13 @@ A datasheet gives RθJA for a *stated* board. Built in the program, that board m
 | Case | datasheet RθJA (K/W) | model RθJA (K/W) | power returned for 1 W | error |
 | :-- | --: | --: | --: | --: |
 | TI CSD17308Q3 on its datasheet board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, 1 in² pad), RθJA typical | 46 | 46.8 | 0.983 W | −1.7 % |
-| JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47-like, **package data assumed**) | 32.5 | 31.6 | 1.030 W | +3.0 % |
+| JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47, **via array assumed**) | 32.5 | 31.6 | 1.030 W | +3.0 % |
 | the same, measured on the top with ψJT 0.3 K/W | 32.5 | 31.5 | 1.030 W | +3.0 % |
-| the same JEDEC board **without** the thermal vias | - | 67.4 | (0.48 W) | the exposed pad needs the vias (JESD51-5) |
+| the same JEDEC board **without** the thermal vias | - | 68.1 | (0.48 W) | the exposed pad needs the vias (JESD51-5); 84 to 73 K/W at other cell sizes (section 4.5) |
 
 * The CSD17308Q3 datasheet also gives 58 K/W as a *maximum* and 165 K/W for the minimum pad (also a maximum). A maximum covers the spread of parts and boards, not this board, so it is not a target (the model gives 45.7 K/W when the junction is 58 K above ambient because the computed convection improves with temperature). The pad of the minimum-pad case is not stated, so that case cannot be built.
-* The JEDEC 2s2p board follows ROHM application note 64AN113E (JESD51-3/5/7/9/10): 114.3 × 76.2 × 1.6 mm, 70 µm top and bottom traces, two 74.2 × 74.2 mm planes of 35 µm, thermal vias Ø0.30 mm at 1.2 mm pitch. The traces are not drawn. The TPS7A47 values used (RθJA 32.5, θJC(bot) 1.7, ψJT 0.3 K/W) are from its datasheet; the 5 × 5 mm body, the 3.15 mm pad and the 3 × 3 via array are assumptions, so this row is an indication (−3 %), not a proof.
+* The JEDEC 2s2p board follows ROHM application note 64AN113E (JESD51-3/5/7/9/10): 114.3 × 76.2 × 1.6 mm, 70 µm top and bottom traces, two 74.2 × 74.2 mm planes of 35 µm, thermal vias Ø0.30 mm at 1.2 mm pitch. The traces are not drawn. The TPS7A47 values used (RθJA 32.5, θJC(bot) 1.7, ψJT 0.3 K/W) are from its datasheet (SBVS204G, read); the 5 × 5 mm body and the 3.15 mm exposed pad are from its package drawing RGW0020A (read; an earlier version of this README called them assumptions). The 3 × 3 via array at 1.2 mm is the assumption (the datasheet's example land pattern shows Ø0.2 mm vias, the JEDEC board's are not stated there), so this row is an indication (+3 %), not a proof.
+* ROHM 64AN113E table 2, as its text extracts (rev. 003, read with a PDF text extractor whose merged table cells cannot be read for sure), gives the 2s2p backside copper as 74.2 × 74.2 mm of 70 µm, and its thermal vias connect layers 1, 2 and 4. The study draws the backside as traces (not drawn), which is how JESD51-7 is usually described (from memory; the standard was not read). With a 70 µm bottom plane the model RθJA drops from 31.6 to 26.5 K/W (`study_cell_size.py`), so the JEDEC agreement holds only for the traces reading.
 * The ψJT row only checks that the top-of-package point is consistent with the junction point; the model has no top path in the JEDEC case, so ψJT cannot be predicted (that needs the junction node of the roadmap).
 * Tests: the three rows above with tolerances of 3 % (CSD17308Q3) and 5 % (JEDEC), and the factor of about two for the missing vias.
 
@@ -80,7 +87,7 @@ Part of 2 W, θ = 6 K/W, ψJT = 2 K/W on the example board; the top reading is m
 | measured top temperature 3 K low / high | 1.831 / 2.169 | −8.5 % / +8.5 % |
 | datasheet shortcut with θJA 30 % below / above the board's (19.7 K/W) | 3.002 / 1.499 | +50.1 % / −25.0 % |
 
-**Reading it.** On the datasheet's own board the calculator is within 2 to 3 % (table 2.1); the large deltas appear only when the drawn board is not the real one. The copper dominates (11 to 45 % for a wrong copper, planes or vias), the heat transfer, θ, ψJT and a 3 K measurement error each move the answer by 5 to 9 %.
+**Reading it.** On the datasheet's own board the calculator is within 2 to 3 % (section 4.1); the large deltas appear only when the drawn board is not the real one. The copper dominates (11 to 45 % for a wrong copper, planes or vias), the heat transfer, θ, ψJT and a 3 K measurement error each move the answer by 5 to 9 %.
 
 ### 4.3 Self-consistency (`tests/test_inverse.py`)
 
@@ -88,7 +95,7 @@ On a known board the model's own temperature at every point (max, mean, ring, ju
 
 ### 4.4 How to reduce the error (`research/power-calculator/scripts/calculator_calibration_study.py`)
 
-The large deltas of table 2.2 come from one thing: the board resistance `R` (kelvin per watt at the measured point) of the *drawn* board is not that of the *real* board, mostly because of the copper. Three ways to cope were tried on the same example (U1 at 2 W; the drawn board has half or a quarter of the real copper; thermocouples at 1 mm and 10 mm from the part; the study is not part of the program yet):
+The large deltas of section 4.2 come from one thing: the board resistance `R` (kelvin per watt at the measured point) of the *drawn* board is not that of the *real* board, mostly because of the copper. Three ways to cope were tried on the same example (U1 at 2 W; the drawn board has half or a quarter of the real copper; thermocouples at 1 mm and 10 mm from the part; the study is not part of the program yet):
 
 | Drawn board | plain calculator (1 mm point) | **A.** known-power reference (1 W) | **B.** two points (1 and 10 mm): P and a copper multiplier fitted together |
 | :-- | --: | --: | --: |
@@ -102,7 +109,7 @@ The large deltas of table 2.2 come from one thing: the board resistance `R` (kel
 * **D. Measure the right thing**: an electrical temperature-sensitive parameter of the junction (the diode forward voltage at a low sensing current, calibrated with the K-factor of JESD51-1) gives Tj without θ and ψ; a black paint of known emissivity on the case makes an infrared reading usable; a thermocouple touching the board disturbs the field, so its contact resistance matters. These remove errors of the *measurement*, not of the board.
 * **E. Know the board better**: weigh or measure the copper (area and thickness of every layer), count the vias, take the stack-up from the fabricator, and measure `h` with a part of known power (that is A again).
 
-**Decisions (maintainer):** the uncertainty band (C) with the best / nominal / worst selector is implemented (section 1.1b). The two-point fit (B) stays a study and is not offered in the program. The known-power reference (A) is not implemented: it fits only parts whose dissipation can be fixed (resistors, LEDs, diodes, LDOs, MOSFETs at a known current, or a test resistor soldered in their place), not a CPU or a module, and its main benefit, correcting a copper that was drawn wrongly, disappears when the copper comes from Gerber or KiCad files; it remains useful against errors in the air flow, so it is kept as a possible later option.
+**Decisions (maintainer):** the uncertainty band (C) with the best / nominal / worst selector is implemented (`docs/calculators.md` section 1.1b; section 4.7 here). The two-point fit (B) stays a study and is not offered in the program. The known-power reference (A) is not implemented: it fits only parts whose dissipation can be fixed (resistors, LEDs, diodes, LDOs, MOSFETs at a known current, or a test resistor soldered in their place), not a CPU or a module, and its main benefit, correcting a copper that was drawn wrongly, disappears when the copper comes from Gerber or KiCad files; it remains useful against errors in the air flow, so it is kept as a possible later option.
 
 ![The calculator against datasheet boards](figures/fig_01_calculator_vs_datasheets.png)
 
@@ -115,6 +122,48 @@ The large deltas of table 2.2 come from one thing: the board resistance `R` (kel
 ![Ways to reduce the error](figures/fig_03_ways_to_reduce_the_error.png)
 
 *Figure 3: `figures/fig_03_ways_to_reduce_the_error.png`.*
+
+### 4.5 Cell size and the reading of the JEDEC board (`scripts/study_cell_size.py`, review of 2026-10-24)
+
+The rows of 4.1 are computed at 0.5 mm. Model RθJA in K/W, computed convection and radiation:
+
+| Board | datasheet | 1 mm | 0.5 mm | 0.35 mm | 0.25 mm |
+| :-- | --: | --: | --: | --: | --: |
+| CSD17308Q3, 1 in² pad | 46 | 46.4 | 46.8 | 47.2 | 47.1 |
+| JEDEC 2s2p, 9 thermal vias | 32.5 | 32.2 | 31.6 | 32.0 | 32.1 |
+| JEDEC 2s2p, no thermal vias | - | 83.6 | 68.1 | 72.9 | 74.5 |
+
+* The two datasheet rows settle at −2.3 % (CSD17308Q3) and +1.3 % (JEDEC) of power error: still within 2 to 3 %, but the 0.5 mm values are not converged (0.5 mm is the lowest point of a non-monotonic sequence for the JEDEC board).
+* The board without vias is strongly grid-dependent (84 to 68 K/W): its heat leaves through a 3.15 mm source on a 4.15 mm land, a few cells wide, and the cell cover of the land changes with the grid. The 67.4 K/W quoted before this review is reproduced by no script (the test runs at 1 mm, 83.6 K/W). The conclusion (the exposed pad needs the vias, a factor 2 or more) holds at every cell size.
+* The bottom layer of the JEDEC board read as a 74.2 mm plane of 70 µm (ROHM's table, see 4.1) gives 26.5 K/W at 0.5 mm (+22.9 % of power error): the agreement of the JEDEC row depends on the traces reading.
+
+### 4.6 The board resistance against an independent solver (`scripts/study_independent_datasheet_board.py`, review of 2026-10-24)
+
+The calculator returns P = rise / (R + θ): its error on the datasheet board is the error of the board resistance R. The CSD17308Q3 board with the face coefficients fixed at the values the computed convection converges to at 1 W (16.14 top, 11.05 bottom W/m²K), cell 0.3 mm, FR-4 isotropic at 0.3 W/mK so that the independent solver (`research/solid3d-verification/lib/layered3d.py`, which shares no code with the program) represents the same board:
+
+| Solver | R board (K/W) | RθJA = R + 4.5 (K/W) | against the independent solver |
+| :-- | --: | --: | --: |
+| independent 3D solver | 48.89 | 53.4 | reference |
+| FVM, two layers, bottom bare (as `calculator_validation.py` draws it) | 47.74 | 52.2 | −2.4 % |
+| FVM, the same board drawn as a one-layer board (laminate nodes) | 48.23 | 52.7 | −1.4 % |
+| 3D solid | 48.95 | 53.5 | +0.1 % |
+
+With the program's FR-4 (0.3 through, 0.9 in-plane) the FVM gives 47.2 K/W and the 3D solid 48.3 K/W of RθJA. So the −1.7 % of 4.1 is the sum of a model error (the FVM's board is about 2.4 % too good per watt here) and of the real difference to the datasheet: with the 3D solid the calculator would return about 0.96 W (−4 %). A two-layer board whose bottom layer has no copper does not get the laminate nodes of a one-layer board (`pcbthermal/laminate.py`); drawn as one layer the FVM is 1 % closer. The datasheet does not say whether its board has copper on the bottom.
+
+**The affine assumption** (`inverse.py`: two runs give the line T(P) = T(0) + R P). With fixed coefficients the junction temperature at 0.5, 2 and 3 W is on the line through 0 and 1 W to 0.00 K. With computed convection and radiation it is not (+1.4 K at 0.5 W, −6.0 K at 2 W, −14.4 K at 3 W on this board): the third run detects it and the secant iteration of `power_from_temperature` finishes the answer (`tests/test_inverse.py` checks the convergence to 2e-3). The two-run line of figure 4 is exact only for fixed coefficients.
+
+### 4.7 The band of the program and whether it holds the true power (`scripts/study_power_band.py`, review of 2026-10-24)
+
+The example table of `docs/calculators.md` 1.1b (U1 at 2 W, θ 6, ψJT 2, default uncertainties: copper 25 %, heat transfer 30 %, θ 20 %, ψJT 30 %, reading 1 K) is printed by this script and reproduced to the last digit: board ring 2.00 / 1.62 / 2.31 W, top of the package 2.00 / 1.69 / 2.27 W (nominal / best / worst). Computed on a drawn board that differs from the real one (top of the package):
+
+| Drawn board | nominal (W) | best (W) | worst (W) | true 2 W inside |
+| :-- | --: | --: | --: | :-- |
+| top copper half filled (hatched) | 1.735 | 1.474 | 1.956 | no |
+| copper 17.5 µm instead of 35 µm | 1.519 | 1.288 | 1.715 | no |
+| no vias under the part | 1.780 | 1.505 | 2.014 | yes |
+| no inner planes | 1.312 | 1.109 | 1.484 | no |
+
+The band covers the uncertainty of numbers (copper thickness ±25 %, h ±30 %, θ, ψJT, reading); it does not cover a drawing error (a plane or a pad that is missing, copper half the real thickness): in three of four cases the true power is above the worst case. `docs/calculators.md` 1.1b says "use the worst case for margins"; that holds only when the board is drawn right.
 
 ## 5. Limits
 
@@ -139,6 +188,10 @@ The large deltas of table 2.2 come from one thing: the board resistance `R` (kel
 
 ## What was read and what was not verified
 
-* Assumed, not from a datasheet: the TPS7A47-like package data (5 × 5 mm body, 3.15 mm pad, 3 × 3 vias). Not verified: no measurement of a physical board.
-* `calculator_validation.py` prints a fourth row (the 58 K/W datasheet maximum, +26.9 %, not a target) and does not print the "JEDEC board without vias" row (67.4 K/W) that the manual quotes; that row comes from the test.
+* Opened and read in this review (2026-10-24, text extracted with pypdf): the TI CSD17308Q3 datasheet SLPS262C (December 2019): RθJA typical 46 °C/W on 1 in² of 2 oz copper on a 1.52 mm FR-4 board of 1.5 × 1.5 in, 58 °C/W maximum, 165 °C/W maximum on the minimum pad, RθJC 4.5 °C/W (a maximum); the TI TPS7A47 datasheet SBVS204G (revised May 2026): RθJA 32.5, RθJC(top) 27, RθJB 11.9, ψJT 0.3, ψJB 11.9, RθJC(bot) 1.7 °C/W, package RGW0020A 5 × 5 mm with a 3.15 mm exposed pad; ROHM 64AN113E rev. 003 table 2 (board 114.3 × 76.2 × 1.6 mm, vias Ø0.30 at 1.20 mm, planes 74.2 × 74.2 mm of 35 µm; the backside column reads 74.2 × 74.2 mm of 70 µm, see 4.1).
+* Not re-opened in this review (from the earlier work): TI SPRA953B, Renesas, Richtek AN061, ROHM 65AN114E, Microchip, TI SLRR012, Electronics Cooling, the papers of sources 7 to 11. JESD51-5 and JESD51-7 were not read (behind a login).
+* Assumed, not from a datasheet: the 3 × 3 thermal vias at 1.2 mm under the TPS7A47 pad. θ = 4.5 K/W of the CSD17308Q3 is the datasheet's maximum RθJC; a typical value would lower the model's RθJA.
+* No measurement of a physical board.
+* `calculator_validation.py` prints a fourth row (the 58 K/W datasheet maximum, +26.9 %, not a target) and, since this review, the "JEDEC board without vias" row (68.1 K/W at 0.5 mm); the 67.4 K/W quoted before is not reproduced by any script (section 4.5).
 * Not implemented: the known-power reference (fits only parts with a controllable dissipation; the copper error it removes also goes away with Gerber or KiCad import), the two-point fit (a study only), the datasheet shortcut θJA − ψJT.
+* Text for the project documents (`docs/calculators.md`, `docs/validation.md`) that this review found stale: `docs/for-the-project-documents.md`.

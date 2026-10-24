@@ -8,7 +8,9 @@
             reproduces that reading before the unknown power is looked for. It does not need the copper at all, only the linearity of the board.
          B. **Two measurement points**: two board temperatures at different distances from the part give the power and a copper multiplier at the same time (two equations, two
             unknowns): how fast the temperature falls with distance tells how well the board spreads heat, and the level tells the power.
-         C. **An uncertainty band**: the calculator is run with the copper, the heat transfer and theta at the ends of their uncertainty and the range of powers is reported.
+         C. **An uncertainty band**: the calculator is run with the copper and the heat transfer at the ends of their uncertainty and the range of powers is reported
+            (the band of the program, inverse.power_band, with theta, psi_JT and the reading too, is printed by study_power_band.py).
+         The plain calculator here inverts a board point 1 mm from the part by bisection, because inverse.power_from_temperature has no point at a given distance.
          Error = recovered power / 2 W - 1.
 
 Usage: python research/power-calculator/scripts/calculator_calibration_study.py
@@ -25,7 +27,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirna
 
 from pcbthermal import SolverOptions                                        # noqa: E402
 from pcbthermal.api import _run_model                                       # noqa: E402
-from pcbthermal.inverse import power_from_temperature                       # noqa: E402
 from pcbthermal.examples import example_board                               # noqa: E402
 
 P_TRUE, THETA = 2.0, 6.0
@@ -86,8 +87,7 @@ def main():
     print("| :-- | --: | --: | --: |")
     for label, f in wrong.items():
         drawn = with_copper(real, f)
-        plain = power_from_temperature(drawn, 0, t_ring_real[0], point="max", cell_mm=1.0)["power_w"] if False else None
-        # Plain: invert the 1 mm board point on the drawn board with the secant of the model
+        # Plain: invert the 1 mm board point on the drawn board by bisection on the power (inverse.py has no point at a given distance)
         lo, hi = 0.05, 20.0
         for _ in range(40):
             mid = 0.5 * (lo + hi)
@@ -95,7 +95,6 @@ def main():
         plain = 0.5 * (lo + hi)
         # A: scale the model so that it reads the reference as measured, then invert
         k_ref = (t_ref_real[0] - real.board.ambient) / (board_temps(drawn, ref_power)[0] - real.board.ambient)
-        pa = plain
         lo, hi = 0.05, 20.0
         for _ in range(40):
             mid = 0.5 * (lo + hi)
@@ -118,7 +117,7 @@ def main():
     for sign in ((0, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
         e = np.array(sign, dtype=float)                                      # Error of the 1 mm and the 10 mm reading, K
         t_meas = t_ring_real + e
-        t_ref = t_ref_real + e[0] * 0 + np.array([e[0], e[1]])               # The reference readings carry the same kind of error
+        t_ref = t_ref_real + e                                               # The reference readings carry the same error (same thermocouples)
         lo, hi = 0.05, 20.0
         for _ in range(40):
             mid = 0.5 * (lo + hi)

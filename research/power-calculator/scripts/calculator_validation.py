@@ -92,6 +92,9 @@ def main():
         out = recovered(board, theta_ja, cell, point=point, psi_jt=psi)
         model_theta = theta_ja / out["power_w"]
         print(f"| {label} | {theta_ja:g} | {model_theta:.1f} | {out['power_w']:.3f} W | {100 * (out['power_w'] - 1.0):+.1f} % |", flush=True)
+    # The row of the manual without the thermal vias: printed apart so that make_figures.py reads only the table above
+    out = recovered(jedec_2s2p_board(vias=False), 32.5, 0.5)
+    print(f"\nThe same JEDEC board without the thermal vias: model RθJA {32.5 / out['power_w']:.1f} K/W (the calculator returns {out['power_w']:.2f} W for 1 W)")
 
 
 if __name__ == "__main__":
