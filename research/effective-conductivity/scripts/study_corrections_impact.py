@@ -2,7 +2,7 @@
 @file study_corrections_impact.py
 @brief What the corrections and proposals of this investigation would change, measured on copies of the program (nothing in pcbthermal/ is edited): the cell size of the plate check, the laminar form of Churchill and Chu, and the thick-plate criterion.
 @details A. The plate model of the program (a layer of lateral conductance k t under a uniform film) against Seri Lee's centre, edge and corner values as the cell size is refined: the documented
-            "+4.5 %" is the result at 1 mm cells, not the error of the model.
+            "+4.5 %" is a 24 mm source (round() rounds 37.5 and 62.5 to even on 1 mm cells), not the error of the model.
          B. The laminar form of the vertical-plate correlation, patched in at run time (convection.h_natural_vertical replaced in memory), on the example board and a reference board turned to the vertical
             with computed heat transfer coefficients, at three power levels: the change of the maximum temperature in the FVM.
          C. The criterion q'' t / (2 k) / rise of the thick-plate check for the 74 metal-block cases of research/block-and-fins (heat of the part through the contact patch, the thickness and conductivity of the block).
@@ -42,16 +42,48 @@ def plate_convergence(cells=(25, 50, 100, 200, 400)):
 
 def alignment_sweep(ns=range(60, 241, 4)):
     """!
-    @brief The centre value of the thin plate for many cell sizes (n cells over 100 mm): the error swings with how the source edges fall on the cells, not with the resolution.
+    @brief The centre value of the thin plate for many cell sizes (n cells over 100 mm): the error swings with the side the source gets on the cells (its edges rounded to cell edges), not with the resolution.
     @param ns Cells per side to try.
-    @return list of (cell size in mm, edge offset in cells, error against the article in percent).
+    @return list of (cell size in mm, edge offset in cells, error against the article in percent, side of the heated square in mm).
     """
     out = []
     for n in ns:
         d = 100.0 / n
         edge = 37.5 / d
         off = abs(edge - round(edge))                              # distance of the source edge from the nearest cell edge, in cells
-        out.append((d, off, 100.0 * (lee.rc_2d("centre", n=n) / lee.PAPER["centre"] - 1.0)))
+        side = (np.floor(62.5 / d + 0.5 + 1e-9) - np.floor(37.5 / d + 0.5 + 1e-9)) * d   # the side rc_2d heats (edges rounded half up)
+        out.append((d, off, 100.0 * (lee.rc_2d("centre", n=n) / lee.PAPER["centre"] - 1.0), float(side)))
+    return out
+
+
+def documented_check():
+    """!
+    @brief Where the documented "+4.5 %" came from: the original check (block_contact_study.py, 1 mm cells) placed the source with round(), which rounds halves to even.
+    @return dict with the cells the source covered, the side it had, and the centre Rc of that source and of a 24 mm source with aligned 0.5 mm cells.
+    """
+    lo, hi = round(37.5), round(62.5)                             # what round() did on 1 mm cells: 38 and 62, so 24 cells instead of 25
+    saved = lee.SRC
+    try:
+        lee.SRC = (hi - lo) * 1e-3
+        rc_24 = lee.rc_2d("centre", n=200)                        # the same 24 mm source, edges on the 0.5 mm cells
+    finally:
+        lee.SRC = saved
+    return {"cells": hi - lo, "side_mm": float(hi - lo), "rc_24mm": rc_24, "rc_25mm": lee.rc_2d("centre", n=200)}
+
+
+def side_sweep(sides_mm=(23.0, 24.0, 25.0, 26.0, 27.0)):
+    """!
+    @brief The centre value of the thin plate for a source a little smaller or larger than 25 mm (0.5 mm cells, edges on cell edges): how much one cell less costs.
+    @param sides_mm Sides of the source in mm.
+    @return list of (side in mm, error against the article in percent).
+    """
+    out, saved = [], lee.SRC
+    try:
+        for sd in sides_mm:
+            lee.SRC = sd * 1e-3
+            out.append((sd, 100.0 * (lee.rc_2d("centre", n=200) / lee.PAPER["centre"] - 1.0)))
+    finally:
+        lee.SRC = saved
     return out
 
 
@@ -142,10 +174,21 @@ def main():
     print("| --: | --: | --: | --: |")
     for n, v in pc.items():
         print(f"| {100.0 / n:g} | " + " | ".join(f"{v[p]:.3f} ({100 * (v[p] / lee.PAPER[p] - 1):+.1f} %)" for p in lee.PAPER) + " |", flush=True)
+    doc = documented_check()
+    out["documented"] = doc
+    print(f"\nA1. The documented check: round(37.5) = 38 and round(62.5) = 62, so the 25 mm source covered {doc['cells']} cells of 1 mm; "
+          f"a {doc['side_mm']:g} mm source gives Rc = {doc['rc_24mm']:.3f} K/W ({100 * (doc['rc_24mm'] / lee.PAPER['centre'] - 1):+.1f} %), "
+          f"the 25 mm source {doc['rc_25mm']:.3f} K/W ({100 * (doc['rc_25mm'] / lee.PAPER['centre'] - 1):+.1f} %)", flush=True)
     sweep = alignment_sweep()
     out["alignment"] = sweep
-    print(f"\nA2. Centre value for {len(sweep)} cell sizes (1.67 to 0.42 mm): error against the article from {min(e for _, _, e in sweep):+.1f} to {max(e for _, _, e in sweep):+.1f} %; "
-          f"with the source edge on a cell edge (offset 0): {np.mean([e for _, o, e in sweep if o < 0.05]):+.1f} % on average, half a cell off (offset 0.5): {np.mean([e for _, o, e in sweep if o > 0.45]):+.1f} %", flush=True)
+    full = [e for _, _, e, sd in sweep if abs(sd - 25.0) < 0.05]
+    other = [(sd, e) for _, _, e, sd in sweep if abs(sd - 25.0) >= 0.05]
+    text = (f"; the {len(other)} that heat another side ({min(sd for sd, _ in other):.2f} to {max(sd for sd, _ in other):.2f} mm): {min(e for _, e in other):+.1f} to {max(e for _, e in other):+.1f} %") if other else ""
+    print(f"\nA2. Centre value for {len(sweep)} cell sizes (1.67 to 0.42 mm): error against the article from {min(e for _, _, e, _ in sweep):+.1f} to {max(e for _, _, e, _ in sweep):+.1f} %; "
+          f"the {len(full)} grids that heat a 25 mm square (aligned or half a cell off): {min(full):+.1f} to {max(full):+.1f} %" + text, flush=True)
+    ss = side_sweep()
+    out["side_sweep"] = ss
+    print("\nA3. Centre value against the side of the source (0.5 mm cells): " + ", ".join(f"{sd:g} mm {e:+.1f} %" for sd, e in ss), flush=True)
     rows = run_forms()
     out["forms"] = rows
     print("\nB. Laminar form of the vertical-plate correlation on the program (FVM, computed h, maximum temperature)")

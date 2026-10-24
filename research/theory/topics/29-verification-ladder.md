@@ -17,7 +17,7 @@ A model can be right or wrong in ways that agree with itself. The checks are ord
 | Time stepping | exact RC solution of a uniform board | Euler first order, Crank-Nicolson second order |
 | Layered idealisation | the 3D solid and an independent finite-element solid | 0.4 to 2.2 % (FVM) |
 | 3D solid | finite-element solid, convergence in slabs and cells; Yovanovich's table | 0.2 % on three boards, +-4 % on a heater-sized pad; 0.7 to 0.8 % |
-| Plate (block) model | published spreading resistance (Lee et al.) | +4.5 % |
+| Plate (block) model | published spreading resistance (Seri Lee, 1998) | +0.6 % centre, -0.8 % edge, -4.6 % corner (the +4.5 % of `docs/theory.md` was a 24 mm source) |
 | Convection correlations | textbook air properties, closed forms | 1 to 3 % |
 | Parts | closed form `delta T = P0 R / (1 - alpha P0 R)` | 0.05 K |
 | Mesh and model comparison | 20 scenarios, four models and the 3D solid | `docs/validation.md` 2 |

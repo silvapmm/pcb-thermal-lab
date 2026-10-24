@@ -12,7 +12,7 @@ Is a plate model of the heatsink base (spreading in the metal) needed on top of 
 
 ## 2. The physics
 
-A small source on a larger plate has `R = R_0 + R_c`: the average sink resistance plus the maximum constriction (spreading) resistance, accurate to about 5 % when the aspect ratio is below 2.5 and the plate is square-ish (topic 18). The plate layer of the program (the lateral `k t` conductance of the block with a uniform film coefficient) reproduces the published example (aluminium 100 x 100 x 1.3 mm, catalogue 1.0 K/W, source 25 x 25 mm, `R_c` = 0.66 K/W): `R_c` = 0.69 K/W, total 1.69 against 1.66 K/W, +4.5 %.
+A small source on a larger plate has `R = R_0 + R_c`: the average sink resistance plus the maximum constriction (spreading) resistance, accurate to about 5 % when the aspect ratio is below 2.5 and the plate is square-ish (topic 18). The plate layer of the program (the lateral `k t` conductance of the block with a uniform film coefficient) reproduces the published example (aluminium 100 x 100 x 1.3 mm, catalogue 1.0 K/W, source 25 x 25 mm, `R_c` = 0.66 K/W): `R_c` = 0.664 K/W, total 1.664 against 1.66 K/W, +0.6 % (`research/effective-conductivity/` 4.8 A: the +4.5 % quoted before was a 24 mm source, `round()` on 1 mm cells; the edge midpoint and corner values are within -0.8 % and -4.6 %).
 
 ## 3. The simulation (3D finite-volume plate 40 x 40 mm, catalogue 12 K/W)
 

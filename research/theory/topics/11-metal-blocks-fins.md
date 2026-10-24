@@ -45,7 +45,7 @@ Both are steady state only; the time simulations still refuse a block, and SOR d
 
 ## 6. Where it is tested
 
-`docs/validation.md` sections 15 (fins against a 2D fin), 17 (block in Lumped and Analytic), 16 (3D solid); `research/block-and-fins/`; the plate model against the published spreading resistance of a small source on a plate, +4.5 %.
+`docs/validation.md` sections 15 (fins against a 2D fin), 17 (block in Lumped and Analytic), 16 (3D solid); `research/block-and-fins/`; the plate model against the published spreading resistance of a small source on a plate, +0.6 % at the centre (-0.8 % at the edge midpoint, -4.6 % at the corner; `research/effective-conductivity/` 4.8 A; the +4.5 % quoted before was a 24 mm source).
 
 ## 7. Related topics
 

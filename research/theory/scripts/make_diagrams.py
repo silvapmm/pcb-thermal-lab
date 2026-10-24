@@ -751,7 +751,7 @@ def ladder(path):
     rungs = [
         ("exact answers", "energy balance 1e-12 to 1e-9 on every board; the RC solution of a uniform board (Euler 1st order, Crank-Nicolson 2nd); closed form of the power loop 0.05 K; 1D series circuit 1e-6 K", "#d9efd0"),
         ("solvers against each other", "direct, CG and SOR agree to 1e-8 K on five boards", "#d9efd0"),
-        ("published solutions", "Yovanovich's table within 0.7 to 0.8 % (2 % at epsilon 0.1); plate model +4.5 % (Lee et al.); convection correlations 1 to 3 %", "#cfe3f5"),
+        ("published solutions", "Yovanovich's table within 0.7 to 0.8 % (2 % at epsilon 0.1); plate model +0.6 % (Seri Lee); convection correlations 1 to 3 %", "#cfe3f5"),
         ("independent 3D solutions", "3D solid and a finite-element solid: layered models within 0.4 to 2.2 % (FVM); 3D solid 0.2 % on three boards, +-4 % on a heater-sized pad", "#cfe3f5"),
         ("models against each other", "20 scenarios, four models and the 3D solid (the Lumped and Analytic models fail in known cases and the input checks warn)", "#f3d9b1"),
         ("a physical board", "NOT DONE: no model has been compared with measurements; calibrate_convection fits one measurement", "#f4b6b6"),

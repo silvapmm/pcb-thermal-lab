@@ -78,11 +78,10 @@ def size_location_biot(cu):
     axs[1].set_title("source position: layout assumed, not shown in text", fontsize=9)
     axs[1].legend(fontsize=7)
     bi = sorted(cu["biot"], key=float)
+    axs[2].semilogx([cu["biot"][h]["Bi"] for h in bi], [cu["biot"][h]["paper"] for h in bi], "s--", color=C["paper"], label="paper (read from the plot)")
     axs[2].semilogx([cu["biot"][h]["Bi"] for h in bi], [cu["biot"][h]["k_eff"] for h in bi], "o-", color=C["this"], label="independent solver")
-    axs[2].axhspan(4.7, 4.9, color=C["paper"], alpha=0.3, label="paper: about 4.8 above Bi 100")
-    axs[2].axhline(8.6, color=C["paper"], ls="--", lw=1, label="paper: about 8.6 at the lowest Bi")
     axs[2].set_xlabel("Biot number h L / k1 (L = 25 mm, k1 = 0.4)")
-    axs[2].set_title("film coefficient: k_e falls from about 8 to 5", fontsize=9)
+    axs[2].set_title("film coefficient: apart from Bi about 1; the paper's plateau of 4.8 is not reachable", fontsize=8)
     axs[2].legend(fontsize=7)
     fig.tight_layout()
     fig.savefig(FIG / "fig_04_size_location_biot.png", dpi=110)
@@ -128,7 +127,8 @@ def program_vs_coupon(pc):
     ax.set_xscale("log")
     ax.set_xlabel("epsilon = source area / board area")
     ax.set_ylabel("error of the mean top temperature rise under the source (%)")
-    ax.set_title("Cu / FR4 / Cu coupon, 2.5 W: every model within 0.3 % of the independent solver (FDM 1.2 % for the 5 mm source)", fontsize=8.5)
+    worst = max(abs(100 * (pc[s][m] / pc[s]["independent"] - 1)) for s in sides for m in ("fvm", "solid3d", "analytic"))
+    ax.set_title(f"Cu / FR4 / Cu coupon, 2.5 W: FVM, 3D solid and Analytic within {worst:.1f} % of the independent solver; FDM and Lumped within about 1 %", fontsize=8.5)
     ax.legend(fontsize=8, ncol=5)
     fig.tight_layout()
     fig.savefig(FIG / "fig_07_program_vs_coupon.png", dpi=110)
@@ -159,21 +159,21 @@ def muzychka(mz):
     axs[0].legend(fontsize=7)
     th = mz["thickness"]
     ts = sorted(th, key=float)
-    rise = [th[t]["independent"] for t in ts]
-    q = 12500.0
-    pred = [100 * 0.5 * q * float(t) * 1e-3 / 50.0 / r for t, r in zip(ts, rise)]
-    axs[1].plot([float(t) for t in ts], pred, "k--", label="predicted: q'' t / (2 k) / rise")
+    x = [float(t) for t in ts]
+    axs[1].plot(x, [100 * th[t]["bound"] / th[t]["independent"] for t in ts], "k--", label="bound: q'' t / (2 k) / rise")
+    axs[1].plot(x, [100 * th[t]["gradient"] / th[t]["independent"] for t in ts], "k:", marker=".", label="measured: surface minus thickness mean (3D)")
     for m in ("fvm", "solid3d"):
-        axs[1].plot([float(t) for t in ts], [-100 * (th[t][m] / th[t]["independent"] - 1) for t in ts], "o-", color=C[m], label=f"{m}: observed shortfall")
-    c1 = mz["1a"]
-    r1 = c1["independent"]["centroid"][0] - 25.0
-    obs1 = -100 * ((c1["program"]["fvm"]["centroid"][0] - 25.0) / r1 - 1)
-    axs[1].plot([10.0], [obs1], "*", ms=12, color=C["lumped"], label="case 1 (k 10): observed, FVM")
-    axs[1].plot([10.0], [100 * 0.5 * 16000.0 * 0.01 / 10.0 / r1], "x", ms=9, color="k", label="case 1: predicted")
+        axs[1].plot(x, [-100 * (th[t][m] / th[t]["independent"] - 1) for t in ts], "o-", color=C[m], label=f"{m}: observed shortfall")
+    c1 = mz["1a"]["independent"]
+    r1 = c1["mean"][0] - 25.0
+    obs1 = -100 * ((mz["1a"]["program"]["fvm"]["mean"][0] - 25.0) / r1 - 1)
+    axs[1].plot([10.0], [obs1], "*", ms=12, color=C["lumped"], label="case 1 (k 10), 10 W source: FVM shortfall")
+    axs[1].plot([10.0], [100 * c1["gradient"][0] / r1], "P", ms=9, color="k", label="case 1: measured gradient")
+    axs[1].plot([10.0], [100 * c1["bound"][0] / r1], "x", ms=9, color="k", label="case 1: bound")
     axs[1].set_xscale("log")
     axs[1].set_xlabel("plate thickness (mm)")
-    axs[1].set_ylabel("rise at the centre of the source: model below the 3D solver (%)")
-    axs[1].set_title("One node through the thickness: the shortfall follows q'' t / (2 k)", fontsize=9)
+    axs[1].set_ylabel("rise of the source: model below the 3D solver (%)")
+    axs[1].set_title("One node is the thickness mean: the surface gradient is below q'' t / (2 k) when the heat spreads", fontsize=8.5)
     axs[1].legend(fontsize=7)
     fig.tight_layout()
     fig.savefig(FIG / "fig_08_muzychka_and_the_thickness_rule.png", dpi=110)
@@ -257,9 +257,9 @@ def corrections_impact(ci):
     axs[0].set_xticklabels(["4", "2", "1", "0.5", "0.25"])
     axs[0].xaxis.set_minor_formatter(plt.NullFormatter())
     axs[0].invert_xaxis()
-    axs[0].set_xlabel("cell size (mm); the source edges fall on cell edges from 0.5 mm")
+    axs[0].set_xlabel("cell size (mm); the source keeps its 25 mm on 1, 0.5 and 0.25 mm cells (24 mm on 2 mm cells)")
     axs[0].set_ylabel("plate model against Seri Lee (%)")
-    axs[0].set_title("The documented +4.5 % is the 1 mm cell, not the model", fontsize=9)
+    axs[0].set_title(f"The documented +4.5 % was a 24 mm source (round() on 1 mm cells): {100 * (ci['documented']['rc_24mm'] / 0.66 - 1):+.1f} %", fontsize=9)
     axs[0].legend(fontsize=8)
     rows = ci["forms"]
     x = np.arange(len(rows))
@@ -283,26 +283,31 @@ def corrections_impact(ci):
 
 def alignment(ci):
     """!
-    @brief The centre value of the plate check for many cell sizes, coloured by how far the source edge is from a cell edge.
+    @brief The centre value of the plate check for many cell sizes (the source keeps its 25 mm), and against the side of the source.
     @param ci Content of corrections_impact.json.
     @return None.
     """
-    d = np.array([a for a, _, _ in ci["alignment"]])
-    off = np.array([o for _, o, _ in ci["alignment"]])
-    err = np.array([e for _, _, e in ci["alignment"]])
+    d = np.array([a[0] for a in ci["alignment"]])
+    err = np.array([a[2] for a in ci["alignment"]])
+    off = np.array([a[1] for a in ci["alignment"]])
     fig, axs = plt.subplots(1, 2, figsize=(12, 4.4))
     sc = axs[0].scatter(d, err, c=off, cmap="viridis", s=36)
     axs[0].axhline(0, color="k", lw=0.8)
     axs[0].invert_xaxis()
+    axs[0].set_ylim(-1, 6)
     axs[0].set_xlabel("cell size (mm)")
     axs[0].set_ylabel("centre value against Seri Lee (%)")
-    axs[0].set_title("The error follows the alignment of the source edge, not the resolution", fontsize=9)
+    axs[0].set_title(f"46 cell sizes, the source kept at 25 mm: {err.min():+.1f} to {err.max():+.1f} %", fontsize=9)
     fig.colorbar(sc, ax=axs[0], label="distance of the source edge from a cell edge (cells)")
-    axs[1].scatter(off, err, color="#1d4ed8", s=30)
-    axs[1].set_xlabel("distance of the source edge from the nearest cell edge (cells)")
-    axs[1].set_ylabel("error (%)")
-    axs[1].set_title("Aligned (0): +0.5 %; half a cell off (0.5): up to +5.8 %", fontsize=9)
+    ss = ci["side_sweep"]
+    axs[1].plot([a for a, _ in ss], [e for _, e in ss], "o-", color="#1d4ed8", label="0.5 mm cells, edges on cell edges")
+    doc = ci["documented"]
+    axs[1].plot([doc["side_mm"]], [100 * (doc["rc_24mm"] / 0.66 - 1)], "*", ms=14, color="#dc2626", label="the documented check (round() on 1 mm cells)")
     axs[1].axhline(0, color="k", lw=0.8)
+    axs[1].set_xlabel("side of the heated square (mm); the source of the article is 25 mm")
+    axs[1].set_ylabel("error (%)")
+    axs[1].set_title("One millimetre less of source side: +3.5 %; the documented check had 24 mm", fontsize=9)
+    axs[1].legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(FIG / "fig_14_plate_alignment_sweep.png", dpi=110)
     plt.close(fig)

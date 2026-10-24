@@ -27,7 +27,7 @@ import component_study as cs                                          # noqa: E4
 from pcbthermal import SolverOptions, blocks, simulate               # noqa: E402
 
 
-def plate_check(n=100, side=100.0, t_mm=1.3, k=200.0, r0=1.0, src=25.0):
+def plate_check(n=200, side=100.0, t_mm=1.3, k=200.0, r0=1.0, src=25.0):
     """!
     @brief Maximum minus mean surface temperature of a plate with a centred square source, per watt, by finite differences on the plan (thin plate: k t lateral conductance).
     @param n Cells per side.
@@ -48,7 +48,9 @@ def plate_check(n=100, side=100.0, t_mm=1.3, k=200.0, r0=1.0, src=25.0):
     off = off + off.T
     K = sp.diags(np.asarray(off.sum(axis=1)).ravel() + h * d * d) - off
     q = np.zeros((n, n))
-    lo, hi = int(round((side - src) / 2 / (side / n))), int(round((side + src) / 2 / (side / n)))
+    # floor(x + 0.5), not round(): Python rounds halves to even, which put a 25 mm source on 24 cells of 1 mm (37.5 -> 38, 62.5 -> 62)
+    # and read +4.5 %; with n = 200 (0.5 mm) the source edges fall on cell edges and the source keeps its size
+    lo, hi = int(np.floor((side - src) / 2 / (side / n) + 0.5 + 1e-9)), int(np.floor((side + src) / 2 / (side / n) + 0.5 + 1e-9))
     q[lo:hi, lo:hi] = 1.0 / ((hi - lo) ** 2)               # One watt over the source
     theta = spla.spsolve(K.tocsc(), q.ravel()).reshape(n, n)
     mean = float((theta * h * d * d).sum())                # Equals r0 times the power

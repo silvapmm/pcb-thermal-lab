@@ -35,7 +35,7 @@ LAYERS = {                                                    # Table 2 of the p
 }
 PAPER_LAYERS = {1: (15.02, "text"), 2: (11.6, "plot"), 3: (8.28, "text"), 4: (7.4, "plot"), 5: (5.00, "text")}
 SIZES = {0.01: (3.4, "plot"), 0.1: (7.6, "plot"), 0.25: (8.28, "text"), 0.5: (6.8, "plot"), 1.0: (0.42, "text")}
-BIOT = {0.1: (8.6, "plot"), 1: (8.3, "plot"), 10: (8.3, "plot"), 100: (6.0, "plot"), 1000: (4.8, "plot"), 1e4: (4.8, "plot")}
+BIOT = {0.1: (8.6, "plot"), 1.0: (8.3, "plot"), 10.0: (8.3, "plot"), 100.0: (6.0, "plot"), 1e3: (4.8, "plot"), 1e4: (4.8, "plot")}   # keyed by h; read from the paper's Figure 5
 
 
 def slabs(layers, n_cu=1, n_fr4=3):
@@ -98,7 +98,7 @@ def main():
     print("\n| epsilon (source area / board area) | side (mm) | this work (W/mK) | paper (W/mK) | source | difference |")
     print("| --: | --: | --: | --: | :-- | --: |")
     for eps, (ref, how) in SIZES.items():
-        side = 0.5e-3 * round(np.sqrt(eps) * 50e-3 / 0.5e-3)
+        side = 1e-3 * round(np.sqrt(eps) * 50.0)               # whole millimetres, so that the edges of a centred source fall on the 0.5 mm cells
         if eps == 1.0:
             src = (0, 0, N * DX, N * DX)
         else:
@@ -114,13 +114,14 @@ def main():
         ke, r = effective(base, src)
         out["location"][name] = {"k_eff": ke, "paper": ref}
         print(f"| {name} | {ke:.2f} | {ref:.2f} (+42 % / +67 % of 8.28) | {100 * (ke / ref - 1):+.1f} % |", flush=True)
-    print("\n| film coefficient h (W/m2K) | Biot = h L / k1, L = 25 mm, k1 = 0.4 | this work (W/mK) | paper (plot) |")
-    print("| --: | --: | --: | --: |")
+    print("\n| film coefficient h (W/m2K) | Biot = h L / k1, L = 25 mm, k1 = 0.4 | this work (W/mK) | paper (plot) | difference |")
+    print("| --: | --: | --: | --: | --: |")
     for h in (0.1, 1.0, 10.0, 100.0, 1e3, 1e4):
         ke, r = effective(base, centred(25e-3), h, h)
         bi = h * 0.025 / 0.4
-        out["biot"][h] = {"Bi": bi, "k_eff": ke}
-        print(f"| {h:g} | {bi:.3g} | {ke:.2f} | 8.6 at the lowest Bi, 4.8 above Bi = 100 |", flush=True)
+        ref, how = BIOT[h]
+        out["biot"][h] = {"Bi": bi, "k_eff": ke, "paper": ref, "how": how}
+        print(f"| {h:g} | {bi:.3g} | {ke:.2f} | {ref} | {100 * (ke / ref - 1):+.1f} % |", flush=True)
     (HERE.parent / "out").mkdir(exist_ok=True)
     (HERE.parent / "out" / "culham_1998.json").write_text(json.dumps(out, indent=1))
 

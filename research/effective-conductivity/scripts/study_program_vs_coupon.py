@@ -24,7 +24,7 @@ from pcbthermal.model import Materials                         # noqa: E402
 
 CU_T, GAP, K_CU, K_FR4, POWER, H = 35.6e-6, 1.5789e-3, 400.0, 0.4, 2.5, 5.0
 WIDTH = 50e-3
-SIDES_MM = [5.0, 16.0, 25.0, 35.5, 50.0]
+SIDES_MM = [5.0, 16.0, 25.0, 35.0, 50.0]                       # edges on the 0.5 mm cells (35 mm for epsilon 0.5: 35.5 would put the edges between cells)
 MODELS = ("fvm", "fdm", "solid3d", "lumped", "analytic")
 
 

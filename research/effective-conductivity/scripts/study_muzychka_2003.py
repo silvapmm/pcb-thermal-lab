@@ -49,14 +49,24 @@ def independent(case):
     """!
     @brief Source temperatures and base mean by the independent 3D solver.
     @param case Case dictionary.
-    @return dict with centroid, mean (lists, C), base (C, the mean of the bottom face, equal to the ambient plus Q / (h A)), top_mean (C, the mean of the whole top face) and the maximum surface temperature.
+    @return dict with centroid, mean (lists, C), base (C, the mean of the bottom face, equal to the ambient plus Q / (h A)), top_mean (C, the mean of the whole top face), the maximum surface temperature,
+            thick_mean (list, C: the mean over each source of the temperature averaged through the thickness, the quantity one node per layer represents) and gradient (list, K: mean surface
+            temperature of each source minus thick_mean) with bound (list, K: q'' t / (2 k), the gradient if all the heat of the source crossed the plate under it).
     """
     n = int(round(case["w"] / case["dx"]))
     rects = [tuple(v * 1e-3 for v in r) for r, _ in case["sources"]]
     pw = [p for _, p in case["sources"]]
     res = L.solve(case["dx"] * 1e-3, n, n, [(case["t"] * 1e-3, case["k"], 6)], rects, pw, 0.0, case["h"])
     cen = [AMB + centroid_value(res["surface_top"], case["dx"], (r[0] + r[2]) / 2 * 1e3, (r[1] + r[3]) / 2 * 1e3) for r in rects]
-    return {"centroid": cen, "mean": [AMB + d["mean"] for d in res["per_source"]], "base": AMB + res["mean_wall"], "top_mean": AMB + res["top_surface_mean"], "max": AMB + float(res["surface_top"].max())}
+    dz = np.asarray(res["dz"])
+    tbar = (res["T"] * dz[:, None, None]).sum(axis=0) / dz.sum()          # temperature averaged through the thickness
+    xs = (np.arange(n) + 0.5) * case["dx"] * 1e-3
+    masks = [(xs[None, :] > r[0]) & (xs[None, :] < r[2]) & (xs[:, None] > r[1]) & (xs[:, None] < r[3]) for r in rects]
+    thick = [float(tbar[m].mean()) for m in masks]
+    grad = [d["mean"] - t for d, t in zip(res["per_source"], thick)]
+    bound = [p / ((r[2] - r[0]) * (r[3] - r[1])) * case["t"] * 1e-3 / (2 * case["k"]) for r, p in zip(rects, pw)]
+    return {"centroid": cen, "mean": [AMB + d["mean"] for d in res["per_source"]], "base": AMB + res["mean_wall"], "top_mean": AMB + res["top_surface_mean"], "max": AMB + float(res["surface_top"].max()),
+            "thick_mean": [AMB + t for t in thick], "gradient": grad, "bound": bound}
 
 
 def program(case, model, cell_mm):
@@ -67,7 +77,9 @@ def program(case, model, cell_mm):
     @param cell_mm Cell size in mm.
     @return dict with centroid, mean (lists, C) and max, or None when the model refuses the board.
     """
-    mat = Materials(k_copper=case["k"])
+    # No in-plane FR4: a one-layer board of thickness 2 t would otherwise add t of FR4 (0.9 W/mK) to the lateral conductance of the plate,
+    # a path the real plate does not have (+9 % for k = 10, +1.8 % for k = 50); the board thickness only sets that slab here
+    mat = Materials(k_copper=case["k"], k_fr4_inplane=1e-9)
     p = Problem.new(case["w"], case["w"], layers=1, thickness_mm=2 * case["t"], copper_um=case["t"] * 1e3, ambient=AMB, h_top=1e-6, h_bottom=case["h"], h_side=None, materials=mat)
     p.add_full_copper()
     for k, (r, pw) in enumerate(case["sources"]):
@@ -100,13 +112,15 @@ def thickness_sweep(thicknesses=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0), models=("fvm", 
     base = CASES["3"]
     for t in thicknesses:
         case = dict(base, t=t)
-        ref = independent(case)["centroid"][0] - AMB
-        row = {"independent": ref}
+        ind = independent(case)
+        ref = ind["centroid"][0] - AMB
+        row = {"independent": ref, "gradient": ind["gradient"][0], "bound": ind["bound"][0]}
         for m in models:
             r = program(case, m, 1.0)
             row[m] = (r["centroid"][0] - AMB) if r else float("nan")
         out[t] = row
-        print(f"  t = {t:g} mm: independent {ref:.2f} K; " + ", ".join(f"{m} {row[m]:.2f} ({100 * (row[m] / ref - 1):+.1f} %)" for m in models), flush=True)
+        print(f"  t = {t:g} mm: independent {ref:.2f} K (gradient under the centre source {row['gradient']:.2f} K = {100 * row['gradient'] / ref:.2f} %, bound q'' t / (2 k) {100 * row['bound'] / ref:.2f} %); "
+              + ", ".join(f"{m} {row[m]:.2f} ({100 * (row[m] / ref - 1):+.2f} %)" for m in models), flush=True)
     return out
 
 
@@ -121,6 +135,7 @@ def main():
         out[name] = {"paper": case["paper"], "independent": ind, "program": {}}
         print(f"\nCase {name}: paper {case['paper']}")
         print(f"  independent 3D solver: centroid {np.round(ind['centroid'], 2).tolist()}, mean {np.round(ind['mean'], 2).tolist()}, bottom mean {ind['base']:.2f}, top-face mean {ind['top_mean']:.2f}, max {ind['max']:.2f}")
+        print(f"  through-thickness mean over each source {np.round(ind['thick_mean'], 2).tolist()}; surface minus that mean {np.round(ind['gradient'], 2).tolist()} K against q'' t / (2 k) {np.round(ind['bound'], 2).tolist()} K")
         for m in MODELS:
             r = program(case, m, 2.5 if name == "1a" else 1.0)
             out[name]["program"][m] = r

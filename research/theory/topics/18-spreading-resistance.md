@@ -16,7 +16,7 @@ For an isoflux circular source of radius `a` on a flux tube of radius `b` (insul
 
 ## 2. Why it matters here
 
-Every heater of a board is a small source on a large body: the sheet conductance of the layered models (topic 01), the rings of the Lumped model (topic 05, whose interior resistance `1 / (8 pi S)` is the disc spreading in a sheet), the Green functions of the Analytic model (topic 06), and the plate model of a block (topic 11, +4.5 % against a published spreading resistance) all have to reproduce it.
+Every heater of a board is a small source on a large body: the sheet conductance of the layered models (topic 01), the rings of the Lumped model (topic 05, whose interior resistance `1 / (8 pi S)` is the disc spreading in a sheet), the Green functions of the Analytic model (topic 06), and the plate model of a block (topic 11, +0.6 %, -0.8 % and -4.6 % against the centre, edge and corner values of a published spreading resistance) all have to reproduce it.
 
 ## 3. How it is checked
 

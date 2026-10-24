@@ -78,6 +78,29 @@ def keff(layers, h_top, h_bottom, mode, dx=1.25e-3, n=40, power=2.5):
     return float(np.exp(0.5 * (a + b))), target
 
 
+def plateau_check(h=1e4, k_plateau=4.8, dx=1.25e-3, n=40, power=2.5):
+    """!
+    @brief Can any laminate with this stack give the plateau of the paper? A lower bound of its solid-body resistance against the resistance the plateau implies.
+    @details The source sits on the top FR4 layer, so all its heat crosses that layer: under the footprint alone its resistance is t1 / (k1 A_source), and the
+             only way around it is sideways through the same FR4 to the free top face, a path of the order of the layer thickness along the perimeter of the source.
+             The homogeneous layer of k = 4.8 W/mK under the same films has the resistance that the plateau would require of the laminate.
+    @param h Film coefficient in W/m2K (a Biot number of 625).
+    @param k_plateau Effective conductivity of the plateau in W/mK.
+    @param dx Cell size in m.
+    @param n Cells per side.
+    @param power Heat in W.
+    @return dict with the top-FR4 bound, the sideways escape estimate, the laminate resistance and the resistance of the plateau layer (K/W).
+    """
+    t1, k1 = cu.FR4
+    a_src = 25e-3 ** 2
+    c = n * dx / 2
+    src = (c - 12.5e-3, c - 12.5e-3, c + 12.5e-3, c + 12.5e-3)
+    total = sum(t for t, _ in cu.LAYERS[3])
+    lam = L.solid_resistance(L.solve(dx, n, n, cu.slabs(cu.LAYERS[3]), src, power, h, h), power)
+    plateau = L.solid_resistance(L.solve(dx, n, n, [(total, k_plateau, 6)], src, power, h, h), power)
+    return {"top_fr4_bound": t1 / (k1 * a_src), "sideways_escape": 1.0 / (k1 * 4 * 25e-3), "laminate": lam, "plateau_layer": plateau, "h": h}
+
+
 def main():
     """!
     @brief Print the tables and write out/biot_definitions.json for the figures.
@@ -86,8 +109,12 @@ def main():
     base = cu.LAYERS[3]
     a_src = 25e-3 ** 2
     series = sum(t / (k * a_src) for t, k in base)
+    pc = plateau_check()
+    print(f"Plateau check at h = {pc['h']:g} W/m2K (Bi {pc['h'] * 0.025 / 0.4:g}): the top FR4 under the source alone is {pc['top_fr4_bound']:.2f} K/W, the sideways escape to the free "
+          f"top face about {pc['sideways_escape']:.0f} K/W, the laminate {pc['laminate']:.2f} K/W; a homogeneous layer of 4.8 W/mK gives {pc['plateau_layer']:.2f} K/W, "
+          f"{pc['top_fr4_bound'] / pc['plateau_layer']:.1f} times below the bound")
     hs = (0.1, 1.0, 10.0, 100.0, 1e3, 1e4, 1e5)
-    out = {"series_under_source": series, "h": list(hs), "modes": {}, "bottom_only_film": [], "R_solid": []}
+    out = {"series_under_source": series, "h": list(hs), "modes": {}, "bottom_only_film": [], "R_solid": [], "plateau_check": pc}
     print(f"Series resistance of the stack under the footprint of the source: {series:.2f} K/W")
     print("| h (W/m2K) | Bi = h L / k1 | " + " | ".join(MODES) + " | film on the bottom only | R_solid (A) (K/W) |")
     print("| --: | --: | " + " | ".join("--:" for _ in MODES) + " | --: | --: |")

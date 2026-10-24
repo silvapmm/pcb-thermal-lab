@@ -66,7 +66,9 @@ def rc_2d(position, n=200):
     Kmat = sp.diags(np.asarray(off.sum(axis=1)).ravel() + h * d * d) - off
     x0, y0, x1, y1 = source_rect(position, d)
     q = np.zeros((n, n))
-    q[int(round(y0 / d)):int(round(y1 / d)), int(round(x0 / d)):int(round(x1 / d))] = 1.0
+    # round halves up (round() rounds them to even and can shrink the source by a cell); the 1e-9 absorbs the round-off of v / d (37.5 mm / 1.19 mm gave 31.4999...)
+    i0, j0, i1, j1 = (int(np.floor(v / d + 0.5 + 1e-9)) for v in (x0, y0, x1, y1))
+    q[j0:j1, i0:i1] = 1.0
     q /= q.sum()
     theta = spla.spsolve(Kmat.tocsc(), q.ravel()).reshape(n, n)
     return float(theta[q > 0].max() - (theta * h * d * d).sum())

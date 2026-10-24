@@ -19,13 +19,14 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
     @param nx Cells along x.
     @param ny Cells along y.
     @param slabs List of (thickness in m, conductivity in W/mK, number of sub-slabs) from the top down.
-    @param source Tuple (x0, y0, x1, y1) of the heated rectangle on the top face in m, measured from the corner; its edges must lie on cell edges. A list of such tuples is accepted too (several sources).
+    @param source Tuple (x0, y0, x1, y1) of the heated rectangle on the top face in m, measured from the corner; its edges must lie on cell edges (checked). A list of such tuples is accepted too (several sources).
     @param power Heat flowing into the source rectangle in W (a list with one value per rectangle when `source` is a list).
     @param h_top Film coefficient on the top face outside the source in W/m2K (0 = insulated).
     @param h_bottom Film coefficient on the bottom face in W/m2K.
     @param film_under_source True: the film coefficient also acts on the top face under the source (as the program does); False: the source area is insulated (as in the papers).
-    @return dict with T (array nz x ny x nx, rise in K), dz (list), area_source, mask_source (ny x nx bool), mean_source, max_source, mean_wall.
-    @throws ValueError If the source does not fit in the block.
+    @return dict with T (array nz x ny x nx, rise in K), dz (list), area_source, mask_source (ny x nx bool), mean_source, max_source (surface temperatures of the heated cells),
+            cell_mean_source, cell_max_source (cell centres), per_source, surface_top, heat_out, wall_top, wall_bottom, top_surface_mean, mean_wall.
+    @throws ValueError If a source edge does not lie on a cell edge or a source covers no cell.
     """
     dz, kz = [], []
     for t, k, n in slabs:
@@ -38,10 +39,14 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
     multi = isinstance(source[0], (tuple, list))
     rects = list(source) if multi else [source]
     powers = list(power) if multi else [power]
+    for r in rects:                                              # an edge between cell edges would silently change the heated area
+        e = np.asarray(r, dtype=float) / dx
+        if np.abs(e - np.round(e)).max() > 1e-6:
+            raise ValueError(f"source {tuple(r)} has an edge between cell edges (cell {dx} m)")
     masks = [(xs[None, :] > r[0]) & (xs[None, :] < r[2]) & (ys[:, None] > r[1]) & (ys[:, None] < r[3]) for r in rects]
     mask = np.logical_or.reduce(masks)
-    if not mask.any():
-        raise ValueError("the source rectangle covers no cell")
+    if not all(m.any() for m in masks):
+        raise ValueError("a source rectangle covers no cell")
     area = dx * dx
     n = nz * ny * nx
     idx = np.arange(n).reshape(nz, ny, nx)
@@ -69,36 +74,36 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
         link(idx[k], idx[k + 1], 1.0 / r)
     q = np.zeros(n)
     top, bot = idx[0], idx[-1]
-    with np.errstate(divide="ignore"):
-        gt = 0.0 if h_top <= 0 else 1.0 / (dz[0] / (2 * kz[0] * area) + 1.0 / (h_top * area))
-        gb = 0.0 if h_bottom <= 0 else 1.0 / (dz[-1] / (2 * kz[-1] * area) + 1.0 / (h_bottom * area))
+    rh_top = dz[0] / (2 * kz[0] * area)                          # half-cell resistances between the outer cell centres and their faces (K/W)
+    rh_bot = dz[-1] / (2 * kz[-1] * area)
     free_top = np.ones_like(mask) if film_under_source else ~mask
-    np.add.at(diag, top[free_top], gt)
-    np.add.at(diag, bot.ravel(), gb)
+    g_film = np.where(free_top, max(h_top, 0.0) * area, 0.0)     # film conductance of every top-face cell (W/K)
+    gb = 0.0 if h_bottom <= 0 else 1.0 / (rh_bot + 1.0 / (h_bottom * area))
     qcell = np.zeros(mask.shape)
     for m, pw in zip(masks, powers):
         qcell[m] += pw / m.sum()                                 # the power of each source spread uniformly over its cells
-    q[top[mask]] = qcell[mask]
+    # The top face of a cell is a node eliminated from the system: Ts = (q + T/rh) / (1/rh + g_film). The centre then sees the film through
+    # rh + 1/g_film and receives q / (1 + g_film rh); the rest of q leaves through the film directly (it matters only where a film acts under a source).
+    np.add.at(diag, top.ravel(), (g_film / (1.0 + g_film * rh_top)).ravel())
+    np.add.at(diag, bot.ravel(), gb)
+    q[top.ravel()] = (qcell / (1.0 + g_film * rh_top)).ravel()
     K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsr() + sp.diags(diag)
     T = spla.spsolve(K.tocsc(), q).reshape(nz, ny, nx)
-    # surface temperatures: the cell-centre value corrected by the half-cell resistance (heated cells) or divided between the half cell and the film (convecting cells)
-    rh_top = dz[0] / (2 * kz[0] * area)
-    rh_bot = dz[-1] / (2 * kz[-1] * area)
-    t_src = T[0][mask] + qcell[mask] * rh_top
+    surface = (qcell + T[0] / rh_top) / (1.0 / rh_top + g_film)  # top-face temperature of every cell (heated, convecting, both or neither)
+    t_src = surface[mask]
     walls = []
     wall_top = np.array([])
     wall_bottom = np.array([])
-    heat_out = 0.0                                                # heat leaving through the films, for the energy balance
+    heat_out = float((g_film * surface).sum())                   # heat leaving through the films, for the energy balance
     if h_top > 0:
-        walls.append(T[0][free_top] * (1.0 / (h_top * area)) / (rh_top + 1.0 / (h_top * area)))
-        wall_top = walls[-1]
-        heat_out += float((h_top * area * walls[-1]).sum())
+        wall_top = surface[free_top]
+        walls.append(wall_top)
     if h_bottom > 0:
-        walls.append(T[-1].ravel() * (1.0 / (h_bottom * area)) / (rh_bot + 1.0 / (h_bottom * area)))
-        wall_bottom = walls[-1]
-        heat_out += float((h_bottom * area * walls[-1]).sum())
+        wall_bottom = T[-1].ravel() * (1.0 / (h_bottom * area)) / (rh_bot + 1.0 / (h_bottom * area))
+        walls.append(wall_bottom)
+        heat_out += float((h_bottom * area * wall_bottom).sum())
     return {"T": T, "dz": list(dz), "area_source": mask.sum() * area, "mask_source": mask, "mean_source": float(t_src.mean()),
-            "max_source": float(t_src.max()), "cell_mean_source": float(T[0][mask].mean()), "cell_max_source": float(T[0][mask].max()), "per_source": [{"mean": float((T[0][m] + qcell[m] * rh_top).mean()), "cell_mean": float(T[0][m].mean())} for m in masks], "surface_top": T[0] + qcell * rh_top, "heat_out": heat_out, "wall_top": wall_top, "wall_bottom": wall_bottom, "top_surface_mean": float((T[0] + qcell * rh_top).mean()), "mean_wall": float(np.concatenate(walls).mean()) if walls else 0.0}
+            "max_source": float(t_src.max()), "cell_mean_source": float(T[0][mask].mean()), "cell_max_source": float(T[0][mask].max()), "per_source": [{"mean": float(surface[m].mean()), "cell_mean": float(T[0][m].mean())} for m in masks], "surface_top": surface, "heat_out": heat_out, "wall_top": wall_top, "wall_bottom": wall_bottom, "top_surface_mean": float(surface.mean()), "mean_wall": float(np.concatenate(walls).mean()) if walls else 0.0}
 
 
 def solid_resistance(res, power):

@@ -27,6 +27,19 @@ def test_the_heat_leaving_the_walls_equals_the_power():
     assert len(res["per_source"]) == 2
 
 
+def test_the_energy_balance_holds_with_a_film_under_the_source():
+    dx, n = 1e-3, 20
+    res = L.solve(dx, n, n, [(0.5e-3, 2.0, 2), (1e-3, 0.4, 3)], (5e-3, 5e-3, 12e-3, 15e-3), 3.0, 2000.0, 20.0, film_under_source=True)
+    assert res["heat_out"] == pytest.approx(3.0, rel=1e-9)
+    # with the film under the source the heated face is cooler than the cell centre plus q rh: the surface node carries both
+    assert res["mean_source"] < res["cell_mean_source"] + 3.0 / 70 * 0.25e-3 / (2.0 * dx * dx)
+
+
+def test_a_source_edge_between_cell_edges_is_refused():
+    with pytest.raises(ValueError):
+        L.solve(1e-3, 10, 10, [(1e-3, 1.0, 2)], (2.5e-3, 2e-3, 6e-3, 6e-3), 1.0, 5.0, 5.0)
+
+
 def test_the_effective_conductivity_of_a_uniform_layer_is_its_own():
     dx, n = 2e-3, 20
     src = (10e-3, 10e-3, 20e-3, 20e-3)
@@ -73,6 +86,20 @@ def test_the_plate_model_converges_to_seri_lee_when_the_source_edges_fall_on_cel
     assert lee.rc_2d("centre", n=200) == pytest.approx(0.66, rel=0.02)
     assert lee.rc_2d("edge midpoint", n=200) == pytest.approx(1.29, rel=0.02)
     assert lee.rc_2d("corner", n=200) == pytest.approx(2.38, rel=0.06)
+
+
+def test_the_plateau_of_the_paper_needs_less_resistance_than_the_top_fr4_alone():
+    import study_biot_definitions as biot
+    pc = biot.plateau_check()
+    assert pc["laminate"] > pc["top_fr4_bound"]                    # the laminate cannot beat its own top layer
+    assert pc["plateau_layer"] < pc["top_fr4_bound"] / 3.0         # but k = 4.8 W/mK would need it to
+
+
+def test_one_node_per_layer_falls_short_by_less_than_the_bound_when_the_heat_spreads():
+    c = muz.CASES["1a"]
+    out = muz.independent(c)
+    for g, b in zip(out["gradient"], out["bound"]):
+        assert 0.5 * b < g < 0.7 * b                               # the heat spreads sideways under the source: about 0.6 q'' t / (2 k)
 
 
 def test_the_mean_of_the_top_face_explains_the_base_temperature_of_the_paper():

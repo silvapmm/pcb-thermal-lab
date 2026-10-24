@@ -92,7 +92,7 @@ def positions(path):
 
 def gradient(path):
     """!
-    @brief Why one temperature per layer under-estimates the surface under a source on a thick plate.
+    @brief Why one temperature per layer under-estimates the surface under a source on a thick plate, and why q'' t / (2 k) is only the upper bound of it.
     @param path Output file.
     @return None.
     """
@@ -109,14 +109,17 @@ def gradient(path):
     ax.plot([6.8, 5.9], [3.0, 1.2], "r--", lw=1.4)
     ax.plot([6.35, 6.35], [1.2, 3.0], "b:", lw=1)
     ax.plot([6.35], [2.1], "bo")
+    zz = np.linspace(0.0, 1.0, 30)                               # flux falling linearly with depth (heat leaving sideways): T - T_bottom ~ (1 - z)^2
+    ax.plot(5.9 + (6.8 - 5.9) * (1.0 - zz) ** 2, 3.0 - 1.8 * zz, color="#7c3aed", lw=1.4)   # illustrative shape, same top and bottom
+    ax.text(5.25, 2.55, "heat leaving\nsideways", color="#7c3aed", fontsize=6.5)
     ax.text(5.1, 3.15, "top surface", fontsize=7, ha="right")
     ax.text(5.1, 1.0, "bottom", fontsize=7, ha="right")
     ax.text(7.0, 3.0, "T_top", color="r", fontsize=8, va="center")
     ax.text(7.0, 2.1, "T_mid: the one node of the layered model", color="b", fontsize=8, va="center")
     ax.text(6.0, 1.05, "T_bottom", color="r", fontsize=8, va="center")
-    dk.box(ax, 7.2, 0.15, 3.6, 1.1, "surface under the source is hotter than the node by\nq'' t / (2 k)", "#fbe3c2", size=8.5)
-    dk.box(ax, 0.5, 0.15, 6.2, 0.7, "test: error of the rise ~ q'' t / (2 k) / rise: 2.3 % at t = 10 mm, k = 50; 12.8 % at t = 10 mm, k = 10", "#cfe3f5", size=7.5)
-    dk.save(fig, path, "One temperature node through the thickness: exact for a thin or highly conducting layer, low by q'' t / 2k at the surface under a source otherwise")
+    dk.box(ax, 7.2, 0.15, 3.6, 1.1, "surface under the source is hotter than the node by\nat most q'' t / (2 k) (all the heat crossing: red);\nless when it leaves sideways (violet)", "#fbe3c2", size=7.5)
+    dk.box(ax, 0.5, 0.15, 6.2, 0.7, "measured (3D): 4.7 and 7.1 K against 8 and 12 K for the bound (t = 10 mm, k = 10); 0.91 K against 1.25 K (k = 50)", "#cfe3f5", size=7)
+    dk.save(fig, path, "One temperature node through the thickness: the node is the mean; the surface under a source is hotter, by at most q'' t / 2k")
 
 
 def corrections_map(path):
@@ -132,9 +135,9 @@ def corrections_map(path):
     for title, x, c in cols:
         dk.box(ax, x, 4.7, 4.0, 0.7, title, c, bold=True, size=9)
     dk.box(ax, 0.3, 2.9, 4.0, 1.5, "plate check of the documents\nattribution to Seri Lee (1998)\n'+4.5 %' becomes +0.6, -0.8, -4.6 %\n(centre, edge, corner, aligned cells)", "#cfe3f5", size=8)
-    dk.box(ax, 0.3, 0.8, 4.0, 1.7, "impact on results: none\nthe 1 mm check read +4 % because the\n25 mm source sat half a cell off the grid\n(+0.5 % aligned, up to +5.8 % off)", "#ffffff", size=8)
+    dk.box(ax, 0.3, 0.8, 4.0, 1.7, "impact on results: none\nthe 1 mm check read +4.5 % because\nround() put the 25 mm source on\n24 cells (37.5 -> 38, 62.5 -> 62)", "#ffffff", size=8)
     dk.box(ax, 5.0, 3.5, 4.0, 0.9, "laminar form of Churchill and Chu\nvertical boards: -0.7 to +0.2 % of the rise", "#fbe3c2", size=8)
-    dk.box(ax, 5.0, 2.3, 4.0, 0.9, "thick-plate check q'' t / 2k\n74 block cases: at most 0.42 % (never fires)", "#fbe3c2", size=8)
+    dk.box(ax, 5.0, 2.3, 4.0, 0.9, "thick-plate check q'' t / 2k (an upper bound)\n74 block cases: at most 0.42 % (never fires)", "#fbe3c2", size=8)
     dk.box(ax, 5.0, 0.8, 4.0, 1.2, "independent solver as a test helper\n(checked against 6 published numbers\nand a closed form)", "#fbe3c2", size=8)
     dk.box(ax, 9.7, 3.0, 4.0, 1.4, "an effective conductivity of the stack\nk_e from 15 to 5 W/mK with the layer order;\nthe means can be 70 % off", "#e8e8e8", size=8)
     dk.box(ax, 9.7, 0.8, 4.0, 1.7, "the program keeps one node per copper\nlayer and a resistor per gap: the order\nis represented, nothing to homogenise", "#ffffff", size=8)
@@ -145,12 +148,13 @@ def corrections_map(path):
 
 def source_edge(path):
     """!
-    @brief The 25 mm source edge on 1 mm and on 0.5 mm cells: half a cell off the grid, and on it.
+    @brief The 25 mm source edge on 1 mm and on 0.5 mm cells: round() moves the edge at 37.5 mm to 38 (and the one at 62.5 mm to 62), the 0.5 mm grid keeps it.
     @param path Output file.
     @return None.
     """
     fig, axs = dk.canvas(11, 3.6, nrows=1, ncols=2)
-    for ax, d, title in zip(axs, (1.0, 0.5), ("1 mm cells: the edge at 37.5 mm is half a cell off", "0.5 mm cells: the edge falls on a cell edge")):
+    for ax, d, start, title in zip(axs, (1.0, 0.5), (38.0, 37.5), ("1 mm cells, round(37.5) = 38: the heated cells start at 38 mm\n(and round(62.5) = 62: the source has 24 cells)",
+                                                                   "0.5 mm cells: the edge falls on a cell edge (25 mm)")):
         ax.set_xlim(34, 42)
         ax.set_ylim(0, 4)
         ax.set_aspect("equal")
@@ -158,11 +162,11 @@ def source_edge(path):
             ax.plot([x, x], [0, 4], color="#9ca3af", lw=0.6)
         for y in np.arange(0, 4.01, d):
             ax.plot([34, 42], [y, y], color="#9ca3af", lw=0.6)
-        ax.add_patch(Rectangle((37.5, 0.0), 4.5, 4.0, fc=dk.HEAT, alpha=0.35, ec="none"))
-        ax.plot([37.5, 37.5], [0, 4], color=dk.HEAT, lw=2)
-        ax.text(37.6, 3.6, "source edge", color=dk.HEAT, fontsize=8)
-        ax.set_title(title, fontsize=9)
-    dk.save(fig, path, "Why the plate check of the documents read +4.5 %: the source edge against the cell grid")
+        ax.add_patch(Rectangle((start, 0.0), 42.0 - start, 4.0, fc=dk.HEAT, alpha=0.35, ec="none"))
+        ax.plot([37.5, 37.5], [0, 4], color=dk.HEAT, lw=2, ls="--" if start != 37.5 else "-")
+        ax.text(37.4, 3.6, "true edge", color=dk.HEAT, fontsize=8, ha="right")
+        ax.set_title(title, fontsize=8.5)
+    dk.save(fig, path, "Why the plate check of the documents read +4.5 %: round() rounds halves to even and shrank the source")
 
 
 def main():
