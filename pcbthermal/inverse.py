@@ -141,6 +141,89 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
             "resistance_k_per_w": rise / pb if pb > 0 else float("inf")}
 
 
+DESIGN_LEVELS = ("none", "cad", "hand", "estimated")           # How the board was described: see power_band
+
+
+def design_amounts(u):
+    """!
+    @brief The amplitudes of the design-uncertainty terms for the chosen confidence level.
+    @details The defaults hold one amplitude per term at the level "estimated" (design_*_pct) and one multiplier per level (design_scale_*). The level "none" is zero by definition.
+    @param u Uncertainty dict (the keys design_level, design_coverage_pct, design_weight_pct, design_planes_pct, design_vias_pct, design_scale_cad/hand/estimated).
+    @return Dict coverage, weight, planes, vias as fractions (0 = the term is off).
+    @throws ValueError If the level is not one of DESIGN_LEVELS.
+    """
+    level = u.get("design_level", "none")
+    if level not in DESIGN_LEVELS:
+        raise ValueError(f"design level must be one of {DESIGN_LEVELS}")
+    scale = 0.0 if level == "none" else float(u[f"design_scale_{level}"])
+    return {k: max(scale * float(u[f"design_{k}_pct"]) / 100.0, 0.0) for k in ("coverage", "weight", "planes", "vias")}
+
+
+def pr_has(problem, attr):
+    """!
+    @brief Whether a Problem has any element of one kind (a term with nothing to change is skipped).
+    @param problem Problem.
+    @param attr Attribute name: "zones" or "vias".
+    @return bool.
+    """
+    return len(getattr(problem, attr)) > 0
+
+
+def _design_coverage(pr, f):
+    """!
+    @brief Scale the copper fill of every zone on an outer layer (a hatched pour drawn solid, or the other way round).
+    @details The zones of the inner layers are left to the inner-planes term (_design_planes): moving them here too would count the same doubt twice in the root sum of squares.
+             A board of one or two layers has only outer layers, so every zone is moved.
+    @param pr Problem copy to change in place.
+    @param f Multiplier of the fill (the result is limited to 1).
+    """
+    last = len(pr.board.copper_thickness) - 1                       # Index of the bottom layer (0 on a one-layer board)
+    for z in pr.zones:
+        if z.layer in (0, last):
+            z.fill = min(max(z.fill * f, 0.0), 1.0)
+
+
+def _design_weight(pr, f):
+    """!
+    @brief Scale the copper thickness of every layer (0.5 oz taken for 1 oz).
+    @param pr Problem copy to change in place.
+    @param f Multiplier of the thickness.
+    """
+    pr.board.copper_thickness = [t * f for t in pr.board.copper_thickness]
+
+
+def _design_planes(pr, a, sign):
+    """!
+    @brief Doubt about the inner planes: thinner (less fill) on one side, undrawn planes or more fill on the other.
+    @param pr Problem copy to change in place.
+    @param a Amplitude as a fraction.
+    @param sign -1 for the cool side (planes smaller than drawn), +1 for the other (planes larger, or present although not drawn).
+    """
+    import numpy as np
+    from .model import Zone
+    n = len(pr.board.copper_thickness)             # One thickness per copper layer
+    for layer in range(1, n - 1):                                   # Inner layers only: the outer ones are drawn with their pads
+        own = [z for z in pr.zones if z.layer == layer]
+        if sign < 0:
+            for z in own:
+                z.fill = max(z.fill * (1.0 - a), 0.0)
+        elif own:
+            for z in own:
+                z.fill = min(z.fill * (1.0 + a), 1.0)
+        else:
+            w, h = pr.board.width, pr.board.height                  # A plane that may exist but was not drawn: board-sized, at a fill of `a`
+            pr.zones.append(Zone(layer=layer, polygon=np.array([[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]]), fill=min(a, 1.0), name="undrawn plane"))
+
+
+def _design_vias(pr, f):
+    """!
+    @brief Scale the copper of the via barrels (their number or their plating).
+    @param pr Problem copy to change in place.
+    @param f Multiplier of the plating thickness.
+    """
+    pr.board.via_plating *= f
+
+
 def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="fvm", cell_mm=1.0, psi_jt=0.0, uncertainty=None, progress=None):
     """!
     @brief The power with its uncertainty band: nominal, best case (lowest plausible power) and worst case (highest plausible power).
@@ -149,6 +232,10 @@ def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="
              them) and the reading itself. A source moves the power down on one side and up on the other; the deviations of the independent sources are combined as the
              root of the sum of squares, separately below and above the nominal value, which is how independent uncertainties are normally added (stacking all of them at once
              would give a range nobody has seen). More copper means a lower board resistance, so more watts for the same reading.
+             **Design uncertainty** (levels cad / hand / estimated; "none" reproduces the band without it exactly): four more sources describe how well the drawn board matches the real
+             one, each moved alone like the others: the copper coverage (fill of every zone of the outer layers), the copper weight (thickness of every layer, beyond the number uncertainty above),
+             the inner planes (smaller than drawn, or present but not drawn: board-sized zones at a fill equal to the amplitude) and the via barrels (plating, standing for their
+             number). The amplitude of each is its value at "estimated" times the multiplier of the level. The band without these terms does not cover a wrongly drawn board.
     @param problem A Problem with the board drawn as it is in reality.
     @param index 0-based index of the heater.
     @param measured_c Measured temperature in degC.
@@ -157,14 +244,19 @@ def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="
     @param model Model key.
     @param cell_mm Cell size in millimetres.
     @param psi_jt Datasheet psi_JT in K/W for the point "top".
-    @param uncertainty Dict with copper_pct, h_pct, theta_pct, psi_jt_pct and reading_k (default: the "calculator" defaults of the program).
+    @param uncertainty Dict with copper_pct, h_pct, theta_pct, psi_jt_pct and reading_k, and the design keys design_level, design_coverage_pct, design_weight_pct, design_planes_pct,
+                        design_vias_pct, design_scale_cad/hand/estimated (default: the "calculator" defaults of the program). Level "none" switches the design terms off.
     @param progress Optional callback progress(message, fraction).
     @return Dict: the keys of power_from_temperature plus best_w, worst_w, contributions (list of dicts factor, low_w, high_w) and uncertainty (the values used).
     """
     d = defaults.load()["calculator"]
     u = {"copper_pct": d["copper_uncertainty_pct"], "h_pct": d["h_uncertainty_pct"], "theta_pct": d["theta_uncertainty_pct"], "psi_jt_pct": d["psi_jt_uncertainty_pct"],
          "reading_k": d["reading_uncertainty_k"]}
+    for k in ("design_level", "design_coverage_pct", "design_weight_pct", "design_planes_pct", "design_vias_pct", "design_scale_cad", "design_scale_hand", "design_scale_estimated"):
+        if k in d:
+            u[k] = d[k]
     u.update(uncertainty or {})
+    design = design_amounts(u)
     base = power_from_temperature(problem, index, measured_c, point=point, ambient_c=ambient_c, model=model, cell_mm=cell_mm, psi_jt=psi_jt)
     p0 = base["power_w"]
 
@@ -187,6 +279,15 @@ def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="
     if point == "top":
         factors.append(("ψJT", u["psi_jt_pct"] / 100.0, None, "psi"))
     factors.append(("reading", u["reading_k"], None, "reading"))
+    # Design uncertainty: one-at-a-time like the others; a term with a zero amplitude (or without anything to change) is not run at all, so level "none" is the old band
+    if design["coverage"] > 0 and any(z.layer in (0, len(problem.board.copper_thickness) - 1) for z in problem.zones):
+        factors.append(("design: copper coverage", design["coverage"], _design_coverage, "design"))
+    if design["weight"] > 0:
+        factors.append(("design: copper weight", design["weight"], _design_weight, "design"))
+    if design["planes"] > 0 and len(problem.board.copper_thickness) > 2:
+        factors.append(("design: inner planes", design["planes"], None, "planes"))
+    if design["vias"] > 0 and pr_has(problem, "vias"):
+        factors.append(("design: vias", design["vias"], _design_vias, "design"))
     contributions, down, up = [], 0.0, 0.0
     for n, (name, amount, mutate, kind) in enumerate(factors):
         if progress:
@@ -198,6 +299,8 @@ def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="
                 meas += sign * amount
             elif kind == "psi":
                 psi = psi_jt * (1.0 + sign * amount)
+            elif kind == "planes":
+                _design_planes(pr, amount, sign)
             else:
                 mutate(pr, 1.0 + sign * amount)
             try:
@@ -207,7 +310,7 @@ def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="
         if not powers:
             continue
         lo, hi = min(powers + [p0]), max(powers + [p0])
-        contributions.append({"factor": name, "low_w": lo, "high_w": hi})
+        contributions.append({"factor": name, "low_w": lo, "high_w": hi, "design": name.startswith("design")})
         down += (p0 - lo) ** 2
         up += (hi - p0) ** 2
     out = dict(base)

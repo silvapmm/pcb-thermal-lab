@@ -83,7 +83,7 @@ def test_power_band_orders_best_nominal_worst_and_the_sources_add_in_quadrature(
     truth = part(power=3.0)
     row = simulate(truth, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
     t_top = row["t_junction"] - 1.5 * 3.0
-    out = power_band(part(power=1.0), 0, t_top, point="top", cell_mm=1.0, psi_jt=1.5)
+    out = power_band(part(power=1.0), 0, t_top, point="top", cell_mm=1.0, psi_jt=1.5, uncertainty={"design_level": "none"})
     assert out["power_w"] == pytest.approx(3.0, rel=1e-3)                                  # The nominal is the plain calculator
     assert out["best_w"] < out["power_w"] < out["worst_w"]
     names = [c["factor"] for c in out["contributions"]]
@@ -94,9 +94,9 @@ def test_power_band_orders_best_nominal_worst_and_the_sources_add_in_quadrature(
     up = sum((c["high_w"] - out["power_w"]) ** 2 for c in out["contributions"]) ** 0.5
     assert out["best_w"] == pytest.approx(out["power_w"] - down) and out["worst_w"] == pytest.approx(out["power_w"] + up)
     # A board point needs neither theta nor psi_JT: those two sources are not in its band; a bigger uncertainty widens it
-    ring = power_band(part(power=1.0), 0, row["t_ring"], point="ring", cell_mm=1.0)
+    ring = power_band(part(power=1.0), 0, row["t_ring"], point="ring", cell_mm=1.0, uncertainty={"design_level": "none"})
     assert [c["factor"] for c in ring["contributions"]] == ["copper", "heat transfer", "reading"]
-    wide = power_band(part(power=1.0), 0, row["t_ring"], point="ring", cell_mm=1.0, uncertainty={"copper_pct": 50.0, "h_pct": 60.0})
+    wide = power_band(part(power=1.0), 0, row["t_ring"], point="ring", cell_mm=1.0, uncertainty={"copper_pct": 50.0, "h_pct": 60.0, "design_level": "none"})
     assert wide["worst_w"] - wide["best_w"] > ring["worst_w"] - ring["best_w"]
     # More copper means a lower board resistance: more watts for the same reading
     copper = next(c for c in ring["contributions"] if c["factor"] == "copper")

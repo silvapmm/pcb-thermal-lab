@@ -139,7 +139,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor, rulers), panels, stackup (cross-section tab), calculator, help (guide, About), tips (tooltips), compute (calculation process), results_view, main_window, theme
-tests/                 pytest suite (about 390 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (about 400 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (`.pcbt.json`), `csv_profiles/` (documented CSV power-profile example) and `make_screenshots.py`; the studies that used to live here are in `research/` (one folder per investigation, see `research/INDEX.md`)
 docs/                  versions.md (what was implemented in every version), models.md (models, features, API), theory.md (every equation and approximation of every model; update it with any model change), calculators.md (the auxiliary calculators: formulas, validation, limits, sources), validation.md (every scenario in every model, 3D check, history), roadmap.md (what is implemented and what we want to implement), research.md (open investigations, empty when nothing is pending), images/
 ico/                   application icon
@@ -270,6 +270,8 @@ The main session keeps the conversation with the maintainer (in Portuguese), dec
 ## Decisions Log
 
 Record important decisions here, newest first, with date and reason.
+
+- 2026-10-24: **Design uncertainty in the power calculator band** (maintainer asked for the term after the review of `research/power-calculator`, README 4.7: the band of numbers alone left the true power above the worst case in three of four drawing errors): `inverse.power_band` adds four one-at-a-time sources, copper coverage (outer-layer zones only, so the inner planes are not counted twice), copper weight, inner planes (down: less fill; up: an undrawn board-sized plane at fill a) and vias (plating), combined by root sum of squares; levels none / cad / hand / estimated, amplitudes at *estimated* 40 / 50 / 50 / 50 % times 0 / 0.2 / 0.5 / 1, all assumed (not fitted) and editable in Preferences; default *hand*. Level none is bit-identical to the band of develop (checked on the example of `docs/calculators.md` 1.1b, ring and top). On that example the default moves the band from 1.62-2.31 to 1.56-2.34 W (ring) and 1.69-2.27 to 1.60-2.31 W (top); of the four drawing errors, hatched copper and missing vias are inside at *hand* and *estimated*, half the copper weight and missing planes are not (`docs/calculators.md` 1.1c). The GUI stress scenario runs the calculator at a 2 mm cell instead of raising its timeout.
 
 - 2026-10-24: **Project agents and a review flow** (maintainer: problems were found in earlier work; every investigation and every algorithm change must be checked by an independent reviewer): four agents in `.claude/agents/` - `researcher` and `executor` and `maintainer` on Sonnet 5.5 (medium effort) and `reviewer` on Opus 5.5 (medium effort); the main session orchestrates, the reviewer is never skipped (see "Agents and workflow"). The agent files are committed so that every session and clone has them.
 

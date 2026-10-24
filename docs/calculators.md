@@ -41,18 +41,46 @@ The result window gives the power, the temperatures the model reads at that powe
 
 The nominal power is what the calculator returns for the inputs as typed. Because the board, the heat transfer, θ, ψJT and the reading are known only approximately, `inverse.power_band` also gives a **best case** (lowest plausible power) and a **worst case** (highest plausible power, the one to check margins with):
 
-1. Each source is moved **alone** to both ends of its uncertainty and the calculator is run again: the **copper** (thickness of every layer, ±25 %), the **heat transfer** (both face coefficients, or the convection multiplier when computed, ±30 %), **θ** (±20 %, only for the junction and the top), **ψJT** (±30 %, only for the top) and the **reading** (±1 K). The defaults are in *Preferences → Power calculator* (the `calculator` section of `defaults.json`).
+1. Each source is moved **alone** to both ends of its uncertainty and the calculator is run again: the **copper** (thickness of every layer, ±25 %), the **heat transfer** (both face coefficients, or the convection multiplier when computed, ±30 %), **θ** (±20 %, only for the junction and the top), **ψJT** (±30 %, only for the top) and the **reading** (±1 K). The defaults are in *Preferences → Power calculator* (the `calculator` section of `defaults.json`). These are uncertain **numbers**; the doubt about the **drawing** of the board is the design uncertainty of section 1.1c, which is added by the same rule.
 2. A source moves the power down on one side and up on the other (more copper means a lower board resistance, so more watts for the same reading). The downward deviations of all the sources are added as the **root of the sum of squares**, and so are the upward ones: `best = P − √Σ(P − low_i)²`, `worst = P + √Σ(high_i − P)²`. This is the usual way to add independent uncertainties; stacking all of them at once would give a range nobody has seen.
 3. The selector **Power to use** (Best case / Nominal / Worst case) says which of the three the button *Use as the power of this part* writes into the heater, with undo. **Nothing else in the program changes**: the simulation uses that single number when you next run it.
 
-Example (the board of table 2.2, U1 at 2 W, θ 6, ψJT 2, 1 mm resolution):
+Example (the board of table 2.2, U1 at 2 W, θ 6, ψJT 2, 1 mm resolution), numbers only (design level *None*, which is the band as it was before the design uncertainty was added):
 
 | Measured at | nominal | best case | worst case | what each source moves (W) |
 | :-- | --: | --: | --: | :-- |
 | board ring | 2.00 W | 1.62 W | 2.31 W | copper 1.81–2.15, heat transfer 1.68–2.25, reading 1.89–2.11 |
 | top of the package | 2.00 W | 1.69 W | 2.27 W | copper 1.79–2.16, heat transfer 1.82–2.13, θ 1.87–2.15, ψJT 1.93–2.07, reading 1.94–2.06 |
 
-**Same board or a variant?** The power is fitted to the drawn board. Simulating *that same board* with it reproduces the measurement (the copper's error cancels); simulating *variants* (more copper, a heatsink) keeps the power, which is physically right, but the board's error does not cancel, so use the worst case for margins.
+With the default board description (*Drawn by hand from the layout*, section 1.1c) the same example gives **ring 2.00 / 1.56 / 2.34 W** and **top 2.00 / 1.60 / 2.31 W** (nominal / best / worst); the design terms add, for the top: coverage 1.90–2.00, copper weight 1.79–2.16, inner planes 1.94–2.00, vias 1.97–2.02 W. The worst case rises by 0.03 to 0.05 W, the best case falls by 0.06 to 0.08 W. (On this board every zone is solid, so coverage and planes have no upward side.) The nominal never changes.
+
+**Same board or a variant?** The power is fitted to the drawn board. Simulating *that same board* with it reproduces the measurement (the copper's error cancels); simulating *variants* (more copper, a heatsink) keeps the power, which is physically right, but the board's error does not cancel, so use the worst case for margins (and a board description level that matches how the board was drawn: without the design uncertainty the worst case holds only when the board is drawn right).
+
+### 1.1c Design uncertainty: how well the drawing matches the board
+
+The terms of section 1.1b are uncertain *numbers* on a board that is assumed drawn right. The review of `research/power-calculator` (README 4.7) showed that this band does **not** cover a wrongly drawn board: in three of four drawing errors the true 2 W was above the worst case. The **Board description** list of the calculator adds four more one-at-a-time sources, moved to both ends like the others and combined with them by the root of the sum of squares (`inverse.power_band`, `design_*` entries of the `calculator` section of `defaults.json`, editable in *Preferences → Power calculator*):
+
+| Source | what is moved | the drawn board is changed by | measured sensitivity (table 2.2) | source of the percentage |
+| :-- | :-- | :-- | :-- | :-- |
+| copper coverage | the fill of every zone of the outer layers (the inner ones belong to the planes term, so that the same doubt is not counted twice) | fill × (1 ∓ a), limited to 1 (a pour that is already solid cannot be more solid) | top pad half filled: −13 % of power | assumed (a hatched pour is about 50 %) |
+| copper weight | the thickness of every layer, on top of the 25 % of the copper number | thickness × (1 ∓ a) | copper 17.5 instead of 35 µm: −24 % | assumed (0.5 oz taken for 1 oz is 50 %) |
+| inner planes | the inner layers | down: fill × (1 − a); up: a board-sized plane at fill a in an inner layer that has none, fill × (1 + a) in one that has a zone | no inner planes: −34 % | assumed |
+| vias | the barrel copper (number or plating) | plating × (1 ∓ a) | no vias under the part: −11 % | assumed |
+
+**Levels.** `a` is the amplitude of the source at the level *Estimated* (defaults: coverage 40 %, weight 50 %, planes 50 %, vias 50 %) times the multiplier of the level: **None** 0, **Board imported from CAD / real files** 0.2, **Drawn by hand from the layout** 0.5 (the default), **Estimated** 1. The sensitivities in the table are *measured* (table 2.2); the amplitudes and the multipliers of the levels are *assumed* judgements of how wrong each kind of drawing usually is, they are not fitted to any data, and are editable. A source with nothing to change (no vias, no inner layer, no zone) is left out. With the level *None*, or a multiplier of 0, no design source is run and the band is **bit-identical** to the one of section 1.1b (`tests/test_calculator_design.py`).
+
+**What it covers and what not** (the four drawing errors of table 2.2, power recovered at the top of the package, true power 2 W, computed with the default uncertainties, 1 mm):
+
+| Drawn board (real board: the example, 2 W) | nominal | numbers only (None) | **Drawn by hand** | **Estimated** |
+| :-- | --: | :-- | :-- | :-- |
+| top copper half filled (hatched) | 1.735 | 1.474–1.956, **out** | 1.396–2.012, **in** (2 W is 0.012 W from the edge) | 1.177–2.113, **in** |
+| copper 17.5 µm instead of 35 µm | 1.519 | 1.288–1.715, **out** | 1.207–1.766, **out** | 0.999–1.858, **out** |
+| no vias under the part (no via term: nothing drawn to move) | 1.780 | 1.505–2.014, in | 1.422–2.064, in | 1.196–2.157, in |
+| no inner planes (only the top copper drawn: the bottom plane is missing too) | 1.312 | 1.109–1.484, **out** | 1.029–1.646, **out** | 0.831–1.818, **out** |
+
+So the design term brings **2 of the 4** drawing errors inside the band at the level *Drawn by hand* (hatched, no vias; the hatched pour only just), and also 2 of 4 at *Estimated*; it does **not** cover a copper weight half the real one nor a missing set of inner planes, even at the widest level (worst case 1.86 and 1.82 W against a true 2 W). The amplitudes were not enlarged to cover them: the missing plane can only be added at a fill `a` (50 %), and the copper weight at +50 %, while the real errors were +100 % of copper and a full plane. The cases are the boards of `research/power-calculator/scripts/study_power_band.py` (part 2), run with `inverse.power_band(..., uncertainty={"design_level": ...})`; the table was **measured with a script that is not versioned** (it takes several minutes, too long for a test), and the column *None* reproduces part 2 of that study. At the level *Board imported from CAD* the band is only a little wider than *None* (example at the ring: 1.607–2.317 W against 1.616–2.311 W).
+
+The design term is an honest widening, not a guarantee: a drawing error larger than the amplitude of the chosen level is not covered, and the "up" moves reach only as far as their amplitude (a plane that is missing can be added at the fill `a`, not at 100 %). Choose *Estimated* when the board is a guess. Errors of kinds not listed (a missing heatsink or metal block, a wrong stack-up, a different air flow, a different `h` model, a part near the board edge) are not covered either. Limits of the four terms: the vias term moves the plating, so it adds no via where none is drawn and barely moves a via filled with copper (its core already conducts like copper); the copper weight term is the same change as the copper number term, added as a second independent cause (fabrication tolerance and a wrong weight), so at the level *Drawn by hand* the two together are about ±35 % of copper (root sum of squares of 25 and 25); an amplitude of 100 % or more (Preferences accepts it) makes a thickness or a plating zero or negative, which is not a meaningful board.
 
 ### 1.2 Route 2: from a datasheet parameter
 
