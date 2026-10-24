@@ -60,3 +60,8 @@ A 2-layer board with no copper on the bottom was measured as a one-layer board a
 4. The 3D solid with a rotated square at a high side coefficient (+1.15 K above the aligned square).
 5. JEDEC board of the power calculator: fix the reading of the bottom layer and move the datasheet rows to a finer cell (the JESD51-7 is behind a login).
 6. A third 1 oz option with 30 um (the JLCPCB product), only if wanted.
+
+## Agreed for after the review of the investigations
+
+* `feature/memory-guard` (off `develop`): `pcbthermal/memory.py` reads the physical RAM and estimates the memory of each model from the unknowns (FVM and FDM direct about 4.4 KB per unknown, 3D solid about 15 KB, CG about 10 % of the direct; measured, editable in Preferences); verdicts ok / slow (above 50 % of the RAM) / refuse (above 90 %) used by `api.simulate`, the jobs, the interface (memory shown next to the unknown count, with the cell and the CG solver suggested) and the CLI; the fixed 3D limit (250 000) becomes RAM based with an absolute ceiling for the time; Preferences box with the fractions, the KB per unknown and a forced RAM value; tests with simulated RAMs of 8, 16 and 64 GB, the 502 mm board that hung, the failed RAM read, and an estimate never below the measured memory on a small case; documents. The small alternative (a fixed ceiling of about 4 million unknowns for FVM and FDM) was offered and not chosen.
+* After the three branches wait for `fix/gui-compute-hang` (edge fix, 0.5 oz / 1 oz inner copper, calculator design uncertainty): each merges `develop`, reruns the whole battery alone and merges.
