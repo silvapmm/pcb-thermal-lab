@@ -56,3 +56,29 @@ def test_muzychka_cross_maximum_and_mean_source_temperature():
     assert out["max"] == pytest.approx(80.61, abs=0.15)
     weighted = np.mean(out["mean"])                                       # the five sources have the same area
     assert weighted == pytest.approx(78.87, abs=0.15)
+
+
+def test_channel_correlations_have_the_right_limits_and_agree():
+    import study_channel_correlations as ch
+    assert ch.nu_elenbaas(1e-3) == pytest.approx(1e-3 / 24.0, rel=1e-3)          # fully developed: Nu_S = El / 24
+    assert ch.nu_blend(1e-3) == pytest.approx(1e-3 / 24.0, rel=1e-2)
+    el = np.logspace(-1, 4, 60)
+    assert np.abs(ch.nu_blend(el) / ch.nu_elenbaas(el) - 1.0).max() < 0.06      # the two correlations agree within 6 %
+    grid = np.logspace(0, 3, 3000)
+    opt = grid[np.argmax(ch.nu_elenbaas(grid) / np.sqrt(grid))], grid[np.argmax(ch.nu_blend(grid) / np.sqrt(grid))]
+    assert opt[0] < 54.3 < opt[1]                                                # the optimum of the quoted correlation lies between
+
+
+def test_the_plate_model_converges_to_seri_lee_when_the_source_edges_fall_on_cell_edges():
+    assert lee.rc_2d("centre", n=200) == pytest.approx(0.66, rel=0.02)
+    assert lee.rc_2d("edge midpoint", n=200) == pytest.approx(1.29, rel=0.02)
+    assert lee.rc_2d("corner", n=200) == pytest.approx(2.38, rel=0.06)
+
+
+def test_the_mean_of_the_top_face_explains_the_base_temperature_of_the_paper():
+    c = muz.CASES["1a"]
+    n = int(round(c["w"] / c["dx"]))
+    rects = [tuple(v * 1e-3 for v in r) for r, _ in c["sources"]]
+    res = L.solve(c["dx"] * 1e-3, n, n, [(c["t"] * 1e-3, c["k"], 6)], rects, [p for _, p in c["sources"]], 0.0, c["h"])
+    assert 25.0 + res["top_surface_mean"] == pytest.approx(53.06, abs=0.01)
+    assert 25.0 + res["mean_wall"] == pytest.approx(25.0 + 25.0 / (10.0 * 0.09), abs=1e-6)

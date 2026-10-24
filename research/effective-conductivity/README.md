@@ -16,7 +16,10 @@ Status: **open, no change to the program required**; two optional proposals and 
 * **The five models of the program agree with the solver within 0.3 %** (FDM 1.2 % for a 5 mm source on 50 mm) on the Cu / FR4 / Cu version of the coupon, for sources of 1 % to 100 % of the board area.
 * **One node through the thickness falls short by about q'' t / (2 k) at the surface under a source**: 2.3 % of the rise for a 10 mm plate of k = 50, 13 % for k = 10 (predicted 13.2 % and observed 12.8 %); irrelevant for a 35 um copper layer.
 * **Natural convection:** the program's vertical-plate formula is the general Churchill and Chu form and reproduces the worked example of the library `ht` to the digit; the laminar form of the same authors differs from +7 % (Ra 1e4) to -25 % (Ra 1e9), and in the coefficient of a 50 to 200 mm board by +6.5 % to -10 %. No change is proposed until the paper is read.
-* **Not explained:** at a Biot number above about 60 the solver's effective conductivity falls (0.75 W/mK) while the paper's plot stays at about 4.8; the paper's mean base temperature of case 1 (53.06 C) is 0.28 K above the energy balance (52.78 C).
+* **Explained:** the paper's mean base temperature of case 1 (53.06 C) is the mean of the **whole top face** (52.78 C of the bottom face plus Q t / (k A) = 0.28 K); the solver gives 53.056.
+* **Tested and not reproduced:** at a Biot number above about 60 the solver's effective conductivity falls to 0.6 W/mK while the paper's plot stays at about 4.8. Five definitions of the mean wall temperature and the variant with the film on the bottom only all fall; the mechanism is that with strong films the heat does not spread but goes down through the stack (4.9). The plateau of the paper is not reproduced.
+* **What the corrections change** (4.8): the documented "+4.5 %" of the plate check is the 1 mm cell with the source edges between cell edges (+0.6 %, -0.8 % and -4.6 % at the centre, edge and corner when they coincide); the laminar form of Churchill and Chu moves the maximum temperature of vertical boards by -0.7 to +0.2 % of the rise; the thick-plate criterion stays below 0.42 % on the 74 block cases of the program.
+* **Channels (for the heatsink scenarios):** the correlation of Elenbaas and the blend of Raithby and Hollands, read in Martin, Raithby and Yovanovich (1991), agree within 5.5 % and put the optimum spacing at El = 46 and 59; the composite correlation of Bar-Cohen and Rohsenow, as quoted in the theory notes, gives El = 54.4 (a spacing coefficient of 2.716 against the 2.714 quoted), so the quoted formula and the quoted optimum are consistent.
 
 ## 3. Folder layout
 
@@ -28,6 +31,9 @@ Status: **open, no change to the program required**; two optional proposals and 
 | `scripts/study_program_vs_coupon.py` | The five models of the program against the solver on the Cu / FR4 / Cu coupon (about 40 seconds). |
 | `scripts/study_muzychka_2003.py` | The cases of Muzychka and others, and the thickness sweep (about 15 seconds). |
 | `scripts/study_natural_convection.py` | The two forms of Churchill and Chu and the effect on h (seconds). |
+| `scripts/study_biot_definitions.py` | Five definitions of the mean wall temperature against the film coefficient, and the series path under the source (about 3 minutes). |
+| `scripts/study_corrections_impact.py` | The plate check against the cell size, the laminar form on the program, the thick-plate criterion on the 74 block cases (seconds). |
+| `scripts/study_channel_correlations.py` | Elenbaas against the blend of Raithby and Hollands, and the optimum spacing (seconds). |
 | `scripts/make_figures.py`, `scripts/make_diagrams.py` | The data figures (read `out/*.json`, written by the studies) and the schematics. |
 | `tests/test_layered3d.py` | The solver against a series circuit, an exact energy balance, a uniform layer and three published numbers. |
 | `INTEGRATION.md`, `docs/for-the-project-documents.md` | Optional proposals; corrections and text for the project documents. |
@@ -40,6 +46,9 @@ Status: **open, no change to the program required**; two optional proposals and 
 .venv/bin/python research/effective-conductivity/scripts/study_program_vs_coupon.py
 .venv/bin/python research/effective-conductivity/scripts/study_muzychka_2003.py
 .venv/bin/python research/effective-conductivity/scripts/study_natural_convection.py
+.venv/bin/python research/effective-conductivity/scripts/study_biot_definitions.py
+.venv/bin/python research/effective-conductivity/scripts/study_corrections_impact.py
+.venv/bin/python research/effective-conductivity/scripts/study_channel_correlations.py
 .venv/bin/python research/effective-conductivity/scripts/make_figures.py           # then make_diagrams.py
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q research/effective-conductivity/tests
 ```
@@ -218,6 +227,90 @@ Worked example of the library `ht` (Pr 0.69, Grashof 2.63e9, Ra = Gr Pr): genera
 
 *Figure 10: `figures/fig_10_natural_convection_forms.png`.*
 
+### 4.8 What the corrections and proposals would change (measured on copies of the program; nothing in `pcbthermal/` was edited)
+
+**A. The plate check of the project documents.** The documents say that the plate model (a layer of lateral conductance `k t` under a uniform film) is `+4.5 %` from Seri Lee's centre value. The model was solved again with the cell refined; the source edges lie on cell edges from 0.5 mm.
+
+| cell (mm) | centre (0.66) | edge midpoint (1.29) | corner (2.38) |
+| --: | --: | --: | --: |
+| 4 | 0.605 (-8.3 %) | 1.273 (-1.3 %) | 2.355 (-1.1 %) |
+| 2 | 0.687 (+4.0 %) | 1.325 (+2.7 %) | 2.357 (-1.0 %) |
+| 1 | 0.687 (+4.1 %) | 1.294 (+0.3 %) | 2.270 (-4.6 %) |
+| 0.5 | 0.664 (+0.6 %) | 1.280 (-0.8 %) | 2.270 (-4.6 %) |
+| 0.25 | 0.664 (+0.6 %) | 1.280 (-0.8 %) | 2.270 (-4.6 %) |
+
+The `+4.5 %` is the 1 mm cell: the 25 mm source of the check has its edges half a cell off the grid (37.5 mm on 1 mm cells) and the centre value swings between -8 and +4 % with the cell. Once the edges coincide with cell edges the model is within **+0.6 %, -0.8 % and -4.6 %** of the article at the centre, the edge and the corner (the article claims about 5 %). The documents should say that, with the cell size and the alignment of the source.
+
+**B. The laminar form of Churchill and Chu** (patched in memory in place of the general form below Ra 1e9), on the example board and a bare two-layer board turned to the vertical, FVM, computed coefficients:
+
+| board | general form (program) | laminar form | change of the rise |
+| :-- | --: | --: | --: |
+| example board, powers x0.5 | 57.16 C | 56.98 C | -0.18 K (-0.6 %) |
+| example board, powers x1 | 86.72 C | 86.50 C | -0.22 K (-0.4 %) |
+| example board, powers x2 | 142.74 C | 142.56 C | -0.18 K (-0.1 %) |
+| 2-layer board 100 x 60 mm, 3 W | 89.42 C | 88.99 C | -0.43 K (-0.7 %) |
+| 2-layer board 100 x 120 mm, 3 W | 84.61 C | 84.58 C | -0.03 K (-0.1 %) |
+| 2-layer board 100 x 200 mm, 3 W | 84.33 C | 84.47 C | +0.14 K (+0.2 %) |
+
+The effect on the maximum temperature is **-0.7 to +0.2 % of the rise** (-0.43 to +0.14 K): radiation and the other terms of `h` dilute the 5 to 10 % that the correlations differ by. **No change is warranted by the numbers.**
+
+**C. The thick-plate criterion** `q'' t / (2 k) / rise` computed for the 74 metal-block cases of `research/block-and-fins` (the heat of the part through the copper pad under the block, the thickness and conductivity of the block, a rise of 90 K):
+
+C. Thick-plate criterion q'' t / (2 k) / rise over the 74 metal-block cases: maximum 0.42 %, median 0.04 %, cases above 5 %: 0
+   largest: pad 20x20 in block 80x60, 3 mm steel, R''=1 Kcm²/W (0.42 %)
+
+The check would **never fire on the cases the program is built for** (largest 0.42 %, a 3 mm steel block); it is a safety net for a thick, poorly conducting layer typed by the user.
+
+![What the corrections change](figures/fig_12_corrections_impact.png)
+
+*Figure 12: `figures/fig_12_corrections_impact.png`.*
+
+### 4.9 The Biot plateau of the paper: theories tested
+
+The paper plots the effective conductivity of the base laminate against the Biot number and shows a plateau of about 4.8 W/mK above Bi 100. The solver falls to 0.6. Theories tested, each by recomputing the effective conductivity of the same laminate (cells of 1.25 mm; 0.77, 0.76 and 0.75 W/mK at h = 1000 with cells of 2.5, 1.25 and 0.625 mm, so the fall is not a mesh effect): **A** the mean wall temperature over the free top face and the bottom; **B** over the bottom only; **C** over the free top face only; **D** weighted by the heat flux; **E** the ambient (an ideal sink); and the variant with the **film on the bottom face only**.
+
+Series resistance of the stack under the footprint of the source: 6.32 K/W
+| h (W/m2K) | Bi = h L / k1 | A_top_free+bottom | B_bottom_only | C_top_free_only | D_flux_weighted | E_ambient | film on the bottom only | R_solid (A) (K/W) |
+| --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| 0.1 | 0.00625 | 7.97 | 7.29 | 8.81 | 7.97 | 7.97 | 6.23 | 5.17 |
+| 1 | 0.0625 | 7.94 | 7.25 | 8.78 | 7.90 | 7.94 | 6.21 | 5.17 |
+| 10 | 0.625 | 7.62 | 6.92 | 8.47 | 7.24 | 7.62 | 5.94 | 5.13 |
+| 100 | 6.25 | 4.73 | 4.03 | 5.64 | 0.89 | 4.73 | 3.54 | 4.86 |
+| 1000 | 62.5 | 0.76 | 0.73 | 0.79 | 0.60 | 0.76 | 0.68 | 4.32 |
+| 10000 | 625 | 0.61 | 0.61 | 0.61 | 0.60 | 0.61 | 0.57 | 4.13 |
+| 100000 | 6.25e+03 | 0.60 | 0.60 | 0.60 | 0.60 | 0.60 | 0.56 | 4.11 |
+
+* **No definition gives the plateau.** All five and the bottom-only variant follow the same course: nearly constant below Bi 1, falling between Bi 1 and 60, 0.6 to 0.8 W/mK above.
+* **The mechanism.** The solid-body resistance of the laminate hardly moves (5.17 to 4.11 K/W) while the conductivity of the equivalent single layer falls by a factor of 13, because the two respond differently: with strong films the heat does not have to spread, it goes down through the stack under the footprint of the source (series resistance 6.3 K/W, reduced to 4.1 by the spreading in the two copper layers), and a homogeneous layer that reproduces that resistance has a conductivity close to the cross-plane value (0.42 W/mK), 0.6.
+* **Consequence.** The trend of the solver (k_e from about 8 at low Biot to about the series value at high Biot) agrees with the paper's own conclusion that the effective conductivity ranges from the cross-plane value upwards, and with the abstract of Teertstra, Culham and Yovanovich (1995), who find that when the fluid side controls the effective conductivity needed exceeds the parallel bound; the plateau of the paper's Figure 5 is **not reproduced and not explained**. A truncated series in a solver that cannot resolve the singularity at the edge of the source is one candidate (not tested).
+
+![Definitions of the mean wall temperature against the film coefficient](figures/fig_11_biot_definitions.png)
+
+*Figure 11: `figures/fig_11_biot_definitions.png`.*
+
+### 4.10 Channels between vertical plates: Elenbaas and the blend of Raithby and Hollands
+
+The program has no fin-array model yet (the channel effect between fins is a planned topic, `theory/topics/13`). The two correlations that the literature uses, as written by Martin, Raithby and Yovanovich (1991) with the Nusselt number based on the half-width `b` and `Ra* = Ra b / L`: Elenbaas (1942), `Nu = (Ra*/3) [1 - exp(-35/(16 Ra*))]^(3/4)`; the blend of Raithby and Hollands, `Nu = (Nu_fd^m + Nu_bl^m)^(1/m)`, `m = -1.9`, `Nu_fd = Ra*/3`, `Nu_bl = 0.62 Ra*^(1/4)`. In terms of the spacing `S = 2b` (`El = 16 Ra*`, `Nu_S = 2 Nu_b`) the fully developed limit is `Nu_S = El/24`.
+
+| El (spacing) | Elenbaas Nu_S | blend Nu_S | blend / Elenbaas - 1 |
+| --: | --: | --: | --: |
+| 1 | 0.042 | 0.042 | -0.3 % |
+| 10 | 0.407 | 0.386 | -5.3 % |
+| 54.3 | 1.295 | 1.327 | +2.5 % |
+| 100 | 1.669 | 1.752 | +4.9 % |
+| 1000 | 3.328 | 3.470 | +4.3 % |
+| 10000 | 5.988 | 6.199 | +3.5 % |
+
+Maximum difference between the two over El 0.1 to 1e4: 5.5 %
+Optimum El for the heat per unit of base area, Elenbaas: 45.9 (S_opt proportional to El^(1/4): 2.602); El_opt of the correlation quoted for Bar-Cohen and Rohsenow: 2.714^4 = 54.3; Simons: about 50
+Optimum El for the heat per unit of base area, blend: 59.5 (S_opt proportional to El^(1/4): 2.777); El_opt of the correlation quoted for Bar-Cohen and Rohsenow: 2.714^4 = 54.3; Simons: about 50
+
+The two agree within 5.5 % over five decades; the spacing that dissipates the most heat per unit of base area (maximum of `Nu_S / El^(1/2)`, because the heat per unit of base area of thin plates at pitch `S` goes as `Nu_S / S^2` and `El` as `S^4`) is at El = 46 (Elenbaas), 59 (blend) and 54.4 for the composite correlation of Bar-Cohen and Rohsenow as quoted in the theory notes, `Nu_S = [576/El^2 + 2.873/El^(1/2)]^(-1/2)` (the paper was not opened): its optimum spacing coefficient is 2.716, against the 2.714 (`2.714^4 = 54.3`) quoted for it, so the quoted formula and the quoted optimum are consistent; the practical value of Simons (about 50) lies between the three. Over El 1 to 1e4 the quoted composite stays within 5 % of Elenbaas (the largest difference, -4.9 %, at El = 10). Martin and others also conclude that the fully developed asymptote should not be expected except under very special conditions, and that the numerical studies that seemed to confirm it used inappropriate boundary conditions.
+
+![Channel correlations and the optimum spacing](figures/fig_13_channel_correlations.png)
+
+*Figure 13: `figures/fig_13_channel_correlations.png`.*
+
 ## 5. What this means for the program
 
 The models need no change for the boards they are made for. The optional proposals (an input check for a thick, poorly conducting plate; the laminar form of Churchill and Chu as an option; the solver as a test helper) and what should stay out (an effective conductivity of the stack) are in `INTEGRATION.md`; the corrections and text for the project documents are in `docs/for-the-project-documents.md`.
@@ -226,7 +319,7 @@ The models need no change for the boards they are made for. The optional proposa
 
 * The independent solver is checked against the publications only to 2 to 6 % on the layer orders; the cause of the steady shortfall is not isolated. The figures read from plots are good to about 0.5 W/mK.
 * The five models were compared on a board that they can represent; the paper's cases with an outer dielectric above the copper could not be run in them.
-* The Biot study above 60 and the paper's mean base temperature are not reproduced.
+* The plateau of the paper above Biot 60 is not reproduced (4.9); the cause is not found.
 * No measurement of a physical board.
 
 ## 7. Sources
@@ -237,8 +330,9 @@ Culham and Yovanovich (1998); Muzychka, Culham and Yovanovich (2003); Lemczyk, M
 
 * **Read as images (a scan):** pages 460 to 466 of Culham and Yovanovich (1998); the first two pages of Lemczyk and others (1992), whose results were not read; the last page of Culham and Yovanovich (the references) was not read.
 * **Read as text:** the three worked cases of Muzychka and others (2003) and their method of images for edge and corner sources (the series coefficients were not checked); the Electronics Cooling article of Seri Lee (its equations 1 and 2 and Figure 4 are images and did not come through; its numbers and statements were read).
-* **Taken from the compilation of sources and the library `ht`, not from the papers:** the general and the laminar forms of Churchill and Chu; the paper was not opened. The general form reproduces the library's worked example (the library takes the Grashof number as its argument).
-* **Downloaded, abstract only:** Yovanovich, Culham and Teertstra (1998), Yovanovich, Muzychka and Culham (1999), Muzychka and others (2004), Teertstra and others (2004); and other papers of the same archive that could not be read as text (listed in the bibliography).
+* **Taken from secondary sources, not from the paper of Churchill and Chu (never opened):** the general and the laminar forms (the library `ht`, Incropera and DeWitt's textbook through `thermal.mayahtt.com`, and Yovanovich (1993), who writes the laminar blend of Churchill without the leading 0.68 for 1e4 < Gr < 1e9). The general form reproduces the library's worked example, which is Example 9.2 of Bergman and others (the library takes the Grashof number as its argument).
+* **Read as images (scans), in part:** Martin, Raithby and Yovanovich (1991), pages 1 and 2 of 7 (the Elenbaas correlation, the blend and the abstract); Yovanovich (1993), pages 1 to 4 of 7 (the correlation equations of Churchill for forced and natural convection, eq. 1 to 4); Teertstra, Culham and Yovanovich (1995), pages 1 to 4 of 13 (the introduction, the series and parallel limits, Table 1 of the test board: 0.429 and 17.27 W/mK, which the formulas reproduce). **Read as text through the page converter:** the vertical-channel and vertical-plate pages of `thermal.mayahtt.com`, the documentation of the library `ht` (the worked examples and references), the Simons article of 2004 (its equations are images). **Downloaded, abstract only:** Yovanovich, Culham and Teertstra (1998), Yovanovich, Muzychka and Culham (1999), Muzychka and others (2004), Teertstra and others (2004); and other papers of the same archive that could not be read as text (listed in the bibliography).
 * **Values read from plots** (cases 2 and 4 of the layer orders, the source size curve, the Biot curve): marked "plot", about 0.5 W/mK; the source positions of the paper are assumed.
+* **Explained:** the paper's mean base temperature of 53.06 C is the mean of the whole top face (a computation, exact to 0.01 C).
 * **Reproduced:** Seri Lee's three positions, the cross and case 1 of Muzychka and others, the five layer orders and the series and parallel limits of Culham and Yovanovich, the library's worked example; the solver's own tests (series circuit, energy balance to 1e-9, uniform layer).
-* **Not reproduced or not explained:** the effective conductivity above Biot 60; the paper's mean base temperature of 53.06 C against the energy balance of 52.78 C; the 1.62 mm thickness stated against the layers' 1.6501 mm; the second case of Muzychka and others (a heat-sink base with four sources) and their compound-plate case 1 (b) were not run.
+* **Not reproduced or not explained:** the effective conductivity above Biot 60 (four theories and a variant tested); the 1.62 mm thickness stated against the layers' 1.6501 mm; the Bar-Cohen and Rohsenow correlation (the paper was not obtained, only the quoted optimum); the second case of Muzychka and others (a heat-sink base with four sources) and their compound-plate case 1 (b) were not run.

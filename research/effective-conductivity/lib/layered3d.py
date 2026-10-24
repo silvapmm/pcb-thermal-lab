@@ -86,15 +86,19 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
     rh_bot = dz[-1] / (2 * kz[-1] * area)
     t_src = T[0][mask] + qcell[mask] * rh_top
     walls = []
+    wall_top = np.array([])
+    wall_bottom = np.array([])
     heat_out = 0.0                                                # heat leaving through the films, for the energy balance
     if h_top > 0:
         walls.append(T[0][free_top] * (1.0 / (h_top * area)) / (rh_top + 1.0 / (h_top * area)))
+        wall_top = walls[-1]
         heat_out += float((h_top * area * walls[-1]).sum())
     if h_bottom > 0:
         walls.append(T[-1].ravel() * (1.0 / (h_bottom * area)) / (rh_bot + 1.0 / (h_bottom * area)))
+        wall_bottom = walls[-1]
         heat_out += float((h_bottom * area * walls[-1]).sum())
     return {"T": T, "dz": list(dz), "area_source": mask.sum() * area, "mask_source": mask, "mean_source": float(t_src.mean()),
-            "max_source": float(t_src.max()), "cell_mean_source": float(T[0][mask].mean()), "cell_max_source": float(T[0][mask].max()), "per_source": [{"mean": float((T[0][m] + qcell[m] * rh_top).mean()), "cell_mean": float(T[0][m].mean())} for m in masks], "surface_top": T[0] + qcell * rh_top, "heat_out": heat_out, "mean_wall": float(np.concatenate(walls).mean()) if walls else 0.0}
+            "max_source": float(t_src.max()), "cell_mean_source": float(T[0][mask].mean()), "cell_max_source": float(T[0][mask].max()), "per_source": [{"mean": float((T[0][m] + qcell[m] * rh_top).mean()), "cell_mean": float(T[0][m].mean())} for m in masks], "surface_top": T[0] + qcell * rh_top, "heat_out": heat_out, "wall_top": wall_top, "wall_bottom": wall_bottom, "top_surface_mean": float((T[0] + qcell * rh_top).mean()), "mean_wall": float(np.concatenate(walls).mean()) if walls else 0.0}
 
 
 def solid_resistance(res, power):

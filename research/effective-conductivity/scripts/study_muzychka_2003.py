@@ -2,7 +2,7 @@
 @file study_muzychka_2003.py
 @brief The numerical examples of Muzychka, Culham and Yovanovich (J. Electronic Packaging 125, 2003, 178-185) with the independent 3D solver and with the five models of the program.
 @details Case 1 (a): a 300 x 300 x 10 mm plate, k = 10 W/mK, film h = 10 W/m2K on the bottom face (top insulated), ambient 25 C, two 25 x 25 mm sources, 10 W centred at (90, 90) mm and 15 W at (210, 210) mm;
-         the paper gives the centroid and mean temperature of each source and the mean temperature of the bottom face (84.97, 80.56, 108.43, 101.81, 53.06 C by its solution; 85.95, 80.20, 109.92, 101.26, 53.06 by the
+         the paper gives the centroid and mean temperature of each source and the mean temperature of the bottom face (84.97, 80.56, 108.43, 101.81, 53.06 C by its solution, the last being the mean of the whole top face: 52.78 C of the bottom face plus Q t / (k A) = 0.28 K; 85.95, 80.20, 109.92, 101.26, 53.06 by the
          Fourier series of Culham and Yovanovich). Case 3: five 20 x 20 mm sources of 5 W in a cross at the centre of a 100 x 100 x 10 mm plate, k = 50 W/mK, h = 50 W/m2K, ambient 25 C: maximum temperature at the centre
          80.61 C and area-weighted mean source temperature 78.87 C. The layered models of the program represent such a plate as one copper layer of 10 mm with the conductivity of the plate (thin-plate approximation,
          Biot number h t / k = 0.01 to 0.1); the thickness of the case-3 plate is then varied from 0.1 to 10 mm to show where one temperature node through the thickness stops being a good idea. Run: .venv/bin/python research/effective-conductivity/scripts/study_muzychka_2003.py (from the repository root; about 2 minutes).
@@ -49,14 +49,14 @@ def independent(case):
     """!
     @brief Source temperatures and base mean by the independent 3D solver.
     @param case Case dictionary.
-    @return dict with centroid, mean (lists, C), base (C) and the maximum surface temperature.
+    @return dict with centroid, mean (lists, C), base (C, the mean of the bottom face, equal to the ambient plus Q / (h A)), top_mean (C, the mean of the whole top face) and the maximum surface temperature.
     """
     n = int(round(case["w"] / case["dx"]))
     rects = [tuple(v * 1e-3 for v in r) for r, _ in case["sources"]]
     pw = [p for _, p in case["sources"]]
     res = L.solve(case["dx"] * 1e-3, n, n, [(case["t"] * 1e-3, case["k"], 6)], rects, pw, 0.0, case["h"])
     cen = [AMB + centroid_value(res["surface_top"], case["dx"], (r[0] + r[2]) / 2 * 1e3, (r[1] + r[3]) / 2 * 1e3) for r in rects]
-    return {"centroid": cen, "mean": [AMB + d["mean"] for d in res["per_source"]], "base": AMB + res["mean_wall"], "max": AMB + float(res["surface_top"].max())}
+    return {"centroid": cen, "mean": [AMB + d["mean"] for d in res["per_source"]], "base": AMB + res["mean_wall"], "top_mean": AMB + res["top_surface_mean"], "max": AMB + float(res["surface_top"].max())}
 
 
 def program(case, model, cell_mm):
@@ -120,7 +120,7 @@ def main():
         ind = independent(case)
         out[name] = {"paper": case["paper"], "independent": ind, "program": {}}
         print(f"\nCase {name}: paper {case['paper']}")
-        print(f"  independent 3D solver: centroid {np.round(ind['centroid'], 2).tolist()}, mean {np.round(ind['mean'], 2).tolist()}, base {ind['base']:.2f}, max {ind['max']:.2f}")
+        print(f"  independent 3D solver: centroid {np.round(ind['centroid'], 2).tolist()}, mean {np.round(ind['mean'], 2).tolist()}, bottom mean {ind['base']:.2f}, top-face mean {ind['top_mean']:.2f}, max {ind['max']:.2f}")
         for m in MODELS:
             r = program(case, m, 2.5 if name == "1a" else 1.0)
             out[name]["program"][m] = r

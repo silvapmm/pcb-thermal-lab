@@ -10,15 +10,23 @@ Nothing here is needed for the program to be right on the boards it is made for:
 
 **What does not change.** The models, the results and the interface.
 
+**Measured impact** (`README.md` 4.8 C): on the 74 metal-block cases of the program the criterion is at most 0.42 % (a 3 mm steel block), median 0.04 %, so the check would **never fire on the cases the program is built for**; it is a safety net for a thick, poorly conducting layer typed by the user.
+
 **Risk.** A false alarm on a thick copper block (the criterion is then tiny, so none); the criterion is a bound, not a correction.
 
 ## 2. The laminar form of Churchill and Chu as an option (small, a decision)
 
 **Problem.** The program uses the general correlation for a vertical board over the whole range. The same authors' laminar form (for Ra below 1e9, recommended by textbooks for laminar flow) differs from it by +7 % at Ra 1e4, +2 % at 1e6, -5 % at 1e7 and -25 % at 1e9 (README 4.7); for a board of 50 to 200 mm at 10 to 80 K the coefficient differs by +6.5 % to -10 %.
 
+**Measured impact** (`README.md` 4.8 B): on the example board and bare two-layer boards turned to the vertical, with computed coefficients, the laminar form changes the maximum temperature by -0.7 to +0.2 % of the rise (-0.43 to +0.14 K).
+
 **Proposal.** Keep the general form as the default and leave the choice for a later `Board.natural_form` option, or change nothing: the difference is inside the +-30 % that the uncertainty of the calculator assigns to `h`, and neither paper was opened (the forms are taken from the compilation of sources and the library `ht`; the general form reproduces the library's worked example to the digit). **Recommended: change nothing until Churchill and Chu (1975) is read.**
 
-## 3. The independent solver as a reference in the program's tests (medium)
+## 3. The documented numbers of the plate check (documents only, no code)
+
+The documents say that the plate model is `+4.5 %` from Seri Lee's centre value; that is the 1 mm cell with the source edges half a cell off the grid. With the edges on cell edges the model is within +0.6 %, -0.8 % and -4.6 % of the article at the centre, the edge and the corner (`README.md` 4.8 A). The text to put in the documents is in `docs/for-the-project-documents.md`.
+
+## 4. The independent solver as a reference in the program's tests (medium)
 
 `lib/layered3d.py` (about 120 lines, SciPy only, with its own tests against a series circuit, the energy balance, a uniform layer and three published numbers) could become a test helper in `tests/` for the comparison of the layered models with a 3D solution on a laminate, next to the finite-element script that needs scikit-fem. This would need its own review for the program's documentation rules.
 
