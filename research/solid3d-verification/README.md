@@ -35,6 +35,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 | `scripts/fem3d_validation.py` | The independent 3D finite-element solid (scikit-fem, **not** in `requirements.txt`: `pip install scikit-fem`), also used by `models-comparison/validation_study.py --fem`. |
 | `scripts/copper_dissipation.py` | The pad-size sweep and copper against heatsink, in every model and the FEM (`--fem`). |
 | `scripts/study_block_against_fem.py` | The metal-block table of 4.2 (FVM, FDM and the 3D solid against the FEM; added by the review, no script printed it before). |
+| `scripts/study_fem_hand_checks.py` | The FEM mesh checks of 4.2 (1 to 0.5 mm: 90.63 to 90.57 °C; 4 to 2 elements per gap: 0.0003 °C) and the example-board value (85.57 and 85.59 °C), which the review had run by hand (about 6 minutes; needs scikit-fem). |
 | `scripts/study_small_pad_convergence.py` | Mesh convergence of the two 3D models on the heater-sized and 20 mm one-sided pads, and the same pads in the independent solver of `lib/` (4.2.1; about 10 minutes). |
 | `scripts/study_spreading_axisymmetric.py` | The axisymmetric finite-volume solver of the spreading resistance (third independent check of Yovanovich's table); writes `out/spreading.json` (git-ignored). |
 | `scripts/study_one_layer_board.py` | A one-layer board in the five models and the 3D solid without its laminate (part 1), and every model against the independent solver before and after the laminate nodes (part 2; about 2 minutes). |
@@ -50,6 +51,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 .venv/bin/python research/solid3d-verification/scripts/solid3d_verification.py      # about 25 seconds
 .venv/bin/python research/solid3d-verification/scripts/copper_dissipation.py --fem  # about 45 seconds, needs scikit-fem
 .venv/bin/python research/solid3d-verification/scripts/study_block_against_fem.py  # metal-block table of 4.2, about 1 minute, needs scikit-fem
+.venv/bin/python research/solid3d-verification/scripts/study_fem_hand_checks.py     # FEM mesh checks of 4.2 and the example board, about 6 minutes, needs scikit-fem
 .venv/bin/python research/solid3d-verification/scripts/study_small_pad_convergence.py  # 4.2.1, about 10 minutes, needs scikit-fem
 .venv/bin/python research/solid3d-verification/scripts/study_spreading_axisymmetric.py # section 4.3, about 20 seconds
 .venv/bin/python research/solid3d-verification/scripts/study_one_layer_board.py     # section 4.4, about 40 seconds
@@ -91,7 +93,7 @@ The two series columns were added by the review (2026-10-24): the closed form be
 copper where a zone exists and FR-4 where it does not; anisotropic FR-4 (0.3 through, 0.9 in plane); convection on the top, bottom and edge facets; the heater as a heat flux on its footprint on the top face;
 a heatsink as an extra coefficient on the bottom facets inside its polygon; **a via as a copper rod with the copper area of the plated barrel** (0.147 mm square for a 0.3 mm via with a 25 µm wall, since the wall itself is far below
 the mesh), through the whole thickness, with mesh lines refined around every rod. It does not use the "one node per copper layer" idea of the four models, so it measures the error of that idea. Element size 1 mm in the board plane
-(halving it moved the 4-layer full-copper case by 0.06 °C, 90.63 to 90.57 °C; 2 elements instead of 4 across the gaps by 0.001 °C, the earlier text said 0.02; re-run in the review with `solve_fem` directly, no script prints them).
+(halving it, 1 to 0.5 mm with 2 elements per gap, moved the 4-layer full-copper case by 0.06 °C, 90.63 to 90.57 °C; 2 elements instead of 4 across the gaps at 1 mm by 0.0003 °C, the earlier text said 0.02; printed by `scripts/study_fem_hand_checks.py`. The 0.5 mm run with 4 per gap, about 1.1 million nodes, was killed for memory, so the halving is measured with 2 per gap, which changes nothing at 1 mm).
 
 Maximum temperature of the top face [°C] and error of every model on the rise (FVM and FDM at 0.5 mm; Lumped and Analytic with their default settings):
 
@@ -146,7 +148,7 @@ What it shows:
 * **A heatsink works through the copper under it**: the same 30 W/m²K heatsink gives 131 °C on the pad and 325 °C on bare laminate, because on the laminate there is no sheet to spread the heat in. The heatsink adds convection area; the copper provides the path to it.
 * **Where the models fail**: with a pad hardly larger than the heater (an edge of copper across the footprint) the FDM loses 8 to 16 % (the grid sees the pad as a few nodes), and the **Lumped and Analytic models are unreliable** for a one-sided pad without vias or bottom copper (Lumped up to +107 %, Analytic up to −63 %); they assume copper around the heater on both faces or a uniform sheet. The input checks already warn about a copper edge crossing a heater; use the FVM for such boards.
 
-The 3D value of the example board is converged: 85.57 °C with 1 mm elements (the earlier text said 85.55) and 85.59 °C with 0.5 mm (2 elements across each gap; re-run in the review with `solve_fem` directly).
+The 3D value of the example board is converged: 85.57 °C with 1 mm elements (the earlier text said 85.55) and 85.59 °C with 0.5 mm (2 elements across each gap; printed by `scripts/study_fem_hand_checks.py`, which gives 85.567 and 85.587 °C).
 
 The **3D solid (FV)** column is the program's own 3D model (`solid3d.py`, section 2.7 of `docs/models.md`; slabs of real thickness, 4 per gap; 0.5 mm cells in the four-board table of 4.2, 1 mm in the tables of 4.2.1): it lands within 0.2 % of the FEM on three boards and 1.6 % high on the 20 mm pad. Its numbers are also the closest to the FVM in the scenario table of `docs/validation.md` section 2 (within 0.3 % on the ordinary scenarios, +4.5 % with a copper edge across the heater, +2.4 % with no copper under it; that table is printed by `research/models-comparison/scripts/validation_study.py` and was not re-checked in this review).
 **Convergence on a small pad**, where the two 3D models differ most (maximum temperature, `scripts/study_small_pad_convergence.py`, part 1; the board of `copper_dissipation.py`):
@@ -257,6 +259,6 @@ Every study of the folder was re-run on the program of `develop` at `0ea5f07` (m
 
 * Read: Yovanovich's Table 3 values were taken from the published table as recorded in the script (the paper itself was not re-read; its title, "Thermal resistances of circular source on finite circular cylinder with side and end cooling", is quoted from memory). The values are confirmed by the exact Bessel series computed here (section 4.1). Not verified: no measurement of a physical board.
 * Reproduced: the axisymmetric solver was written and run here (section 4.3); every table of this README was re-run on 2026-10-24 (section 7).
-* Not re-checked in the review: the scenario table of `docs/validation.md` section 2 quoted in 4.2.1 (printed by `research/models-comparison/scripts/validation_study.py`, reviewed with that folder); the FEM element-size checks of 4.2 and the example board at 0.5 mm were re-run by hand with `fem3d_validation.solve_fem` (about 11 minutes) and corrected (0.001 °C, 85.57 °C), but no script prints them.
+* Not re-checked in the review: the scenario table of `docs/validation.md` section 2 quoted in 4.2.1 (printed by `research/models-comparison/scripts/validation_study.py`, reviewed with that folder); the FEM element-size checks of 4.2 and the example board at 0.5 mm were re-run by hand in the review and are now printed by `scripts/study_fem_hand_checks.py` (reproduced: 90.63 to 90.57 °C on halving the element size, 0.0003 °C for 2 instead of 4 elements per gap, 85.567 and 85.587 °C for the example board).
 * Not implemented: a time simulation of the 3D solid (steady state only); the FEM solid inside the program (it stays an offline cross-check, scikit-fem is not a dependency).
 * One-layer board (4.4): the old behaviour is imitated by a board whose laminate is 1 µm thick, not by running the old code; the independent reference (with patterned copper) is in `research/effective-conductivity/` 4.11 and in `lib/layered3d.py` here.
