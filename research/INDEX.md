@@ -12,9 +12,9 @@ This file is the index; `research/README.md` holds the layout rules, the rules f
 | Theory | `effective-conductivity/` | closed; no change to the program required; optional proposals with their measured impact | Published test cases (effective conductivity of a laminate, spreading resistance of a source on a plate) reproduced with an independent 3D solver; the five models on the same boards; where one temperature node through the thickness stops being valid; the natural convection forms; the channel correlations between vertical plates. |
 | Theory | `theory/` | open, **lives on the research branch** | What each model, equation and planned method is: one file per topic with a picture, the formulation, limits, tests, paths to the investigations and sources; one bibliography with the reading status of every source. |
 | Models | `models-comparison/` | implemented (repeated at each change) | The five models against the FVM on 19 scenarios, the grids, the solvers and the time results. |
-| Models | `solid3d-verification/` | implemented (2.3.0, 2.4.0) | Does the 3D solid reproduce an exact solution; how far are the layered models from a 3D solution. |
+| Models | `solid3d-verification/` | implemented (2.3.0, 2.4.0; one-layer laminate corrected after 2.4.1) | Does the 3D solid reproduce an exact solution; how far are the layered models from a 3D solution. |
 | Models | `block-and-fins/` | implemented (2.3.0, 2.4.0) | Metal block and fins: the fin formula, and the block in the Lumped and Analytic models. |
-| Board | `outline/` | implemented (2.4.0) | Which rectangle for the Lumped and Analytic models on a board with an outline. |
+| Board | `outline/` | implemented (2.4.0; time constant corrected after 2.4.1) | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | Board | `via-fill/` | implemented (2.4.0) | What fills a via barrel and how much it matters. |
 
 Everything in `research/` that is ours (documents, scripts, figures) is MIT like the rest of the repository (see the README of the project). Third-party boards used to validate studies are downloaded by a script into the folder's git-ignored `data/` and are never committed; each folder's README states their licences.

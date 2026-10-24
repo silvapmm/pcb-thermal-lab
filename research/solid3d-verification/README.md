@@ -24,7 +24,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 * On a uniform board the four layered models land on the 3D answer within 0.7 %; with vias and a heatsink (the example board) within 1.5 %; the FVM follows an independent 3D finite-element solid within 2.2 % for any pad of 20 mm or more.
 * The **Lumped and Analytic models are unreliable for a one-sided copper pad without vias** (Lumped up to +107 %, Analytic up to −63 %); the input checks warn.
 * The outer copper dissipates and spreads by itself; a heatsink works through the copper under it.
-* **A defect found in a later review, now corrected in the program** (4.4): on a one-layer board the 3D solid had no laminate (only the copper), so a 20 mm pad read 120 °C against about 74 °C; with the laminate it reads 81.9 °C and is within 0.8 % of an independent 3D solver with full copper.
+* **A defect found in a later review, now corrected in the program** (4.4): on a one-layer board the 3D solid had no laminate (only the copper), so a 20 mm pad read 120 °C against about 74 °C; with the laminate it reads 81.9 °C, and an independent 3D solver with patterned copper puts the corrected 3D solid within 0.2 % on a 20 mm pad (the old one +40 %).
 
 ## 3. Folder layout
 
@@ -44,7 +44,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 ```sh
 .venv/bin/python research/solid3d-verification/scripts/solid3d_verification.py      # about 25 seconds
 .venv/bin/python research/solid3d-verification/scripts/copper_dissipation.py --fem  # about 45 seconds, needs scikit-fem
-.venv/bin/python research/solid3d-verification/scripts/study_one_layer_board.py     # section 4.3, about 30 seconds
+.venv/bin/python research/solid3d-verification/scripts/study_one_layer_board.py     # section 4.4, about 30 seconds
 .venv/bin/python research/solid3d-verification/scripts/make_figures.py              # about 2 minutes
 ```
 
@@ -178,7 +178,7 @@ The 3D solid builds its slabs from the copper layers and the dielectric gaps; a 
 | full copper | 56.43 | 56.43 | 57.38 | 56.84 | 56.53 | 58.72 |
 | 20 mm pad | 75.22 | 73.12 | 81.92 | 72.36 | 74.53 | 119.97 |
 
-With full copper the 3D solid is 3 % of the rise above the layered models and with a 20 mm pad 13 %: in the 3D solid the bottom face loses heat through 1.6 mm of FR-4 (0.3 W/mK), in the layered models the bottom coefficient acts on the copper node itself. An independent 3D finite-volume solver (`research/effective-conductivity/lib/layered3d.py` on the branch `research/gerbers`; full copper, FR-4 isotropic at 0.3 W/mK so that both can represent it, 0.5 mm cells) gives a rise of 33.71 K against 33.43 K for the 3D solid (−0.8 %) and 32.78 K for the FVM (−2.8 %). Regression test: `tests/test_solid3d.py` (`test_a_one_layer_board_keeps_its_laminate`).
+With full copper the 3D solid is 3 % of the rise above the layered models and with a 20 mm pad 13 %: in the 3D solid the bottom face loses heat through 1.6 mm of FR-4 (0.3 W/mK), in the layered models the bottom coefficient acts on the copper node itself. An independent 3D finite-volume solver with patterned copper (`research/effective-conductivity/` section 4.11 on the branch `research/gerbers`; FR-4 isotropic at 0.3 W/mK so that both represent the same board, copper 385 W/mK, no edge loss, 0.5 mm cells) confirms it: with a 20 mm pad the 3D solid is +0.2 % of the rise from it (before the correction +40 %); with full copper both the corrected and the old 3D solid agree with it within 0.2 %, so full copper does not test the correction. The FVM is 0.9 to 4.4 % low with full copper (0.8 to 3.2 mm) and 10 % low with the pad, because its bottom film acts on the copper node and the laminate under it is missing (a candidate correction, the film in series with the laminate, is measured in that folder: -0.1 to -1.1 % and -7.6 %; `docs/roadmap.md`). *An earlier version of this section quoted 33.71 K against 33.43 K (-0.8 %) from a check with mismatched copper and edge loss; it is replaced by these numbers.* Regression test: `tests/test_solid3d.py` (`test_a_one_layer_board_keeps_its_laminate`).
 
 ![A one-layer board in the 3D solid before and after, and the models on it](figures/fig_07_one_layer_board.png)
 
@@ -200,4 +200,4 @@ Yovanovich, J. Electronic Packaging 125 (2003) 169 to 177, Table 3 (as cited in 
 * Read: Yovanovich's Table 3 values were taken from the published table as recorded in the script (the paper itself was not re-read). Not verified: no measurement of a physical board.
 * Reproduced: the axisymmetric solver was written and run here (section 4.3); its agreement is with the same table value recorded in the script, not with the paper.
 * Not implemented: a time simulation of the 3D solid (steady state only); the FEM solid inside the program (it stays an offline cross-check, scikit-fem is not a dependency).
-* One-layer board (4.4): the old behaviour is imitated by a board whose laminate is 1 µm thick, not by running the old code; the independent solver of `research/effective-conductivity/` is the reference for full copper only (it has no patterned copper), so the 20 mm pad has no independent reference.
+* One-layer board (4.4): the old behaviour is imitated by a board whose laminate is 1 µm thick, not by running the old code; the independent reference (with patterned copper) is in `research/effective-conductivity/` 4.11 on the research branch.
