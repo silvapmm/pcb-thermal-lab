@@ -51,3 +51,12 @@ Nothing is lost: each item below is in a worktree or a file, and the background 
 ## Measured and not implemented: a 2-layer board with a bare bottom
 
 A 2-layer board with no copper on the bottom was measured as a one-layer board against the independent solver (FVM error against it, current program): CSD17308Q3 board -2.3 % (one layer: -1.3 %), 20 mm pad -3.8 % (-2.3 %), 10 mm pad -7.7 % (-4.8 %); full copper on top: no difference. A 2-layer board with the same pad on BOTH faces gives the same -3.9 %, so the error belongs to every 2-layer board (two nodes through the gap), not to the bare bottom, and treating only the bare bottom as one layer would make identical 2-layer boards inconsistent. Not implemented. Open: a separate investigation of subdividing the gap of every multilayer board (changes all 2- and 3-layer results; needs the reviewer), and a variant for the Analytic model only (-32 % to -13 % with a 20 mm pad, still poor). The script of the measurement was run from a scratch directory and has to be written into `power-calculator/scripts/` before this is quoted.
+
+## To do after everything else is finished (maintainer's order)
+
+1. Investigation of subdividing the gap of every multilayer board (two nodes through the gap of a 2-layer board give -2 to -8 % in the FVM against the independent solver); changes all 2- and 3-layer results, needs the reviewer. Start only when the other items are done.
+2. The error of the 2-layer boards is only documented (power-calculator `docs/for-the-project-documents.md` section 11); no variant for the Analytic model.
+3. Investigation of why the Analytic model is hot on one-layer boards with partial copper.
+4. The 3D solid with a rotated square at a high side coefficient (+1.15 K above the aligned square).
+5. JEDEC board of the power calculator: fix the reading of the bottom layer and move the datasheet rows to a finer cell (the JESD51-7 is behind a login).
+6. A third 1 oz option with 30 um (the JLCPCB product), only if wanted.

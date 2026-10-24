@@ -25,3 +25,7 @@ The reviewer may not edit `docs/` on a research branch. These are the changes th
 
 * Tables 2.2 (sensitivity), 2.4 (calibration) and the band example of 1.1b are reproduced to the last printed digit on the corrected program (`0ea5f07`, this branch).
 * `docs/theory.md` has no section on the calculator; its formulas are in `docs/calculators.md` 1.1 and agree with `pcbthermal/inverse.py`.
+
+## 11. `docs/validation.md`: the error of the 2-layer boards (decided: documented, not corrected)
+
+Add to the one-layer section (21) a short subsection. Against the independent solver (current program, FVM; `research/REVIEW.md`, "Measured and not implemented"): CSD17308Q3 board with an empty bottom -2.3 % (as one layer: -1.3 %), 20 mm pad -3.8 % (-2.3 %), 10 mm pad -7.7 % (-4.8 %), full copper on top no difference; a 2-layer board with the same pad on both faces gives -3.9 %. The error belongs to every 2-layer board (two nodes through the gap), not to the bare bottom; the 3D solid is within 0.4 %. No variant for the Analytic model alone is offered (-32 % to -13 % with a 20 mm pad, still poor with smaller pads).
