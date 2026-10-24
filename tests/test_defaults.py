@@ -229,5 +229,16 @@ def test_help_sits_before_close_and_preferences_has_a_power_calculator_tab(qtbot
     assert p.windowTitle() == "Preferences"
     assert [p.tabs.tabText(i) for i in range(p.tabs.count())][-2:] == ["Defaults for new projects", "Power calculator"]
     p.widgets[("calculator", "copper_uncertainty_pct")].setValue(40.0)
+    p.widgets[("calculator", "design_level")].setCurrentText("estimated")              # The design-uncertainty level and amplitudes are in the same tab
+    p.widgets[("calculator", "design_vias_pct")].setValue(35.0)
     p.save()
     assert defaults.value("calculator", "copper_uncertainty_pct") == 40.0
+    assert defaults.value("calculator", "design_level") == "estimated" and defaults.value("calculator", "design_vias_pct") == 35.0
+    # The calculator opens with the level of the Preferences and lists the four confidence levels
+    d2 = PowerCalculator(doc)
+    qtbot.addWidget(d2)
+    assert d2.design.currentData() == "estimated" and [d2.design.itemData(i) for i in range(d2.design.count())] == ["none", "cad", "hand", "estimated"]
+    d2.band.setChecked(False)                                                          # Without the band the board description does nothing: greyed
+    assert not d2.design.isEnabled()
+    d2.band.setChecked(True)
+    assert d2.design.isEnabled()

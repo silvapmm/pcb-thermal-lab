@@ -892,8 +892,10 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     """The calculator finds the power of a part from a temperature, writes it into the heater, and the datasheet route works; no heater and bad inputs do not crash."""
     from pcbthermal.gui.calculator import PowerCalculator
     load(win, example_board())
+    # A 2 mm cell keeps the band cheap: with the default board description it runs seven sources (four design terms), three times in this scenario
+    win.doc.set_options(cell_mm=2.0)
     truth = win.doc.problem.heaters[0].power
-    row = simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+    row = simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=2.0)).heater_rows()[0]
     dlg = PowerCalculator(win.doc)
     qtbot.addWidget(dlg)
     dlg.point.setCurrentIndex(dlg.point.findData("mean"))
@@ -912,6 +914,16 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     dlg.use.setEnabled(True)
     dlg.use.click()
     assert win.doc.problem.heaters[0].power == pytest.approx(truth, rel=0.01)
+    # The board-description control: every level runs; "none" has no design terms and the others list them apart in the result
+    for level in ("none", "estimated"):
+        dlg.measured.setValue(row["t_mean"])
+        dlg.design.setCurrentIndex(dlg.design.findData(level))
+        win.doc.set_props("heater", 0, power=1.0, merge=False)
+        dlg.compute.click()
+        qtbot.waitUntil(lambda: dlg.use.isEnabled(), timeout=120000)
+        has_design = any(c.get("design") for c in dlg.out["contributions"])
+        assert has_design == (level != "none") and ("Board description" in dlg.result.text()) == (level != "none")
+        assert dlg.out["best_w"] <= truth <= dlg.out["worst_w"]
     dlg.measured.setValue(10.0)                                               # Below the ambient: an error message, no crash
     dlg.compute.click()
     qtbot.waitUntil(lambda: "above the ambient" in dlg.result.text(), timeout=120000)
