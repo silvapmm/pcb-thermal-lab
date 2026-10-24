@@ -22,7 +22,7 @@ def error(result, reference):
     """!
     @brief Error of a model on the temperature rise, against a reference result.
     @param result SteadyResult of the model.
-    @param reference SteadyResult (or its Tmax value in degC with ambient 25) of the reference.
+    @param reference SteadyResult of the reference.
     @return Percentage.
     """
     ref_dt = reference.delta_t
@@ -80,6 +80,8 @@ def fem_table():
     @brief Boards solved as a 3D solid, with the error of every model on the temperature rise.
     @return Markdown text.
     """
+    # The finite-element solid lives in the solid3d-verification folder since the studies moved out of examples/ (the import failed before)
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "solid3d-verification", "scripts"))
     import fem3d_validation as f3
     rows = ["| Board | 3D FEM [°C] | FVM | FDM | 3D solid (FV) | Lumped | Analytic |", "| :-- | --: | --: | --: | --: | --: | --: |"]
     cases = (("4 layers, full copper", f3.board_full_copper()), ("2 layers, 40 mm top pad", f3.board_partial_copper()),

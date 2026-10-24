@@ -5,7 +5,7 @@
 @details The numbers come from running the studies of this folder and reading the tables they print.
          fig_01: error of the four other models against the FVM on 19 scenarios; fig_02: the example board against the grid spacing for the FVM, both FDM samplings and the 3D solid;
          fig_03: the solvers (direct, CG, SOR with a residual rule and with the original step rule) on several boards.
-Usage: python research/models-comparison/scripts/make_figures.py   (from the repository root; about 2 minutes)
+Usage: python research/models-comparison/scripts/make_figures.py   (from the repository root; about 8 minutes, most of it validation_study.py)
 """
 
 import re
@@ -98,7 +98,7 @@ def fig_grid(text):
     ax.set_xscale("log", base=2); ax.invert_xaxis()
     ax.set_xticks(sp); ax.set_xticklabels([f"{s:g}" for s in sp])
     ax.set_xlabel("Grid spacing (mm)"); ax.set_ylabel("Tmax of the example board (°C)")
-    ax.set_title("The FVM converges monotonically; the FDM jumps by about ±0.5 °C with the grid", fontsize=9)
+    ax.set_title("The FVM converges monotonically; neither FDM sampling does (area 0.3 to 1.4 °C below the FVM)", fontsize=9)
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(OUT / "fig_02_grid_convergence_of_the_models.png", dpi=110)
@@ -124,7 +124,7 @@ def fig_solvers():
     ax.set_yscale("log")
     ax.set_xticks(x); ax.set_xticklabels([b.replace(", ", ",\n", 1) for b in boards], fontsize=7)
     ax.set_ylabel("Max abs difference to the direct solver (K)")
-    ax.set_title("Same answer with a residual stopping rule (1e-9 K or better); wrong by 2.7 to 16 K with the original step rule", fontsize=9)
+    ax.set_title("Same answer with a residual stopping rule (2e-8 K or better); wrong by 2.7 to 16 K with the original step rule", fontsize=9)
     ax.legend(fontsize=8, loc="center left")
     fig.tight_layout()
     fig.savefig(OUT / "fig_03_solver_equivalence.png", dpi=110)

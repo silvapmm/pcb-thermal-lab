@@ -190,7 +190,7 @@ def measurement_setup(path):
 
 def main():
     """!
-    @brief Draw the five models and save the figure.
+    @brief Draw the five models, the cases where the reduced models fail and the planned measurement, and save the three figures.
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)

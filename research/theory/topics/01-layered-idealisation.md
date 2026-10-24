@@ -75,7 +75,7 @@ Seen from outside, a board of several layers has an in-plane and a through-plane
 
 * Against the 3D solid and an independent finite-element solid: 0.4 to 2.2 % (FVM), `docs/validation.md` section 3; folder `research/solid3d-verification/` (figures 4 and 5 draw the layered models against the 3D solid).
 * The exact 1D series circuit of an advanced stack-up (test in `tests/`), `docs/validation.md` section 12; folder `research/stackup/`.
-* The pictures of the five models side by side: `research/models-comparison/figures/fig_04_the_five_models_schematic.png`.
+* The pictures of the five models side by side: `research/models-comparison/figures/fig_08_the_five_models_schematic.png`.
 
 * The five models against an independent 3D solver on a Cu / FR4 / Cu coupon of the literature (50 x 50 mm, 2.5 W, source areas of 1 % to 100 %): within 0.3 % (FDM 1.2 % at 1 %), `research/effective-conductivity/` 4.5.
 

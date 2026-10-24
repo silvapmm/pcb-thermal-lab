@@ -29,7 +29,7 @@ A thermocouple that touches the board disturbs the field (a contact resistance a
 ## 4. Conditions
 
 * Still air: the board horizontal, layer 1 up, on thin supports in an enclosure that stops draughts; no fan. The computed convection of the program is for still air (topic 08).
-* **Steady state at three powers** (low, medium and high within the heater's rating). The program's constant-`h` result is known to overestimate the rise by 10 % at 22 W and underestimate it at low power (`docs/roadmap.md` section 2), so the three powers test the computed convection itself, not one point.
+* **Steady state at three powers** (low, medium and high within the heater's rating). The program's constant-`h` result is known to overestimate the rise by 10 % at 22 W and underestimate it at low power (`docs/validation.md` section 8, `../README.md` 4.7), so the three powers test the computed convection itself, not one point.
 * Wait until the temperature changes by less than the resolution of the reading for several minutes (the whole board needs minutes; the hottest point reaches 63 % of its rise in tens of seconds, `docs/validation.md` section 7).
 * Optional: one **power step** with the thermocouple at the heater logged against time, to compare with the time simulation (topic 33).
 
