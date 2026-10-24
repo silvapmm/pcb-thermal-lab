@@ -4,7 +4,8 @@
 
 @details The numbers come from running the two studies of this folder and reading the tables they print, so the pictures cannot disagree with them.
          fig_01: maximum temperature of the example board with the program's typical stack-up and the published ones of fabricators;
-         fig_02: rise of the hottest point for several stack-ups, in the five models; fig_03: sensitivity of the rise to the stack-up numbers.
+         fig_02: rise of the hottest point for several stack-ups, in the five models; fig_03: sensitivity of the rise to the stack-up numbers;
+         fig_06: inner copper 15.2 um against 35 um; fig_07: real 1 oz builds of fabricators against the 1 oz rules of the program.
 Usage: python research/stackup/scripts/make_figures.py   (from the repository root; about 2 minutes)
 """
 
@@ -161,6 +162,49 @@ def fig_inner_copper():
     plt.close(fig)
 
 
+def fig_real_1oz():
+    """!
+    @brief Maximum temperature of the program's 1 oz variants against the real 1 oz builds of fabricators (tables C and D of study_real_1oz_stackups.py).
+    @return None.
+    """
+    text = run("study_real_1oz_stackups.py")
+    sec_c = text.split("\nC. ")[1].split("\nD. ")[0]
+    sec_d = text.split("\nD. ")[1].split("\nE. ")[0]
+    var = {}                                            # (layers, row name) -> Tmax
+    for ln in sec_c.splitlines():
+        c = [x.strip() for x in ln.strip("|").split("|")]
+        if ln.startswith("|") and c[0].isdigit():
+            var[(int(c[0]), c[1].split(" (inner")[0])] = float(c[4])
+    others = {}                                         # layers -> Tmax of the other fabricators (35 um inner)
+    for ln in sec_d.splitlines():
+        c = [x.strip() for x in ln.strip("|").split("|")]
+        m = re.search(r"(\d+)L", c[0]) if ln.startswith("|") else None
+        if m:
+            others.setdefault(int(m.group(1)), []).append(float(c[2]))
+    layers = [4, 6, 8, 10, 12]
+    x = np.arange(len(layers))
+    rows = (("shipped template 15.2 um", "#1d4ed8", "shipped, 15.2 um"),
+            ("35 um, dielectrics unchanged", "#9ca3af", "35 um, dielectrics unchanged"),
+            ("35 um, scaled to the same thickness", "#d97706", "35 um, scaled to the same thickness"),
+            ("30 um, dielectrics unchanged", "#059669", "30 um, dielectrics unchanged"))
+    fig, ax = plt.subplots(figsize=(10.5, 4.8))
+    w = 0.2
+    for k, (name, col, lab) in enumerate(rows):
+        ax.bar(x - 1.5 * w + k * w, [var[(n, name)] for n in layers], w, color=col, label=lab)
+    jlc = [next(v for (n2, name), v in var.items() if n2 == n and name.startswith("JLCPCB 1 oz")) for n in layers]
+    ax.scatter(x, jlc, marker="o", color="#dc2626", zorder=4, s=36, label="JLCPCB real 1 oz build (30 um inner)")
+    for i, n in enumerate(layers):
+        if n in others:
+            ax.scatter([i] * len(others[n]), others[n], marker="D", color="black", zorder=3, s=14, label="other fabricators, 1 oz (35 um inner)" if i == 0 else None)
+    ax.set_xticks(x); ax.set_xticklabels([f"{n} layers" for n in layers])
+    ax.set_ylim(60, 95); ax.set_ylabel("Tmax of the example board (degC)")
+    ax.set_title("Real 1 oz builds against the 1 oz rules of the program (full plane on every inner layer)", fontsize=9)
+    ax.legend(fontsize=7.5, ncol=2)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_07_real_1oz_stackups.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the figures.
@@ -172,6 +216,7 @@ def main():
     fig_stacks(text)
     fig_sensitivity(text)
     fig_inner_copper()
+    fig_real_1oz()
     print("figures in", OUT)
 
 
