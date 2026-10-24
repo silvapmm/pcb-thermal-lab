@@ -22,6 +22,7 @@
 """
 
 import argparse
+import contextlib
 import json
 import math
 import sys
@@ -96,10 +97,20 @@ def run(root):
     sys.path.insert(0, str(root))
     from pcbthermal import Problem, SolverOptions, simulate                 # noqa: E402
     from pcbthermal.examples import example_block_board, example_board     # noqa: E402
+    from pcbthermal import solid3d                                         # noqa: E402
     api = {"Problem": Problem, "example_board": example_board, "example_block_board": example_block_board}
     out = {}
+    # The 6-layer board has about 281 000 3D unknowns at 1 mm, above the application's limit (solid3d.MAX_CELLS, 250 000 since 2026-10-24);
+    # the study accepts the longer solve. Older checkouts have no size_limit and their limit (2 million) already lets it run.
+    def limit():
+        """!
+        @brief The 3D size limit of the study (a fresh context for every board).
+        @return Context manager.
+        """
+        return solid3d.size_limit(2_000_000) if hasattr(solid3d, "size_limit") else contextlib.nullcontext()
     for name, p in boards(api):
-        res = simulate(p, SolverOptions(models=MODELS, cell_mm=CELL_MM)).results
+        with limit():
+            res = simulate(p, SolverOptions(models=MODELS, cell_mm=CELL_MM)).results
         out[name] = {"ambient": p.board.ambient, "parts": ["maximum"]}
         for m in MODELS:
             out[name][m] = [res[m].t_max] if m in res else None

@@ -19,7 +19,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .geometry import coverage_fraction, edge_length_per_cell, nearest_active_cell, points_in_polygon, polygon_centroid
+from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid
 from . import blocks, fvm, laminate
 from .fvm import ORDERING
 from .results import SteadyResult
@@ -139,7 +139,7 @@ class Network:
         self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * rho_cp_lam) * area[None]
         # Edge length exposed in the control volume of every node (for the edge coefficient of the laminate nodes)
         if b.has_outline():
-            edge_nodes = edge_length_per_cell(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy) * self.active
+            edge_nodes = edge_length_on_board(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy, self.active)
         else:
             edge_nodes = np.zeros((ny, nx))
             edge_nodes[:, 0] += wy
@@ -214,7 +214,7 @@ class Network:
             (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
         if b.h_side and b.has_outline():
             # Non-rectangular board: the outline length inside the control volume of every node times the slab thickness
-            edge = edge_length_per_cell(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy) * self.active
+            edge = edge_length_on_board(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy, self.active)
             self.g_side[:L] += b.h_side * slab[:, :, :] * edge[None]
         elif b.h_side:
             sl = slab[:, :, 0]                                  # (L, 1): per-layer slab

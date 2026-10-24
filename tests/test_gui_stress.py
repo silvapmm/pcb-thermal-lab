@@ -892,8 +892,10 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     """The calculator finds the power of a part from a temperature, writes it into the heater, and the datasheet route works; no heater and bad inputs do not crash."""
     from pcbthermal.gui.calculator import PowerCalculator
     load(win, example_board())
+    # A 2 mm cell keeps the band cheap: with the default board description it runs seven sources (four design terms), three times in this scenario
+    win.doc.set_options(cell_mm=2.0)
     truth = win.doc.problem.heaters[0].power
-    row = simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+    row = simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=2.0)).heater_rows()[0]
     dlg = PowerCalculator(win.doc)
     qtbot.addWidget(dlg)
     dlg.point.setCurrentIndex(dlg.point.findData("mean"))
@@ -912,6 +914,16 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     dlg.use.setEnabled(True)
     dlg.use.click()
     assert win.doc.problem.heaters[0].power == pytest.approx(truth, rel=0.01)
+    # The board-description control: every level runs; "none" has no design terms and the others list them apart in the result
+    for level in ("none", "estimated"):
+        dlg.measured.setValue(row["t_mean"])
+        dlg.design.setCurrentIndex(dlg.design.findData(level))
+        win.doc.set_props("heater", 0, power=1.0, merge=False)
+        dlg.compute.click()
+        qtbot.waitUntil(lambda: dlg.use.isEnabled(), timeout=120000)
+        has_design = any(c.get("design") for c in dlg.out["contributions"])
+        assert has_design == (level != "none") and ("Board description" in dlg.result.text()) == (level != "none")
+        assert dlg.out["best_w"] <= truth <= dlg.out["worst_w"]
     dlg.measured.setValue(10.0)                                               # Below the ambient: an error message, no crash
     dlg.compute.click()
     qtbot.waitUntil(lambda: "above the ambient" in dlg.result.text(), timeout=120000)
@@ -923,3 +935,85 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     empty = PowerCalculator(Document())
     qtbot.addWidget(empty)
     assert not empty.compute.isEnabled()
+
+
+def test_natural_form_control_in_the_application(win, qtbot):
+    """The vertical natural convection form: shown with computed h, enabled only for a vertical board, written to the document, undone, run, saved and reloaded."""
+    load(win, example_board())
+    bp = win.board_panel
+    assert [bp.natural_form.itemData(i) for i in range(bp.natural_form.count())] == ["general", "laminar"] and bp.natural_form.toolTip()
+    bp.h_mode.setCurrentIndex(1)
+    assert not bp.natural_form.isEnabled()                                 # Horizontal: the form does not enter the correlation
+    bp.orientation.setCurrentIndex(1)
+    assert bp.natural_form.isEnabled()
+    bp.natural_form.setCurrentIndex(1)
+    assert win.doc.problem.board.natural_form == "laminar"
+    run(win, qtbot, ("fvm",))
+    assert win.sim.h_used
+    win.doc.stack.undo()
+    assert win.doc.problem.board.natural_form == "general"
+    bp.refresh()
+    assert bp.natural_form.currentData() == "general"
+    # Every combination of orientation and form, back and forth, never breaks the panel
+    for o in (0, 1, 0):
+        for f in (1, 0, 1):
+            bp.orientation.setCurrentIndex(o)
+            bp.natural_form.setCurrentIndex(f)
+            assert win.doc.problem.board.natural_form == ("laminar" if f else "general")
+    win.doc.problem.validate()
+
+
+def test_a_3d_model_too_large_is_refused_in_the_application(win, qtbot, popups):
+    """Regression of the random-actions hang: a 502.5 mm board with the 3D solid at 2 mm (a million unknowns) kept the calculation process in
+    a direct solve for hours. The panel now says it will not run, the other models answer at once and the 3D solid alone fails with the cell to use."""
+    import time
+    from pcbthermal import solid3d
+    p = example_profile_board()
+    p.board.width = p.board.height = 0.5025
+    p.board.h_mode = "computed"
+    load(win, p)
+    win.doc.set_options(models=("solid3d", "lumped"), cell_mm=2.0)
+    win.solver_panel.refresh()
+    assert "will not run" in win.solver_panel.cells_label.text()
+    t0 = time.time()
+    run(win, qtbot, ("solid3d", "lumped"), cell=2.0)
+    assert set(win.sim.results) == {"lumped"} and any("3D solid was not run" in w for w in win.sim.warnings)
+    run(win, qtbot, ("solid3d",), cell=2.0, expect_ok=False)            # Alone: the job fails with the message, it does not wait
+    assert time.time() - t0 < 120 and not win.worker.isRunning()
+    assert any(k == "critical" and "use a cell of" in t for k, _, t in popups)
+    win.doc.set_options(models=("solid3d",), cell_mm=20.0)
+    win.solver_panel.refresh()
+    assert "will not run" not in win.solver_panel.cells_label.text() and solid3d.unknowns(win.doc.problem, 20.0)[0] <= solid3d.MAX_CELLS
+
+
+def test_inner_copper_choice_in_the_application(win, qtbot):
+    """The inner copper combo of the Stack-up tab: disabled on two layers and in the simple stack-up, reloads the template as one undoable edit, survives layer changes, runs every model."""
+    load(win, example_board())
+    page = win.stackup_page
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    page.mode.setCurrentIndex(0)                                           # Simple: every layer has the outer copper, nothing to choose
+    assert not page.inner_oz.isEnabled()
+    page.mode.setCurrentIndex(1)                                           # Advanced
+    win.board_panel.layers.setValue(2)
+    assert not page.inner_oz.isEnabled()                                   # No inner copper on two layers
+    win.board_panel.layers.setValue(3)
+    assert page.inner_oz.isEnabled()                                       # Three layers have one inner layer
+    for n in (6, 4):
+        win.board_panel.layers.setValue(n)
+        page.inner_oz.setCurrentIndex(page.inner_oz.findData(0.5))        # Start every round from the default
+        assert page.inner_oz.isEnabled() and page.inner_oz.currentData() == 0.5
+        b = win.doc.problem.board
+        total = b.total_thickness()
+        page.inner_oz.setCurrentIndex(page.inner_oz.findData(1.0))
+        assert b.template_inner_oz == 1.0 and b.copper_thickness[1] == pytest.approx(35e-6)
+        assert b.total_thickness() == pytest.approx(total + (n - 2) * 19.8e-6)   # Dielectrics kept: the board grows by the extra inner copper
+        win.doc.stack.undo()                                                     # One step brings back the 0.5 oz stack-up
+        b = win.doc.problem.board
+        assert b.template_inner_oz == 0.5 and b.copper_thickness[1] == pytest.approx(15.2e-6) and page.inner_oz.currentData() == 0.5
+        win.doc.stack.redo()
+        win.board_panel.layers.setValue(n + 2 if n == 4 else 8)            # The choice is kept when the layer count changes
+        assert win.doc.problem.board.copper_thickness[1] == pytest.approx(35e-6)
+        win.doc.problem.validate()
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    page.inner_oz.setCurrentIndex(page.inner_oz.findData(0.5))
+    assert win.doc.problem.board.copper_thickness[1] == pytest.approx(15.2e-6)

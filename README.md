@@ -9,15 +9,15 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 **Modelling**
 - **Five models on one board description** (finite volumes, finite differences, 3D solid, thermal network, analytical series), cross-checked against each other and against an independent 3D solid, each reporting an exact energy balance.
-- **Stack-up**: a simple mode (equal layers, one laminate) and an **advanced mode** with a thickness per copper layer and a thickness and material per dielectric (FR-4, polyimide, PTFE-ceramic, metal-core, alumina, AlN presets), in **all five models**, with a **cross-section diagram** in µm and mm.
+- **Stack-up**: a simple mode (equal layers, one laminate) and an **advanced mode** with a thickness per copper layer and a thickness and material per dielectric (FR-4, polyimide, PTFE-ceramic, metal-core, alumina, AlN presets), in **all five models**, with a **cross-section diagram** in µm and mm and typical stack-ups of 1 to 12 layers with inner copper of 0.5 oz (JLCPCB standard, default) or 1 oz.
 - **Any board shape**: an outline polygon (presets, vertex table, drawing tool) in the FVM, FDM and 3D solid.
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).
 - **Metal blocks** (heat spreaders with an interface resistance, optional fins) in all five models (the Lumped and Analytic have them in steady state only), plated vias (hollow or filled), heatsinks.
-- **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier.
+- **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general (default) and a laminar form (`Board.natural_form`).
 - **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically; animation of the heat evolution with GIF export.
 
 **Tools**
-- **Power calculator**: the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
+- **Power calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
 - **Interactive editor** (PySide 6): rectangles and polygons, rulers and a scale bar, undo/redo, background photo, dark and light themes, a tooltip on every field.
 - **Simulations run in a separate process**: the window never freezes, a run can be **cancelled** at any moment and nothing is left running when you close the program.
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.

@@ -102,11 +102,14 @@ def main(with_fem=False):
     """
     print("## Scenarios, 1 mm cells (error on the temperature rise against the FVM)\n")
     print(scenario_table())
-    print("\n## Example board against the grid\n")
-    print(mesh_table())
-    if with_fem:
-        print("\n## Against an independent 3D solid\n")
-        print(fem_table())
+    # The 0.5 mm columns of the 3D solid (about 512 000 unknowns on the 4-layer boards) are above the application's limit (solid3d.MAX_CELLS,
+    # 250 000 since 2026-10-24): the study accepts solves of several minutes and GB, so it raises the limit to the old 2 million here only
+    with solid3d.size_limit(2_000_000):
+        print("\n## Example board against the grid\n")
+        print(mesh_table())
+        if with_fem:
+            print("\n## Against an independent 3D solid\n")
+            print(fem_table())
 
 
 if __name__ == "__main__":

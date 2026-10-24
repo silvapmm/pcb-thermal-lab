@@ -30,7 +30,7 @@ import math
 from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
-from .checks import check_problem
+from .checks import check_problem, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
 
@@ -245,7 +245,7 @@ class Simulation:
             b = self.problem.board
             lines.append("")
             lines.append(f"Heat transfer coefficients computed from correlations (emissivity {b.emissivity_top:g} top, "
-                         f"{b.emissivity_bottom:g} bottom, {b.orientation} board, air speed {b.air_speed:g} m/s, "
+                         f"{b.emissivity_bottom:g} bottom, {b.orientation} board{' (' + b.natural_form + ' form)' if b.orientation == 'vertical' else ''}, air speed {b.air_speed:g} m/s, "
                          f"convection multiplier {b.h_calibration:g}):")
             for name, (ht, hb) in self.h_used.items():
                 e = self.results[name].extras
@@ -440,6 +440,26 @@ def _solve_with_tc(problem, name, options, computed):
     return res, hh, totals
 
 
+def _block_flux_result(sim):
+    """!
+    @brief The result that carries the heat flux into the metal blocks, for the thick-plate warning.
+    @details The reference result of the FVM or FDM has it. For the other models (Lumped, Analytic, 3D solid) a quiet auxiliary FVM run of the same
+             problem (steady power, cell of at least 2 mm, no other model, its own warnings dropped) gives it, so the warning rests on a simulation and
+             not on the flux of the footprint, which overstates a block under the board 5 to 70 times. Nothing is run without a metal block.
+    @param sim Simulation with its results.
+    @return SteadyResult with arrays["block_flux"], or the reference result when no such run is possible (the check then falls back to the footprint flux).
+    """
+    ref = sim.reference
+    if "block_flux" in ref.arrays or not blocks.has_blocks(sim.problem):
+        return ref
+    try:
+        steady = sim.problem.steady_copy(sim.options.steady_power) if sim.problem.has_profiles() else sim.problem
+        aux = simulate(steady, SolverOptions(models=("fvm",), cell_mm=max(sim.options.cell_mm, 2.0)))
+    except ValueError:
+        return ref
+    return aux.reference
+
+
 def _part_warnings(sim):
     """!
     @brief Warnings about the parts after the solves: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients.
@@ -455,6 +475,7 @@ def _part_warnings(sim):
         if h.is_component() and h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
             out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
+    out += check_thick_plates(sim.problem, sim.heater_rows(), _block_flux_result(sim))
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
     if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):
@@ -533,6 +554,10 @@ def _solve_computed_h(problem, name, o):
     if problem.board.orientation == "horizontal" and not 1e4 <= info["top"]["rayleigh"] <= 1e11:
         res.warnings.append(f"the top-face Rayleigh number {info['top']['rayleigh']:.2g} is outside 1e4 to 1e11, "
                             "where the natural-convection correlation was fitted; the coefficient is an extrapolation")
+    if problem.board.orientation == "vertical" and problem.board.natural_form == "laminar" and info["top"]["rayleigh"] > 1e9:
+        # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
+        res.warnings.append(f"the Rayleigh number {info['top']['rayleigh']:.2g} is above 1e9, outside the laminar form of the vertical-plate correlation: "
+                            "choose the general form")
     if it == 30 and not done:
         res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")
     return res, ht, hb, it
