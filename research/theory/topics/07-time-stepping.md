@@ -23,7 +23,7 @@ of modulus below 1 for every `lambda dt` when `vartheta >= 1/2`: both schemes ar
 One LU factorisation is needed for each distinct `dt`, so the steps are built in stages.
 
 * **Animation**: ten stages with `dt_j = dt_0 2^j`, `dt_0 = t_end / (m (2^10 - 1))`, `m` steps per stage.
-* **Step responses**: `dt_j = dt_0 r^j`, `r = 3`, four steps per stage, 18 stages, `dt_0 = t_end (r - 1) / (4 (r^18 - 1))`, `t_end = 10 tau`, `tau = sum C / sum G_amb` (the uniform-board time constant; the hottest point reaches 63 % much sooner).
+* **Step responses**: `dt_j = dt_0 r^j`, `r = 3`, four steps per stage, 18 stages, `dt_0 = t_end (r - 1) / (4 (r^18 - 1))`, `t_end = 10 tau`, `tau = sum C / sum G_amb` (the uniform-board time constant; the hottest point reaches 63 % much sooner). `sum G_amb` leaves out the 1 W/K that pins the cells off a board with an outline (`fvm.board_time_constant`): counted, it made a round board 0.02 s instead of 107 s and the step responses stopped at 12 % of the steady resistance (`research/outline/README.md` 4.4).
 
 The **step response** `Z_i(t)` is the rise of the hottest point of heater `i` per watt; `R_th,i = Z_i(infinity)`. Topic 10 builds the power profiles from it.
 

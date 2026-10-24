@@ -109,3 +109,14 @@ def test_the_mean_of_the_top_face_explains_the_base_temperature_of_the_paper():
     res = L.solve(c["dx"] * 1e-3, n, n, [(c["t"] * 1e-3, c["k"], 6)], rects, [p for _, p in c["sources"]], 0.0, c["h"])
     assert 25.0 + res["top_surface_mean"] == pytest.approx(53.06, abs=0.01)
     assert 25.0 + res["mean_wall"] == pytest.approx(25.0 + 25.0 / (10.0 * 0.09), abs=1e-6)
+
+
+def test_a_conductivity_map_equal_everywhere_is_the_uniform_slab_and_a_pattern_keeps_the_energy():
+    dx, n = 1e-3, 12
+    src = (4e-3, 4e-3, 8e-3, 8e-3)
+    a = L.solve(dx, n, n, [(0.05e-3, 400.0, 1), (1e-3, 0.4, 3)], src, 1.0, 10.0, 10.0, film_under_source=True)
+    b = L.solve(dx, n, n, [(0.05e-3, np.full((n, n), 400.0), 1), (1e-3, 0.4, 3)], src, 1.0, 10.0, 10.0, film_under_source=True)
+    assert np.allclose(a["T"], b["T"], rtol=1e-12)
+    pad = np.where(np.add.outer(np.arange(n), np.arange(n)) < n, 400.0, 0.4)  # copper on one triangle of the board
+    c = L.solve(dx, n, n, [(0.05e-3, pad, 1), (1e-3, 0.4, 3)], src, 1.0, 10.0, 10.0, film_under_source=True)
+    assert c["heat_out"] == pytest.approx(1.0, rel=1e-9) and c["cell_max_source"] > a["cell_max_source"]

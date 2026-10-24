@@ -18,7 +18,8 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
     @param dx Cell size in the plane in m (square cells).
     @param nx Cells along x.
     @param ny Cells along y.
-    @param slabs List of (thickness in m, conductivity in W/mK, number of sub-slabs) from the top down.
+    @param slabs List of (thickness in m, conductivity in W/mK, number of sub-slabs) from the top down; the conductivity is a number or an array (ny, nx)
+                 of the conductivity of every cell of the slab (isotropic in each cell, a patterned copper layer for example).
     @param source Tuple (x0, y0, x1, y1) of the heated rectangle on the top face in m, measured from the corner; its edges must lie on cell edges (checked). A list of such tuples is accepted too (several sources).
     @param power Heat flowing into the source rectangle in W (a list with one value per rectangle when `source` is a list).
     @param h_top Film coefficient on the top face outside the source in W/m2K (0 = insulated).
@@ -31,8 +32,8 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
     dz, kz = [], []
     for t, k, n in slabs:
         dz += [t / n] * n
-        kz += [k] * n
-    dz, kz = np.array(dz), np.array(kz)
+        kz += [np.broadcast_to(np.asarray(k, dtype=float), (ny, nx))] * n
+    dz, kz = np.array(dz), np.array(kz)                          # kz: (nz, ny, nx), the conductivity of every cell
     nz = len(dz)
     xs = (np.arange(nx) + 0.5) * dx
     ys = (np.arange(ny) + 0.5) * dx
@@ -65,10 +66,11 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
         rows.extend([a.ravel(), b.ravel()]); cols.extend([b.ravel(), a.ravel()]); vals.extend([-g.ravel(), -g.ravel()])
         np.add.at(diag, a.ravel(), g.ravel()); np.add.at(diag, b.ravel(), g.ravel())
 
-    for k in range(nz):                                          # in-plane links of every slab (uniform k)
-        g = kz[k] * dz[k]                                         # k * dz * dy / dx with dy = dx
-        link(idx[k, :, :-1], idx[k, :, 1:], g)
-        link(idx[k, :-1, :], idx[k, 1:, :], g)
+    for k in range(nz):                                          # in-plane links of every slab: harmonic mean of the two half cells, times dz dy / dx (dy = dx)
+        a, b = kz[k][:, :-1], kz[k][:, 1:]
+        link(idx[k, :, :-1], idx[k, :, 1:], dz[k] * 2.0 * a * b / (a + b))
+        a, b = kz[k][:-1, :], kz[k][1:, :]
+        link(idx[k, :-1, :], idx[k, 1:, :], dz[k] * 2.0 * a * b / (a + b))
     for k in range(nz - 1):                                      # vertical links: half-cell resistances in series
         r = dz[k] / (2 * kz[k] * area) + dz[k + 1] / (2 * kz[k + 1] * area)
         link(idx[k], idx[k + 1], 1.0 / r)
@@ -78,14 +80,14 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
     rh_bot = dz[-1] / (2 * kz[-1] * area)
     free_top = np.ones_like(mask) if film_under_source else ~mask
     g_film = np.where(free_top, max(h_top, 0.0) * area, 0.0)     # film conductance of every top-face cell (W/K)
-    gb = 0.0 if h_bottom <= 0 else 1.0 / (rh_bot + 1.0 / (h_bottom * area))
+    gb = np.zeros((ny, nx)) if h_bottom <= 0 else 1.0 / (rh_bot + 1.0 / (h_bottom * area))
     qcell = np.zeros(mask.shape)
     for m, pw in zip(masks, powers):
         qcell[m] += pw / m.sum()                                 # the power of each source spread uniformly over its cells
     # The top face of a cell is a node eliminated from the system: Ts = (q + T/rh) / (1/rh + g_film). The centre then sees the film through
     # rh + 1/g_film and receives q / (1 + g_film rh); the rest of q leaves through the film directly (it matters only where a film acts under a source).
     np.add.at(diag, top.ravel(), (g_film / (1.0 + g_film * rh_top)).ravel())
-    np.add.at(diag, bot.ravel(), gb)
+    np.add.at(diag, bot.ravel(), gb.ravel())
     q[top.ravel()] = (qcell / (1.0 + g_film * rh_top)).ravel()
     K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsr() + sp.diags(diag)
     T = spla.spsolve(K.tocsc(), q).reshape(nz, ny, nx)
@@ -99,7 +101,7 @@ def solve(dx, nx, ny, slabs, source, power, h_top, h_bottom, film_under_source=F
         wall_top = surface[free_top]
         walls.append(wall_top)
     if h_bottom > 0:
-        wall_bottom = T[-1].ravel() * (1.0 / (h_bottom * area)) / (rh_bot + 1.0 / (h_bottom * area))
+        wall_bottom = (T[-1] * (1.0 / (h_bottom * area)) / (rh_bot + 1.0 / (h_bottom * area))).ravel()
         walls.append(wall_bottom)
         heat_out += float((h_bottom * area * wall_bottom).sum())
     return {"T": T, "dz": list(dz), "area_source": mask.sum() * area, "mask_source": mask, "mean_source": float(t_src.mean()),

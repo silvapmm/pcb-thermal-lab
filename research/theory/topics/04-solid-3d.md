@@ -11,7 +11,7 @@ A steady-state model that drops the "one node per copper layer" idea (topic 01).
 ## 2. Slabs
 
 * a copper slab of thickness `t_cu,l` for each layer;
-* `n_diel = 4` equal slabs of `d / 4` in each dielectric gap;
+* `n_diel = 4` equal slabs of `d / 4` in each dielectric gap; a one-layer board has no gap, and its laminate (the slab of the layered models minus the copper) is cut into four FR-4 slabs under the copper (before a review found it, the one-layer board was its copper alone: `research/solid3d-verification/README.md` 4.4);
 * for a block under (or over) the board: a **pad slab** (the interface, thickness `R'' * 1 W/mK`, conductivity 1 W/mK so that its resistance per area is exactly `R''`) followed by `n` metal slabs (`n = round(thickness / 1 mm)`, 1 to 6).
 
 ## 3. Cell materials (volume averages)
@@ -44,6 +44,7 @@ Four slabs per gap are within 1 % of eight even on a heater-sized pad (the harde
 
 * Against an exact solution: Yovanovich's spreading resistance of an isoflux circular source (0.7 to 0.8 % at epsilon 0.2 and 0.3; 2 % at 0.1), a grid-convergence study (observed order 1.68, GCI of the fine mesh 1.14 %), and a third solver (axisymmetric finite volumes) that brackets the table from the other side: `research/solid3d-verification/README.md` 4.1 and 4.3, figures 1, 2 and 6. See topic 18.
 * Against the layered models and an independent finite-element solid: the same README 4.2.
+* A one-layer board against an independent 3D finite-volume solver with patterned copper (`research/effective-conductivity/` 4.11): 0.0 % with full copper (0.8 to 3.2 mm) and +0.2 % with a 20 mm pad, where the 3D solid before the correction was +40 %; `research/solid3d-verification/README.md` 4.4 for the five models.
 
 ## 8. Related topics
 

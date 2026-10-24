@@ -1,7 +1,7 @@
 """!
 @file make_figures.py
 @brief Data figures of the effective-conductivity investigation, drawn from the JSON files that the studies write in out/ (run the studies first; make_diagrams.py draws the schematics).
-@details Writes figures/fig_03_layer_orders_k_eff.png, fig_04_size_location_biot.png, fig_06_lee_spreading.png, fig_07_program_vs_coupon.png, fig_08_muzychka_and_the_thickness_rule.png, fig_10_natural_convection_forms.png, fig_11_biot_definitions.png, fig_12_corrections_impact.png, fig_13_channel_correlations.png and fig_14_plate_alignment_sweep.png.
+@details Writes figures/fig_03_layer_orders_k_eff.png, fig_04_size_location_biot.png, fig_06_lee_spreading.png, fig_07_program_vs_coupon.png, fig_08_muzychka_and_the_thickness_rule.png, fig_10_natural_convection_forms.png, fig_11_biot_definitions.png, fig_12_corrections_impact.png, fig_13_channel_correlations.png, fig_14_plate_alignment_sweep.png and fig_17_one_layer_independent.png.
          Run: .venv/bin/python research/effective-conductivity/scripts/make_figures.py (from the repository root; a few seconds).
 """
 
@@ -344,6 +344,48 @@ def channel(ch):
     plt.close(fig)
 
 
+def one_layer(ol):
+    """!
+    @brief The one-layer board: a sketch of the board with the pad and the slabs, and the rise in the independent solver, the 3D solid before and after the correction, and the FVM.
+    @param ol Content of one_layer_independent.json.
+    @return None.
+    """
+    fig, axs = plt.subplots(1, 2, figsize=(13, 4.6), gridspec_kw={"width_ratios": [1, 1.5]})
+    ax = axs[0]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 6)
+    ax.axis("off")
+    ax.add_patch(plt.Rectangle((0.5, 3.2), 9.0, 0.25, fc="#bbf7d0", ec="#15803d"))
+    ax.add_patch(plt.Rectangle((3.5, 3.2), 3.0, 0.25, fc="#d97706", ec="k"))
+    ax.add_patch(plt.Rectangle((4.5, 3.45), 1.0, 0.25, fc="#dc2626", ec="k"))
+    ax.add_patch(plt.Rectangle((0.5, 1.4), 9.0, 1.8, fc="#bbf7d0", ec="#15803d"))
+    for k in range(1, 4):
+        ax.plot([0.5, 9.5], [1.4 + 0.45 * k] * 2, color="#15803d", lw=0.6)
+    ax.text(5, 3.95, "part 6 x 6 mm, 1 W (film on top, also under it)", ha="center", fontsize=8)
+    ax.text(5, 2.9, "copper slab: 20 mm pad (orange), laminate elsewhere (green)", ha="center", fontsize=7.5)
+    ax.text(5, 1.0, "laminate: FR-4 1.565 mm, 0.3 W/mK (4 slabs in the 3D solid, 8 in the solver)", ha="center", fontsize=7.5)
+    ax.annotate("", xy=(5, 1.45), xytext=(5, 3.15), arrowprops=dict(arrowstyle="->", color="#dc2626"))
+    ax.annotate("", xy=(1.0, 2.6), xytext=(3.6, 3.1), arrowprops=dict(arrowstyle="->", color="#dc2626"))
+    ax.text(5, 0.4, "bottom face: film of 15 W/m2K through the laminate", ha="center", fontsize=7.5)
+    ax.set_title("The one-layer board of the check (not to scale)", fontsize=9)
+    keys = list(ol)
+    x = np.arange(len(keys))
+    for k, (name, col, lab) in enumerate((("independent", C["this"], "independent 3D solver"), ("solid3d", C["solid3d"], "3D solid (corrected)"),
+                                         ("solid3d_before", "#fecaca", "3D solid before (no laminate)"), ("fvm", C["fvm"], "FVM (one node)"),
+                                         ("fvm_series", "#9ca3af", "FVM, laminate in series under the bottom film (candidate)"))):
+        axs[1].bar(x + (k - 2) * 0.16, [ol[c][name] for c in keys], 0.16, color=col, ec="#dc2626" if name == "solid3d_before" else None, label=lab)
+    axs[1].set_xticks(x)
+    axs[1].set_xticklabels([("20 mm pad, " if ol[c]["pad"] else "full copper, ") + f"{ol[c]['thickness_mm']:g} mm" for c in keys], fontsize=8)
+    axs[1].set_ylabel("rise of the hottest copper cell (K)")
+    pad = next(c for c in keys if ol[c]["pad"])
+    axs[1].set_title(f"With the pad the laminate matters: corrected {100 * (ol[pad]['solid3d'] / ol[pad]['independent'] - 1):+.1f} %, "
+                     f"before {100 * (ol[pad]['solid3d_before'] / ol[pad]['independent'] - 1):+.0f} %, FVM {100 * (ol[pad]['fvm'] / ol[pad]['independent'] - 1):+.0f} %", fontsize=9)
+    axs[1].legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_17_one_layer_independent.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Draw the ten data figures.
@@ -361,6 +403,7 @@ def main():
     corrections_impact(load("corrections_impact"))
     channel(load("channel_correlations"))
     alignment(load("corrections_impact"))
+    one_layer(load("one_layer_independent"))
     print("figures in", FIG)
 
 

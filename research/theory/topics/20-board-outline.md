@@ -12,7 +12,7 @@ Also `research/outline/figures/fig_05_cells_on_an_outline.png` (cells off the bo
 
 ## 1. The outline in the models
 
-* **FVM, FDM and 3D solid** handle any outline: every cell has a **cover** (the fraction of the cell inside the board, from the same sub-sampling as topic 02); cells outside are pinned to the ambient; cut cells carry the cover as a factor on conductance, capacity and ambient exchange.
+* **FVM, FDM and 3D solid** handle any outline: every cell has a **cover** (the fraction of the cell inside the board, from the same sub-sampling as topic 02); cells outside are pinned to the ambient (1 W/K, kept apart as `g_pin`: it is left out of the board time constant and of the board mean of a transient, `research/outline/README.md` 4.4); cut cells carry the cover as a factor on conductance, capacity and ambient exchange.
 * **Lumped and Analytic** are built on a rectangle (rings, cosine series). They run on the **rectangle of the same area**: width `s W`, height `s H`, `s = sqrt(A_outline / (W H))`, positions `x -> s x`, parts keep their size, the field is stretched back by `1/s`. This keeps the area (hence the total convective conductance `h A`) and the aspect ratio of the box. The bounding box has too much area and a box larger than it is worse (10 to 20 % cool): the same-area rectangle is within 0.2 to 3 % away from the edge, 10 to 18 % cool near an edge or in the arm of a T (warned). No time simulation for these two models on an outline.
 
 ## 2. The outline from a Gerber file

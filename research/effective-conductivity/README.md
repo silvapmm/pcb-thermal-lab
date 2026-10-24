@@ -1,6 +1,6 @@
 # Effective conductivity, spreading resistance and the layered idealisation: published test cases reproduced
 
-Status: **closed**. No change to the program is required; the optional proposals, with their measured impact, and the reference solver are in `INTEGRATION.md`, the corrections and text for the project documents in `docs/for-the-project-documents.md`. What stays open is listed in section 6. Studies: `study_culham_1998.py`, `study_lee_spreading.py`, `study_program_vs_coupon.py`, `study_muzychka_2003.py`, `study_natural_convection.py`, `study_biot_definitions.py`, `study_corrections_impact.py`, `study_channel_correlations.py`; solver: `lib/layered3d.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics), one numbering.
+Status: **closed**. The review of this folder also read the models of the program and found two defects there (a time constant on boards with an outline, the 3D solid on a one-layer board); both are corrected in the program (`docs/validation.md` section 20) and section 4.11 checks the second against the independent solver. No other change to the program is required; the optional proposals, with their measured impact, and the reference solver are in `INTEGRATION.md`, the corrections and text for the project documents in `docs/for-the-project-documents.md`. What stays open is listed in section 6. Studies: `study_culham_1998.py`, `study_lee_spreading.py`, `study_program_vs_coupon.py`, `study_muzychka_2003.py`, `study_natural_convection.py`, `study_biot_definitions.py`, `study_corrections_impact.py`, `study_channel_correlations.py`; solver: `lib/layered3d.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics), one numbering.
 
 ## 1. The questions
 
@@ -19,13 +19,14 @@ Status: **closed**. No change to the program is required; the optional proposals
 * **Explained:** the paper's mean base temperature of case 1 (53.06 C) is the mean of the **whole top face** (52.78 C of the bottom face plus Q t / (k A) = 0.28 K); the solver gives 53.056.
 * **The Biot plateau of the paper cannot come from this stack:** at a Biot number above about 60 the solver's effective conductivity falls to 0.6 W/mK while the paper's plot stays at about 4.8. Five definitions of the mean wall temperature and the variant with the film on the bottom only all fall (4.9). A bound settles it: the source sits on the top FR4 layer, whose resistance under the source alone is 2.11 K/W (the sideways escape to the free top face is about 25 K/W), while a homogeneous layer of 4.8 W/mK under the same films has 0.62 K/W, 3.4 times less. No laminate whose top layer is that FR4 can have the paper's plateau under this definition; the figure must use another stack, another definition or be in error.
 * **What the corrections change** (4.8): the documented "+4.5 %" of the plate check is a 24 mm source (Python's `round()` rounds halves to even, so on 1 mm cells the edges 37.5 and 62.5 mm went to 38 and 62); with the 25 mm source the plate model is +0.6 %, -0.8 % and -4.6 % from the article at the centre, edge and corner, on every cell size from 0.4 to 1.7 mm (+0.5 to +0.8 % at the centre); the laminar form of Churchill and Chu moves the maximum temperature of vertical boards by -0.7 to +0.2 % of the rise; the thick-plate criterion stays below 0.42 % on the 74 block cases of the program.
+* **Two defects found in the program by this review, corrected there** (4.11): the 3D solid had no laminate on a one-layer board (a 20 mm pad was 40 % too hot against the independent solver; corrected, +0.2 %), and on a board with an outline the 1 W/K pin of the cells off the board was counted in the time constant (0.02 s instead of 107 s on a round board). The independent solver, extended to patterned copper, also shows how far the one-node FVM is on a one-layer board: -1.9 % with full copper, -10 % with a 20 mm pad.
 * **Channels (for the heatsink scenarios):** the correlation of Elenbaas and the blend of Raithby and Hollands, read in Martin, Raithby and Yovanovich (1991), agree within 5.5 % and put the optimum spacing at El = 46 and 59; the composite correlation of Bar-Cohen and Rohsenow, as quoted in the theory notes, gives El = 54.4 (a spacing coefficient of 2.716 against the 2.714 quoted), so the quoted formula and the quoted optimum are consistent.
 
 ## 3. Folder layout
 
 | File | What it is |
 | :-- | :-- |
-| `lib/layered3d.py` | The independent 3D finite-volume solver of a laminated block (about 120 lines, SciPy only). |
+| `lib/layered3d.py` | The independent 3D finite-volume solver of a laminated block (about 140 lines, SciPy only); a slab takes one conductivity or a map of the conductivity of every cell (patterned copper). |
 | `scripts/study_culham_1998.py` | The coupon of Culham and Yovanovich: limits, layer orders, source size and position, film coefficient (about 15 minutes). |
 | `scripts/study_lee_spreading.py` | Seri Lee's plate: centre, edge, corner, in 3D and as a thin plate (seconds). |
 | `scripts/study_program_vs_coupon.py` | The five models of the program against the solver on the Cu / FR4 / Cu coupon (about 40 seconds). |
@@ -34,8 +35,9 @@ Status: **closed**. No change to the program is required; the optional proposals
 | `scripts/study_biot_definitions.py` | Five definitions of the mean wall temperature against the film coefficient, the series path under the source and the bound on the plateau (about 3 minutes). |
 | `scripts/study_corrections_impact.py` | The plate check against the cell size and the side of the source, the laminar form on the program, the thick-plate criterion on the 74 block cases (about 2 minutes). |
 | `scripts/study_channel_correlations.py` | Elenbaas against the blend of Raithby and Hollands, and the optimum spacing (seconds). |
+| `scripts/study_one_layer_independent.py` | A one-layer board (full copper at three thicknesses, and a 20 mm pad) in the independent solver, the corrected 3D solid, the 3D solid before the correction and the FVM (about 1 minute). |
 | `scripts/make_figures.py`, `scripts/make_diagrams.py` | The data figures (read `out/*.json`, written by the studies) and the schematics. |
-| `tests/test_layered3d.py` | The solver against a series circuit, two exact energy balances (with and without a film under the source), a uniform layer and three published numbers; the source alignment check; the plateau bound; the gradient below its bound. |
+| `tests/test_layered3d.py` | The solver against a series circuit, two exact energy balances (with and without a film under the source), a uniform layer and three published numbers; the source alignment check; a conductivity map (uniform map = uniform slab, energy balance with a pattern); the plateau bound; the gradient below its bound. |
 | `INTEGRATION.md`, `docs/for-the-project-documents.md` | Optional proposals; corrections and text for the project documents. |
 
 ## 4. How to run, and the results
@@ -49,6 +51,7 @@ Status: **closed**. No change to the program is required; the optional proposals
 .venv/bin/python research/effective-conductivity/scripts/study_biot_definitions.py
 .venv/bin/python research/effective-conductivity/scripts/study_corrections_impact.py
 .venv/bin/python research/effective-conductivity/scripts/study_channel_correlations.py
+.venv/bin/python research/effective-conductivity/scripts/study_one_layer_independent.py
 .venv/bin/python research/effective-conductivity/scripts/make_figures.py           # then make_diagrams.py
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q research/effective-conductivity/tests
 ```
@@ -174,7 +177,7 @@ Case 3: paper {'max_centre': 80.61, 'mean_area': 78.87}
   through-thickness mean over each source [79.36, 77.74, 77.74, 77.74, 77.74]; surface minus that mean [0.91, 0.81, 0.81, 0.81, 0.81] K against q'' t / (2 k) [1.25, 1.25, 1.25, 1.25, 1.25] K
   fvm: centroid [79.43, 77.8, 77.8, 77.8, 77.8], mean [79.1, 77.48, 77.48, 77.48, 77.48], max 79.43
   fdm: centroid [79.43, 77.72, 77.72, 77.72, 77.72], mean [79.07, 77.38, 77.38, 77.38, 77.38], max 79.43
-  solid3d: centroid [79.69, 78.05, 78.05, 78.05, 78.05], mean [79.36, 77.73, 77.73, 77.73, 77.73], max 79.69
+  solid3d: centroid [79.69, 78.06, 78.06, 78.06, 78.06], mean [79.36, 77.74, 77.74, 77.74, 77.74], max 79.69
   lumped: centroid [79.09, 77.97, 77.97, 77.97, 77.97], mean [79.4, 78.03, 78.03, 78.03, 78.03], max 80.19
   analytic: centroid [79.43, 77.8, 77.8, 77.8, 77.8], mean [79.1, 77.48, 77.48, 77.48, 77.48], max 79.43
 
@@ -184,12 +187,12 @@ Case 3 plate, growing thickness (rise of the centre of the cross):
   t = 1 mm: independent 87.30 K (gradient under the centre source 0.10 K = 0.11 %, bound q'' t / (2 k) 0.14 %); fvm 87.17 (-0.15 %), fdm 87.13 (-0.20 %), solid3d 87.20 (-0.12 %), analytic 87.15 (-0.17 %)
   t = 2 mm: independent 70.66 K (gradient under the centre source 0.19 K = 0.27 %, bound q'' t / (2 k) 0.35 %); fvm 70.41 (-0.35 %), fdm 70.39 (-0.39 %), solid3d 70.47 (-0.28 %), analytic 70.40 (-0.37 %)
   t = 5 mm: independent 59.28 K (gradient under the centre source 0.47 K = 0.79 %, bound q'' t / (2 k) 1.05 %); fvm 58.68 (-1.02 %), fdm 58.67 (-1.03 %), solid3d 58.81 (-0.80 %), analytic 58.68 (-1.02 %)
-  t = 10 mm: independent 55.62 K (gradient under the centre source 0.91 K = 1.64 %, bound q'' t / (2 k) 2.25 %); fvm 54.43 (-2.13 %), fdm 54.43 (-2.14 %), solid3d 54.69 (-1.68 %), analytic 54.43 (-2.14 %)
+  t = 10 mm: independent 55.62 K (gradient under the centre source 0.91 K = 1.64 %, bound q'' t / (2 k) 2.25 %); fvm 54.43 (-2.13 %), fdm 54.43 (-2.14 %), solid3d 54.69 (-1.67 %), analytic 54.43 (-2.14 %)
 ```
 
-The solver reproduces the cross (maximum 80.62 against 80.61 C, mean 78.90 against 78.87) and case 1 within 1 % of the rise (85.48 and 109.20 against 84.97 and 108.43 by the paper's method and 85.95 and 109.92 by the Fourier series). The program represents the plate as one copper layer of the plate's thickness and conductivity; the study gives that board no in-plane FR4 (a one-layer board of thickness `2 t` would otherwise add `t` of FR4 of 0.9 W/mK to the plate, +9 % of lateral conductance for k = 10 and +1.8 % for k = 50, a path the real plate does not have: the first version of this study had it, and it made the models 4 points cooler on case 1 and 0.4 to 0.8 points cooler on the cross and the thickness sweep).
+The solver reproduces the cross (maximum 80.62 against 80.61 C, mean 78.90 against 78.87) and case 1 within 1 % of the rise (85.48 and 109.20 against 84.97 and 108.43 by the paper's method and 85.95 and 109.92 by the Fourier series). The program represents the plate as one copper layer of the plate's thickness and conductivity on a laminate of 0.01 % of it (1 um for 10 mm, 0.02 % of the film resistance). The first version of this study used a board of thickness `2 t`, which adds `t` of FR4 of 0.9 W/mK to the plate (+9 % of lateral conductance for k = 10 and +1.8 % for k = 50, a path the real plate does not have; it made the models 4 points cooler on case 1 and 0.4 to 0.8 points cooler on the cross and the thickness sweep) and, since the corrected 3D solid builds the laminate of a one-layer board (4.11), would put 10 mm of FR4 between the plate and the film.
 
-The program's models are **below** the reference surface: 2.1 % of the rise on the cross (FVM, FDM, Analytic; 3D solid 1.7 %, Lumped 0.8 % at its maximum) and 9 to 10 % on case 1 (FVM, FDM, Analytic, 3D solid; Lumped 8 to 18 %, its rings are not made for a plate of 300 mm with two sources). The cause is the through-thickness gradient that one node cannot show, measured directly in the 3D solution as the mean surface temperature of each source minus its temperature averaged through the thickness:
+The program's models are **below** the reference surface: 2.1 % of the rise on the cross (FVM, FDM, Analytic; 3D solid 1.7 %, Lumped 0.8 % at its maximum; the 3D solid keeps each copper layer one slab thick, so it cannot show the gradient inside a 10 mm plate either) and 9 to 10 % on case 1 (FVM, FDM, Analytic, 3D solid; Lumped 8 to 18 %, its rings are not made for a plate of 300 mm with two sources). The cause is the through-thickness gradient that one node cannot show, measured directly in the 3D solution as the mean surface temperature of each source minus its temperature averaged through the thickness:
 
 | case | gradient under the source (3D) | bound `q'' t / (2 k)` | gradient / bound |
 | :-- | --: | --: | --: |
@@ -329,9 +332,33 @@ The two agree within 5.5 % over five decades; the spacing that dissipates the mo
 
 *Figure 13: `figures/fig_13_channel_correlations.png`.*
 
+### 4.11 Defects found in the program by this review, and the one-layer board against the independent solver
+
+Reading the models of the program against `docs/theory.md` found two defects, measured on copies first and then corrected in the program on the branch `fix/model-corrections` (merged into `develop`, with regression tests; `docs/validation.md` section 20):
+
+* **The 3D solid on a one-layer board** built its slabs from the dielectric gaps, and a one-layer board has none, so the board was its copper alone. It now builds the laminate of the layered models as four FR-4 slabs under the copper (`research/solid3d-verification/README.md` 4.4 for the five models).
+* **The time constant of a board with an outline** counted the 1 W/K that pins the cells off the board: 0.02 s instead of 107 s on a round board, so the step responses of the power profiles stopped at 12 % of the steady resistance (`research/outline/README.md` 4.4).
+
+The independent solver checks the first. `lib/layered3d.py` now takes a conductivity map per slab, so the copper slab can be copper in a pad and laminate elsewhere, the volume average the 3D solid uses on the cells that the pad covers or not. `scripts/study_one_layer_independent.py`: a 60 × 60 mm one-layer board, 35 um copper, a 6 × 6 mm part of 1 W, FR-4 isotropic at 0.3 W/mK (both solvers then represent the same board), copper 385 W/mK, films of 10 W/m2K on the top face (under the part as well) and 15 on the bottom, no edge loss, 0.5 mm cells; the rise of the hottest copper cell:
+
+| copper | board thickness (mm) | independent 3D (K) | 3D solid | FVM | 3D solid without the laminate (before) | FVM, laminate in series under the bottom film (candidate) |
+| :-- | --: | --: | --: | --: | --: | --: |
+| full | 0.8 | 33.71 | 33.71 (+0.0 %) | 33.41 (-0.9 %) | 33.77 (+0.2 %) | 33.69 (-0.1 %) |
+| full | 1.6 | 33.71 | 33.71 (+0.0 %) | 33.05 (-1.9 %) | 33.77 (+0.2 %) | 33.61 (-0.3 %) |
+| full | 3.2 | 33.84 | 33.85 (+0.0 %) | 32.36 (-4.4 %) | 33.77 (-0.2 %) | 33.46 (-1.1 %) |
+| 20 mm pad | 1.6 | 72.12 | 72.26 (+0.2 %) | 64.92 (-10.0 %) | 101.03 (+40.1 %) | 66.63 (-7.6 %) |
+
+* With full copper the copper carries the heat sideways and the laminate hardly matters: the 3D solid agrees with the independent solver to 0.0 % and the old 3D solid was within 0.2 % as well, so **full copper does not test the correction**; the 20 mm pad does: +0.2 % now, +40 % before.
+* The FVM (one node, both films on it) is 0.9 to 4.4 % low with full copper, growing with the thickness, and 10 % low with the pad: in the layered models the bottom film acts on the copper node itself, so the 1.6 mm of laminate between the copper and the bottom face is missing. That is the idealisation of one node per layer on a one-layer board (topic 01 of `research/theory/`). The last column measures a candidate correction on a copy (the bottom film typed in series with the laminate, `1 / (1/h + t_lam/k)`): it brings the full-copper boards to -0.1 to -1.1 % and the pad to -7.6 %; the rest under the pad is the heat that spreads sideways in the laminate before it reaches the bottom face, which one node cannot hold (`INTEGRATION.md` 5).
+* *An earlier figure in `docs/validation.md` section 20 (the 3D solid within 0.8 %, the FVM 2.8 % low) came from a quick check with copper of 400 W/mK in the independent solver and the edge loss of a new board in the program; it is replaced by this table.*
+
+![The one-layer board against the independent solver](figures/fig_17_one_layer_independent.png)
+
+*Figure 17: `figures/fig_17_one_layer_independent.png`: left, the board of the check (the pad in the copper slab, the laminate slabs, the heat going down and sideways; not to scale); right, the rise in the independent solver, the corrected 3D solid, the 3D solid before the correction, the FVM and the FVM with the candidate of `INTEGRATION.md` 5.*
+
 ## 5. What this means for the program
 
-The models need no change for the boards they are made for. The optional proposals (an input check for a thick, poorly conducting plate; the laminar form of Churchill and Chu as an option; the solver as a test helper) and what should stay out (an effective conductivity of the stack) are in `INTEGRATION.md`; the corrections and text for the project documents are in `docs/for-the-project-documents.md`.
+The models need no change for the boards they are made for, beyond the two defects of 4.11 (corrected). A one-layer board with little copper is where the layered models are farthest from a 3D solution (the FVM 10 % low with a 20 mm pad, 4.11). The optional proposals (an input check for a thick, poorly conducting plate; the laminar form of Churchill and Chu as an option; the solver as a test helper) and what should stay out (an effective conductivity of the stack) are in `INTEGRATION.md`; the corrections and text for the project documents are in `docs/for-the-project-documents.md`.
 
 ## 6. Limits
 
@@ -344,6 +371,7 @@ The models need no change for the boards they are made for. The optional proposa
 * The plateau of the paper above Biot 60 is not reproduced; a bound shows that the stated stack cannot give it under the stated definition (4.9), but what the figure does use was not found.
 * The review of this folder found three defects in its own studies, fixed with regression tests and the comparisons re-run: an in-plane FR4 path in the program's model of the Muzychka plates (4.6), `round()` shrinking the plate source to 24 mm (4.8 A), and source sizes whose edges fell between the cells of the solver (35.5 mm on 0.5 mm cells, now 35 mm; the solver now refuses such a source); the surface temperature with a film under the source was also wrong in the solver (not used by any result).
 * No measurement of a physical board.
+* The one-layer check (4.11) uses isotropic FR-4 so that the independent solver represents the same board; the program's default FR-4 is anisotropic (0.3 through, 0.9 in the plane).
 
 ## 7. Sources
 
@@ -357,5 +385,6 @@ Culham and Yovanovich (1998); Muzychka, Culham and Yovanovich (2003); Lemczyk, M
 * **Read as images (scans), in part:** Martin, Raithby and Yovanovich (1991), pages 1 and 2 of 7 (the Elenbaas correlation, the blend and the abstract); Yovanovich (1993), pages 1 to 4 of 7 (the correlation equations of Churchill for forced and natural convection, eq. 1 to 4); Teertstra, Culham and Yovanovich (1995), pages 1 to 4 of 13 (the introduction, the series and parallel limits, Table 1 of the test board: 0.429 and 17.27 W/mK, which the formulas reproduce). **Read as text through the page converter:** the vertical-channel and vertical-plate pages of `thermal.mayahtt.com`, the documentation of the library `ht` (the worked examples and references), the Simons article of 2004 (its equations are images). **Downloaded, abstract only:** Yovanovich, Culham and Teertstra (1998), Yovanovich, Muzychka and Culham (1999), Muzychka and others (2004), Teertstra and others (2004); and other papers of the same archive that could not be read as text (listed in the bibliography).
 * **Values read from plots** (cases 2 and 4 of the layer orders, the source size curve, the Biot curve): marked "plot", about 0.5 W/mK; the source positions of the paper are assumed.
 * **Explained:** the paper's mean base temperature of 53.06 C is the mean of the whole top face (a computation, exact to 0.01 C).
-* **Reproduced:** Seri Lee's three positions, the cross and case 1 of Muzychka and others, the five layer orders and the series and parallel limits of Culham and Yovanovich, the library's worked example; the solver's own tests (series circuit, energy balance to 1e-9 with and without a film under the source, uniform layer).
+* **Reproduced:** the one-layer board in the independent solver against the corrected 3D solid (4.11; own computation, no publication);
+* Seri Lee's three positions, the cross and case 1 of Muzychka and others, the five layer orders and the series and parallel limits of Culham and Yovanovich, the library's worked example; the solver's own tests (series circuit, energy balance to 1e-9 with and without a film under the source, uniform layer).
 * **Not reproduced or not explained:** the effective conductivity above Biot 60 (five definitions of the mean wall temperature and a variant tested; a bound shows that the stated stack cannot give it); the 1.62 mm thickness stated against the layers' 1.6501 mm; the Bar-Cohen and Rohsenow correlation (the paper was not obtained, only the quoted optimum); the second case of Muzychka and others (a heat-sink base with four sources) and their compound-plate case 1 (b) were not run.

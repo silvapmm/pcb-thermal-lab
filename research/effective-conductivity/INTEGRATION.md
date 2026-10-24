@@ -1,6 +1,6 @@
 # What could enter the program from this investigation (the investigation is closed)
 
-Nothing here is needed for the program to be right on the boards it is made for: the five models agree with an independent 3D solver on a Cu / FR4 / Cu coupon (FVM, 3D solid and Analytic within 0.1 %, FDM and Lumped within 1.2 %) and the published cases are reproduced. Three optional proposals remain; none is implemented, and each one needs the maintainer's decision and a `fix/` or `feature/` branch off `develop` with the whole battery.
+Nothing here is needed for the program to be right on the boards it is made for: the five models agree with an independent 3D solver on a Cu / FR4 / Cu coupon (FVM, 3D solid and Analytic within 0.1 %, FDM and Lumped within 1.2 %) and the published cases are reproduced. Four optional proposals remain (sections 1, 2, 4 and 5; section 3 is adopted); none is implemented, and each one needs the maintainer's decision and a `fix/` or `feature/` branch off `develop` with the whole battery.
 
 ## 1. An input check for a thick, poorly conducting plate (small)
 
@@ -22,13 +22,26 @@ Nothing here is needed for the program to be right on the boards it is made for:
 
 **Proposal.** Keep the general form as the default and leave the choice for a later `Board.natural_form` option, or change nothing: the difference is inside the +-30 % that the uncertainty of the calculator assigns to `h`, and neither paper was opened (the forms are taken from the compilation of sources and the library `ht`; the general form reproduces the library's worked example to the digit). **Recommended: change nothing until Churchill and Chu (1975) is read.**
 
-## 3. The documented numbers of the plate check (documents only, no code)
+## 3. The documented numbers of the plate check (documents only, no code): adopted
+
+Adopted on the branch `fix/model-corrections` (merged into `develop`): `docs/theory.md`, `docs/research.md` and `docs/validation.md` now give +0.6 %, -0.8 % and -4.6 % with Seri Lee (1998) as the source, and the plate check script rounds halves up.
+
 
 The documents say that the plate model is `+4.5 %` from Seri Lee's centre value; that was a 24 mm source (`round()` rounds halves to even, so on 1 mm cells the edges 37.5 and 62.5 mm went to 38 and 62). With the 25 mm source the model is within +0.6 %, -0.8 % and -4.6 % of the article at the centre, the edge and the corner (`README.md` 4.8 A). The text to put in the documents is in `docs/for-the-project-documents.md`.
 
 ## 4. The independent solver as a reference in the program's tests (medium)
 
 `lib/layered3d.py` (about 140 lines, SciPy only, with its own tests against a series circuit, two energy balances, a uniform layer and three published numbers) could become a test helper in `tests/` for the comparison of the layered models with a 3D solution on a laminate, next to the finite-element script that needs scikit-fem. This would need its own review for the program's documentation rules.
+
+## 5. The laminate under the bottom film of a one-layer board (a candidate, not measured as a change)
+
+**Problem.** On a one-layer board the layered models put both films on the copper node, so the laminate between the copper and the bottom face is missing: against the independent solver the FVM is 0.9 to 4.4 % low with full copper (0.8 to 3.2 mm) and 10 % low with a 20 mm pad (README 4.11).
+
+**Idea.** For a one-layer board, put the bottom film in series with the laminate: `g_bottom = A / (1/h_bottom + t_lam / k_th)`. It does not catch the lateral spreading in the laminate under a small pad, only the series resistance.
+
+**Measured impact** (README 4.11, on a copy: the equivalent coefficient typed): full copper -0.9 / -1.9 / -4.4 % become -0.1 / -0.3 / -1.1 % (0.8, 1.6 and 3.2 mm); the 20 mm pad -10.0 % becomes -7.6 %. It would apply to the FVM, FDM, Lumped and Analytic (the bottom film of a one-layer board), not to the 3D solid, which has the laminate.
+
+**Risk.** A one-layer board in the simple stack-up shares the thickness with nothing else, so the laminate is the whole board minus the copper; in the advanced stack-up a one-layer board has no gap and would need its laminate thickness stated. The maintainer decides.
 
 ## What this investigation does not propose
 

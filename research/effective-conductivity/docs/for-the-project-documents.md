@@ -1,6 +1,6 @@
 # Text for the project documents when this work is adopted
 
-Nothing in the project documents was edited from the research branch. This file holds the corrections and the text to add.
+Nothing in the project documents was edited from the research branch. This file holds the corrections and the text to add. **Adopted** on `fix/model-corrections` (merged into `develop`): the plate check corrections and attribution, the laminar form of Churchill and Chu in `docs/theory.md` section 8, and `docs/validation.md` section 20 (the defects found by the review). Still to add: the validation text below and the roadmap entries.
 
 ## Corrections (with the measured effect of each)
 

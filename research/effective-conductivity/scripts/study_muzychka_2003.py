@@ -4,7 +4,7 @@
 @details Case 1 (a): a 300 x 300 x 10 mm plate, k = 10 W/mK, film h = 10 W/m2K on the bottom face (top insulated), ambient 25 C, two 25 x 25 mm sources, 10 W centred at (90, 90) mm and 15 W at (210, 210) mm;
          the paper gives the centroid and mean temperature of each source and the mean temperature of the bottom face (84.97, 80.56, 108.43, 101.81, 53.06 C by its solution, the last being the mean of the whole top face: 52.78 C of the bottom face plus Q t / (k A) = 0.28 K; 85.95, 80.20, 109.92, 101.26, 53.06 by the
          Fourier series of Culham and Yovanovich). Case 3: five 20 x 20 mm sources of 5 W in a cross at the centre of a 100 x 100 x 10 mm plate, k = 50 W/mK, h = 50 W/m2K, ambient 25 C: maximum temperature at the centre
-         80.61 C and area-weighted mean source temperature 78.87 C. The layered models of the program represent such a plate as one copper layer of 10 mm with the conductivity of the plate (thin-plate approximation,
+         80.61 C and area-weighted mean source temperature 78.87 C. The layered models of the program represent such a plate as one copper layer of 10 mm with the conductivity of the plate on a laminate of 0.01 % of it (thin-plate approximation,
          Biot number h t / k = 0.01 to 0.1); the thickness of the case-3 plate is then varied from 0.1 to 10 mm to show where one temperature node through the thickness stops being a good idea. Run: .venv/bin/python research/effective-conductivity/scripts/study_muzychka_2003.py (from the repository root; about 2 minutes).
 """
 
@@ -77,10 +77,11 @@ def program(case, model, cell_mm):
     @param cell_mm Cell size in mm.
     @return dict with centroid, mean (lists, C) and max, or None when the model refuses the board.
     """
-    # No in-plane FR4: a one-layer board of thickness 2 t would otherwise add t of FR4 (0.9 W/mK) to the lateral conductance of the plate,
-    # a path the real plate does not have (+9 % for k = 10, +1.8 % for k = 50); the board thickness only sets that slab here
-    mat = Materials(k_copper=case["k"], k_fr4_inplane=1e-9)
-    p = Problem.new(case["w"], case["w"], layers=1, thickness_mm=2 * case["t"], copper_um=case["t"] * 1e3, ambient=AMB, h_top=1e-6, h_bottom=case["h"], h_side=None, materials=mat)
+    # The board is the plate plus 0.01 % of laminate (1 um for 10 mm): a one-layer board of thickness 2 t, as in the first version of this study, adds t of
+    # FR4 to the plate, a lateral path the real plate does not have (+9 % of conductance for k = 10) and, since the 3D solid builds the laminate of a
+    # one-layer board, 10 mm of FR4 between the plate and the bottom film; 1 um of FR4 changes neither (0.02 % of the film resistance at h = 50)
+    mat = Materials(k_copper=case["k"])
+    p = Problem.new(case["w"], case["w"], layers=1, thickness_mm=1.0001 * case["t"], copper_um=case["t"] * 1e3, ambient=AMB, h_top=1e-6, h_bottom=case["h"], h_side=None, materials=mat)
     p.add_full_copper()
     for k, (r, pw) in enumerate(case["sources"]):
         p.add_heater(1, pw, rect=r, name=f"S{k}")
