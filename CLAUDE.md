@@ -124,6 +124,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   solid3d.py           3D finite-volume solid (real slabs per copper layer, gap and block; steady state; comparison model, key `solid3d`)
   fdm.py               node-centred finite-difference model of the same layered physics (steady state, power-step animation, step responses and power profiles, `--model fdm|compare`; reuses the FVM transient machinery)
   fvm.py               reference finite-volume model: steady (direct, CG, SOR) and transient
+  laminate.py          the laminate of a one-layer board: node layers under the copper (FVM, FDM, Lumped) or a series film (Analytic)
   lumped.py            ring network per heater, superposed
   analytic.py          multilayer cosine series + local via/heatsink corrections
   checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
@@ -138,10 +139,11 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor, rulers), panels, stackup (cross-section tab), calculator, help (guide, About), tips (tooltips), compute (calculation process), results_view, main_window, theme
-tests/                 pytest suite (about 380 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (about 390 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (`.pcbt.json`), `csv_profiles/` (documented CSV power-profile example) and `make_screenshots.py`; the studies that used to live here are in `research/` (one folder per investigation, see `research/INDEX.md`)
 docs/                  versions.md (what was implemented in every version), models.md (models, features, API), theory.md (every equation and approximation of every model; update it with any model change), calculators.md (the auxiliary calculators: formulas, validation, limits, sources), validation.md (every scenario in every model, 3D check, history), roadmap.md (what is implemented and what we want to implement), research.md (open investigations, empty when nothing is pending), images/
 ico/                   application icon
+.claude/agents/        the project agents (researcher, executor, reviewer, maintainer; see "Agents and workflow")
 research/              one folder per investigation (see "Research branches"); not part of the program
   INDEX.md             index of the investigations by area of the program (status and question of each)
   README.md            index of the investigations and the rules for figures and diagrams
@@ -252,9 +254,32 @@ this repository: all file tools, Bash (including explicit `git *` and `gh *` rul
 and WebSearch are allowed, with `acceptEdits` as the default mode. Denied: `sudo`,
 force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/` or `~`.
 
+## Agents and workflow
+
+Maintainer's rule (2026-10-24): the work is done by four project agents in `.claude/agents/` (committed; each file holds its model, effort and instructions). An agent cannot call another, so **the main session orchestrates**: it calls each agent in turn, passes it the previous agent's report, and relays the result to the maintainer.
+
+| Agent | Model, effort | Role |
+| :-- | :-- | :-- |
+| `researcher` | Sonnet 5.5, medium | Opens and carries an investigation: sources (open archives, the web), questions, study plan, studies, the research folder (README, INTEGRATION.md, docs/, bibliography). Never edits the program. |
+| `executor` | Sonnet 5.5, medium | Writes and runs code: study scripts, solvers in `lib/`, figures and diagrams, changes to `pcbthermal/` on a `fix/` or `feature/` branch. Reports the numbers; does not judge them. |
+| `reviewer` | Opus 5.5, medium | Independent review: re-reads the code against `docs/theory.md`, re-runs the studies, checks every claim against an independent reference and the printed numbers, finds defects, then corrects the code and the documents. |
+| `maintainer` | Sonnet 5.5, medium | Documents, user guide and tooltips that a change touches; diffs; tests and the whole battery; commits, merges and pushes within the Git Policy. Does not change the physics. |
+
+**Flows** (the reviewer is never skipped):
+
+* **Investigation** (`research/<topic>` branch): `researcher` (with `executor` for large code) -> **`reviewer`** -> fixes by the reviewer, or back to the researcher/executor if the findings need new studies -> `reviewer` again until it is ready -> `maintainer` (research tests, the program-untouched check, commit, push).
+* **Change to the program** (a correction, an improvement of an algorithm, a new feature; `fix/` or `feature/` branch off `develop`): `executor` -> **`reviewer`** -> `maintainer` (documents, whole battery, commit, merge into `develop`, push).
+* **Closing an investigation, adopting a proposal or any change to a model**: the `reviewer` is called before the merge, with the claims and the numbers to check.
+
+The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
+
 ## Decisions Log
 
 Record important decisions here, newest first, with the reason; new entries carry no date (the order is the order of the decisions; older entries keep theirs).
+
+- **Project agents and a review flow** (maintainer: problems were found in earlier work; every investigation and every algorithm change must be checked by an independent reviewer): four agents in `.claude/agents/` - `researcher` and `executor` and `maintainer` on Sonnet 5.5 (medium effort) and `reviewer` on Opus 5.5 (medium effort); the main session orchestrates, the reviewer is never skipped (see "Agents and workflow"). The agent files are committed so that every session and clone has them.
+
+- **One-layer boards and the Lumped rings** (maintainer: close the fix branch, test with more complicated boards before and after): a one-layer board gets two laminate nodes under the copper in the FVM, FDM and Lumped (`laminate.py`; chosen from a sweep, 1 to 4 nodes: -4.1, -2.5, -1.8, -1.5 % on a bare pad) and a series film in the Analytic (laminate nodes made its bare-pad estimate worse); the Lumped merges rings narrower than a cell (`RING_MIN_WIDTH = 1`; the result no longer grows with the ring count). Nine boards against the 3D solid, run on the program before and after: mean error FVM 3.8 -> 1.0 %, FDM 5.3 -> 2.9 %, Lumped 6.9 -> 5.2 %, Analytic 5.5 -> 5.5 % (better with full copper, hotter on partial copper where its uniform sheet already overestimated); multilayer boards unchanged. Left: bare pads on one-layer boards in Lumped and Analytic, FDM pad-edge sampling (roadmap). Found on the way and fixed: the Analytic heat balance with a metal block counted the face hidden by the block (9 % off; reporting only, temperatures unchanged).
 
 - **Model corrections after a review** (maintainer: "corrigir os nossos modelos é o mais importante"; branch `fix/model-corrections`): the pin of the cells off a board with an outline (1 W/K) is kept apart as `g_pin` and left out of the board time constant (`fvm.board_time_constant`: a round board read 0.02 s instead of 107 s, so the step responses of the power profiles stopped at 12 % of the steady resistance) and of the transient mean (`fvm.mean_weights`); the 3D solid builds the laminate of a one-layer board as four FR-4 slabs (it had only the copper: 120 °C against about 74 on a 20 mm pad; an independent 3D solver with patterned copper puts it within 0.2 % on that pad, it was 40 % high; full copper does not test it, the old model was within 0.2 % there too); a power loop that does not settle in 80 iterations warns. The Lumped's dependence on the ring count (no convergence with more rings) is recorded in the roadmap, not changed: the rings are tuned at 10 and a new construction is a project of its own. The plate check of the documents (+4.5 %) was a 24 mm source made by `round()`; corrected to +0.6 / −0.8 / −4.6 % with Seri Lee (1998) as the source.
 - **Literature check rule and the first case** (maintainer): sources are opened and their published cases are reproduced before they are used (see "Research branches", "Literature check"); first case `research/effective-conductivity/`: the open archive of the Waterloo group gave the paper of Culham and Yovanovich on the effective conductivity of printed circuit boards, read as images, and an independent 3D solver reproduces its coupon (2 to 6 %), Seri Lee's plate (centre 0.66, edge 1.29, corner 2.38 K/W) and the cross of five sources of Muzychka and others (80.62 against 80.61 C); the five models of the program agree with the solver within 0.3 % on a Cu / FR4 / Cu coupon, and one temperature node through the thickness is the mean of the layer, so the surface under a source is hotter by at most q'' t / (2 k) (measured 1.6 % of the rise for a 10 mm plate of k 50, 8 to 9 % for k 10 where the heat spreads: irrelevant for copper layers; a review found the first comparison inflated by an FR4 in-plane path the plate does not have, and the documented +4.5 % of the plate check to be a 24 mm source made by round()); the investigation is closed (the corrections were measured on copies of the program: none changes a result, the documents only need the attribution and the plate-check numbers corrected).

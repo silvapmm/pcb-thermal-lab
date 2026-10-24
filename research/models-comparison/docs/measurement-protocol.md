@@ -1,8 +1,8 @@
 # A measurement on a physical board: protocol (a plan, nothing was measured)
 
-![The planned measurement](../figures/fig_06_measurement_setup.png)
+![The planned measurement](../figures/fig_10_measurement_setup.png)
 
-*Figure 6 (`figures/fig_06_measurement_setup.png`): the set-up (a heater resistor of known electrical power, thermocouples at several distances, an infrared camera looking at a painted area, an ambient thermocouple, a still-air enclosure) and the chain from the reading to the comparison with the models.*
+*Figure 10 (`figures/fig_10_measurement_setup.png`): the set-up (a heater resistor of known electrical power, thermocouples at several distances, an infrared camera looking at a painted area, an ambient thermocouple, a still-air enclosure) and the chain from the reading to the comparison with the models.*
 
 ## 1. Why
 

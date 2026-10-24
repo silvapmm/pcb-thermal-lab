@@ -10,17 +10,17 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 
 ### 1.1 Diagrams and illustrations
 
-![How each of the five models represents the board](figures/fig_04_the_five_models_schematic.png)
+![How each of the five models represents the board](figures/fig_08_the_five_models_schematic.png)
 
-*Figure 4 (`figures/fig_04_the_five_models_schematic.png`): How each of the five models represents the board: cell-centred finite volumes (FVM, the reference), node-centred finite differences (FDM), rings around the footprint (Lumped), cosine modes (Analytic) and real slabs with via rods (3D solid).*
+*Figure 8 (`figures/fig_08_the_five_models_schematic.png`): How each of the five models represents the board: cell-centred finite volumes (FVM, the reference), node-centred finite differences (FDM), rings around the footprint (Lumped), cosine modes (Analytic) and real slabs with via rods (3D solid).*
 
-![Figure 5](figures/fig_05_where_models_fail.png)
+![Figure 9](figures/fig_09_where_models_fail.png)
 
-*Figure 5 (`figures/fig_05_where_models_fail.png`): the cases where the Lumped and Analytic models stop being reliable, drawn as boards: copper edge across a heater, heater in a corner, long thin heater, next to an ordinary board (errors of section 2).*
+*Figure 9 (`figures/fig_09_where_models_fail.png`): the cases where the Lumped and Analytic models stop being reliable, drawn as boards: copper edge across a heater, heater in a corner, long thin heater, next to an ordinary board (errors of section 2).*
 
-![Figure 6](figures/fig_06_measurement_setup.png)
+![Figure 10](figures/fig_10_measurement_setup.png)
 
-*Figure 6 (`figures/fig_06_measurement_setup.png`): the planned measurement on a physical board (a plan, not a result): a heater of known electrical power, thermocouples at several distances, an infrared camera on a painted area, an ambient thermocouple and a still-air enclosure; and the chain from the reading to the comparison with the models (`docs/measurement-protocol.md`).*
+*Figure 10 (`figures/fig_10_measurement_setup.png`): the planned measurement on a physical board (a plan, not a result): a heater of known electrical power, thermocouples at several distances, an infrared camera on a painted area, an ambient thermocouple and a still-air enclosure; and the chain from the reading to the comparison with the models (`docs/measurement-protocol.md`).*
 
 ## 2. Findings in short
 
@@ -28,6 +28,7 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 * The models stop being reliable where the copper edge crosses a heater (Lumped −27 %, Analytic −25 %: the input checks warn), for a heater in a corner (Lumped −8.7 %) and for a long thin heater (Lumped +9.5 %).
 * The FVM converges monotonically with the grid; the FDM jumps by about ±0.5 °C with it.
 * Direct, CG and SOR with a residual stopping rule agree to 1e-8 K on five boards; the original program's step rule stops 2.7 to 16 K away from the solution.
+* Nine boards closer to real ones against the 3D solid, before and after the corrections of the review (4.8): mean error FVM 3.8 -> 1.0 %, FDM 5.3 -> 2.9 %, Lumped 6.9 -> 5.2 %, Analytic 5.5 -> 5.5 %; the multilayer boards do not move. The Lumped no longer depends on the ring count (4.9).
 
 ## 3. Folder layout
 
@@ -36,9 +37,11 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 | `scripts/validation_study.py` | Every scenario in every model and the grid study (the tables of section 4.2; about 1.5 minutes alone). |
 | `accuracy_study.py`, `stress_study.py` | The scenario lists for the Lumped and Analytic models (accuracy; stress cases). |
 | `scripts/solver_equivalence.py` | Direct, CG and SOR on five boards (section 4.4; about 5 seconds). |
-| `scripts/make_figures.py` | Draws the three figures (about 5 minutes). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 to 6; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_06`; figures 4 to 6 are diagrams and illustrations (`make_diagrams.py`). |
+| `scripts/study_complex_boards.py` | Nine boards closer to real ones in every model against the 3D solid; runs on any version of the program (`--root`) and compares two runs (`--compare`), section 4.8 (about 2 minutes per run). |
+| `scripts/study_lumped_rings.py` | The Lumped model against the ring count and the source size, before and after the minimum ring width (section 4.9; about 1 minute). |
+| `scripts/make_figures.py` | Draws the data figures 1 to 3 and 4 to 7 (about 8 minutes; figure 4 needs `out/complex_boards_before.json`, see section 4.8). |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustrations (figures 8 to 10; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_10`; figures 5 and 7 are drawings of the boards and of the laminate nodes; figures 8 to 10 are diagrams and illustrations (`make_diagrams.py`). |
 | `docs/measurement-protocol.md` | The protocol of a measurement on a physical board (a plan: nothing was measured). |
 | (see also) | The comparison also uses `../solid3d-verification/fem3d_validation.py` with `--fem`. |
 
@@ -240,10 +243,77 @@ Example board, FVM, Tmax [°C], typed `h` (10 top / 15 bottom) against computed 
 A constant `h` is right near one operating point and over-estimates the rise by 10 % at 22 W (the typed pair happens to be right near 5.5 W). Radiation is 43 % of the computed top coefficient and 60 % of the bottom one; the bottom face (facing down) cools worse than the top.
 Air properties agree with textbook values within 1 to 3 %; the three models agree on the coefficients within 0.1 W/m²K.
 
+### 4.8 Nine boards closer to real ones, before and after the corrections of the review
+
+`scripts/study_complex_boards.py` builds nine boards with the program's own builder (figure 5): the example board, the same with a metal block, a six-layer board with inner planes and a part on the bottom, a two-layer round board, and five one-layer boards (an LED strip, a vertical power board with computed coefficients, a round board, a bare 20 mm pad, full copper on 3.2 mm). Every board runs in the five models; the 3D solid is the reference (on one-layer boards it agrees with an independent 3D solver within 0.2 %, `../solid3d-verification/README.md` 4.3). The same script was run on the program before the corrections (a worktree of the commit before them, `--root`) and after:
+
+```sh
+git worktree add /tmp/pcbthermal-before 1ffb4ef
+.venv/bin/python research/models-comparison/scripts/study_complex_boards.py --root /tmp/pcbthermal-before --out research/models-comparison/out/complex_boards_before.json
+.venv/bin/python research/models-comparison/scripts/study_complex_boards.py --out research/models-comparison/out/complex_boards_after.json
+.venv/bin/python research/models-comparison/scripts/study_complex_boards.py --compare research/models-comparison/out/complex_boards_before.json research/models-comparison/out/complex_boards_after.json
+```
+
+Error of the board maximum rise against the 3D solid, 1 mm cells:
+
+| board | 3D solid rise (K) | fvm before → after | fdm before → after | lumped before → after | analytic before → after |
+| :-- | --: | --: | --: | --: | --: |
+| example board (4 layers, vias, heatsink) | 60.98 | -0.3 → -0.3 % | -2.6 → -2.6 % | -2.2 → -2.2 % | -2.2 → -2.2 % |
+| example board with a metal block | 52.63 | -0.3 → -0.3 % | -3.1 → -3.1 % | -4.2 → -4.2 % | -2.5 → -2.5 % |
+| 6 layers, inner planes, a part on the bottom | 46.06 | +0.9 → +0.9 % | -0.6 → -0.6 % | +0.8 → +0.8 % | +6.9 → +6.9 % |
+| 2 layers, round board | 58.55 | -0.3 → -0.3 % | -0.5 → -0.5 % | +3.8 → +3.8 % | +2.0 → +2.0 % |
+| 1 layer, LED strip, three pads on a trace | 55.25 | -8.1 → -2.0 % | -10.0 → -5.3 % | -8.2 → -4.6 % | +3.3 → +5.9 % |
+| 1 layer, power board, vertical, computed h | 44.17 | -4.2 → -0.8 % | -5.9 → -3.2 % | -13.7 → -12.5 % | +5.4 → +6.6 % |
+| 1 layer, round board, 1.0 mm | 39.10 | -1.9 → -0.2 % | -2.3 → -0.8 % | +3.8 → +5.3 % | +8.7 → +10.0 % |
+| 1 layer, 20 mm pad | 56.92 | -11.8 → -3.5 % | -15.5 → -9.5 % | -16.8 → -10.7 % | -13.0 → -11.0 % |
+| 1 layer, full copper, 3.2 mm | 76.89 | -6.8 → -0.3 % | -6.8 → -0.4 % | -9.0 → -2.7 % | -5.7 → -2.2 % |
+
+Mean absolute error against the 3D solid, before → after: fvm 3.8 → 1.0 %; fdm 5.3 → 2.9 %; lumped 6.9 → 5.2 %; analytic 5.5 → 5.5 %. Mean absolute error on the one-layer boards only, before → after: fvm 6.5 → 1.4 %; fdm 8.1 → 3.9 %; lumped 10.3 → 7.2 %; analytic 7.2 → 7.2 %.
+
+* The multilayer boards do not move: the corrections act on one-layer boards (laminate nodes) and on rings thinner than a cell.
+* On one-layer boards the FVM goes from 6.5 to 1.4 % mean error, the FDM from 8.1 to 3.9 % and the Lumped from 10.3 to 7.2 %.
+* The Analytic model is unchanged on average: better with full copper, hotter on partial copper, where its uniform sheet already spread the heat too far.
+* What stays: a bare pad on a one-layer board for the Lumped and the Analytic, and the pad edge for the FDM; the FVM is within 3.5 % on every board.
+
+![The nine boards](figures/fig_05_complex_boards_layouts.png)
+
+*Figure 5: `figures/fig_05_complex_boards_layouts.png`: the nine boards (copper of the top layer in orange, other layers pale; parts in red; heatsinks dashed; vias as dots).*
+
+![Nine boards against the 3D solid, before and after](figures/fig_04_complex_boards_before_after.png)
+
+*Figure 4: `figures/fig_04_complex_boards_before_after.png`: error of every model against the 3D solid, now (filled) and before the corrections (dashed outline).*
+
+![A one-layer board in the layered models, before and after](figures/fig_07_one_layer_laminate_nodes.png)
+
+*Figure 7: `figures/fig_07_one_layer_laminate_nodes.png`: left, one node with both films (the laminate is not crossed); right, the copper node and two laminate nodes (`pcbthermal/laminate.py`).*
+
+### 4.9 The rings of the Lumped model
+
+`scripts/study_lumped_rings.py`. Rings thinner than a cell held a cell count that did not match their width: their contour length came out short, their resistance high, and the result grew with the ring count and jumped with the source size. The program now merges ring edges closer than one cell (`lumped.ring_edges`, `RING_MIN_WIDTH = 1`); the old behaviour is `RING_MIN_WIDTH = 0`. The 50 mm Cu / FR-4 / Cu coupon (2.5 W, sources of 26 to 44 mm), against the FVM:
+
+| rings | before: range over the sources | largest step between 1 mm sizes | now: range | largest step |
+| --: | --: | --: | --: | --: |
+| 10 | +0.2 to +2.3 % | 1.0 % | +0.2 to +0.4 % | 0.2 % |
+| 20 | +0.4 to +4.3 % | 1.9 % | +0.2 to +0.4 % | 0.2 % |
+| 40 | +0.5 to +7.0 % | 2.6 % | +0.2 to +0.4 % | 0.2 % |
+
+The example board (rise against the FVM):
+
+| rings | before | now |
+| --: | --: | --: |
+| 10 | -1.9 % | -1.9 % |
+| 20 | +0.5 % | -2.6 % |
+| 40 | +4.8 % | -2.5 % |
+
+![The rings before and after](figures/fig_06_lumped_rings.png)
+
+*Figure 6: `figures/fig_06_lumped_rings.png`: left and middle, the rings around one corner of a 30 mm source with 40 rings asked for, before (40 rings, the inner ones thinner than a cell) and now (20 rings used); right, the error against the FVM for 10, 20 and 40 rings, before (dashed) and now.*
+
 ## 5. Limits of this study
 
 * Model against model on one family of boards (the example board and variants), at 1 mm cells unless stated; the 3D finite-element reference is offline and needs scikit-fem.
 * No measurement of a physical board: no model has been compared with a real one.
+* Section 4.8 compares the board maximum only (the Lumped model gives its peak as a separate number), at 1 mm cells, against the 3D solid, which is itself a model (verified in `../solid3d-verification/`).
 * The FVM is the reference because it is conservative and converges monotonically, not because it is exact; the independent 3D check is in `../solid3d-verification/`.
 
 ## 6. Sources

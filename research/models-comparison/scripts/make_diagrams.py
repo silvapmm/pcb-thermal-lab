@@ -1,8 +1,8 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the five models of the program: how each one represents the board (cells, nodes, rings, cosine modes, slabs).
-@details Pure drawing, no data. Writes figures/fig_04_the_five_models_schematic.png.
-         Also writes figures/fig_05_where_models_fail.png (the cases where the reduced models fail) and figures/fig_06_measurement_setup.png (the planned measurement on a physical board).
+@details Pure drawing, no data. Writes figures/fig_08_the_five_models_schematic.png.
+         Also writes figures/fig_09_where_models_fail.png (the cases where the reduced models fail) and figures/fig_10_measurement_setup.png (the planned measurement on a physical board).
          Run: .venv/bin/python research/models-comparison/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -200,9 +200,9 @@ def main():
     lumped(axs[2])
     analytic(axs[3])
     solid3d(axs[4])
-    dk.save(fig, OUT / "fig_04_the_five_models_schematic.png", "The five models of the program: how each one represents the board")
-    measurement_setup(OUT / "fig_06_measurement_setup.png")
-    where_models_fail(OUT / "fig_05_where_models_fail.png")
+    dk.save(fig, OUT / "fig_08_the_five_models_schematic.png", "The five models of the program: how each one represents the board")
+    measurement_setup(OUT / "fig_10_measurement_setup.png")
+    where_models_fail(OUT / "fig_09_where_models_fail.png")
 
 
 if __name__ == "__main__":

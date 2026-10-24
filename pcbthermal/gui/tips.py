@@ -19,7 +19,7 @@ TIPS = {
     # Simulation
     "cell size": "Size of a solver cell in millimetres. Smaller is more accurate and slower; the number of unknowns is shown below. Auto picks a quarter of the smallest part.",
     "fvm solver": "How the finite-volume system is solved: sparse direct (exact, default), conjugate gradients, or SOR (to compare; slow).",
-    "lumped rings": "Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint).",
+    "lumped rings": "Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint). Rings narrower than one cell are merged, so 10 is enough and more change nothing.",
     "analytic modes": "Cosine modes per direction of the analytical series (more modes resolve smaller parts).",
     "local via and heatsink corrections": "Apply the vias and heatsinks locally in the analytical model (Green-function update) instead of smearing them over the board.",
     "hotspot limit": "Temperature in °C above which an area is reported as a hotspot and outlined in the temperature map.",

@@ -42,6 +42,8 @@ from scipy.special import ive
 
 from . import profiles
 from .fvm import Network, board_time_constant
+
+RING_MIN_WIDTH = 1.0        # Minimum width of a ring in cells: thinner rings are merged (0 keeps the edges of the geometric series as they are)
 from . import blocks
 from .geometry import coverage_fraction, polygon_centroid
 from .results import SteadyResult
@@ -104,6 +106,35 @@ def _interior_factors(x):
     return np.where(small, 1.0, f_r), np.where(small, 1.0, f_p)
 
 
+def ring_edges(rho_max, dx, dy, rings, min_width=None):
+    """!
+    @brief Outer distances of the rings around a footprint: a geometric series from rho1 to the farthest cell, with edges closer than the minimum width merged.
+    @details rho1 = max(1.5 cells, 0.04 rho_max), at most rho_max / 2; then rho1 (rho_max / rho1)^(k / (rings - 1)). A ring thinner than the raster holds a
+             count of cells that does not match its width, so its contour length (area / width) and its resistance come out wrong (the result grew with the
+             ring count: +3 to +13 % with 40 rings); edges closer than min_width cells are merged, so asking for more rings than the raster can show changes nothing.
+    @param rho_max Distance of the farthest cell from the footprint in m.
+    @param dx Cell size along x in m.
+    @param dy Cell size along y in m.
+    @param rings Number of rings requested.
+    @param min_width Minimum ring width in cells (None: RING_MIN_WIDTH).
+    @return Array of edges [0, rho1, ..., rho_max (slightly enlarged)].
+    """
+    rho1 = max(1.5 * min(dx, dy), 0.04 * rho_max)
+    rho1 = min(rho1, rho_max * 0.5)
+    edges = np.concatenate([[0.0], rho1 * (rho_max / rho1) ** (np.arange(rings) / max(rings - 1, 1))])
+    edges[-1] = rho_max * 1.0000001
+    w_min = (RING_MIN_WIDTH if min_width is None else min_width) * max(dx, dy)
+    if w_min > 0 and len(edges) > 2:
+        kept = [0.0, edges[1]]
+        for e in edges[2:-1]:
+            if e - kept[-1] >= w_min:
+                kept.append(e)
+        if edges[-1] - kept[-1] < w_min and len(kept) > 2:
+            kept.pop()
+        edges = np.array(kept + [edges[-1]])
+    return edges
+
+
 def _heater_network(net, cov, layer, power, rings):
     """!
     @brief Build and solve the offset-contour network of one heater.
@@ -125,10 +156,7 @@ def _heater_network(net, cov, layer, power, rings):
 
     # --- Ring membership: 0 = footprint, 1..rings = geometric offsets from the footprint
     if rho_max > 0:
-        rho1 = max(1.5 * min(net.dx, net.dy), 0.04 * rho_max)
-        rho1 = min(rho1, rho_max * 0.5)
-        edges = np.concatenate([[0.0], rho1 * (rho_max / rho1) ** (np.arange(rings) / max(rings - 1, 1))])
-        edges[-1] = rho_max * 1.0000001
+        edges = ring_edges(rho_max, net.dx, net.dy, rings)
         idx = np.where(foot, 0, 1 + np.minimum(np.searchsorted(edges[1:], dist, side="left"), len(edges) - 2))
     else:
         edges, idx = np.array([0.0]), np.zeros((ny, nx), dtype=int)
@@ -297,7 +325,8 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
             out[k] += rn["out"].get(k, 0.0)
         res = max(res, rn["residual"])
 
-    theta_field = theta_field[:nbl]                              # The block layers are not part of the board field
+    bottom_face = float(theta_field[net.laminate_layers[-1]].mean() + b.ambient) if net.laminate_layers else None
+    theta_field = theta_field[:nbl]                              # The block layers and the laminate nodes are not part of the board field
     L = nbl
     T = theta_field + b.ambient
     # --- Peaks: own footprint peak plus the rise caused by the other heaters at its centroid
@@ -321,7 +350,8 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
         t_mean=float(T.mean()), layer_mean=[float(T[l].mean()) for l in range(L)],
         t_max_location=where, T=T, dx=net.dx, dy=net.dy, power_out=out, residual=res,
         extras={"heater_networks": float(len(nets)), "rings": float(rings),
-                "peak_correction_k": float(max((r["peak_extra"] for _, r in nets), default=0.0))},
+                "peak_correction_k": float(max((r["peak_extra"] for _, r in nets), default=0.0)),
+                **({"bottom_face_mean": bottom_face} if bottom_face is not None else {})},
     )
 
 

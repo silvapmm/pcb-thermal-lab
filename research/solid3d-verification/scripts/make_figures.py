@@ -3,7 +3,8 @@
 @brief Pictures of the 3D solid verification, written to figures/ (committed, linked from the README files).
 
 @details fig_01: dimensionless spreading resistance of a circular source, Yovanovich's Table 3 against the 3D solid; fig_02: grid convergence of the source temperature with the
-         Richardson extrapolation; fig_03: maximum temperature of every model against the independent 3D finite-element solid for growing copper pads (needs scikit-fem); fig_06: what spreading resistance is, from the
+         Richardson extrapolation; fig_03: maximum temperature of every model against the independent 3D finite-element solid for growing copper pads (needs scikit-fem); fig_05: the five models against the
+         independent 3D solver (lib/layered3d.py) on one-layer boards, before and after the laminate nodes of the layered models (study_one_layer_board.py); fig_06: what spreading resistance is, from the
          axisymmetric solver (needs out/spreading.json); fig_07: the slabs of a one-layer board in the 3D solid before and after the laminate was added, and the five models on it.
 Usage: python research/solid3d-verification/scripts/make_figures.py   (from the repository root; about 2 minutes)
 """
@@ -206,6 +207,38 @@ def fig_one_layer():
     plt.close(fig)
 
 
+def fig_one_layer_independent():
+    """!
+    @brief The five models against the independent 3D solver on one-layer boards, before and after the corrections (part 2 of study_one_layer_board.py).
+    @return None.
+    """
+    import json
+    data_dir = HERE.parent / "out"
+    path = data_dir / "one_layer.json"
+    if not path.exists():
+        data_dir.mkdir(exist_ok=True)
+        subprocess.run([sys.executable, str(HERE / "study_one_layer_board.py"), "--json", str(path)], check=True)
+    rows = json.loads(path.read_text())
+    models = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+    cols = {"fvm": "#1d4ed8", "fdm": "#9ca3af", "solid3d": "#059669", "lumped": "#d97706", "analytic": "#7c3aed"}
+    labels = [("20 mm pad, " if r["pad"] else "full copper, ") + f"{r['thickness_mm']:g} mm" for r in rows]
+    x = np.arange(len(rows))
+    fig, ax = plt.subplots(figsize=(13, 4.8))
+    for k, m in enumerate(models):
+        off = (k - 2) * 0.16
+        ax.bar(x + off, [100 * (r["before"][m] / r["independent"] - 1) for r in rows], 0.15, color="none", ec=cols[m], ls="--")
+        ax.bar(x + off, [100 * (r["after"][m] / r["independent"] - 1) for r in rows], 0.15, color=cols[m], alpha=0.85, label=f"{m} (now; dashed: before)")
+    ax.axhline(0, color="k", lw=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=8)
+    ax.set_ylabel("maximum rise against the independent 3D solver (%)")
+    ax.set_title("One-layer boards: the laminate nodes bring the FVM and FDM to the 3D answer with full copper; a bare pad stays hard for Lumped and Analytic", fontsize=9)
+    ax.legend(fontsize=7, ncol=3)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_05_one_layer_against_independent.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Make the data figures (1 to 3, 6 and 7; the diagrams 4 and 5 are drawn by make_diagrams.py).
@@ -217,6 +250,7 @@ def main():
     fig_pads()
     fig_spreading()
     fig_one_layer()
+    fig_one_layer_independent()
     print("figures in", OUT)
 
 
