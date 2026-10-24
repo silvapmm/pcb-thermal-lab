@@ -380,7 +380,18 @@ class StackupPage(QWidget):
                                 "It is loaded automatically when you change the number of layers. The templates are in pcbthermal/data/stackups.json: edit that file to change them. "
                                 "They are typical values, not the stack-up of your fabricator.")
         self.typical.clicked.connect(self.doc.load_typical_stackup)
-        for text, w in (("Stack-up ", self.mode), ("  Units ", self.unit), ("  Scale ", self.scale), ("  ", self.typical)):
+        self.inner_oz = QComboBox()
+        self.inner_oz.addItem("0.5 oz (15.2 µm, JLCPCB standard)", 0.5)
+        self.inner_oz.addItem("1 oz (35 µm)", 1.0)
+        self.inner_oz.setToolTip("Finished thickness of the INNER copper layers of the typical advanced stack-up (boards of 3 or more layers). 0.5 oz = 15.2 µm is the JLCPCB standard and the "
+                                 "default; 1 oz = 35 µm is what PCBWay, PCBGOGO, Bittele and AdvancedPCB list (JLCPCB's own 1 oz inner copper is about 30 µm). Choosing it reloads "
+                                 "the typical stack-up with 35 µm inner copper and the dielectrics of the template unchanged, so the board is about 0.02 mm thicker per inner layer "
+                                 "(1.586 to 1.626 mm for 4 layers, 2.4 to 2.6 mm for 12): fabricators pick another build for 1 oz, they do not thin the dielectrics. It is derived from "
+                                 "the shipped templates, not a fabricator table. With a plane on every inner layer it makes the board about 7 K (10 to 13 % of the rise) cooler "
+                                 "than 0.5 oz; with copper only on the outer layers it changes the result by less than 0.3 K. "
+                                 "Disabled with fewer than 3 layers and in the simple stack-up (where every layer has the outer copper thickness).")
+        self.inner_oz.currentIndexChanged.connect(self._inner_oz_changed)
+        for text, w in (("Stack-up ", self.mode), ("  Units ", self.unit), ("  Scale ", self.scale), ("  ", self.typical), ("  Inner copper ", self.inner_oz)):
             bar.addWidget(QLabel(text))
             bar.addWidget(w)
         bar.addStretch(1)
@@ -438,6 +449,10 @@ class StackupPage(QWidget):
         b = pr.board
         self._updating = True
         self.mode.setCurrentIndex(1 if b.is_advanced() else 0)
+        self.inner_oz.setCurrentIndex(max(self.inner_oz.findData(b.template_inner_oz), 0))
+        # Only an advanced board with an inner layer has inner copper to choose (the simple stack-up gives every layer the outer copper,
+        # and stackup_template changes the inner layers from 3 layers up, the generic 3-layer template included)
+        self.inner_oz.setEnabled(b.is_advanced() and b.layers >= 3)
         self._updating = False
         self.editor.setVisible(b.is_advanced())
         layers = stack_layers(pr)
@@ -460,6 +475,17 @@ class StackupPage(QWidget):
         self.view.unit = self.unit.currentData()
         self.view.true_scale = bool(self.scale.currentData())
         self.view.update()
+
+    def _inner_oz_changed(self, _i):
+        """!
+        @brief Reload the typical stack-up with the chosen inner copper weight.
+        @param _i Ignored.
+        """
+        if self._updating:
+            return
+        oz = self.inner_oz.currentData()
+        if oz != self.doc.problem.board.template_inner_oz:
+            self.doc.set_inner_copper_oz(oz)
 
     def _mode_changed(self, _i):
         """!

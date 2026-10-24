@@ -923,3 +923,36 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     empty = PowerCalculator(Document())
     qtbot.addWidget(empty)
     assert not empty.compute.isEnabled()
+
+
+def test_inner_copper_choice_in_the_application(win, qtbot):
+    """The inner copper combo of the Stack-up tab: disabled on two layers and in the simple stack-up, reloads the template as one undoable edit, survives layer changes, runs every model."""
+    load(win, example_board())
+    page = win.stackup_page
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    page.mode.setCurrentIndex(0)                                           # Simple: every layer has the outer copper, nothing to choose
+    assert not page.inner_oz.isEnabled()
+    page.mode.setCurrentIndex(1)                                           # Advanced
+    win.board_panel.layers.setValue(2)
+    assert not page.inner_oz.isEnabled()                                   # No inner copper on two layers
+    win.board_panel.layers.setValue(3)
+    assert page.inner_oz.isEnabled()                                       # Three layers have one inner layer
+    for n in (6, 4):
+        win.board_panel.layers.setValue(n)
+        page.inner_oz.setCurrentIndex(page.inner_oz.findData(0.5))        # Start every round from the default
+        assert page.inner_oz.isEnabled() and page.inner_oz.currentData() == 0.5
+        b = win.doc.problem.board
+        total = b.total_thickness()
+        page.inner_oz.setCurrentIndex(page.inner_oz.findData(1.0))
+        assert b.template_inner_oz == 1.0 and b.copper_thickness[1] == pytest.approx(35e-6)
+        assert b.total_thickness() == pytest.approx(total + (n - 2) * 19.8e-6)   # Dielectrics kept: the board grows by the extra inner copper
+        win.doc.stack.undo()                                                     # One step brings back the 0.5 oz stack-up
+        b = win.doc.problem.board
+        assert b.template_inner_oz == 0.5 and b.copper_thickness[1] == pytest.approx(15.2e-6) and page.inner_oz.currentData() == 0.5
+        win.doc.stack.redo()
+        win.board_panel.layers.setValue(n + 2 if n == 4 else 8)            # The choice is kept when the layer count changes
+        assert win.doc.problem.board.copper_thickness[1] == pytest.approx(35e-6)
+        win.doc.problem.validate()
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    page.inner_oz.setCurrentIndex(page.inner_oz.findData(0.5))
+    assert win.doc.problem.board.copper_thickness[1] == pytest.approx(15.2e-6)
