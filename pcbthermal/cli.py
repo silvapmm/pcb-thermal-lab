@@ -87,6 +87,8 @@ def cmd_run(args):
         b.h_mode, b.air_speed = "computed", args.air_speed
     if args.orientation:
         b.h_mode, b.orientation = "computed", args.orientation
+    if args.natural_form:
+        b.h_mode, b.natural_form = "computed", args.natural_form
     if args.emissivity is not None:
         b.h_mode, b.emissivity_top, b.emissivity_bottom = "computed", args.emissivity, args.emissivity
     if args.h_multiplier is not None:
@@ -266,6 +268,8 @@ def build_parser():
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
     hg.add_argument("--orientation", choices=("horizontal", "vertical"), default=None, help="board orientation")
+    hg.add_argument("--natural-form", choices=("general", "laminar"), default=None, dest="natural_form",
+                    help="natural convection correlation of a vertical board: general (default) or laminar (Ra < 1e9)")
     hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
     hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")

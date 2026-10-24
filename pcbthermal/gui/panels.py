@@ -161,6 +161,14 @@ class BoardPanel(QWidget):
                                     "down, so the mounting follows from the layer numbering (a hot face looking up loses heat better than one looking down: 0.54 against "
                                     "0.27 in the natural convection correlation). Vertical: the plate correlation with the board height on both faces. "
                                     "With typed coefficients the orientation does not matter: type the h of the real mounting.")
+        self.natural_form = QComboBox()
+        self.natural_form.addItem("General (Churchill and Chu, whole range)", "general")
+        self.natural_form.addItem("Laminar (Churchill and Chu, Ra below 1e9)", "laminar")
+        self.natural_form.setToolTip("Correlation of the natural convection of a vertical board (computed heat transfer, vertical orientation only). General: the "
+                                     "Churchill and Chu form for the whole Rayleigh range (default). Laminar: the same authors' laminar form for Ra below 1e9, which "
+                                     "textbooks recommend for laminar flow; it gives a coefficient from +6.5 % (50 mm board, 10 K) to -10 % (200 mm, 80 K) of the general one. "
+                                     "Both forms are taken from textbooks and checked numerically, not from the original paper; on the example board the laminar form changes "
+                                     "the rise by -0.7 to +0.2 %, inside the 20 to 30 % uncertainty of h. Above Ra 1e9 (a board of about 0.5 m) use the general form.")
         self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_top.setToolTip("Emissivity of the top face: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1")
@@ -178,7 +186,7 @@ class BoardPanel(QWidget):
         self.manual_rows = [(f.labelForField(self.h_top), self.h_top), (f.labelForField(self.h_bottom), self.h_bottom)]
         self.h_top.setToolTip("Heat transfer coefficient of the top face (convection plus radiation), typed. Natural convection in air is about 5 to 15 W/m²K.")
         self.h_bottom.setToolTip("Heat transfer coefficient of the bottom face, typed. Usually a little lower than the top face for a board facing up.")
-        for label, w in (("Orientation", self.orientation), ("Emissivity top", self.emis_top),
+        for label, w in (("Orientation", self.orientation), ("Vertical natural convection", self.natural_form), ("Emissivity top", self.emis_top),
                          ("Emissivity bottom", self.emis_bottom), ("Air speed", self.air_speed),
                          ("Convection ×", self.calibration)):
             f.addRow(label, w)
@@ -216,6 +224,7 @@ class BoardPanel(QWidget):
             w.valueChanged.connect(self._apply)
         self.h_mode.currentIndexChanged.connect(self._apply)
         self.orientation.currentIndexChanged.connect(self._apply)
+        self.natural_form.currentIndexChanged.connect(self._apply)
         self.layers.valueChanged.connect(self._apply_layers)
         self.side_on.toggled.connect(self._apply)
         doc.changed.connect(self.refresh)
@@ -252,6 +261,8 @@ class BoardPanel(QWidget):
         self.h_bottom.setValue(b.h_bottom)
         self.h_mode.setCurrentIndex(max(self.h_mode.findData(b.h_mode), 0))
         self.orientation.setCurrentIndex(max(self.orientation.findData(b.orientation), 0))
+        self.natural_form.setCurrentIndex(max(self.natural_form.findData(b.natural_form), 0))
+        self.natural_form.setEnabled(b.orientation == "vertical")      # The form only enters the vertical-plate correlation
         self.emis_top.setValue(b.emissivity_top)
         self.emis_bottom.setValue(b.emissivity_bottom)
         self.air_speed.setValue(b.air_speed)
@@ -303,6 +314,7 @@ class BoardPanel(QWidget):
             bd.ambient, bd.h_top, bd.h_bottom = self.ambient.value(), self.h_top.value(), self.h_bottom.value()
             bd.h_side = self.h_side.value() if self.side_on.isChecked() else None
             bd.h_mode, bd.orientation = self.h_mode.currentData(), self.orientation.currentData()
+            bd.natural_form = self.natural_form.currentData()
             bd.emissivity_top, bd.emissivity_bottom = self.emis_top.value(), self.emis_bottom.value()
             bd.air_speed, bd.h_calibration = self.air_speed.value(), self.calibration.value()
             bd.via_plating = self.plating.value() * 1e-6

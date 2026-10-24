@@ -923,3 +923,29 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     empty = PowerCalculator(Document())
     qtbot.addWidget(empty)
     assert not empty.compute.isEnabled()
+
+
+def test_natural_form_control_in_the_application(win, qtbot):
+    """The vertical natural convection form: shown with computed h, enabled only for a vertical board, written to the document, undone, run, saved and reloaded."""
+    load(win, example_board())
+    bp = win.board_panel
+    assert [bp.natural_form.itemData(i) for i in range(bp.natural_form.count())] == ["general", "laminar"] and bp.natural_form.toolTip()
+    bp.h_mode.setCurrentIndex(1)
+    assert not bp.natural_form.isEnabled()                                 # Horizontal: the form does not enter the correlation
+    bp.orientation.setCurrentIndex(1)
+    assert bp.natural_form.isEnabled()
+    bp.natural_form.setCurrentIndex(1)
+    assert win.doc.problem.board.natural_form == "laminar"
+    run(win, qtbot, ("fvm",))
+    assert win.sim.h_used
+    win.doc.stack.undo()
+    assert win.doc.problem.board.natural_form == "general"
+    bp.refresh()
+    assert bp.natural_form.currentData() == "general"
+    # Every combination of orientation and form, back and forth, never breaks the panel
+    for o in (0, 1, 0):
+        for f in (1, 0, 1):
+            bp.orientation.setCurrentIndex(o)
+            bp.natural_form.setCurrentIndex(f)
+            assert win.doc.problem.board.natural_form == ("laminar" if f else "general")
+    win.doc.problem.validate()
