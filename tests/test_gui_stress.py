@@ -949,3 +949,26 @@ def test_natural_form_control_in_the_application(win, qtbot):
             bp.natural_form.setCurrentIndex(f)
             assert win.doc.problem.board.natural_form == ("laminar" if f else "general")
     win.doc.problem.validate()
+
+
+def test_a_3d_model_too_large_is_refused_in_the_application(win, qtbot, popups):
+    """Regression of the random-actions hang: a 502.5 mm board with the 3D solid at 2 mm (a million unknowns) kept the calculation process in
+    a direct solve for hours. The panel now says it will not run, the other models answer at once and the 3D solid alone fails with the cell to use."""
+    import time
+    from pcbthermal import solid3d
+    p = example_profile_board()
+    p.board.width = p.board.height = 0.5025
+    p.board.h_mode = "computed"
+    load(win, p)
+    win.doc.set_options(models=("solid3d", "lumped"), cell_mm=2.0)
+    win.solver_panel.refresh()
+    assert "will not run" in win.solver_panel.cells_label.text()
+    t0 = time.time()
+    run(win, qtbot, ("solid3d", "lumped"), cell=2.0)
+    assert set(win.sim.results) == {"lumped"} and any("3D solid was not run" in w for w in win.sim.warnings)
+    run(win, qtbot, ("solid3d",), cell=2.0, expect_ok=False)            # Alone: the job fails with the message, it does not wait
+    assert time.time() - t0 < 120 and not win.worker.isRunning()
+    assert any(k == "critical" and "use a cell of" in t for k, _, t in popups)
+    win.doc.set_options(models=("solid3d",), cell_mm=20.0)
+    win.solver_panel.refresh()
+    assert "will not run" not in win.solver_panel.cells_label.text() and solid3d.unknowns(win.doc.problem, 20.0)[0] <= solid3d.MAX_CELLS
