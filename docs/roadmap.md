@@ -34,6 +34,10 @@ In the order of value for the effort.
 - **Heatsink from its geometry** (fin height, thickness, pitch, metal) with the channel effect between fins (Elenbaas, Bar-Cohen and Rohsenow) and the temperature-rise dependence of natural convection, compared with the catalogue θSA.
 - **Junction node (JESD15-3 two-resistor)**: only worth it with a heatsink on top (a bare mould changes the result by about 3 K, a heatsink by a factor of two); first in the FVM, top path only.
 
+### Large models
+
+- **Large 3D and layered models** (left open by `fix/gui-compute-hang`, 2026-10-24): reuse the factorisation across the computed-h loop of the 3D solid (the coefficients change only the diagonal of the faces, so the previous LU is a near-exact preconditioner for CG), a nested-dissection ordering, and decide whether the FVM and FDM need a hard limit too (measured: 1 million unknowns 97 s and 4.4 GB, 2 million 273 s and 8.4 GB; the panel only says "slow" above a million).
+
 ### Component element (the part of the plan not done)
 
 Evidence for all of this is in `research.md` (sections E3 to E8 and R2 to R8).
