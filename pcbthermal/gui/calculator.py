@@ -22,7 +22,7 @@ from .compute import ProcessWorker
 
 HELP_FILE = Path(__file__).resolve().parents[1] / "help" / "calculator.html"
 DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band covers only the doubt about numbers (copper thickness, heat transfer, θ, ψJT, reading). It does not cover a wrongly drawn board."),
-          ("Board imported from CAD / real files", "cad", "The copper, vias and planes were taken from the real fabrication files: a small doubt about the description (20 % of the 'estimated' amplitudes by default)."),
+          ("Drawn from the real fabrication files", "cad", "The board was drawn from the real fabrication files (the copper, vias and planes as manufactured): a small doubt about the description (20 % of the 'estimated' amplitudes by default)."),
           ("Drawn by hand from the layout", "hand", "You drew the zones, pads and vias from the layout by hand: half of the 'estimated' amplitudes by default (copper coverage, copper weight, inner planes, vias)."),
           ("Estimated (no layout at hand)", "estimated", "The board is a guess (a hatched pour drawn solid, unknown copper weight, planes or vias not known): the full amplitudes of Preferences - Power calculator."))
 POINTS = (("Board temperature 1 mm around the part (ring)", "ring",

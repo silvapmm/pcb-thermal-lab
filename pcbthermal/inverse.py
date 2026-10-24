@@ -141,13 +141,14 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
             "resistance_k_per_w": rise / pb if pb > 0 else float("inf")}
 
 
-DESIGN_LEVELS = ("none", "cad", "hand", "estimated")           # How the board was described: see power_band
+DESIGN_LEVELS = ("none", "cad", "hand", "estimated")           # How the board was described: see power_band ("cad" = drawn from the real fabrication files; the key is kept stable)
+MAX_AMPLITUDE = 0.99                                            # An amplitude of 100 % or more would take a thickness or a plating to 0 or below
 
 
 def design_amounts(u):
     """!
     @brief The amplitudes of the design-uncertainty terms for the chosen confidence level.
-    @details The defaults hold one amplitude per term at the level "estimated" (design_*_pct) and one multiplier per level (design_scale_*). The level "none" is zero by definition.
+    @details Each amplitude is limited to MAX_AMPLITUDE (99 %), so a thickness or a plating never reaches 0 or below. The defaults hold one amplitude per term at the level "estimated" (design_*_pct) and one multiplier per level (design_scale_*). The level "none" is zero by definition.
     @param u Uncertainty dict (the keys design_level, design_coverage_pct, design_weight_pct, design_planes_pct, design_vias_pct, design_scale_cad/hand/estimated).
     @return Dict coverage, weight, planes, vias as fractions (0 = the term is off).
     @throws ValueError If the level is not one of DESIGN_LEVELS.
@@ -156,7 +157,7 @@ def design_amounts(u):
     if level not in DESIGN_LEVELS:
         raise ValueError(f"design level must be one of {DESIGN_LEVELS}")
     scale = 0.0 if level == "none" else float(u[f"design_scale_{level}"])
-    return {k: max(scale * float(u[f"design_{k}_pct"]) / 100.0, 0.0) for k in ("coverage", "weight", "planes", "vias")}
+    return {k: min(max(scale * float(u[f"design_{k}_pct"]) / 100.0, 0.0), MAX_AMPLITUDE) for k in ("coverage", "weight", "planes", "vias")}
 
 
 def pr_has(problem, attr):
@@ -247,7 +248,7 @@ def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="
     @param uncertainty Dict with copper_pct, h_pct, theta_pct, psi_jt_pct and reading_k, and the design keys design_level, design_coverage_pct, design_weight_pct, design_planes_pct,
                         design_vias_pct, design_scale_cad/hand/estimated (default: the "calculator" defaults of the program). Level "none" switches the design terms off.
     @param progress Optional callback progress(message, fraction).
-    @return Dict: the keys of power_from_temperature plus best_w, worst_w, contributions (list of dicts factor, low_w, high_w) and uncertainty (the values used).
+    @return Dict: the keys of power_from_temperature plus best_w (never below 0 W), worst_w, contributions (list of dicts factor, low_w, high_w) and uncertainty (the values used).
     """
     d = defaults.load()["calculator"]
     u = {"copper_pct": d["copper_uncertainty_pct"], "h_pct": d["h_uncertainty_pct"], "theta_pct": d["theta_uncertainty_pct"], "psi_jt_pct": d["psi_jt_uncertainty_pct"],
@@ -256,6 +257,7 @@ def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="
         if k in d:
             u[k] = d[k]
     u.update(uncertainty or {})
+    u["copper_pct"] = min(max(float(u["copper_pct"]), 0.0), 100.0 * MAX_AMPLITUDE)   # Same limit for the copper thickness uncertainty
     design = design_amounts(u)
     base = power_from_temperature(problem, index, measured_c, point=point, ambient_c=ambient_c, model=model, cell_mm=cell_mm, psi_jt=psi_jt)
     p0 = base["power_w"]
@@ -314,7 +316,7 @@ def power_band(problem, index, measured_c, point="ring", ambient_c=None, model="
         down += (p0 - lo) ** 2
         up += (hi - p0) ** 2
     out = dict(base)
-    out.update(best_w=p0 - math.sqrt(down), worst_w=p0 + math.sqrt(up), contributions=contributions, uncertainty=u)
+    out.update(best_w=max(p0 - math.sqrt(down), 0.0), worst_w=p0 + math.sqrt(up), contributions=contributions, uncertainty=u)
     return out
 
 

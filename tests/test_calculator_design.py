@@ -119,3 +119,14 @@ def test_the_design_level_survives_the_user_file():
     assert defaults.diff(full)["calculator"] == {"design_level": "estimated", "design_planes_pct": 70.0}       # Only the differences go to the user file
     out = power_band(board4(), 0, 60.0, point="ring", cell_mm=1.5)
     assert out["uncertainty"]["design_level"] == "estimated" and out["uncertainty"]["design_planes_pct"] == 70.0
+
+
+def test_amplitudes_are_limited_below_one_hundred_percent():
+    """!
+    @brief A typed amplitude of 100 % or more is cut to 99 %, so thickness and plating never reach 0 or below, and the band still runs.
+    """
+    d = dict(defaults.load()["calculator"], design_level="estimated", design_weight_pct=150.0, design_vias_pct=100.0, design_coverage_pct=250.0, design_planes_pct=100.0)
+    amounts = design_amounts(d)
+    assert all(v <= 0.99 for v in amounts.values()) and amounts["weight"] == 0.99
+    band = power_band(board4(), 0, 80.0, uncertainty={"design_level": "estimated", "design_weight_pct": 150.0, "design_vias_pct": 100.0, "copper_pct": 130.0})
+    assert band["worst_w"] >= band["power_w"] >= band["best_w"] >= 0   # best case floored at 0 W: the sum of squares of wide terms could pass below it
