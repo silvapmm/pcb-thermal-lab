@@ -67,6 +67,45 @@ def test_too_large_a_model_is_refused_and_simulate_skips_it(monkeypatch):
         simulate(p, SolverOptions(models=("solid3d",), cell_mm=2.0))
 
 
+def big_board():
+    """!
+    @brief The board on which the random-actions stress test waited for hours: the profile example stretched to 502.5 x 502.5 mm (its four
+           layers give 16 slabs, about a million 3D unknowns at 2 mm), with computed heat transfer coefficients.
+    @return Problem.
+    """
+    p = example_profile_board()
+    p.board.width = p.board.height = 0.5025
+    p.board.h_mode = "computed"
+    return p
+
+
+def test_unknowns_counts_the_model_that_is_built():
+    """unknowns() must count exactly the slabs Solid builds: the size check and the application's label rest on it."""
+    two_faces = board(thickness=2.0)
+    two_faces.add_heatsink(1, 0.0, rect=(40, 30, 60, 50), thickness_mm=4.5)          # A block on each face, different thicknesses
+    for p in (example_board(), example_profile_board(), board(), two_faces, board(block=False),
+              reference_problem(layers=1, heater_mm=20.0, power=2.0), reference_problem(layers=6, heater_mm=10.0, power=2.0)):
+        for cell in (2.0, 3.3):
+            n, ns, nx, ny = solid3d.unknowns(p, cell)
+            net = solid3d.Solid(p, cell)
+            assert (n, ns, nx, ny) == (net.n, net.ns, net.nx, net.ny)
+
+
+def test_a_model_above_the_limit_is_refused_at_once_with_the_cell_to_use():
+    """Regression: a 3D model of a million unknowns (the old limit was 2 million) was solved, for hours and in swap; it is now refused before it is built."""
+    import time
+    p = big_board()
+    assert solid3d.unknowns(p, 2.0)[0] > 1_000_000 > solid3d.MAX_CELLS
+    t0 = time.time()
+    with pytest.raises(ValueError, match=r"use a cell of \d"):
+        solid3d.solve_steady(p, 2.0)
+    sim = simulate(p, SolverOptions(models=("solid3d", "lumped"), cell_mm=2.0))
+    assert time.time() - t0 < 60                                        # It used to take more than 25 minutes per solve
+    assert set(sim.results) == {"lumped"} and any("3D solid was not run" in w for w in sim.warnings)
+    hint = float(next(w for w in sim.warnings if "3D solid" in w).split("use a cell of ")[1].split(" mm")[0])
+    assert solid3d.unknowns(p, hint)[0] <= solid3d.MAX_CELLS * 1.02     # The suggested cell brings the model to the limit
+
+
 def test_solid3d_in_the_api_and_with_profiles():
     sim = simulate(example_board(), SolverOptions(models=("fvm", "solid3d"), cell_mm=2.0))
     assert set(sim.results) == {"fvm", "solid3d"}

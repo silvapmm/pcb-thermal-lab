@@ -22,7 +22,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from . import blocks, laminate
-from .geometry import edge_length_per_cell, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
+from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
 from .results import SteadyResult, TransientResult
 
 # Column ordering of the sparse LU: the thermal matrices are symmetric, and the symmetric minimum-degree ordering gives about half
@@ -116,7 +116,7 @@ class Network:
             self._add_blocks(layers)
         if b.h_side and b.has_outline():
             # Edge of a non-rectangular board: the length of the outline inside every cell times the slab thickness
-            edge = edge_length_per_cell(b.outline, nx, ny, dx, dy) * self.active
+            edge = edge_length_on_board(b.outline, nx, ny, dx, dy, self.active)
             self.g_side[:L] += b.h_side * slab[:, None, None] * edge[None]
         elif b.h_side:
             # Each edge cell exposes a face of (cell edge length) x (slab thickness)
@@ -166,7 +166,7 @@ class Network:
         """
         b = self.problem.board
         if b.has_outline():
-            return edge_length_per_cell(b.outline, self.nx, self.ny, self.dx, self.dy) * self.active
+            return edge_length_on_board(b.outline, self.nx, self.ny, self.dx, self.dy, self.active)
         e = np.zeros((self.ny, self.nx))
         e[:, 0] += self.dy
         e[:, -1] += self.dy
@@ -431,7 +431,9 @@ def attach_laminate_results(res, net, T_all, weights):
 
 def attach_block_results(res, net, T_all, theta):
     """!
-    @brief Put the temperature of the metal blocks, and the heat they take, in a result.
+    @brief Put the temperature of the metal blocks, the heat they take and the heat flux entering them in a result.
+    @details arrays["block_flux"] is the heat flux through the interface into every block cell or node, in W/m2 of block area (zero off the blocks),
+             and arrays["block_face"] the face (0 top, 1 bottom) of every block layer; checks.check_thick_plates reads them.
     @param res SteadyResult of the board.
     @param net Network with block layers (nothing is done without them).
     @param T_all Temperatures of all layers, board first, in degC.
@@ -439,9 +441,19 @@ def attach_block_results(res, net, T_all, theta):
     """
     if not net.block_info:
         return
-    nb = net.n_board
-    res.arrays["block_T"] = T_all[nb:]                 # (blocks layers, ny, nx), ambient where there is no block
+    # Only the block layers: on a one-layer board the laminate nodes sit between the board layer and the blocks
+    ids = [bi["layer"] for bi in net.block_info]
+    res.arrays["block_T"] = T_all[ids]                 # (blocks layers, ny, nx), ambient where there is no block
     res.arrays["block_cov"] = np.stack([bi["cov"] for bi in net.block_info])
+    res.arrays["block_face"] = np.array([bi["face"] for bi in net.block_info])
+    # Plan area of every cell (FVM) or node (FDM) on the board, in m2: the flux is the heat into the block over the block's share of it
+    area = net.area if hasattr(net, "area") else net.dx * net.dy * net.cover
+    flux = []
+    for bi in net.block_info:
+        heat = bi["g_link"] * (theta[bi["board_layer"]] - theta[bi["layer"]])
+        share = bi["cov"] * area
+        flux.append(np.where(share > 0, heat / np.where(share > 0, share, 1.0), 0.0))
+    res.arrays["block_flux"] = np.stack(flux)
     for k, bi in enumerate(net.block_info):
         sel = bi["cov"] > 0
         tag = "top" if bi["face"] == 0 else "bottom"

@@ -11,7 +11,7 @@ Rule: when something is implemented it moves from the second list to the first i
 * **Parts (heaters)**: junction-to-pad `θ` in the worst case, junction limit with margin and power limit, `ψJB` ring estimate, power temperature coefficient with runaway detection, typical `θ` by package family, the top path (`θJC(top)`, body helper, contact area, interface sheet, `θSA`), power from a measured temperature or a datasheet parameter (Power calculator).
 * **Typical heatsinks on a package**: a library of catalogue θSA (heatsink and air flow, with source and test conditions) in Preferences and two lists in the heater panel; the top-path boxes appear with θSA.
 * **Heatsinks**: extra coefficient typed as `h` or as `θSA`; metal block (all five models in steady state, FVM, FDM and 3D solid in time too) with thickness, metal presets, interface sheet (paste, gap pad, direct contact), plate fins with efficiency, exposed-surface coefficient; validated against the 3D solid within 1.8 %.
-* **Board**: variable stack-up (copper per layer, material and thickness per gap, simple and advanced modes, typical stack-ups for 1 to 12 layers checked against JLCPCB and PCBWay tables), outline polygon of any shape (FVM, FDM, 3D solid on the real shape; Lumped and Analytic on the rectangle of the same area), advanced stack-up in all five models.
+* **Board**: variable stack-up (copper per layer, material and thickness per gap, simple and advanced modes, typical stack-ups for 1 to 12 layers checked against JLCPCB and PCBWay tables, with the inner copper at 0.5 oz (JLCPCB standard, default) or 1 oz (derived)), outline polygon of any shape (FVM, FDM, 3D solid on the real shape; Lumped and Analytic on the rectangle of the same area), advanced stack-up in all five models.
 * **Vias and power calculator**: the via fill (open, epoxy resin, conductive paste, copper) and the power of a part from a board temperature, the junction or the top of the package (θ and ψJT), with the sensitivity to the copper measured (`validation.md` sections 18 and 19).
 * **Power calculator** documented in `docs/calculators.md` with its validation against two datasheet boards (CSD17308Q3, JEDEC 2s2p with an exposed-pad QFN).
 * **Power calculator band**: best case / nominal / worst case from the uncertainty of the copper, heat transfer, θ, ψJT and the reading, combined as the root of the sum of squares; the case chosen is the power written in the part. A **design uncertainty** (drawn from the real fabrication files / drawn by hand / estimated: copper coverage, copper weight, inner planes, vias) is added to the band; its amplitudes are assumed, not fitted (`docs/calculators.md` 1.1c).
@@ -19,6 +19,7 @@ Rule: when something is implemented it moves from the second list to the first i
 * **Application**: PySide 6 editor with undo, polygon drawing and vertex handles, right-click menu (add or delete a vertex, add elements), rulers, properties in titled boxes, Stack-up tab with the cross-section and the simple stack-up fields, results views with animation, calculations in a cancellable separate process, HTML user guide, tooltips on every control.
 * **One-layer boards and the Lumped rings** (`validation.md` section 21): laminate nodes under the copper of a one-layer board (FVM, FDM, Lumped; series film in the Analytic), rings narrower than a cell merged; nine boards compared before and after against the 3D solid.
 * **Model corrections after a review** (`validation.md` section 20): the time constant and the step responses of a board with an outline leave out the cells off the board, the 3D solid keeps the laminate of a one-layer board, the transient mean counts only the board, and a power loop that does not settle is reported.
+* **From the effective-conductivity investigation** (`research/effective-conductivity/INTEGRATION.md` 1, 2 and 4): the thick-plate warning (`q'' t / (2 k)` above 5 % of the rise of a heater, `models.md` 4b); the option `Board.natural_form` (`general` default or `laminar` form of Churchill and Chu, both taken from a compilation of sources); the independent 3D solver as a test reference (`tests/helpers/layered3d.py`, `tests/test_layered_vs_3d.py`: the five models on a laminate coupon and on a one-layer board).
 * **Quality**: documentation gate on every function, stress tests of the application, the 3D check of the layered models, studies in `examples/` that reproduce every table of `validation.md`.
 
 ## What we want to implement
@@ -32,6 +33,10 @@ In the order of value for the effort.
 - **Heatsinks with a fan** (catalogue assemblies, for example 40 mm sets of about 1.1 K/W) as entries of the library.
 - **Heatsink from its geometry** (fin height, thickness, pitch, metal) with the channel effect between fins (Elenbaas, Bar-Cohen and Rohsenow) and the temperature-rise dependence of natural convection, compared with the catalogue θSA.
 - **Junction node (JESD15-3 two-resistor)**: only worth it with a heatsink on top (a bare mould changes the result by about 3 K, a heatsink by a factor of two); first in the FVM, top path only.
+
+### Large models
+
+- **Large 3D and layered models** (left open by `fix/gui-compute-hang`, 2026-10-24): reuse the factorisation across the computed-h loop of the 3D solid (the coefficients change only the diagonal of the faces, so the previous LU is a near-exact preconditioner for CG), a nested-dissection ordering, and decide whether the FVM and FDM need a hard limit too (measured: 1 million unknowns 97 s and 4.4 GB, 2 million 273 s and 8.4 GB; the panel only says "slow" above a million).
 
 ### Component element (the part of the plan not done)
 
@@ -57,6 +62,7 @@ Evidence for all of this is in `research.md` (sections E3 to E8 and R2 to R8).
 
 ### Board and stack-up
 
+* Stack-up: a third inner copper option of 30 µm (what JLCPCB's own 1 oz builds use, from a third-party collection, not the order page), if a fabricator table confirms it; not added now because the 0.5 oz and 1 oz (35 µm) options cover the published tables.
 * Stack-up: an outer dielectric (solder mask) above the top copper and below the bottom copper, a material per copper layer (alloys, plated copper), a library of fabricator stack-ups (Eurocircuits and Sierra Circuits publish no table that could be read).
 * Outline: arc and spline outlines, refinement near curves, holes and cut-outs inside the board (list of polygons with even-odd fill), a warning for a neck narrower than three cells, the Lumped network on any outline with geodesic rings (the Analytic series on an outline is probably not worth it).
 * Pad-size effect on Lumped and Analytic for a part near the edge of a cut board (10 to 18 % cool today, `validation.md` section 13).

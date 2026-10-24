@@ -35,7 +35,7 @@ SECTION_HINTS = {"new_board": "The values a board starts with when you choose Fi
                  "materials": "Copper and the simple-stack-up dielectric of a new board. The dielectrics of the advanced stack-up are a library.",
                  "calculator": "How uncertain the inputs of the power calculator are. The band (best case / nominal / worst case) moves each one to both ends and adds the effects as the root of the sum of squares.",
                  "solver": "The models and settings a new project starts with."}
-CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
+CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
 TIPS = {
     "width_mm": "Width of a new board in mm.", "height_mm": "Height of a new board in mm.", "layers": "Copper layers of a new board.",
@@ -44,6 +44,7 @@ TIPS = {
     "h_side": "Heat transfer coefficient of the edges (W/m²K).", "via_plating_um": "Copper plating of the via barrel in µm.",
     "h_mode": "How the face coefficients are found: typed, or computed from convection and radiation.", "emissivity_top": "Emissivity of the top face (0 to 1).",
     "emissivity_bottom": "Emissivity of the bottom face (0 to 1).", "orientation": "Mounting of the board for the computed coefficients.",
+    "natural_form": "Correlation of natural convection for a vertical board: general (Churchill and Chu, whole range) or laminar (same authors, Ra below 1e9); changes the rise by under 1 % on the example.",
     "air_speed": "Air speed along the board in m/s (computed mode).", "h_calibration": "Multiplier of the computed convection.",
     "heater_power_w": "Power of a new heater in W.", "heater_kind": "What a new heater is: a pure heat source (power only) or a component (junction, package, top path).", "heater_size_mm": "Side of a heater dropped from the right-click menu, in mm.",
     "zone_fill": "Copper fill (0 to 1) of a new zone.", "zone_size_mm": "Side of a zone dropped from the right-click menu, in mm.",
