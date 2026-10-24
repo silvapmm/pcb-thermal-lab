@@ -271,6 +271,8 @@ Maintainer's rule (2026-10-24): the work is done by four project agents in `.cla
 * **Change to the program** (a correction, an improvement of an algorithm, a new feature; `fix/` or `feature/` branch off `develop`): `executor` -> **`reviewer`** -> `maintainer` (documents, whole battery, commit, merge into `develop`, push).
 * **Closing an investigation, adopting a proposal or any change to a model**: the `reviewer` is called before the merge, with the claims and the numbers to check.
 
+The review of every research folder is tracked in `research/REVIEW.md` (status, program version of the last run, notes); update it in the commit of each review so that a new session continues from there.
+
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
 
 ## Decisions Log
