@@ -1,11 +1,11 @@
 """!
 @file fem3d_validation.py
-@brief Independent 3D finite-element check of the three models (offline script, not part of the program).
+@brief Independent 3D finite-element check of the layered models and the 3D solid (offline script, not part of the program).
 
 The board is solved as a real 3D solid with hexahedral finite elements (scikit-fem): copper slabs of their true thickness
 between FR-4 slabs, anisotropic FR-4, convection on the faces and edges, the heater as a heat flux on its footprint. The model
 therefore does not use the "one node per copper layer" idea of the three models of the program, and gives a reference for the
-error of that idea. The maximum surface temperature under the heater is compared with the FVM, Lumped and Analytic models.
+error of that idea. The maximum temperature of the top face is compared with the FVM, FDM, Lumped and Analytic models and the program's 3D solid.
 
 Usage: python research/solid3d-verification/scripts/fem3d_validation.py            (needs scikit-fem: pip install scikit-fem; not in requirements.txt)
 """
@@ -87,7 +87,7 @@ def solve_fem(problem, dxy_mm=1.0, n_diel=4, with_vias=True, block_sides=True):
     blk = next((s for s in problem.heatsinks if s.is_block() and s.layer == L - 1), None)
     z_off = 0.0
     if blk is not None:
-        t_pad, t_blk = blk.contact_r * 1.0, blk.thickness
+        t_pad, t_blk = blk.interface_resistance() * 1.0, blk.thickness   # The program's interface: sheet thickness / k when set, else contact_r
         n_blk = max(int(round(t_blk * 1e3)), 1)
         z_off = t_pad + t_blk
         below = list(np.linspace(0.0, t_blk, n_blk + 1)) + [t_blk + t_pad]
@@ -139,7 +139,6 @@ def solve_fem(problem, dxy_mm=1.0, n_diel=4, with_vias=True, block_sides=True):
     K = K + asm(conduction(m.k_fr4_inplane, m.k_fr4_through), fb)
     if blk is not None:
         K = K + asm(conduction(blk.k, blk.k), Basis(mesh, elem, elements=np.concatenate(blk_idx)))
-        k_pad = (blk.contact_r * 1.0) / blk.contact_r if blk.contact_r > 0 else 1.0
         K = K + asm(conduction(1.0, 1.0), Basis(mesh, elem, elements=np.concatenate(pad_idx)))
     basis = Basis(mesh, elem)
 

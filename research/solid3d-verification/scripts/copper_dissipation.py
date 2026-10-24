@@ -2,7 +2,9 @@
 @file copper_dissipation.py
 @brief Does the outer copper dissipate and spread heat like a heatsink? Pad-size sweep and copper versus heatsink, in every model and the 3D solid.
 
-@details Run with `--fem` to add the independent 3D solid (needs scikit-fem). Output: Markdown tables used in docs/validation.md section 3.1.
+@details Run with `--fem` to add the independent 3D solid (needs scikit-fem). Output: Markdown tables used in README section 4.2.1 of this folder and docs/validation.md section 3.1.
+         The last two columns of the second table are the heat leaving the top face inside and outside the first copper zone (FVM): the 40 mm pad, or the
+         heater's own 10 mm pad in the last row (not the 40 mm heatsink area).
 """
 
 import sys
@@ -17,12 +19,11 @@ from pcbthermal import Problem, analytic, fdm, fvm, lumped, solid3d
 FEM = "--fem" in sys.argv
 
 
-def board(pad_mm=None, h_extra=0.0, block=False):
+def board(pad_mm=None, h_extra=0.0):
     """!
     @brief 100 x 80 mm, 2 layers, 5 W on a 10 x 10 mm heater on top, optional square copper pad on top and a heatsink on the same area.
     @param pad_mm Side of the top copper pad centred on the heater in mm (None for no copper at all).
     @param h_extra Extra coefficient of a heatsink over the pad area in W/m2K (0 for none).
-    @param block True to make the heatsink a 3 mm aluminium block (needs a bottom pad, added automatically).
     @return Problem.
     """
     p = Problem.new(100, 80, 2)

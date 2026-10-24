@@ -9,6 +9,10 @@
              area (b = W / sqrt(pi)); the source temperature is the mean over the source and the one-dimensional resistances t/(kA) and 1/(hA) are subtracted.
          (2) **Grid convergence** (Richardson extrapolation and the grid convergence index of Roache, ASME V&V 20): a square source aligned with the cells, so that every mesh
              represents it exactly, solved with the cell size halved twice; the observed order, the extrapolated value and the GCI of the fine mesh are printed.
+         Two closed forms are printed beside the table (added by the review of 2026-10-24): the Bessel series of the circular tube, which reproduces Table 3,
+         psi = (16 / (pi eps)) sum_n J1(d_n eps)^2 / (d_n^3 J0(d_n)^2) over the roots d_n of J1, and the double cosine series of the same circular source on the
+         square tube of the same area that the 3D solid solves, psi = 4 a sum_{m,n even, not both 0} (2 pi a J1(l a) / l)^2 / ((pi a^2)^2 N_mn l) with
+         l = pi sqrt(m^2 + n^2) / W and N_mn = W^2 / 4 (W^2 / 2 when m or n is 0); their difference is the share of the square tube in the gap to the table.
 
 Usage: python research/solid3d-verification/scripts/solid3d_verification.py
 """
@@ -18,6 +22,7 @@ import os
 import sys
 
 import numpy as np
+from scipy.special import j0, j1, jn_zeros
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
@@ -26,6 +31,38 @@ from pcbthermal.geometry import coverage_fraction                       # noqa: 
 from pcbthermal.model import Dielectric                                 # noqa: E402
 
 PSI_ISOFLUX = {0.1: 0.9401, 0.2: 0.8009, 0.3: 0.6649, 0.4: 0.5337}      # Yovanovich 2003, Table 3, column m = 0 (isoflux), semi-infinite tube
+
+
+def psi_circular_series(eps, terms=20000):
+    """!
+    @brief Exact dimensionless spreading resistance of an isoflux circular source on a semi-infinite circular flux tube (the closed form behind Table 3).
+    @param eps Ratio a/b of the source radius to the tube radius.
+    @param terms Number of roots of J1 summed.
+    @return psi = 4 a k Rs.
+    """
+    d = jn_zeros(1, terms)
+    return float(16.0 / (math.pi * eps) * np.sum(j1(d * eps) ** 2 / (d ** 3 * j0(d) ** 2)))
+
+
+def psi_square_series(eps, terms=2000):
+    """!
+    @brief Exact dimensionless spreading resistance of an isoflux circular source at the centre of a semi-infinite square flux tube of the same area (side W = b sqrt(pi)).
+    @details The mean source temperature is the double cosine series of the channel; only even orders survive the centred source, whose Fourier
+             integral over the disc is 2 pi a J1(l a) / l (up to a sign that squares away).
+    @param eps Ratio a/b, b = W / sqrt(pi) the equivalent radius.
+    @param terms Highest order m, n of the series (even orders only are summed).
+    @return psi = 4 a k Rs with the same a and b as the circular case.
+    """
+    w = 1.0
+    a = eps * w / math.sqrt(math.pi)
+    m = np.arange(0, terms, 2) * math.pi / w
+    al, be = np.meshgrid(m, m, indexing="ij")
+    lam = np.hypot(al, be)
+    norm = np.where((al == 0) | (be == 0), w * w / 2.0, w * w / 4.0)
+    lam[0, 0] = 1.0                                                      # The uniform mode is the one-dimensional resistance: left out below
+    term = (2.0 * math.pi * a * j1(lam * a) / lam) ** 2 / ((math.pi * a * a) ** 2 * norm * lam)
+    term[0, 0] = 0.0
+    return float(4.0 * a * term.sum())
 
 
 def tube_problem(width_mm, thickness_m, k, source, h_bottom=1.0e4):
@@ -113,11 +150,12 @@ def main():
     """!
     @brief Print both verification tables.
     """
-    print("| eps = a/b | Yovanovich Table 3 (isoflux) | 3D solid, cell 1 mm | difference |")
-    print("| --: | --: | --: | --: |")
+    print("| eps = a/b | Yovanovich Table 3 (isoflux) | series, circular tube | series, square tube | 3D solid, cell 1 mm | 3D solid against the table | against the square tube |")
+    print("| --: | --: | --: | --: | --: | --: | --: |")
     for eps in (0.2, 0.3):
-        psi = circular_psi(eps)
-        print(f"| {eps} | {PSI_ISOFLUX[eps]:.4f} | {psi:.4f} | {100 * (psi / PSI_ISOFLUX[eps] - 1):+.1f} % |", flush=True)
+        psi, circ, square = circular_psi(eps), psi_circular_series(eps), psi_square_series(eps)
+        print(f"| {eps} | {PSI_ISOFLUX[eps]:.4f} | {circ:.4f} | {square:.4f} | {psi:.4f} | {100 * (psi / PSI_ISOFLUX[eps] - 1):+.1f} % | {100 * (psi / square - 1):+.1f} % |",
+              flush=True)
     g = grid_convergence()
     print(f"\nSquare source, cells 4, 2, 1 mm: Tmean rise per watt {g['values'][0]:.4f}, {g['values'][1]:.4f}, {g['values'][2]:.4f} K/W "
           f"(monotone: {g['monotone']}); observed order {g['order']:.2f}, extrapolated {g['extrapolated']:.4f} K/W, GCI of the fine mesh {100 * g['gci']:.2f} %")

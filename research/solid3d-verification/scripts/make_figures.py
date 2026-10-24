@@ -2,11 +2,12 @@
 @file make_figures.py
 @brief Pictures of the 3D solid verification, written to figures/ (committed, linked from the README files).
 
-@details fig_01: dimensionless spreading resistance of a circular source, Yovanovich's Table 3 against the 3D solid; fig_02: grid convergence of the source temperature with the
+@details fig_01: dimensionless spreading resistance of a circular source, Yovanovich's Table 3 and the exact series of the circular and square tubes against the 3D solid; fig_02: grid convergence of the source temperature with the
          Richardson extrapolation; fig_03: maximum temperature of every model against the independent 3D finite-element solid for growing copper pads (needs scikit-fem); fig_05: the five models against the
          independent 3D solver (lib/layered3d.py) on one-layer boards, before and after the laminate nodes of the layered models (study_one_layer_board.py); fig_06: what spreading resistance is, from the
          axisymmetric solver (needs out/spreading.json); fig_07: the slabs of a one-layer board in the 3D solid before and after the laminate was added, and the five models on it.
-Usage: python research/solid3d-verification/scripts/make_figures.py   (from the repository root; about 2 minutes)
+Usage: python research/solid3d-verification/scripts/make_figures.py [--reuse]   (from the repository root; about 4 minutes; --reuse draws figure 5 from
+       out/one_layer.json if it exists instead of re-running study_one_layer_board.py)
 """
 
 import os
@@ -30,20 +31,27 @@ OUT = HERE.parent / "figures"          # kept in the repository on purpose: the 
 
 def fig_psi():
     """!
-    @brief Yovanovich's Table 3 (isoflux) against the 3D solid for eps = 0.1 to 0.4.
+    @brief Yovanovich's Table 3 (isoflux), the exact series of the circular and of the square tube, and the 3D solid for eps = 0.1 to 0.4.
     @return None.
     """
     eps = sorted(e for e in sv.PSI_ISOFLUX if e > 0)
     ref = [sv.PSI_ISOFLUX[e] for e in eps]
+    square = [sv.psi_square_series(e) for e in eps]
     mine = [sv.circular_psi(e) for e in eps]
+    fine = np.linspace(0.05, 0.45, 41)
     fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-    axs[0].plot(eps, ref, "k-o", label="Yovanovich (2003), Table 3")
-    axs[0].plot(eps, mine, "s", color="#1d4ed8", label="3D solid, cell 1 mm")
+    axs[0].plot(fine, [sv.psi_circular_series(e) for e in fine], "k-", lw=1, label="exact series, circular tube")
+    axs[0].plot(fine, [sv.psi_square_series(e) for e in fine], "k--", lw=1, label="exact series, square tube of the same area")
+    axs[0].plot(eps, ref, "ko", label="Yovanovich (2003), Table 3")
+    axs[0].plot(eps, mine, "s", color="#1d4ed8", label="3D solid (square tube), cell 1 mm")
     axs[0].set_xlabel("ε = a / b"); axs[0].set_ylabel("ψ = 4 a k Rs")
     axs[0].legend(fontsize=8); axs[0].set_title("Spreading resistance of an isoflux circular source", fontsize=10)
-    axs[1].bar([f"{e:g}" for e in eps], [100 * (m / r - 1) for m, r in zip(mine, ref)], color="#1d4ed8")
+    x = np.arange(len(eps))
+    axs[1].bar(x - 0.2, [100 * (m / r - 1) for m, r in zip(mine, ref)], 0.4, color="#1d4ed8", label="3D solid against the table")
+    axs[1].bar(x + 0.2, [100 * (m / q - 1) for m, q in zip(mine, square)], 0.4, color="#93c5fd", label="against the square-tube series")
+    axs[1].set_xticks(x); axs[1].set_xticklabels([f"{e:g}" for e in eps])
     axs[1].axhline(0, color="black", lw=0.8)
-    axs[1].set_xlabel("ε"); axs[1].set_ylabel("Difference (%)")
+    axs[1].set_xlabel("ε"); axs[1].set_ylabel("Difference (%)"); axs[1].legend(fontsize=8)
     axs[1].set_title("Difference (largest at ε = 0.1: three cells across)", fontsize=9)
     fig.tight_layout()
     fig.savefig(OUT / "fig_01_spreading_resistance_vs_yovanovich.png", dpi=110)
@@ -161,6 +169,7 @@ def fig_spreading():
     fig.suptitle("Spreading resistance: heat leaving a small source into a large body, from a third solver (README 4.3)", fontsize=10)
     fig.subplots_adjust(top=0.84, bottom=0.12, left=0.04, right=0.98)
     fig.savefig(OUT / "fig_06_spreading_resistance_explained.png", dpi=105)
+    plt.close(fig)
 
 
 def fig_one_layer():
@@ -215,8 +224,8 @@ def fig_one_layer_independent():
     import json
     data_dir = HERE.parent / "out"
     path = data_dir / "one_layer.json"
-    if not path.exists():
-        data_dir.mkdir(exist_ok=True)
+    data_dir.mkdir(exist_ok=True)
+    if "--reuse" not in sys.argv or not path.exists():                 # Re-run the study unless asked to reuse its output: a stale file would draw old numbers
         subprocess.run([sys.executable, str(HERE / "study_one_layer_board.py"), "--json", str(path)], check=True)
     rows = json.loads(path.read_text())
     models = ("fvm", "fdm", "lumped", "analytic", "solid3d")
@@ -241,7 +250,7 @@ def fig_one_layer_independent():
 
 def main():
     """!
-    @brief Make the data figures (1 to 3, 6 and 7; the diagrams 4 and 5 are drawn by make_diagrams.py).
+    @brief Make the data figures (1 to 3 and 5 to 7; the diagrams 4 and 8 are drawn by make_diagrams.py).
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)

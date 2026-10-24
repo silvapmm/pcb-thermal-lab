@@ -84,12 +84,14 @@ def independent(pad, thickness_mm):
     return res["cell_max_source"]
 
 
-def rises(pad, thickness_mm, before=False):
+def rises(pad, thickness_mm, before=False, problem=None, cell_mm=0.5):
     """!
     @brief Rise of the board maximum in every model, with the corrections or with the behaviour before them.
     @param pad True for a 20 mm copper pad, False for full copper.
     @param thickness_mm Board thickness in mm.
     @param before True to switch the laminate nodes and the series film off and leave the Lumped rings unmerged.
+    @param problem Problem to run instead of iso_board(pad, thickness_mm) (part 1 passes board(pad)).
+    @param cell_mm Cell size in mm.
     @return Dict model -> rise in K.
     """
     saved_nodes, saved_w = laminate.nodes, lumped.RING_MIN_WIDTH
@@ -97,10 +99,11 @@ def rises(pad, thickness_mm, before=False):
         if before:
             laminate.nodes = lambda board, count=None: None
             lumped.RING_MIN_WIDTH = 0.0
-        r = simulate(iso_board(pad, thickness_mm), SolverOptions(models=MODELS, cell_mm=0.5)).results
+        p = iso_board(pad, thickness_mm) if problem is None else problem
+        r = simulate(p, SolverOptions(models=MODELS, cell_mm=cell_mm)).results
     finally:
         laminate.nodes, lumped.RING_MIN_WIDTH = saved_nodes, saved_w
-    return {m: r[m].t_max - 25.0 for m in MODELS}
+    return {m: r[m].t_max - p.board.ambient for m in MODELS}
 
 
 def main():
@@ -117,6 +120,13 @@ def main():
         r = simulate(board(pad), SolverOptions(models=MODELS, cell_mm=1.0)).results
         old = simulate(board(pad, thickness_mm=0.036), SolverOptions(models=("solid3d",), cell_mm=1.0)).results["solid3d"]
         print(f"| {label} | " + " | ".join(f"{r[m].t_max:.2f}" for m in MODELS) + f" | {old.t_max:.2f} |", flush=True)
+    print("\nPart 1, error of the rise against the program's 3D solid (with its laminate), before the laminate nodes -> now")
+    print("| copper | " + " | ".join(m for m in MODELS if m != "solid3d") + " |")
+    print("| :-- | " + " | ".join("--:" for m in MODELS if m != "solid3d") + " |")
+    for label, pad in (("full copper", False), ("20 mm pad", True)):
+        b, a = rises(pad, 1.6, True, board(pad), 1.0), rises(pad, 1.6, False, board(pad), 1.0)
+        print(f"| {label} | " + " | ".join(f"{100 * (b[m] / b['solid3d'] - 1):+.1f} -> {100 * (a[m] / a['solid3d'] - 1):+.1f} %" for m in MODELS if m != "solid3d") + " |",
+              flush=True)
     print("\nPart 2: error of the board maximum rise against the independent 3D solver, before the corrections -> now")
     print("| copper | thickness (mm) | independent (K) | " + " | ".join(MODELS) + " |")
     print("| :-- | --: | --: | " + " | ".join("--:" for _ in MODELS) + " |")

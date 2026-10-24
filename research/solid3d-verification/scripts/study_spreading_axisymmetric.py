@@ -1,6 +1,6 @@
 """!
 @file study_spreading_axisymmetric.py
-@brief Yovanovich's spreading resistance of an isoflux circular source on a flux tube from a third, independent solver: an axisymmetric finite-volume model in cylindrical coordinates (no square tube, no staircase circle), compared with the published table and with the program's 3D solid (README 4.2).
+@brief Yovanovich's spreading resistance of an isoflux circular source on a flux tube from a third, independent solver: an axisymmetric finite-volume model in cylindrical coordinates (no square tube, no staircase circle), compared with the published table and with the program's 3D solid (README 4.1 and 4.3).
 @details The source of radius a is on the top face of a cylinder of radius b and length L (insulated sides, T = 0 at the far end, k = 1 W/mK). The dimensionless resistance is psi = 4 a k Rs, with Rs = (mean source temperature) / Q - L / (k pi b^2), the one-dimensional resistance taken out; the table (Yovanovich 2003, Table 3, quoted in solid3d_verification.py) gives psi against eps = a / b. The grid is square (dr = dz = b / 400), the source covers a whole number of cells of the top row, and the length is 2 b (the one-dimensional resistance is subtracted; a longer tube changes psi by less than the quoted digits, checked here for eps = 0.2). Writes out/spreading.json and out/spreading_field.npz (the temperature field for eps = 0.3) read by make_figures.py.
          Run: .venv/bin/python research/solid3d-verification/scripts/study_spreading_axisymmetric.py (from the repository root; about 20 seconds).
 """
