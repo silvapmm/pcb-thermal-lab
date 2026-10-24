@@ -23,9 +23,10 @@ Status: **implemented** in the program (see `IMPLEMENTED.md`). Investigated on 2
 | `scripts/solid3d_verification.py` | The analytical benchmark (Yovanovich) and the grid-convergence study of the 3D solid. |
 | `scripts/fem3d_validation.py` | The independent 3D finite-element solid (scikit-fem, **not** in `requirements.txt`: `pip install scikit-fem`), also used by `models-comparison/validation_study.py --fem`. |
 | `scripts/copper_dissipation.py` | The pad-size sweep and copper against heatsink, in every model and the FEM (`--fem`). |
-| `scripts/study_one_layer_board.py` | A one-layer board in the five models, and the 3D solid without its laminate (the old behaviour; about 30 seconds). |
-| `scripts/make_figures.py` | Draws the four figures (needs scikit-fem for the third; about 2 minutes). |
-| `figures/` | `fig_01` to `fig_04`. |
+| `scripts/study_one_layer_board.py` | A one-layer board in the five models and the 3D solid without its laminate (part 1), and every model against the independent solver before and after the laminate nodes (part 2; about 2 minutes). |
+| `lib/layered3d.py` | The independent 3D finite-volume solver (a copy of `research/effective-conductivity/lib/layered3d.py` on the research branch). |
+| `scripts/make_figures.py` | Draws the five figures (needs scikit-fem for the third; about 4 minutes). |
+| `figures/` | `fig_01` to `fig_05`. |
 | `IMPLEMENTED.md`, `LOG.md` | Where it lives in the program; what was read and how. |
 
 ## 4. How to run, and the results
@@ -143,10 +144,24 @@ The 3D solid builds its slabs from the copper layers and the dielectric gaps; a 
 
 | copper | FVM | FDM | 3D solid | Lumped | Analytic | 3D solid before |
 | :-- | --: | --: | --: | --: | --: | --: |
-| full copper | 56.43 | 56.43 | 57.38 | 56.84 | 56.53 | 58.72 |
-| 20 mm pad | 75.22 | 73.12 | 81.92 | 72.36 | 74.53 | 119.97 |
+| full copper | 57.35 | 57.35 | 57.38 | 57.77 | 57.09 | 58.72 |
+| 20 mm pad | 79.94 | 76.49 | 81.92 | 75.82 | 75.64 | 119.97 |
 
-With full copper the 3D solid is 3 % of the rise above the layered models and with a 20 mm pad 13 %: in the 3D solid the bottom face loses heat through 1.6 mm of FR-4 (0.3 W/mK), in the layered models the bottom coefficient acts on the copper node itself. An independent 3D finite-volume solver with patterned copper (`research/effective-conductivity/` section 4.11 on the branch `research/gerbers`; FR-4 isotropic at 0.3 W/mK so that both represent the same board, copper 385 W/mK, no edge loss, 0.5 mm cells) confirms it: with a 20 mm pad the 3D solid is +0.2 % of the rise from it (before the correction +40 %); with full copper both the corrected and the old 3D solid agree with it within 0.2 %, so full copper does not test the correction. The FVM is 0.9 to 4.4 % low with full copper (0.8 to 3.2 mm) and 10 % low with the pad, because its bottom film acts on the copper node and the laminate under it is missing (a candidate correction, the film in series with the laminate, is measured in that folder: -0.1 to -1.1 % and -7.6 %; `docs/roadmap.md`). *An earlier version of this section quoted 33.71 K against 33.43 K (-0.8 %) from a check with mismatched copper and edge loss; it is replaced by these numbers.* Regression test: `tests/test_solid3d.py` (`test_a_one_layer_board_keeps_its_laminate`).
+With full copper the 3D solid and the layered models now agree within 1 % of the rise, and with a 20 mm pad the FVM is 7 % of the rise below the 3D solid: the layered models have two laminate nodes under the copper of a one-layer board (`pcbthermal/laminate.py`, `docs/validation.md` section 21); before them the bottom coefficient acted on the copper node itself and the gaps were 3 % and 13 %. An independent 3D finite-volume solver with patterned copper (`research/effective-conductivity/` section 4.11 on the branch `research/gerbers`; FR-4 isotropic at 0.3 W/mK so that both represent the same board, copper 385 W/mK, no edge loss, 0.5 mm cells) confirms it: with a 20 mm pad the 3D solid is +0.2 % of the rise from it (before the correction +40 %); with full copper both the corrected and the old 3D solid agree with it within 0.2 %, so full copper does not test the correction. The FVM is 0.9 to 4.4 % low with full copper (0.8 to 3.2 mm) and 10 % low with the pad, because its bottom film acts on the copper node and the laminate under it is missing (corrected since with two laminate nodes under the copper: 0.0 % with full copper and -2.5 % with the pad; `docs/validation.md` section 21). *An earlier version of this section quoted 33.71 K against 33.43 K (-0.8 %) from a check with mismatched copper and edge loss; it is replaced by these numbers.* Regression test: `tests/test_solid3d.py` (`test_a_one_layer_board_keeps_its_laminate`).
+
+**Part 2: every model against the independent solver** (`lib/layered3d.py`, a copy of the solver of `research/effective-conductivity/` on the research branch, which reproduces published cases; FR-4 isotropic at 0.3 W/mK so that both represent the same board, copper 385 W/mK, films 10 and 15 W/m²K, no edge loss, 0.5 mm cells; the study's "before" switches the laminate nodes and the series film off and leaves the Lumped rings unmerged, and reproduces the numbers measured on the old code):
+
+| copper | thickness (mm) | independent (K) | fvm | fdm | solid3d | lumped | analytic |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| full | 0.8 | 33.71 | -0.9 -> -0.0 % | -0.9 -> -0.0 % | +0.0 -> +0.0 % | -2.5 -> -1.6 % | -1.0 -> -0.2 % |
+| full | 1.6 | 33.71 | -1.9 -> -0.0 % | -1.9 -> -0.0 % | +0.0 -> +0.0 % | -3.5 -> -1.6 % | -2.1 -> -0.4 % |
+| full | 3.2 | 33.84 | -4.4 -> -0.1 % | -4.4 -> -0.1 % | +0.0 -> +0.0 % | -5.9 -> -1.6 % | -4.5 -> -1.3 % |
+| 20 mm pad | 0.8 | 78.56 | -6.1 -> -1.6 % | -10.7 -> -7.6 % | +0.1 -> +0.1 % | -20.3 -> -16.9 % | -36.7 -> -35.9 % |
+| 20 mm pad | 1.6 | 72.12 | -10.0 -> -2.5 % | -13.5 -> -7.4 % | +0.2 -> +0.2 % | -20.3 -> -14.7 % | -30.5 -> -28.8 % |
+
+![Every model against the independent solver on one-layer boards](figures/fig_05_one_layer_against_independent.png)
+
+*Figure 5: `figures/fig_05_one_layer_against_independent.png`: the error of the maximum rise of every model against the independent 3D solver, now (filled) and before the laminate nodes (dashed outline).*
 
 ![A one-layer board in the 3D solid before and after, and the models on it](figures/fig_04_one_layer_board.png)
 

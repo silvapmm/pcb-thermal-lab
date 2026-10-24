@@ -520,7 +520,8 @@ def _solve_computed_h(problem, name, o):
     for it in range(1, 31):
         b.h_top, b.h_bottom = ht, hb
         res = _run_model(p, name, o)
-        nt, nb, info = convection.board_h(problem.board, res.layer_mean[0], res.layer_mean[-1])
+        # The bottom face of a one-layer board is its last laminate node (laminate.py), not the copper node
+        nt, nb, info = convection.board_h(problem.board, res.layer_mean[0], res.extras.get("bottom_face_mean", res.layer_mean[-1]))
         done = abs(nt - ht) < 0.01 and abs(nb - hb) < 0.01
         ht, hb = nt, nb
         if done:

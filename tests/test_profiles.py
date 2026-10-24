@@ -8,7 +8,7 @@ import json
 import numpy as np
 import pytest
 
-from pcbthermal import Problem, SolverOptions, SquareWave, fvm, lumped, analytic, profiles, simulate
+from pcbthermal import Problem, SolverOptions, SquareWave, fvm, laminate, lumped, analytic, profiles, simulate
 from pcbthermal.examples import example_board
 from pcbthermal.model import problem_from_dict, problem_to_dict, reference_problem
 from pcbthermal.profiles import ProfileError, ProfileOptions
@@ -74,8 +74,10 @@ def test_error_budget_is_shared_between_heaters():
     assert sorted(x.regime for x in d) == ["average", "resolved", "resolved"]
 
 
-def test_fvm_matches_the_exact_rc_response_of_a_uniform_board():
+def test_fvm_matches_the_exact_rc_response_of_a_uniform_board(monkeypatch):
     # One layer, a heater over the whole board, insulated edges: the temperature is uniform and obeys C T' = P(t) - G T
+    # (a single node: the laminate nodes of a one-layer board are switched off, the time integration is what is tested)
+    monkeypatch.setattr(laminate, "LAMINATE_NODES", 0)
     p = reference_problem(layers=1, heater_mm=100.0, power=10.0)
     p.board.h_side = None
     net = fvm.Network(p, 8, 8, assemble=False)
@@ -202,7 +204,7 @@ def test_table_profile_energy_average_and_hold():
             bad.validate()
 
 
-def test_square_wave_as_table_gives_the_same_decision():
+def test_square_wave_as_table_gives_the_same_decision(monkeypatch):
     p = example_with_profiles()
     resp = profiles.step_response_fvm(p, 2.0)
     for i in (0, 1):
@@ -210,6 +212,7 @@ def test_square_wave_as_table_gives_the_same_decision():
         assert profiles.wave_response(resp, i, w.as_table()) == pytest.approx(profiles.wave_response(resp, i, w), rel=1e-9)
     # Against the exact RC solution (uniform board): a three-level table
     from pcbthermal import TableProfile
+    monkeypatch.setattr(laminate, "LAMINATE_NODES", 0)                 # The exact RC solution is that of a single node
     u = reference_problem(layers=1, heater_mm=100.0, power=10.0)
     u.board.h_side = None
     net = fvm.Network(u, 8, 8, assemble=False)

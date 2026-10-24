@@ -334,11 +334,33 @@ def test_solver_panel_every_option(win, qtbot):
 
 # ------------------------------------------------------------------ odd boards
 
-@pytest.mark.parametrize("build", ["one_layer", "twelve_layers", "tiny_board", "big_board", "heater_outside", "zero_power",
+def _one_layer_variant(kind):
+    """!
+    @brief One-layer boards that exercise the laminate nodes (pcbthermal/laminate.py) with a metal block, an outline, and a profile with computed coefficients.
+    @param kind "block", "outline" or "profile".
+    @return Problem.
+    """
+    import math
+    from pcbthermal import SquareWave
+    p = Problem.new(60, 40, 1).add_zone(1, rect=(10, 10, 50, 30)).add_heater(1, 1.0, rect=(25, 15, 31, 21))
+    if kind == "block":
+        p.add_heatsink(1, 10.0, rect=(15, 12, 45, 28), thickness_mm=3.0)
+    elif kind == "outline":
+        p.set_outline([[30 + 19.5 * math.cos(a), 20 + 19.5 * math.sin(a)] for a in (2 * math.pi * k / 48 for k in range(48))])
+    else:
+        p.board.h_mode = "computed"
+        p.heaters[0].set_profile(SquareWave(p_on=4.0, period=60.0, duty=0.25))
+    return p
+
+
+@pytest.mark.parametrize("build", ["one_layer", "one_layer_block", "one_layer_outline", "one_layer_profile", "twelve_layers", "tiny_board", "big_board", "heater_outside", "zero_power",
                                    "no_zone", "tiny_heater", "all_inner_heater", "overlapping", "many_vias", "corner_heatsink"])
 def test_odd_boards_run_or_refuse_cleanly(win, qtbot, popups, build):
     p = {
         "one_layer": lambda: Problem.new(60, 40, 1).add_full_copper().add_heater(1, 1.0, rect=(20, 15, 30, 25)),
+        "one_layer_block": lambda: _one_layer_variant("block"),
+        "one_layer_outline": lambda: _one_layer_variant("outline"),
+        "one_layer_profile": lambda: _one_layer_variant("profile"),
         "twelve_layers": lambda: Problem.new(60, 40, 12).add_full_copper(list(range(1, 13))).add_heater(1, 2.0, rect=(20, 15, 30, 25)),
         "tiny_board": lambda: Problem.new(8, 6, 2).add_full_copper().add_heater(1, 0.1, rect=(2, 2, 5, 4)),
         "big_board": lambda: Problem.new(400, 300, 2).add_full_copper().add_heater(1, 20.0, rect=(100, 100, 140, 140)),

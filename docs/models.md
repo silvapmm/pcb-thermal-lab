@@ -72,7 +72,7 @@ A reduction of the FVM network (`lumped.py`). For every heater the cells are gro
 so any heater shape and the real board outline are followed. For every layer and ring the geometry is aggregated; heat crosses offset contours of length `L_k = A_k/Δ_k`:
 `R_{k,k+1} = Δ_k/(2 S_k L_k) + Δ_{k+1}/(2 S_{k+1} L_{k+1})`. The interior of the heated footprint comes from the logarithmic potential of the uniformly heated footprint, with the exact disc solution with vertical
 losses (modified Bessel functions `I₀, I₁`: factors `f_R = 4(I₀ − 2I₁/x)/(x I₁)` for the resistance and `f_P = 4(2/x² − 1/(x I₁))` for the peak, `x = a/λ`, `λ = √(S/g_eff)`). Each heater gives a small dense
-system; the problem is linear so the board is the sum over heaters (mutual heating is one heater's profile read at the distance of the other).
+system; the problem is linear so the board is the sum over heaters (mutual heating is one heater's profile read at the distance of the other). Rings narrower than a cell are merged (`lumped.ring_edges`), so the result does not depend on the ring count (10, 20 and 40 rings within 0.2 % of each other on the coupon of `validation.md` section 21).
 *Use it* for fast exploration and sweeps; it is weak when a copper edge crosses the heater, at corners (−8.7 %) and for thin heaters (+9.5 %).
 
 ### 2.4 Analytic (Fourier series) (theory §6)
@@ -85,6 +85,10 @@ The multilayer fin equation on the rectangle with insulated edges, expanded in `
 
 *Use it* for instant answers on boards close to uniform, to understand a design, and as an independent check. It fails when the copper is not uniform near the heater (24 % low with a 20 mm pad, 25 % when an edge crosses it);
 the input checks warn.
+
+### 2.4.1 One-layer boards (theory §1.4)
+
+A one-layer board has its copper on the top face and the laminate under it. The FVM, FDM and Lumped models give it two laminate nodes under the copper node (`laminate.py`), so the heat crosses the laminate on its way to the bottom face and spreads sideways in it; the Analytic model puts the laminate in series with the bottom film. Against an independent 3D solver: full copper within 0.1 % (FVM, FDM), a bare 20 mm pad −2.5 % (FVM), −7.4 % (FDM), −15 % (Lumped), −29 % (Analytic); the 3D solid +0.2 % (`validation.md` section 21). For a board with little copper on one layer use the FVM or the 3D solid.
 
 ### 2.5 Which model for which job
 

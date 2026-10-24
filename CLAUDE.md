@@ -124,6 +124,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   solid3d.py           3D finite-volume solid (real slabs per copper layer, gap and block; steady state; comparison model, key `solid3d`)
   fdm.py               node-centred finite-difference model of the same layered physics (steady state, power-step animation, step responses and power profiles, `--model fdm|compare`; reuses the FVM transient machinery)
   fvm.py               reference finite-volume model: steady (direct, CG, SOR) and transient
+  laminate.py          the laminate of a one-layer board: node layers under the copper (FVM, FDM, Lumped) or a series film (Analytic)
   lumped.py            ring network per heater, superposed
   analytic.py          multilayer cosine series + local via/heatsink corrections
   checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
@@ -138,7 +139,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor, rulers), panels, stackup (cross-section tab), calculator, help (guide, About), tips (tooltips), compute (calculation process), results_view, main_window, theme
-tests/                 pytest suite (about 380 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (about 390 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
 examples/              example boards (`.pcbt.json`), `csv_profiles/` (documented CSV power-profile example) and `make_screenshots.py`; the studies that used to live here are in `research/` (one folder per investigation, see `research/INDEX.md`)
 docs/                  versions.md (what was implemented in every version), models.md (models, features, API), theory.md (every equation and approximation of every model; update it with any model change), calculators.md (the auxiliary calculators: formulas, validation, limits, sources), validation.md (every scenario in every model, 3D check, history), roadmap.md (what is implemented and what we want to implement), research.md (open investigations, empty when nothing is pending), images/
 ico/                   application icon
@@ -249,6 +250,8 @@ force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/`
 ## Decisions Log
 
 Record important decisions here, newest first, with date and reason.
+
+- 2026-10-24: **One-layer boards and the Lumped rings** (maintainer: close the fix branch, test with more complicated boards before and after): a one-layer board gets two laminate nodes under the copper in the FVM, FDM and Lumped (`laminate.py`; chosen from a sweep, 1 to 4 nodes: -4.1, -2.5, -1.8, -1.5 % on a bare pad) and a series film in the Analytic (laminate nodes made its bare-pad estimate worse); the Lumped merges rings narrower than a cell (`RING_MIN_WIDTH = 1`; the result no longer grows with the ring count). Nine boards against the 3D solid, run on the program before and after: mean error FVM 3.8 -> 1.0 %, FDM 5.3 -> 2.9 %, Lumped 6.9 -> 5.2 %, Analytic 5.5 -> 5.5 % (better with full copper, hotter on partial copper where its uniform sheet already overestimated); multilayer boards unchanged. Left: bare pads on one-layer boards in Lumped and Analytic, FDM pad-edge sampling (roadmap). Found on the way and fixed: the Analytic heat balance with a metal block counted the face hidden by the block (9 % off; reporting only, temperatures unchanged).
 
 - 2026-10-24: **Model corrections after a review** (maintainer: "corrigir os nossos modelos é o mais importante"; branch `fix/model-corrections`): the pin of the cells off a board with an outline (1 W/K) is kept apart as `g_pin` and left out of the board time constant (`fvm.board_time_constant`: a round board read 0.02 s instead of 107 s, so the step responses of the power profiles stopped at 12 % of the steady resistance) and of the transient mean (`fvm.mean_weights`); the 3D solid builds the laminate of a one-layer board as four FR-4 slabs (it had only the copper: 120 °C against about 74 on a 20 mm pad; an independent 3D solver with patterned copper puts it within 0.2 % on that pad, it was 40 % high; full copper does not test it, the old model was within 0.2 % there too); a power loop that does not settle in 80 iterations warns. The Lumped's dependence on the ring count (no convergence with more rings) is recorded in the roadmap, not changed: the rings are tuned at 10 and a new construction is a project of its own. The plate check of the documents (+4.5 %) was a 24 mm source made by `round()`; corrected to +0.6 / −0.8 / −4.6 % with Seri Lee (1998) as the source.
 
