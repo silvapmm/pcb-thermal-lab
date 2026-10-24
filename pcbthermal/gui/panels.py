@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import blocks
+from .. import solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -1197,7 +1197,9 @@ class SolverPanel(QWidget):
                 "solid3d": "The board as a real 3D solid (every copper layer and dielectric gap a slab, vias with their copper area, metal blocks as "
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
-                           "than the heater, a copper edge across a footprint).",
+                           "than the heater, a copper edge across a footprint). "
+                           f"Limited to {solid3d.MAX_CELLS:,} unknowns (shown below the cell size; about 4 GB of memory and "
+                           "two minutes per solve at the limit): a larger model is not run and the other models still answer.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
         for k, c in self.cb.items():
@@ -1314,10 +1316,19 @@ class SolverPanel(QWidget):
         c = self.cell.value()
         n = max(int(round(b.width * 1000 / c)), 2) * max(int(round(b.height * 1000 / c)), 2) * b.layers
         text = f"{n:,} unknowns"
+        if n > 1_000_000:
+            # The layered models have no hard limit; measured with the direct solver: 1 million unknowns 97 s and 4.4 GB, 2 million 273 s and 8.4 GB
+            text += " (slow: about 4 GB of memory per million)"
         if self.cb["solid3d"].isChecked():
-            # The 3D solid has a slab for every copper layer and four for every gap (plus the blocks)
-            n3 = n // b.layers * (b.layers + 4 * (b.layers - 1) + (4 if blocks.has_blocks(self.doc.problem) else 0))
-            text += f" (3D solid: {n3:,}" + ("; slow, try a larger cell)" if n3 > 500_000 else ")")
+            # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
+            n3 = solid3d.unknowns(self.doc.problem, c)[0]
+            if n3 > solid3d.MAX_CELLS:
+                note = f"; above {solid3d.MAX_CELLS:,}: it will not run, use a larger cell"
+            elif n3 > solid3d.MAX_CELLS // 2:
+                note = "; slow: minutes and GB of memory"
+            else:
+                note = ""
+            text += f" (3D solid: {n3:,}{note})"
         self.cells_label.setText(text.replace(",", " "))
 
     def _apply(self, *_):

@@ -140,7 +140,7 @@ The transient machinery of the FVM is reused unchanged (`fvm.transient_from_netw
 
 `solid3d.py` drops the "one node per copper layer" idea. The plan grid is the FVM's (`nx × ny`, same cells); across the thickness the stack is cut into **real slabs** from the top face down:
 a copper slab of thickness `t_cu,l` for each layer, `n_diel = 4` equal slabs of `d/4` in each dielectric gap (a one-layer board has no gap: its laminate, the slab of the layered models minus the copper, is cut into `n_diel` FR-4 slabs under the copper, so it spreads heat and the bottom face loses heat through it), and for a block under (or over) the board a **pad slab** (the interface, thickness `R''·1 W/mK`, conductivity 1 W/mK so that its resistance per area is exactly `R''`)
-followed by `n` metal slabs (`n = round(thickness/1 mm)`, 1 to 6). Every cell of every slab has one unknown; there are `n_slabs × nx × ny` unknowns (refused above 2·10⁶).
+followed by `n` metal slabs (`n = round(thickness/1 mm)`, 1 to 6). Every cell of every slab has one unknown; there are `n_slabs × nx × ny` unknowns (refused above 250 000, counted before the model is built: `solid3d.unknowns`; it was 2·10⁶, which let a run go on for hours).
 
 **Cell materials** (volume averages on the structured grid, the tiled-conductivity method of PCB thermal models):
 
@@ -160,7 +160,7 @@ with `Δ` the edge length of the cell face. A block hides the board face under i
 The heater power goes to the copper slab of its layer with the weights of section 1.3. The system is solved directly as in the FVM; the result keeps the layout of the FVM (the temperature of the copper slab of each layer, plus the block fields), so every plot and table works.
 
 **What it measures**: the error of the layered idealisation on **your** board. Convergence: 4 slabs per gap is within 1 % of 8 even on a heater-sized pad (the hardest case, where the FV and the finite-element solids bracket the limit about ±4 %, `validation.md` section 3).
-**Limits**: the barrel is a lumped area, copper is one slab thick, a block contact is perfect over the pad, the cost grows quickly with layers and cells (the direct solve of 160 000 unknowns takes about 12 s); steady state only.
+**Limits**: the barrel is a lumped area, copper is one slab thick, a block contact is perfect over the pad, the cost grows quickly with layers and cells (the direct solve of 160 000 unknowns takes about 12 s; on a square 4-layer board of 16 slabs, measured 2026-10-24 on a loaded 16 GB machine: 160 000 unknowns 49 s and 2.2 GB, 254 000 130 s and 4.4 GB, 512 000 320 s and 8 GB, a million not finished in 25 minutes; the fill-in grows with the width of the plan times the slab count); steady state only.
 
 ## 5. Lumped: thermal network by rings (LPTN)
 
