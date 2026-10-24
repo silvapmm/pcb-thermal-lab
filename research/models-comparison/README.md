@@ -1,6 +1,6 @@
 # The five models against each other: scenarios, grids, solvers, time
 
-Status: **implemented**; the comparison is repeated whenever a model changes. Studies (all in `scripts/`): `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py`, `study_lumped_rings.py`, `study_complex_boards_independent.py`, `study_time_and_coefficients.py`; figures: `make_figures.py`, `make_diagrams.py`. Every number of section 4 was re-run on the program at `0ea5f07` (reviewed 2026-10-24, see section 7); where it is from somewhere else the text says so.
+Status: **implemented**; the comparison is repeated whenever a model changes. Studies (all in `scripts/`): `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py`, `study_lumped_rings.py`, `study_complex_boards_independent.py`, `study_time_and_coefficients.py`, `study_offgrid_heater.py`; figures: `make_figures.py`, `make_diagrams.py`. Every number of section 4 was re-run on the program at `0ea5f07` (reviewed 2026-10-24, see section 7); where it is from somewhere else the text says so.
 
 ## 1. The questions
 
@@ -40,6 +40,7 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 | `scripts/study_complex_boards.py` | Nine boards closer to real ones in every model against the 3D solid; runs on any version of the program (`--root`) and compares two runs (`--compare`), section 4.8 (about 2 minutes per run). |
 | `scripts/study_lumped_rings.py` | The Lumped model against the ring count and the source size, before and after the minimum ring width (section 4.9; about 1 minute). |
 | `scripts/study_complex_boards_independent.py` | Three one-layer boards of section 4.8 against the independent solver of `../solid3d-verification/lib/layered3d.py`, and the grid error of the 3D solid that section 4.8 uses as its reference (about 2 minutes). |
+| `scripts/study_offgrid_heater.py` | A heater whose edges fall between cell edges: FVM and FDM (area and point sampling) against the FVM at 0.1 mm (section 4.2.1; seconds). |
 | `scripts/study_time_and_coefficients.py` | The exact check of the time integrator, the power-step animations, the power-profile and CSV examples and the computed coefficients (sections 4.6 and 4.7; about 1 minute). |
 | `scripts/make_figures.py` | Draws the data figures 1 to 3 and 4 to 7 (about 8 minutes; figure 4 needs `out/complex_boards_before.json`, see section 4.8). |
 | `scripts/make_diagrams.py` | Draws the schematic diagram and the illustrations (figures 8 to 10; no data, no program; uses `research/diagram_kit.py`). |
@@ -52,6 +53,7 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 .venv/bin/python research/models-comparison/scripts/accuracy_study.py
 .venv/bin/python research/models-comparison/scripts/stress_study.py
 .venv/bin/python research/models-comparison/scripts/solver_equivalence.py
+.venv/bin/python research/models-comparison/scripts/study_offgrid_heater.py
 .venv/bin/python research/models-comparison/scripts/study_time_and_coefficients.py
 .venv/bin/python research/models-comparison/scripts/study_complex_boards_independent.py
 .venv/bin/python research/models-comparison/scripts/make_figures.py
@@ -128,8 +130,16 @@ Reading:
 | 0.5 | 85.87 | 85.22 | 85.58 | 85.56 |
 | 0.25 | 85.95 | 85.67 | 85.80 | - |
 
-The FVM rises monotonically to its limit (within 0.25 % of the 0.25 mm value from 1 mm; the via array is a point feature that keeps adding a little constriction as the mesh is refined). The classic point-sampled FDM falls from above it (+2.4 °C at 4 mm, +0.8 at 2 mm) to below it (−0.7 °C at 1 mm, −0.3 at 0.5 mm, −0.15 at 0.25 mm) because it samples the copper edge, the heater footprint and the vias at points; area sampling stays below the FVM at every spacing (−0.3 to −1.4 °C) and is not monotonic either (84.66 °C at 2 mm, 84.38 at 1 mm): on this board, with the via array, it does not remove the dependence on the grid. *An earlier version said the FDM "jumps by about ±0.5 °C" and that area sampling "removes the jumps"; the table it stood under does not show that.* The 3D solid (program, finite volumes) is not monotonic either (85.98 °C at 1 mm, 85.56 at 0.5 mm; the finite-element solid gives 85.55 and 85.59, `docs/validation.md` section 3.1). A board whose heater is not on the grid
-(reference board, 4 W, 10.4 × 10.7 mm heater at 30.3 mm; 1 mm cells; reference 103.63 °C at 0.2 mm): FVM 103.59, FDM area 103.18, FDM point 105.69 (copied from `docs/validation.md`; **not reproduced**: no script prints it and the position "at 30.3 mm" does not define the board; three readings of it give an FVM of 102.01, 104.70 and 100.70 °C, none 103.59).
+The FVM rises monotonically to its limit (within 0.25 % of the 0.25 mm value from 1 mm; the via array is a point feature that keeps adding a little constriction as the mesh is refined). The classic point-sampled FDM falls from above it (+2.4 °C at 4 mm, +0.8 at 2 mm) to below it (−0.7 °C at 1 mm, −0.3 at 0.5 mm, −0.15 at 0.25 mm) because it samples the copper edge, the heater footprint and the vias at points; area sampling stays below the FVM at every spacing (−0.3 to −1.4 °C) and is not monotonic either (84.66 °C at 2 mm, 84.38 at 1 mm): on this board, with the via array, it does not remove the dependence on the grid. *An earlier version said the FDM "jumps by about ±0.5 °C" and that area sampling "removes the jumps"; the table it stood under does not show that.* The 3D solid (program, finite volumes) is not monotonic either (85.98 °C at 1 mm, 85.56 at 0.5 mm; the finite-element solid gives 85.55 and 85.59, `docs/validation.md` section 3.1). A board whose heater is not on the grid (`scripts/study_offgrid_heater.py`; reference board, 2 layers, full copper, 4 W, heater polygon (30.3, 30.3) to (40.7, 41.0) mm, area 10.4 × 10.7 = 111.28 mm²; reference: FVM at 0.1 mm, where every edge is on the grid, 102.25 °C):
+
+| Cell [mm] | FVM | FDM (area) | FDM (point) |
+| --: | --: | --: | --: |
+| 2 | 101.77 (−0.48) | 100.72 (−1.54) | 104.98 (+2.72) |
+| 1 | 102.01 (−0.25) | 101.59 (−0.67) | 104.36 (+2.11) |
+| 0.5 | 102.29 (+0.04) | 102.25 (0.00) | 102.50 (+0.25) |
+| 0.2 | 102.25 (−0.01) | 102.24 (−0.01) | 102.45 (+0.20) |
+
+(differences from the 0.1 mm FVM in brackets, °C). The FVM, which weights each cell by the covered fraction, is within 0.5 °C from 2 mm; area sampling converges as well; point sampling sits above the reference by 2 to 3 °C at 1 to 2 mm. **The earlier case of `docs/validation.md` (FVM 103.59, FDM area 103.18, FDM point 105.69; "10.4 × 10.7 mm heater at 30.3 mm", reference 103.63 °C) is not reproduced**: no script printed it, the history of the repository does not hold the board (the number appears first in the commit that merged the documents), and the readings tried (heater corner or centre at 30.3 mm in x, y or both; 2 layers, 1 mm) gave 100.70 to 104.70 °C, none 103.59. The case above replaces it; the point-sampling excess has the same sign and size as the old 105.69 against 103.63.
 
 ![Error of the four models against the FVM on 19 scenarios](figures/fig_01_models_against_the_fvm.png)
 
@@ -347,7 +357,7 @@ Own computation. The removed program is documented by its code at tag `legacy-wx
 The `reviewer` agent re-ran every script of the folder on the program at `0ea5f07` (`validation_study.py` with and without `--fem`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py` with `--compare` against `out/complex_boards_before.json`, `study_lumped_rings.py`) and compared every printed number with this README and with `docs/validation.md`. What it found and changed:
 
 1. **Stale numbers.** The Lumped column of the 19 scenarios (section 4.2, both tables) held the values from before the minimum ring width in six rows (up to 0.07 K; `docs/validation.md` already had the current ones). The two step animations of 4.6 had stale FVM rows (0.2 to 0.4 °C) and a stale FDM row; the FVM-Analytic gap is 2.2 °C, not "within 2". The solver table of 4.4 showed CG on one board only, left out the fifth board and quoted timings from before the symmetric ordering. All replaced by the printed output.
-2. **Numbers no script printed.** Sections 4.6 and 4.7 came from `docs/validation.md` and the tests; `scripts/study_time_and_coefficients.py` now prints them. The off-grid heater of 4.2.1 (103.59 °C) could not be rebuilt from its description and is marked as not reproduced.
+2. **Numbers no script printed.** Sections 4.6 and 4.7 came from `docs/validation.md` and the tests; `scripts/study_time_and_coefficients.py` now prints them. The off-grid heater of 4.2.1 (103.59 °C) could not be rebuilt from its description or from the history; it is replaced by an explicit polygon case (`scripts/study_offgrid_heater.py`, 102.25 °C reference) and the old number is stated as not reproduced.
 3. **Statements the tables contradict.** The FDM does not "jump by ±0.5 °C" around the FVM and area sampling does not remove the grid dependence on the example board (4.2.1); the FDM is not "within about 1 %" of the FVM on the board of 4.5 (−2.4 % at 1 mm); the Analytic is not "exact" on uniform boards (0.3 to 1.0 % from the FVM) and is −4.3 % on the copper island; the explanation of the Analytic's hot one-layer boards had the wrong sign (4.8).
 4. **A broken option.** `validation_study.py --fem` failed with an import error (the finite-element solid moved to `../solid3d-verification/scripts/`); fixed, and its table (4.1) is the one of `docs/validation.md` section 3, digit for digit.
 5. **Independent check of the reference of 4.8** (`scripts/study_complex_boards_independent.py`): the 3D solid at 1 mm is within 1.4 % of a solver that shares no code with the program on three one-layer boards (0.2 % at 0.5 mm); the models keep their ranking against it.
