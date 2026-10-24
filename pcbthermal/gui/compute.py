@@ -54,6 +54,10 @@ class Engine:
             if self.process.is_alive():
                 self.process.terminate()
             self.process.join(5)
+            if self.process.is_alive():
+                # A process that did not end on SIGTERM in 5 s (paged out by a large solve, or a handler) is killed, so its memory is freed
+                self.process.kill()
+                self.process.join(5)
             for q in (self.tasks, self.results):
                 q.close()
                 q.cancel_join_thread()

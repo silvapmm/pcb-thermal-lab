@@ -19,6 +19,7 @@ Rule: when something is implemented it moves from the second list to the first i
 * **Application**: PySide 6 editor with undo, polygon drawing and vertex handles, right-click menu (add or delete a vertex, add elements), rulers, properties in titled boxes, Stack-up tab with the cross-section and the simple stack-up fields, results views with animation, calculations in a cancellable separate process, HTML user guide, tooltips on every control.
 * **One-layer boards and the Lumped rings** (`validation.md` section 21): laminate nodes under the copper of a one-layer board (FVM, FDM, Lumped; series film in the Analytic), rings narrower than a cell merged; nine boards compared before and after against the 3D solid.
 * **Model corrections after a review** (`validation.md` section 20): the time constant and the step responses of a board with an outline leave out the cells off the board, the 3D solid keeps the laminate of a one-layer board, the transient mean counts only the board, and a power loop that does not settle is reported.
+* **From the effective-conductivity investigation** (`research/effective-conductivity/INTEGRATION.md` 1, 2 and 4): the thick-plate warning (`q'' t / (2 k)` above 5 % of the rise of a heater, `models.md` 4b); the option `Board.natural_form` (`general` default or `laminar` form of Churchill and Chu, both taken from a compilation of sources); the independent 3D solver as a test reference (`tests/helpers/layered3d.py`, `tests/test_layered_vs_3d.py`: the five models on a laminate coupon and on a one-layer board).
 * **Quality**: documentation gate on every function, stress tests of the application, the 3D check of the layered models, studies in `examples/` that reproduce every table of `validation.md`.
 
 ## What we want to implement
@@ -32,6 +33,10 @@ In the order of value for the effort.
 - **Heatsinks with a fan** (catalogue assemblies, for example 40 mm sets of about 1.1 K/W) as entries of the library.
 - **Heatsink from its geometry** (fin height, thickness, pitch, metal) with the channel effect between fins (Elenbaas, Bar-Cohen and Rohsenow) and the temperature-rise dependence of natural convection, compared with the catalogue θSA.
 - **Junction node (JESD15-3 two-resistor)**: only worth it with a heatsink on top (a bare mould changes the result by about 3 K, a heatsink by a factor of two); first in the FVM, top path only.
+
+### Large models
+
+- **Large 3D and layered models** (left open by `fix/gui-compute-hang`, 2026-10-24): reuse the factorisation across the computed-h loop of the 3D solid (the coefficients change only the diagonal of the faces, so the previous LU is a near-exact preconditioner for CG), a nested-dissection ordering, and decide whether the FVM and FDM need a hard limit too (measured: 1 million unknowns 97 s and 4.4 GB, 2 million 273 s and 8.4 GB; the panel only says "slow" above a million).
 
 ### Component element (the part of the plan not done)
 

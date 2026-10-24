@@ -189,6 +189,7 @@ class Board:
     emissivity_bottom: float = 0.9              # Emissivity of the bottom face (computed mode)
     air_speed: float = 0.0                      # Air speed along the board in m/s (computed mode; 0 = natural convection)
     orientation: str = "horizontal"             # "horizontal" (layer 1 is the top face and looks up, the last layer looks down) or "vertical" (on its edge); computed mode
+    natural_form: str = "general"               # Natural convection of a vertical board: "general" (Churchill and Chu, full range, default) or "laminar" (same authors, Ra < 1e9); computed mode
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
     dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
@@ -389,6 +390,8 @@ class Board:
             raise ValueError("h_mode must be 'manual' or 'computed'")
         if self.orientation not in ("horizontal", "vertical"):
             raise ValueError("orientation must be 'horizontal' (layer 1 faces up) or 'vertical'")
+        if self.natural_form not in ("general", "laminar"):
+            raise ValueError("natural_form must be 'general' or 'laminar'")
         if not (0.0 <= self.emissivity_top <= 1.0 and 0.0 <= self.emissivity_bottom <= 1.0):
             raise ValueError("emissivity must be between 0 and 1")
         if self.air_speed < 0 or self.h_calibration <= 0:
@@ -1189,6 +1192,7 @@ def problem_from_dict(data, validate=True):
         orientation=b.get("orientation", "horizontal"),
         h_calibration=b.get("h_calibration", 1.0),
         template_inner_oz=float(b.get("template_inner_oz", 0.5)),
+        natural_form=b.get("natural_form", "general"),               # Old files have no such key
         materials=mat,
         outline=_poly_mm(b["outline_mm"]) if b.get("outline_mm") else None,
         dielectrics=[Dielectric(float(d["thickness_mm"]) / 1000.0, d.get("name", "FR-4 (standard)"), float(d.get("k_through", 0.3)),
@@ -1355,6 +1359,7 @@ def problem_to_dict(prob):
             "via_plating_mm": b.via_plating * 1000.0,
             "h_mode": b.h_mode, "emissivity_top": b.emissivity_top, "emissivity_bottom": b.emissivity_bottom,
             "air_speed_m_per_s": b.air_speed, "orientation": b.orientation, "h_calibration": b.h_calibration,
+            "natural_form": b.natural_form,
             "k_copper": m.k_copper, "k_fr4_through": m.k_fr4_through, "k_fr4_inplane": m.k_fr4_inplane,
             "rho_copper": m.rho_copper, "cp_copper": m.cp_copper, "rho_fr4": m.rho_fr4, "cp_fr4": m.cp_fr4,
             **({"template_inner_oz": b.template_inner_oz} if b.template_inner_oz != 0.5 else {}),      # Only when not the default: older files and default saves stay identical
@@ -1408,6 +1413,7 @@ def new_problem(width_mm=None, height_mm=None, layers=None, name="untitled"):
     b.via_plating = nb["via_plating_um"] * 1e-6
     b.h_mode, b.emissivity_top, b.emissivity_bottom = nb["h_mode"], nb["emissivity_top"], nb["emissivity_bottom"]
     b.orientation, b.air_speed, b.h_calibration = nb["orientation"], nb["air_speed"], nb["h_calibration"]
+    b.natural_form = nb.get("natural_form", "general")
     b.materials = Materials(**d["materials"])
     return p
 

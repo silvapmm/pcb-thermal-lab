@@ -66,3 +66,15 @@ def test_shutdown_leaves_no_process(qtbot):
     assert proc is not None and proc.is_alive()
     compute.shutdown()
     assert not proc.is_alive() and compute.ENGINE.process is None and not w.isRunning()
+
+
+def test_cancel_kills_a_process_that_does_not_stop_on_terminate(qtbot, monkeypatch):
+    """A process that ignores SIGTERM (a paged-out solve, a handler) is killed, so a cancel always frees its memory."""
+    w = ProcessWorker("sleep", 60.0)
+    compute.start(w)
+    qtbot.waitUntil(lambda: w.state == "running", timeout=60000)
+    proc = compute.ENGINE.process
+    monkeypatch.setattr(proc, "terminate", lambda: None)                 # Pretend SIGTERM had no effect
+    t0 = time.time()
+    w.cancel()
+    assert not proc.is_alive() and time.time() - t0 < 15 and compute.ENGINE.process is None

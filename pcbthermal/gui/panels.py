@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import blocks
+from .. import solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -161,6 +161,14 @@ class BoardPanel(QWidget):
                                     "down, so the mounting follows from the layer numbering (a hot face looking up loses heat better than one looking down: 0.54 against "
                                     "0.27 in the natural convection correlation). Vertical: the plate correlation with the board height on both faces. "
                                     "With typed coefficients the orientation does not matter: type the h of the real mounting.")
+        self.natural_form = QComboBox()
+        self.natural_form.addItem("General (Churchill and Chu, whole range)", "general")
+        self.natural_form.addItem("Laminar (Churchill and Chu, Ra below 1e9)", "laminar")
+        self.natural_form.setToolTip("Correlation of the natural convection of a vertical board (computed heat transfer, vertical orientation only). General: the "
+                                     "Churchill and Chu form for the whole Rayleigh range (default). Laminar: the same authors' laminar form for Ra below 1e9, which "
+                                     "textbooks recommend for laminar flow; it gives a coefficient from +6.5 % (50 mm board, 10 K) to -10 % (200 mm, 80 K) of the general one. "
+                                     "Both forms are taken from textbooks and checked numerically, not from the original paper; on the example board the laminar form changes "
+                                     "the rise by -0.7 to +0.2 %, inside the 20 to 30 % uncertainty of h. Above Ra 1e9 (a board of about 0.5 m) use the general form.")
         self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_top.setToolTip("Emissivity of the top face: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1")
@@ -178,7 +186,7 @@ class BoardPanel(QWidget):
         self.manual_rows = [(f.labelForField(self.h_top), self.h_top), (f.labelForField(self.h_bottom), self.h_bottom)]
         self.h_top.setToolTip("Heat transfer coefficient of the top face (convection plus radiation), typed. Natural convection in air is about 5 to 15 W/m²K.")
         self.h_bottom.setToolTip("Heat transfer coefficient of the bottom face, typed. Usually a little lower than the top face for a board facing up.")
-        for label, w in (("Orientation", self.orientation), ("Emissivity top", self.emis_top),
+        for label, w in (("Orientation", self.orientation), ("Vertical natural convection", self.natural_form), ("Emissivity top", self.emis_top),
                          ("Emissivity bottom", self.emis_bottom), ("Air speed", self.air_speed),
                          ("Convection ×", self.calibration)):
             f.addRow(label, w)
@@ -216,6 +224,7 @@ class BoardPanel(QWidget):
             w.valueChanged.connect(self._apply)
         self.h_mode.currentIndexChanged.connect(self._apply)
         self.orientation.currentIndexChanged.connect(self._apply)
+        self.natural_form.currentIndexChanged.connect(self._apply)
         self.layers.valueChanged.connect(self._apply_layers)
         self.side_on.toggled.connect(self._apply)
         doc.changed.connect(self.refresh)
@@ -252,6 +261,8 @@ class BoardPanel(QWidget):
         self.h_bottom.setValue(b.h_bottom)
         self.h_mode.setCurrentIndex(max(self.h_mode.findData(b.h_mode), 0))
         self.orientation.setCurrentIndex(max(self.orientation.findData(b.orientation), 0))
+        self.natural_form.setCurrentIndex(max(self.natural_form.findData(b.natural_form), 0))
+        self.natural_form.setEnabled(b.orientation == "vertical")      # The form only enters the vertical-plate correlation
         self.emis_top.setValue(b.emissivity_top)
         self.emis_bottom.setValue(b.emissivity_bottom)
         self.air_speed.setValue(b.air_speed)
@@ -303,6 +314,7 @@ class BoardPanel(QWidget):
             bd.ambient, bd.h_top, bd.h_bottom = self.ambient.value(), self.h_top.value(), self.h_bottom.value()
             bd.h_side = self.h_side.value() if self.side_on.isChecked() else None
             bd.h_mode, bd.orientation = self.h_mode.currentData(), self.orientation.currentData()
+            bd.natural_form = self.natural_form.currentData()
             bd.emissivity_top, bd.emissivity_bottom = self.emis_top.value(), self.emis_bottom.value()
             bd.air_speed, bd.h_calibration = self.air_speed.value(), self.calibration.value()
             bd.via_plating = self.plating.value() * 1e-6
@@ -1185,7 +1197,9 @@ class SolverPanel(QWidget):
                 "solid3d": "The board as a real 3D solid (every copper layer and dielectric gap a slab, vias with their copper area, metal blocks as "
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
-                           "than the heater, a copper edge across a footprint).",
+                           "than the heater, a copper edge across a footprint). "
+                           f"Limited to {solid3d.MAX_CELLS:,} unknowns (shown below the cell size; about 4 GB of memory and "
+                           "two minutes per solve at the limit): a larger model is not run and the other models still answer.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
         for k, c in self.cb.items():
@@ -1302,10 +1316,19 @@ class SolverPanel(QWidget):
         c = self.cell.value()
         n = max(int(round(b.width * 1000 / c)), 2) * max(int(round(b.height * 1000 / c)), 2) * b.layers
         text = f"{n:,} unknowns"
+        if n > 1_000_000:
+            # The layered models have no hard limit; measured with the direct solver: 1 million unknowns 97 s and 4.4 GB, 2 million 273 s and 8.4 GB
+            text += " (slow: about 4 GB of memory per million)"
         if self.cb["solid3d"].isChecked():
-            # The 3D solid has a slab for every copper layer and four for every gap (plus the blocks)
-            n3 = n // b.layers * (b.layers + 4 * (b.layers - 1) + (4 if blocks.has_blocks(self.doc.problem) else 0))
-            text += f" (3D solid: {n3:,}" + ("; slow, try a larger cell)" if n3 > 500_000 else ")")
+            # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
+            n3 = solid3d.unknowns(self.doc.problem, c)[0]
+            if n3 > solid3d.MAX_CELLS:
+                note = f"; above {solid3d.MAX_CELLS:,}: it will not run, use a larger cell"
+            elif n3 > solid3d.MAX_CELLS // 2:
+                note = "; slow: minutes and GB of memory"
+            else:
+                note = ""
+            text += f" (3D solid: {n3:,}{note})"
         self.cells_label.setText(text.replace(",", " "))
 
     def _apply(self, *_):

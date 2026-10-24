@@ -363,15 +363,15 @@ Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) m
 
 | Outline | Parts | Area ratio | FVM Tmax | bounding box | same area (used) | 1.1 × box |
 | :-- | :-- | --: | --: | --: | --: | --: |
-| ellipse | example | 0.783 | 90.8 | -9.3 / -9.3 | -1.9 / +0.4 | -16.3 / -15.1 |
+| ellipse | example | 0.783 | 90.8 | -9.3 / -9.3 | -1.8 / +0.5 | -16.2 / -15.0 |
 | ellipse | centre | 0.783 | 114.3 | -7.4 / -5.8 | +0.9 / +2.9 | -9.9 / -11.5 |
-| ellipse | off-centre | 0.783 | 104.4 | -10.4 / -8.8 | -2.0 / -0.6 | -15.8 / -13.9 |
-| ellipse | near the edge | 0.783 | 119.7 | -16.5 / -14.0 | -10.2 / -5.8 | -21.2 / -19.3 |
-| L | near the edge | 0.750 | 115.8 | -12.9 / -10.3 | -6.2 / +0.1 | -17.8 / -15.8 |
+| ellipse | off-centre | 0.783 | 104.4 | -10.4 / -8.7 | -2.0 / -0.6 | -15.7 / -13.8 |
+| ellipse | near the edge | 0.783 | 119.7 | -16.4 / -14.0 | -10.1 / -5.7 | -21.2 / -19.2 |
+| L | near the edge | 0.750 | 115.6 | -12.7 / -10.1 | -6.0 / +0.3 | -17.7 / -15.6 |
 | T | example | 0.667 | 109.1 | -29.0 / -29.0 | -17.8 / -16.0 | -34.5 / -33.5 |
-| T | centre | 0.667 | 123.4 | -16.0 / -14.5 | +0.0 / -0.4 | -18.2 / -19.7 |
+| T | centre | 0.667 | 123.4 | -15.9 / -14.5 | -1.7 / -0.4 | -18.2 / -19.7 |
 | chamfer | example | 0.964 | 86.4 | -2.9 / -2.9 | -2.8 / -1.8 | -10.3 / -9.1 |
-| chamfer | centre | 0.964 | 110.1 | -2.9 / -1.2 | -3.5 / +0.4 | -5.5 / -7.2 |
+| chamfer | centre | 0.964 | 110.1 | -2.9 / -1.2 | -3.4 / +0.4 | -5.5 / -7.2 |
 | chamfer | off-centre | 0.964 | 99.1 | -3.9 / -2.1 | -4.8 / -0.8 | -9.6 / -7.6 |
 | chamfer | near the edge | 0.964 | 112.6 | -9.6 / -7.0 | -9.7 / -5.7 | -14.8 / -12.7 |
 | rounded | example | 0.984 | 86.1 | -2.3 / -2.3 | -3.0 / -2.0 | -9.8 / -8.5 |
@@ -381,6 +381,7 @@ Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) m
 
 * Enlarging the box (the idea of growing outwards) is the worst choice in every row: more area means more convection, so the board runs 10 to 20 % too cool. Shrinking to the same area is the best on average, and the error is always on the cool side.
 * For a strongly cut shape (ellipse, L, T; area ratio below 0.8) the bounding box ignores 20 to 33 % of the board and is 6 to 29 % cool; the same-area rectangle brings parts away from the edge to within 0.2 to 3 %.
+* Edge of the outline (2026-10-24): the FVM reference used to drop part of the edge loss in two ways, a side lying exactly on a grid line (a T of 60 mm counted 170 of 240 mm of perimeter) and the slivers of board that a slanted or curved side leaves in cells taken as off the board (2 to 6 % of the perimeter of a disc, an ellipse or a turned square, at every cell size). With both corrected (`geometry.edge_length_per_cell`, `geometry.edge_length_on_board`) the L row moves (reference 115.8 to 115.6 °C, errors -6.2 / +0.1 to -6.0 / +0.3) and the ellipse rows move by at most 0.1 point; the T, chamfer and rounded rows do not change. The T centre and chamfer centre entries were also refreshed to what the study prints now (they were left over from before the Lumped ring correction, not from this change). Checks against independent references (`tests/test_outline.py`): the edge length counted by the FVM and the FDM equals the perimeter of the polygon within 0.1 % for a rectangle, an L, a T and its mirror image, squares turned by 3 to 45 degrees, a disc and an ellipse; the round board of 80 mm with an edge film of 100 W/m²K (the radial solution of `research/outline/scripts/study_disc_reference.py`, 2000 rings) had an FVM time constant of 85.23 s against 84.51 s in closed form and a board mean rise 0.64 % high, now 84.52 s and 0.02 % (the FDM, never affected, 0.03 %); a 40 mm square turned by 3 degrees (edge film 100 W/m²K, 1 mm cells) read 0.98 K hotter than the same square on the grid (rise about 62 K), now 0.09 K.
 * Where it fails: a part near the edge of the real board or in the arm of a T has less board to spread into than the scaled rectangle gives it (10 to 18 % cool). For nearly rectangular outlines (chamfer, rounded: area ratio above 0.95) the three boxes differ by a few percent either way and the same-area box is not better than the bounding box (lumped 3 to 5 % cool). Scaling about the area centroid of the outline instead of the box centre gave no consistent gain (tried, not kept).
 * Not covered: parts in the cut region (they are off the board), holes, outlines with more than one lobe, and the time simulation (not available for these two models on an outline).
 
@@ -576,11 +577,11 @@ A review of the models (the code read against `theory.md`) found two defects and
 | board | τ, pin counted (before) | τ (now) |
 | :-- | --: | --: |
 | square 60 × 60 mm | 106.99 s | 107.0 s |
-| round, 59.8 mm across | 0.02 s | 107.1 s |
+| round, 59.8 mm across | 0.02 s | 107.0 s |
 
-On the round board the step response now ends at 1071 s on the steady resistance (30.464 K/W, FVM and FDM to four digits); with the old length (0.2 s) it ended at 3.670 K/W, 12 % of it, so the average-or-resolve decision of a power profile on such a board saw almost no thermal mass. Tests: `tests/test_outline.py` (`test_time_constant_and_step_responses_leave_out_the_cells_off_the_board`).
+On the round board the step response now ends at 1070 s on the steady resistance (30.452 K/W in the FVM, 30.472 in the FDM, each to four digits); with the old length (0.2 s) it ended at 3.670 K/W, 12 % of it, so the average-or-resolve decision of a power profile on such a board saw almost no thermal mass. Tests: `tests/test_outline.py` (`test_time_constant_and_step_responses_leave_out_the_cells_off_the_board`).
 
-**The transient mean of a board with an outline** counted the cells off the board at the ambient: on the round board at 600 s it read 46.84 °C against 51.71 °C for the board itself; it is now weighted by the board area of every cell (node), like the steady mean (`test_transient_mean_counts_only_the_board`).
+**The transient mean of a board with an outline** counted the cells off the board at the ambient: on the round board at 600 s it read 46.82 °C against 51.68 °C for the board itself; it is now weighted by the board area of every cell (node), like the steady mean (`test_transient_mean_counts_only_the_board`).
 
 **The 3D solid on a one-layer board** built its slabs from the dielectric gaps only, and a one-layer board has none: the board was its 35 µm of copper. It now has the laminate of the layered models (the slab minus the copper, FR-4 of the materials) as four slabs under the copper. `research/solid3d-verification/scripts/study_one_layer_board.py`, 60 × 60 × 1.6 mm, 1 W on 6 × 6 mm, 1 mm cells, maximum temperature in °C:
 
@@ -668,3 +669,46 @@ Mean absolute error against the 3D solid, before → after: fvm 3.8 → 1.0 %; f
 
 Sources: the multilayer analytical models of PCBs that keep every layer apart (Monier-Vinard, Laraqi and others, HAL archive of Paris-Nanterre, records hal-01473763 and hal-01473744; the pages were blocked by the archive's bot protection and only the titles and search abstracts were read) and the series resistance of a wall and a film (any heat transfer textbook) are the basis of the construction; no source was found that prescribes the number of nodes through a laminate, so it was chosen by the sweep above.
 
+
+## 22. The effective-conductivity investigation: thick-plate warning, natural convection form, independent solver in the tests
+
+Adopted from `research/effective-conductivity/` (`INTEGRATION.md` 1, 2 and 4). The investigation compared the five models with an independent 3D conduction solver on laminate coupons (`README.md` 4.5 and 4.11); the solver is now a test helper.
+
+**The five models against the independent solver** (`tests/test_layered_vs_3d.py`, `tests/helpers/layered3d.py`). Cu / FR-4 / Cu coupon of 50 x 50 mm (Culham and Yovanovich case 2: copper 400 W/mK, 35.6 um, a gap of 1.5789 mm of FR-4 at 0.4 W/mK, 5 W/m²K on both faces, 2.5 W), mean rise of the top copper under a 16 mm centred source, **1 mm cells** (run in seconds; the study uses 0.5 mm):
+
+| fvm | fdm | solid3d | lumped | analytic |
+| --: | --: | --: | --: | --: |
+| -0.02 % | -0.59 % | +0.00 % | +0.27 % | -0.06 % |
+
+(0.5 mm cells, all sizes of the research table: FVM, 3D solid and Analytic within 0.2 %, FDM within 1.2 %, Lumped within 0.3 %.) One-layer board (60 x 60 mm, 1 W part of 6 mm, FR-4 0.3 W/mK, 1.6 mm), hottest copper cell, **1 mm cells**:
+
+| copper | fvm | fdm | solid3d | lumped | analytic |
+| :-- | --: | --: | --: | --: | --: |
+| full | -0.01 % | -0.01 % | +0.00 % | +1.20 % | -0.83 % |
+| 20 mm pad | -3.0 % | -12.6 % | +0.1 % | -17.0 % | -30.2 % |
+
+With 0.5 mm cells the pad row is -2.5, -7.4, +0.2, -14.7 and -28.8 % (section 21): the pad edge is sampled more coarsely on 1 mm cells, which the FDM feels most. The pad row is tested as ranges (the documented limits of the roadmap), the other rows as tight tolerances.
+
+**Thick-plate warning** (`checks.check_thick_plates`). The criterion is `q'' t / (2 k)` over the rise of the heater. The first version took `q''` as the power of the part over its footprint for every plate; the review measured the flux that really enters a block in the FVM solution and found it is 8 to 22 % of the footprint flux on the 74 metal-block cases of `research/block-and-fins` and only 1 to 3 % under a 2 or 3 mm part, because a block under the board is fed through the laminate and the copper, which spread the heat. The footprint flux therefore fired on ordinary designs (a 3 x 3 mm, 2 W part over a 3 mm steel block under a 60 x 60 mm board: 9.5 % of the rise), so the check now takes, for a block, the largest flux into the block under the footprint from the FVM or FDM result, and keeps the footprint flux for the copper layer of the part; with only the Lumped, Analytic or 3D solid a quiet auxiliary FVM run (cell of at least 2 mm) supplies the flux into the block. The research's own figure (flux over the copper pad, rise 90 K) is not conservative: the peak flux into the block is 1.6 times the pad mean at the median.
+
+| criterion over the 74 block cases (2 mm cells, actual FVM rise) | median | maximum | above 5 % |
+| :-- | --: | --: | --: |
+| flux into the block (the program; FVM 1 mm and FDM 2 mm give 0.07 / 0.34 % too) | 0.07 % | 0.34 % | 0 |
+| power over the footprint (first version) | 0.50 % | 1.78 % | 0 |
+| power over the copper pad, rise of 90 K (research `README.md` 4.8 C) | 0.04 % | 0.42 % | 0 |
+
+The bound against the 3D solid, which cuts a block into slabs of 1 mm (up to 6): the real effect of the block thickness on the hottest point of the part is (3D solid − FVM) minus the same difference with the block's conductivity set to 1e5 W/mK, which cancels the other differences between the two models (spreading in the laminate under a small part). 60 x 60 mm two-layer board, 30 mm block on a 30 mm pad, R'' = 1 K cm²/W, 1 mm cells:
+
+| part | block | face | rise (K) | real effect (3D) | bound, flux into the block | bound, footprint flux |
+| :-- | :-- | :-- | --: | --: | --: | --: |
+| 3 mm, 2 W | 3 mm, k 50 | under the board | 69.9 | −0.01 K (0.0 %) | 0.18 K (0.26 %) | 6.67 K (9.5 %) |
+| 2 mm, 2 W | 3 mm, k 50 | under the board | 80.2 | −0.01 K (0.0 %) | 0.20 K (0.26 %) | 15.0 K (18.7 %) |
+| 3 mm, 2 W | 3 mm, k 204 | under the board | 69.8 | 0.00 K | 0.05 K (0.07 %) | 1.63 K (2.3 %) |
+| 10 mm, 5 W | 10 mm, k 10 | under the board | 109.4 | 0.53 K (0.48 %) | 4.42 K (4.0 %) | 25.0 K (22.8 %) |
+| 10 mm, 5 W | 10 mm, k 2 | under the board | 110.9 | 1.64 K (1.5 %) | 15.0 K (13.6 %) | 125 K (113 %) |
+| 10 mm, 5 W | 6 mm, k 10 | the part's face | 77.3 | 5.00 K (6.5 %) | 11.2 K (14.5 %) | 15.0 K (19.4 %) |
+| 3 mm, 2 W | 3 mm, k 50 | the part's face | 39.4 | 1.04 K (2.6 %) | 3.09 K (7.8 %) | 6.67 K (16.9 %) |
+
+The bound with the flux into the block is above the real effect in every case (by 2 to 10 times: it is the gap between the block's surface and its mean, and the part feels only part of it), and only the last three cases warn. The tests (`tests/test_thick_plate.py`) check the three warning cases on 2 mm cells against the 3D solid (bounds 14.7, 10.9 and 2.2 K against real effects 1.67, 4.85 and 0.90 K), that the 3 x 3 mm part over steel does not warn in the FVM and the FDM, that the Lumped and the Analytic (auxiliary FVM flux) warn exactly when the FVM does and the footprint fallback of the function says so, that a 10 mm layer of 5 W/mK typed as copper warns, and that the example boards and a sample of the block cases do not. The research measured the gradient of a plate heated from above at 0.6 to 0.8 of the bound (independent 3D solver, `README.md` 4.6).
+
+**Natural convection form** (`Board.natural_form`). The default `general` reproduces the earlier results bit for bit (test against the formula written out by hand). The laminar form against the research table (+6.5 % for 50 mm and 10 K, +2.6 % for 100 mm and 10 K, -0.1 % for 100 mm and 30 K, -7.5 % for 200 mm and 30 K, -9.5 % for 200 mm and 60 K) agrees to 0.4 points; on the example board turned vertical (computed h, FVM, 1 mm cells) the maximum is 86.72 C with the general form and 86.50 C with the laminar one (-0.22 K, -0.4 % of the rise), inside the -0.7 to +0.2 % of the research (`README.md` 4.8 B; the option reproduces every row of that table to 0.01 K on 1 and 2 mm cells). Independent checks of the review: the general form equals `ht.conv_free_immersed.Nu_vertical_plate_Churchill` (ht 1.2.0, installed outside the project) to machine precision over heights of 30 to 400 mm and rises of 1 to 80 K; ht 1.2.0 has no laminar form, so the laminar one was checked against the laminar boundary-layer solution of an isothermal vertical plate, `Nu = 4/3 (Gr/4)^{1/4} g(Pr)` with LeFevre's fit `g = 0.75 Pr^{1/2}/(0.609 + 1.221 Pr^{1/2} + 1.238 Pr)^{1/4}` (as given in heat transfer textbooks, quoted from memory): its `Ra^{1/4}` term equals that solution within 0.21 % at every size and rise, and the constant 0.68 is the leading-edge correction (+5 to +7 % of Nu on a 50 mm board, about +1 % on 400 mm). Above Ra 1e9 (a board of about 0.5 m or more) the laminar form warns. **Not verified**: Churchill and Chu (1975) itself has not been opened.
