@@ -127,7 +127,7 @@ def main():
     dk.box(ax, 0.3, 1.5, 9.4, 1.6, "3. stretch the field back to the board; warn about the cooler edge", "#cfe3f5")
     dk.arrow(ax, 5, 5.7, 5, 5.2)
     dk.arrow(ax, 5, 3.6, 5, 3.1)
-    ax.text(5, 0.5, "same-area rectangle: within 0.2 to 3 % away from the edge;\nnear the edge or in a T arm 10 to 18 % cool (documented, warned);\nthe bounding box alone is 6 to 10 % cool on a circle", ha="center", fontsize=7.5, style="italic")
+    ax.text(5, 0.5, "same-area rectangle: within 0.4 to 2.9 % away from the edge;\nnear the edge or in a T arm up to 18 % cool (documented, warned);\nthe bounding box alone is 6 to 10 % cool on an ellipse", ha="center", fontsize=7.5, style="italic")
     ax.set_title("3. the rule, and how well it works", fontsize=9)
     dk.save(fig, OUT / "fig_04_outline_to_rectangle_schematic.png", "Lumped and Analytic on a board with an outline: the equivalent rectangle")
     cell_cover(OUT / "fig_05_cells_on_an_outline.png")

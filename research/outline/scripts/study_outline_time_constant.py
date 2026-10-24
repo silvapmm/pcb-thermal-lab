@@ -25,13 +25,14 @@ from pcbthermal import Problem, fdm, fvm                               # noqa: E
 ROUND = [[30 + 29.9 * math.cos(a), 30 + 29.9 * math.sin(a)] for a in np.linspace(0, 2 * math.pi, 64, endpoint=False)]
 
 
-def board(outline=None):
+def board(outline=None, layers=2):
     """!
-    @brief A 60 x 60 mm two-layer board with full copper and a 6 mm part of 2 W at the centre, optionally cut to an outline.
+    @brief A 60 x 60 mm board with full copper and a 6 mm part of 2 W at the centre, optionally cut to an outline.
     @param outline Outline polygon in mm, or None for the square.
+    @param layers Number of copper layers (1 adds the laminate nodes of a one-layer board).
     @return Problem.
     """
-    p = Problem.new(60.0, 60.0, 2).add_full_copper()
+    p = Problem.new(60.0, 60.0, layers).add_full_copper()
     p.add_heater(1, 2.0, rect=(27, 27, 33, 33), name="U")
     if outline is not None:
         p.set_outline(outline)
@@ -49,16 +50,36 @@ def time_constants(p, cell_mm=2.0):
     return float(net.C.sum() / net.g_amb.sum()), fvm.board_time_constant(net)
 
 
+def closed_time_constant(p):
+    """!
+    @brief Closed-form C/G of a full-copper board: heat capacity of copper and laminate over the face films (area) and the edge film (perimeter).
+    @param p Problem (with or without an outline).
+    @return Time constant in seconds.
+    """
+    b = p.board
+    m = b.materials
+    o = b.outline if b.has_outline() else np.array([[0, 0], [b.width, 0], [b.width, b.height], [0, b.height]])
+    area = 0.5 * abs(float(np.sum(o[:, 0] * np.roll(o[:, 1], -1) - np.roll(o[:, 0], -1) * o[:, 1])))
+    perim = float(np.sum(np.hypot(*(np.roll(o, -1, axis=0) - o).T)))
+    t_cu = float(np.sum(b.copper_thickness))
+    c_area = m.rho_copper * m.cp_copper * t_cu + (b.thickness - t_cu) * float(np.mean(b.layer_laminate()[1]))
+    return c_area * area / ((b.h_top + b.h_bottom) * area + b.h_side * b.thickness * perim)
+
+
 def main():
     """!
     @brief Print the table of time constants, the end of the step responses and the transient mean.
     @return None.
     """
-    print("| board | time constant, pin counted (old) | time constant (program) |")
-    print("| :-- | --: | --: |")
-    for name, p in (("square 60 x 60 mm", board()), ("round, 59.8 mm across", board(ROUND))):
+    print("| board | time constant, pin counted (old) | time constant (program) | closed form C/G |")
+    print("| :-- | --: | --: | --: |")
+    cases = [("square 60 x 60 mm", board()), ("round, 59.8 mm across", board(ROUND))]
+    # The one-layer board has laminate nodes and the four-layer board inner layers: the pin sits on every node of an off-board cell
+    for layers in (1, 4):
+        cases += [(f"{layers}-layer square", board(layers=layers)), (f"{layers}-layer round", board(ROUND, layers))]
+    for name, p in cases:
         old, new = time_constants(p)
-        print(f"| {name} | {old:.2f} s | {new:.1f} s |")
+        print(f"| {name} | {old:.2f} s | {new:.1f} s | {closed_time_constant(p):.1f} s |")
     disc = board(ROUND)
     print("\n| model | end of the step response (program) | steady resistance | end / steady |")
     print("| :-- | --: | --: | --: |")
@@ -68,7 +89,8 @@ def main():
     old_tend = 10.0 * time_constants(disc)[0]
     t, z, r = fvm.step_responses(disc, cell_mm=2.0, t_end=old_tend)
     print(f"| FVM with the old length ({old_tend:.1f} s) | {z[0, -1]:.3f} K/W | {r[0]:.3f} K/W | {z[0, -1] / r[0]:.4f} |")
-    tr = fvm.solve_transient(disc, 600.0, n_out=10, cell_mm=2.0)
+    # 40 frames: with 10 the last doubling step is 300 s long and the implicit Euler mean is about 3 % low (study_disc_reference.py)
+    tr = fvm.solve_transient(disc, 600.0, n_out=40, cell_mm=2.0)
     last = tr.frames[-1]
     print(f"\nTransient of the round board at 600 s: board mean {tr.t_mean[-1]:.2f} C (program), plain mean over the box {last.mean():.2f} C (old), maximum {tr.t_max[-1]:.2f} C")
 
