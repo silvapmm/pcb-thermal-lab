@@ -143,6 +143,7 @@ tests/                 pytest suite (about 390 tests; GUI tests run offscreen; t
 examples/              example boards (`.pcbt.json`), `csv_profiles/` (documented CSV power-profile example) and `make_screenshots.py`; the studies that used to live here are in `research/` (one folder per investigation, see `research/INDEX.md`)
 docs/                  versions.md (what was implemented in every version), models.md (models, features, API), theory.md (every equation and approximation of every model; update it with any model change), calculators.md (the auxiliary calculators: formulas, validation, limits, sources), validation.md (every scenario in every model, 3D check, history), roadmap.md (what is implemented and what we want to implement), research.md (open investigations, empty when nothing is pending), images/
 ico/                   application icon
+.claude/agents/        the project agents (researcher, executor, reviewer, maintainer; see "Agents and workflow")
 research/              one folder per investigation (see "Research branches"); not part of the program
   INDEX.md             index of the investigations by area of the program (status and question of each)
   README.md            index of the investigations and the rules for figures
@@ -247,9 +248,30 @@ this repository: all file tools, Bash (including explicit `git *` and `gh *` rul
 and WebSearch are allowed, with `acceptEdits` as the default mode. Denied: `sudo`,
 force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/` or `~`.
 
+## Agents and workflow
+
+Maintainer's rule (2026-10-24): the work is done by four project agents in `.claude/agents/` (committed; each file holds its model, effort and instructions). An agent cannot call another, so **the main session orchestrates**: it calls each agent in turn, passes it the previous agent's report, and relays the result to the maintainer.
+
+| Agent | Model, effort | Role |
+| :-- | :-- | :-- |
+| `researcher` | Sonnet 5.5, medium | Opens and carries an investigation: sources (open archives, the web), questions, study plan, studies, the research folder (README, INTEGRATION.md, docs/, bibliography). Never edits the program. |
+| `executor` | Sonnet 5.5, medium | Writes and runs code: study scripts, solvers in `lib/`, figures and diagrams, changes to `pcbthermal/` on a `fix/` or `feature/` branch. Reports the numbers; does not judge them. |
+| `reviewer` | Opus 5.5, medium | Independent review: re-reads the code against `docs/theory.md`, re-runs the studies, checks every claim against an independent reference and the printed numbers, finds defects, then corrects the code and the documents. |
+| `maintainer` | Sonnet 5.5, medium | Documents, user guide and tooltips that a change touches; diffs; tests and the whole battery; commits, merges and pushes within the Git Policy. Does not change the physics. |
+
+**Flows** (the reviewer is never skipped):
+
+* **Investigation** (`research/<topic>` branch): `researcher` (with `executor` for large code) -> **`reviewer`** -> fixes by the reviewer, or back to the researcher/executor if the findings need new studies -> `reviewer` again until it is ready -> `maintainer` (research tests, the program-untouched check, commit, push).
+* **Change to the program** (a correction, an improvement of an algorithm, a new feature; `fix/` or `feature/` branch off `develop`): `executor` -> **`reviewer`** -> `maintainer` (documents, whole battery, commit, merge into `develop`, push).
+* **Closing an investigation, adopting a proposal or any change to a model**: the `reviewer` is called before the merge, with the claims and the numbers to check.
+
+The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
+
 ## Decisions Log
 
 Record important decisions here, newest first, with date and reason.
+
+- 2026-10-24: **Project agents and a review flow** (maintainer: problems were found in earlier work; every investigation and every algorithm change must be checked by an independent reviewer): four agents in `.claude/agents/` - `researcher` and `executor` and `maintainer` on Sonnet 5.5 (medium effort) and `reviewer` on Opus 5.5 (medium effort); the main session orchestrates, the reviewer is never skipped (see "Agents and workflow"). The agent files are committed so that every session and clone has them.
 
 - 2026-10-24: **One-layer boards and the Lumped rings** (maintainer: close the fix branch, test with more complicated boards before and after): a one-layer board gets two laminate nodes under the copper in the FVM, FDM and Lumped (`laminate.py`; chosen from a sweep, 1 to 4 nodes: -4.1, -2.5, -1.8, -1.5 % on a bare pad) and a series film in the Analytic (laminate nodes made its bare-pad estimate worse); the Lumped merges rings narrower than a cell (`RING_MIN_WIDTH = 1`; the result no longer grows with the ring count). Nine boards against the 3D solid, run on the program before and after: mean error FVM 3.8 -> 1.0 %, FDM 5.3 -> 2.9 %, Lumped 6.9 -> 5.2 %, Analytic 5.5 -> 5.5 % (better with full copper, hotter on partial copper where its uniform sheet already overestimated); multilayer boards unchanged. Left: bare pads on one-layer boards in Lumped and Analytic, FDM pad-edge sampling (roadmap). Found on the way and fixed: the Analytic heat balance with a metal block counted the face hidden by the block (9 % off; reporting only, temperatures unchanged).
 
