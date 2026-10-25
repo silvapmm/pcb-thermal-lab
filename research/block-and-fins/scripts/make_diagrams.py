@@ -135,13 +135,13 @@ def block_section(path):
     for k in range(7):
         dk.arrow(a1, 2.52 + k * 1.8, 1.8, 2.52 + k * 1.8, 0.0, color=dk.BLUE, width=1.0)
     a1.text(8, 7.9, "section: board on a finned block", ha="center", fontsize=9, fontweight="bold")
-    a1.text(3.2, 4.85, "air above and\nbelow the board", ha="center", va="center", fontsize=6.5, style="italic")
-    a1.text(8, -0.8, "the block touches the board only where the interface is (a patch); the fins give an area gain with an efficiency", ha="center", fontsize=7)
+    a1.text(2.6, 6.4, "air above and below the board", ha="center", va="center", fontsize=6.5, style="italic")
+    a1.text(8, -0.8, "the heat enters the block mostly where it overlaps the copper of the face (over bare laminate it also crosses the FR-4); the fins give an area gain with an efficiency", ha="center", fontsize=7)
     # one plate fin: base hot, tip cooler
     a2.set_xlim(0, 8)
     a2.set_ylim(-1.0, 8.2)
     grad = np.linspace(1.0, 0.0, 100).reshape(-1, 1)
-    a2.imshow(grad ** 1.6, extent=(1.0, 2.2, 0.8, 6.8), cmap="YlOrRd", origin="upper", aspect="auto")
+    a2.imshow(grad ** 1.6, extent=(1.0, 2.2, 0.8, 6.8), cmap="YlOrRd", origin="lower", aspect="auto")
     a2.add_patch(Rectangle((1.0, 0.8), 1.2, 6.0, fill=False, edgecolor="k"))
     a2.add_patch(Rectangle((0.2, 0.3), 3.0, 0.5, facecolor=dk.METAL, edgecolor="k"))
     a2.text(1.7, 0.55, "base", ha="center", va="center", fontsize=7)

@@ -3,8 +3,8 @@
 @brief Pictures of the metal-block and fin studies, written to figures/ (committed, linked from the README files).
 
 @details The numbers come from running the two studies of this folder and reading what they print.
-         fig_01: the fin formula of the program against a 2D solution of one fin (24 cases); fig_02: error of the Lumped and Analytic models on 62 block cases for the three
-         approaches (mean and maximum); fig_03: the error of every case, earlier equivalent coefficient against the implemented block model.
+         fig_01: the fin formula of the program against a 2D solution of one fin (24 cases); fig_02: error of the Lumped and Analytic models on the 74 block cases for the three
+         approaches (mean and maximum); fig_03: the error of every case, earlier equivalent coefficient (Lumped) against the implemented block models (Lumped and Analytic).
 Usage: python research/block-and-fins/scripts/make_figures.py   (from the repository root; about 20 seconds)
 """
 
@@ -98,10 +98,11 @@ def fig_blocks():
     xs = np.arange(len(cases))
     ax.plot(xs, [c[1] for c in cases], "o", color="#9ca3af", label="Lumped, earlier equivalent coefficient")
     ax.plot(xs, [c[3] for c in cases], "o", color="#d97706", label="Lumped, block as a ring layer")
+    ax.plot(xs, [c[4] for c in cases], "s", ms=4, color="#1d4ed8", label="Analytic, block as a tile graph")
     ax.axhline(0, color="black", lw=0.8)
     ax.set_xlabel("Case (block and pad geometry, thickness, metal, interface, fins)")
     ax.set_ylabel("Error of Tmax (%)")
-    ax.set_title("Every case: the coefficient is hot (+), the block layer stays within a few percent", fontsize=10)
+    ax.set_title("Every case: the coefficient is hot (+), the block models stay within a few percent", fontsize=10)
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(OUT / "fig_03_block_error_per_case.png", dpi=110)
