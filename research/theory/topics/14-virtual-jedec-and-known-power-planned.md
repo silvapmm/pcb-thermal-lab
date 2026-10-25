@@ -12,13 +12,13 @@ Existing pictures of the calculator: `research/power-calculator/figures/fig_04_c
 
 A datasheet gives `theta_JA` for a **stated** board. Built in the program, that board must return the datasheet's resistance, and the calculator must give 1 W when the junction is `theta_JA` above the ambient.
 
-| Case | datasheet | model | error |
+| Case | datasheet `R_thetaJA` | model `R_thetaJA` | error of the power returned for 1 W |
 | :-- | --: | --: | --: |
 | TI CSD17308Q3, its own board (38.1 x 38.1 mm, 1.52 mm FR-4, 71 um copper, 1 in2 pad) | 46 K/W | 46.8 K/W | -1.7 % |
 | JESD51-7 2s2p, exposed-pad QFN with 9 thermal vias (TPS7A47-like; package data assumed) | 32.5 K/W | 31.6 K/W | +3.0 % |
-| the same without the vias | - | 67.4 K/W | the exposed pad needs the vias (JESD51-5) |
+| the same without the vias | - | 68.1 K/W at 0.5 mm (73 to 84 at other cells) | 0.48 W: the exposed pad needs the vias (JESD51-5) |
 
-The JEDEC board follows ROHM's note: 114.3 x 76.2 x 1.6 mm, 70 um top and bottom traces, two 74.2 mm planes of 35 um, thermal vias of 0.30 mm diameter at 1.2 mm pitch. Planned: more datasheet cases, the prediction of `psi_JT` and `psi_JB` (needs the junction node, topic 09), and recovering a missing package resistance.
+At 0.25 mm the two rows are -2.3 % and +1.3 %, and on the CSD17308Q3 board the FVM's board resistance is 2.4 % below an independent 3D solver, so part of the agreement is a model error (`docs/calculators.md` 2.1). The JEDEC board follows ROHM's note: 114.3 x 76.2 x 1.6 mm, 70 um top and bottom traces, two 74.2 mm planes of 35 um, thermal vias of 0.30 mm diameter at 1.2 mm pitch. Planned: more datasheet cases, the prediction of `psi_JT` and `psi_JB` (needs the junction node, topic 09), and recovering a missing package resistance.
 
 ## 2. The known-power reference
 

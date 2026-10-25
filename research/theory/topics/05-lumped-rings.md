@@ -14,7 +14,7 @@ The distance `delta(x, y)` of every cell to the footprint is computed (Euclidean
 
     E_k = rho_1 (rho_max / rho_1)^((k-1)/(R-1))     rho_1 = min(max(1.5 min(dx,dy), 0.04 rho_max), 0.5 rho_max)     rho_max = max delta
 
-(rings with no cell are dropped). Any footprint shape and the real board outline are followed; there is no circular approximation. For layer `l` and ring `k` the real cells are aggregated: the mean sheet conductance `S_{l,k}`, the sums of the ambient conductance by path, of `G_z` (dielectric and vias) and of the capacity `C`, the ring **thickness** `Delta_k` (distance span) and its **contour length** `L_k = N_k dx dy / Delta_k`.
+Edges closer than one cell, `max(dx, dy)`, are merged (`lumped.RING_MIN_WIDTH = 1`, `lumped.ring_edges`): a ring thinner than the raster holds a count of cells that does not match its width, its contour length came out short and its resistance high, and the result grew with the ring count (+3 to +13 % with 40 rings, `docs/validation.md` 21). Rings with no cell are dropped. Any footprint shape and the real board outline are followed; there is no circular approximation. For layer `l` and ring `k` the real cells are aggregated: the mean sheet conductance `S_{l,k}`, the sums of the ambient conductance by path, of `G_z` (dielectric and vias) and of the capacity `C`, the ring **thickness** `Delta_k` (distance span) and its **contour length** `L_k = N_k dx dy / Delta_k`.
 
 ## 3. The resistances
 
@@ -46,7 +46,7 @@ Each heater gives a small dense system `K_h theta = Q_h` (`L R` unknowns, `Q` at
 
 * When a copper edge crosses the footprint: the network assumes the ring-mean `S` describes the heat flow (27 % low).
 * At board corners (-8.7 %) and for thin heaters (+9.5 %).
-* One-sided copper pads without vias: up to +107 % (`docs/validation.md` 3.1).
+* One-sided copper pads without vias (copper on the top face only, a bare bottom layer): up to +107 % (`docs/validation.md` 3.1). A one-layer board gets the two laminate nodes of topic 01 through the FVM network it is built from.
 
 The input checks (`checks.py`) warn before the run. On a board with an outline the model runs on the rectangle of the same area (topic 20). With a metal block it adds one layer of unknowns per ring (topic 11).
 
@@ -56,7 +56,7 @@ The input checks (`checks.py`) warn before the run. On a board with an outline t
 
 ## 7. Where it is tested
 
-`docs/validation.md` sections 2, 3, 13; `research/models-comparison/` (figure 5, "where models fail"), `research/outline/` (the rectangle of the same area), `research/block-and-fins/` (the block as a ring layer).
+`docs/validation.md` sections 2, 3, 13; `research/models-comparison/` (figure 9, "where models fail"; figure 6, the rings), `research/outline/` (the rectangle of the same area), `research/block-and-fins/` (the block as a ring layer).
 
 ## 8. Related topics
 
@@ -68,4 +68,4 @@ The input checks (`checks.py`) warn before the run. On a board with an outline t
 * Constriction and spreading resistance of a small source (the same physics seen as a resistance): [Lee1995], [EC1998Spreading], topic 18.
 * The ring construction, the corrections and the error table are the project's own work (the program was tuned against the FVM, and the 3D solid is the independent check): [L-validation].
 
-*What was read and what was not verified:* the formulas are from `docs/theory.md` section 5 (read in full); no published ring-network method is recorded in the repository.
+*What was read and what was not verified:* the formulas are from `docs/theory.md` section 5 (read in full) and `lumped.py` of `develop`; the review of this folder re-derived `f_R` and `f_P` from the disc solution (mean-to-boundary and centre-to-mean differences per watt leaving sideways, `Q_lat = -2 pi a S dtheta/dr`, over their no-loss values `1/(8 pi S)`; they behave as `1 - x^2/24` and `1 - x^2/12` as `x -> 0`); no published ring-network method is recorded in the repository.

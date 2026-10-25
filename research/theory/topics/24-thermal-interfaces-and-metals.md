@@ -30,8 +30,8 @@ Metals (typical): aluminium 204 W/mK, copper 386, brass 111, stainless 304 about
 
 ## 4. What matters and what does not
 
-* **On top of a small package the interface matters** (MOSFET of 2 W with a 12 K/W clip-on heatsink: 68 C with a good paste against 88 C with a hard pad: 10 K cm2/W over 11 mm2 is 92 K/W, far more than the heatsink). The default paste costs 0.6 to 1 K against a good paste; a gap pad should be typed.
-* **Under the board the metal and the interface hardly matter**: aluminium and copper differ by 0.1 K, stainless is 1 K worse, a hard pad 2 K worse; what matters is the block thickness and area and the cooling of its surface (with fins, 1 mm 76.8, 3 mm 74.3, 6 mm 71.7 C), because the board has spread the heat before the block sees it.
+* **On top of a small package the interface matters** (MOSFET of 2 W with a 12 K/W clip-on heatsink: 68 C with a good paste against 88 C with a hard pad: 10 K cm2/W over 11 mm2 is 92 K/W, far more than the heatsink). The default paste costs 0.1 to 0.6 K against a good paste on the four parts (`research/component-heatsink/README.md` 4.5, table E; `docs/research.md` R2 says 0.6 to 1 K); a gap pad should be typed.
+* **Under the board the metal and the interface hardly matter**: aluminium and copper differ by 0.1 K, stainless is 1 K worse, a hard pad 2 K worse; what matters is the block thickness and area and the cooling of its surface (with fins, 1 mm 76.4, 3 mm 73.8, 6 mm 71.2 C, printed by `research/component-heatsink/scripts/study_notes_r2.py`; the 76.8, 74.3, 71.7 C of `docs/research.md` R2 were about 0.5 K high and printed by no script), because the board has spread the heat before the block sees it.
 * **Perfect contact** is `R'' = 0.01 K cm2/W` (1e-6 m2K/W): it changes the result by 0.05 K against an ideal zero and is 30 times better than the best measured paste; below 0.003 nothing changes.
 
 ## 5. When the datasheet gives only `theta_JB` or `psi_JB`

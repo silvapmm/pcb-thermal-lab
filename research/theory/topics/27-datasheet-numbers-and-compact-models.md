@@ -37,8 +37,8 @@ Junction, case and board; two resistances; the die at one temperature; ambient i
 | 2 W with a 12 K/W heatsink, `theta_JC(top)` 40, 20, 5 K/W (assumed) | | cannot represent | 73.6, 63.4, 51.1 C; 46, 58, 73 % through the top |
 
 * The physics and the one-resistance approach already reproduce the datasheet (`Rtheta_JA` within 2 %).
-* **Without a top path the node changes little**: 3 K (3 % of the rise) lower, conservative.
-* **With a heatsink on top the answer changes by a factor of two** (112 against 51 to 74 C): that is what justifies the node.
+* **Without a top path the node changes little**: 3.1 K (3.5 % of the rise) below the program's worst-case offset on this part, conservative; 1.3 to 3.4 K on the chips of the component study and 0.2 K on a resistor (`research/component-heatsink/README.md` 4.10). A bare mould in the node network takes about 1 % of the heat and lowers `Tj` by 0.4 to 0.8 K.
+* **With a heatsink on top the answer changes by a factor of 1.7 to 3.2 on the rise** (node without a top path 109.4 C, with the heatsink 51.1 to 73.6 C): that is what justifies the node. (The program now has the top path with a junction node, topic 09; its result is 0.4 to 0.8 K above this prototype on 25 mm pads.)
 * It depends strongly on `theta_JC(top)`, which this datasheet does not give.
 
 ## 5. What real datasheets give (parameter sets differ by part)

@@ -58,7 +58,7 @@ Seen from outside, a board of several layers has an in-plane and a through-plane
 ## 5. What it assumes and where it is wrong
 
 * No gradient across a copper layer, none across the thin dielectric laterally: the gap is a 1D resistance, so there is no spreading **inside** the gap. This costs 0.4 to 2 % against the 3D solid.
-* The top and bottom coefficients act directly on the outer layer node (the half slab in series is neglected, 1e-4 of the film resistance).
+* The top and bottom coefficients act directly on the outer layer node (the half slab in series is neglected, 1e-4 of the film resistance). This holds when both outer faces carry copper. **A one-layer board** has its laminate (`t_lam = slab - t_cu`) under the copper: the FVM, FDM and Lumped models cut it into two laminate nodes (`laminate.LAMINATE_NODES = 2`, slab `t_lam/2` each, the last one half of that and carrying `h_bottom`, joined by `k_th A / (t_lam/2)`), and the Analytic model keeps one node with `h_bottom` in series with the laminate, `1/(1/h_bottom + t_lam/k_th)` (`docs/theory.md` 1.4). One, two, three and four laminate nodes give -4.1, -2.5, -1.8 and -1.5 % on a bare 20 mm pad against an independent solver (`docs/validation.md` 21).
 * One temperature per layer under a footprint (no gradient across a heater).
 * **No gradient through the thickness of a layer**: the node is the mean through the thickness, and the surface under a source is hotter than it by at most `q'' t / (2 k)` (all the heat of the source crossing the layer under it), less when the heat leaves sideways. Measured against an independent 3D solver (`research/effective-conductivity/` 4.6): 0.91 K against a bound of 1.25 K (1.6 % of the rise) for a 10 mm plate of `k` 50 under strong films, 4.7 and 7.1 K against 8 and 12 K (8 to 9 % of the rise) for `k` 10, where the heat spreads; the film acting on the node instead of the face adds about `h t / (2 k)` of the rise; 0.0001 K for 35 um of copper. It is irrelevant for the copper layers and matters only for a thick, poorly conducting layer or block.
 
@@ -73,7 +73,7 @@ Seen from outside, a board of several layers has an in-plane and a through-plane
 
 ## 7. Where it is tested
 
-* Against the 3D solid and an independent finite-element solid: 0.4 to 2.2 % (FVM), `docs/validation.md` section 3; folder `research/solid3d-verification/` (figures 4 and 5 draw the layered models against the 3D solid).
+* Against the 3D solid and an independent finite-element solid: 0.4 to 2.2 % (FVM), `docs/validation.md` section 3; folder `research/solid3d-verification/` (figure 4 draws the layered models against the 3D solid, figure 8 the heat spreading under a small heater in both, figures 5 and 7 a one-layer board).
 * The exact 1D series circuit of an advanced stack-up (test in `tests/`), `docs/validation.md` section 12; folder `research/stackup/`.
 * The pictures of the five models side by side: `research/models-comparison/figures/fig_08_the_five_models_schematic.png`.
 

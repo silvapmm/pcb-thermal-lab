@@ -17,14 +17,15 @@ One node per cell on that face, with the coverage `c` of the cell by the block:
     lateral sheet conductance   S = k t c                              (joined by the harmonic mean, as the board)
     heat capacity               C = rho c t dx dy c
     contact to the board layer  G = c dx dy [ f / R'' + (1 - f) / (R'' + d_h / k_th) ]
-    exposed surface and sides   G = (h_face + h_extra)(dx dy c + t L_edge)
+    exposed surface             G = h_exp dx dy c,          h_exp = h_face r_fin + h_extra
+    sides of the plate          G = h_wall t L_edge,         h_wall = h_face + h_extra
     board face under the block  its coefficient is multiplied by (1 - c)
 
-`f` is the copper fill of the board layer there and `d_h` half a layer slab: the heat enters the block mostly **where it overlaps copper** (the intersection of the planes) through `R''`; over bare laminate it must also cross the FR-4 (a much larger resistance). The block is an isotropic plate without gradient across the thickness (valid while `h t / k` is small: aluminium or copper of 1 to 10 mm are within 0.6 % of the 3D solid); cells with no block have 1e-9 W/K to the ambient. Heat escapes through the exposed surface and the sides, plus the fins.
+`f` is the copper fill of the board layer there and `d_h` half a layer slab: the heat enters the block mostly **where it overlaps copper** (the intersection of the planes) through `R''`; over bare laminate it must also cross the FR-4 (a much larger resistance). The block is an isotropic plate without gradient across the thickness (valid while `h t / k` is small: aluminium or copper of 1 to 10 mm are within 0.6 % of the 3D solid); cells with no block have 1e-9 W/K to the ambient. Heat escapes through the exposed surface (with the fins) and the side walls of the plate (without them; `L_edge` the block outline inside the cell, `t` the plate thickness). *(This file had one coefficient for both; until a review found it, the program also gave the side walls the fin ratio and a finned block ran 5.5 to 6.4 % too cool, `research/block-and-fins/` and `docs/validation.md` 12 D.)*
 
 ## 3. Fins
 
-Plate fins on the block: efficiency `eta = tanh(mL) / (mL)` of a straight fin with a convecting tip (corrected length `Hc = H + t / 2`). The model has **no channel choking** between fins (a warning), and the exposed-surface coefficient is the board's `h_face * fin_ratio + h_extra`. Fins are validated against a 2D fin (24 cases within 0.08 %); the effect of the spacing on natural convection is not modelled (topic 13).
+Plate fins on the block (height `H`, thickness `t_f`, pitch `p`): efficiency `eta = tanh(m H_c) / (m H_c)`, `m = sqrt(2 h_face / (k t_f))`, of a straight fin with a convecting tip taken as adiabatic at the corrected height `H_c = H + t_f / 2`; per unit of base area the fin ratio is `r_fin = (1 - t_f/p) + 2 H_c eta / p`, and only the exposed face carries it (`h_exp = h_face r_fin + h_extra`). The model has **no channel choking** between fins (the input checks warn when the gap is smaller than still air allows). Not modelled: the end faces of the fins, their heat capacity (a time simulation of a finned block responds too fast) and the conduction along the fins beyond the efficiency. Fins are validated against a 2D fin (24 cases within 0.08 %); the effect of the spacing on natural convection is not modelled (topic 13).
 
 ## 4. In the Lumped and Analytic models (steady state)
 
@@ -37,7 +38,7 @@ An equivalent coefficient `h_eq = 1 / (R'' + 1 / (h_face + h_extra))` (isotherma
 
   a dense matrix that couples the tiles of the block among themselves. `B` is added to the local conductance matrix `C` of topic 06, together with the negative conductance `-h_face A cov` for the face that the block hides. This is exact for the tile model.
 
-Both are steady state only; the time simulations still refuse a block, and SOR does not support blocks. Errors against the FVM over 74 cases: Lumped 2.0 % mean, 4.8 % maximum; Analytic 1.1 % mean, 4.3 % maximum.
+Both are steady state only; the time simulations still refuse a block, and SOR does not support blocks. Errors against the FVM over 74 cases: Lumped 1.9 % mean, 4.7 % maximum (2.0 and 4.8 % before the minimum ring width of topic 05); Analytic 1.1 % mean, 4.3 % maximum (`research/block-and-fins/README.md` 4.2).
 
 ## 5. How the program does it
 
@@ -53,9 +54,9 @@ Both are steady state only; the time simulations still refuse a block, and SOR d
 
 ## 8. Sources
 
-* Fin efficiency and corrected length: [IncroperaDeWitt]. Spreading resistance of a small source on a plate (the plate model's comparison): [Lee1995], topic 18.
+* Fin efficiency and corrected length: [IncroperaDeWitt]. Spreading resistance of a small source on a plate (the plate model's comparison, the worked example of Seri Lee's article): [EC1998Spreading], topic 18; [Lee1995] was cited for it earlier and has not been located.
 * Static condensation (Schur complement) of finite-element codes and Kron reduction: [MFEMStaticCond], [Kron2022].
 * Channel effect between fins (not modelled): [ElenbaasBCR]. Heatsink catalogues: [HeatsinkCatalogues]. Interface measurement standard: [ASTMD5470].
 * Own computation: [L-block].
 
-*What was read and what was not verified:* equations from `docs/theory.md` section 7 (read in full); [Lee1995] could not be read and was not used for anything but the quoted comparison; the channel correlation is not used.
+*What was read and what was not verified:* equations from `docs/theory.md` section 7 (read in full); the plate check is against [EC1998Spreading] (its worked example, read); [Lee1995] could not be found; the channel correlation is not used.

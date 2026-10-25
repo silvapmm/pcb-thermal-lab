@@ -8,13 +8,13 @@ See also the sections of the package drawn from the real section: `research/comp
 
 ## 1. What it is
 
-A **part** is a heater with a junction-to-pad resistance `theta_part` (and optionally a top path). The board is solved with the part's power and the junction temperature is read from it. The convention is **worst case first**: all the power reaches the board, then, if a top path is defined, the share that leaves through the top is taken out in a fixed-point loop.
+A **part** is a heater with a junction-to-pad resistance `theta_part` (and optionally a top path). The board is solved with the part's power and the junction temperature is read from it. The convention is **worst case first**: all the power reaches the board; if a top path is defined, the share that leaves through the top is found as the root of one scalar equation per part (section 3).
 
 ## 2. The series chain
 
     Tj = T_max,footprint + P theta_part              (the hottest board point under the footprint is the pad temperature)
 
-A junction node joined to the board by a uniform conductance would be about 3 K lower; the worst case keeps the hottest point. Derived quantities, for the same board response `R = (Tj - T_amb) / P` (linear for constant coefficients):
+A junction node joined to the board by a uniform conductance would be 1.3 to 3.4 K lower on the chips of the component study and 0.2 K on a 0603 resistor (`research/component-heatsink/README.md` 4.10); the worst case keeps the hottest point. Derived quantities, for the same board response `R = (Tj - T_amb) / P` (linear for constant coefficients):
 
     margin = Tj,max - Tj                 power limit P_lim = (Tj,max - T_amb) / R = P (Tj,max - T_amb) / (Tj - T_amb)
     psi_JB estimate:   Tj = T_ring + psi_JB P,   T_ring = mean board temperature in the ring 0.5 to 1.5 mm outside the outline of the footprint
@@ -27,7 +27,11 @@ A junction node joined to the board by a uniform conductance would be about 3 K 
 
     R_top = theta_JC(top) + interface / A + theta_SA
 
-(`interface / A` the paste or pad resistance per area over the contact area). `api._solve_with_tc` gives the board `P - P_top` and shares the loop with the power coefficient, so FVM, FDM, Lumped, Analytic and the 3D solid all get it. The result is 0.4 to 0.8 K above a uniform-conductance node prototype. A bare mould changes the junction by about 3 K (3 % of the rise); a heatsink on top by a factor of two. Steady state only; without `theta_SA` nothing changes.
+(`interface / A` the paste or pad resistance per area over the contact area, or the footprint). With `P_b` the heat into the board and `T_max(P_b)` the hottest board point under the footprint,
+
+    Tj - T_amb = (T_max - T_amb + P theta) / (1 + theta / R_top)          P_top = (Tj - T_amb) / R_top, clipped to [0, P]
+
+and the operating point is the root of `g(P_b) = P_b - P + P_top(T_max(P_b)) = 0`, monotone with `g' = 1 + R_b / (R_top + theta) >= 1` (`R_b = dT_max/dP_b`), bracketed by `[0, P]`. `api._top_path_split` finds it by regula falsi with the Illinois rule for one part (three board solves when the board is affine and the top heat is not clipped) and by a Broyden iteration projected on `[0, P]` for several parts; it stops when every `|g_i| / P_i < 1e-5` and warns otherwise. A plain fixed point `P_b <- P - P_top(T_max(P_b))` has the slope `-R_b / (R_top + theta)`: it was the method until a review found it diverging on small pads (8 mm pads: ratio 1.3 to 2.4, `Tj` reported 17 to 58 K too low with a false "thermal runaway", `docs/validation.md` 9). The power coefficient stays a fixed point around the whole solve (its slope is the physical runaway condition). FVM, FDM, Lumped, Analytic and the 3D solid all get the top path. On 25 mm pads the program is 0.4 to 0.8 K above a uniform-conductance node prototype (the worst-case convention). Against the same junction node without a top path, a bare mould lowers `Tj` by 0.4 to 0.8 K (about 1 % of the heat) and a 12 K/W clip-on heatsink with paste by 14 to 38 K (41 to 51 % of the heat; `research/component-heatsink/README.md` 4.10). Steady state only; without `theta_SA` nothing changes.
 
 ## 4. A power that depends on temperature
 
@@ -52,11 +56,11 @@ JESD15-3: for a two-resistor model `theta_JB` and `theta_JC(top)` are the two re
 
 ## 6. How the program does it
 
-`pcbthermal/analysis.py` (`heater_stats`, `part_split`), `api.py` (`_solve_with_tc`), `model.py` (`Heater.theta`, `tj_max`, `psi_jb`, `power_tc`, `role`, `junction_theta`), `docs/theory.md` section 9, `docs/models.md` sections 6 and 13.
+`pcbthermal/analysis.py` (`heater_stats`, `part_split`), `api.py` (`_solve_with_tc`, `_top_path_split`), `model.py` (`Heater.theta`, `tj_max`, `psi_jb`, `power_tc`, `role`, `junction_theta`), `docs/theory.md` section 9, `docs/models.md` sections 6 and 13.
 
 ## 7. Where it is tested
 
-`docs/validation.md` section 9; `research/component-heatsink/` (prototype: the offset reproduces the CSD17308Q3 datasheet RthetaJA within 2 %); the closed-form fixed point to 0.05 K.
+`docs/validation.md` section 9; `research/component-heatsink/` (prototype: the offset reproduces the CSD17308Q3 datasheet RthetaJA within 2 %, 46.7 against 46 K/W; the top-path root against Brent's method and the node prototype, `study_top_path_convergence.py`, `tests/test_top_path.py`); the closed-form fixed point to 0.05 K.
 
 ## 8. Related topics
 

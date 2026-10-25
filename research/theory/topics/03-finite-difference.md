@@ -20,7 +20,7 @@ The transient machinery of the FVM is reused unchanged (`fvm.transient_from_netw
 
 ## 3. How it compares
 
-On boards without vias the FDM and FVM agree to about 0.1 %. With a via array the FDM is 2 to 3 % low at 1 mm (a point feature on the nearest node), closing with the grid. The FDM jumps by about +-0.5 C with the grid while the FVM converges monotonically; both stay within about 1 % of each other. Over the whole step response of the example board the FDM is within 0.7 C of the FVM.
+On boards without vias the FDM and FVM agree to about 0.1 %. With a via array the FDM is 2 to 3 % low at 1 mm (a point feature on the nearest node); the gap narrows below 1 mm (-1.1 % at 0.5 mm, -0.5 % at 0.25 mm) but not monotonically (-1.1 % at 2 mm, -2.4 % at 1 mm on the example board), and area sampling stays 0.3 to 1.4 C below the FVM at every spacing, so it does not remove the dependence on the grid (`docs/validation.md` 2 and 2.1). It is 3.5 % low when a copper edge crosses the heater. Over the whole step response of the example board (2 mm) the FDM is within 0.7 C of the FVM. *(An earlier version said the FDM "jumps by about +-0.5 C" and is "within about 1 %" of the FVM; the tables of `docs/validation.md` 2.1 and 6 do not show that: -2.4 % at 1 mm.)*
 
 ## 4. How the program does it
 
@@ -37,6 +37,6 @@ On boards without vias the FDM and FVM agree to about 0.1 %. With a via array th
 ## 7. Sources
 
 * The idea of a control volume at a node and the half-cell balance at an edge: [Patankar1980]. The distinction "finite volume balances on cells, finite differences work on point values": [EymardGallouetHerbin]. A comparison of FD and FV on 1D steady conduction exists ([FDvsFVSpringer]) and was **not read** (login).
-* The numbers (0.1 %, 2 to 3 %, 0.7 C) are own computation: [L-validation].
+* The numbers (0.1 %, 2 to 3 %, -1.1 / -2.4 %, 0.7 C) are own computation: [L-validation].
 
 *What was read and what was not verified:* the formulation is from `docs/theory.md` section 3 (read in full).

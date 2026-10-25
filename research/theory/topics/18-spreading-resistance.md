@@ -4,7 +4,7 @@
 
 *Figure 6 of `research/solid3d-verification` (`research/solid3d-verification/figures/fig_06_spreading_resistance_explained.png`): left, the temperature (colour, logarithmic) and the heat flow (white lines) of a circular source on a flux tube at epsilon = 0.3; middle, the dimensionless resistance against epsilon from the axisymmetric solver, Yovanovich's table and the program's 3D solid; right, the error of the axisymmetric solver as the cell is refined (order one).*
 
-Also: `research/solid3d-verification/figures/fig_01_spreading_resistance_vs_yovanovich.png`, `fig_02_grid_convergence.png`, `fig_05_heat_spreading_layered_and_3d.png` (heat spreading under a small heater in the layered models and in the 3D solid). Investigation: `research/solid3d-verification/README.md` 4.1 and 4.3. **Status: implemented as a verification; the physics is what every model has to reproduce.**
+Also: `research/solid3d-verification/figures/fig_01_spreading_resistance_vs_yovanovich.png`, `fig_02_grid_convergence.png`, `fig_08_heat_spreading_layered_and_3d.png` (heat spreading under a small heater in the layered models and in the 3D solid). Investigation: `research/solid3d-verification/README.md` 4.1 and 4.3. **Status: implemented as a verification; the physics is what every model has to reproduce.**
 
 ## 1. What it is
 
@@ -37,8 +37,8 @@ The flux tube of the table is circular and the 3D solid's is square; the extrapo
 
 ## 6. Sources
 
-* Table 3 of [Yovanovich2003]; the review literature on spreading resistance: [Lee1995], [EC1998Spreading], [YovanovichMuzychkaEllison] (summarised in `research/component-heatsink/NOTES.md`; `R = R_0 + R_c` accurate to about 5 % for aspect ratio below 2.5).
+* Table 3 of [Yovanovich2003]; Seri Lee's worked example: [EC1998Spreading]; the eccentric sources and the method of images: [Muzychka2003]; the review literature on spreading resistance: [YovanovichMuzychkaEllison], [Lee1995] (named by older notes, never located) (summarised in `research/component-heatsink/NOTES.md`; `R = R_0 + R_c` accurate to about 5 % for aspect ratio below 2.5).
 * Grid convergence: [Roache].
 * Own computation: [L-solid3d].
 
-*What was read and what was not verified:* only Table 3 of Yovanovich was taken from the paper (as recorded in the script); the paper itself was not re-read; [Lee1995] was not used beyond the comparison quoted.
+*What was read and what was not verified:* only Table 3 of Yovanovich was taken from the paper (as recorded in the script); the paper itself was not re-read; the worked cases of [Muzychka2003] (pages 182 and 183) and Seri Lee's example were read by the review of `research/effective-conductivity/`; [Lee1995] was not used.

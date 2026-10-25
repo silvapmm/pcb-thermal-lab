@@ -31,7 +31,7 @@ Code and documents are those of `develop`; "inv." is the investigation that hold
 | 09 | [Parts and the junction](topics/09-parts-junction.md) | in program | fig. 9 | `analysis.py`, `api.py` | theory 9 | inv. `component-heatsink` |
 | 10 | [Power profiles](topics/10-power-profiles.md) | in program | fig. 10 | `profiles.py` | theory 10 | `validation.md` 7 |
 | 11 | [Metal blocks and fins](topics/11-metal-blocks-fins.md) | in program | fig. 11 | `blocks.py` | theory 7 | inv. `block-and-fins` |
-| 12 | [Foster chain](topics/12-foster-chain-planned.md) | **planned** | fig. 12 | - | roadmap 1.11 | - |
+| 12 | [Foster chain](topics/12-foster-chain-planned.md) | **planned** | fig. 12 | - | roadmap, Component element | - |
 | 13 | [Heatsink scenarios](topics/13-heatsink-scenarios-planned.md) | **planned** | fig. 13 | - | roadmap, research R3 R6 | inv. `component-heatsink` |
 | 14 | [Virtual JEDEC test, known-power reference](topics/14-virtual-jedec-and-known-power-planned.md) | partly planned | fig. 14 | `inverse.py` | calculators 2.1, 2.4 | inv. `power-calculator` |
 | 15 | [Import and power list](topics/15-import-and-power-list-planned.md) | **planned** | fig. 15 | - | roadmap, import | inv. `gerber-import` |
@@ -108,7 +108,7 @@ Every section that explains a model, an equation or a method has a picture, in t
 | theory 7, 8, 9, 10 | 11, 08, 09, 10 | |
 | theory 11, 12 | 29, bibliography | |
 | models 1 | 01, 28 | |
-| models 2 (the five models) | 02 to 06 | `models-comparison` fig. 4 |
+| models 2 (the five models) | 02 to 06 | `models-comparison` fig. 8 |
 | models 3 input checks | 34 | |
 | models 4 power profiles, 5 heat transfer, 6 parts | 10, 08, 09 and 27 | `component-heatsink` figs. 1, 5, 6 |
 | models 7 API and command line, 8 the application, 11 the calculation process | 31 | screenshots of the application in `docs/images/` (project documents) |
@@ -117,8 +117,8 @@ Every section that explains a model, an equation or a method has a picture, in t
 | models 10 power from a temperature | 23 | `power-calculator` figs. 4, 5 |
 | models 13 where the heat goes, 15 block and fins, 16 paste and package body | 09, 25, 27; 11, 24; 24, 27 | `component-heatsink`, `block-and-fins` |
 | models 18 orientation | 30 | |
-| validation 1, 2 scenarios | 29 | `models-comparison` figs. 1, 2, 5 |
-| validation 3 and 3.1 the 3D solid and the outer copper | 04, 18, 29 | `solid3d-verification` figs. 1 to 5 |
+| validation 1, 2 scenarios | 29 | `models-comparison` figs. 1, 2, 9 |
+| validation 3 and 3.1 the 3D solid and the outer copper | 04, 18, 29 | `solid3d-verification` figs. 1 to 4, 8 |
 | validation 4 FVM and Analytic agree | 37 | |
 | validation 5 solvers | 02 | `models-comparison` fig. 3 |
 | validation 6 the removed program | 32 | |
@@ -145,7 +145,9 @@ Every section that explains a model, an equation or a method has a picture, in t
 | `scripts/make_diagrams.py` | draws the 30 figures (no data, no program) |
 | `scripts/check_mapping_formulas.py` | numerical check of the properties of the 2D effective-medium formulas |
 | `scripts/check_correlations.py` | numerical checks of the correlations quoted by the compilation: 2D Hashin-Shtrikman and the Keller-Dykhne product, Bar-Cohen and Rohsenow, Elenbaas, Churchill-Chu against the worked example of the `ht` library, Hollands (with the correction found), the printed-board conductivities |
+| `scripts/study_fvm_analytic_edges.py` | the review's test of the explanation of topic 37: the Analytic model against the FVM at 1, 0.5 and 0.25 mm on the uniform scenarios, with and without the edge coefficient (under a minute) |
 | `docs/reference-compilation.md` | the maintainer's reference compilation, as received, with what this repository checked of it |
+| `docs/for-the-project-documents.md` | corrections for `docs/theory.md`, `docs/validation.md` and `docs/models.md` found by the review of this folder |
 | `docs/theory-figures.md` | where each topic goes in the project documents when it is adopted |
 | `tests/test_theory.py` | the checks of this folder: every figure and link exists, every bibliography key used in a topic is defined, every topic has the sections |
 
@@ -168,5 +170,18 @@ A topic is adopted when the maintainer decides: its text is folded into `docs/th
 * **Read in full**: `docs/theory.md` (all sections), the parts of `docs/models.md`, `docs/roadmap.md`, `docs/calculators.md` and `docs/validation.md` named in the topics, and the READMEs and literature notes of the investigations named in topics 17 to 23. The topic files restate them; they add structure, the pictures, the paths and the bibliography, not new results.
 * **Not opened in this work**: every textbook and standard of `BIBLIOGRAPHY.md` marked M or N; the statements taken from them are marked "(memory)" or "(from the project documents)" there. Sources marked S were seen as search summaries, by the earlier work that cites them or by the later round of checks described at the top of the bibliography (web search worked, page fetch and downloads were blocked, only the package index was readable).
 * **Read in this work**: the source of the Python `ht` package (version 1.2.0, MIT: the Hollands and Churchill-Chu functions and their worked examples), which showed that its documentation and its code differ in the Hollands formula. The maintainer's reference compilation (kept in `docs/reference-compilation.md`) is a second-hand source: what it read, it read; this repository only checked its numbers.
-* **Checked numerically here**: the properties of the Bruggeman and Hashin-Shtrikman formulas (`scripts/check_mapping_formulas.py`), the area loss of a polygon corner (topic 35, figure 28), the coverage sum against the polygon area (topic 28, figure 21). Everything else in the topics is copied from the project documents.
+* **Checked numerically here**: the properties of the Bruggeman and Hashin-Shtrikman formulas (`scripts/check_mapping_formulas.py`), the correlations of `scripts/check_correlations.py`, the area loss of a polygon corner (topic 35, figure 28), the coverage sum against the polygon area (topic 28, figure 21), and the explanation of topic 37 (`scripts/study_fvm_analytic_edges.py`: it was wrong). Everything else in the topics is copied from the project documents and the READMEs of the investigations; the review of this folder compared those numbers with the current READMEs and `docs/` of `develop` (section 7).
+
+## 7. Review (reviewer agent)
+
+The folder was reviewed against `develop` at `3e90a7f` (the program, `docs/theory.md`, `docs/validation.md`, `docs/models.md`, `docs/calculators.md`) and against the current READMEs of the investigations it cites. What changed:
+
+* **An explanation tested and found wrong** (topic 37, `docs/validation.md` 4): the 0.3 to 1.0 % between the Analytic and the FVM on the uniform scenarios is not the FVM mesh error (0.03 to 0.08 points from 1 to 0.25 mm) but the edge loss (`h_side` 10 W/m2K) that the cosine series leaves out; with insulated edges in both the gap is -0.04 to -0.29 % (`scripts/study_fvm_analytic_edges.py`, the same digits on this branch and on `develop`). Topics 06 and 37 and figure 30 corrected.
+* **Stale against the corrected program**: the 3D size limit (2 million -> 250 000 unknowns, topic 04), the block coefficients (one `h_face + h_extra` for face and sides -> `h_exp = h_face r_fin + h_extra` on the face, `h_wall` on the side walls; topics 04, 11), the top path (a fixed-point loop -> the root of one scalar equation per part, regula falsi or Broyden; topic 09), the laminate nodes of a one-layer board (topics 01, 05, 06), the merged Lumped rings (topic 05), the outline edge on grid lines (topic 02), `Board.natural_form` (topic 08: "nothing is changed in the program"), the inner copper option and the dielectric findings (topic 22), the design term of the calculator (topic 23).
+* **Stale or contradicted numbers**: FDM "jumps of +-0.5 C" and "within about 1 %" (topics 03, 32, figure 25: -2.4 % at 1 mm), solvers "1e-8 K" (2e-8), "20 scenarios" (19), "3 to 30 times faster" (6 to 15), node vs offset "about 3 K" (1.3 to 3.4 K), bare mould "about 3 K" (0.4 to 0.8 K against the same node), forced-air heatsink 65.7 / 64.5 / 63.6 C (64.1 / 63.3 / 62.8), heatsink base table (half-cell defect of the study; topic 26 and figure 19), block summary 2.0 / 4.8 % (1.9 / 4.7), no-via JEDEC board 67.4 K/W (68.1), default paste "0.6 to 1 K" (0.1 to 0.6 K), fin and block-thickness temperatures (0.5 K high), the Analytic within "2 C" in time (2.2 C), other fabricators' splits "0.1 to 1.7 C" (0.1 to 1.5 C).
+* **Wrong cross-references**: `roadmap 1.11` and `docs/roadmap.md section 2` (the roadmap has no numbered sections), `models-comparison` fig. 4 and fig. 5 (the schematic is fig. 8, "where models fail" fig. 9), `solid3d-verification` fig_05 for the heat spreading (fig_08).
+* **Re-derived and confirmed**: the Lumped factors `f_R` and `f_P` from the disc solution (topic 05), the top-path closure and its root equation (topic 09), the fixed point of the power coefficient and the stable/runaway pictures of figure 9, the theta-method factor and the explicit-Euler limit of figure 7, the series and parallel conductivities of the 1998 article and the correlations (`scripts/check_correlations.py`, same digits), the laminate construction of `laminate.py` (topic 01).
+* **Figures** (all 30 read with the image reader): redrawn 1 (`S = k t` -> the sheet conductance of the model), 2 (arrows off the cell faces, `k` for `k_th`), 4 (no pad slab although the caption said so; the heater floating), 6 (the mode equation `a(g + k lambda_mn) = q_mn` was not the equation of the model), 11 (2.0 %), 12 and 16 (roadmap, 1e-8), 18 (resistors drawn like capacitors, theta_SA not joined to the air), 19 (stale table), 21 ("the cell at the lower right": the dotted cell is in the middle), 22 (1e-8, 20 scenarios), 23 ("half of face up" only up to Ra 1e7), 25 ("within about 1 %"), 26 (2 C), 27 (the block of item 7 sat on copper while the item says "no copper under it"; checks missing from the list), 30 (overlapping text, a duplicate arrow, the wrong explanation). The figure audit's redraws of 1, 4, 5, 8, 14, 15, 18, 22, 23, 24 and 27 were checked; 4, 18, 22, 23 and 27 needed the further corrections above.
+* **Bibliography**: [EC1998Spreading] said the edge and corner cases were not compared (they are: +0.6 / -0.8 / -4.6 %); [Lee1995] quoted the old +4.5 %; section 14 listed Culham and Yovanovich (1998), Lush (2004) and Milton as not opened while their entries say they were; the sources opened by later reviews were added ([Muzychka2003] worked cases in full, the datasheets of [Datasheets], the via pages of [ViaGuides], the new [IsolaPrepreg]); no status was raised without a record of the reading.
+* **Not verified**: the numbers of the Gerber investigations in topics 15, 17, 19 and 20 (their folders have their own reviews); the residual -0.1 to -0.3 % of the Analytic with insulated edges; the multigrid timings (quoted from `docs/roadmap.md`, printed by no script).
 * **Not verified**: the planned topics (12 to 16) describe intended behaviour; the formulas of topic 12 and 16 are general textbook knowledge written without a source; the pictures are explanations, not tests.

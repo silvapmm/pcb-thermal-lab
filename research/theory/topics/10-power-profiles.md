@@ -26,7 +26,7 @@ One time-stepping run with all heaters (the problem is linear). The step `dt` is
 
 ## 5. How the program does it
 
-`pcbthermal/profiles.py` (decision, window runner shared by the three models), `profile_io.py` (CSV), GUI "Power profile" tab, command line options of `run`; `docs/theory.md` section 10, `docs/models.md` section 4. The CSV format has a documented example in `examples/csv_profiles/`.
+`pcbthermal/profiles.py` (decision, window runner `run_windows` shared by the FVM, FDM, Lumped and Analytic models through one adapter each), `profile_io.py` (CSV), GUI "Power profile" tab, command line options of `run`; `docs/theory.md` section 10, `docs/models.md` section 4. The CSV format has a documented example in `examples/csv_profiles/`.
 
 ## 6. Where it is tested
 

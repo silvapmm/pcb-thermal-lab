@@ -2,7 +2,7 @@
 
 ![Orientation](../figures/fig_23_orientation.png)
 
-*Figure 23 (`figures/fig_23_orientation.png`): the two orientations of the Board panel (horizontal with layer 1 facing up, and vertical) and the three natural-convection laws against the Rayleigh number; at the same Rayleigh number the facing-down coefficient is half the facing-up one. Constant air properties (Prandtl 0.71) for the vertical law. The vertical curve is the general form; the laminar form is an option (`Board.natural_form`).*
+*Figure 23 (`figures/fig_23_orientation.png`): the two orientations of the Board panel (horizontal with layer 1 facing up, and vertical) and the three natural-convection laws against the Rayleigh number; at the same Rayleigh number the facing-down coefficient is half the facing-up one up to Ra 1e7 (above it the facing-up law turns to `0.15 Ra^(1/3)` and the ratio falls: 0.32 at 1e9). Constant air properties (Prandtl 0.71) for the vertical law. The vertical curve is the general form; the laminar form is an option (`Board.natural_form`).*
 
 **Status: in program** (`docs/models.md` section 18, `tests/test_orientation.py`).
 

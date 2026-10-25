@@ -19,9 +19,12 @@
 | 5 | overlapping heaters | the powers add on the same cells |
 | 6 | vias or zones outside the board | they are ignored |
 | 7 | a metal block with no copper under it, or an almost perfect contact | the heat has no path into the block, or the contact is optimistic (topic 24) |
+| 8 | plate fins closer than still air allows | the channel between the fins chokes; the fin model assumes the typed coefficient (topic 11) |
+| - | a footprint of zero area; more than half of a zone outside the board; part of a metal block outside the board; two heatsinks that overlap | the area is ignored or only the part inside (or only the later heatsink) is used |
 | - | zero total power | there is nothing to simulate |
+| 9 | after the run: `q'' t / (2 k)` of a heater's copper layer or of a block under it above 5 % of the rise (`check_thick_plates`, with the flux that enters the block in the FVM or FDM result) | one node through a thick, poorly conducting plate is cooler than its surface under the source (topic 01) |
 
-The Results summary also carries the warnings of the models themselves (a model skipped on an outline, a block refused in time, the Analytic transient smearing vias).
+The Results summary also carries the warnings of the models themselves (the Lumped and Analytic models run on the rectangle of the same area of an outline, a block refused in time, the Analytic transient smearing vias, a 3D solid above 250 000 unknowns not run, a top-path split or a power loop that did not converge).
 
 ## 2. Where it is tested
 
@@ -35,4 +38,4 @@ The Results summary also carries the warnings of the models themselves (a model 
 
 Own design; the failure cases are measured in `docs/validation.md` sections 2, 3 and 13 ([L-validation]).
 
-*What was read and what was not verified:* from `docs/models.md` section 3 (read in full); the thresholds inside `checks.py` were not re-derived here.
+*What was read and what was not verified:* from `docs/models.md` section 3 (read in full) and the list of messages of `pcbthermal/checks.py` of `develop` (rows 8, 9 and the line of further checks were missing here and are missing from `docs/models.md` 3); the thresholds inside `checks.py` were not re-derived here.

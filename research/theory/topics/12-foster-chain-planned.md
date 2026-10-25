@@ -4,7 +4,7 @@
 
 *Figure 12 (`figures/fig_12_foster_chain_planned.png`): left, a thermal impedance curve `Zth(t)` as the sum of three exponential stages (illustrative values); middle, the Foster chain, a series of resistor-capacitor pairs, that reproduces it; right, a pulse train and the junction rise read from it, the check of the time simulation `delta Tj = Zth(tp, D) P` (illustrative).*
 
-**Status: planned, not implemented** (`docs/roadmap.md` 1.11, "Component element, the part of the plan not done"). Today the part is quasi-static: its junction follows the board temperature plus `P theta` at once.
+**Status: planned, not implemented** (`docs/roadmap.md`, "Component element (the part of the plan not done)"; no Foster or Cauer network exists in `pcbthermal/`). Today the part is quasi-static: its junction follows the board temperature plus `P theta` at once.
 
 ## 1. The problem
 

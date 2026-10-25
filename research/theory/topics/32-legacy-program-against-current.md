@@ -32,7 +32,7 @@ The same example board, reference 85.81 C (the current FVM at 1 mm), with the or
 * no lateral conduction in FR-4, solid vias, heatsinks on inner layers ignored, boundary nodes with a full cell;
 * a dimensionally wrong analytic term and an invalid lumped network.
 
-All were fixed (conservative cell balance, exact power, anisotropic FR-4, hollow vias). **It was not the finite-difference idea**: a correct FDM (topic 03) lands within about 1 % of the FVM.
+All were fixed (conservative cell balance, exact power, anisotropic FR-4, hollow vias). **It was not the finite-difference idea**: a correct FDM (topic 03) lands within 2.4 % of the FVM on this board at 1 mm and 1.1 % at 0.5 mm, within 0.1 % where there are no vias. *(An earlier version said "within about 1 %" next to the -2.4 % of the same table.)*
 
 ## 3. Related topics
 

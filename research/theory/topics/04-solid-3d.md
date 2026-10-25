@@ -6,7 +6,7 @@
 
 ## 1. What it is
 
-A steady-state model that drops the "one node per copper layer" idea (topic 01). The plan grid is the FVM's (same cells); across the thickness the stack is cut into **real slabs** from the top face down. It measures **the error of the layered idealisation on your board** and is the independent check of the other four models. Key `solid3d`, steady state only, refused above 2 million unknowns.
+A steady-state model that drops the "one node per copper layer" idea (topic 01). The plan grid is the FVM's (same cells); across the thickness the stack is cut into **real slabs** from the top face down. It measures **the error of the layered idealisation on your board** and is the independent check of the other four models. Key `solid3d`, steady state only, refused above 250 000 unknowns (`solid3d.MAX_CELLS`, counted by `solid3d.unknowns` before anything is built; the limit was 2 million, which let a run go on for hours); the other models of the run still run.
 
 ## 2. Slabs
 
@@ -30,11 +30,11 @@ The "tiled conductivity" method of PCB thermal models:
     face:      G = A / (1/h + dz / (2 k_z))                           (the film in series with the half cell)
     edge:      G = 1 / (1 / (h_side D dz) + (D_n / 2) / (k_x D dz))
 
-A block hides the board face under it (factor `1 - c`), loses heat on its exposed face (`h_face + h_extra`) and on its sides. The heater power goes to the copper slab of its layer with the weights of topic 02.
+A block hides the board face under it (factor `1 - c`), loses heat on its exposed face with `h_exp = h_face r_fin + h_extra` (the fin ratio of topic 11) and on the side walls of every block slab with `G = h_wall dz L_edge`, `h_wall = h_face + h_extra` (no fin ratio: the fins stand on the face; `L_edge` the block outline inside the cell). The heater power goes to the copper slab of its layer with the weights of topic 02.
 
 ## 5. Convergence and limits
 
-Four slabs per gap are within 1 % of eight even on a heater-sized pad (the hardest case, where the finite-volume and finite-element solids bracket the limit by about +-4 %). **Limits**: the barrel is a lumped area (the lateral effect of the thin wall is neglected), copper is one slab thick, a block contact is perfect over the pad, the cost grows quickly with layers and cells (the direct solve of 160 000 unknowns takes about 12 s), steady state only.
+Four slabs per gap are within 1 % of eight even on a heater-sized pad (the hardest case, where the finite-volume and finite-element solids bracket the limit by about +-4 %). **Limits**: the barrel is a lumped area (the lateral effect of the thin wall is neglected), copper is one slab thick, a block contact is perfect over the pad, the cost grows quickly with layers and cells (the direct solve of 160 000 unknowns takes about 12 s; on a square 4-layer board of 16 slabs the memory is 2.2 GB at 160 000 unknowns and 4.4 GB at 254 000, `docs/theory.md` 4 and `research/solid3d-verification/` `study_solve_cost.py`), steady state only.
 
 ## 6. How the program does it
 

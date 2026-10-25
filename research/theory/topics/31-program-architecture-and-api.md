@@ -33,7 +33,7 @@
 
 ## 4. Where it is tested
 
-`tests/` (about 300 tests, the GUI offscreen), `tests/test_docs.py` (Doxygen on every function), `tests/test_gui_stress.py` (every example with every model and results view, bad CSV files, edits during a run, random actions).
+`tests/` (about 310 test functions in `develop`, more cases with the parametrised ones; the GUI offscreen), `tests/test_docs.py` (Doxygen on every function), `tests/test_gui_stress.py` (every example with every model and results view, bad CSV files, edits during a run, random actions).
 
 ## 5. Related topics
 

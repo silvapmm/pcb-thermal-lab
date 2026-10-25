@@ -11,7 +11,8 @@ Also `research/power-calculator/figures/fig_05_reading_points_and_copper.png` (t
 Given a measured temperature of a part (junction, case or board point), the calculator finds the **power** of the part. The board model is run backwards: the board is **affine in the power** (two runs fix the line), so the unknown power is the intersection of that line with the reading. The reason it is not a datasheet-only formula: `Tj = T_board + psi P` needs `Tj`.
 
 * **From the top of the package**: `Tj = T_top + psi_JT P`, then the junction rise gives `P` through the board resistance and `theta`.
-* **Uncertainty band**: best, nominal and worst power from the one-at-a-time effects of the copper, the heat transfer, `theta`, `psi_JT` and the reading, combined as the root of the sum of squares; the selector decides which power is written into the part.
+* **Uncertainty band**: best, nominal and worst power from the one-at-a-time effects of the copper (+-25 %), the heat transfer (+-30 %), `theta` (+-20 %), `psi_JT` (+-30 %) and the reading (+-1 K), the downward and the upward deviations each combined as the root of the sum of squares; the selector decides which power is written into the part.
+* **Design term** (how well the drawing matches the board): four more one-at-a-time sources, the copper coverage of the outer zones, the copper weight, the inner planes and the via plating, with assumed amplitudes (40, 50, 50, 50 %) times the multiplier of the *Board description* level (None 0, real fabrication files 0.2, drawn by hand 0.5, the default, estimated 1), added by the same rule (`inverse.power_band`, `docs/calculators.md` 1.1c). It brings 2 of the 4 drawing errors of the study inside the band at *Drawn by hand* (a hatched pour, missing vias) and not a copper weight half the real one nor missing inner planes, even at *Estimated*; the amplitudes are judgements, not fitted to data.
 
 ## 2. Validation
 

@@ -6,7 +6,7 @@
 
 ## 1. What it is
 
-In **computed** mode each outer face gets `h = h_c + h_r` from the mean temperature of that face, instead of a typed number. Because `h` depends on the temperature, the program iterates: solve, take the mean temperature of each face, recompute `h`, until both change by less than 0.01 W/m2K (three or four solves). Measured on the example board: a constant `h` overestimates the rise by 10 % at 22 W and underestimates it at low power (`docs/roadmap.md` section 2).
+In **computed** mode each outer face gets `h = h_c + h_r` from the mean temperature of that face, instead of a typed number. Because `h` depends on the temperature, the program iterates: solve, take the mean temperature of each face, recompute `h`, until both change by less than 0.01 W/m2K (three or four solves). Measured on the example board: a constant `h` overestimates the rise by 10 % at 22 W and underestimates it at low power (`docs/validation.md` 8).
 
 ## 2. The correlations (`convection.py`, air at the film temperature `(T_s + T_a) / 2`)
 
@@ -21,9 +21,9 @@ In **computed** mode each outer face gets `h = h_c + h_r` from the mean temperat
 
 ## 2b. The laminar form of the vertical plate
 
-Churchill and Chu also give a form for the laminar range (Rayleigh up to about 1e9), `Nu = 0.68 + 0.670 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)`, said to be slightly more accurate there; the program uses the all-range form above. Compared at Pr 0.71 (`scripts/check_correlations.py`) the laminar form is +6.6 % at Ra 1e5, -5.2 % at 1e7 and -25 % at 1e9 (the all-range form includes the turbulent rise), so for a vertical board with Rayleigh numbers of 1e5 to 1e6 the choice moves `h_n` by a few percent. Nothing is changed in the program; the all-range form reproduces the worked example of the textbook to the digit (Nu 147.16 at Pr 0.69, Gr 2.63e9).
+Churchill and Chu also give a form for the laminar range (Rayleigh up to about 1e9), `Nu = 0.68 + 0.670 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)`, said to be slightly more accurate there. The program uses the all-range form by default and offers the laminar one as an option, `Board.natural_form = "laminar"`, which warns above `Ra = 1e9` (`docs/theory.md` 8). Compared at Pr 0.71 (`scripts/check_correlations.py`) the laminar form is +6.6 % at Ra 1e5, -5.2 % at 1e7 and -25 % at 1e9 (the all-range form includes the turbulent rise), so for a vertical board with Rayleigh numbers of 1e5 to 1e6 the choice moves `h_n` by a few percent.
 
-The all-range form of the program reproduces the worked example of the library `ht` to the digit (`Nu` 147.16 at Pr 0.69 and a Grashof number of 2.63e9, which the library takes as its argument). On a board of 50, 100 and 200 mm height at 10 to 80 K the laminar form changes the coefficient by +6.5 % to -10 % (`research/effective-conductivity/` 4.7), inside the +-30 % assigned to `h`; no change is proposed until the paper is read. The laminar form is confirmed by three secondary sources (the `ht` library, Incropera and DeWitt's textbook through `thermal.mayahtt.com`, and [Yovanovich1993Flat], pages 1 to 4 read, who writes the laminar blend of Churchill for 1e4 < Gr < 1e9 without the additive 0.68); on the program itself, the example board and bare two-layer boards turned to the vertical, the laminar form moves the maximum temperature by -0.7 to +0.2 % of the rise (`research/effective-conductivity/` 4.8 B).
+The all-range form of the program reproduces the worked example of the library `ht` to the digit (`Nu` 147.16 at Pr 0.69 and a Grashof number of 2.63e9, which the library takes as its argument; the library cites it as Example 9.2 of Bergman and others). On a board of 50, 100 and 200 mm height at 10 to 80 K the laminar form changes the coefficient by +6.5 % to -10 % (`research/effective-conductivity/` 4.7), inside the +-30 % assigned to `h`; the default stays the all-range form until the paper is read, and the laminar form was added as an option. The laminar form is confirmed by three secondary sources (the `ht` library, Incropera and DeWitt's textbook through `thermal.mayahtt.com`, and [Yovanovich1993Flat], pages 1 to 4 read, who writes the laminar blend of Churchill for 1e4 < Gr < 1e9 without the additive 0.68); on the program itself, the example board and bare two-layer boards turned to the vertical, the laminar form moves the maximum temperature by -0.7 to +0.2 % of the rise (`research/effective-conductivity/` 4.8 B).
 
 ## 3. Limits
 
@@ -44,7 +44,7 @@ Textbook air properties and closed forms, 1 to 3 % (`tests/`); `docs/validation.
 ## 7. Sources
 
 * Correlations, properties and radiation: [IncroperaDeWitt].
-* Vertical plate: [ChurchillChu1975] (citation and the form of the expression, with 0.825, 0.387 and 8/27, confirmed by secondary sources; the paper not opened). Blending of natural and forced convection: [ChurchillBlend] (the paper of 1977 exists; that the program's cube-root rule is the one of that paper is **not confirmed**).
+* Vertical plate: [ChurchillChu1975] (both forms, `Board.natural_form`; citation and the form of the expression, with 0.825, 0.387 and 8/27, confirmed by secondary sources; the paper not opened). Blending of natural and forced convection: [ChurchillBlend] (the paper of 1977 exists; that the program's cube-root rule is the one of that paper is **not confirmed**).
 * Property fits: [AirProperties]. The laminar form and the general rule for blending asymptotes (the structure of Churchill's mixing rule): [ChurchillUsagi]; a software implementation read for the worked example: [HtLibrary].
 
 *What was read and what was not verified:* equations are from `docs/theory.md` section 8 (read in full); the original publications were not opened. The curves of the figure are illustrative: natural convection drawn as `1.3 dT^(1/4)` (only the shape of the growth, not a correlation of the program) and radiation from the linearised formula with emissivity 0.9.

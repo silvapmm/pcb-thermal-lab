@@ -10,7 +10,7 @@
 
 A **prepreg** is glass cloth with uncured resin; after lamination it is a dielectric sheet like a core. In the model every gap between two copper layers is a thickness with a conductivity, so a prepreg enters as its **pressed thickness** (after lamination, not the nominal thickness before pressing) and its conductivity, exactly as a core does.
 
-* **Thickness**: the pressed thickness is smaller than the nominal one because resin flows into the etched copper. Fabricator numbers: a 7628 prepreg 210.4 um pressed (8.6 mil nominal = 218 um), 1080 about 70 to 76 um, 2116 about 115 to 130 um, 3313 about 107 um; resin content 40 to 50 % standard.
+* **Thickness**: the pressed thickness is smaller than the nominal one because resin flows into the etched copper. Fabricator numbers: a 7628 prepreg 210.4 um pressed (JLCPCB as recorded; not confirmed again by the review of `research/stackup/`) (8.6 mil nominal = 218 um), 1080 about 70 to 76 um, 2116 about 115 to 130 um, 3313 about 107 um; resin content 40 to 50 % standard.
 * **Conductivity**: the glass raises it a little above the pure resin (0.2 to 0.3 W/mK); FR-4 laminates measure 0.29 to 0.34 W/mK through the thickness; filled prepregs reach 0.8 to 2 W/mK. Values for 1080, 2116 or 7628 separately were not found, so prepreg and core use the same FR-4 properties by default; per gap another material can be chosen.
 
 ## 2. Several sheets in one gap
@@ -40,7 +40,7 @@ The exact prepreg is not critical; the copper weight and the vias are: enter the
 
 ## 5. Sources
 
-* Fabricator thicknesses and builds: [StackupTables] (JLCPCB, Eurocircuits and others). The pressed-thickness formula of a patent and the conductivity ranges are quoted by `docs/models.md` section 17 without addresses (**S**: not recorded).
+* Fabricator thicknesses and builds: [StackupTables] (JLCPCB, Eurocircuits and others). The pressing rule (the copper-to-copper space is the ply thickness minus, for each adjacent layer, the etched fraction times the copper thickness; cores unchanged): [IsolaPrepreg] (read in full by `research/stackup/`, which checked two fabricators' numbers against it). The patent formula and the conductivity ranges are quoted by `docs/models.md` section 17 without addresses (**S**: not recorded).
 * Own computation: [L-stackup].
 
 *What was read and what was not verified:* from `docs/models.md` section 17 (read in full); the conductivity ranges are the document's, the sources were not recorded.

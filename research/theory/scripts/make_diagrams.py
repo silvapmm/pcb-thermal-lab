@@ -32,18 +32,20 @@ def fvm_cell(path):
         for j in range(3):
             a.add_patch(Rectangle((1 + 2.6 * i, 1 + 2.2 * j), 2.6, 2.2, fc="#f3d9b1" if (i, j) != (1, 1) else "#ffe9a8", ec="k"))
             a.plot(2.3 + 2.6 * i, 2.1 + 2.2 * j, "ko", ms=3)
-    a.text(5.1, 3.0, "θ(i,j)", ha="center", fontsize=9, fontweight="bold")
-    for (x0, y0, x1, y1, t) in ((6.4, 3.2, 7.6, 3.2, "Gx"), (3.8, 3.2, 2.7, 3.2, "Gx"), (5.1, 4.7, 5.1, 5.5, "Gy"), (5.1, 2.0, 5.1, 1.2, "Gy")):
+    a.text(4.9, 3.7, "θ(i,j)", ha="center", fontsize=9, fontweight="bold")
+    # Arrows across the four faces of the centre cell (x 3.6 to 6.2, y 3.2 to 5.4, centre 4.9, 4.3)
+    for (x0, y0, x1, y1, t) in ((5.8, 4.3, 7.0, 4.3, "Gx"), (4.0, 4.3, 2.8, 4.3, "Gx"), (4.9, 5.0, 4.9, 6.1, "Gy"), (4.9, 3.5, 4.9, 2.4, "Gy")):
         dk.arrow(a, x0, y0, x1, y1, color=dk.HEAT, label="")
         a.text((x0 + x1) / 2, (y0 + y1) / 2 + 0.25, t, ha="center", fontsize=8, color=dk.HEAT)
-    a.text(5, 7.6, "plan: heat balance of one cell through its four faces", ha="center", fontsize=9, fontweight="bold")
+    a.set_ylim(0, 8.4)
+    a.text(5, 8.0, "plan: heat balance of one cell through its four faces", ha="center", fontsize=9, fontweight="bold")
     a = axs[1]
     a.set_xlim(0, 10); a.set_ylim(0, 8)
     a.text(5, 7.6, "one face = two half cells in series", ha="center", fontsize=9, fontweight="bold")
     dk.box(a, 0.3, 4.6, 2.0, 1.0, "θ1", "#ffe9a8"); dk.box(a, 7.7, 4.6, 2.0, 1.0, "θ2", "#f3d9b1")
     dk.resistor(a, 2.3, 5.0, 5.1, "Δx/(2 S1 Δy)"); dk.resistor(a, 5.0, 7.7, 5.1, "Δx/(2 S2 Δy)")
     a.text(5, 3.3, "G = 2 S1 S2 / (S1 + S2) · Δy/Δx\nthe harmonic mean: a copper / FR-4 edge\nis a series, not an average", ha="center", fontsize=8.5)
-    a.text(5, 1.4, "vertical: Gz = kΔxΔy/d + Σ vias k_cu A_via/d\nambient: G_amb = h Δx Δy", ha="center", fontsize=8.5)
+    a.text(5, 1.4, "vertical: Gz = k_th ΔxΔy/d + Σ vias k_cu A_via/d\nambient: G_amb = h Δx Δy", ha="center", fontsize=8.5)
     a = axs[2]
     a.set_xlim(0, 10); a.set_ylim(0, 8)
     a.text(5, 7.6, "the matrix row", ha="center", fontsize=9, fontweight="bold")
@@ -106,8 +108,11 @@ def solid3d(path):
                 y += 0.38
     a.add_patch(Rectangle((5.0, 1.0), 0.4, y - 1.0, fc=CU, ec="k"))
     a.text(5.2, 0.5, "via: rod of the barrel's copper area", ha="center", fontsize=8)
-    dk.layer(a, 6.8, y, 2.4, 0.9, dk.METAL, "metal block", size=8)
-    dk.box(a, 1.6, y + 0.3, 1.6, 0.6, "heater", "#f4b6b6")
+    dk.layer(a, 6.8, y, 2.4, 0.18, "#f2d9b0")                         # pad slab: thickness R'' x 1 W/mK, conductivity 1 W/mK
+    a.text(9.4, y + 0.09, "pad slab (R'')", fontsize=7, va="center")
+    dk.layer(a, 6.8, y + 0.18, 2.4, 0.9, dk.METAL, "metal block: n slabs", size=8)
+    a.plot([6.8, 9.2], [y + 0.63, y + 0.63], color="k", lw=0.3)       # Two of the n = round(t / 1 mm) metal slabs
+    dk.box(a, 1.6, y, 1.6, 0.4, "heater (power into the copper slab)", "#f4b6b6", size=6)
     a.text(10.2, 3.0, "3 copper layers:\none slab each\n\n4 laminate slabs\nper gap", fontsize=8, va="center")
     a.text(5, 7.4, "section of the structured grid", ha="center", fontsize=9, fontweight="bold")
     a = axs[1]
@@ -176,7 +181,7 @@ def analytic_modes(path):
         ia.imshow(np.cos(m * np.pi * X) * np.cos(n * np.pi * Y), cmap="RdBu_r", origin="lower")
         ia.set_xticks([]); ia.set_yticks([]); ia.set_title(f"mode ({m},{n})", fontsize=8)
     axs[0].text(0.5, 1.06, "the board as a sum of cosines (insulated edges)", ha="center", fontsize=9, fontweight="bold", transform=axs[0].transAxes)
-    axs[0].text(0.5, -0.04, "each mode decouples: a·(g + k·λ_mn) = q_mn", ha="center", fontsize=8, transform=axs[0].transAxes)
+    axs[0].text(0.5, -0.04, "each mode decouples: (S k_mn² + h) a_mn = q_mn on one layer; A_mn a_mn = q_mn on L layers", ha="center", fontsize=8, transform=axs[0].transAxes)
     a = axs[1]
     a.axis("on")
     src = (x > 0.4) & (x < 0.6)
@@ -384,13 +389,13 @@ def metal_block(path):
     dk.box(a, 0.5, 4.8, 3.9, 1.4, "Lumped: the block is one\nmore layer of the ring network", "#cfe3f5", size=8)
     dk.box(a, 5.6, 4.8, 3.9, 1.4, "Analytic: Schur complement\non the tile graph of the\nGreen-function correction", "#cfe3f5", size=8)
     a.text(5, 2.8, "an equivalent coefficient (isothermal block) is 8 to 31 % off:\nthe block spreads the heat of the pad centre to the whole pad", ha="center", fontsize=8.5)
-    a.text(5, 1.0, "means 2.0 % / 1.1 % (Lumped / Analytic) against the FVM", ha="center", fontsize=8, style="italic")
+    a.text(5, 1.0, "means 1.9 % / 1.1 % (Lumped / Analytic) against the FVM, 74 cases", ha="center", fontsize=8, style="italic")
     dk.save(fig, path, "Metal blocks: the block on the board, a plate fin, the equivalents of the Lumped and Analytic models (theory section 7)")
 
 
 def foster_chain(path):
     """!
-    @brief Plan: draw the package's thermal impedance Zth(t), the Foster RC chain that reproduces it, and a pulse train read from it (roadmap 1.11).
+    @brief Plan: draw the package's thermal impedance Zth(t), the Foster RC chain that reproduces it, and a pulse train read from it (roadmap, "Component element").
     @param path Output file.
     @return None.
     """
@@ -428,7 +433,7 @@ def foster_chain(path):
     a.plot(tt, P, color=dk.HEAT, label="power pulses"); a.plot(tt, th, color=dk.BLUE, label="ΔTj = Zth ∗ P (convolution)")
     a.set_xlabel("time (arbitrary)"); a.legend(fontsize=8); a.grid(alpha=0.3)
     a.set_title("check of the time simulation: ΔTj = Zth(tp, D) · P (illustrative)", fontsize=9)
-    dk.save(fig, path, "Planned: junction impedance Zth(t), the Foster chain and a pulse train (roadmap 1.11)")
+    dk.save(fig, path, "Planned: junction impedance Zth(t), the Foster chain and a pulse train (roadmap, Component element)")
 
 
 def heatsink_scaling(path):
@@ -537,7 +542,7 @@ def multigrid(path):
     a = axs[1]; a.set_xlim(0, 10); a.set_ylim(0, 8)
     a.text(5, 7.3, "when it pays", ha="center", fontsize=9, fontweight="bold")
     a.text(5, 4.6, "measured on the example board:\nabove about 500 000 unknowns\n987 000 unknowns: 8.0 s against 12.8 s for CG;\nthe direct solver does not fit in memory", ha="center", fontsize=8.5)
-    a.text(5, 1.4, "optional dependency, chosen above a threshold;\nall solvers agree to 1e-8 K", ha="center", fontsize=8, style="italic")
+    a.text(5, 1.4, "optional dependency, chosen above a threshold;\ndirect, CG and SOR agree to 2e-8 K", ha="center", fontsize=8, style="italic")
     dk.save(fig, path, "Planned: multigrid, the V-cycle and when it pays (roadmap, solvers)")
 
 
@@ -551,7 +556,7 @@ def layered_idealisation(path):
     a = axs[0]; a.set_xlim(0, 12); a.set_ylim(0, 8)
     ys = [5.4, 3.4, 1.4]
     for k, y in enumerate(ys):
-        dk.layer(a, 0.5, y, 8, 0.3, CU, f"copper {k + 1}: one node, sheet conductance S = k t", size=7)
+        dk.layer(a, 0.5, y, 8, 0.3, CU, f"copper {k + 1}: one node, S = f k_cu t + k_ip (slab - f t)", size=7)
         if k < 2:
             dk.layer(a, 0.5, y - 1.6, 8, 1.6, dk.FR4)
             dk.resistor(a, 8.7, 10.5, y - 0.7, "gap: d/k_th", size=7)
@@ -625,11 +630,12 @@ def level_chain(path):
     a.text(6, 8.4, "the same as a network (every level one conductance)", ha="center", fontsize=9, fontweight="bold")
     dk.box(a, 0.3, 4.0, 1.2, 1.0, "J", "#f4b6b6")
     dk.resistor(a, 1.5, 3.7, 6.6, "theta_JC(top)"); dk.resistor(a, 3.7, 5.9, 6.6, "R''/A"); dk.resistor(a, 5.9, 8.1, 6.6, "theta_SA")
-    dk.box(a, 8.7, 6.2, 1.6, 0.8, "air", dk.AIR)
+    dk.box(a, 8.7, 6.2, 1.6, 0.8, "air", dk.AIR); a.plot([8.1, 8.7], [6.6, 6.6], "k")   # theta_SA joins the air
     a.plot([0.9, 0.9], [5.0, 6.6], "k"); a.plot([0.9, 1.5], [6.6, 6.6], "k")
     dk.resistor(a, 1.5, 3.7, 2.4, "theta (footprint)"); a.plot([0.9, 0.9], [4.0, 2.4], "k"); a.plot([0.9, 1.5], [2.4, 2.4], "k")
     dk.box(a, 3.7, 2.0, 2.2, 0.8, "board cells", "#cfe3f5"); dk.box(a, 6.4, 2.0, 1.8, 0.8, "faces h", "#cfe3f5")
-    dk.resistor(a, 5.9, 6.4, 2.4); dk.box(a, 8.7, 2.0, 1.6, 0.8, "air", dk.AIR); dk.resistor(a, 8.2, 8.7, 2.4)
+    # Plain links: the boxes are networks of conductances, and a resistor this short drew like a capacitor
+    a.plot([5.9, 6.4], [2.4, 2.4], "k"); dk.box(a, 8.7, 2.0, 1.6, 0.8, "air", dk.AIR); a.plot([8.2, 8.7], [2.4, 2.4], "k")
     dk.arrow(a, 4.8, 2.0, 4.8, 1.2); dk.box(a, 3.7, 0.2, 2.2, 0.9, "interface + block", "#e8e8e8", size=7)
     a.text(8.0, 0.8, "the heat from J splits in the inverse ratio of the two chains;\nthe effects are not additive:\ntop heatsink 37 K, block 9 K, both 40 K (MOSFET example)", fontsize=7.5, ha="center")
     dk.save(fig, path, "Many levels in a chain: package, interface, board, interface, metal (research notes R5; the top path with a junction node is in the program, analysis.part_split)")
@@ -655,13 +661,13 @@ def plate_spreading(path):
     a.text(5, 6.3, "extra resistance = R(plate) - R(catalogue test source)", ha="center", fontsize=8)
     a = axs[1]
     names = ["Al 1 mm", "Al 3 mm", "Cu 3 mm", "steel 1 mm", "steel 3 mm"]
-    s33 = [3.6, 1.6, 0.9, 13.5, 6.1]
-    s5 = [3.2, 1.3, 0.7, 12.0, 5.0]
+    s33 = [3.7, 1.9, 1.0, 13.9, 7.0]                       # research/component-heatsink/README.md 4.7 (half cell to the source face added)
+    s5 = [3.3, 1.5, 0.8, 12.1, 5.5]
     x = np.arange(len(names))
     a.bar(x - 0.2, s33, 0.4, color="#1f77b4", label="3.3 mm source (chain 46.6 K/W)")
     a.bar(x + 0.2, s5, 0.4, color="#ff7f0e", label="5 mm source (chain 41 K/W)")
     a.set_xticks(x); a.set_xticklabels(names); a.set_ylabel("share of the top chain (%)")
-    a.set_title("base spreading as a share of the whole top chain (table of research notes R8)", fontsize=9)
+    a.set_title("base spreading as a share of the whole top chain (component-heatsink README 4.7)", fontsize=9)
     a.legend(fontsize=8); a.grid(alpha=0.3, axis="y")
     dk.save(fig, path, "Heatsink on a component: plate or only K/W? (research notes R8)")
 
@@ -730,7 +736,7 @@ def coverage(path):
             if cov[j, i] > 0:
                 a.text(i + 0.5, j + 0.5, f"{cov[j, i]:.2f}", ha="center", va="center", fontsize=7, color="k" if cov[j, i] < 0.7 else "w")
     a.set_xlim(0, n); a.set_ylim(0, n); a.set_aspect("equal"); a.set_xticks([]); a.set_yticks([])
-    a.set_title("coverage of each cell: fraction of the 8 x 8 samples inside the footprint\n(the cell at the lower right shows its samples: black inside, white outside)", fontsize=9)
+    a.set_title("coverage of each cell: fraction of the 8 x 8 samples inside the footprint\n(the dotted cell shows its 64 samples: black inside, white outside)", fontsize=9)
     a = axs[1]; a.axis("off"); a.set_xlim(0, 10); a.set_ylim(0, 9)
     a.text(5, 8.3, "from coverage to source", ha="center", fontsize=9, fontweight="bold")
     a.text(5, 6.6, "Q_i = P c_i / sum(c)", ha="center", fontsize=13)
@@ -750,10 +756,10 @@ def ladder(path):
     ax.set_xlim(0, 14); ax.set_ylim(0, 8.2)
     rungs = [
         ("exact answers", "energy balance 1e-12 to 1e-9 on every board; the RC solution of a uniform board (Euler 1st order, Crank-Nicolson 2nd); closed form of the power loop 0.05 K; 1D series circuit 1e-6 K", "#d9efd0"),
-        ("solvers against each other", "direct, CG and SOR agree to 1e-8 K on five boards", "#d9efd0"),
+        ("solvers against each other", "direct, CG and SOR agree to 2e-8 K on five boards", "#d9efd0"),
         ("published solutions", "Yovanovich's table within 0.7 to 0.8 % (2 % at epsilon 0.1); plate model +0.6 % (Seri Lee); convection correlations 1 to 3 %", "#cfe3f5"),
         ("independent 3D solutions", "3D solid and a finite-element solid: layered models within 0.4 to 2.2 % (FVM); 3D solid 0.2 % on three boards, +-4 % on a heater-sized pad;\nan independent solver in the tests: coupon within 0.2 % (FVM, 3D solid, Analytic), 1.2 % (FDM)", "#cfe3f5"),
-        ("models against each other", "20 scenarios, four models and the 3D solid (the Lumped and Analytic models fail in known cases and the input checks warn)", "#f3d9b1"),
+        ("models against each other", "19 scenarios, four models and the 3D solid (the Lumped and Analytic models fail in known cases and the input checks warn)", "#f3d9b1"),
         ("a physical board", "NOT DONE: no model has been compared with measurements; calibrate_convection fits one measurement", "#f4b6b6"),
     ]
     for k, (t, d, c) in enumerate(rungs):
@@ -796,7 +802,7 @@ def orientation(path):
     down = 0.27 * Ra ** 0.25
     vert = (0.825 + 0.387 * Ra ** (1 / 6) / (1 + (0.492 / Pr) ** (9 / 16)) ** (8 / 27)) ** 2
     a.loglog(Ra, up, color=dk.HEAT, label="horizontal, hot face up")
-    a.loglog(Ra, down, color=dk.BLUE, label="horizontal, hot face down (half of face up at the same Ra)")
+    a.loglog(Ra, down, color=dk.BLUE, label="horizontal, hot face down (half of face up at the same Ra up to 1e7)")
     a.loglog(Ra, vert, color="#2ca02c", label="vertical plate (Churchill and Chu, general form; laminar form optional), Pr = 0.71")
     a.set_xlabel("Rayleigh number"); a.set_ylabel("Nusselt number")
     a.set_title("the laws of the program (theory section 8)", fontsize=9)
@@ -859,7 +865,7 @@ def legacy(path):
              "a heater power that depended on the grid\n  (10 mm mesh: 8.17 W injected for 5.50 W)",
              "no lateral conduction in FR-4; solid vias;\n  heatsinks on inner layers ignored",
              "boundary nodes with a full cell",
-             "not the finite-difference idea: a correct FDM\n  lands within about 1 % of the FVM"]
+             "not the finite-difference idea: a correct FDM\n  lands within 2.4 % of the FVM at 1 mm\n  (1.1 % at 0.5 mm, 0.1 % without vias)"]
     for k, t in enumerate(items):
         a.text(0.3, 7.2 - 1.4 * k, "- " + t, fontsize=8, va="center")
     dk.save(fig, path, "The removed wxPython program against the current one (validation section 6)")
@@ -891,7 +897,7 @@ def time_results(path):
     t2 = np.array([0, 0.12, 0.35, 0.82, 1.8, 3.6, 7.4, 15, 30, 60, 120.0])
     fv = [25.0, 30.5, 37.4, 44.0, 49.3, 53.7, 57.7, 61.7, 66.1, 71.2, 77.1]; an = [25.0, 30.6, 37.4, 43.4, 48.0, 52.0, 55.8, 59.8, 64.1, 69.4, 76.0]
     a.semilogx(np.maximum(t2, 0.05), fv, "o-", color=dk.BLUE, label="FVM"); a.semilogx(np.maximum(t2, 0.05), an, "^--", color="#2ca02c", label="Analytic (vias calibrated per heater)")
-    a.set_xlabel("time (s)"); a.set_ylabel("hottest point (C)"); a.set_title("step animation, 4 W + 1.5 W at 1 mm:\nAnalytic within 2 C at every time", fontsize=9)
+    a.set_xlabel("time (s)"); a.set_ylabel("hottest point (C)"); a.set_title("step animation, 4 W + 1.5 W at 1 mm:\nAnalytic within 2.2 C at every time", fontsize=9)
     a.legend(fontsize=8); a.grid(alpha=0.3, which="both")
     dk.save(fig, path, "Time-dependent results (validation section 7)")
 
@@ -906,7 +912,6 @@ def input_checks(path):
     ax.set_xlim(0, 17); ax.set_ylim(0, 8)
     ax.add_patch(Rectangle((0.5, 1.0), 9.0, 6.0, fc=dk.FR4, ec="k", lw=1.5))
     ax.add_patch(Rectangle((0.5, 1.0), 4.4, 3.2, fc=CU, ec="none", alpha=0.7))
-    ax.add_patch(Rectangle((5.2, 4.6), 3.2, 2.0, fc=CU, ec="none", alpha=0.7))
     items = [
         (Rectangle((9.0, 5.6), 1.4, 1.0, fc="#f4b6b6", ec="k"), (9.7, 6.1), "1"),
         (Rectangle((1.0, 4.6), 1.2, 1.0, fc="#f4b6b6", ec="k"), (1.6, 5.1), "2"),
@@ -933,7 +938,7 @@ def input_checks(path):
            "7  a metal block with no copper under it, or an almost perfect contact",
            "8  fins closer than the air gap that still air allows (metal block)",
            "9  after the run: a thick, poorly conducting plate or block under a part\n    (the surface can be hotter than the node: check_thick_plates)",
-           "   and: zero total power; a 3D solid above 250 000 unknowns is not run"]
+           "   and: a footprint of zero area, a zone or a block partly outside the board,\n   overlapping heatsinks, zero total power; a 3D solid above 250 000 unknowns is not run"]
     for k, t in enumerate(txt):
         ax.text(10.7 if False else 9.9 + 0.0, 7.4 - 0.0, "", fontsize=1)
     for k, t in enumerate(txt):
@@ -1021,14 +1026,14 @@ def why_agree(path):
     fig, ax = dk.canvas(14, 5.6)
     ax.set_xlim(0, 14); ax.set_ylim(0, 8)
     dk.box(ax, 0.3, 3.2, 3.6, 1.8, "the layered model\n(sheets, vertical resistances,\none h per face)", "#cfe3f5", size=8.5, bold=True)
-    dk.box(ax, 5.2, 5.6, 3.2, 1.5, "FVM: its numerical solution\n(mesh error 0.2 to 1 %)", "#d9efd0", size=8)
-    dk.box(ax, 5.2, 3.5, 3.2, 1.5, "Analytic: its exact solution on\na uniform sheet; tuned to the FVM", "#d9efd0", size=8)
+    dk.box(ax, 5.2, 5.6, 3.2, 1.5, "FVM: its numerical solution\n(mesh error under 0.3 % from 1 mm)", "#d9efd0", size=8)
+    dk.box(ax, 5.2, 3.5, 3.2, 1.5, "Analytic: its exact solution on a uniform\nsheet with insulated edges; tuned to the FVM", "#d9efd0", size=8)
     dk.box(ax, 5.2, 1.0, 3.2, 1.6, "3D solid / finite elements:\nthe independent check\n(no tuning)", "#f3d9b1", size=8)
     dk.box(ax, 10.2, 3.2, 3.5, 1.8, "the real board", "#e8e8e8", size=9, bold=True)
-    for (x0, y0, x1, y1) in ((3.9, 4.6, 5.2, 6.2), (3.9, 4.1, 5.2, 4.2), (10.2, 3.8, 8.4, 2.4), (13.0, 3.2, 8.4, 1.8)):
+    for (x0, y0, x1, y1) in ((3.9, 4.6, 5.2, 6.2), (3.9, 4.1, 5.2, 4.2), (10.2, 3.8, 8.4, 1.8)):
         dk.arrow(ax, x0, y0, x1, y1)
-    ax.text(9.3, 6.6, "agree: two correct solutions\nof one model", fontsize=8, ha="left", color="#2a7d2a")
-    ax.text(10.2, 6.1, "the model error (0.4 to 3 % against\nthe 3D solid) is shared by both", fontsize=8, ha="left")
+    ax.text(8.8, 7.3, "agree: two solutions of one model; on uniform boards the 0.3 to 1 %\nleft is the edge loss the Analytic leaves out, not the FVM mesh", fontsize=8, ha="left", va="top", color="#2a7d2a")
+    ax.text(8.8, 6.2, "the model error (0.4 to 3 % against\nthe 3D solid) is shared by both", fontsize=8, ha="left", va="top")
     ax.text(0.3, 1.6, "they diverge where the geometry is not uniform\nnear a heater: pads, copper edges, corners", fontsize=8.5)
     ax.text(0.3, 0.5, "so 'FVM = more precise' does not hold in general:\nwhat the FVM has is freedom of geometry", fontsize=8.5, style="italic")
     dk.save(fig, path, "Why the FVM and the Analytic model agree (validation section 4)")
