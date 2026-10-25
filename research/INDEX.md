@@ -2,6 +2,8 @@
 
 This file is the index; `research/README.md` holds the layout rules, the rules for figures and the licence notes of the pictures. One folder per investigation, named after the question, with the same layout everywhere: the root holds what is read (`README.md` with the numbered results, ending with what was read and what was not verified; `INTEGRATION.md` when the work is not in the program yet), plus `figures/`, `docs/`, `tests/`, `scripts/` (all the executable Python) and `lib/` (shared code, only when needed).
 
+**Plans and review.** What we want to investigate (open questions by area, with the evidence and a first study for each) is [`ROADMAP.md`](ROADMAP.md); what the independent reviewer checked in each folder is the review register [`REVIEW.md`](REVIEW.md). What we want to implement in the program is `docs/roadmap.md`.
+
 | Area | Folder | Status | Question |
 | :-- | :-- | :-- | :-- |
 | Import 1 | `gerber-import/` | open, **lives on the research branch**; start with `gerber-import/REPORT.md` | What can be taken from Gerber and Excellon files: an independent NumPy-only reader, holes, pads, vias and nets, nets checked against a KiCad project, boards of our own as test benches. Needs no program. |
