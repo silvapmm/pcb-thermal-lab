@@ -38,6 +38,8 @@ Program defects found by a review are reported in the "Program defects" column; 
 * Reviews still to do: none.
 * Open work that used to be listed here: the investigations (subdividing the gap, the Analytic on one-layer boards, the rotated square, the clean-machine timing, the point via, vias in the Lumped and Analytic models, the final figure pass, the dates) are in `ROADMAP.md` (section 1 and the pool); the program branches, features and corrections (memory guard, edge fix, thick-plate warning, inner copper options, the defects of the column above) are in `docs/roadmap.md`.
 
+* **Long runs done**: the twelve runs of the plan (`ROADMAP.md` section 3) were made on a machine just restarted with nothing else running; every table reproduced except the cost numbers (`solid3d-verification` figure 9, `gerber-models` 4.15), corrected in the READMEs; the last section of the README of `solid3d-verification`, `via-fill`, `effective-conductivity`, `power-calculator` and `gerber-models` records the runs. No independent review of these re-runs yet (status unchanged).
+
 ## Decisions the maintainer left to the coordinator (to take when everything else is finished)
 
 They are row 4 of `ROADMAP.md` section 1; this is the list.

@@ -8,14 +8,12 @@ Pool items have the fields **Question**, **Why** (the evidence: folder and secti
 
 ## 1. Next work, in the order recommended
 
-Rows 1 to 6 close the present round (the reviews and corrections of the folders); rows 7 to 12 are the investigations whose result blocks program work of `docs/roadmap.md` "Next work" (they come first because the program branch waits for the answer); rows 13 to 17 do not block anything. The program work itself is only in `docs/roadmap.md`, section "Next work, in the order recommended" (`develop`): nothing of it is repeated here.
+Rows 3 to 6 close the present round (rows 1 and 2, the long runs and the figures that depend on them, are done: section 3; the rows keep their numbers because other documents cite them) (the reviews and corrections of the folders); rows 7 to 12 are the investigations whose result blocks program work of `docs/roadmap.md` "Next work" (they come first because the program branch waits for the answer); rows 13 to 17 do not block anything. The program work itself is only in `docs/roadmap.md`, section "Next work, in the order recommended" (`develop`): nothing of it is repeated here.
 
 | # | What | Folder or item | Evidence to start from | Done when / what it produces |
 | --: | :-- | :-- | :-- | :-- |
-| 1 | **Restart the machine and run nothing else, then the long runs**: the clean-machine timing first, then the memory-hungry studies one at a time, then the rest | 12 runs in 5 folders; the detailed plan is section 3 (H9) | the `out/` files that the figure scripts load are absent or older than the corrected program (the three diagonal studies, `culham_1998.json` without `mesh_check`, `solve_cost.json` with 10 cases only); the times in the program documents were measured under swap (49 s at 160 000 unknowns against 1.9 s on a quiet machine) | every printed table compared with the README of its row (reproduced to the digit, or the number moved and every document that quotes it changed, or marked not reproduced); the machine, its memory state and the time of each run written in the README of the folder |
-| 2 | **The figures and numbers that depend on the runs** | `gerber-models` `fig_08`, `fig_19`, `fig_24` (still in the old font and drawing); `effective-conductivity` figures 3 and 4; `solid3d-verification` `fig_09`; `power-calculator` `fig_06` (bands pasted by hand) | section 3 (After the runs); `research/check_figures.py` passes on every folder today | each figure regenerated, read at full size, `research/check_figures.py` clean, the READMEs, `CONCLUSIONS.md`, `INTEGRATION.md` and `docs/` of the folder current; one commit per folder |
-| 3 | **The program documents with the measured times** (a program documents branch off `develop`, not this branch) | `docs/roadmap.md` Next work #9 | the times of row 1 (`solid3d-verification` README, text in its `docs/for-the-project-documents.md`); the same numbers feed the memory guard (`docs/roadmap.md` Next work #2) | handed to the maintainer with the numbers; nothing is edited here |
-| 4 | **The decisions left to the coordinator** | list in [`REVIEW.md`](REVIEW.md), last section | each has a recommendation to start from | taken when the runs are finished; the ones that need a study become rows below |
+| 3 | **The program documents with the measured times** (a program documents branch off `develop`, not this branch) | `docs/roadmap.md` Next work #9 | the measured times of section 3 (`solid3d-verification` README and the table in its `docs/for-the-project-documents.md`: the documents' times are 20 to 40 times too long); the same numbers feed the memory guard (`docs/roadmap.md` Next work #2) | handed to the maintainer with the numbers; nothing is edited here |
+| 4 | **The decisions left to the coordinator** | list in [`REVIEW.md`](REVIEW.md), last section | each has a recommendation to start from | taken now that the runs are finished; the ones that need a study become rows below |
 | 5 | **Merge `develop` into this branch**, adopting the `CLAUDE.md` of `develop` | the whole branch | the five Decisions Log entries of the research rules are in `develop`; the notes 'lives only on the research branch' of the structure lines of `CLAUDE.md` and of `INDEX.md` become false on the research branch and are adjusted; stale pointers that the merge may leave: `outline/scripts/study_edge_on_grid_lines.py` (patched a function that has changed) and the numbers of `outline/README.md`; `theory/topics/01-layered-idealisation.md` and `theory/README.md` naming `fig_04_the_five_models_schematic.png` (now `fig_08`); `theory/topics/20-board-outline.md` repeating stale ranges of `outline/`; the figure numbers of `models-comparison/` and `solid3d-verification/` | merge done; the research tests and `tests/test_docs.py` pass; `docs/` and `CLAUDE.md` identical to `develop`; the links fixed |
 | 6 | **Publication** | `develop` is 14 commits ahead of `origin/develop` and this branch 82 commits ahead of `origin/research/gerbers` | | push only on the maintainer's word |
 | 7 | **A5, the point via and the cell** (Peaceman radius against spreading the barrel over its disc) | `via-fill`; blocks `docs/roadmap.md` Next work #3 | the copper-fill gain is -4.46 K in the independent solver against -4.78 / -4.38 / -3.98 / -3.64 / -3.34 K at 1 / 0.5 / 0.25 / 0.125 / 0.0625 mm (`via-fill/README.md` 7.3); the Gerber boards run at fine cells | both treatments compared against `layered3d.py` with resolved barrels from 1 to 0.0625 mm on two boards, the winner chosen, the tables of `docs/validation.md` 2.1 re-run; the reviewer |
@@ -34,18 +32,18 @@ The rest of the pool (A7 to A10, B1 to B4, C1, C2, C4 to C6, D2 to D4, H6) has n
 
 ## 2. The pool of questions
 
-Questions by area, without an order; the labels A to H are kept when an item leaves (A4, for example, was the clean-machine timing: it is now Next work #1). Section 3 is the detailed plan of the long runs.
+Questions by area, without an order; the labels A to H are kept when an item leaves (A4, for example, was the clean-machine timing: done, section 3). Section 3 is the detailed plan of the long runs.
 
 | Area | Items |
 | :-- | :-- |
-| A. Models and numerics | A1 to A3, A5 to A11 (A4 is in section 3) |
+| A. Models and numerics | A1 to A3, A5 to A11 (A4 is done, section 3) |
 | B. Boards, vias and stack-up | B1 to B4 |
 | C. Parts, heatsinks and blocks | C1 to C6 |
 | D. Calculators | D1 to D4 |
 | E. Gerber import and models | E1 to E10 |
 | F. Theory, sources and verification | F1 to F9 |
 | G. Physical measurement | G1 |
-| H. Tooling and method | H6 (the plan of the long runs is section 3) |
+| H. Tooling and method | H6 (the long runs are done, section 3) |
 
 The labels are kept when an item leaves, so that the citations between documents stay valid.
 
@@ -271,7 +269,7 @@ The labels are kept when an item leaves, so that the citations between documents
 * **Order**: see Next work #15.
 * **Question**: how do the 3D solid and the transient behave on the fine cells of an imported board?
 * **Why**: "the behaviour of the 3D solid at fine cells" is not verified; the time response of the mapped copper follows the steady one (`study_transient.py`), heat capacity and the through-thickness conduction stay arithmetic (`gerber-models/README.md` last section).
-* **First study**: link to A5 and to the clean-machine timing (Next work #1); a transient of an imported board against a resolved mask.
+* **First study**: link to A5 and to the clean-machine timing (done, section 3); a transient of an imported board against a resolved mask.
 * **If it ends well**: limits stated in the import documents.
 * **Status**: open.
 
@@ -401,70 +399,12 @@ The labels are kept when an item leaves, so that the citations between documents
 * **If it ends well**: nothing in the program.
 * **Status**: open.
 
-## 3. The long runs (H9), detailed plan of Next work #1 and #2
-The studies that were not re-run in the last pass (because they take from 6 minutes to hours, or need a machine with nothing else running), to be repeated on the corrected program after the restart of the machine. The table is the exact plan: one row per figure, or per README number when the thing to repeat is a number. It was made by reading the `out/` files that every `scripts/make_figures.py` loads, the studies that write them, the run times in the script headers and the READMEs, and the file times of `out/` against the last change of `pcbthermal/` that matters to the studies (the corrected program: laminate nodes, merged as `0ea5f07`; the later finned-block fix `bd5b2f3` touches no study listed here). "Newer than the corrected program" means the file was written after that program existed.
+## 3. The long runs (H9): done
 
-* **Machine**: 10 cores, 16 GB of memory (the same laptop as the last pass). Rows 5, 7 and 12 need 5 to 10 GB: nothing else may run, and the memory state before each run goes into the README.
+The twelve runs of the plan were made on a machine just restarted with nothing else running (macOS arm64, 10 cores, 16 GB, Python 3.13.5), in the order of the plan, with the logs outside the repository. Every printed table was compared with the README of its folder, and the machine and the result are written in the last section of each README ("What was read and what was not verified"):
 
-**1. What has to be run** (12 rows: gerber-models 5, solid3d-verification 3, power-calculator 2, effective-conductivity 1, via-fill 1)
-
-| # | Folder | Figure or README number | Figure script and function | Input in `out/` and its state now | Study and exact command | Run time and memory | What to check afterwards |
-| :-: | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 1 | `gerber-models` | `fig_08_diagonal.png`; README 4.44; the "Diagonal couplings" row of `CONCLUSIONS.md` | `make_figures.py fig_diagonal` | `out/diagonal.json`: **absent** (the PNG on disk is the old drawing) | `PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_diagonal.py \| tee $LOG/diagonal.txt` | about 15 min (header); research solver, one core; memory not documented | The tables of 4.44 (share of a 45-degree track's cooling 37 to 84 % and 64 to 94 %, errors on the 42 windows) against the printed ones; then redraw |
-| 2 | `gerber-models` | `fig_19_diagonal_gate.png`; README 4.48 | `make_figures.py fig_diagonal_gate` (also reads `out/windows_storm.npz`, present and newer than the corrected program) | `out/diagonal_gate.json`: **absent** | `PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_diagonal_gate.py \| tee $LOG/diagonal_gate.txt` | about 15 min (header); memory not documented | The table of 4.48; the statement of 4.48 that 4.50 corrected must still read as corrected |
-| 3 | `gerber-models` | `fig_24_diagonal_heldout.png`; README 4.50 | `make_figures.py fig_diagonal_heldout` | `out/diagonal_heldout.json`: **absent** | `PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_diagonal_heldout.py \| tee $LOG/diagonal_heldout.txt` | the script header says 30 min, the README says about 3 hours (60 windows at three cell sizes, 32 tilted tracks): **plan 3 hours**; memory not documented | The 4.50 tables; that no share passes the held-out test (the conclusion of 4.50 and the "experimental" mark of figure 10) |
-| 4 | `gerber-models` | README 4.15 (time and memory of the mappings) | none (a table) | none (prints) | `.venv/bin/python research/gerber-models/scripts/bench_mapping_cost.py \| tee $LOG/mapping_cost.txt` | about 2 min; a timing, so it belongs to the clean-machine group | The times and memory of 4.15; whether it was re-run in the last pass could not be determined from the files |
-| 5 | `solid3d-verification` | `fig_09_solve_cost.png`; the times of `CHANGELOG.md`, `docs/versions.md`, `docs/models.md`, the comment of `pcbthermal/solid3d.py` (Next work #1) | `make_figures.py cost` (`fig_cost`; the `REPORTED_3D` and `REPORTED_LAYERED` markers become measured points) | `out/solve_cost.json`: present, newer than the corrected program, but only 10 cases up to 247 884 unknowns | first extend `CASES` of `study_solve_cost.py` to the sizes of the documents (3D solid 160 000, 254 000, 400 000, 512 000 unknowns, which needs the study to run inside `solid3d.size_limit` as `study_small_pad_convergence.py` does; layered FVM 1 000 000 and 2 000 000), then `.venv/bin/python research/solid3d-verification/scripts/study_solve_cost.py` | now 5 min and up to 5 GB; extended about 25 min (documented: 276 s and 5 GB at 400 000, 320 s and 8 GB at 512 000, layered 97 s and 4.4 GB at 1 million, 273 s and 8.4 GB at 2 million); up to about 8.4 GB | The measured times against the documents (49 s at 160 000 and 130 s at 254 000 were measured under swap; the quiet machine gave 1.9 s at 158 000 and 3.4 s at 248 000); write the machine and its memory state in the README |
-| 6 | `solid3d-verification` | README 4.2 (small pad: where the converged temperature is) | none (a table; figure 2 is drawn inline) | none (prints) | `.venv/bin/python research/solid3d-verification/scripts/study_small_pad_convergence.py \| tee $LOG/small_pad.txt` | about 6 min; scikit-fem (installed, 12.0.2); the 320 000-unknown solves are the heavy part, memory not documented | The 4.2 columns (1 and 0.5 mm, 4 and 8 slabs) and the independent-solver columns |
-| 7 | `solid3d-verification` | README 4.2 (FEM mesh checks and the example-board value) | none | none (prints) | `.venv/bin/python research/solid3d-verification/scripts/study_fem_hand_checks.py \| tee $LOG/fem_hand_checks.txt` | header says about 11 min, the README says about 6; needs scikit-fem | 90.63 to 90.57 degC (1 to 0.5 mm), 0.0003 degC (4 to 2 elements per gap), 85.57 and 85.59 degC |
-| 8 | `effective-conductivity` | README 4.2 and section 8 (the mesh check: 7.84 to 7.81 W/mK from 2.5 to 0.5 mm cells, 7.81 with twice the sub-slabs); feeds no figure of its own, but `fig_03` and `fig_04` read the same JSON | `make_figures.py` (all, a few seconds) | `out/culham_1998.json`: present, newer than the corrected program, but **without the `mesh_check` key** (every run rewrites the file; the last one had no flag) | `.venv/bin/python research/effective-conductivity/scripts/study_culham_1998.py --mesh-check \| tee $LOG/culham.txt` (once, with the flag, so the file keeps both parts) | about 15 min plus 2 for the flag; memory not documented | The four cell sizes (2.5, 1.25, 0.625, 0.5 mm) against the README numbers; then redraw figures 3 and 4 |
-| 9 | `power-calculator` | `fig_06_design_term_coverage.png`; README 4.7 table; the example block against `docs/calculators.md` 1.1b and 1.1c | `make_figures.py design` (`fig_design_coverage`) | none: the bands are typed in `DESIGN_COVERAGE` of `make_figures.py` (copied from an earlier printed table) | `.venv/bin/python research/power-calculator/scripts/study_design_term_coverage.py \| tee $LOG/design_term_coverage.txt` | README says about 6 min, the header says about 10 (four levels, several tens of 1 mm solves per band) | **The figure must be re-fed by hand**: copy the printed bands (nominal, best, worst of the levels none, cad, hand, estimated for the four boards) into `DESIGN_COVERAGE` and into the README 4.7 table, then `make_figures.py design`; check the true 2 W stays inside or outside the same bands |
-| 10 | `power-calculator` | README 4.5 (RthetaJA at 1 to 0.25 mm cells, JEDEC board with a bottom plane) | none (a table) | none (prints) | `.venv/bin/python research/power-calculator/scripts/study_cell_size.py \| tee $LOG/cell_size.txt` | the header says about 15 min, the README says about 30 | The 4.5 table (CSD17308Q3 46.4 to 47.1; JEDEC with vias 31.6 to 32.2; without vias 83.6, 68.1, 72.9, 74.5). It was run in the review on the corrected program: this repeat is a confirmation |
-| 11 | `via-fill` | README 7.3 (the independent reference at 0.0625 and 0.05 mm; the corrected 0.05 mm run "was not repeated") | none (figure 6 uses the 0.1 and 1/12 mm cells and is drawn inline) | none (prints) | `.venv/bin/python research/via-fill/scripts/study_via_model_checks.py --fine \| tee $LOG/via_fine.txt` | about 8 min plus 20 to 30 for `--fine` (450 000 and 700 000 unknowns), **about 10 GB: alone** | The 0.05 mm point stays near the 40.4 to 40.5 K of the other references (no open bore of zero conductivity); update the sentence "was not repeated" in 7.3 |
-| 12 | `gerber-models` | the short studies that the review list R7 names as not re-run and the later list does not name as re-run: README 4.6 (`study_fine_scan.py`, 2 min), 4.8 (`study_heater_size.py`, 2 min) and 4.11 (`study_patterns.py`, 1 min) | none | none (print) | the three commands, `.venv/bin/python research/gerber-models/scripts/<script>.py` | 5 min in all | The tables of 4.6, 4.8, 4.11 against the README (they are short; listed so that nothing named in R7 is left) |
-
-**Left out because they were re-run in the last pass on the corrected program** (the file or figure is newer than it, and the review printed the same digits): `effective-conductivity` Muzychka and others `--mesh-check` (30 to 50 min; `out/muzychka_2003.json` holds `mesh_check`) and `study_biot_definitions.py` `mesh_check` (`out/biot_definitions.json`); `models-comparison` `validation_study.py` with `--fem` (README 4.1) and `study_time_and_coefficients.py` (2 min by its header, so not a long run); `stackup` `study_real_1oz_stackups.py` and `study_inner_copper_1oz.py` with the 3D solid (4 and 3 min, run inside `make_figures.py`); `component-heatsink` (longest study 4 min), `block-and-fins` (seconds), `outline`, `theory`; `gerber-import` and `gerber-nets` (every study is 5 min or less and was re-run by the reviews; their libraries gerbonara, shapely, pygerber and pcb-tools are **not installed in this `.venv`** now, so install them with `pip` before any rerun of those two folders; the fetched boards are in `gerber-import/data/`); and the `gerber-models` studies of the "Re-run (all of them now)" list (4.2, 4.5, 4.7, 4.11 two-layer, 4.25 to 4.28, 4.31, 4.38 and others). The old rows of `models-comparison` 4.5 (wxPython) cannot be repeated (F9).
-
-**2. The order of the run** (shortest first would hide the memory problem; the clean-machine timing first, because it must be measured when nothing else has run since the restart):
-
-1. Restart; log in; start nothing else (no browser, no editor); `vm_stat` and `sysctl hw.memsize` into the log.
-2. **Clean-machine timing**: rows 5 and 4 (about 30 min). Alone, first.
-3. **Memory-hungry, one at a time, nothing else running**: row 11 (about 40 min, 10 GB), rows 6 and 7 (about 12 to 17 min).
-4. **Medium**: rows 8, 9 and 10 (about 15 + 10 + 15 to 30 min; they may run two at a time because each is single-process and uses little memory, but not during rows 5, 4 or 11).
-5. **Diagonal studies last, in the background of the writing**: rows 1 and 2 together (about 15 min each), then row 3 (3 hours). They need no more than the research solver, so the reading of the earlier results (the after-steps) can start while row 3 runs, but nothing heavy may start.
-6. The short extras of row 12 at the very end.
-
-Total: about 5 to 6 hours, of which row 3 is 3 hours (rows 5, 4, 11, 6, 7: about 1.5 hours; rows 8, 9, 10: about 45 minutes in sequence; rows 1, 2, 12: 35 minutes).
-
-```sh
-cd /Volumes/SSD/PROJETOS/pcb-thermal-lab                                       # on the branch research/gerbers
-export LOG=$HOME/pcbt-long-runs && mkdir -p $LOG                               # logs stay outside the repository
-(vm_stat; sysctl hw.memsize hw.ncpu) > $LOG/machine.txt
-# 2. clean-machine timing (extend CASES of study_solve_cost.py first, row 5)
-.venv/bin/python research/solid3d-verification/scripts/study_solve_cost.py | tee $LOG/solve_cost.txt
-.venv/bin/python research/gerber-models/scripts/bench_mapping_cost.py | tee $LOG/mapping_cost.txt
-# 3. memory-hungry, alone
-.venv/bin/python research/via-fill/scripts/study_via_model_checks.py --fine | tee $LOG/via_fine.txt
-.venv/bin/python research/solid3d-verification/scripts/study_small_pad_convergence.py | tee $LOG/small_pad.txt
-.venv/bin/python research/solid3d-verification/scripts/study_fem_hand_checks.py | tee $LOG/fem_hand_checks.txt
-# 4. medium
-.venv/bin/python research/effective-conductivity/scripts/study_culham_1998.py --mesh-check | tee $LOG/culham.txt
-.venv/bin/python research/power-calculator/scripts/study_design_term_coverage.py | tee $LOG/design_term_coverage.txt
-.venv/bin/python research/power-calculator/scripts/study_cell_size.py | tee $LOG/cell_size.txt
-# 5. the diagonal studies (research solver)
-PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_diagonal.py | tee $LOG/diagonal.txt
-PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_diagonal_gate.py | tee $LOG/diagonal_gate.txt
-PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_diagonal_heldout.py | tee $LOG/diagonal_heldout.txt
-# 6. short extras
-for s in study_fine_scan study_heater_size study_patterns; do .venv/bin/python research/gerber-models/scripts/$s.py | tee $LOG/$s.txt; done
-```
-
-**3. After the runs**
-* Regenerate the figures that read the new files: `.venv/bin/python research/gerber-models/scripts/make_figures.py fig_diagonal fig_diagonal_gate fig_diagonal_heldout`; `.venv/bin/python research/effective-conductivity/scripts/make_figures.py`; `.venv/bin/python research/solid3d-verification/scripts/make_figures.py cost`; for `power-calculator` first paste the printed bands into `DESIGN_COVERAGE` (row 9) and then `make_figures.py design`.
-* Read every regenerated PNG (the whole image, at full size) and run `.venv/bin/python research/check_figures.py`.
-* Compare each printed table with the README section of its row; where a number moves, change the README and every document that quotes it (`CONCLUSIONS.md`, `INTEGRATION.md`, the folder's `docs/`, `ROADMAP.md`); where it does not move, write "reproduced to the digit" with the row number. Mark numbers that could not be reproduced.
-* Record the machine (model, memory, the `machine.txt` log) and the time of each run in the README of its folder (row 5 also in the text for the project documents under `solid3d-verification/docs/`; the program's documents are not edited on this branch).
-* Run `.venv/bin/python -m pytest -q tests/test_docs.py` and the tests of each touched folder; commit one folder at a time (English message, imperative); push only when asked.
-* The three diagonal figures (`fig_08`, `fig_19`, `fig_24`) are still drawn in the old font and style, because their data files are absent and the figure functions could not be run; rows 1 to 3 redraw them with the current `make_figures.py`, and that is the only way they change font.
-
-Could not be determined: the memory of rows 1 to 4 and 6 to 10 (not documented in the scripts or the READMEs); whether `bench_mapping_cost.py` and the three short studies of row 12 were re-run (no output file); the true run time of row 3 on this machine (header and README disagree). When a row is finished and its result is in the README of its folder, the row leaves this plan.
+* **Reproduced to the digit**: README 4.44, 4.48 and 4.50 (diagonal studies), 4.6 and 4.8 (fine scan and heater size), 4.2 of `solid3d-verification` (small pad and FEM hand checks), 4.2 and section 8 of `effective-conductivity` (mesh check 7.84 to 7.81 W/mK), 4.5 and 4.7 of `power-calculator` (cell size; the bands typed in `DESIGN_COVERAGE` match the new print in all 16 bands), 7.3 of `via-fill` (the 0.05 mm point of the independent reference, -4.44 K, was added to the table).
+* **Not reproduced, and corrected in the research documents**: the cost of the 3D solid and of the layered FVM (`solid3d-verification`, figure 9 and `docs/for-the-project-documents.md`): the times of the program documents (276 s at 393 000 unknowns, 97 s and 273 s at 1 and 2 million) are 20 to 40 times longer than what the quiet machine gives (7.5 s, 5.2 s, 12.4 s) and the memory up to 2.4 times larger; the cost of the mappings (`gerber-models` 4.15): times 5 times shorter and memory 1.4 KB per pixel instead of 830 bytes (the script's memory column was also wrong on macOS and is fixed).
+* **Plan numbers that were wrong**: `study_diagonal_heldout.py` takes about 5 minutes, not 3 hours; `study_via_model_checks.py --fine` reached a peak footprint of 22.5 GB on the 16 GB machine (it paged), not 10 GB; `study_fem_hand_checks.py` takes about 4 minutes.
+* **For the maintainer** (program documents, not edited here): Next work #3 below, with the table of measured times and memory in `solid3d-verification/docs/for-the-project-documents.md`; the limit `MAX_CELLS = 250 000` and the memory guard rest on the old numbers.
+* **Figures redrawn** from the new `out/` files: `gerber-models` figures 8, 19 and 24 (current style) and `solid3d-verification` figure 9; `research/check_figures.py` passes on every folder.
