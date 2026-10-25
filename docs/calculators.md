@@ -60,6 +60,10 @@ With the default board description (*Drawn by hand from the layout*, section 1.1
 
 The terms of section 1.1b are uncertain *numbers* on a board that is assumed drawn right. The review of `research/power-calculator` (README 4.7) showed that this band does **not** cover a wrongly drawn board: in three of four drawing errors the true 2 W was above the worst case. The **Board description** list of the calculator adds four more one-at-a-time sources, moved to both ends like the others and combined with them by the root of the sum of squares (`inverse.power_band`, `design_*` entries of the `calculator` section of `defaults.json`, editable in *Preferences → Power calculator*):
 
+![Power calculator: the Board description list and the terms of the result (example board, hand-drawn level, 2 mm cell)](images/calculator_design.png)
+
+*Screenshot: `docs/images/calculator_design.png`, made by `examples/make_screenshots.py`.*
+
 | Source | what is moved | the drawn board is changed by | measured sensitivity (table 2.2) | source of the percentage |
 | :-- | :-- | :-- | :-- | :-- |
 | copper coverage | the fill of every zone of the outer layers (the inner ones belong to the planes term, so that the same doubt is not counted twice) | fill × (1 ∓ a), limited to 1 (a pour that is already solid cannot be more solid) | top pad half filled: −13 % of power | assumed (a hatched pour is about 50 %) |
