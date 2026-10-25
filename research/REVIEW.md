@@ -1,6 +1,6 @@
 # Review register of the investigations
 
-What the independent `reviewer` agent has checked in each research folder, so that a later session continues where the last one stopped. Update a row in the same commit as the review it records. The details of each review are in the README of the folder (the section named in the row); the open work is in [`ROADMAP.md`](ROADMAP.md) (what we want to investigate), not here.
+What the independent `reviewer` agent has checked in each research folder, so that a later session continues where the last one stopped. Update a row in the same commit as the review it records. The details of each review are in the README of the folder (the section named in the row); this file is only the register; everything that is left to finish, in the order recommended, is [`ROADMAP.md`](ROADMAP.md) section 1 "Next work, in the order recommended".
 
 **Why it is needed.** The program's models changed after the review of the earlier work (`pcbthermal` at commit `0ea5f07`: laminate nodes of one-layer boards, minimum width of the Lumped rings, board time constant with an outline, laminate slabs of the 3D solid). Every study that runs the program has to be re-run on the corrected version, and every claim re-checked against an independent reference (see `CLAUDE.md`, "Agents and workflow").
 
@@ -33,12 +33,14 @@ Program defects found by a review are reported in the "Program defects" column; 
 
 ## Notes
 
-* The open points that used to sit in `docs/roadmap.md` of this branch are items of [`ROADMAP.md`](ROADMAP.md) (physical measurement G1, diagonal faces E1, copper mapping E2, formulas from memory F4, sources to open F5).
+* The open points that used to sit in `docs/roadmap.md` of this branch are items of [`ROADMAP.md`](ROADMAP.md) (physical measurement G1, diagonal faces E1, copper mapping E2, formulas from memory F4, sources to open F5; the order is in its section 1).
 * The figure numbers of `models-comparison/` and `solid3d-verification/` collided between the two sides of a merge with `develop`; the diagrams of this branch were renumbered (8 to 10 and 8) because `docs/` links the figures of `develop`.
-* Reviews still to do: none (`gerber-nets/`, item H4 of `ROADMAP.md`, was the last).
-* Open work that used to be listed here: the investigations (subdividing the gap, the Analytic on one-layer boards, the rotated square, the clean-machine timing, the point via, vias in the Lumped and Analytic models, the final figure pass, the dates) are in `ROADMAP.md` A to H; the program branches, features and corrections (memory guard, edge fix, thick-plate warning, inner copper options, the defects of the column above) are in `docs/roadmap.md`.
+* Reviews still to do: none.
+* Open work that used to be listed here: the investigations (subdividing the gap, the Analytic on one-layer boards, the rotated square, the clean-machine timing, the point via, vias in the Lumped and Analytic models, the final figure pass, the dates) are in `ROADMAP.md` (section 1 and the pool); the program branches, features and corrections (memory guard, edge fix, thick-plate warning, inner copper options, the defects of the column above) are in `docs/roadmap.md`.
 
 ## Decisions the maintainer left to the coordinator (to take when everything else is finished)
+
+They are row 4 of `ROADMAP.md` section 1; this is the list.
 
 From the reviews, each with the recommendation to start from:
 
