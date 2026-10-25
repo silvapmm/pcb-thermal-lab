@@ -1,63 +1,22 @@
 # Gerber import, phase 3: nets with voltage and current (Joule heat, links, sources and sinks)
 
-Status: **open and early** (the electrical side is a prototype and a design, a good start but still green), a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 3 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.50) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open and early** (the electrical side is a prototype and a design, a good start but still green), a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 3 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.50) are those of the original single study, kept so that the references between the three folders and from other documents keep their meaning: the table below lists the sections of this folder, and the map of all of them, folder by folder, is in [`research/README.md`](../README.md) ("The Gerber research: where the sections are").**
 
 ### Where the sections are
 
-| Section | Folder | Subject |
-| :-- | :-- | :-- |
-| 4.1 | `gerber-import` | Vectors to polygons |
-| 4.2 | `gerber-models` | Raster against the exact area |
-| 4.3 | `gerber-models` | Thin traces and the pixel |
-| 4.4 | `gerber-models` | The mappings on 42 windows |
-| 4.5 | `gerber-models` | Scalar formulas from the fraction alone |
-| 4.6 | `gerber-models` | Fine scan of the parameters |
-| 4.7 | `gerber-models` | Copper thickness |
-| 4.8 | `gerber-models` | Heater size |
-| 4.9 | `gerber-models` | Time response |
-| 4.10 | `gerber-models` | Scalar versus fill of a zone: what the program does today |
-| 4.11 | `gerber-models` | Regular patterns: what "fill 0.5" means |
-| 4.12 | `gerber-models` | Two layers with plated holes |
-| 4.13 | `gerber-models` | A real four-layer board |
-| 4.14 | `gerber-models` | Through the program's own solver |
-| 4.15 | `gerber-models` | Cost |
-| 4.16 | `gerber-models` | The Lumped and Analytic models |
-| 4.17 | `gerber-import` | The independent reader against gerbonara on gerbonara's own test files |
-| 4.18 | `gerber-import` | How the independent reader differs from the others |
-| 4.19 | `gerber-import` | What can be read: copper layers and drill files |
-| 4.20 | `gerber-nets` **(this folder)** | Nets: how much does the 5 V net heat up? |
-| 4.21 | `gerber-models` | Literature status |
-| 4.22 | `gerber-import` | Against the other Python tools, on files of known area |
-| 4.23 | `gerber-nets` **(this folder)** | Tracks at an angle: area, connectivity and resistance on the grid |
-| 4.24 | `gerber-import` | A third writer: Ucamco's `gerber-writer` |
-| 4.25 | `gerber-models` | The regime of Sampson's article: heat that must reach fixed-temperature posts, |
-| 4.26 | `gerber-models` | Grey-level |
-| 4.27 | `gerber-models` | Every model of the program |
-| 4.28 | `gerber-models` | An analogue of the post-mounted board of Sampson |
-| 4.29 | `gerber-import` | Vias and nets |
-| 4.30 | all three (bench board) **(this folder)** | A board of our own as a bench: an IC with circular tracks |
-| 4.31 | `gerber-models` | The import path end to end |
-| 4.32 | `gerber-models` | Where the heater is: the set-up of the end-to-end runs |
-| 4.33 | `gerber-import` | Are the polygons tied to the right nets? A check against a KiCad project |
-| 4.34 | `gerber-models` | Our board in the five models |
-| 4.35 | `gerber-models` | A board of squares and rectangles in the five models |
-| 4.36 | `gerber-nets` **(this folder)** | Separate pieces of one net: what they are and what could be inferred |
-| 4.37 | `gerber-models` | How to validate the models on the rectangle board, and why the FVM looks worse |
-| 4.38 | `gerber-models` | The mappings as selectable options |
-| 4.39 | `gerber-models` | Measured impact of the two proposed corrections to the program |
-| 4.40 | `gerber-nets` **(this folder)** | Sources, sinks and links: the electrical side |
-| 4.41 | `gerber-import` | The converter on every board, layer by layer |
-| 4.42 | `gerber-models` | The thinnest track and the angle |
-| 4.43 | `gerber-models` | Every mapping on every board, in one table |
-| 4.44 | `gerber-models` | Diagonal couplings: the nine-point experiment |
-| 4.45 | `gerber-import` | Is it the same copper? Four tools, pixel by pixel |
-| 4.46 | `gerber-import` | The nets against the KiCad project, pixel by pixel |
-| 4.47 | `gerber-import` | The board outline from the profile layer |
-| 4.48 | `gerber-models` | A detector for the diagonal faces |
-| 4.49 | `gerber-models` | The cell tensor: what it is and how it is used |
-| 4.50 | `gerber-models` | Held-out test of the diagonal gate: it does not hold up |
+| Section | Subject |
+| :-- | :-- |
+| 4.20 | Nets: how much does the 5 V net heat up? |
+| 4.23 | Tracks at an angle: area, connectivity and resistance on the grid |
+| 4.30 | Our IC board as a bench for the current of a net |
+| 4.36 | Separate pieces of one net: what they are and what could be inferred |
+| 4.40 | Sources, sinks and links: the electrical side |
 
-## 1. The questions
+## 1. What this folder does and what it leaves to the others; the questions
+
+**This folder** treats the nets as conductors with a voltage and a current: the Joule heat of a net (4.20), tracks at any angle on the pixel grid (area, connectivity and resistance, 4.23), our IC board as a bench for the current of a net (4.30), the separate pieces of one net (4.36), sources, sinks and links and the prototype of `Problem.electrical` (4.40, `INTEGRATION.md`), and the electro-thermal loop checked on a lumped track (section 7).
+
+**Left to the others**: where the net of a piece of copper comes from (the X2 attributes of the files, connectivity, the check against a KiCad project) and the masks are [`gerber-import`](../gerber-import/README.md) (4.29, 4.33, 4.46); how the copper and a heat source enter the thermal models is [`gerber-models`](../gerber-models/README.md).
 
 Once the copper of a layer is known with its nets (phase 1), the current that flows in it makes heat. Phase 3 asks how much, and how an application could take the voltage and the current of a net.
 
@@ -71,7 +30,7 @@ Once the copper of a layer is known with its nets (phase 1), the current that fl
 | Item | Result |
 | :-- | :-- |
 | Tracks at an angle | Area exact except at 45 degrees on the lattice (±6 %); a track as narrow as the pixel breaks into pieces with 4-connectivity (not with 8); the five-point stencil is up to 2x too resistive on a tilted 1.5 to 2 px track, 6 % at 12 px across (4.23). |
-| Nets and heat | The X2 attribute `TO.N` gives the net of pads and tracks; zone fills may carry none; `joule.py` solves the current in a net and returns `I²R` per cell (4.20). |
+| Nets and heat | The X2 attribute `TO.N` gives the net of pads and tracks; zone fills may carry none (`gerber-import` 4.29); `joule.py` solves the current in a net and returns `I²R` per cell (4.20). |
 | **Links** | In the prototype a 0.1 ohm link (bead, shunt) between two pieces of one net makes 225 mW at 1.5 A, 18 times the 12 mW of all the copper of the rail; the energy balance closes to 0.0004 mW in 7.5 W (4.40). |
 | **Pad currents** | They are inputs (a power budget, a datasheet, a netlist): the copper cannot infer them, and a piece without pads of a source or load has no current and no heat whatever its voltage (4.36, 4.40). |
 
@@ -111,7 +70,7 @@ cd research/gerber-nets && ../../.venv/bin/python -m pytest -q tests        # 18
 
 *Figure 6 (`figures/fig_06_joule_chain_schematic.png`): from the mask of a net to its Joule heat in the cells (diagram).*
 
-**Can polygons be mapped to a net? Yes, if the CAD tool wrote it.** KiCad (and others) write the X2 object attribute `%TO.N,<net>*%` before the objects of a net (`%TD*%` ends it). The reader now keeps the net of every operation (`Layer.nets`, `Layer.net_names()`, `Layer.draw(canvas, nets=[...])`; a step and repeat keeps it). Limits found on the two KiCad 7 files of the test set: the pads and tracks carry a net, **the zone fills did not** (one 427 mm² fill on the top layer touches no labelled object, 62 % of that layer's copper, 64 % with the other pieces without a net), and one name is several separate pieces on a layer (12 for `Board_0-/X9` on the top layer). *(Review, section 7: the earlier text said the names of a panel repeat on every board, `Board_0-/X9` 25 times; the file is one board of four copper layers and the count is not reproduced: the pieces are most likely joined by vias and the inner layers.)* Hence the working rule of the study: the net of a piece of **connected copper** is the net of the labelled objects it contains (149 of 176 pieces on the top layer have exactly one net, none has two). Files from tools that do not write the attribute (EasyEDA, Fritzing, most older ones) need the net from the user (click a piece) or from a netlist.
+**Where the net of a piece of copper comes from** (the X2 attribute `TO.N`, the zone fills that carry none, and the working rule that a piece of connected copper takes the net of its labelled objects): see `gerber-import/README.md` section 4.29.
 
 **The heat of a net.** With the net mask, the sheet resistance `Rs = rho / t` (copper 1.68e-8 ohm m at 20 °C, +0.393 %/K) and two terminals, `joule.solve_net` solves div(grad V / Rs) = 0 on the pixels (4-connected, face conductance 1/Rs, harmonic mean when `Rs` varies) and returns the resistance, the potential and the Joule power of every pixel, whose sum is exactly `I²R`. `joule.to_cells` sums it into the cells of the thermal grid (the total is conserved), which is exactly the heat source the models need. Checks (8 tests): a strip gives `Rs (L-1)/W` to 1e-9, a width step is a series circuit (within 3 %, the constriction adds a spreading term), parallel strips, the cell sum, and unconnected or overlapping terminals are refused.
 
@@ -125,7 +84,7 @@ On a real KiCad panel (the `charliewatch-v2` files of gerbonara's test set, used
 
 ### 4.23 Tracks at an angle: area, connectivity and resistance on the grid (`study_angles.py`, `make_figures.py`)
 
-Until now only 45° had been tried (7 widths together, 4.22). A 30 mm track written with gerbonara at 0 to 90° in steps of 7.5° (widths 0.1 to 0.3 mm, pixels 0.1, 0.05 and 0.025 mm) gives the following. Picture (regenerate with `make_figures.py`):
+Until now only 45° had been tried (7 widths together, `gerber-import` 4.22). A 30 mm track written with gerbonara at 0 to 90° in steps of 7.5° (widths 0.1 to 0.3 mm, pixels 0.1, 0.05 and 0.025 mm) gives the following. Picture (regenerate with `make_figures.py`):
 
 ![Figure 1: thin tracks at 30 and 45 degrees on three pixel sizes; colour = one 4-connected piece](figures/fig_01_angles_pixel_grid.png)
 
@@ -136,7 +95,7 @@ Until now only 45° had been tried (7 widths together, 4.22). A 30 mm track writ
 * **Resistance** (ratio of the solved resistance between the two ends to the ideal `Rs L / w`, 1.00 = exact): the 4-point stencil is exact along the axes and **too resistive when the track is tilted, the worse the fewer pixels across**: at 37.5° it is 1.97 (w 0.15 mm, 1.5 px), 1.59 (0.2 mm, 2 px), 1.32 (0.3 mm, 3 px) at 0.1 mm pixels; 1.61 (2 px), 1.33 (3 px), 1.23 (4 px), 1.13 (6 px) at 0.05 mm; 1.23 (4 px), 1.14 (6 px), 1.10 (8 px), 1.06 (12 px) at 0.025 mm. The isotropic nine-point stencil (`stencil="9"`) removes most of the angle dependence from about 8 px across (1.04 to 1.07 at 8 px, 1.02 to 1.04 at 12 px; at 2 px it still goes from 1.20 on the axes to 1.43) but adds a bias that also shows on the axes (+9 % at 4 px across, +4 % at 8 px, +2 % at 12 px: the pixels at the walls miss their diagonal links). Rule of thumb for a net's resistance: **at least 8 to 10 pixels across the thinnest track that matters** (0.2 mm tracks need a pixel of 0.02 to 0.025 mm; about 6 % error at 12 px for the 4-point stencil at the worst angle, 4 % for the nine-point stencil), or take the resistance of thin tracks from the vector geometry (length and width of the track, which the Gerber has) instead of from the raster.
 * **For nets** (section 4.20): the question "which piece belongs to which net" is a question of connectivity, so it should not be answered from a coarse raster. Cheap and sound: label with 8-connectivity at a pixel not larger than the thinnest track, and for anything thinner use the vector geometry (shapely polygons that touch) or the objects' own net attribute. In the worst case, a thin wire that joins two copper areas must be kept as an explicit link, as the maintainer noted.
 
-The same sweep says something about the mapping of copper to cells (4.4 to 4.14): those studies used the same four-neighbour solves, but their features (stripes, hatch, real copper at 0.1 mm) are mostly 3 pixels wide or more and their results were validated against the same four-neighbour solve of the fine mask, so the *relative* comparison between mappings holds; the *absolute* resistance of a very thin tilted track in that reference is too high by the percentages above. Not yet repeated with finer pixels or with the nine-point stencil.
+The same sweep says something about the mapping of copper to cells (`gerber-models` 4.4 to 4.14): those studies used the same four-neighbour solves, but their features (stripes, hatch, real copper at 0.1 mm) are mostly 3 pixels wide or more and their results were validated against the same four-neighbour solve of the fine mask, so the *relative* comparison between mappings holds; the *absolute* resistance of a very thin tilted track in that reference is too high by the percentages above. Not yet repeated with finer pixels or with the nine-point stencil.
 
 ### 4.30 Our IC board as a bench for the current of a net (`tests/test_our_board_nets.py`, figure 3)
 
@@ -150,11 +109,11 @@ Test (`tests/test_our_board_nets.py`): the resistance of the longest arc net wit
 
 ### 4.36 Separate pieces of one net: what they are and what could be inferred (a proposal, `research/gerber-import/scripts/study_kicad_nets.py`)
 
-In 4.33 the Stormduino's `+5V` is two pieces of copper in the CAD file as well as in the Gerbers, `+3V3` two, the USB shield four. The maintainer's remark: such pieces are normally tied by vias and inner layers, and few should float; and an idea: two pieces of the same net, with the voltage and current known, could allow an inference.
+In `gerber-import` 4.33 the Stormduino's `+5V` is two pieces of copper in the CAD file as well as in the Gerbers, `+3V3` two, the USB shield four. The maintainer's remark: such pieces are normally tied by vias and inner layers, and few should float; and an idea: two pieces of the same net, with the voltage and current known, could allow an inference.
 
-* **What the separate pieces are (from the data, not examined piece by piece)**: on a 2-layer board the pieces were already joined through the 109 plated holes, so what remains is a gap in copper. In a real design that is a connection made **outside the copper**: a through-hole part or a header whose pins share the net (a pin header, a jumper), a connector pad, a part that bridges them (0 ohm link, fuse, ferrite bead, shunt), or an unfinished route. Which one it is was not checked on the Stormduino (the CAD file names the parts, my small reader did not keep their references). On boards with inner planes and more vias the number of such pieces is lower; the four-layer board of 4.29 was not run through this test.
+* **What the separate pieces are (from the data, not examined piece by piece)**: on a 2-layer board the pieces were already joined through the 109 plated holes, so what remains is a gap in copper. In a real design that is a connection made **outside the copper**: a through-hole part or a header whose pins share the net (a pin header, a jumper), a connector pad, a part that bridges them (0 ohm link, fuse, ferrite bead, shunt), or an unfinished route. Which one it is was not checked on the Stormduino (the CAD file names the parts, my small reader did not keep their references). On boards with inner planes and more vias the number of such pieces is lower; the four-layer board of `gerber-import` 4.29 was not run through this test.
 * **Is the idea sound?** Physically yes. The Joule heat of a piece is I²R of the current that actually flows through its copper: the current enters at the pads of sources, leaves at the pads of loads, and its path inside a piece depends only on the piece's shape (`joule.py`). Two pieces of one net have the same voltage only if something connects them; if only a load pad sits in a piece and the supply pad in the other, the current has to cross the part that links them, so that part carries the whole current (a link with its own resistance and heat) and the pieces' heat follows from the currents of each pad. If the piece holds no source or load pad it carries no current and has no Joule heat, whatever the voltage. The voltage is not needed for the heat of the copper, only to turn a power into a current (I = P / V), so the **input needed is a current (or power and voltage) per pad, not per net**; the link elements (0 ohm, fuse, shunt: their resistance) would be part of the interface.
-* **What the literature search gave (two web searches, snippets only)**: commercial power-integrity tools (Cadence Allegro IR drop, Altium PDN Analyzer, Altair PollEx) treat nets as sources and sinks with a current per pad and report I²R per shape and per via; an Altium guide describes shapes with a small resistance each that dropped a 5 V rail to 4.5 V; a Siemens/FloEFD study of a four-layer board uses nets as connections between copper regions and components. **Nothing found describes the case of islands bridged by components, or an inference of current from voltage alone**; I did not read any of these documents in full. The KiCad electro-thermal plug-ins listed in section 7 were read earlier from their descriptions only.
+* **What the literature search gave (two web searches, snippets only)**: commercial power-integrity tools (Cadence Allegro IR drop, Altium PDN Analyzer, Altair PollEx) treat nets as sources and sinks with a current per pad and report I²R per shape and per via; an Altium guide describes shapes with a small resistance each that dropped a 5 V rail to 4.5 V; a Siemens/FloEFD study of a four-layer board uses nets as connections between copper regions and components. **Nothing found describes the case of islands bridged by components, or an inference of current from voltage alone**; I did not read any of these documents in full. The KiCad electro-thermal plug-ins listed in `gerber-models` README section 6 were read earlier from their descriptions only.
 * **What would not work**: inferring the current of a piece from the voltage of the net (voltage is the same on a whole net and carries no current); a piece without pads or links is left out. **What would**: a table "pad: current" read from a netlist and a power budget (the KiCad schematic, or the user), plus the link elements, feeding `joule.solve_net` piece by piece, and the heat added to the board model as a source per cell (the Joule layer, 4.20).
 * **Not done**: no net with links was solved; no piece-by-piece examination of the Stormduino's split nets.
 
@@ -196,7 +155,7 @@ The question: how could the sinks and resistors be done in the application, and 
 How it could be made in the application (design; the details are in `INTEGRATION.md`; no code for it exists in `pcbthermal/`):
 
 1. **Data**: `Problem.electrical`, a list of named terminals (a pad position and size per terminal, a net) and elements `vsource`, `isink`, `link`, stored in the project file; absent = nothing changes. The existing `Heater` gets an optional `current` and `net` so that a part's power budget and its sink are one thing: `P = V_pad * I` and the heat in the footprint are then consistent.
-2. **Where the values come from**: typed in a pads table (Components), read from the KiCad netlist and part fields (research branch 4.33, and the roadmap's sidecar idea), links from the netlist: the parts that join two pieces of one net (0 ohm, ferrite, shunt, fuse) with their resistance from the field `Value` or a library.
+2. **Where the values come from**: typed in a pads table (Components), read from the KiCad netlist and part fields (`gerber-import` 4.33, and the roadmap's sidecar idea), links from the netlist: the parts that join two pieces of one net (0 ohm, ferrite, shunt, fuse) with their resistance from the field `Value` or a library.
 3. **Solve**: per copper layer, the network above on the same mask that gives the face conductances (the pixels already exist); vias join the layers through their barrel resistance; the temperature dependence of the resistivity (+0.39 %/K) closes in the same fixed-point loop that `api._solve_with_tc` already has; the Joule heat per cell is added to the source term of the thermal grid (`joule.to_cells`).
 4. **Outputs**: voltage drop and current density per net, heat per piece, per link and per via, a warning for a link or a track beyond its rating (IPC-2152 is the usual check, not implemented here).
 5. **Not done**: nothing of this has been joined to a thermal run; the vias of a multilayer net; time dependence; the regulators (a load that depends on its input voltage: constant power, FYPA's regulator model). The sheet resistance used is a constant 0.48 mohm/square at 20 degrees.
@@ -253,8 +212,6 @@ Not verified: a physical measurement (none exists); the plate with a hole (no su
 
 ## What was read and what was not verified
 
-**Read in full**: the converted text of the three Electronics Cooling articles supplied by the maintainer (equations of article 1 reconstructed by the converter; tables and figures missing); the Ucamco format page supplied by the maintainer. **Read in part or from a summary**: the Gerber specification (not read; the host is blocked), the Electronics Cooling pages themselves (blocked), gerbonara, pygerber and pcb-tools through their behaviour on files, not their code. **From memory, checked by limits only**: the closed forms of Bruggeman and Hashin-Shtrikman and the duality of Keller and Dykhne.
-
-**Reproduced** (numbers in `README.md`): the ranking of the mappings, the reader against four other tools, the example of Sampson (40 and 0.65 W/m K) and the tile formulas of Blackmore. **Not reproduced**: Sampson's board (its bitmaps are figures; an analogue was built), Blackmore's validation (no measurement, no board). **Not verified**: any comparison with a physical measurement; the licences of the gerbonara test boards (statistics only, no picture of them is kept); the behaviour of the 3D solid at fine cells.
+**Read in full**: nothing outside the repository. **Read from search excerpts only**: the power-integrity sources of section 10 and `docs/literature.md`. The sources of the reading of the files are recorded in `research/gerber-import/README.md` and those of the copper mapping in `research/gerber-models/README.md` (last sections). **Reproduced**: the tables of 4.20, 4.23 and 4.40 and figure 3, and the references of section 7. **Not verified**: any comparison with a physical measurement; the licences of the gerbonara test boards (`charliewatch-v2` is used for statistics only, no picture of it is kept).
 
 * Split nets (4.36): two web searches, snippets only, nothing read in full; the Stormduino's split nets were not examined piece by piece. The electrical prototype (4.40) is reproduced here; the web part was two searches and four failed fetches (kicad-electrothermal-sim and padne returned 404, the Altium host could not be resolved), nothing read in full.

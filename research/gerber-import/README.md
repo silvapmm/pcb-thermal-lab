@@ -1,63 +1,30 @@
 # Gerber import, phase 1: reading the files (copper, drills, nets, vias)
 
-Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 1 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (does the converter work: the boards, the results, the errors and the differences from other tools) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.49) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 1 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (does the converter work: the boards, the results, the errors and the differences from other tools) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.50) are those of the original single study, kept so that the references between the three folders and from other documents keep their meaning: the table below lists the sections of this folder, and the map of all of them, folder by folder, is in [`research/README.md`](../README.md) ("The Gerber research: where the sections are").**
 
 ### Where the sections are
 
-| Section | Folder | Subject |
-| :-- | :-- | :-- |
-| 4.1 | `gerber-import` **(this folder)** | Vectors to polygons |
-| 4.2 | `gerber-models` | Raster against the exact area |
-| 4.3 | `gerber-models` | Thin traces and the pixel |
-| 4.4 | `gerber-models` | The mappings on 42 windows |
-| 4.5 | `gerber-models` | Scalar formulas from the fraction alone |
-| 4.6 | `gerber-models` | Fine scan of the parameters |
-| 4.7 | `gerber-models` | Copper thickness |
-| 4.8 | `gerber-models` | Heater size |
-| 4.9 | `gerber-models` | Time response |
-| 4.10 | `gerber-models` | Scalar versus fill of a zone: what the program does today |
-| 4.11 | `gerber-models` | Regular patterns: what "fill 0.5" means |
-| 4.12 | `gerber-models` | Two layers with plated holes |
-| 4.13 | `gerber-models` | A real four-layer board |
-| 4.14 | `gerber-models` | Through the program's own solver |
-| 4.15 | `gerber-models` | Cost |
-| 4.16 | `gerber-models` | The Lumped and Analytic models |
-| 4.17 | `gerber-import` **(this folder)** | The independent reader against gerbonara on gerbonara's own test files |
-| 4.18 | `gerber-import` **(this folder)** | How the independent reader differs from the others |
-| 4.19 | `gerber-import` **(this folder)** | What can be read: copper layers and drill files |
-| 4.20 | `gerber-nets` | Nets: how much does the 5 V net heat up? |
-| 4.21 | `gerber-models` | Literature status |
-| 4.22 | `gerber-import` **(this folder)** | Against the other Python tools, on files of known area |
-| 4.23 | `gerber-nets` | Tracks at an angle: area, connectivity and resistance on the grid |
-| 4.24 | `gerber-import` **(this folder)** | A third writer: Ucamco's `gerber-writer` |
-| 4.25 | `gerber-models` | The regime of Sampson's article: heat that must reach fixed-temperature posts, |
-| 4.26 | `gerber-models` | Grey-level |
-| 4.27 | `gerber-models` | Every model of the program |
-| 4.28 | `gerber-models` | An analogue of the post-mounted board of Sampson |
-| 4.29 | `gerber-import` **(this folder)** | Vias and nets |
-| 4.30 | all three (bench board) **(this folder)** | A board of our own as a bench: an IC with circular tracks |
-| 4.31 | `gerber-models` | The import path end to end |
-| 4.32 | `gerber-models` | Where the heater is: the set-up of the end-to-end runs |
-| 4.33 | `gerber-import` **(this folder)** | Are the polygons tied to the right nets? A check against a KiCad project |
-| 4.34 | `gerber-models` | Our board in the five models |
-| 4.35 | `gerber-models` | A board of squares and rectangles in the five models |
-| 4.36 | `gerber-nets` | Separate pieces of one net: what they are and what could be inferred |
-| 4.37 | `gerber-models` | How to validate the models on the rectangle board, and why the FVM looks worse |
-| 4.38 | `gerber-models` | The mappings as selectable options |
-| 4.39 | `gerber-models` | Measured impact of the two proposed corrections to the program |
-| 4.40 | `gerber-nets` | Sources, sinks and links: the electrical side |
-| 4.41 | `gerber-import` **(this folder)** | The converter on every board, layer by layer |
-| 4.45 | `gerber-import` **(this folder)** | Is it the same copper? Four tools, pixel by pixel |
-| 4.46 | `gerber-import` **(this folder)** | The nets against the KiCad project, pixel by pixel |
-| 4.47 | `gerber-import` **(this folder)** | The board outline from the profile layer |
-| 4.42 | `gerber-models` | The thinnest track and the angle |
-| 4.43 | `gerber-models` | Every mapping on every board, in one table |
-| 4.44 | `gerber-models` | Diagonal couplings: the nine-point experiment |
-| 4.48 | `gerber-models` | A detector for the diagonal faces |
-| 4.49 | `gerber-models` | The cell tensor: what it is and how it is used |
-| 4.50 | `gerber-models` | Held-out test of the diagonal gate: it does not hold up |
+| Section | Subject |
+| :-- | :-- |
+| 4.1 | Vectors to polygons (Stormduino, an Arduino Uno clone) |
+| 4.17 | The independent reader against gerbonara on gerbonara's own test files |
+| 4.18 | How the independent reader differs from the others (details of the other projects from their documentation, not all verified by running them) |
+| 4.19 | What can be read: copper layers and drill files |
+| 4.22 | Against the other Python tools, on files of known area |
+| 4.24 | A third writer: Ucamco's `gerber-writer` |
+| 4.29 | Vias and nets |
+| 4.30 | A board of our own as a bench: an IC with circular tracks |
+| 4.33 | Are the polygons tied to the right nets? A check against a KiCad project |
+| 4.41 | The converter on every board, layer by layer |
+| 4.45 | Is it the same copper? The same board drawn by four tools, and the difference pixel by pixel |
+| 4.46 | The nets against the KiCad project, pixel by pixel |
+| 4.47 | The board outline: the profile layer |
 
-## 1. The questions
+## 1. What this folder does and what it leaves to the others; the questions
+
+**This folder** reads the Gerber and Excellon files and imports the board, with no program: the independent reader and its conformance (section 5, 4.17 to 4.19, 4.24), the comparison with the other readers (4.22) and pixel by pixel (4.45), the copper of every layer (4.1, 4.41), the holes, pads, vias and the nets written in the files (4.29) and checked against a KiCad project (4.33, 4.46), the board outline (4.47), the test benches (4.30) and the import itself (`importer.import_board`). Its output is the mask of every layer, the holes with their net, and warnings.
+
+**Left to the others**: what the mask becomes in the thermal models (the copper fraction or face conductances of the cells, the pixel and coverage needed for the temperature, the import into the program's FVM, the effect of the choice of reader on a temperature) is [`gerber-models`](../gerber-models/README.md) (for example 4.2, 4.3, 4.26, 4.31); the current in a net, its Joule heat, the resistance of tracks at any angle, the separate pieces of one net and the electrical sources, sinks and links are [`gerber-nets`](../gerber-nets/README.md) (4.20, 4.23, 4.36, 4.40).
 
 A Gerber file is vector data: strokes with a width, flashes and filled regions; the drill file gives the holes. Phase 1 asks what can be taken from the files and how reliably.
 
@@ -180,7 +147,7 @@ Only copper layers and drills matter for the program (silkscreen, mask, paste an
 What this shows:
 
 1. **The independent reader gives the same raster as gerbonara + shapely and as pcb-tools above 50 %** (file by file the numbers coincide to the printed digit). On these files nothing separates the readers; **the error is the pixel**, not the reader. A track narrower than 1.5 pixels is rounded to 0, 1 or 2 pixels: 0.03 mm vanishes at 0.1 mm (-100 %), 0.05 mm doubles (+100 %), 0.075 mm gains a third, 0.15 mm loses a third. Only the vector area is exact.
-2. **Binary masks lose or invent area on thin copper; a coverage (grey-level) mask does not**: pcb-tools' anti-aliased coverage keeps 4.4 % at 0.1 mm against 22 % for any binary mask. For the thermal mapping this suggests rendering at a finer pixel and averaging (coverage per coarse pixel), or keeping the pixel at most half the thinnest track (as 4.3 already said). Not yet tested in the conduction solver.
+2. **Binary masks lose or invent area on thin copper; a coverage (grey-level) mask does not**: pcb-tools' anti-aliased coverage keeps 4.4 % at 0.1 mm against 22 % for any binary mask. What this means for the thermal mapping (a coverage mask against a binary one in the conduction solver, and the pixel of at most half the thinnest track) is in `gerber-models` 4.26 and 4.3.
 3. **pygerber is the worst at coarse pixels** (a 0.03 mm track draws as 0.1 mm: +233 %) and it **did not parse any of gerbonara's 47 written files as they are** (gerbonara writes `G75` without its `*` and an obsolete `%IPPOS*%`; a cleaned copy parses). Its grammar is strict, which is a feature for conformance and a handicap for tolerance.
 4. **The independent reader accepts the same files** (it now tolerates a lone `G75` line, found by this test), runs in 0.04 s per file on average against 0.19 s (gerbonara + shapely), 0.06 s (pcb-tools) and 0.23 s (pygerber).
 5. **Planes, holes, islands, clear slots and hatches are exact for every tool** at 0.1 mm (errors 0.0 to 0.4 %), except the perforated plane at 0.1 mm (+6 %: the 0.2 mm webs are 2 pixels wide with 0.5 mm holes, so the rounding of the holes shows) and pcb-tools' hatch (-2 %).
@@ -191,7 +158,7 @@ Limits of this comparison: area only (the position of the pixels was not compare
 
 ### 4.24 A third writer: Ucamco's `gerber-writer` (`study_gerber_writer.py`)
 
-The Ucamco format page (supplied by the maintainer, `docs/literature.md` section 5) names `gerber-writer`, a Python library for writing Gerber X2 files. Files written with it (thermal and rounded-thermal pads, rectangles, a rounded rectangle, a regular polygon, a circle, four tilted tracks, a path with a quarter-circle arc, a pentagon region) test the reader on a writer it has never seen. Copper area against the exact value (shapely construction for the tracks and the arc; the region is 300 mm²; the pads have no hand formula, so the reference there is gerbonara):
+The Ucamco format page (supplied by the maintainer, `docs/literature.md`, "Ucamco") names `gerber-writer`, a Python library for writing Gerber X2 files. Files written with it (thermal and rounded-thermal pads, rectangles, a rounded rectangle, a regular polygon, a circle, four tilted tracks, a path with a quarter-circle arc, a pentagon region) test the reader on a writer it has never seen. Copper area against the exact value (shapely construction for the tracks and the arc; the region is 300 mm²; the pads have no hand formula, so the reference there is gerbonara):
 
 | file | independent reader | gerbonara 1.6.3 (vector) |
 | :-- | --: | --: |
@@ -206,7 +173,8 @@ Findings: (1) **the reader handles the thermal-pad macros and the arc path**; (2
 * **Same vias as the Gerber?** The program's `Via` is a plated through hole (position, finished diameter, fill). In the Gerber set a hole is a position and a diameter in the Excellon file, plated or not (X2 comment `; #@! TF.FileFunction,Plated,1,4,PTH` or `NonPlated,...,NPTH`, now read by `native_gerber.drill_function`; the holes inherit it), and every copper layer has a pad flashed over it whose **aperture function** (`ViaPad`, `ComponentPad`, `SMDPad,CuDef`, now stored per aperture) says what it is. `nets.hole_report` matches the three by position: for each hole the pad, function and net on every layer, and a class (`via`, `component`, `unplated`, `unknown`). A plated `via` maps to a program `Via` directly (hole diameter, position); a `component` hole is a lead hole of a part, copper-plated too (it also conducts between layers); an `unplated` hole is no via.
 * **KiCad X2 test set** (2 layers, 80 holes, all variants): 76 plated, 4 non-plated; in the variant with aperture attributes 68 plated holes are classified `component` with a pad on both layers and the same net on both (68 of 68, no conflict), 8 plated holes have no pad found (`unknown`); without aperture attributes 30 are `unknown`, which shows how much the attributes give. The nets of this test file are all `N/C` (a pads-only test board).
 * **Vias seen from the pads, a real 4-layer board** (`charliewatch-v2`, KiCad 7, no drill file in the test set): 225 vias found as `ViaPad` flashes at the same position on all four layers, **225 of 225 with the same net on the four layers**, none conflicting, none without a net, every via joining four layers; the nets with most vias are `/X3` (19), `/X1` (18). So the Gerber files do give the polygons-to-nets mapping on every layer and the via connections between layers, when the CAD tool writes the attributes.
-* **Polygons to nets**: yes, by the net attribute of the objects (pads, tracks) and by connectivity for the rest (4.20); a net across layers is the union of its pieces joined by its vias. Files from tools that do not write the attribute give no nets.
+* **Net names in the files** (moved here from `gerber-nets` 4.20; counts printed by `gerber-nets/scripts/study_net_joule.py` on the two KiCad 7 `charliewatch-v2` files of gerbonara's test set, statistics only). **Can polygons be mapped to a net? Yes, if the CAD tool wrote it.** KiCad (and others) write the X2 object attribute `%TO.N,<net>*%` before the objects of a net (`%TD*%` ends it). The reader now keeps the net of every operation (`Layer.nets`, `Layer.net_names()`, `Layer.draw(canvas, nets=[...])`; a step and repeat keeps it). Limits found on the two KiCad 7 files of the test set: the pads and tracks carry a net, **the zone fills did not** (one 427 mm² fill on the top layer touches no labelled object, 62 % of that layer's copper, 64 % with the other pieces without a net), and one name is several separate pieces on a layer (12 for `Board_0-/X9` on the top layer). *(Review of `gerber-nets`, its README section 7: the earlier text said the names of a panel repeat on every board, `Board_0-/X9` 25 times; the file is one board of four copper layers and the count is not reproduced: the pieces are most likely joined by vias and the inner layers.)* Hence the working rule of the study: the net of a piece of **connected copper** is the net of the labelled objects it contains (149 of 176 pieces on the top layer have exactly one net, none has two). Files from tools that do not write the attribute (EasyEDA, Fritzing, most older ones) need the net from the user (click a piece) or from a netlist.
+* **Polygons to nets**: yes, by the net attribute of the objects (pads, tracks) and by connectivity for the rest (the bullet above); a net across layers is the union of its pieces joined by its vias. Files from tools that do not write the attribute give no nets.
 
 ### 4.30 A board of our own as a bench: an IC with circular tracks (`our_board.py`, `tests/test_our_board_bench.py`, figure 1)
 
@@ -228,7 +196,7 @@ The tests use the board as a bench (`tests/test_our_board_bench.py`, 2 tests): n
 
 *Figure 6 (`figures/fig_06_nets_check_schematic.png`): the check of the nets against a CAD file: the two independent sources, the four questions and the results (diagram, no data).*
 
-Until now the net of a piece of copper was taken from the Gerber attributes and checked only against itself (4.20, 4.29). The Stormduino (KiCad 5, MIT) has its Gerbers **and** its `.kicad_pcb`, and its Gerbers carry no net attributes, so the check can be independent: the nets come from the CAD file, the copper from the Gerbers. `lib/kicad_pcb.py` reads the CAD file (nets, tracks, vias, pads with the module rotation applied, zones); `study_kicad_nets.py` splits the copper of each layer into 8-connected pieces, joins the two layers through the 109 plated holes of the drill file, and asks where the objects of the CAD file fall.
+Until now the net of a piece of copper was taken from the Gerber attributes and checked only against itself (4.29). The Stormduino (KiCad 5, MIT) has its Gerbers **and** its `.kicad_pcb`, and its Gerbers carry no net attributes, so the check can be independent: the nets come from the CAD file, the copper from the Gerbers. `lib/kicad_pcb.py` reads the CAD file (nets, tracks, vias, pads with the module rotation applied, zones); `study_kicad_nets.py` splits the copper of each layer into 8-connected pieces, joins the two layers through the 109 plated holes of the drill file, and asks where the objects of the CAD file fall.
 
 | Question | Result |
 | :-- | :-- |

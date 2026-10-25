@@ -1,63 +1,51 @@
 # Gerber import, phase 2: the copper in the simulation models (mapping to conductances, the five models)
 
-Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 2 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (the problem, the methods, the boards, the results and what to do next, in plain order) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.50) are those of the original single study, so that the references between the three folders keep their meaning; the table below says where each one is.**
+Status: **open**, a research branch (`research/gerbers`): **nothing in `pcbthermal/` was changed**. This folder is **phase 2 of three** of the Gerber research, which started as one study and was split: [`research/gerber-import`](../gerber-import/README.md) (1, reading the files), [`research/gerber-models`](../gerber-models/README.md) (2, the copper in the simulation models) and [`research/gerber-nets`](../gerber-nets/README.md) (3, nets with voltage and current). Dependencies run one way: 2 and 3 use the modules of 1, 3 does not use 2; **1 needs no program**. **Start with [`REPORT.md`](REPORT.md) (the problem, the methods, the boards, the results and what to do next, in plain order) and [`CONCLUSIONS.md`](CONCLUSIONS.md)**; how the result would enter the program is in [`INTEGRATION.md`](INTEGRATION.md); what was read and what was not verified, in the last section of this file; the text for the project documents, in [`docs/`](docs/). The layout is the one of every research folder (`CLAUDE.md`, "Research branches"). **Section numbers (4.1 to 4.50) are those of the original single study, kept so that the references between the three folders and from other documents keep their meaning: the table below lists the sections of this folder, and the map of all of them, folder by folder, is in [`research/README.md`](../README.md) ("The Gerber research: where the sections are").**
 
 ### Where the sections are
 
-| Section | Folder | Subject |
-| :-- | :-- | :-- |
-| 4.1 | `gerber-import` | Vectors to polygons |
-| 4.2 | `gerber-models` **(this folder)** | Raster against the exact area |
-| 4.3 | `gerber-models` **(this folder)** | Thin traces and the pixel |
-| 4.4 | `gerber-models` **(this folder)** | The mappings on 42 windows |
-| 4.5 | `gerber-models` **(this folder)** | Scalar formulas from the fraction alone |
-| 4.6 | `gerber-models` **(this folder)** | Fine scan of the parameters |
-| 4.7 | `gerber-models` **(this folder)** | Copper thickness |
-| 4.8 | `gerber-models` **(this folder)** | Heater size |
-| 4.9 | `gerber-models` **(this folder)** | Time response |
-| 4.10 | `gerber-models` **(this folder)** | Scalar versus fill of a zone: what the program does today |
-| 4.11 | `gerber-models` **(this folder)** | Regular patterns: what "fill 0.5" means |
-| 4.12 | `gerber-models` **(this folder)** | Two layers with plated holes |
-| 4.13 | `gerber-models` **(this folder)** | A real four-layer board |
-| 4.14 | `gerber-models` **(this folder)** | Through the program's own solver |
-| 4.15 | `gerber-models` **(this folder)** | Cost |
-| 4.16 | `gerber-models` **(this folder)** | The Lumped and Analytic models |
-| 4.17 | `gerber-import` | The independent reader against gerbonara on gerbonara's own test files |
-| 4.18 | `gerber-import` | How the independent reader differs from the others |
-| 4.19 | `gerber-import` | What can be read: copper layers and drill files |
-| 4.20 | `gerber-nets` | Nets: how much does the 5 V net heat up? |
-| 4.21 | `gerber-models` **(this folder)** | Literature status |
-| 4.22 | `gerber-import` | Against the other Python tools, on files of known area |
-| 4.23 | `gerber-nets` | Tracks at an angle: area, connectivity and resistance on the grid |
-| 4.24 | `gerber-import` | A third writer: Ucamco's `gerber-writer` |
-| 4.25 | `gerber-models` **(this folder)** | The regime of Sampson's article: heat that must reach fixed-temperature posts, |
-| 4.26 | `gerber-models` **(this folder)** | Grey-level |
-| 4.27 | `gerber-models` **(this folder)** | Every model of the program |
-| 4.28 | `gerber-models` **(this folder)** | An analogue of the post-mounted board of Sampson |
-| 4.29 | `gerber-import` | Vias and nets |
-| 4.30 | all three (bench board) **(this folder)** | A board of our own as a bench: an IC with circular tracks |
-| 4.31 | `gerber-models` **(this folder)** | The import path end to end |
-| 4.32 | `gerber-models` **(this folder)** | Where the heater is: the set-up of the end-to-end runs |
-| 4.33 | `gerber-import` | Are the polygons tied to the right nets? A check against a KiCad project |
-| 4.34 | `gerber-models` **(this folder)** | Our board in the five models |
-| 4.35 | `gerber-models` **(this folder)** | A board of squares and rectangles in the five models |
-| 4.36 | `gerber-nets` | Separate pieces of one net: what they are and what could be inferred |
-| 4.37 | `gerber-models` **(this folder)** | How to validate the models on the rectangle board, and why the FVM looks worse |
-| 4.38 | `gerber-models` **(this folder)** | The mappings as selectable options |
-| 4.39 | `gerber-models` **(this folder)** | Measured impact of the two proposed corrections to the program |
-| 4.40 | `gerber-nets` | Sources, sinks and links: the electrical side |
-| 4.41 | `gerber-import` | The converter on every board, layer by layer |
-| 4.42 | `gerber-models` **(this folder)** | The thinnest track and the angle |
-| 4.43 | `gerber-models` **(this folder)** | Every mapping on every board, in one table |
-| 4.44 | `gerber-models` **(this folder)** | Diagonal couplings: the nine-point experiment |
-| 4.45 | `gerber-import` | Is it the same copper? Four tools, pixel by pixel |
-| 4.46 | `gerber-import` | The nets against the KiCad project, pixel by pixel |
-| 4.47 | `gerber-import` | The board outline from the profile layer |
-| 4.48 | `gerber-models` **(this folder)** | A detector for the diagonal faces |
-| 4.49 | `gerber-models` **(this folder)** | The cell tensor: what it is and how it is used |
-| 4.50 | `gerber-models` **(this folder)** | Held-out test of the diagonal gate: it does not hold up |
+| Section | Subject |
+| :-- | :-- |
+| 4.2 | Raster against the exact area |
+| 4.3 | Thin traces and the pixel |
+| 4.4 | The mappings on 42 windows |
+| 4.5 | Scalar formulas from the fraction alone |
+| 4.6 | Fine scan of the parameters |
+| 4.7 | Copper thickness |
+| 4.8 | Heater size |
+| 4.9 | Time response |
+| 4.10 | Scalar versus fill of a zone: what the program does today |
+| 4.11 | Regular patterns: what "fill 0.5" means |
+| 4.12 | Two layers with plated holes |
+| 4.13 | A real four-layer board |
+| 4.14 | Through the program's own solver |
+| 4.15 | Cost |
+| 4.16 | The Lumped and Analytic models |
+| 4.21 | Literature status |
+| 4.25 | The regime of Sampson's article: heat that must reach fixed-temperature posts, no convection |
+| 4.26 | Grey-level (coverage) mask against the binary mask |
+| 4.27 | Every model of the program |
+| 4.28 | An analogue of the post-mounted board of Sampson |
+| 4.30 | Our IC board as a thermal bench |
+| 4.31 | The import path end to end |
+| 4.32 | Where the heater is: the set-up of the end-to-end runs |
+| 4.34 | Our board in the five models |
+| 4.35 | A board of squares and rectangles in the five models |
+| 4.37 | How to validate the models on the rectangle board, and why the FVM looks worse |
+| 4.38 | The mappings as selectable options |
+| 4.39 | Measured impact of the two proposed corrections to the program |
+| 4.42 | The thinnest track and the angle |
+| 4.43 | Every mapping on every board, in one table |
+| 4.44 | Diagonal couplings: the nine-point experiment |
+| 4.48 | A detector for the diagonal faces |
+| 4.49 | The cell tensor: what it is and how it is used |
+| 4.50 | Held-out test of the diagonal gate: it does not hold up |
 
-## 1. The questions
+## 1. What this folder does and what it leaves to the others; the questions
+
+**This folder** puts the imported copper in the simulation models: how the fine copper of a mask becomes the conductances of a grid of square cells (the mappings, 4.4 to 4.6, 4.21, 4.38, 4.43), what changes the answer (pixel, coverage, track width and angle, thickness, heater size, time, 4.2, 4.3, 4.7 to 4.9, 4.26, 4.42), diagonal faces and the cell tensor (4.44, 4.48 to 4.50), real layers and patterns (4.11 to 4.13, 4.25, 4.28), the five models of the program on imported copper (4.14 to 4.16, 4.27, 4.30, 4.34, 4.35, 4.37), the import into the program's FVM (4.31, 4.32) and the two corrections to the program it found (4.10, 4.39), with the laminate reference of the review (Review R2).
+
+**Left to the others**: reading the files, the masks, holes, vias, nets and outline, and the readers compared are [`gerber-import`](../gerber-import/README.md) (its masks are the input here; how the import would enter the program is its `INTEGRATION.md`); the current in a net, its Joule heat and the resistance of tracks at any angle are [`gerber-nets`](../gerber-nets/README.md) (a Joule heat enters the models of this folder as an ordinary power per cell).
 
 The whole chain from the Gerber file to the temperature is drawn in Figure 10:
 
@@ -213,7 +201,7 @@ The three Electronics Cooling articles could not be opened by the assistant (net
 * **Blackmore's tile method (2010) is our `lam 0` bound** for k_x and k_y and the arithmetic fraction for k_z (`test_blackmore_tile_formulas_are_the_lower_bound_and_the_arithmetic_mean`); on our windows it alone is 2.6 / 4.5 / 9.5 % too hot at 0.6 / 1.0 / 2.0 mm cells, against 1.0 / 1.3 / 3.2 % for lambda 0.5. His own validation: 3.3 % average (15.3 % maximum) against detailed simulation, 5.7 % against an automotive board, with tiles of 7 to 14 mm.
 * **Guenin (2015)** shows that heat enters the dielectric under the traces and that the copper near the package matters most; two ideas not yet tested here: the vertical link of a smeared layer should carry the local copper overlap, and the length of about ten dielectric thicknesses as the cell size below which a trace can be smeared.
 
-Still open: the formulas of Bruggeman, Hashin-Shtrikman and Dykhne (from memory, checked by limits only), the Ucamco text (host blocked), and the original images of the articles.
+Still open: the formulas of Bruggeman, Hashin-Shtrikman and Dykhne (from memory, checked by limits only), the Ucamco text (host blocked; its status is in `research/gerber-import/docs/literature.md`), and the original images of the articles.
 
 ## 4.B What changes the answer: pixel, track width and angle, thickness, heater size, time, coverage
 
@@ -253,7 +241,7 @@ The reference also depends a little on the pixel (single layer, 5 x 5 mm heater)
 
 *Figure 7 (`figures/fig_07_track_width_angle.png`): top left, what one track across the heater does in the reference; top right, how many 8-connected pieces a binary mask at 0.1 mm makes of it (1 = recognised, 0 = lost, many = broken); bottom, the share of the track's cooling reproduced by the 1 mm cells at 0 degrees (left) and 45 degrees (right).*
 
-**1. Recognition (the reader and the mask).** The Gerber carries the exact width and angle, and the reader draws any of them: the copper area is within 0.5 % of the vector area at any angle except where the lattice ties at 45 degrees (README 4.23). The mask is what limits:
+**1. Recognition (the reader and the mask).** The Gerber carries the exact width and angle, and the reader draws any of them: the copper area is within 0.5 % of the vector area at any angle except where the lattice ties at 45 degrees (`gerber-nets` README 4.23). The mask is what limits:
 
 | Track | binary mask 0.1 mm | binary mask 0.05 mm | coverage mask |
 | :-- | :-- | :-- | :-- |
@@ -284,7 +272,7 @@ So **a track of any width is recognised if the pixel is at most half its width**
 
 * **At 0 degrees every mapping except the geometric mean reproduces 96 to 98 % of the track's effect, at every width** (the 125 % at 0.075 mm is a tie: the track is centred on a cell edge). The geometric mean reproduces only 28 to 61 %: it cannot know that an isolated track is a conductor.
 * **At 15 to 45 degrees the directional mappings lose much of it**: the flow-based faces reproduce 80 % at 15 degrees, 58 to 69 % at 30 degrees and **38 to 53 % at 45 degrees** for tracks of 0.05 to 0.5 mm (84 to 93 % at 1 mm); lambda 0.5 is worse (38 to 72 % at 45 degrees; "40 to 72" before the review); the margin variant of the flow faces helps a little (47 to 67 %). **The arithmetic fill fraction (today) does better here** (63 to 106 % at 45 degrees, 76 to 108 % at 30 degrees; "76 to 94" before the review, which the table does not give): it spreads the copper isotropically, which happens to suit a diagonal.
-* **The cause is the grid, not the copper reading**: the network couples a cell only to its four neighbours, through an x face and a y face; heat that follows a diagonal track must go in a staircase of x and y faces, and each face, computed along its own axis, sees only part of the track (this is the "diagonal copper" limit of README 4.11 and 4.23, now measured on one track). The 0.025 mm reference has fifty steps per mm and does not suffer from it.
+* **The cause is the grid, not the copper reading**: the network couples a cell only to its four neighbours, through an x face and a y face; heat that follows a diagonal track must go in a staircase of x and y faces, and each face, computed along its own axis, sees only part of the track (this is the "diagonal copper" limit of README 4.11 and of `gerber-nets` 4.23, now measured on one track). The 0.025 mm reference has fifty steps per mm and does not suffer from it.
 * **Consequence**: the mappings of this research are right for axis-aligned and mostly-connected copper (real boards, 4.4 to 4.13, are mostly Manhattan) and weak on **isolated diagonal tracks on a coarse grid**. This does not contradict the board results (a diagonal track amid planes and pads is supported by the rest), but it is the largest known residual error.
 
 **4. What would be needed to go on** (also in `CONCLUSIONS.md`): diagonal couplings in the network (a nine-point stencil, or a conductance tensor with a cross term per cell) with the mapping that goes with it; a test on boards with many diagonal tracks; the same study with 0.5 and 0.25 mm cells; a track on the board edge or near a part. Limits of this study: one track, one heater of 6 mm, laminate FR-4 and 35 µm copper, 1 mm cells; widths down to 0.05 mm only.
@@ -295,7 +283,7 @@ So **a track of any width is recognised if the pixel is at most half its width**
 
 **What was built** (`lib/diagonal.py`, research code; the program's network is not changed):
 * `solve9`: the sheet network with axial and diagonal faces (the same conduction, losses and held cells as the five-point solver; with zero diagonals it is the five-point solver to 1e-9, a test).
-* `pixel_reference9`: the fine reference with the isotropic nine-point stencil (axial 2/3, diagonal 1/6), closer to the continuum than the five-point one on thin tilted copper (4.23). **The two references agree**: the effect of a track on the heater differs by at most 0.4 points (for example 0.3 mm at 45 degrees: -12.0 % with five points, -12.1 % with nine), so the diagonal result below is not an artefact of the reference.
+* `pixel_reference9`: the fine reference with the isotropic nine-point stencil (axial 2/3, diagonal 1/6), closer to the continuum than the five-point one on thin tilted copper (`gerber-nets` 4.23). **The two references agree**: the effect of a track on the heater differs by at most 0.4 points (for example 0.3 mm at 45 degrees: -12.0 % with five points, -12.1 % with nine), so the diagonal result below is not an artefact of the reference.
 * `cell_tensor`: a conductance tensor (kxx, kyy, kxy) per cell from two local problems with an affine boundary condition (the potential on the whole boundary is x, then y), normalised so a uniform cell gives (S, S, 0). A first version with four directional solves gave a spurious cross term for an axis-aligned track that lies off the cell centre (it lost 25 % of the conduction at 0 degrees) and was replaced; the test checks that a horizontal strip has no cross term wherever it lies.
 * Two ways to use the tensor: the **pure tensor** with the standard nine-point stencil (axial `kxx - |kxy|`, one diagonal pair of `|kxy|`), and the **hybrid**: the flow-based axial faces unchanged plus the diagonal conduction they miss (the conductance along each diagonal, `(kxx + kyy)/2 +- kxy`, minus what the axial faces already deliver), multiplied by a share `alpha` (1, 0.5, 0.25).
 
@@ -515,7 +503,7 @@ Does drawing the copper as a coverage per pixel (4 x 4 sub-samples averaged, `na
 | | **coverage 0.1 mm** | 17.1 | 6.9 | 9.0 | 5.0 | **4.1 (+1.7)** |
 
 * **Coverage cuts the error of the flow-based faces by about a third on real copper (6.5 to 4.1 %) and by a factor 3 to 4 on thin-track layouts**, at the same 0.1 mm grid; the fill fraction does not change (it depends on the area only, which both masks keep to 0.2 %), and the bound-based and flow-based mappings gain.
-* **Part of the gain is not about thin tracks.** The flow-based faces on the fine binary mask itself (0.025 mm) still leave +10 % and +7.8 % on the synthetic boards: the local windows are insulated at the sides and miss the cross flow, so the faces are a little low and the board a little hot; the grey pixels add some conductance and cancel part of that bias. So coverage works partly for the right reason (it keeps the area of tracks narrower than the pixel, section 4.22) and partly by compensation; it is a better default than the binary mask, not a proof that the mapping is exact.
+* **Part of the gain is not about thin tracks.** The flow-based faces on the fine binary mask itself (0.025 mm) still leave +10 % and +7.8 % on the synthetic boards: the local windows are insulated at the sides and miss the cross flow, so the faces are a little low and the board a little hot; the grey pixels add some conductance and cancel part of that bias. So coverage works partly for the right reason (it keeps the area of tracks narrower than the pixel, `gerber-import` 4.22) and partly by compensation; it is a better default than the binary mask, not a proof that the mapping is exact.
 * **Sensitivity of the protocol**: on 14 mm windows with a 4 mm heater (border 5 mm away) every mapping is 10 to 24 % off, on real copper too (tried and not kept: a heater of 4 cells with the held border so close is the hard case of 4.8); the tables above use 20 mm windows and a 6 mm heater. The synthetic boards are random tracks at random angles (harder than real copper, which is mostly orthogonal).
 
 ## 4.C Real layers, patterns and other scenarios
@@ -884,7 +872,7 @@ Three things came out of the study: **a vector is not needed** (a mask at 0.1 mm
 2. **A copper element for the imported layers** (a fine mask per layer, from a Gerber or from a pattern): `Sx`, `Sy` per cell for the grid of the run; the capacity, the blocks and the checks keep using the arithmetic fraction.
 3. **The mapping**: the **flow-based faces** as the production choice (robust on real copper, patterns, several layers, small heaters; 5.5 s per 100 x 160 mm layer, once); **lambda 0.5** as the quick preview or fallback (1 % on single layers, pessimistic on stacks with strong vertical coupling, weak on diagonal copper); the **geometric mean** only as a last fallback for random imported copper when no mask is kept.
 4. **Cells**: 0.6 to 1.0 mm for the mapping to pay off; coarser cells are limited by the grid.
-5. **Import**: Gerber copper and outline, Excellon holes (a Gerber cannot tell a via from a component pad: a filter by diameter and a preview), the layer assignment pre-filled from the X2 attribute or the file name; KiCad (`.kicad_pcb`, text) for parts, stack-up and the via/pad distinction.
+5. **Import** (the files to the masks, holes, outline and layers, with KiCad for parts, stack-up and the via/pad distinction): `research/gerber-import/INTEGRATION.md`.
 6. **Before any change**: `docs/validation.md` section, the equations in `docs/theory.md`, the user guide and tooltips, tests, a layer-by-layer validation on a thick-copper board of a real design, and the effect on the existing examples (`INTEGRATION.md`).
 
 ## 6. How other projects do it (for ideas only, no code copied)
@@ -920,9 +908,9 @@ None of them maps the copper to the cell conductances as above: the mesh project
 
 ## What was read and what was not verified
 
-**Read in full**: the converted text of the three Electronics Cooling articles supplied by the maintainer (equations of article 1 reconstructed by the converter; tables and figures missing); the Ucamco format page supplied by the maintainer. **Read in part or from a summary**: the Gerber specification (revision 2024.05, read in the passages the reader implements by the review of `gerber-import/`, its README section 7; nothing in this folder depends on it beyond the masks), the Electronics Cooling pages themselves (blocked), gerbonara, pygerber and pcb-tools through their behaviour on files, not their code. **From memory, checked by limits only**: the closed forms of Bruggeman and Hashin-Shtrikman and the duality of Keller and Dykhne.
+**Read in full**: the converted text of the three Electronics Cooling articles supplied by the maintainer (equations of article 1 reconstructed by the converter; tables and figures missing); **Read in part or from a summary**: the Electronics Cooling pages themselves (blocked). The sources of the reading of the files (the Ucamco format page, the Gerber specification, gerbonara, pygerber and pcb-tools) are recorded in `research/gerber-import/README.md`, last section; nothing in this folder depends on them beyond the masks. **From memory, checked by limits only**: the closed forms of Bruggeman and Hashin-Shtrikman and the duality of Keller and Dykhne.
 
-**Reproduced** (numbers in `README.md`): the ranking of the mappings, the reader against four other tools, the example of Sampson (40 and 0.65 W/m K) and the tile formulas of Blackmore. **Not reproduced**: Sampson's board (its bitmaps are figures; an analogue was built), Blackmore's validation (no measurement, no board). **Not verified**: any comparison with a physical measurement; the licences of the gerbonara test boards (statistics only, no picture of them is kept); the behaviour of the 3D solid at fine cells.
+**Reproduced** (numbers in `README.md`): the ranking of the mappings, the example of Sampson (40 and 0.65 W/m K) and the tile formulas of Blackmore. **Not reproduced**: Sampson's board (its bitmaps are figures; an analogue was built), Blackmore's validation (no measurement, no board). **Not verified**: any comparison with a physical measurement; the licences of the gerbonara test boards (statistics only, no picture of them is kept); the behaviour of the 3D solid at fine cells.
 
 * **Held-out test of the diagonal gate (4.50)**: run in full (60 windows at three cell sizes, 32 tilted tracks), about three hours; the gate did not hold up and the earlier statement of 4.48 was corrected there. The 18 Allegro windows come from a board that was in none of the earlier sets; the other 42 are new places on the old boards.
 * **Re-run (all of them now)**: `study_coverage`, `study_coverage_real`, `study_lumped_analytic`, `study_models_self` (with the copy of the program that adds the coverage of abutting zones, as the script says: the FVM, FDM, Lumped, Analytic and 3D solid columns of the second table of 4.27 reproduce to the digit; run on the unmodified program the FDM, Lumped and Analytic columns differ, because the program's union rule distorts a field made of small zones), `study_sampson_boundary`, `study_post_board` (the table of 4.28 reproduces), `study_contrast` (4.7 to the digit), `study_multilayer_real`, `study_patterns_two_layer` (4.11), `study_transient`, `study_import_readers` (4.31, to the digit), `study_raster_error` (4.2, to the digit) and, new, `study_diagonal_gate` (4.48). For `study_coverage`, `study_coverage_real`, `study_lumped_analytic`, `study_multilayer_real`, `study_patterns_two_layer`, `study_sampson_boundary`, `study_transient` and `study_contrast` 78 to 100 % of the numbers with one decimal in the output appear in this README (the others are rows it does not print); `study_models_self` and `study_post_board` were compared by hand with their tables. The two-layer rectangle-board study still differs in the cell-mapping rows when run against the original program (it needs the additive-union copy, as the script says).

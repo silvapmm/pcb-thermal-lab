@@ -11,3 +11,62 @@ Studies that are not part of the program, one folder per investigation (the inde
 **Diagrams and illustrations.** Besides the figures of the studies (`make_figures.py`, which need data), every folder has pictures that explain the situation: drawings of the thing itself (cross-sections, copper patterns, the cases compared) and flow charts or networks, in `scripts/make_diagrams.py` (no data, no program; the shapes of `research/diagram_kit.py`). Both kinds of picture go to `figures/` with **one numbering** and are linked from the README of the folder.
 
 **Licence of the pictures.** In `gerber-import/`, `gerber-models/` and `gerber-nets/` (the Gerber research, split in three), every figure comes from our own synthetic boards (`lib/our_board.py` and `lib/rect_board.py` of `gerber-import`) or from the Stormduino board (MIT, https://github.com/Chromico/stormduino, licence read at the source): the whole board in `gerber-import` figures 3, 9, 10, 13 and 15 and `gerber-models` figures 3 and 4, a window of it in `gerber-models` figures 1 and 19 (attribution in the captions). The earlier versions of two figures rendered boards of gerbonara's test resources (`charliewatch-v2`, `chibi`) whose licences could not be confirmed at their sources, so they were replaced (they remain in the git history). Boards used only to compute statistics stay in the git-ignored `gerber-import/data/` (shared by the three folders) and are never committed. Before adding a figure of a third-party board, read its licence at the source and note it here and in the caption.
+
+## The Gerber research: where the sections are
+
+The Gerber research started as one study and was split in three folders, each with one function: [`gerber-import/`](gerber-import/README.md) reads the Gerber and Excellon files and imports the board (the reader, holes, pads, vias, nets from the files and their check against a KiCad project, the outline, the test benches, the comparison with other readers); [`gerber-models/`](gerber-models/README.md) puts the copper in the simulation models (the mapping to the conductances of the grid, the five models, the import into the program's FVM, the corrections to the program); [`gerber-nets/`](gerber-nets/README.md) treats the nets with a voltage and a current (Joule heat, tracks at any angle, separate pieces, sources, sinks and links). The section numbers 4.1 to 4.50 of the original study are kept, so that the citations between the folders and from other documents stay valid; each README lists only its own sections, and this is the map of all of them (4.30, our IC board, has one section in each folder, for its own use there).
+
+| Section | Folder | Subject |
+| :-- | :-- | :-- |
+| 4.1 | `gerber-import` | Vectors to polygons (Stormduino, an Arduino Uno clone) |
+| 4.2 | `gerber-models` | Raster against the exact area |
+| 4.3 | `gerber-models` | Thin traces and the pixel |
+| 4.4 | `gerber-models` | The mappings on 42 windows |
+| 4.5 | `gerber-models` | Scalar formulas from the fraction alone |
+| 4.6 | `gerber-models` | Fine scan of the parameters |
+| 4.7 | `gerber-models` | Copper thickness |
+| 4.8 | `gerber-models` | Heater size |
+| 4.9 | `gerber-models` | Time response |
+| 4.10 | `gerber-models` | Scalar versus fill of a zone: what the program does today |
+| 4.11 | `gerber-models` | Regular patterns: what "fill 0.5" means |
+| 4.12 | `gerber-models` | Two layers with plated holes |
+| 4.13 | `gerber-models` | A real four-layer board |
+| 4.14 | `gerber-models` | Through the program's own solver |
+| 4.15 | `gerber-models` | Cost |
+| 4.16 | `gerber-models` | The Lumped and Analytic models |
+| 4.17 | `gerber-import` | The independent reader against gerbonara on gerbonara's own test files |
+| 4.18 | `gerber-import` | How the independent reader differs from the others (details of the other projects from their documentation, not all verified by running them) |
+| 4.19 | `gerber-import` | What can be read: copper layers and drill files |
+| 4.20 | `gerber-nets` | Nets: how much does the 5 V net heat up? |
+| 4.21 | `gerber-models` | Literature status |
+| 4.22 | `gerber-import` | Against the other Python tools, on files of known area |
+| 4.23 | `gerber-nets` | Tracks at an angle: area, connectivity and resistance on the grid |
+| 4.24 | `gerber-import` | A third writer: Ucamco's `gerber-writer` |
+| 4.25 | `gerber-models` | The regime of Sampson's article: heat that must reach fixed-temperature posts, no convection |
+| 4.26 | `gerber-models` | Grey-level (coverage) mask against the binary mask |
+| 4.27 | `gerber-models` | Every model of the program |
+| 4.28 | `gerber-models` | An analogue of the post-mounted board of Sampson |
+| 4.29 | `gerber-import` | Vias and nets |
+| 4.30 | `gerber-import` | A board of our own as a bench: an IC with circular tracks |
+| 4.30 | `gerber-models` | Our IC board as a thermal bench |
+| 4.30 | `gerber-nets` | Our IC board as a bench for the current of a net |
+| 4.31 | `gerber-models` | The import path end to end |
+| 4.32 | `gerber-models` | Where the heater is: the set-up of the end-to-end runs |
+| 4.33 | `gerber-import` | Are the polygons tied to the right nets? A check against a KiCad project |
+| 4.34 | `gerber-models` | Our board in the five models |
+| 4.35 | `gerber-models` | A board of squares and rectangles in the five models |
+| 4.36 | `gerber-nets` | Separate pieces of one net: what they are and what could be inferred |
+| 4.37 | `gerber-models` | How to validate the models on the rectangle board, and why the FVM looks worse |
+| 4.38 | `gerber-models` | The mappings as selectable options |
+| 4.39 | `gerber-models` | Measured impact of the two proposed corrections to the program |
+| 4.40 | `gerber-nets` | Sources, sinks and links: the electrical side |
+| 4.41 | `gerber-import` | The converter on every board, layer by layer |
+| 4.42 | `gerber-models` | The thinnest track and the angle |
+| 4.43 | `gerber-models` | Every mapping on every board, in one table |
+| 4.44 | `gerber-models` | Diagonal couplings: the nine-point experiment |
+| 4.45 | `gerber-import` | Is it the same copper? The same board drawn by four tools, and the difference pixel by pixel |
+| 4.46 | `gerber-import` | The nets against the KiCad project, pixel by pixel |
+| 4.47 | `gerber-import` | The board outline: the profile layer |
+| 4.48 | `gerber-models` | A detector for the diagonal faces |
+| 4.49 | `gerber-models` | The cell tensor: what it is and how it is used |
+| 4.50 | `gerber-models` | Held-out test of the diagonal gate: it does not hold up |

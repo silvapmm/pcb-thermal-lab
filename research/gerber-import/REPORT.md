@@ -74,7 +74,7 @@ mean absolute area error over 12 layers: binary 0.1 mm 0.14 %, binary 0.05 mm 0.
 | pcb-tools, grey level | **4.4 %** | **2.6 %** | 1.4 % | a grey-level (coverage) mask keeps thin tracks |
 | pygerber | 30.3 % | 8.1 % | 1.9 % | strict grammar: parsed none of gerbonara's 47 written files as they are |
 
-A track narrower than 1.5 pixels is rounded to 0, 1 or 2 pixels with any binary mask: 0.03 mm vanishes at 0.1 mm, 0.05 mm doubles. **That is a property of the pixel, not of the reader, and the coverage mask removes most of it** (README 4.3, 4.22; the thermal consequence is phase 2).
+A track narrower than 1.5 pixels is rounded to 0, 1 or 2 pixels with any binary mask: 0.03 mm vanishes at 0.1 mm, 0.05 mm doubles. **That is a property of the pixel, not of the reader, and the coverage mask removes most of it** (README 4.22 and `gerber-models` 4.3; the thermal consequence is `gerber-models` 4.26).
 
 ### 3.3 Reader scope and conformance (4.17, 4.19, 4.24)
 

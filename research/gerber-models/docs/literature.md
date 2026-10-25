@@ -1,10 +1,10 @@
-# Literature status for the Gerber / copper-mapping research
+# Literature status for the copper mapping (phase 2)
 
 An honest record of what was read, how, and what is still open.
 
 ## How the articles were obtained
 
-The environment's network policy denies `www.electronics-cooling.com` and `www.ucamco.com` (HTTP 403), so the assistant could not open them. **The maintainer pasted a converted text of the three Electronics Cooling articles** into the conversation. Limits of that text, as its own note says: the equations of article 1, the tables of articles 1 and 2 and all figures were images on the pages; the equations of article 1 were reconstructed by the converter from the surrounding text and the numbers (the numbers below were recomputed here, see the test `test_published_parallel_and_series_example`); tables and figures are known only through captions and the discussion. **These are notes in our own words with the facts and numbers we use, not a copy of the articles** (copyright stays with the publisher; read the originals through the links). Nothing here was checked against the pages themselves.
+The environment's network policy denies `www.electronics-cooling.com` (HTTP 403; `www.ucamco.com` too, `research/gerber-import/docs/literature.md`), so the assistant could not open them. **The maintainer pasted a converted text of the three Electronics Cooling articles** into the conversation. Limits of that text, as its own note says: the equations of article 1, the tables of articles 1 and 2 and all figures were images on the pages; the equations of article 1 were reconstructed by the converter from the surrounding text and the numbers (the numbers below were recomputed here, see the test `test_published_parallel_and_series_example`); tables and figures are known only through captions and the discussion. **These are notes in our own words with the facts and numbers we use, not a copy of the articles** (copyright stays with the publisher; read the originals through the links). Nothing here was checked against the pages themselves.
 
 ## 1. Sampson, R. L., "The Problem with Effective Thermal Conductivity", Electronics Cooling, 28 April 2017
 https://www.electronics-cooling.com/2017/04/problem-effective-thermal-conductivity/ (the method is from his ASME IPACK2005-73013, 2005)
@@ -38,14 +38,11 @@ https://www.electronics-cooling.com/2010/09/creating-pcb-thermal-conductivity-ma
 
 ## 5. Ucamco (the owner of the Gerber format)
 
-* **The specification itself is still not read** (`www.ucamco.com` is blocked for the assistant). The maintainer pasted the text of the Ucamco *format page* (not the specification). What that page says, in short: layer files represent copper, solder mask, legend, drill and route; **attributes carry meta-information such as whether an object is an SMD pad, a via pad or a fiducial, or the net names of connections**; the **Gerber job file** carries fabrication characteristics such as thickness or finish in a machine-readable form; the format is 7-bit ASCII, "simple, compact and unequivocal".
-* What it confirms for us: (a) net names are part of the standard (the attribute `TO.N`), not a KiCad habit, so a net import is legitimate when the CAD tool writes it; (b) the aperture function attribute (`TA.AperFunction`: SMD pad, via pad, fiducial, conductor, ...) separates pads, vias and tracks without guessing, which is what a plated-via and thermal-via import needs; (c) a **job file** exists that could prefill the stack-up (thickness, finish): not read, its fields must be checked in the specification before a design is drawn (idea for `INTEGRATION.md`).
-* Resources named on the page, useful for us: the **online reference viewer** (https://gerber-viewer.ucamco.com/, to check a file by eye, needs the maintainer's browser), the **Gerber downloads page** with the specification, **examples of PCB fabrication data sets and test files "to help debug implementations"** (https://www.ucamco.com/en/guest/downloads/gerber-format; the format owner's own conformance material, to be downloaded by the maintainer and added to `data/`, never committed), the offline job editor, and **gerber-writer**, a Python library for writing Gerber files (PyPI; reachable, used in `study_gerber_writer.py` as a third independent writer).
-* Still not confirmed from the specification text: the behaviour of aperture holes and clear macro primitives (the reader follows gerbonara's test files), and the exact syntax of `TO.N` and of the compatibility form `G04 #@! TF...` (gerber-writer writes attributes in that form; the reader now reads both).
+The Ucamco format page, the specification and what they confirm for the reader are recorded once, in `research/gerber-import/docs/literature.md` ("Ucamco"); nothing in the copper mapping depends on them beyond the masks.
 
 ## 6. What would close the gaps
 
 1. Read the three Electronics Cooling pages and Sampson's IPACK2005-73013 directly (the images: equations, tables).
 2. Culham and Yovanovich, "Factors Effecting the Calculation of Effective Conductivity in Printed Circuit Boards", ITHERM 1998 (cited by Blackmore), and Lush, "Modeling Heat Conduction in Printed Circuit Boards Using Finite Element Analysis", Electronics Cooling, May 2004 (cited by Blackmore and Sampson).
-3. Milton or Torquato for the 2D closed forms; the Ucamco specification PDF and the test files and example data sets of the downloads page.
+3. Milton or Torquato for the 2D closed forms (the Ucamco specification and its test files belong to the reader: `research/gerber-import/docs/literature.md`).
 4. Two tests suggested by the articles: copper stopping before the mounting posts (Sampson's case) against the program's FVM; the vertical link of a smeared layer against the 3D solid (Guenin).
