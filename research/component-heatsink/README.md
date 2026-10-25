@@ -24,7 +24,7 @@ Status: **mostly implemented**; reviewed (section 7: one defect of the program f
 
 * The junction-to-pad resistance adds a **worst-case offset** `Tj = T_board,max + P·θ`: 2.5 to 10 K on the four real parts (2 to 28 % of the rise above ambient, more on a 25 mm pad than on an 8 mm one), and 100 K on a 0603 resistor (θ = 1000 K/W, 88 to 94 % of the rise).
 * A bare mould carries about **1 %** of the heat (0.6 to 1.4 %); a 12 K/W clip-on heatsink with paste takes **41 to 51 %**. Against the same junction-node network without a top path the mould lowers `Tj` by 0.4 to 0.8 K and the heatsink by 14 to 38 K (the 2 to 4 K and 16 to 40 K quoted before compared the node with the worst-case offset, section 4.10). So a junction node is only worth it with a heatsink on top.
-* The program's fixed-point top path (`api._solve_with_tc`, steady state) is within **0.4 to 0.8 K** of a junction-node prototype on the four parts on a 25 mm pad, and the five models agree within 1.4 % of the rise. **On an 8 mm pad the loop does not converge** (the board under the part resists more than the top path) and reports the junction 17 to 58 K too low with a misleading runaway message: a defect of the program, measured in section 4.11, correction proposed in `INTEGRATION.md`.
+* The program's fixed-point top path (`api._solve_with_tc`, steady state) is within **0.4 to 0.9 K** of a junction-node prototype on the four parts on a 25 mm pad, and the five models agree within 1.4 % of the rise. **On an 8 mm pad the loop does not converge** (the board under the part resists more than the top path) and reports the junction 17 to 58 K too low with a misleading runaway message: a defect of the program, measured in section 4.11, correction proposed in `INTEGRATION.md`.
 * Under the board the **interface** moves `Tj` by about 2 K and the **metal** by about 1 K; on top of a small package the interface and the base spreading matter more (steel 1 mm base adds 6.5 K/W of spreading against 0.9 for copper, within 13 % of Lee's closed form).
 * With a heatsink known only by θSA, natural-convection scaling with the temperature rise changes `Tj` by 1 to 3 K from 0.5 to 4 W (fixed 12 K/W against a resistance of 24 K/W at 0.5 W to 15 K/W at 4 W) and forced air (1 to 5 m/s) lowers it by 6 to 8 K against the scaled natural value (an earlier version scaled the forced values with the rise too and read 5 to 7 K); the factors are from a guide (Electronics Cooling, 1995), not verified against a datasheet (see the typical-heatsink list in `docs/models.md` and `docs/research.md` R3 in `NOTES.md`).
 * Power rising with temperature (positive coefficient) can run away: 2 W at 25 °C with 0.67 %/K gives 210 °C and 4.5 W.
@@ -111,7 +111,7 @@ Top path: theta_JC(top) of the part + 0.5 K cm2/W paste + 12.0 K/W heatsink; pad
 | Part | Tj without top path | Tj program | Top share program | Tj node prototype | Top share prototype |
 | :-- | --: | --: | --: | --: | --: |
 | MOSFET CSD17308Q3 (SON 3.3x3.3) | 107.6 | 69.8 | 48 % | 69.0 | 47 % |
-| LDO TPS7A47 (QFN-20 5x5) | 87.4 | 56.6 | 51 % | 55.8 | 50 % |
+| LDO TPS7A47 (QFN-20 5x5) | 87.4 | 56.7 | 51 % | 55.8 | 50 % |
 | Buck LMR36510 (HSOIC-8) | 62.8 | 47.8 | 41 % | 47.1 | 40 % |
 | Schottky SS12 (SMA) | 60.9 | 43.7 | 49 % | 43.3 | 48 % |
 
@@ -124,7 +124,7 @@ The top path in every model: 60 x 60 mm board, copper 50 x 50 mm on both faces, 
 | analytic | 64.94 | 47.5 % | +0.1 |
 | solid3d | 65.15 | 47.8 % | +0.6 |
 
-The models agree on the top path within 1.4 % of the rise (the test `tests/test_component.py` only asks for 10 %); the program's 0.4 to 0.8 K above the node prototype is the worst-case convention (section 4.10).
+The models agree on the top path within 1.4 % of the rise (the test `tests/test_component.py` only asks for 10 %); the program's 0.4 to 0.9 K above the node prototype is the worst-case convention (section 4.10).
 
 ![Program top path against the node prototype](figures/fig_02_program_top_path_vs_node_prototype.png)
 
@@ -313,7 +313,7 @@ An earlier run read 0.69 K/W (+4.5 %): on 1 mm cells `round()` rounded the sourc
 * **`ψJB` route** (`Tj = T_ring + ψJB·P`, ring 0.5 to 1.5 mm outside the body, pad 25 mm; table E of 4.1, printed by the program since this review): LDO 93.7 °C and buck 65.1 °C against 87.4 and 62.8 °C with `θJC(bot)`; with `θJB` as θ 102.7 and 70.2 °C.
 * **Datasheet check** (CSD17308Q3, 1 W on its own board of 1 in² of 2 oz copper, computed natural convection): `RθJA` 46.7 K/W against the datasheet's typical 46 and maximum 58; on a minimum pad of 5 mm (assumed size) 164 against the maximum 165 K/W.
 * **Power temperature coefficient** against the closed form `ΔT = P0 R/(1 − tc P0 R)` on a linear board (the FVM, Lumped and Analytic models, `tests/test_component.py`): agreement to 0.05 K; for the MOSFET 2 W at 25 °C (107.6 °C without feedback) the junction reaches 138.6, 165.8 and 210 °C for 0.33, 0.5 and 0.67 %/K, with the power rising to 2.75, 3.41 and 4.48 W; a coefficient of 3 %/K has no stable point and the program says so.
-* **Top path** (`python research/component-heatsink/scripts/top_path_study.py`, `tests/test_component.py`; θJC(top) of the part, 0.5 K·cm²/W paste, 12 K/W clip-on heatsink, pad 25 mm): the heatsink takes 41 to 51 % of the heat and lowers `Tj` of the chips by 15 to 38 K. Against the junction-node prototype of `research/component-heatsink/scripts/package_prototype.py` (uniform conductance under the footprint) the program is 0.4 to 0.8 K higher and the top share differs by one point.
+* **Top path** (`python research/component-heatsink/scripts/top_path_study.py`, `tests/test_component.py`; θJC(top) of the part, 0.5 K·cm²/W paste, 12 K/W clip-on heatsink, pad 25 mm): the heatsink takes 41 to 51 % of the heat and lowers `Tj` of the chips by 15 to 38 K. Against the junction-node prototype of `research/component-heatsink/scripts/package_prototype.py` (uniform conductance under the footprint) the program is 0.4 to 0.9 K higher and the top share differs by one point.
 
 | Part | Tj without top path | Tj program | Top share | Tj node prototype | Top share |
 | :-- | --: | --: | --: | --: | --: |

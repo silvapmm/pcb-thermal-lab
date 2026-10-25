@@ -125,7 +125,9 @@ def fig_solvers():
     ax.set_xticks(x); ax.set_xticklabels([b.replace(", ", ",\n", 1) for b in boards], fontsize=7)
     ax.set_ylabel("Max abs difference to the direct solver (K)")
     ax.set_title("Same answer with a residual stopping rule (2e-8 K or better); wrong by 2.7 to 16 K with the original step rule", fontsize=9)
-    ax.legend(fontsize=8, loc="center left")
+    # head-room above the tallest bars so that the legend covers no bar
+    ax.set_ylim(1e-12, 1e6)
+    ax.legend(fontsize=8, loc="upper center", ncol=3)
     fig.tight_layout()
     fig.savefig(OUT / "fig_03_solver_equivalence.png", dpi=110)
     plt.close(fig)

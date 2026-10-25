@@ -44,9 +44,11 @@ def fig_shapes():
         ax.plot(cx + np.array([-1, 1, 1, -1, -1]) * 50 * s, cy + np.array([-1, -1, 1, 1, -1]) * 40 * s, color="#1d4ed8", lw=1.5, label="same area")
         ax.set_title(f"{name} (area ratio {s ** 2:.2f})", fontsize=9)
         ax.set_aspect("equal"); ax.set_xticks([]); ax.set_yticks([])
-    axs[0].legend(fontsize=7, loc="lower left")
+    # one legend under the panels: inside the first panel it covered the ellipse
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels, fontsize=8, loc="lower center", ncol=3)
     fig.suptitle("The outlines of the Board panel, the bounding box and the rectangle of the same area (what the lumped and analytic models use)", fontsize=10)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0.07, 1, 1))
     fig.savefig(OUT / "fig_01_outlines_and_rectangles.png", dpi=110)
     plt.close(fig)
 
@@ -139,7 +141,9 @@ def fig_time_constant():
     axs[1].set_xticklabels(["square 60 mm", "round, 59.8 mm"])
     axs[1].set_ylabel("board time constant C / G (s)")
     axs[1].set_title("The pin is not a path to the air", fontsize=9)
-    axs[1].legend(fontsize=8)
+    # head-room for the legend: in the middle it covered a bar
+    axs[1].set_ylim(0, 135)
+    axs[1].legend(fontsize=8, loc="upper center", ncol=2)
     t, z, r = fvm.step_responses(disc, cell_mm=2.0)
     t0, z0, _ = fvm.step_responses(disc, cell_mm=2.0, t_end=10.0 * rows[1][1])
     axs[2].semilogx(t, z[0], "-", color="#1d4ed8", label="now: ten time constants")

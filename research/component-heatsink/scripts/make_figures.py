@@ -101,7 +101,7 @@ def fig_prototype():
     axs[1].bar(x, [num(r[2]) - num(r[4]) for r in rows], 0.5, color="#1d4ed8")
     axs[1].axhline(0, color="black", lw=0.8)
     axs[1].set_xticks(x); axs[1].set_xticklabels(names, fontsize=8); axs[1].set_ylabel("Program minus prototype (K)")
-    axs[1].set_title("The program is 0.4 to 0.8 K above the prototype", fontsize=10)
+    axs[1].set_title("The program is 0.4 to 0.9 K above the prototype", fontsize=10)
     fig.tight_layout()
     fig.savefig(OUT / "fig_02_program_top_path_vs_node_prototype.png", dpi=110)
     plt.close(fig)

@@ -101,7 +101,9 @@ def gradient(path):
     fig, ax = dk.canvas(11, 4.4)
     ax.set_xlim(0, 11)
     ax.set_ylim(0, 4.4)
-    dk.layer(ax, 0.5, 1.2, 4.0, 1.8, dk.METAL, "plate: thickness t, conductivity k", size=8)
+    dk.layer(ax, 0.5, 1.2, 4.0, 1.8, dk.METAL)
+    # the label stays left of the flux arrow so that the arrow does not cross the text
+    ax.text(0.65, 1.55, "plate: thickness t,\nconductivity k", fontsize=8, ha="left", va="center")
     ax.add_patch(Rectangle((1.5, 3.0), 2.0, 0.18, fc=dk.HEAT, ec="k"))
     ax.text(2.5, 3.4, "source, flux q'' = Q / area", ha="center", fontsize=8)
     dk.arrow(ax, 2.5, 3.0, 2.5, 1.2, color=dk.HEAT, label="")
@@ -194,7 +196,8 @@ def thick_plate_flux(path):
     ax.text(2.35, 5.0, "footprint flux P / A_fp", fontsize=7, color=dk.HEAT, ha="left")
     # pad flux: wider
     ax.annotate("", (1.4, 2.62), (5.6, 2.62), arrowprops={"arrowstyle": "<->", "color": "#d97706"})
-    ax.text(3.5, 2.72, "copper pad A_pad", fontsize=7, color="#d97706", ha="center", va="bottom")
+    # the label sits left of the arrow: above it the board would cover the text
+    ax.text(1.3, 2.62, "copper pad A_pad", fontsize=7, color="#d97706", ha="right", va="center")
     # flux into the block: spread, drawn as several arrows
     for xx in (1.8, 2.6, 3.4, 4.2, 5.0):
         dk.arrow(ax, xx, 2.38, xx, 1.9, color=dk.BLUE)

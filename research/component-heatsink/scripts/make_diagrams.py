@@ -32,7 +32,7 @@ def cross_section(ax):
     dk.layer(ax, 1, 0.95, 10, 0.25, dk.COPPER)
     ax.text(1.2, 1.6, "board: copper layers and laminate", fontsize=7, va="center")
     dk.layer(ax, 4.5, 2.25, 3.0, 0.35, dk.COPPER)
-    ax.text(6.0, 2.42, "exposed pad", ha="center", fontsize=6.5, va="center")
+    ax.text(5.85, 2.42, "exposed pad", ha="right", fontsize=6.5, va="center")
     dk.layer(ax, 4.0, 2.6, 4.0, 1.6, "#555555")
     ax.text(6.0, 3.8, "package (mould)", ha="center", va="center", fontsize=7, color="w")
     dk.layer(ax, 5.2, 2.65, 1.6, 0.4, "#d62728")
@@ -69,7 +69,7 @@ def network(ax):
     dk.box(ax, 9.2, 3.2, 1.6, 1.6, "ambient", "#ffffff")
     dk.box(ax, 11.0, 1.4, 3.6, 5.2, "the program's way:\nno junction node;\nthe top path takes\nP_top from the heat,\nthe board gets P - P_top,\niterate until it holds\n(steady state)", "#fbe3c2", True, size=7)
     ax.text(7.0, 7.6, "bare mould: about 1 % of the heat goes up;  clip-on heatsink with paste: 41 to 51 %", ha="center", fontsize=8, style="italic")
-    ax.text(7.0, 0.5, "within 0.4 to 0.8 K of a junction-node prototype on the four real parts", ha="center", fontsize=8, style="italic")
+    ax.text(7.0, 0.5, "within 0.4 to 0.9 K of a junction-node prototype on the four real parts", ha="center", fontsize=8, style="italic")
     ax.set_title("2. the network behind it and the fixed-point loop of the program", fontsize=9)
 
 

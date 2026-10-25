@@ -39,7 +39,7 @@ def cross_section(ax):
     ax.text(7.3, 3.3, "metal block", fontsize=7, va="center")
     for k in range(6):
         dk.layer(ax, 3.1 + k * 1.0, 0.8, 0.3, 1.9, dk.METAL)
-    ax.text(6, 0.4, "plate fins: area gain x efficiency", ha="center", fontsize=7)
+    ax.text(6, 0.2, "plate fins: area gain x efficiency", ha="center", fontsize=7)
     dk.layer(ax, 4.6, 5.85, 2.8, 0.8, "#444444", "part (heater)")
     dk.arrow(ax, 6, 5.8, 6, 3.4, color=dk.HEAT, width=2.5)
     ax.text(6.15, 3.55, "heat", color=dk.HEAT, fontsize=8)
@@ -47,7 +47,7 @@ def cross_section(ax):
     dk.arrow(ax, 10.5, 6.2, 10.5, 7.2, color=dk.BLUE)
     ax.text(6, 7.5, "convection h from the free faces (and radiation)", ha="center", fontsize=7, color=dk.BLUE)
     for k in range(6):
-        dk.arrow(ax, 3.25 + k, 1.2, 3.25 + k, 0.2 if k % 2 else 0.05, color=dk.BLUE, width=0.8)
+        dk.arrow(ax, 3.25 + k, 1.2, 3.25 + k, 0.75, color=dk.BLUE, width=0.8)
     ax.set_title("1. the block under the board: where the heat goes", fontsize=9)
 
 
