@@ -380,14 +380,124 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0):
     return float(min(max(min(sizes) / 4.0, lo), hi))
 
 
+def _top_path_split(problem, pr, totals, once, active):
+    """!
+    @brief Find the heat that enters the board from every part with a top path, for given total powers of the parts.
+    @details The unknown of part i is P_b,i, the heat into the board. The part sends p_top,i = part_split(T_max,i(P_b)) to the ambient through its top, so the
+             split is the root of g_i(P_b) = P_b,i - P_i + p_top,i = 0. A plain fixed-point iteration P_b <- P - p_top(T_max(P_b)) has the slope
+             -R_b/(R_top + theta) (R_b: the board's resistance under the part) and diverges when it exceeds 1, which happens on small pads, so it is not used.
+             g is monotone in P_b (g' = 1 + R_b/(R_top + theta) >= 1, 1 where part_split clips the top heat at P) with g(0) <= 0 <= g(P): the root is bracketed by [0, P].
+             One part: Illinois regula falsi on [0, P]; with fixed face coefficients the board is affine in P_b, so the secant between the two ends gives
+             the root at once (3 board solves in all) unless the top heat is clipped at P_b = P (R_b > R_top, the small pads: g has a kink, 6 solves);
+             with computed coefficients (Picard loop inside every solve) it takes 6 to 7, and up to about 20 when the root is close to the clip.
+             Several parts: their splits interact through the board; a Broyden quasi-Newton iteration on the vector P_b (starting Jacobian by finite
+             differences with the wide steps P_b,j -> 0, exact for an affine board only when no top heat is clipped and the hottest cells do not move), projected
+             on [0, P] and with step halving, solves the coupled system (measured on random boards of 2 to 4 parts: median 8 to 9 solves, 90 % within 25, at most 57).
+    @param problem The Problem (not modified; owns the heaters and their top paths).
+    @param pr Working copy of the problem whose heater powers are set here to the board powers.
+    @param totals Power dissipated by every part in W (fixed during this solve).
+    @param once Function pr -> (SteadyResult, (h_top, h_bottom) or None) that solves the board.
+    @param active Indices of the parts with a top path and a junction (the others send all their power into the board).
+    @return Tuple (SteadyResult, hh, board powers in W, number of board solves, converged flag).
+    """
+    count = [0]
+
+    def evaluate(x):
+        # One board solve with the board powers x of the active parts; returns the residuals g_i and the solution
+        board = list(totals)
+        for k, xi in zip(active, x):
+            board[k] = float(xi)
+        for h, pw in zip(pr.heaters, board):
+            h.power = pw
+        res, hh = once(pr)
+        count[0] += 1
+        rows = heater_stats(res, problem, totals)
+        g = np.array([board[k] - totals[k] + part_split(problem.heaters[k], rows[k]["t_max"], totals[k], res.ambient)[1] for k in active])
+        return g, res, hh, board
+
+    scale = np.array([totals[k] for k in active])
+    tol = 1e-5                                               # Relative to the part's power: far below the 0.1 K that matters
+    best = None                                              # (worst relative residual, res, hh, board)
+
+    def keep(g, res, hh, board):
+        nonlocal best
+        err = float(np.max(np.abs(g) / scale))
+        if best is None or err < best[0]:
+            best = (err, res, hh, board)
+        return err
+
+    if len(active) == 1:
+        p = scale[0]
+        g_hi, res, hh, board = evaluate(np.array([p]))       # All the power into the board: the first iterate of the old loop, g >= 0
+        if keep(g_hi, res, hh, board) > tol:
+            g_lo, res, hh, board = evaluate(np.array([0.0]))                # Nothing into the board: g <= 0
+            if keep(g_lo, res, hh, board) > tol:
+                glo, ghi, g_lo_v, g_hi_v, side = 0.0, p, float(g_lo[0]), float(g_hi[0]), 0
+                for _ in range(40):
+                    x = ghi - g_hi_v * (ghi - glo) / (g_hi_v - g_lo_v)      # Secant (regula falsi) between the ends of the bracket
+                    g, res, hh, board = evaluate(np.array([x]))
+                    if keep(g, res, hh, board) <= tol or ghi - glo < 1e-9 * p:
+                        break
+                    gv = float(g[0])
+                    if gv > 0:                                               # Root below x: the upper end moves
+                        ghi, g_hi_v = x, gv
+                        if side == 1:
+                            g_lo_v *= 0.5                                    # Illinois: halve the retained end so the bracket keeps shrinking
+                        side = 1
+                    else:
+                        glo, g_lo_v = x, gv
+                        if side == -1:
+                            g_hi_v *= 0.5
+                        side = -1
+    else:
+        n = len(active)
+        x = scale.copy()
+        g0, res, hh, board = evaluate(x)
+        keep(g0, res, hh, board)
+        if best[0] > tol:
+            jac = np.empty((n, n))
+            for j in range(n):
+                xj = x.copy()
+                xj[j] = 0.0
+                gj, res, hh, board = evaluate(xj)
+                keep(gj, res, hh, board)
+                jac[:, j] = (g0 - gj) / scale[j]                        # dg/dP_b,j over the whole range
+            g = g0
+            for _ in range(40):
+                try:
+                    step = np.linalg.solve(jac, -g)
+                except np.linalg.LinAlgError:
+                    break
+                lam = 1.0
+                for _ in range(6):                                       # Halve the step until the projected trial does not make the residual worse
+                    xn = np.clip(x + lam * step, 0.0, scale)
+                    gn, res, hh, board = evaluate(xn)
+                    err = keep(gn, res, hh, board)
+                    if np.max(np.abs(gn) / scale) <= np.max(np.abs(g) / scale) or lam < 0.1:
+                        break
+                    lam *= 0.5
+                if err <= tol:
+                    break
+                dx, dg = xn - x, gn - g
+                if float(dx @ dx) > 0:
+                    jac = jac + np.outer(dg - jac @ dx, dx) / float(dx @ dx)  # Broyden "good" update
+                x, g = xn, gn
+    err, res, hh, board = best
+    # The best iterate is returned (for a converged run it is the last one); the board powers pair with it
+    return res, hh, board, count[0], err <= 10 * tol
+
+
 def _solve_with_tc(problem, name, options, computed):
     """!
     @brief Solve one model, iterating on the powers when a heater has a power temperature coefficient or a top path.
     @details P = P0 (1 + tc (Tj - 25 degC)) with Tj the junction (or the hottest board point under a part without theta); with a top path (theta_sa) the part sends
-             part of P to the ambient through the top and only the rest enters the board (analysis.part_split). Both are a fixed-point loop around the solve,
-             like the computed heat transfer coefficients; the board receives the power that is not taken by the top. Without either it is a plain solve.
-             The loop stops when the board powers change by less than 1e-5 (relative), or reports a thermal runaway when the device passes 1500 degC or the
-             power grows 50 times (no stable operating point); after 80 iterations without either it warns that the powers did not settle.
+             part of P to the ambient through the top and only the rest enters the board (analysis.part_split).
+             The power coefficient is a fixed-point loop around the solve, like the computed heat transfer coefficients: it stops when the powers change by less than
+             1e-5 (relative), or reports a thermal runaway when the device passes 1500 degC or the power grows 50 times (no stable operating point; the slope of the loop
+             alpha P0 R is the physical runaway condition); after 80 iterations without either it warns that the powers did not settle.
+             The split of a part with a top path is not a fixed-point loop: for the powers of the parts it is the root of a monotone scalar equation per part, solved
+             by _top_path_split (secant / quasi-Newton), because the fixed-point iteration diverges when the board under the part resists more than the top path.
+             With both, the power coefficient loop goes around the top-path solve. Without either it is a plain solve.
     @param problem A Problem (steady powers; it is not modified).
     @param name Model name.
     @param options SolverOptions.
@@ -408,28 +518,33 @@ def _solve_with_tc(problem, name, options, computed):
     base = [h.power for h in problem.heaters]
     pr = copy.deepcopy(problem)
     totals = list(base)                      # Power dissipated by every part
-    board = list(base)                       # Power that enters the board (the total minus the top path)
-    runaway, settled = False, False
+    runaway, settled, split_ok, solves = False, False, True, 0
+    change = 0.0
     for it in range(1, 81):
-        for h, pw in zip(pr.heaters, board):
-            h.power = pw
-        res, hh = once(pr)
-        amb = res.ambient
-        new_total, new_board = [], []
+        # Parts whose top heat must be solved for: a top path, a junction to hang it on, and some power
+        active = [k for k, h in enumerate(problem.heaters) if tops[k] and h.junction_theta() > 0 and totals[k] > 0]
+        if active:
+            res, hh, board, n, ok = _top_path_split(problem, pr, totals, once, active)
+            solves += n
+            split_ok = split_ok and ok
+        else:
+            for h, pw in zip(pr.heaters, totals):
+                h.power = pw
+            res, hh = once(pr)
+            solves += 1
+        new_total = []
         for h, row, b, tc in zip(problem.heaters, heater_stats(res, problem, totals), base, tcs):
-            mx = row["t_max"]
-            device = row["t_junction"] if row["t_junction"] is not None else mx
+            device = row["t_junction"] if row["t_junction"] is not None else row["t_max"]
             total = max(b * (1.0 + tc * (device - 25.0)), 0.0) if tc else b
-            _, p_top = part_split(h, mx, total, amb)
             new_total.append(total)
-            new_board.append(total - p_top)
             runaway = runaway or device > 1500.0 or (b > 0 and total > 50.0 * b)
-        change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new_board, board)), default=0.0)
+        change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new_total, totals)), default=0.0)
         if runaway or change < 1e-5:
             settled = not runaway
             break                                                   # `totals` still pairs with the board power of the last solve
-        totals, board = new_total, new_board
+        totals = new_total
     res.extras["power_tc_iterations"] = float(it)
+    res.extras["top_path_solves"] = float(solves)
     res.extras["thermal_runaway"] = float(runaway)
     if runaway:
         res.warnings.append("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)")
@@ -437,6 +552,9 @@ def _solve_with_tc(problem, name, options, computed):
         # Close to runaway the fixed point converges slowly; the result is the last iterate, not the operating point
         res.warnings.append(f"the powers of the parts did not settle in {it} iterations (last relative change {change:.1e}): "
                             "the board is close to thermal runaway and the temperatures are underestimated")
+    if not split_ok:
+        res.warnings.append("the top-path split did not converge: the heat taken by the top of a part and the heat entering the board are not consistent "
+                            "(the junction temperatures may be wrong)")
     return res, hh, totals
 
 

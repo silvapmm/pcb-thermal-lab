@@ -263,13 +263,25 @@ A **part** is a heater with a junction-to-pad resistance `θ_part`. In the worst
 
     Tj = T_max,footprint + P θ_part                (series resistance between the junction and the pad)
 
-(the hottest board point under the footprint is the pad temperature; a junction node joined by a uniform conductance would be 3 K lower). Derived quantities, for the same board response `R = (Tj − T_amb)/P` (linear for constant coefficients):
+(the hottest board point under the footprint is the pad temperature; a junction node joined by a uniform conductance would be 1.3 to 3.4 K lower on the chips of the component study, 0.2 K on a 0603 resistor). Derived quantities, for the same board response `R = (Tj − T_amb)/P` (linear for constant coefficients):
 
     margin = Tj,max − Tj          power limit P_lim = (Tj,max − T_amb)/R = P (Tj,max − T_amb)/(Tj − T_amb)
     ψJB estimate:  Tj = T_ring + ψJB P,   T_ring = mean board temperature in the ring 0.5 to 1.5 mm outside the outline (bounding box) of the footprint
 
 **Power that depends on temperature**: `P(Tj) = P₀ [1 + α (Tj − 25 °C)]`. The program iterates `P_{k+1} = P₀[1 + α(Tj(P_k) − 25)]` around the board solve until the powers change by less than 10⁻⁵ (relative). For a linear board (constant `R`, ambient 25 °C) the fixed point is
 `ΔT = P₀ R/(1 − α P₀ R)`; the iteration converges when `α P₀ R < 1` and **thermal runaway** (no stable point) is reported when the device passes 1500 °C or the power grows 50 times. In general the closed form is `ΔT = R P₀ [1 + α(T_amb − 25)]/(1 − α R P₀)`.
+**Top path** (a heatsink on the package; `theta_jc_top`, `interface`, `theta_sa`): the part is a junction node joined to the board by `θ` and to the ambient by `R_top = θJC(top) + R''/A + θSA` (`A` the contact area, or the footprint). With `P_b` the heat into the board and `T_max(P_b)` the hottest board point under the footprint,
+
+    Tj − T_amb = (T_max − T_amb) + P_b θ,     P_b = P − (Tj − T_amb)/R_top   ⇒   Tj − T_amb = (T_max − T_amb + P θ)/(1 + θ/R_top)
+
+(`analysis.part_split`; the top heat is limited to `[0, P]`, a heat that cannot be negative or exceed the part's power). `T_max` depends on `P_b`, so the operating point is the root of the scalar equation of each part
+
+    g(P_b) = P_b − P + p_top(T_max(P_b)) = 0,         g' = 1 + R_b/(R_top + θ) ≥ 1,   g(0) ≤ 0 ≤ g(P)
+
+with `R_b = dT_max/dP_b` the board's resistance under the part (the slope is 1 where the top heat is clipped at `P`; monotone, so the root is bracketed by `[0, P]`). **A fixed-point iteration `P_b ← P − p_top(T_max(P_b))` is not used**: its slope is `−R_b/(R_top + θ)`, it converges only when the board under the part resists less than `R_top + θ` and oscillates with a growing amplitude above that, which is the case on a small pad (an 8 mm pad under a 3.3 mm MOSFET: ratio 2; the loop stopped after 80 iterations at 33 °C where the operating point is 90.9 °C). `api._top_path_split` solves the equations instead: for one part, regula falsi with the Illinois rule on `[0, P]` (with constant face coefficients the board is affine in `P_b`, so the secant between the two ends is exact and three board solves give the root, unless the top heat is already clipped at `P_b = P`, which happens when `R_b > R_top`, the small pads (a kink in `g`: 6 solves on the 8 mm MOSFET); with computed coefficients, whose Picard loop is inside every solve, 6 to 7 solves, up to about 20 when the root is close to the clip); for several parts, whose splits interact through the board, a Broyden quasi-Newton iteration on the vector `P_b`, started from the finite-difference Jacobian with the wide steps `P_b,j → 0` (exact for an affine board only when no top heat is clipped and the hottest cells under the footprints do not move), projected on `[0, P]` and with step halving (random boards of 2 to 4 parts: median 8 to 9 board solves, 90 % within 25, at most 57). With the power coefficient every pass of its loop repeats the split, so the solves multiply (the 8 mm MOSFET with 0.5 %/K: 10 passes, 70 solves). It stops when every `|g_i|/P_i < 10⁻⁵`; if it does not, the result carries the warning "the top-path split did not converge". The power temperature coefficient is the other loop: it stays a fixed point around the whole solve (its slope `α P₀ R` is the physical runaway condition), and with both the power loop goes around the top-path solve.
+
+**Convention of the clip at `P`**: the top heat of a part is limited to its own power `P` (`P_b >= 0`), so the board never feeds the part through its top even when the junction node would be colder than the neighbouring board; this is conservative (the part is never cooled by its surroundings) and is the reason for the kink of `g` at `P_b = P`.
+
 **Why θ must be a junction-to-pad number**: `θJA` includes the manufacturer's board and air, and `θJB` the spreading in the manufacturer's board; the program computes the spreading in your board, so those would be counted twice. See `models.md` section 6 for the datasheet table and the fallbacks.
 
 ## 10. Power profiles in time
