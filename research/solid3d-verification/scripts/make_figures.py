@@ -249,7 +249,7 @@ def fig_one_layer_independent():
     plt.close(fig)
 
 
-# Sizes that the program's documents report (measured under memory pressure, NOT reproduced on the quiet machine: study_solve_cost.py now measures the same sizes) (CHANGELOG.md "A 3D-solid run that never ended", docs/versions.md, docs/roadmap.md):
+# Sizes that the program's documents report (NOT reproduced on the quiet machine, cause not established: memory pressure or the computed-h loop; study_solve_cost.py now measures the same sizes) (CHANGELOG.md "A 3D-solid run that never ended", docs/versions.md, docs/roadmap.md):
 # 3D solid: (unknowns, seconds, GB); layered models: (unknowns, seconds, GB). The 400 000 unknowns point of docs/versions.md is 276 s and "5 GB".
 REPORTED_3D = [(160_000, 49.0, 2.2), (254_000, 130.0, 4.4), (400_000, 276.0, 5.0), (512_000, 320.0, 8.0)]
 REPORTED_LAYERED = [(1_000_000, 97.0, 4.4), (2_000_000, 273.0, 8.4)]
@@ -271,8 +271,8 @@ def fig_cost():
             pts = sorted((r["unknowns"], r[key]) for r in rows if r["model"] == kind)
             ax.plot([p[0] for p in pts], [p[1] for p in pts], marker=mk, color=col, label=lab)
         idx = 1 if key == "seconds" else 2
-        ax.plot([p[0] for p in REPORTED_3D], [p[idx] for p in REPORTED_3D], "x", color="#dc2626", ms=9, mew=2, label="3D solid, in the program's documents (not reproduced: made under swap)")
-        ax.plot([p[0] for p in REPORTED_LAYERED], [p[idx] for p in REPORTED_LAYERED], "+", color="#6d28d9", ms=11, mew=2, label="layered models, in docs/roadmap.md (not reproduced: made under swap)")
+        ax.plot([p[0] for p in REPORTED_3D], [p[idx] for p in REPORTED_3D], "x", color="#dc2626", ms=9, mew=2, label="3D solid, in the program's documents (not reproduced)")
+        ax.plot([p[0] for p in REPORTED_LAYERED], [p[idx] for p in REPORTED_LAYERED], "+", color="#6d28d9", ms=11, mew=2, label="layered models, in docs/roadmap.md (not reproduced)")
         ax.axvline(250_000, color="k", ls="--", lw=1)
         ax.text(255_000, ax.get_ylim()[0] * 1.5 if ax.get_yscale() == "log" else 0, "limit of the 3D solid\n250 000 unknowns", fontsize=7, va="bottom")
         ax.set_xscale("log")

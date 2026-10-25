@@ -37,20 +37,22 @@ The project documents are not edited on a research branch. These are the changes
 
 ## Times and memory of the solves (`CHANGELOG.md`, `docs/versions.md`, `docs/models.md`, the comment of `pcbthermal/solid3d.py`, `docs/roadmap.md` Next work #1 and #2)
 
-The times quoted there were measured while the machine was swapping and are not reproduced. Measured by `study_solve_cost.py` on a machine just restarted with nothing else running (macOS arm64, 10 cores, 16 GB, Python 3.13.5, SciPy 1.18.1; direct sparse solve, each size in its own process):
+The times quoted there are not reproduced. Why is not established: the comment of `solid3d.py` and the Decisions Log of `CLAUDE.md` say they were measured on a 4-layer board (16 slabs) on a 16 GB machine on which a calculation process had been paging, and with computed heat transfer coefficients the solve is repeated 3 to 6 times; which of the two applied to each point was not recorded, and neither was tested. Measured by `study_solve_cost.py` on a machine just restarted with nothing else running (macOS arm64, 10 cores, 16 GB, Python 3.13.5, SciPy 1.18.1; direct sparse solve with constant coefficients, each size in its own process):
 
-| Model | Unknowns | Time (s) | Peak memory (GB) | In the documents |
+| Model | Unknowns | Time (s) | Peak resident memory (GB) | In the documents |
 | :-- | --: | --: | --: | :-- |
-| 3D solid, plain two-layer board | 158 000 | 2.0 | 0.75 | 49 s, 2.2 GB |
-| 3D solid, plain two-layer board | 248 000 | 3.5 | 1.2 | 130 s, 4.4 GB (254 000) |
-| 3D solid, plain two-layer board | 393 000 | 7.5 | 2.65 | 276 s, 5 GB |
-| 3D solid, plain two-layer board | 500 000 | 9.3 | 3.3 | 320 s, 8 GB (512 000) |
-| 3D solid, example board (16 slabs) | 158 000 / 247 000 | 7.2 / 15.3 | 2.15 / 3.5 | |
-| 3D solid, example board (16 slabs) | 392 000 | 32.8 | 7.4 | 276 s, 5 GB (393 000) |
-| 3D solid, example board (16 slabs) | 512 000 | 57.7 | 9.9 (footprint 20.5, the machine paged) | 320 s, 8 GB |
-| layered FVM, plain board | 992 000 | 5.2 | 2.7 | 97 s, 4.4 GB |
-| layered FVM, plain board | 1 975 000 | 12.4 | 5.5 | 273 s, 8.4 GB |
+| 3D solid, plain two-layer board (6 slabs) | 158 000 | 2.0 | 0.75 | |
+| 3D solid, plain two-layer board | 248 000 | 3.5 | 1.2 | |
+| 3D solid, plain two-layer board | 393 000 | 7.5 | 2.65 | |
+| 3D solid, plain two-layer board | 500 000 | 9.3 | 3.3 | |
+| 3D solid, example board (16 slabs, like the board of the documents) | 158 000 | 7.2 | 2.15 | 49 s, 2.2 GB (160 000) |
+| 3D solid, example board | 247 000 | 15.3 | 3.5 | 130 s, 4.4 GB (254 000) |
+| 3D solid, example board | 392 000 | 32.8 | 7.4 | 276 s, 5 GB (5.3 GB in `solid3d.py`; 394 000) |
+| 3D solid, example board | 512 000 | 57.7 | 9.9 | 320 s, 8 GB |
+| layered FVM, plain board | 992 000 | 5.2 | 2.7 | 97 s, 4.4 GB (1 million) |
+| layered FVM, plain board | 1 975 000 | 12.4 | 5.5 | 273 s, 8.4 GB (2 million) |
 
-* Replace the times and memory in the four documents with these (or remove them), and say that they depend on the machine and on the board (the example board with vias and a heatsink takes about 4 times longer than the plain board of the same size).
-* The limit `MAX_CELLS = 250 000` and the "slow above a million unknowns" note for the layered models were set from the old numbers. With the table: for time the limit is far too low (a plain board at 500 000 unknowns takes 9 s), but for memory it is about right for boards like the example: 3.5 GB at 247 000, 7.4 GB at 392 000 and 9.9 GB resident at 512 000 unknowns (the footprint went over the 16 GB of the machine). A limit by estimated memory instead of by unknowns would allow about 400 000 unknowns on the example board on a 16 GB machine (about half of the memory) and more than a million on a plain board; the estimate needs the number of slabs, because the cost per unknown is 6.6 KB on a plain board and 14 to 19 KB on the example board and grows with the size.
-* The memory guard of `docs/roadmap.md` Next work #2 can use the measured memory per unknown, which is not constant: 6.6 KB for the 3D solid on a plain board (3.3 GB at 500 000), 14.3 to 19.3 KB on the example board (3.5 GB at 247 000, 9.9 GB at 512 000), 2.8 KB for the layered FVM (5.5 GB at 1.98 million). A guard has to use the size of the case, not one number, and to leave room for the operating system (the 512 000-unknown example board already paged on 16 GB).
+* Replace the times and memory in the four documents with these (or remove them), and say that they depend on the machine, on the board and on the computed-h loop: the example board with vias and a heatsink takes 3.6 to 6.2 times longer than the plain board of the same size, and the documents' times are 5.5 to 8.5 times the example board's (20 to 40 times the plain board's) while their memory is close to the example board's (lower at 394 000 and 512 000 unknowns).
+* The limit `MAX_CELLS = 250 000` and the "slow above a million unknowns" note for the layered models were set from the old numbers. At the limit the example board takes 15 s and 3.5 GB. For time alone the limit could be higher (57.7 s at 512 000 unknowns on the example board, three to six times that with computed coefficients); for memory, the next measured points need 7.4 GB (392 000) and 9.9 GB resident (512 000) on a 16 GB machine, so on boards like the example it cannot rise much above about 400 000 unknowns (about half of the memory) without an estimate of the memory; on a plain board the same memory allows more than a million. A limit by estimated memory needs the number of slabs, because the cost per unknown is 6.6 KB on a plain board and 14 to 19 KB on the example board and grows with the size.
+* The memory guard of `docs/roadmap.md` Next work #2 can use the measured memory per unknown, which is not constant: 6.6 KB for the 3D solid on a plain board (3.3 GB at 500 000), 14.3 to 19.3 KB on the example board (3.5 GB at 247 000, 9.9 GB at 512 000), 2.8 KB for the layered FVM (5.5 GB at 1.98 million). A guard has to use the size of the case, not one number, and to leave room for the operating system and the application (the 512 000-unknown example board reached 9.9 GB resident, 62 % of the 16 GB).
+* Not measured: whether the 512 000-unknown run paged (no `vm_stat` was taken after it; `/usr/bin/time -l` counted 906 major page faults for the whole study, and its "peak memory footprint" of 20 496 840 bytes is the parent process, 20.5 MB, not the 20.5 GB first written here); the computed-h loop; another machine.
