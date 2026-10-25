@@ -1040,6 +1040,13 @@ class Inspector(QWidget):
         compact_combos(self.form_host)
         tips.apply(self.form_host)
         self._form_selection = list(self.selection)
+        # Lay out the new form now: otherwise the scroll area of the dock kept the old height for an event cycle and the rows of a
+        # taller form were drawn squeezed on top of each other (seen in the screenshots)
+        # Show the new form now and lay it out: a widget put in a layout is shown by a queued call, so for one event cycle the form counted as
+        # empty and the scroll area of the dock kept the old height; the rows of a taller form were drawn on top of each other (README screenshots)
+        self.form_host.show()
+        self.form_host.layout().activate()
+        self.lay.activate()
         if focus_at is not None:
             chain = self._focus_chain()
             if focus_at < len(chain):

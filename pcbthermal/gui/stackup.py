@@ -466,6 +466,8 @@ class StackupPage(QWidget):
             self.params.addWidget(box)
         # The long entries (laminate presets, the readable scale) need not set the width of the page: the open list shows them in full
         compact_combos(self, 18)
+        for c in (self.mode, self.inner_oz, self.unit, self.scale):       # The lists of the bars have room: they keep their full text
+            c.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 
     def set_theme(self, theme):
         """!

@@ -360,3 +360,27 @@ def test_first_run_texts_say_what_to_do_and_what_zero_means(win):
     win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm", "lumped"), cell_mm=2.0)))
     assert [win.results.model_table.item(r, 0).text() for r in range(2)] == ["FVM", "Lumped (LPTN)"]
     assert win.results.temp.model.currentText() == "FVM" and win.results.temp.model.currentData() == "fvm"
+
+
+def test_properties_form_is_never_squeezed_after_a_rebuild(qtbot, tmp_path):
+    """!
+    @brief After the Properties form is rebuilt, the dock's scroll area gives it at least its minimum height (it scrolls instead).
+
+    @note Regression: the scroll area kept the old height for an event cycle, so a taller form had its rows drawn on top of each other
+          (seen in the README screenshots).
+    """
+    from PySide6.QtWidgets import QApplication
+    w = MainWindow(Document(), QSettings(str(tmp_path / "s.ini"), QSettings.IniFormat))
+    qtbot.addWidget(w)
+    w._load_problem(example_board(), "ex")
+    w.resize(2400, 1363)
+    w.show()
+    QApplication.processEvents()
+    w.resizeDocks([w.dock_board, w.dock_sim], [420, 560], Qt.Horizontal)
+    QApplication.processEvents()
+    for kind in ("heater", "zone", "heatsink", "heater"):
+        w.canvas.set_selection([(kind, 0)])
+        w._on_canvas_selection([(kind, 0)])
+        QApplication.processEvents()
+        assert w.inspector.height() >= w.inspector.minimumSizeHint().height(), kind
+    w.doc.stack.setClean()
