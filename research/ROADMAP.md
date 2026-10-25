@@ -4,6 +4,18 @@ The plan of the research: questions that are not answered yet, grouped by area. 
 
 Every item has the same five fields: **Question**, **Why** (the evidence: folder and section), **First study**, **If it ends well** (what would change in the program, with the item of `docs/roadmap.md` when there is one) and **Status**. Status values: `open` (nothing done), `partly` (a first look exists), `waits` (needs a decision or a condition). An item that changes a model needs the reviewer before it is closed.
 
+## To close this round (after the restart, on the maintainer's instructions)
+
+What is still open to finish the review and the corrections of the investigations; everything else of this document is the plan of future questions.
+
+1. **Restart the machine and run nothing else.** Then the long runs of H9, in the order given there (the clean-machine timing first, then the memory-hungry studies one at a time, then the rest).
+2. **After each study**: regenerate the figures that depend on it (three diagonal figures of `gerber-models` still in the old font), read each PNG, run `research/check_figures.py`, update the README where a number moves, write the machine and the time of the run in the README, and make one commit per folder.
+3. **Correct the program documents with the measured times** (`docs/roadmap.md` item, `CHANGELOG.md`, `docs/versions.md`, `docs/models.md`, the comment of `pcbthermal/solid3d.py`): a documents branch off `develop`, with the whole battery; the same numbers feed the memory guard (`docs/roadmap.md`, memory and size).
+4. **Decisions left to the coordinator** (list in `research/REVIEW.md`): taken when the runs are finished.
+5. **A last documents branch** that brings `CLAUDE.md` of `develop` to the same text as this branch (the five Decisions Log entries of the research rules and the structure lines without the 'only on the branch' notes), and the merge of `develop` into this branch.
+6. **Publication**: `develop` is 14 commits ahead of `origin/develop` and this branch 82 commits ahead of `origin/research/gerbers`; push only on the maintainer's word.
+7. **Program corrections still open** (`docs/roadmap.md`, 'Defects of the program to correct'): block beyond the outline, point via of the FVM and FDM, `via_frac` clip of the 3D solid, union of zones per sample point, laminate nodes for patterned copper, `top_resistance` against `junction_theta`, via diameter label, memory guard; each by the flow executor, reviewer, maintainer on its own `fix/` or `feature/` branch.
+
 | Area | Items |
 | :-- | :-- |
 | A. Models and numerics | A1 to A10 |
