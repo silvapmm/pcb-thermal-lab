@@ -21,6 +21,6 @@ No document of the project states that an averaged conductivity of the stack is 
 
 ## Text for `docs/roadmap.md`
 
-* Input check for a thick, poorly conducting plate under a source (`research/effective-conductivity/INTEGRATION.md` 1).
-* Natural convection of a vertical board: decide between the general and the laminar form of Churchill and Chu after reading the paper (`INTEGRATION.md` 2).
+* Done (moved to the implemented list): the thick-plate warning (`checks.check_thick_plates`, with the flux that enters the block), `Board.natural_form`, the reference solver in `tests/helpers/layered3d.py`.
+* Natural convection of a vertical board: the general form stays the default until Churchill and Chu (1975) is read (`INTEGRATION.md` 2).
 * Papers of the Waterloo archive still to read as images: the Elenbaas limit for a parallel-plate channel (mhtl91-11), the general laminar plate expression of Yovanovich (mhtl93-4), packaging density and effective conductivity (mhtl95-4).

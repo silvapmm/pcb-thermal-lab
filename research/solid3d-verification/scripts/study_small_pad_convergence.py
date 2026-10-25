@@ -8,6 +8,9 @@
          Part 2 (the same board with isotropic FR-4 at 0.3 W/mK and no edge loss, so that the independent solver of lib/layered3d.py represents it too): the
          three 3D solvers at 1 and 0.5 mm (0.25 mm needs more memory than a direct solve of the independent solver can use on a laptop). The independent solver puts its maximum on a copper cell centre, the program's 3D solid too; the FEM on a node.
 
+         The 0.5 mm columns with 8 slabs per gap have 320 000 unknowns, above the application's limit of 250 000 (solid3d.MAX_CELLS), so the script runs inside
+         solid3d.size_limit; the limit of the application is not changed.
+
 Usage: .venv/bin/python research/solid3d-verification/scripts/study_small_pad_convergence.py   (from the repository root; needs scikit-fem; about 6 minutes)
 """
 
@@ -91,4 +94,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # The 0.5 mm columns with 8 slabs per gap have 320 000 unknowns, above the application's limit (solid3d.MAX_CELLS = 250 000); this offline study
+    # accepts the longer direct solve, so it runs inside size_limit (the limit of the application is restored afterwards).
+    with solid3d.size_limit(500_000):
+        main()

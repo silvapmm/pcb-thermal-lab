@@ -20,8 +20,9 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 ## 2. Findings in short
 
 * The fin formula (`blocks.fin_ratio`) agrees with a 2D conduction solution of one fin to within 0.08 % in 24 cases (four metals, three coefficients, two fin sizes, efficiencies 0.27 to 0.997). What is **not** validated is the coefficient itself on a real fin array (channel effect between fins).
-* An equivalent coefficient (with a contact area and an annular fin) is 9 to 11 % off on average in the Lumped and Analytic models; the block as one more layer of the ring network (Lumped) and as a Schur-complement tile graph in the Green-function correction (Analytic) is 2.0 % and 1.1 % off on average (maxima 4.8 % and 4.3 %), on 74 cases.
+* An equivalent coefficient (with a contact area and an annular fin) is 9 to 11 % off on average in the Lumped and Analytic models; the block as one more layer of the ring network (Lumped) and as a Schur-complement tile graph in the Green-function correction (Analytic) is 1.9 % and 1.1 % off on average (maxima 4.7 % and 4.3 %), on 74 cases.
 * The FVM, FDM and 3D solid agree within 1 % on a finned block, because they use the same fin ratio.
+* The temperature drop across the block's own thickness (the layered models keep one node per layer) is checked by the program's thick-plate warning (`checks.check_thick_plates`, `docs/validation.md` section 22) with the flux that really enters the block: over these same 74 cases it is 0.07 % of the rise at the median and 0.34 % at most, none above the 5 % limit, so the warning does not fire on them (numbers taken from that section; this folder's scripts were not changed to reproduce them).
 
 ## 3. Folder layout
 
@@ -68,12 +69,12 @@ All 24 cases of the script (four metals, h = 10, 30, 100 W/m²K, two fin sizes, 
 
 | Approach | Lumped mean / max | Analytic mean / max |
 | :-- | --: | --: |
-| earlier equivalent coefficient (isothermal block over the whole polygon) | 15.5 / 31.3 | 17.3 / 31.5 |
-| equivalent coefficient on the copper contact area plus an annular fin for the block outside it | 8.8 / 18.7 | 11.0 / 19.7 |
-| **implemented**: Lumped: block layer in the ring network; Analytic: tile graph (Schur complement) in the Green-function correction | **2.0 / 4.8** | **1.1 / 4.3** |
+| earlier equivalent coefficient (isothermal block over the whole polygon) | 15.6 / 31.4 | 17.3 / 31.5 |
+| equivalent coefficient on the copper contact area plus an annular fin for the block outside it | 8.8 / 18.8 | 11.0 / 19.7 |
+| **implemented**: Lumped: block layer in the ring network; Analytic: tile graph (Schur complement) in the Green-function correction | **1.9 / 4.7** | **1.1 / 4.3** |
 
 * Why the coefficient approaches fail: they are too hot, and more so with a thicker or better-conducting block (+13 % for 1 mm, +19 % for 6 mm of aluminium on the 30 × 30 pad): the block spreads the heat of the centre of the pad to the whole pad, which a uniform coefficient cannot do. The implemented versions keep the lateral conduction `k t` of the block.
-* The finned blocks are at −1.5 % (Lumped) and 0.0 % (Analytic). Typical cases: 30 × 30 pad in a 60 × 60 block, 3 mm of aluminium, 5 K·cm²/W: FVM rise 90.0 K, Lumped −2.2 %, Analytic −1.0 %.
+* The finned blocks are at −1.5 % (Lumped) and −0.1 % (Analytic). Typical cases: 30 × 30 pad in a 60 × 60 block, 3 mm of aluminium, 5 K·cm²/W: FVM rise 90.0 K, Lumped −2.2 %, Analytic −1.1 %.
 * Limits: steady state only (the capacity of the block is in the ring sums but no transient with a block was tested, and the time simulation refuses it); a rectangular block and rectangular copper pads were tested, a block over scattered copper not; the Analytic keeps its own weak spots (copper that is far from uniform around the heater).
 * Sources: static condensation / Schur complement as used by finite-element codes (MFEM documentation, https://docs.mfem.org/4.6/staticcond_8hpp_source.html) and Kron reduction of a network (https://arxiv.org/pdf/2204.05554); the annular-fin efficiency tested in the coefficient approach (Incropera and DeWitt; https://scipython.com/books/book2/chapter-8-scipy/problems/heat-dissipation-of-an-annular-fin-heatsink/); spreading resistance of a heat sink base plate, Lee, Song, Au and Moran (1995), https://www.electronics-cooling.com/1998/01/calculating-spreading-resistance-in-heat-sinks/ (its formulas could not be read and were not used); hybrid analytical models of the PCB, Zhang and Chen, PLOS ONE (2024), https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0310237.
 
@@ -84,6 +85,8 @@ All 24 cases of the script (four metals, h = 10, 30, 100 W/m²K, two fin sizes, 
 ![Error of every case](figures/fig_03_block_error_per_case.png)
 
 *Figure 3: `figures/fig_03_block_error_per_case.png`.*
+
+The numbers of this table were re-run on the current program (`develop` at its latest commit; the cause was not traced, the errors against the FVM moved by up to 0.1 point, so the earlier 15.5 / 31.3, 8.8 / 18.7 and 2.0 / 4.8 are now 15.6 / 31.4, 8.8 / 18.8 and 1.9 / 4.7; the Analytic columns are unchanged). `docs/validation.md` section 17 still quotes the earlier values.
 
 ### 4.3 A finned block in every model
 
@@ -97,6 +100,10 @@ All 24 cases of the script (four metals, h = 10, 30, 100 W/m²K, two fin sizes, 
 | fins 30 × 1.5 mm, pitch 8 mm | 8.4 | 53.2 | 53.2 | 53.6 | 62.4 | 59.3 |
 
 The FVM, the FDM and the 3D solid agree within 1 % on a finned block (the same fin ratio in all three); the lumped and analytic models were 10 to 13 % high on a board with a block (they replaced it by an equivalent coefficient) and now they have the block as a ring layer and as a tile graph, 1 to 2 % off on average (section 17; section 15 for the fins).
+
+### 4.4 The thick-plate check on the same 74 cases
+
+The program warns when `q'' t / (2 k)` over the rise of the heater exceeds 5 % (a thick, poorly conducting plate under a source: the surface under the source is hotter than the node of the layered models by up to that amount). On these 74 cases (2 mm cells, FVM rise) the criterion with the flux that really enters the block, read from the solution, is **median 0.07 %, maximum 0.34 %**, no case above 5 % (`docs/validation.md` section 22; FVM 1 mm and FDM 2 mm give the same 0.07 / 0.34 %). The flux over the pad at a rise of 90 K, used in `research/effective-conductivity`, gives 0.04 / 0.42 %, and the power over the footprint 0.50 / 1.78 %. The flux that enters the block is 8 to 22 % of the footprint flux on these cases (1 to 3 % under a 2 or 3 mm part), because a block under the board is fed through the laminate and the copper, which spread the heat. These numbers come from the program's own section; this folder's scripts do not compute them.
 
 ## 5. Limits of this study
 

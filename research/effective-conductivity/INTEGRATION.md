@@ -1,8 +1,12 @@
 # What could enter the program from this investigation (the investigation is closed)
 
-Nothing here is needed for the program to be right on the boards it is made for: the five models agree with an independent 3D solver on a Cu / FR4 / Cu coupon (FVM, 3D solid and Analytic within 0.2 %, FDM within 1.2 %, Lumped within 0.3 %) and the published cases are reproduced. Three optional proposals remain (sections 1, 2 and 4; section 3 is adopted, and the problem of section 5 is corrected in the program in another form); none of the three is implemented, and each one needs the maintainer's decision and a `fix/` or `feature/` branch off `develop` with the whole battery.
+Nothing here was needed for the program to be right on the boards it is made for: the five models agree with an independent 3D solver on a Cu / FR4 / Cu coupon (FVM, 3D solid and Analytic within 0.2 %, FDM within 1.2 %, Lumped within 0.3 %) and the published cases are reproduced. Three optional proposals (sections 1, 2 and 4) have since been **adopted on `develop`** (branch `feature/effective-conductivity-adoption`, `docs/validation.md` section 22); section 3 is adopted too, and the problem of section 5 is corrected in the program in another form. Nothing is left to implement from this folder; the sections below keep the proposals as they were measured and say where each one lives.
 
-## 1. An input check for a thick, poorly conducting plate (small)
+## 1. An input check for a thick, poorly conducting plate (adopted)
+
+**Status: implemented** as `checks.check_thick_plates` (`pcbthermal/checks.py`), tested in `tests/test_thick_plate.py`, documented in `docs/validation.md` section 22. The text below is the proposal; the differences of the version in the program are in the next paragraph.
+
+**What the program does differently from the proposal.** The proposal took `q''` from the power of the heater over a pad or footprint. The review of the adoption measured the flux that **really enters the block** in the FVM solution and found it is 8 to 22 % of the footprint flux on the 74 metal-block cases of `research/block-and-fins`, and only 1 to 3 % under a 2 or 3 mm part (a block under the board is fed through the laminate and the copper, which spread the heat). The footprint flux fired on ordinary designs (a 3 x 3 mm, 2 W part over a 3 mm steel block: 9.5 % of the rise), so the check takes, for a block, the largest flux into the block under the footprint from the FVM or FDM result (a quiet auxiliary FVM run with a cell of at least 2 mm when only the Lumped, Analytic or 3D solid ran) and keeps the footprint flux for the copper layer of the part. Criterion over the 74 block cases (2 mm cells): median 0.07 %, maximum 0.34 %, none above 5 %, against 0.04 / 0.42 % for the pad flux of this research and 0.50 / 1.78 % for the footprint flux. The research's pad flux at a rise of 90 K is not conservative (the peak flux into the block is 1.6 times the pad mean at the median). Against the 3D solid the bound with the flux into the block is above the real effect in the seven cases of `docs/validation.md` section 22 (by 2 to 10 times); three of them warn.
 
 **Problem.** The layered models keep one temperature per layer, the mean through its thickness. For a plate of thickness `t` and conductivity `k` under a source of flux `q''` the surface under the source is hotter than that node by at most `q'' t / (2 k)` (README 4.6; less when the heat spreads sideways): measured 1.6 % of the rise for 10 mm of `k` 50 (bound 2.25 %), 8 to 9 % for 10 mm of `k` 10 (bound 14 to 16 %), against 0.0001 K for 35 um of copper. The program has no layer of that kind among the copper layers, but it does have heatsink blocks of 1 to 6 mm and the user can type any conductivity.
 
@@ -10,11 +14,13 @@ Nothing here is needed for the program to be right on the boards it is made for:
 
 **What does not change.** The models, the results and the interface.
 
-**Measured impact** (`README.md` 4.8 C): on the 74 metal-block cases of the program the criterion is at most 0.42 % (a 3 mm steel block), median 0.04 %, so the check would **never fire on the cases the program is built for**; it is a safety net for a thick, poorly conducting layer typed by the user.
+**Measured impact** (`README.md` 4.8 C; this is the research's criterion with the pad flux, the program's flux into the block gives 0.34 % and 0.07 %): on the 74 metal-block cases of the program the criterion is at most 0.42 % (a 3 mm steel block), median 0.04 %, so the check **never fires on the cases the program is built for**; it is a safety net for a thick, poorly conducting layer typed by the user.
 
 **Risk.** A false alarm on a thick copper block (the criterion is then tiny, so none); the criterion is a bound, not a correction, and must not be added to the result.
 
-## 2. The laminar form of Churchill and Chu as an option (small, a decision)
+## 2. The laminar form of Churchill and Chu as an option (adopted as an option, default unchanged)
+
+**Status: implemented** as `Board.natural_form` (`pcbthermal/convection.py`, `docs/validation.md` section 22, `docs/theory.md` section 8). The default stays `general`, which reproduces the earlier results bit for bit; `laminar` is the option. On the example board turned vertical (computed h, FVM, 1 mm cells) the maximum is 86.72 C with the general form and 86.50 C with the laminar one (-0.22 K, -0.4 % of the rise), inside the -0.7 to +0.2 % measured here; the option reproduces every row of the table of `README.md` 4.8 B to 0.01 K. Above Ra 1e9 the laminar form warns. Churchill and Chu (1975) itself is still not opened, which is why the default was not changed; the proposal text follows.
 
 **Problem.** The program uses the general correlation for a vertical board over the whole range. The same authors' laminar form (for Ra below 1e9, recommended by textbooks for laminar flow) differs from it by +7 % at Ra 1e4, +2 % at 1e6, -5 % at 1e7 and -25 % at 1e9 (README 4.7); for a board of 50 to 200 mm at 10 to 80 K the coefficient differs by +6.5 % to -10 %.
 
@@ -29,9 +35,9 @@ Adopted on the branch `fix/model-corrections` (merged into `develop`): `docs/the
 
 The documents say that the plate model is `+4.5 %` from Seri Lee's centre value; that was a 24 mm source (`round()` rounds halves to even, so on 1 mm cells the edges 37.5 and 62.5 mm went to 38 and 62). With the 25 mm source the model is within +0.6 %, -0.8 % and -4.6 % of the article at the centre, the edge and the corner (`README.md` 4.8 A). The text to put in the documents is in `docs/for-the-project-documents.md`.
 
-## 4. The independent solver as a reference in the program's tests (medium)
+## 4. The independent solver as a reference in the program's tests (adopted)
 
-`lib/layered3d.py` (about 140 lines, SciPy only, with its own tests against a series circuit, two energy balances, a uniform layer and three published numbers) could become a test helper in `tests/` for the comparison of the layered models with a 3D solution on a laminate, next to the finite-element script that needs scikit-fem. This would need its own review for the program's documentation rules.
+**Status: implemented** as `tests/helpers/layered3d.py` with the comparison `tests/test_layered_vs_3d.py` (`docs/validation.md` section 22: Cu / FR4 / Cu coupon and one-layer board, five models, 1 mm cells). `lib/layered3d.py` here (about 140 lines, SciPy only, with its own tests against a series circuit, two energy balances, a uniform layer and three published numbers) stays as the record of the investigation; the copy in `tests/helpers/` is the one the program's tests use.
 
 ## 5. The laminate under the bottom film of a one-layer board (superseded: corrected in the program in another form)
 

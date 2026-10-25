@@ -1,6 +1,6 @@
 # Effective conductivity, spreading resistance and the layered idealisation: published test cases reproduced
 
-Status: **closed**, reviewed by the reviewer agent on 2026-10-24 (section 8; every study re-run on the program at `0ea5f07`). The review of this folder also read the models of the program and found two defects there (a time constant on boards with an outline, the 3D solid on a one-layer board); both are corrected in the program (`docs/validation.md` section 20) and section 4.11 checks the second against the independent solver. Its one-layer check also led to the laminate nodes of one-layer boards, now in the program in a different form from the candidate of `INTEGRATION.md` 5 (`pcbthermal/laminate.py`, `docs/validation.md` section 21). No other change to the program is required; the optional proposals, with their measured impact, and the reference solver are in `INTEGRATION.md`, the corrections and text for the project documents in `docs/for-the-project-documents.md`. What stays open is listed in section 6. Studies: `study_culham_1998.py`, `study_lee_spreading.py`, `study_program_vs_coupon.py`, `study_muzychka_2003.py`, `study_natural_convection.py`, `study_biot_definitions.py`, `study_corrections_impact.py`, `study_channel_correlations.py`, `study_one_layer_independent.py`; solver: `lib/layered3d.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics), one numbering.
+Status: **closed**, reviewed by the reviewer agent on 2026-10-24 (section 8; every study re-run on the program at `0ea5f07`). The review of this folder also read the models of the program and found two defects there (a time constant on boards with an outline, the 3D solid on a one-layer board); both are corrected in the program (`docs/validation.md` section 20) and section 4.11 checks the second against the independent solver. Its one-layer check also led to the laminate nodes of one-layer boards, now in the program in a different form from the candidate of `INTEGRATION.md` 5 (`pcbthermal/laminate.py`, `docs/validation.md` section 21). The three optional proposals (thick-plate warning, `Board.natural_form`, the reference solver as a test helper) were adopted afterwards on `develop` (`docs/validation.md` section 22); their measured impact and where each one lives are in `INTEGRATION.md`, the corrections and text for the project documents in `docs/for-the-project-documents.md`. What stays open is listed in section 6. Studies: `study_culham_1998.py`, `study_lee_spreading.py`, `study_program_vs_coupon.py`, `study_muzychka_2003.py`, `study_natural_convection.py`, `study_biot_definitions.py`, `study_corrections_impact.py`, `study_channel_correlations.py`, `study_one_layer_independent.py`; solver: `lib/layered3d.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics), one numbering.
 
 ## 1. The questions
 
@@ -38,7 +38,7 @@ Status: **closed**, reviewed by the reviewer agent on 2026-10-24 (section 8; eve
 | `scripts/study_one_layer_independent.py` | A one-layer board (full copper at three thicknesses, and a 20 mm pad) in the independent solver, the 3D solid and the FVM before and after the corrections, and the FDM, Lumped and Analytic as they are now (about 1 minute). |
 | `scripts/make_figures.py`, `scripts/make_diagrams.py` | The data figures (read `out/*.json`, written by the studies) and the schematics. |
 | `tests/test_layered3d.py` | The solver against a series circuit, two exact energy balances (with and without a film under the source), a uniform layer and three published numbers; the source alignment check; a conductivity map (uniform map = uniform slab, energy balance with a pattern); the plateau bound; the gradient below its bound. |
-| `INTEGRATION.md`, `docs/for-the-project-documents.md` | Optional proposals; corrections and text for the project documents. |
+| `INTEGRATION.md`, `docs/for-the-project-documents.md` | Where each proposal lives in the program (all adopted) and its measured impact; corrections and text for the project documents. |
 
 ## 4. How to run, and the results
 
@@ -284,7 +284,7 @@ The effect on the maximum temperature is **-0.7 to +0.2 % of the rise** (-0.43 t
 C. Thick-plate criterion q'' t / (2 k) / rise over the 74 metal-block cases: maximum 0.42 %, median 0.04 %, cases above 5 %: 0
    largest: pad 20x20 in block 80x60, 3 mm steel, R''=1 Kcm²/W (0.42 %)
 
-The check would **never fire on the cases the program is built for** (largest 0.42 %, a 3 mm steel block); it is a safety net for a thick, poorly conducting layer typed by the user.
+The check would **never fire on the cases the program is built for** (largest 0.42 %, a 3 mm steel block); it is a safety net for a thick, poorly conducting layer typed by the user. In the program (`checks.check_thick_plates`) the flux is the one that really enters the block, taken from the solution (median 0.07 %, maximum 0.34 % over the same 74 cases, none above 5 %), because the pad flux used here is not conservative (the peak flux into the block is 1.6 times the pad mean at the median) and the footprint flux fires on ordinary designs (`docs/validation.md` section 22).
 
 ![The corrections and proposals with their measured impact](figures/fig_15_corrections_map.png)
 
@@ -371,7 +371,7 @@ The independent solver checks the first. `lib/layered3d.py` now takes a conducti
 
 ## 5. What this means for the program
 
-The models need no change for the boards they are made for, beyond the two defects of 4.11 and the laminate of one-layer boards (all corrected in `0ea5f07`). A one-layer board with little copper is still where the layered models are farthest from a 3D solution (with a 20 mm pad: FVM -2.5 %, FDM -7.4 %, Lumped -14.7 %, Analytic -28.8 %, 4.11). The optional proposals (an input check for a thick, poorly conducting plate; the laminar form of Churchill and Chu as an option; the solver as a test helper) and what should stay out (an effective conductivity of the stack) are in `INTEGRATION.md`; the corrections and text for the project documents are in `docs/for-the-project-documents.md`.
+The models need no change for the boards they are made for, beyond the two defects of 4.11 and the laminate of one-layer boards (all corrected in `0ea5f07`). A one-layer board with little copper is still where the layered models are farthest from a 3D solution (with a 20 mm pad: FVM -2.5 %, FDM -7.4 %, Lumped -14.7 %, Analytic -28.8 %, 4.11). The three optional proposals (an input check for a thick, poorly conducting plate: `checks.check_thick_plates`; the laminar form of Churchill and Chu as an option: `Board.natural_form`; the solver as a test helper: `tests/helpers/layered3d.py`) are now in the program, and what should stay out (an effective conductivity of the stack) are in `INTEGRATION.md`; the corrections and text for the project documents are in `docs/for-the-project-documents.md`.
 
 ## 6. Limits
 

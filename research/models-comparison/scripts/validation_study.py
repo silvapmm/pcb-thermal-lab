@@ -100,11 +100,12 @@ def main(with_fem=False):
     @brief Print the tables.
     @param with_fem True to include the 3D solid.
     """
-    print("## Scenarios, 1 mm cells (error on the temperature rise against the FVM)\n")
-    print(scenario_table())
-    # The 0.5 mm columns of the 3D solid (about 512 000 unknowns on the 4-layer boards) are above the application's limit (solid3d.MAX_CELLS,
-    # 250 000 since 2026-10-24): the study accepts solves of several minutes and GB, so it raises the limit to the old 2 million here only
+    # The scenario table has a 36-slab stress case (360 000 unknowns at 1 mm) and the 0.5 mm columns of the 3D solid have about 512 000 unknowns on the
+    # 4-layer boards: both are above the application's limit (solid3d.MAX_CELLS, 250 000). The study accepts solves of several minutes and GB, so it
+    # raises the limit to the old 2 million for the whole run, and only here (the limit is restored afterwards)
     with solid3d.size_limit(2_000_000):
+        print("## Scenarios, 1 mm cells (error on the temperature rise against the FVM)\n")
+        print(scenario_table())
         print("\n## Example board against the grid\n")
         print(mesh_table())
         if with_fem:
