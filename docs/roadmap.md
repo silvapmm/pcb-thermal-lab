@@ -60,6 +60,14 @@ Evidence for all of this is in `research.md` (sections E3 to E8 and R2 to R8).
 * **Power list from a CSV/BOM** (`reference, power_w, theta, tj_max`) applied to footprints by designator; power from a circuit simulation.
 * **Orthotropic copper** from the raster (conductivity along x and along y of a cell with traces).
 
+### Metal block
+
+* **Thermal capacity of the fins**: only the base plate `rho c t` is in `C`, so a time simulation of a finned block responds too fast; the fins' capacity (with a lag along the fin) is not modelled.
+* **Fin end faces and the channel effect** stay unmodelled (end faces would lower the rise by about 0.7 to 0.9 % on the block of `validation.md` 12 D).
+* **Adjacent blocks**: two blocks that touch count their common wall as exposed to the air (the side length comes from the coverage differences with the neighbours, per face of the union), so the wall between them loses heat that it should not.
+* **A cell shared by two blocks** keeps only the last one drawn (the block layer holds one set of properties per cell); overlapping blocks are not combined.
+* **Pending defect, block beyond the outline** (found in the review of `research/block-and-fins`, to be fixed on its own branch): a block that extends beyond the board outline is pinned to the ambient outside the outline in the FVM (`g_pin` on all layers) and the 3D solid (pin), and the warning in `checks.py` is false for them; the block should keep its own cells off the board.
+
 ### Board and stack-up
 
 * Stack-up: a third inner copper option of 30 µm (what JLCPCB's own 1 oz builds use, from a third-party collection, not the order page), if a fabricator table confirms it; not added now because the 0.5 oz and 1 oz (35 µm) options cover the published tables.

@@ -320,12 +320,13 @@ class Solid:
                 eta = np.where(hc > 0, np.tanh(m * hc) / np.where(m * hc > 0, m * hc, 1.0), 1.0)
                 ratio = np.where(fi["p"] > 0, (1.0 - fi["t"] / np.where(fi["p"] > 0, fi["p"], 1.0)) + 2.0 * hc * eta / np.where(fi["p"] > 0, fi["p"], 1.0), 1.0)
             h_tot = h_face * ratio + f["he"]
+            h_sd = h_face + f["he"]                                  # The fins stand on the exposed face: the side walls see no fin ratio
             edge = _edge_length(f["cov"], dx, dy)
             blk_ids = [s for s, sl in enumerate(slabs) if sl["kind"] == "blk" and ((s < first_board) == (face == 0))]
             outer = blk_ids[0] if face == 0 else blk_ids[-1]
             vk[outer] += Ab / (1.0 / np.maximum(h_tot, 1e-12) + slabs[outer]["dz"] / (2.0 * slabs[outer]["kz"])) * f["cov"]
             for s in blk_ids:
-                vk[s] += h_tot * slabs[s]["dz"] * edge
+                vk[s] += h_sd * slabs[s]["dz"] * edge
             for s in range(ns):
                 if slabs[s]["kind"] in ("pad", "blk") and ((s < first_board) == (face == 0)):
                     vl[s] += ISOLATED

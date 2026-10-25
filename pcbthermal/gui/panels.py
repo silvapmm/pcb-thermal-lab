@@ -950,7 +950,7 @@ class Inspector(QWidget):
                     lay = box("Extra cooling of the exposed surface (optional)")
                     w = _spin(0, 5000, el.h_extra, 1, 5, "W/m²K")
                     w.valueChanged.connect(lambda v: self.doc.set_props(kind, i, h_extra=v))
-                    w.setToolTip("Added to the coefficient of the exposed surface of the block. Leave 0 to use the board's own face coefficient; use it for a finned block "
+                    w.setToolTip("Added to the coefficient of the exposed surface of the block; it also acts on the side walls of the base plate. Leave 0 to use the board's own face coefficient; use it for a finned block "
                                  "of which you know the datasheet performance instead of the fins above.")
                     lay.addRow("Extra h", w)
             else:

@@ -10,6 +10,10 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ---
 
+## Unreleased: side walls of a finned metal block
+
+* **Defect fixed** (branch `fix/finned-block-sides`, found in the review of `research/block-and-fins`): the plate fins are on the exposed face of a block, but `blocks.extra_layers` and `solid3d.py` gave the side walls of the base plate the fin ratio as well (`h_face·fin_ratio + h_extra`). Now the exposed face keeps `h_exp = h_face·fin_ratio + h_extra` and the sides use `h_wall = h_face + h_extra` (`blocks.wall_h`; `extra_layers` returns `h_wall`; `h_total` is the exposed face only). All five models share the code (FVM, FDM, Lumped and Analytic through `extra_layers`, the 3D solid has its own copy). Effect: the rise of a finned block is +6.2 / +5.5 / +6.4 % (FVM, three finned blocks of `validation.md` section 12 D); a block without fins is bit-identical; the 2D fin validation (24 cases) is unchanged. Tests: `tests/test_block_side_loss.py`.
+
 ## Unreleased: screenshots and block numbers
 
 * **Documents and screenshots only** (branch `docs/screenshots-and-block-numbers`; no change to `pcbthermal/`): every image in `docs/images/` regenerated with `examples/make_screenshots.py` (window 2400 x 1363, wide docks so no field of either dock is cut; they showed version 2.3.0 and the old layout); three new screenshots, `calculator_design.png` (Power calculator, *Board description* list and result terms, 2 mm cell), `stackup_inner_copper.png` (Stack-up tab, *Inner copper* 1 oz) and `environment_natural_form.png` (Environment panel, computed, vertical, *Vertical natural convection*), referenced in `README.md`, `docs/calculators.md` and `docs/models.md`. `docs/validation.md` section 17 re-run with `research/block-and-fins/scripts/block_equivalent_study.py` on this program: Lumped 15.6 / 31.4, 8.8 / 18.8, 1.9 / 4.7; Analytic unchanged. The guide now says what the Cell size label shows above 125 000 and above 250 000 unknowns of the 3D solid.

@@ -386,10 +386,12 @@ This holds on boards with copper on both faces. On a one-layer board with a 20 m
 
 | Block | Fin ratio at 10 W/m²K | FVM | FDM | 3D solid | Lumped | Analytic |
 | :-- | --: | --: | --: | --: | --: | --: |
-| plain plate 3 mm | 1.0 | 88.3 | 88.2 | 88.9 | 100.3 | 99.8 |
-| fins 15 × 1.5 mm, pitch 8 mm | 4.7 | 61.2 | 61.2 | 61.7 | 72.1 | 69.4 |
-| fins 15 × 1.5 mm, pitch 12 mm | 3.5 | 66.4 | 66.3 | 66.8 | 77.8 | 75.5 |
-| fins 30 × 1.5 mm, pitch 8 mm | 8.4 | 53.2 | 53.2 | 53.6 | 62.4 | 59.3 |
+| plain plate 3 mm | 1.0 | 88.3 | 88.2 | 88.9 | 89.8 | 91.5 |
+| fins 15 × 1.5 mm, pitch 8 mm | 4.7 | 65.0 | 65.0 | 65.5 | 66.5 | 66.1 |
+| fins 15 × 1.5 mm, pitch 12 mm | 3.5 | 70.0 | 69.9 | 70.4 | 71.4 | 71.4 |
+| fins 30 × 1.5 mm, pitch 8 mm | 8.3 | 56.6 | 56.5 | 57.0 | 58.0 | 57.2 |
+
+Correction of 2026-10-25 (`fix/finned-block-sides`): the fins stand on the base face, so the side walls of the base plate see `h_face + h_extra`, not `h_face·fin_ratio + h_extra`. Until then the program applied the fin ratio to the sides too (all five models share the code), which made the finned blocks 6.2, 5.5 and 6.4 % too cool in the FVM (61.2, 66.4 and 53.2 K before; the plain plate is unchanged because its fin ratio is 1). The table is printed by `research/block-and-fins/scripts/study_finned_block_all_models.py` (on the branch `research/gerbers`) run against this program (1 mm cells); its second table, which measured the correction on a patched copy, now shows no difference. The Lumped and Analytic columns are those of the block layer and tile graph of section 17: the 100.3 / 99.8 and 72.1 / 69.4 printed before were of the earlier equivalent-coefficient version and had not been re-run (as was the fin ratio 8.4 of the 30 mm fins, 8.35).
 
 The FVM, the FDM and the 3D solid agree within 1 % on a finned block (the same fin ratio in all three); the lumped and analytic models were 10 to 13 % high on a board with a block (they replaced it by an equivalent coefficient) and since 2026-10-22 they have the block as a ring layer and as a tile graph, 1 to 2 % off on average (section 17; section 15 for the fins).
 
@@ -563,12 +565,12 @@ The two series columns are closed forms (`research/solid3d-verification/scripts/
 
 | Approach | Lumped mean / max | Analytic mean / max |
 | :-- | --: | --: |
-| earlier equivalent coefficient (isothermal block over the whole polygon) | 15.6 / 31.4 | 17.3 / 31.5 |
-| equivalent coefficient on the copper contact area plus an annular fin for the block outside it | 8.8 / 18.8 | 11.0 / 19.7 |
+| earlier equivalent coefficient (isothermal block over the whole polygon) | 15.5 / 31.4 | 17.3 / 31.5 |
+| equivalent coefficient on the copper contact area plus an annular fin for the block outside it | 8.8 / 18.8 | 10.9 / 19.7 |
 | **implemented**: Lumped: block layer in the ring network; Analytic: tile graph (Schur complement) in the Green-function correction | **1.9 / 4.7** | **1.1 / 4.3** |
 
 * Why the coefficient approaches fail: they are too hot, and more so with a thicker or better-conducting block (+13 % for 1 mm, +19 % for 6 mm of aluminium on the 30 × 30 pad): the block spreads the heat of the centre of the pad to the whole pad, which a uniform coefficient cannot do. The implemented versions keep the lateral conduction `k t` of the block.
-* The finned blocks are at −1.5 % (Lumped) and −0.1 % (Analytic). Typical cases: 30 × 30 pad in a 60 × 60 block, 3 mm of aluminium, 5 K·cm²/W: FVM rise 90.0 K, Lumped −2.2 %, Analytic −1.1 %.
+* The finned blocks are at −1.5 % (Lumped) and −0.1 % (Analytic) (after the side-wall correction of section 12 D the FVM rise of the two finned cases is 75.6 and 71.9 K instead of 74.5 and 71.2; the 72 other cases are unchanged to the printed digit, and the means of the table move from 15.6 to 15.5 for the earlier Lumped equivalent and from 11.0 to 10.9 for the Analytic coefficient approach; the implemented versions do not move). Typical cases: 30 × 30 pad in a 60 × 60 block, 3 mm of aluminium, 5 K·cm²/W: FVM rise 90.0 K, Lumped −2.2 %, Analytic −1.1 %.
 * Limits: steady state only (the capacity of the block is in the ring sums but no transient with a block was tested, and the time simulation refuses it); a rectangular block and rectangular copper pads were tested, a block over scattered copper not; the Analytic keeps its own weak spots (copper that is far from uniform around the heater).
 * Sources: static condensation / Schur complement as used by finite-element codes (MFEM documentation, https://docs.mfem.org/4.6/staticcond_8hpp_source.html) and Kron reduction of a network (https://arxiv.org/pdf/2204.05554); the annular-fin efficiency tested in the coefficient approach (Incropera and DeWitt; https://scipython.com/books/book2/chapter-8-scipy/problems/heat-dissipation-of-an-annular-fin-heatsink/); spreading resistance of a heat sink base plate, Seri Lee, Electronics Cooling (1998), https://www.electronics-cooling.com/1998/01/calculating-spreading-resistance-in-heat-sinks/ (its formulas are images and were not used; its numbers were read and reproduced, `research/effective-conductivity/`); hybrid analytical models of the PCB, Zhang and Chen, PLOS ONE (2024), https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0310237.
 
