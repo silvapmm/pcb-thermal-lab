@@ -6,6 +6,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ## [Unreleased]
 
 ### Documentation
+- Corrections from the second round of reviews of the research folders (component-heatsink, block-and-fins, via-fill, theory, power-calculator), in `docs/research.md`, `docs/theory.md`, `docs/models.md` and `docs/validation.md`: the Analytic - FVM difference on uniform boards is the edge loss, not the mesh; the point via does not converge with the cell and the Lumped and Analytic models overstate the copper-fill gain (measured, not corrected); the drill diameter is the one used; numbers of the finned block, the heatsink notes and the source of the fill conductivities; the SMA note of `defaults.json` and a comment of `solid3d.py` reworded (no program change). `docs/roadmap.md` rewritten as the list of what is to be implemented; the investigations are in `research/ROADMAP.md` on the research branch.
 - Screenshots in `docs/images/` regenerated (three new: power calculator with the board description, stack-up with 1 oz inner copper, environment with the vertical natural convection form); `docs/validation.md` section 17 numbers updated. No program change.
 
 ### Added

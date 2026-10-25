@@ -272,6 +272,8 @@ Maintainer's rule (2026-10-24): the work is done by four project agents in `.cla
 * **Change to the program** (a correction, an improvement of an algorithm, a new feature; `fix/` or `feature/` branch off `develop`): `executor` -> **`reviewer`** -> `maintainer` (documents, whole battery, commit, merge into `develop`, push).
 * **Closing an investigation, adopting a proposal or any change to a model**: the `reviewer` is called before the merge, with the claims and the numbers to check.
 
+**Two roadmaps, kept apart** (maintainer): `docs/roadmap.md` holds only what we want to **implement** in the program (features, corrections of defects, improvements of the models, the interface and the tools), each item once, with a pointer to its evidence; `research/ROADMAP.md` holds only what we want to **investigate** (open questions, measurements to repeat, sources to open, ideas to test), and lives on the research branch with `research/REVIEW.md` (the review register: status of every folder) and `research/INDEX.md`. An investigation that ends in a feature appears in both: the question in `research/ROADMAP.md`, the feature in `docs/roadmap.md` as 'after the investigation X'. When something is implemented it leaves the roadmap (what exists is in `docs/versions.md`).
+
 The review of every research folder is tracked in `research/REVIEW.md` (status, program version of the last run, notes); update it in the commit of each review so that a new session continues from there (the register is on the branch `research/gerbers` until it is merged).
 
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
@@ -279,6 +281,10 @@ The main session keeps the conversation with the maintainer (in Portuguese), dec
 ## Decisions Log
 
 Record important decisions here, newest first, with the reason; new entries carry no date (the order is the order of the decisions; older entries keep theirs).
+
+- **Two roadmaps** (maintainer): `docs/roadmap.md` is only what we want to implement in the program (each item once, tagged fix, feature or after the investigation X) and `research/ROADMAP.md` only what we want to investigate, so that questions, measurements and features are not mixed; see "Two roadmaps, kept apart".
+
+- **Documents corrected after the second round of reviews** (component-heatsink, block-and-fins, via-fill, theory): timings that were measured under memory pressure are no longer quoted as results, the SMA diode value is given as a range of datasheets, and the stated limits of validation, theory and models were aligned with the reviews; documents only, plus a note text in `defaults.json` and a comment in `solid3d.py`.
 
 - **Side walls of a finned block** (review of `research/block-and-fins`; branch `fix/finned-block-sides`): the plate fins stand on the exposed face, so only that face carries the fin ratio (`h_exp = h_face·r_fin + h_extra`); the side walls of the base plate use `h_wall = h_face + h_extra` (`blocks.wall_h`, `extra_layers` key `h_wall`, named so because `Board.h_side` is the board edge coefficient; same in `solid3d.py`; `h_total` means the exposed face only). The program had given the sides the ratio too and was 5.5 to 6.4 % too cool in the rise of finned blocks (FVM 61.2 / 66.4 / 53.2 K became 65.0 / 70.0 / 56.6 K on the 60 x 40 mm board); plain plates and the 2D fin validation are unchanged, the 74 block cases move only in the two finned ones. The fin end faces and the channel effect stay unmodelled.
 

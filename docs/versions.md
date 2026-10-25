@@ -10,6 +10,10 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ---
 
+## Unreleased: documents after the second round of reviews
+
+* **Documents only** (branch `docs/roadmap-and-reviews-round2`; the only changes outside `docs/` are a note text in `pcbthermal/data/defaults.json` and a comment in `pcbthermal/solid3d.py`): text from `research/<folder>/docs/for-the-project-documents.md` of component-heatsink, block-and-fins, via-fill, theory and power-calculator folded into `research.md`, `theory.md`, `models.md` and `validation.md` (several items were already on `develop`); `roadmap.md` is now only what is to be implemented. Checked by `tests/test_docs.py`, `test_help.py`, `test_version.py`, `test_defaults.py`, `test_tooltips.py`.
+
 ## Unreleased: side walls of a finned metal block
 
 * **Defect fixed** (branch `fix/finned-block-sides`, found in the review of `research/block-and-fins`): the plate fins are on the exposed face of a block, but `blocks.extra_layers` and `solid3d.py` gave the side walls of the base plate the fin ratio as well (`h_face·fin_ratio + h_extra`). Now the exposed face keeps `h_exp = h_face·fin_ratio + h_extra` and the sides use `h_wall = h_face + h_extra` (`blocks.wall_h`; `extra_layers` returns `h_wall`; `h_total` is the exposed face only). All five models share the code (FVM, FDM, Lumped and Analytic through `extra_layers`, the 3D solid has its own copy). Effect: the rise of a finned block is +6.2 / +5.5 / +6.4 % (FVM, three finned blocks of `validation.md` section 12 D); a block without fins is bit-identical; the 2D fin validation (24 cases) is unchanged. Tests: `tests/test_block_side_loss.py`.
