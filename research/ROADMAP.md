@@ -13,7 +13,7 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 | E. Gerber import and models | E1 to E10 |
 | F. Theory, sources and verification | F1 to F9 |
 | G. Physical measurement | G1 |
-| H. Tooling and method | H1 to H8 |
+| H. Tooling and method | H1 to H9 |
 
 ## A. Models and numerics
 
@@ -390,3 +390,10 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 
 ### H8. More real boards as test benches: decided not to
 * The Stormduino (MIT) is enough as the real board whose figures may be drawn; `our_board.py` is the bench of our own (`gerber-import/README.md` 4.30). No search for further boards.
+
+### H9. The long runs, at the very end
+* **Question**: do the studies that were not re-run (because they take from 15 minutes to hours) reproduce their numbers and figures on the corrected program?
+* **Why**: the maintainer asked to run them when everything else is finished: the diagonal-face studies of `gerber-models` (4.44, 4.48, 4.50: 15 minutes to 3 hours, research solver), the `--mesh-check` runs of `effective-conductivity` (Culham 1998 and Muzychka 2003: 30 to 50 minutes), `solid3d-verification/scripts/study_small_pad_convergence.py` and the fine-mesh reference runs (about 10 GB: only on a clean machine), `power-calculator/scripts/study_design_term_coverage.py` (6 to 10 minutes) and `study_cell_size.py`, `gerber-models` studies that use the research solver, and any figure that waits for them.
+* **First study**: after the clean-machine timing (H8 of this list is a decision; the timing is item A4), restart the machine, run nothing else, run each long study one at a time, regenerate the figures that depend on them, read every PNG, update the READMEs where a number moves, and record the machine and the time of each run in the folder's README.
+* **If it ends well**: no figure or number of the research folders rests on a run that was not repeated on the corrected program.
+* **Status**: waits for the maintainer's order (the same restart as A4).
