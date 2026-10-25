@@ -27,7 +27,7 @@ In the same section, "a junction node joined by a uniform conductance would be 3
 
 * "A bare mould carries about 1 % of the heat (2 to 4 K); a heatsink takes 41 to 51 % and lowers `Tj` by 16 to 40 K" -> "A bare mould carries about 1 % of the heat (0.4 to 0.8 K against the same junction node without a top path); a heatsink takes 41 to 51 % and lowers `Tj` by 14 to 38 K".
 * R2: "The default paste costs only 0.6 to 1 K against a good paste" -> "0.1 to 0.6 K".
-* R2: the fin and block-thickness numbers ("71.7 to 72.2 °C", "1 mm 76.8, 3 mm 74.3, 6 mm 71.7 °C with fins") and the "perfect contact" table are printed by no script of the research folder: mark them "not reproduced" or remove them.
+* R2: the fin and block-thickness numbers ("71.7 to 72.2 °C", "1 mm 76.8, 3 mm 74.3, 6 mm 71.7 °C with fins") -> "71.2 to 71.8 °C" and "1 mm 76.4, 3 mm 73.8, 6 mm 71.2 °C" (`study_notes_r2.py`); the "perfect contact" table is reproduced unchanged by the same script.
 * R5: "the same change on top moves it by 10 to 20 K" -> "by 2.4 to 12 K".
 * R6: "(+2.3 K, +4 K at 4 W the other way: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s gives 65.7, 64.5 and 63.6 °C. The scenarios change `Tj` by 2 to 7 K" -> "(+2.3 K; +2.8 K at 4 W: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s (catalogue value times the factor, held fixed) gives 64.1, 63.3 and 62.8 °C. The scenarios change `Tj` by 2 to 8 K" (the study scaled the forced values with the rise as in natural convection; corrected).
 * R8 table: replace with the values of `research/component-heatsink/README.md` 4.7 (aluminium 1 mm 1.73, 3 mm 0.87; copper 3 mm 0.46; steel 1 mm 6.46, 3 mm 3.28 K/W for the 3.3 mm source; the old values read the first cell centre, up to 30 % low on thick bases), "5 to 13 %" -> "5 to 14 %".
@@ -41,3 +41,5 @@ In the same section, "a junction node joined by a uniform conductance would be 3
 ## 5. Library `package_theta` (`pcbthermal/data/defaults.json`)
 
 No change needed: "QFN / exposed pad" keeps `tj_max_c` 150 as a family value; the TPS7A47 itself is rated 125 °C in operation (SBVS204G), which is a datasheet value to type, not a family default. The SMA entry (θ 20 K/W, Tj max 125 °C) follows the SX Semiconductor sheet; the Vishay SS12 gives RθJL 28 K/W and 150 °C: the note could say that the junction-to-terminal value is maker-dependent (20 to 28 K/W).
+
+**Proposal for the `defaults.json` note of the SMA entry** (`package_theta`): "The junction-to-lead resistance of an SMA diode depends on the manufacturer: the SX Semiconductor sheet used here gives 20 K/W, the Vishay SS12 (document 88746) gives RthJL 28 K/W. Take the typical value as a range of 20 to 28 K/W and type the value of your datasheet." The program is not edited here.
