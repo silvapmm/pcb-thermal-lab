@@ -242,3 +242,24 @@ def test_help_sits_before_close_and_preferences_has_a_power_calculator_tab(qtbot
     assert not d2.design.isEnabled()
     d2.band.setChecked(True)
     assert d2.design.isEnabled()
+
+
+def test_preferences_show_readable_labels_and_read_a_decimal_comma(qtbot):
+    """!
+    @brief The Preferences tables and forms show titles with units (the JSON key is in the tooltip), a decimal comma is read and a word typed
+           in a number column keeps the old value of that row.
+
+    @note Regression: the titles were the JSON keys (`k_w_per_mk`), and "0,45" or a typo silently became the value of the first shipped entry (0 W/mK for a via fill).
+    """
+    from pcbthermal.gui.preferences import PreferencesDialog
+    d = PreferencesDialog()
+    qtbot.addWidget(d)
+    table, cols = d.tables["via_fills"]
+    assert table.horizontalHeaderItem(1).text() == "k (W/mK)" and "k_w_per_mk" in table.horizontalHeaderItem(1).toolTip()
+    table.item(1, 1).setText("0,45")
+    assert d.data["libraries"]["via_fills"][1]["k_w_per_mk"] == 0.45
+    table.item(2, 1).setText("eight")
+    assert d.data["libraries"]["via_fills"][2]["k_w_per_mk"] == 8.0 and table.item(2, 1).text() == "8.0"
+    w = d.widgets[("new_board", "ambient_c")]
+    form = w.parentWidget().layout()
+    assert form.labelForField(w).text() == "Ambient (°C)" and "ambient_c" in w.toolTip()

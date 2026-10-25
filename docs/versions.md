@@ -12,6 +12,8 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ## Unreleased: user interface review
 
+* **Preferences readable**: `preferences.LABELS`, `COLUMNS` and `MODEL_LABELS` give the fields, columns and model boxes their names with units, the JSON key is in the tooltip; `_read_table` reads a decimal comma and keeps the previous value of the row for text that is not a number (it took the first shipped entry's value). Test: `tests/test_defaults.py::test_preferences_show_readable_labels_and_read_a_decimal_comma`.
+
 * **Solver-grid icon**: `theme.tool_icon("solver_grid")` (4 x 4 cells in the solver-grid colour with their centres); the drawing grid keeps `grid`.
 
 * **Keyboard focus kept after an edit**: `Inspector.rebuild` records the position of the focused field in the focus chain of the form (`_focus_position`, `_focus_chain`) and gives the focus back to the same position of the new form when the selection did not change; `StackupEditor.refresh` does the same by cell (`_focused_cell`). Tests: `tests/test_gui.py::test_properties_keep_the_keyboard_focus_after_an_edit`, `test_stackup_table_keeps_the_keyboard_focus_after_an_edit` (both fail on the old code).

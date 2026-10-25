@@ -37,6 +37,32 @@ SECTION_HINTS = {"new_board": "The values a board starts with when you choose Fi
                  "solver": "The models and settings a new project starts with."}
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
+MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid"}
+# Labels with units for the fields of the defaults (the JSON key, which a hand-edited file uses, is given in each tooltip)
+LABELS = {
+    "width_mm": "Width (mm)", "height_mm": "Height (mm)", "layers": "Copper layers", "ambient_c": "Ambient (°C)", "h_top": "h top (W/m²K)",
+    "h_bottom": "h bottom (W/m²K)", "edges_lose_heat": "Edges lose heat", "h_side": "h edges (W/m²K)", "via_plating_um": "Via plating (µm)",
+    "h_mode": "Heat transfer", "emissivity_top": "Emissivity top", "emissivity_bottom": "Emissivity bottom", "orientation": "Orientation",
+    "natural_form": "Vertical natural convection", "air_speed": "Air speed (m/s)", "h_calibration": "Convection ×",
+    "heater_power_w": "Heater power (W)", "heater_kind": "Heater type", "heater_size_mm": "Heater size (mm)", "zone_fill": "Zone copper fill (0 to 1)",
+    "zone_size_mm": "Zone size (mm)", "via_diameter_mm": "Via diameter (mm)", "via_fill": "Via fill", "heatsink_h_extra": "Heatsink extra h (W/m²K)",
+    "heatsink_size_mm": "Heatsink size (mm)", "block_thickness_mm": "Block thickness (mm)", "block_metal": "Block metal", "block_interface": "Block interface",
+    "k_copper": "Copper k (W/mK)", "rho_copper": "Copper density (kg/m³)", "cp_copper": "Copper specific heat (J/kgK)",
+    "k_fr4_through": "Dielectric k through (W/mK)", "k_fr4_inplane": "Dielectric k in-plane (W/mK)", "rho_fr4": "Dielectric density (kg/m³)",
+    "cp_fr4": "Dielectric specific heat (J/kgK)",
+    "copper_uncertainty_pct": "Copper (± %)", "h_uncertainty_pct": "Heat transfer h (± %)", "theta_uncertainty_pct": "θ junction-pad (± %)",
+    "psi_jt_uncertainty_pct": "ψJT (± %)", "reading_uncertainty_k": "Temperature reading (± K)", "design_level": "Board description",
+    "design_coverage_pct": "Design: copper coverage (± %)", "design_weight_pct": "Design: copper weight (± %)", "design_planes_pct": "Design: inner planes (± %)",
+    "design_vias_pct": "Design: vias (± %)", "design_scale_cad": "Multiplier, fabrication files", "design_scale_hand": "Multiplier, drawn by hand",
+    "design_scale_estimated": "Multiplier, estimated",
+    "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "Lumped rings", "analytic_modes": "Analytic modes",
+    "hotspot_c": "Hotspot limit (°C)",
+}
+# Column titles with units for the library tables (the JSON key is in the tooltip of the column title)
+COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_per_m3k": "ρ·cp (J/m³K)", "thickness_mm": "Thickness (mm)",
+           "k_through": "k through (W/mK)", "k_inplane": "k in-plane (W/mK)", "rho": "Density (kg/m³)", "cp": "Specific heat (J/kgK)",
+           "theta_k_per_w": "θ junction-pad (K/W)", "theta_jc_top_k_per_w": "θJC top (K/W)", "tj_max_c": "Tj max (°C)", "heatsink": "Heatsink",
+           "flow": "Air flow", "theta_sa_k_per_w": "θSA (K/W)"}
 TIPS = {
     "width_mm": "Width of a new board in mm.", "height_mm": "Height of a new board in mm.", "layers": "Copper layers of a new board.",
     "ambient_c": "Ambient temperature of a new board in °C.", "h_top": "Heat transfer coefficient of the top face (W/m²K), typed mode.",
@@ -143,7 +169,9 @@ class PreferencesDialog(QDialog):
         rows = self.data["libraries"][lib]
         cols = list(defaults.shipped()["libraries"][lib][0].keys())
         t = QTableWidget(len(rows), len(cols))
-        t.setHorizontalHeaderLabels(cols)
+        t.setHorizontalHeaderLabels([COLUMNS.get(c, c) for c in cols])          # Readable titles with units, not the JSON keys
+        for c, key in enumerate(cols):
+            t.horizontalHeaderItem(c).setToolTip(f"JSON key: {key}")
         t.setSelectionBehavior(QAbstractItemView.SelectRows)
         t.setToolTip(LIBRARY_TIPS[lib])
         for r, e in enumerate(rows):
@@ -222,14 +250,14 @@ class PreferencesDialog(QDialog):
                 rl.setContentsMargins(0, 0, 0, 0)
                 boxes = {}
                 for m in MODELS:
-                    c = QCheckBox(m)
+                    c = QCheckBox(MODEL_LABELS[m])
                     c.setChecked(m in val)
                     c.setToolTip(TIPS["models"])
                     c.toggled.connect(lambda _on, section=section: self._read_models(section))
                     boxes[m] = c
                     rl.addWidget(c)
                 self.widgets[(section, key)] = boxes
-                f.addRow(key, row)
+                f.addRow(LABELS.get(key, key), row)
                 continue
             if key in CHOICES or key in lib_names:
                 wdg = QComboBox()
@@ -252,12 +280,13 @@ class PreferencesDialog(QDialog):
                 wdg = QDoubleSpinBox()
                 # Amplitudes of the design uncertainty and the copper uncertainty stay below 100 %, so a thickness never reaches 0
                 wdg.setRange(*((0.0, 99.0) if section == "calculator" and key in ("copper_uncertainty_pct", "design_coverage_pct", "design_weight_pct", "design_planes_pct", "design_vias_pct") else (0.0, 1.0) if key.startswith("design_scale_") else (-1e9, 1e9)))
-                wdg.setDecimals(4)
+                # Three decimals for small numbers (a via diameter, an emissivity, a multiplier), one for the large ones: "100,0000 mm" was hard to read
+                wdg.setDecimals(3 if abs(float(val)) < 10 else 1)
                 wdg.setValue(float(val))
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, float(v)))
-            wdg.setToolTip(TIPS.get(key, key))
+            wdg.setToolTip(f"{TIPS.get(key, key)}\nJSON key: {key}")
             self.widgets[(section, key)] = wdg
-            f.addRow(key, wdg)
+            f.addRow(LABELS.get(key, key), wdg)
         return w
 
     # ------------------------------------------------------------------ editing
@@ -286,6 +315,7 @@ class PreferencesDialog(QDialog):
         """
         t, cols = self.tables[lib]
         sample = defaults.shipped()["libraries"][lib][0]
+        previous = self.data["libraries"][lib]
         rows = []
         for r in range(t.rowCount()):
             entry = {}
@@ -294,9 +324,15 @@ class PreferencesDialog(QDialog):
                 text = item.text().strip() if item else ""
                 if isinstance(sample[key], (int, float)):
                     try:
-                        entry[key] = float(text)
+                        entry[key] = float(text.replace(",", "."))      # A decimal comma is read as a point
                     except ValueError:
-                        entry[key] = float(sample[key])
+                        # Not a number: keep the value the row had (it used to become the value of the first shipped entry, silently)
+                        old = previous[r].get(key, sample[key]) if r < len(previous) else sample[key]
+                        entry[key] = float(old)
+                        if item is not None:
+                            t.blockSignals(True)
+                            item.setText(str(entry[key]))
+                            t.blockSignals(False)
                 else:
                     entry[key] = text
             if entry.get("name"):
