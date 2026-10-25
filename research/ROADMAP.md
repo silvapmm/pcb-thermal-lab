@@ -13,7 +13,7 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 | E. Gerber import and models | E1 to E9 |
 | F. Theory, sources and verification | F1 to F9 |
 | G. Physical measurement | G1 |
-| H. Tooling and method | H1 to H6 |
+| H. Tooling and method | H1 to H8 |
 
 ## A. Models and numerics
 
@@ -373,3 +373,13 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 * **First study**: write or remove each, marking numbers not reproduced.
 * **If it ends well**: nothing in the program.
 * **Status**: open.
+
+### H7. Separate the documents of the three Gerber folders
+* **Question**: does each of `gerber-import/`, `gerber-models/` and `gerber-nets/` document only its own function?
+* **Why**: the maintainer found that `gerber-import/` carries much information that belongs to the other two (the processing of the copper and the nets); the three folders have three functions (read the files and import the board; map the copper into the simulation models; nets, current and Joule heat) and each reader should find its own results, limits and sources without wading through the others'.
+* **First study**: after the reviews of `gerber-models/` and `gerber-nets/` are finished, read the READMEs, REPORT, CONCLUSIONS and INTEGRATION files of the three folders, assign every section to the folder whose function it belongs to (a paragraph that serves two folders is written once, in the folder that owns the subject, and the other folder links to it), move what is misplaced (with its figures: figure numbers stay unique inside each folder; links updated; scripts and tests stay where they run unless a study belongs elsewhere), and give each folder a short section 'what this folder does and what it leaves to the others'. No result is deleted, and no number changes in the move.
+* **If it ends well**: three self-contained folders; the Gerber import into the program (`docs/roadmap.md`) can be read from the folder of each step.
+* **Status**: open, after the reviews of the Gerber folders (the maintainer asked to review it at the end, when everything is finished).
+
+### H8. More real boards as test benches: decided not to
+* The Stormduino (MIT) is enough as the real board whose figures may be drawn; `our_board.py` is the bench of our own (`gerber-import/README.md` 4.30). No search for further boards.
