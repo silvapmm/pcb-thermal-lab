@@ -6,7 +6,7 @@
          resident memory (`resource.getrusage`, kilobytes on Linux and bytes on macOS) belongs to that run alone. Time includes the assembly of the model and the direct sparse solve
          (the SuperLU solve that the application uses). The 3D solid runs inside `solid3d.size_limit` so that sizes above the 250 000 unknowns of the application can be timed. The result is written to
          `out/solve_cost.json` (git-ignored) with the machine and the library versions, and read by `make_figures.py` for figure 9. The last four cases reproduce the larger sizes quoted by the program documents (3D solid 400 000 and 512 000 unknowns, layered FVM 1 and 2 million).
-         Usage: .venv/bin/python research/solid3d-verification/scripts/study_solve_cost.py (from the repository root; about 25 minutes and up to 9 GB; run nothing else heavy at the same time).
+         Usage: .venv/bin/python research/solid3d-verification/scripts/study_solve_cost.py (from the repository root; about 3 minutes (161 s measured) and up to 10 GB resident (the 512 000-unknown example board pages on 16 GB); run nothing else heavy at the same time).
 """
 
 import json
@@ -26,7 +26,9 @@ sys.path.insert(0, str(ROOT))
 CASES = [("solid3d", 1.10), ("solid3d", 0.70), ("solid3d", 0.55), ("solid3d", 0.44), ("fvm", 0.64), ("fvm", 0.40), ("fvm", 0.25),
          ("example", 1.4), ("example", 0.9), ("example", 0.72),
          # the sizes that the program documents quote: 3D solid about 400 000 and 512 000 unknowns, layered FVM about 1 and 2 million
-         ("solid3d", 0.35), ("solid3d", 0.31), ("fvm", 0.127), ("fvm", 0.09)]
+         ("solid3d", 0.35), ("solid3d", 0.31), ("fvm", 0.127), ("fvm", 0.09),
+         # the example board above the application's limit: the case that decides the memory limit
+         ("example", 0.57), ("example", 0.50)]
 
 
 def board():

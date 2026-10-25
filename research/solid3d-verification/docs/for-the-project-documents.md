@@ -46,9 +46,11 @@ The times quoted there were measured while the machine was swapping and are not 
 | 3D solid, plain two-layer board | 393 000 | 7.5 | 2.65 | 276 s, 5 GB |
 | 3D solid, plain two-layer board | 500 000 | 9.3 | 3.3 | 320 s, 8 GB (512 000) |
 | 3D solid, example board (16 slabs) | 158 000 / 247 000 | 7.2 / 15.3 | 2.15 / 3.5 | |
+| 3D solid, example board (16 slabs) | 392 000 | 32.8 | 7.4 | 276 s, 5 GB (393 000) |
+| 3D solid, example board (16 slabs) | 512 000 | 57.7 | 9.9 (footprint 20.5, the machine paged) | 320 s, 8 GB |
 | layered FVM, plain board | 992 000 | 5.2 | 2.7 | 97 s, 4.4 GB |
 | layered FVM, plain board | 1 975 000 | 12.4 | 5.5 | 273 s, 8.4 GB |
 
 * Replace the times and memory in the four documents with these (or remove them), and say that they depend on the machine and on the board (the example board with vias and a heatsink takes about 4 times longer than the plain board of the same size).
-* The limit `MAX_CELLS = 250 000` and the "slow above a million unknowns" note for the layered models were set from the old numbers: reconsider them with the table (the example board at 500 000 unknowns was not measured, so the new limit needs one more run on it).
-* The memory guard of `docs/roadmap.md` Next work #2 can use the measured memory per unknown: about 6.6 KB for the 3D solid on a plain board (3.3 GB at 500 000), 14 KB on the example board (3.5 GB at 247 000), 2.8 KB for the layered FVM (5.5 GB at 1.98 million).
+* The limit `MAX_CELLS = 250 000` and the "slow above a million unknowns" note for the layered models were set from the old numbers. With the table: for time the limit is far too low (a plain board at 500 000 unknowns takes 9 s), but for memory it is about right for boards like the example: 3.5 GB at 247 000, 7.4 GB at 392 000 and 9.9 GB resident at 512 000 unknowns (the footprint went over the 16 GB of the machine). A limit by estimated memory instead of by unknowns would allow about 400 000 unknowns on the example board on a 16 GB machine (about half of the memory) and more than a million on a plain board; the estimate needs the number of slabs, because the cost per unknown is 6.6 KB on a plain board and 14 to 19 KB on the example board and grows with the size.
+* The memory guard of `docs/roadmap.md` Next work #2 can use the measured memory per unknown, which is not constant: 6.6 KB for the 3D solid on a plain board (3.3 GB at 500 000), 14.3 to 19.3 KB on the example board (3.5 GB at 247 000, 9.9 GB at 512 000), 2.8 KB for the layered FVM (5.5 GB at 1.98 million). A guard has to use the size of the case, not one number, and to leave room for the operating system (the 512 000-unknown example board already paged on 16 GB).
