@@ -60,7 +60,7 @@ Code and documents are those of `develop`; "inv." is the investigation that hold
 
 ### 3.1 Diagrams and illustrations
 
-The 30 pictures drawn in this folder (figures 1 to 30 in `figures/`, one script, shared shapes in `research/diagram_kit.py`) are embedded in topics 01 to 16, 25, 26 and 28 to 37. Topics 17 to 24 and 27 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
+The 33 pictures of this folder are in `figures/`: 30 diagrams (figures 1 to 30, `scripts/make_diagrams.py`, shared shapes in `research/diagram_kit.py`) and three data figures (31 to 33, `scripts/make_figures.py`, section 3.1.1). The diagrams are embedded in topics 01 to 16, 25, 26 and 28 to 37. Topics 17 to 24 and 27 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
 
 | File | Drawn in | Topic |
 | :-- | :-- | :-- |
@@ -94,8 +94,27 @@ The 30 pictures drawn in this folder (figures 1 to 30 in `figures/`, one script,
 | `figures/fig_28_curved_boards.png` | this folder | 35 |
 | `figures/fig_29_prepreg.png` | this folder | 36 |
 | `figures/fig_30_why_fvm_analytic_agree.png` | this folder | 37 |
+| `figures/fig_31_fin_efficiency_and_ratio.png` | this folder (data) | 11 |
+| `figures/fig_32_analytic_modes_and_edges.png` | this folder (data) | 06, 37 |
+| `figures/fig_33_thick_plate_correction.png` | this folder (data) | 34, 01 |
 
 Curves that are only illustrative (the shape of a series, a fixed point with arbitrary numbers, a pulse train) say so in their italic line; no number of these pictures is a result. The numbers quoted in the topics come from the project documents and the READMEs of the investigations and are marked with the source.
+
+### 3.1.1 Data figures
+
+Three figures are computed, not drawn: every number in them comes from a closed form or from the program (`scripts/make_figures.py`, about 3 minutes; the printed tables are the source of the numbers in the captions). They do not change the program or the project documents.
+
+![Fin efficiency and fin ratio](figures/fig_31_fin_efficiency_and_ratio.png)
+
+*Figure 31 (`figures/fig_31_fin_efficiency_and_ratio.png`): left, the efficiency `tanh(mL) / (mL)` of a plate fin against `mL` (closed form; the dots are the fins of the right panel at `H` = 10, 30 and 60 mm, `h` = 10 W/m2K, 1 mm thick, 5 mm pitch: `mL` 0.10 to 1.16, efficiency 0.996 to 0.706); right, the fin ratio of the program (`pcbthermal.blocks.fin_ratio`) against the fin height for aluminium (204 W/mK), copper (386) and carbon steel (54) of the program's metal library, with the line of fins that conduct perfectly. At 60 mm the ratio is 22.5 (aluminium), 23.6 (copper) and 17.9 (steel) against 25.0 for perfect fins. Computed by `scripts/make_figures.py`.*
+
+![Analytic modes and edges](figures/fig_32_analytic_modes_and_edges.png)
+
+*Figure 32 (`figures/fig_32_analytic_modes_and_edges.png`): left, the rise of the hottest point of the example board in the Analytic model against the FVM at 0.5 mm cells (60.87 K) as the number of cosine modes grows: -7.85 % with 10 modes, -0.42 % with 20, then -1.94 % at 30 modes and from 75 to 300 (-2.04 % at 50); the curve is flat from 75 modes on, so the remaining -1.9 % is not truncation of the series; its cause on this board (vias, heatsink, partial copper) and why 20 modes is closer were not traced. Right, the four uniform scenarios of `docs/validation.md` 2: the Analytic against the FVM at 0.25 mm is +0.30 to +0.96 % with the board's `h_side` and -0.07 to -0.29 % with insulated edges in both (the study of topic 37). Computed by `scripts/make_figures.py`.*
+
+![Thick-plate correction](figures/fig_33_thick_plate_correction.png)
+
+*Figure 33 (`figures/fig_33_thick_plate_correction.png`): the through-thickness correction `q'' t / (2 k)` against the thickness of the plate for copper (385 W/mK), aluminium (204), carbon steel (54) and FR-4 (0.3 through the thickness), for the flux of U1 of the example board (4 W over 100 mm2, 40 kW/m2), with the limit of the thick-plate check, 5 % (`checks.THICK_PLATE_LIMIT`) of the 60.87 K rise: 3.04 K. The thickness at the limit is 58.6 mm for copper, 31 mm for aluminium, 8.2 mm for steel and 0.046 mm for FR-4; the 35 um copper layer is 3 orders of magnitude below the limit. The rise here is that of the hottest point of the board (FVM, 0.5 mm), a stand-in for the rise of the heater that the check uses. Computed by `scripts/make_figures.py`.*
 
 ### 3.2 Coverage of the project documents
 
@@ -141,8 +160,9 @@ Every section that explains a model, an equation or a method has a picture, in t
 | `README.md` | this index |
 | `BIBLIOGRAPHY.md` | every source: key, citation, address, reading status, topics that use it; the list of what to read next |
 | `topics/` | the 37 topic files |
-| `figures/` | `fig_01` to `fig_30` |
-| `scripts/make_diagrams.py` | draws the 30 figures (no data, no program) |
+| `figures/` | `fig_01` to `fig_33`; 1 to 30 diagrams, 31 to 33 data figures |
+| `scripts/make_diagrams.py` | draws the 30 diagrams (no data, no program) |
+| `scripts/make_figures.py` | draws the three data figures 31 to 33 from closed forms and the program (about 3 minutes) |
 | `scripts/check_mapping_formulas.py` | numerical check of the properties of the 2D effective-medium formulas |
 | `scripts/check_correlations.py` | numerical checks of the correlations quoted by the compilation: 2D Hashin-Shtrikman and the Keller-Dykhne product, Bar-Cohen and Rohsenow, Elenbaas, Churchill-Chu against the worked example of the `ht` library, Hollands (with the correction found), the printed-board conductivities |
 | `scripts/study_fvm_analytic_edges.py` | the review's test of the explanation of topic 37: the Analytic model against the FVM at 1, 0.5 and 0.25 mm on the uniform scenarios, with and without the edge coefficient (under a minute) |
@@ -152,7 +172,8 @@ Every section that explains a model, an equation or a method has a picture, in t
 | `tests/test_theory.py` | the checks of this folder: every figure and link exists, every bibliography key used in a topic is defined, every topic has the sections |
 
 ```sh
-.venv/bin/python research/theory/scripts/make_diagrams.py        # the figures
+.venv/bin/python research/theory/scripts/make_diagrams.py        # the diagrams
+.venv/bin/python research/theory/scripts/make_figures.py         # the data figures
 .venv/bin/python -m pytest -q research/theory/tests              # the checks
 ```
 

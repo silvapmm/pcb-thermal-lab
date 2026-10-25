@@ -41,7 +41,7 @@ def fig_gerber_render():
         axs[0].annotate(our_board.net_name(k), (x, y), textcoords="offset points", xytext=(5, 5), color="w", fontsize=8)
         px, py = our_board.ic_pad(k)
         axs[1].annotate(our_board.net_name(k), (px, py), textcoords="offset points", xytext=(6, 6), color="w", fontsize=8)
-    axs[0].annotate("GND ring and spoke", (our_board.CX - 14, our_board.CY + 17.2), color="w", fontsize=8)
+    axs[0].annotate("GND ring and spoke", (1.0, 1.0), color="w", fontsize=8)      # in the corner: on the ring the white text overlapped the copper
     axs[0].set_title("our IC board as a Gerber viewer would draw it: copper (gold), plated holes (black), 40 x 40 mm", fontsize=9)
     axs[1].set_title("close-up of the IC: exposed pad with four thermal vias and eight pads (12 x 12 mm)", fontsize=9)
     fig.tight_layout()
@@ -227,7 +227,7 @@ def fig_mask_explained():
     for i in range(int(size)):
         for j in range(int(size)):
             axs[3].text(j + 0.5, size - i - 0.5, f"{frac[i, j]:.3f}", ha="center", va="center", fontsize=7)
-    axs[3].set_title("4. what the program uses today: the copper fraction of each cell\n(one number: it does not say whether the copper is connected)", fontsize=9)
+    axs[3].set_title("4. what the program uses today:\nthe copper fraction of each cell (one number:\nit does not say whether the copper is connected)", fontsize=9)
     fig.tight_layout()
     fig.savefig(OUT / "fig_04_mask_explained.png", dpi=105)
     plt.close(fig)
@@ -295,7 +295,8 @@ def fig_reader_pipeline():
         ax.add_patch(Circle((0, y), 1.2, facecolor="#e0a458", edgecolor="k"))
         ax.add_patch(Circle((0, y), 0.5, facecolor="k"))
         ax.text(-4.8, y + 1.45, name, fontsize=8)
-        ax.text(2.0, y, "pad (any shape) on the hole: its net\n(X2 aperture function ViaPad / ComponentPad\nand TO.N when written; the Stormduino has none)" if k == 0 else "pad on the hole: the same net", fontsize=7.5, va="center")
+        ax.text(2.0, y, "pad (any shape) on the hole: its net\n(X2 aperture function ViaPad / ComponentPad\nand TO.N when written; the Stormduino has none)" if k == 0 else "pad on the hole: the same net", fontsize=7.5, va="center",
+                bbox={"fc": "white", "ec": "none", "pad": 2.0})     # the text is longer than the layer rectangle: a white ground keeps its border from cutting through it
     ax.plot([0, 0], [-1.9, 1.7], color="k", linestyle=":")
     ax.text(0, 4.2, "hole at (x, y), 0.4 mm, plated (drill file)\nits centre lies on a pad on every layer, with the same net:\nthe hole is a via and the layers are joined", ha="center", fontsize=8)
     ax.set_title("matching a hole, its pads and the net by position\n(Stormduino: 109 of 109 holes join the two layers)", fontsize=10)
@@ -388,7 +389,7 @@ def fig_render_compare():
                 a.set_xticks([])
                 a.set_yticks([])
         fig.suptitle(f"The same Gerber file (Stormduino top copper) drawn by our reader and three others ({tag}). \nTop: the picture each draws. Bottom: the pixels where it differs from the reference (red: only that tool has copper, blue: only the reference has it)", fontsize=10)
-        fig.tight_layout(rect=(0, 0, 1, 0.94), h_pad=3.0)
+        fig.tight_layout(rect=(0, 0, 1, 0.94), h_pad=4.5)
         fig.savefig(OUT / fname, dpi=110)
         plt.close(fig)
 
@@ -533,12 +534,12 @@ def fig_kicad_pixels():
     axs[1].bar(x, both, color="#e0a458", label="on both")
     axs[1].bar(x, only_g, bottom=both, color="#f4b6b6", label="only Gerber, within 1 px of a CAD edge")
     axs[1].bar(x, only_g_far, bottom=np.array(both) + np.array(only_g), color="#d62728", label="only Gerber, farther")
-    axs[1].set_ylim(min(both) * 0.97, (max(both) + max(only_g) + max(only_g_far)) * 1.005)
+    axs[1].set_ylim(min(both) * 0.97, (max(both) + max(only_g) + max(only_g_far)) * 1.04)      # head-room for the legend; the axis does not start at zero (said in the label)
     axs[1].set_xticks(x)
     axs[1].set_xticklabels(labels)
-    axs[1].set_ylabel("copper pixels (0.05 mm)")
+    axs[1].set_ylabel("copper pixels (0.05 mm); the axis does not start at zero")
     axs[1].set_title(f"pixels on each layer; only CAD: {only_k[0]} and {only_k[1]} px, all within one pixel\nof Gerber copper (none farther: the 0 px of figure 13)", fontsize=9)
-    axs[1].legend(fontsize=7, loc="lower right")
+    axs[1].legend(fontsize=7, loc="upper left")
     fig.suptitle("The nets of the KiCad project against the Gerber copper (README 4.46)", fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.94))
     fig.savefig(OUT / "fig_14_kicad_nets_per_net.png", dpi=105)

@@ -56,8 +56,8 @@ def slabs(ax):
             for t in range(4):
                 dk.layer(ax, 1.5, y - 0.4 * (t + 1), 9, 0.4, dk.FR4)
     dk.layer(ax, 5.8, 2.6, 0.5, 4.75, dk.COPPER)
-    ax.text(6.5, 5.9, "via: copper rod\n(barrel area)", fontsize=6.5)
-    ax.annotate("", (3.5, 7.5), (3.5, 7.35), arrowprops={"arrowstyle": "->", "color": dk.HEAT, "linewidth": 2})
+    # White background: the label sits over the slabs and their edges cut through the text otherwise
+    ax.text(6.5, 5.9, "via: copper rod\n(barrel area)", fontsize=6.5, bbox={"fc": "white", "ec": "none", "pad": 1.5})
     dk.arrow(ax, 3.5, 8.4, 3.5, 7.4, color=dk.HEAT, width=2)
     ax.text(3.8, 8.1, "heat enters on the copper slab", fontsize=7, color=dk.HEAT)
     ax.text(6, 0.9, "the vertical gradient inside each gap is resolved (n slabs);\nplan cells in every slab; steady state only;\nrefused above 250 000 unknowns", ha="center", fontsize=7.5, style="italic")

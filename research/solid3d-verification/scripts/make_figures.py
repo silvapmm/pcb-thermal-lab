@@ -144,7 +144,7 @@ def fig_spreading():
     ax.annotate("", (1.0, -0.35), (0.0, -0.35), arrowprops={"arrowstyle": "<->", "color": "w"})
     ax.text(0.5, -0.45, "b", color="w", ha="center", fontsize=9)
     ax.text(0, -2.12, "cooled face (T = 0); the sides are insulated", ha="center", fontsize=8)
-    ax.set_title("a circular source on a flux tube, eps = a / b = 0.3\n(colour: log temperature; white: heat flow)", fontsize=9, fontweight="bold", pad=18)
+    ax.set_title("a circular source on a flux tube, eps = a / b = 0.3\n(colour: log temperature; white: heat flow)", fontsize=9, fontweight="bold", pad=30)    # room for the label of the source above the axes
     ax.set_xticks([])
     ax.set_yticks([])
     ax = fig.add_subplot(gs[0, 1])
@@ -194,7 +194,7 @@ def fig_one_layer():
             ax.text(9.2, 1.25, "FR-4 1.565 mm\n(4 slabs)", fontsize=7, va="center")
             ax.annotate("", xy=(5, 0.05), xytext=(5, 2.3), arrowprops=dict(arrowstyle="->", color="#dc2626"))
             ax.annotate("", xy=(1.2, 1.6), xytext=(4, 2.0), arrowprops=dict(arrowstyle="->", color="#dc2626"))
-            ax.text(5.2, 0.15, "bottom face: h through the laminate", fontsize=7)
+            ax.text(5, -0.35, "bottom face: h through the laminate", fontsize=7, ha="center")   # below the slabs, clear of the arrow
         else:
             ax.annotate("", xy=(1.2, 2.45), xytext=(4, 2.45), arrowprops=dict(arrowstyle="->", color="#dc2626"))
             ax.text(5, 1.9, "bottom face: h on the copper\nno laminate to spread the heat", fontsize=7, ha="center")

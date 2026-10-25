@@ -91,7 +91,7 @@ def fig_stacks(text):
     others = {n: [float(r[k].split()[0]) for r in rows] for k, n in ((2, "FDM"), (3, "3D solid"), (4, "Lumped"), (5, "Analytic"))}
     x = np.arange(len(rows))
     fig, ax = plt.subplots(figsize=(14, 5.4))
-    ax.bar(x - 0.3, fvm, 0.15, label="FVM (K)", color="#1f2937")
+    ax.bar(x - 0.3, fvm, 0.15, label="FVM", color="#1f2937")
     for k, (n, col) in enumerate((("FDM", "#6b7280"), ("3D solid", "#059669"), ("Lumped", "#d97706"), ("Analytic", "#1d4ed8"))):
         ax.bar(x - 0.15 + 0.15 * k, fvm * (1 + np.array(others[n]) / 100.0), 0.15, label=n, color=col)
     ax.set_xticks(x); ax.set_xticklabels([textwrap.fill(n, 20) for n in names], fontsize=7)

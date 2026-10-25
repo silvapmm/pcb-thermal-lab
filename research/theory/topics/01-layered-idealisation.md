@@ -4,6 +4,10 @@
 
 *Figure 1 (`figures/fig_01_layered_idealisation.png`): a section of the board as the models see it. Each copper layer is one node (one temperature per plan position) with a sheet conductance; the dielectric gap between two layers is a one-dimensional resistance `d/k_th`; the outer layers exchange heat with the air through `h_top` and `h_bottom`. A one-layer board gets two laminate nodes under the copper (`laminate.py`); redrawn with that note.*
 
+![Thick-plate correction](../figures/fig_33_thick_plate_correction.png)
+
+*Figure 33 (`figures/fig_33_thick_plate_correction.png`): the through-thickness correction `q'' t / (2 k)` against the thickness of the plate for copper (385 W/mK), aluminium (204), carbon steel (54) and FR-4 (0.3 through the thickness), for the flux of U1 of the example board (4 W over 100 mm2, 40 kW/m2), with the limit of the thick-plate check, 5 % (`checks.THICK_PLATE_LIMIT`) of the 60.87 K rise: 3.04 K. The thickness at the limit is 58.6 mm for copper, 31 mm for aluminium, 8.2 mm for steel and 0.046 mm for FR-4; the 35 um copper layer is 3 orders of magnitude below the limit. The rise here is that of the hottest point of the board (FVM, 0.5 mm), a stand-in for the rise of the heater that the check uses. Computed by `scripts/make_figures.py`.*
+
 ## 1. What it is
 
 A printed circuit board is a stack of very thin, very good conductors (copper, 35 um is typical) separated by a poor conductor (FR-4). Solving the heat equation in three dimensions on that stack would need cells thinner than the copper. The **layered idealisation** keeps one temperature per layer and per plan position, `theta_l(x, y)`, and replaces the stack by a chain of 2D sheets joined by vertical conductances. Four of the five models (FVM, FDM, Lumped, Analytic) are built on it; the fifth, the 3D solid (topic 04), is the check of it.

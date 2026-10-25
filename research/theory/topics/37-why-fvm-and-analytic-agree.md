@@ -4,6 +4,10 @@
 
 *Figure 30 (`figures/fig_30_why_fvm_analytic_agree.png`): the FVM and the Analytic model solve the same layered model (numerically and exactly), the real board differs from that model by an error they share, and part of their agreement was tuned; the 3D solid and the finite-element solid are the independent check.*
 
+![Analytic modes and edges](../figures/fig_32_analytic_modes_and_edges.png)
+
+*Figure 32 (`figures/fig_32_analytic_modes_and_edges.png`): left, the rise of the hottest point of the example board in the Analytic model against the FVM at 0.5 mm cells (60.87 K) as the number of cosine modes grows: -7.85 % with 10 modes, -0.42 % with 20, then -1.94 % at 30 modes and from 75 to 300 (-2.04 % at 50); the curve is flat from 75 modes on, so the remaining -1.9 % is not truncation of the series; its cause on this board (vias, heatsink, partial copper) and why 20 modes is closer were not traced. Right, the four uniform scenarios of `docs/validation.md` 2: the Analytic against the FVM at 0.25 mm is +0.30 to +0.96 % with the board's `h_side` and -0.07 to -0.29 % with insulated edges in both (the study of topic 37). Computed by `scripts/make_figures.py`.*
+
 **Status: explanation** (`docs/validation.md` section 4).
 
 ## 1. Four reasons

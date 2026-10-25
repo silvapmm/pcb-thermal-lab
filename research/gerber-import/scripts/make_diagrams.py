@@ -148,7 +148,8 @@ def outline_how(path):
     a2.add_patch(Rectangle((3.6, 3.3), 2.8, 1.4, fill=False, edgecolor="#333333", linewidth=3))
     a2.annotate("", (9.6, 4.0), (0.2, 4.0), arrowprops={"arrowstyle": "<-", "color": dk.BLUE, "linewidth": 1.2})
     for x, n, c in ((0.8, "1", dk.FR4), (3.6, "2", "white"), (6.4, "3", dk.FR4), (9.2, "4", "white")):
-        a2.text(x, 4.35, n, ha="center", fontsize=8, color=dk.BLUE)
+        # A white ground keeps the thick stroke of the board from hiding the count
+        a2.text(x, 4.2, n, ha="center", va="center", fontsize=8, color=dk.BLUE, bbox={"fc": "white", "ec": "none", "pad": 0.8})
     a2.text(2.2, 5.3, "odd:\nboard", ha="center", fontsize=7.5)
     a2.text(5.0, 4.0, "even:\nslot", ha="center", va="center", fontsize=7.5)
     a2.text(7.8, 5.3, "odd:\nboard", ha="center", fontsize=7.5)
@@ -199,7 +200,7 @@ def nets_from_files(path):
     dk.layer(a, 0.8, 2.5, 8.4, 2.7, dk.FR4)
     a.add_patch(Rectangle((4.5, 2.2), 0.2, 3.3, fc="#e9c48f", ec="k", lw=0.6))
     a.add_patch(Rectangle((5.3, 2.2), 0.2, 3.3, fc="#e9c48f", ec="k", lw=0.6))
-    a.text(5, 3.8, "plated\nhole", ha="center", fontsize=8)
+    a.text(5.8, 3.8, "plated\nhole", ha="left", fontsize=8)      # beside the walls, not across them
     a.text(5, 1.2, "the drill file gives the position;\nthe pieces on both layers under it\nbelong to one net (109 of 109 join)", ha="center", va="top", fontsize=7.5)
     dk.save(fig, path, "Where the nets come from: attributes, pieces of copper, plated holes (README 4.29, 4.33)")
 

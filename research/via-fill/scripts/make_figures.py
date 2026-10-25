@@ -118,6 +118,8 @@ def fig_cell():
     ax.axvline(0.76, color=COLOURS[0], ls=":", label="cell where 0.198 dx = via radius (Peaceman)")
     for c, g in zip(cells, gain):
         ax.annotate(f"{g:+.2f}", (c, g), textcoords="offset points", xytext=(0, 7), ha="center", fontsize=8)
+    # Head-room above the highest label so that it does not touch the title
+    ax.set_ylim(min(gain + [ref]) - 0.15, max(gain) + 0.35)
     ax.set_xscale("log")
     ax.set_xticks(cells)
     ax.set_xticklabels([f"{c:g}" for c in cells])

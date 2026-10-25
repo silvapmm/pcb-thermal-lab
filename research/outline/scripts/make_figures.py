@@ -127,9 +127,9 @@ def fig_time_constant():
     o = np.array(tc.ROUND + [tc.ROUND[0]])
     axs[0].plot(o[:, 0], o[:, 1], "k-", lw=1.2)
     axs[0].add_patch(plt.Rectangle((27, 27), 6, 6, fc="#dc2626", ec="k"))
-    axs[0].text(2, 2, "grey: off the board,\npinned to ambient (1 W/K)", fontsize=8)
     axs[0].set_title("Round board on its 2 mm grid: orange = board cover", fontsize=9)
-    axs[0].set_xlabel("x (mm)")
+    # The legend of the grey cells goes in the label: any place inside the panel meets the circumference
+    axs[0].set_xlabel("x (mm); grey: off the board, pinned to ambient (1 W/K)")
     rows = [("square", *tc.time_constants(square)), ("round", *tc.time_constants(disc))]
     x = np.arange(2)
     axs[1].bar(x - 0.2, [r[1] for r in rows], 0.4, color="#9ca3af", label="pin counted (before)")

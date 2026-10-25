@@ -4,6 +4,10 @@
 
 *Figure 11 (`figures/fig_11_metal_block.png`): left, a block on the board through an interface sheet (the heat enters the block where it overlaps copper; over bare laminate it must also cross the FR-4); middle, a plate fin whose heat to the air falls along the fin, `eta = tanh(mL) / (mL)`; right, the two equivalents of the Lumped and Analytic models, which keep the block's lateral conduction.*
 
+![Fin efficiency and fin ratio](../figures/fig_31_fin_efficiency_and_ratio.png)
+
+*Figure 31 (`figures/fig_31_fin_efficiency_and_ratio.png`): left, the efficiency `tanh(mL) / (mL)` of a plate fin against `mL` (closed form; the dots are the fins of the right panel at `H` = 10, 30 and 60 mm, `h` = 10 W/m2K, 1 mm thick, 5 mm pitch: `mL` 0.10 to 1.16, efficiency 0.996 to 0.706); right, the fin ratio of the program (`pcbthermal.blocks.fin_ratio`) against the fin height for aluminium (204 W/mK), copper (386) and carbon steel (54) of the program's metal library, with the line of fins that conduct perfectly. At 60 mm the ratio is 22.5 (aluminium), 23.6 (copper) and 17.9 (steel) against 25.0 for perfect fins. Computed by `scripts/make_figures.py`.*
+
 Real sections of the block, the interface and the fins: `research/block-and-fins/figures/fig_05_block_section.png`; the convection scenarios of a heatsink: `research/component-heatsink/figures/fig_03_heatsink_convection_scenarios.png` and `fig_04_block_metal_and_interface.png`.
 
 ## 1. What it is

@@ -65,7 +65,8 @@ def fig_datasheets():
     @return None.
     """
     r = rows(run("calculator_validation.py"), "")
-    names = [x[0].split(",")[0][:30] + "\n" + (x[0].split(",", 1)[1][:34] if "," in x[0] else "") for x in r]
+    # Wrap the whole description: cutting it at a fixed length left the labels unfinished ("RθJA maximum 58 K/W (")
+    names = [textwrap.fill(x[0].replace(", ", ",\n", 1), 30, break_long_words=False) for x in r]
     err = [pct(x[4]) for x in r]
     fig, ax = plt.subplots(figsize=(10, 4.3))
     ax.bar(range(len(r)), err, color=["#b45309" if abs(e) > 10 else "#1d4ed8" for e in err])
@@ -92,7 +93,7 @@ def fig_board_errors():
     fig, ax = plt.subplots(figsize=(10, 5.6))
     cols = ["#7c2d12" if "shortcut" in n else "#d97706" if ("copper" in n or "planes" in n or "vias" in n) else "#6b7280" for n in names]
     ax.barh(range(len(r)), err, color=cols)
-    ax.set_yticks(range(len(r))); ax.set_yticklabels([textwrap.shorten(n.replace("datasheet shortcut P = (T_top - T_amb)/(theta_JA - psi_JT)", "datasheet shortcut"), 62) for n in names], fontsize=7); ax.invert_yaxis()
+    ax.set_yticks(range(len(r))); ax.set_yticklabels([textwrap.fill(n.replace("datasheet shortcut P = (T_top - T_amb)/(theta_JA - psi_JT)", "datasheet shortcut"), 38) for n in names], fontsize=7); ax.invert_yaxis()
     ax.axvline(0, color="black", lw=0.8)
     for k, e in enumerate(err):
         ax.text(e + (1 if e >= 0 else -1), k, f"{e:+.1f} %", va="center", ha="left" if e >= 0 else "right", fontsize=7)
@@ -118,7 +119,7 @@ def fig_calibration():
         v = [pct(r[k + 1]) for r in a]
         axs[0].bar(x + (k - 1) * 0.27, v, 0.27, color=col, label=name)
         for xi, vi in zip(x, v):
-            axs[0].text(xi + (k - 1) * 0.27, vi - 2.5 if vi < -1 else 1.2, f"{vi:+.1f}", ha="center", fontsize=7)
+            axs[0].text(xi + (k - 1) * 0.27, vi - 2.5 if vi < -1 else 1.2, f"{round(vi, 1) + 0.0:+.1f}", ha="center", fontsize=7)    # + 0.0 turns -0.0 into 0.0
     axs[0].set_xticks(x); axs[0].set_xticklabels([r[0] for r in a], fontsize=8)
     axs[0].set_ylabel("Error of the recovered power (%)")
     axs[0].set_title("Perfect readings, drawn copper wrong", fontsize=10); axs[0].legend(fontsize=8, loc="lower left")
@@ -128,6 +129,7 @@ def fig_calibration():
     for k, (name, col) in enumerate((("plain calculator", "#6b7280"), ("known-power reference", "#059669"), ("two points", "#d97706"))):
         axs[1].bar(x + (k - 1) * 0.27, [pct(r[k + 1]) for r in b], 0.27, color=col, label=name)
     axs[1].set_xticks(x); axs[1].set_xticklabels([r[0].replace(", ", ",\n") for r in b], fontsize=7)
+    axs[1].set_ylabel("Error of the recovered power (%)")
     axs[1].set_title("Half the copper, ±1 K on each thermocouple: the two-point fit is badly conditioned", fontsize=9)
     axs[1].axhline(0, color="black", lw=0.8)
     fig.tight_layout()
@@ -159,11 +161,12 @@ def fig_design_coverage():
             lo, hi = bands[lv]
             inside = lo <= TRUE_POWER <= hi
             ax.barh(k, hi - lo, left=lo, height=0.55, color="#1d4ed8" if inside else "#dc2626", alpha=0.85)
-            ax.text(hi + 0.02, k, f"{lo:.2f}-{hi:.2f}", va="center", fontsize=7)
+            # The numbers sit in a column right of every bar and of the 2 W line, so none is crossed by the line
+            ax.text(2.25, k, f"{lo:.2f}-{hi:.2f}", va="center", fontsize=7)
             ax.plot([nominal, nominal], [k - 0.3, k + 0.3], color="k", lw=2)
         ax.axvline(TRUE_POWER, color="#059669", lw=1.8, ls="--")
         ax.text(TRUE_POWER + 0.03, 3.45, "true 2 W", color="#059669", fontsize=8, ha="left")
-        ax.set_xlim(0.7, 2.6)
+        ax.set_xlim(0.7, 2.85)
         ax.set_ylim(-1.0, 3.6)
         ax.set_yticks(range(4))
         ax.set_yticklabels([names[lv] for lv in levels], fontsize=8)

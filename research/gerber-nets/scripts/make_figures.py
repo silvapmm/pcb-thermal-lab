@@ -130,10 +130,11 @@ def fig_nets(text=None, target="VIN", filename="fig_02_nets_and_joule.png", titl
     img[(lab > 0) & (img == 0)] = len(nets) + 1                         # copper without a net: grey
     cm = plt.get_cmap("tab20")(np.linspace(0, 1, 20))
     cols = np.vstack([[0.08, 0.08, 0.08, 1], [cm[k % 20] for k in range(len(nets))], [[0.55, 0.55, 0.55, 1]]])
-    fig, axs = plt.subplots(1, 3, figsize=(16, 5.6))
+    # Constrained layout: with equal-aspect images and two colour bars tight_layout shifted the first panel out of the figure and cut its title
+    fig, axs = plt.subplots(1, 3, figsize=(16, 5.6), layout="constrained")
     ext = (cv_all.x0, cv_all.x0 + lab.shape[1] * pix, cv_all.y0 - lab.shape[0] * pix, cv_all.y0)
     axs[0].imshow(img, cmap=ListedColormap(cols), vmin=0, vmax=len(cols) - 1, interpolation="nearest", extent=ext)      # fixed limits: a net keeps its colour whichever labels occur
-    axs[0].set_title(title or f"synthetic board with X2 net attributes: {len(nets)} nets (colours), grey would be copper with no net", fontsize=9)
+    axs[0].set_title(title or f"synthetic board with X2 net attributes: {len(nets)} nets (colours),\ngrey would be copper with no net", fontsize=9)
     # Joule heat of one net: the largest piece of the target net with two or more pads, between its two farthest pads, 1 A
     net = target
     pads = np.array(net_pads(layer, net))
@@ -159,7 +160,6 @@ def fig_nets(text=None, target="VIN", filename="fig_02_nets_and_joule.png", titl
     for ax in axs[1:]:
         ax.plot(pa[:, 0], pa[:, 1], "w.", ms=3)
         ax.plot([pa[i][0], pa[j][0]], [pa[i][1], pa[j][1]], "wo", ms=7, mfc="none")
-    fig.tight_layout()
     fig.savefig(OUT / filename, dpi=110)
     plt.close(fig)
 
@@ -187,7 +187,7 @@ def fig_pdn_links():
     fig.colorbar(im, ax=axs[1], fraction=0.046, label="log10 of W per pixel (0.2 mm)")
     axs[1].set_title(f"Joule heat of the copper: {q.sum() * 1e3:.1f} mW in all; the 0.1 ohm link makes 225 mW", fontsize=9)       # from the cache (the text said 12.6 mW until the review)
     for a in axs:
-        a.annotate("5 V in", (6, 11), (6, 24), color="w" if a is axs[1] else "k", fontsize=8, arrowprops={"arrowstyle": "->"})
+        a.annotate("5 V in", (6, 11), (6, 24), color="k", fontsize=8, arrowprops={"arrowstyle": "->"})    # the label sits on the white page in both panels: white text there was invisible
         a.annotate("0.1 ohm link\n(bead)", (31, 15.0), (29, 24.5), color="c", fontsize=8, arrowprops={"arrowstyle": "->", "color": "c"})
         a.annotate("1.5 A load", (15, 7), (4, 5), color="c", fontsize=8, arrowprops={"arrowstyle": "->", "color": "c"})
         a.plot([35, 25], [15, 7], color="c", linestyle=":", linewidth=1.2)
@@ -303,7 +303,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     fig_angles()
     fig_nets()
-    fig_nets(our_board.gerber_text(), "S1", "fig_03_ic_board_nets_and_joule.png", f"our IC board (our_board.py): {our_board.N_SIG} signal nets on circular arcs and GND (nine colours)", pix=0.025)
+    fig_nets(our_board.gerber_text(), "S1", "fig_03_ic_board_nets_and_joule.png", f"our IC board (our_board.py):\n{our_board.N_SIG} signal nets on circular arcs and GND (nine colours)", pix=0.025)
     fig_pdn_links()
     fig_network_diagram()
     print("figures in", OUT)

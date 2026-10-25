@@ -4,6 +4,10 @@
 
 *Figure 27 (`figures/fig_27_input_checks.png`): one board with the situations that `check_problem` warns about: 1 a heater partly outside the board, 2 no copper under a heater, 3 a copper edge crossing a footprint, 4 a heater only a few cells wide, 5 overlapping heaters, 6 a via outside the board, 7 a metal block with no copper under it. Items 8 and 9 and the last line were added for the checks that came later (fins closer than a still-air gap, the thick-plate check after the run, the 3D size limit).*
 
+![Thick-plate correction](../figures/fig_33_thick_plate_correction.png)
+
+*Figure 33 (`figures/fig_33_thick_plate_correction.png`): the through-thickness correction `q'' t / (2 k)` against the thickness of the plate for copper (385 W/mK), aluminium (204), carbon steel (54) and FR-4 (0.3 through the thickness), for the flux of U1 of the example board (4 W over 100 mm2, 40 kW/m2), with the limit of the thick-plate check, 5 % (`checks.THICK_PLATE_LIMIT`) of the 60.87 K rise: 3.04 K. The thickness at the limit is 58.6 mm for copper, 31 mm for aluminium, 8.2 mm for steel and 0.046 mm for FR-4; the 35 um copper layer is 3 orders of magnitude below the limit. The rise here is that of the hottest point of the board (FVM, 0.5 mm), a stand-in for the rise of the heater that the check uses. Computed by `scripts/make_figures.py`.*
+
 **Status: in program** (`pcbthermal/checks.py`, `docs/models.md` section 3).
 
 ## 1. What it does

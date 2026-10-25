@@ -82,7 +82,7 @@ def track_in_squares(path):
         a1.text(1.55 + k * 1.1, 1.95, "1", ha="center", va="center", fontsize=8)
     dk.arrow(a1, 0.2, 1.95, 0.9, 1.95, color=dk.HEAT, width=2.0)
     dk.arrow(a1, 12.1, 1.95, 12.9, 1.95, color=dk.HEAT, width=2.0)
-    a1.text(0.55, 2.4, "I", color=dk.HEAT, fontsize=9, ha="center")
+    a1.text(0.55, 2.35, "I", color=dk.HEAT, fontsize=12, ha="center")
     a1.text(6.0, 3.3, "plan view: a track is a row of squares, each one the sheet resistance Rs = rho / t", ha="center", fontsize=9, fontweight="bold")
     a1.text(6.0, 0.6, f"copper 1.68e-8 ohm m, 35 um: Rs = {rs * 1e3:.2f} mohm per square; a track 0.2 mm wide and 20 mm long is 100 squares: R = {100 * rs * 1e3:.0f} mohm\n(a bend, a pad, a neck change the number of squares: the solver counts them on the pixels)", ha="center", va="top", fontsize=8)
     a2.set_xlim(0, 14)

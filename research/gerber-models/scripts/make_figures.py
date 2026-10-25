@@ -40,18 +40,18 @@ def fig_mapping():
     tot[:-1, :] += gy; cnt[:-1, :] += 1; tot[1:, :] += gy; cnt[1:, :] += 1
     flow = tot / cnt
     arith = cd.map_power(f, 1.0, a, b)
-    fig, axs = plt.subplots(1, 3, figsize=(16, 5.4))
+    # Constrained layout: with a colour bar per panel tight_layout let the long titles run into each other and cut the x label
+    fig, axs = plt.subplots(1, 3, figsize=(16, 5.8), layout="constrained")
     axs[0].imshow(mask, cmap="copper", interpolation="nearest", extent=(0, 36, 0, 36))
     axs[0].set_title("Stormduino (MIT): 36 x 36 mm of real copper, 0.1 mm pixels", fontsize=9)
     im = axs[1].imshow(f[::-1], cmap="viridis", vmin=0, vmax=1, interpolation="nearest", extent=(0, 36, 0, 36))
-    axs[1].set_title("copper fraction of each 1 mm cell (what the program's fill fraction uses)", fontsize=9)
+    axs[1].set_title("copper fraction of each 1 mm cell\n(what the program's fill fraction uses)", fontsize=9)
     fig.colorbar(im, ax=axs[1])
     im = axs[2].imshow((flow / arith)[::-1], cmap="RdBu", vmin=0.2, vmax=1.8, interpolation="nearest", extent=(0, 36, 0, 36))
     axs[2].set_title("flow-based / arithmetic cell conductance\nred (< 1): the fraction overestimates it (board too cool)\nblue (> 1): it underestimates it", fontsize=9)
     fig.colorbar(im, ax=axs[2])
     for ax in axs:
         ax.set_xlabel("mm")
-    fig.tight_layout()
     fig.savefig(OUT / "fig_01_copper_mapping_to_cells.png", dpi=110)
     plt.close(fig)
 
@@ -73,7 +73,7 @@ def fig_board_thermal():
     fx = cd.cell_blocks(fixed, n).mean(axis=(2, 3)) >= 0.5
     ref_cells = ref.reshape(cy, n, cx, n).mean(axis=(1, 3))
     faces = sc.coarse_faces(S, n, cd.S_CU, cd.S_LAM)
-    fig, axs = plt.subplots(1, 3, figsize=(16, 5.4))
+    fig, axs = plt.subplots(1, 3, figsize=(16, 5.8), layout="constrained")
     ext = (0, our_board.SIZE, 0, our_board.SIZE)
     im = axs[0].imshow(ref[::-1], cmap="inferno", interpolation="nearest", extent=ext)
     axs[0].contour(cv.mask[::-1].astype(float), levels=[0.5], colors="w", linewidths=0.3, extent=ext, origin="lower")
@@ -84,11 +84,10 @@ def fig_board_thermal():
         T = sc.solve_general(gx, gy, 1.0, pw, 10.0, fx)
         d = T - ref_cells
         im = ax.imshow(d[::-1], cmap="RdBu_r", vmin=-15, vmax=15, interpolation="nearest", extent=ext)
-        ax.set_title(f"{label}: difference from the resolved field (K)\nheater mean {100 * (T[y0 // n:y1 // n, x0 // n:x1 // n].mean() / ref[y0:y1, x0:x1].mean() - 1):+.1f} %", fontsize=9)
+        ax.set_title(f"{label}:\ndifference from the resolved field (K); heater mean {100 * (T[y0 // n:y1 // n, x0 // n:x1 // n].mean() / ref[y0:y1, x0:x1].mean() - 1):+.1f} %", fontsize=9)
         fig.colorbar(im, ax=ax)
     for ax in axs:
         ax.set_xlabel("mm")
-    fig.tight_layout()
     fig.savefig(OUT / "fig_02_ic_board_thermal.png", dpi=110)
     plt.close(fig)
 
@@ -211,7 +210,8 @@ def fig_models_our_board():
     axs[0].set_xticklabels(models)
     axs[0].set_ylabel("mean rise over the heater (K)")
     axs[0].set_title("our IC board, 1 W in 6 x 6 mm (the 3D solid has no fine run: over the program's size limit)", fontsize=9)
-    axs[0].legend(fontsize=7)
+    axs[0].set_ylim(0, axs[0].get_ylim()[1] * 1.35)                       # head-room: the legend covered the bars of the geometric mean
+    axs[0].legend(fontsize=7, ncol=3, loc="upper left")
     for k, i in enumerate(range(len(maps))):
         err = 100 * (coarse[i] / truth - 1)
         axs[1].bar(x + (k - 1.5) * 0.18, err, 0.18, label=str(maps[i]).replace("(today)", "(the program's)"), color=cols[k + 1])
@@ -889,7 +889,7 @@ def fig_cell_tensor():
         a2.set_xlabel(f"eigenvalues {lam[1]:.3f}, {lam[0]:.3f}; principal axis {ang % 180:.0f} deg (y down)\ncoherence |kxy| / mean(kxx, kyy) = {coh:.2f}", fontsize=8.5)
     axs[0, 0].set_ylabel("heat flux inside the cell\n(boundary potential = x:\nthe gradient points along x)", fontsize=8.5)
     axs[1, 0].set_ylabel("conductance ellipse\n(dashed: a uniform cell of\nthe same mean)", fontsize=8.5)
-    fig.suptitle("The cell tensor: how a cell of real copper conducts heat in x, in y and across (white arrows: the heat flux when the potential on the boundary is x; a track at 45 degrees sends the heat along itself, not along the gradient)", fontsize=10)
+    fig.suptitle("The cell tensor: how a cell of real copper conducts heat in x, in y and across \n(white arrows: the heat flux when the potential on the boundary is x; a track at 45 degrees sends the heat along itself, not along the gradient)", fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.94), h_pad=3.5)
     fig.savefig(OUT / "fig_20_cell_tensor.png", dpi=105)
     plt.close(fig)
@@ -907,7 +907,7 @@ def fig_tensor_in_use():
     cells = _tensor_cells()
     kxx, kyy, kxy = cells[0][2]
     fig = plt.figure(figsize=(17, 9.2))
-    gs = fig.add_gridspec(2, 5, height_ratios=[1, 1], width_ratios=[1, 1, 1, 1, 0.04], hspace=0.5, wspace=0.28, left=0.03, right=0.97, top=0.9, bottom=0.07)
+    gs = fig.add_gridspec(2, 5, height_ratios=[1, 1], width_ratios=[1, 1, 1, 1, 0.04], hspace=0.5, wspace=0.28, left=0.03, right=0.94, top=0.9, bottom=0.07)
     ax = fig.add_subplot(gs[0, 0])
     ax.set_xlim(-0.4, 2.4)
     ax.set_ylim(-0.6, 2.4)
@@ -928,7 +928,7 @@ def fig_tensor_in_use():
     ax.set_title("the stencil of a cell with a 45-degree track:\nblue axial links, red diagonal link", fontsize=9, fontweight="bold")
     ax = fig.add_subplot(gs[1, 0])
     ax.axis("off")
-    ax.text(0.0, 1.0, "how the tensor becomes links\n\nflux q = - K grad(u), K = [[kxx, kxy], [kxy, kyy]]\nthe five-point network only has kxx and kyy:\nheat that follows a diagonal track has to\nzigzag through x and y faces, and each face is\nshort of the real conduction\n\nthe nine-point stencil adds the diagonal link:\naxial = kxx - |kxy|, kyy - |kxy|, diagonal = |kxy|\n(the standard stencil of kxx uxx + kyy uyy + 2 kxy uxy)", va="top", fontsize=8.8)
+    ax.text(0.0, 1.0, "how the tensor becomes links\n\nflux q = - K grad(u), K = [[kxx, kxy], [kxy, kyy]]\nthe five-point network only has kxx and kyy:\nheat that follows a diagonal track has to\nzigzag through x and y faces, and each face is\nshort of the real conduction\n\nthe nine-point stencil adds the diagonal link:\naxial = kxx - |kxy|, kyy - |kxy|, diagonal = |kxy|\n(the standard stencil of\nkxx uxx + kyy uyy + 2 kxy uxy)", va="top", fontsize=8.8)
     # the experiment: a 6 mm heater on a track at 45 degrees on a 16 mm window
     layer = st.ng.Layer(st.track_text(0.2, 45))
     _, ct = st.masks(layer, st.PIX_TRUTH)

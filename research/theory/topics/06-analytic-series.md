@@ -4,6 +4,10 @@
 
 *Figure 6 (`figures/fig_06_analytic_modes.png`): left, four of the cosine modes of a board with insulated edges; middle, the partial sums of the series for a strip source (the shape only: the curves are illustrative); right, the tiles on which the Green-function correction acts: only the tiles with a via or a heatsink.*
 
+![Analytic modes and edges](../figures/fig_32_analytic_modes_and_edges.png)
+
+*Figure 32 (`figures/fig_32_analytic_modes_and_edges.png`): left, the rise of the hottest point of the example board in the Analytic model against the FVM at 0.5 mm cells (60.87 K) as the number of cosine modes grows: -7.85 % with 10 modes, -0.42 % with 20, then -1.94 % at 30 modes and from 75 to 300 (-2.04 % at 50); the curve is flat from 75 modes on, so the remaining -1.9 % is not truncation of the series; its cause on this board (vias, heatsink, partial copper) and why 20 modes is closer were not traced. Right, the four uniform scenarios of `docs/validation.md` 2: the Analytic against the FVM at 0.25 mm is +0.30 to +0.96 % with the board's `h_side` and -0.07 to -0.29 % with insulated edges in both (the study of topic 37). Computed by `scripts/make_figures.py`.*
+
 ## 1. What it is
 
 On a **uniform** board with insulated edges the multilayer fin equation (topic 01, equation (1)) is solved exactly by cosines. The model adds, on top of that exact solution, an influence-weighted copper fill and a Green-function (Woodbury) correction for vias and heatsinks, which are local. It is fast (milliseconds), exact for what it assumes, and honest about where it fails.

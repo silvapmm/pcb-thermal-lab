@@ -165,7 +165,8 @@ def measurement_setup(path):
     for x in (3.0, 4.5, 6.0, 7.5):
         a.add_patch(Rectangle((x - 0.15, 3.25), 0.3, 0.3, fc="#2ca02c", ec="k"))
     a.text(5.25, 3.9, "thermocouples at 1, 5, 10, 15 mm", fontsize=7.5, ha="center", color="#2ca02c")
-    dk.box(a, 2.2, 3.25, 0.8, 0.5, "R", "#f4b6b6", size=7)
+    # The resistor must stop before the first thermocouple (x = 2.85)
+    dk.box(a, 2.2, 3.25, 0.55, 0.5, "R", "#f4b6b6", size=7)
     a.text(1.0, 4.2, "heater resistor,\nV and I measured\n(4 wires): P known", fontsize=7.5, va="bottom")
     a.add_patch(Polygon([[5.0, 7.6], [7.0, 7.6], [6.4, 6.2], [5.6, 6.2]], fc="#d9d9d9", ec="k"))
     a.text(6.0, 7.0, "IR camera", ha="center", fontsize=7)
