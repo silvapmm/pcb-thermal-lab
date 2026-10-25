@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QVBoxLayo
 
 from .. import plots
 from .results_view import _mpl_theme, _paint_figure
+from . import tips
 
 
 class ProfileResultsTab(QWidget):
@@ -72,7 +73,7 @@ class ProfileResultsTab(QWidget):
         self.model.clear()
         for name, r in sim.profile_results.items():
             if r.resolved:
-                self.model.addItem(name, name)
+                self.model.addItem(tips.model_label(name), name)
         self.layer.clear()
         self.layer.addItems([f"{i + 1}" for i in range(sim.problem.board.layers)])
         self._updating = False

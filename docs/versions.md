@@ -12,6 +12,8 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ## Unreleased: user interface review
 
+* **Texts**: `tips.MODEL_LABELS` / `tips.model_label` name the models in the results views (Summary table, the model lists of the plots and of the power-profile results, the model boxes of Preferences; the data of each list stays the key); a placeholder in the empty report; special value texts on the optional fields of a part; the simple stack-up note points to the Stack-up list. Test: `tests/test_gui.py::test_first_run_texts_say_what_to_do_and_what_zero_means`.
+
 * **Hint colour**: a `hint` colour per theme (`theme.THEMES`) and `theme.hint(label)`, which marks a label for the style sheet rule `QLabel[hint="true"]`; it replaces the inline `color: gray` of 10 notes. Test: `tests/test_gui.py::test_notes_use_the_theme_hint_colour`.
 
 * **Preferences readable**: `preferences.LABELS`, `COLUMNS` and `MODEL_LABELS` give the fields, columns and model boxes their names with units, the JSON key is in the tooltip; `_read_table` reads a decimal comma and keeps the previous value of the row for text that is not a number (it took the first shipped entry's value). Test: `tests/test_defaults.py::test_preferences_show_readable_labels_and_read_a_decimal_comma`.

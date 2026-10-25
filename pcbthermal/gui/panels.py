@@ -276,7 +276,7 @@ class BoardPanel(QWidget):
         self.stack_box.setTitle("Stack-up (layer by layer in the table)" if advanced else "Simple stack-up")
         self.stack_note.setVisible(not advanced)
         self.stack_note.setText("Advanced stack-up: thickness, copper and dielectrics are set layer by layer in the Stack-up tab." if advanced
-                                else "Simple stack-up: equal gaps. For different copper weights or dielectrics use the Stack-up tab.")
+                                else "Simple stack-up: equal gaps. For different copper weights or dielectrics choose Advanced in the Stack-up list at the top of this tab.")
         self.ambient.setValue(b.ambient)
         self.h_top.setValue(b.h_top)
         self.h_bottom.setValue(b.h_bottom)
@@ -750,10 +750,12 @@ class Inspector(QWidget):
                                  "says the junction is hotter).")
                     lay.addRow("θ junction-pad", t)
                     tj = _spin(0, 500, el.tj_max, 1, 5, "°C")
+                    tj.setSpecialValueText("no limit")                       # 0 = no limit (it read "0.0 °C", a junction limit of zero degrees)
                     tj.setToolTip("Maximum junction temperature of the part (0 = no limit). The report gives the margin and the power limit.")
                     tj.valueChanged.connect(lambda v: self.doc.set_props(kind, i, tj_max=v))
                     lay.addRow("Tj max", tj)
                     psi = _spin(0, 500, el.psi_jb, 2, 0.5, "K/W")
+                    psi.setSpecialValueText("not used")
                     psi.setToolTip("Junction-to-board characterisation parameter ψJB (0 = not used). The report adds Tj = mean board temperature in the ring "
                                    "0.5 to 1.5 mm around the package + ψJB·P, the least pessimistic estimate when the datasheet has no junction-to-pad number.")
                     psi.valueChanged.connect(lambda v: self.doc.set_props(kind, i, psi_jb=v))
@@ -819,6 +821,7 @@ class Inspector(QWidget):
                         lay.addRow("Air flow", flow)
                     lay.addRow(hs_note)
                     sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
+                    sa.setSpecialValueText("no heatsink")
                     sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
                                   "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
                     sa.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_sa=v))
@@ -839,6 +842,7 @@ class Inspector(QWidget):
                         jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
                         lay.addRow("θJC top", jc)
                         body_t = _spin(0, 50, 0.0, 2, 0.1, "mm")
+                        body_t.setSpecialValueText("not used")
                         body_m = QComboBox()
                         for label, k_ in (("Mould compound (0.9 W/mK)", 0.9), ("Thermally enhanced mould (2.3 W/mK)", 2.3), ("Alumina ceramic (24 W/mK)", 24.0),
                                           ("Copper lid / heat spreader (385 W/mK)", 385.0)):
@@ -858,6 +862,7 @@ class Inspector(QWidget):
                         lay.addRow("Body thickness", body_t)
                         lay.addRow("Body material", body_m)
                         ca = _spin(0, 100000, el.contact_area * 1e6, 2, 5, "mm²")
+                        ca.setSpecialValueText("the footprint")
                         ca.setToolTip("Area of the package top that touches the heatsink through the paste (0 = the footprint). For a processor it is the lid, for a chip with an "
                                       "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
                         ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))

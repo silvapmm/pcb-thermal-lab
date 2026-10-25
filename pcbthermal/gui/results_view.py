@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 
 from .. import analysis, plots
 from . import theme as th
+from . import tips
 
 
 @contextlib.contextmanager
@@ -172,7 +173,7 @@ class PlotTab(QWidget):
         have = [k for k, r in sim.results.items() if r.T is not None]
         self.model.clear()
         for k in have:
-            self.model.addItem(k, k)
+            self.model.addItem(tips.model_label(k), k)        # The name of the Simulation panel, the key as data
         self.model.setCurrentIndex(max(self.model.findData("fvm"), 0))
         n = sim.problem.board.layers
         self.layer.clear()
@@ -298,6 +299,9 @@ class ResultsView(QWidget):
         self.warnings.setWordWrap(True)
         self.report = QPlainTextEdit()
         self.report.setReadOnly(True)
+        # An empty Results tab said nothing: it now tells a first-time user what to do
+        self.report.setPlaceholderText("No results yet. Draw at least one heater with a power above zero on the Board tab and press Run simulation (F5): "
+                                       "the table above compares the models and the report of the run appears here.")
         self.report.setStyleSheet("font-family: Menlo, Consolas, monospace;")
         sl.addWidget(self.model_table)
         sl.addWidget(self.warnings)
@@ -358,7 +362,7 @@ class ResultsView(QWidget):
         @param sim Simulation.
         """
         self.sim = sim
-        rows = [[r["model"], f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
+        rows = [[tips.model_label(r["model"]), f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
                  f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{r['energy_balance']:+.0e}",
                  "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",
                  f"{r['seconds']:.2f}"] for r in sim.table()]

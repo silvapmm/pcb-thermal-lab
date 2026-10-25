@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 from .. import defaults
 from .. import model
 from . import theme as th
+from . import tips
 
 LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)", "interfaces": "Interface materials", "dielectrics": "Dielectrics (stack-up)",
                   "package_theta": "Package families (typical θ)", "heatsinks": "Heatsinks on a package (typical θSA)"}
@@ -38,7 +39,6 @@ SECTION_HINTS = {"new_board": "The values a board starts with when you choose Fi
                  "solver": "The models and settings a new project starts with."}
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
-MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid"}
 # Labels with units for the fields of the defaults (the JSON key, which a hand-edited file uses, is given in each tooltip)
 LABELS = {
     "width_mm": "Width (mm)", "height_mm": "Height (mm)", "layers": "Copper layers", "ambient_c": "Ambient (°C)", "h_top": "h top (W/m²K)",
@@ -251,7 +251,7 @@ class PreferencesDialog(QDialog):
                 rl.setContentsMargins(0, 0, 0, 0)
                 boxes = {}
                 for m in MODELS:
-                    c = QCheckBox(MODEL_LABELS[m])
+                    c = QCheckBox(tips.model_label(m))
                     c.setChecked(m in val)
                     c.setToolTip(TIPS["models"])
                     c.toggled.connect(lambda _on, section=section: self._read_models(section))

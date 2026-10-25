@@ -340,3 +340,23 @@ def test_notes_use_the_theme_hint_colour(win):
             assert lb.palette().color(lb.foregroundRole()).name() == th.colors(win.theme_name)["hint"]
     for w in QApplication.allWidgets():
         assert "color: gray" not in w.styleSheet()
+
+
+def test_first_run_texts_say_what_to_do_and_what_zero_means(win):
+    """!
+    @brief An empty Results tab says what to do, the results name the models as the Simulation panel does, and an optional field at zero says what zero means.
+    """
+    from PySide6.QtWidgets import QApplication, QDoubleSpinBox
+    from pcbthermal import SolverOptions, simulate
+    assert "No results yet" in win.results.report.placeholderText()
+    assert "Stack-up list at the top of this tab" in win.board_panel.stack_note.text()
+    win._load_problem(example_board(), "ex")
+    win.doc.set_props("heater", 0, tj_max=0.0, merge=False)
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    QApplication.processEvents()
+    texts = [s.text() for s in win.inspector.form_host.findChildren(QDoubleSpinBox)]
+    assert "no limit" in texts and "no heatsink" in texts
+    win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm", "lumped"), cell_mm=2.0)))
+    assert [win.results.model_table.item(r, 0).text() for r in range(2)] == ["FVM", "Lumped (LPTN)"]
+    assert win.results.temp.model.currentText() == "FVM" and win.results.temp.model.currentData() == "fvm"
