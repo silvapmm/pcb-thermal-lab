@@ -1,6 +1,6 @@
 """!
 @file make_diagrams.py
-@brief Schematic diagrams of a part with its top path: the cross-section (die, pad, board, paste, heatsink), the junction-node network with the program's fixed-point loop, and the heatsink chain.
+@brief Schematic diagrams of a part with its top path: the cross-section (die, pad, board, paste, heatsink), the junction-node network with the program's fixed-point loop, and the two branches of resistances from the junction.
 @details No numbers are computed; the shares quoted (a bare mould about 1 % of the heat, a clip-on heatsink with paste 41 to 51 %) are those of the README of this folder. Writes figures/fig_05_part_and_top_path_schematic.png.
          Also writes figures/fig_06_package_sections.png (a part with and without a heatsink, sections).
          Run: .venv/bin/python research/component-heatsink/scripts/make_diagrams.py (from the repository root).
@@ -44,9 +44,10 @@ def cross_section(ax):
         dk.layer(ax, 3.6 + k * 0.85, 5.3, 0.3, 2.0, dk.METAL)
     ax.text(6.0, 7.6, "heatsink: theta_SA to the air\n(typed, or one of the typical heatsinks of the library with its flow)", ha="center", fontsize=7)
     dk.arrow(ax, 6.0, 2.75, 6.0, 0.5, color=dk.HEAT, width=2.2, label="")
-    ax.text(6.2, 1.0, "theta_JB: junction to pad,\nthen the board (the main path)", fontsize=6.5, color=dk.HEAT)
+    # The program's theta is the junction-to-pad number (theta_JC(bot), RthJC of a MOSFET), not theta_JB (README 4.1 B: theta_JB counts the board twice)
+    ax.text(6.2, 0.55, "theta = theta_JC(bot): junction to pad,\nthen the board (the main path)", fontsize=6.5, color=dk.HEAT)
     dk.arrow(ax, 7.2, 3.9, 7.2, 6.8, color=dk.BLUE, width=2.2)
-    ax.text(7.45, 5.9, "theta_JC(top): top path,\nonly worth it with a heatsink", fontsize=6.5, color=dk.BLUE)
+    ax.text(8.7, 6.3, "theta_JC(top): top path,\nonly worth it with a heatsink", fontsize=6.5, color=dk.BLUE)
     ax.set_title("1. a part on the board with a heatsink on top: two paths from the junction", fontsize=9)
 
 
@@ -58,7 +59,7 @@ def network(ax):
     """
     ax.set_xlim(0, 15)
     ax.set_ylim(0, 8)
-    dk.box(ax, 0.1, 3.2, 2.4, 1.6, "junction\nTj = T + P theta", "#f7d4d4", True)
+    dk.box(ax, 0.1, 3.2, 2.4, 1.6, "junction\nTj = T_max\n+ P_board theta", "#f7d4d4", True)
     dk.arrow(ax, 2.5, 4.4, 4.0, 5.8, color=dk.HEAT)
     dk.arrow(ax, 2.5, 3.6, 4.0, 2.2, color=dk.BLUE)
     dk.box(ax, 4.0, 5.2, 3.6, 1.3, "pad / board\n(the board model)", "#d6ecd0")
@@ -74,21 +75,28 @@ def network(ax):
 
 def chain(ax):
     """!
-    @brief The chain of resistances from junction to ambient with the optional elements.
+    @brief The two branches of resistances from the junction to the ambient studied in chain_study.py: down through the board (and a metal block), up through the package top.
     @param ax Axes.
     @return None.
     """
     ax.set_xlim(0, 22)
-    ax.set_ylim(0, 4)
-    names = ["junction\nto pad", "pad,\nboard", "interface\n(under)", "metal\nblock", "package\ntop", "interface\n(paste)", "heatsink\ntheta_SA"]
-    cols = ["#f7d4d4", "#d6ecd0", "#fbe3c2", "#fbe3c2", "#f7d4d4", "#fbe3c2", "#cfe3f5"]
-    for k, (n, c) in enumerate(zip(names, cols)):
-        dk.box(ax, 0.2 + 3.1 * k, 1.4, 2.4, 1.4, n, c)
-        if k:
-            dk.arrow(ax, 0.2 + 3.1 * k - 0.7, 2.1, 0.2 + 3.1 * k, 2.1)
-    ax.text(11, 3.6, "the chain studied (chain_study.py): junction, pad, board, interface, metal block, package top, interface, heatsink", ha="center", fontsize=8)
-    ax.text(11, 0.6, "under the board the interface moves Tj by about 2 K and the metal by about 1 K; on top of a small package the interface and the base spreading matter more", ha="center", fontsize=7.5, style="italic")
-    ax.set_title("3. all the levels in one chain", fontsize=9)
+    ax.set_ylim(0, 5)
+    dk.box(ax, 0.2, 1.9, 2.4, 1.4, "junction\nTj", "#f7d4d4", True)
+    down = (["theta to\nthe pad", "pad, board\n(and its faces\nto the air)", "interface\n(under)", "metal\nblock"], ["#f7d4d4", "#d6ecd0", "#fbe3c2", "#fbe3c2"])
+    up = (["package top\ntheta_JC(top)", "interface\n(paste)", "heatsink\ntheta_SA"], ["#f7d4d4", "#fbe3c2", "#cfe3f5"])
+    # Two parallel branches leave the junction: they are not one series chain
+    for (names, cols), y, colr in ((down, 3.2, dk.HEAT), (up, 0.6, dk.BLUE)):
+        for k, (n, c) in enumerate(zip(names, cols)):
+            x = 3.6 + 3.1 * k
+            dk.box(ax, x, y, 2.4, 1.1, n, c)
+            if k:
+                dk.arrow(ax, x - 0.7, y + 0.55, x, y + 0.55, color=colr)
+        dk.arrow(ax, 2.6, 2.6, 3.6, y + 0.55, color=colr)
+        dk.arrow(ax, 3.6 + 3.1 * (len(names) - 1) + 2.4, y + 0.55, 18.6, 2.6, color=colr)
+    dk.box(ax, 18.6, 1.9, 2.4, 1.4, "ambient", "#ffffff")
+    ax.text(11, 4.75, "the two paths studied (chain_study.py): down through pad, board, interface and metal block; up through the package top, paste and heatsink", ha="center", fontsize=8)
+    ax.text(11, 0.1, "under the board the interface moves Tj by about 2 K and the metal by about 1 K; on top of a small package the interface and the base spreading matter more", ha="center", fontsize=7.5, style="italic")
+    ax.set_title("3. all the levels: two parallel branches from the junction", fontsize=9)
 
 
 def package(ax, x, heatsink, title, share):
@@ -120,7 +128,7 @@ def package(ax, x, heatsink, title, share):
     dk.arrow(ax, x + 3.0, 2.7, x + 3.0, 0.5, color=dk.HEAT, width=3.0 if not heatsink else 1.8)
     dk.arrow(ax, x + 3.0, 3.6 if not heatsink else 4.0, x + 3.0, 4.6 if not heatsink else 6.0, color=dk.HEAT, width=0.8 if not heatsink else 2.4)
     ax.text(x + 3.0, 6.6, title, ha="center", fontsize=9, fontweight="bold")
-    ax.text(x + 5.05, 1.65, "theta_JB:\nthe pad and\nthe vias", ha="center", fontsize=6.5, va="center")
+    ax.text(x + 5.05, 1.65, "theta to the pad\n(theta_JC(bot)),\nthen the vias", ha="center", fontsize=6.5, va="center")
     ax.text(x + 3.0, 0.05, share, ha="center", va="top", fontsize=7.5, color=dk.HEAT)
 
 
@@ -133,8 +141,8 @@ def package_sections(path):
     fig, ax = dk.canvas(13, 5.4)
     ax.set_xlim(-0.5, 14)
     ax.set_ylim(-1.0, 7.1)
-    package(ax, 0.0, False, "bare mould", "up through the mould: about 1 % (0.6 to 1.4 %)\nthe rest goes down into the board")
-    package(ax, 7.0, True, "clip-on heatsink with paste (12 K/W)", "up through paste and heatsink: 41 to 51 %\nTj lower by 16 to 40 K")
+    package(ax, 0.0, False, "bare mould", "up through the mould: about 1 % (0.6 to 1.4 %), Tj lower by 0.4 to 0.8 K\nthe rest goes down into the board")
+    package(ax, 7.0, True, "clip-on heatsink with paste (12 K/W)", "up through paste and heatsink: 41 to 51 %\nTj lower by 14 to 38 K")
     dk.save(fig, path, "The junction and its two paths: a part with and without a heatsink on top")
 
 

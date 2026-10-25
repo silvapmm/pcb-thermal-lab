@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
 sys.path.insert(0, HERE)
 
 import component_study as cs                                          # noqa: E402
-from pcbthermal import SolverOptions, simulate                        # noqa: E402
+from pcbthermal import Problem, SolverOptions, simulate               # noqa: E402
 
 THETA_SA = 12.0          # K/W, clip-on heatsink on top of the package
 INTERFACE = 0.5          # K cm2/W, default paste
@@ -42,6 +42,20 @@ def main():
         node = cs.run(part, 25.0, top=part["thtop"] + INTERFACE / area_cm2 + THETA_SA)
         print(f"| {name} | {base:.1f} | {row['t_junction']:.1f} | {100 * row['power_top_w'] / row['power_w']:.0f} % | "
               f"{node['t2']:.1f} | {100 * node['share']:.0f} % |", flush=True)
+    # Every model on the board of tests/test_component.py (the test only checks that they agree within 10 % of the rise)
+    print("\nThe top path in every model: 60 x 60 mm board, copper 50 x 50 mm on both faces, h 15 / 10 W/m2K, 4 x 4 mm part, 2 W, theta 4.5, theta_JC(top) 30, theta_SA 12 K/W, 1 mm cells")
+    print("| Model | Tj [degC] | Top share | Difference from the FVM [% of the rise] |\n| :-- | --: | --: | --: |")
+    ref = None
+    for m in ("fvm", "fdm", "lumped", "analytic", "solid3d"):
+        q = Problem.new(60, 60, 2)
+        q.board.h_mode = "manual"
+        q.board.h_top, q.board.h_bottom = 15.0, 10.0
+        q.add_zone(1, rect=(5, 5, 55, 55))
+        q.add_zone(2, rect=(5, 5, 55, 55))
+        q.add_heater(1, 2.0, rect=(28, 28, 32, 32), name="Q1", theta=4.5, theta_sa=12.0, theta_jc_top=30.0)
+        r = simulate(q, SolverOptions(models=(m,), cell_mm=1.0)).heater_rows()[0]
+        ref = r["t_junction"] if ref is None else ref
+        print(f"| {m} | {r['t_junction']:.2f} | {100 * r['power_top_w'] / r['power_w']:.1f} % | {100 * (r['t_junction'] - ref) / (ref - 25.0):+.1f} |", flush=True)
 
 
 if __name__ == "__main__":

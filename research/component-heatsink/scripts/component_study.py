@@ -7,7 +7,7 @@
          * level 1: Source + **one junction-to-pad resistance** (theta_JC(bottom), theta_J-L, Rth j-sp): Tj = hottest point + P theta;
          * level 2: + a **top path** (junction node joined to the footprint by 1/theta and to the air or a heatsink through the top resistance);
          * level 3 (not computed): full DELPHI / Foster chain (needs data that manufacturers do not publish).
-         Datasheet numbers: see docs/roadmap.md section 1.6. Values marked "assumed" are not in the datasheet.
+         Datasheet numbers: NOTES.md, E6 (table of the datasheets read) and docs/models.md section 6. Values marked "assumed" are not in the datasheet.
 
 Usage: python research/component-heatsink/scripts/component_study.py
 """
@@ -20,15 +20,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
 sys.path.insert(0, HERE)
 
 import package_prototype as proto                                     # noqa: E402
-from pcbthermal import Problem                                        # noqa: E402
+from pcbthermal import Problem, SolverOptions, simulate               # noqa: E402
 
-# name: footprint (mm), power (W), theta to the pad, theta_JB (if different), theta_JC(top), copper um, note
+# name: footprint (mm), power (W), theta to the pad, theta_JB (if different), psi_JB, theta_JC(top), copper um, Tj max (degC), note
+# Tj max: CSD17308Q3 -55 to 150 (SLPS262C); TPS7A47 operating -40 to 125 (SBVS204G, recommended conditions); LMR36510 -40 to 150 (SNVSBD7);
+# SS12 125 (SX Semiconductor sheet of NOTES.md [14]; the Vishay SS12 says 150); 0603 resistor 170, the end of its derating curve (not a junction)
 PARTS = {
-    "MOSFET CSD17308Q3 (SON 3.3x3.3)": dict(w=3.3, h=3.3, p=2.0, th=4.5, thjb=None, thtop=30.0, cu=71, top_assumed=True),
-    "LDO TPS7A47 (QFN-20 5x5)": dict(w=5.0, h=5.0, p=1.5, th=1.7, thjb=11.9, thtop=27.0, cu=35, top_assumed=False),
-    "Buck LMR36510 (HSOIC-8)": dict(w=4.9, h=3.9, p=0.8, th=4.3, thjb=13.6, thtop=54.0, cu=35, top_assumed=False),
-    "Schottky SS12 (SMA)": dict(w=4.3, h=2.6, p=0.5, th=20.0, thjb=None, thtop=60.0, cu=35, top_assumed=True),
-    "Resistor 0603, 0.1 W": dict(w=1.6, h=0.8, p=0.1, th=1000.0, thjb=None, thtop=2000.0, cu=35, top_assumed=True),
+    "MOSFET CSD17308Q3 (SON 3.3x3.3)": dict(w=3.3, h=3.3, p=2.0, th=4.5, thjb=None, thtop=30.0, cu=71, tjmax=150, top_assumed=True),
+    "LDO TPS7A47 (QFN-20 5x5)": dict(w=5.0, h=5.0, p=1.5, th=1.7, thjb=11.9, psijb=11.9, thtop=27.0, cu=35, tjmax=125, top_assumed=False),
+    "Buck LMR36510 (HSOIC-8)": dict(w=4.9, h=3.9, p=0.8, th=4.3, thjb=13.6, psijb=13.8, thtop=54.0, cu=35, tjmax=150, top_assumed=False),
+    "Schottky SS12 (SMA)": dict(w=4.3, h=2.6, p=0.5, th=20.0, thjb=None, thtop=60.0, cu=35, tjmax=125, top_assumed=True),
+    "Resistor 0603, 0.1 W": dict(w=1.6, h=0.8, p=0.1, th=1000.0, thjb=None, thtop=2000.0, cu=35, tjmax=170, top_assumed=True),
 }
 
 
@@ -89,7 +91,7 @@ def main():
             r = run(part, pad)
             rise = r["t1"] - amb
             print(f"| {name} | {part['p']:g} | {part['th']:g} | {max(pad, part['w'] + 1, part['h'] + 1):g} mm | {r['t0']:.1f} | {r['t1']:.1f} | "
-                  f"{part['p'] * part['th']:.1f} | {100 * part['p'] * part['th'] / rise:.0f} % | {'-' if name.startswith('Res') else '150'} |", flush=True)
+                  f"{part['p'] * part['th']:.1f} | {100 * part['p'] * part['th'] / rise:.0f} % | {part['tjmax']:g}{' (derating end)' if name.startswith('Res') else ''} |", flush=True)
     print("\nB. Wrong number from the datasheet: theta_JB instead of theta_JC(bottom) (pad 25 mm)")
     print("| Part | theta_JC(bot) [K/W] | Tj | theta_JB [K/W] | Tj with theta_JB | Difference |")
     print("| :-- | --: | --: | --: | --: | --: |")
@@ -105,8 +107,10 @@ def main():
         n, lo, hi = run(part, 25.0), run(part, 25.0, theta=0.7 * part["th"]), run(part, 25.0, theta=1.3 * part["th"])
         print(f"| {name} | {n['t1']:.1f} | {lo['t1']:.1f} ({lo['t1'] - n['t1']:+.1f} K) | {hi['t1']:.1f} ({hi['t1'] - n['t1']:+.1f} K) |", flush=True)
     print("\nD. A top path (level 2): bare mould (theta_JC(top) + convection on the body) and with a 12 K/W clip-on heatsink + 1 K/W paste (pad 25 mm)")
-    print("| Part | Level 1 Tj | Bare mould Tj (heat through top) | With heatsink Tj (heat through top) | theta_JC(top) [K/W] |")
-    print("| :-- | --: | --: | --: | --: |")
+    print("   Level 2 is a junction node joined to the footprint by a uniform conductance; the node column without a top path is the same network")
+    print("   with no path up, so the bare-mould and heatsink columns are compared with it (the level 1 offset is 1.4 to 3.4 K hotter by convention on these pads).")
+    print("| Part | Level 1 Tj (offset) | Junction node, no top path | Bare mould Tj (heat through top) | With heatsink Tj (heat through top) | theta_JC(top) [K/W] |")
+    print("| :-- | --: | --: | --: | --: | --: |")
     for name, part in PARTS.items():
         if name.startswith("Res"):
             continue
@@ -114,9 +118,22 @@ def main():
         bare = part["thtop"] + 1.0 / (15.0 * area)
         sink = part["thtop"] + 1.0 + 12.0
         a, b, c = run(part, 25.0), run(part, 25.0, top=bare), run(part, 25.0, top=sink)
+        node = proto.solve(part_board(part, 25.0), part["p"], part["th"], "node", cell_mm=0.5)["tj"]     # Same network as level 2, no path up
         tag = " (assumed)" if part["top_assumed"] else ""
-        print(f"| {name} | {a['t1']:.1f} | {b['t2']:.1f} ({100 * b['share']:.1f} %) | {c['t2']:.1f} ({100 * c['share']:.0f} %) | {part['thtop']:g}{tag} |", flush=True)
-
+        print(f"| {name} | {a['t1']:.1f} | {node:.1f} | {b['t2']:.1f} ({100 * b['share']:.1f} %) | {c['t2']:.1f} ({100 * c['share']:.0f} %) | {part['thtop']:g}{tag} |", flush=True)
+    print("\nE. The psi_JB route of the program (Tj = mean board temperature in the ring 0.5 to 1.5 mm outside the body + psi_JB P), FVM at 0.5 mm, pad 25 mm")
+    print("| Part | psi_JB [K/W] | T_ring [degC] | Tj psi_JB route | Tj with theta_JC(bot) | Tj with theta_JB as theta |")
+    print("| :-- | --: | --: | --: | --: | --: |")
+    for name, part in PARTS.items():
+        if part.get("psijb") is None:
+            continue
+        p = part_board(part, 25.0)
+        h = p.heaters[0]
+        h.power, h.theta, h.psi_jb = part["p"], part["th"], part["psijb"]
+        row = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5)).heater_rows()[0]
+        h.theta = part["thjb"]                                      # The wrong datasheet number used as theta
+        wrong = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5)).heater_rows()[0]
+        print(f"| {name} | {part['psijb']:g} | {row['t_ring']:.1f} | {row['t_junction_psi']:.1f} | {row['t_junction']:.1f} | {wrong['t_junction']:.1f} |", flush=True)
 
 if __name__ == "__main__":
     main()

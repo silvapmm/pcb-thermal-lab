@@ -65,10 +65,11 @@ def fig_parts():
     @return None.
     """
     head, rows = table(run("component_study.py"), "| Part | Level 1 Tj")
+    rows = [[r[0]] + r[2:] for r in rows]          # Drop the offset column: the three bars are the same junction-node network (README 4.1 D)
     names = [r[0].split("(")[0].strip() for r in rows]
     x = np.arange(len(rows))
     fig, ax = plt.subplots(figsize=(10, 4.6))
-    for k, (col, lab) in enumerate((("#6b7280", "no top path (all the power into the board)"), ("#d97706", "bare mould"), ("#1d4ed8", "12 K/W clip-on heatsink + paste"))):
+    for k, (col, lab) in enumerate((("#6b7280", "junction node, no top path (all the power into the board)"), ("#d97706", "bare mould"), ("#1d4ed8", "12 K/W clip-on heatsink + paste"))):
         v = [num(r[k + 1]) for r in rows]
         ax.bar(x + (k - 1) * 0.27, v, 0.27, color=col, label=lab)
         for xi, vi, r in zip(x, v, rows):
@@ -76,7 +77,7 @@ def fig_parts():
                 ax.text(xi + (k - 1) * 0.27, vi + 1.5, re.search(r"\((.*?)\)", r[k + 1]).group(1), ha="center", fontsize=8)
     ax.set_xticks(x); ax.set_xticklabels(names, fontsize=8)
     ax.set_ylabel("Junction temperature (°C)")
-    ax.set_title("A bare mould carries about 1 % of the heat; a heatsink on top takes 41 to 51 % (labels: share of the heat through the top)", fontsize=9)
+    ax.set_title("A bare mould carries about 1 % of the heat (0.4 to 0.8 K); a heatsink on top takes 41 to 51 % (labels: share of the heat through the top)", fontsize=9)
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(OUT / "fig_01_parts_with_and_without_top_path.png", dpi=110)
@@ -119,18 +120,19 @@ def fig_scenarios():
     axs[0].plot(p, [num(r[1]) for r in r1], "o-", color="#6b7280", label="fixed 12 K/W")
     axs[0].plot(p, [num(r[2]) for r in r1], "o-", color="#d97706", label="scaled with the temperature rise")
     axs[0].set_xlabel("Power (W)"); axs[0].set_ylabel("Tj (°C)"); axs[0].legend(fontsize=8)
-    axs[0].set_title("MOSFET, 12 K/W heatsink: scaling matters at high power", fontsize=9)
+    axs[0].set_title("MOSFET, 12 K/W heatsink: natural scaling adds 1 to 3 K", fontsize=9)
     axs[1].plot(p, [num(r[3]) for r in r1], "s-", color="#1d4ed8")
     axs[1].axhline(12, color="#6b7280", ls="--", lw=1)
     axs[1].set_xlabel("Power (W)"); axs[1].set_ylabel("Heatsink resistance used (K/W)")
-    axs[1].set_title("Natural-convection resistance against the power (dashed: the 12 K/W at a 75 K rise)", fontsize=9)
+    axs[1].set_title("Natural-convection resistance used\n(dashed: 12 K/W, the catalogue value at a 75 K rise)", fontsize=9)
     labels = [r[0] for r in r2]
     axs[2].bar(labels, [num(r[2]) for r in r2], color="#1d4ed8")
     for k, r in enumerate(r2):
         axs[2].text(k, num(r[2]) + 0.3, f"R = {num(r[1]):.1f}", ha="center", fontsize=8)
-    axs[2].set_ylim(60, 73)
+    tj_air = [num(r[2]) for r in r2]
+    axs[2].set_ylim(min(tj_air) - 3, max(tj_air) + 3)              # Zoomed on the bars: the differences are a few kelvin
     axs[2].set_ylabel("Tj (°C)")
-    axs[2].set_title("Same heatsink, forced air (factors of the volumetric guide)", fontsize=9)
+    axs[2].set_title("Same heatsink, 2 W, forced air\n(guide factors on 12 K/W, not scaled with the rise)", fontsize=9)
     fig.tight_layout()
     fig.savefig(OUT / "fig_03_heatsink_convection_scenarios.png", dpi=110)
     plt.close(fig)
@@ -150,7 +152,9 @@ def fig_metal_interface():
     ax.set_yticks(range(len(rows))); ax.set_yticklabels([r[0] for r in rows], fontsize=8)
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
-            ax.text(j, i, f"{data[i, j]:.1f}", ha="center", va="center", color="white", fontsize=8)
+            # Dark text on the light (yellow) cells, white on the dark ones, so every number is legible
+            dark = data[i, j] > 0.5 * (data.min() + data.max())
+            ax.text(j, i, f"{data[i, j]:.1f}", ha="center", va="center", color="white" if dark else "black", fontsize=8)
     ax.set_title("MOSFET, 2 W, 3 mm block under the board: Tj (°C); no block 107.6 °C. The interface moves it by 2 K, the metal by 1 K", fontsize=9)
     fig.colorbar(im, ax=ax, label="°C")
     fig.tight_layout()

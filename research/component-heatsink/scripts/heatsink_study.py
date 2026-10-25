@@ -2,7 +2,7 @@
 @file heatsink_study.py
 @brief Heatsinks and thermal interface materials on the parts of component_study.py: a top heatsink with different pastes and pads, and a metal block under the board with different metals and interfaces.
 
-@details Typical interface values (sources in docs/roadmap.md 1.9c): grease 7 to 20 um bond line at best and 0.05 to 0.1 K cm2/W in the laboratory (Dow Corning), 25 to 100 um and 1 to 5 W/mK in practice;
+@details Typical interface values (sources in NOTES.md, R2): grease 7 to 20 um bond line at best and 0.05 to 0.1 K cm2/W in the laboratory (Dow Corning), 25 to 100 um and 1 to 5 W/mK in practice;
          gap pads 1 to 6 W/mK and 0.5 to 1.2 mm; the presets below are assumed typical values, always editable.
 
 Usage: python research/component-heatsink/scripts/heatsink_study.py
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
 sys.path.insert(0, HERE)
 
 import component_study as cs                                          # noqa: E402
-import package_prototype as proto                                     # noqa: E402
+from pcbthermal import SolverOptions, simulate                        # noqa: E402
 
 # name: (conductivity W/mK, thickness mm) -> resistance per area t/k in K cm2/W
 TIMS = {"good paste (1.5 W/mK apparent, 50 um)": (1.5, 0.05), "paste, typical default (2 W/mK, 100 um)": (2.0, 0.10),
@@ -38,7 +38,7 @@ def r_area(k, t_mm):
 
 def top_study():
     """!
-    @brief Tj with a 12 K/W heatsink on top of the package and different interface materials, node model of section 1.8.
+    @brief Tj with a 12 K/W heatsink on top of the package and different interface materials, junction-node model of package_prototype.py (README 4.3).
     """
     print("E. Heatsink on top of the package (12 K/W), different interface materials (pad 25 mm)")
     print("| Part | no heatsink | " + " | ".join(f"{n} [{r_area(*v):.2f} K cm2/W]" for n, v in TIMS.items()) + " |")
@@ -71,8 +71,6 @@ def block_study(part_name="MOSFET CSD17308Q3 (SON 3.3x3.3)"):
         for v in TIMS.values():
             p = cs.part_board(part, 25.0)
             p.add_heatsink(2, 0.0, rect=(15, 15, 45, 45), thickness_mm=3.0, k=k, rho_cp=rc, contact_r=r_area(*v) * 1e-4, name=metal)
-            a = proto.solve(p, part["p"], part["th"], "offset", cell_mm=0.5) if False else None
-            from pcbthermal import SolverOptions, simulate
             s = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5))
             t_max = s.results["fvm"].t_max
             cells.append(f"{t_max + part['p'] * part['th']:.1f}")

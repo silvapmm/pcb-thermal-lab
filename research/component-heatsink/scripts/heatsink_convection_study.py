@@ -6,6 +6,9 @@
          value at 75 K; Alpha Novatech and Infineon AN-1057 style catalogues). Forced convection: the volumetric performance C = R * V (cm3 K/W) is 500-800 in natural
          convection, 150-250 at 1 m/s, 80-150 at 2.5 m/s and 50-80 at 5 m/s (Electronics Cooling, "How to select a heat sink"), i.e. factors of about 0.31, 0.18 and 0.10 on the
          natural value. Chain: Rja = Rjc + Rcs + Rsa. The study keeps the board coefficients constant (as chain_study.py).
+         Forced air: the factor multiplies the catalogue value and the result is held fixed (a forced-convection coefficient hardly depends on the
+         temperature rise). An earlier version also applied the natural-convection scaling (dT_ref/dT)^0.25 to the forced values, which made them 1.8 to
+         2.0 times too high at the small rises of forced air (6.8, 4.4 and 2.7 K/W instead of 3.7, 2.2 and 1.2 K/W); corrected in the review of 2026-10-25.
 
 Usage: python research/component-heatsink/scripts/heatsink_convection_study.py
 """
@@ -64,10 +67,11 @@ def main():
         fx = top_heatsink(part, h, pw, 12.0, "fixed")
         nt = top_heatsink(part, h, pw, 12.0, "natural")
         print(f"| {pw:g} | {fx[0]:.1f} | {nt[0]:.1f} | {nt[1]:.1f} | {100 * nt[2]:.0f} % |", flush=True)
-    print("\nSame heatsink (12 K/W natural, 2 W) in forced convection (factors of the volumetric performance)")
+    print("\nSame heatsink (12 K/W natural at a 75 K rise, 2 W) in forced convection (factors of the volumetric performance on the catalogue value, held fixed; natural row scaled with the rise)")
     print("| Air | sink R used [K/W] | Tj [degC] | heat through the top |\n| :-- | --: | --: | --: |")
     for name, f in FORCED.items():
-        tj, r, share = top_heatsink(part, h, 2.0, 12.0, "natural", factor=f)
+        # Natural convection scales with the rise; forced air is the catalogue value times the factor, not scaled with the rise
+        tj, r, share = top_heatsink(part, h, 2.0, 12.0, "natural" if f == 1.0 else "fixed", factor=f)
         print(f"| {name} | {r:.1f} | {tj:.1f} | {100 * share:.0f} % |", flush=True)
     print("\nSize to resistance (volumetric performance 500-800 cm3 K/W natural): heatsink volume for a given resistance")
     print("| Volume [cm3] | natural R [K/W] | 1 m/s | 2.5 m/s | 5 m/s |\n| --: | --: | --: | --: | --: |")

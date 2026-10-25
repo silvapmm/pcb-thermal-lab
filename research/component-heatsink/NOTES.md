@@ -25,7 +25,7 @@ What stays here is the **top path** of the study, behind the top path now implem
 | Buck LMR36510 | 62.8 °C | 60.6 °C (1.3 %) | 46.9 °C (41 %) | 54 |
 | Schottky SS12 | 60.9 °C | 59.1 °C (1.1 %) | 42.9 °C (49 %) | 60 K/W (assumed) |
 
-A bare mould carries about 1 % of the heat (2 to 4 K); a heatsink takes 41 to 51 % and lowers `Tj` by 16 to 40 K, which the single resistance cannot see: this is the case that justifies the junction node.
+A bare mould carries about 1 % of the heat (0.4 to 0.8 K against the same junction node without a top path; the 2 to 4 K written before compared the node with the worst-case offset, README 4.10); a heatsink takes 41 to 51 % and lowers `Tj` by 14 to 38 K (16 to 40 K against the offset), which the single resistance cannot see: this is the case that justifies the junction node.
 
 ### R3. Heatsink air flow: catalogue values against a scaling factor
 
@@ -62,13 +62,13 @@ Presets (resistance per area, with the apparent `k`): good paste 1.5 W/mK × 50 
 | Buck 0.8 W (4.9 × 3.9 mm) | 62.8 | 47.0 (41 %) | 47.1 (40 %) | 47.8 (38 %) | 49.5 (33 %) | 51.4 (28 %) |
 | Schottky 0.5 W (4.3 × 2.6 mm) | 60.9 | 43.2 (48 %) | 43.3 (48 %) | 44.4 (45 %) | 46.9 (38 %) | 49.4 (30 %) |
 
-* **The interface matters on the top of a small package** (MOSFET: 68 °C with a good paste against 88 °C with a hard pad): 10 K cm²/W over 11 mm² is 92 K/W, far more than the heatsink itself. The default paste costs only 0.6 to 1 K against a good paste, so it is a safe default; a gap pad should be typed.
-* **Under the board, a metal block helps by 9 K on the MOSFET** (107.6 → 98 °C, block 30 × 30 × 3 mm, natural convection) **and the metal and the interface hardly matter**: aluminium and copper differ by 0.1 K, stainless steel is 1 K worse, and a hard pad 2 K worse than a good paste. With fins (extra h 60 W/m²K) the whole range of metals spans 71.7 to 72.2 °C at 6 mm. What matters is the **block thickness and area and the cooling of its surface** (1 mm 76.8, 3 mm 74.3, 6 mm 71.7 °C with fins), because the board has already spread the heat before the block sees it. The material choice is useful as a convenience (heat capacity for the time simulation, large thin plates), not as a design lever.
+* **The interface matters on the top of a small package** (MOSFET: 68 °C with a good paste against 88 °C with a hard pad): 10 K cm²/W over 11 mm² is 92 K/W, far more than the heatsink itself. The default paste costs only 0.1 to 0.6 K against a good paste (review of 2026-10-25: the table gives 0.6 K on the MOSFET and 0.1 to 0.2 K on the others; 0.6 to 1 K was written before), so it is a safe default; a gap pad should be typed.
+* **Under the board, a metal block helps by 9 K on the MOSFET** (107.6 → 98 °C, block 30 × 30 × 3 mm, natural convection) **and the metal and the interface hardly matter**: aluminium and copper differ by 0.1 K, stainless steel is 1 K worse, and a hard pad 2 K worse than a good paste. With fins (extra h 60 W/m²K) the whole range of metals spans 71.7 to 72.2 °C at 6 mm (*not reproduced in the review of 2026-10-25: no script of this folder prints the fin and thickness numbers of this paragraph*). What matters is the **block thickness and area and the cooling of its surface** (1 mm 76.8, 3 mm 74.3, 6 mm 71.7 °C with fins), because the board has already spread the heat before the block sees it. The material choice is useful as a convenience (heat capacity for the time simulation, large thin plates), not as a design lever.
 
 **When the datasheet only gives `θJB` (or `ψJB`)**: three ways, from the least to the most conservative (Tj of the LDO on a 25 mm pad, true value 87.4 °C with `θJC(bot)` 1.7 K/W): (1) **`ψJB` with the program's board temperature** `Tj = T_ring + ψJB·P`, with `T_ring` the mean board temperature in a ring 0.5 to 1.5 mm outside the package body: 93.7 °C (+6 K) for the LDO (`ψJB` 11.9) and 65.1 against 62.8 °C for the buck (`ψJB` 13.8); this is the method the manufacturers recommend for a real board and it needs no `θJC(bot)`;
 (2) **`θJB` as the junction-to-pad resistance** with the pad and vias drawn: 102.7 °C (+15 K) and 70.2 °C, pessimistic by the spreading of the datasheet's own board, counted twice; (3) the same with a simple heater and no copper drawn, where `θJB` is the better number. The application should say this next to the field, offer the ring temperature as an output ("board temperature 1 mm from the package") and warn when `θ` is larger than the board's own rise.
 
-**What value is "perfect contact"? (simulated, MOSFET 2 W; `Tj` change against `R'' = 0`)**
+**What value is "perfect contact"? (simulated, MOSFET 2 W; `Tj` change against `R'' = 0`; *no script of this folder prints this table: not reproduced in the review of 2026-10-25*)**
 
 | R'' [K cm²/W] | Top heatsink chain (12 K/W + θJC(top) 30): ΔTj | Block under the board: ΔTj |
 | --: | --: | --: |
@@ -153,7 +153,7 @@ Heat from `J` splits between the top chain and the board in the inverse ratio of
 | | + top heatsink with paste (chain 41.0 K/W) | 55.1 | 49 % | 0 % |
 | | + both | 51.6 | 43 % | 16 % |
 
-The effects are **not additive**: the block alone lowers the MOSFET by 9 K and the top heatsink by 37 K, both together by only 40 K, because the top heatsink already takes 43 to 46 % of the heat and the block's share falls from 27 to 16 %. A change of the paste under the block (0.5 to 5 K cm²/W) moves `Tj` by 1 to 2 K; the same change on top moves it by 10 to 20 K (section R2).
+The effects are **not additive**: the block alone lowers the MOSFET by 9 K and the top heatsink by 37 K, both together by only 40 K, because the top heatsink already takes 43 to 46 % of the heat and the block's share falls from 27 to 16 %. A change of the paste under the block (0.5 to 5 K cm²/W) moves `Tj` by 1 to 2 K; the same change on top moves it by 2.4 to 12 K (section R2; "10 to 20 K" was written before and the table contradicts it).
 
 ### R6. The heatsink and its convection: several scenarios, one number
 
@@ -170,7 +170,7 @@ Interface values of the same article: 0.07 to 0.81 in²°C/W (0.45 to 5.2 K cm²
 2. *Natural convection*: `θsa = θref·(ΔTref/ΔT)^0.25` (`ΔTref` from the datasheet, default 75 K), with `ΔT` the heatsink's own rise, solved by the same fixed-point loop as the computed `h` (converges in a few iterations);
 3. *Forced*: `θsa = θnatural × f(v)` with `f` 1, 0.31, 0.18, 0.10 for 0, 1, 2.5 and 5 m/s, or the points of the datasheet curve.
 One environment setting would drive all of it: the air speed already used for the board faces (computed `h`) sets the heatsink scenario too, and the orientation sets the factor (a vertical board and vertical fins are the good case).
-**Simulation** (`python research/component-heatsink/scripts/heatsink_convection_study.py`; MOSFET with the top chain `θJC(top)` 30 (assumed) + default paste 4.6 + `θsa`, board `h` constant): with a 12 K/W catalogue value at 75 K the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and `Tj` 70.4 °C against 68.1 °C with the fixed number (+2.3 K, +4 K at 4 W the other way: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s gives 65.7, 64.5 and 63.6 °C. The **scenarios change `Tj` by 2 to 7 K here because `θJC(top)` (30 K/W) limits the path**: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `θJC(top)` (metal lid, bare die), which is why the scenario is worth a switch but the fixed value is a good default.
+**Simulation** (`python research/component-heatsink/scripts/heatsink_convection_study.py`; MOSFET with the top chain `θJC(top)` 30 (assumed) + default paste 4.6 + `θsa`, board `h` constant): with a 12 K/W catalogue value at 75 K the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and `Tj` 70.4 °C against 68.1 °C with the fixed number (+2.3 K; +2.8 K at 4 W: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s (catalogue value times the factor, held fixed) gives 64.1, 63.3 and 62.8 °C (an earlier version also scaled the forced values with the rise and read 65.7, 64.5 and 63.6). The **scenarios change `Tj` by 2 to 8 K here because `θJC(top)` (30 K/W) limits the path**: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `θJC(top)` (metal lid, bare die), which is why the scenario is worth a switch but the fixed value is a good default.
 
 ### R7. Vertical information and presentation
 
@@ -184,13 +184,15 @@ One environment setting would drive all of it: the air speed already used for th
 
 | Base | 3.3 mm source | 5 mm source |
 | :-- | --: | --: |
-| aluminium 1 mm | 1.69 K/W (3.6 %) | 1.32 (3.2 %) |
-| aluminium 3 mm | 0.75 (1.6 %) | 0.54 (1.3 %) |
-| copper 3 mm | 0.40 (0.9 %) | 0.29 (0.7 %) |
-| carbon steel 1 mm | 6.31 (13.5 %) | 4.90 (12.0 %) |
-| carbon steel 3 mm | 2.83 (6.1 %) | 2.04 (5.0 %) |
+| aluminium 1 mm | 1.73 K/W (3.7 %) | 1.33 (3.3 %) |
+| aluminium 3 mm | 0.87 (1.9 %) | 0.60 (1.5 %) |
+| copper 3 mm | 0.46 (1.0 %) | 0.32 (0.8 %) |
+| carbon steel 1 mm | 6.46 (13.9 %) | 4.97 (12.1 %) |
+| carbon steel 3 mm | 3.28 (7.0 %) | 2.25 (5.5 %) |
 
-So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it is inside the 5 to 30 % of the catalogue literature only for sources much smaller relative to the base *and* a low `θJC(top)`), and it matters (5 to 13 %) only for a thin base of a poor conductor such as steel. **Recommendation**: first version = K/W only (`θJC(top)` + interface + `θsa`), with a note that a thin steel or stainless base adds more; the plate model stays where it already exists (metal block under the board, where the geometry of contact and copper matters) and returns for the component top only if a case needs it.
+(Review of 2026-10-25: the earlier table read the first cell centre, half a cell above the source face; thick bases were up to 30 % low. Now within 0 to 13 % of Lee's closed form, README 4.7.)
+
+So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it is inside the 5 to 30 % of the catalogue literature only for sources much smaller relative to the base *and* a low `θJC(top)`), and it matters (5 to 14 %) only for a thin base of a poor conductor such as steel. **Recommendation**: first version = K/W only (`θJC(top)` + interface + `θsa`), with a note that a thin steel or stainless base adds more; the plate model stays where it already exists (metal block under the board, where the geometry of contact and copper matters) and returns for the component top only if a case needs it.
 
 ### R4. What else may be missing
 
