@@ -75,8 +75,14 @@ with `h_l` nonzero only on the outer layers and `q_l` the heater power density o
 **Advanced stack-up** (`Board.dielectrics` set, one per gap): gap `j` between layers `j` and `j+1` has its own thickness `d_j`, through-plane conductivity `k_th,j`, in-plane conductivity `k_ip,j` and `ρc_j`; the vertical conductance per area is `g_j = k_th,j / d_j`. The node of layer `l` represents `slab_l = t_cu,l + d_{l−1}/2 + d_l/2` (half of each adjacent gap; the outer layers have one), so the slabs add up to the total thickness; the laminate of the node has the thickness-weighted mean `k_ip` and `ρc` of its two half gaps. A gap of several sheets (`combine_sheets`) is one gap with `k_th = Σt_i / Σ(t_i/k_th,i)` (in series) and `k_ip = Σ t_i k_ip,i / Σ t_i` (side by side). The simple mode (`dielectrics = None`) keeps `slab = t_pcb/L` and equal gaps `d = (t_pcb − Σ t_cu)/(L − 1)`; the two agree within 0.1 K when the gaps are equal (`validation.md` section 12). The typical stack-ups come in two inner copper weights (0.5 oz, 15.2 µm; 1 oz, 35 µm on every inner layer with every `d_j` of the template unchanged, so the total grows by `Σ (t_cu,l' − t_cu,l)`): a thicker inner layer raises `S_l` and, with a plane on each inner layer, lowers the maximum temperature by 6.9 to 7.5 K (`validation.md` section 14.1).
 
 **Energy balance**: integrating (1) over the board (all internal exchanges cancel) gives `Σ h_l ∫θ_l dA + ∫ edge losses = Σ P`: the heat leaving by every path equals the power injected. Every result reports this balance.
-**Limits of the idealisation**: no gradient across a copper layer or across the thin dielectric laterally (the gap is a 1D resistance: no spreading inside the gap, which costs 0.4 to 2 % against the 3D solid, section 4); the top and bottom coefficients act directly on the outer layer node
+**Limits of the idealisation**: no gradient across a copper layer or across the thin dielectric laterally (the gap is a 1D resistance: no spreading inside the gap; the 0.4 to 2 % against the 3D solid, section 4, is attributed to this and to one node per copper layer, an attribution that was not measured separately); the top and bottom coefficients act directly on the outer layer node
 (the half slab of FR-4 or copper in series is neglected, 10⁻⁴ of the film resistance); one temperature per layer under a footprint.
+The stack is **not** homogenised: no averaged conductivity (series, parallel, geometric or harmonic mean) is used, because Culham and Yovanovich (1998) show that any such mean of a laminate can be 70 % to 300 % off, through the spreading resistance and the order of the layers (the geometric mean of their five-layer coupon, 2.7 W/mK, is 70 % off; the paper was read as scanned images, `research/effective-conductivity/` on the branch `research/gerbers`). The one temperature of a layer is its mean through the thickness: under a source the surface is hotter by at most `q'' t / (2 k)` (negligible for copper; the thick-plate warning of `models.md` 4b covers thick, poorly conducting plates).
+
+### 1.3 Sources and geometry
+
+A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for heaters, 4 for zones, heatsinks and blocks), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell.
+A heater's source vector is `Q_i = P c_i / Σ c`: the power is **exact** whatever the grid (the weights sum to 1); if the footprint is smaller than a sample, all the power goes to the cell (or node) of the centroid. The copper fill of a cell is `f = max over the zones of the layer of (c_zone · fill)`.
 
 ### 1.4 A one-layer board: the laminate nodes
 
@@ -90,11 +96,6 @@ the construction of a board whose lower layers carry no copper. The results keep
 
 ![A one-layer board in the layered models, before and after](../research/models-comparison/figures/fig_07_one_layer_laminate_nodes.png)
 
-### 1.3 Sources and geometry
-
-A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for heaters, 4 for zones, heatsinks and blocks), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell.
-A heater's source vector is `Q_i = P c_i / Σ c`: the power is **exact** whatever the grid (the weights sum to 1); if the footprint is smaller than a sample, all the power goes to the cell (or node) of the centroid. The copper fill of a cell is `f = max over the zones of the layer of (c_zone · fill)`.
-
 ## 2. FVM: cell-centred finite volumes (the reference)
 
 **Unknown**: the mean temperature rise `θ_{l,i,j}` of the copper layer `l` in the cell `(i, j)` of size `Δx × Δy` (plan grid `nx × ny`, `Δx = W/nx`). The program integrates (1) over each cell and balances the heat through its faces, so the discrete energy balance is **exact in every cell**.
@@ -103,7 +104,7 @@ A heater's source vector is `Q_i = P c_i / Σ c`: the power is **exact** whateve
 
 * *Lateral*: between two neighbouring cells the heat crosses the two half cells in series, `R = Δx/(2 S₁ Δy) + Δx/(2 S₂ Δy)`, so with `S` of each cell
   `G_x = (2 S₁ S₂ /(S₁ + S₂)) · Δy/Δx`   and   `G_y = (2 S₁ S₂ /(S₁ + S₂)) · Δx/Δy`   (the **harmonic mean** of the two sheet conductances: a copper/FR-4 edge is a series, not an average). It is zero when both are zero.
-* *Vertical*, between layers `l` and `l+1` in a cell: `G_z = k_th Δx Δy / d + Σ_{vias in the cell} k_cu A_via / d`. A via is assigned to the cell that contains its centre (it is a point feature; this costs about 0.5 % against the 3D rods on the example board).
+* *Vertical*, between layers `l` and `l+1` in a cell: `G_z = k_th Δx Δy / d + Σ_{vias in the cell} k_cu A_via / d`. A via is assigned to the cell that contains its centre (it is a point feature; this costs about 0.5 % against the 3D rods on the example board at 0.5 mm cells). On cells finer than about 0.5 mm the point via over-constricts, because a source in one cell of a five-point stencil acts like a hole of radius `0.198 Δx` (Peaceman): the copper-fill gain of a via array falls from −4.4 K at 0.5 mm to −3.3 K at 0.0625 mm against −4.45 K for resolved barrels (`research/via-fill/README.md` 7.3, on the branch `research/gerbers`; roadmap, section 1).
 * *Ambient*: `G_amb = (h_top or h_bottom) Δx Δy` on the outer layers, plus `h_extra Δx Δy c_hs` under a plain heatsink (`c_hs` its coverage), plus `h_side Δ_edge · slab` on edge cells. When a metal block covers the face, the board coefficient is multiplied by `1 − c` (section 7). On a board with an outline, `Δ_edge` is the length of the outline inside the cell (`geometry.edge_length_on_board`): the outline is sampled at a tenth of a cell, every sample is moved a thousandth of a cell towards the inside of the board (so a side lying on a grid line belongs to the cell on the board), and the length that falls in a cell taken as off the board (a sliver that no cover sample reached) goes to the nearest cell on the board, so `Σ Δ_edge` is the perimeter of the polygon whatever its position on the grid. The FDM and the 3D solid use the same rule (the FDM on the outline shifted by half a cell, onto its node control volumes).
 
 **System**: `K θ = Q`, `K = D − A` with `A` the symmetric matrix of non-negative face conductances and `D` its row sums plus the ambient conductances. `K` is symmetric, weakly diagonally dominant (strictly where there is an ambient path) and irreducible, so it is a symmetric positive definite **M-matrix**:
@@ -123,7 +124,7 @@ One LU factorisation is needed per distinct `Δt`, so the steps are built in a f
 `Δt₀ = t_end(r − 1)/(4(r^{18} − 1))`, `t_end = 10 τ` and `τ = ΣC/ΣG_amb` (the uniform-board time constant; the hottest point reaches 63 % much sooner). `ΣG_amb` leaves out the 1 W/K that pins the cells off a board with an outline: it keeps the matrix regular but is not a path to the air. The board mean of a transient weights every cell by its board area, as the steady mean does.
 The **step response** `Z_i(t)` is the rise of the hottest point of heater `i` per watt; `R_th,i = Z_i(∞)`.
 
-**Accuracy**: second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). The example board converges monotonically (within 0.2 % from 1 mm). The layered idealisation of section 1.2 is the model error (0.4 to 2.2 % against the 3D solid).
+**Accuracy**: second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). The example board moves monotonically with the cell (within 0.25 % of the 0.25 mm value from 1 mm), but with vias it has no limit (see the vertical conductance above). The layered idealisation of section 1.2 is the model error (0.4 to 2.2 % against the 3D solid).
 
 ## 3. FDM: node-centred finite differences (the comparison)
 
@@ -132,7 +133,7 @@ half-cell balance (equivalent to a ghost node, second order). Written as the bal
 
 * the sheet conductance `S` is **sampled at the nodes**: either as the coverage of the control volume around the node (`sampling="area"`, the default: the four surrounding cell coverages weighted by the shared area) or as the classic point test (`"point"`: left and bottom edge in, right and top edge out);
 * the conductance between two nodes uses the **mean of the two nodal values**, arithmetic `(S₁ + S₂)/2` (default) or harmonic, times `width_of_face/Δ` where the face width is the control-volume side;
-* vertical: `G_z = k_th A_c/d` with `A_c` the control area, plus the via at the **nearest node** (spreading it over neighbours was tried and removed the constriction: temperatures 2 % too low);
+* vertical: `G_z = k_th A_c/d` with `A_c` the control area, plus the via at the **nearest node** (spreading it over neighbours was tried and removed the constriction: temperatures 2 % too low; like the FVM, the point via does not converge on cells finer than about 0.5 mm, see section 2);
 * ambient and edge terms as in the FVM with the control-volume areas and lengths;
 * sources: the unit weights of a heater are the coverage of the footprint shared among the four nodes of each cell (area) or one for each node inside (point), normalised to 1: power exact.
 
@@ -148,7 +149,7 @@ followed by `n` metal slabs (`n = round(thickness/1 mm)`, 1 to 6). Every cell of
 
 * copper slab with fill `f`: in-plane `k_x = f k_cu + (1 − f) k_ip`; through `k_z = f_eff k_cu + (1 − f_eff) k_th` with `f_eff = min(1, f + a_via)`;
 * dielectric slab: `k_x = k_ip`, `k_z = a_via k_cu + (1 − a_via) k_th`;
-* `a_via = Σ A_via / (Δx Δy)` over the vias whose centre is in the cell: the **real copper area of the barrel**, in parallel in every slab (the lateral effect of the thin barrel wall is neglected);
+* `a_via = Σ A_via / (Δx Δy)` over the vias whose centre is in the cell: the **real copper area of the barrel** (`D` in `A_via` is the **drill** diameter, the plating is inside it), in parallel in every slab (the lateral effect of the thin barrel wall is neglected); `a_via` is clipped at 1 per cell, so a via whose copper-equivalent area exceeds the cell (a 0.3 mm copper fill below 0.27 mm cells, a 0.5 mm copper fill below 0.44 mm) loses the excess copper (roadmap, section 1);
 * block slabs: `k = k_metal · c` (`c` = block coverage of the cell), pad slab `k = 1 · c`; cells with no material get `k = 10⁻⁹ W/mK` and a leak of `10⁻⁹ W/K` to the ambient to keep the matrix regular.
 
 **Conductances** (each pair of neighbouring cells, harmonic mean of the half-cell resistances):
@@ -158,11 +159,11 @@ followed by `n` metal slabs (`n = round(thickness/1 mm)`, 1 to 6). Every cell of
     face:      G = A / (1/h + dz/(2 k_z))                              (film in series with the half cell)
     edge:      G = 1 / (1/(h_side Δ dz) + (Δ_n/2)/(k_x Δ dz))
 
-with `Δ` the edge length of the cell face. A block hides the board face under it (factor `1 − c`), loses heat on its exposed face (`h_face + h_extra`) and on its sides, `G = (h_face + h_extra) dz L_edge` with `L_edge` the length of the block outline inside the cell (from the coverage differences with the four neighbours).
+with `Δ` the edge length of the cell face. A block hides the board face under it (factor `1 − c`), loses heat on its exposed face (`h_exp = h_face·r_fin + h_extra`, fins as in section 7) and on the side walls of every block slab, `G = (h_face + h_extra) dz L_edge` (no fin ratio; this is not the edge coefficient `h_side` of the board), with `L_edge` the length of the block outline inside the cell (from the coverage differences with the four neighbours).
 The heater power goes to the copper slab of its layer with the weights of section 1.3. The system is solved directly as in the FVM; the result keeps the layout of the FVM (the temperature of the copper slab of each layer, plus the block fields), so every plot and table works.
 
 **What it measures**: the error of the layered idealisation on **your** board. Convergence: 4 slabs per gap is within 1 % of 8 even on a heater-sized pad (the hardest case, where the FV and the finite-element solids bracket the limit about ±4 %, `validation.md` section 3).
-**Limits**: the barrel is a lumped area, copper is one slab thick, a block contact is perfect over the pad, the cost grows quickly with layers and cells (the direct solve of 160 000 unknowns takes about 12 s; on a square 4-layer board of 16 slabs, measured 2026-10-24 on a loaded 16 GB machine: 160 000 unknowns 49 s and 2.2 GB, 254 000 130 s and 4.4 GB, 512 000 320 s and 8 GB, a million not finished in 25 minutes; the fill-in grows with the width of the plan times the slab count); steady state only.
+**Limits**: the barrel is a lumped area, copper is one slab thick, a block contact is perfect over the pad, the cost grows quickly with layers and cells (the direct solve of 160 000 unknowns takes about 12 s; on a square 4-layer board of 16 slabs the memory is 2.2 GB at 160 000 unknowns, 4.4 GB at 254 000 and 8 GB at 512 000, and the time is seconds to minutes depending on the memory pressure (a repeat on a quiet machine, `research/solid3d-verification/scripts/study_solve_cost.py` on the branch `research/gerbers`, gave 1.7 to 15 s at 65 000 to 247 000 unknowns; the first runs on a loaded 16 GB machine were much slower, and a million unknowns did not finish in 25 minutes); the fill-in grows with the width of the plan times the slab count); steady state only.
 
 ## 5. Lumped: thermal network by rings (LPTN)
 
@@ -222,7 +223,7 @@ and `G` the modal response of the uniform board between tiles (first 64 modes), 
 the exact solution of the board with the local conductances for the tile-lumped model (a dense system of `N_tiles · L` unknowns, small).
 **Transient**: each mode obeys `C a' + A_mn a = q(t)` with `C = diag(c_l)`; with `C^{-1/2} A_mn C^{-1/2} = V Λ Vᵀ` and `b = Vᵀ C^{1/2} a` the modes decouple, `b' = −Λ b + g`, and a constant power over a step has the **exact propagator**
 `b⁺ = e^{−λΔt} b + (1 − e^{−λΔt}) g/λ`. The transient cannot use the local corrections, so the vias (or the heatsink) are smeared over the board and their conductance is **scaled per heater** by bisection until the steady maximum equals that of the locally corrected model (a single global factor cooled the distant heater by 18 %).
-**Where it fails**: copper that is not uniform near a heater (24 % low with a 20 mm pad, 25 % when an edge crosses the footprint), strong edge convection (insulated edges assumed); the checks warn.
+**Where it fails**: copper that is not uniform near a heater (24 % low with a 20 mm pad, 25 % when an edge crosses the footprint), strong edge convection (insulated edges assumed: even the default edge coefficient of 10 W/m²K makes it 0.3 to 1 % warm on a uniform board, which is the whole of its difference from the FVM there, `validation.md` section 4); the checks warn.
 
 ## 7. Metal blocks (FVM, FDM, 3D solid; Lumped and Analytic in steady state)
 
@@ -231,13 +232,16 @@ A heatsink with `thickness > 0` is a plate of metal (conductivity `k`, heat capa
     lateral sheet conductance   S = k t c                                (joined by the harmonic mean, as the board)
     heat capacity               C = ρc t Δx Δy c
     contact to the board layer  G = c Δx Δy [ f/R'' + (1 − f)/(R'' + d_h/k_th) ]
-    exposed surface and sides   G = (h_face + h_extra)(Δx Δy c + t L_edge)
+    exposed surface             G = h_exp Δx Δy c,           h_exp = h_face · r_fin + h_extra
+    sides of the plate          G = h_wall t L_edge,         h_wall = h_face + h_extra
     board face under the block  its coefficient is multiplied by (1 − c)
+
+`r_fin` is the **fin ratio** of the optional plate fins (height `H`, thickness `t_f`, pitch `p`, perpendicular to the base, thin fins with an adiabatic tip at the corrected height `H_c = H + t_f/2`): per unit of base area `r_fin = (1 − t_f/p) + 2 H_c η/p`, with the fin efficiency `η = tanh(m H_c)/(m H_c)` and `m = √(2 h_face/(k t_f))`; `r_fin = 1` without fins. **The fins stand on the exposed face of the plate, not on its sides**: only the term `G = h_exp Δx Δy c` carries `r_fin`; the side walls of the base plate (`L_edge` is the length of the block outline inside the cell, `t` the plate thickness) lose heat with the plain coefficient `h_wall = h_face + h_extra` (the side-wall coefficient of the block, not the edge coefficient `h_side` of the board). (Before this correction the sides had `h_exp` too and the rise of a finned block was 5.5 to 6.4 % too low, see `docs/validation.md` section 12 D.) Not modelled: the end faces of the fins (`H t_f` per fin at the two ends of the array; on the block of `validation.md` 12 D they would add 40 to 55 % to the side-wall area, depending on the direction of the fins, and lower the rise by about 0.7 to 0.9 %, estimated by scaling the side-wall conductance of the FVM), the heat capacity of the fins (only the base plate `ρc t` is in `C`, so a time simulation of a finned block responds too fast) and the lateral conduction along the fins.
 
 `f` is the copper fill of the board layer there and `d_h` half a layer slab: **the heat enters the block mostly where the block overlaps copper** (the intersection of the two planes) through `R''`; over bare laminate it must also cross the FR-4 (a much larger resistance). The block is an isotropic plate without gradient across its thickness (valid while
 `h t/k` is small: aluminium or copper from 1 to 10 mm are within 0.6 % of the 3D solid); cells with no block have `10⁻⁹ W/K` to the ambient. The plate model reproduces the published spreading resistance of a small source on a plate (Seri Lee, Electronics Cooling 1998: aluminium 100 × 100 × 1.3 mm, source 25 × 25 mm, `R₀` 1.0 K/W) within +0.6 %, −0.8 % and −4.6 % at the centre, the edge midpoint and the corner (0.66, 1.29 and 2.38 K/W in the article, which claims about 5 %), on any cell from 0.4 to 1.7 mm. The +4.5 % quoted before was a 24 mm source: the check placed the source with `round()`, which rounds halves to even.
 **Lumped and Analytic have the block in steady state** (2026-10-22). An equivalent coefficient `h_eq = 1/(R'' + 1/(h_face + h_extra))` (isothermal block, even with the contact area and an annular fin for the part outside it) was 8 to 31 % off because the block spreads the heat of the pad centre to the whole pad, which a uniform coefficient cannot do; what works is to keep the block's lateral conduction:
-* **Lumped**: the block layer of the FVM network (sheet conductance `k t` per cell, contact conductance to the board layer over the copper `c A (f/R'' + (1−f)/(R'' + r_half))`, exposed surface and edge `h_exp (A c + t L_edge)` to the ambient, `h_exp = h_face·fin_ratio + h_extra`) is summed over the rings like the board layers: one more layer of unknowns per ring, lateral links between rings with the same contour formulas (infinite where the block does not reach), vertical link `g_link` summed per ring to the heater's layer. The board face under the block loses nothing.
+* **Lumped**: the block layer of the FVM network (sheet conductance `k t` per cell, contact conductance to the board layer over the copper `c A (f/R'' + (1−f)/(R'' + r_half))`, exposed surface `h_exp A c` and edge `h_wall t L_edge` to the ambient, `h_exp = h_face·fin_ratio + h_extra`, `h_wall = h_face + h_extra`) is summed over the rings like the board layers: one more layer of unknowns per ring, lateral links between rings with the same contour formulas (infinite where the block does not reach), vertical link `g_link` summed per ring to the heater's layer. The board face under the block loses nothing.
 * **Analytic**: on the tile grid of the local corrections the same block layer is built with `blocks.extra_layers`; the block temperatures `φ` obey `(K_b + D_amb + D_link) φ = D_link y_b` (`K_b` the lateral conductances between tiles, `y_b` the board-layer temperatures of the tiles), so the heat they take from the board is `f = D_link (y_b − φ) = B y_b` with the Schur complement `B = D_link − D_link (K_b + D_amb + D_link)^-1 D_link`, a dense matrix that couples the tiles of the block among themselves. `B` is added to the local conductance matrix `C` of the correction `(I + G C) y = y_0` (the static condensation of finite-element codes, or Kron reduction of a network), together with the negative conductance `−h_face·A·cov` for the face that the block hides. This is exact for the tile model; the error left is the tile size and the sheet averaging of the uniform problem.
 Both are steady state only; the time simulations still refuse a block. SOR does not support blocks.
 
@@ -262,13 +266,25 @@ A **part** is a heater with a junction-to-pad resistance `θ_part`. In the worst
 
     Tj = T_max,footprint + P θ_part                (series resistance between the junction and the pad)
 
-(the hottest board point under the footprint is the pad temperature; a junction node joined by a uniform conductance would be 3 K lower). Derived quantities, for the same board response `R = (Tj − T_amb)/P` (linear for constant coefficients):
+(the hottest board point under the footprint is the pad temperature; a junction node joined by a uniform conductance would be 1.3 to 3.4 K lower on the chips of the component study, 0.2 K on a 0603 resistor). Derived quantities, for the same board response `R = (Tj − T_amb)/P` (linear for constant coefficients):
 
     margin = Tj,max − Tj          power limit P_lim = (Tj,max − T_amb)/R = P (Tj,max − T_amb)/(Tj − T_amb)
     ψJB estimate:  Tj = T_ring + ψJB P,   T_ring = mean board temperature in the ring 0.5 to 1.5 mm outside the outline (bounding box) of the footprint
 
 **Power that depends on temperature**: `P(Tj) = P₀ [1 + α (Tj − 25 °C)]`. The program iterates `P_{k+1} = P₀[1 + α(Tj(P_k) − 25)]` around the board solve until the powers change by less than 10⁻⁵ (relative). For a linear board (constant `R`, ambient 25 °C) the fixed point is
 `ΔT = P₀ R/(1 − α P₀ R)`; the iteration converges when `α P₀ R < 1` and **thermal runaway** (no stable point) is reported when the device passes 1500 °C or the power grows 50 times. In general the closed form is `ΔT = R P₀ [1 + α(T_amb − 25)]/(1 − α R P₀)`.
+**Top path** (a heatsink on the package; `theta_jc_top`, `interface`, `theta_sa`): the part is a junction node joined to the board by `θ` and to the ambient by `R_top = θJC(top) + R''/A + θSA` (`A` the contact area, or the footprint). With `P_b` the heat into the board and `T_max(P_b)` the hottest board point under the footprint,
+
+    Tj − T_amb = (T_max − T_amb) + P_b θ,     P_b = P − (Tj − T_amb)/R_top   ⇒   Tj − T_amb = (T_max − T_amb + P θ)/(1 + θ/R_top)
+
+(`analysis.part_split`; the top heat is limited to `[0, P]`, a heat that cannot be negative or exceed the part's power). `T_max` depends on `P_b`, so the operating point is the root of the scalar equation of each part
+
+    g(P_b) = P_b − P + p_top(T_max(P_b)) = 0,         g' = 1 + R_b/(R_top + θ) ≥ 1,   g(0) ≤ 0 ≤ g(P)
+
+with `R_b = dT_max/dP_b` the board's resistance under the part (the slope is 1 where the top heat is clipped at `P`; monotone, so the root is bracketed by `[0, P]`). **A fixed-point iteration `P_b ← P − p_top(T_max(P_b))` is not used**: its slope is `−R_b/(R_top + θ)`, it converges only when the board under the part resists less than `R_top + θ` and oscillates with a growing amplitude above that, which is the case on a small pad (an 8 mm pad under a 3.3 mm MOSFET: ratio 2; the loop stopped after 80 iterations at 33 °C where the operating point is 90.9 °C). `api._top_path_split` solves the equations instead: for one part, regula falsi with the Illinois rule on `[0, P]` (with constant face coefficients the board is affine in `P_b`, so the secant between the two ends is exact and three board solves give the root, unless the top heat is already clipped at `P_b = P`, which happens when `R_b > R_top`, the small pads (a kink in `g`: 6 solves on the 8 mm MOSFET); with computed coefficients, whose Picard loop is inside every solve, 6 to 7 solves, up to about 20 when the root is close to the clip); for several parts, whose splits interact through the board, a Broyden quasi-Newton iteration on the vector `P_b`, started from the finite-difference Jacobian with the wide steps `P_b,j → 0` (exact for an affine board only when no top heat is clipped and the hottest cells under the footprints do not move), projected on `[0, P]` and with step halving (random boards of 2 to 4 parts: median 8 to 9 board solves, 90 % within 25, at most 57). With the power coefficient every pass of its loop repeats the split, so the solves multiply (the 8 mm MOSFET with 0.5 %/K: 10 passes, 70 solves). It stops when every `|g_i|/P_i < 10⁻⁵`; if it does not, the result carries the warning "the top-path split did not converge". The power temperature coefficient is the other loop: it stays a fixed point around the whole solve (its slope `α P₀ R` is the physical runaway condition), and with both the power loop goes around the top-path solve.
+
+**Convention of the clip at `P`**: the top heat of a part is limited to its own power `P` (`P_b >= 0`), so the board never feeds the part through its top even when the junction node would be colder than the neighbouring board; this is conservative (the part is never cooled by its surroundings) and is the reason for the kink of `g` at `P_b = P`.
+
 **Why θ must be a junction-to-pad number**: `θJA` includes the manufacturer's board and air, and `θJB` the spreading in the manufacturer's board; the program computes the spreading in your board, so those would be counted twice. See `models.md` section 6 for the datasheet table and the fallbacks.
 
 ## 10. Power profiles in time
@@ -286,14 +302,14 @@ A heater may carry a repeating profile (`SquareWave`, `TableProfile`) or a one-s
 | Piece | How it is checked | Result |
 | :-- | :-- | :-- |
 | Energy balance of every model | `power_out` against the injected power on every test board | 10⁻¹² to 10⁻⁹ |
-| Linear solvers | direct, CG and SOR on five boards | agree to 10⁻⁸ K (`validation.md` 5) |
+| Linear solvers | direct, CG and SOR on five boards | agree to 2·10⁻⁸ K (`validation.md` 5) |
 | Time stepping | exact RC solution of a uniform board | Euler first order, Crank-Nicolson second order (`validation.md` 7) |
 | Layered idealisation | the 3D solid and an independent finite-element solid | 0.4 to 2.2 % (FVM), `validation.md` 3 |
 | 3D solid | finite-element solid, convergence in slabs and cells | 0.2 % on three boards, ±4 % on a heater-sized pad |
 | Plate (block) model | published spreading resistance (Seri Lee, 1998) | +0.6 % centre, −0.8 % edge, −4.6 % corner |
 | Convection correlations | textbook air properties, closed forms | 1 to 3 % |
 | Parts | closed form `ΔT = P₀R/(1 − αP₀R)` | 0.05 K |
-| Mesh and model comparison | 20 scenarios, four models and the 3D solid | `validation.md` 2 |
+| Mesh and model comparison | 19 scenarios, four models and the 3D solid | `validation.md` 2 |
 
 The models have **not** been compared with measurements of a physical board in this project; `calibrate_convection` is the tool to fit one measurement.
 

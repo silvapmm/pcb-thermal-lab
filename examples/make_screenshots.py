@@ -8,16 +8,18 @@ Usage: python examples/make_screenshots.py [output_folder]   (default: docs/imag
 import os
 import sys
 import tempfile
+import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_API", "pyside6")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from PySide6.QtCore import QSettings                                        # noqa: E402
+from PySide6.QtCore import QSettings, Qt                                        # noqa: E402
 from PySide6.QtWidgets import QApplication                                  # noqa: E402
 
 from pcbthermal import SolverOptions, simulate                              # noqa: E402
 from pcbthermal.examples import example_board, example_profile_board                               # noqa: E402
+from pcbthermal.gui.calculator import PowerCalculator                      # noqa: E402
 from pcbthermal.gui.main_window import TAB_PROFILE, TAB_RESULTS, TAB_STACKUP, MainWindow   # noqa: E402
 
 
@@ -33,8 +35,10 @@ def main(out_dir):
     settings.setValue("theme", "dark")
     win = MainWindow(settings=settings)
     win._load_problem(example_board(), "example-4layer")
-    win.resize(1480, 900)
+    win.resize(2400, 1363)
     win.show()
+    # Wide docks so that no field of the panels is cut off (the default widths are narrow for the many controls)
+    win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
     app.processEvents()
     written = []
 
@@ -104,6 +108,46 @@ def main(out_dir):
     win._on_done(simulate(win.doc.problem, SolverOptions(cell_mm=1.0)))
     win.results.tabs.setCurrentWidget(win.results.time_sim)
     shot("results_power_profile.png")
+    # Computed heat transfer on a vertical board: the Board panel with the 'Vertical natural convection' control
+    win._load_problem(example_board(), "example-vertical")
+    bd = win.doc.problem.board
+    bd.h_mode, bd.orientation, bd.natural_form = "computed", "vertical", "general"
+    win.doc.changed.emit()
+    win.tabs.setCurrentIndex(0)
+    win.resizeDocks([win.dock_board], [600], Qt.Horizontal)                  # Wider only for this shot: the combo texts are long
+    app.processEvents()
+    path = os.path.join(out_dir, "environment_natural_form.png")
+    win.dock_board.grab().save(path)                                         # Only the Board dock: the control is small on the full window
+    written.append(path)
+    win.resizeDocks([win.dock_board], [420], Qt.Horizontal)
+    win.doc.stack.setClean()
+
+    # Stack-up tab with the inner copper weight of the typical stack-up set to 1 oz
+    win._load_problem(example_board(), "example-inner-copper")
+    win.doc.problem.board.make_advanced()
+    win.doc.set_inner_copper_oz(1.0)
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    shot("stackup_inner_copper.png")
+    win.doc.stack.setClean()
+
+    # Power calculator: board description list and the result terms (coarse cell: a quick case)
+    win._load_problem(example_board(), "example-calculator")
+    win.doc.set_options(cell_mm=2.0)
+    win.tabs.setCurrentIndex(0)
+    calc = PowerCalculator(win.doc, win)
+    calc.design.setCurrentIndex(calc.design.findData("hand"))
+    calc.show()
+    calc.compute.click()
+    t0 = time.time()
+    while (calc.out is None or not calc.compute.isEnabled()) and time.time() - t0 < 300:
+        app.processEvents()
+        time.sleep(0.05)
+    app.processEvents()
+    path = os.path.join(out_dir, "calculator_design.png")
+    calc.grab().save(path)
+    written.append(path)
+    calc.close()
+    win.doc.stack.setClean()
     return written
 
 

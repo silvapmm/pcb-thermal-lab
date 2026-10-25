@@ -903,7 +903,7 @@ class Problem:
         @details The box is scaled by s = sqrt(outline area / box area) in both directions, which keeps the aspect ratio and the board
                  area, and every position is scaled by the same s: heater centres, via positions, zone and heatsink polygons. The heaters keep
                  their size (so their power density is unchanged) and are pushed back inside the new box if needed. The outline is dropped.
-                 Measured against the FVM on the real shape: the area-equivalent box is within 0.2 to 3 % of the temperature rise for a
+                 Measured against the FVM on the real shape: the area-equivalent box is within 0.4 to 2.9 % of the temperature rise for a
                  circle with parts away from the edge, against 6 to 10 % too low with the bounding box (`docs/validation.md`).
         @return Tuple (Problem without outline, s). For a board without outline: (a copy, 1.0).
         """

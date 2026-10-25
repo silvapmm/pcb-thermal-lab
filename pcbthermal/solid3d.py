@@ -35,9 +35,10 @@ from .results import SteadyResult
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
 K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a block)
 # Largest 3D model that is solved. The direct sparse solve of a 3D grid fills in far more than the layered 2D models: measured on a 4-layer
-# board (16 slabs), 160 000 unknowns took 49 s and 2.2 GB, 254 000 took 130 s and 4.4 GB, 394 000 took 276 s and 5.3 GB, and 1 000 000 did not
+# board (16 slabs), the memory grew to about 2.2 GB at 160 000 unknowns, 4.4 GB at 254 000 and 5.3 GB at 394 000, and 1 000 000 did not
 # finish in 25 minutes with the process thrashing in swap on a 16 GB machine (the old limit, 2 million, let the application wait for hours).
-# With computed heat transfer coefficients the solve is repeated 3 to 6 times, so the limit is kept near the 4 GB point.
+# The limit is memory-bound; the times depend on the memory pressure (seconds to minutes) and are not quoted here, because a clean-machine
+# measurement is still to be made. With computed heat transfer coefficients the solve is repeated 3 to 6 times, so the limit is kept near the 4 GB point.
 MAX_CELLS = 250_000
 K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is R'' times this)
 
@@ -320,12 +321,13 @@ class Solid:
                 eta = np.where(hc > 0, np.tanh(m * hc) / np.where(m * hc > 0, m * hc, 1.0), 1.0)
                 ratio = np.where(fi["p"] > 0, (1.0 - fi["t"] / np.where(fi["p"] > 0, fi["p"], 1.0)) + 2.0 * hc * eta / np.where(fi["p"] > 0, fi["p"], 1.0), 1.0)
             h_tot = h_face * ratio + f["he"]
+            h_sd = h_face + f["he"]                                  # The fins stand on the exposed face: the side walls see no fin ratio
             edge = _edge_length(f["cov"], dx, dy)
             blk_ids = [s for s, sl in enumerate(slabs) if sl["kind"] == "blk" and ((s < first_board) == (face == 0))]
             outer = blk_ids[0] if face == 0 else blk_ids[-1]
             vk[outer] += Ab / (1.0 / np.maximum(h_tot, 1e-12) + slabs[outer]["dz"] / (2.0 * slabs[outer]["kz"])) * f["cov"]
             for s in blk_ids:
-                vk[s] += h_tot * slabs[s]["dz"] * edge
+                vk[s] += h_sd * slabs[s]["dz"] * edge
             for s in range(ns):
                 if slabs[s]["kind"] in ("pad", "blk") and ((s < first_board) == (face == 0)):
                     vl[s] += ISOLATED

@@ -28,6 +28,12 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 ![Stack-up](docs/images/stackup.png)
 
+![Stack-up with the inner copper set to 1 oz](docs/images/stackup_inner_copper.png)
+
+![Power calculator with the board description and the terms of the band](docs/images/calculator_design.png)
+
+![Environment panel: computed heat transfer, vertical board and its natural convection form](docs/images/environment_natural_form.png)
+
 ![Board outline](docs/images/outline_temperature.png)
 
 ![Temperature](docs/images/results_temperature.png)

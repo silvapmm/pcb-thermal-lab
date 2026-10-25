@@ -10,8 +10,9 @@
          * contact to the board layer of that face, G = c A [ f / R'' + (1 - f) / (R'' + d / k) ]  with f the copper fill of the board layer there:
            the heat enters the block through the interface of resistance R'' (m2K/W) mostly where it overlaps copper (the intersection of the two
            planes); over bare laminate it has to cross half a layer slab d of FR-4 as well, a much larger resistance;
-         * to the ambient through the exposed surface, G = h_exp A c, and through the sides of the block, G = h_exp t L_edge, with h_exp = h_face x fin ratio + h_extra
-           (fin_ratio: plate fins with their efficiency; 1 for a plain plate),
+         * to the ambient through the exposed surface, G = h_exp A c, with h_exp = h_face x fin ratio + h_extra (fin_ratio: plate fins with their
+           efficiency, on the face only; 1 for a plain plate), and through the sides of the block, G = h_wall t L_edge, with h_wall = h_face + h_extra
+           (the fins stand on the exposed face, not on the sides, so the sides see the plain coefficient),
            with L_edge the length of the edge of the block inside the cell (a rectangular block on the grid has the whole length of its outline);
          * the board face under the block no longer loses heat to the air (it is covered): its coefficient is multiplied by 1 - c.
 
@@ -55,6 +56,16 @@ def exposed_h(s, h_face):
     return h_face * fin_ratio(h_face, s) + s.h_extra
 
 
+def wall_h(s, h_face):
+    """!
+    @brief Coefficient of the side walls of a block: the plain face coefficient plus the extra h, with no fin ratio (the fins are on the exposed face).
+    @param s A Heatsink (block).
+    @param h_face Coefficient of the board face the block is on, in W/m2K.
+    @return W/m2K.
+    """
+    return h_face + s.h_extra
+
+
 def block_faces(problem):
     """!
     @brief The outer faces that carry metal blocks.
@@ -79,8 +90,8 @@ def extra_layers(problem, cover, area, fill, dx, dy):
     @param dx Spacing of the cells or nodes along x in metres (length of the side faces seen from x).
     @param dy Spacing along y in metres.
     @return List of dicts, one per face with blocks, with keys face (0 top, 1 bottom), board_layer, cov, S, C, g_link, g_amb,
-            g_amb_extra (the part of g_amb that is the extra coefficient), face_scale (factor for the board face coefficient),
-            h_total (the exposed coefficient of every node, W/m2K) and names.
+            face_scale (factor for the board face coefficient), h_total (the coefficient of the exposed face of every node, with the fin ratio,
+            W/m2K; the sides use h_wall instead), h_wall (the coefficient of the side walls, W/m2K; named so because Board.h_side is the board edge coefficient) and names.
     """
     b = problem.board
     L = b.layers
@@ -96,7 +107,7 @@ def extra_layers(problem, cover, area, fill, dx, dy):
         h_face = b.h_top if face == 0 else b.h_bottom
         ny, nx = area.shape
         cov = np.zeros((ny, nx))
-        S, C, g_link, g_amb, h_tot = (np.zeros((ny, nx)) for _ in range(5))
+        S, C, g_link, g_amb, h_tot, h_sd = (np.zeros((ny, nx)) for _ in range(6))
         names = []
         for s in problem.heatsinks:
             if not s.is_block() or (0 if (s.layer == 0 or L == 1) else 1) != face:
@@ -112,16 +123,17 @@ def extra_layers(problem, cover, area, fill, dx, dy):
             f = fill[layer]
             g_link = np.where(take, c * area * (f / r_c + (1.0 - f) / (r_c + r_half)), g_link)
             h_tot = np.where(take, exposed_h(s, h_face), h_tot)
+            h_sd = np.where(take, wall_h(s, h_face), h_sd)                    # No fin ratio on the side walls
             side = np.zeros_like(c)                                         # Length of the block edge inside every cell
             pad = np.pad(c, 1)
             for axis, length in ((1, dy), (0, dx)):
                 for sgn in (-1, 1):
                     neigh = np.roll(pad, sgn, axis=axis)[1:-1, 1:-1]
                     side += length * np.maximum(c - neigh, 0.0)
-            g_amb = np.where(take, h_tot * (area * c + s.thickness * side), g_amb)
+            g_amb = np.where(take, h_tot * area * c + h_sd * s.thickness * side, g_amb)
         g_amb = np.where(cov > 0, g_amb, ISOLATED)
         out.append({"face": face, "board_layer": layer, "cov": cov, "S": S, "C": C, "g_link": g_link, "g_amb": g_amb,
-                    "face_scale": 1.0 - cov, "h_total": h_tot, "names": names})
+                    "face_scale": 1.0 - cov, "h_total": h_tot, "h_wall": h_sd, "names": names})
     return out
 
 
