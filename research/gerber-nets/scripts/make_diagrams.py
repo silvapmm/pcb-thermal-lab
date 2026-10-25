@@ -129,7 +129,7 @@ def where_the_power_goes(path):
         y = 4.2 - k * 1.5
         a2.add_patch(Rectangle((0.2, y), 8.5 * (mw / 7500.0) if mw > 100 else 0.05, 0.8, facecolor=color, edgecolor="k"))
         a2.text(0.3, y + 1.0, f"{name}: {mw:g} mW", fontsize=8)
-    a2.text(5, -0.1, "source 7500.001 mW: balance closes to 0.002 mW;\nthe link makes 18 times the heat of all the copper", ha="center", va="top", fontsize=8, color=dk.HEAT)
+    a2.text(5, -0.1, "source 7500 mW: the balance closes to better than 0.001 mW;\nthe link makes 18 times the heat of all the copper", ha="center", va="top", fontsize=8, color=dk.HEAT)
     dk.save(fig, path, "A source, a link and a load: what carries the current and what heats (README 4.40)")
 
 

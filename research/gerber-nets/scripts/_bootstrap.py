@@ -14,8 +14,9 @@ for extra in (
     str(HERE / "scripts"),
     str(HERE / "lib"),
 ):
-    if extra not in sys.path:
-        sys.path.insert(0, extra)
+    while extra in sys.path:                           # move it to the front even when Python already put it there (the script's own folder): same-named modules of
+        sys.path.remove(extra)                         # gerber-import (make_figures, paths, ...) must not shadow the ones of this folder
+    sys.path.insert(0, extra)
 REPO = str(HERE.parents[1])
 if REPO not in sys.path:
     sys.path.append(REPO)                              # the repository root, to import pcbthermal when no other copy is given

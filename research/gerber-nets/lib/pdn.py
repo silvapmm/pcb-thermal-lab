@@ -27,7 +27,7 @@ def solve(mask, sheet_ohm, terminals, elements, stencil="4"):
     @param elements List of ("vsource", t, volts), ("isink", t, amps) and ("link", t1, t2, ohms).
     @param stencil "4" (axial links, exact for axis-aligned copper, the default) or "9" (isotropic, better for tilted tracks wider than about 8 pixels, 20 % too resistive on a 2-pixel strip: joule._edges).
     @return dict with "V" (potential array, nan on floating copper), "q" (Joule power per pixel, W), "links" (list of (t1, t2, current A, power W)), "p_source" (W delivered by the sources), "p_sinks" (W taken by the loads: V at the pad times its current), "p_copper" and "p_links" (W).
-    @throws ValueError If a terminal does not touch the copper or an element names an unknown terminal.
+    @throws ValueError If a terminal does not touch the copper, an element names an unknown terminal, or a sink sits on a piece that no voltage source reaches.
     """
     mask = np.asarray(mask, bool)
     names = list(terminals)
@@ -71,6 +71,10 @@ def solve(mask, sheet_ohm, terminals, elements, stencil="4"):
             val[node[el[1]]] = el[2]
     ncomp, lab = cg.connected_components(adj, directed=False)
     live = np.isin(lab, np.unique(lab[fixed]))                          # components that hold a voltage source; the others float
+    for el in elements:
+        # A sink on a piece that no source reaches has no current to take: refuse it instead of losing the current silently (found by the review)
+        if el[0] == "isink" and el[2] != 0.0 and not live[node[el[1]]]:
+            raise ValueError(f"isink on terminal {el[1]!r}: no voltage source is connected to its piece (add a link or a source)")
     free = live & ~fixed
     sol = np.zeros(m)
     sol[fixed] = val[fixed]

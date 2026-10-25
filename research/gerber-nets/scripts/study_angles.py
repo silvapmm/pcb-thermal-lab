@@ -69,9 +69,31 @@ def one(width, angle, pix):
     return err, n, r_ratio
 
 
+def connectivity(width, angle, pix):
+    """!
+    @brief Pieces of one track with 4-connected and with 8-connected labelling (the claim of README 4.23 that 8-connectivity keeps a one-pixel track whole, and not a thinner one).
+    @param width Track width (mm).
+    @param angle Angle to the X axis (degrees).
+    @param pix Pixel size (mm).
+    @return Tuple (pieces with 4-connectivity, pieces with 8-connectivity).
+    """
+    ca, sa = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+    obj, geom = ms.line(1.0, 1.0, 1.0 + LENGTH * ca, 1.0 + LENGTH * sa, width)
+    gf, _ = ms.build([(obj, geom, True)])
+    path = ms.OUT / "angle_tmp.gbr"
+    ms.OUT.mkdir(parents=True, exist_ok=True)
+    gf.save(path)
+    layer = ng.Layer(path.read_text())
+    path.unlink()
+    bb = layer.bbox()
+    cv = ng.Canvas(bb[0] - 0.5, bb[3] + 0.5, bb[2] - bb[0] + 1.0, bb[3] - bb[1] + 1.0, pix)
+    layer.draw(cv)
+    return ndimage.label(cv.mask)[1], ndimage.label(cv.mask, structure=np.ones((3, 3)))[1]
+
+
 def main():
     """!
-    @brief Run the sweep and print one table per pixel size.
+    @brief Run the sweep and print one table per pixel size, then the 4- and 8-connected piece counts of tracks as narrow as the pixel and narrower (added by the review).
     @return None.
     """
     for pix in PIXELS:
@@ -83,6 +105,9 @@ def main():
                 err, n, rr = one(w, a, pix)
                 row += f"{err:+7.1f} {n:3d} " + "".join((f"{rr[st]:7.3f}" if rr[st] is not None else "      -") for st in STENCILS) + "  "
             print(row)
+    print("\npieces of one 30 mm track, 4-connected / 8-connected labelling")
+    for w, pix in ((0.1, 0.1), (0.05, 0.1), (0.03, 0.05)):
+        print(f"  w {w} mm at pixel {pix} mm: " + ", ".join(f"{a} deg {'/'.join(str(v) for v in connectivity(w, a, pix))}" for a in (7.5, 30, 45)))
 
 
 if __name__ == "__main__":

@@ -52,3 +52,19 @@ def test_energy_balance_with_a_link_and_floating_copper():
     assert abs(r["p_source"] - r["p_copper"] - r["p_links"] - r["p_sinks"]) < 1e-3 * r["p_source"]
     assert abs(r["p_links"] - 0.1 * 2.0 ** 2) < 1e-3                  # the link carries the whole current
     assert r["q"][4:6, 0:10].sum() == 0.0 and np.isnan(r["V"][4:6, 0:10]).all()
+
+
+def test_a_sink_on_a_piece_without_a_source_is_refused():
+    """!
+    @brief A current sink on a piece that no voltage source reaches is refused (it was silently dropped before the review).
+    @return None.
+    """
+    import pytest
+    m = np.zeros((4, 30), bool)
+    m[:, 0:12] = True
+    m[:, 16:30] = True
+    t = {"vin": np.zeros_like(m), "far": np.zeros_like(m)}
+    t["vin"][:, 0] = True
+    t["far"][:, 29] = True
+    with pytest.raises(ValueError):
+        pdn.solve(m, RS, t, [("vsource", "vin", 5.0), ("isink", "far", 1.0)])

@@ -16,7 +16,6 @@ from matplotlib.colors import ListedColormap, LogNorm
 from scipy import ndimage
 
 import joule
-import make_synthetic as ms
 import native_gerber as ng
 import our_board
 from nets import disc, net_pads
@@ -42,6 +41,7 @@ def fig_angles():
     @brief Thin tracks at an angle on three pixel sizes, coloured by 4-connected piece.
     @return None.
     """
+    import make_synthetic as ms                                      # gerbonara writes the tracks: imported here so that the rest of this module (and study_references.py) runs without it
     cases = [(0.1, 30), (0.2, 30), (0.2, 45)]
     pixels = (0.1, 0.05, 0.025)
     fig, axs = plt.subplots(len(cases), len(pixels), figsize=(10, 9))
@@ -185,7 +185,7 @@ def fig_pdn_links():
     heat = np.ma.masked_where(~mask | (q <= 0), np.log10(np.maximum(q, 1e-12)))
     im = axs[1].imshow(heat, origin="lower", extent=ext, cmap="inferno", interpolation="nearest")
     fig.colorbar(im, ax=axs[1], fraction=0.046, label="log10 of W per pixel (0.2 mm)")
-    axs[1].set_title("Joule heat of the copper: 12.6 mW in all; the 0.1 ohm link makes 225 mW", fontsize=9)
+    axs[1].set_title(f"Joule heat of the copper: {q.sum() * 1e3:.1f} mW in all; the 0.1 ohm link makes 225 mW", fontsize=9)       # from the cache (the text said 12.6 mW until the review)
     for a in axs:
         a.annotate("5 V in", (6, 11), (6, 24), color="w" if a is axs[1] else "k", fontsize=8, arrowprops={"arrowstyle": "->"})
         a.annotate("0.1 ohm link\n(bead)", (31, 15.0), (29, 24.5), color="c", fontsize=8, arrowprops={"arrowstyle": "->", "color": "c"})
@@ -221,11 +221,11 @@ def fig_network_diagram():
     ax.text(1.8, 5.0, "5 V\nsource", ha="center", va="center", fontsize=7, color="w")
     ax.text(17.2, 5.0, "1.5 A\nsink", ha="center", va="center", fontsize=7, color="w")
     ax.annotate("", (12.5, 5.0), (10.5, 5.0), arrowprops={"arrowstyle": "-", "linewidth": 0})
-    ax.text(11.5, 6.4, "link: 0.1 ohm\n(bead, shunt,\njumper, fuse)", ha="center", fontsize=8, color="#1f77b4")
+    ax.text(11.5, 2.0, "link: 0.1 ohm\n(bead, shunt,\njumper, fuse)", ha="center", va="top", fontsize=8, color="#1f77b4")      # below the gap, clear of piece B
     ax.plot([10.5, 12.5], [5.0, 5.0], color="#1f77b4", linewidth=2, linestyle=":")
     ax.text(3.5, 7.4, "piece A (one net)", ha="center", fontsize=8)
     ax.text(15.5, 7.4, "piece B (the same net)", ha="center", fontsize=8)
-    ax.text(9, 7.6, "floating piece: no pad of a source or a load,\nno current, no heat", ha="center", fontsize=7, color="0.3")
+    ax.text(9, 9.75, "floating piece: no pad of a source or a load, no current, no heat", ha="center", va="bottom", fontsize=7, color="0.3")      # above the box, not across it
     ax.set_title("1. one net in several pieces: the copper does not join A and B;\na part does (the link). Currents are inputs per pad", fontsize=9)
     # 2. equivalent circuit
     ax = axs[0, 1]
@@ -279,13 +279,15 @@ def fig_network_diagram():
     ax.set_title("3. inside a piece: a mesh of resistors, one per pixel pair;\nthe pad terminals hold the potential or take the current", fontsize=9)
     # 4. energy balance
     ax = axs[1, 1]
-    names = ["source (5 V x 1.5 A)", "load: the IC (4.84 V x 1.5 A)", "link 0.1 ohm", "copper (all pieces)", "balance error"]
-    vals = [7500.0, 7262.7, 225.0, 12.3, 0.002]
+    import study_pdn_links as spl                                         # the numbers of the scenario, solved here (they were typed in until the review)
+    r = spl.scenario()[1]
+    names = ["source (5 V x 1.5 A)", "load: the IC (4.84 V x 1.5 A)", "link 0.1 ohm", "copper (all pieces)", "|balance error|"]
+    vals = [round(v * 1e3, 4) for v in (r["p_source"], r["p_sinks"], r["p_links"], r["p_copper"], abs(r["p_source"] - r["p_copper"] - r["p_links"] - r["p_sinks"]))]
     ax.barh(names[::-1], vals[::-1], color=["#999999", "#e0a458", "#1f77b4", "#d62728", "#2ca02c"])
     for k, v in enumerate(vals[::-1]):
-        ax.text(v * 1.1, k, f"{v:g} mW", va="center", fontsize=8)
+        ax.text(v * 1.1, k, f"{v:.4g} mW", va="center", fontsize=8)
     ax.set_xscale("log")
-    ax.set_xlim(1e-3, 1e5)
+    ax.set_xlim(1e-4, 1e5)
     ax.set_xlabel("power (mW, log scale)")
     ax.set_title("4. the energy balance closes: source = copper + link + load\n(the copper is 0.16 % of the power; the link 3 %; the IC the rest)", fontsize=9)
     fig.tight_layout()

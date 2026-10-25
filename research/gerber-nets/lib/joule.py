@@ -122,9 +122,15 @@ def solve_net(mask, sheet_ohm, source, sink, current, stencil="4"):
 def to_cells(q, n):
     """!
     @brief Sum a Joule-power map into coarse cells of n x n pixels (the heat source of the thermal grid); the total is conserved.
+    @details The map is padded with zeros up to a multiple of n, so a last row or column of partial cells keeps its heat (the review found that the earlier version cut them off:
+             15 of 63 W lost on a 7 x 9 map in 2 x 2 cells). The cells start at the first pixel: the caller anchors the pixel lattice on the cell grid of the thermal model, and the
+             rows keep the order of the map (rows from the top for a Canvas mask, while the program's grid counts y upwards).
     @param q Power per pixel (W).
     @param n Pixels per cell side.
-    @return Array (rows // n, cols // n) of power per cell (W).
+    @return Array (ceil(rows / n), ceil(cols / n)) of power per cell (W).
     """
-    ny, nx = (q.shape[0] // n) * n, (q.shape[1] // n) * n
-    return q[:ny, :nx].reshape(ny // n, n, nx // n, n).sum(axis=(1, 3))
+    q = np.asarray(q, float)
+    ny, nx = -(-q.shape[0] // n) * n, -(-q.shape[1] // n) * n
+    qp = np.zeros((ny, nx))
+    qp[:q.shape[0], :q.shape[1]] = q
+    return qp.reshape(ny // n, n, nx // n, n).sum(axis=(1, 3))

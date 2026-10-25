@@ -97,3 +97,11 @@ def test_nine_point_stencil_matches_the_straight_strip_and_fixes_a_tilted_one():
     e4 = abs(joule.solve_net(tilt, RS, src, snk, 1.0, stencil="4")[0] / ideal - 1)
     e9 = abs(joule.solve_net(tilt, RS, src, snk, 1.0, stencil="9")[0] / ideal - 1)
     assert e9 < e4                                                  # better, but not exact: the walls of a narrow band still cost a few percent
+
+
+def test_cell_sum_keeps_partial_cells():
+    """!@brief A map whose size is not a multiple of the cell keeps all its heat (the last partial cells were cut off before the review). @return None."""
+    q = np.ones((7, 9))
+    cells = joule.to_cells(q, 2)
+    assert cells.shape == (4, 5)
+    assert cells.sum() == pytest.approx(63.0)
