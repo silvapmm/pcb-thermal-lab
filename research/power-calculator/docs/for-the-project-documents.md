@@ -1,4 +1,4 @@
-# Corrections for the project documents (review of 2026-10-24)
+# Corrections for the project documents (from the review)
 
 The reviewer may not edit `docs/` on a research branch. These are the changes the review of `research/power-calculator/` found necessary in the project documents, to be made on a `fix/` or `docs/` branch off `develop`. Every number is printed by a script of this folder (README sections 4.5 to 4.7).
 

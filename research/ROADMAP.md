@@ -344,14 +344,14 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 * **Why**: the maintainer asked to regenerate all the figures after the reviews of the remaining folders; the font differs between machines; the `gerber-models` figures that said "today" or showed the 3D solid without the laminate of a one-layer board were redrawn by its review, and `gerber-import` figure 08 was corrected by its review; the `gerber-*` folders need their inputs fetched into the git-ignored `data/`.
 * **First study**: regenerate with `make_figures.py` and `make_diagrams.py`, re-read each with the image reader; write `research/check_figures.py` (every figure linked from a README, no broken link, no repeated number, every folder has at least one data graph and one diagram).
 * **If it ends well**: nothing in the program.
-* **Status**: waits until the reviews of the `gerber-*` folders have fixed their texts.
+* **Status**: checker written (`research/check_figures.py`, described in `README.md`); it finds `theory/` without a data figure (all its figures are diagrams; decide whether it needs one) and nothing else. Still open: regenerating and re-reading every figure, after the reviews of the `gerber-*` folders.
 
 ### H2. Dates in the research documents
 * **Question**: which dates remain?
 * **Why**: the rule is no dates, except dates of third-party publications: lines 3 and 55 of `component-heatsink/README.md` and line 65 of `NOTES.md`, line 3 of `block-and-fins/README.md` and `via-fill/README.md`, line 95 of `via-fill/README.md` and line 10 of `via-fill/docs/for-the-project-documents.md`, the section title "Review (...)" and the dates of `outline/docs/for-the-project-documents.md`, and the same check in every folder.
 * **First study**: a search for dates in `research/`.
 * **If it ends well**: nothing in the program.
-* **Status**: open (final pass).
+* **Status**: done for the dated work entries (the dates of the work were removed from every research document and script, headings included; what stays are dates of third-party publications, such as article dates and standard revisions, in `theory/` and `gerber-models/`); repeat the search `grep -rnE "20[0-9]{2}-[0-9]{2}-[0-9]{2}" research` in the final pass.
 
 ### H3. Bring the branch up to date with the program
 * **Question**: what must be updated here after the corrections of the program are merged into `develop`?

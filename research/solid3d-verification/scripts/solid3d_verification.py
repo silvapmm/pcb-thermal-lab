@@ -9,7 +9,7 @@
              area (b = W / sqrt(pi)); the source temperature is the mean over the source and the one-dimensional resistances t/(kA) and 1/(hA) are subtracted.
          (2) **Grid convergence** (Richardson extrapolation and the grid convergence index of Roache, ASME V&V 20): a square source aligned with the cells, so that every mesh
              represents it exactly, solved with the cell size halved twice; the observed order, the extrapolated value and the GCI of the fine mesh are printed.
-         Two closed forms are printed beside the table (added by the review of 2026-10-24): the Bessel series of the circular tube, which reproduces Table 3,
+         Two closed forms are printed beside the table (added by the review): the Bessel series of the circular tube, which reproduces Table 3,
          psi = (16 / (pi eps)) sum_n J1(d_n eps)^2 / (d_n^3 J0(d_n)^2) over the roots d_n of J1, and the double cosine series of the same circular source on the
          square tube of the same area that the 3D solid solves, psi = 4 a sum_{m,n even, not both 0} (2 pi a J1(l a) / l)^2 / ((pi a^2)^2 N_mn l) with
          l = pi sqrt(m^2 + n^2) / W and N_mn = W^2 / 4 (W^2 / 2 when m or n is 0); their difference is the share of the square tube in the gap to the table.

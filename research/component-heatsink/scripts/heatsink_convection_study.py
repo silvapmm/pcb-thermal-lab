@@ -8,7 +8,7 @@
          natural value. Chain: Rja = Rjc + Rcs + Rsa. The study keeps the board coefficients constant (as chain_study.py).
          Forced air: the factor multiplies the catalogue value and the result is held fixed (a forced-convection coefficient hardly depends on the
          temperature rise). An earlier version also applied the natural-convection scaling (dT_ref/dT)^0.25 to the forced values, which made them 1.8 to
-         2.0 times too high at the small rises of forced air (6.8, 4.4 and 2.7 K/W instead of 3.7, 2.2 and 1.2 K/W); corrected in the review of 2026-10-25.
+         2.0 times too high at the small rises of forced air (6.8, 4.4 and 2.7 K/W instead of 3.7, 2.2 and 1.2 K/W); corrected in the review.
 
 Usage: python research/component-heatsink/scripts/heatsink_convection_study.py
 """

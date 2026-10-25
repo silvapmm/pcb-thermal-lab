@@ -23,7 +23,7 @@ def reshape(p, n, planes=False):
     @brief Reshape the 4-layer example board to n layers: the top copper stays on layer 1, the bottom plane goes to layer n, the heaters and the heatsink follow.
     @details The inner planes of the example (layers 2 and 3) are dropped by default, so that the comparison is of the dielectric split and of the outer copper
              only (the inner copper of the tables then plays no part); with planes=True the full plane is put on every inner layer.
-             Before the review of 2026-10-24 the zones were kept only when their layer was 0 or n - 1, which lost the bottom plane (layer index 3) on every board
+             Before the review the zones were kept only when their layer was 0 or n - 1, which lost the bottom plane (layer index 3) on every board
              with more than four layers: the 6 and 8-layer rows were boards with no bottom copper (about 21 K hotter).
     @param p Example problem (modified in place).
     @param n Number of copper layers.

@@ -2,7 +2,7 @@
 @file study_inner_copper_1oz.py
 @brief How much hotter is the example board with the program's 0.5 oz (15.2 um) inner copper than with 1 oz (35 um) inner copper, for every typical stack-up template?
 
-@details Question (maintainer, review of 2026-10-24): the templates of `pcbthermal/data/stackups.json` use 15.2 um inner copper, most published fabricator tables
+@details Question (maintainer, in the review): the templates of `pcbthermal/data/stackups.json` use 15.2 um inner copper, most published fabricator tables
          use 1 oz (about 35 um); with a full plane on every inner layer that is 5 to 8 K. This study repeats the templates of 2, 4, 6, 8, 10 and 12 layers with
          the inner copper changed and compares the maximum temperature, with the board built as in `stackup_vendor_check.py` (top copper on layer 1, the bottom
          plane of the example on the LAST layer, heaters, vias and heatsink, a full plane on every inner layer).

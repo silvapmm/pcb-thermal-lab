@@ -128,7 +128,7 @@ The large deltas of section 4.2 come from one thing: the board resistance `R` (k
 
 *Figure 3: `figures/fig_03_ways_to_reduce_the_error.png`.*
 
-### 4.5 Cell size and the reading of the JEDEC board (`scripts/study_cell_size.py`, review of 2026-10-24)
+### 4.5 Cell size and the reading of the JEDEC board (`scripts/study_cell_size.py`, in the review)
 
 The rows of 4.1 are computed at 0.5 mm. Model RθJA in K/W, computed convection and radiation:
 
@@ -142,7 +142,7 @@ The rows of 4.1 are computed at 0.5 mm. Model RθJA in K/W, computed convection 
 * The board without vias is strongly grid-dependent (84 to 68 K/W): its heat leaves through a 3.15 mm source on a 4.15 mm land, a few cells wide, and the cell cover of the land changes with the grid. The 67.4 K/W quoted before this review is reproduced by no script (the test runs at 1 mm, 83.6 K/W). The conclusion (the exposed pad needs the vias, a factor 2 or more) holds at every cell size.
 * The bottom layer of the JEDEC board read as a 74.2 mm plane of 70 µm (ROHM's table, see 4.1) gives 26.4 K/W at 0.5 mm (+22.9 % of power error): the agreement of the JEDEC row depends on the traces reading.
 
-### 4.6 The board resistance against an independent solver (`scripts/study_independent_datasheet_board.py`, review of 2026-10-24)
+### 4.6 The board resistance against an independent solver (`scripts/study_independent_datasheet_board.py`, in the review)
 
 The calculator returns P = rise / (R + θ): its error on the datasheet board is the error of the board resistance R. The CSD17308Q3 board with the face coefficients fixed at the values the computed convection converges to at 1 W (16.14 top, 11.05 bottom W/m²K), cell 0.3 mm, FR-4 isotropic at 0.3 W/mK so that the independent solver (`research/solid3d-verification/lib/layered3d.py`, which shares no code with the program) represents the same board:
 
@@ -157,7 +157,7 @@ With the program's FR-4 (0.3 through, 0.9 in-plane) the FVM gives 47.2 K/W and t
 
 **The affine assumption** (`inverse.py`: two runs give the line T(P) = T(0) + R P). With fixed coefficients the junction temperature at 0.5, 2 and 3 W is on the line through 0 and 1 W to 0.00 K. With computed convection and radiation it is not (+1.4 K at 0.5 W, −6.0 K at 2 W, −14.4 K at 3 W on this board): the third run detects it and the secant iteration of `power_from_temperature` finishes the answer (`tests/test_inverse.py` checks the convergence to 2e-3). The two-run line of figure 4 is exact only for fixed coefficients.
 
-### 4.7 The band of the program and whether it holds the true power (`scripts/study_power_band.py`, review of 2026-10-24)
+### 4.7 The band of the program and whether it holds the true power (`scripts/study_power_band.py`, in the review)
 
 The example table of `docs/calculators.md` 1.1b (U1 at 2 W, θ 6, ψJT 2, default uncertainties: copper 25 %, heat transfer 30 %, θ 20 %, ψJT 30 %, reading 1 K) is printed by this script (`study_power_band.py none`, the band without the design term) and reproduced to the last digit: board ring 2.00 / 1.62 / 2.31 W, top of the package 2.00 / 1.69 / 2.27 W (nominal / best / worst). The numbers of this subsection up to the next paragraph are **without** the design term (level `none`); re-run on the current program (with the edge, 3D limit and inner-copper changes) level `none` prints exactly the same digits as quoted here, for both parts. Computed on a drawn board that differs from the real one (top of the package):
 
@@ -218,7 +218,7 @@ The example band (drawn board = real board, nominal / best / worst in W) at ever
 
 ## What was read and what was not verified
 
-* Opened and read in this review (2026-10-24, text extracted with pypdf): the TI CSD17308Q3 datasheet SLPS262C (December 2019): RθJA typical 46 °C/W on 1 in² of 2 oz copper on a 1.52 mm FR-4 board of 1.5 × 1.5 in, 58 °C/W maximum, 165 °C/W maximum on the minimum pad, RθJC 4.5 °C/W (a maximum); the TI TPS7A47 datasheet SBVS204G (revised May 2026): RθJA 32.5, RθJC(top) 27, RθJB 11.9, ψJT 0.3, ψJB 11.9, RθJC(bot) 1.7 °C/W, package RGW0020A 5 × 5 mm with a 3.15 mm exposed pad; ROHM 64AN113E rev. 003 table 2 (board 114.3 × 76.2 × 1.6 mm, vias Ø0.30 at 1.20 mm, planes 74.2 × 74.2 mm of 35 µm; the backside column reads 74.2 × 74.2 mm of 70 µm, see 4.1).
+* Opened and read in this review (text extracted with pypdf): the TI CSD17308Q3 datasheet SLPS262C (December 2019): RθJA typical 46 °C/W on 1 in² of 2 oz copper on a 1.52 mm FR-4 board of 1.5 × 1.5 in, 58 °C/W maximum, 165 °C/W maximum on the minimum pad, RθJC 4.5 °C/W (a maximum); the TI TPS7A47 datasheet SBVS204G (revised May 2026): RθJA 32.5, RθJC(top) 27, RθJB 11.9, ψJT 0.3, ψJB 11.9, RθJC(bot) 1.7 °C/W, package RGW0020A 5 × 5 mm with a 3.15 mm exposed pad; ROHM 64AN113E rev. 003 table 2 (board 114.3 × 76.2 × 1.6 mm, vias Ø0.30 at 1.20 mm, planes 74.2 × 74.2 mm of 35 µm; the backside column reads 74.2 × 74.2 mm of 70 µm, see 4.1).
 * Not re-opened in this review (from the earlier work): TI SPRA953B, Renesas, Richtek AN061, ROHM 65AN114E, Microchip, TI SLRR012, Electronics Cooling, the papers of sources 7 to 11. JESD51-5 and JESD51-7 were not read (behind a login).
 * Assumed, not from a datasheet: the 3 × 3 thermal vias at 1.2 mm under the TPS7A47 pad. θ = 4.5 K/W of the CSD17308Q3 is the datasheet's maximum RθJC; a typical value would lower the model's RθJA.
 * No measurement of a physical board.

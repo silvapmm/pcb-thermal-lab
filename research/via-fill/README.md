@@ -1,6 +1,6 @@
 # What fills a via barrel, and how much it matters for heat
 
-Status: **implemented** in the program in 2.4.0 (see the program's `docs/versions.md` and `docs/validation.md` section 18). Scripts: `scripts/study_via_fill.py` (the study), `scripts/study_via_model_checks.py` (the review checks of section 7); figures: `scripts/make_figures.py` and `scripts/make_diagrams.py`. Reviewed on 2026-10-25 (section 7; `LOG.md` says what was read).
+Status: **implemented** in the program in 2.4.0 (see the program's `docs/versions.md` and `docs/validation.md` section 18). Scripts: `scripts/study_via_fill.py` (the study), `scripts/study_via_model_checks.py` (the review checks of section 7); figures: `scripts/make_figures.py` and `scripts/make_diagrams.py`. Reviewed (section 7; `LOG.md` says what was read).
 
 ## 1. The question
 
@@ -92,7 +92,7 @@ The resistance of an open barrel falls with the diameter roughly as the circumfe
 
 * The plated copper **cap** over the ends of a capped via (type VII) is not modelled; it adds a little copper at the pad.
 * The **solder** joint of a via-in-pad (and the solder that wicks into an open via) is not modelled.
-* The fill conductivities are the values quoted by fabricator pages (non-conductive epoxy about 0.3 W/mK and conductive copper-epoxy 8 W/mK from JLCPCB, electroplated copper "around" or "approaching" 400 W/mK; ALLPCB quotes "1 to 3 W/mK" for epoxy without saying which), not measurements of ours. The ranges "up to 16 W/mK" and "silver-filled epoxy 3 to 15 W/mK" written here before the review are in none of the three cited pages (checked on 2026-10-25): no source is known for them. At 16 W/mK the paste would give −9 % of the via resistance.
+* The fill conductivities are the values quoted by fabricator pages (non-conductive epoxy about 0.3 W/mK and conductive copper-epoxy 8 W/mK from JLCPCB, electroplated copper "around" or "approaching" 400 W/mK; ALLPCB quotes "1 to 3 W/mK" for epoxy without saying which), not measurements of ours. The ranges "up to 16 W/mK" and "silver-filled epoxy 3 to 15 W/mK" written here before the review are in none of the three cited pages (checked in the review): no source is known for them. At 16 W/mK the paste would give −9 % of the via resistance.
 * The via is a point feature in the FVM and FDM, and a per-cell average in the 3D solid: the result depends on the cell size below about 0.5 mm (section 7.3).
 * No comparison with a measured board (no model of the program has been compared with a physical board).
 

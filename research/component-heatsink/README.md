@@ -52,7 +52,7 @@ Status: **mostly implemented**; reviewed (section 7: one defect of the program f
 
 ## 4. How to run, and the results
 
-Every study is run from the repository root, for example `.venv/bin/python research/component-heatsink/scripts/component_study.py` (each takes 2 seconds to 2 minutes). The outputs below were produced on the program of `develop` commit `1674d52` (2026-10-25).
+Every study is run from the repository root, for example `.venv/bin/python research/component-heatsink/scripts/component_study.py` (each takes 2 seconds to 2 minutes). The outputs below were produced on the program of `develop` commit `1674d52`.
 
 ### 4.1 Real parts at three levels (`component_study.py`)
 

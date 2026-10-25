@@ -2,7 +2,7 @@
 @file study_fem_hand_checks.py
 @brief Do the finite-element checks of README section 4.2 (element size, elements per gap, example board) reproduce from a script?
 
-@details The review of 2026-10-24 ran these cases by hand with fem3d_validation.solve_fem; this script prints them. Cases (maximum temperature of
+@details The review ran these cases by hand with fem3d_validation.solve_fem; this script prints them. Cases (maximum temperature of
          the top face, degC):
          (a) 4 layers, full copper (board_full_copper): 1 mm with 4 elements per gap, and 1 mm and 0.5 mm with 2 per gap (the "90.63 to 90.57" check),
              and 1 mm with 2 elements per gap instead of 4 (the 0.001 degC check);

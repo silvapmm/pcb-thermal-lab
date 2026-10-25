@@ -2,7 +2,7 @@
 @file study_block_against_fem.py
 @brief Does the metal block of the FVM and FDM (a heatsink with a thickness) follow an independent 3D finite-element solid?
 
-@details Reproduces the metal-block table of README section 4.2, which no script printed before the review of 2026-10-24. Board of tests/test_blocks.py:
+@details Reproduces the metal-block table of README section 4.2, which no script printed before the review. Board of tests/test_blocks.py:
          100 x 80 mm, 2 layers, full top copper, 5 W on a 10 x 10 mm heater at the centre, a copper pad on the bottom (30 x 30 mm unless stated) and an
          aluminium block (k 204 W/mK) under it (60 x 60 mm, 3 mm, interface 5 K cm2/W unless stated). The 3D finite-element solid of fem3d_validation.py
          (scikit-fem) models the interface as a slab of 1 W/mK and thickness R'' and the block as a slab below the board whose side faces lose heat too.

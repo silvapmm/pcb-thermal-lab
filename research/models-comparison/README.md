@@ -1,6 +1,6 @@
 # The five models against each other: scenarios, grids, solvers, time
 
-Status: **implemented**; the comparison is repeated whenever a model changes. Studies (all in `scripts/`): `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py`, `study_lumped_rings.py`, `study_complex_boards_independent.py`, `study_time_and_coefficients.py`, `study_offgrid_heater.py`; figures: `make_figures.py`, `make_diagrams.py`. Every number of section 4 was re-run on the program at `0ea5f07` (reviewed 2026-10-24, see section 7); where it is from somewhere else the text says so.
+Status: **implemented**; the comparison is repeated whenever a model changes. Studies (all in `scripts/`): `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py`, `study_lumped_rings.py`, `study_complex_boards_independent.py`, `study_time_and_coefficients.py`, `study_offgrid_heater.py`; figures: `make_figures.py`, `make_diagrams.py`. Every number of section 4 was re-run on the program at `0ea5f07` (reviewed, see section 7); where it is from somewhere else the text says so.
 
 ## 1. The questions
 
@@ -77,7 +77,7 @@ a 30 W/m²K heatsink on the bottom. Maximum temperature [°C] (times of one run 
 
 Every model closes the energy balance below 2e-12 W/W (heat out equals power in; FVM −1.4e-12, FDM −1.4e-12, Lumped and Analytic about 1e-15, 3D solid −1.1e-13 at 1 mm).
 
-The finite-element solid (`validation_study.py --fem`, the solid of `../solid3d-verification/scripts/fem3d_validation.py`, 1 mm elements; the layered models at 0.5 mm, Lumped and Analytic with their defaults) on four boards; error on the rise. Re-run 2026-10-24: the same numbers as `docs/validation.md` section 3. *The `--fem` option failed with an import error since the scripts moved out of `examples/`; fixed in the review.*
+The finite-element solid (`validation_study.py --fem`, the solid of `../solid3d-verification/scripts/fem3d_validation.py`, 1 mm elements; the layered models at 0.5 mm, Lumped and Analytic with their defaults) on four boards; error on the rise. Re-run: the same numbers as `docs/validation.md` section 3. *The `--fem` option failed with an import error since the scripts moved out of `examples/`; fixed in the review.*
 
 | Board | 3D FEM [°C] | FVM | FDM | 3D solid (FV) | Lumped | Analytic |
 | :-- | --: | --: | --: | --: | --: | --: |
@@ -245,7 +245,7 @@ boundary nodes with a full cell. All were fixed (conservative cell balance, exac
 
 ### 4.6 Time-dependent results
 
-`.venv/bin/python research/models-comparison/scripts/study_time_and_coefficients.py` prints every number of this section and of 4.7 (re-run 2026-10-24 on `0ea5f07`). *Before the review this section was copied from `docs/validation.md` and no script printed it; the FVM rows of both animations had gone stale (by 0.2 to 0.4 °C) and the FDM row too.*
+`.venv/bin/python research/models-comparison/scripts/study_time_and_coefficients.py` prints every number of this section and of 4.7 (re-run on `0ea5f07`). *Before the review this section was copied from `docs/validation.md` and no script printed it; the FVM rows of both animations had gone stale (by 0.2 to 0.4 °C) and the FDM row too.*
 
 * **Step response, exact check** (as `tests/test_fvm.py`): one layer, a heater over the whole board, insulated edges, the laminate nodes switched off so that the board is one node (`C dθ/dt = P − Gθ`, time constant 109.1 s, steady rise 40.00 K); maximum error in K over three time constants, Δt = τ/2:
   implicit Euler 3.06 / 1.67 / 0.875 / 0.448 for Δt, Δt/2, Δt/4, Δt/8 (first order); Crank-Nicolson 0.315 / 0.0772 / 0.0192 / 0.00479 (second order); stored plus lost heat equals the injected heat within 0.01 % (trapezoidal integral of the loss).
@@ -305,7 +305,7 @@ Mean absolute error against the 3D solid, before → after: fvm 3.8 → 1.0 %; f
 * The Analytic model is unchanged on average: better with full copper (−5.7 → −2.2 %), hotter on the partial-copper boards where it was already too hot (LED strip +3.3 → +5.9 %, power board +5.4 → +6.6 %, round board +8.7 → +10.0 %) and less cool on the 20 mm pad (−13.0 → −11.0 %). The series film adds the laminate resistance on the way to the bottom face, so every one-layer result rises; that helps where the model was cool and hurts where it was hot. *An earlier version explained the hot boards by a uniform sheet that "spread the heat too far": a sheet that spreads too far gives a cool answer, not a hot one, so that explanation does not fit the sign. Why the Analytic is hot on those three boards was not isolated.*
 * What stays: a bare pad on a one-layer board for the Lumped and the Analytic, and the pad edge for the FDM; the FVM is within 3.5 % on every board.
 
-**Check of the reference (review, 2026-10-24).** The 3D solid of this table runs at 1 mm. Halving its cell moves its rise by +0.8 % on the 20 mm pad (56.92 → 56.46 K), −0.2 % on the LED strip and 0.0 % on the full-copper board and on the two-layer round board. Against the independent solver (`../solid3d-verification/lib/layered3d.py`, 0.5 mm cells, 8 laminate slabs; the same boards made isotropic, FR-4 0.3 W/mK, and without the edge loss, because that solver has neither) the program's 3D solid at 1 mm is +0.0 % (full copper 3.2 mm), +0.4 % (LED strip) and +1.4 % (20 mm pad), and at 0.5 mm +0.0, +0.1 and +0.2 %. On those isotropic boards the FVM is −0.0, −1.7 and −1.7 % from the independent solver, the FDM −0.1, −8.1 and −11.5 %, the Lumped −2.7, −11.9 and −16.0 %, the Analytic −1.1, −2.9 and −29.3 % (`scripts/study_complex_boards_independent.py`). So the reference of the table is good to about 1 % at 1 mm on pads and the ranking of the models holds against a solver that shares none of their code; the FVM's −3.5 % on the 20 mm pad is about −2.7 % against the 3D solid at 0.5 mm.
+**Check of the reference (in the review).** The 3D solid of this table runs at 1 mm. Halving its cell moves its rise by +0.8 % on the 20 mm pad (56.92 → 56.46 K), −0.2 % on the LED strip and 0.0 % on the full-copper board and on the two-layer round board. Against the independent solver (`../solid3d-verification/lib/layered3d.py`, 0.5 mm cells, 8 laminate slabs; the same boards made isotropic, FR-4 0.3 W/mK, and without the edge loss, because that solver has neither) the program's 3D solid at 1 mm is +0.0 % (full copper 3.2 mm), +0.4 % (LED strip) and +1.4 % (20 mm pad), and at 0.5 mm +0.0, +0.1 and +0.2 %. On those isotropic boards the FVM is −0.0, −1.7 and −1.7 % from the independent solver, the FDM −0.1, −8.1 and −11.5 %, the Lumped −2.7, −11.9 and −16.0 %, the Analytic −1.1, −2.9 and −29.3 % (`scripts/study_complex_boards_independent.py`). So the reference of the table is good to about 1 % at 1 mm on pads and the ranking of the models holds against a solver that shares none of their code; the FVM's −3.5 % on the 20 mm pad is about −2.7 % against the 3D solid at 0.5 mm.
 
 ![The nine boards](figures/fig_05_complex_boards_layouts.png)
 
@@ -352,7 +352,7 @@ The example board (rise against the FVM):
 
 Own computation. The removed program is documented by its code at tag `legacy-wxpython-1.0.0`; literature on FDM and FVM and on PCB thermal models is listed in `docs/validation.md` section 10.
 
-## 7. Review of 2026-10-24
+## 7. Review
 
 The `reviewer` agent re-ran every script of the folder on the program at `0ea5f07` (`validation_study.py` with and without `--fem`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py` with `--compare` against `out/complex_boards_before.json`, `study_lumped_rings.py`) and compared every printed number with this README and with `docs/validation.md`. What it found and changed:
 

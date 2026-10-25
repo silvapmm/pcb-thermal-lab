@@ -1,7 +1,7 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the layered models against the 3D solid: one node per copper layer with sheet conductances, against real slabs with the vertical gradient resolved, and the verification ladder against exact and independent references.
-@details Pure drawing; the accuracy numbers quoted (four boards of README 4.2: FVM within 0.4 to 2.2 % of the 3D rise, Lumped 0.1 to 4.5 %, Analytic 0.0 % on uniform copper and up to 24 % with a 20 mm pad; corrected by the review of 2026-10-24 from older numbers) are those of the README of this folder. Writes figures/fig_04_layered_vs_3d_schematic.png.
+@details Pure drawing; the accuracy numbers quoted (four boards of README 4.2: FVM within 0.4 to 2.2 % of the 3D rise, Lumped 0.1 to 4.5 %, Analytic 0.0 % on uniform copper and up to 24 % with a 20 mm pad; corrected by the review from older numbers) are those of the README of this folder. Writes figures/fig_04_layered_vs_3d_schematic.png.
          Also writes figures/fig_08_heat_spreading_layered_and_3d.png (spreading under a small heater, layered and 3D).
          Run: .venv/bin/python research/solid3d-verification/scripts/make_diagrams.py (from the repository root).
 """

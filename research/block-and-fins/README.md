@@ -1,6 +1,6 @@
 # The metal block and its fins: models and verification
 
-Status: **implemented** in the program (2.3.0 and 2.4.0; see the program's `docs/versions.md` and `docs/validation.md`). Studies: `fin_validation.py`, `block_equivalent_study.py`, `study_finned_block_all_models.py`, `study_why_coefficients_fail.py`, `study_thick_plate_criterion.py`; figures: `make_figures.py`, `make_diagrams.py`. Reviewed on 2026-10-25 (section 7); a defect of the program found in the review is written up in `INTEGRATION.md`.
+Status: **implemented** in the program (2.3.0 and 2.4.0; see the program's `docs/versions.md` and `docs/validation.md`). Studies: `fin_validation.py`, `block_equivalent_study.py`, `study_finned_block_all_models.py`, `study_why_coefficients_fail.py`, `study_thick_plate_criterion.py`; figures: `make_figures.py`, `make_diagrams.py`. Reviewed (section 7); a defect of the program found in the review is written up in `INTEGRATION.md`.
 
 ## 1. The questions
 

@@ -100,7 +100,7 @@ def run(root):
     from pcbthermal import solid3d                                         # noqa: E402
     api = {"Problem": Problem, "example_board": example_board, "example_block_board": example_block_board}
     out = {}
-    # The 6-layer board has about 281 000 3D unknowns at 1 mm, above the application's limit (solid3d.MAX_CELLS, 250 000 since 2026-10-24);
+    # The 6-layer board has about 281 000 3D unknowns at 1 mm, above the application's limit (solid3d.MAX_CELLS, 250 000 after the model corrections);
     # the study accepts the longer solve. Older checkouts have no size_limit and their limit (2 million) already lets it run.
     def limit():
         """!

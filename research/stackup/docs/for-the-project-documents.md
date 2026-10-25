@@ -1,4 +1,4 @@
-# Text for the project documents (review of 2026-10-24)
+# Text for the project documents (from the review)
 
 The review of `research/stackup/` (README section 7) found numbers and statements in the program's documents and data that no longer match what the scripts print on the corrected program (`0ea5f07`). The project documents are not edited on a research branch; this is the text to fold in when the maintainer decides.
 
@@ -29,7 +29,7 @@ Table C is current. Add after "Without the vias under the part (base rise 93.4 K
 
 The 6 and 8-layer rows were boards with no bottom copper (defect of the study, fixed). Replace the table and the first two bullets with the table and bullets of `research/stackup/README.md` section 4.3 (two columns: outer copper only and a plane on every inner layer). The numbers that change in the text: "0.1 to 1.7 °C (0.2 to 1.5 % of the rise)" -> "0.1 to 1.5 °C (0.2 to 2.0 % of the rise)"; "6 layers within 0.9 °C, 8 layers within 1.4 °C" -> "6 layers within 1.5 °C, 8 layers within 0.8 °C"; "at 93.65 °C" -> "at 93.64 °C"; the middle-prepreg bullet "the effect on the temperature is 0.1 K" -> "the whole JLCPCB 6-layer table is 0.3 to 0.4 K cooler than the template". New bullet: with inner planes the 0.5 oz inner copper of the templates makes the board 5 to 8 K hotter than the 1 oz inner copper of most tables (JLCPCB 6-layer, same inner copper, within 0.4 K).
 
-## 4. `CLAUDE.md`, Decisions Log of 2026-10-21
+## 4. `CLAUDE.md`, Decisions Log entry on the advanced stack-up
 
 "dielectric conductivity and thickness move the temperature by about 1 %, copper weight by 5 %" is the sensitivity of a 4-layer board with vias to ±30 % of dielectric conductivity, ±10 % of dielectric thickness and ±15 % of finished copper. A history entry is not rewritten; if the statement is quoted again, give the scope: 2 to 3 % without vias, 6 to 9 % on a one-layer board with a pad.
 
@@ -45,7 +45,7 @@ Add after the definitions of the layer equation:
 
 The fifth source says the JLCPCB and PCBWay tables give a maximum temperature "under 0.5 %" from the templates. With the corrected comparison it is up to 2.0 % of the rise with outer copper only (the dielectric split) and up to 13 % with a plane on every inner layer (because the templates use 0.5 oz inner copper and most tables 1 oz). Suggested text: "... were compared with these templates: with outer copper only the maximum temperature of the example board moves by 0.2 to 2.0 % of the rise; with inner planes the 0.5 oz inner copper of the templates is 5 to 8 K hotter than 1 oz (research/stackup/README.md section 4.3)". This is program data: a `fix/` branch, not this one.
 
-## 7. `pcbthermal/data/stackups.json`, inner copper of the templates (study of 2026-10-24, README section 4.5)
+## 7. `pcbthermal/data/stackups.json`, inner copper of the templates (study of README section 4.5)
 
 **Adopted in another form**: both weights are offered, `Board.template_inner_oz` = 0.5 (default, JLCPCB standard, the 4-layer entry stays that table) or 1 (35 µm inner copper, dielectrics unchanged), `docs/validation.md` section 14.1. The edit list below (switching the file to 35 µm, or scaling the dielectrics) was not done; it is kept as the record of the options.
 

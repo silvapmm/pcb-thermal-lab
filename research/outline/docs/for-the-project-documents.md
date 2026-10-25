@@ -1,4 +1,4 @@
-# Text for the project documents (review of 2026-10-24)
+# Text for the project documents (from the review)
 
 The review of `research/outline/` (README section 7) found numbers and statements in the project documents that the re-run does not support. `docs/` and `pcbthermal/` are not edited on a research branch; this is the replacement text, to be applied on `develop` by the maintainer.
 
@@ -6,7 +6,7 @@ The review of `research/outline/` (README section 7) found numbers and statement
 
 The table of the section is already the corrected one (`develop` refreshed it with the edge fix; it equals what `outline_rectangle_study.py` prints now). The rows and the means quoted below are from that re-run (mean absolute error of the 1.1 × box: 14.1 / 13.3 %).
 
-Replace the bullets under the table, except the one on the edge of the outline (2026-10-24, already in the section and correct), with:
+Replace the bullets under the table, except the one on the edge of the outline (already in the section and correct), with:
 
 * Enlarging the box (the idea of growing outwards) is the worst choice in 29 of the 30 model-and-layout cells (5 to 35 % too cool: more area means more convection); the exception is the Lumped model on the rounded board with the parts at the centre. Shrinking to the same area is the best on average (mean absolute error, Lumped / Analytic: bounding box 9.2 / 7.7 %, same area 5.7 / 2.9 %, 1.1 × box 14.1 / 13.3 %). Its error is mostly on the cool side, not always: up to +2.9 % (ellipse, parts at the centre).
 * For a strongly cut shape (ellipse, L, T; area ratio below 0.8) the bounding box ignores 22 to 33 % of the board and is 6 to 29 % cool; the same-area rectangle brings parts away from the edge to within 0.4 to 2.9 %.

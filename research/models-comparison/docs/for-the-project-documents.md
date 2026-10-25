@@ -1,4 +1,4 @@
-# Corrections for the project documents (from the review of 2026-10-24)
+# Corrections for the project documents (from the review)
 
 The project documents are not edited on a research branch. These are the changes the review of this folder found necessary in `docs/validation.md`; apply them on a `docs/` or `fix/` branch off `develop`. Every number below is printed by a script of this folder, run on the program at `0ea5f07` (README section 7).
 

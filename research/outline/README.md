@@ -1,6 +1,6 @@
 # Lumped and Analytic models on a board with an outline
 
-Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `scripts/outline_rectangle_study.py`, `scripts/study_outline_time_constant.py`, `scripts/study_disc_reference.py`, `scripts/study_edge_on_grid_lines.py`; figures: `scripts/make_figures.py`, `scripts/make_diagrams.py`. Reviewed on 2026-10-24 (section 7); numbers re-run after the edge fix of the program (4.6).
+Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `scripts/outline_rectangle_study.py`, `scripts/study_outline_time_constant.py`, `scripts/study_disc_reference.py`, `scripts/study_edge_on_grid_lines.py`; figures: `scripts/make_figures.py`, `scripts/make_diagrams.py`. Reviewed (section 7); numbers re-run after the edge fix of the program (4.6).
 
 ## 1. The question
 
@@ -168,7 +168,9 @@ The "old rule" columns are the local copy of the old assignment applied to the c
 
 ![The outline given to the cells before and after the edge fix](figures/fig_07_edge_assignment.png)
 
-*Figure 7 (`figures/fig_07_edge_assignment.png`): the boundary samples given to the cells, on real cells (5 mm, chosen for legibility; the numbers in the cells are the outline length of the cell in mm). Left, the T with its sides on grid lines under the old rule (a local copy, `edge_before`): the sides whose board is on the other side of the grid line fall in cells off the board (red) and 170 of 240 mm are counted. Middle, the same T on the current program (`geometry.edge_length_per_cell` with the inward nudge): 240 of 240 mm. Right, a 40 mm square turned by 20 degrees (`geometry.edge_length_on_board`): the edge of the cells that the cover takes as off the board (red; 19.9 mm of 160 on these coarse cells) is moved to the nearest cell on the board (arrows) and the whole 160 mm is counted; the old rule counts 140.1 mm. On the 1 mm cells of the table above the loss of the old rule is 2.2 % for the same square; the cell here is five times larger, so the loss is larger. Drawn by `scripts/make_diagrams.py` from the program's functions, not from a table.* The temperatures on the current program, 1 mm cells:
+*Figure 7 (`figures/fig_07_edge_assignment.png`): the boundary samples given to the cells, on real cells (5 mm, chosen for legibility; the numbers in the cells are the outline length of the cell in mm). Left, the T with its sides on grid lines under the old rule (a local copy, `edge_before`): the sides whose board is on the other side of the grid line fall in cells off the board (red) and 170 of 240 mm are counted. Middle, the same T on the current program (`geometry.edge_length_per_cell` with the inward nudge): 240 of 240 mm. Right, a 40 mm square turned by 20 degrees (`geometry.edge_length_on_board`): the edge of the cells that the cover takes as off the board (red; 19.9 mm of 160 on these coarse cells) is moved to the nearest cell on the board (arrows) and the whole 160 mm is counted; the old rule counts 140.1 mm. On the 1 mm cells of the table above the loss of the old rule is 2.2 % for the same square; the cell here is five times larger, so the loss is larger. Drawn by `scripts/make_diagrams.py` from the program's functions, not from a table.*
+
+The temperatures on the current program, 1 mm cells:
 
 | board, 1 mm | FVM Tmax | FDM | 3D solid | 3D solid, sum of the side conductances |
 | :-- | --: | --: | --: | --: |
@@ -197,7 +199,7 @@ Own computation only; no literature was used for this study. The independent ref
 * Checked in the review against independent references: the time constant against the closed form C/G (one, two and four layers, round and square, within 0.1 %; a T within 0.0 % now that the edge rule of 4.6 is corrected in the program), the steady field of a round board against a radial solution (4.5), the transient board mean against a radial implicit Euler (4.5).
 * Not reproduced: the claim that scaling about the area centroid gave no consistent gain (no script). Not checked: the stretch of the field back over the real box (the maps of the Lumped and Analytic models on an outline), beyond the maximum and the mean.
 
-## 7. Review (2026-10-24)
+## 7. Review
 
 Independent review by the reviewer agent, on the program at `0ea5f07` (merged into this branch). Every script was re-run; the numbers of sections 4.2 to 4.6 are the ones they print now.
 
