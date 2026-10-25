@@ -10,6 +10,10 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ---
 
+## Unreleased: documentation corrections from the reviews of the research folders
+
+* **Documents only** (branch `docs/research-corrections`; no change to `pcbthermal/`): the corrections listed in the `docs/for-the-project-documents.md` of `research/{solid3d-verification, models-comparison, effective-conductivity, outline, stackup, power-calculator}` (branch `research/gerbers`) that were still missing from `develop`, applied to `docs/validation.md` (sections 1, 2, 2.1, 3, 3.1, 5 to 8, 12, 13, 16, 19 to 22, new 21.1 and 22.1), `docs/calculators.md` (2.1, 4), `docs/theory.md` (1.2), `docs/models.md` (outline error) and `docs/roadmap.md`. Tables that a script in `develop` prints were re-run here (`stackup_outline_study.py`, `solver_equivalence.py`, `outline_rectangle_study.py`, `calculator_validation.py`); the others are quoted from the research folder and the text names the script and the branch. Tests: `tests/test_docs.py`, `tests/test_version.py`, `tests/test_help.py`.
+
 ## Unreleased: design uncertainty of the power calculator
 
 * **Board description** (`inverse.py`: `DESIGN_LEVELS`, `design_amounts`, `_design_coverage`, `_design_weight`, `_design_planes`, `_design_vias`, `power_band`; `jobs.job_inverse`; `gui/calculator.py` list *Board description*; `gui/preferences.py`; `data/defaults.json` `calculator` section `design_*`): four more one-at-a-time sources (copper coverage, copper weight, inner planes, vias) combined with the others by the root of the sum of squares; level none / cad / hand / estimated (amplitude at *estimated* times a multiplier per level), default *hand*. Level none (or a zero multiplier) runs no design source: the band is bit-identical to the old one. Measured: the sensitivities (`docs/calculators.md` table 2.2); assumed: the amplitudes and multipliers. Tests: `tests/test_calculator_design.py`, `tests/test_inverse.py`, `tests/test_defaults.py`, `tests/test_gui_stress.py` (calculator scenario), `tests/test_help.py`, `tests/test_tooltips.py`. Study: `docs/calculators.md` 1.1c.
