@@ -260,3 +260,48 @@ def test_coverage_keeps_the_area_of_thin_tracks(tmp_path):
     assert abs(float(cv.mask.sum() * 0.1 ** 2) / expected - 1.0) > 0.3        # the binary mask misses (or doubles) it
     flat = HEAD + "G36*\n" + xy(1, 1, 2) + xy(3, 1, 1) + xy(3, 3, 1) + xy(1, 3, 1) + xy(1, 1, 1) + "G37*\nM02*\n"
     assert float(ng.render_coverage(flat, 0.0, 4.0, 4.0, 4.0, 0.1).sum() * 0.01) == pytest.approx(4.0, rel=0.01)
+
+
+def _centroid_and_area(text, pix=0.01):
+    """!
+    @brief Draw a Gerber text on a 6 x 6 mm window centred on the origin.
+    @param text File content.
+    @param pix Pixel size (mm).
+    @return Tuple (x of the centroid, y of the centroid, area mm2).
+    """
+    cv = ng.Canvas(-3.0, 3.0, 6.0, 6.0, pix)
+    ng.Layer(text).draw(cv)
+    i, j = np.nonzero(cv.mask)
+    return -3.0 + (j.mean() + 0.5) * pix, 3.0 - (i.mean() + 0.5) * pix, cv.mask.sum() * pix * pix
+
+
+def test_macro_polygon_and_thermal_rotate_about_the_macro_origin():
+    """!@brief Found by the review: primitives 5 (polygon) and 7 (thermal) with a centre off the origin turned about their own centre; the specification turns every primitive about the macro origin, so a centre at (1, 0) turned by 90 degrees lands at (0, 1). @return None."""
+    for body in ("%AMPOLY*\n5,1,4,1,0,1,90*%\n%ADD10POLY*%\n", "%AMTH*\n7,1,0,1.5,1.0,0.2,90*%\n%ADD10TH*%\n"):
+        cx, cy, _ = _centroid_and_area(HEAD + body + "D10*\n" + xy(0, 0, 3) + "M02*\n")
+        assert (cx, cy) == (pytest.approx(0.0, abs=0.01), pytest.approx(1.0, abs=0.01))
+
+
+def test_single_quadrant_arc_with_start_equal_to_end_is_not_a_full_circle():
+    """!@brief Found by the review: in G74 mode an arc whose start equals its end has zero length (a full circle needs G75); it was drawn as a full circle (1.19 mm2 instead of a 0.2 mm dot). @return None."""
+    body = "%ADD10C,0.2*%\nD10*\n{mode}*\n" + xy(1, 0, 2) + f"G02X{mm(1)}Y0I{mm(1)}J0D01*\nM02*\n"
+    assert _centroid_and_area(HEAD + body.format(mode="G74"))[2] == pytest.approx(math.pi * 0.01, rel=0.05)
+    body75 = "%ADD10C,0.2*%\nD10*\nG75*\n" + xy(1, 0, 2) + f"G02X{mm(1)}Y0I{mm(-1)}J0D01*\nM02*\n"
+    assert _centroid_and_area(HEAD + body75)[2] == pytest.approx(2 * math.pi * 0.2, rel=0.01)
+
+
+def test_deprecated_axis_swap_and_incremental_coordinates_are_refused():
+    """!@brief Found by the review: %ASAYBX*% (axes swapped) and G91 (incremental coordinates) were ignored without a word, which draws the board in the wrong place; they are refused now. @return None."""
+    with pytest.raises(NotImplementedError):
+        ng.Layer(HEAD + "%ASAYBX*%\n%ADD10C,0.5*%\nD10*\n" + xy(1, 0, 3) + "M02*\n")
+    with pytest.raises(NotImplementedError):
+        ng.Layer(HEAD + "%ADD10C,0.5*%\nD10*\n" + xy(1, 1, 3) + "G91*\n" + xy(1, 0, 3) + "M02*\n")
+
+
+def test_excellon_canned_slot_and_routed_arc(tmp_path):
+    """!@brief Found by the review: a canned slot X..Y..G85X..Y.. gave a hole at its start (now at its middle, as gerbonara reads it) and a routed arc G02/G03 was dropped (now one hole at the middle of its chord). @param tmp_path pytest temp dir. @return None."""
+    f = tmp_path / "s.drl"
+    f.write_text("M48\nMETRIC,TZ\nT1C0.5\n%\nT1\nX1.0Y1.0G85X3.0Y1.0\nM30\n")
+    assert [(round(x, 3), round(y, 3)) for x, y, _, _ in ng.read_drill(f)] == [(2.0, 1.0)]
+    f.write_text("M48\nMETRIC,TZ\nT1C0.5\n%\nT1\nG00X1.0Y1.0\nM15\nG01X3.0Y1.0\nG02X4.0Y2.0A1.0\nM16\nM30\n")
+    assert [(round(x, 3), round(y, 3)) for x, y, _, _ in ng.read_drill(f)] == [(2.0, 1.0), (3.5, 1.5)]

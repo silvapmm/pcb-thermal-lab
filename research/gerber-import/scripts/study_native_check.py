@@ -4,6 +4,9 @@
 @details For every window of windows.py the copper mask is drawn twice (centre-sampled at 0.1 mm): by native_gerber.render and by gerber_geometry.sample_mask on the shapely
          union. Reported per board: copper-area difference, share of pixels that differ (XOR over union), the boundary pixels excluded as well (a disagreement of one
          pixel on an edge is noise: a pixel is "edge" when a neighbour differs in the shapely mask), and the time of each route. Also the board box and the drills.
+         Both masks are drawn here at the origin stored in the window list. (An earlier version took the cached window masks as the reference: those were drawn by the
+         independent reader itself, at the origin before it was rounded to 0.1 mm in the list, so it compared the reader with itself shifted by up to half a pixel;
+         README section 5 quotes the corrected numbers.)
          Run: .venv/bin/python research/gerber-import/scripts/study_native_check.py (from the repository root) (about 1 minute).
 """
 
@@ -24,7 +27,7 @@ def main():
     @brief Compare the two readers on every window and print a table per board.
     @return None.
     """
-    masks, meta = windows.load()
+    _, meta = windows.load()                       # only the window positions are used; the cached masks are not the reference
     by = {}
     geoms = {}
     t_native = t_shape = 0.0
@@ -38,7 +41,9 @@ def main():
         t = time.time()
         native = ng.render(files["F"], ox, oy + windows.WIN, windows.WIN, windows.WIN, windows.PIX)
         t_native += time.time() - t
-        ref = masks[i]
+        t = time.time()
+        ref = gg.sample_mask(geoms[b], ox, oy + windows.WIN, windows.WIN, windows.WIN, windows.PIX) > 0.5   # the shapely route on the same pixels
+        t_shape += time.time() - t
         diff = native != ref
         near_edge = ndimage.binary_dilation(ref, iterations=1) != ndimage.binary_erosion(ref, iterations=1)         # pixels touching a boundary of the shapely mask
         by.setdefault(b, []).append((100 * (native.sum() / ref.sum() - 1), 100 * diff.sum() / (native | ref).sum(), 100 * (diff & ~near_edge).sum() / ref.size))
@@ -46,7 +51,7 @@ def main():
     for b, rows in by.items():
         a = np.array(rows)
         print(f"{b:8s} | {a[:, 0].mean():+6.3f} % (max {np.abs(a[:, 0]).max():.3f})   | {a[:, 1].mean():5.2f} % (max {a[:, 1].max():.2f})        | {a[:, 2].mean():.4f} % (max {a[:, 2].max():.4f})")
-    print(f"\ntime for {len(meta)} windows: native {t_native:.1f} s; shapely route (one union per board) {t_shape:.1f} s plus the sampling")
+    print(f"\ntime for {len(meta)} windows: native {t_native:.1f} s; shapely route (one union per board and the sampling) {t_shape:.1f} s")
     print("\nboard boxes (native outline layer vs gerbonara), mm:")
     for b in by:
         files = gg.board_files(b)

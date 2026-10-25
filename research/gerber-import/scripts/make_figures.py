@@ -1,6 +1,6 @@
 """!
 @file make_figures.py
-@brief The picture of phase 1: our IC board drawn from its Gerber by the independent reader.
+@brief The data figures of phase 1 (figures 1 to 5 and 9 to 15): our IC board, the validation summary, the Stormduino nets, the mask, the reader, the four tools pixel by pixel, the KiCad nets pixel by pixel and the board outline.
 @details Figures are committed on purpose (the README files link to them); the caches they read are in out/ and are made by the studies. Run: .venv/bin/python research/gerber-import/scripts/make_figures.py (from the repository root).
 """
 
@@ -63,19 +63,18 @@ def fig_validation():
     rows = json.loads(jp.read_text())
     tools = ["native", "gerbonara vector", "gerbonara sampled", "pygerber cleaned >50%", "pcb-tools >50%"]
     acc = {p: {t: [] for t in tools} for p in ("0.1", "0.05", "0.025")}
-    for line in cp.read_text().splitlines():
-        m = re.match(r"\s+pix (0\.1|0\.05|0\.025): (.*)", line)
-        if not m:
-            continue
-        for part in m.group(2).split(", "):
-            for t in tools:
-                if part.startswith(t):
-                    acc[m.group(1)][t].append(abs(float(part.split()[-1].rstrip("%"))))
+    for line in cp.read_text().splitlines():                               # the summary table of compare_readers.py (means over the 14 files, unrounded)
+        for t in tools:
+            if line.startswith(t + " ") and "%" in line:
+                vals = re.findall(r"([\d.]+) % \(", line[len(t):])
+                for p, v in zip(("0.1", "0.05", "0.025"), vals):
+                    acc[p][t].append(float(v))
     fig, axs = plt.subplots(1, 3, figsize=(17, 4.8), gridspec_kw={"width_ratios": [1, 1.5, 0.8]})
     x = np.arange(3)
     for k, t in enumerate(tools):
         axs[0].bar(x + (k - 2) * 0.16, [np.mean(acc[p][t]) if acc[p][t] else np.nan for p in ("0.1", "0.05", "0.025")], 0.16, label=t)
-    axs[0].set_yscale("symlog", linthresh=0.1)
+    axs[0].set_yscale("log")                                               # log, not symlog: the vector area (0.01 %) must stay visible
+    axs[0].set_ylim(0.005, 60)
     axs[0].set_xticks(x)
     axs[0].set_xticklabels(["0.1 mm", "0.05 mm", "0.025 mm"])
     axs[0].set_xlabel("pixel")
@@ -98,8 +97,13 @@ def fig_validation():
     axs[2].plot([20, 500], [20, 500], color="k", linewidth=0.7)
     axs[2].set_xscale("log")
     axs[2].set_yscale("log")
-    axs[2].set_xlabel("separate copper pieces, vector union (gerbonara + shapely)")
-    axs[2].set_ylabel("separate pieces, our 0.05 mm mask (8-connected)")
+    from matplotlib.ticker import NullFormatter, ScalarFormatter
+    for axis in (axs[2].xaxis, axs[2].yaxis):                              # plain numbers, no crowded minor labels
+        axis.set_major_formatter(ScalarFormatter())
+        axis.set_minor_formatter(NullFormatter())
+        axis.set_ticks([20, 50, 100, 200, 500])
+    axs[2].set_xlabel("copper pieces, vector union\n(gerbonara + shapely)")
+    axs[2].set_ylabel("pieces, our 0.05 mm mask (8-connected)")
     axs[2].set_title("connected pieces, 12 layers: all on the line", fontsize=9)
     fig.tight_layout()
     fig.savefig(OUT / "fig_02_validation_summary.png", dpi=105)
@@ -214,7 +218,9 @@ def fig_mask_explained():
     axs[1].set_title(f"2. binary mask, 0.1 mm pixel (centre sampling):\n{pieces} separate pieces, the track is broken", fontsize=9)
     im = axs[2].imshow(cov, extent=ext, cmap="YlOrBr", vmin=0, vmax=1, interpolation="nearest")
     fig.colorbar(im, ax=axs[2], fraction=0.046, label="copper fraction of the pixel")
-    axs[2].set_title("3. coverage mask, 0.1 mm pixel (4 x 4 sub-samples):\nevery pixel keeps its share of copper, the area is exact", fontsize=9)
+    exact = w * 3.7 + math.pi * (w / 2) ** 2                          # stroke with round ends: the exact area of the track
+    cov_err = 100.0 * (cov.sum() * 0.01 / exact - 1.0)
+    axs[2].set_title(f"3. coverage mask, 0.1 mm pixel (4 x 4 sub-samples):\nevery pixel keeps its share of copper, the area is kept\n(to the 4 x 4 sampling; {cov_err:+.1f} % here)", fontsize=9)
     n = 10
     frac = cov.reshape(int(size), n, int(size), n).mean(axis=(1, 3))
     axs[3].imshow(frac, extent=ext, cmap="YlOrBr", vmin=0, vmax=0.12, interpolation="nearest")
@@ -289,7 +295,7 @@ def fig_reader_pipeline():
         ax.add_patch(Circle((0, y), 1.2, facecolor="#e0a458", edgecolor="k"))
         ax.add_patch(Circle((0, y), 0.5, facecolor="k"))
         ax.text(-4.8, y + 1.45, name, fontsize=8)
-        ax.text(2.0, y, "pad: aperture function ViaPad or\nComponentPad, net GND" if k == 0 else "pad: net GND", fontsize=7.5, va="center")
+        ax.text(2.0, y, "pad (any shape) on the hole: its net\n(X2 aperture function ViaPad / ComponentPad\nand TO.N when written; the Stormduino has none)" if k == 0 else "pad on the hole: the same net", fontsize=7.5, va="center")
     ax.plot([0, 0], [-1.9, 1.7], color="k", linestyle=":")
     ax.text(0, 4.2, "hole at (x, y), 0.4 mm, plated (drill file)\nits centre lies on a pad on every layer, with the same net:\nthe hole is a via and the layers are joined", ha="center", fontsize=8)
     ax.set_title("matching a hole, its pads and the net by position\n(Stormduino: 109 of 109 holes join the two layers)", fontsize=10)
@@ -440,7 +446,7 @@ def fig_tools_and_pixel():
     axs[0].bar(names, vals, color=["#2a6f97", "#c9a227", "#b5651d"])
     axs[0].set_yscale("log")
     axs[0].set_ylabel("pixels that differ (% of the copper)")
-    axs[0].set_title("Stormduino top copper, 0.025 mm pixels", fontsize=9)
+    axs[0].set_title("Stormduino top copper, 0.025 mm pixels,\nwhole layer on the grid lined up with the file", fontsize=9)
     for i, v in enumerate(vals):
         axs[0].text(i, v, f"{v:.3f} %", ha="center", va="bottom", fontsize=8)
     sweep = res["pixel_sweep"]
@@ -449,7 +455,7 @@ def fig_tools_and_pixel():
     axs[1].set_xlabel("pixel size")
     for i, r in enumerate(sweep):
         axs[1].text(i, r["differing_pixels"], f"{r['differing_area_mm2']:.3f} mm2", ha="center", va="bottom", fontsize=8)
-    axs[1].set_title(f"independent reader against the vector truth: of {sweep[0]['area_truth_mm2']:.0f} mm2 of copper,\nat most {max(r['differing_area_mm2'] for r in sweep):.2f} mm2 differ at any pixel size", fontsize=9)
+    axs[1].set_title(f"independent reader against the vector truth: of {sweep[0]['area_truth_mm2']:.0f} mm2 of copper,\nat most {max(r['differing_area_mm2'] for r in sweep):.2f} mm2 differ at any pixel size (shifted grid: no ties)", fontsize=9)
     fig.suptitle("The independent reader and two raster renderers against the vector truth (README 4.45)", fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.94))
     fig.savefig(OUT / "fig_12_tools_and_pixel_size.png", dpi=110)
@@ -531,7 +537,7 @@ def fig_kicad_pixels():
     axs[1].set_xticks(x)
     axs[1].set_xticklabels(labels)
     axs[1].set_ylabel("copper pixels (0.05 mm)")
-    axs[1].set_title(f"pixels on each layer; only CAD: {only_k[0]} and {only_k[1]}", fontsize=9)
+    axs[1].set_title(f"pixels on each layer; only CAD: {only_k[0]} and {only_k[1]} px, all within one pixel\nof Gerber copper (none farther: the 0 px of figure 13)", fontsize=9)
     axs[1].legend(fontsize=7, loc="lower right")
     fig.suptitle("The nets of the KiCad project against the Gerber copper (README 4.46)", fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.94))

@@ -7,7 +7,9 @@
          (primitives 0, 1, 4, 5, 7, 20, 21, 22 with variables and arithmetic), draws (D01) with circular apertures and with rectangular ones (convex hull of the two
          flashes), flashes (D03), arcs (G02/G03 in single and multi quadrant mode, G74/G75), regions (G36/G37), dark and clear polarity (LPD/LPC), step and repeat (SR)
          and the image polarity IPNEG. Not supported (the reader raises NotImplementedError and says what): aperture blocks (AB), mirrored, rotated or scaled
-         apertures (LM, LR, LS), the moire macro primitive 6, a non-zero image offset or mirror (OF, MI), obsolete polygon "outline" modes outside G36/G37.
+         apertures (LM, LR, LS), the moire macro primitive 6, a non-zero image offset, mirror, scale or rotation (OF, MI, SF, IR), an axis select that swaps the axes (AS)
+         and incremental coordinates (FS with I, G91). Deviation kept on purpose: G37 resets the interpolation mode to G01 (the specification keeps it modal; gerbonara's
+         test file example_level_holes.gbr needs the reset, README section 5). Silently ignored: everything else that does not draw (G54, IN, LN, the object attributes other than TO.N, ...).
 """
 
 import math
@@ -235,10 +237,14 @@ def _macro_primitive(code, args):
     if code == 5:                                                    # polygon: exposure, vertices, cx, cy, diameter, rotation
         n, cx, cy, d = int(args[1]), args[2], args[3], args[4]
         rot = args[5] if len(args) > 5 else 0.0
+        a = math.radians(rot)                                        # the rotation is about the macro origin, so the centre turns too (it turned about its own centre before)
+        cx, cy = cx * math.cos(a) - cy * math.sin(a), cx * math.sin(a) + cy * math.cos(a)
         return {"exposure": exp, "radius": math.hypot(cx, cy) + d / 2, "inside": lambda u, v: _regular_polygon(u - cx, v - cy, d / 2, n, rot)}
     if code == 7:                                                    # thermal: cx, cy, outer diameter, inner diameter, gap, rotation
         cx, cy, od, idia, gap = args[0], args[1], args[2], args[3], args[4]
         rot = args[5] if len(args) > 5 else 0.0
+        a = math.radians(rot)                                        # rotation about the macro origin: the centre turns with it
+        cx, cy = cx * math.cos(a) - cy * math.sin(a), cx * math.sin(a) + cy * math.cos(a)
 
         def inside(u, v):
             """!@brief Ring with two crossing gaps. @param u X. @param v Y. @return Boolean array."""
@@ -404,7 +410,7 @@ class Canvas:
         self._apply((rows, cols), inside, dark)
 
 
-def _arc_points(x0, y0, x1, y1, cx, cy, clockwise):
+def _arc_points(x0, y0, x1, y1, cx, cy, clockwise, multi_quadrant=True):
     """!
     @brief Points along an arc from (x0, y0) to (x1, y1) around (cx, cy), cut so that the chord error stays below ARC_TOLERANCE.
     @param x0 Start X.
@@ -414,6 +420,7 @@ def _arc_points(x0, y0, x1, y1, cx, cy, clockwise):
     @param cx Centre X.
     @param cy Centre Y.
     @param clockwise Direction.
+    @param multi_quadrant True in G75 mode (start equal to end is a full circle), False in G74 mode (start equal to end is an arc of zero length).
     @return List of (x, y) from the start (excluded) to the end (included).
     """
     r = 0.5 * (math.hypot(x0 - cx, y0 - cy) + math.hypot(x1 - cx, y1 - cy))
@@ -421,7 +428,9 @@ def _arc_points(x0, y0, x1, y1, cx, cy, clockwise):
     sweep = (a1 - a0) % (2 * math.pi)
     if clockwise:
         sweep = sweep - 2 * math.pi if sweep > 0 else sweep
-    if math.hypot(x1 - x0, y1 - y0) < 1e-9:                              # Start equals end: a full circle
+    if math.hypot(x1 - x0, y1 - y0) < 1e-9:                              # Start equals end: a full circle in G75 mode, nothing to sweep in G74 mode
+        if not multi_quadrant:
+            return [(x1, y1)]
         sweep = -2 * math.pi if clockwise else 2 * math.pi
     step = 2 * math.acos(max(1 - ARC_TOLERANCE / max(r, 1e-9), 0.0)) if r > ARC_TOLERANCE else math.pi / 4
     n = max(int(math.ceil(abs(sweep) / max(step, 1e-3))), 1)
@@ -550,6 +559,8 @@ class Layer:
                         m = re.match(r"SR(?:X(\d+))?(?:Y(\d+))?(?:I([-\d.]+))?(?:J([-\d.]+))?", cmd)
                         if m and m.group(1) and (int(m.group(1)) > 1 or int(m.group(2) or 1) > 1):
                             sr = (int(m.group(1)), int(m.group(2) or 1), float(m.group(3) or 0) * unit, float(m.group(4) or 0) * unit, len(self.ops))
+                    elif cmd.startswith("AS") and cmd[2:6] != "AXBY":
+                        raise NotImplementedError(f"{cmd} (axis select that swaps the axes, deprecated) is not supported")
                     elif cmd.startswith(("AB", "LM", "LR", "LS")):
                         raise NotImplementedError(f"{cmd[:2]} (aperture blocks and transformed apertures) is not supported")
                     elif cmd.startswith("OF") and any(abs(float(v)) > 0 for v in re.findall(r"[-\d.]+", cmd[2:])):
@@ -576,6 +587,8 @@ class Layer:
                         unit = 25.4
                     elif g == 71:
                         unit = 1.0
+                    elif g == 91:                                          # incremental coordinates (deprecated): refused, as the FS statement with I is
+                        raise NotImplementedError("incremental coordinates (G91)")
                     elif g == 74:
                         quad_multi = False
                     elif g == 75:
@@ -630,7 +643,7 @@ class Layer:
                         cx, cy = x + ii, y + jj
                     else:
                         cx, cy = _single_quadrant_centre(x, y, nx2, ny2, ii, jj, cw)
-                    pts = _arc_points(x, y, nx2, ny2, cx, cy, cw)
+                    pts = _arc_points(x, y, nx2, ny2, cx, cy, cw, quad_multi)
                 if in_region:
                     if not contour:
                         contour = [(x, y)]
@@ -910,7 +923,9 @@ def read_drill(path):
     """!
     @brief Read the drilled holes of an Excellon file (and the tool sizes that some CAD tools only write in comments).
     @details Handles METRIC and INCH headers (default formats 3.3 and 2.4), leading or trailing zero suppression, explicit decimal points, tool definitions
-             (T01C0.8) and the comment form ";T01 Holesize 1. = 12.000000 ... PLATED MILS". A routed slot (G00 ... M15 ... G01 ... M16) becomes one hole at its middle; the repeat command R<n>X..Y.. is expanded.
+             (T01C0.8) and the comment form ";T01 Holesize 1. = 12.000000 ... PLATED MILS". A routed slot (G00 ... M15 ... G01 ... M16) becomes one hole at the middle of every segment
+             (a routed arc G02/G03 at the middle of its chord), a canned slot X..Y..G85X..Y.. one hole at its middle; the repeat command R<n>X..Y.. is expanded.
+             Not read: incremental mode (ICI, G91), the pattern commands (M25, M01, M02 with offsets) and the canned circles and text.
     @param path Excellon file path.
     @return List of tuples (x mm, y mm, diameter mm, plated bool or None when the file does not say).
     """
@@ -973,9 +988,9 @@ def read_drill(path):
         if line in ("M16", "M17", "G05"):                                    # tool up / end of the route / back to drilling
             slot_start, cur_g = None, None
             continue
-        g = re.match(r"G0([01])", line)
+        g = re.match(r"G0([0-3])", line)
         if g:
-            cur_g = g.group(1)
+            cur_g = "1" if g.group(1) in "23" else g.group(1)                # a routed arc (G02/G03) ends a segment like G01: one hole at the middle of its chord
         if g or line.startswith(("X", "Y")):
             if g and not in_header:                                           # a routed slot: G00 (start), M15 (tool down), G01 (end), M16 (tool up)
                 line = line[3:]
@@ -988,6 +1003,16 @@ def read_drill(path):
                     raise NotImplementedError("Excellon file without unit information (no METRIC, INCH, M71 or M72): the unit must be chosen by the user")
             if nint is None:
                 nint, ndec = (2, 4) if unit == 25.4 else (3, 3)
+            slot = re.match(r"(X[-+]?[\d.]+)?(Y[-+]?[\d.]+)?G85(X[-+]?[\d.]+)?(Y[-+]?[\d.]+)?$", line)
+            if slot:                                                          # canned slot "X..Y..G85X..Y..": one hole at its middle (it was read as a hole at the start)
+                def coord(word, prev):
+                    """!@brief One coordinate of a slot line. @param word "X.." / "Y.." or None. @param prev Value kept when the word is missing. @return Value (mm)."""
+                    return _number(word[1:], nint, ndec, zeros) * unit if word else prev
+                sx, sy = coord(slot.group(1), last[0]), coord(slot.group(2), last[1])
+                ex, ey = coord(slot.group(3), sx), coord(slot.group(4), sy)
+                holes.append(((sx + ex) / 2, (sy + ey) / 2, sizes.get(tool, 0.0), plated.get(tool) if plated.get(tool) is not None else file_plated))
+                last = (ex, ey)
+                continue
             mx = re.search(r"X([-+]?[\d.]+)", line)
             my = re.search(r"Y([-+]?[\d.]+)", line)
             if not (mx or my):

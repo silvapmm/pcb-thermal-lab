@@ -6,7 +6,7 @@
          net S(k+1) leaves its pad radially at that angle, runs on a circle of radius R_k = 13.5 - 1.0 k round the IC counter-clockwise through an angle that keeps it clear of the radial tracks of the
          inner nets and of the ground spoke at 0 degrees (at most 150 degrees, ending at 346 degrees at the latest) and ends in a 0.8 mm test point with a 0.4 mm plated hole. Tracks are 0.2 mm. Ground:
          the exposed pad with four 0.8 mm via pads (0.3 mm holes), a 0.8 mm spoke along 0 degrees to a 0.8 mm ring of radius 18.5 mm with four 1.0 mm via pads (0.3 mm holes) at 45 + 90 k degrees.
-         Used by tests/test_our_board.py and make_figures.py (figure 04). Run `.venv/bin/python research/gerber-import/lib/our_board.py` (from the repository root) to write the files to data/synthetic/.
+         Used by tests/test_our_board_bench.py and make_figures.py (figure 1), and by the other two Gerber folders. Run `.venv/bin/python research/gerber-import/lib/our_board.py` (from the repository root) to write the files to data/synthetic/.
 """
 
 import math

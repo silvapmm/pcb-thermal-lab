@@ -206,5 +206,36 @@ def boards():
     summarize(allrows)
 
 
+class _Tee:
+    """!@brief Write what is printed to the terminal and to a file (make_figures.py reads the synthetic run from out/compare_synthetic.txt)."""
+
+    def __init__(self, path):
+        """!
+        @brief Open the copy.
+        @param path File that receives a copy of the output.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.file, self.term = open(path, "w"), sys.stdout
+
+    def write(self, text):
+        """!
+        @brief Write to both.
+        @param text Text.
+        @return Number of characters written.
+        """
+        self.file.write(text)
+        return self.term.write(text)
+
+    def flush(self):
+        """!
+        @brief Flush both.
+        @return None.
+        """
+        self.file.flush()
+        self.term.flush()
+
+
 if __name__ == "__main__":
-    {"synthetic": synthetic, "boards": boards}[sys.argv[1] if len(sys.argv) > 1 else "synthetic"]()
+    which = sys.argv[1] if len(sys.argv) > 1 else "synthetic"
+    sys.stdout = _Tee(OUT / f"compare_{which}.txt")       # figure 2 reads out/compare_synthetic.txt; no script wrote it before
+    {"synthetic": synthetic, "boards": boards}[which]()

@@ -90,7 +90,7 @@ def what_the_files_draw(path):
             a2.add_patch(Rectangle((x + 1.75, 0.7), 0.5, 5.6, facecolor="#8a8a8a", edgecolor="k"))
     a2.text(2.6, 6.5, "via\n(joins layers)", ha="center", fontsize=8)
     a2.text(7.4, 6.8, "component hole\n(a lead goes through)", ha="center", fontsize=8)
-    a2.text(5, 0.7, "both are plated holes in the drill file;\nthe Gerber cannot tell which is a via,\nso the user confirms the kind", ha="center", va="top", fontsize=7.5, style="italic")
+    a2.text(5, 0.7, "both are plated holes in the drill file;\nonly the pad's aperture function (X2: ViaPad,\nComponentPad) tells them apart; without it\nthe user confirms the kind", ha="center", va="top", fontsize=7.5, style="italic")
     dk.save(fig, path, "What the files draw: the operations of a Gerber layer and the holes of a drill file")
 
 
@@ -105,8 +105,8 @@ def excellon_zeros(path):
     a1.set_ylim(-0.6, 8)
     a1.text(6, 7.6, "one line of a drill file, two readings (format 3.3, mm)", ha="center", fontsize=9, fontweight="bold")
     dk.box(a1, 3.0, 5.6, 6.0, 1.0, "X1275  Y830", "#ffffff", size=11)
-    dk.box(a1, 0.2, 2.4, 5.4, 2.0, "header says TZ:\ntrailing zeros are kept,\nleading ones omitted\n\ndigits padded on the left:\n001275 -> X = 1.275 mm\n000830 -> Y = 0.830 mm", "#e3f1df", size=7.5)
-    dk.box(a1, 6.4, 2.4, 5.4, 2.0, "header says LZ:\nleading zeros are kept,\ntrailing ones omitted\n\ndigits padded on the right:\n127500 -> X = 127.500 mm\n830000 -> Y = 830.000 mm", "#f4b6b6", size=7.5)
+    dk.box(a1, 0.2, 2.4, 5.4, 2.0, "header says TZ:\ntrailing zeros are kept,\nleading zeros omitted\n\ndigits padded on the left:\n001275 -> X = 1.275 mm\n000830 -> Y = 0.830 mm", "#e3f1df", size=7.5)
+    dk.box(a1, 6.4, 2.4, 5.4, 2.0, "header says LZ:\nleading zeros are kept,\ntrailing zeros omitted\n\ndigits padded on the right:\n127500 -> X = 127.500 mm\n830000 -> Y = 830.000 mm", "#f4b6b6", size=7.5)
     dk.arrow(a1, 5.0, 5.6, 2.9, 4.4)
     dk.arrow(a1, 7.0, 5.6, 9.1, 4.4)
     a1.text(6, 1.3, "the reader had the two options swapped: Excellon names the zeros that are KEPT,\nthe Gerber wording names the ones that are omitted", ha="center", va="top", fontsize=7.5, style="italic")
