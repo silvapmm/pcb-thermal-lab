@@ -37,3 +37,14 @@ Program defects found by a review are reported in the "Program defects" column; 
 * The figure numbers of `models-comparison/` and `solid3d-verification/` collided between the two sides of a merge with `develop`; the diagrams of this branch were renumbered (8 to 10 and 8) because `docs/` links the figures of `develop`.
 * Reviews still to do: none (`gerber-nets/`, item H4 of `ROADMAP.md`, was the last).
 * Open work that used to be listed here: the investigations (subdividing the gap, the Analytic on one-layer boards, the rotated square, the clean-machine timing, the point via, vias in the Lumped and Analytic models, the final figure pass, the dates) are in `ROADMAP.md` A to H; the program branches, features and corrections (memory guard, edge fix, thick-plate warning, inner copper options, the defects of the column above) are in `docs/roadmap.md`.
+
+## Decisions the maintainer left to the coordinator (to take when everything else is finished)
+
+From the reviews, each with the recommendation to start from:
+
+* gerber-nets: model the return current in the ground (recommended: not yet; list it as a limit until the electrical side exists in the program); which copper resistivity (recommended: 1.72e-8 ohm m annealed copper with 0.393 %/K as a default, editable, and say that the plated outer copper is thicker than 35 um); whether the rho(T) loop reuses `api._solve_with_tc` (recommended: reuse it as a base but evaluate on the hottest track cell and iterate until converged rather than the 80-iteration stop).
+* gerber-models: the default mapping of an import (faces, cell problem, lambda 0.5, Wiener upper are equivalent on the 11 boards: recommended the flow-based faces for patterned copper, with the fill as the fast fallback); a `fix/` branch for the union of zones per sample point; refine the laminate nodes for patterned copper (investigate first: 5.5 to 13.6 % cold); the 42-window studies on the program's network as reference.
+* via-fill: the point via (Peaceman against spreading), the label of the via diameter (drill), the Lumped and Analytic overstating vias (investigate), the 3D clip of a via larger than its cell.
+* block-and-fins: the threshold of 4 mm of the fin warning or a channel correlation.
+* gerber-import: the reader accepting LM/LR/LS and aperture blocks (ROADMAP E10).
+* component-heatsink, outline, stackup, power-calculator, theory, models-comparison, solid3d-verification: the items listed in each folder's INTEGRATION.md and in `docs/roadmap.md`.
