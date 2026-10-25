@@ -47,13 +47,29 @@ def make_problem():
 
 def phases(p):
     """!
-    @brief The two phase conductances of the program's formula S = b + f (a - b).
+    @brief The two phase conductances of the program's formula S = b + f (a - b) for the copper node (faces.phases: on a one-layer board the copper node holds the copper and half a laminate gap, the rest of the laminate is in the program's laminate nodes).
     @param p Problem.
     @return Tuple (a, b) in W/K.
     """
-    bd = p.board
-    k_lam, slab, tc = bd.layer_laminate()[0][0], bd.slab_thicknesses()[0], bd.copper_thickness[0]
-    return bd.materials.k_copper * tc + k_lam * (slab - tc), k_lam * slab
+    import faces
+    return faces.phases(p, 0)
+
+
+def reference(S):
+    """!
+    @brief The reference: the program's own FVM on the 0.1 mm pixel grid with the copper-node conductance of every pixel (with the laminate nodes of a one-layer board).
+    @details Before the review the reference was the research solver (one sheet with both films on it), which is the program's physics before laminate.py:
+             since that correction the program's models and that reference no longer describe the same board (README, section Review).
+    @param S Pixel conductances of the copper node (rows from the bottom).
+    @return Mean rise (K) over the heater block.
+    """
+    from pcbthermal import fvm
+    n = S.shape[0]
+    net = fvm.Network(make_problem(), n, n, assemble=False)
+    net.S[0] = S * net.cover
+    net.K = net._assemble()
+    ys, ye, hs, he = int(round((WIN - 18) / PIX)), int(round((WIN - 12) / PIX)), int(12 / PIX), int(18 / PIX)
+    return float(net.solve_steady()[0][0][ys:ye, hs:he].mean())
 
 
 def cell_values(S, n):
@@ -87,8 +103,7 @@ def run(args):
     a, b = phases(p0)
     S = np.where(mask[::-1], a, b)                                      # row 0 = bottom (y up), as the program's grid
     n = int(round(CELL / PIX))
-    ys, ye, hs, he = int(round((WIN - 18) / PIX)), int(round((WIN - 12) / PIX)), int(12 / PIX), int(18 / PIX)
-    ref = cd.solve_faces(cd.harm(S[:, :-1], S[:, 1:]), cd.harm(S[:-1, :], S[1:, :]), PIX, ys, ye, hs, he)[ys:ye, hs:he].mean()
+    ref = reference(S)
     out = []
     for name, sc in cell_values(S, n).items():
         p = make_problem()
@@ -144,8 +159,7 @@ def run_region(args):
     p0 = make_problem()
     a, b = phases(p0)
     S = np.where(mask[::-1], a, b)
-    ys, ye, hs, he = int(round((WIN - 18) / PIX)), int(round((WIN - 12) / PIX)), int(12 / PIX), int(18 / PIX)
-    ref = cd.solve_faces(cd.harm(S[:, :-1], S[:, 1:]), cd.harm(S[:-1, :], S[1:, :]), PIX, ys, ye, hs, he)[ys:ye, hs:he].mean()
+    ref = reference(S)
     out = []
     for name, s_eff in region_values(S, a, b).items():
         p = make_problem()

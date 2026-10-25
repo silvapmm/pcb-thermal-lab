@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+if not any(Path(x, "pcbthermal").is_dir() for x in sys.path[:-1] if x):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))      # the repository root, unless a copy of the program is given on PYTHONPATH
 pcbthermal = pytest.importorskip("pcbthermal")
 
 

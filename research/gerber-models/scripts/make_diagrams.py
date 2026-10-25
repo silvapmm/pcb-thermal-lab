@@ -39,16 +39,16 @@ def stack(ax, x, with_laminate, title, result):
 
 def laminate(path):
     """!
-    @brief Draw the 3D solid on one copper layer as it is and with the laminate slab added.
+    @brief Draw the 3D solid on one copper layer before the correction (no laminate) and as the program builds it now (laminate slabs under the copper).
     @param path Output file.
     @return None.
     """
     fig, ax = dk.canvas(13, 4.6)
     ax.set_xlim(0, 13)
     ax.set_ylim(0.4, 5.3)
-    stack(ax, 0.2, False, "3D solid today", "pad 10 x 10 mm: 346.1 K\n(FVM 155.4, FDM 150.3)")
-    stack(ax, 6.6, True, "with the laminate slab added", "174.0 K, equal to the same board\nbuilt with two layers (174.5 K)")
-    dk.save(fig, path, "The 3D solid under a single copper layer: the missing laminate (README 4.39)")
+    stack(ax, 0.2, False, "3D solid before the correction", "pad 10 x 10 mm: 346.1 K\n(the program of that time; FVM 155.4, FDM 150.3)")
+    stack(ax, 6.6, True, "3D solid as the program builds it now", "174.5 K, equal to the same board\nbuilt with two layers (174.5 K);\nFVM 167.8 K with its laminate nodes")
+    dk.save(fig, path, "The 3D solid under a single copper layer: the laminate that was missing, now in the program (README 4.39)")
 
 
 def chain(path):
@@ -125,7 +125,7 @@ def patterns(path):
         ax.set_yticks([])
         pattern(ax, kind)
         ax.set_title(name, fontsize=9, fontweight="bold")
-        ax.set_xlabel("fill fraction today: " + err + "\n" + note, fontsize=7.5)
+        ax.set_xlabel("the program's fill fraction: " + err + "\n" + note, fontsize=7.5)
     dk.save(fig, path, "The same 50 % of copper, five different boards (README 4.11): no scalar fill fits all of them")
 
 

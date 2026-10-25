@@ -43,6 +43,8 @@ def main():
     res = {}
     ib = im.import_board(im.roles_of_downloaded("storm"), pix=0.1, cell=1.0)
     res["Stormduino (2 layers)"] = so.run("Stormduino", ib, (33.0, 27.0))
+    # Review: the same board without its 109 plated holes, to separate the mapping from the via (a point via in a 0.1 mm cell of the reference against one in a 1 mm cell)
+    novias = so.run("Stormduino without vias", ib, (33.0, 27.0), vias=False)
     g, d = our_board.write(DATA / "synthetic")
     ib = im.import_board({"copper": [g], "outline": None, "drills": [d]}, pix=0.1, cell=1.0, box=(0.0, 0.0, our_board.SIZE, our_board.SIZE))
     res["our IC board"] = so.run("our IC board", ib, (20.0, 20.0))
@@ -58,6 +60,9 @@ def main():
     for m in im.METHODS:
         v = [res[n][m] for n in names]
         print(f"{m:14s}" + "".join(f"{x:+17.1f}" for x in v) + f"{np.mean(np.abs(v)):12.1f}")
+    print(f"{'(Stormduino without its vias, not in the mean)':48s}")
+    for m in im.METHODS:
+        print(f"{m:14s}{novias[m]:+17.1f}")
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "boards_matrix.json").write_text(json.dumps(res, indent=1))
 

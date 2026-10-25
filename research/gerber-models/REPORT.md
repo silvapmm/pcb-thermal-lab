@@ -1,14 +1,14 @@
 # Report: the copper in the simulation models (the mapping of copper to the thermal grid)
 
-Phase 2 of the Gerber research (`research/gerber-models`). This is the guide to the folder: it says the problem, the methods, the boards, the results and the open points in plain order; `README.md` holds the full record, section by section (4.2 to 4.43).
+Phase 2 of the Gerber research (`research/gerber-models`). This is the guide to the folder: it says the problem, the methods, the boards, the results and the open points in plain order; `README.md` holds the full record, section by section (4.2 to 4.50), and the independent review at its end (R1 onwards), which changed several numbers below.
 
 ## 1. The problem in one paragraph
 
-The program's finite-volume model works on square cells (0.6 to 2 mm) and knows one number per cell and layer: **the fraction of copper**, from which it makes a sheet conductance `S = f k_Cu t_Cu + k_lam (slab - f t_Cu)`. For a big solid zone that is exact. For real copper (tracks, clearances, hatches) almost every cell is partial and the **average hides connectivity**: a clearance that cuts a path is averaged as if the copper were still joined, so the board comes out **too cool, by 10 to 23 % on real boards**. A Gerber is the first source of such copper, so the question is how to turn a fine mask of copper (0.1 mm pixels, phase 1) into the conductances of the coarse cells.
+The program's finite-volume model works on square cells (0.6 to 2 mm) and knows one number per cell and layer: **the fraction of copper**, from which it makes a sheet conductance `S = f k_Cu t_Cu + k_lam (slab - f t_Cu)`. For a big solid zone that is exact. For real copper (tracks, clearances, hatches) almost every cell is partial and the **average hides connectivity**: a clearance that cuts a path is averaged as if the copper were still joined, so the board comes out **too cool: against an independent 3D solution of real one-layer copper the fill fraction is 24 to 26 % cool on average (17 to 38 % per window), against the program's own pixel run 16 to 18 %** (README Review R2; the 10 to 23 % first stated here came from a one-sheet reference that bridges every clearance with the whole laminate). A Gerber is the first source of such copper, so the question is how to turn a fine mask of copper (0.1 mm pixels, phase 1) into the conductances of the coarse cells.
 
 ![Figure 1: a window of the Stormduino board, the copper fraction per 1 mm cell and the ratio of the flow-based to the arithmetic cell conductance](figures/fig_01_copper_mapping_to_cells.png)
 
-*Figure 1 (`figures/fig_01_copper_mapping_to_cells.png`): a 36 mm window of the top copper of the Stormduino (MIT), the copper fraction per 1 mm cell (what the program uses today) and where the flow-based conductance differs from it.*
+*Figure 1 (`figures/fig_01_copper_mapping_to_cells.png`): a 36 mm window of the top copper of the Stormduino (MIT), the copper fraction per 1 mm cell (what the program's fill fraction uses) and where the flow-based conductance differs from it.*
 
 ### 1.1 The whole chain in one diagram
 
@@ -36,7 +36,7 @@ All are tried on the same masks and judged against the same reference: **the mas
 
 | Method | What it does | Needs | Cost | Origin |
 | :-- | :-- | :-- | :-- | :-- |
-| **fill fraction** (today) | arithmetic mean of the two phases by the copper fraction of the cell | the fraction | none | the program |
+| **fill fraction** (the program's) | arithmetic mean of the two phases by the copper fraction of the cell | the fraction | none | the program |
 | geometric mean | `S = S_Cu^f S_lam^(1-f)` | the fraction | none | power-law averaging (Durlofsky), Keller-Dykhne for 2D |
 | Bruggeman, Hashin-Shtrikman (lower, upper) | effective-medium formulas of a two-phase medium | the fraction | none | closed forms (from memory, checked by limits) |
 | Wiener lower and upper bounds | per direction: rows in parallel of series chains (low), columns in series of parallel pixels (up) | the pixels | negligible | classical bounds; **the low bound plus the arithmetic fraction is Blackmore's tile method (2010)** |
@@ -58,25 +58,25 @@ All are tried on the same masks and judged against the same reference: **the mas
 
 ## 4. Results
 
-### 4.1 The mappings on 11 whole boards (one heater each, 1 mm cells, the program's FVM; section 4.43)
+### 4.1 The mappings on 11 whole boards (one heater each, 1 mm cells, the program's FVM on `develop` at `a6f822b`; section 4.43)
 
 ```
 mapping        Stormduino (2 la     our IC board rectangles, shif rectangles, shif perforated plane    hatched plane plane with holes  island and ring     random board  diagonal tracks pads and arcs (g  mean |err|
-fill                      -15.1             -5.0             +1.0             -4.8             -3.0             -8.2             +0.4             -9.1            -12.3             -4.4             -5.1         6.2
-geometric                  -4.8            +12.7             +1.2             +0.5             +1.9            +10.5             +0.5             -3.2             +2.2             +2.3             +3.1         3.9
-bruggeman                  -6.6            +15.1             +1.2             +0.6             +0.0            +11.8             +0.4             -2.7             +4.1             +3.4             +4.4         4.6
-hs_lower                   +6.9            +18.2             +1.2             +3.3             +9.3            +22.4             +0.7             -0.7             +6.6             +4.2             +5.2         7.1
-hs_upper                  -11.3             +3.5             +1.1             -2.2             -0.7             -0.4             +0.4             -6.3             -5.2             -1.1             -1.1         3.0
-wiener_low                 +3.9            +12.1             +1.1             +1.1             +2.1             +1.7             +0.6             +0.5             +8.2             +6.1             +2.1         3.6
-wiener_up                  -7.4             -0.1             +1.1             +0.6             -2.0             -2.0             +0.4             -3.0             -4.2             -3.4             -0.8         2.3
-lambda                     -2.1             +5.8             +1.1             +0.9             -0.0             -0.2             +0.5             -1.3             +1.6             +0.6             +0.6         1.3
-cell_problem               -0.6             +4.1             +1.1             +0.9             +0.5             +0.8             +0.5             -0.4             +3.0             +2.6             +0.4         1.4
-flow                       -2.1             +4.0             +1.1             -0.3             +0.5             +0.6             +0.4             -1.5             +1.8             +3.3             +0.4         1.5
+fill                      -15.1             -4.8             +1.7             -7.4             -3.8            -10.5             +0.4            -11.3            -15.0             -4.5             -7.0         7.4
+geometric                  -4.8            +23.9             +1.9             +1.2             +5.3            +26.8             +0.6             -2.7             +5.0             +5.2             +5.1         7.5
+bruggeman                  -6.6            +28.0             +1.9             +1.5             +0.0            +31.8             +0.5             -1.5             +7.7             +6.7             +7.1         8.5
+hs_lower                   +6.9            +32.4             +1.9             +6.5            +35.8            +56.6             +1.4             +2.4            +10.2             +7.5             +8.0        15.4
+hs_upper                  -11.3             +5.3             +1.8             -4.5             -1.1             -1.1             +0.5             -8.9             -7.5             -1.0             -2.8         4.1
+wiener_low                 +3.9            +18.5             +1.8             +2.7             +2.7             +1.7             +0.7             +2.8             +9.8             +8.8             +2.3         5.1
+wiener_up                  -7.4             +3.3             +1.8             +2.2             -2.7             -3.1             +0.4             -1.6             -1.7             -0.9             -0.7         2.3
+lambda                     -2.1            +11.0             +1.8             +2.5             -0.1             -0.8             +0.6             +0.5             +3.9             +2.8             +0.8         2.4
+cell_problem               -0.6             +7.4             +1.8             +2.5             +0.5             +0.8             +0.5             +1.8             +5.2             +5.2             +0.4         2.4
+flow                       -2.1             +7.3             +1.8             -0.4             +0.6             +0.4             +0.5             -2.0             +3.5             +6.4             +0.4         2.3
 ```
 
-**The fill fraction the program uses today is 6.2 % off on average (worst: Stormduino -15.1 %, random board -12.3 %); lambda 0.5 (1.3 %), the cell problem (1.4 %) and the flow-based faces (1.5 %) are equivalent and 4 to 5 times better.** The mappings that use only the fraction are never safe (the geometric mean +12.7 % on our board, Hashin-Shtrikman lower +22 % on the hatched plane).
+**The fill fraction of the program is 7.4 % off on average against the program's own pixel run (worst: Stormduino -15.1 %, random board -15.0 %); the flow-based faces (2.3 %), the Wiener upper bound (2.3 %), lambda 0.5 (2.4 %) and the cell problem (2.4 %) are equivalent and about three times better.** The mappings that use only the fraction are never safe (the geometric mean +23.9 % on our board, Hashin-Shtrikman lower +56.6 % on the hatched plane). Before the program's laminate nodes this table read 6.2 % for the fill and 1.3 to 1.5 % for the best three (review, README 4.43).
 
-### 4.2 The same on 42 real windows (section 4.4; single layer, MAE of the mean rise, 0.6 / 1.0 / 2.0 mm cells)
+### 4.2 The same on 42 real windows (section 4.4; single layer, MAE of the mean rise, 0.6 / 1.0 / 2.0 mm cells; the research solver's one-sheet board, so these are the mapping errors inside that idealisation, about half the program's, README Review R2)
 
 fill 9.7 / 11.3 / 11.1 %, geometric 2.2 / 2.4 / 3.0 %, tile (low bound) 2.6 / 4.5 / 9.5 %, **lambda 0.5 1.0 / 1.3 / 3.2 %, flow-based faces 0.6 / 0.9 / 3.6 %**. Two layers with plated holes: 13.6 to 14.9 % against 0.4 to 1.3 % (flow). A real four-layer board: 3.0 to 4.6 % against 0.3 to 1.1 %. Regular patterns at 1 mm: 7 to 43 % against 0.9 to 3.4 %.
 
@@ -107,7 +107,7 @@ Where the articles are ahead: Blackmore validates against a physical measurement
 
 * **What is the thinnest track recognised?** The reader draws any width exactly (vector); the mask recognises a track if **the pixel is at most half its width**. A binary mask at 0.1 mm loses axis-aligned tracks of 0.1 mm or less and breaks tilted ones of 0.05 to 0.075 mm into 21 to 67 pieces; at 0.05 mm every track of the study (0.05 to 1 mm) is one piece; **a coverage mask keeps the area of any track** and gives the same thermal result as the finest pixel.
 * **Does it matter thermally?** Yes: one 0.05 mm track across a 6 mm heater cools it by 3 %, a 0.1 mm track by 5.8 %, 0.3 mm by 15 %, 1 mm by 35 %.
-* **Does it handle angles?** The reading does (any angle, area within 0.5 % except lattice ties at 45 degrees). The 1 mm cells do **not** on an isolated diagonal: at 0 degrees every mapping except the geometric one reproduces 96 to 98 % of the track's effect; at 45 degrees the flow-based faces reproduce 38 to 53 %, lambda 0.5 40 to 72 %, the fill fraction 63 to 106 %. The cause is the grid (x and y faces only, diagonal heat flows in a staircase), not the copper reading.
+* **Does it handle angles?** The reading does (any angle, area within 0.5 % except lattice ties at 45 degrees). The 1 mm cells do **not** on an isolated diagonal: at 0 degrees every mapping except the geometric one reproduces 96 to 98 % of the track's effect; at 45 degrees the flow-based faces reproduce 38 to 53 %, lambda 0.5 38 to 72 %, the fill fraction 63 to 106 %. The cause is the grid (x and y faces only, diagonal heat flows in a staircase), not the copper reading.
 
 ### 6.1 Diagonal couplings, simulated (section 4.44, figures 8 and 9)
 
@@ -123,15 +123,15 @@ Faces to the four diagonal neighbours were added to the research network (`lib/d
 
 ## 7. The five models and the program
 
-* On rectangles the **FVM and FDM converge to the same value**; the **Lumped is 16 % and the Analytic 26 % below**, the **3D solid** (two layers) 7 to 9 % above (4.35, 4.37). The cell mappings change the Lumped and Analytic by 0 to 12 %, less than the choice of model.
-* Through the program's own `fvm.Network` only the conductances change (agreement with the research solver 3e-12): on the Stormduino the heater error goes from -15.1 % to -2.1 %, on our board from -5.0 % to +4.0 % (4.31).
-* **Two corrections to the program were found and measured** (4.39): zones combined by the maximum per sample point (strips: -7.8 % FVM, -17.5 % FDM; overlapping zones and the example boards unchanged) and the laminate under a single copper layer in the 3D solid (346 to 174 K).
+* On rectangles the **FVM and FDM converge to the same value**; the **Lumped is 16 % and the Analytic 26 % below**, the **3D solid** (two layers) 7 to 9 % above (4.35, 4.37), and an independent 3D solution agrees with the 3D solid, not with the layered FVM (README Review). The cell mappings change the Lumped and Analytic by 0 to 12 %, less than the choice of model.
+* Through the program's own `fvm.Network` only the conductances change: on the Stormduino the heater error goes from -15.1 % to -2.1 %, on our board from -4.8 % to +7.3 % (4.31; against an independent 3D solution of our board -12.2 % and -1.2 %). The research solver agreed with the program to 3e-12 before the program gave a one-layer board laminate nodes; it no longer describes the same board (README Review R2).
+* **Two corrections to the program were found and measured** (4.39): zones combined by the maximum per sample point (strips: -8.2 % FVM, -19.1 % FDM on the program now; overlapping zones and the example boards unchanged), not applied; and the laminate under a single copper layer in the 3D solid (346 to 174.5 K), **now in the program**.
 
 ### 7.1 How the program combines zones
 
 ![Figure 11: how the zones of a layer are combined cell by cell](figures/fig_11_zone_union.png)
 
-*Figure 11 (`figures/fig_11_zone_union.png`): two zones that abut and two that overlap, and the cell fill that each rule gives (dashed: the right one). The maximum per cell (the program today) loses half the copper of two abutting zones; the additive rule double counts overlapping zones; the maximum per sample point is right in both.*
+*Figure 11 (`figures/fig_11_zone_union.png`): two zones that abut and two that overlap, and the cell fill that each rule gives (dashed: the right one). The maximum per cell (the program's rule) loses half the copper of two abutting zones; the additive rule double counts overlapping zones; the maximum per sample point is right in both.*
 
 ## 8. What to do to keep discussing and improving the copper mapping
 
@@ -139,17 +139,18 @@ Faces to the four diagonal neighbours were added to the research network (`lib/d
 2. **A measurement**: one real board with a heater and a thermocouple or an infrared image is the only thing that turns "agrees with the resolved model" into "agrees with the world".
 3. **Finer reference and pixel**: repeat the mapping studies with a 0.05 mm pixel and the nine-point stencil for the reference; repeat the track study with 0.5 and 0.25 mm cells.
 4. **More boards**: power boards, heavy copper (up to 140 µm: the fill error grows to 18 %), metal-core, boards with many diagonal tracks.
-5. **Decide**: which mapping is the default of an import (flow-based faces or lambda 0.5, equivalent on the boards tried), the option `SolverOptions.copper_mapping` (default `fill`), the zone `pattern` for hatched zones, and the two corrections to the program (`INTEGRATION.md`).
+5. **Decide**: which mapping is the default of an import (flow-based faces, cell problem or lambda 0.5, equivalent on the boards tried), the option `SolverOptions.copper_mapping` (default `fill`), the zone `pattern` for hatched zones, the correction of the zone union (`INTEGRATION.md`; the 3D laminate is already in the program), and whether the program's laminate nodes should be refined for patterned copper (README Review R2: two nodes are 5.5 to 13.6 % cool on real one-layer copper).
 
 ## 9. Limits
 
-Every number is against a resolved mask of the **same physics**, never a measurement; one copper layer for most studies (two and four layers on three boards); heater blocks of 1.2 to 12 mm, uniform face coefficient, insulated edges; the Lumped and Analytic are reduced models judged against the FVM, not the real board; the closed forms of Bruggeman and Hashin-Shtrikman are from memory; the track study uses one track and 1 mm cells.
+Every number is against a resolved mask of the **same physics**, never a measurement (one check against an independent 3D solver, README Review R2, which shows the one-sheet reference of the 42-window studies 22 % cool and the program's pixel run 10 % cool); one copper layer for most studies (two and four layers on three boards); heater blocks of 1.2 to 12 mm, uniform face coefficient, insulated edges; the Lumped and Analytic are reduced models judged against the FVM, not the real board; the closed forms of Bruggeman and Hashin-Shtrikman were written from memory and are now checked by an independent derivation and a numerical test (`test_hashin_shtrikman_and_bruggeman_against_independent_forms`); the track study uses one track and 1 mm cells.
 
 ## 10. How to reproduce
 
 ```
-cd research/gerber-models && python -m pytest -q tests                                   # 33 tests, about 1.5 minutes
-PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_boards_matrix.py        # section 4.1, about 15 minutes
+cd research/gerber-models && ../../.venv/bin/python -m pytest -q tests                   # 34 tests, about 30 s
+PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_boards_matrix.py        # section 4.1, about 2 minutes
+PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_laminate_reference.py   # the independent 3D check (README Review R2), about 7 minutes, 8 GB
 PYTHONPATH=. .venv/bin/python research/gerber-models/scripts/study_track_width_angle.py    # section 6, about 5 minutes
 .venv/bin/python research/gerber-models/scripts/study_mapping.py                           # section 4.2, about 3 minutes
 .venv/bin/python research/gerber-models/scripts/make_figures.py                            # the figures

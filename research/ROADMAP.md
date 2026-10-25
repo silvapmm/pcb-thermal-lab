@@ -10,7 +10,7 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 | B. Boards, vias and stack-up | B1 to B4 |
 | C. Parts, heatsinks and blocks | C1 to C6 |
 | D. Calculators | D1 to D4 |
-| E. Gerber import and models | E1 to E9 |
+| E. Gerber import and models | E1 to E10 |
 | F. Theory, sources and verification | F1 to F9 |
 | G. Physical measurement | G1 |
 | H. Tooling and method | H1 to H8 |
@@ -237,8 +237,8 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 
 ### E7. The Gerber reader: scope and conformance
 * **Question**: do the Ucamco example data sets and the latest specification change the conformance, and which CAD formats should the check of the nets support?
-* **Why**: 161 of 164 comparable files within 3 % (`gerber-import/README.md` 4.17); the specification was not read (host blocked; latest revision 2024.05, take the PDF from the Downloads page); the licences of the gerbonara test boards could not be confirmed (statistics only, no picture kept); open in `gerber-import/CONCLUSIONS.md` 4.
-* **First study**: download the Ucamco data sets with a script into `data/` and run `study_reader_conformance.py` on them; read the specification.
+* **Why**: 161 of 164 comparable files within 3 % (`gerber-import/README.md` 4.17); the specification (revision 2024.05) was read in the passages the reader implements by the review of `gerber-import/` (macro primitives, arcs, Excellon slots, AS and G91: four defects fixed, `gerber-import/README.md` 7); the Ucamco example data sets were not run; the licences of the gerbonara test boards could not be confirmed (statistics only, no picture kept); open in `gerber-import/CONCLUSIONS.md` 4.
+* **First study**: download the Ucamco data sets with a script into `data/` and run `study_reader_conformance.py` on them.
 * **If it ends well**: a stronger reader claim for the import.
 * **Status**: open.
 
@@ -256,6 +256,13 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 * **If it ends well**: the net Joule heat of a diagonal track.
 * **Status**: partly.
 
+
+### E10. The reader refuses transformed apertures and aperture blocks
+* **Question**: should the independent reader implement the aperture transformations `LM`, `LR`, `LS` and the aperture blocks `AB` of the specification, which recent Altium (and other) output may use?
+* **Why**: `gerber-import/lib/native_gerber.py` refuses these files with a message (`gerber-import/README.md` 4.19 and 7) instead of drawing them; a refused layer cannot be imported at all; no file of the test set needed them, so how often real boards use them is not known.
+* **First study**: count `LM`, `LR`, `LS` and `AB` in a set of recent CAD outputs whose licence allows it; implement them against the 2024.05 specification with tests written from its examples, and compare with gerbonara on the same files.
+* **If it ends well**: fewer refused files at import (`docs/roadmap.md`, import).
+* **Status**: open (an item to implement, not decided).
 ## F. Theory, sources and verification
 
 ### F1. The effective conductivity above Biot 60
@@ -334,7 +341,7 @@ Every item has the same five fields: **Question**, **Why** (the evidence: folder
 
 ### H1. The final figure pass
 * **Question**: is every figure of every folder drawn the same way and current with its text?
-* **Why**: the maintainer asked to regenerate all the figures after the reviews of the remaining folders; the font differs between machines; several `gerber-models` figures (01, 02, 04, 05, 10, 13) say "today" or "the program as it is", and figure 13 shows the 3D solid without the laminate of a one-layer board, now built; `gerber-import` figure 08 reads "leading ones omitted", probably a typo for "leading zeros"; the `gerber-*` folders need their inputs fetched into the git-ignored `data/`.
+* **Why**: the maintainer asked to regenerate all the figures after the reviews of the remaining folders; the font differs between machines; the `gerber-models` figures that said "today" or showed the 3D solid without the laminate of a one-layer board were redrawn by its review, and `gerber-import` figure 08 was corrected by its review; the `gerber-*` folders need their inputs fetched into the git-ignored `data/`.
 * **First study**: regenerate with `make_figures.py` and `make_diagrams.py`, re-read each with the image reader; write `research/check_figures.py` (every figure linked from a README, no broken link, no repeated number, every folder has at least one data graph and one diagram).
 * **If it ends well**: nothing in the program.
 * **Status**: waits until the reviews of the `gerber-*` folders have fixed their texts.

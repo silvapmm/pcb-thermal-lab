@@ -13,7 +13,7 @@
 import numpy as np
 import scipy.sparse as sp
 
-from pcbthermal import fvm
+from pcbthermal import fvm, laminate
 from pcbthermal.model import Problem
 
 import conduction as cd
@@ -47,6 +47,11 @@ def phases(problem, layer=0):
     """
     b = problem.board
     k_lam, slab, tc = b.layer_laminate()[0][layer], b.slab_thicknesses()[layer], b.copper_thickness[layer]
+    lam = laminate.nodes(b)
+    if lam is not None:
+        # A one-layer board: the copper node holds the copper and half a laminate gap; the rest of the laminate is in the program's laminate nodes
+        # (laminate.py). Using the whole thickness here would count that laminate twice in the plane (review finding).
+        slab = lam.copper_slab
     return b.materials.k_copper * tc + k_lam * (slab - tc), k_lam * slab
 
 
@@ -124,13 +129,21 @@ class FaceNetwork(fvm.Network):
 
     def _assemble(self):
         """!
-        @brief The program's assembly with the lateral couplings replaced.
+        @brief The program's assembly with the lateral couplings of the copper layers replaced.
+        @details Every other node layer (the laminate nodes of a one-layer board, laminate.py) keeps the program's own lateral couplings (harmonic mean of S),
+                 and the program's extra links (laminate nodes, block contacts) are kept. Before the review this method coupled only the layers given in
+                 `faces` and dropped the extra links, so on the program with laminate nodes the laminate layers floated and the matrix was singular (NaN).
         @return Sparse matrix.
         """
         L, ny, nx = self.nl, self.ny, self.nx
         nb = self.n_board
         idx = np.arange(L * ny * nx).reshape(L, ny, nx)
         rows, cols, vals = [], [], []
+        faces = list(self._faces)
+        for l in range(len(faces), L):
+            # Layers with no given faces: the program's formula (harmonic mean of the two cells, face width over distance)
+            faces.append((self._harmonic(self.S[l, :, :-1], self.S[l, :, 1:]) * self.dy / self.dx,
+                          self._harmonic(self.S[l, :-1, :], self.S[l, 1:, :]) * self.dx / self.dy))
 
         def couple(a_idx, b_idx, g):
             a, bb, gg = a_idx.ravel(), b_idx.ravel(), g.ravel()
@@ -140,11 +153,13 @@ class FaceNetwork(fvm.Network):
             cols.extend([a, bb, bb, a])
             vals.extend([gg, gg, -gg, -gg])
 
-        for l, (gx, gy) in enumerate(self._faces):
+        for l, (gx, gy) in enumerate(faces):
             couple(idx[l, :, :-1], idx[l, :, 1:], gx)
             couple(idx[l, :-1, :], idx[l, 1:, :], gy)
         if nb > 1:
             couple(idx[:nb - 1], idx[1:nb], self.gz)
+        for a_layer, b_layer, g in getattr(self, "extra_links", []):     # laminate nodes and block contacts of the program
+            couple(idx[a_layer], idx[b_layer], g)
         n = L * ny * nx
         rows.append(np.arange(n))
         cols.append(np.arange(n))

@@ -3,11 +3,11 @@
 @brief The mappings run through the program's own finite-volume network (pcbthermal.fvm.Network), without changing a line of it.
 @details Shows that the integration of INTEGRATION.md needs no new algorithm: the program builds its network (cells, heater, losses, assembly, sparse solve) and only the
          conductance of the cells is replaced.
-         1. The research solver and the program's FVM give the same temperature for the same conductances (the arithmetic mapping is the program's own formula).
+         1. The research solver (one sheet) against the program's FVM: they agreed to 3e-12 before the program gave a one-layer board laminate nodes (laminate.py); now they differ by that physics (printed).
          2. The geometric mean needs nothing but a different `S` array (stage 1): the program's assembly is used as it is.
          3. Directional conductances and flow-based faces (stage 2 and 3) replace the face conductances: a 20-line subclass overrides the assembly of the lateral couplings.
          Reference: the program's FVM on the 0.1 mm grid with S per pixel (the copper mask solved as it is). One copper layer, 36 x 36 mm windows (one per board), 6 x 6 mm heater.
-         Needs the repository's own dependencies (numpy, scipy). Run: .venv/bin/python research/gerber-models/scripts/prototype_in_program.py (from the repository root) (about 3 minutes).
+         Needs the repository's own dependencies (numpy, scipy). Run: .venv/bin/python research/gerber-models/scripts/prototype_in_program.py (from the repository root) (about 30 s; `--all`: the 42 windows at 0.6, 1.0 and 2.0 mm, the table of 4.4 on the program as it is now, a few minutes).
 """
 
 import _bootstrap  # noqa: F401  (puts the import paths of research/gerber-models in order)
@@ -16,48 +16,34 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import scipy.sparse as sp
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))          # the repository root, to import pcbthermal
+try:
+    import pcbthermal                                                   # noqa: F401  (a copy of the program on PYTHONPATH is used as it is)
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))      # the repository root, to import pcbthermal
 
 from pcbthermal import fvm                                              # noqa: E402
 from pcbthermal.model import Problem                                    # noqa: E402
 
 import conduction as cd                                                 # noqa: E402
+import faces                                                            # noqa: E402
 import windows                                                          # noqa: E402
 
 WIN = windows.WIN
 PIX = windows.PIX
 
 
-class FaceNetwork(fvm.Network):
-    """!@brief The program's network with the lateral face conductances given from outside (one board layer)."""
+class FaceNetwork(faces.FaceNetwork):
+    """!@brief The program's network with the lateral face conductances of the copper layer given from outside (the laminate nodes of a one-layer board keep the program's couplings; see faces.FaceNetwork)."""
 
     def set_faces(self, gx, gy):
         """!
-        @brief Replace the lateral couplings and assemble.
+        @brief Replace the lateral couplings of the copper layer and assemble.
         @param gx Face conductances along x (ny, nx - 1), W/K.
         @param gy Face conductances along y (ny - 1, nx), W/K.
         @return None.
         """
-        self._gx, self._gy = gx, gy
-        self.K = self._assemble()
-
-    def _assemble(self):
-        """!
-        @brief Assemble K with the given faces instead of the harmonic mean of S (everything else of the program's assembly is kept: ambient losses on the diagonal).
-        @return Sparse matrix.
-        """
-        ny, nx = self.ny, self.nx
-        n = ny * nx
-        idx = np.arange(n).reshape(ny, nx)
-        a = np.concatenate([idx[:, :-1].ravel(), idx[:-1, :].ravel()])
-        b = np.concatenate([idx[:, 1:].ravel(), idx[1:, :].ravel()])
-        g = np.concatenate([self._gx.ravel(), self._gy.ravel()])
-        rows = [a, b, a, b, np.arange(n)]
-        cols = [a, b, b, a, np.arange(n)]
-        vals = [g, g, -g, -g, self.g_amb.ravel()]
-        return sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsr()
+        super().set_faces([(gx, gy)])
 
 
 def make_problem(cell_mm):
@@ -73,15 +59,11 @@ def make_problem(cell_mm):
 
 def phases(problem):
     """!
-    @brief The two phase conductances of the program's formula S = f k_cu t_cu + k_lam (slab - f t_cu).
+    @brief The two phase conductances of the program's formula S = f k_cu t_cu + k_lam (slab - f t_cu) of the copper node (faces.phases: on a one-layer board the copper node holds the copper and half a laminate gap).
     @param problem Problem.
     @return Tuple (a, b): copper phase and laminate phase, W/K.
     """
-    bd = problem.board
-    k_lam = bd.layer_laminate()[0][0]
-    slab = bd.slab_thicknesses()[0]
-    tc = bd.copper_thickness[0]
-    return bd.materials.k_copper * tc + k_lam * (slab - tc), k_lam * slab
+    return faces.phases(problem, 0)
 
 
 def solve_cells(problem, n, gx=None, gy=None, S=None):
@@ -106,15 +88,17 @@ def solve_cells(problem, n, gx=None, gy=None, S=None):
 
 def main():
     """!
-    @brief One window per board: equality of the two solvers, then the errors of the mappings through the program's network.
+    @brief One window per board (or all 42 with `--all`, at 0.6, 1.0 and 2.0 mm cells): the program against the research solver, then the errors of the mappings through the program's network.
     @return None.
     """
+    every = "--all" in sys.argv[1:]
     masks, meta = windows.load()
     seen, picks = set(), []
     for i, m in enumerate(meta):
-        if m[0] not in seen:
+        if every or m[0] not in seen:
             seen.add(m[0])
             picks.append(i)
+    sizes = (0.6, 1.0, 2.0) if every else (0.6, 1.0)
     p = make_problem(PIX)
     a, b = phases(p)
     print(f"phase conductances of the program's formula: copper {a:.5f} W/K, laminate {b:.5f} W/K")
@@ -122,16 +106,18 @@ def main():
     hs, he = int(12 / PIX), int(18 / PIX)                                # heater columns (x from 12 to 18 mm)
     ys, ye = int(round((WIN - 18) / PIX)), int(round((WIN - 12) / PIX))     # heater rows after the flip (y from 18 to 24 mm)
     print("window | program FVM vs research solver (same conductances) | error of the heater-block mean temperature against the fine program run: iso (today), geometric, lam 0.5, dual")
-    rows = {c: [] for c in (0.6, 1.0)}
+    rows = {c: [] for c in sizes}
+    ar, br = cd.S_CU + cd.K_LAM * (cd.T_LAM - cd.T_CU), cd.S_LAM         # the research solver's own sheet (one node, the whole laminate in it)
     worst = 0.0
     for i in picks:
         mask = masks[i][::-1]                                           # row 0 = bottom (y up), as the program's grid
         S = np.where(mask, a, b)
         ref = solve_cells(p, n_fine, S=S)[ys:ye, hs:he].mean()          # the program's FVM at 0.1 mm
-        mine = cd.solve_faces(cd.harm(S[:, :-1], S[:, 1:]), cd.harm(S[:-1, :], S[1:, :]), PIX, ys, ye, hs, he)[ys:ye, hs:he].mean()
+        Sr = np.where(mask, ar, br)
+        mine = cd.solve_faces(cd.harm(Sr[:, :-1], Sr[:, 1:]), cd.harm(Sr[:-1, :], Sr[1:, :]), PIX, ys, ye, hs, he)[ys:ye, hs:he].mean()
         worst = max(worst, abs(mine / ref - 1))
         line = f"{meta[i][0]:8s} {abs(mine / ref - 1):.1e}    "
-        for c in (0.6, 1.0):
+        for c in sizes:
             n = int(round(c / PIX))
             blk = cd.cell_blocks(S, n)
             f = (blk == a).mean(axis=(2, 3))
@@ -143,14 +129,19 @@ def main():
             res["geo"] = solve_cells(p, cells, S=cd.map_power(f, 0.0, a, b))[r0:r1, k0:k1].mean()
             sx, sy = cd.map_lambda(blk, 0.5)
             res["lam"] = solve_cells(p, cells, *cd.faces_from_cells(sx, sy))[r0:r1, k0:k1].mean()
+            if every:
+                cx, cy = cd.map_cell_problem(blk)
+                res["cellnum"] = solve_cells(p, cells, *cd.faces_from_cells(cx, cy))[r0:r1, k0:k1].mean()
             res["dual"] = solve_cells(p, cells, *cd.dual_faces(S, n, 0))[r0:r1, k0:k1].mean()
             errs = {k: 100 * (v / ref - 1) for k, v in res.items()}
             rows[c].append(errs)
             line += f"| {c} mm: " + "  ".join(f"{k} {e:+5.1f} %" for k, e in errs.items()) + "   "
         print(line, flush=True)
-    print(f"\nlargest difference between the program's FVM and the research solver on the same conductances: {worst:.1e} (relative)")
+    # The research solver is one sheet with both films on it; the program gives a one-layer board two laminate nodes under the copper (laminate.py),
+    # so since that correction the two differ by the physics of the laminate, not by the numerics (they agreed to 3e-12 before it)
+    print(f"\nlargest difference between the program's FVM and the research solver (one sheet, no laminate nodes) on the same copper-node conductances: {worst:.1e} (relative)")
     for c, lst in rows.items():
-        print(f"cells {c} mm, MAE over {len(lst)} windows: " + ", ".join(f"{k} {np.mean([abs(e[k]) for e in lst]):.1f} %" for k in lst[0]))
+        print(f"cells {c} mm, MAE (bias) over {len(lst)} windows: " + ", ".join(f"{k} {np.mean([abs(e[k]) for e in lst]):.1f} ({np.mean([e[k] for e in lst]):+.1f}) %" for k in lst[0]))
 
 
 if __name__ == "__main__":

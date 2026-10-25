@@ -44,7 +44,7 @@ def fig_mapping():
     axs[0].imshow(mask, cmap="copper", interpolation="nearest", extent=(0, 36, 0, 36))
     axs[0].set_title("Stormduino (MIT): 36 x 36 mm of real copper, 0.1 mm pixels", fontsize=9)
     im = axs[1].imshow(f[::-1], cmap="viridis", vmin=0, vmax=1, interpolation="nearest", extent=(0, 36, 0, 36))
-    axs[1].set_title("copper fraction of each 1 mm cell (what the program uses today)", fontsize=9)
+    axs[1].set_title("copper fraction of each 1 mm cell (what the program's fill fraction uses)", fontsize=9)
     fig.colorbar(im, ax=axs[1])
     im = axs[2].imshow((flow / arith)[::-1], cmap="RdBu", vmin=0.2, vmax=1.8, interpolation="nearest", extent=(0, 36, 0, 36))
     axs[2].set_title("flow-based / arithmetic cell conductance\nred (< 1): the fraction overestimates it (board too cool)\nblue (> 1): it underestimates it", fontsize=9)
@@ -79,7 +79,7 @@ def fig_board_thermal():
     axs[0].contour(cv.mask[::-1].astype(float), levels=[0.5], colors="w", linewidths=0.3, extent=ext, origin="lower")
     axs[0].set_title("resolved temperature rise (K): 1 W under the IC, border at 0 K", fontsize=9)
     fig.colorbar(im, ax=axs[0])
-    for ax, key, label in ((axs[1], "fill fraction (today)", "fill fraction per 1 mm cell (today)"), (axs[2], "flow-based faces", "flow-based faces on 1 mm cells")):
+    for ax, key, label in ((axs[1], "fill fraction (today)", "fill fraction per 1 mm cell (the program's mapping)"), (axs[2], "flow-based faces", "flow-based faces on 1 mm cells")):
         gx, gy = faces[key]
         T = sc.solve_general(gx, gy, 1.0, pw, 10.0, fx)
         d = T - ref_cells
@@ -119,7 +119,7 @@ def fig_import_end_to_end():
         axs[r, 1].set_title("temperature rise of the top layer (K)\nreference: the program on the pixel grid (0.1 mm)", fontsize=8)
         fig.colorbar(im, ax=axs[r, 1], fraction=0.046)
         lim = 0.15 * ref.max()
-        for c, (fld, label) in enumerate(((today, "the program as it is (one zone per cell, fill = copper fraction)"), (imp, "imported path (flow-based faces, coverage mask)")), start=2):
+        for c, (fld, label) in enumerate(((today, "the program's fill fraction (one zone per cell)"), (imp, "imported path (flow-based faces, coverage mask)")), start=2):
             sl = (slice(int(hx[1] - 3), int(hx[1] + 3)), slice(int(hx[0] - 3), int(hx[0] + 3)))
             err = 100 * (fld[sl].mean() / ref[sl].mean() - 1)
             im = axs[r, c].imshow(fld - ref, origin="lower", extent=ext, cmap="RdBu_r", vmin=-lim, vmax=lim)
@@ -173,7 +173,7 @@ def fig_import_setup():
         a = axs[r, 2]
         im = a.imshow(frac[h - y1:h - y0, x0:x1], extent=(x0, x1, y0, y1), cmap="viridis", vmin=0, vmax=1, interpolation="nearest")
         a.add_patch(plt.Rectangle((hx[0] - 3, hx[1] - 3), 6, 6, fill=False, edgecolor="w", linewidth=1.4))
-        a.set_title(f"copper fraction per cell (the program's fill today)\nmean under the heater {frac[int(hx[1]-3):int(hx[1]+3), int(hx[0]-3):int(hx[0]+3)].mean():.2f}", fontsize=8)
+        a.set_title(f"copper fraction per cell (the program's fill)\nmean under the heater {frac[int(hx[1]-3):int(hx[1]+3), int(hx[0]-3):int(hx[0]+3)].mean():.2f}", fontsize=8)
         fig.colorbar(im, ax=a, fraction=0.046)
         # reference temperature in the window
         a = axs[r, 3]
@@ -206,16 +206,15 @@ def fig_models_our_board():
     cols = ["#222222", "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
     series = [("fine mask (own truth)", truth)] + [(m, coarse[i]) for i, m in enumerate(maps)]
     for k, (lab, v) in enumerate(series):
-        axs[0].bar(x + (k - 2) * wd, v, wd, label=lab, color=cols[k])
-    axs[0].set_ylim(0, 160)                                                   # the 3D solid is far above (260 to 390 K) and is cut
+        axs[0].bar(x + (k - 2) * wd, v, wd, label=str(lab).replace("(today)", "(the program's)"), color=cols[k])
     axs[0].set_xticks(x)
     axs[0].set_xticklabels(models)
     axs[0].set_ylabel("mean rise over the heater (K)")
-    axs[0].set_title("our IC board, 1 W in 6 x 6 mm: the 3D solid (262 to 392 K) is cut", fontsize=9)
+    axs[0].set_title("our IC board, 1 W in 6 x 6 mm (the 3D solid has no fine run: over the program's size limit)", fontsize=9)
     axs[0].legend(fontsize=7)
     for k, i in enumerate(range(len(maps))):
         err = 100 * (coarse[i] / truth - 1)
-        axs[1].bar(x + (k - 1.5) * 0.18, err, 0.18, label=maps[i], color=cols[k + 1])
+        axs[1].bar(x + (k - 1.5) * 0.18, err, 0.18, label=str(maps[i]).replace("(today)", "(the program's)"), color=cols[k + 1])
     axs[1].axhline(0, color="k", linewidth=0.6)
     axs[1].set_xticks(x)
     axs[1].set_xticklabels(models)
@@ -295,7 +294,7 @@ def fig_track_width_angle():
     axs[0, 1].set_ylabel("8-connected pieces in the binary mask at 0.1 mm")
     axs[0, 1].set_title("recognition: 1 = the track is one piece; 0 = lost; many = broken (at 0.05 mm pixels every track is 1)", fontsize=8)
     axs[0, 1].legend(fontsize=7)
-    names = {"fill fraction (today)": "fill fraction (today)", "geometric mean": "geometric mean", "lambda 0.5": "lambda 0.5", "flow-based faces": "flow-based faces", "flow-based, margin 20 %": "flow-based, margin 20 %"}
+    names = {"fill fraction (today)": "fill fraction (the program's)", "geometric mean": "geometric mean", "lambda 0.5": "lambda 0.5", "flow-based faces": "flow-based faces", "flow-based, margin 20 %": "flow-based, margin 20 %"}
     for ax, th in ((axs[1, 0], 0), (axs[1, 1], 45)):
         for m in st.METHODS:
             ax.plot(W, [st.capture(d, "coverage 0.1", m, w, th) for w in W], marker="o", label=names[m])
@@ -326,7 +325,7 @@ def fig_diagonal():
     a, b = d["a"], d["b"]
     W = st.WIDTHS
     names = ["fill fraction (today)", "flow-based faces", "tensor, nine-point", "flow + diagonal 0.25", "flow + diagonal 0.5", "flow + diagonal"]
-    labels = ["fill fraction (today)", "flow-based faces", "tensor, nine-point", "flow + diagonal, 0.25", "flow + diagonal, 0.5", "flow + diagonal, 1.0"]
+    labels = ["fill fraction (the program's)", "flow-based faces", "tensor, nine-point", "flow + diagonal, 0.25", "flow + diagonal, 0.5", "flow + diagonal, 1.0"]
     fig, axs = plt.subplots(1, 3, figsize=(17, 5.2), gridspec_kw={"width_ratios": [1, 1, 1.1]})
     for ax, th in ((axs[0], 30), (axs[1], 45)):
         for m, lab in zip(names, labels):
@@ -347,7 +346,7 @@ def fig_diagonal():
     axs[2].axhline(0, color="k", linewidth=0.6)
     axs[2].set_ylim(-6, 8)
     axs[2].set_xticks(x)
-    axs[2].set_xticklabels(["fill (today)", "lambda 0.5", "flow", "cell problem", "tensor 9-pt", "flow+diag 0.25", "flow+diag 0.5", "flow+diag 1.0"], rotation=40, ha="right", fontsize=7)
+    axs[2].set_xticklabels(["fill (program)", "lambda 0.5", "flow", "cell problem", "tensor 9-pt", "flow+diag 0.25", "flow+diag 0.5", "flow+diag 1.0"], rotation=40, ha="right", fontsize=7)
     axs[2].set_ylabel("error of the heater rise on 42 real windows (%)")
     axs[2].set_title("42 real windows, 1 mm cells (the fill fraction, 21 %, is cut)", fontsize=9)
     axs[2].legend(fontsize=7)
@@ -501,10 +500,10 @@ def fig_pipeline():
     arrow(5.9, 6.75, 6.6, 6.75)
     arrow(4.6, 6.0, 7.0, 5.4, "")
     box(10.1, 6.0, 2.6, 1.5, "sheet conductance\nof every pixel\nS = S_lam + f (S_cu - S_lam)", "2")
-    box(13.2, 6.0, 3.5, 1.5, "cut into cells (n x n pixels)\nand MAPPED to face conductances:\nfill (today), lambda 0.5,\ncell problem, flow-based faces", "2", True)
+    box(13.2, 6.0, 3.5, 1.5, "cut into cells (n x n pixels)\nand MAPPED to face conductances:\nfill (the program's), lambda 0.5,\ncell problem, flow-based faces", "2", True)
     arrow(9.4, 6.75, 10.1, 6.75)
     arrow(12.7, 6.75, 13.2, 6.75)
-    box(13.2, 3.9, 3.5, 1.5, "optional: diagonal faces\n(tensor of the cell, share 0.5)\nfor diagonal tracks", "2")
+    box(13.2, 3.9, 3.5, 1.5, "experimental: diagonal faces\n(cell tensor; no share or gate\npassed the held-out test, 4.50)", "2")
     arrow(14.95, 6.0, 14.95, 5.4, "")
     box(10.1, 1.7, 3.0, 1.6, "the program's FVM network\n(faces replaced; vias,\nconvection and sources\nare the program's)", "2", True)
     arrow(14.2, 3.9, 12.6, 3.3)
@@ -535,7 +534,7 @@ def fig_zone_union():
     fig, axs = plt.subplots(2, 3, figsize=(15, 8.5))
     cases = (("two zones that abut: each covers half of the cell, fill 1", [(0.0, 0.5, 1.0), (0.5, 1.0, 1.0)], (0.5, 1.0, 1.0), 1.0),
              ("two zones that overlap: the same area, fill 0.5 each", [(0.0, 1.0, 0.5), (0.0, 1.0, 0.5)], (0.5, 1.0, 0.5), 0.5))
-    methods = ("maximum per cell (the program today)", "additive rule (the first idea)", "maximum per sample point (the correction)")
+    methods = ("maximum per cell (the program)", "additive rule (the first idea)", "maximum per sample point (the correction)")
     for r, (title, zones, fills, right) in enumerate(cases):
         for m, method in enumerate(methods):
             ax = axs[r, m]
@@ -581,7 +580,7 @@ def fig_clearance_cell():
     axs[0].set_xlabel("heat flows left to right and has to pass through the neck")
     axs[0].set_xticks([])
     axs[0].set_yticks([])
-    names = ["fill fraction\n(the program today)", "Wiener low\n(a bound)", "lambda 0.5", "cell problem", "Wiener up\n(a bound)"]
+    names = ["fill fraction\n(the program)", "Wiener low\n(a bound)", "lambda 0.5", "cell problem", "Wiener up\n(a bound)"]
     vals = [fill, lo, lam, cp, up]
     axs[1].bar(names, [v / cd.S_LAM for v in vals], color=["#d62728", "#999999", "#1f77b4", "#1f77b4", "#999999"])
     for i, v in enumerate(vals):
@@ -807,7 +806,7 @@ def fig_mapping_curves():
     gs = fig.add_gridspec(2, 4, width_ratios=[2.6, 0.9, 0.9, 0.0001], wspace=0.25, hspace=0.35)
     ax = fig.add_subplot(gs[:, 0])
     ref = sl_
-    ax.semilogy(f, cd.map_power(f, 1) / ref, color="#d62728", lw=2, label="arithmetic = fill fraction (today)")
+    ax.semilogy(f, cd.map_power(f, 1) / ref, color="#d62728", lw=2, label="arithmetic = fill fraction (the program's)")
     ax.semilogy(f, cd.map_power(f, 0) / ref, color="#1f77b4", lw=1.6, label="geometric mean")
     ax.semilogy(f, cd.map_power(f, -1) / ref, color="#2ca02c", lw=1.6, label="harmonic mean")
     ax.semilogy(f, cd.map_bruggeman(f) / ref, "k--", lw=1.4, label="Bruggeman (random mixture)")
@@ -1026,10 +1025,16 @@ def fig_diagonal_heldout():
 
 def main():
     """!
-    @brief Make the figures of this investigation.
+    @brief Make the figures of this investigation (or only the figure functions named on the command line, for example `fig_rect_board`).
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
+    import sys
+    only = sys.argv[1:]                                                   # names of figure functions to redraw (all when none is given)
+    if only:
+        for name in only:
+            globals()[name]()
+        return
     fig_mapping()
     fig_board_thermal()
     fig_import_end_to_end()

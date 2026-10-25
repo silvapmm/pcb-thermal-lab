@@ -206,3 +206,31 @@ def test_blackmore_tile_formulas_are_the_lower_bound_and_the_arithmetic_mean():
     assert low_x == pytest.approx(kx_rows, rel=1e-9)
     f = mask.mean()
     assert kz == pytest.approx(cd.map_power(np.array(f), 1.0, 391.0, 0.59), rel=1e-9)
+
+
+def test_hashin_shtrikman_and_bruggeman_against_independent_forms():
+    """!
+    @brief The 2D formulas written from memory, checked by an independent derivation and by numbers (review).
+    @details (1) Each Hashin-Shtrikman bound equals the 2D Maxwell-Garnett (Clausius-Mossotti) form of circular inclusions of one phase in the other,
+             k = m (i + m + f (i - m)) / (i + m - f (i - m)), derived separately. (2) The symmetric 2D Bruggeman formula obeys the Keller-Dykhne duality
+             k(a, b) k(b, a) = a b exactly. (3) The numerical cell problem of a copper disc in a square cell (a square array of discs) lies on the lower
+             bound within 0.1 % for f up to 0.2 (that bound is attained by the coated-cylinder assemblage and the square array is close to it at small f),
+             while Bruggeman is 0.3 to 4 % above it.
+    @return None.
+    """
+    a, b = 9.4, 1.0
+    for f in (0.1, 0.3, 0.5, 0.8):
+        mg_low = b * (a + b + f * (a - b)) / (a + b - f * (a - b))                  # copper circles in laminate
+        g = 1.0 - f
+        mg_up = a * (b + a + g * (b - a)) / (b + a - g * (b - a))                   # laminate circles in copper
+        assert abs(cd.map_hashin_shtrikman(np.array(f), "lower", a, b) - mg_low) < 1e-12
+        assert abs(cd.map_hashin_shtrikman(np.array(f), "upper", a, b) - mg_up) < 1e-12
+        assert abs(cd.map_bruggeman(np.array(f), a, b) * cd.map_bruggeman(np.array(f), b, a) - a * b) < 1e-9
+    n = 80
+    yy, xx = np.mgrid[0:n, 0:n] + 0.5
+    for f in (0.05, 0.1, 0.2):
+        disc = (xx - n / 2) ** 2 + (yy - n / 2) ** 2 < f * n * n / np.pi
+        sx, _ = cd.map_cell_problem(np.where(disc, a, b)[None, None])
+        low = cd.map_hashin_shtrikman(np.array(disc.mean()), "lower", a, b)
+        assert abs(sx[0, 0] / low - 1) < 1e-3
+        assert cd.map_bruggeman(np.array(disc.mean()), a, b) > sx[0, 0]

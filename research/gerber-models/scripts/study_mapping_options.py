@@ -31,16 +31,19 @@ def rect_import(shift):
     return ib
 
 
-def run(label, ib, xy):
+def run(label, ib, xy, vias=True):
     """!
     @brief Reference and every mapping on one board.
     @param label Name for the report.
     @param ib ImportedBoard.
     @param xy Heater centre (mm).
+    @param vias False to drop the plated holes (the point via of the FVM does not converge below 0.5 mm cells, research/via-fill: the 0.1 mm reference and the 1 mm cells then model a via differently).
     @return dict method -> error of the mean heater rise (%).
     """
     heater = dict(HEATER, x=xy[0], y=xy[1])
     p = im.to_problem(ib, heater)
+    if not vias:
+        p.vias.clear()
     ref = im.block_mean(im.solve_fine(ib, p, "binary"), ib)
     s = 3.0
     sl = (0, slice(int(xy[1] - s), int(xy[1] + s)), slice(int(xy[0] - s), int(xy[0] + s)))

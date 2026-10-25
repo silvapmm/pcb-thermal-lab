@@ -4,12 +4,13 @@
 @details Reference: both copper layers resolved at 0.1 mm, FR-4 between them (0.3 W/mK through, 1.53 mm), every drilled hole a copper barrel (25 um plating)
          joining the layers, 10 W/m2K on the two outer faces, 1 W on a 6 x 6 mm block of the top layer at three random places.
          Coarse grids of 0.6, 1.0 and 2.0 mm built from the same masks (the board is cut to 66 x 48 mm so that all the grids tile it).
-         Run: .venv/bin/python research/gerber-models/scripts/study_two_layer.py (from the repository root)   (about 3 minutes)
+         Run: .venv/bin/python research/gerber-models/scripts/study_two_layer.py [--no-holes] (from the repository root)   (about 3 minutes; `--no-holes` leaves the barrels out, review)
 """
 
 import _bootstrap  # noqa: F401  (puts the import paths of research/gerber-models in order)
 
 import math
+import sys
 import time
 
 import numpy as np
@@ -84,6 +85,10 @@ def main():
     t0 = time.time()
     files = readers.board_files("storm")
     holes = readers.holes(files["drill"])
+    if "--no-holes" in sys.argv[1:]:
+        # Review: the barrels sit in one 0.1 mm pixel of the reference and in one cell of the coarse grid (a point via, which does not converge with the cell,
+        # research/via-fill); without them the error is that of the copper mapping alone
+        holes = []
     x0, y0, x1, y1 = readers.box(files["edge"], files["F"])
     S = {l: cd.sheet_of(readers.render(files[l], x0, y1, COLS * PIX, ROWS * PIX, PIX)) for l in "FB"}
     gz = vertical_conductance(holes, x0, y1, PIX, (ROWS, COLS))
