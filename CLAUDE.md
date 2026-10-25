@@ -139,7 +139,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor, rulers), panels, stackup (cross-section tab), calculator, help (guide, About), tips (tooltips), compute (calculation process), results_view, main_window, theme
-tests/                 pytest suite (about 470 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (about 590 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
   helpers/layered3d.py independent 3D conduction solver (imports nothing from pcbthermal), the reference of test_layered_vs_3d.py
 examples/              example boards (`.pcbt.json`), `csv_profiles/` (documented CSV power-profile example) and `make_screenshots.py`; the studies that used to live here are in `research/` (one folder per investigation, see `research/INDEX.md`)
 docs/                  versions.md (what was implemented in every version), models.md (models, features, API), theory.md (every equation and approximation of every model; update it with any model change), calculators.md (the auxiliary calculators: formulas, validation, limits, sources), validation.md (every scenario in every model, 3D check, history), roadmap.md (what is implemented and what we want to implement), research.md (open investigations, empty when nothing is pending), images/
@@ -148,7 +148,7 @@ ico/                   application icon
 research/              one folder per investigation (see "Research branches"); not part of the program
   INDEX.md             index of the investigations by area of the program (status and question of each)
   README.md            index of the investigations and the rules for figures and diagrams
-  diagram_kit.py      shapes shared by the make_diagrams.py scripts (boxes, arrows, layer stacks, resistors) (on the branch `research/gerbers` until it is merged)
+  diagram_kit.py      shapes shared by the make_diagrams.py scripts (boxes, arrows, layer stacks, resistors)
   theory/              the explained theory: one file per topic in `topics/` (model, equation or planned method: picture, formulation, limits, tests, paths into the investigations, sources), `BIBLIOGRAPHY.md` (every source with its reading status), 30 figures, 37 topics; to be folded into `docs/theory.md` when adopted (on the branch `research/gerbers` until it is merged)
   <topic>/             everything about one investigation; the same layout in every folder:
     README.md, INTEGRATION.md   what is read (results in numbered sections ending with what was read and what was not verified; the design for entering the program, when the work is not in it yet)
@@ -159,7 +159,7 @@ research/              one folder per investigation (see "Research branches"); n
     tests/             tests of the investigation (only when it has its own)
 ```
 
-Example (the folders exist only on the branch `research/gerbers` until it is merged): the Gerber research is three folders on the branch `research/gerbers`: `research/gerber-import/` (the independent reader `native_gerber.py`, the import, holes, pads and nets; no program needed), `research/gerber-models/` (the mappings `conduction.py`, `scenarios.py`, `faces.py`, `diagonal.py`, the five models on real and own boards) and `research/gerber-nets/` (`joule.py`, `pdn.py`: nets with voltage and current); each has `README.md` with numbered results, `CONCLUSIONS.md`, `INTEGRATION.md`, `scripts/`, `lib/`, `tests/`, `figures/` and `docs/`.
+Example: the Gerber research was done on the branch `research/gerbers` (merged into `develop`, branch closed) and is three folders: `research/gerber-import/` (the independent reader `native_gerber.py`, the import, holes, pads and nets; no program needed), `research/gerber-models/` (the mappings `conduction.py`, `scenarios.py`, `faces.py`, `diagonal.py`, the five models on real and own boards) and `research/gerber-nets/` (`joule.py`, `pdn.py`: nets with voltage and current); each has `README.md` with numbered results, `CONCLUSIONS.md`, `INTEGRATION.md`, `scripts/`, `lib/`, `tests/`, `figures/` and `docs/`.
 
 The original wxPython program (`core/`, `ui/`, `main.py`, `config.py`) was removed in release 2.0.0;
 it can be inspected in git history (for example commit `641da87`). Old editor JSON files still open (`problem_from_legacy`).
@@ -274,11 +274,13 @@ Maintainer's rule (2026-10-24): the work is done by four project agents in `.cla
 
 **Two roadmaps, kept apart** (maintainer): `docs/roadmap.md` holds only what we want to **implement** in the program (features, corrections of defects, improvements of the models, the interface and the tools), each item once, with a pointer to its evidence; `research/ROADMAP.md` holds only what we want to **investigate** (open questions, measurements to repeat, sources to open, ideas to test), and lives on the research branch with `research/REVIEW.md` (the review register: status of every folder) and `research/INDEX.md`. An investigation that ends in a feature appears in both: the question in `research/ROADMAP.md`, the feature in `docs/roadmap.md` as 'after the investigation X'. When something is implemented it leaves the roadmap (what exists is in `docs/versions.md`).
 
-The review of every research folder is tracked in `research/REVIEW.md` (status, program version of the last run, notes); update it in the commit of each review so that a new session continues from there (the register is on the branch `research/gerbers` until it is merged).
+The review of every research folder is tracked in `research/REVIEW.md` (status, program version of the last run, notes); update it in the commit of each review so that a new session continues from there.
 
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
 
 ## Decisions Log
+
+- **Research branch `research/gerbers` closed and merged into `develop`** (maintainer, after the long runs and three review rounds): the folders `gerber-import`, `gerber-models`, `gerber-nets`, `theory`, `effective-conductivity` and the register files (`research/ROADMAP.md`, `REVIEW.md`, `INDEX.md`, `diagram_kit.py`, `check_figures.py`) are now in `develop`; the whole battery ran on the merged tree (592 passed) and the research tests of each folder pass (they are run folder by folder: two folders have a `test_importer.py`). The twelve long runs of `research/ROADMAP.md` section 3 were made on a quiet machine and showed that the times quoted by the program documents for the 3D solid and the layered FVM (276 s at 393 000 unknowns, 97 s and 273 s at 1 and 2 million) are not reproduced (7.5 s, 5.2 s, 12.4 s on a plain board; 32.8 s and 7.4 GB at 392 000 unknowns on the example board). The memory limit of the 3D solid is to be by estimated memory (50 % of the physical memory by default, about 20 KB per unknown for many slabs, 7 KB for few, 3 KB for the layered models) and **adjustable in the settings** (maintainer); text in `research/solid3d-verification/docs/for-the-project-documents.md`; implemented on a `fix/` branch, not yet. A research branch is still the way to start an investigation; this one is the first that ended in `develop`.
 
 Record important decisions here, newest first, with the reason; new entries carry no date (the order is the order of the decisions; older entries keep theirs).
 
