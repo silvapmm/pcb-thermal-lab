@@ -48,11 +48,12 @@ Error of the mean temperature rise over the heater block against the resolved ma
 | 42 real windows, border held at 0 K, h = 0 | 22.6 (cool) | 4.8 | 11.0 (hot) | 2.8 | 2.3 | 4.25 | `study_sampson_boundary.py` |
 | same, h = 10 | 20.8 | 4.2 | 9.7 | 2.4 | 2.1 | 4.25 | same |
 | random synthetic board (test layout, one case) | -13.7 | +8.8 | +16.8 | +7.6 | +4.9 | `test_claims.py` | `test_fill_fraction_is_too_cool_and_flow_based_faces_hold_on_a_random_board` |
-| stripes, heat across them (0.5 mm stripes, 1 mm pitch, no convection) | -48.7 | -13.6 | +6.0 | +6.0 | +6.0 | 4.25 | `test_stripes_show_the_direction_effect_that_smearing_misses` |
+| stripes under the posts, heat across them (0.5 mm stripes, 1 mm pitch, no convection) | -48.7 | -13.6 | +6.0 | +6.0 | +6.0 | 4.25 | `test_stripes_show_the_direction_effect_that_smearing_misses` |
 | stripes, heat along them | -19.9 | +34.9 | +7.5 | +7.5 | +7.5 | 4.25 | same |
+| stripes stopping 3 mm short of the posts, across / along | -19.8 / +2.9 | -3.9 / +23.3 | +9.2 / +11.2 | +9.2 / +11.2 | +9.2 / +12.0 | 4.25 | `study_sampson_boundary.py --stripes` |
 | two layers + plated holes | 13.6 to 14.9 | 3.9 to 4.1 | | 1.0 | 0.4 to 1.3 | 4.12 | `study_two_layer.py` |
 | real four-layer board | 3.0 to 4.6 | 0.4 to 1.5 | | 1.5 to 2.8 (up to 7.5 on planes) | 0.3 to 1.1 | 4.13 | `study_multilayer_real.py` |
-| regular patterns at 1 mm cells | 7 to 43 | -20 to +22 | | 0 to 2.4 (diagonal +12 at 0.6 mm) | 0.9 to 3.4 | 4.11 | `study_patterns*.py` |
+| regular patterns at 1 mm cells | 9 to 43 | -20 to +22 | | 0 to 2.4 (diagonal +12 at 0.6 mm) | 0.9 to 3.4 | 4.11 | `study_patterns*.py` |
 
 Other validated results:
 

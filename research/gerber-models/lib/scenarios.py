@@ -114,7 +114,7 @@ def compare(S, pix_mm, n, power_px, fixed_px, h_face, heater, a=None, b=None, re
 
 def stripes(pix_mm=0.1, size_mm=36.0, across=True, copper_mm=24.0, stripe_px=5, pitch_px=10):
     """!
-    @brief A laminate board with a block of copper stripes (running along x) in the middle, posts held at 0 K, a heater at the centre. The posts do not touch the copper.
+    @brief A laminate board with a block of copper stripes (running along x) in the middle, posts held at 0 K (3 mm deep, 6 mm wide), a heater at the centre. The posts are clear of the copper only when the block leaves room for them (copper_mm <= size_mm - 6, the default 24 mm leaves 3 mm of laminate); a 34 mm block runs under them.
     @param pix_mm Pixel size (mm).
     @param size_mm Board side (mm).
     @param across True: posts at the top and bottom edges (the heat crosses the stripes); False: posts at the left and right edges (the heat runs along them).

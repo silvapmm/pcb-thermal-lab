@@ -65,7 +65,7 @@ Only where the cell conductances are read, and only when imported copper exists.
 ## 3. Storage and import
 
 * The masks themselves (pixel size, storage in the project file, the reader, the layer assignment, which holes are vias): `research/gerber-import/INTEGRATION.md` section 1. This folder takes the mask of every layer as given.
-* Cost per layer, paid once at import and cached with the project: 0.1 s (200 000 pixels) to 1.1 s (1.6 million = 100 x 160 mm at 0.1 mm) for the flow-based faces on a quiet machine (README 4.15); memory about 1.4 KB per pixel (strips for larger boards); the quick mode costs 0.02 s.
+* Cost per layer, paid once at import and cached with the project: 0.1 s (200 000 pixels) to 1.1 s (1.6 million = 100 x 160 mm at 0.1 mm) for the flow-based faces on a quiet machine (README 4.15); memory about 1.4 KB per pixel of peak resident memory (strips for larger boards); the quick mode (`lam`) costs under 0.01 s.
 
 ## 4. Choosing the mapping
 
