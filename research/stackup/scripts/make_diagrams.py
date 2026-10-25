@@ -2,7 +2,7 @@
 @file make_diagrams.py
 @brief Schematic diagrams of the stack-up: the simple mode (equal gaps, the thickness shared by the layers) against the advanced mode (copper per layer, material and thickness per gap), the thickness that each node represents and the vertical conductance between nodes as a series of half gaps.
 @details Pure drawing, symbolic labels. Writes figures/fig_04_stackup_schematic.png.
-         Also writes figures/fig_05_stackup_to_scale.png (the 4-layer stack-up in true proportions).
+         Also writes figures/fig_05_stackup_to_scale.png (the 4-layer stack-up in true proportions) and figures/fig_08_inner_copper_cross_section.png (the same stack-up with 0.5 oz and with 1 oz inner copper, from `pcbthermal.model.stackup_template`).
          Run: .venv/bin/python research/stackup/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -86,7 +86,7 @@ def series(ax):
     ax.plot([7.2, 8.0], [6, 6], color="k")
     ax.text(7.8, 6.5, "node i+1", fontsize=8)
     dk.box(ax, 0.8, 1.9, 10.4, 3.2, "findings (4 layers, vias): dielectric k ±30 %\nand thickness ±10 % move the rise by about 1 %,\nthe finished copper ±15 % by about 5 %\n(a one-layer pad: k ±30 % moves it 6 to 9 %);\nequal gaps in the advanced mode agree with\nthe simple mode within 0.1 K;\nan exact 1D series-circuit test checks the chain", "#fbe3c2", size=7.5)
-    ax.text(6, 0.7, "typical stack-ups by layer count: pcbthermal/data/stackups.json\n(only the 4-layer one is a published fabricator table)", ha="center", fontsize=7, style="italic")
+    ax.text(6, 0.7, "typical stack-ups by layer count: pcbthermal/data/stackups.json\n(only the 4-layer one is a published fabricator table);\ninner copper 0.5 oz (default) or 1 oz: Board.template_inner_oz (figure 8)", ha="center", fontsize=7, style="italic")
     ax.set_title("3. the vertical chain, and what it was found to matter", fontsize=9)
 
 
@@ -126,6 +126,46 @@ def stackup_to_scale(path):
     dk.save(fig, path, "The 4-layer stack-up in true proportions and what its numbers matter")
 
 
+def inner_copper_cross_section(path):
+    """!
+    @brief The 4-layer template in true proportions with the default 0.5 oz (15.2 um) inner copper and with the 1 oz (35 um) option `Board.template_inner_oz` = 1: every dielectric keeps its thickness, only the inner copper changes and the board is thicker.
+    @details The layers and totals are read from `pcbthermal.model.stackup_template(4, None, inner_oz)`, so the drawing follows the program. The temperature effect (-6.9 K with the dielectrics unchanged, README 4.5 and docs/validation.md 14.1) is the number printed by `study_inner_copper_1oz.py`, written in the caption of the README, not computed here.
+    @param path Output file.
+    @return None.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    from pcbthermal import model
+    fig, axs = dk.canvas(12, 6.2, 1, 3, [1, 1, 0.9])
+    scale = 4.6 / 1700.0                                          # drawing units per um (the thicker board is 1.626 mm)
+    totals = []
+    for ax, oz, title in ((axs[0], 0.5, "0.5 oz inner copper (default, JLCPCB standard)"), (axs[1], 1.0, "1 oz inner copper (option, derived)")):
+        t = model.stackup_template(4, None, oz)
+        totals.append(t["total_thickness_um"])
+        ax.set_xlim(0, 7)
+        ax.set_ylim(-1.6, 5.4)
+        y = 5.0
+        for k, cu in enumerate(t["copper_um"]):
+            h = max(cu * scale * 3.0, 0.04)                      # the copper is drawn three times thicker than the scale, or it would be a line
+            ax.add_patch(Rectangle((0.6, y - h), 3.6, h, facecolor=dk.COPPER, edgecolor="k", linewidth=0.7))
+            ax.text(4.35, y - h / 2, f"copper {cu:g} um", fontsize=7, va="center", color="#a05a00" if k in (1, 2) else "k")
+            y -= h
+            if k < len(t["dielectrics"]):
+                d = t["dielectrics"][k]
+                hd = d["thickness_um"] * scale
+                ax.add_patch(Rectangle((0.6, y - hd), 3.6, hd, facecolor=dk.FR4 if d["kind"] == "core" else "#c9d8a5", edgecolor="k", linewidth=0.7))
+                ax.text(4.35, y - hd / 2, f"{d['kind']} {d['thickness_um']:g} um", fontsize=7, va="center")
+                y -= hd
+        ax.text(2.4, -0.3, f"board {t['total_thickness_um'] / 1000:.3f} mm", ha="center", fontsize=8, fontweight="bold")
+        ax.set_title(title, fontsize=9)
+    ax = axs[2]
+    ax.set_xlim(0, 6)
+    ax.set_ylim(0, 8)
+    dk.box(ax, 0.1, 4.8, 5.6, 2.6, "what the option does:\nevery inner copper layer becomes 35 um;\nevery dielectric keeps the thickness\nof the template (no scaling)", "#cfe3f5", size=8)
+    dk.box(ax, 0.1, 1.6, 5.6, 2.6, f"cost: the board is thicker by\n(35 - 15.2) um per inner layer:\n{totals[0] / 1000:.3f} -> {totals[1] / 1000:.3f} mm (4 layers);\n0.04 to 0.20 mm for 4 to 12 layers", "#fbe3c2", size=8)
+    ax.text(2.9, 0.7, "the copper is drawn three times thicker than the scale", ha="center", fontsize=7, style="italic")
+    dk.save(fig, path, "The inner copper of the typical stack-up: 0.5 oz against 1 oz (Board.template_inner_oz)")
+
+
 def main():
     """!
     @brief Draw the three panels and save the figure.
@@ -138,6 +178,7 @@ def main():
     series(axs[2])
     dk.save(fig, OUT / "fig_04_stackup_schematic.png", "The stack-up: schematics")
     stackup_to_scale(OUT / "fig_05_stackup_to_scale.png")
+    inner_copper_cross_section(OUT / "fig_08_inner_copper_cross_section.png")
 
 
 if __name__ == "__main__":

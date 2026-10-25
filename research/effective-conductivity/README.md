@@ -1,6 +1,6 @@
 # Effective conductivity, spreading resistance and the layered idealisation: published test cases reproduced
 
-Status: **closed**, reviewed by the reviewer agent on 2026-10-24 (section 8; every study re-run on the program at `0ea5f07`). The review of this folder also read the models of the program and found two defects there (a time constant on boards with an outline, the 3D solid on a one-layer board); both are corrected in the program (`docs/validation.md` section 20) and section 4.11 checks the second against the independent solver. Its one-layer check also led to the laminate nodes of one-layer boards, now in the program in a different form from the candidate of `INTEGRATION.md` 5 (`pcbthermal/laminate.py`, `docs/validation.md` section 21). The three optional proposals (thick-plate warning, `Board.natural_form`, the reference solver as a test helper) were adopted afterwards on `develop` (`docs/validation.md` section 22); their measured impact and where each one lives are in `INTEGRATION.md`, the corrections and text for the project documents in `docs/for-the-project-documents.md`. What stays open is listed in section 6. Studies: `study_culham_1998.py`, `study_lee_spreading.py`, `study_program_vs_coupon.py`, `study_muzychka_2003.py`, `study_natural_convection.py`, `study_biot_definitions.py`, `study_corrections_impact.py`, `study_channel_correlations.py`, `study_one_layer_independent.py`; solver: `lib/layered3d.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics), one numbering.
+Status: **closed**, reviewed by the reviewer agent on 2026-10-24 (section 8; every study re-run on the program at `0ea5f07`). The review of this folder also read the models of the program and found two defects there (a time constant on boards with an outline, the 3D solid on a one-layer board); both are corrected in the program (`docs/validation.md` section 20) and section 4.11 checks the second against the independent solver. Its one-layer check also led to the laminate nodes of one-layer boards, now in the program in a different form from the candidate of `INTEGRATION.md` 5 (`pcbthermal/laminate.py`, `docs/validation.md` section 21). The three optional proposals (thick-plate warning, `Board.natural_form`, the reference solver as a test helper) were adopted afterwards on `develop` (`docs/validation.md` section 22); their measured impact and where each one lives are in `INTEGRATION.md`, the corrections and text for the project documents in `docs/for-the-project-documents.md`. What stays open is listed in section 6. Studies: `study_culham_1998.py`, `study_lee_spreading.py`, `study_program_vs_coupon.py`, `study_muzychka_2003.py`, `study_natural_convection.py`, `study_biot_definitions.py`, `study_corrections_impact.py`, `study_channel_correlations.py`, `study_one_layer_independent.py`; solver: `lib/layered3d.py`; figures: `make_figures.py` (data) and `make_diagrams.py` (schematics), one numbering (Figures 1 to 20).
 
 ## 1. The questions
 
@@ -36,7 +36,7 @@ Status: **closed**, reviewed by the reviewer agent on 2026-10-24 (section 8; eve
 | `scripts/study_corrections_impact.py` | The plate check against the cell size and the side of the source, the laminar form on the program, the thick-plate criterion on the 74 block cases (about 2 minutes). |
 | `scripts/study_channel_correlations.py` | Elenbaas against the blend of Raithby and Hollands, and the optimum spacing (seconds). |
 | `scripts/study_one_layer_independent.py` | A one-layer board (full copper at three thicknesses, and a 20 mm pad) in the independent solver, the 3D solid and the FVM before and after the corrections, and the FDM, Lumped and Analytic as they are now (about 1 minute). |
-| `scripts/make_figures.py`, `scripts/make_diagrams.py` | The data figures (read `out/*.json`, written by the studies) and the schematics. |
+| `scripts/make_figures.py`, `scripts/make_diagrams.py` | The data figures (read `out/*.json`, written by the studies; Figure 19 also calls `pcbthermal.convection`) and the schematics (Figure 18 and 20 carry the numbers of the program documents named in their captions). |
 | `tests/test_layered3d.py` | The solver against a series circuit, two exact energy balances (with and without a film under the source), a uniform layer and three published numbers; the source alignment check; a conductivity map (uniform map = uniform slab, energy balance with a pattern); the plateau bound; the gradient below its bound. |
 | `INTEGRATION.md`, `docs/for-the-project-documents.md` | Where each proposal lives in the program (all adopted) and its measured impact; corrections and text for the project documents. |
 
@@ -279,12 +279,20 @@ On 2 mm cells the source edges fall a quarter of a cell off and the rounding giv
 
 The effect on the maximum temperature is **-0.7 to +0.2 % of the rise** (-0.43 to +0.14 K): radiation and the other terms of `h` dilute the 5 to 10 % that the correlations differ by. **No change is warranted by the numbers.**
 
+![The two forms as the program computes them and the change of the maximum temperature](figures/fig_19_natural_form_on_the_example.png)
+
+*Figure 19 (`figures/fig_19_natural_form_on_the_example.png`): left, the Nusselt number of the general and the laminar form of Churchill and Chu from the program's own function (`convection.h_natural_vertical`, board heights of 10 mm to 3 m at a rise of 30 K, film at 40 C; the shaded band is the Ra of a 50 to 200 mm board at 10 to 80 K, as in Figure 10); the two forms cross near Ra 2e6 (2.3e6 in this scan). Right, the change of the maximum temperature with the laminar form, in K and in % of the rise, for the six boards of the table above (`out/corrections_impact.json`, FVM with computed h); the example board turned vertical: -0.22 K at the nominal powers. Data: the program's formulas and the study output; nothing estimated.*
+
 **C. The thick-plate criterion** `q'' t / (2 k) / rise` computed for the 74 metal-block cases of `research/block-and-fins` (the heat of the part through the copper pad under the block, the thickness and conductivity of the block, a rise of 90 K):
 
 C. Thick-plate criterion q'' t / (2 k) / rise over the 74 metal-block cases: maximum 0.42 %, median 0.04 %, cases above 5 %: 0
    largest: pad 20x20 in block 80x60, 3 mm steel, R''=1 Kcm²/W (0.42 %)
 
 The check would **never fire on the cases the program is built for** (largest 0.42 %, a 3 mm steel block); it is a safety net for a thick, poorly conducting layer typed by the user. In the program (`checks.check_thick_plates`) the flux is the one that really enters the block, taken from the solution (median 0.07 %, maximum 0.34 % over the same 74 cases, none above 5 %), because the pad flux used here is not conservative (the peak flux into the block is 1.6 times the pad mean at the median) and the footprint flux fires on ordinary designs (`docs/validation.md` section 22).
+
+![The thick-plate check: where the heat enters the block and which flux is used](figures/fig_18_thick_plate_flux.png)
+
+*Figure 18 (`figures/fig_18_thick_plate_flux.png`): the thick-plate check of the program (`checks.check_thick_plates`). Left, a part on a thin board with a metal block under it: the bound `q'' t / (2 k)` is the gap between the surface under the part and the mean of the layer, and `q''` is the flux that really enters the block, not the footprint flux or the pad flux, because the laminate and the copper spread the heat before it reaches a block under the board (the flux into the block is 8 to 22 % of the footprint flux on the 74 cases). Right, the criterion over the 74 metal-block cases of `research/block-and-fins` for the three fluxes, median and maximum (footprint 0.50 and 1.78 %, pad 0.04 and 0.42 %, flux into the block 0.07 and 0.34 %; the first and last pair are those of `docs/validation.md` section 22, the pad pair is Table 4.8 C above). The sketch is not to scale.*
 
 ![The corrections and proposals with their measured impact](figures/fig_15_corrections_map.png)
 
@@ -368,6 +376,10 @@ The independent solver checks the first. `lib/layered3d.py` now takes a conducti
 ![The one-layer board against the independent solver](figures/fig_17_one_layer_independent.png)
 
 *Figure 17: `figures/fig_17_one_layer_independent.png`: left, the board of the check (the pad in the copper slab, the laminate slabs, the heat going down and sideways; not to scale); right, the rise in the independent solver and in the 3D solid and the FVM before and after the corrections.*
+
+![The independent solver in the test suite](figures/fig_20_independent_solver_in_the_tests.png)
+
+*Figure 20 (`figures/fig_20_independent_solver_in_the_tests.png`): what `tests/test_layered_vs_3d.py` compares (the independent solver `tests/helpers/layered3d.py` against the five layered models on the Cu / FR-4 / Cu coupon and on the one-layer board, 1 mm cells) and, for each model, the difference measured on 1 mm cells (red) with the range the test accepts (blue): tight on the coupon (0.2 % for the FVM, the 3D solid and the Analytic, 0.3 % for the Lumped, 1.2 % for the FDM) and with full copper, ranges around the measured value for the documented limits of a bare pad (FDM -12.6, Lumped -17.0, Analytic -30.2 %). The numbers are copied from the test file and from `docs/validation.md` section 22; they were not re-run for this figure.*
 
 ## 5. What this means for the program
 

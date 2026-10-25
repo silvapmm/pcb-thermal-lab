@@ -6,7 +6,8 @@
          Richardson extrapolation; fig_03: maximum temperature of every model against the independent 3D finite-element solid for growing copper pads (needs scikit-fem); fig_05: the five models against the
          independent 3D solver (lib/layered3d.py) on one-layer boards, before and after the laminate nodes of the layered models (study_one_layer_board.py); fig_06: what spreading resistance is, from the
          axisymmetric solver (needs out/spreading.json); fig_07: the slabs of a one-layer board in the 3D solid before and after the laminate was added, and the five models on it.
-Usage: python research/solid3d-verification/scripts/make_figures.py [--reuse]   (from the repository root; about 4 minutes; --reuse draws figure 5 from
+fig_09: the time and the memory of a direct solve against the number of unknowns, measured by study_solve_cost.py (out/solve_cost.json) with the larger sizes reported in the program's documents as separate markers; drawn only by `make_figures.py cost`.
+Usage: python research/solid3d-verification/scripts/make_figures.py [--reuse|cost]   (from the repository root; about 4 minutes; --reuse draws figure 5 from
        out/one_layer.json if it exists instead of re-running study_one_layer_board.py)
 """
 
@@ -248,12 +249,55 @@ def fig_one_layer_independent():
     plt.close(fig)
 
 
+# Larger sizes that the program's documents report and this folder did not measure (CHANGELOG.md "A 3D-solid run that never ended", docs/versions.md, docs/roadmap.md):
+# 3D solid: (unknowns, seconds, GB); layered models: (unknowns, seconds, GB). The 400 000 unknowns point of docs/versions.md is 276 s and "5 GB".
+REPORTED_3D = [(160_000, 49.0, 2.2), (254_000, 130.0, 4.4), (400_000, 276.0, 5.0), (512_000, 320.0, 8.0)]
+REPORTED_LAYERED = [(1_000_000, 97.0, 4.4), (2_000_000, 273.0, 8.4)]
+
+
+def fig_cost():
+    """!
+    @brief Time and peak memory of a direct steady solve against the number of unknowns: measured here (out/solve_cost.json, study_solve_cost.py) and reported in the program's documents; the limit of the 3D solid (250 000 unknowns) is marked.
+    @return None.
+    """
+    import json
+    data = json.loads((HERE.parent / "out" / "solve_cost.json").read_text())
+    rows = data["rows"]
+    fig, axs = plt.subplots(1, 2, figsize=(12.5, 4.6))
+    styles = (("solid3d", "#059669", "o", "3D solid, plain two-layer board (measured here)"), ("example", "#d97706", "s", "3D solid, example board with vias and a heatsink (measured here)"),
+              ("fvm", "#1d4ed8", "^", "layered FVM, plain board (measured here)"))
+    for k, (ax, key, unit) in enumerate(((axs[0], "seconds", "time of the assembly and the direct solve (s)"), (axs[1], "peak_gb", "peak resident memory (GB)"))):
+        for kind, col, mk, lab in styles:
+            pts = sorted((r["unknowns"], r[key]) for r in rows if r["model"] == kind)
+            ax.plot([p[0] for p in pts], [p[1] for p in pts], marker=mk, color=col, label=lab)
+        idx = 1 if key == "seconds" else 2
+        ax.plot([p[0] for p in REPORTED_3D], [p[idx] for p in REPORTED_3D], "x", color="#dc2626", ms=9, mew=2, label="3D solid, reported in the program's documents (not measured here)")
+        ax.plot([p[0] for p in REPORTED_LAYERED], [p[idx] for p in REPORTED_LAYERED], "+", color="#6d28d9", ms=11, mew=2, label="layered models, reported in docs/roadmap.md (not measured here)")
+        ax.axvline(250_000, color="k", ls="--", lw=1)
+        ax.text(255_000, ax.get_ylim()[0] * 1.5 if ax.get_yscale() == "log" else 0, "limit of the 3D solid\n250 000 unknowns", fontsize=7, va="bottom")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("unknowns")
+        ax.set_ylabel(unit)
+        ax.grid(alpha=0.3, which="both")
+    axs[0].legend(fontsize=6.5, loc="lower right")
+    axs[0].set_title("Time of a direct solve against the size", fontsize=9)
+    axs[1].set_title(f"Peak memory ({data['info']['machine']}, SciPy {data['info']['scipy']})", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_09_solve_cost.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
-    @brief Make the data figures (1 to 3 and 5 to 7; the diagrams 4 and 8 are drawn by make_diagrams.py).
+    @brief Make the data figures (1 to 3 and 5 to 7; the diagrams 4 and 8 are drawn by make_diagrams.py; `cost` draws only figure 9).
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
+    if "cost" in sys.argv[1:]:
+        fig_cost()
+        print("figure in", OUT)
+        return
     fig_psi()
     fig_gci()
     fig_pads()

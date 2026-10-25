@@ -2,7 +2,7 @@
 
 ![3D solid slabs](../figures/fig_04_solid3d_slabs.png)
 
-*Figure 4 (`figures/fig_04_solid3d_slabs.png`): left, a section of the structured grid: one slab for each copper layer, four slabs for each laminate gap, a via as a rod of the barrel's copper area, a pad slab and metal slabs for a block; right, the conductance of two neighbouring cells as the harmonic mean of the half-cell resistances.*
+*Figure 4 (`figures/fig_04_solid3d_slabs.png`): left, a section of the structured grid: one slab for each copper layer, four slabs for each laminate gap, a via as a rod of the barrel's copper area, a pad slab and metal slabs for a block; right, the conductance of two neighbouring cells as the harmonic mean of the half-cell resistances. The note on the size limit (250 000 unknowns, `solid3d.MAX_CELLS`) was added.*
 
 ## 1. What it is
 

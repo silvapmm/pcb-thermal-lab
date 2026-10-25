@@ -6,7 +6,7 @@
 
 ![Chain of levels](../figures/fig_18_level_chain.png)
 
-*Figure 18 (`figures/fig_18_level_chain.png`): the levels of one part (junction, package top, interface, heatsink on top, board, interface, block under the board) as a section and as a network; the heat from the junction splits in the inverse ratio of the two chains.*
+*Figure 18 (`figures/fig_18_level_chain.png`): the levels of one part (junction, package top, interface, heatsink on top, board, interface, block under the board) as a section and as a network; the heat from the junction splits in the inverse ratio of the two chains. The top path with a junction node is in the program (`analysis.part_split`); the air gap outside the contact is still research.*
 
 Investigation: `research/component-heatsink/` (`block_contact_study.py`, `chain_study.py`); text: `docs/research.md` R3 and R5. **Status: the contact area and the interface sheet are implemented; the air gap outside the contact and the full chain with a junction node are researched, not built.**
 

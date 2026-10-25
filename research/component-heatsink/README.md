@@ -42,8 +42,8 @@ Status: **mostly implemented** (θ junction-pad, junction limit, power coefficie
 | `scripts/base_spreading_study.py` | The extra resistance of a heatsink base for a small component (3D conduction). |
 | `scripts/block_contact_study.py` | A plate model against a published spreading example; a big block touching the board only in a patch; temperature-dependent power. |
 | `scripts/make_figures.py` | Draws the four figures (about 1.5 minutes). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram (figure 5; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_05`; figure 5 is the schematic diagram. |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 5 and 6; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_06`; figures 5 and 6 are the schematic diagram and the illustration (`make_diagrams.py`). |
 | `NOTES.md` | The running research notes of `docs/research.md` (what was read, what was simulated, open questions). |
 | `INTEGRATION.md` | What entered the program and what is open. |
 
@@ -208,7 +208,7 @@ Size to resistance (volumetric performance 500-800 cm3 K/W natural): heatsink vo
 
 ![Heatsink convection scenarios](figures/fig_03_heatsink_convection_scenarios.png)
 
-*Figure 3: `figures/fig_03_heatsink_convection_scenarios.png`.*
+*Figure 3: `figures/fig_03_heatsink_convection_scenarios.png` (a study with a prototype scaling of the heatsink resistance with the temperature rise and with the air speed; the program has a typed or typical theta_SA only, the scaling is still open in `docs/research.md` R3 and R6).*
 
 ### 4.7 The base of a heatsink (`base_spreading_study.py`)
 

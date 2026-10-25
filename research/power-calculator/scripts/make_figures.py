@@ -4,7 +4,8 @@
 
 @details The numbers come from running the studies of this folder and reading the tables they print.
          fig_01: the calculator against datasheet RθJA values; fig_02: error of the recovered power when the drawn board is not the real one; fig_03: the ways to reduce that error
-         (known-power reference, two points) with a perfect and with a ±1 K reading.
+         (known-power reference, two points) with a perfect and with a ±1 K reading; fig_06: the band of the power at the four levels of the design term for the four badly drawn boards
+         (the numbers are those of the table of README 4.7, printed by study_design_term_coverage.py; that script takes about 6 to 10 minutes and is not run by this one).
 Usage: python research/power-calculator/scripts/make_figures.py   (from the repository root; about 3 minutes)
 """
 
@@ -134,15 +135,61 @@ def fig_calibration():
     plt.close(fig)
 
 
+# Table of README 4.7 as printed by study_design_term_coverage.py (1 mm cells, true power 2 W, power recovered at the top of the package): board -> (nominal, {level: (best, worst)})
+DESIGN_COVERAGE = {
+    "top copper half filled (hatched)": (1.735, {"none": (1.474, 1.956), "cad": (1.462, 1.967), "hand": (1.396, 2.012), "estimated": (1.177, 2.113)}),
+    "copper 17.5 um instead of 35 um": (1.519, {"none": (1.288, 1.715), "cad": (1.275, 1.725), "hand": (1.207, 1.766), "estimated": (0.999, 1.858)}),
+    "no vias under the part": (1.780, {"none": (1.505, 2.014), "cad": (1.492, 2.024), "hand": (1.422, 2.064), "estimated": (1.196, 2.157)}),
+    "no inner planes": (1.312, {"none": (1.109, 1.484), "cad": (1.096, 1.531), "hand": (1.029, 1.646), "estimated": (0.831, 1.818)}),
+}
+TRUE_POWER = 2.0
+
+
+def fig_design_coverage():
+    """!
+    @brief The band of the recovered power at the four levels of the board-description (design) term for the four badly drawn boards, with the true 2 W marked.
+    @details Data: DESIGN_COVERAGE, copied from the table of README 4.7 (the output of study_design_term_coverage.py); a bar is blue when the true power is inside, red when it is outside, and the nominal power is the black tick.
+    @return None.
+    """
+    levels = ["none", "cad", "hand", "estimated"]
+    names = {"none": "none (numbers only)", "cad": "from fabrication files", "hand": "by hand (default)", "estimated": "estimated"}
+    fig, axs = plt.subplots(1, 4, figsize=(15, 4.2), sharey=True)
+    for ax, (board, (nominal, bands)) in zip(axs, DESIGN_COVERAGE.items()):
+        for k, lv in enumerate(levels):
+            lo, hi = bands[lv]
+            inside = lo <= TRUE_POWER <= hi
+            ax.barh(k, hi - lo, left=lo, height=0.55, color="#1d4ed8" if inside else "#dc2626", alpha=0.85)
+            ax.text(hi + 0.02, k, f"{lo:.2f}-{hi:.2f}", va="center", fontsize=7)
+            ax.plot([nominal, nominal], [k - 0.3, k + 0.3], color="k", lw=2)
+        ax.axvline(TRUE_POWER, color="#059669", lw=1.8, ls="--")
+        ax.text(TRUE_POWER + 0.03, 3.45, "true 2 W", color="#059669", fontsize=8, ha="left")
+        ax.set_xlim(0.7, 2.6)
+        ax.set_ylim(-1.0, 3.6)
+        ax.set_yticks(range(4))
+        ax.set_yticklabels([names[lv] for lv in levels], fontsize=8)
+        ax.invert_yaxis()
+        ax.set_xlabel("recovered power (W)")
+        ax.set_title(board, fontsize=9)
+    fig.suptitle("The band at the four levels of the design term: blue = holds the true power (2 of 4 boards at hand and at estimated), red = does not; black tick = nominal", fontsize=9.5)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
+    fig.savefig(OUT / "fig_06_design_term_coverage.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
-    @brief Make the three figures.
+    @brief Make the three figures that run studies (fig_01 to fig_03); fig_06 is drawn from the README table by `fig_design_coverage()` (run `make_figures.py design` for it alone).
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
+    if len(sys.argv) > 1 and sys.argv[1] == "design":
+        fig_design_coverage()
+        print("figure in", OUT)
+        return
     fig_datasheets()
     fig_board_errors()
     fig_calibration()
+    fig_design_coverage()
     print("figures in", OUT)
 
 

@@ -2,7 +2,7 @@
 
 ![Input checks](../figures/fig_27_input_checks.png)
 
-*Figure 27 (`figures/fig_27_input_checks.png`): one board with the situations that `check_problem` warns about: 1 a heater partly outside the board, 2 no copper under a heater, 3 a copper edge crossing a footprint, 4 a heater only a few cells wide, 5 overlapping heaters, 6 a via outside the board, 7 a metal block with no copper under it.*
+*Figure 27 (`figures/fig_27_input_checks.png`): one board with the situations that `check_problem` warns about: 1 a heater partly outside the board, 2 no copper under a heater, 3 a copper edge crossing a footprint, 4 a heater only a few cells wide, 5 overlapping heaters, 6 a via outside the board, 7 a metal block with no copper under it. Items 8 and 9 and the last line were added for the checks that came later (fins closer than a still-air gap, the thick-plate check after the run, the 3D size limit).*
 
 **Status: in program** (`pcbthermal/checks.py`, `docs/models.md` section 3).
 

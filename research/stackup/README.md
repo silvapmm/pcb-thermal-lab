@@ -18,6 +18,10 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 
 *Figure 5 (`figures/fig_05_stackup_to_scale.png`): the program's 4-layer stack-up in true proportions (35 / 15.2 / 15.2 / 35 um copper, 7628 prepreg 210.4 um, core 1065 um) and what each number is worth for the temperature.*
 
+![The inner copper of the typical stack-up, 0.5 oz and 1 oz](figures/fig_08_inner_copper_cross_section.png)
+
+*Figure 8 (`figures/fig_08_inner_copper_cross_section.png`): the cross-section of the 4-layer template with the default 0.5 oz (15.2 um) inner copper and with the 1 oz (35 um) option `Board.template_inner_oz` (`pcbthermal.model.stackup_template(4, None, inner_oz)` supplies the layers): every dielectric keeps its thickness, only the inner copper changes, and the board is thicker, 1.586 to 1.626 mm (0.04 to 0.20 mm for 4 to 12 layers). The dielectrics are to scale, the copper is drawn three times thicker than the scale. The effect on the temperature of the example board with planes (6.9 K cooler with the dielectrics unchanged on 4 layers) is in section 4.5 and Figure 6.*
+
 ## 2. Findings in short
 
 * The advanced stack-up with equal gaps reproduces the simple one (0.1 K apart), and an exact series circuit of layer nodes to 1e-6 K in the FVM and FDM.
@@ -34,9 +38,9 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 | `scripts/study_dielectric_sensitivity.py` | The sensitivity of section 4.2 repeated on one-layer, two-layer and four-layer boards, against the independent 3D solver `../effective-conductivity/lib/layered3d.py`. |
 | `scripts/study_inner_copper_1oz.py` | The templates with 15.2 µm and 35 µm inner copper (section 4.5). |
 | `scripts/study_real_1oz_stackups.py` | The real 1 oz inner-copper stack-ups that could be read (JLCPCB, Bittele, PCBWay, PCBGOGO, AdvancedPCB) with their addresses, the pressed-prepreg rule check and the comparison with the program's 1 oz rules (section 4.6). |
-| `scripts/make_figures.py` | Draws figures 1, 2, 3, 6 and 7 (runs the studies and reads the tables they print). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_07`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`), figure 6 is section 4.5, figure 7 section 4.6. |
+| `scripts/make_figures.py` | Draws figures 1, 2, 3, 6 and 7 (runs the studies and reads the tables they print; `make_figures.py inner` draws only 6 and 7). |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustrations (figures 4 and 5: no data, no program; figure 8: layers read from `pcbthermal.model.stackup_template`; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_08`; figures 4, 5 and 8 are the diagram and the illustrations (`make_diagrams.py`), figure 6 is section 4.5, figure 7 section 4.6. |
 
 ## 4. How to run, and the results
 
@@ -191,7 +195,7 @@ Until this review the 6 and 8-layer boards had **no bottom copper** (the script 
 
 ![Inner copper of the templates](figures/fig_06_inner_copper_1oz.png)
 
-*Figure 6: `figures/fig_06_inner_copper_1oz.png` (black diamonds: the published tables of section 4.3 with a plane on every inner layer).*
+*Figure 6: `figures/fig_06_inner_copper_1oz.png` (black diamonds: the published tables of section 4.3 with a plane on every inner layer; the grey bars, the 1 oz inner copper with the dielectrics unchanged, are the option adopted in the program, `Board.template_inner_oz` = 1; redrawn on the current program).*
 
 * **Size of the effect**: 1 oz (35 µm) inner copper cools the board by 6.8 to 7.5 K with the dielectrics unchanged and by 7.1 to 7.9 K at the same total thickness (11 to 14 % of the rise); the 4-layer template is the smallest (−10.6 / −10.9 %), the 8 to 12-layer ones the largest (−13 to −14 %). Thinning the dielectrics to keep the thickness adds only 0.2 to 0.7 K: the copper, not the thickness, is what matters. A true 0.5 oz base foil (17.5 µm) gives only −1.1 to −1.3 K. The 2-layer template has no inner copper and does not change.
 * **Against the published tables (planes on every inner layer, section 4.3)**: the 4-layer template with 35 µm at the same thickness (83.27 °C) is within 0.3 K of PCBWay (82.98) and within 1.6 K of the AdvancedPCB (84.12) and OSH Park (84.83, 17.5 µm inner but 43.2 µm outer) tables; the shipped 15.2 µm template is 7.4 K above PCBWay. For 6 layers the 35 µm template (76.89) is within 0.1 to 0.6 K of the PCBWay blog (76.97) and PCBGOGO (77.52) tables, against 84.80 shipped. For 8 layers the 35 µm template (71.88) is 1.7 to 2.8 K below the three published tables (73.55 to 74.70), whose dielectrics are thinner at the cores, so the shipped 79.72 is 5.0 to 6.2 K above them and the 1 oz variant is 1.7 to 2.8 K below: the published tables fall between the two variants, nearer to 1 oz.
@@ -359,7 +363,7 @@ JLCPCB 1 oz (30 um inner copper) minus the program variants at 30 um, in K
 
 ![Real 1 oz builds against the 1 oz rules of the program](figures/fig_07_real_1oz_stackups.png)
 
-*Figure 7: `figures/fig_07_real_1oz_stackups.png` (red: JLCPCB 1 oz build with 30 um inner copper; black diamonds: the other fabricators, 35 um).*
+*Figure 7: `figures/fig_07_real_1oz_stackups.png` (red: JLCPCB 1 oz build with 30 um inner copper; black diamonds: the other fabricators, 35 um; the grey bars, 35 um with the dielectrics unchanged, are the adopted option).*
 
 * **Answer to the question**: real builds do not thin all dielectrics in proportion. The one physical thinning mechanism is the resin filling the etched copper, which affects only the prepreg, in proportion to the etched fraction, and is zero against a full plane. Otherwise fabricators re-pick cores and prepreg from their catalogue for the nominal thickness, so the dielectric total and the board thickness move by a few per cent in either direction (JLCPCB at 1.6 mm: -4 % to +4 %).
 * **The three rules differ little**: at 35 um, scaled against unscaled differ by 0.2 to 0.7 K (0.3 to 1.3 % of the rise), and the Isola-thinned variant is 0.2 to 0.4 K below the unscaled one; at 30 um, scaled against unscaled differ by 0.1 to 0.6 K. The spread among real builds of the same layer count is larger (the 8-layer tables at 35 um span 73.55 to 74.70 degC, and JLCPCB's own 1 oz build is 2.7 K above the unscaled 35 um variant at 8 layers), and the copper thickness is a larger lever than the dielectric rule (30 instead of 35 um raises the temperature by 1.2 to 1.4 K).

@@ -2,7 +2,7 @@
 
 ![Verification ladder](../figures/fig_22_verification_ladder.png)
 
-*Figure 22 (`figures/fig_22_verification_ladder.png`): the checks in order of independence, from exact solutions to the comparison between models, with the results of `docs/theory.md` section 11, and the rung that is still missing: a physical board.*
+*Figure 22 (`figures/fig_22_verification_ladder.png`): the checks in order of independence, from exact solutions to the comparison between models, with the results of `docs/theory.md` section 11, and the rung that is still missing: a physical board. The independent-solutions rung now also names the independent 3D solver used in the test suite (`tests/test_layered_vs_3d.py`).*
 
 **Status: in program** (`docs/theory.md` section 11, `docs/validation.md`).
 

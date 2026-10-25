@@ -3,6 +3,7 @@
 @brief Schematic diagrams of the power calculator: the board model run backwards (two runs, an affine relation, the watts), and the band of the answer from the one-at-a-time effects.
 @details Pure drawing; the line in the second panel is the affine relation T(P) = T0 + c P that the calculator uses, with illustrative numbers. Writes figures/fig_04_calculator_schematic.png.
          Also writes figures/fig_05_reading_points_and_copper.png (the temperature reading points and the copper drawn against the real one).
+         And figures/fig_07_design_sources.png: the four board-description (design) sources of the band, what each moves, the amplitude at the level Estimated and the four levels (numbers of docs/calculators.md 1.1c).
          Run: .venv/bin/python research/power-calculator/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -70,10 +71,10 @@ def band(ax):
     """
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 8)
-    names = ["copper", "heat transfer", "theta", "psi_JT", "the reading"]
+    names = ["copper", "heat transfer", "theta", "psi_JT", "the reading", "board description:\n4 design terms (fig. 7)"]
     for k, n in enumerate(names):
-        dk.box(ax, 0.2, 6.4 - 1.15 * k, 3.0, 0.9, n, "#cfe3f5", size=7.5)
-        dk.arrow(ax, 3.2, 6.85 - 1.15 * k, 4.6, 3.8)
+        dk.box(ax, 0.2, 7.0 - 1.1 * k, 3.0, 0.85, n, "#cfe3f5" if k < 5 else "#fbe3c2", size=7)
+        dk.arrow(ax, 3.2, 7.4 - 1.1 * k, 4.6, 3.8)
     dk.box(ax, 4.6, 3.0, 2.2, 1.6, "root sum\nof squares\nof the effects\n(one at a time)", "#d6ecd0", True, size=7)
     dk.arrow(ax, 6.8, 3.8, 7.5, 3.8)
     dk.box(ax, 7.5, 2.4, 2.3, 2.8, "best\nnominal\nworst\npower", "#fbe3c2", True)
@@ -120,6 +121,41 @@ def reading_points(path):
     dk.save(fig, path, "The power calculator: what is measured, and what the drawing must get right")
 
 
+def design_sources(path):
+    """!
+    @brief The four design sources of the power band: what each one moves on the drawn board, its amplitude at the level Estimated, the four levels and how they are combined with the numbers (docs/calculators.md 1.1c).
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(14, 6.6)
+    ax.set_xlim(0, 14)
+    ax.set_ylim(0, 6.6)
+    srcs = [("copper coverage", "fill of every outer-layer zone\nx (1 -/+ a), limited to 1", "40 %", "top pad half filled:\n-13 % of power"),
+            ("copper weight", "thickness of every layer\nx (1 -/+ a), on top of the 25 %", "50 %", "17.5 instead of 35 um:\n-24 %"),
+            ("inner planes", "down: fill x (1 - a); up: a plane\nat fill a where there is none", "50 %", "no inner planes:\n-34 %"),
+            ("vias", "plating of the barrel\nx (1 -/+ a); none drawn: not run", "50 %", "no vias under the part:\n-11 %")]
+    ax.text(0.2, 5.9, "source", fontsize=8, fontweight="bold")
+    ax.text(2.7, 5.9, "what is moved on the drawn board", fontsize=8, fontweight="bold")
+    ax.text(6.6, 5.9, "amplitude a at\nthe level Estimated\n(assumed)", fontsize=8, fontweight="bold", va="top")
+    ax.text(8.6, 5.9, "measured sensitivity\n(the four wrong boards)", fontsize=8, fontweight="bold", va="top")
+    for k, (name, what, amp, sens) in enumerate(srcs):
+        y = 4.4 - 1.05 * k
+        dk.box(ax, 0.2, y, 2.2, 0.85, name, "#cfe3f5", size=8)
+        dk.box(ax, 2.7, y, 3.6, 0.85, what, "#ffffff", size=7.5)
+        dk.box(ax, 6.6, y, 1.6, 0.85, amp, "#fbe3c2", size=9)
+        dk.box(ax, 8.6, y, 2.3, 0.85, sens, "#ffffff", size=7.5)
+        dk.arrow(ax, 10.9, y + 0.42, 11.5, 3.1)
+    dk.box(ax, 11.5, 2.4, 2.3, 1.4, "root sum of squares\nwith the five numeric\nsources (copper,\nh, theta, psi_JT, reading)", "#d6ecd0", True, size=7.5)
+    dk.arrow(ax, 12.65, 2.4, 12.65, 1.9)
+    dk.box(ax, 11.5, 0.7, 2.3, 1.1, "best / nominal / worst\n(nominal never moves)", "#f7d4d4", size=7.5)
+    # The four levels: the multiplier of the amplitude
+    ax.text(0.2, 0.55, "level (multiplier of a):", fontsize=8, fontweight="bold")
+    for k, (lab, mult) in enumerate((("None", "0"), ("From fabrication files", "0.2"), ("By hand (default)", "0.5"), ("Estimated", "1"))):
+        dk.box(ax, 3.0 + 1.9 * k, 0.15, 1.8, 0.9, f"{lab}\nx {mult}", "#e8e8e8" if mult != "0.5" else "#fbe3c2", bold=(mult == "0.5"), size=7)
+    ax.text(0.2, 6.4, "the amplitudes and the level multipliers are assumed judgements, not fitted to data; the sensitivities are measured", fontsize=7.5, style="italic")
+    dk.save(fig, path, "The four board-description (design) sources of the power band and the four levels")
+
+
 def main():
     """!
     @brief Draw the three panels and save the figure.
@@ -132,6 +168,7 @@ def main():
     band(axs[2])
     dk.save(fig, OUT / "fig_04_calculator_schematic.png", "The power calculator: schematics")
     reading_points(OUT / "fig_05_reading_points_and_copper.png")
+    design_sources(OUT / "fig_07_design_sources.png")
 
 
 if __name__ == "__main__":

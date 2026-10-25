@@ -103,7 +103,7 @@ def approaches(ax):
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 8)
     dk.box(ax, 0.2, 5.6, 9.6, 1.9, "A. an equivalent coefficient with a contact area and an annular fin\nthe block becomes a larger h on the board: 9 to 11 % off on average", "#f7d4d4")
-    dk.box(ax, 0.2, 3.1, 9.6, 1.9, "B. Lumped: the block as one more layer of the ring network\\n2.0 % off on average (maximum 4.8 %)".replace("\\n", "\n"), "#d6ecd0", True)
+    dk.box(ax, 0.2, 3.1, 9.6, 1.9, "B. Lumped: the block as one more layer of the ring network\\n1.9 % off on average (maximum 4.7 %)".replace("\\n", "\n"), "#d6ecd0", True)
     dk.box(ax, 0.2, 0.6, 9.6, 1.9, "C. Analytic: the block as a Schur complement on the tile graph of the Green-function correction\\n1.1 % off on average (maximum 4.3 %)".replace("\\n", "\n"), "#d6ecd0", True)
     ax.text(5, 7.9, "74 cases against the FVM, which solves the block natively", ha="center", fontsize=8, style="italic")
     ax.set_title("4. a block in the reduced models: three approaches", fontsize=9)

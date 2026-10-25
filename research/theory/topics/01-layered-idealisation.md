@@ -2,7 +2,7 @@
 
 ![The layered idealisation](../figures/fig_01_layered_idealisation.png)
 
-*Figure 1 (`figures/fig_01_layered_idealisation.png`): a section of the board as the models see it. Each copper layer is one node (one temperature per plan position) with a sheet conductance; the dielectric gap between two layers is a one-dimensional resistance `d/k_th`; the outer layers exchange heat with the air through `h_top` and `h_bottom`.*
+*Figure 1 (`figures/fig_01_layered_idealisation.png`): a section of the board as the models see it. Each copper layer is one node (one temperature per plan position) with a sheet conductance; the dielectric gap between two layers is a one-dimensional resistance `d/k_th`; the outer layers exchange heat with the air through `h_top` and `h_bottom`. A one-layer board gets two laminate nodes under the copper (`laminate.py`); redrawn with that note.*
 
 ## 1. What it is
 

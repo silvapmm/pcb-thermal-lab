@@ -2,7 +2,7 @@
 
 ![Architecture](../figures/fig_24_architecture.png)
 
-*Figure 24 (`figures/fig_24_architecture.png`): the builder of a problem and the solver options enter `simulate()`, which runs the input checks, the selected models and the profile decision and time simulation, and returns a `Simulation` that can be saved; the command line and the application sit on top, the application running its jobs in a separate process.*
+*Figure 24 (`figures/fig_24_architecture.png`): the builder of a problem and the solver options enter `simulate()`, which runs the input checks, the selected models and the profile decision and time simulation, and returns a `Simulation` that can be saved; the command line and the application sit on top, the application running its jobs in a separate process. The figure also shows the pieces the models share (`laminate.py` for one-layer boards, `blocks.py`, `convection.py` with `Board.natural_form`, the outline cover and `edge_length_on_board`, `Board.template_inner_oz`), the warnings after the run (`check_thick_plates`), the 3D size limit (250 000 unknowns), the process of the application (`jobs.py`) and the power calculator (`inverse.py`); redrawn on the current program.*
 
 **Status: in program** (`docs/models.md` sections 7 and 8, `CLAUDE.md` project structure).
 

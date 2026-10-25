@@ -2,7 +2,7 @@
 
 ![Lumped rings](../figures/fig_05_lumped_rings.png)
 
-*Figure 5 (`figures/fig_05_lumped_rings.png`): left, the rings of a rectangular footprint (the distance of every cell to the footprint, computed with a distance transform, cut at geometric edges; ring 0 is the footprint); middle, the chain of lateral resistances between the ring means with the vertical and ambient conductances of each ring; right, the superposition of the fields of two heaters.*
+*Figure 5 (`figures/fig_05_lumped_rings.png`): left, the rings of a rectangular footprint (the distance of every cell to the footprint, computed with a distance transform, cut at geometric edges; ring 0 is the footprint); middle, the chain of lateral resistances between the ring means with the vertical and ambient conductances of each ring; right, the superposition of the fields of two heaters. The note that rings narrower than a cell are merged (`RING_MIN_WIDTH`) was added.*
 
 ## 1. What it is
 

@@ -1,13 +1,15 @@
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the effective-conductivity investigation: the test coupon and the definition of the solid-body resistance, the five layer orders, the source positions of the plate, and why one node through the thickness underestimates the surface of a thick plate.
-@details Pure drawing, no data; the numbers are those of the tables of README.md. Writes figures/fig_01_coupon_and_definition.png, fig_02_five_layer_orders.png, fig_05_plate_source_positions.png, fig_09_through_thickness_gradient.png, fig_15_corrections_map.png and fig_16_source_edge_on_the_grid.png.
+@details Pure drawing, no data; the numbers are those of the tables of README.md. Writes figures/fig_01_coupon_and_definition.png, fig_02_five_layer_orders.png, fig_05_plate_source_positions.png, fig_09_through_thickness_gradient.png, fig_15_corrections_map.png, fig_16_source_edge_on_the_grid.png, fig_18_thick_plate_flux.png and fig_20_independent_solver_in_the_tests.png.
+         The numbers written in the two last ones are those of README 4.5, 4.8 C and 4.11 and of docs/validation.md section 22 (74 block cases; tolerances of tests/test_layered_vs_3d.py).
          Run: .venv/bin/python research/effective-conductivity/scripts/make_diagrams.py (from the repository root).
 """
 
 import sys
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
 
@@ -131,14 +133,14 @@ def corrections_map(path):
     fig, ax = dk.canvas(14, 5.6)
     ax.set_xlim(0, 14)
     ax.set_ylim(0, 5.6)
-    cols = [("documents only", 0.3, "#cfe3f5"), ("optional, in the program", 5.0, "#fbe3c2"), ("stays out of the program", 9.7, "#e8e8e8")]
+    cols = [("documents only", 0.3, "#cfe3f5"), ("adopted in the program", 5.0, "#fbe3c2"), ("stays out of the program", 9.7, "#e8e8e8")]
     for title, x, c in cols:
         dk.box(ax, x, 4.7, 4.0, 0.7, title, c, bold=True, size=9)
     dk.box(ax, 0.3, 2.9, 4.0, 1.5, "plate check of the documents\nattribution to Seri Lee (1998)\n'+4.5 %' becomes +0.6, -0.8, -4.6 %\n(centre, edge, corner, aligned cells)", "#cfe3f5", size=8)
     dk.box(ax, 0.3, 0.8, 4.0, 1.7, "impact on results: none\nthe 1 mm check read +4.5 % because\nround() put the 25 mm source on\n24 cells (37.5 -> 38, 62.5 -> 62)", "#ffffff", size=8)
-    dk.box(ax, 5.0, 3.5, 4.0, 0.9, "laminar form of Churchill and Chu\nvertical boards: -0.7 to +0.2 % of the rise", "#fbe3c2", size=8)
-    dk.box(ax, 5.0, 2.3, 4.0, 0.9, "thick-plate check q'' t / 2k (an upper bound)\n74 block cases: at most 0.42 % (never fires)", "#fbe3c2", size=8)
-    dk.box(ax, 5.0, 0.8, 4.0, 1.2, "independent solver as a test helper\n(checked against 6 published numbers\nand a closed form)", "#fbe3c2", size=8)
+    dk.box(ax, 5.0, 3.5, 4.0, 0.9, "laminar form of Churchill and Chu\n(Board.natural_form option)\nvertical boards: -0.7 to +0.2 % of the rise", "#fbe3c2", size=8)
+    dk.box(ax, 5.0, 2.3, 4.0, 0.9, "thick-plate check q'' t / 2k (an upper bound)\n74 block cases: pad flux at most 0.42 %,\nflux into the block (the program) 0.34 %", "#fbe3c2", size=8)
+    dk.box(ax, 5.0, 0.8, 4.0, 1.2, "independent solver as a test helper\n(tests/test_layered_vs_3d.py; its own tests:\nthree published numbers, balances, a series circuit)", "#fbe3c2", size=8)
     dk.box(ax, 9.7, 3.0, 4.0, 1.4, "an effective conductivity of the stack\nk_e from 15 to 5 W/mK with the layer order;\nthe means can be 70 % off", "#e8e8e8", size=8)
     dk.box(ax, 9.7, 0.8, 4.0, 1.7, "the program keeps one node per copper\nlayer and a resistor per gap: the order\nis represented, nothing to homogenise", "#ffffff", size=8)
     dk.arrow(ax, 7.0, 3.5, 7.0, 3.2)
@@ -169,9 +171,109 @@ def source_edge(path):
     dk.save(fig, path, "Why the plate check of the documents read +4.5 %: round() rounds halves to even and shrank the source")
 
 
+def thick_plate_flux(path):
+    """!
+    @brief The thick-plate check of the program: a part on a thin board with a metal block under it, the bound q'' t / (2 k), and the three fluxes that could stand for q'' with the criterion each gives over the 74 metal-block cases.
+    @details The ratios are those printed by `study_corrections_impact.py` (pad flux, README 4.8 C) and by docs/validation.md section 22 (footprint flux and flux into the block; median and maximum over the same 74 cases).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(14, 5.6, nrows=1, ncols=2, ratios=[1.25, 1])
+    ax = axs[0]
+    ax.set_xlim(0, 9)
+    ax.set_ylim(0, 6)
+    ax.text(4.5, 5.75, "Cross-section (not to scale): where does the heat enter the block?", ha="center", fontsize=9)
+    dk.layer(ax, 0.3, 3.3, 8.4, 0.12, dk.COPPER, "")
+    dk.layer(ax, 0.3, 2.85, 8.4, 0.45, dk.FR4, "thin board (laminate and copper)", size=7)
+    dk.layer(ax, 2.2, 3.42, 2.4, 0.4, "#444444", "")
+    ax.text(3.4, 3.62, "part, power P", fontsize=7.5, va="center", ha="center", color="white")
+    dk.layer(ax, 1.4, 1.2, 4.2, 1.1, dk.METAL, "metal block: thickness t, conductivity k", size=7.5)
+    dk.layer(ax, 1.4, 2.3, 4.2, 0.12, dk.COPPER, "")
+    # footprint flux: the narrowest, the largest flux
+    dk.arrow(ax, 2.5, 4.9, 2.5, 3.85, color=dk.HEAT)
+    ax.text(2.35, 5.0, "footprint flux P / A_fp", fontsize=7, color=dk.HEAT, ha="left")
+    # pad flux: wider
+    ax.annotate("", (1.4, 2.62), (5.6, 2.62), arrowprops={"arrowstyle": "<->", "color": "#d97706"})
+    ax.text(3.5, 2.72, "copper pad A_pad", fontsize=7, color="#d97706", ha="center", va="bottom")
+    # flux into the block: spread, drawn as several arrows
+    for xx in (1.8, 2.6, 3.4, 4.2, 5.0):
+        dk.arrow(ax, xx, 2.38, xx, 1.9, color=dk.BLUE)
+    ax.text(3.5, 0.9, "flux q'' that really enters the block\n(laminate and copper spread the heat first)", fontsize=7, color=dk.BLUE, ha="center", va="top")
+    dk.arrow(ax, 6.0, 3.6, 7.0, 3.1, color=dk.HEAT)
+    ax.text(6.0, 4.0, "the heat spreads sideways\nbefore it reaches the block", fontsize=7, color="k")
+    dk.box(ax, 6.0, 0.4, 2.8, 2.0, "surface under the part is hotter\nthan the block node by at most\n\nq'' t / (2 k)\n\n(bound; the program warns when\nit exceeds 5 % of the rise)", "#fbe3c2", size=7.5)
+    ax = axs[1]
+    ax.axis("on")
+    labels = ["power over the\nfootprint\n(first version)", "power over the\ncopper pad\n(research, 90 K)", "flux into the block\n(the program)"]
+    med = [0.50, 0.04, 0.07]
+    mx = [1.78, 0.42, 0.34]
+    x = np.arange(3)
+    ax.bar(x - 0.18, med, 0.36, color="#6b7280", label="median")
+    ax.bar(x + 0.18, mx, 0.36, color="#1d4ed8", label="maximum")
+    for xi, m1, m2 in zip(x, med, mx):
+        ax.text(xi - 0.18, m1 * 1.1, f"{m1:.2f}", ha="center", fontsize=7)
+        ax.text(xi + 0.18, m2 * 1.1, f"{m2:.2f}", ha="center", fontsize=7)
+    ax.axhline(5.0, color="#dc2626", ls="--")
+    ax.text(2.45, 5.3, "threshold 5 %", color="#dc2626", fontsize=7, ha="right")
+    ax.set_yscale("log")
+    ax.set_ylim(0.01, 12)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=7.5)
+    ax.set_ylabel("q'' t / (2 k) over the rise (%)")
+    ax.set_title("Which flux? Over the 74 metal-block cases none exceeds 5 %,\nbut the footprint flux fires on ordinary designs", fontsize=8.5)
+    ax.legend(fontsize=7.5, loc="lower left")
+    dk.save(fig, path, "The thick-plate check (checks.check_thick_plates): the flux that enters the block is used, not the footprint or pad flux")
+
+
+def independent_solver_in_the_tests(path):
+    """!
+    @brief What tests/test_layered_vs_3d.py compares: the independent solver (tests/helpers/layered3d.py, no import from the program) against the five layered models on a Cu / FR-4 / Cu coupon and a one-layer board, with the measured error and the tolerance of the test for each.
+    @details The measured values and the tolerances are copied from the test file and from docs/validation.md section 22 (1 mm cells): coupon 16 mm source, tolerance 0.2 % (FVM, 3D solid, Analytic), 0.3 % (Lumped), 1.2 % (FDM); one-layer board full copper (0.2 % for FVM, FDM and 3D solid; Lumped +1.20 +-0.5 and Analytic -0.83 +-0.5) and with a 20 mm pad (FVM -3.0 +-1, 3D solid +0.1 +-0.5, FDM -12.6 +-2, Lumped -17.0 +-2, Analytic -30.2 +-3).
+    @param path Output file.
+    @return None.
+    """
+    fig = plt.figure(figsize=(14, 5.6))
+    ax = fig.add_axes((0.0, 0.0, 0.42, 0.93))
+    ax.axis("off")
+    ax.set_xlim(0, 7)
+    ax.set_ylim(0, 6)
+    dk.box(ax, 0.2, 4.2, 3.0, 1.4, "independent 3D solver\ntests/helpers/layered3d.py\n(SciPy only; imports nothing\nfrom the program)", "#cfe3f5", size=7.5)
+    dk.box(ax, 3.9, 4.2, 3.0, 1.4, "the five layered models\nFVM, FDM, 3D solid,\nLumped, Analytic", "#fbe3c2", size=7.5)
+    dk.box(ax, 0.2, 2.2, 3.0, 1.4, "board 1: Cu / FR-4 / Cu coupon\n50 x 50 mm, 16 mm source, 2.5 W\n(Culham and Yovanovich case 2)", "#ffffff", size=7)
+    dk.box(ax, 3.9, 2.2, 3.0, 1.4, "board 2: one-layer board\n60 x 60 mm, 6 mm part, 1 W\nfull copper, and a 20 mm pad", "#ffffff", size=7)
+    dk.arrow(ax, 1.7, 4.2, 1.7, 3.65)
+    dk.arrow(ax, 5.4, 4.2, 5.4, 3.65)
+    dk.box(ax, 0.2, 0.3, 6.7, 1.3, "same cells (1 mm), same conditions; the test asserts the rise of each model\nwithin a tolerance of the independent rise: tight where the models agree,\na range where the error is a documented limit (pad: FDM, Lumped, Analytic)", "#e8e8e8", size=7.5)
+    dk.arrow(ax, 1.7, 2.2, 1.7, 1.65)
+    dk.arrow(ax, 5.4, 2.2, 5.4, 1.65)
+    ax.set_title("What the test compares", fontsize=9)
+    ax2 = fig.add_axes((0.52, 0.12, 0.46, 0.78))
+    rows = [("coupon", "FVM", -0.02, 0.2), ("coupon", "3D solid", 0.00, 0.2), ("coupon", "Analytic", -0.06, 0.2), ("coupon", "Lumped", 0.27, 0.3), ("coupon", "FDM", -0.59, 1.2),
+            ("one layer, full copper", "FVM", -0.01, 0.2), ("one layer, full copper", "FDM", -0.01, 0.2), ("one layer, full copper", "3D solid", 0.00, 0.2),
+            ("one layer, full copper", "Lumped", 1.20, 0.5), ("one layer, full copper", "Analytic", -0.83, 0.5),
+            ("one layer, 20 mm pad", "FVM", -3.0, 1.0), ("one layer, 20 mm pad", "3D solid", 0.1, 0.5), ("one layer, 20 mm pad", "FDM", -12.6, 2.0),
+            ("one layer, 20 mm pad", "Lumped", -17.0, 2.0), ("one layer, 20 mm pad", "Analytic", -30.2, 3.0)]
+    centres = {}
+    for k, (board, model, val, tol) in enumerate(rows):
+        y = len(rows) - 1 - k
+        # The pad rows are tested around the measured value (a documented limit); the others around zero (a match to the stated tolerance), except the two fast models with full copper
+        centre = val if board.endswith("pad") or (board.endswith("copper") and model in ("Lumped", "Analytic")) else 0.0
+        centres[k] = centre
+        ax2.barh(y, 2 * tol, left=centre - tol, height=0.55, color="#cfe3f5", edgecolor="#1d4ed8")
+        ax2.plot([val], [y], "o", color="#dc2626", ms=4)
+    ax2.set_yticks(range(len(rows)))
+    ax2.set_yticklabels([f"{b}: {m}" for b, m, _, _ in rows][::-1], fontsize=7)
+    ax2.axvline(0, color="k", lw=0.8)
+    ax2.set_xlabel("model minus independent solver (%): measured (red) and the range the test accepts (blue)")
+    ax2.set_title("Measured on 1 mm cells and the tolerances of the test", fontsize=9)
+    fig.suptitle("The independent 3D solver in the test suite (tests/test_layered_vs_3d.py)", fontsize=10)
+    fig.savefig(path, dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
-    @brief Draw the six diagrams.
+    @brief Draw the eight diagrams.
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
@@ -181,6 +283,8 @@ def main():
     gradient(OUT / "fig_09_through_thickness_gradient.png")
     corrections_map(OUT / "fig_15_corrections_map.png")
     source_edge(OUT / "fig_16_source_edge_on_the_grid.png")
+    thick_plate_flux(OUT / "fig_18_thick_plate_flux.png")
+    independent_solver_in_the_tests(OUT / "fig_20_independent_solver_in_the_tests.png")
     print("diagrams in", OUT)
 
 

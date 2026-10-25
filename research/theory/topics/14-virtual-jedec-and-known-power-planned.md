@@ -2,7 +2,7 @@
 
 ![Virtual JEDEC and known power](../figures/fig_14_virtual_jedec_planned.png)
 
-*Figure 14 (`figures/fig_14_virtual_jedec_planned.png`): left, the virtual JEDEC test: the datasheet's own board is built in the program, the models run, and the predicted `theta_JA`, `psi_JT`, `psi_JB` are compared with the datasheet (or a missing package resistance is recovered from a `theta_JA` on a stated board); right, the known-power reference: the same reading at a known power scales the model line so that the unknown power is found without knowing the copper (illustrative lines).*
+*Figure 14 (`figures/fig_14_virtual_jedec_planned.png`): left, the virtual JEDEC test: the datasheet's own board is built in the program, the models run, and the predicted `theta_JA`, `psi_JT`, `psi_JB` are compared with the datasheet (or a missing package resistance is recovered from a `theta_JA` on a stated board); right, the known-power reference: the same reading at a known power scales the model line so that the unknown power is found without knowing the copper (illustrative lines). The virtual JEDEC test is done for two datasheet boards (`docs/calculators.md` 2.1); the known-power reference is still planned.*
 
 Existing pictures of the calculator: `research/power-calculator/figures/fig_04_calculator_schematic.png` and `fig_05_reading_points_and_copper.png`.
 

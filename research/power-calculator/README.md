@@ -18,6 +18,10 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 
 *Figure 5 (`figures/fig_05_reading_points_and_copper.png`): left, the section of a package with the three places a temperature can be read (junction, case top, board); right, the real copper against the drawn copper, which dominates the error (-11 to -45 %).*
 
+![The four design sources of the band and the four levels](figures/fig_07_design_sources.png)
+
+*Figure 7 (`figures/fig_07_design_sources.png`): the four board-description (design) sources of the band (`docs/calculators.md` 1.1c): what each one moves on the drawn board, its amplitude at the level Estimated (coverage 40 %, weight, planes and vias 50 %: assumed, not fitted), the measured sensitivity of the four wrongly drawn boards, the root-sum-of-squares combination with the five numeric sources, and the multipliers of the four levels (0, 0.2, 0.5 default, 1). Figure 4 panel 3 lists the sources of the band, now including the design terms.*
+
 ## 2. Findings in short
 
 * On the datasheet's own board the calculator is within 2 to 3 %: CSD17308Q3 46.8 against 46 K/W (−1.7 %), a JEDEC 2s2p exposed-pad QFN with 9 vias 31.6 against 32.5 K/W (+3 %, via array assumed), at 0.5 mm cells. With finer cells the two rows move to −2.3 % and +1.3 % (section 4.5). Part of the CSD17308Q3 agreement is a model error: on that board the FVM's board resistance is 2.4 % below an independent 3D solver (the program's 3D solid is within 0.1 %), so a converged 3D answer would be about 4 % off the datasheet (section 4.6). The JEDEC row depends on how the bottom layer of the test board is read: a 70 µm plane there instead of traces gives +23 % (section 4.5).
@@ -36,9 +40,9 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 | `scripts/study_design_term_coverage.py [levels]` | The coverage table of `docs/calculators.md` 1.1c: the four badly drawn boards at the design levels none, cad, hand and estimated, and the example band at every level (about 6 minutes). |
 | `scripts/study_cell_size.py` | The datasheet rows at 1 to 0.25 mm cells, and the JEDEC row with a bottom plane (about 30 minutes). |
 | `scripts/study_independent_datasheet_board.py` | The board resistance of the CSD17308Q3 board in the FVM, the 3D solid and the independent solver of `solid3d-verification/lib/layered3d.py`; the affine-in-power check (about 2 minutes). |
-| `scripts/make_figures.py` | Draws the three figures (runs the first three studies; about 15 minutes). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_05`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
+| `scripts/make_figures.py [design]` | Draws figures 1 to 3 (runs the first three studies; about 15 minutes) and figure 6 (from the table of 4.7, no run); `make_figures.py design` draws only figure 6. |
+| `scripts/make_diagrams.py` | Draws the schematic diagrams and the illustration (figures 4, 5 and 7; no data, no program; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_07`; figures 4, 5 and 7 are diagrams and the illustration (`make_diagrams.py`), figure 6 is drawn from the table of 4.7. |
 
 ```sh
 .venv/bin/python research/power-calculator/scripts/calculator_validation.py
@@ -175,6 +179,10 @@ The band covers the uncertainty of numbers (copper thickness ±25 %, h ±30 %, �
 | no vias under the part | 1.780 | 1.505–2.014 in | 1.492–2.024 in | 1.422–2.064 in | 1.196–2.157 in |
 | no inner planes | 1.312 | 1.109–1.484 out | 1.096–1.531 out | 1.029–1.646 out | 0.831–1.818 out |
 | **cases inside** | | 1 of 4 | 1 of 4 | 2 of 4 | 2 of 4 |
+
+![The band at the four levels of the design term](figures/fig_06_design_term_coverage.png)
+
+*Figure 6 (`figures/fig_06_design_term_coverage.png`): the same table as bars, one panel per badly drawn board; the true 2 W (dashed) is inside the band when the bar is blue and outside when it is red, the black tick is the nominal power. Data: the table above, which is the output of `study_design_term_coverage.py` copied into `make_figures.py` (`DESIGN_COVERAGE`); the script was not run again for this figure (it takes 6 to 10 minutes), so a change of the program that moves a band would not move the figure until the table and the data are updated.*
 
 The example band (drawn board = real board, nominal / best / worst in W) at every level:
 

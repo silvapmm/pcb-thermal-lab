@@ -42,7 +42,7 @@ def cross_section(ax):
     dk.layer(ax, 3.5, 4.5, 5.0, 0.8, dk.METAL)
     for k in range(6):
         dk.layer(ax, 3.6 + k * 0.85, 5.3, 0.3, 2.0, dk.METAL)
-    ax.text(6.0, 7.6, "heatsink: theta_SA to the air", ha="center", fontsize=7.5)
+    ax.text(6.0, 7.6, "heatsink: theta_SA to the air\n(typed, or one of the typical heatsinks of the library with its flow)", ha="center", fontsize=7)
     dk.arrow(ax, 6.0, 2.75, 6.0, 0.5, color=dk.HEAT, width=2.2, label="")
     ax.text(6.2, 1.0, "theta_JB: junction to pad,\nthen the board (the main path)", fontsize=6.5, color=dk.HEAT)
     dk.arrow(ax, 7.2, 3.9, 7.2, 6.8, color=dk.BLUE, width=2.2)

@@ -6,7 +6,7 @@
          fig_01: maximum temperature of the example board with the program's typical stack-up and the published ones of fabricators;
          fig_02: rise of the hottest point for several stack-ups, in the five models; fig_03: sensitivity of the rise to the stack-up numbers;
          fig_06: inner copper 15.2 um against 35 um; fig_07: real 1 oz builds of fabricators against the 1 oz rules of the program.
-Usage: python research/stackup/scripts/make_figures.py   (from the repository root; about 2 minutes)
+Usage: python research/stackup/scripts/make_figures.py [inner]   (from the repository root; about 2 minutes; `inner` draws only figures 6 and 7)
 """
 
 import re
@@ -146,16 +146,16 @@ def fig_inner_copper():
     layers = [2, 4, 6, 8, 10, 12]
     x = np.arange(len(layers))
     fig, ax = plt.subplots(figsize=(10, 4.8))
-    for k, (name, col, lab) in enumerate((("shipped 15.2", "#1d4ed8", "shipped, 15.2 um inner"),
+    for k, (name, col, lab) in enumerate((("shipped 15.2", "#1d4ed8", "shipped, 15.2 um inner (default, 0.5 oz)"),
                                           ("35, same thickness", "#d97706", "35 um inner, same total thickness"),
-                                          ("35, dielectrics unchanged", "#9ca3af", "35 um inner, dielectrics unchanged"))):
+                                          ("35, dielectrics unchanged", "#9ca3af", "35 um inner, dielectrics unchanged (adopted: template_inner_oz = 1)"))):
         ax.bar(x - 0.27 + 0.27 * k, [data.get((n, name), data.get((n, "shipped 15.2"))) for n in layers], 0.27, color=col, label=lab)
     for i, n in enumerate(layers):
         if n in pub:
             ax.scatter([i] * len(pub[n]), pub[n], marker="D", color="black", zorder=3, s=14, label="published tables (planes)" if i == 1 else None)
     ax.set_xticks(x); ax.set_xticklabels([f"{n} layers" for n in layers])
     ax.set_ylim(60, 105); ax.set_ylabel("Tmax of the example board (degC)")
-    ax.set_title("A plane on every inner layer: 1 oz inner copper is 7 to 8 K cooler than the shipped 15.2 um (2 layers: no inner copper)", fontsize=9)
+    ax.set_title("A plane on every inner layer: 1 oz inner copper is 6.8 to 7.5 K cooler than the shipped 15.2 um with the dielectrics unchanged\n(7.1 to 7.9 K at the same total thickness; 2 layers: no inner copper)", fontsize=9)
     ax.legend(fontsize=8)
     fig.tight_layout()
     fig.savefig(OUT / "fig_06_inner_copper_1oz.png", dpi=110)
@@ -184,7 +184,7 @@ def fig_real_1oz():
     layers = [4, 6, 8, 10, 12]
     x = np.arange(len(layers))
     rows = (("shipped template 15.2 um", "#1d4ed8", "shipped, 15.2 um"),
-            ("35 um, dielectrics unchanged", "#9ca3af", "35 um, dielectrics unchanged"),
+            ("35 um, dielectrics unchanged", "#9ca3af", "35 um, dielectrics unchanged (adopted)"),
             ("35 um, scaled to the same thickness", "#d97706", "35 um, scaled to the same thickness"),
             ("30 um, dielectrics unchanged", "#059669", "30 um, dielectrics unchanged"))
     fig, ax = plt.subplots(figsize=(10.5, 4.8))
@@ -211,6 +211,11 @@ def main():
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
+    if len(sys.argv) > 1 and sys.argv[1] == "inner":              # only figures 6 and 7 (the two that show the 1 oz option)
+        fig_inner_copper()
+        fig_real_1oz()
+        print("figures 6 and 7 in", OUT)
+        return
     fig_vendors()
     text = run("stackup_outline_study.py")
     fig_stacks(text)

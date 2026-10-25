@@ -116,7 +116,7 @@ def solid3d(path):
     dk.box(a, 0.3, 4.6, 2.2, 1.0, "cell 1\n(k1, volume average)", "#cfe3f5", size=7); dk.box(a, 7.5, 4.6, 2.2, 1.0, "cell 2\n(k2)", "#cfe3f5", size=7)
     dk.resistor(a, 2.5, 5.0, 5.1, "half cell 1"); dk.resistor(a, 5.0, 7.5, 5.1, "half cell 2")
     a.text(5, 3.0, "harmonic mean of the half-cell resistances;\nmaterial of a cell = volume average of what it holds\n(the tiled-conductivity method)", ha="center", fontsize=8)
-    a.text(5, 0.8, "steady state only; the cost grows with layers × cells", ha="center", fontsize=8, style="italic")
+    a.text(5, 0.8, "steady state only; the cost grows with layers × cells;\nrefused above 250 000 unknowns (the other models still run)", ha="center", fontsize=8, style="italic")
     dk.save(fig, path, "3D solid: slabs, a via as a rod, a block, the conductance of two cells (theory section 4)")
 
 
@@ -146,7 +146,7 @@ def lumped_rings(path):
         dk.resistor(a, 1.6 + 2.6 * (k - 1), 3.4 + 2.6 * (k - 1), 3.0, f"R{k}")
         dk.box(a, 3.4 + 2.6 * (k - 1), 2.6, 1.0 if k < 3 else 0.9, 0.8, f"ring {k}", "#f3d9b1", size=8)
         dk.arrow(a, 3.9 + 2.6 * (k - 1), 2.6, 3.9 + 2.6 * (k - 1), 1.3, color=dk.BLUE)
-    a.text(6, 0.7, "each ring: vertical Gz and ambient conductance to ground\n(vias, heatsinks, edges enter at their real positions)", ha="center", fontsize=8)
+    a.text(6, 0.7, "each ring: vertical Gz and ambient conductance to ground\n(vias, heatsinks, edges enter at their real positions);\nrings narrower than a cell are merged", ha="center", fontsize=8)
     a.text(6, 5.3, "lateral resistance between ring means:\nheat crosses the offset contours", ha="center", fontsize=8.5, fontweight="bold")
     a = axs[2]
     a.set_xlim(0, 10); a.set_ylim(0, 8)
@@ -258,7 +258,7 @@ def heat_transfer(path):
     a.text(5, 7.4, "one coefficient per face", ha="center", fontsize=9, fontweight="bold")
     a = fig.add_subplot(gs[1])
     dT = np.linspace(1, 80, 100)
-    a.plot(dT, 1.3 * dT ** 0.25, color=dk.HEAT, label="natural convection ∝ ΔT^¼")
+    a.plot(dT, 1.3 * dT ** 0.25, color=dk.HEAT, label="natural convection ∝ ΔT^¼ (general form; laminar optional)")
     Ta = 298.15
     Ts = Ta + dT
     a.plot(dT, 0.9 * 5.67e-8 * (Ts ** 2 + Ta ** 2) * (Ts + Ta), color="#e377c2", label="radiation, emissivity 0.9")
@@ -489,7 +489,7 @@ def virtual_jedec(path):
     ins.set_xlabel("power (arbitrary)"); ins.set_ylabel("rise (K, illustrative)"); ins.legend(fontsize=7); ins.grid(alpha=0.3)
     a.text(5, 7.4, "known-power reference (calculator)", ha="center", fontsize=9, fontweight="bold", transform=a.transData)
     a.text(5, 0.0, "the same reading at a known power scales the model line:\n±5 % with ±1 K of reading error against −19 to −27 % without", ha="center", fontsize=8, transform=a.transData)
-    dk.save(fig, path, "Planned: the virtual JEDEC test and the known-power reference (roadmap, docs/calculators.md 2.4)")
+    dk.save(fig, path, "The virtual JEDEC test (done for two datasheet boards, more cases planned) and the known-power reference (planned)  (roadmap, docs/calculators.md 2.1 and 2.4)")
 
 
 def import_to_power(path):
@@ -513,8 +513,8 @@ def import_to_power(path):
     a.add_patch(Rectangle((5.2, 4.2), 2.2, 1.7, fc="#b9c4cc", ec="k")); a.text(6.3, 5.05, "contact:\nfixed T", ha="center", fontsize=8)
     a.add_patch(Rectangle((8.2, 4.2), 2.6, 1.7, fc="#f4a6a6", ec="k")); a.text(9.5, 5.05, "material\npatch", ha="center", fontsize=8)
     a.text(6, 7.4, "passive areas as component types", ha="center", fontsize=9, fontweight="bold")
-    a.text(6, 0.7, "a component library fills θJC, θJB, ψJB, size and mass\nby family or part number (processor presets with lid and paste)", ha="center", fontsize=8)
-    dk.save(fig, path, "Planned: board and power list import, passive areas, component library (roadmap)")
+    a.text(6, 0.7, "planned: a component library by part number (θJC, θJB, ψJB, size, mass; processor presets with lid and paste);\nalready in the program: typical θ by package family (library package_theta, Preferences)", ha="center", fontsize=8)
+    dk.save(fig, path, "Planned: board and power list import, passive areas, component library by part number (roadmap)")
 
 
 def multigrid(path):
@@ -561,7 +561,7 @@ def layered_idealisation(path):
     a.text(6, 7.7, "section: nodes, gaps and faces", ha="center", fontsize=9, fontweight="bold")
     a = axs[1]; a.set_xlim(0, 10); a.set_ylim(0, 8)
     a.text(5, 7.3, "what it assumes", ha="center", fontsize=9, fontweight="bold")
-    a.text(5, 5.0, "no gradient across a copper layer;\nthe gap is a 1D resistance (no spreading inside it:\n0.4 to 2 % against the 3D solid);\nthe air coefficients act on the outer layer node", ha="center", fontsize=8.5)
+    a.text(5, 5.0, "no gradient across a copper layer;\nthe gap is a 1D resistance (no spreading inside it:\n0.4 to 2 % against the 3D solid);\nthe air coefficients act on the outer layer node;\na one-layer board gets two laminate nodes\nunder its copper (laminate.py)", ha="center", fontsize=8.5)
     a.text(5, 2.0, "energy balance: Σ h∫θ dA + edge losses = Σ P\nevery result reports it", ha="center", fontsize=8.5, fontweight="bold")
     dk.save(fig, path, "The layered idealisation: nodes, gaps, faces and the energy balance (theory section 1.2)")
 
@@ -632,7 +632,7 @@ def level_chain(path):
     dk.resistor(a, 5.9, 6.4, 2.4); dk.box(a, 8.7, 2.0, 1.6, 0.8, "air", dk.AIR); dk.resistor(a, 8.2, 8.7, 2.4)
     dk.arrow(a, 4.8, 2.0, 4.8, 1.2); dk.box(a, 3.7, 0.2, 2.2, 0.9, "interface + block", "#e8e8e8", size=7)
     a.text(8.0, 0.8, "the heat from J splits in the inverse ratio of the two chains;\nthe effects are not additive:\ntop heatsink 37 K, block 9 K, both 40 K (MOSFET example)", fontsize=7.5, ha="center")
-    dk.save(fig, path, "Many levels in a chain: package, interface, board, interface, metal (research notes R5)")
+    dk.save(fig, path, "Many levels in a chain: package, interface, board, interface, metal (research notes R5; the top path with a junction node is in the program, analysis.part_split)")
 
 
 def plate_spreading(path):
@@ -752,7 +752,7 @@ def ladder(path):
         ("exact answers", "energy balance 1e-12 to 1e-9 on every board; the RC solution of a uniform board (Euler 1st order, Crank-Nicolson 2nd); closed form of the power loop 0.05 K; 1D series circuit 1e-6 K", "#d9efd0"),
         ("solvers against each other", "direct, CG and SOR agree to 1e-8 K on five boards", "#d9efd0"),
         ("published solutions", "Yovanovich's table within 0.7 to 0.8 % (2 % at epsilon 0.1); plate model +0.6 % (Seri Lee); convection correlations 1 to 3 %", "#cfe3f5"),
-        ("independent 3D solutions", "3D solid and a finite-element solid: layered models within 0.4 to 2.2 % (FVM); 3D solid 0.2 % on three boards, +-4 % on a heater-sized pad", "#cfe3f5"),
+        ("independent 3D solutions", "3D solid and a finite-element solid: layered models within 0.4 to 2.2 % (FVM); 3D solid 0.2 % on three boards, +-4 % on a heater-sized pad;\nan independent solver in the tests: coupon within 0.2 % (FVM, 3D solid, Analytic), 1.2 % (FDM)", "#cfe3f5"),
         ("models against each other", "20 scenarios, four models and the 3D solid (the Lumped and Analytic models fail in known cases and the input checks warn)", "#f3d9b1"),
         ("a physical board", "NOT DONE: no model has been compared with measurements; calibrate_convection fits one measurement", "#f4b6b6"),
     ]
@@ -797,7 +797,7 @@ def orientation(path):
     vert = (0.825 + 0.387 * Ra ** (1 / 6) / (1 + (0.492 / Pr) ** (9 / 16)) ** (8 / 27)) ** 2
     a.loglog(Ra, up, color=dk.HEAT, label="horizontal, hot face up")
     a.loglog(Ra, down, color=dk.BLUE, label="horizontal, hot face down (half of face up at the same Ra)")
-    a.loglog(Ra, vert, color="#2ca02c", label="vertical plate (Churchill and Chu), Pr = 0.71")
+    a.loglog(Ra, vert, color="#2ca02c", label="vertical plate (Churchill and Chu, general form; laminar form optional), Pr = 0.71")
     a.set_xlabel("Rayleigh number"); a.set_ylabel("Nusselt number")
     a.set_title("the laws of the program (theory section 8)", fontsize=9)
     a.legend(fontsize=7.5); a.grid(alpha=0.3, which="both")
@@ -806,26 +806,30 @@ def orientation(path):
 
 def architecture(path):
     """!
-    @brief Draw how the program is organised for a user of the API and the command line: the problem builder, the options, simulate (checks, the models, profiles and time), the results and what is saved, with the application and the command line on top and the separate calculation process (models section 7).
+    @brief Draw how the program is organised for a user of the API and the command line: the problem builder, the options, simulate (input checks, the models with the pieces they share, profiles and time, the warnings after the run), the results and what is saved, with the application, its calculation process and the command line (models section 7).
+    @details Updated for the laminate nodes of one-layer boards (`laminate.py`), the thick-plate warning (`checks.check_thick_plates`), the natural convection form option (`Board.natural_form`), the inner copper option of the templates (`Board.template_inner_oz`), the outline cover and edge assignment (`geometry.edge_length_on_board`), the 3D solid size limit (`solid3d.MAX_CELLS`, 250 000 unknowns) and the power calculator (`inverse.py`).
     @param path Output file.
     @return None.
     """
-    fig, ax = dk.canvas(14, 6.0)
-    ax.set_xlim(0, 14); ax.set_ylim(0, 8)
-    dk.box(ax, 0.2, 6.2, 3.0, 1.2, "Problem\n(board, zones, heaters,\nvias, heatsinks)", "#cfe3f5", size=8)
-    dk.box(ax, 0.2, 4.2, 3.0, 1.2, "SolverOptions\n(models, cell size, solver,\ncomputed h, profiles)", "#cfe3f5", size=8)
-    dk.box(ax, 4.2, 4.6, 2.8, 2.4, "simulate()\n\n1 input checks\n2 run the models\n3 profile decision\n   and time simulation", "#f3d9b1", size=8, bold=True)
-    for k, (t, c) in enumerate((("FVM (reference)", "#d9efd0"), ("FDM", "#e8e8e8"), ("Lumped (LPTN)", "#e8e8e8"), ("Analytic", "#e8e8e8"), ("3D solid (steady)", "#e8e8e8"))):
-        dk.box(ax, 8.0, 6.7 - 0.95 * k, 2.4, 0.75, t, c, size=7.5)
-    dk.box(ax, 11.2, 4.6, 2.6, 2.4, "Simulation\n\ntable, error against\nthe FVM, energy\nbalance, warnings", "#f4b6b6", size=8)
-    dk.box(ax, 11.2, 1.8, 2.6, 1.6, "save()\nreport, JSON, CSV\nfields, figures", "#e8e8e8", size=8)
-    for (x0, y0, x1, y1) in ((3.2, 6.8, 4.2, 6.2), (3.2, 4.8, 4.2, 5.2), (7.0, 5.8, 8.0, 6.2), (10.4, 6.0, 11.2, 5.9), (12.5, 4.6, 12.5, 3.4)):
+    fig, ax = dk.canvas(15, 7.2)
+    ax.set_xlim(0, 15); ax.set_ylim(0, 9.4)
+    dk.box(ax, 0.2, 7.2, 3.4, 1.8, "Problem\n(board: stack-up, outline,\nnatural_form, template_inner_oz;\nzones, parts, vias, heatsinks)", "#cfe3f5", size=7.5)
+    dk.box(ax, 0.2, 4.9, 3.4, 1.6, "SolverOptions\n(models, cell size, solver,\ncomputed h, profiles)", "#cfe3f5", size=7.5)
+    dk.box(ax, 4.4, 5.0, 3.0, 3.6, "simulate()\n\n1 input checks (checks.py)\n2 run the models\n3 profile decision and\n   time simulation\n4 warnings after the run:\n   parts, thick plates", "#f3d9b1", size=7.5, bold=True)
+    for k, (t, c) in enumerate((("FVM (reference)", "#d9efd0"), ("FDM", "#e8e8e8"), ("Lumped (LPTN)", "#e8e8e8"), ("Analytic", "#e8e8e8"), ("3D solid (steady; refused above\n250 000 unknowns, the others still run)", "#e8e8e8"))):
+        dk.box(ax, 8.2, 8.0 - 1.05 * k, 3.1, 0.85, t, c, size=7)
+    dk.box(ax, 12.2, 6.0, 2.6, 2.4, "Simulation\n\ntable, error against\nthe FVM, energy\nbalance, warnings", "#f4b6b6", size=7.5)
+    dk.box(ax, 12.2, 3.3, 2.6, 1.6, "save()\nreport, JSON, CSV\nfields, figures", "#e8e8e8", size=7.5)
+    for (x0, y0, x1, y1) in ((3.6, 8.1, 4.4, 7.4), (3.6, 5.7, 4.4, 6.2), (7.4, 7.0, 8.2, 7.6), (11.3, 7.3, 12.2, 7.2), (13.5, 6.0, 13.5, 4.9)):
         dk.arrow(ax, x0, y0, x1, y1)
-    dk.box(ax, 0.2, 1.4, 3.0, 1.6, "command line\npython -m pcbthermal\nrun, transient, solvers,\ncalibrate, convert, example", "#d9d9d9", size=7.5)
-    dk.box(ax, 4.2, 1.4, 3.0, 1.6, "application (PySide 6)\nruns a job in a separate\nprocess (cancel = terminate)", "#d9d9d9", size=7.5)
-    ax.text(8.0, 2.4, "the sparse solvers must not run in two\nthreads at once: the application\nserialises its calculations (one lock)", fontsize=8, va="center")
-    for x in (1.7, 5.7):
-        dk.arrow(ax, x, 3.0, 5.0 if x > 3 else 2.6, 4.2 if x > 3 else 4.2, color="grey")
+    dk.box(ax, 0.2, 0.3, 3.6, 1.35, "command line: python -m pcbthermal\nrun, transient, solvers, calibrate,\nconvergence, convert, example, gui", "#d9d9d9", size=7)
+    dk.box(ax, 4.2, 0.3, 3.6, 1.35, "application (PySide 6)\nruns a job in a separate process\n(jobs.py; cancel = terminate)", "#d9d9d9", size=7)
+    dk.box(ax, 8.2, 0.3, 3.2, 1.35, "inverse.py: the power calculator\n(the board model run backwards,\nband with design terms)", "#d9d9d9", size=7)
+    # The pieces that several models share
+    dk.box(ax, 4.2, 1.95, 7.2, 1.55, "shared by the models: laminate.py (laminate nodes of a one-layer board), blocks.py (metal blocks),\nconvection.py (computed h, natural_form general or laminar), geometry.py (outline cover and edge\nassignment, edge_length_on_board), model.stackup_template (0.5 oz or 1 oz inner copper)", "#fbf1d6", size=7)
+    ax.text(12.2, 2.3, "the sparse solvers must not run in\ntwo threads at once: the application\nserialises its calculations (one lock)", fontsize=7, va="center")
+    for x in (2.0, 6.0):
+        dk.arrow(ax, x, 1.65, 4.9 if x > 3 else 2.6, 4.9, color="grey")
     dk.save(fig, path, "Python API and command line: the flow from a problem to a report (models section 7)")
 
 
@@ -927,7 +931,9 @@ def input_checks(path):
            "5  overlapping heaters",
            "6  a via (or a zone) outside the board",
            "7  a metal block with no copper under it, or an almost perfect contact",
-           "   and: zero total power"]
+           "8  fins closer than the air gap that still air allows (metal block)",
+           "9  after the run: a thick, poorly conducting plate or block under a part\n    (the surface can be hotter than the node: check_thick_plates)",
+           "   and: zero total power; a 3D solid above 250 000 unknowns is not run"]
     for k, t in enumerate(txt):
         ax.text(10.7 if False else 9.9 + 0.0, 7.4 - 0.0, "", fontsize=1)
     for k, t in enumerate(txt):

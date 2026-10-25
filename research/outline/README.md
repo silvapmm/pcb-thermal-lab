@@ -35,8 +35,8 @@ The finite volumes, the finite differences and the 3D solid handle any board out
 | `scripts/study_disc_reference.py` | Independent reference: the round board solved as a radial (axisymmetric) problem, steady and transient, against every model (section 4.5). |
 | `scripts/study_edge_on_grid_lines.py` | The edge loss of an outline side that lies on a grid line (section 4.6). |
 | `scripts/make_figures.py` | Draws the data figures (1 to 3 and 6). |
-| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustration (figures 4 and 5; no data, no program; uses `research/diagram_kit.py`). |
-| `figures/` | `fig_01` to `fig_06`; figures 4 and 5 are the diagram and the illustration (`make_diagrams.py`). |
+| `scripts/make_diagrams.py` | Draws the schematic diagram and the illustrations (figures 4 and 5: no data, no program; figure 7: real cells computed by `pcbthermal.geometry`; uses `research/diagram_kit.py`). |
+| `figures/` | `fig_01` to `fig_07`; figures 4, 5 and 7 are the diagram and the illustrations (`make_diagrams.py`). |
 
 ## 4. How to run, and the results
 
@@ -164,7 +164,11 @@ The "old rule" columns are the local copy of the old assignment applied to the c
 | ellipse 60 × 40 mm, 1 mm cells | 158.0 mm | 158.0 mm | 156.9 mm | 0.7 % |
 | square 40 mm turned 20°, 1 mm cells | 160.0 mm | 160.0 mm | 156.4 mm | 2.2 % |
 
-(The program's own review reports 2 to 6.5 % over discs, ellipses and squares turned by 3 to 45°; this script prints four shapes and finds 0.7 to 3.3 %, so the upper end of that range is not reproduced here.) The temperatures on the current program, 1 mm cells:
+(The program's own review reports 2 to 6.5 % over discs, ellipses and squares turned by 3 to 45°; this script prints four shapes and finds 0.7 to 3.3 %, so the upper end of that range is not reproduced here.)
+
+![The outline given to the cells before and after the edge fix](figures/fig_07_edge_assignment.png)
+
+*Figure 7 (`figures/fig_07_edge_assignment.png`): the boundary samples given to the cells, on real cells (5 mm, chosen for legibility; the numbers in the cells are the outline length of the cell in mm). Left, the T with its sides on grid lines under the old rule (a local copy, `edge_before`): the sides whose board is on the other side of the grid line fall in cells off the board (red) and 170 of 240 mm are counted. Middle, the same T on the current program (`geometry.edge_length_per_cell` with the inward nudge): 240 of 240 mm. Right, a 40 mm square turned by 20 degrees (`geometry.edge_length_on_board`): the edge of the cells that the cover takes as off the board (red; 19.9 mm of 160 on these coarse cells) is moved to the nearest cell on the board (arrows) and the whole 160 mm is counted; the old rule counts 140.1 mm. On the 1 mm cells of the table above the loss of the old rule is 2.2 % for the same square; the cell here is five times larger, so the loss is larger. Drawn by `scripts/make_diagrams.py` from the program's functions, not from a table.* The temperatures on the current program, 1 mm cells:
 
 | board, 1 mm | FVM Tmax | FDM | 3D solid | 3D solid, sum of the side conductances |
 | :-- | --: | --: | --: | --: |

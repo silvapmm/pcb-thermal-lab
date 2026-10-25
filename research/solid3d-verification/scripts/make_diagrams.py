@@ -60,7 +60,7 @@ def slabs(ax):
     ax.annotate("", (3.5, 7.5), (3.5, 7.35), arrowprops={"arrowstyle": "->", "color": dk.HEAT, "linewidth": 2})
     dk.arrow(ax, 3.5, 8.4, 3.5, 7.4, color=dk.HEAT, width=2)
     ax.text(3.8, 8.1, "heat enters on the copper slab", fontsize=7, color=dk.HEAT)
-    ax.text(6, 0.9, "the vertical gradient inside each gap is resolved (n slabs);\nplan cells in every slab; steady state only", ha="center", fontsize=7.5, style="italic")
+    ax.text(6, 0.9, "the vertical gradient inside each gap is resolved (n slabs);\nplan cells in every slab; steady state only;\nrefused above 250 000 unknowns", ha="center", fontsize=7.5, style="italic")
     ax.set_title("2. the 3D solid: real slabs", fontsize=9)
 
 
@@ -75,7 +75,7 @@ def ladder(ax):
     steps = [("exact solutions: a spreading resistance (Yovanovich), uniform cases", "#cfe3f5"),
              ("grid convergence of the solid (a convergence index)", "#cfe3f5"),
              ("an independent 3D finite-element solution (offline)", "#d6ecd0"),
-             ("layered models against it (four boards): FVM within 0.4 to 2.2 % of the 3D rise,\nLumped 0.1 to 4.5 %, Analytic 0.0 % on uniform copper, up to 24 % with a 20 mm pad", "#fbe3c2")]
+             ("layered models against it (four boards): FVM within 0.4 to 2.2 % of the 3D rise,\nLumped 0.1 to 4.5 %, Analytic 0.0 % on uniform copper,\nup to 24 % with a 20 mm pad", "#fbe3c2")]
     for k, (t, c) in enumerate(steps):
         y = 7.6 - 2.4 * k
         dk.box(ax, 0.3, y, 9.4, 1.7, t, c, k == 3, 7.5)

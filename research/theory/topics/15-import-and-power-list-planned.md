@@ -2,7 +2,7 @@
 
 ![Import and power list](../figures/fig_15_import_to_power_planned.png)
 
-*Figure 15 (`figures/fig_15_import_to_power_planned.png`): left, a KiCad board file and a power list (a BOM or CSV with reference, power, theta, tj_max) matched by designator into the problem: board, copper per layer, vias, parts with power; right, passive areas as component types: a cooled area (extra `h`), a contact held at a fixed temperature, a material patch.*
+*Figure 15 (`figures/fig_15_import_to_power_planned.png`): left, a KiCad board file and a power list (a BOM or CSV with reference, power, theta, tj_max) matched by designator into the problem: board, copper per layer, vias, parts with power; right, passive areas as component types: a cooled area (extra `h`), a contact held at a fixed temperature, a material patch. The component library by part number is planned; a typical theta by package family is already a library of the program (`package_theta`, Preferences).*
 
 The reader that exists on the research branch, and the full chain from the Gerber files to the temperature: `research/gerber-import/figures/fig_17_nets_from_files.png` (nets), `fig_16_outline_how.png` (outline), `research/gerber-models/figures/fig_10_pipeline.png` (the whole chain); the copper mapping is topic 17.
 

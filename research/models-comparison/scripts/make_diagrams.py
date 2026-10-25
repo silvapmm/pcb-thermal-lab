@@ -34,7 +34,7 @@ def fvm(ax):
             ax.plot(i + 0.5, j + 0.5, "k.", markersize=3)
     ax.annotate("", (3.5, 2.5), (2.5, 2.5), arrowprops={"arrowstyle": "<->", "color": dk.BLUE, "linewidth": 2})
     ax.text(3.0, 2.2, "face", color=dk.BLUE, fontsize=7, ha="center")
-    ax.text(3.0, -1.1, "unknown at the centre of a cell;\nthe reference model", ha="center", fontsize=7)
+    ax.text(3.0, -1.1, "unknown at the centre of a cell; the reference model;\na one-layer board: two laminate nodes under the copper", ha="center", fontsize=7)
     ax.set_title("FVM (reference)\ncell-centred finite volumes", fontsize=9)
 
 
@@ -73,7 +73,7 @@ def lumped(ax):
         ax.add_patch(Rectangle((-r, -r), 2 * r, 2 * r, fill=False, edgecolor=dk.BLUE, linewidth=1.2))
     for r0, r1 in ((0.6, 1.0), (1.0, 1.7), (1.7, 2.4), (2.4, 3.0)):
         ax.plot([r0 + 0.02, r1 - 0.02], [0, 0], color="k", linewidth=2)
-    ax.text(0, -4.0, "rings by distance from the footprint, joined by\nresistances; vertical and surface losses per ring", ha="center", fontsize=7)
+    ax.text(0, -4.0, "rings by distance from the footprint, joined by\nresistances; vertical and surface losses per ring;\nrings narrower than a cell are merged", ha="center", fontsize=7)
     ax.set_title("Lumped (LPTN)\nthermal network of rings per heater", fontsize=9)
 
 
@@ -90,8 +90,8 @@ def analytic(ax):
     ax.set_xticks([0, 1])
     ax.set_xticklabels(["0", "L"])
     ax.set_yticks([])
-    ax.legend(fontsize=7, loc="lower left")
-    ax.text(0.5, 0.75, "T = sum of cos(m pi x / L) cos(n pi y / L) modes;\nlocal corrections for vias and heatsinks", ha="center", fontsize=7, transform=ax.transData)
+    ax.legend(fontsize=7, loc="upper right")
+    ax.text(0.5, 0.65, "T = sum of cos(m pi x / L) cos(n pi y / L) modes;\nlocal corrections for vias and heatsinks", ha="center", fontsize=7, transform=ax.transData)
     ax.set_ylim(0.6, 4.6)
     ax.set_title("Analytic (Fourier series)\nmultilayer cosine series", fontsize=9)
 
@@ -112,7 +112,7 @@ def solid3d(ax):
                 dk.layer(ax, 1, y - 0.45 * (t + 1), 8, 0.45, dk.FR4)
     dk.layer(ax, 4.6, 2.2, 0.5, 4.45, dk.COPPER)
     ax.text(5.3, 7.2, "via: a copper rod of the barrel's area", fontsize=7)
-    ax.text(5, 1.2, "real slabs: copper (thin) and laminate gaps (n slabs);\ncells of the plan grid in each slab; steady state only", ha="center", fontsize=7)
+    ax.text(5, 1.2, "real slabs: copper (thin) and laminate gaps (n slabs);\ncells of the plan grid in each slab; steady state only;\nrefused above 250 000 unknowns", ha="center", fontsize=7)
     ax.set_title("3D solid\nfinite volumes with real slabs", fontsize=9)
 
 

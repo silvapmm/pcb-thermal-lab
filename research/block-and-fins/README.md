@@ -11,7 +11,7 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 
 ![The metal block and its fins as schematics](figures/fig_04_block_and_fins_schematic.png)
 
-*Figure 4 (`figures/fig_04_block_and_fins_schematic.png`): The metal block and its fins as schematics: 1, the block under the board and the heat path; 2, the same path as thermal resistances (the board faces in parallel); 3, the efficiency of a fin as a function of mL, with the range of the 24 validated cases shaded; 4, the three ways of representing a block in the Lumped and Analytic models, with their mean error against the FVM.*
+*Figure 4 (`figures/fig_04_block_and_fins_schematic.png`): The metal block and its fins as schematics: 1, the block under the board and the heat path; 2, the same path as thermal resistances (the board faces in parallel); 3, the efficiency of a fin as a function of mL, with the range of the 24 validated cases shaded; 4, the three ways of representing a block in the Lumped and Analytic models, with their mean error against the FVM. Redrawn with the numbers re-run on the current program (Lumped 1.9 % mean and 4.7 % maximum, Analytic 1.1 % and 4.3 %; the figure said 2.0 and 4.8).*
 
 ![Figure 5](figures/fig_05_block_section.png)
 

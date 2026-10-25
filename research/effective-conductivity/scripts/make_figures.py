@@ -1,7 +1,7 @@
 """!
 @file make_figures.py
 @brief Data figures of the effective-conductivity investigation, drawn from the JSON files that the studies write in out/ (run the studies first; make_diagrams.py draws the schematics).
-@details Writes figures/fig_03_layer_orders_k_eff.png, fig_04_size_location_biot.png, fig_06_lee_spreading.png, fig_07_program_vs_coupon.png, fig_08_muzychka_and_the_thickness_rule.png, fig_10_natural_convection_forms.png, fig_11_biot_definitions.png, fig_12_corrections_impact.png, fig_13_channel_correlations.png, fig_14_plate_alignment_sweep.png and fig_17_one_layer_independent.png.
+@details Writes figures/fig_03_layer_orders_k_eff.png, fig_04_size_location_biot.png, fig_06_lee_spreading.png, fig_07_program_vs_coupon.png, fig_08_muzychka_and_the_thickness_rule.png, fig_10_natural_convection_forms.png, fig_11_biot_definitions.png, fig_12_corrections_impact.png, fig_13_channel_correlations.png, fig_14_plate_alignment_sweep.png, fig_17_one_layer_independent.png and fig_19_natural_form_on_the_example.png.
          Run: .venv/bin/python research/effective-conductivity/scripts/make_figures.py (from the repository root; a few seconds).
 """
 
@@ -16,6 +16,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parents[2]))                           # the program, for fig_19 (it calls pcbthermal.convection)
 OUTDIR = HERE.parent / "out"
 FIG = HERE.parent / "figures"
 C = {"paper": "#6b7280", "this": "#1d4ed8", "fvm": "#1f2937", "fdm": "#9ca3af", "solid3d": "#059669", "lumped": "#d97706", "analytic": "#7c3aed", "2d": "#dc2626"}
@@ -387,9 +388,55 @@ def one_layer(ol):
     plt.close(fig)
 
 
+def natural_form_on_the_example(ci):
+    """!
+    @brief The two forms of Churchill and Chu as the program computes them (`convection.h_natural_vertical`, forms "general" and "laminar") against the Rayleigh number, and what the choice changes in the maximum temperature of vertical boards (the example board among them).
+    @details Left: the Nusselt number of both forms from the program's function over board heights of 10 mm to 3 m at a rise of 30 K (Pr about 0.71), with the Rayleigh range of 50 to 200 mm boards at 10 to 80 K shaded and Ra = 1e9, where the laminar form stops being meant to apply, dotted. Right: the change of the maximum temperature with the laminar form, in K, for the six boards of README 4.8 B (`corrections_impact.json`, FVM, computed h).
+    @param ci Content of corrections_impact.json.
+    @return None.
+    """
+    from pcbthermal import convection
+    fig, axs = plt.subplots(1, 2, figsize=(12.5, 4.5), gridspec_kw={"width_ratios": [1.1, 1]})
+    heights = np.geomspace(0.01, 3.0, 60)
+    res = {form: [] for form in convection.NATURAL_FORMS}
+    ra_axis = []
+    for hgt in heights:
+        for form in convection.NATURAL_FORMS:
+            h, ra = convection.h_natural_vertical(55.0, 25.0, float(hgt), form)
+            k_air = convection.air_properties(40.0)["k"]
+            res[form].append(h * hgt / k_air)               # Nu = h H / k at the film temperature of the 30 K rise
+            if form == "general":
+                ra_axis.append(ra)
+    axs[0].loglog(ra_axis, res["general"], color=C["this"], lw=2, label="general form (the program's default)")
+    axs[0].loglog(ra_axis, res["laminar"], color="#d97706", lw=2, ls="--", label="laminar form (Board.natural_form = laminar)")
+    axs[0].axvspan(1e5, 3e7, color="#fcd9a8", alpha=0.5, label="Ra of a 50 to 200 mm board at 10 to 80 K")
+    axs[0].axvline(1e9, color="k", ls=":", lw=0.8)
+    axs[0].text(1.2e9, 4, "Ra = 1e9", fontsize=7)
+    axs[0].set_xlabel("Rayleigh number (rise of 30 K, film at 40 C)")
+    axs[0].set_ylabel("Nusselt number of a vertical plate")
+    axs[0].set_title("The two forms as computed by the program: they cross near Ra 2e6", fontsize=9)
+    axs[0].legend(fontsize=8, loc="upper left")
+    rows = ci["forms"]
+    x = np.arange(len(rows))
+    delta = [r["t_laminar"] - r["t_general"] for r in rows]
+    axs[1].bar(x, delta, color=["#1d4ed8" if "example" in r["board"] else "#6b7280" for r in rows])
+    for xi, r, dv in zip(x, rows, delta):
+        pct = 100 * (r["t_laminar"] - r["t_general"]) / (r["t_general"] - r["ambient"])
+        axs[1].text(xi, dv + (0.01 if dv >= 0 else -0.02), f"{dv:+.2f} K\n({pct:+.1f} %)", ha="center", va="bottom" if dv >= 0 else "top", fontsize=7)
+    axs[1].axhline(0, color="k", lw=0.8)
+    axs[1].set_xticks(x)
+    axs[1].set_xticklabels([r["board"].replace(", ", ",\n").replace("2-layer board ", "2-layer\n") for r in rows], fontsize=6.5)
+    axs[1].set_ylim(min(delta) - 0.12, max(delta) + 0.12)
+    axs[1].set_ylabel("maximum temperature, laminar minus general (K)")
+    axs[1].set_title("Effect on the maximum temperature of vertical boards\n(example board in blue: -0.22 K at the nominal powers)", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_19_natural_form_on_the_example.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
-    @brief Draw the eleven data figures.
+    @brief Draw the twelve data figures.
     @return None.
     """
     FIG.mkdir(parents=True, exist_ok=True)
@@ -405,6 +452,7 @@ def main():
     channel(load("channel_correlations"))
     alignment(load("corrections_impact"))
     one_layer(load("one_layer_independent"))
+    natural_form_on_the_example(load("corrections_impact"))
     print("figures in", FIG)
 
 

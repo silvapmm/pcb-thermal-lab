@@ -12,7 +12,7 @@ Status: **implemented**; the comparison is repeated whenever a model changes. St
 
 ![How each of the five models represents the board](figures/fig_08_the_five_models_schematic.png)
 
-*Figure 8 (`figures/fig_08_the_five_models_schematic.png`): How each of the five models represents the board: cell-centred finite volumes (FVM, the reference), node-centred finite differences (FDM), rings around the footprint (Lumped), cosine modes (Analytic) and real slabs with via rods (3D solid).*
+*Figure 8 (`figures/fig_08_the_five_models_schematic.png`): How each of the five models represents the board: cell-centred finite volumes (FVM, the reference), node-centred finite differences (FDM), rings around the footprint (Lumped), cosine modes (Analytic) and real slabs with via rods (3D solid). Redrawn with the laminate nodes of one-layer boards (FVM), the merged narrow rings (Lumped) and the 250 000 unknowns limit of the 3D solid, which the first version did not show.*
 
 ![Figure 9](figures/fig_09_where_models_fail.png)
 
