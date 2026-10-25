@@ -219,19 +219,23 @@ class MainWindow(QMainWindow):
         geo = self.settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
+        # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
+        self._saved_state = self.settings.value("window_state")
+        self._docks_sized = False
         self.layer_combo.setToolTip("Layer on which new zones and heaters are drawn; the other layers are shown faded.")
         self.snap_combo.setToolTip("Grid distance the drawn and dragged elements snap to (off = free placement).")
         tips.apply(self)
         self.canvas.set_tool("select")
 
     # ------------------------------------------------------------------ construction
-    def _dock(self, title, widget, area, scroll=True):
+    def _dock(self, title, widget, area, scroll=True, footer=None):
         """!
         @brief Add a titled dock widget.
         @param title Dock title.
         @param widget Content widget.
         @param area Qt dock area.
         @param scroll True to put the widget in a scroll area (panels of fields); False for a list that scrolls by itself.
+        @param footer Optional widget kept below the scroll area, always visible (the Run button of the Simulation panel).
         @return The QDockWidget.
         """
         d = QDockWidget(title, self)
@@ -241,8 +245,17 @@ class MainWindow(QMainWindow):
             area_widget = QScrollArea()
             area_widget.setWidgetResizable(True)
             area_widget.setFrameShape(QFrame.NoFrame)
-            area_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            # A dock narrower than its fields scrolls sideways instead of squeezing the rows on top of each other (they overlapped with the bar always off)
+            area_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             area_widget.setWidget(widget)
+            if footer is not None:
+                host = QWidget()
+                hl = QVBoxLayout(host)
+                hl.setContentsMargins(0, 0, 0, 0)
+                hl.setSpacing(0)
+                hl.addWidget(area_widget, 1)
+                hl.addWidget(footer)
+                area_widget = host
             d.setWidget(area_widget)
         else:
             d.setWidget(widget)
@@ -257,11 +270,53 @@ class MainWindow(QMainWindow):
         self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea)
         self.dock_elements = self._dock("Elements", self.elements, Qt.LeftDockWidgetArea, scroll=False)
         self.splitDockWidget(self.dock_board, self.dock_elements, Qt.Vertical)
-        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea)
+        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea, footer=self.solver_panel.footer)
         self.dock_inspector = self._dock("Properties", self.inspector, Qt.RightDockWidgetArea)
         self.splitDockWidget(self.dock_sim, self.dock_inspector, Qt.Vertical)
-        self.resizeDocks([self.dock_board, self.dock_sim], [310, 300], Qt.Horizontal)
-        self.resizeDocks([self.dock_sim, self.dock_inspector], [380, 420], Qt.Vertical)
+        # The widths are set in showEvent (_size_docks): before the window is shown resizeDocks has no effect and the docks started about 110 px wide
+
+    def _size_docks(self):
+        """!
+        @brief Give the side docks a readable width for the window size (first start, or no saved arrangement).
+
+        @note Before this the docks opened about 110 px wide at the default window size, so every field of the Board,
+              Simulation and Properties panels was cut off.
+        """
+        w = max(self.width(), 800)
+        # The widest panels need about 300 (Board) and 340 px (Properties of a heatsink) plus a scroll bar
+        left = int(min(max(0.21 * w, 305), 440))              # Board panel and element list
+        right = int(min(max(0.24 * w, 355), 480))             # Simulation settings and Properties
+        self.resizeDocks([self.dock_board, self.dock_sim], [left, right], Qt.Horizontal)
+        h = max(self.height(), 600)
+        self.resizeDocks([self.dock_board, self.dock_elements], [int(0.62 * h), int(0.38 * h)], Qt.Vertical)
+        self.resizeDocks([self.dock_sim, self.dock_inspector], [int(0.45 * h), int(0.55 * h)], Qt.Vertical)
+
+    def _first_layout(self):
+        """!
+        @brief Restore the saved dock arrangement, or give the docks their default widths when there is none (or it cannot be read).
+        """
+        if not (self._saved_state and self.restoreState(self._saved_state)):
+            self._size_docks()
+            return
+        # restoreState brings back where the docks are and which are shown, but not always their sizes: those are applied from the saved numbers
+        sizes = self.settings.value("dock_sizes")
+        try:
+            bw, sw, bh, eh, sh, ih = (int(v) for v in sizes)
+        except (TypeError, ValueError):
+            return
+        self.resizeDocks([self.dock_board, self.dock_sim], [bw, sw], Qt.Horizontal)
+        self.resizeDocks([self.dock_board, self.dock_elements], [bh, eh], Qt.Vertical)
+        self.resizeDocks([self.dock_sim, self.dock_inspector], [sh, ih], Qt.Vertical)
+
+    def showEvent(self, e):
+        """!
+        @brief Lay out the docks the first time the window is shown (saved arrangement or default widths).
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        if not self._docks_sized:
+            self._docks_sized = True
+            QTimer.singleShot(0, self._first_layout)         # After the first layout pass: during showEvent the dock layout ignores the sizes
 
     def _act(self, text, slot=None, shortcut=None, checkable=False, checked=False, tip=""):
         """!
@@ -906,6 +961,9 @@ class MainWindow(QMainWindow):
         if self._confirm_discard():
             compute.shutdown()                         # Nothing keeps running in the background after the window closes
             self.settings.setValue("geometry", self.saveGeometry())
+            self.settings.setValue("window_state", self.saveState())      # Dock positions and visibility
+            self.settings.setValue("dock_sizes", [self.dock_board.width(), self.dock_sim.width(), self.dock_board.height(),
+                                                  self.dock_elements.height(), self.dock_sim.height(), self.dock_inspector.height()])
             e.accept()
         else:
             e.ignore()

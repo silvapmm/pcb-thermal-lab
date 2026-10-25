@@ -240,3 +240,35 @@ def test_window_shows_the_version(win):
     assert pcbthermal.__version__ in win.windowTitle()
     assert win.version_label.text() == f"v{pcbthermal.__version__}"
     assert win.canvas is not None
+
+
+def test_docks_open_wide_enough_and_keep_the_run_button_in_sight(qtbot, tmp_path):
+    """!
+    @brief The side docks open readable at the default window size, the pages do not take their width, and the layout is remembered.
+
+    @note Regression: the Stack-up, Power profile and Animation pages were 860 to 1240 px wide, so at 1480 x 900 the docks opened
+          about 110 px wide and every field of the Board, Simulation and Properties panels was cut off; the Run button had scrolled out of view.
+    """
+    from PySide6.QtWidgets import QApplication
+    ini = str(tmp_path / "layout.ini")
+    w = MainWindow(Document(), QSettings(ini, QSettings.IniFormat))
+    qtbot.addWidget(w)
+    w.show()
+    qtbot.waitUntil(lambda: w.dock_board.width() >= 300, timeout=3000)
+    assert w.tabs.minimumSizeHint().width() < 900                     # No page forces the central area wider than this
+    assert w.dock_sim.width() >= 340
+    assert w.board_panel.minimumSizeHint().width() <= w.dock_board.width()
+    assert w.solver_panel.minimumSizeHint().width() <= w.dock_sim.width()
+    # The Run button is outside the scrolled settings, always visible in the dock
+    assert w.solver_panel.footer.isVisible() and not w.solver_panel.isAncestorOf(w.solver_panel.run)
+    # The dock arrangement is saved and restored
+    w.resizeDocks([w.dock_board], [420], Qt.Horizontal)
+    QApplication.processEvents()
+    width = w.dock_board.width()
+    w.close()
+    w2 = MainWindow(Document(), QSettings(ini, QSettings.IniFormat))
+    qtbot.addWidget(w2)
+    w2.resize(1480, 900)                     # The offscreen platform restores a smaller window geometry than it saved
+    w2.show()
+    QApplication.processEvents()
+    assert abs(w2.dock_board.width() - width) <= 2

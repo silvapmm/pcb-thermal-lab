@@ -18,6 +18,7 @@ from ..model import SquareWave
 from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from . import compute
 from .compute import ProcessWorker
+from .panels import compact_combos
 from .results_view import _mpl_theme, _paint_figure
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
@@ -70,12 +71,12 @@ class ProfilePage(QWidget):
         self._spin(self.p_on, 0, 100000, 4, " W")
         self.p_off = QDoubleSpinBox()
         self._spin(self.p_off, 0, 100000, 4, " W")
-        self.avg_mode = QCheckBox("Enter the average power instead of the power while on")
+        self.avg_mode = QCheckBox("Type the average power")      # Short label; the tooltip says it replaces the power while on
         self.avg = QDoubleSpinBox()
         self._spin(self.avg, 0, 100000, 4, " W")
-        self.repeat = QCheckBox("Repeat the table (otherwise it runs once and the last power is held)")
+        self.repeat = QCheckBox("Repeat the table")             # Short label: the long one set the width of the page; the rest is in the tooltip
         self.import_btn = QPushButton("Import CSV…")
-        self.import_btn.setToolTip("Read a power profile (time_s,power_w) from a CSV file; see examples/led_driver_board/")
+        self.import_btn.setToolTip("Read a power profile (time_s,power_w) from a CSV file; see examples/csv_profiles/")
         self.export_btn = QPushButton("Export CSV…")
         self.export_btn.setToolTip("Write the profile of this heater to a CSV file (a square wave is written as a table)")
         self.import_btn.clicked.connect(lambda: self.import_csv())
@@ -192,6 +193,7 @@ class ProfilePage(QWidget):
         lay.addWidget(split)
         doc.changed.connect(self.refresh)
         doc.state_changed.connect(self._load_options)
+        compact_combos(self, 16)                          # The page must not be wider than it needs: the tab widget takes its width from the docks
         self.refresh()
         self._load_options()
 

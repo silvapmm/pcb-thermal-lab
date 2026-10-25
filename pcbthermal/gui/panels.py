@@ -7,7 +7,7 @@ import numpy as np
 from PySide6.QtCore import Qt, Signal
 import math
 
-from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
+from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -33,6 +33,24 @@ def _is_rect(pts):
 
 
 _TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
+
+
+def compact_combos(root, chars=14):
+    """!
+    @brief Let the lists of a side panel be narrower than their longest entry (the open list still shows every entry in full).
+
+    @param root  Widget whose QComboBox children are made compact.
+    @param chars Width of a closed list, in characters.
+    @return Number of lists changed.
+    @note A list sized to its longest entry ("Manual input: I give h or θSA", "Horizontal (layer 1 = top faces up)") made the
+          Properties and Board panels need about 440 px, so a dock of normal width cut their fields off.
+    """
+    n = 0
+    for c in root.findChildren(QComboBox):
+        c.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        c.setMinimumContentsLength(chars)
+        n += 1
+    return n
 
 
 def _spin(lo, hi, value=0.0, decimals=2, step=0.1, suffix=""):
@@ -120,7 +138,7 @@ class BoardPanel(QWidget):
         self.outline_table.setMaximumHeight(140)
         self.outline_table.setToolTip("Vertices of the outline in millimetres, from the lower-left corner of the box. Edit a cell to move a vertex.")
         self.outline_table.itemChanged.connect(self._edit_vertex)
-        row = QHBoxLayout()
+        row = QGridLayout()
         self.v_add = QPushButton("Add vertex")
         self.v_add.setToolTip("Insert a vertex in the middle of the last edge.")
         self.v_del = QPushButton("Remove vertex")
@@ -130,8 +148,9 @@ class BoardPanel(QWidget):
                               "by moving the new vertices. A curve is a polygon with many short edges; use edges a few cells long at most.")
         self.v_draw = QPushButton("Draw (O)")
         self.v_draw.setToolTip("Draw the outline on the board: drag a rectangle or click the vertices in polygon mode.")
-        for w in (self.v_add, self.v_del, self.v_sub, self.v_draw):
-            row.addWidget(w)
+        # Two rows of two buttons: four in a row made the Board panel about 440 px wide
+        for n, w in enumerate((self.v_add, self.v_del, self.v_sub, self.v_draw)):
+            row.addWidget(w, n // 2, n % 2)
         self.v_sub.clicked.connect(self._subdivide)
         self.v_add.clicked.connect(self._add_vertex)
         self.v_del.clicked.connect(self._remove_vertex)
@@ -228,6 +247,7 @@ class BoardPanel(QWidget):
         self.layers.valueChanged.connect(self._apply_layers)
         self.side_on.toggled.connect(self._apply)
         doc.changed.connect(self.refresh)
+        compact_combos(self)
         self.refresh()
 
     def refresh(self):
@@ -1006,6 +1026,7 @@ class Inspector(QWidget):
                 lay.addRow(typical)
             if kind != "via":
                 self._geometry_rows(box("Position and size"), kind, i, el)
+        compact_combos(self.form_host)
         tips.apply(self.form_host)
         self._updating = False
 
@@ -1218,6 +1239,7 @@ class SolverPanel(QWidget):
         cell_row.addWidget(self.cell, 1)
         cell_row.addWidget(self.auto_cell)
         self.cells_label = QLabel()
+        self.cells_label.setWordWrap(True)                 # With the 3D solid selected the count and its note are long
         self.solver = QComboBox()
         self.solver.addItem("Sparse direct (exact)", "direct")
         self.solver.addItem("Conjugate gradients", "cg")
@@ -1238,7 +1260,7 @@ class SolverPanel(QWidget):
         f.addRow("FVM solver", self.solver)
         f.addRow("Lumped rings", self.rings)
         f.addRow("Analytic modes", self.modes)
-        f.addRow("", self.local)
+        f.addRow(self.local)                               # Full width: in the field column its long text made the panel about 350 px wide
         f.addRow("Hotspot limit", self.hot)
         lay.addWidget(g)
 
@@ -1258,11 +1280,16 @@ class SolverPanel(QWidget):
         self.status.setWordWrap(True)
         self.checks = QLabel("")
         self.checks.setWordWrap(True)
-        lay.addWidget(self.run)
-        lay.addWidget(self.cancel)
-        lay.addWidget(self.progress)
-        lay.addWidget(self.status)
-        lay.addWidget(self.checks)
+        # The Run button, the progress and the checks are a footer of their own: the main window keeps it below the scrolled settings, so the
+        # main action stays in sight when the dock is short (at the default window size it had scrolled out of view)
+        self.footer = QWidget()
+        fl = QVBoxLayout(self.footer)
+        fl.setContentsMargins(8, 4, 8, 8)
+        fl.addWidget(self.run)
+        fl.addWidget(self.cancel)
+        fl.addWidget(self.progress)
+        fl.addWidget(self.status)
+        fl.addWidget(self.checks)
         lay.addStretch(1)
 
         for w in (self.cell, self.rings, self.modes, self.hot):
@@ -1273,6 +1300,7 @@ class SolverPanel(QWidget):
         doc.changed.connect(self._update_availability)
         doc.state_changed.connect(self.refresh)
         self._base_tips = {k: c.toolTip() for k, c in self.cb.items()}
+        compact_combos(self)
         self.refresh()
 
     def _update_availability(self, *_):

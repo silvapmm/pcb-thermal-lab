@@ -10,6 +10,10 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ---
 
+## Unreleased: user interface review
+
+* **Docks of a usable width** (branch `fix/ui-review`): the minimum width of the central tabs is the largest of its pages, and the Stack-up (1240 px), Animation (1040 px) and Power profile (860 px) pages left the side docks about 110 px at 1480 x 900. `panels.compact_combos` lets the lists of the side panels and of the pages be narrower than their longest entry; the Stack-up view options moved above the diagram, the animation settings take two rows, the outline buttons a 2 x 2 grid and the Analytic check box a full row. `MainWindow._size_docks` gives the docks about 300 / 360 px when the window is first shown (`resizeDocks` before the window is shown has no effect, which is why the old call did nothing), the dock arrangement and sizes are saved with the geometry (`window_state`, `dock_sizes`), the scroll areas of the docks scroll sideways when needed, and the Run block of the Simulation panel is a footer outside its scroll area (`SolverPanel.footer`). Test: `tests/test_gui.py::test_docks_open_wide_enough_and_keep_the_run_button_in_sight`.
+
 ## Unreleased: documents after the second round of reviews
 
 * **Documents only** (branch `docs/roadmap-and-reviews-round2`; the only changes outside `docs/` are a note text in `pcbthermal/data/defaults.json` and a comment in `pcbthermal/solid3d.py`): text from `research/<folder>/docs/for-the-project-documents.md` of component-heatsink, block-and-fins, via-fill, theory and power-calculator folded into `research.md`, `theory.md`, `models.md` and `validation.md` (several items were already on `develop`); `roadmap.md` is now only what is to be implemented. Checked by `tests/test_docs.py`, `test_help.py`, `test_version.py`, `test_defaults.py`, `test_tooltips.py`.

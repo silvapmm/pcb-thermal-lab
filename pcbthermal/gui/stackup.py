@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 
 from ..model import DIELECTRICS, Dielectric
 from . import theme as th
+from .panels import compact_combos
 
 _UNITS = (("µm and mm", "both"), ("µm", "um"), ("mm", "mm"))
 
@@ -391,13 +392,25 @@ class StackupPage(QWidget):
                                  "than 0.5 oz; with copper only on the outer layers it changes the result by less than 0.3 K. "
                                  "Disabled with fewer than 3 layers and in the simple stack-up (where every layer has the outer copper thickness).")
         self.inner_oz.currentIndexChanged.connect(self._inner_oz_changed)
-        for text, w in (("Stack-up ", self.mode), ("  Units ", self.unit), ("  Scale ", self.scale), ("  ", self.typical), ("  Inner copper ", self.inner_oz)):
+        # The bar holds what changes the board; Units and Scale only change the drawing, so they sit above the diagram. In one row the five
+        # controls made the page about 1240 px wide, and the tab widget took that width from the side docks of the main window
+        for text, w in (("Stack-up ", self.mode), ("  ", self.typical), ("  Inner copper ", self.inner_oz)):
             bar.addWidget(QLabel(text))
             bar.addWidget(w)
         bar.addStretch(1)
         lay.addLayout(bar)
         split = QSplitter(Qt.Horizontal)
         self.view = StackupView(theme)
+        left = QWidget()
+        ll = QVBoxLayout(left)
+        ll.setContentsMargins(0, 0, 0, 0)
+        look = QHBoxLayout()
+        for text, w in (("Units ", self.unit), ("  Scale ", self.scale)):
+            look.addWidget(QLabel(text))
+            look.addWidget(w)
+        look.addStretch(1)
+        ll.addLayout(look)
+        ll.addWidget(self.view, 1)
         self.editor = StackupEditor(doc)
         right = QWidget()
         rl = QVBoxLayout(right)
@@ -409,7 +422,7 @@ class StackupPage(QWidget):
         rl.addLayout(self.params)
         rl.addWidget(self.editor, 1)
         rl.addStretch(0)
-        split.addWidget(self.view)
+        split.addWidget(left)
         split.addWidget(right)
         split.setStretchFactor(0, 2)
         split.setStretchFactor(1, 3)
@@ -433,6 +446,8 @@ class StackupPage(QWidget):
         """
         for box in boxes:
             self.params.addWidget(box)
+        # The long entries (laminate presets, the readable scale) need not set the width of the page: the open list shows them in full
+        compact_combos(self, 18)
 
     def set_theme(self, theme):
         """!
