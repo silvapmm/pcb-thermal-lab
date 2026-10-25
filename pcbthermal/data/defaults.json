@@ -194,7 +194,7 @@
         "theta_k_per_w": 20.0,
         "theta_jc_top_k_per_w": 60.0,
         "tj_max_c": 125.0,
-        "note": "The SMA value is the SS12 datasheet junction-to-terminal figure. θJC(top) assumed (60 K/W); Tj max 125 degC is the SS12 datasheet value."
+        "note": "The junction-to-lead resistance of an SMA diode depends on the manufacturer: the SX Semiconductor sheet used here gives 20 K/W, the Vishay SS12 (document 88746) gives RthJL 28 K/W. Take the typical value as a range of 20 to 28 K/W and type the value of your datasheet. θJC(top) assumed (60 K/W); Tj max 125 degC is the SS12 datasheet value of the sheet used."
       },
       {
         "name": "Chip resistor 0603 (derived from its rating)",

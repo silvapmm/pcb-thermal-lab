@@ -6,7 +6,7 @@ Values marked *assumed* are not from a datasheet. Everything is reproducible wit
 
 ## Open now: the Component element (junction node, heatsink scenarios, Foster chain)
 
-**Decided (2026-10-17) and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md` 1.11); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented on 2026-10-21 (`docs/models.md` section 6, `docs/validation.md` section 9, `research/component-heatsink/scripts/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
+**Decided (2026-10-17) and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md`, section 4); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented on 2026-10-21 (`docs/models.md` section 6, `docs/validation.md` section 9, `research/component-heatsink/scripts/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
 
 Reproduce: `research/component-heatsink/scripts/component_study.py`, `research/component-heatsink/scripts/heatsink_study.py`, `research/component-heatsink/scripts/block_contact_study.py`.
 
@@ -22,7 +22,7 @@ What stays here is the **top path** of the study, behind the top path now implem
 | Buck LMR36510 | 62.8 °C | 60.6 °C (1.3 %) | 46.9 °C (41 %) | 54 |
 | Schottky SS12 | 60.9 °C | 59.1 °C (1.1 %) | 42.9 °C (49 %) | 60 K/W (assumed) |
 
-A bare mould carries about 1 % of the heat (2 to 4 K); a heatsink takes 41 to 51 % and lowers `Tj` by 16 to 40 K, which the single resistance cannot see: this is the case that justifies the junction node.
+A bare mould carries about 1 % of the heat (0.4 to 0.8 K against the same junction node without a top path; the 2 to 4 K written before compared the node with the worst-case offset); a heatsink takes 41 to 51 % and lowers `Tj` by 14 to 38 K (16 to 40 K against the offset), which the single resistance cannot see: this is the case that justifies the junction node.
 
 ### R3. Heatsink air flow: catalogue values against a scaling factor (2026-10-22)
 
@@ -59,8 +59,8 @@ Presets (resistance per area, with the apparent `k`): good paste 1.5 W/mK × 50 
 | Buck 0.8 W (4.9 × 3.9 mm) | 62.8 | 47.0 (41 %) | 47.1 (40 %) | 47.8 (38 %) | 49.5 (33 %) | 51.4 (28 %) |
 | Schottky 0.5 W (4.3 × 2.6 mm) | 60.9 | 43.2 (48 %) | 43.3 (48 %) | 44.4 (45 %) | 46.9 (38 %) | 49.4 (30 %) |
 
-* **The interface matters on the top of a small package** (MOSFET: 68 °C with a good paste against 88 °C with a hard pad): 10 K cm²/W over 11 mm² is 92 K/W, far more than the heatsink itself. The default paste costs only 0.6 to 1 K against a good paste, so it is a safe default; a gap pad should be typed.
-* **Under the board, a metal block helps by 9 K on the MOSFET** (107.6 → 98 °C, block 30 × 30 × 3 mm, natural convection) **and the metal and the interface hardly matter**: aluminium and copper differ by 0.1 K, stainless steel is 1 K worse, and a hard pad 2 K worse than a good paste. With fins (extra h 60 W/m²K) the whole range of metals spans 71.7 to 72.2 °C at 6 mm. What matters is the **block thickness and area and the cooling of its surface** (1 mm 76.8, 3 mm 74.3, 6 mm 71.7 °C with fins), because the board has already spread the heat before the block sees it. The material choice is useful as a convenience (heat capacity for the time simulation, large thin plates), not as a design lever.
+* **The interface matters on the top of a small package** (MOSFET: 68 °C with a good paste against 88 °C with a hard pad): 10 K cm²/W over 11 mm² is 92 K/W, far more than the heatsink itself. The default paste costs only 0.1 to 0.6 K against a good paste (0.6 K on the MOSFET, 0.1 to 0.2 K on the others), so it is a safe default; a gap pad should be typed.
+* **Under the board, a metal block helps by 9 K on the MOSFET** (107.6 → 98 °C, block 30 × 30 × 3 mm, natural convection) **and the metal and the interface hardly matter**: aluminium and copper differ by 0.1 K, stainless steel is 1 K worse, and a hard pad 2 K worse than a good paste. With fins (extra h 60 W/m²K) the whole range of metals spans 71.2 to 71.8 °C at 6 mm. What matters is the **block thickness and area and the cooling of its surface** (1 mm 76.4, 3 mm 73.8, 6 mm 71.2 °C with fins), because the board has already spread the heat before the block sees it. The material choice is useful as a convenience (heat capacity for the time simulation, large thin plates), not as a design lever.
 
 **When the datasheet only gives `θJB` (or `ψJB`)**: three ways, from the least to the most conservative (Tj of the LDO on a 25 mm pad, true value 87.4 °C with `θJC(bot)` 1.7 K/W): (1) **`ψJB` with the program's board temperature** `Tj = T_ring + ψJB·P`, with `T_ring` the mean board temperature in a ring 0.5 to 1.5 mm outside the package body: 93.7 °C (+6 K) for the LDO (`ψJB` 11.9) and 65.1 against 62.8 °C for the buck (`ψJB` 13.8); this is the method the manufacturers recommend for a real board and it needs no `θJC(bot)`;
 (2) **`θJB` as the junction-to-pad resistance** with the pad and vias drawn: 102.7 °C (+15 K) and 70.2 °C, pessimistic by the spreading of the datasheet's own board, counted twice; (3) the same with a simple heater and no copper drawn, where `θJB` is the better number. The application should say this next to the field, offer the ring temperature as an output ("board temperature 1 mm from the package") and warn when `θ` is larger than the board's own rise.
@@ -80,7 +80,7 @@ Presets (resistance per area, with the apparent `k`): good paste 1.5 W/mK × 50 
 
 **Perfect contact = `R'' = 0.01 K cm²/W` (1e-6 m²K/W)**: it changes the result by 0.05 K against an ideal zero, it is 30 times better than the best measured paste, and the model's floor (1e-7 m²K/W = 0.001 K cm²/W) stays below it. Below 0.003 nothing changes. In the interface form: "full contact" = this value (or a very high `k`); the program says "perfect contact assumed (optimistic)" when no interface is chosen.
 
-### R3. A heatsink that is larger than its contact (2026-10-17)
+### R9. A heatsink that is larger than its contact (2026-10-17)
 
 **The question**: a big plate or heatsink touches the copper (or a component) only on a small area. Today a Heatsink block conducts to the board over its whole outline: through the interface over copper and, in series with the FR-4, over bare laminate. A real heatsink resting on standoffs, on a pad or on one component touches only there.
 **Literature** (spreading resistance, Seri Lee, Electronics Cooling 1998; Yovanovich and Muzychka; Ellison; a 1995 paper of Lee, Song, Au and Moran cited before has not been located): a small source on a larger plate has `R = R_0 + R_c` (average sink resistance plus the maximum constriction resistance), accurate to about 5 % when the aspect ratio is below 2.5 and the plate is square-ish
@@ -118,7 +118,7 @@ For a heatsink **on top of a component** the same machinery applies with the con
 ### R5. Many levels in a chain: package, interface, board, interface, metal (2026-10-17)
 
 **Interface as the contact area (the maintainer's proposal, 2026-10-17).** A thermal interface (paste, pad, adhesive) is a layer with its own **area** (a polygon, default the whole contact face), material (`k`) and thickness, hence `R'' = t/k`. Where the interface exists the two sides are joined with `G = A/R''`; where it does not exist there is an air gap (no conduction in the first version).
-A surface that is in full contact is an interface with a very high `k` (or a very small `t`); a partial contact is a smaller polygon. This replaces the separate "contact polygon" of R3: one object, one place to type the numbers. It applies to the heatsink under the board (interface between board and metal) and to the top of a component (interface between package and heatsink).
+A surface that is in full contact is an interface with a very high `k` (or a very small `t`); a partial contact is a smaller polygon. This replaces the separate "contact polygon" of R9: one object, one place to type the numbers. It applies to the heatsink under the board (interface between board and metal) and to the top of a component (interface between package and heatsink).
 Open: how much of the board's own convection to keep under a block outside the interface (0.5 proposed).
 
 **How the levels combine.** Every level adds one conductance in series and, where heat can leave, one parallel branch; the program solves one sparse matrix, so the number of levels does not make the mathematics harder, only longer to describe:
@@ -150,7 +150,7 @@ Heat from `J` splits between the top chain and the board in the inverse ratio of
 | | + top heatsink with paste (chain 41.0 K/W) | 55.1 | 49 % | 0 % |
 | | + both | 51.6 | 43 % | 16 % |
 
-The effects are **not additive**: the block alone lowers the MOSFET by 9 K and the top heatsink by 37 K, both together by only 40 K, because the top heatsink already takes 43 to 46 % of the heat and the block's share falls from 27 to 16 %. A change of the paste under the block (0.5 to 5 K cm²/W) moves `Tj` by 1 to 2 K; the same change on top moves it by 10 to 20 K (section R2).
+The effects are **not additive**: the block alone lowers the MOSFET by 9 K and the top heatsink by 37 K, both together by only 40 K, because the top heatsink already takes 43 to 46 % of the heat and the block's share falls from 27 to 16 %. A change of the paste under the block (0.5 to 5 K cm²/W) moves `Tj` by 1 to 2 K; the same change on top moves it by 2.4 to 12 K (section R2).
 
 ### R6. The heatsink and its convection: several scenarios, one number (2026-10-17)
 
@@ -167,11 +167,11 @@ Interface values of the same article: 0.07 to 0.81 in²°C/W (0.45 to 5.2 K cm²
 2. *Natural convection*: `θsa = θref·(ΔTref/ΔT)^0.25` (`ΔTref` from the datasheet, default 75 K), with `ΔT` the heatsink's own rise, solved by the same fixed-point loop as the computed `h` (converges in a few iterations);
 3. *Forced*: `θsa = θnatural × f(v)` with `f` 1, 0.31, 0.18, 0.10 for 0, 1, 2.5 and 5 m/s, or the points of the datasheet curve.
 One environment setting would drive all of it: the air speed already used for the board faces (computed `h`) sets the heatsink scenario too, and the orientation sets the factor (a vertical board and vertical fins are the good case).
-**Simulation** (`python research/component-heatsink/scripts/heatsink_convection_study.py`; MOSFET with the top chain `θJC(top)` 30 (assumed) + default paste 4.6 + `θsa`, board `h` constant): with a 12 K/W catalogue value at 75 K the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and `Tj` 70.4 °C against 68.1 °C with the fixed number (+2.3 K, +4 K at 4 W the other way: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s gives 65.7, 64.5 and 63.6 °C. The **scenarios change `Tj` by 2 to 7 K here because `θJC(top)` (30 K/W) limits the path**: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `θJC(top)` (metal lid, bare die), which is why the scenario is worth a switch but the fixed value is a good default.
+**Simulation** (`python research/component-heatsink/scripts/heatsink_convection_study.py`; MOSFET with the top chain `θJC(top)` 30 (assumed) + default paste 4.6 + `θsa`, board `h` constant): with a 12 K/W catalogue value at 75 K the natural scaling gives 17.8 K/W at 2 W (a 25 K rise) and `Tj` 70.4 °C against 68.1 °C with the fixed number (+2.3 K; +2.8 K at 4 W: 113.9 against 111.1); the same heatsink at 1, 2.5 and 5 m/s (catalogue value times the factor, held fixed) gives 64.1, 63.3 and 62.8 °C. The **scenarios change `Tj` by 2 to 8 K here because `θJC(top)` (30 K/W) limits the path**: a better heatsink or more air buys little on a plastic package and a lot on a part with a low `θJC(top)` (metal lid, bare die), which is why the scenario is worth a switch but the fixed value is a good default.
 
 ### R7. Vertical information and presentation (noted 2026-10-17)
 
-* **Vertical (z) information to carry**: the stack-up (layer thicknesses and dielectrics, roadmap section 8), the height of the component above the board (the air gap `g` under a heatsink or plate, R3, comes from it), the orientation of the board (horizontal or vertical; the computed `h` already has it), and for enclosures the free height above the board. A "vertical layout" panel or a small side view would make the gap, the stack and the interfaces visible; to design with the maintainer.
+* **Vertical (z) information to carry**: the stack-up (layer thicknesses and dielectrics, implemented in the advanced stack-up), the height of the component above the board (the air gap `g` under a heatsink or plate, R9, comes from it), the orientation of the board (horizontal or vertical; the computed `h` already has it), and for enclosures the free height above the board. A "vertical layout" panel or a small side view would make the gap, the stack and the interfaces visible; to design with the maintainer.
 * **Perfect contact in the interface form**: the value (0.01 K cm²/W) must be presented intuitively, for example as a named choice ("soldered or bonded: perfect contact") next to the pastes and pads, not as a number to remember; to design with the maintainer.
 
 ### R8. Heatsink on a component: plate or only K/W? (topic under discussion, 2026-10-17)
@@ -181,13 +181,15 @@ One environment setting would drive all of it: the air speed already used for th
 
 | Base | 3.3 mm source | 5 mm source |
 | :-- | --: | --: |
-| aluminium 1 mm | 1.69 K/W (3.6 %) | 1.32 (3.2 %) |
-| aluminium 3 mm | 0.75 (1.6 %) | 0.54 (1.3 %) |
-| copper 3 mm | 0.40 (0.9 %) | 0.29 (0.7 %) |
-| carbon steel 1 mm | 6.31 (13.5 %) | 4.90 (12.0 %) |
-| carbon steel 3 mm | 2.83 (6.1 %) | 2.04 (5.0 %) |
+| aluminium 1 mm | 1.73 K/W (3.7 %) | 1.33 (3.3 %) |
+| aluminium 3 mm | 0.87 (1.9 %) | 0.60 (1.5 %) |
+| copper 3 mm | 0.46 (1.0 %) | 0.32 (0.8 %) |
+| carbon steel 1 mm | 6.46 (13.9 %) | 4.97 (12.1 %) |
+| carbon steel 3 mm | 3.28 (7.0 %) | 2.25 (5.5 %) |
 
-So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it is inside the 5 to 30 % of the catalogue literature only for sources much smaller relative to the base *and* a low `θJC(top)`), and it matters (5 to 13 %) only for a thin base of a poor conductor such as steel. **Recommendation**: first version = K/W only (`θJC(top)` + interface + `θsa`), with a note that a thin steel or stainless base adds more; the plate model stays where it already exists (metal block under the board, where the geometry of contact and copper matters) and returns for the component top only if a case needs it.
+(The earlier table read the first cell centre, half a cell above the source face, so thick bases were up to 30 % low; the values above are within 0 to 13 % of Lee's closed form.)
+
+So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it is inside the 5 to 30 % of the catalogue literature only for sources much smaller relative to the base *and* a low `θJC(top)`), and it matters (5 to 14 %) only for a thin base of a poor conductor such as steel. **Recommendation**: first version = K/W only (`θJC(top)` + interface + `θsa`), with a note that a thin steel or stainless base adds more; the plate model stays where it already exists (metal block under the board, where the geometry of contact and copper matters) and returns for the component top only if a case needs it.
 
 ### R4. What else may be missing (2026-10-17)
 
@@ -199,9 +201,9 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 
 ### Open questions for the maintainer (all about the future heatsink on the IC and the interfaces)
 
-1. Interface with its own area: default the whole contact face; perfect contact `R'' = 0.01 K cm²/W` shown as a named choice ("soldered or bonded"); outside the interface the air gap of R3 (default 1 mm)?
+1. Interface with its own area: default the whole contact face; perfect contact `R'' = 0.01 K cm²/W` shown as a named choice ("soldered or bonded"); outside the interface the air gap of R9 (default 1 mm)?
 2. Heatsink on a component: K/W only (R8, spreading is 1 to 4 % of the chain for aluminium and copper)?
-3. Heatsink scenarios (natural scaling, forced factors): later (`docs/roadmap.md`, "What we want to implement", Component).
+3. Heatsink scenarios (natural scaling, forced factors): later (`docs/roadmap.md`, section 4).
 
 ## Open now: the heater as a pure source or as a component (to align, 2026-10-22)
 

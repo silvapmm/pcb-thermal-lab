@@ -131,7 +131,7 @@ It is not a truth either: the barrel is a lumped copper area (no plating geometr
 
 `check_problem` (also run by `simulate` and live in the application under the Run button) never blocks a run; it warns about inputs that make a result doubtful: a heater partly outside the board
 (its power would be moved onto the part inside), no copper under a heater, a copper edge or hatching crossing a footprint (Lumped and Analytic unreliable), a heater only a few cells wide, overlapping
-heaters, vias or zones outside the board, a metal block with no copper under it (or an almost perfect contact) and zero total power.
+heaters, vias or zones outside the board, a metal block with no copper under it (or an almost perfect contact), plate fins closer than still air allows (under 4 mm of air gap), a footprint of zero area, zones or metal blocks partly outside the board, two heatsinks that overlap (only the later one is used in the overlap) and zero total power. After the run, the thick-plate check of section 4b.
 
 ## 4. Power profiles (time-dependent power) (theory §10)
 
@@ -186,7 +186,7 @@ A heater is a **source**: its power enters the board under the footprint and the
 
 **When the datasheet has no usable number**, in order: (1) fill `psi_jb` (if only `θJB`/`ψJB` exist): the ring-temperature estimate is 6 K above the `θJC(bot)` route on the LDO against 15 K for `θJB` as θ; (2) pick the **package family** (typical θ, indicative values, not from a datasheet: QFN 5, power QFN 3, DFN 10, D2PAK 0.75, TO-220 1.5, SOT-223 15, SMA/SMB/SMC diode 20, 0603 resistor 1000 K/W derived from a 0.1 W rating at 70 °C and a 170 °C limit); (3) leave θ = 0: the report is the board temperature under the part and the junction is hotter by an unknown amount. `θJA` is not usable to derive θ when the datasheet's board is not fully stated (on the SS12 it gives a negative result).
 **Sanity check**: if `θ·P` is larger than the board's own rise under the part the program warns that θ is probably a `θJA`. For two-terminal parts the heat enters by the terminals, so draw the source as the two terminal areas.
-**How much it matters** (docs/validation.md section 9): θ adds 2 to 28 % of the rise for chips and diodes (about 90 % for a small resistor); ±30 % in θ moves `Tj` by 1 to 3 K for chips. The power coefficient is the larger effect for a power MOSFET (2 W at 25 °C reaches 138 to 210 °C instead of 108 °C for 0.33 to 0.67 %/K).
+**How much it matters** (docs/validation.md section 9): θ adds 2 to 28 % of the rise for chips and diodes (about 90 % for a small resistor); ±30 % in θ moves `Tj` by 0.8 to 3 K for chips. The power coefficient is the larger effect for a power MOSFET (2 W at 25 °C reaches 138 to 210 °C instead of 108 °C for 0.33 to 0.67 %/K).
 **The top path** (heatsink on the package): the interface matters on a small package (10 K·cm²/W over 11 mm² is 92 K/W, more than the heatsink): use 0.3 to 0.5 for paste, 1.7 for a soft gap pad, 5 to 10 for a gap pad; 0 means perfect contact (optimistic; 0.01 changes the result by 0.05 K). `θJC(top)` is the datasheet number (or `Rth j-case top`); `θSA` the heatsink's value at your air flow. The junction node uses the hottest board point under the footprint, which is about 0.4 to 0.8 K above the same network with a uniform conductance (`docs/validation.md` section 9).
 **Not in this version** (noted in `docs/roadmap.md`, "What we want to implement", Component element): heatsink scenarios driven by the air speed, the heatsink as a plate layer with spreading, an interface with its own area and the air gap, the Foster chain for pulses.
 
@@ -224,7 +224,7 @@ Board canvas with zoom/pan, grid snap, polygons, vias, heatsinks, undo/redo, bac
 live input checks and the property inspector; tabs **Board**, **Power profile** (heater list, constant / square wave / table with CSV import and export, decision table, run settings) and **Results** (summary, temperature,
 gradients, profiles, components, model comparison, step-power animation, power-profile results). The temperature of the last run can be painted on the board (key T). The version is shown in the title bar, status bar and About box.
 
-## 8. Stack-up: simple and advanced
+## 8b. Stack-up: simple and advanced
 
 `Board` describes the vertical build in one of two ways, and **every model** (FVM, FDM, Lumped, Analytic, 3D solid) reads it through the same four helpers (`slab_thicknesses`, `gap_thicknesses`, `gap_properties`, `layer_laminate`):
 
@@ -368,6 +368,6 @@ A **prepreg** is glass cloth with uncured resin; after lamination it is a dielec
 ## 18. Board orientation, kept simple
 
 The mounting follows from the layer numbering: **layer 1 is the top face and looks up**, the last layer looks down. The Board panel therefore has only two orientations, **horizontal** (layer 1 faces up) and **vertical** (on its edge); it changes the computed natural convection only, typed coefficients ignore it, tilted boards are not considered.
-Theory behind it (textbook correlations, found again on 2026-10-21): horizontal plate, hot surface **facing up** Nu = 0.54 Ra^(1/4) (Ra from 1e4 or 1e5 to 1e7; 0.15 Ra^(1/3) above), hot surface **facing down** Nu = 0.27 Ra^(1/4) (1e5 to 1e10), characteristic length L = A/P (Lloyd and Moran 1974, which collapses circular, square, rectangular and triangular plates); a surface colder than the air swaps up and down; vertical plate Churchill and Chu. At the same Rayleigh number the facing-down coefficient is half the facing-up one.
+Theory behind it (textbook correlations, found again on 2026-10-21): horizontal plate, hot surface **facing up** Nu = 0.54 Ra^(1/4) (Ra from 1e4 or 1e5 to 1e7; 0.15 Ra^(1/3) above), hot surface **facing down** Nu = 0.27 Ra^(1/4) (1e5 to 1e10), characteristic length L = A/P (Lloyd and Moran 1974, which collapses circular, square, rectangular and triangular plates); a surface colder than the air swaps up and down; vertical plate Churchill and Chu. At the same Rayleigh number the facing-down coefficient is half the facing-up one up to Ra = 1e7 (above it the facing-up law is 0.15 Ra^(1/3) and the ratio falls, 0.32 at 1e9).
 The tests (`tests/test_orientation.py`) check the program against these numbers and against the behaviour they imply: the upper face of a horizontal board takes more of the heat than the lower one, a vertical board treats both faces alike, a cold board swaps the faces, the facing-down coefficient is half the facing-up one at the same Rayleigh number, the numbers agree with the formulas written out by hand, and typed coefficients are indifferent to the orientation. A heatsink's own orientation is inside its θSA (section 13).
 Measured PCB studies show that the orientation effect also depends on the components on the board (ribs and protrusions change the flow): the correlation is for a bare plate and the uncertainty stays at 20 to 30 %.
