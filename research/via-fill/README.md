@@ -41,7 +41,7 @@ A fabricator's "filled via" is not a copper-filled via. Does the fill of the bar
 
 ```sh
 .venv/bin/python research/via-fill/scripts/study_via_fill.py           # about 5 s: the two tables below
-.venv/bin/python research/via-fill/scripts/study_via_model_checks.py   # about 8 minutes (up to 3 GB): section 7; --fine adds 0.0625 and 0.05 mm (about 10 GB)
+.venv/bin/python research/via-fill/scripts/study_via_model_checks.py   # about 8 minutes (up to 3 GB): section 7; --fine adds 0.0625 and 0.05 mm (about 22 minutes; a peak footprint of 22.5 GB on a 16 GB machine, so it pages: run it alone)
 .venv/bin/python research/via-fill/scripts/make_figures.py             # about 2 minutes
 .venv/bin/python research/via-fill/scripts/make_diagrams.py
 ```
@@ -137,6 +137,8 @@ To find the right value, a board that the independent finite-volume solver `rese
 | :-- | --: | --: | --: |
 | independent, barrels resolved, 0.1 mm | 40.39 | 35.94 | −4.46 |
 | independent, barrels resolved, 1/12 mm | 40.47 | 36.03 | −4.44 |
+| independent, barrels resolved, 0.0625 mm | 40.45 | 36.05 | −4.41 |
+| independent, barrels resolved, 0.05 mm | 40.55 | 36.11 | −4.44 |
 | FVM 1 mm | 40.39 | 35.61 | −4.78 |
 | FDM 1 mm | 40.59 | 35.96 | −4.63 |
 | Lumped 1 mm | 38.76 | 32.08 | −6.68 |
@@ -189,4 +191,4 @@ Not verified:
 
 * No physical board; the IPC-4761 text; the fill conductivities beyond what the three pages say (read through a summary of each page).
 * The Peaceman radius is quoted from memory; the measured matching cell agrees with it but it was not re-derived.
-* The independent reference was run at 0.1 and 1/12 mm; a first run at 0.05 mm had an open bore of zero conductivity (isolated cells under the source, a wrong result) and was discarded; the corrected 0.05 mm run (`--fine`, about 10 GB) was not repeated.
+* The independent reference was run at 0.1, 1/12, 0.0625 and 0.05 mm (`--fine`, 450 000 and 700 000 unknowns). A first run at 0.05 mm had an open bore of zero conductivity (isolated cells under the source, a wrong result) and was discarded; the corrected run, made on a machine just restarted with nothing else running, gives 40.55 / 36.11 K and a gain of −4.44 K, which stays with the other references (−4.41 to −4.46 K). The run needed a peak memory footprint of 22.5 GB reported by `/usr/bin/time -l` on a 16 GB machine (it includes compressed memory and swap, so the machine paged; the plan's 10 GB was an underestimate) and took about 22 minutes.
