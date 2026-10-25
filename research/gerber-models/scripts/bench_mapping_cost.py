@@ -8,6 +8,7 @@
 import _bootstrap  # noqa: F401  (puts the import paths of research/gerber-models in order)
 
 import resource
+import sys
 import time
 
 import numpy as np
@@ -42,7 +43,7 @@ def main():
         t = time.time(); cd.map_lambda(blk, 0.5); t_lam = time.time() - t
         t = time.time(); cd.dual_faces(S, n, 0); t_dual = time.time() - t
         t = time.time(); cd.map_cell_problem(blk); t_cell = time.time() - t
-        print(f"{h_mm:6d} x {w_mm:<4d}{h * w:12,d}{t_lam:10.2f}{t_dual:10.1f}{t_cell:16.1f}{resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024:9.0f}", flush=True)
+        print(f"{h_mm:6d} x {w_mm:<4d}{h * w:12,d}{t_lam:10.2f}{t_dual:10.1f}{t_cell:16.1f}{resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 * 1024 if sys.platform == "darwin" else 1024):9.0f}", flush=True)
 
 
 if __name__ == "__main__":
