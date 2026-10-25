@@ -4,10 +4,9 @@
 
 @details A 100 x 80 mm two-layer board with full copper on both layers and one 2 W part, and the program's example board, are solved at several cell sizes. Every size runs in its own child process, so that the peak
          resident memory (`resource.getrusage`, kilobytes on Linux and bytes on macOS) belongs to that run alone. Time includes the assembly of the model and the direct sparse solve
-         (the SuperLU solve that the application uses). Sizes stay under 300 000 unknowns on purpose (the 3D solid refuses more in the application). The result is written to
-         `out/solve_cost.json` (git-ignored) with the machine and the library versions, and read by `make_figures.py` for figure 9. The larger sizes quoted in the README (400 000 to 1 million
-         unknowns) are NOT measured here; they come from the program's CHANGELOG and docs/roadmap.md.
-         Usage: .venv/bin/python research/solid3d-verification/scripts/study_solve_cost.py (from the repository root; about 5 minutes and up to 5 GB; run nothing else heavy at the same time).
+         (the SuperLU solve that the application uses). The 3D solid runs inside `solid3d.size_limit` so that sizes above the 250 000 unknowns of the application can be timed. The result is written to
+         `out/solve_cost.json` (git-ignored) with the machine and the library versions, and read by `make_figures.py` for figure 9. The last four cases reproduce the larger sizes quoted by the program documents (3D solid 400 000 and 512 000 unknowns, layered FVM 1 and 2 million).
+         Usage: .venv/bin/python research/solid3d-verification/scripts/study_solve_cost.py (from the repository root; about 25 minutes and up to 9 GB; run nothing else heavy at the same time).
 """
 
 import json
@@ -25,7 +24,9 @@ sys.path.insert(0, str(ROOT))
 
 # "solid3d" and "fvm": the plain board of board(); "example": the program's example board (4 layers, partial top copper, nine vias, a heatsink), 3D solid
 CASES = [("solid3d", 1.10), ("solid3d", 0.70), ("solid3d", 0.55), ("solid3d", 0.44), ("fvm", 0.64), ("fvm", 0.40), ("fvm", 0.25),
-         ("example", 1.4), ("example", 0.9), ("example", 0.72)]
+         ("example", 1.4), ("example", 0.9), ("example", 0.72),
+         # the sizes that the program documents quote: 3D solid about 400 000 and 512 000 unknowns, layered FVM about 1 and 2 million
+         ("solid3d", 0.35), ("solid3d", 0.31), ("fvm", 0.127), ("fvm", 0.09)]
 
 
 def board():
