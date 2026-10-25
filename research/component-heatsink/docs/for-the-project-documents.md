@@ -1,4 +1,4 @@
-# Text for the project documents (review of 2026-10-25)
+# Text for the project documents (review)
 
 The review of `research/component-heatsink/` (README section 7) found statements in the program's documents that are stale, contradicted by the tables of the studies or missing. The project documents are not edited on a research branch; this is the text to fold in on the next documents branch off `develop`.
 

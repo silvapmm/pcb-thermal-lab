@@ -190,7 +190,7 @@ One environment setting would drive all of it: the air speed already used for th
 | carbon steel 1 mm | 6.46 (13.9 %) | 4.97 (12.1 %) |
 | carbon steel 3 mm | 3.28 (7.0 %) | 2.25 (5.5 %) |
 
-(Review of 2026-10-25: the earlier table read the first cell centre, half a cell above the source face; thick bases were up to 30 % low. Now within 0 to 13 % of Lee's closed form, README 4.7.)
+(Review: the earlier table read the first cell centre, half a cell above the source face; thick bases were up to 30 % low. Now within 0 to 13 % of Lee's closed form, README 4.7.)
 
 So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it is inside the 5 to 30 % of the catalogue literature only for sources much smaller relative to the base *and* a low `θJC(top)`), and it matters (5 to 14 %) only for a thin base of a poor conductor such as steel. **Recommendation**: first version = K/W only (`θJC(top)` + interface + `θsa`), with a note that a thin steel or stainless base adds more; the plate model stays where it already exists (metal block under the board, where the geometry of contact and copper matters) and returns for the component top only if a case needs it.
 

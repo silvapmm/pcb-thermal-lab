@@ -12,7 +12,7 @@ The work of this folder is in the program since 2.3.0 (the block in the FVM, FDM
 | Fin air-gap warning (below 4 mm in still air) | `checks.py` | `tests/test_heatsink_part.py` |
 | Thick-plate warning with the flux into the block | `checks.check_thick_plates`, `checks._block_flux_under` | `tests/test_thick_plate.py` |
 
-## A defect of the program found in the review of 2026-10-25: the fin ratio on the sides of the block
+## A defect of the program found in the review: the fin ratio on the sides of the block
 
 **What.** `blocks.extra_layers` gives every block cell the conductance to the ambient `h_tot (A c + t L_edge)` with `h_tot = h_face × fin_ratio + h_extra`; `solid3d.py` does the same (`vk[s] += h_tot * dz * edge`). The first term is right: the fins stand on the exposed base face, and the ratio is per unit of base area. The second term gives the **sides** of the base plate the fin ratio too, though the sides carry no fins; they should see `h_face + h_extra`. `docs/theory.md` section 7 writes the exposed term as `(h_face + h_extra)(Δx Δy c + t L_edge)` (no fin ratio at all) and the Lumped bullet of the same section as `h_exp (A c + t L_edge)`: neither describes the code as a fin model should be.
 

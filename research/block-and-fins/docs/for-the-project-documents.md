@@ -1,4 +1,4 @@
-# Text for the project documents (review of 2026-10-25)
+# Text for the project documents (review)
 
 The review of `research/block-and-fins/` (README section 7) found numbers and statements in the project documents that the re-run does not support. `docs/` and `pcbthermal/` are not edited on a research branch; this is the replacement text, to be applied on `develop` by the maintainer. Numbers from `develop` `a9c1cd1`, and checked against the documents of that commit. If the fin-ratio-on-the-sides correction of `INTEGRATION.md` is adopted, the finned rows below move again (by +5.4 to +6.4 % in the FVM) and have to be re-run with `study_finned_block_all_models.py`.
 

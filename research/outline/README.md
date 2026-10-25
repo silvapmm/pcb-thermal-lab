@@ -207,7 +207,7 @@ Independent review by the reviewer agent, on the program at `0ea5f07` (merged in
 * **New independent checks**: the closed form C/G (4.4), a radial solution of the round board, steady and transient (4.5).
 * **A defect of the program found** (4.6): the edge loss of outline sides on grid lines in the FVM and the 3D solid. Measured on a copy (research branch). **Now corrected in the program** by `geometry.edge_length_per_cell` (inward nudge) and `geometry.edge_length_on_board` (thin slices), see the follow-up below.
 * The same stale ranges ("10 to 20 %", "0.2 to 3 %", "10 to 18 %", "always on the cool side") are in `docs/validation.md` section 13, `docs/theory.md` (Lumped and Analytic on an outline) and the docstring of `Problem.equivalent_rectangle`: replacement text in `docs/for-the-project-documents.md`. The theory topic `research/theory/topics/20-board-outline.md` repeats them (left to the review of that folder).
-* The folder has no `IMPLEMENTED.md` and no `LOG.md` (the layout of `CLAUDE.md` asks for them); where the work lives in the program is in section 4.4 and in `docs/versions.md`. Left to the maintainer, as in the other folders.
+* The folder follows the current layout (no per-folder `IMPLEMENTED.md` or `LOG.md`); where the work lives in the program is in section 4.4 and in `docs/versions.md`. Left to the maintainer, as in the other folders.
 
 ### Follow-up after the correction of the program
 

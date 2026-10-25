@@ -3,8 +3,10 @@
 @brief Pictures of the via-fill study, written to figures/ (committed, linked from the README files).
 
 @details fig_01: thermal resistance of one 0.3 mm via through 1.6 mm for every fill; fig_02: maximum temperature of the example board for every fill;
-         fig_03: resistance of one via against its diameter, open barrel against copper fill. Needs numpy, matplotlib and the repository's dependencies.
-Usage: python research/via-fill/scripts/make_figures.py   (from the repository root; about 1 minute)
+         fig_03: resistance of one via against its diameter, open barrel against copper fill; fig_06: gain of a copper fill on a via-array board against the FVM cell
+         size, with the independent solver (barrels resolved) as the reference (`study_via_model_checks.py`, part 4). Figures 4 and 5 are drawn by make_diagrams.py.
+         Needs numpy, matplotlib and the repository's dependencies.
+Usage: python research/via-fill/scripts/make_figures.py   (from the repository root; about 2 minutes)
 """
 
 import os
@@ -100,15 +102,45 @@ def fig_diameter():
     plt.close(fig)
 
 
+def fig_cell():
+    """!
+    @brief Gain of a copper fill on the via-array board of study_via_model_checks.py against the FVM cell size, with the independent reference.
+    @return None.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import study_via_model_checks as chk
+    cells = [1.0, 0.5, 0.25, 0.125, 0.0625]
+    gain = [chk.array_board(c, 385.0)["fvm"] - chk.array_board(c, 0.0)["fvm"] for c in cells]
+    ref = chk.array_board_independent(0.1, 385.0) - chk.array_board_independent(0.1, 0.0)
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(cells, gain, "o-", color=COLOURS[3], label="FVM of the program (via in one cell)")
+    ax.axhline(ref, color="k", ls="--", label=f"independent solver, barrels resolved (0.1 mm): {ref:+.2f} K")
+    ax.axvline(0.76, color=COLOURS[0], ls=":", label="cell where 0.198 dx = via radius (Peaceman)")
+    for c, g in zip(cells, gain):
+        ax.annotate(f"{g:+.2f}", (c, g), textcoords="offset points", xytext=(0, 7), ha="center", fontsize=8)
+    ax.set_xscale("log")
+    ax.set_xticks(cells)
+    ax.set_xticklabels([f"{c:g}" for c in cells])
+    ax.set_xlabel("FVM cell size (mm)")
+    ax.set_ylabel("Change of the maximum rise, copper fill - open (K)")
+    ax.set_title("Via-array board: the gain of a copper fill shrinks as the cell shrinks", fontsize=10)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8, loc="upper right")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_06_copper_fill_gain_against_cell.png", dpi=110)
+    plt.close(fig)
+
+
 def main():
     """!
-    @brief Make the three figures.
+    @brief Make the four data figures.
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
     fig_resistance()
     fig_board()
     fig_diameter()
+    fig_cell()
     print("figures in", OUT)
 
 
