@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 
 from .. import defaults
 from .. import model
+from . import theme as th
 
 LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)", "interfaces": "Interface materials", "dielectrics": "Dielectrics (stack-up)",
                   "package_theta": "Package families (typical θ)", "heatsinks": "Heatsinks on a package (typical θSA)"}
@@ -164,7 +165,7 @@ class PreferencesDialog(QDialog):
         lay = QVBoxLayout(w)
         note = QLabel(LIBRARY_TIPS[lib])
         note.setWordWrap(True)
-        note.setStyleSheet("font-size: 11px; color: gray;")
+        th.hint(note)
         lay.addWidget(note)
         rows = self.data["libraries"][lib]
         cols = list(defaults.shipped()["libraries"][lib][0].keys())
@@ -225,7 +226,7 @@ class PreferencesDialog(QDialog):
         note = QLabel("The Power calculator gives a best case, a nominal and a worst case power. Each source of doubt is moved alone to both ends of its uncertainty (±, below) "
                       "and the effects are added as the root of the sum of squares. Change the percentages to what you know about your board and your measurement.")
         note.setWordWrap(True)
-        note.setStyleSheet("font-size: 11px; color: gray;")
+        th.hint(note)
         note.setToolTip(SECTION_HINTS["calculator"])
         lay.addWidget(note)
         lay.addWidget(self._section_tab("calculator"))

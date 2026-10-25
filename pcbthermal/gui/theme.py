@@ -9,13 +9,13 @@ from PySide6.QtWidgets import QApplication
 
 THEMES = {
     "dark": {
-        "window": "#1e2127", "base": "#15181d", "alt": "#23272e", "text": "#e6e8eb", "muted": "#8b949e",
+        "window": "#1e2127", "base": "#15181d", "alt": "#23272e", "text": "#e6e8eb", "muted": "#8b949e", "hint": "#9aa3ad",
         "accent": "#4c8dff", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
         "grid_minor": "#ffffff12", "grid_major": "#ffffff2a", "solver_grid": "#4cc9f040",
         "copper": "#d08a3c", "heater": "#ff5b4f", "heatsink": "#3aa0ff", "via": "#f2c14e",
     },
     "light": {
-        "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280",
+        "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280", "hint": "#5f6570",
         "accent": "#2563eb", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
         "copper": "#c77d2e", "heater": "#e0392d", "heatsink": "#1d78d8", "via": "#c9971c",
@@ -91,7 +91,21 @@ def apply_theme(app, name):
         QTableWidget, QTreeWidget {{ border: 1px solid {c['border']}; gridline-color: {c['border']}; }}
         QProgressBar {{ border: 1px solid {c['border']}; border-radius: 4px; text-align: center; height: 14px; }}
         QProgressBar::chunk {{ background: {c['accent']}; border-radius: 3px; }}
+        QLabel[hint="true"] {{ font-size: 11px; color: {c['hint']}; }}
     """)
+
+
+def hint(label):
+    """!
+    @brief Show a label as a small explanatory note in the theme's hint colour.
+
+    @param label QLabel.
+    @return The same label.
+    @note The notes used a fixed grey (#808080): 3.6:1 against the light window and 4.1:1 against the dark one, below the 4.5:1 that small text
+          needs. The hint colour of each theme gives 5.3:1 (light) and 6.3:1 (dark), and follows a theme switch.
+    """
+    label.setProperty("hint", True)
+    return label
 
 
 def _icon(size, painter_fn, color):

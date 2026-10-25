@@ -320,3 +320,23 @@ def test_stackup_table_keeps_the_keyboard_focus_after_an_edit(win):
     QApplication.processEvents()
     assert win.doc.problem.board.dielectrics[0].thickness == pytest.approx(200e-6)
     assert QApplication.focusWidget() is table.cellWidget(1, 2)
+
+
+def test_notes_use_the_theme_hint_colour(win):
+    """!
+    @brief The small notes of the panels are drawn in the hint colour of the theme, not in a fixed grey (3.6:1 on the light theme).
+    """
+    from PySide6.QtWidgets import QApplication, QLabel
+    from pcbthermal.gui import theme as th
+    win._load_problem(example_board(), "ex")
+    win.doc.set_props("heatsink", 0, thickness=3e-3, merge=False)          # A metal block: its note is one of the hints
+    for kind in ("heater", "heatsink", "via"):
+        win.canvas.set_selection([(kind, 0)])
+        win._on_canvas_selection([(kind, 0)])
+        QApplication.processEvents()
+        notes = [lb for lb in win.inspector.form_host.findChildren(QLabel) if lb.property("hint")]
+        assert notes, kind
+        for lb in notes:
+            assert lb.palette().color(lb.foregroundRole()).name() == th.colors(win.theme_name)["hint"]
+    for w in QApplication.allWidgets():
+        assert "color: gray" not in w.styleSheet()

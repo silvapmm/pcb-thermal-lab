@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 from .. import defaults
 from ..inverse import power_from_theta
 from .compute import ProcessWorker
+from . import theme as th
 
 HELP_FILE = Path(__file__).resolve().parents[1] / "help" / "calculator.html"
 DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band covers only the doubt about numbers (copper thickness, heat transfer, θ, ψJT, reading). It does not cover a wrongly drawn board."),
@@ -140,7 +141,7 @@ class PowerCalculator(QDialog):
         lay = QVBoxLayout(w)
         note = QLabel("Uses the board in the editor: change the copper, vias or stack-up there and the answer changes.")
         note.setWordWrap(True)
-        note.setStyleSheet("font-size: 11px; color: gray;")
+        th.hint(note)
         note.setToolTip("The board model is the same one the simulation uses, run backwards.")
         lay.addWidget(note)
         f = QFormLayout()
@@ -227,7 +228,7 @@ class PowerCalculator(QDialog):
         lay = QVBoxLayout(w)
         note = QLabel("No board model: the datasheet relation P = (Tj − Treference) / parameter. The result updates as you type.")
         note.setWordWrap(True)
-        note.setStyleSheet("font-size: 11px; color: gray;")
+        th.hint(note)
         note.setToolTip("Quick, but the parameter belongs to the datasheet's own test board: on yours it is an estimate.")
         lay.addWidget(note)
         f = QFormLayout()

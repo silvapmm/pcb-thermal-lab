@@ -18,6 +18,7 @@ from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, V
 from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
+from . import theme as th
 
 
 def _is_rect(pts):
@@ -102,7 +103,7 @@ class BoardPanel(QWidget):
         self.copper = _spin(5, 210, 35, 1, 5, "µm")
         self.stack_note = QLabel("")
         self.stack_note.setWordWrap(True)
-        self.stack_note.setStyleSheet("font-size: 11px; color: gray;")
+        th.hint(self.stack_note)
         self.width.setToolTip("Board size along x in millimetres.")
         self.height.setToolTip("Board size along y in millimetres.")
         self.thickness.setToolTip("Total board thickness in millimetres (simple stack-up: copper and equal dielectric gaps share it). "
@@ -720,7 +721,7 @@ class Inspector(QWidget):
                                    "in Preferences). Replace them by the datasheet numbers whenever you have them.")
                     typical = QLabel("")
                     typical.setWordWrap(True)
-                    typical.setStyleSheet("font-size: 11px; color: gray;")
+                    th.hint(typical)
                     typical.setToolTip("The typical values and the note of the chosen family, from the library.")
                     entry = next((e for e in PACKAGE_THETA if e[0] == el.family), None)
                     typical.setText(f"Typical for {entry[0]}: θ junction-pad {entry[1]:g} K/W, θJC(top) {entry[2]:g} K/W, Tj max {entry[3]:g} °C." if entry else
@@ -789,7 +790,7 @@ class Inspector(QWidget):
                                     "air speed of the board (Environment) does not change θSA: choose the flow that matches your case or type your own θSA.")
                     hs_note = QLabel("")
                     hs_note.setWordWrap(True)
-                    hs_note.setStyleSheet("font-size: 11px; color: gray;")
+                    th.hint(hs_note)
                     hs_note.setToolTip("The catalogue value and its source for the chosen heatsink and flow.")
                     hs_note.setText(f"Catalogue: {cur[0]}, {cur[1]:g} K/W." if cur else
                                     ("Custom: your own θSA." if el.theta_sa > 0 else "No heatsink: all the power enters the board (worst case)."))
@@ -826,7 +827,7 @@ class Inspector(QWidget):
                     if top_active and el.theta <= 0:
                         need = QLabel("The top path also needs a junction-to-pad θ above zero (Junction box).")
                         need.setWordWrap(True)
-                        need.setStyleSheet("font-size: 11px; color: gray;")
+                        th.hint(need)
                         need.setToolTip("The heat that goes up is taken from the heat that enters the board, which needs the junction-to-pad resistance θ to be known.")
                         lay.addRow(need)
                     why = ""
@@ -930,15 +931,15 @@ class Inspector(QWidget):
                     lay = box("Metal block")
                     only = QLabel("The FVM, FDM and 3D solid model the block fully. The Lumped and Analytic models have it in steady state only (within about 5 % of the FVM); their time simulation does not.")
                     only.setWordWrap(True)
-                    only.setStyleSheet("font-size: 11px; color: gray;")
+                    th.hint(only)
                     only.setToolTip("The Lumped model keeps the block as one more layer of its ring network and the Analytic model as a graph of tiles in its local "
                                     "correction; both were within 5 % of the FVM in 74 test cases, with no time simulation.")
                     lay.addRow(only)
-                    th = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
-                    th.setToolTip("Thickness of the metal block pressed on this face. The heat enters the block only where the block overlaps copper of this layer, "
+                    block_t = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
+                    block_t.setToolTip("Thickness of the metal block pressed on this face. The heat enters the block only where the block overlaps copper of this layer, "
                                   "spreads in the metal and leaves by its surface.")
-                    th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
-                    lay.addRow("Block thickness", th)
+                    block_t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
+                    lay.addRow("Block thickness", block_t)
                     mat = QComboBox()
                     presets = list(METALS) + [("Custom", None, None)]
                     for label, k_, c_ in presets:
@@ -1005,7 +1006,7 @@ class Inspector(QWidget):
                                   "values are in Preferences (Libraries - via fills). 0 = open barrel.")
                 typical = QLabel("")
                 typical.setWordWrap(True)
-                typical.setStyleSheet("font-size: 11px; color: gray;")
+                th.hint(typical)
                 typical.setToolTip("The typical conductivity and the note of the chosen fill, from the library.")
                 entry = VIA_FILLS[current] if current < len(VIA_FILLS) else None
                 typical.setText(f"Typical: {entry[1]:g} W/mK. {entry[2]}" if entry else "Custom value.")
@@ -1114,8 +1115,8 @@ class Inspector(QWidget):
         mat.setToolTip(f"The one dielectric sheet {where} (thermal paste or gap pad): a preset fills its thickness and conductivity. "
                        "'Direct contact' means no material in between (for example bare copper pressed on the metal): thickness and resistance 0, the optimistic limit. Indicative values (apparent "
                        "conductivity including the contact resistances): check your material's datasheet. The sheet can have its own material and thickness.")
-        th = _spin(0, 20, t_now * 1000, 3, 0.1, "mm")
-        th.setToolTip(f"Thickness of the dielectric sheet {where} (paste 0.05 to 0.1 mm, gap pad 0.5 to 1.5 mm). With its conductivity it gives the interface "
+        sheet_t = _spin(0, 20, t_now * 1000, 3, 0.1, "mm")
+        sheet_t.setToolTip(f"Thickness of the dielectric sheet {where} (paste 0.05 to 0.1 mm, gap pad 0.5 to 1.5 mm). With its conductivity it gives the interface "
                       "resistance thickness / k; 0 = type the resistance below instead.")
         kk = _spin(0, 100, k_now, 2, 0.5, "W/mK")
         kk.setToolTip("Conductivity of the dielectric sheet (grease 1 to 5, gap pads 1 to 6 W/mK apparent; the datasheet's bulk value is higher than what a joint "
@@ -1134,15 +1135,15 @@ class Inspector(QWidget):
                 write(t_, k_, t_ / k_ * 1e4)
 
         def sheet(_v):
-            if th.value() > 0 and kk.value() > 0:
-                write(th.value() * 1e-3, kk.value(), th.value() * 1e-3 / kk.value() * 1e4)
+            if sheet_t.value() > 0 and kk.value() > 0:
+                write(sheet_t.value() * 1e-3, kk.value(), sheet_t.value() * 1e-3 / kk.value() * 1e4)
 
         mat.currentIndexChanged.connect(pick)
-        th.valueChanged.connect(sheet)
+        sheet_t.valueChanged.connect(sheet)
         kk.valueChanged.connect(sheet)
         res.valueChanged.connect(lambda v: write(0.0, 0.0, v))
         lay.addRow("Interface material", mat)
-        lay.addRow("Interface thickness", th)
+        lay.addRow("Interface thickness", sheet_t)
         lay.addRow("Interface conductivity", kk)
         lay.addRow("Interface resistance", res)
 
