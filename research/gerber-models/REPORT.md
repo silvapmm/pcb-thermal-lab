@@ -38,7 +38,7 @@ All are tried on the same masks and judged against the same reference: **the mas
 | :-- | :-- | :-- | :-- | :-- |
 | **fill fraction** (the program's) | arithmetic mean of the two phases by the copper fraction of the cell | the fraction | none | the program |
 | geometric mean | `S = S_Cu^f S_lam^(1-f)` | the fraction | none | power-law averaging (Durlofsky), Keller-Dykhne for 2D |
-| Bruggeman, Hashin-Shtrikman (lower, upper) | effective-medium formulas of a two-phase medium | the fraction | none | closed forms (from memory, checked by limits) |
+| Bruggeman, Hashin-Shtrikman (lower, upper) | effective-medium formulas of a two-phase medium | the fraction | none | closed forms (from memory; checked by an independent derivation and numbers, README Review R5) |
 | Wiener lower and upper bounds | per direction: rows in parallel of series chains (low), columns in series of parallel pixels (up) | the pixels | negligible | classical bounds; **the low bound plus the arithmetic fraction is Blackmore's tile method (2010)** |
 | **lambda 0.5** | geometric mean of the two bounds per direction (`Sx`, `Sy` per cell) | the pixels | negligible | this research |
 | cell problem | numerical upscaling: a local conduction problem on the cell | the pixels | seconds | homogenisation |

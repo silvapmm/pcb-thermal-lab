@@ -32,7 +32,7 @@ Results: the board of the Stormduino project 3606.7 mm2 against 3605.1 mm2 of th
 
 ## 4. Sources
 
-* The profile layer, strokes and centre line, closed path, practice of fabricators: [ProfileLayer] (search snippets); the Gerber format owner: [UcamcoGerber] (not read). Reader and reference: [Gerbonara].
+* The profile layer, strokes and centre line, closed path, practice of fabricators: [ProfileLayer] (search snippets); the Gerber format owner: [UcamcoGerber] (revision 2024.05 read in part by the reviews of `research/gerber-import`; its passages on the profile layer were not read). Reader and reference: [Gerbonara].
 * The rectangle of the same area: **no published method was found**; it is a modelling choice tested in this project against the FVM on the real shape (`research/outline/scripts/outline_rectangle_study.py`, `docs/validation.md` section 13): [L-outline].
 
 *What was read and what was not verified:* from the READMEs of the two folders (read in full); the source pages were seen as search snippets.

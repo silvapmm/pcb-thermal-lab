@@ -19,7 +19,7 @@ A copper track that carries a current is itself a heater: `P = I^2 R`. The **hea
 
 ## 3. Where the nets come from
 
-The Gerber X2 attribute `TO.N` names the net of an object (`TD` ends it); the reader keeps the net of every operation. Limits found: pads and tracks carry a net, zone fills may not; net names of a panel repeat on every board. Working rule: the net of a piece of **connected copper** is the net of the labelled objects it contains (149 of 176 pieces on the top layer have exactly one net, none has two). Plated holes join the pieces of two layers (109 of 109 join, 0 of 66 groups hold two nets). Checked against a KiCad project pixel by pixel: 99.998 % of 2.25 million pixels lie on Gerber copper. (Sources: `research/gerber-import/README.md` 4.29, 4.33 and 4.46, where the reading of the nets now lives.)
+The Gerber X2 attribute `TO.N` names the net of an object (`TD` ends it); the reader keeps the net of every operation. Limits found: pads and tracks carry a net, zone fills may not; one net is often several separate pieces on a layer (12 for `Board_0-/X9` on the top layer of the four-layer `charliewatch-v2` board), most likely joined by vias and the inner layers (an earlier text said the net names of a panel repeat on every board; the review of `gerber-nets`, its README section 7, found one board, not a panel). Working rule: the net of a piece of **connected copper** is the net of the labelled objects it contains (149 of 176 pieces on the top layer have exactly one net, none has two). Plated holes join the pieces of two layers (109 of 109 join, 0 of 66 groups hold two nets). Checked against a KiCad project pixel by pixel: 99.998 % of 2.25 million pixels lie on Gerber copper. (Sources: `research/gerber-import/README.md` 4.29, 4.33 and 4.46, where the reading of the nets now lives.)
 
 ## 4. Numbers of the prototype
 
@@ -32,7 +32,7 @@ A synthetic board: 1 A through a track of 70 squares gives 32 mohm and 32 mW (30
 ## 6. Sources
 
 * Power-integrity practice (supply pins as sources, loads as current sinks, copper as a resistor network): [PDNSim], [AltiumPDN], [CadenceJoule] (search summaries). Trace current and temperature rise: [IPC2152] (named, not read).
-* The KiCad file and the X2 attributes: [KiCadFormat], [UcamcoGerber] (the specification was not read).
+* The KiCad file and the X2 attributes: [KiCadFormat], [UcamcoGerber] (revision 2024.05 read in part: the `.N` attribute, its syntax and reserved names, by the review of the separation of the Gerber folders, `research/gerber-import/docs/literature.md`).
 * Similar tools (ideas only, AGPL where marked): [OpenToolsIdeas].
 * Own computation: [L-gerber].
 

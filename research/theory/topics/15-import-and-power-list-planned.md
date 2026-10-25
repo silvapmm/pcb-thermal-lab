@@ -34,7 +34,7 @@ FYPA, padne and altium_monkey are AGPL-3.0; the project is MIT. Their ideas and 
 
 ## 7. Sources
 
-* The ideas and the tools read as summaries: [OpenToolsIdeas]. KiCad format: [KiCadFormat]. Gerber specification (not read) and the format page: [UcamcoGerber]. Reader and comparison tools: [Gerbonara], [GerberTools].
+* The ideas and the tools read as summaries: [OpenToolsIdeas]. KiCad format: [KiCadFormat]. Gerber specification (revision 2024.05, read in part by the reviews of `research/gerber-import`: the passages named in its README section 7 and `docs/literature.md`) and the format page: [UcamcoGerber]. Reader and comparison tools: [Gerbonara], [GerberTools].
 * Datasheet values and families for the library: [Datasheets], [Microchip-Thermal].
 * Own computation: [L-gerber].
 

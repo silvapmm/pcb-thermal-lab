@@ -34,7 +34,7 @@ https://www.electronics-cooling.com/2010/09/creating-pcb-thermal-conductivity-ma
 ## 4. Effective-medium formulas (search summaries and memory)
 
 * Confirmed by a search summary: duality for 2D two-phase conductivity (Keller 1964; Dykhne 1970): the effective conductivity at swapped phases is related; at equal fractions and an isotropic self-dual microstructure it is sqrt(k1 k2); the effective conductivity lies between the Neumann and Dirichlet values; Hashin and Shtrikman gave optimal bounds for isotropic composites. Seen: arXiv:1105.0954, cond-mat/0410073, a 2017 note in Comptes Rendus Mécanique.
-* **Not confirmed by any text read:** the explicit 2D Hashin-Shtrikman bounds and the 2D Bruggeman equation k² - (a - b)(2f - 1)k - ab = 0 used in `conduction.py`. They match the limits in `tests/test_conduction.py` (f = 0 and 1, equal phases, sqrt(ab) at f = 1/2, bounds ordering). Milton, *The Theory of Composites*, and Torquato, *Random Heterogeneous Materials*, are the places to check them.
+* **Not confirmed by any text read:** the explicit 2D Hashin-Shtrikman bounds and the 2D Bruggeman equation k² - (a - b)(2f - 1)k - ab = 0 used in `conduction.py`. They match the limits in `tests/test_conduction.py` (f = 0 and 1, equal phases, sqrt(ab) at f = 1/2, bounds ordering). Milton, *The Theory of Composites*, and Torquato, *Random Heterogeneous Materials*, are the places to check them. Since then checked independently, still without a textbook (README Review R5): each 2D Hashin-Shtrikman bound equals the 2D Maxwell-Garnett form of circular inclusions derived separately, the 2D Bruggeman root obeys the Keller-Dykhne duality exactly, and a numerical disc in a square cell lies on the lower bound within 0.1 %.
 
 ## 5. Ucamco (the owner of the Gerber format)
 
