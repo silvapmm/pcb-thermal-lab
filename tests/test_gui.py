@@ -272,3 +272,51 @@ def test_docks_open_wide_enough_and_keep_the_run_button_in_sight(qtbot, tmp_path
     w2.show()
     QApplication.processEvents()
     assert abs(w2.dock_board.width() - width) <= 2
+
+
+def test_properties_keep_the_keyboard_focus_after_an_edit(win):
+    """!
+    @brief Enter keeps the focus on the edited field and Tab moves to the next one, although every edit rebuilds the Properties form.
+
+    @note Regression: the rebuild destroyed the focused field and the focus fell to the tab bar, so the fields could not be filled from the keyboard.
+    """
+    from PySide6.QtWidgets import QApplication, QDoubleSpinBox
+    win._load_problem(example_board(), "ex")
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    power = next(s for s in win.inspector.form_host.findChildren(QDoubleSpinBox) if s.suffix() == " W")
+    power.setFocus()
+    power.lineEdit().selectAll()
+    QTest.keyClicks(power.lineEdit(), "5")
+    QTest.keyClick(power, Qt.Key_Return)
+    QApplication.processEvents()
+    assert win.doc.problem.heaters[0].power == pytest.approx(5.0)
+    focused = QApplication.focusWidget()
+    assert isinstance(focused, QDoubleSpinBox) and focused.suffix() == " W" and win.inspector.isAncestorOf(focused)
+    focused.lineEdit().selectAll()
+    QTest.keyClicks(focused.lineEdit(), "6")
+    QTest.keyClick(focused, Qt.Key_Tab)
+    QApplication.processEvents()
+    assert win.doc.problem.heaters[0].power == pytest.approx(6.0)
+    after = QApplication.focusWidget()
+    assert after is not None and win.inspector.isAncestorOf(after) and after is not focused
+
+
+def test_stackup_table_keeps_the_keyboard_focus_after_an_edit(win):
+    """!
+    @brief Enter in a thickness of the advanced stack-up table keeps the focus in that cell although the table is rebuilt.
+    """
+    from PySide6.QtWidgets import QApplication
+    win._load_problem(example_board(), "ex")
+    win.doc.problem.board.make_advanced()
+    win.doc.changed.emit()
+    win.tabs.setCurrentIndex(1)
+    table = win.stackup_page.editor
+    cell = table.cellWidget(1, 2)                      # Thickness of the first dielectric gap, in µm
+    cell.setFocus()
+    cell.lineEdit().selectAll()
+    QTest.keyClicks(cell.lineEdit(), "200")
+    QTest.keyClick(cell, Qt.Key_Return)
+    QApplication.processEvents()
+    assert win.doc.problem.board.dielectrics[0].thickness == pytest.approx(200e-6)
+    assert QApplication.focusWidget() is table.cellWidget(1, 2)

@@ -7,7 +7,7 @@ import numpy as np
 from PySide6.QtCore import Qt, Signal
 import math
 
-from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
+from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
@@ -601,6 +601,7 @@ class Inspector(QWidget):
         """
         super().__init__(parent)
         self.doc, self.selection, self._updating = doc, [], False
+        self._form_selection = None                # The selection the current form was built for
         self._manual_as = {}                       # (kind, index) -> "h" or "rsa": which value a manual-input heatsink is typed as
         self.lay = QVBoxLayout(self)
         self.lay.setContentsMargins(8, 8, 8, 8)
@@ -623,6 +624,10 @@ class Inspector(QWidget):
         @brief Rebuild the form for the current selection and the current document values.
         """
         self._updating = True
+        # An edit rebuilds the whole form, which destroyed the field that had the keyboard focus (and the one Tab had just moved to): the
+        # focus fell to the tab bar, so Tab and Enter could not be used to go through the fields. The position of the focused field in
+        # the focus chain is kept and given back to the same field of the new form when the selection is the same
+        focus_at = self._focus_position() if self.selection == self._form_selection else None
         old = self.form_host
         self.form_host = QWidget()
         self.lay.replaceWidget(old, self.form_host)
@@ -1028,7 +1033,39 @@ class Inspector(QWidget):
                 self._geometry_rows(box("Position and size"), kind, i, el)
         compact_combos(self.form_host)
         tips.apply(self.form_host)
+        self._form_selection = list(self.selection)
+        if focus_at is not None:
+            chain = self._focus_chain()
+            if focus_at < len(chain):
+                chain[focus_at].setFocus(Qt.TabFocusReason)          # Tab focus also selects the text of a number, ready to be typed over
         self._updating = False
+
+    def _focus_chain(self):
+        """!
+        @brief The fields of the form that take the keyboard focus, in the order they were created (the same order for the same element).
+        @return List of QWidget.
+        """
+        out = []
+        for w in self.form_host.findChildren(QWidget):
+            parent = w.parentWidget()
+            if isinstance(parent, (QAbstractSpinBox, QComboBox)):     # The line edit inside a number or a list belongs to it
+                continue
+            if w.focusPolicy() & Qt.TabFocus and w.isEnabled() and w.isVisibleTo(self.form_host):
+                out.append(w)
+        return out
+
+    def _focus_position(self):
+        """!
+        @brief Position in the focus chain of the field that has the keyboard focus.
+        @return Index, or None when the focus is outside the form.
+        """
+        w = QApplication.focusWidget()
+        if w is None or not self.form_host.isAncestorOf(w):
+            return None
+        chain = self._focus_chain()
+        while w is not None and w not in chain:
+            w = w.parentWidget()
+        return chain.index(w) if w is not None else None
 
     @staticmethod
     def _block_defaults():

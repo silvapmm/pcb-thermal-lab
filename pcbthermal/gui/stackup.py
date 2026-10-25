@@ -8,7 +8,7 @@
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPolygonF
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QPushButton,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QPushButton,
                                QSizePolicy, QSplitter, QTableWidget, QVBoxLayout, QWidget)
 
 from ..model import DIELECTRICS, Dielectric
@@ -258,6 +258,7 @@ class StackupEditor(QTableWidget):
         pr = self.doc.problem
         b = pr.board
         self._updating = True
+        focus_cell = self._focused_cell()                  # The rebuild destroys the cell being edited: its focus is given back below
         self.setRowCount(0)
         if b.is_advanced():
             layers = stack_layers(pr)
@@ -293,7 +294,24 @@ class StackupEditor(QTableWidget):
             self.setColumnWidth(1, 190)
             for c in range(2, 7):
                 self.setColumnWidth(c, 92)
+            if focus_cell is not None and focus_cell[0] < self.rowCount():
+                w = self.cellWidget(*focus_cell)
+                if w is not None and w.isEnabled():
+                    w.setFocus(Qt.TabFocusReason)
         self._updating = False
+
+    def _focused_cell(self):
+        """!
+        @brief Row and column of the cell widget that has the keyboard focus.
+        @return (row, column), or None when the focus is not in the table.
+        """
+        w = QApplication.focusWidget()
+        for r in range(self.rowCount()):
+            for c in range(self.columnCount()):
+                cell = self.cellWidget(r, c)
+                if cell is not None and w is not None and (cell is w or cell.isAncestorOf(w)):
+                    return r, c
+        return None
 
     def _set_copper(self, layer, um):
         """!
