@@ -365,18 +365,18 @@ class MainWindow(QMainWindow):
             self.doc.duplicate(self.canvas.selected_elements())), "Ctrl+D")
         self.a_selall = self._act("Select all on layer", self._select_all, QKeySequence.SelectAll)
 
-        self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0")
+        self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0", tip="Zoom to show the whole board (Ctrl+0)")
         self.a_zin = self._act("Zoom in", lambda: self.canvas.zoom(1.25), QKeySequence.ZoomIn)
         self.a_zout = self._act("Zoom out", lambda: self.canvas.zoom(0.8), QKeySequence.ZoomOut)
-        self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True)
+        self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G); the snap distance is chosen in the tool bar")
         self.a_sgrid = self._act("Solver grid", self._toggle_solver_grid, "Shift+G", True, False,
-                                 "Show the cells of the FVM mesh")
+                                 "Show the cells of the FVM mesh (Shift+G); their size is the cell size of the Simulation panel")
         self.a_overlay = self._act("Temperature on board", self._toggle_overlay, "T", True, False,
-                                   "Paint the last result over the board")
+                                   "Paint the last result over the board (T)")
         self.a_bg = self._act("Background image…", self.set_background)
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
-        self.a_run = self._act("Run simulation", self.run_simulation, "F5")
+        self.a_run = self._act("Run simulation", self.run_simulation, "F5", tip="Solve the selected models (F5)")
         self.a_calc = self._act("Power calculator…", self.show_calculator,
                                 tip="Find the power of a part from a temperature you measured (drawn board, or a datasheet parameter)")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
@@ -473,7 +473,7 @@ class MainWindow(QMainWindow):
         self.a_poly.setIcon(th.tool_icon("polygon", self.theme_name))
         self.a_fit.setIcon(th.tool_icon("fit", self.theme_name))
         self.a_grid.setIcon(th.tool_icon("grid", self.theme_name))
-        self.a_sgrid.setIcon(th.tool_icon("grid", self.theme_name))
+        self.a_sgrid.setIcon(th.tool_icon("solver_grid", self.theme_name))
         self.a_run.setIcon(th.tool_icon("run", self.theme_name))
         self.a_overlay.setIcon(th.tool_icon("overlay", self.theme_name))
         logo = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"

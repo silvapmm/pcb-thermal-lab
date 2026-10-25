@@ -116,7 +116,7 @@ def _icon(size, painter_fn, color):
 def tool_icon(kind, theme="dark", size=22):
     """!
     @brief Painted icon of a tool or action.
-    @param kind select, zone, heater, heatsink, via, run, fit, grid, polygon.
+    @param kind select, zone, heater, heatsink, via, outline, run, fit, grid, solver_grid, overlay, polygon.
     @param theme "dark" or "light" (stroke colour follows it).
     @param size Edge in pixels.
     @return QIcon.
@@ -179,6 +179,22 @@ def tool_icon(kind, theme="dark", size=22):
                 p.drawLine(QPointF(m + k * (s - 2 * m) / 3, m), QPointF(m + k * (s - 2 * m) / 3, s - m))
                 p.drawLine(QPointF(m, m + k * (s - 2 * m) / 3), QPointF(s - m, m + k * (s - 2 * m) / 3))
             p.drawRect(r)
+        elif kind == "solver_grid":
+            # The cells of the solver: a finer grid in the solver-grid colour with a dot at each cell centre (cell-centred finite volumes),
+            # so it is not mistaken for the drawing grid next to it on the tool bar (both used the same icon)
+            mesh = QColor(c["solver_grid"][:7])
+            p.setPen(QPen(mesh, 1.2))
+            n = 4
+            step = (s - 2 * m) / n
+            for k in range(1, n):
+                p.drawLine(QPointF(m + k * step, m), QPointF(m + k * step, s - m))
+                p.drawLine(QPointF(m, m + k * step), QPointF(s - m, m + k * step))
+            p.drawRect(r)
+            p.setPen(Qt.NoPen)
+            p.setBrush(mesh)
+            for i in range(n):
+                for j in range(n):
+                    p.drawEllipse(QPointF(m + (i + 0.5) * step, m + (j + 0.5) * step), 0.9, 0.9)
         elif kind == "polygon":
             p.drawPolygon(QPolygonF([QPointF(s * .2, s * .75), QPointF(s * .35, s * .22), QPointF(s * .78, s * .3),
                                      QPointF(s * .8, s * .78)]))
