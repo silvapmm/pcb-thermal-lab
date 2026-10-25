@@ -11,7 +11,7 @@
          5. How much of a copper-filled via the 3D solid keeps when its area is larger than one cell (the per-cell fraction is clipped at 1).
          6. What changes if the via diameter is read as the finished hole (plating inside the hole) instead of the drill (plating inside the drill).
          Runs one model at a time; part 4 solves the independent model at 0.1 and 1/12 mm cells (about 180 000 and 250 000 unknowns, up to about 3 GB, 3 to 5 minutes; a cell must
-         divide 5.5 and 10.5 mm); `--fine` adds 0.0625 and 0.05 mm cells (about 450 000 and 700 000 unknowns, about 22 minutes in all on a quiet 10-core machine, a peak memory footprint of 22.5 GB on a 16 GB machine: run it alone).
+         divide 5.5 and 10.5 mm); `--fine` adds 0.0625 and 0.05 mm cells (about 450 000 and 700 000 unknowns, about 22 minutes in all on a 10-core machine while paging, a peak memory footprint of 22.5 GB on a 16 GB machine: run it alone).
 
 Usage: python research/via-fill/scripts/study_via_model_checks.py [--fine]   (from the repository root; about 8 minutes without --fine)
 """
