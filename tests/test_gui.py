@@ -431,3 +431,36 @@ def test_numbers_use_the_decimal_point_with_a_portuguese_system_locale(qtbot, tm
         assert all("," not in b.text() for b in boxes)
     finally:
         QLocale.setDefault(previous)
+
+
+def test_a_typed_or_pasted_decimal_comma_is_a_point_in_a_spin_box(win, qtbot):
+    """!
+    @brief "0,45" typed or pasted in a number field gives 0.45, not 45.
+
+    @note Regression: in the US English locale of the application the comma is the thousands separator, and the spin boxes read
+          "0,45" (the habit of a Portuguese user, and the decimal key of a Portuguese numeric keypad) as 45, a silent factor of 100.
+    """
+    from PySide6.QtCore import QLocale
+    from PySide6.QtGui import QKeySequence
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication, QDoubleSpinBox, QLineEdit
+    assert QLocale().decimalPoint() == "."                                # Set by the main window
+    spin = QDoubleSpinBox()
+    qtbot.addWidget(spin)
+    spin.setDecimals(3)
+    spin.setRange(0.0, 1000.0)
+    spin.show()
+    spin.setFocus()
+    spin.lineEdit().selectAll()
+    QTest.keyClicks(spin.lineEdit(), "12,5")
+    spin.interpretText()
+    assert spin.value() == pytest.approx(12.5)
+    QApplication.clipboard().setText("0,45")
+    spin.lineEdit().selectAll()
+    QTest.keySequence(spin.lineEdit(), QKeySequence.Paste)
+    spin.interpretText()
+    assert spin.value() == pytest.approx(0.45)
+    name = QLineEdit()                                                   # A text field keeps its comma
+    qtbot.addWidget(name)
+    QTest.keyClicks(name, "a,b")
+    assert name.text() == "a,b"

@@ -3,9 +3,9 @@
 @brief Light and dark themes, canvas colours and painted icons for the GUI.
 """
 
-from PySide6.QtCore import QLocale, QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QEvent, QLocale, QObject, QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QIcon, QKeyEvent, QKeySequence, QPainter, QPalette, QPen, QPixmap, QPolygonF
+from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QWidget
 
 THEMES = {
     "dark": {
@@ -30,10 +30,48 @@ def fix_number_locale():
     @details Qt spin boxes, line edits and number-to-text conversions follow QLocale.default(); the application sets it
     once to US English without the group separator, so "0.45" is shown on a Portuguese or German system too (the
     international way of writing numbers in engineering). It must run before the widgets are created.
+    @note In the US English locale a comma is the thousands separator, so "0,45" typed in a spin box (the habit of a Portuguese
+          or German user, and the decimal key of their numeric keypad) was read as 45, a silent factor of 100. The group separator
+          is therefore rejected, and a comma typed in a number field is turned into the decimal point by an application event filter.
     """
+    global _COMMA_FILTER
     loc = QLocale(QLocale.English, QLocale.UnitedStates)
-    loc.setNumberOptions(QLocale.OmitGroupSeparator)
+    loc.setNumberOptions(QLocale.OmitGroupSeparator | QLocale.RejectGroupSeparator)
     QLocale.setDefault(loc)
+    app = QApplication.instance()
+    if app is not None and _COMMA_FILTER is None:
+        _COMMA_FILTER = _CommaToPoint(app)
+        app.installEventFilter(_COMMA_FILTER)
+
+
+class _CommaToPoint(QObject):
+    """!
+    @brief Application event filter: a comma typed in a number field (a spin box) is typed as the decimal point.
+    """
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief Replace a comma key press, or the commas of a pasted text, in a spin box (or the line edit inside it) by a point.
+        @param obj Object that receives the event.
+        @param event The event.
+        @return True when the event was replaced (and so consumed), otherwise False.
+        """
+        if event.type() != QEvent.KeyPress:
+            return False
+        spin = obj if isinstance(obj, QAbstractSpinBox) else (obj.parentWidget() if isinstance(obj, QWidget) else None)
+        if not isinstance(spin, QAbstractSpinBox):
+            return False
+        if event.text() == ",":
+            QApplication.sendEvent(obj, QKeyEvent(QEvent.KeyPress, Qt.Key_Period, event.modifiers(), "."))
+            return True
+        if event.matches(QKeySequence.Paste) and "," in QApplication.clipboard().text():
+            # A pasted "0,45" would be read as 45 too: paste it with the point
+            spin.lineEdit().insert(QApplication.clipboard().text().replace(",", "."))
+            return True
+        return False
+
+
+_COMMA_FILTER = None    # The single event filter installed by fix_number_locale
 
 
 def colors(name):
