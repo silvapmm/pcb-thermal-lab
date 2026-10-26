@@ -94,6 +94,10 @@ def apply_theme(app, name):
         QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; color: {c['muted']}; }}
         QTabBar::tab {{ padding: 7px 14px; border: none; border-bottom: 2px solid transparent; color: {c['muted']}; }}
         QTabBar::tab:selected {{ color: {c['text']}; border-bottom-color: {c['accent']}; }}
+        QListWidget#sections {{ border: none; border-right: 1px solid {c['border']}; background: transparent; outline: 0; }}
+        QListWidget#sections::item {{ padding: 8px 12px; border-left: 2px solid transparent; color: {c['muted']}; }}
+        QListWidget#sections::item:hover {{ background: {c['alt']}; }}
+        QListWidget#sections::item:selected {{ background: {accent_soft}; border-left-color: {c['accent']}; color: {c['text']}; }}
         QTabWidget::pane {{ border: none; border-top: 1px solid {c['border']}; }}
         QPushButton {{ border: 1px solid {c['border']}; border-radius: 6px; padding: 6px 14px; background: {c['alt']}; }}
         QPushButton:hover {{ border-color: {c['accent']}; }}

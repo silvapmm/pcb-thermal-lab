@@ -1043,3 +1043,28 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
     win._update_checks()
     assert len(box.warnings) == 1 and box.warnings[0].kind is None            # The empty board's own warning: one line, no count
     assert "warnings" not in box.toPlainText()
+
+
+def test_preferences_every_section_in_both_themes(win, qtbot, tmp_path, monkeypatch):
+    """Open Preferences from the window, visit every section by the list and by the keyboard in both themes at a small size, edit a table cell and a field, save, reset and close."""
+    from PySide6.QtWidgets import QApplication
+    from pcbthermal.gui import theme as th
+    from pcbthermal.gui.preferences import PreferencesDialog
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(tmp_path / "cfg"))
+    for theme in ("dark", "light"):
+        th.apply_theme(QApplication.instance(), theme)
+        d = PreferencesDialog(win)
+        qtbot.addWidget(d)
+        d.resize(640, 480)
+        d.show()
+        for row in range(d.sections.count()):
+            d.sections.setCurrentRow(row)
+            assert d.pages.currentIndex() == row and d.pages.currentWidget().isVisibleTo(d)
+            d.grab()
+        table, cols = d.tables["via_fills"]
+        table.item(1, 1).setText("0,5")                                    # A decimal comma is read as a point
+        assert d.data["libraries"]["via_fills"][1]["k_w_per_mk"] == 0.5
+        d.widgets[("new_board", "ambient_c")].setValue(31.0)
+        d.save()
+        d.reset()
+        d.close()

@@ -15,7 +15,7 @@ import shutil
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import defaults
 from .. import model
@@ -38,8 +38,10 @@ def _cell_text(value):
     return str(value)
 
 
+SECTION_LIST_WIDTH = 240          # Pixels: wide enough for the longest section title
+
 LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)", "interfaces": "Interface materials", "dielectrics": "Dielectrics (stack-up)",
-                  "package_theta": "Package families (typical θ)", "heatsinks": "Heatsinks on a package (typical θSA)"}
+                  "package_theta": "Package families (typical θ)", "heatsinks": "Package heatsinks (typical θSA)"}
 LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name appears in the via's Fill list and the conductivity is its typical value (W/mK). Edit a cell to change it, "
                              "add a row for a new fill.",
                 "metals": "Metals of a heatsink block: conductivity (W/mK) and volumetric heat capacity (J/m³K).",
@@ -136,14 +138,26 @@ class PreferencesDialog(QDialog):
         self.info.setTextFormat(Qt.RichText)
         self.info.setToolTip("Where the user's defaults are kept and what they change. Without that file the program uses the values shipped with it.")
         lay.addWidget(self.info)
-        self.tabs = QTabWidget()
-        self.tabs.setToolTip("Libraries are tables of materials (they appear in the lists of the program); the last tab holds the values a new board, a new element and a new project start with.")
-        lay.addWidget(self.tabs, 1)
+        # The eight sections are a list on the left and their pages are stacked on the right (eight tabs needed scroll arrows in a narrow window)
+        self.sections = QListWidget()
+        self.sections.setObjectName("sections")
+        self.sections.setFixedWidth(SECTION_LIST_WIDTH)
+        self.sections.setTextElideMode(Qt.ElideNone)
+        self.sections.setToolTip("Sections of the preferences (Up and Down change the page). Libraries are tables of materials (they appear in the lists of the program); "
+                                 "the last two sections hold the values a new board, a new element and a new project start with, and the power calculator's uncertainties.")
+        self.pages = QStackedWidget()
+        body = QHBoxLayout()
+        body.addWidget(self.sections)
+        body.addWidget(self.pages, 1)
+        lay.addLayout(body, 1)
         self.tables, self.widgets = {}, {}
         for lib in defaults.LIBRARIES:
-            self.tabs.addTab(self._library_tab(lib), LIBRARY_TITLES[lib])
-        self.tabs.addTab(self._defaults_tab(), "Defaults for new projects")
-        self.tabs.addTab(self._calculator_tab(), "Power calculator")
+            self._add_section(LIBRARY_TITLES[lib], self._library_tab(lib))
+        self._add_section("Defaults for new projects", self._defaults_tab())
+        self._add_section("Power calculator", self._calculator_tab())
+        self.sections.currentRowChanged.connect(self.pages.setCurrentIndex)
+        self.sections.setCurrentRow(0)                      # The first page is shown
+        self.sections.setFocus()                            # Up and Down change the page from the start
         row = QHBoxLayout()
         self.save_btn = QPushButton("Save as my defaults")
         self.save_btn.setToolTip("Write what differs from the shipped defaults to the user file. New projects and the lists of the forms use it from now on.")
@@ -170,7 +184,23 @@ class PreferencesDialog(QDialog):
         self.import_btn.clicked.connect(self.import_file)
         self._refresh_info()
 
-    # ------------------------------------------------------------------ tabs
+    def _add_section(self, title, page):
+        """!
+        @brief Add a section: an entry of the list and its page.
+        @param title Name of the section shown in the list.
+        @param page Widget with the controls of the section.
+        """
+        self.sections.addItem(title)
+        self.pages.addWidget(page)
+
+    def section_titles(self):
+        """!
+        @brief Names of the sections, in the order of the list.
+        @return List of str.
+        """
+        return [self.sections.item(i).text() for i in range(self.sections.count())]
+
+    # ------------------------------------------------------------------ pages
     def _library_tab(self, lib):
         """!
         @brief A table that edits one library.
