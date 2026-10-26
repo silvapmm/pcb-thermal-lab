@@ -274,6 +274,30 @@ def test_docks_open_wide_enough_and_keep_the_run_button_in_sight(qtbot, tmp_path
     assert abs(w2.dock_board.width() - width) <= 2
 
 
+def test_docks_stay_readable_in_a_smaller_window_with_an_advanced_stackup(qtbot, tmp_path):
+    """!
+    @brief At 1100 x 700 and 1280 x 800, with the advanced stack-up table shown, the side docks keep a readable width and the page scrolls.
+
+    @note Regression: the minimum width of the central tabs was that of the widest page (about 810 px, more with the advanced stack-up),
+          so the docks opened about 105 px wide at 1100 x 700 and 200 px at 1280 x 800, and shrank further when the Stack-up tab was shown.
+    """
+    from PySide6.QtWidgets import QApplication
+    for size in ((1100, 700), (1280, 800)):
+        w = MainWindow(Document(), QSettings(str(tmp_path / f"small{size[0]}.ini"), QSettings.IniFormat))
+        qtbot.addWidget(w)
+        w._load_problem(example_board(), "ex")
+        w.doc.problem.board.make_advanced()
+        w.resize(*size)
+        w.show()
+        qtbot.waitUntil(lambda: w.dock_board.width() >= 300, timeout=3000)
+        w.doc.changed.emit()
+        w.tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        assert w.tabs.minimumSizeHint().width() < 300
+        assert w.dock_board.width() >= 300 and w.dock_sim.width() >= 340
+        w.doc.stack.setClean()
+
+
 def test_properties_keep_the_keyboard_focus_after_an_edit(win):
     """!
     @brief Enter keeps the focus on the edited field and Tab moves to the next one, although every edit rebuilds the Properties form.

@@ -296,6 +296,8 @@ class ResultsView(QWidget):
         self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
                                    "Balance", "Error vs ref", "Time s"])
         self.model_table.setMaximumHeight(170)
+        # The model names of the Simulation panel ("Lumped (LPTN)") were cut to "Lumped ..." in a column of the same width as the numbers
+        self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.warnings = QLabel()
         self.warnings.setWordWrap(True)
         self.report = QPlainTextEdit()

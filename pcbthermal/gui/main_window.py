@@ -168,10 +168,13 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
         self.stackup_page = StackupPage(self.doc, self.theme_name)
-        self.tabs.addTab(self.stackup_page, "Stack-up")
+        # The pages are in scroll areas: the minimum width of a tab widget is that of its widest page (about 810 px for the Stack-up,
+        # Power profile and Results pages, more with the advanced stack-up table), and the main window took it from the side docks, which
+        # opened about 200 px wide at 1280 x 800 and 105 px at 1100 x 700. A page narrower than its controls now scrolls instead
+        self.tabs.addTab(self._scrolled(self.stackup_page), "Stack-up")
         self.profile_page = ProfilePage(self.doc, self.theme_name)
-        self.tabs.addTab(self.profile_page, "Power profile")
-        self.tabs.addTab(self.results, "Results")
+        self.tabs.addTab(self._scrolled(self.profile_page), "Power profile")
+        self.tabs.addTab(self._scrolled(self.results), "Results")
         self.setCentralWidget(self.tabs)
 
         self.board_panel = BoardPanel(self.doc)
@@ -230,6 +233,19 @@ class MainWindow(QMainWindow):
         self.canvas.set_tool("select")
 
     # ------------------------------------------------------------------ construction
+    @staticmethod
+    def _scrolled(page):
+        """!
+        @brief Put a page of the central tabs in a scroll area, so that its width does not set the minimum width of the tabs.
+        @param page The page widget.
+        @return QScrollArea holding the page (resized with the view while the view is larger than the page's minimum).
+        """
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.NoFrame)
+        area.setWidget(page)
+        return area
+
     def _dock(self, title, widget, area, scroll=True, footer=None):
         """!
         @brief Add a titled dock widget.
