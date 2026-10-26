@@ -5,11 +5,12 @@
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
+import html
 import math
 
 from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
-                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import solid3d
 from .. import defaults
@@ -19,6 +20,7 @@ from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
 from . import theme as th
+from ..numfmt import num
 
 
 def _is_rect(pts):
@@ -93,7 +95,7 @@ class BoardPanel(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 8)
 
-        g = QGroupBox("Board")
+        g = QGroupBox("Size")                              # The dock is already titled Board
         f = QFormLayout(g)
         self.width = _spin(5, 1000, 100, 1, 1, "mm")
         self.height = _spin(5, 1000, 80, 1, 1, "mm")
@@ -224,7 +226,7 @@ class BoardPanel(QWidget):
         self.laminate = QComboBox()
         self.laminate.addItem("Laminate preset...", None)
         for entry in DIELECTRICS:
-            self.laminate.addItem(f"{entry[0]}: {entry[1]:g} / {entry[2]:g} W/mK", entry)
+            self.laminate.addItem(f"{entry[0]}: {num(entry[1])} / {num(entry[2])} W/mK", entry)
         self.laminate.setToolTip("Typical dielectric materials (indicative values, not from your laminate datasheet): fills the through-thickness and in-plane "
                                  "conductivity, density and specific heat of the dielectric of the simple stack-up.")
         self.laminate.currentIndexChanged.connect(self._pick_laminate)
@@ -534,7 +536,7 @@ class ElementList(QWidget):
                     elif kind == "heater":
                         value = f"{el.power:.2f} W"
                     else:
-                        value = f"+{el.h_extra:g} W/m²K"
+                        value = f"+{num(el.h_extra)} W/m²K"
                     row = [el.name or f"{kind} {i + 1}", str(el.layer + 1), value]
                 child = QTreeWidgetItem(row)
                 child.setData(0, Qt.UserRole, (kind, i))
@@ -667,6 +669,7 @@ class Inspector(QWidget):
             title = QLabel(f"<b>{kind.capitalize()}</b>")
             lay.addRow(title)
             name = QLineEdit(el.name)
+            name.setPlaceholderText(f"{kind.capitalize()} {i + 1}")     # An element without a name is listed and warned about under this name
             name.editingFinished.connect(lambda: self.doc.set_props(kind, i, "Rename", name=name.text()))
             lay.addRow("Name", name)
             if kind != "via":
@@ -724,7 +727,7 @@ class Inspector(QWidget):
                     th.hint(typical)
                     typical.setToolTip("The typical values and the note of the chosen family, from the library.")
                     entry = next((e for e in PACKAGE_THETA if e[0] == el.family), None)
-                    typical.setText(f"Typical for {entry[0]}: θ junction-pad {entry[1]:g} K/W, θJC(top) {entry[2]:g} K/W, Tj max {entry[3]:g} °C." if entry else
+                    typical.setText(f"Typical for {entry[0]}: θ junction-pad {num(entry[1])} K/W, θJC(top) {num(entry[2])} K/W, Tj max {num(entry[3])} °C." if entry else
                                     "Custom: no typical values applied. Type the datasheet numbers below.")
                     if entry and entry[4]:
                         typical.setToolTip(entry[4])                       # The note and the source of the library entry
@@ -786,7 +789,7 @@ class Inspector(QWidget):
                     if cur:
                         for e in HEATSINKS:
                             if e[3] == cur[3]:
-                                flow.addItem(f"{e[4]}: {e[1]:g} K/W", e[0])
+                                flow.addItem(f"{e[4]}: {num(e[1])} K/W", e[0])
                         flow.setCurrentIndex(max(flow.findData(cur[0]), 0))
                     flow.setToolTip("The air flow of the catalogue value (natural convection, 1 m/s, 2 m/s, forced air): only the flows the catalogue gives for this heatsink. The "
                                     "air speed of the board (Environment) does not change θSA: choose the flow that matches your case or type your own θSA.")
@@ -794,7 +797,7 @@ class Inspector(QWidget):
                     hs_note.setWordWrap(True)
                     th.hint(hs_note)
                     hs_note.setToolTip("The catalogue value and its source for the chosen heatsink and flow.")
-                    hs_note.setText(f"Catalogue: {cur[0]}, {cur[1]:g} K/W." if cur else
+                    hs_note.setText(f"Catalogue: {cur[0]}, {num(cur[1])} K/W." if cur else
                                     ("Custom: your own θSA." if el.theta_sa > 0 else "No heatsink: all the power enters the board (worst case)."))
                     if cur:
                         hs_note.setToolTip(cur[2])                         # The source and the test conditions
@@ -985,7 +988,7 @@ class Inspector(QWidget):
                                  "of which you know the datasheet performance instead of the fins above.")
                     lay.addRow("Extra h", w)
             else:
-                lay = box("Via")
+                lay = box("Position, size and fill")                # The title above already says Via
                 x = _spin(0, 2000, el.x * 1000, 2, 0.5, "mm")
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")
                 d = _spin(0.05, 5, el.diameter * 1000, 2, 0.05, "mm")
@@ -1014,7 +1017,7 @@ class Inspector(QWidget):
                 th.hint(typical)
                 typical.setToolTip("The typical conductivity and the note of the chosen fill, from the library.")
                 entry = VIA_FILLS[current] if current < len(VIA_FILLS) else None
-                typical.setText(f"Typical: {entry[1]:g} W/mK. {entry[2]}" if entry else "Custom value.")
+                typical.setText(f"Typical: {num(entry[1])} W/mK. {entry[2]}" if entry else "Custom value.")
                 x.valueChanged.connect(lambda v: self.doc.set_props(kind, i, x=v / 1000))
                 y.valueChanged.connect(lambda v: self.doc.set_props(kind, i, y=v / 1000))
                 d.valueChanged.connect(lambda v: self.doc.set_props(kind, i, diameter=v / 1000))
@@ -1123,7 +1126,7 @@ class Inspector(QWidget):
         mat.addItem("Interface material preset...", None)
         mat.addItem("Direct contact (no material, R = 0)", "direct")
         for label, k_, t_ in INTERFACES:
-            mat.addItem(f"{label}: {t_:g} mm", (k_, t_ * 1e-3))
+            mat.addItem(f"{label}: {num(t_)} mm", (k_, t_ * 1e-3))
         mat.setToolTip(f"The one dielectric sheet {where} (thermal paste or gap pad): a preset fills its thickness and conductivity. "
                        "'Direct contact' means no material in between (for example bare copper pressed on the metal): thickness and resistance 0, the optimistic limit. Indicative values (apparent "
                        "conductivity including the contact resistances): check your material's datasheet. The sheet can have its own material and thickness.")
@@ -1234,6 +1237,82 @@ class Inspector(QWidget):
         lay.addRow("", info)
 
 
+class WarningList(QTextBrowser):
+    """!
+    @brief The input warnings of the design as a compact clickable list under the Run button.
+
+    @details Hidden when there is no warning; a single warning takes only the height of its text; several warnings
+    are listed one per paragraph under a count, up to a maximum height, with a scroll bar beyond it. Clicking a
+    warning that is about an element emits warning_clicked with the kind and the index of that element.
+    """
+
+    warning_clicked = Signal(str, int)
+    MAX_HEIGHT = 150                                  # Pixels; more warnings than fit scroll
+
+    def __init__(self, parent=None):
+        """!
+        @param parent Qt parent.
+        """
+        super().__init__(parent)
+        self.setOpenLinks(False)
+        self.setFrameShape(QTextBrowser.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.viewport().setAutoFillBackground(False)
+        self.anchorClicked.connect(self._clicked)
+        self.warnings = []
+        self.setToolTip("Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about.")
+        self.setVisible(False)
+
+    def set_warnings(self, warnings):
+        """!
+        @brief Show a list of warnings.
+        @param warnings List of warning strings; those with attributes kind and index (checks.CheckWarning) are clickable.
+        """
+        self.warnings = list(warnings)
+        if not self.warnings:
+            self.setHtml("")
+            self.setVisible(False)
+            return
+        parts = []
+        if len(self.warnings) > 1:
+            parts.append(f"<p><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
+        for w in self.warnings:
+            text = html.escape(str(w))
+            kind, index = getattr(w, "kind", None), getattr(w, "index", None)
+            if kind is not None and index is not None:
+                text = f'<a href="{kind}:{index}" style="text-decoration:none">{text}</a>'
+            parts.append(f"<p>⚠ {text}</p>" if len(self.warnings) == 1 else f"<p style='margin-top:2px'>• {text}</p>")
+        self.setHtml("".join(parts))
+        self.setVisible(True)
+        self._fit()
+
+    def _fit(self):
+        """!
+        @brief Set the height to the wrapped text, up to the maximum.
+        """
+        self.document().setTextWidth(max(self.viewport().width(), 100))
+        h = int(self.document().size().height()) + 6
+        self.setFixedHeight(min(h, self.MAX_HEIGHT))
+
+    def resizeEvent(self, event):
+        """!
+        @brief Re-wrap the text for the new width.
+        @param event Qt resize event.
+        """
+        super().resizeEvent(event)
+        if self.warnings:
+            self._fit()
+
+    def _clicked(self, url):
+        """!
+        @brief Report the element of a clicked warning.
+        @param url Link of the clicked warning, "kind:index".
+        """
+        kind, _, index = url.toString().partition(":")
+        if index.isdigit():
+            self.warning_clicked.emit(kind, int(index))
+
+
 class SolverPanel(QWidget):
     """!
     @brief Model choice, solver settings and the Run button.
@@ -1269,7 +1348,7 @@ class SolverPanel(QWidget):
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
                            "than the heater, a copper edge across a footprint). "
-                           f"Limited to {solid3d.MAX_CELLS:,} unknowns (shown below the cell size; about 4 GB of memory and "
+                           f"Limited to {solid3d.MAX_CELLS} unknowns (shown below the cell size; about 4 GB of memory and "
                            "two minutes per solve at the limit): a larger model is not run and the other models still answer.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
@@ -1328,8 +1407,7 @@ class SolverPanel(QWidget):
         self.progress.setTextVisible(False)
         self.status = QLabel("")
         self.status.setWordWrap(True)
-        self.checks = QLabel("")
-        self.checks.setWordWrap(True)
+        self.checks = WarningList()
         # The Run button, the progress and the checks are a footer of their own: the main window keeps it below the scrolled settings, so the
         # main action stays in sight when the dock is short (at the default window size it had scrolled out of view)
         self.footer = QWidget()
@@ -1393,7 +1471,7 @@ class SolverPanel(QWidget):
         b = self.doc.problem.board
         c = self.cell.value()
         n = max(int(round(b.width * 1000 / c)), 2) * max(int(round(b.height * 1000 / c)), 2) * b.layers
-        text = f"{n:,} unknowns"
+        text = f"{n} unknowns"
         if n > 1_000_000:
             # The layered models have no hard limit; measured with the direct solver: 1 million unknowns 97 s and 4.4 GB, 2 million 273 s and 8.4 GB
             text += " (slow: about 4 GB of memory per million)"
@@ -1401,13 +1479,13 @@ class SolverPanel(QWidget):
             # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
             n3 = solid3d.unknowns(self.doc.problem, c)[0]
             if n3 > solid3d.MAX_CELLS:
-                note = f"; above {solid3d.MAX_CELLS:,}: it will not run, use a larger cell"
+                note = f"; above {solid3d.MAX_CELLS}: it will not run, use a larger cell"
             elif n3 > solid3d.MAX_CELLS // 2:
                 note = "; slow: minutes and GB of memory"
             else:
                 note = ""
-            text += f" (3D solid: {n3:,}{note})"
-        self.cells_label.setText(text.replace(",", " "))
+            text += f" (3D solid: {n3}{note})"
+        self.cells_label.setText(text)
 
     def _apply(self, *_):
         """!
@@ -1433,12 +1511,7 @@ class SolverPanel(QWidget):
         @brief Show the validity checks of the current design under the Run button.
         @param warnings List of warning strings from checks.check_problem.
         """
-        if not warnings:
-            self.checks.setText("")
-            self.checks.setToolTip("")
-            return
-        self.checks.setText("⚠ " + warnings[0] + (f"  (+{len(warnings) - 1} more)" if len(warnings) > 1 else ""))
-        self.checks.setToolTip("\n\n".join(warnings))
+        self.checks.set_warnings(warnings)
 
     def set_running(self, running, text=""):
         """!

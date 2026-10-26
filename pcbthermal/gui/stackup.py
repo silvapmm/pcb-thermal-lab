@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
 from ..model import DIELECTRICS, Dielectric
 from . import theme as th
 from .panels import compact_combos
+from ..numfmt import num
 
 _UNITS = (("µm and mm", "both"), ("µm", "um"), ("mm", "mm"))
 
@@ -49,10 +50,10 @@ def format_thickness(metres, unit="both"):
     """
     um, mm = metres * 1e6, metres * 1e3
     if unit == "um":
-        return f"{um:.4g} µm"
+        return f"{num(um, 4)} µm"
     if unit == "mm":
-        return f"{mm:.4g} mm"
-    return f"{um:.4g} µm ({mm:.4g} mm)"
+        return f"{num(mm, 4)} mm"
+    return f"{num(um, 4)} µm ({num(mm, 4)} mm)"
 
 
 class StackupView(QWidget):
@@ -200,7 +201,8 @@ class StackupEditor(QTableWidget):
     @brief Table with one row per copper layer and per dielectric gap, editing the board of the document.
     """
 
-    COLUMNS = ("Layer", "Material", "Thickness (µm)", "k through (W/mK)", "k in-plane (W/mK)", "ρ (kg/m³)", "cp (J/kgK)")
+    # Two-line titles (name, then the unit): a one-line title was cut to "hickness (µm" in a column of 92 px
+    COLUMNS = ("Layer", "Material", "Thickness\n(µm)", "k through\n(W/mK)", "k in-plane\n(W/mK)", "ρ\n(kg/m³)", "cp\n(J/kgK)")
     TIPS = ("Copper layer or dielectric gap between two copper layers, from the top face down.",
             "Dielectric material. Choosing one fills the four properties with typical values (indicative; edit them for your laminate). Copper is described in the Materials box above.",
             "Thickness in micrometres (1 oz copper is 35 µm, 0.5 oz 17.5 µm, 2 oz 70 µm; a 0.2 mm prepreg is 200 µm).",
@@ -223,6 +225,8 @@ class StackupEditor(QTableWidget):
         self.setToolTip("Every copper layer and dielectric gap of the advanced stack-up, top face first. Edit the thickness and the material properties of each.")
         self.verticalHeader().setVisible(False)
         self.horizontalHeader().setStretchLastSection(True)
+        self.horizontalHeader().setFixedHeight(2 * self.fontMetrics().height() + 12)       # Room for the two lines of the titles
+        self.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
         self.setMinimumWidth(520)
         doc.changed.connect(self.refresh)
         self.refresh()
@@ -560,5 +564,5 @@ class StackupPage(QWidget):
             if pr.vias:
                 what += f"; {len(pr.vias)} vias cross it"
         self.info.setText(f"<b>{ly['label'] if ly['kind'] == 'copper' else 'Dielectric ' + str(ly['index'] + 1) + '-' + str(ly['index'] + 2) + ' (' + ly['material'] + ')'}</b>: "
-                          f"thickness {format_thickness(ly['thickness'], 'both')}; k through {ly['k_through']:g} W/mK, in-plane {ly['k_inplane']:g} W/mK; "
-                          f"density {ly['rho']:g} kg/m³, specific heat {ly['cp']:g} J/kgK{what}.")
+                          f"thickness {format_thickness(ly['thickness'], 'both')}; k through {num(ly['k_through'])} W/mK, in-plane {num(ly['k_inplane'])} W/mK; "
+                          f"density {num(ly['rho'])} kg/m³, specific heat {num(ly['cp'])} J/kgK{what}.")

@@ -48,7 +48,7 @@ def test_boxes_of_every_element(win):
     assert titles(win) == ["Part", "Junction", "Heatsink on the package", "Package top: junction to case", "Interface: package top to heatsink", "Position and size"]
     win.doc.set_props("heater", 0, theta_sa=0.0)
     select(win, "via")
-    assert titles(win) == ["Via"]
+    assert titles(win) == ["Position, size and fill"]
     select(win, "heatsink")
     assert titles(win) == ["Manual input", "Position and size"]
     win._load_problem(example_block_board(), "block")

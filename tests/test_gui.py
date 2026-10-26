@@ -384,3 +384,50 @@ def test_properties_form_is_never_squeezed_after_a_rebuild(qtbot, tmp_path):
         QApplication.processEvents()
         assert w.inspector.height() >= w.inspector.minimumSizeHint().height(), kind
     w.doc.stack.setClean()
+
+
+def test_input_warnings_list_selects_the_element(win, qtbot):
+    """!
+    @brief Every input warning is listed under Run, and clicking one selects the element it is about.
+    """
+    # No copper under the heater, and a via outside the 100 x 80 mm board: one warning each
+    win.doc.edit("Add", lambda proj: (proj.problem.add_heater(1, 2.0, rect=(10, 10, 20, 20), name="Q1"), proj.problem.add_via(500.0, 500.0)))
+    win._update_checks()
+    box = win.solver_panel.checks
+    assert box.isVisibleTo(win.solver_panel.footer)
+    assert len(box.warnings) >= 2
+    tagged = {(w.kind, w.index) for w in box.warnings if w.kind}
+    assert ("heater", 0) in tagged and ("via", 0) in tagged
+    # A click on the via warning selects the via
+    box.warning_clicked.emit("via", 0)
+    assert win.canvas.selected_elements() == [("via", 0)]
+    # One warning only: no count heading; none: hidden
+    box.set_warnings(box.warnings[:1])
+    assert "warnings" not in box.toPlainText().split("\n")[0]
+    box.set_warnings([])
+    assert not box.isVisibleTo(win.solver_panel.footer)
+
+
+def test_numbers_use_the_decimal_point_with_a_portuguese_system_locale(qtbot, tmp_path):
+    """!
+    @brief A spin box shows "0.45" and "1234.5" (point, no thousands separator) even when the system locale is Portuguese.
+    """
+    from PySide6.QtCore import QLocale
+    from PySide6.QtWidgets import QDoubleSpinBox
+    previous = QLocale()
+    QLocale.setDefault(QLocale(QLocale.Portuguese, QLocale.Brazil))
+    try:
+        assert QLocale().decimalPoint() == ","                       # The test setup: a system that writes the comma
+        w = MainWindow(Document(), QSettings(str(tmp_path / 'loc.ini'), QSettings.IniFormat))
+        qtbot.addWidget(w)
+        boxes = w.findChildren(QDoubleSpinBox)
+        assert boxes
+        spin = w.solver_panel.cell
+        spin.setValue(0.45)
+        assert spin.text().split()[0] == "0.45"
+        spin.setMaximum(1.0e6)
+        spin.setValue(1234.5)
+        assert "1234.5" in spin.text()
+        assert all("," not in b.text() for b in boxes)
+    finally:
+        QLocale.setDefault(previous)

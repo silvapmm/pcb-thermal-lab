@@ -155,6 +155,7 @@ class MainWindow(QMainWindow):
         @param doc Optional Document to edit (default: a new empty board).
         @param settings Optional QSettings (tests pass a temporary one so real preferences are untouched).
         """
+        th.fix_number_locale()                                  # Decimal point everywhere, before any spin box exists
         super().__init__()
         self.settings = settings or QSettings("PMS Labs", "PCB Thermal Lab")
         self.theme_name = self.settings.value("theme", "dark")
@@ -201,6 +202,7 @@ class MainWindow(QMainWindow):
         self.board_panel.draw_outline_requested.connect(lambda: self.tool_actions["outline"].setChecked(True))
         self.solver_panel.run_requested.connect(self.run_simulation)
         self.solver_panel.cancel_requested.connect(self.cancel_simulation)
+        self.solver_panel.checks.warning_clicked.connect(self._select_from_warning)
         self.results.animation.compute_requested.connect(self.compute_animation)
         self.tabs.currentChanged.connect(self._suggest_animation)
         self._check_timer = QTimer(self)                      # Re-check the design shortly after the last edit
@@ -583,6 +585,21 @@ class MainWindow(QMainWindow):
             self.layer_combo.setCurrentIndex(next(iter(layers)))      # Switch to the layer of the element
         self.canvas.set_selection(items)
         self.inspector.set_selection(items)
+
+    def _select_from_warning(self, kind, index):
+        """!
+        @brief Select the element that a clicked input warning is about (switching to its layer).
+        @param kind Element kind ("zone", "heater", "heatsink" or "via").
+        @param index 0-based index of the element in its list.
+        """
+        lst = getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}.get(kind, ""), None)
+        if lst is None or not 0 <= index < len(lst):
+            return
+        layer = getattr(lst[index], "layer", None)
+        if layer is not None and self.canvas.layer != layer:
+            self.layer_combo.setCurrentIndex(layer)         # The element is drawn on its own layer
+        self.canvas.set_selection([(kind, index)])
+        self._on_canvas_selection([(kind, index)])
 
     def _on_created(self, kind, index):
         """!

@@ -1017,3 +1017,29 @@ def test_inner_copper_choice_in_the_application(win, qtbot):
     run(win, qtbot, ALL_MODELS, cell=2.0)
     page.inner_oz.setCurrentIndex(page.inner_oz.findData(0.5))
     assert win.doc.problem.board.copper_thickness[1] == pytest.approx(15.2e-6)
+
+
+def test_warning_list_under_run_with_many_warnings(win, qtbot):
+    """Many warnings at once (parts off the board, overlapping parts, a via off the board, no power): the list is capped in height and scrolls, every warning about an element selects it on its layer, a rename keeps the list in step, undo removes the warnings."""
+    def build(proj):
+        pr = proj.problem
+        for k in range(6):
+            pr.add_heater(1 + (k % 2), 1.0, rect=(10 + 5 * k, 10, 20 + 5 * k, 20), name=f"P{k}")    # Overlapping, no copper under them
+        pr.add_heater(1, 1.0, rect=(90, 70, 130, 100), name="Off")                                   # Partly off the 100 x 80 mm board
+        pr.add_via(500.0, 500.0)
+        pr.add_zone(1, rect=(-50, -50, -20, -20), name="Z")                                          # Zone off the board
+    win.doc.edit("Many", build)
+    win._update_checks()
+    box = win.solver_panel.checks
+    assert len(box.warnings) >= 8 and box.isVisibleTo(win.solver_panel.footer)
+    assert box.height() <= box.MAX_HEIGHT
+    for w in box.warnings:
+        if w.kind is not None:
+            box.warning_clicked.emit(w.kind, w.index)
+            assert win.canvas.selected_elements() == [(w.kind, w.index)]
+    box.warning_clicked.emit("heater", 999)                                  # A stale index is ignored
+    box.warning_clicked.emit("nothing", 0)
+    win.doc.stack.undo()
+    win._update_checks()
+    assert len(box.warnings) == 1 and box.warnings[0].kind is None            # The empty board's own warning: one line, no count
+    assert "warnings" not in box.toPlainText()
