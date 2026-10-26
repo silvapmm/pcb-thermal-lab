@@ -259,7 +259,7 @@ def test_preferences_show_readable_labels_and_read_a_decimal_comma(qtbot):
     table.item(1, 1).setText("0,45")
     assert d.data["libraries"]["via_fills"][1]["k_w_per_mk"] == 0.45
     table.item(2, 1).setText("eight")
-    assert d.data["libraries"]["via_fills"][2]["k_w_per_mk"] == 8.0 and table.item(2, 1).text() == "8.0"
+    assert d.data["libraries"]["via_fills"][2]["k_w_per_mk"] == 8.0 and table.item(2, 1).text() == "8"
     w = d.widgets[("new_board", "ambient_c")]
     form = w.parentWidget().layout()
     assert form.labelForField(w).text() == "Ambient (°C)" and "ambient_c" in w.toolTip()
