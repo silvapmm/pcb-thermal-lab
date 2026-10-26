@@ -258,7 +258,7 @@ change. Keep the documentation **few and good**: `README.md`, `CHANGELOG.md`, `d
 this repository: all file tools, Bash (including explicit `git *` and `gh *` rules), WebFetch
 and WebSearch are allowed, with `acceptEdits` as the default mode. Denied: `sudo`,
 force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/` or `~`.
-Isolated agent worktrees start from `develop` when `worktree.baseRef` is `"head"` (the maintainer sets it in the same file; without it they start from `main` and the agent has to create its branch from `develop`). Deleting remote branches is not covered by this file: the maintainer does it, except the temporary `research/<topic>` branches if an `autoMode.allow` rule for them is set.
+Isolated agent worktrees start from `develop` when `worktree.baseRef` is `"head"` (the maintainer sets it in the same file; without it they start from `main` and the agent has to create its branch from `develop`). Deleting remote branches is not covered by this file: the maintainer does it, except a temporary `research/<topic>` branch **that is already merged into `develop`** (listed by `git branch -r --merged origin/develop`, so `develop` has been pushed with it) if an `autoMode.allow` rule for it is set; an unmerged research branch is never deleted, locally or on the remote.
 
 ## Agents and workflow
 
