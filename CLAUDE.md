@@ -91,6 +91,7 @@ The project is MIT (`LICENSE`). Rules (maintainer, 2026-10-23, after the incoher
 
 - Default branch: `main`; active branch: `develop`. Do not commit features directly
   to `main`; use a branch and open a PR with `gh pr create`.
+- **Branch rule** (maintainer, mandatory): every working branch (`fix/<topic>`, `feature/<topic>`, `docs/<topic>` and `research/<topic>`) is created **from `develop`**, right when the work starts, never from `main` or from another working branch. When the work is finished (reviewed, the whole battery green) it is **merged back into `develop`** and the branch is deleted, locally and on the remote: all of them are temporary, and the only long-lived branches are `main` and `develop`. Names are exactly `fix/<topic>` and `research/<topic>` (kebab-case, English). `main` receives `develop` only when everything planned for the next version is done and the maintainer is satisfied, and that merge is the release (version bump, `CHANGELOG.md`, tag; see "Branches and Versions").
 - All git text is in English (details below).
 - The Claude GitHub app is installed on the repository (`/install-github-app`).
 
@@ -184,8 +185,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 
 ## Branches and Versions
 
-- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.1** (2026-10-22).
-- `develop`: integration branch for the next version; feature work branches off it (`feature/<topic>`) and merges back when it is solid.
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.1** (2026-10-22). The next release is **2.4.2**: `develop` holds fixes since 2.4.1 (the numbering follows the work: fixes only give a patch number; if a `feature/` item enters the version, the maintainer decides at the release whether it becomes 2.5.0). `pcbthermal.__version__` stays 2.4.1 on `develop` until the release commit that bumps it.
+- `develop`: integration branch for the next version; every fix, feature, documents and research branch starts from it and merges back into it when finished (see the branch rule in "Git Workflow"); `main` gets `develop` only at a release.
 - Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
   (title bar, status bar, About), in `--version`, in reports and in saved projects. A release needs: version bump, `CHANGELOG.md` entry
@@ -281,6 +282,8 @@ The review of every research folder is tracked in `research/REVIEW.md` (status, 
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
 
 ## Decisions Log
+
+- **Branch and version rule** (maintainer): every `fix/`, `feature/`, `docs/` and `research/` branch starts from `develop` when the work starts and is merged back into `develop` when it is finished, then deleted locally and on the remote; `main` receives `develop` only when everything planned is done and the maintainer is satisfied, and that is the release. As `main` is at 2.4.1 and `develop` holds fixes, the next version is 2.4.2 (a `feature/` item in it would make it a minor bump, to be decided at the release). The text of the rule is in "Git Workflow" and "Branches and Versions".
 
 - **Research branch `research/gerbers` closed and merged into `develop`** (maintainer, after the long runs and three review rounds): the folders `gerber-import`, `gerber-models`, `gerber-nets`, `theory`, `effective-conductivity` and the register files (`research/ROADMAP.md`, `REVIEW.md`, `INDEX.md`, `diagram_kit.py`, `check_figures.py`) are now in `develop`; the whole battery ran on the merged tree (592 passed) and the research tests of each folder pass (they are run folder by folder: two folders have a `test_importer.py`). The twelve long runs of `research/ROADMAP.md` section 3 were made on a quiet machine and showed that the times quoted by the program documents for the 3D solid and the layered FVM (276 s at 393 000 unknowns, 97 s and 273 s at 1 and 2 million) are not reproduced (7.5 s, 5.2 s, 12.4 s on a plain board; 32.8 s and 7.4 GB at 392 000 unknowns on the example board). The memory limit of the 3D solid is to be by estimated memory (50 % of the physical memory by default, about 20 KB per unknown for many slabs, 7 KB for few, 3 KB for the layered models) and **adjustable in the settings** (maintainer); text in `research/solid3d-verification/docs/for-the-project-documents.md`; implemented on a `fix/` branch, not yet. A research branch is still the way to start an investigation; this one is the first that ended in `develop`. Rule added by the maintainer: research branches are always temporary (open, investigate, merge into `develop` when closed, delete the branch locally and on the remote); the remote `research/gerbers` was deleted.
 
