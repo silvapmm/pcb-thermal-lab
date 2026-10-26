@@ -5,11 +5,12 @@
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
+import html
 import math
 
-from PySide6.QtWidgets import (QAbstractItemView, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
+from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
-                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .. import solid3d
 from .. import defaults
@@ -18,6 +19,8 @@ from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, V
 from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
+from . import theme as th
+from ..numfmt import num
 
 
 def _is_rect(pts):
@@ -33,6 +36,24 @@ def _is_rect(pts):
 
 
 _TITLES = {"zone": "Zones", "heater": "Heaters", "heatsink": "Heatsinks", "via": "Vias"}
+
+
+def compact_combos(root, chars=14):
+    """!
+    @brief Let the lists of a side panel be narrower than their longest entry (the open list still shows every entry in full).
+
+    @param root  Widget whose QComboBox children are made compact.
+    @param chars Width of a closed list, in characters.
+    @return Number of lists changed.
+    @note A list sized to its longest entry ("Manual input: I give h or θSA", "Horizontal (layer 1 = top faces up)") made the
+          Properties and Board panels need about 440 px, so a dock of normal width cut their fields off.
+    """
+    n = 0
+    for c in root.findChildren(QComboBox):
+        c.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        c.setMinimumContentsLength(chars)
+        n += 1
+    return n
 
 
 def _spin(lo, hi, value=0.0, decimals=2, step=0.1, suffix=""):
@@ -74,7 +95,7 @@ class BoardPanel(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 8)
 
-        g = QGroupBox("Board")
+        g = QGroupBox("Size")                              # The dock is already titled Board
         f = QFormLayout(g)
         self.width = _spin(5, 1000, 100, 1, 1, "mm")
         self.height = _spin(5, 1000, 80, 1, 1, "mm")
@@ -84,7 +105,7 @@ class BoardPanel(QWidget):
         self.copper = _spin(5, 210, 35, 1, 5, "µm")
         self.stack_note = QLabel("")
         self.stack_note.setWordWrap(True)
-        self.stack_note.setStyleSheet("font-size: 11px; color: gray;")
+        th.hint(self.stack_note)
         self.width.setToolTip("Board size along x in millimetres.")
         self.height.setToolTip("Board size along y in millimetres.")
         self.thickness.setToolTip("Total board thickness in millimetres (simple stack-up: copper and equal dielectric gaps share it). "
@@ -120,7 +141,7 @@ class BoardPanel(QWidget):
         self.outline_table.setMaximumHeight(140)
         self.outline_table.setToolTip("Vertices of the outline in millimetres, from the lower-left corner of the box. Edit a cell to move a vertex.")
         self.outline_table.itemChanged.connect(self._edit_vertex)
-        row = QHBoxLayout()
+        row = QGridLayout()
         self.v_add = QPushButton("Add vertex")
         self.v_add.setToolTip("Insert a vertex in the middle of the last edge.")
         self.v_del = QPushButton("Remove vertex")
@@ -130,8 +151,9 @@ class BoardPanel(QWidget):
                               "by moving the new vertices. A curve is a polygon with many short edges; use edges a few cells long at most.")
         self.v_draw = QPushButton("Draw (O)")
         self.v_draw.setToolTip("Draw the outline on the board: drag a rectangle or click the vertices in polygon mode.")
-        for w in (self.v_add, self.v_del, self.v_sub, self.v_draw):
-            row.addWidget(w)
+        # Two rows of two buttons: four in a row made the Board panel about 440 px wide
+        for n, w in enumerate((self.v_add, self.v_del, self.v_sub, self.v_draw)):
+            row.addWidget(w, n // 2, n % 2)
         self.v_sub.clicked.connect(self._subdivide)
         self.v_add.clicked.connect(self._add_vertex)
         self.v_del.clicked.connect(self._remove_vertex)
@@ -163,12 +185,12 @@ class BoardPanel(QWidget):
                                     "With typed coefficients the orientation does not matter: type the h of the real mounting.")
         self.natural_form = QComboBox()
         self.natural_form.addItem("General (Churchill and Chu, whole range)", "general")
-        self.natural_form.addItem("Laminar (Churchill and Chu, Ra below 1e9)", "laminar")
+        self.natural_form.addItem("Laminar (Churchill and Chu, Ra below 1.00E9)", "laminar")
         self.natural_form.setToolTip("Correlation of the natural convection of a vertical board (computed heat transfer, vertical orientation only). General: the "
-                                     "Churchill and Chu form for the whole Rayleigh range (default). Laminar: the same authors' laminar form for Ra below 1e9, which "
+                                     "Churchill and Chu form for the whole Rayleigh range (default). Laminar: the same authors' laminar form for Ra below 1.00E9, which "
                                      "textbooks recommend for laminar flow; it gives a coefficient from +6.5 % (50 mm board, 10 K) to -10 % (200 mm, 80 K) of the general one. "
                                      "Both forms are taken from textbooks and checked numerically, not from the original paper; on the example board the laminar form changes "
-                                     "the rise by -0.7 to +0.2 %, inside the 20 to 30 % uncertainty of h. Above Ra 1e9 (a board of about 0.5 m) use the general form.")
+                                     "the rise by -0.7 to +0.2 %, inside the 20 to 30 % uncertainty of h. Above Ra 1.00E9 (a board of about 0.5 m) use the general form.")
         self.emis_top = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_bottom = _spin(0, 1, 0.9, 2, 0.05, "(0 to 1)")
         self.emis_top.setToolTip("Emissivity of the top face: solder mask and FR-4 about 0.9, bare copper 0.05 to 0.1")
@@ -204,7 +226,7 @@ class BoardPanel(QWidget):
         self.laminate = QComboBox()
         self.laminate.addItem("Laminate preset...", None)
         for entry in DIELECTRICS:
-            self.laminate.addItem(f"{entry[0]}: {entry[1]:g} / {entry[2]:g} W/mK", entry)
+            self.laminate.addItem(f"{entry[0]}: {num(entry[1])} / {num(entry[2])} W/mK", entry)
         self.laminate.setToolTip("Typical dielectric materials (indicative values, not from your laminate datasheet): fills the through-thickness and in-plane "
                                  "conductivity, density and specific heat of the dielectric of the simple stack-up.")
         self.laminate.currentIndexChanged.connect(self._pick_laminate)
@@ -228,6 +250,7 @@ class BoardPanel(QWidget):
         self.layers.valueChanged.connect(self._apply_layers)
         self.side_on.toggled.connect(self._apply)
         doc.changed.connect(self.refresh)
+        compact_combos(self)
         self.refresh()
 
     def refresh(self):
@@ -255,7 +278,7 @@ class BoardPanel(QWidget):
         self.stack_box.setTitle("Stack-up (layer by layer in the table)" if advanced else "Simple stack-up")
         self.stack_note.setVisible(not advanced)
         self.stack_note.setText("Advanced stack-up: thickness, copper and dielectrics are set layer by layer in the Stack-up tab." if advanced
-                                else "Simple stack-up: equal gaps. For different copper weights or dielectrics use the Stack-up tab.")
+                                else "Simple stack-up: equal gaps. For different copper weights or dielectrics choose Advanced in the Stack-up list at the top of this tab.")
         self.ambient.setValue(b.ambient)
         self.h_top.setValue(b.h_top)
         self.h_bottom.setValue(b.h_bottom)
@@ -385,7 +408,7 @@ class BoardPanel(QWidget):
         """
         t = self.outline_table
         try:
-            return [[float(t.item(r, 0).text()), float(t.item(r, 1).text())] for r in range(t.rowCount())]
+            return [[float(t.item(r, c).text().replace(",", ".")) for c in (0, 1)] for r in range(t.rowCount())]     # A decimal comma is read as a point
         except (ValueError, AttributeError):
             return None
 
@@ -513,7 +536,7 @@ class ElementList(QWidget):
                     elif kind == "heater":
                         value = f"{el.power:.2f} W"
                     else:
-                        value = f"+{el.h_extra:g} W/m²K"
+                        value = f"+{num(el.h_extra)} W/m²K"
                     row = [el.name or f"{kind} {i + 1}", str(el.layer + 1), value]
                 child = QTreeWidgetItem(row)
                 child.setData(0, Qt.UserRole, (kind, i))
@@ -581,6 +604,7 @@ class Inspector(QWidget):
         """
         super().__init__(parent)
         self.doc, self.selection, self._updating = doc, [], False
+        self._form_selection = None                # The selection the current form was built for
         self._manual_as = {}                       # (kind, index) -> "h" or "rsa": which value a manual-input heatsink is typed as
         self.lay = QVBoxLayout(self)
         self.lay.setContentsMargins(8, 8, 8, 8)
@@ -603,6 +627,10 @@ class Inspector(QWidget):
         @brief Rebuild the form for the current selection and the current document values.
         """
         self._updating = True
+        # An edit rebuilds the whole form, which destroyed the field that had the keyboard focus (and the one Tab had just moved to): the
+        # focus fell to the tab bar, so Tab and Enter could not be used to go through the fields. The position of the focused field in
+        # the focus chain is kept and given back to the same field of the new form when the selection is the same
+        focus_at = self._focus_position() if self.selection == self._form_selection else None
         old = self.form_host
         self.form_host = QWidget()
         self.lay.replaceWidget(old, self.form_host)
@@ -641,6 +669,7 @@ class Inspector(QWidget):
             title = QLabel(f"<b>{kind.capitalize()}</b>")
             lay.addRow(title)
             name = QLineEdit(el.name)
+            name.setPlaceholderText(f"{kind.capitalize()} {i + 1}")     # An element without a name is listed and warned about under this name
             name.editingFinished.connect(lambda: self.doc.set_props(kind, i, "Rename", name=name.text()))
             lay.addRow("Name", name)
             if kind != "via":
@@ -695,10 +724,10 @@ class Inspector(QWidget):
                                    "in Preferences). Replace them by the datasheet numbers whenever you have them.")
                     typical = QLabel("")
                     typical.setWordWrap(True)
-                    typical.setStyleSheet("font-size: 11px; color: gray;")
+                    th.hint(typical)
                     typical.setToolTip("The typical values and the note of the chosen family, from the library.")
                     entry = next((e for e in PACKAGE_THETA if e[0] == el.family), None)
-                    typical.setText(f"Typical for {entry[0]}: θ junction-pad {entry[1]:g} K/W, θJC(top) {entry[2]:g} K/W, Tj max {entry[3]:g} °C." if entry else
+                    typical.setText(f"Typical for {entry[0]}: θ junction-pad {num(entry[1])} K/W, θJC(top) {num(entry[2])} K/W, Tj max {num(entry[3])} °C." if entry else
                                     "Custom: no typical values applied. Type the datasheet numbers below.")
                     if entry and entry[4]:
                         typical.setToolTip(entry[4])                       # The note and the source of the library entry
@@ -724,10 +753,12 @@ class Inspector(QWidget):
                                  "says the junction is hotter).")
                     lay.addRow("θ junction-pad", t)
                     tj = _spin(0, 500, el.tj_max, 1, 5, "°C")
+                    tj.setSpecialValueText("no limit")                       # 0 = no limit (it read "0.0 °C", a junction limit of zero degrees)
                     tj.setToolTip("Maximum junction temperature of the part (0 = no limit). The report gives the margin and the power limit.")
                     tj.valueChanged.connect(lambda v: self.doc.set_props(kind, i, tj_max=v))
                     lay.addRow("Tj max", tj)
                     psi = _spin(0, 500, el.psi_jb, 2, 0.5, "K/W")
+                    psi.setSpecialValueText("not used")
                     psi.setToolTip("Junction-to-board characterisation parameter ψJB (0 = not used). The report adds Tj = mean board temperature in the ring "
                                    "0.5 to 1.5 mm around the package + ψJB·P, the least pessimistic estimate when the datasheet has no junction-to-pad number.")
                     psi.valueChanged.connect(lambda v: self.doc.set_props(kind, i, psi_jb=v))
@@ -758,15 +789,15 @@ class Inspector(QWidget):
                     if cur:
                         for e in HEATSINKS:
                             if e[3] == cur[3]:
-                                flow.addItem(f"{e[4]}: {e[1]:g} K/W", e[0])
+                                flow.addItem(f"{e[4]}: {num(e[1])} K/W", e[0])
                         flow.setCurrentIndex(max(flow.findData(cur[0]), 0))
                     flow.setToolTip("The air flow of the catalogue value (natural convection, 1 m/s, 2 m/s, forced air): only the flows the catalogue gives for this heatsink. The "
                                     "air speed of the board (Environment) does not change θSA: choose the flow that matches your case or type your own θSA.")
                     hs_note = QLabel("")
                     hs_note.setWordWrap(True)
-                    hs_note.setStyleSheet("font-size: 11px; color: gray;")
+                    th.hint(hs_note)
                     hs_note.setToolTip("The catalogue value and its source for the chosen heatsink and flow.")
-                    hs_note.setText(f"Catalogue: {cur[0]}, {cur[1]:g} K/W." if cur else
+                    hs_note.setText(f"Catalogue: {cur[0]}, {num(cur[1])} K/W." if cur else
                                     ("Custom: your own θSA." if el.theta_sa > 0 else "No heatsink: all the power enters the board (worst case)."))
                     if cur:
                         hs_note.setToolTip(cur[2])                         # The source and the test conditions
@@ -793,6 +824,7 @@ class Inspector(QWidget):
                         lay.addRow("Air flow", flow)
                     lay.addRow(hs_note)
                     sa = _spin(0, 5000, el.theta_sa, 2, 0.5, "K/W")
+                    sa.setSpecialValueText("no heatsink")
                     sa.setToolTip("Resistance from a heatsink on top of the package to the ambient (datasheet θSA at your air flow). 0 = no top path: all the power "
                                   "enters the board (worst case). Needs θ junction-pad. Steady-state models only.")
                     sa.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_sa=v))
@@ -801,7 +833,7 @@ class Inspector(QWidget):
                     if top_active and el.theta <= 0:
                         need = QLabel("The top path also needs a junction-to-pad θ above zero (Junction box).")
                         need.setWordWrap(True)
-                        need.setStyleSheet("font-size: 11px; color: gray;")
+                        th.hint(need)
                         need.setToolTip("The heat that goes up is taken from the heat that enters the board, which needs the junction-to-pad resistance θ to be known.")
                         lay.addRow(need)
                     why = ""
@@ -813,6 +845,7 @@ class Inspector(QWidget):
                         jc.valueChanged.connect(lambda v: self.doc.set_props(kind, i, theta_jc_top=v))
                         lay.addRow("θJC top", jc)
                         body_t = _spin(0, 50, 0.0, 2, 0.1, "mm")
+                        body_t.setSpecialValueText("not used")
                         body_m = QComboBox()
                         for label, k_ in (("Mould compound (0.9 W/mK)", 0.9), ("Thermally enhanced mould (2.3 W/mK)", 2.3), ("Alumina ceramic (24 W/mK)", 24.0),
                                           ("Copper lid / heat spreader (385 W/mK)", 385.0)):
@@ -832,6 +865,7 @@ class Inspector(QWidget):
                         lay.addRow("Body thickness", body_t)
                         lay.addRow("Body material", body_m)
                         ca = _spin(0, 100000, el.contact_area * 1e6, 2, 5, "mm²")
+                        ca.setSpecialValueText("the footprint")
                         ca.setToolTip("Area of the package top that touches the heatsink through the paste (0 = the footprint). For a processor it is the lid, for a chip with an "
                                       "exposed top the die or the exposed pad; the interface resistance is divided by this area, not drawn.")
                         ca.valueChanged.connect(lambda v: self.doc.set_props(kind, i, contact_area=v * 1e-6))
@@ -905,15 +939,15 @@ class Inspector(QWidget):
                     lay = box("Metal block")
                     only = QLabel("The FVM, FDM and 3D solid model the block fully. The Lumped and Analytic models have it in steady state only (within about 5 % of the FVM); their time simulation does not.")
                     only.setWordWrap(True)
-                    only.setStyleSheet("font-size: 11px; color: gray;")
+                    th.hint(only)
                     only.setToolTip("The Lumped model keeps the block as one more layer of its ring network and the Analytic model as a graph of tiles in its local "
                                     "correction; both were within 5 % of the FVM in 74 test cases, with no time simulation.")
                     lay.addRow(only)
-                    th = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
-                    th.setToolTip("Thickness of the metal block pressed on this face. The heat enters the block only where the block overlaps copper of this layer, "
+                    block_t = _spin(0.01, 100, el.thickness * 1000, 2, 0.5, "mm")
+                    block_t.setToolTip("Thickness of the metal block pressed on this face. The heat enters the block only where the block overlaps copper of this layer, "
                                   "spreads in the metal and leaves by its surface.")
-                    th.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
-                    lay.addRow("Block thickness", th)
+                    block_t.valueChanged.connect(lambda v: self.doc.set_props(kind, i, thickness=v / 1000))
+                    lay.addRow("Block thickness", block_t)
                     mat = QComboBox()
                     presets = list(METALS) + [("Custom", None, None)]
                     for label, k_, c_ in presets:
@@ -954,7 +988,7 @@ class Inspector(QWidget):
                                  "of which you know the datasheet performance instead of the fins above.")
                     lay.addRow("Extra h", w)
             else:
-                lay = box("Via")
+                lay = box("Position, size and fill")                # The title above already says Via
                 x = _spin(0, 2000, el.x * 1000, 2, 0.5, "mm")
                 y = _spin(0, 2000, el.y * 1000, 2, 0.5, "mm")
                 d = _spin(0.05, 5, el.diameter * 1000, 2, 0.05, "mm")
@@ -977,13 +1011,13 @@ class Inspector(QWidget):
                                 "barely conducts heat. Only an electroplated copper fill is a real heat path.")
                 fill_k = _spin(0, 500, el.fill_k if not (el.filled and not el.fill_k) else 385.0, 2, 1, "W/mK")
                 fill_k.setToolTip("Conductivity of the fill used for this via (W/mK). It starts at the typical value of the chosen fill and can be edited for this via; the typical "
-                                  "values are in Preferences (Libraries - via fills). 0 = open barrel.")
+                                  "values are in Preferences (section Via fills). 0 = open barrel.")
                 typical = QLabel("")
                 typical.setWordWrap(True)
-                typical.setStyleSheet("font-size: 11px; color: gray;")
+                th.hint(typical)
                 typical.setToolTip("The typical conductivity and the note of the chosen fill, from the library.")
                 entry = VIA_FILLS[current] if current < len(VIA_FILLS) else None
-                typical.setText(f"Typical: {entry[1]:g} W/mK. {entry[2]}" if entry else "Custom value.")
+                typical.setText(f"Typical: {num(entry[1])} W/mK. {entry[2]}" if entry else "Custom value.")
                 x.valueChanged.connect(lambda v: self.doc.set_props(kind, i, x=v / 1000))
                 y.valueChanged.connect(lambda v: self.doc.set_props(kind, i, y=v / 1000))
                 d.valueChanged.connect(lambda v: self.doc.set_props(kind, i, diameter=v / 1000))
@@ -1006,8 +1040,46 @@ class Inspector(QWidget):
                 lay.addRow(typical)
             if kind != "via":
                 self._geometry_rows(box("Position and size"), kind, i, el)
+        compact_combos(self.form_host)
         tips.apply(self.form_host)
+        self._form_selection = list(self.selection)
+        # Show the new form now and lay it out: a widget put in a layout is shown by a queued call, so for one event cycle the form counted as
+        # empty and the scroll area of the dock kept the old height; the rows of a taller form were drawn on top of each other (README screenshots)
+        self.form_host.show()
+        self.form_host.layout().activate()
+        self.lay.activate()
+        if focus_at is not None:
+            chain = self._focus_chain()
+            if focus_at < len(chain):
+                chain[focus_at].setFocus(Qt.TabFocusReason)          # Tab focus also selects the text of a number, ready to be typed over
         self._updating = False
+
+    def _focus_chain(self):
+        """!
+        @brief The fields of the form that take the keyboard focus, in the order they were created (the same order for the same element).
+        @return List of QWidget.
+        """
+        out = []
+        for w in self.form_host.findChildren(QWidget):
+            parent = w.parentWidget()
+            if isinstance(parent, (QAbstractSpinBox, QComboBox)):     # The line edit inside a number or a list belongs to it
+                continue
+            if w.focusPolicy() & Qt.TabFocus and w.isEnabled() and w.isVisibleTo(self.form_host):
+                out.append(w)
+        return out
+
+    def _focus_position(self):
+        """!
+        @brief Position in the focus chain of the field that has the keyboard focus.
+        @return Index, or None when the focus is outside the form.
+        """
+        w = QApplication.focusWidget()
+        if w is None or not self.form_host.isAncestorOf(w):
+            return None
+        chain = self._focus_chain()
+        while w is not None and w not in chain:
+            w = w.parentWidget()
+        return chain.index(w) if w is not None else None
 
     @staticmethod
     def _block_defaults():
@@ -1052,12 +1124,12 @@ class Inspector(QWidget):
         mat.addItem("Interface material preset...", None)
         mat.addItem("Direct contact (no material, R = 0)", "direct")
         for label, k_, t_ in INTERFACES:
-            mat.addItem(f"{label}: {t_:g} mm", (k_, t_ * 1e-3))
+            mat.addItem(f"{label}: {num(t_)} mm", (k_, t_ * 1e-3))
         mat.setToolTip(f"The one dielectric sheet {where} (thermal paste or gap pad): a preset fills its thickness and conductivity. "
                        "'Direct contact' means no material in between (for example bare copper pressed on the metal): thickness and resistance 0, the optimistic limit. Indicative values (apparent "
                        "conductivity including the contact resistances): check your material's datasheet. The sheet can have its own material and thickness.")
-        th = _spin(0, 20, t_now * 1000, 3, 0.1, "mm")
-        th.setToolTip(f"Thickness of the dielectric sheet {where} (paste 0.05 to 0.1 mm, gap pad 0.5 to 1.5 mm). With its conductivity it gives the interface "
+        sheet_t = _spin(0, 20, t_now * 1000, 3, 0.1, "mm")
+        sheet_t.setToolTip(f"Thickness of the dielectric sheet {where} (paste 0.05 to 0.1 mm, gap pad 0.5 to 1.5 mm). With its conductivity it gives the interface "
                       "resistance thickness / k; 0 = type the resistance below instead.")
         kk = _spin(0, 100, k_now, 2, 0.5, "W/mK")
         kk.setToolTip("Conductivity of the dielectric sheet (grease 1 to 5, gap pads 1 to 6 W/mK apparent; the datasheet's bulk value is higher than what a joint "
@@ -1076,15 +1148,15 @@ class Inspector(QWidget):
                 write(t_, k_, t_ / k_ * 1e4)
 
         def sheet(_v):
-            if th.value() > 0 and kk.value() > 0:
-                write(th.value() * 1e-3, kk.value(), th.value() * 1e-3 / kk.value() * 1e4)
+            if sheet_t.value() > 0 and kk.value() > 0:
+                write(sheet_t.value() * 1e-3, kk.value(), sheet_t.value() * 1e-3 / kk.value() * 1e4)
 
         mat.currentIndexChanged.connect(pick)
-        th.valueChanged.connect(sheet)
+        sheet_t.valueChanged.connect(sheet)
         kk.valueChanged.connect(sheet)
         res.valueChanged.connect(lambda v: write(0.0, 0.0, v))
         lay.addRow("Interface material", mat)
-        lay.addRow("Interface thickness", th)
+        lay.addRow("Interface thickness", sheet_t)
         lay.addRow("Interface conductivity", kk)
         lay.addRow("Interface resistance", res)
 
@@ -1163,6 +1235,82 @@ class Inspector(QWidget):
         lay.addRow("", info)
 
 
+class WarningList(QTextBrowser):
+    """!
+    @brief The input warnings of the design as a compact clickable list under the Run button.
+
+    @details Hidden when there is no warning; a single warning takes only the height of its text; several warnings
+    are listed one per paragraph under a count, up to a maximum height, with a scroll bar beyond it. Clicking a
+    warning that is about an element emits warning_clicked with the kind and the index of that element.
+    """
+
+    warning_clicked = Signal(str, int)
+    MAX_HEIGHT = 150                                  # Pixels; more warnings than fit scroll
+
+    def __init__(self, parent=None):
+        """!
+        @param parent Qt parent.
+        """
+        super().__init__(parent)
+        self.setOpenLinks(False)
+        self.setFrameShape(QTextBrowser.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.viewport().setAutoFillBackground(False)
+        self.anchorClicked.connect(self._clicked)
+        self.warnings = []
+        self.setToolTip("Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about.")
+        self.setVisible(False)
+
+    def set_warnings(self, warnings):
+        """!
+        @brief Show a list of warnings.
+        @param warnings List of warning strings; those with attributes kind and index (checks.CheckWarning) are clickable.
+        """
+        self.warnings = list(warnings)
+        if not self.warnings:
+            self.setHtml("")
+            self.setVisible(False)
+            return
+        parts = []
+        if len(self.warnings) > 1:
+            parts.append(f"<p><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
+        for w in self.warnings:
+            text = html.escape(str(w))
+            kind, index = getattr(w, "kind", None), getattr(w, "index", None)
+            if kind is not None and index is not None:
+                text = f'<a href="{kind}:{index}" style="text-decoration:none">{text}</a>'
+            parts.append(f"<p>⚠ {text}</p>" if len(self.warnings) == 1 else f"<p style='margin-top:2px'>• {text}</p>")
+        self.setHtml("".join(parts))
+        self.setVisible(True)
+        self._fit()
+
+    def _fit(self):
+        """!
+        @brief Set the height to the wrapped text, up to the maximum.
+        """
+        self.document().setTextWidth(max(self.viewport().width(), 100))
+        h = int(self.document().size().height()) + 6
+        self.setFixedHeight(min(h, self.MAX_HEIGHT))
+
+    def resizeEvent(self, event):
+        """!
+        @brief Re-wrap the text for the new width.
+        @param event Qt resize event.
+        """
+        super().resizeEvent(event)
+        if self.warnings:
+            self._fit()
+
+    def _clicked(self, url):
+        """!
+        @brief Report the element of a clicked warning.
+        @param url Link of the clicked warning, "kind:index".
+        """
+        kind, _, index = url.toString().partition(":")
+        if index.isdigit():
+            self.warning_clicked.emit(kind, int(index))
+
+
 class SolverPanel(QWidget):
     """!
     @brief Model choice, solver settings and the Run button.
@@ -1198,7 +1346,7 @@ class SolverPanel(QWidget):
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
                            "than the heater, a copper edge across a footprint). "
-                           f"Limited to {solid3d.MAX_CELLS:,} unknowns (shown below the cell size; about 4 GB of memory and "
+                           f"Limited to {solid3d.MAX_CELLS} unknowns (shown below the cell size; about 4 GB of memory and "
                            "two minutes per solve at the limit): a larger model is not run and the other models still answer.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
@@ -1218,6 +1366,7 @@ class SolverPanel(QWidget):
         cell_row.addWidget(self.cell, 1)
         cell_row.addWidget(self.auto_cell)
         self.cells_label = QLabel()
+        self.cells_label.setWordWrap(True)                 # With the 3D solid selected the count and its note are long
         self.solver = QComboBox()
         self.solver.addItem("Sparse direct (exact)", "direct")
         self.solver.addItem("Conjugate gradients", "cg")
@@ -1238,7 +1387,7 @@ class SolverPanel(QWidget):
         f.addRow("FVM solver", self.solver)
         f.addRow("Lumped rings", self.rings)
         f.addRow("Analytic modes", self.modes)
-        f.addRow("", self.local)
+        f.addRow(self.local)                               # Full width: in the field column its long text made the panel about 350 px wide
         f.addRow("Hotspot limit", self.hot)
         lay.addWidget(g)
 
@@ -1256,13 +1405,17 @@ class SolverPanel(QWidget):
         self.progress.setTextVisible(False)
         self.status = QLabel("")
         self.status.setWordWrap(True)
-        self.checks = QLabel("")
-        self.checks.setWordWrap(True)
-        lay.addWidget(self.run)
-        lay.addWidget(self.cancel)
-        lay.addWidget(self.progress)
-        lay.addWidget(self.status)
-        lay.addWidget(self.checks)
+        self.checks = WarningList()
+        # The Run button, the progress and the checks are a footer of their own: the main window keeps it below the scrolled settings, so the
+        # main action stays in sight when the dock is short (at the default window size it had scrolled out of view)
+        self.footer = QWidget()
+        fl = QVBoxLayout(self.footer)
+        fl.setContentsMargins(8, 4, 8, 8)
+        fl.addWidget(self.run)
+        fl.addWidget(self.cancel)
+        fl.addWidget(self.progress)
+        fl.addWidget(self.status)
+        fl.addWidget(self.checks)
         lay.addStretch(1)
 
         for w in (self.cell, self.rings, self.modes, self.hot):
@@ -1273,6 +1426,7 @@ class SolverPanel(QWidget):
         doc.changed.connect(self._update_availability)
         doc.state_changed.connect(self.refresh)
         self._base_tips = {k: c.toolTip() for k, c in self.cb.items()}
+        compact_combos(self)
         self.refresh()
 
     def _update_availability(self, *_):
@@ -1315,7 +1469,7 @@ class SolverPanel(QWidget):
         b = self.doc.problem.board
         c = self.cell.value()
         n = max(int(round(b.width * 1000 / c)), 2) * max(int(round(b.height * 1000 / c)), 2) * b.layers
-        text = f"{n:,} unknowns"
+        text = f"{n} unknowns"
         if n > 1_000_000:
             # The layered models have no hard limit; measured with the direct solver: 1 million unknowns 97 s and 4.4 GB, 2 million 273 s and 8.4 GB
             text += " (slow: about 4 GB of memory per million)"
@@ -1323,13 +1477,13 @@ class SolverPanel(QWidget):
             # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
             n3 = solid3d.unknowns(self.doc.problem, c)[0]
             if n3 > solid3d.MAX_CELLS:
-                note = f"; above {solid3d.MAX_CELLS:,}: it will not run, use a larger cell"
+                note = f"; above {solid3d.MAX_CELLS}: it will not run, use a larger cell"
             elif n3 > solid3d.MAX_CELLS // 2:
                 note = "; slow: minutes and GB of memory"
             else:
                 note = ""
-            text += f" (3D solid: {n3:,}{note})"
-        self.cells_label.setText(text.replace(",", " "))
+            text += f" (3D solid: {n3}{note})"
+        self.cells_label.setText(text)
 
     def _apply(self, *_):
         """!
@@ -1355,12 +1509,7 @@ class SolverPanel(QWidget):
         @brief Show the validity checks of the current design under the Run button.
         @param warnings List of warning strings from checks.check_problem.
         """
-        if not warnings:
-            self.checks.setText("")
-            self.checks.setToolTip("")
-            return
-        self.checks.setText("⚠ " + warnings[0] + (f"  (+{len(warnings) - 1} more)" if len(warnings) > 1 else ""))
-        self.checks.setToolTip("\n\n".join(warnings))
+        self.checks.set_warnings(warnings)
 
     def set_running(self, running, text=""):
         """!

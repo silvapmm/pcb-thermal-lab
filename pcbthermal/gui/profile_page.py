@@ -18,7 +18,9 @@ from ..model import SquareWave
 from ..profile_io import ProfileFileError, read_profile_csv, write_profile_csv
 from . import compute
 from .compute import ProcessWorker
+from .panels import compact_combos
 from .results_view import _mpl_theme, _paint_figure
+from ..numfmt import num
 
 _PERIOD_UNITS = {"µs": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0, "h": 3600.0}
 _FREQUENCY_UNITS = {"Hz": 1.0, "kHz": 1e3, "MHz": 1e6}
@@ -70,12 +72,12 @@ class ProfilePage(QWidget):
         self._spin(self.p_on, 0, 100000, 4, " W")
         self.p_off = QDoubleSpinBox()
         self._spin(self.p_off, 0, 100000, 4, " W")
-        self.avg_mode = QCheckBox("Enter the average power instead of the power while on")
+        self.avg_mode = QCheckBox("Type the average power")      # Short label; the tooltip says it replaces the power while on
         self.avg = QDoubleSpinBox()
         self._spin(self.avg, 0, 100000, 4, " W")
-        self.repeat = QCheckBox("Repeat the table (otherwise it runs once and the last power is held)")
+        self.repeat = QCheckBox("Repeat the table")             # Short label: the long one set the width of the page; the rest is in the tooltip
         self.import_btn = QPushButton("Import CSV…")
-        self.import_btn.setToolTip("Read a power profile (time_s,power_w) from a CSV file; see examples/led_driver_board/")
+        self.import_btn.setToolTip("Read a power profile (time_s,power_w) from a CSV file; see examples/csv_profiles/")
         self.export_btn = QPushButton("Export CSV…")
         self.export_btn.setToolTip("Write the profile of this heater to a CSV file (a square wave is written as a table)")
         self.import_btn.clicked.connect(lambda: self.import_csv())
@@ -192,6 +194,7 @@ class ProfilePage(QWidget):
         lay.addWidget(split)
         doc.changed.connect(self.refresh)
         doc.state_changed.connect(self._load_options)
+        compact_combos(self, 16)                          # The page must not be wider than it needs: the tab widget takes its width from the docks
         self.refresh()
         self._load_options()
 
@@ -231,13 +234,13 @@ class ProfilePage(QWidget):
             if h.profile is None:
                 kind = "Constant"
             elif h.profile.kind == "table":
-                kind = f"Table, {len(h.profile.powers)} stretches, {h.profile.period:g} s{'' if h.profile.repeat else ', once'}"
+                kind = f"Table, {len(h.profile.powers)} stretches, {num(h.profile.period)} s{'' if h.profile.repeat else ', once'}"
             else:
                 kind = f"Square wave, {self._describe_period(h.profile.period)}, {h.profile.duty:.0%}"
             regime = ""
             if i < len(self.decisions) and self.decisions[i].index == i:
                 regime = self.decisions[i].regime
-            for c, text in enumerate((h.name or f"Heater {i + 1}", kind, f"{h.average_power():.3g} W", regime)):
+            for c, text in enumerate((h.name or f"Heater {i + 1}", kind, f"{num(h.average_power(), 3)} W", regime)):
                 self.table.setItem(i, c, QTableWidgetItem(text))
         if pr.heaters:
             self.current = min(max(sel, 0), len(pr.heaters) - 1)
@@ -257,8 +260,8 @@ class ProfilePage(QWidget):
         @return Text such as "20 s", "10 ms" or "100 Hz".
         """
         if seconds < 1.0:
-            return f"{1.0 / seconds:g} Hz"
-        return f"{seconds:g} s" if seconds < 600 else f"{seconds / 60:g} min"
+            return f"{num(1.0 / seconds)} Hz"
+        return f"{num(seconds)} s" if seconds < 600 else f"{num(seconds / 60)} min"
 
     def _on_row(self):
         """!
@@ -395,8 +398,8 @@ class ProfilePage(QWidget):
         if self.kind.currentData() == "table" and 0 <= self.current < len(self.doc.problem.heaters):
             w = self.doc.problem.heaters[self.current].profile
             if w is not None and w.kind == "table":
-                self.derived.setText(f"{len(w.powers)} stretches over {w.period:g} s (shortest {w.shortest_feature():g} s); "
-                                     f"average {w.average():.4g} W, peak {w.peak():.4g} W, energy {w.average() * w.period:.4g} J. "
+                self.derived.setText(f"{len(w.powers)} stretches over {num(w.period)} s (shortest {num(w.shortest_feature())} s); "
+                                     f"average {num(w.average(), 4)} W, peak {num(w.peak(), 4)} W, energy {num(w.average() * w.period, 4)} J. "
                                      "Edit the CSV file and import it again to change the table.")
             return
         if self.kind.currentData() != "square" or self.current < 0:
@@ -412,8 +415,8 @@ class ProfilePage(QWidget):
         self._updating = True
         (self.avg if not self.avg_mode.isChecked() else self.p_on).setValue(w.average() if not self.avg_mode.isChecked() else w.p_on)
         self._updating = False
-        self.derived.setText(f"Period {w.period:g} s = {1.0 / w.period:g} Hz; on for {w.on_time():g} s, off for {w.off_time():g} s; "
-                             f"average {w.average():.4g} W, power while on {w.p_on:.4g} W, energy per period {w.average() * w.period:.4g} J")
+        self.derived.setText(f"Period {num(w.period)} s = {num(1.0 / w.period)} Hz; on for {num(w.on_time())} s, off for {num(w.off_time())} s; "
+                             f"average {num(w.average(), 4)} W, power while on {num(w.p_on, 4)} W, energy per period {num(w.average() * w.period, 4)} J")
 
     def _apply(self, *_):
         """!
@@ -612,9 +615,9 @@ class ProfilePage(QWidget):
         self.decisions = decisions
         self.dec_table.setRowCount(len(decisions))
         for r, d in enumerate(decisions):
-            cells = [d.name, "-" if d.kind == "constant" else f"{d.period:g} s" + ("" if d.repeat else " (once)"),
+            cells = [d.name, "-" if d.kind == "constant" else f"{num(d.period)} s" + ("" if d.repeat else " (once)"),
                      "-" if (d.kind == "constant" or d.duty != d.duty) else f"{d.duty:.0%}",
-                     f"{d.average_power:.3g}", "-" if d.kind == "constant" else f"{d.oscillation:.2f}",
+                     f"{num(d.average_power, 3)}", "-" if d.kind == "constant" else f"{d.oscillation:.2f}",
                      "-" if d.kind == "constant" else f"{d.oscillation_percent:.1f} %", d.regime]
             for c, text in enumerate(cells):
                 self.dec_table.setItem(r, c, QTableWidgetItem(text))
@@ -622,8 +625,8 @@ class ProfilePage(QWidget):
         try:
             plan = profiles.plan_run(self.doc.problem, decisions, self.doc.options.profile)
             if plan["resolved"]:
-                self.status.setText(f"Decision from the {ref} step response. About {plan['steps']:,} steps of {plan['dt']:.3g} s "
-                                    f"({plan['window']:g} s per window); press F5 to run.")
+                self.status.setText(f"Decision from the {ref} step response. About {plan['steps']} steps of {num(plan['dt'], 3)} s "
+                                    f"({num(plan['window'])} s per window); press F5 to run.")
             else:
                 self.status.setText(f"Decision from the {ref} step response: every heater is replaced by its average power; "
                                     "no time simulation is needed.")

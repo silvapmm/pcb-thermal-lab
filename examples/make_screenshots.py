@@ -37,6 +37,7 @@ def main(out_dir):
     win._load_problem(example_board(), "example-4layer")
     win.resize(2400, 1363)
     win.show()
+    app.processEvents()                                                      # The window sizes its docks once it is shown; the wider docks below come after that
     # Wide docks so that no field of the panels is cut off (the default widths are narrow for the many controls)
     win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
     app.processEvents()

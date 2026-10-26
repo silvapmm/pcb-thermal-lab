@@ -27,6 +27,7 @@ from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
+from .numfmt import num
 
 MODELS = ("fvm", "lumped", "analytic")
 RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
@@ -149,7 +150,7 @@ def cmd_calibrate(args):
     options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     multiplier, predicted = calibrate_convection(project.problem, args.measured, options, args.model, args.heater)
     what = f"heater {args.heater}" if args.heater else "the board maximum"
-    print(f"Measured {args.measured:g} degC at {what}: convection multiplier {multiplier:.3f} "
+    print(f"Measured {num(args.measured)} degC at {what}: convection multiplier {multiplier:.3f} "
           f"(the {args.model} model then gives {predicted:.2f} degC).")
     print("Use it as Board.h_calibration (Environment panel: 'Convection x') with heat transfer set to Computed.")
     return 0
@@ -192,7 +193,7 @@ def cmd_solvers(args):
              ("SOR, step 0.01 K, omega 1.5 (original program)", dict(method="sor", sor_omega=1.5, sor_tol=0.01,
                                                                      sor_criterion="step"))]
     ref = None
-    print(f"Board '{project.problem.name}', cell {cell:g} mm")
+    print(f"Board '{project.problem.name}', cell {num(cell)} mm")
     print(f"{'solver':50s} {'Tmax C':>9s} {'|dT| vs direct':>15s} {'residual':>10s} {'sweeps':>8s} {'time s':>8s}")
     for name, kw in cases:
         t0 = time.time()
@@ -201,7 +202,7 @@ def cmd_solvers(args):
         ref = r if ref is None else ref
         err = float(abs(r.T - ref.T).max())
         sweeps = f"{int(r.extras['iterations'])}" if "iterations" in r.extras else "-"
-        print(f"{name:50s} {r.t_max:9.4f} {err:15.2e} {r.residual:10.1e} {sweeps:>8s} {dt:8.2f}")
+        print(f"{name:50s} {r.t_max:9.4f} {num(err):>15} {num(r.residual):>10} {sweeps:>8s} {dt:8.2f}")
         for w in r.warnings:
             print(f"   warning: {w}")
     return 0
@@ -269,7 +270,7 @@ def build_parser():
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
     hg.add_argument("--orientation", choices=("horizontal", "vertical"), default=None, help="board orientation")
     hg.add_argument("--natural-form", choices=("general", "laminar"), default=None, dest="natural_form",
-                    help="natural convection correlation of a vertical board: general (default) or laminar (Ra < 1e9)")
+                    help="natural convection correlation of a vertical board: general (default) or laminar (Ra < 1.00E9)")
     hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
     hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")

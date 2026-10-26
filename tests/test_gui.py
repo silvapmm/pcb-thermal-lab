@@ -240,3 +240,271 @@ def test_window_shows_the_version(win):
     assert pcbthermal.__version__ in win.windowTitle()
     assert win.version_label.text() == f"v{pcbthermal.__version__}"
     assert win.canvas is not None
+
+
+def test_docks_open_wide_enough_and_keep_the_run_button_in_sight(qtbot, tmp_path):
+    """!
+    @brief The side docks open readable at the default window size, the pages do not take their width, and the layout is remembered.
+
+    @note Regression: the Stack-up, Power profile and Animation pages were 860 to 1240 px wide, so at 1480 x 900 the docks opened
+          about 110 px wide and every field of the Board, Simulation and Properties panels was cut off; the Run button had scrolled out of view.
+    """
+    from PySide6.QtWidgets import QApplication
+    ini = str(tmp_path / "layout.ini")
+    w = MainWindow(Document(), QSettings(ini, QSettings.IniFormat))
+    qtbot.addWidget(w)
+    w.show()
+    qtbot.waitUntil(lambda: w.dock_board.width() >= 300, timeout=3000)
+    assert w.tabs.minimumSizeHint().width() < 900                     # No page forces the central area wider than this
+    assert w.dock_sim.width() >= 340
+    assert w.board_panel.minimumSizeHint().width() <= w.dock_board.width()
+    assert w.solver_panel.minimumSizeHint().width() <= w.dock_sim.width()
+    # The Run button is outside the scrolled settings, always visible in the dock
+    assert w.solver_panel.footer.isVisible() and not w.solver_panel.isAncestorOf(w.solver_panel.run)
+    # The dock arrangement is saved and restored
+    w.resizeDocks([w.dock_board], [420], Qt.Horizontal)
+    QApplication.processEvents()
+    width = w.dock_board.width()
+    w.close()
+    w2 = MainWindow(Document(), QSettings(ini, QSettings.IniFormat))
+    qtbot.addWidget(w2)
+    w2.resize(1480, 900)                     # The offscreen platform restores a smaller window geometry than it saved
+    w2.show()
+    QApplication.processEvents()
+    assert abs(w2.dock_board.width() - width) <= 2
+
+
+def test_docks_stay_readable_in_a_smaller_window_with_an_advanced_stackup(qtbot, tmp_path):
+    """!
+    @brief At 1100 x 700 and 1280 x 800, with the advanced stack-up table shown, the side docks keep a readable width and the page scrolls.
+
+    @note Regression: the minimum width of the central tabs was that of the widest page (about 810 px, more with the advanced stack-up),
+          so the docks opened about 105 px wide at 1100 x 700 and 200 px at 1280 x 800, and shrank further when the Stack-up tab was shown.
+    """
+    from PySide6.QtWidgets import QApplication
+    for size in ((1100, 700), (1280, 800)):
+        w = MainWindow(Document(), QSettings(str(tmp_path / f"small{size[0]}.ini"), QSettings.IniFormat))
+        qtbot.addWidget(w)
+        w._load_problem(example_board(), "ex")
+        w.doc.problem.board.make_advanced()
+        w.resize(*size)
+        w.show()
+        qtbot.waitUntil(lambda: w.dock_board.width() >= 300, timeout=3000)
+        w.doc.changed.emit()
+        w.tabs.setCurrentIndex(1)
+        QApplication.processEvents()
+        assert w.tabs.minimumSizeHint().width() < 300
+        assert w.dock_board.width() >= 300 and w.dock_sim.width() >= 340
+        w.doc.stack.setClean()
+
+
+def test_a_corrupt_saved_dock_layout_falls_back_to_the_default_widths(qtbot, tmp_path):
+    """!
+    @brief A settings file with text where the dock state was, or dock sizes that are not numbers, opens with the default dock widths.
+
+    @note Regression: restoreState raised TypeError on a text value inside the deferred layout call, so the docks kept about 110 px.
+    """
+    for state, sizes in (("garbage", "x"), (b"garbage", ["a", "b"]), (None, None)):
+        ini = QSettings(str(tmp_path / "bad.ini"), QSettings.IniFormat)
+        ini.clear()
+        if state is not None:
+            ini.setValue("window_state", state)
+            ini.setValue("dock_sizes", sizes)
+        w = MainWindow(Document(), ini)
+        qtbot.addWidget(w)
+        w.resize(1480, 900)
+        w.show()
+        qtbot.waitUntil(lambda: w.dock_board.width() >= 300, timeout=3000)
+        assert w.dock_sim.width() >= 340
+
+
+def test_properties_keep_the_keyboard_focus_after_an_edit(win):
+    """!
+    @brief Enter keeps the focus on the edited field and Tab moves to the next one, although every edit rebuilds the Properties form.
+
+    @note Regression: the rebuild destroyed the focused field and the focus fell to the tab bar, so the fields could not be filled from the keyboard.
+    """
+    from PySide6.QtWidgets import QApplication, QDoubleSpinBox
+    win._load_problem(example_board(), "ex")
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    power = next(s for s in win.inspector.form_host.findChildren(QDoubleSpinBox) if s.suffix() == " W")
+    power.setFocus()
+    power.lineEdit().selectAll()
+    QTest.keyClicks(power.lineEdit(), "5")
+    QTest.keyClick(power, Qt.Key_Return)
+    QApplication.processEvents()
+    assert win.doc.problem.heaters[0].power == pytest.approx(5.0)
+    focused = QApplication.focusWidget()
+    assert isinstance(focused, QDoubleSpinBox) and focused.suffix() == " W" and win.inspector.isAncestorOf(focused)
+    focused.lineEdit().selectAll()
+    QTest.keyClicks(focused.lineEdit(), "6")
+    QTest.keyClick(focused, Qt.Key_Tab)
+    QApplication.processEvents()
+    assert win.doc.problem.heaters[0].power == pytest.approx(6.0)
+    after = QApplication.focusWidget()
+    assert after is not None and win.inspector.isAncestorOf(after) and after is not focused
+
+
+def test_stackup_table_keeps_the_keyboard_focus_after_an_edit(win):
+    """!
+    @brief Enter in a thickness of the advanced stack-up table keeps the focus in that cell although the table is rebuilt.
+    """
+    from PySide6.QtWidgets import QApplication
+    win._load_problem(example_board(), "ex")
+    win.doc.problem.board.make_advanced()
+    win.doc.changed.emit()
+    win.tabs.setCurrentIndex(1)
+    table = win.stackup_page.editor
+    cell = table.cellWidget(1, 2)                      # Thickness of the first dielectric gap, in µm
+    cell.setFocus()
+    cell.lineEdit().selectAll()
+    QTest.keyClicks(cell.lineEdit(), "200")
+    QTest.keyClick(cell, Qt.Key_Return)
+    QApplication.processEvents()
+    assert win.doc.problem.board.dielectrics[0].thickness == pytest.approx(200e-6)
+    assert QApplication.focusWidget() is table.cellWidget(1, 2)
+
+
+def test_notes_use_the_theme_hint_colour(win):
+    """!
+    @brief The small notes of the panels are drawn in the hint colour of the theme, not in a fixed grey (3.6:1 on the light theme).
+    """
+    from PySide6.QtWidgets import QApplication, QLabel
+    from pcbthermal.gui import theme as th
+    win._load_problem(example_board(), "ex")
+    win.doc.set_props("heatsink", 0, thickness=3e-3, merge=False)          # A metal block: its note is one of the hints
+    for kind in ("heater", "heatsink", "via"):
+        win.canvas.set_selection([(kind, 0)])
+        win._on_canvas_selection([(kind, 0)])
+        QApplication.processEvents()
+        notes = [lb for lb in win.inspector.form_host.findChildren(QLabel) if lb.property("hint")]
+        assert notes, kind
+        for lb in notes:
+            assert lb.palette().color(lb.foregroundRole()).name() == th.colors(win.theme_name)["hint"]
+    for w in QApplication.allWidgets():
+        assert "color: gray" not in w.styleSheet()
+
+
+def test_first_run_texts_say_what_to_do_and_what_zero_means(win):
+    """!
+    @brief An empty Results tab says what to do, the results name the models as the Simulation panel does, and an optional field at zero says what zero means.
+    """
+    from PySide6.QtWidgets import QApplication, QDoubleSpinBox
+    from pcbthermal import SolverOptions, simulate
+    assert "No results yet" in win.results.report.placeholderText()
+    assert "Stack-up list at the top of this tab" in win.board_panel.stack_note.text()
+    win._load_problem(example_board(), "ex")
+    win.doc.set_props("heater", 0, tj_max=0.0, merge=False)
+    win.canvas.set_selection([("heater", 0)])
+    win._on_canvas_selection([("heater", 0)])
+    QApplication.processEvents()
+    texts = [s.text() for s in win.inspector.form_host.findChildren(QDoubleSpinBox)]
+    assert "no limit" in texts and "no heatsink" in texts
+    win._on_done(simulate(win.doc.problem, SolverOptions(models=("fvm", "lumped"), cell_mm=2.0)))
+    assert [win.results.model_table.item(r, 0).text() for r in range(2)] == ["FVM", "Lumped (LPTN)"]
+    assert win.results.temp.model.currentText() == "FVM" and win.results.temp.model.currentData() == "fvm"
+
+
+def test_properties_form_is_never_squeezed_after_a_rebuild(qtbot, tmp_path):
+    """!
+    @brief After the Properties form is rebuilt, the dock's scroll area gives it at least its minimum height (it scrolls instead).
+
+    @note Regression: the scroll area kept the old height for an event cycle, so a taller form had its rows drawn on top of each other
+          (seen in the README screenshots).
+    """
+    from PySide6.QtWidgets import QApplication
+    w = MainWindow(Document(), QSettings(str(tmp_path / "s.ini"), QSettings.IniFormat))
+    qtbot.addWidget(w)
+    w._load_problem(example_board(), "ex")
+    w.resize(2400, 1363)
+    w.show()
+    QApplication.processEvents()
+    w.resizeDocks([w.dock_board, w.dock_sim], [420, 560], Qt.Horizontal)
+    QApplication.processEvents()
+    for kind in ("heater", "zone", "heatsink", "heater"):
+        w.canvas.set_selection([(kind, 0)])
+        w._on_canvas_selection([(kind, 0)])
+        QApplication.processEvents()
+        assert w.inspector.height() >= w.inspector.minimumSizeHint().height(), kind
+    w.doc.stack.setClean()
+
+
+def test_input_warnings_list_selects_the_element(win, qtbot):
+    """!
+    @brief Every input warning is listed under Run, and clicking one selects the element it is about.
+    """
+    # No copper under the heater, and a via outside the 100 x 80 mm board: one warning each
+    win.doc.edit("Add", lambda proj: (proj.problem.add_heater(1, 2.0, rect=(10, 10, 20, 20), name="Q1"), proj.problem.add_via(500.0, 500.0)))
+    win._update_checks()
+    box = win.solver_panel.checks
+    assert box.isVisibleTo(win.solver_panel.footer)
+    assert len(box.warnings) >= 2
+    tagged = {(w.kind, w.index) for w in box.warnings if w.kind}
+    assert ("heater", 0) in tagged and ("via", 0) in tagged
+    # A click on the via warning selects the via
+    box.warning_clicked.emit("via", 0)
+    assert win.canvas.selected_elements() == [("via", 0)]
+    # One warning only: no count heading; none: hidden
+    box.set_warnings(box.warnings[:1])
+    assert "warnings" not in box.toPlainText().split("\n")[0]
+    box.set_warnings([])
+    assert not box.isVisibleTo(win.solver_panel.footer)
+
+
+def test_numbers_use_the_decimal_point_with_a_portuguese_system_locale(qtbot, tmp_path):
+    """!
+    @brief A spin box shows "0.45" and "1234.5" (point, no thousands separator) even when the system locale is Portuguese.
+    """
+    from PySide6.QtCore import QLocale
+    from PySide6.QtWidgets import QDoubleSpinBox
+    previous = QLocale()
+    QLocale.setDefault(QLocale(QLocale.Portuguese, QLocale.Brazil))
+    try:
+        assert QLocale().decimalPoint() == ","                       # The test setup: a system that writes the comma
+        w = MainWindow(Document(), QSettings(str(tmp_path / 'loc.ini'), QSettings.IniFormat))
+        qtbot.addWidget(w)
+        boxes = w.findChildren(QDoubleSpinBox)
+        assert boxes
+        spin = w.solver_panel.cell
+        spin.setValue(0.45)
+        assert spin.text().split()[0] == "0.45"
+        spin.setMaximum(1.0e6)
+        spin.setValue(1234.5)
+        assert "1234.5" in spin.text()
+        assert all("," not in b.text() for b in boxes)
+    finally:
+        QLocale.setDefault(previous)
+
+
+def test_a_typed_or_pasted_decimal_comma_is_a_point_in_a_spin_box(win, qtbot):
+    """!
+    @brief "0,45" typed or pasted in a number field gives 0.45, not 45.
+
+    @note Regression: in the US English locale of the application the comma is the thousands separator, and the spin boxes read
+          "0,45" (the habit of a Portuguese user, and the decimal key of a Portuguese numeric keypad) as 45, a silent factor of 100.
+    """
+    from PySide6.QtCore import QLocale
+    from PySide6.QtGui import QKeySequence
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication, QDoubleSpinBox, QLineEdit
+    assert QLocale().decimalPoint() == "."                                # Set by the main window
+    spin = QDoubleSpinBox()
+    qtbot.addWidget(spin)
+    spin.setDecimals(3)
+    spin.setRange(0.0, 1000.0)
+    spin.show()
+    spin.setFocus()
+    spin.lineEdit().selectAll()
+    QTest.keyClicks(spin.lineEdit(), "12,5")
+    spin.interpretText()
+    assert spin.value() == pytest.approx(12.5)
+    QApplication.clipboard().setText("0,45")
+    spin.lineEdit().selectAll()
+    QTest.keySequence(spin.lineEdit(), QKeySequence.Paste)
+    spin.interpretText()
+    assert spin.value() == pytest.approx(0.45)
+    name = QLineEdit()                                                   # A text field keeps its comma
+    qtbot.addWidget(name)
+    QTest.keyClicks(name, "a,b")
+    assert name.text() == "a,b"

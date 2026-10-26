@@ -99,7 +99,7 @@ def check_size(problem, cell_mm=2.0, n_diel=4):
     if n > MAX_CELLS:
         # Suggest the cell that brings the model under the limit (the unknowns go as 1 / cell^2)
         hint = np.ceil(cell_mm * (n / MAX_CELLS) ** 0.5 * 10.0) / 10.0    # Rounded up to 0.1 mm, so the printed cell is enough
-        raise ValueError(f"the 3D model would have {n:,} unknowns ({ns} slabs of {nx} x {ny} cells), more than the {MAX_CELLS:,} a direct solve "
+        raise ValueError(f"the 3D model would have {n} unknowns ({ns} slabs of {nx} x {ny} cells), more than the {MAX_CELLS} a direct solve "
                          f"handles in a few minutes and a few GB; use a cell of {hint:.1f} mm or more")
 
 

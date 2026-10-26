@@ -15,13 +15,33 @@ import shutil
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import defaults
 from .. import model
+from ..numfmt import eng, num
+from . import theme as th
+from . import tips
+
+
+def _cell_text(value):
+    """!
+    @brief Text of a library table cell: a number in plain decimal or engineering notation (never "1e-05"), anything else as it is.
+    @param value Cell value (number or text).
+    @return str Text shown in the cell; reads back with float().
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        text = num(value, 9)
+        if "E" in text and float(text) != float(value):   # Engineering notation with two decimals would change the stored number: keep its digits
+            text = eng(value, 8)
+        return text
+    return str(value)
+
+
+SECTION_LIST_WIDTH = 240          # Pixels: wide enough for the longest section title
 
 LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)", "interfaces": "Interface materials", "dielectrics": "Dielectrics (stack-up)",
-                  "package_theta": "Package families (typical θ)", "heatsinks": "Heatsinks on a package (typical θSA)"}
+                  "package_theta": "Package families (typical θ)", "heatsinks": "Package heatsinks (typical θSA)"}
 LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name appears in the via's Fill list and the conductivity is its typical value (W/mK). Edit a cell to change it, "
                              "add a row for a new fill.",
                 "metals": "Metals of a heatsink block: conductivity (W/mK) and volumetric heat capacity (J/m³K).",
@@ -37,6 +57,31 @@ SECTION_HINTS = {"new_board": "The values a board starts with when you choose Fi
                  "solver": "The models and settings a new project starts with."}
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
+# Labels with units for the fields of the defaults (the JSON key, which a hand-edited file uses, is given in each tooltip)
+LABELS = {
+    "width_mm": "Width (mm)", "height_mm": "Height (mm)", "layers": "Copper layers", "ambient_c": "Ambient (°C)", "h_top": "h top (W/m²K)",
+    "h_bottom": "h bottom (W/m²K)", "edges_lose_heat": "Edges lose heat", "h_side": "h edges (W/m²K)", "via_plating_um": "Via plating (µm)",
+    "h_mode": "Heat transfer", "emissivity_top": "Emissivity top", "emissivity_bottom": "Emissivity bottom", "orientation": "Orientation",
+    "natural_form": "Vertical natural convection", "air_speed": "Air speed (m/s)", "h_calibration": "Convection ×",
+    "heater_power_w": "Heater power (W)", "heater_kind": "Heater type", "heater_size_mm": "Heater size (mm)", "zone_fill": "Zone copper fill (0 to 1)",
+    "zone_size_mm": "Zone size (mm)", "via_diameter_mm": "Via diameter (mm)", "via_fill": "Via fill", "heatsink_h_extra": "Heatsink extra h (W/m²K)",
+    "heatsink_size_mm": "Heatsink size (mm)", "block_thickness_mm": "Block thickness (mm)", "block_metal": "Block metal", "block_interface": "Block interface",
+    "k_copper": "Copper k (W/mK)", "rho_copper": "Copper density (kg/m³)", "cp_copper": "Copper specific heat (J/kgK)",
+    "k_fr4_through": "Dielectric k through (W/mK)", "k_fr4_inplane": "Dielectric k in-plane (W/mK)", "rho_fr4": "Dielectric density (kg/m³)",
+    "cp_fr4": "Dielectric specific heat (J/kgK)",
+    "copper_uncertainty_pct": "Copper (± %)", "h_uncertainty_pct": "Heat transfer h (± %)", "theta_uncertainty_pct": "θ junction-pad (± %)",
+    "psi_jt_uncertainty_pct": "ψJT (± %)", "reading_uncertainty_k": "Temperature reading (± K)", "design_level": "Board description",
+    "design_coverage_pct": "Design: copper coverage (± %)", "design_weight_pct": "Design: copper weight (± %)", "design_planes_pct": "Design: inner planes (± %)",
+    "design_vias_pct": "Design: vias (± %)", "design_scale_cad": "Multiplier, fabrication files", "design_scale_hand": "Multiplier, drawn by hand",
+    "design_scale_estimated": "Multiplier, estimated",
+    "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "Lumped rings", "analytic_modes": "Analytic modes",
+    "hotspot_c": "Hotspot limit (°C)",
+}
+# Column titles with units for the library tables (the JSON key is in the tooltip of the column title)
+COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_per_m3k": "ρ·cp (J/m³K)", "thickness_mm": "Thickness (mm)",
+           "k_through": "k through (W/mK)", "k_inplane": "k in-plane (W/mK)", "rho": "Density (kg/m³)", "cp": "Specific heat (J/kgK)",
+           "theta_k_per_w": "θ junction-pad (K/W)", "theta_jc_top_k_per_w": "θJC top (K/W)", "tj_max_c": "Tj max (°C)", "heatsink": "Heatsink",
+           "flow": "Air flow", "theta_sa_k_per_w": "θSA (K/W)"}
 TIPS = {
     "width_mm": "Width of a new board in mm.", "height_mm": "Height of a new board in mm.", "layers": "Copper layers of a new board.",
     "ambient_c": "Ambient temperature of a new board in °C.", "h_top": "Heat transfer coefficient of the top face (W/m²K), typed mode.",
@@ -44,7 +89,7 @@ TIPS = {
     "h_side": "Heat transfer coefficient of the edges (W/m²K).", "via_plating_um": "Copper plating of the via barrel in µm.",
     "h_mode": "How the face coefficients are found: typed, or computed from convection and radiation.", "emissivity_top": "Emissivity of the top face (0 to 1).",
     "emissivity_bottom": "Emissivity of the bottom face (0 to 1).", "orientation": "Mounting of the board for the computed coefficients.",
-    "natural_form": "Correlation of natural convection for a vertical board: general (Churchill and Chu, whole range) or laminar (same authors, Ra below 1e9); changes the rise by under 1 % on the example.",
+    "natural_form": "Correlation of natural convection for a vertical board: general (Churchill and Chu, whole range) or laminar (same authors, Ra below 1.00E9); changes the rise by under 1 % on the example.",
     "air_speed": "Air speed along the board in m/s (computed mode).", "h_calibration": "Multiplier of the computed convection.",
     "heater_power_w": "Power of a new heater in W.", "heater_kind": "What a new heater is: a pure heat source (power only) or a component (junction, package, top path).", "heater_size_mm": "Side of a heater dropped from the right-click menu, in mm.",
     "zone_fill": "Copper fill (0 to 1) of a new zone.", "zone_size_mm": "Side of a zone dropped from the right-click menu, in mm.",
@@ -93,14 +138,26 @@ class PreferencesDialog(QDialog):
         self.info.setTextFormat(Qt.RichText)
         self.info.setToolTip("Where the user's defaults are kept and what they change. Without that file the program uses the values shipped with it.")
         lay.addWidget(self.info)
-        self.tabs = QTabWidget()
-        self.tabs.setToolTip("Libraries are tables of materials (they appear in the lists of the program); the last tab holds the values a new board, a new element and a new project start with.")
-        lay.addWidget(self.tabs, 1)
+        # The eight sections are a list on the left and their pages are stacked on the right (eight tabs needed scroll arrows in a narrow window)
+        self.sections = QListWidget()
+        self.sections.setObjectName("sections")
+        self.sections.setFixedWidth(SECTION_LIST_WIDTH)
+        self.sections.setTextElideMode(Qt.ElideNone)
+        self.sections.setToolTip("Sections of the preferences (Up and Down change the page). Libraries are tables of materials (they appear in the lists of the program); "
+                                 "the last two sections hold the values a new board, a new element and a new project start with, and the power calculator's uncertainties.")
+        self.pages = QStackedWidget()
+        body = QHBoxLayout()
+        body.addWidget(self.sections)
+        body.addWidget(self.pages, 1)
+        lay.addLayout(body, 1)
         self.tables, self.widgets = {}, {}
         for lib in defaults.LIBRARIES:
-            self.tabs.addTab(self._library_tab(lib), LIBRARY_TITLES[lib])
-        self.tabs.addTab(self._defaults_tab(), "Defaults for new projects")
-        self.tabs.addTab(self._calculator_tab(), "Power calculator")
+            self._add_section(LIBRARY_TITLES[lib], self._library_tab(lib))
+        self._add_section("Defaults for new projects", self._defaults_tab())
+        self._add_section("Power calculator", self._calculator_tab())
+        self.sections.currentRowChanged.connect(self.pages.setCurrentIndex)
+        self.sections.setCurrentRow(0)                      # The first page is shown
+        self.sections.setFocus()                            # Up and Down change the page from the start
         row = QHBoxLayout()
         self.save_btn = QPushButton("Save as my defaults")
         self.save_btn.setToolTip("Write what differs from the shipped defaults to the user file. New projects and the lists of the forms use it from now on.")
@@ -127,7 +184,23 @@ class PreferencesDialog(QDialog):
         self.import_btn.clicked.connect(self.import_file)
         self._refresh_info()
 
-    # ------------------------------------------------------------------ tabs
+    def _add_section(self, title, page):
+        """!
+        @brief Add a section: an entry of the list and its page.
+        @param title Name of the section shown in the list.
+        @param page Widget with the controls of the section.
+        """
+        self.sections.addItem(title)
+        self.pages.addWidget(page)
+
+    def section_titles(self):
+        """!
+        @brief Names of the sections, in the order of the list.
+        @return List of str.
+        """
+        return [self.sections.item(i).text() for i in range(self.sections.count())]
+
+    # ------------------------------------------------------------------ pages
     def _library_tab(self, lib):
         """!
         @brief A table that edits one library.
@@ -138,17 +211,19 @@ class PreferencesDialog(QDialog):
         lay = QVBoxLayout(w)
         note = QLabel(LIBRARY_TIPS[lib])
         note.setWordWrap(True)
-        note.setStyleSheet("font-size: 11px; color: gray;")
+        th.hint(note)
         lay.addWidget(note)
         rows = self.data["libraries"][lib]
         cols = list(defaults.shipped()["libraries"][lib][0].keys())
         t = QTableWidget(len(rows), len(cols))
-        t.setHorizontalHeaderLabels(cols)
+        t.setHorizontalHeaderLabels([COLUMNS.get(c, c) for c in cols])          # Readable titles with units, not the JSON keys
+        for c, key in enumerate(cols):
+            t.horizontalHeaderItem(c).setToolTip(f"JSON key: {key}")
         t.setSelectionBehavior(QAbstractItemView.SelectRows)
         t.setToolTip(LIBRARY_TIPS[lib])
         for r, e in enumerate(rows):
             for c, key in enumerate(cols):
-                t.setItem(r, c, QTableWidgetItem(str(e.get(key, ""))))
+                t.setItem(r, c, QTableWidgetItem(_cell_text(e.get(key, ""))))
         t.resizeColumnsToContents()
         t.horizontalHeader().setStretchLastSection(True)
         t.itemChanged.connect(lambda _item, lib=lib: self._read_table(lib))
@@ -197,7 +272,7 @@ class PreferencesDialog(QDialog):
         note = QLabel("The Power calculator gives a best case, a nominal and a worst case power. Each source of doubt is moved alone to both ends of its uncertainty (±, below) "
                       "and the effects are added as the root of the sum of squares. Change the percentages to what you know about your board and your measurement.")
         note.setWordWrap(True)
-        note.setStyleSheet("font-size: 11px; color: gray;")
+        th.hint(note)
         note.setToolTip(SECTION_HINTS["calculator"])
         lay.addWidget(note)
         lay.addWidget(self._section_tab("calculator"))
@@ -222,14 +297,14 @@ class PreferencesDialog(QDialog):
                 rl.setContentsMargins(0, 0, 0, 0)
                 boxes = {}
                 for m in MODELS:
-                    c = QCheckBox(m)
+                    c = QCheckBox(tips.model_label(m))
                     c.setChecked(m in val)
                     c.setToolTip(TIPS["models"])
                     c.toggled.connect(lambda _on, section=section: self._read_models(section))
                     boxes[m] = c
                     rl.addWidget(c)
                 self.widgets[(section, key)] = boxes
-                f.addRow(key, row)
+                f.addRow(LABELS.get(key, key), row)
                 continue
             if key in CHOICES or key in lib_names:
                 wdg = QComboBox()
@@ -252,12 +327,19 @@ class PreferencesDialog(QDialog):
                 wdg = QDoubleSpinBox()
                 # Amplitudes of the design uncertainty and the copper uncertainty stay below 100 %, so a thickness never reaches 0
                 wdg.setRange(*((0.0, 99.0) if section == "calculator" and key in ("copper_uncertainty_pct", "design_coverage_pct", "design_weight_pct", "design_planes_pct", "design_vias_pct") else (0.0, 1.0) if key.startswith("design_scale_") else (-1e9, 1e9)))
-                wdg.setDecimals(4)
+                # Three decimals for small numbers (a via diameter, an emissivity, a multiplier), one for the large ones: "100,0000 mm" was hard to read.
+                # The choice follows the shipped value, not the user's (a user value of 10 W must not take the decimals away from the heater power),
+                # and grows to show a saved value in full (a spin box rounds its value to its decimals, and a reset would write the rounded number)
+                shipped = defaults.shipped().get(section, {}).get(key, val)
+                places = 3 if abs(float(shipped)) < 10 else 1
+                while places < 6 and round(float(val), places) != float(val):
+                    places += 1
+                wdg.setDecimals(places)
                 wdg.setValue(float(val))
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, float(v)))
-            wdg.setToolTip(TIPS.get(key, key))
+            wdg.setToolTip(f"{TIPS.get(key, key)}\nJSON key: {key}")
             self.widgets[(section, key)] = wdg
-            f.addRow(key, wdg)
+            f.addRow(LABELS.get(key, key), wdg)
         return w
 
     # ------------------------------------------------------------------ editing
@@ -286,6 +368,7 @@ class PreferencesDialog(QDialog):
         """
         t, cols = self.tables[lib]
         sample = defaults.shipped()["libraries"][lib][0]
+        previous = self.data["libraries"][lib]
         rows = []
         for r in range(t.rowCount()):
             entry = {}
@@ -294,9 +377,15 @@ class PreferencesDialog(QDialog):
                 text = item.text().strip() if item else ""
                 if isinstance(sample[key], (int, float)):
                     try:
-                        entry[key] = float(text)
+                        entry[key] = float(text.replace(",", "."))      # A decimal comma is read as a point
                     except ValueError:
-                        entry[key] = float(sample[key])
+                        # Not a number: keep the value the row had (it used to become the value of the first shipped entry, silently)
+                        old = previous[r].get(key, sample[key]) if r < len(previous) else sample[key]
+                        entry[key] = float(old)
+                        if item is not None:
+                            t.blockSignals(True)
+                            item.setText(_cell_text(entry[key]))
+                            t.blockSignals(False)
                 else:
                     entry[key] = text
             if entry.get("name"):
@@ -362,7 +451,7 @@ class PreferencesDialog(QDialog):
             t.setRowCount(len(self.data["libraries"][lib]))
             for r, e in enumerate(self.data["libraries"][lib]):
                 for c, key in enumerate(cols):
-                    t.setItem(r, c, QTableWidgetItem(str(e.get(key, ""))))
+                    t.setItem(r, c, QTableWidgetItem(_cell_text(e.get(key, ""))))
             t.blockSignals(False)
         for (section, key), wdg in self.widgets.items():
             val = self.data[section][key]

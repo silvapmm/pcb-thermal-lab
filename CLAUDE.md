@@ -133,6 +133,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
   convection.py        computed h: air properties, natural/forced convection, radiation, board_h (Picard loop is in api.py)
   profile_io.py        power profiles as CSV files (read/write)
+  numfmt.py            number to text for the screen, plots and reports: plain decimal for 0.01 <= |x| < 10000, engineering notation (exponent a multiple of three, two decimals) outside; JSON and CSV files keep the float text
   defaults.py          defaults and libraries: shipped data/defaults.json + the user's user_defaults.json (only the differences, found at start-up); data/stackups.json for the stack-ups
   profiles.py          power profiles (square wave): decision average-or-resolve, window runner shared by the three models
   jobs.py              calculations run by the application in a separate process (no Qt): simulate, transient, analyze, inverse
