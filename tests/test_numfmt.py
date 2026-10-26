@@ -94,3 +94,28 @@ def test_balance_column_of_the_summary_is_in_engineering_notation():
     row = [ln for ln in res.to_markdown().split("\n") if ln.startswith("| fvm")][0]
     balance = row.split("|")[7].strip()
     assert balance[0] in "+-" and "e" not in balance and (balance == "+0" or "E" in balance or float(balance) < 0.01)
+
+
+def test_eng_of_a_subnormal_number():
+    """!
+    @brief The smallest numbers of a double are written, not divided by zero (10.0 ** -324 is 0).
+    """
+    assert eng(5e-324) == "4.94E-324" and eng(1e-310) == "100.00E-312" and eng(-2.2e-308) == "-22.00E-309"
+
+
+@pytest.mark.parametrize("lo,hi", [(85.300, 85.320), (25.0, 25.0004), (1000.0, 1000.02), (100000.0, 100000.5), (20.0, 80.0)])
+def test_tick_labels_of_a_narrow_range_differ(lo, hi):
+    """!
+    @brief Every tick of an axis gets its own label, also on a range that four significant digits cannot tell apart.
+    @param lo Lowest value plotted.
+    @param hi Highest value plotted.
+    @note Regression: a range of 85.300 to 85.320 gave "85.3" on four ticks and 25.0000 to 25.0004 "25" on every tick.
+    """
+    from pcbthermal import plots
+    fig = plots.new_figure()
+    ax = fig.add_subplot(111)
+    ax.plot([0, 1], [lo, hi])
+    plots.engineering_ticks(fig)
+    fig.canvas.draw()
+    labels = [t.get_text() for t in ax.get_yticklabels()]
+    assert len(set(labels)) == len(labels) and all("e" not in t for t in labels)

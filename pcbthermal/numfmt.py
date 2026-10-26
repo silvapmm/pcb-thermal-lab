@@ -34,14 +34,22 @@ def eng(value, decimals=ENG_DECIMALS, sign=False):
         return "+0" if sign else "0"
     decimals = max(int(decimals), 0)
     mag = abs(value)
+
+    def mantissa(e3):
+        # Scale in two steps: 10.0 ** -324 is 0 and 10.0 ** 324 overflows, so a subnormal number (5e-324) cannot be divided by one power
+        if abs(e3) < 300:
+            return round(mag / 10.0 ** e3, decimals)
+        half = (-e3) // 2
+        return round(mag * 10.0 ** half * 10.0 ** (-e3 - half), decimals)
+
     exp3 = 3 * math.floor(math.floor(math.log10(mag)) / 3)
-    mant = round(mag / 10.0 ** exp3, decimals)
+    mant = mantissa(exp3)
     if mant >= 1000.0:                                    # 999.996 with 2 decimals rounds to 1000.00: carry to the next power of three
         exp3 += 3
-        mant = round(mag / 10.0 ** exp3, decimals)
+        mant = mantissa(exp3)
     if mant < 1.0:                                        # Floating-point error in log10 just below a power of ten
         exp3 -= 3
-        mant = round(mag / 10.0 ** exp3, decimals)
+        mant = mantissa(exp3)
     text = f"{mant:.{decimals}f}"
     if exp3 != 0:
         text += f"E{exp3}"

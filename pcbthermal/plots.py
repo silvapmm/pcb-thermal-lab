@@ -15,7 +15,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
 from .geometry import points_in_polygon
-from .numfmt import num
+from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
 
@@ -27,14 +27,48 @@ def engineering_ticks(fig):
     @return The figure.
     @note Category axes (the labels of a bar chart) keep their own labels; the unit stays in the axis label.
     """
-    def label(value, _pos):
-        return num(value, 4)
-
     for ax in fig.axes:
         for axis in (ax.xaxis, ax.yaxis):
             if isinstance(axis.get_major_formatter(), (ticker.ScalarFormatter, ticker.LogFormatter)):
-                axis.set_major_formatter(ticker.FuncFormatter(label))
+                axis.set_major_formatter(_ProgramFormatter())
     return fig
+
+
+class _ProgramFormatter(ticker.Formatter):
+    """!
+    @brief Tick formatter with the number format of the program that keeps the labels of an axis distinct.
+
+    @note A fixed four significant digits wrote the same label on several ticks of a narrow range (85.300 to 85.320 gave
+          "85.3" four times, 25.0000 to 25.0004 gave "25" on every tick), where the default formatter uses an offset.
+          The digits grow until the labels differ.
+    """
+
+    def __call__(self, value, pos=None):
+        """!
+        @brief Label of one value (also the cursor read-out).
+        @param value Tick value.
+        @param pos Tick position (unused).
+        @return str Label.
+        """
+        return num(value, 4)
+
+    def format_ticks(self, values):
+        """!
+        @brief Labels of all the ticks of an axis, with as many digits as needed for them to differ.
+        @param values Tick values.
+        @return list of str.
+        """
+        values = list(values)
+        distinct = len(set(values))
+        for digits in range(4, 13):
+            labels = [num(v, digits) for v in values]
+            if len(set(labels)) == distinct:
+                return labels
+        for decimals in range(3, 10):                    # A narrow range outside the plain window: more decimals in the mantissa
+            labels = [eng(v, decimals) if v != 0 and not PLAIN_MIN <= abs(v) < PLAIN_MAX else num(v, 12) for v in values]
+            if len(set(labels)) == distinct:
+                return labels
+        return labels
 
 
 def _with_engineering_ticks(draw):
