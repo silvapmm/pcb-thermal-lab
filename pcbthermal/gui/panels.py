@@ -408,7 +408,7 @@ class BoardPanel(QWidget):
         """
         t = self.outline_table
         try:
-            return [[float(t.item(r, 0).text()), float(t.item(r, 1).text())] for r in range(t.rowCount())]
+            return [[float(t.item(r, c).text().replace(",", ".")) for c in (0, 1)] for r in range(t.rowCount())]     # A decimal comma is read as a point
         except (ValueError, AttributeError):
             return None
 
@@ -1011,7 +1011,7 @@ class Inspector(QWidget):
                                 "barely conducts heat. Only an electroplated copper fill is a real heat path.")
                 fill_k = _spin(0, 500, el.fill_k if not (el.filled and not el.fill_k) else 385.0, 2, 1, "W/mK")
                 fill_k.setToolTip("Conductivity of the fill used for this via (W/mK). It starts at the typical value of the chosen fill and can be edited for this via; the typical "
-                                  "values are in Preferences (Libraries - via fills). 0 = open barrel.")
+                                  "values are in Preferences (section Via fills). 0 = open barrel.")
                 typical = QLabel("")
                 typical.setWordWrap(True)
                 th.hint(typical)
@@ -1043,8 +1043,6 @@ class Inspector(QWidget):
         compact_combos(self.form_host)
         tips.apply(self.form_host)
         self._form_selection = list(self.selection)
-        # Lay out the new form now: otherwise the scroll area of the dock kept the old height for an event cycle and the rows of a
-        # taller form were drawn squeezed on top of each other (seen in the screenshots)
         # Show the new form now and lay it out: a widget put in a layout is shown by a queued call, so for one event cycle the form counted as
         # empty and the scroll area of the dock kept the old height; the rows of a taller form were drawn on top of each other (README screenshots)
         self.form_host.show()

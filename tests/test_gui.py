@@ -298,6 +298,26 @@ def test_docks_stay_readable_in_a_smaller_window_with_an_advanced_stackup(qtbot,
         w.doc.stack.setClean()
 
 
+def test_a_corrupt_saved_dock_layout_falls_back_to_the_default_widths(qtbot, tmp_path):
+    """!
+    @brief A settings file with text where the dock state was, or dock sizes that are not numbers, opens with the default dock widths.
+
+    @note Regression: restoreState raised TypeError on a text value inside the deferred layout call, so the docks kept about 110 px.
+    """
+    for state, sizes in (("garbage", "x"), (b"garbage", ["a", "b"]), (None, None)):
+        ini = QSettings(str(tmp_path / "bad.ini"), QSettings.IniFormat)
+        ini.clear()
+        if state is not None:
+            ini.setValue("window_state", state)
+            ini.setValue("dock_sizes", sizes)
+        w = MainWindow(Document(), ini)
+        qtbot.addWidget(w)
+        w.resize(1480, 900)
+        w.show()
+        qtbot.waitUntil(lambda: w.dock_board.width() >= 300, timeout=3000)
+        assert w.dock_sim.width() >= 340
+
+
 def test_properties_keep_the_keyboard_focus_after_an_edit(win):
     """!
     @brief Enter keeps the focus on the edited field and Tab moves to the next one, although every edit rebuilds the Properties form.

@@ -313,7 +313,11 @@ class MainWindow(QMainWindow):
         """!
         @brief Restore the saved dock arrangement, or give the docks their default widths when there is none (or it cannot be read).
         """
-        if not (self._saved_state and self.restoreState(self._saved_state)):
+        try:
+            restored = bool(self._saved_state) and self.restoreState(self._saved_state)
+        except (TypeError, ValueError):                          # A hand-edited settings file can hold text where the state was
+            restored = False
+        if not restored:
             self._size_docks()
             return
         # restoreState brings back where the docks are and which are shown, but not always their sizes: those are applied from the saved numbers
