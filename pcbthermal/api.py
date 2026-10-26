@@ -33,6 +33,7 @@ from . import defaults
 from .checks import check_problem, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
+from .numfmt import eng, num
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
@@ -177,7 +178,7 @@ class Simulation:
                  "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
         for r in self.table():
             lines.append(f"| {r['model']} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
-                         f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {r['energy_balance']:+.0e} | "
+                         f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {eng(r['energy_balance'], 1, sign=True)} | "
                          f"{r['error_vs_reference'] * 100:+.1f} % | {r['seconds']:.2f} |")
         lines += self._profile_markdown()
         for w in self.warnings:
@@ -192,12 +193,12 @@ class Simulation:
         if not self.decisions:
             return []
         lines = ["", f"Power profiles (decision from the {self.profile_reference} step response, "
-                     f"threshold {self.options.profile.threshold_c:g} °C):", "",
+                     f"threshold {num(self.options.profile.threshold_c)} °C):", "",
                  "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
                  "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
         for d in self.decisions:
             if d.kind != "constant":
-                lines.append(f"| {d.name} | {d.period:g}{'' if d.repeat else ' (once)'} | {_duty_text(d)} | {d.average_power:.3f} | {d.peak_power:.3f} | "
+                lines.append(f"| {d.name} | {num(d.period)}{'' if d.repeat else ' (once)'} | {_duty_text(d)} | {d.average_power:.3f} | {d.peak_power:.3f} | "
                              f"{d.oscillation:.2f} | {d.oscillation_percent:.1f} % | {d.regime} |")
             else:
                 lines.append(f"| {d.name} | - | - | {d.average_power:.3f} | {d.peak_power:.3f} | - | - | constant |")
@@ -225,7 +226,7 @@ class Simulation:
         lines = [head, "-" * len(head)]
         for r in self.table():
             lines.append(f"{r['model']:9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
-                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {r['energy_balance']:+9.0e} "
+                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {eng(r['energy_balance'], 1, sign=True):>9} "
                          f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
         for w in self.warnings:
             lines.append(f"WARNING: {w}")
@@ -239,14 +240,14 @@ class Simulation:
         ref = self.reference
         lines = [f"PCB Thermal Lab {__version__} - report: {self.problem.name}",
                  f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
-                 f"{self.problem.board.layers} layers, ambient {self.problem.board.ambient:g} degC, "
+                 f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} degC, "
                  f"total power {self.problem.total_power():.3f} W", "", self.to_text()]
         if self.h_used:
             b = self.problem.board
             lines.append("")
-            lines.append(f"Heat transfer coefficients computed from correlations (emissivity {b.emissivity_top:g} top, "
-                         f"{b.emissivity_bottom:g} bottom, {b.orientation} board{' (' + b.natural_form + ' form)' if b.orientation == 'vertical' else ''}, air speed {b.air_speed:g} m/s, "
-                         f"convection multiplier {b.h_calibration:g}):")
+            lines.append(f"Heat transfer coefficients computed from correlations (emissivity {num(b.emissivity_top)} top, "
+                         f"{num(b.emissivity_bottom)} bottom, {b.orientation} board{' (' + b.natural_form + ' form)' if b.orientation == 'vertical' else ''}, air speed {num(b.air_speed)} m/s, "
+                         f"convection multiplier {num(b.h_calibration)}):")
             for name, (ht, hb) in self.h_used.items():
                 e = self.results[name].extras
                 lines.append(f"  {name}: top {ht:.2f} W/m2K (convection {e['h_top_convection']:.2f} + radiation "
@@ -255,10 +256,10 @@ class Simulation:
         if self.decisions:
             lines.append("")
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
-                         f"{self.profile_reference} step response, threshold {self.options.profile.threshold_c:g} C):")
+                         f"{self.profile_reference} step response, threshold {num(self.options.profile.threshold_c)} C):")
             for d in self.decisions:
                 if d.kind != "constant":
-                    lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {d.period:g} s, duty {_duty_text(d)}, "
+                    lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {num(d.period)} s, duty {_duty_text(d)}, "
                                  f"average {d.average_power:.3f} W, "
                                  f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} C "
                                  f"({d.oscillation_percent:.1f} % of the rise) -> {d.regime}")
@@ -275,7 +276,7 @@ class Simulation:
         if ref.T is not None:
             lines.append(f"Reference model: {ref.model}")
             hs = hotspots(ref, self.options.hotspot_c)
-            lines.append(f"Hotspots above {self.options.hotspot_c:g} degC: {len(hs)}")
+            lines.append(f"Hotspots above {num(self.options.hotspot_c)} degC: {len(hs)}")
             for h in hs[:10]:
                 lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} degC at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
                              f"{h['area_mm2']:.1f} mm2")
@@ -288,7 +289,7 @@ class Simulation:
                 if h["power_top_w"] > 0:
                     extra += f", top path {h['power_top_w']:.2f} W ({100.0 * h['power_top_w'] / h['power_w']:.0f} % of the power, {h['r_top']:.1f} K/W)"
                 if h["margin_k"] is not None:
-                    extra += f", limit {h['tj_max']:g} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
+                    extra += f", limit {num(h['tj_max'])} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
                 lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                              f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")
@@ -550,7 +551,7 @@ def _solve_with_tc(problem, name, options, computed):
         res.warnings.append("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)")
     elif not settled:
         # Close to runaway the fixed point converges slowly; the result is the last iterate, not the operating point
-        res.warnings.append(f"the powers of the parts did not settle in {it} iterations (last relative change {change:.1e}): "
+        res.warnings.append(f"the powers of the parts did not settle in {it} iterations (last relative change {eng(change, 2)}): "
                             "the board is close to thermal runaway and the temperatures are underestimated")
     if not split_ok:
         res.warnings.append("the top-path split did not converge: the heat taken by the top of a part and the heat entering the board are not consistent "
@@ -589,7 +590,7 @@ def _part_warnings(sim):
     for row, h in zip(sim.heater_rows(), sim.problem.heaters):
         if row["margin_k"] is not None and row["margin_k"] < 0 and not runaway:
             out.append(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} degC, "
-                       f"{-row['margin_k']:.1f} K above its limit of {row['tj_max']:g} degC (power limit {row['p_limit_w']:.2f} W with this board)")
+                       f"{-row['margin_k']:.1f} K above its limit of {num(row['tj_max'])} degC (power limit {row['p_limit_w']:.2f} W with this board)")
         if h.is_component() and h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
             out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
@@ -670,11 +671,11 @@ def _solve_computed_h(problem, name, o):
                        "h_top_convection": info["top"]["convection"], "h_top_radiation": info["top"]["radiation"],
                        "h_bottom_convection": info["bottom"]["convection"], "h_bottom_radiation": info["bottom"]["radiation"]})
     if problem.board.orientation == "horizontal" and not 1e4 <= info["top"]["rayleigh"] <= 1e11:
-        res.warnings.append(f"the top-face Rayleigh number {info['top']['rayleigh']:.2g} is outside 1e4 to 1e11, "
+        res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 1e4 to 1e11, "
                             "where the natural-convection correlation was fitted; the coefficient is an extrapolation")
     if problem.board.orientation == "vertical" and problem.board.natural_form == "laminar" and info["top"]["rayleigh"] > 1e9:
         # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
-        res.warnings.append(f"the Rayleigh number {info['top']['rayleigh']:.2g} is above 1e9, outside the laminar form of the vertical-plate correlation: "
+        res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1e9, outside the laminar form of the vertical-plate correlation: "
                             "choose the general form")
     if it == 30 and not done:
         res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")
@@ -716,7 +717,7 @@ def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=
 
     lo, hi = math.log(0.1), math.log(10.0)
     if not predicted(math.exp(hi)) <= measured_c <= predicted(math.exp(lo)):
-        raise ValueError(f"the measured {measured_c:g} degC is outside what a multiplier between 0.1 and 10 can give "
+        raise ValueError(f"the measured {num(measured_c)} degC is outside what a multiplier between 0.1 and 10 can give "
                          f"({predicted(math.exp(hi)):.1f} to {predicted(math.exp(lo)):.1f} degC): check the powers, the ambient "
                          "temperature and where the measurement was taken")
     for _ in range(40):

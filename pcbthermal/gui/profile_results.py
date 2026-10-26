@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QVBoxLayo
 from .. import plots
 from .results_view import _mpl_theme, _paint_figure
 from . import tips
+from ..numfmt import num
 
 
 class ProfileResultsTab(QWidget):
@@ -117,10 +118,10 @@ class ProfileResultsTab(QWidget):
                     self.slider.setRange(0, len(r.frames) - 1)
                     k = min(self.slider.value(), len(r.frames) - 1)
                     plots.draw_field(self.fig, r.frames[k][layer], self.sim.problem, r.dx, r.dy, layer=layer,
-                                     title=f"{r.model.upper()} - layer {layer + 1} at t = {r.frame_times[k]:.4g} s",
+                                     title=f"{r.model.upper()} - layer {layer + 1} at t = {num(r.frame_times[k], 4)} s",
                                      label="Temperature (°C)")
             self.info.setText(f"Peak {r.peak:.1f} °C, minimum {r.minimum:.1f} °C, oscillation {r.oscillation:.1f} °C; "
-                              f"{r.windows} windows of {r.window:g} s, {r.steps:,} steps of {r.dt:.3g} s, "
+                              f"{r.windows} windows of {num(r.window)} s, {r.steps} steps of {num(r.dt, 3)} s, "
                               f"{'the cycle repeats' if r.converged else 'the cycle did not settle'}; "
                               f"steady with the average power {r.steady_average_max:.1f} °C, with the peak power "
                               f"{r.steady_peak_max:.1f} °C.")

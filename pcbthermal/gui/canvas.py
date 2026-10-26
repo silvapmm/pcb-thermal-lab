@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPix
 from .. import defaults
 from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
+from ..numfmt import num
 
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
 
@@ -369,7 +370,7 @@ class BoardView(QGraphicsView):
                     poly = self.doc.polygon_mm(el)
                     label = el.name if el.layer == active else ""
                     if kind == "heatsink" and el.is_block() and label:
-                        label = f"{label} ({el.thickness * 1000:g} mm block)"
+                        label = f"{label} ({num(el.thickness * 1000)} mm block)"
                     it = ElementItem(self, kind, i, poly, label, el.layer)
                     if kind == "heatsink" and el.is_block():
                         it.is_block = True
@@ -705,7 +706,7 @@ class BoardView(QGraphicsView):
             major = abs(v / step - round(v / step)) < 1e-6
             painter.drawLine(int(px), size - (9 if major else 4), int(px), size)
             if major and px > size:
-                painter.drawText(int(px) + 2, 10, f"{v:g}")
+                painter.drawText(int(px) + 2, 10, f"{num(v)}")
             k += 1
         # Vertical ruler: y grows upward in the board, downward on the screen
         y_top, y_bot = (origin.y() - 0) / scale, (origin.y() - h) / scale      # Board y at the top and bottom of the window
@@ -719,7 +720,7 @@ class BoardView(QGraphicsView):
                 painter.save()
                 painter.translate(11, int(py) - 2)
                 painter.rotate(-90)
-                painter.drawText(0, 0, f"{v:g}")
+                painter.drawText(0, 0, f"{num(v)}")
                 painter.restore()
             k += 1
         painter.drawText(2, 12, "mm")
@@ -729,7 +730,7 @@ class BoardView(QGraphicsView):
         painter.drawLine(int(x), y, int(x + bar), y)
         painter.drawLine(int(x), y - 4, int(x), y + 4)
         painter.drawLine(int(x + bar), y - 4, int(x + bar), y + 4)
-        painter.drawText(int(x + bar / 2 - 18), y - 6, f"{step:g} mm")
+        painter.drawText(int(x + bar / 2 - 18), y - 6, f"{num(step)} mm")
 
     # ------------------------------------------------------------------ mouse and keys
     def _snapped(self, p):

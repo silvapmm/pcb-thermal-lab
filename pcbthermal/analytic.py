@@ -44,6 +44,7 @@ from . import blocks, laminate
 from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
+from .numfmt import num
 
 
 def _equivalent_rectangle(poly, width, height):
@@ -697,7 +698,7 @@ class _AnalyticAdapter:
         self.warnings = []
         if ms.scaled:
             what = "via conductance" if ms.scaled[0][0] == "vias" else "heatsink coefficient"
-            scales = ", ".join(f"{sc:.3g}" for _, sc, _ in ms.scaled)
+            scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
             self.warnings.append(
                 f"the analytic transient smears the vias and heatsinks over the board and, for every heater, scales the {what} "
                 f"(factors {scales}) so that its steady response matches the locally corrected steady model; the dynamics near "

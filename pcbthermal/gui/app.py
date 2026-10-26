@@ -22,6 +22,9 @@ def main(argv=None):
 
     argv = list(sys.argv if argv is None else argv)
     app = QApplication.instance() or QApplication(argv)
+    from .theme import fix_number_locale
+
+    fix_number_locale()
     app.setApplicationName("PCB Thermal Lab")
     app.setOrganizationName("PMS Labs")
     win = MainWindow()

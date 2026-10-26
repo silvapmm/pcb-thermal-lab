@@ -12,6 +12,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
 from .geometry import points_in_polygon
+from .numfmt import eng, num
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
 
@@ -191,7 +192,7 @@ def draw_fields(fig, result, problem, cmap="inferno"):
         axes[loc[0]].plot(loc[1] * 1000, loc[2] * 1000, "c+", ms=10)
     fig.colorbar(im, ax=list(axes), label="Temperature (°C)", shrink=0.9)
     fig.suptitle(f"{result.model.upper()}: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
-                 f"power balance {result.balance_error:+.1e}", fontsize=10)
+                 f"power balance {eng(result.balance_error, 2, sign=True)}", fontsize=10)
 
 
 def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
@@ -332,7 +333,7 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     ax.axhline(result.steady_average_max, color="#2a9d8f", ls="--", lw=1.0, label="steady, average power")
     ax.axhline(result.steady_peak_max, color="#e63946", ls=":", lw=1.0, label="steady, peak power (bound)")
     if limit_c is not None:
-        ax.axhline(limit_c, color="#ff00cc", lw=1.2, label=f"limit {limit_c:g} °C")
+        ax.axhline(limit_c, color="#ff00cc", lw=1.2, label=f"limit {num(limit_c)} °C")
     ax.set_xlabel("Time in the last window (s)")
     ax.set_ylabel("Temperature (°C)")
     ax.set_title(f"{result.model.upper()}: peak {result.peak:.1f} °C, minimum {result.minimum:.1f} °C, "
@@ -379,7 +380,7 @@ def draw_waveforms(fig, problem, cycles=2.0):
         lo, hi = min(p for _, _, p in iv), max(p for _, _, p in iv)
         if w.repeat and span / w.period > 40:
             # Too many cycles to draw: show the swing as a band and the average as a line
-            line, = ax.plot(t, np.full_like(t, w.average()), lw=1.4, label=label + f" (repeats at {1.0 / w.period:g} Hz)")
+            line, = ax.plot(t, np.full_like(t, w.average()), lw=1.4, label=label + f" (repeats at {num(1.0 / w.period)} Hz)")
             ax.fill_between(t, lo, hi, color=line.get_color(), alpha=0.18)
             continue
         edges = np.array([a for a, _, _ in iv])

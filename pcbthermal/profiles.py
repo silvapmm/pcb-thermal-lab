@@ -38,6 +38,7 @@ from scipy.interpolate import PchipInterpolator
 
 from . import fdm, fvm
 from .fvm import ORDERING
+from .numfmt import num
 
 
 class ProfileError(ValueError):
@@ -435,8 +436,8 @@ def plan_run(problem, decisions, options):
     if steps > options.max_steps:
         names = ", ".join(problem.heaters[i].name or f"heater {i + 1}" for i in res)
         raise ProfileError(
-            f"the time simulation needs about {steps:,} steps (limit {options.max_steps:,}): the resolved heaters ({names}) "
-            f"have a shortest stretch of {shortest:.3g} s and a window of {window:.3g} s. Raise the oscillation "
+            f"the time simulation needs about {steps} steps (limit {options.max_steps}): the resolved heaters ({names}) "
+            f"have a shortest stretch of {num(shortest, 3)} s and a window of {num(window, 3)} s. Raise the oscillation "
             "threshold so that the fastest heater is averaged, shorten the duration, or raise the step limit.")
     return {"resolved": res, "window": window, "n_per": n_per, "dt": dt, "steps": steps, "once": bool(once), "exact": exact}
 

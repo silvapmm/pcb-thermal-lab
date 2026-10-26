@@ -19,8 +19,21 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 
 from .. import defaults
 from .. import model
+from ..numfmt import num
 from . import theme as th
 from . import tips
+
+
+def _cell_text(value):
+    """!
+    @brief Text of a library table cell: a number in plain decimal or engineering notation (never "1e-05"), anything else as it is.
+    @param value Cell value (number or text).
+    @return str Text shown in the cell; reads back with float().
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return num(value, 9)
+    return str(value)
+
 
 LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)", "interfaces": "Interface materials", "dielectrics": "Dielectrics (stack-up)",
                   "package_theta": "Package families (typical θ)", "heatsinks": "Heatsinks on a package (typical θSA)"}
@@ -177,7 +190,7 @@ class PreferencesDialog(QDialog):
         t.setToolTip(LIBRARY_TIPS[lib])
         for r, e in enumerate(rows):
             for c, key in enumerate(cols):
-                t.setItem(r, c, QTableWidgetItem(str(e.get(key, ""))))
+                t.setItem(r, c, QTableWidgetItem(_cell_text(e.get(key, ""))))
         t.resizeColumnsToContents()
         t.horizontalHeader().setStretchLastSection(True)
         t.itemChanged.connect(lambda _item, lib=lib: self._read_table(lib))
@@ -332,7 +345,7 @@ class PreferencesDialog(QDialog):
                         entry[key] = float(old)
                         if item is not None:
                             t.blockSignals(True)
-                            item.setText(str(entry[key]))
+                            item.setText(_cell_text(entry[key]))
                             t.blockSignals(False)
                 else:
                     entry[key] = text
@@ -399,7 +412,7 @@ class PreferencesDialog(QDialog):
             t.setRowCount(len(self.data["libraries"][lib]))
             for r, e in enumerate(self.data["libraries"][lib]):
                 for c, key in enumerate(cols):
-                    t.setItem(r, c, QTableWidgetItem(str(e.get(key, ""))))
+                    t.setItem(r, c, QTableWidgetItem(_cell_text(e.get(key, ""))))
             t.blockSignals(False)
         for (section, key), wdg in self.widgets.items():
             val = self.data[section][key]

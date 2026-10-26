@@ -3,7 +3,7 @@
 @brief Light and dark themes, canvas colours and painted icons for the GUI.
 """
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QLocale, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QApplication
 
@@ -21,6 +21,19 @@ THEMES = {
         "copper": "#c77d2e", "heater": "#e0392d", "heatsink": "#1d78d8", "via": "#c9971c",
     },
 }
+
+
+def fix_number_locale():
+    """!
+    @brief Make every number of the application use the decimal point and no thousands separator, whatever the system language.
+
+    @details Qt spin boxes, line edits and number-to-text conversions follow QLocale.default(); the application sets it
+    once to US English without the group separator, so "0.45" is shown on a Portuguese or German system too (the
+    international way of writing numbers in engineering). It must run before the widgets are created.
+    """
+    loc = QLocale(QLocale.English, QLocale.UnitedStates)
+    loc.setNumberOptions(QLocale.OmitGroupSeparator)
+    QLocale.setDefault(loc)
 
 
 def colors(name):
