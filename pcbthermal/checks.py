@@ -133,8 +133,8 @@ def check_problem(problem, cell_mm=1.0):
                 _add(out, "heatsink", k, f"{name}: only {100 * overlap / area:.0f} % of the metal block touches copper; the heat enters "
                            "the block through that overlap only.")
         if s.interface_resistance() < 1e-5:
-            _add(out, "heatsink", k, f"{name}: an interface resistance below 1e-5 m2K/W is a perfect contact; a gap pad or paste is "
-                       "usually 1e-4 to 1e-3 m2K/W (0.5 mm of a 1 to 5 W/mK pad).")
+            _add(out, "heatsink", k, f"{name}: an interface resistance below 10.00E-6 m2K/W is a perfect contact; a gap pad or paste is "
+                       "usually 100.00E-6 to 1.00E-3 m2K/W (0.5 mm of a 1 to 5 W/mK pad).")
         face = 0 if (s.layer == 0 or b.layers == 1) else 1
         block_cov.setdefault(face, []).append((name, cov))
     for face, items in block_cov.items():

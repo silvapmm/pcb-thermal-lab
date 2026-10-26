@@ -27,7 +27,7 @@ from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .profile_io import read_profile_csv
 from .project import Project, load_project, save_project
-from .numfmt import eng, num
+from .numfmt import num
 
 MODELS = ("fvm", "lumped", "analytic")
 RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
@@ -202,7 +202,7 @@ def cmd_solvers(args):
         ref = r if ref is None else ref
         err = float(abs(r.T - ref.T).max())
         sweeps = f"{int(r.extras['iterations'])}" if "iterations" in r.extras else "-"
-        print(f"{name:50s} {r.t_max:9.4f} {eng(err, 3):>15} {eng(r.residual, 2):>10} {sweeps:>8s} {dt:8.2f}")
+        print(f"{name:50s} {r.t_max:9.4f} {num(err):>15} {num(r.residual):>10} {sweeps:>8s} {dt:8.2f}")
         for w in r.warnings:
             print(f"   warning: {w}")
     return 0
@@ -270,7 +270,7 @@ def build_parser():
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
     hg.add_argument("--orientation", choices=("horizontal", "vertical"), default=None, help="board orientation")
     hg.add_argument("--natural-form", choices=("general", "laminar"), default=None, dest="natural_form",
-                    help="natural convection correlation of a vertical board: general (default) or laminar (Ra < 1e9)")
+                    help="natural convection correlation of a vertical board: general (default) or laminar (Ra < 1.00E9)")
     hg.add_argument("--emissivity", type=float, default=None, help="emissivity of both faces (default 0.9)")
     hg.add_argument("--h-multiplier", type=float, default=None, help="calibration multiplier of the computed convection")
     pg = r.add_argument_group("power profiles (heaters with a square wave in the project file)")

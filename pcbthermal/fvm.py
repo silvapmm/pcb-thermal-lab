@@ -24,7 +24,7 @@ import scipy.sparse.linalg as spla
 from . import blocks, laminate
 from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
 from .results import SteadyResult, TransientResult
-from .numfmt import eng
+from .numfmt import num
 
 # Column ordering of the sparse LU: the thermal matrices are symmetric, and the symmetric minimum-degree ordering gives about half
 # the fill and 40 % less time than the default COLAMD (measured on the example board at 1 and 0.5 mm)
@@ -486,7 +486,7 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
         r.extras.update({"iterations": float(info["iterations"]), "omega": info["omega"],
                          "converged": float(info["converged"])})
         if not info["converged"]:
-            r.warnings.append(f"SOR did not converge in {info['iterations']} sweeps (residual {eng(res, 2)})")
+            r.warnings.append(f"SOR did not converge in {info['iterations']} sweeps (residual {num(res)})")
         return r
     theta, res = net.solve_steady(method=method)
     return _result_from_theta(net, theta, res)

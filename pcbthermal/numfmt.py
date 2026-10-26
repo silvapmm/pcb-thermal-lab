@@ -1,55 +1,51 @@
 """!
 @file numfmt.py
-@brief Number to text for the screen and the reports: engineering notation instead of the exponential form.
+@brief Number to text for the screen and the reports: plain decimal in a window, engineering notation outside it.
 
-@details Every number that would be written as "1e-12" or "1.5e+03" is written with an exponent that is a
-multiple of three and a mantissa from 1 up to 999.99...: 12E-12, 1.5E-9, 120E-6, 3.3E3. Numbers that need no
-exponent are written in plain decimal with the decimal point and no thousands separator. Machine-exchange files
+@details A number whose size is inside the plain window (PLAIN_MIN <= |x| < PLAIN_MAX, 0.01 up to but not including
+10000) is written in plain decimal with the decimal point and no thousands separator (0.9, 25.3, 1234.5). Zero is "0".
+Every other number is written in engineering notation: an exponent that is a multiple of three and a mantissa from
+1 up to 999.99 with two decimals, trailing zeros kept (10.03E-3, 10.00E-6, 10.04E3, 120.50E6). Machine-exchange files
 (JSON projects, CSV tables) do not use this module: they keep the standard float text so that other programs read them.
 """
 
 import math
 
+PLAIN_MIN = 0.01        # Smallest size written in plain decimal (inclusive); below it the engineering notation is used
+PLAIN_MAX = 10000.0     # Largest size written in plain decimal (exclusive); from it up the engineering notation is used
+ENG_DECIMALS = 2        # Decimals of the mantissa in engineering notation
 
-def eng(value, digits=3, sign=False):
+
+def eng(value, decimals=ENG_DECIMALS, sign=False):
     """!
-    @brief Write a number in engineering notation.
+    @brief Write a number in engineering notation, whatever its size.
     @param value Number to write (dimensionless; the caller adds the unit).
-    @param digits Significant digits of the mantissa (at least 1).
+    @param decimals Decimals of the mantissa; trailing zeros are kept (10.00E-3 stays 10.00E-3).
     @param sign True to write an explicit "+" in front of a positive number (a "-" is always written).
-    @return str Text such as "12E-12", "1.5E-9", "120E-6", "3.3E3", "-4.7E-3"; "0" for zero; "nan", "inf" or "-inf" for those values.
-    @note Exponent 0 gives the plain mantissa ("47"); 0.5 is "500E-3". A mantissa that rounds up to 1000 carries to the next power of three (999.96E-6 with 3 digits is "1E-3").
+    @return str Text such as "12.00E-12", "1.50E-9", "120.00E-6", "3.30E3", "-4.70E-3"; "0" for zero ("+0" with sign); "nan", "inf" or "-inf" for those values.
+    @note A mantissa that rounds up to 1000 carries to the next power of three (999.996E-6 is "1.00E-3"). Exponent 0 gives the mantissa alone ("47.00").
     """
     value = float(value)
     if math.isnan(value):
         return "nan"
     if math.isinf(value):
-        return "inf" if value > 0 and not sign else ("+inf" if value > 0 else "-inf")
-    digits = max(int(digits), 1)
+        return "-inf" if value < 0 else ("+inf" if sign else "inf")
     if value == 0.0:
         return "+0" if sign else "0"
-    negative = value < 0
+    decimals = max(int(decimals), 0)
     mag = abs(value)
-    # Decimal exponent of the number, then the multiple of three below it
-    exp10 = math.floor(math.log10(mag))
-    exp3 = 3 * math.floor(exp10 / 3)
-    mant = mag / 10.0 ** exp3
-    # Round to the significant digits; the digits after the point depend on how many the mantissa has before it
-    int_digits = len(str(int(mant))) if mant >= 1 else 1
-    decimals = max(digits - int_digits, 0)
-    rounded = round(mant, decimals)
-    if rounded >= 1000.0:                                 # 999.96 with 3 digits rounds to 1000: carry to the next power of three
+    exp3 = 3 * math.floor(math.floor(math.log10(mag)) / 3)
+    mant = round(mag / 10.0 ** exp3, decimals)
+    if mant >= 1000.0:                                    # 999.996 with 2 decimals rounds to 1000.00: carry to the next power of three
         exp3 += 3
-        mant = mag / 10.0 ** exp3
-        int_digits = len(str(int(mant))) if mant >= 1 else 1
-        decimals = max(digits - int_digits, 0)
-        rounded = round(mant, decimals)
-    text = f"{rounded:.{decimals}f}"
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")               # 1.50 is written 1.5
+        mant = round(mag / 10.0 ** exp3, decimals)
+    if mant < 1.0:                                        # Floating-point error in log10 just below a power of ten
+        exp3 -= 3
+        mant = round(mag / 10.0 ** exp3, decimals)
+    text = f"{mant:.{decimals}f}"
     if exp3 != 0:
         text += f"E{exp3}"
-    if negative:
+    if value < 0:
         text = "-" + text
     elif sign:
         text = "+" + text
@@ -58,16 +54,24 @@ def eng(value, digits=3, sign=False):
 
 def num(value, digits=6, sign=False):
     """!
-    @brief Write a number like the "g" format, but in engineering notation when it would need an exponent.
+    @brief Write a number as plain decimal inside the window PLAIN_MIN <= |x| < PLAIN_MAX and in engineering notation outside it.
     @param value Number to write.
-    @param digits Significant digits (like the precision of the "g" format).
+    @param digits Significant digits of the plain decimal (like the precision of the "g" format; trailing zeros are dropped there).
     @param sign True to write an explicit "+" in front of a positive number.
-    @return str The plain decimal text when the "g" format gives no exponent (0.45, 12.5, 100000), otherwise eng(value, digits, sign).
+    @return str Plain text such as "0.45", "25.3", "1234.5", or engineering notation (see eng); "0" for zero.
     """
     value = float(value)
-    if not math.isfinite(value) or value == 0.0:
-        return eng(value, digits, sign)
-    text = format(value, f"+.{max(int(digits), 1)}g" if sign else f".{max(int(digits), 1)}g")
-    if "e" in text:
-        return eng(value, digits, sign)
+    mag = abs(value)
+    if not math.isfinite(value) or value == 0.0 or not (PLAIN_MIN <= mag < PLAIN_MAX):
+        return eng(value, ENG_DECIMALS, sign)
+    # Significant digits without an exponent: round, then write in fixed notation and drop the trailing zeros
+    decimals = max(int(digits) - 1 - math.floor(math.log10(mag)), 0)
+    rounded = round(value, decimals)
+    if abs(rounded) >= PLAIN_MAX:                         # 9999.96 rounded to 3 digits reaches the top of the window
+        return eng(value, ENG_DECIMALS, sign)
+    text = f"{rounded:.{decimals}f}"
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    if sign and value > 0:
+        text = "+" + text
     return text

@@ -33,7 +33,7 @@ from . import defaults
 from .checks import check_problem, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
-from .numfmt import eng, num
+from .numfmt import num
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
@@ -178,7 +178,7 @@ class Simulation:
                  "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
         for r in self.table():
             lines.append(f"| {r['model']} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
-                         f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {eng(r['energy_balance'], 1, sign=True)} | "
+                         f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {num(r['energy_balance'], sign=True)} | "
                          f"{r['error_vs_reference'] * 100:+.1f} % | {r['seconds']:.2f} |")
         lines += self._profile_markdown()
         for w in self.warnings:
@@ -226,7 +226,7 @@ class Simulation:
         lines = [head, "-" * len(head)]
         for r in self.table():
             lines.append(f"{r['model']:9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
-                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {eng(r['energy_balance'], 1, sign=True):>9} "
+                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {num(r['energy_balance'], sign=True):>9} "
                          f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
         for w in self.warnings:
             lines.append(f"WARNING: {w}")
@@ -551,7 +551,7 @@ def _solve_with_tc(problem, name, options, computed):
         res.warnings.append("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)")
     elif not settled:
         # Close to runaway the fixed point converges slowly; the result is the last iterate, not the operating point
-        res.warnings.append(f"the powers of the parts did not settle in {it} iterations (last relative change {eng(change, 2)}): "
+        res.warnings.append(f"the powers of the parts did not settle in {it} iterations (last relative change {num(change)}): "
                             "the board is close to thermal runaway and the temperatures are underestimated")
     if not split_ok:
         res.warnings.append("the top-path split did not converge: the heat taken by the top of a part and the heat entering the board are not consistent "
@@ -671,11 +671,11 @@ def _solve_computed_h(problem, name, o):
                        "h_top_convection": info["top"]["convection"], "h_top_radiation": info["top"]["radiation"],
                        "h_bottom_convection": info["bottom"]["convection"], "h_bottom_radiation": info["bottom"]["radiation"]})
     if problem.board.orientation == "horizontal" and not 1e4 <= info["top"]["rayleigh"] <= 1e11:
-        res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 1e4 to 1e11, "
+        res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 10.00E3 to 100.00E9, "
                             "where the natural-convection correlation was fitted; the coefficient is an extrapolation")
     if problem.board.orientation == "vertical" and problem.board.natural_form == "laminar" and info["top"]["rayleigh"] > 1e9:
         # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
-        res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1e9, outside the laminar form of the vertical-plate correlation: "
+        res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
                             "choose the general form")
     if it == 30 and not done:
         res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")

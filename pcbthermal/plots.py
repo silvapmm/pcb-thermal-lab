@@ -7,14 +7,55 @@ the GUI can embed the figure in a Qt canvas and the command line can save it to 
 `plot_*` and `save_*` wrappers create an off-screen Figure and write a PNG or GIF.
 """
 
+import functools
+
 import numpy as np
+from matplotlib import ticker
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
 from .geometry import points_in_polygon
-from .numfmt import eng, num
+from .numfmt import num
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
+
+
+def engineering_ticks(fig):
+    """!
+    @brief Write the tick labels of every numeric axis of a figure with the number format of the program (plain decimal in the window, engineering notation outside it).
+    @param fig Matplotlib figure (axes and colour bars included).
+    @return The figure.
+    @note Category axes (the labels of a bar chart) keep their own labels; the unit stays in the axis label.
+    """
+    def label(value, _pos):
+        return num(value, 4)
+
+    for ax in fig.axes:
+        for axis in (ax.xaxis, ax.yaxis):
+            if isinstance(axis.get_major_formatter(), (ticker.ScalarFormatter, ticker.LogFormatter)):
+                axis.set_major_formatter(ticker.FuncFormatter(label))
+    return fig
+
+
+def _with_engineering_ticks(draw):
+    """!
+    @brief Decorator of the draw_* functions: after drawing, give the axes the number format of the program.
+    @param draw A function whose first argument is the figure.
+    @return The wrapped function with the same name, documentation and result.
+    """
+    @functools.wraps(draw)
+    def wrapper(fig, *args, **kwargs):
+        """!
+        @brief Draw, then format the ticks.
+        @param fig Figure.
+        @param args Positional arguments of the drawing function.
+        @param kwargs Keyword arguments of the drawing function.
+        @return What the drawing function returns.
+        """
+        result = draw(fig, *args, **kwargs)
+        engineering_ticks(fig)
+        return result
+    return wrapper
 
 
 def new_figure(width=7.0, height=4.5):
@@ -94,6 +135,7 @@ def _field_axes(field, problem, dx, dy):
     return xs, ys, ext
 
 
+@_with_engineering_ticks
 def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None, vmax=None,
                layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)"):
     """!
@@ -138,6 +180,7 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     return ax
 
 
+@_with_engineering_ticks
 def draw_block(fig, result, problem, face, cmap="inferno"):
     """!
     @brief Temperature of the metal block of one face (where there is no block the board map is not shown).
@@ -161,6 +204,7 @@ def draw_block(fig, result, problem, face, cmap="inferno"):
                      f"max {result.extras[f'block_{tag}_max']:.1f} °C", label="Block temperature (°C)")
 
 
+@_with_engineering_ticks
 def draw_fields(fig, result, problem, cmap="inferno"):
     """!
     @brief All layers side by side with a shared colour scale.
@@ -192,9 +236,10 @@ def draw_fields(fig, result, problem, cmap="inferno"):
         axes[loc[0]].plot(loc[1] * 1000, loc[2] * 1000, "c+", ms=10)
     fig.colorbar(im, ax=list(axes), label="Temperature (°C)", shrink=0.9)
     fig.suptitle(f"{result.model.upper()}: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
-                 f"power balance {eng(result.balance_error, 2, sign=True)}", fontsize=10)
+                 f"power balance {num(result.balance_error, sign=True)}", fontsize=10)
 
 
+@_with_engineering_ticks
 def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
     """!
     @brief Temperature along a line through the board for every model.
@@ -230,6 +275,7 @@ def draw_profile(fig, results, problem, layer=0, axis="x", position_mm=None):
     ax.legend()
 
 
+@_with_engineering_ticks
 def draw_comparison(fig, results):
     """!
     @brief Bar chart comparing the maximum and mean temperature of the models.
@@ -252,6 +298,7 @@ def draw_comparison(fig, results):
     ax.grid(axis="y", alpha=0.3)
 
 
+@_with_engineering_ticks
 def draw_bars(fig, labels, series, ylabel="Temperature (°C)", title=""):
     """!
     @brief Grouped bar chart, for example heater or zone temperatures.
@@ -277,6 +324,7 @@ def draw_bars(fig, labels, series, ylabel="Temperature (°C)", title=""):
     ax.legend(fontsize=8)
 
 
+@_with_engineering_ticks
 def draw_convergence(fig, rows):
     """!
     @brief Maximum temperature versus FVM cell size.
@@ -294,6 +342,7 @@ def draw_convergence(fig, rows):
     ax.grid(alpha=0.3)
 
 
+@_with_engineering_ticks
 def draw_transient(fig, tr):
     """!
     @brief Maximum and mean temperature versus time with the steady-state level.
@@ -315,6 +364,7 @@ def draw_transient(fig, tr):
     ax.legend()
 
 
+@_with_engineering_ticks
 def draw_profile_series(fig, result, problem, limit_c=None):
     """!
     @brief Temperature of the last window versus time: the hottest point of the board and under every heater.
@@ -342,6 +392,7 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     ax.legend(fontsize=8)
 
 
+@_with_engineering_ticks
 def draw_peak_map(fig, result, problem, layer=0, cmap="inferno"):
     """!
     @brief Highest temperature reached at every point during the last window.
@@ -356,6 +407,7 @@ def draw_peak_map(fig, result, problem, layer=0, cmap="inferno"):
                      f"(max {float(result.peak_map[layer].max()):.1f} °C)", label="Peak temperature (°C)")
 
 
+@_with_engineering_ticks
 def draw_waveforms(fig, problem, cycles=2.0):
     """!
     @brief Power of every heater with a profile over a few periods of the slowest one.

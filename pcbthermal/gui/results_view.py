@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 from .. import analysis, plots
 from . import theme as th
 from . import tips
-from ..numfmt import eng
+from ..numfmt import num
 
 
 @contextlib.contextmanager
@@ -364,7 +364,7 @@ class ResultsView(QWidget):
         """
         self.sim = sim
         rows = [[tips.model_label(r["model"]), f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
-                 f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{eng(r['energy_balance'], 1, sign=True)}",
+                 f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{num(r['energy_balance'], sign=True)}",
                  "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",
                  f"{r['seconds']:.2f}"] for r in sim.table()]
         _fill(self.model_table, rows)
