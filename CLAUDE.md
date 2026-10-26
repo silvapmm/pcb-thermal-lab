@@ -92,6 +92,7 @@ The project is MIT (`LICENSE`). Rules (maintainer, 2026-10-23, after the incoher
 - Default branch: `main`; active branch: `develop`. Do not commit features directly
   to `main`; use a branch and open a PR with `gh pr create`.
 - **Branch rule** (maintainer, mandatory): every working branch (`fix/<topic>`, `feature/<topic>`, `docs/<topic>` and `research/<topic>`) is created **from `develop`**, right when the work starts, never from `main` or from another working branch. When the work is finished (reviewed, the whole battery green) it is **merged back into `develop`** and the branch is deleted, locally and on the remote: all of them are temporary, and the only long-lived branches are `main` and `develop`. Names are exactly `fix/<topic>` and `research/<topic>` (kebab-case, English). `main` receives `develop` only when everything planned for the next version is done and the maintainer is satisfied, and that merge is the release (version bump, `CHANGELOG.md`, tag; see "Branches and Versions").
+- **Agent worktrees** (maintainer): an agent started with an isolated worktree gets an automatic local branch `worktree-agent-<id>` in `.claude/worktrees/`, created from `main`, never pushed. It has no work of its own: the agent must create its real branch (`fix/<topic>`, `research/<topic>`, ...) **from `develop`** inside it (or `worktree.baseRef` is `head`, see "Claude Code Settings"). When the agent has finished and its work is merged into `develop` (or discarded), Claude deletes the worktree (`git worktree remove`) and every local branch `worktree-agent-*` at once, after checking that no commit exists only on it (`git rev-list --count develop..<branch>`; an unmerged commit is reported, not deleted).
 - All git text is in English (details below).
 - The Claude GitHub app is installed on the repository (`/install-github-app`).
 
@@ -257,6 +258,7 @@ change. Keep the documentation **few and good**: `README.md`, `CHANGELOG.md`, `d
 this repository: all file tools, Bash (including explicit `git *` and `gh *` rules), WebFetch
 and WebSearch are allowed, with `acceptEdits` as the default mode. Denied: `sudo`,
 force pushes (`-f` / `--force`), `git reset --hard origin*`, and `rm -rf` on `/` or `~`.
+Isolated agent worktrees start from `develop` when `worktree.baseRef` is `"head"` (the maintainer sets it in the same file; without it they start from `main` and the agent has to create its branch from `develop`). Deleting remote branches is not covered by this file: the maintainer does it, except the temporary `research/<topic>` branches if an `autoMode.allow` rule for them is set.
 
 ## Agents and workflow
 
