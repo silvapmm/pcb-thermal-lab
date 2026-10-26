@@ -327,8 +327,14 @@ class PreferencesDialog(QDialog):
                 wdg = QDoubleSpinBox()
                 # Amplitudes of the design uncertainty and the copper uncertainty stay below 100 %, so a thickness never reaches 0
                 wdg.setRange(*((0.0, 99.0) if section == "calculator" and key in ("copper_uncertainty_pct", "design_coverage_pct", "design_weight_pct", "design_planes_pct", "design_vias_pct") else (0.0, 1.0) if key.startswith("design_scale_") else (-1e9, 1e9)))
-                # Three decimals for small numbers (a via diameter, an emissivity, a multiplier), one for the large ones: "100,0000 mm" was hard to read
-                wdg.setDecimals(3 if abs(float(val)) < 10 else 1)
+                # Three decimals for small numbers (a via diameter, an emissivity, a multiplier), one for the large ones: "100,0000 mm" was hard to read.
+                # The choice follows the shipped value, not the user's (a user value of 10 W must not take the decimals away from the heater power),
+                # and grows to show a saved value in full (a spin box rounds its value to its decimals, and a reset would write the rounded number)
+                shipped = defaults.shipped().get(section, {}).get(key, val)
+                places = 3 if abs(float(shipped)) < 10 else 1
+                while places < 6 and round(float(val), places) != float(val):
+                    places += 1
+                wdg.setDecimals(places)
                 wdg.setValue(float(val))
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, float(v)))
             wdg.setToolTip(f"{TIPS.get(key, key)}\nJSON key: {key}")

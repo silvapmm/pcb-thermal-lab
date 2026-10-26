@@ -289,3 +289,26 @@ def test_preferences_sections_are_a_list_with_stacked_pages(qtbot, tmp_path):
     QTest.keyClick(d.sections, Qt.Key_Up)
     assert d.pages.currentIndex() == 6
     assert d.sections.toolTip()
+
+
+def test_preferences_decimals_follow_the_shipped_value_and_show_a_saved_value_in_full(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief A field of the defaults gets its decimals from the shipped value, and more when the user's saved value needs them.
+
+    @note Regression: the decimals followed the user's value, so a heater power saved as 10 W left one decimal for that field (0.25 W
+          could no longer be typed), and a saved 0.3125 mm via was shown and could be reset as 0.313.
+    """
+    from pcbthermal import defaults
+    from pcbthermal.gui.preferences import PreferencesDialog
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(tmp_path / "cfg"))
+    data = defaults.load()
+    data["new_elements"]["heater_power_w"] = 10.0
+    data["new_elements"]["via_diameter_mm"] = 0.3125
+    defaults.save_user(data)
+    d = PreferencesDialog()
+    qtbot.addWidget(d)
+    power = d.widgets[("new_elements", "heater_power_w")]
+    via = d.widgets[("new_elements", "via_diameter_mm")]
+    assert power.decimals() == 3 and power.value() == 10.0
+    assert via.decimals() == 4 and via.value() == 0.3125
+    assert d.widgets[("materials", "rho_fr4")].decimals() == 1
