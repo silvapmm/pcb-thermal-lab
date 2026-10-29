@@ -1,7 +1,8 @@
 # Extra packages of the Gerber import research (not needed by the program itself).
 # The studies run with NumPy and SciPy only (the independent reader native_gerber.py); gerbonara and shapely are only the cross-check route.
-# Install in a separate virtual environment, for example:
-#   .venv/bin/pip install -r research/gerber-import/requirements.txt   (from the repository root, with the project's .venv)
+# Install in the research environment, which is kept apart from the program's .venv (from the repository root):
+#   python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements.txt -r research/gerber-import/requirements.txt
+# and run the studies of gerber-import and gerber-nets with .venv-research/bin/python (PYTHONPATH=. from the repository root).
 numpy>=1.24
 scipy>=1.11
 pytest>=7
