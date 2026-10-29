@@ -139,8 +139,10 @@ def test_the_context_menu_of_a_number_field_pastes_a_comma_as_a_point_and_keeps_
         spin.setValue(1.6)
     assert edit.text() == "1.600 mm" and abs(spin.value() - 1.6) < 1e-12
     # Select All of the menu selects the number, not the unit (as Qt's spin box menu); Copy and Cut work
-    _menu(edit, pos, "select all", "copy")
-    assert edit.selectedText() == "1.600" and clip.text() == "1.600"
+    _menu(edit, pos, "select all")
+    assert edit.selectedText() == "1.600"
+    _menu(edit, pos, "copy")                           # Copy is enabled only once something is selected
+    assert clip.text() == "1.600"
     spin.setValue(2.5)
     spin.selectAll()
     _menu(edit, pos, "cut")
