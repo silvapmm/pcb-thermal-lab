@@ -6,6 +6,8 @@ What was implemented in every version (with the module where it lives and how it
 
 ## Unreleased
 
+* **Via diameter labelled as the drill** (`gui/tips.py` key `drill diameter`, the *Drill diameter* field, `Via.diameter`, the guide, `docs/models.md`): the text now says what the model uses; no number changes.
+
 * **Top path only on a component**: `Heater.has_top_path()` (a component with `theta > 0` and `theta_sa > 0`) is the one condition used by `top_resistance()` and so by the report row and the split of the power; a pure source that carries `theta` and `theta_sa` from a file or the API ignores them (it used to show `r_top > 0` with no heat through the top, and with an interface under it a hidden top path that cooled the part by 39 K in the test case) (`tests/test_top_path_role.py`).
 
 * **Metal block beyond the board outline**: the block is cut at the outline in the FVM, FDM and 3D solid (`blocks.extra_layers` receives the board cover; `solid3d.py`), so a block over the cut-away part no longer drains into the cells pinned to the ambient (it read 38 K cold on the test board: FVM 66.8 against 104.7 degC); the input check measures the block against the outline and says it is cut there. Lumped and Analytic take the block whole on the rectangle of the same area (`tests/test_block_outline.py`).
