@@ -16,7 +16,7 @@ A catalogue `theta_SA` is given for a flow condition (natural convection at a st
 
 * **Other air speed (estimated)**: `theta_SA(v) = theta_SA(natural) f(v)` with `f` from the volumetric guide (1, 0.31, 0.18, 0.10 at 0, 1, 2.5, 5 m/s), always marked as an estimate. Default: linked to the board air speed, with an override for a heatsink that has its own fan.
 * **Natural convection with the rise**: `theta_SA proportional to dT^(-0.25)` from a reference rise (the same exponent as the natural-convection correlation of topic 08).
-* **From the geometry** (fin height, thickness, pitch, metal): the channel effect between fins, the Elenbaas / Bar-Cohen and Rohsenow composite correlation, compared with the catalogue `theta_SA`. The constants of the composite correlation could not be read in the sources found, so none is used yet; the fins of topic 11 assume a uniform coefficient and are validated only for that.
+* **From the geometry** (fin height, thickness, pitch, metal): the channel effect between fins, the Elenbaas / Bar-Cohen and Rohsenow composite correlation, compared with the catalogue `theta_SA`. The constants of the composite correlations are now read (equations 8, 20, 21 and 22 of [TeertstraReview], `research/fin-channel/`), the composite is checked against an independent numerical channel and against measured optimum spacings, and a rule and a correction are proposed there (`INTEGRATION.md`); the fins of topic 11 still assume a uniform coefficient in the program.
 * **Heatsinks with a fan** (catalogue assemblies, for example 40 mm sets of about 1.1 K/W) as library entries; pin fins; orientation.
 
 ## 3. What the picture is for

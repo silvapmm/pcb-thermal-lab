@@ -1,0 +1,4 @@
+# Text for `docs/versions.md` (chapter "Planned"), to use when the maintainer decides
+
+* **Fin warning on the channel Rayleigh number** (fix; after the investigation `fin-channel`): replace "gap below 4 mm in still air" by a post-run check `Ra_b < 90` on the block temperature, the longer side of the block as the channel length, and the orientation stated in the message. Evidence: `research/fin-channel/README.md` 6; test cases in `INTEGRATION.md` 2.
+* **Channel effect between the fins** (feature; after the investigation `fin-channel` and its open items C3a): the channel fraction `phi(Ra_b)` on the coefficient of the fins for a vertical board, steady state, with a fin direction or channel length on the block; the 3D solid to call the same function. Evidence: `research/fin-channel/README.md` 5 and 6, `INTEGRATION.md` 3. Not to be done before the open-front arrays, the horizontal orientations and the radiation between the fins are decided.

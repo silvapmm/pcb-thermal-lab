@@ -10,7 +10,7 @@ import json
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QDockWidget,
                                QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QHBoxLayout, QLabel, QMainWindow,
@@ -31,7 +31,7 @@ from .canvas import BoardView
 from . import compute
 from .compute import ProcessWorker
 from .document import Document
-from .panels import BoardPanel, ElementList, Inspector, SolverPanel
+from .panels import BoardPanel, ElementList, Inspector, SolverPanel, WarningList
 from .profile_page import ProfilePage
 from .stackup import StackupPage
 from . import tips
@@ -145,6 +145,32 @@ class BackgroundDialog(QDialog):
             return None
         return {"path": self.path, "x_mm": self.x.value(), "y_mm": self.y.value(), "w_mm": self.w.value(),
                 "h_mm": self.h.value(), "opacity": self.opacity.value() / 100.0}
+
+
+class _FooterLimiter(QObject):
+    """!
+    @brief Keeps the footer of a dock (Run button, progress, warnings) from taking a low dock: the warning list gets a quarter of the height.
+    """
+
+    def __init__(self, host, footer):
+        """!
+        @param host Widget that holds the scroll area and the footer.
+        @param footer The footer widget; its WarningList children are limited.
+        """
+        super().__init__(host)
+        self.footer = footer
+
+    def eventFilter(self, obj, event):
+        """!
+        @brief On a resize of the dock content, set the maximum height of its warning lists.
+        @param obj Watched widget.
+        @param event Qt event.
+        @return False always (the event continues).
+        """
+        if event.type() == QEvent.Resize:
+            for w in self.footer.findChildren(WarningList):
+                w.set_max_height(obj.height() // 4)
+        return False
 
 
 class MainWindow(QMainWindow):
@@ -275,6 +301,8 @@ class MainWindow(QMainWindow):
                 hl.setSpacing(0)
                 hl.addWidget(area_widget, 1)
                 hl.addWidget(footer)
+                area_widget.setMinimumHeight(120)           # The settings keep a usable strip (they scroll); the footer never takes the whole dock
+                host.installEventFilter(_FooterLimiter(host, footer))
                 area_widget = host
             d.setWidget(area_widget)
         else:
@@ -648,6 +676,7 @@ class MainWindow(QMainWindow):
         @brief React to edits: refresh the layer list, mark results as outdated, schedule the input checks.
         """
         self._edits += 1
+        self.solver_panel.checks.set_stale()               # Until the check runs again its links could point to another element
         tips.apply(self.profile_page)                      # The profile page rebuilds its forms with the choices
         self._check_timer.start()
         self._refresh_layers()

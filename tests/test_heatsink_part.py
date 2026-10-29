@@ -70,7 +70,7 @@ def test_models_agree_on_a_finned_block_and_the_energy_balance_closes():
     assert abs(rises["fdm"] - rises["fvm"]) < 0.05 * rises["fvm"] and abs(rises["solid3d"] - rises["fvm"]) < 0.05 * rises["fvm"], rises
 
 
-def test_fins_json_validation_and_the_choke_warning():
+def test_fins_json_validation_and_the_channel_warning():
     p = board((15.0, 1.5, 8.0))
     q = problem_from_dict(problem_to_dict(p))
     s = q.heatsinks[0]
@@ -78,11 +78,15 @@ def test_fins_json_validation_and_the_choke_warning():
     assert "fin_height_mm" not in problem_to_dict(board())["heatsinks"][0]
     with pytest.raises(ValueError):
         board((15.0, 1.5, 1.0)).validate()                                      # Pitch smaller than the fin thickness
+    # The close-fin warning is a post-run check on the channel Rayleigh number (tests/test_fin_channel_warning.py), not an input check
     tight = board((15.0, 1.5, 4.0))
-    assert any("fins" in w and "choke" in w for w in check_problem(tight))
-    assert not any("choke" in w for w in check_problem(board((15.0, 1.5, 12.0))))
+    assert not any("choke" in w or "channel" in w for w in check_problem(tight))
+    sim = simulate(tight, SolverOptions(models=("fvm",), cell_mm=1.0))
+    assert any("channel between the fins" in w for w in sim.warnings)
+    open_fins = simulate(board((15.0, 1.5, 12.0)), SolverOptions(models=("fvm",), cell_mm=1.0))
+    assert not any("channel between the fins" in w for w in open_fins.warnings)
     tight.board.air_speed = 2.0                                                  # Forced air gets through narrow channels
-    assert not any("choke" in w for w in check_problem(tight))
+    assert not any("channel between the fins" in w for w in simulate(tight, SolverOptions(models=("fvm",), cell_mm=1.0)).warnings)
 
 
 def test_contact_area_of_a_part_scales_the_interface_resistance():

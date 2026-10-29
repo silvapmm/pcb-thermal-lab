@@ -976,8 +976,8 @@ class Inspector(QWidget):
                     fh.setToolTip("Height of the plate fins on the exposed face of the block (0 = a plain plate). The program computes the area gain and the fin efficiency "
                                   "tanh(mL)/(mL) of the metal.")
                     ft.setToolTip("Thickness of one fin.")
-                    fp.setToolTip("Distance between the axes of two fins. The air gap is pitch minus thickness: in still air less than about 4 to 6 mm chokes the "
-                                  "natural convection (the program warns; it does not slow the air between the fins).")
+                    fp.setToolTip("Distance between the axes of two fins. The air gap is pitch minus thickness: in still air a narrow gap (a few millimetres) chokes the "
+                                  "natural convection (the program warns after the run; it does not slow the air between the fins).")
                     for key, spin in (("fin_height", fh), ("fin_thickness", ft), ("fin_pitch", fp)):
                         spin.valueChanged.connect(lambda v, k=key: self.doc.set_props(kind, i, **{k: v / 1000.0}))
                     lay.addRow("Fin height", fh)
@@ -1247,7 +1247,9 @@ class WarningList(QTextBrowser):
     """
 
     warning_clicked = Signal(str, int)
+    TIP = "Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about."
     MAX_HEIGHT = 150                                  # Pixels; more warnings than fit scroll
+    MIN_HEIGHT = 40                                   # Pixels; a low window squeezes the list down to about two lines, never below
 
     def __init__(self, parent=None):
         """!
@@ -1260,7 +1262,9 @@ class WarningList(QTextBrowser):
         self.viewport().setAutoFillBackground(False)
         self.anchorClicked.connect(self._clicked)
         self.warnings = []
-        self.setToolTip("Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about.")
+        self.stale = False                            # True between an edit and the next check: the list may name elements that moved or went
+        self.max_height = self.MAX_HEIGHT
+        self.setToolTip(self.TIP)
         self.setVisible(False)
 
     def set_warnings(self, warnings):
@@ -1269,6 +1273,8 @@ class WarningList(QTextBrowser):
         @param warnings List of warning strings; those with attributes kind and index (checks.CheckWarning) are clickable.
         """
         self.warnings = list(warnings)
+        self.stale = False
+        self.setToolTip(self.TIP)
         if not self.warnings:
             self.setHtml("")
             self.setVisible(False)
@@ -1286,13 +1292,44 @@ class WarningList(QTextBrowser):
         self.setVisible(True)
         self._fit()
 
+    def set_stale(self):
+        """!
+        @brief Mark the list as out of date (the design was edited and not yet checked): its links stop selecting elements.
+        """
+        if self.warnings and not self.stale:
+            self.stale = True
+            self.setToolTip("Warnings about the inputs: the design was edited, this list is refreshed in a moment.")
+
+    def set_max_height(self, height):
+        """!
+        @brief Limit the height of the list (a low window keeps room for the Run button).
+        @param height Maximum height in pixels; at least 40.
+        """
+        height = max(self.MIN_HEIGHT, min(int(height), self.MAX_HEIGHT))
+        if height != self.max_height:
+            self.max_height = height
+            if self.warnings:
+                self._fit()
+
     def _fit(self):
         """!
-        @brief Set the height to the wrapped text, up to the maximum.
+        @brief Let the height follow the wrapped text, up to the maximum, and let a low dock squeeze it down to MIN_HEIGHT.
         """
         self.document().setTextWidth(max(self.viewport().width(), 100))
         h = int(self.document().size().height()) + 6
-        self.setFixedHeight(min(h, self.MAX_HEIGHT))
+        # Not a fixed height: a fixed height is a minimum too, and the list then raised the minimum height of the whole
+        # window (30 warnings forced a window asked for 420 px to 559 px); the list shrinks first and scrolls
+        self.setMinimumHeight(min(h, self.MIN_HEIGHT))
+        self.setMaximumHeight(min(h, self.max_height))
+
+    def sizeHint(self):
+        """!
+        @brief Preferred size: the height of the wrapped text up to the maximum, so that a tall dock shows the whole list.
+        @return QSize.
+        """
+        s = super().sizeHint()
+        s.setHeight(self.maximumHeight() if self.warnings else 0)
+        return s
 
     def resizeEvent(self, event):
         """!
@@ -1308,6 +1345,8 @@ class WarningList(QTextBrowser):
         @brief Report the element of a clicked warning.
         @param url Link of the clicked warning, "kind:index".
         """
+        if self.stale:                                # Its element numbers may belong to another element now
+            return
         kind, _, index = url.toString().partition(":")
         if index.isdigit():
             self.warning_clicked.emit(kind, int(index))
@@ -1384,7 +1423,7 @@ class SolverPanel(QWidget):
         self.modes.setToolTip("Cosine modes per direction of the analytical series (more modes resolve smaller parts).")
         self.local.setToolTip("Add the local corrections of vias and heatsinks to the analytical series (the Green function of the fin equation around each one).")
         f.addRow("Cell size", cell_row)
-        f.addRow("", self.cells_label)
+        f.addRow(self.cells_label)                         # Full width: in the field column the wrapped text was cut to its first line
         f.addRow("FVM solver", self.solver)
         f.addRow("Lumped rings", self.rings)
         f.addRow("Analytic modes", self.modes)

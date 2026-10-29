@@ -1,0 +1,3 @@
+# Text for `docs/versions.md` (chapter "Planned"), to use when the maintainer decides
+
+* **Named options for the vertical-face correlation, default** (fix or small feature; after the investigation `plate-h-level`): "Boundary layer (Churchill and Chu, laminar)" and "All Rayleigh numbers (Churchill and Chu)" in the interface and the user guide; new projects default to the laminar form (decision of the maintainer), old files read as the all-range form; optional `auto` value (laminar below `Ra` 1e9); warning below `Ra` about 1e3. Evidence: `research/plate-h-level/README.md` 3 to 8, `INTEGRATION.md` 2.
