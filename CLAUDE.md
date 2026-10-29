@@ -195,7 +195,7 @@ python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements
 
 ## Branches and Versions
 
-- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.3** (2026-10-29). Numbering (maintainer's rule): only fixes give a patch number (2.4.4 next), any `feature/` item in the version makes it a minor number (2.5.0). `pcbthermal.__version__` stays the released number on `develop` until the release commit that bumps it.
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.4** (2026-10-29). Numbering (maintainer's rule): only fixes give a patch number (2.4.5 next), any `feature/` item in the version makes it a minor number (2.5.0). `pcbthermal.__version__` stays the released number on `develop` until the release commit that bumps it.
 - `develop`: integration branch for the next version; every fix, feature, documents and research branch starts from it and merges back into it when finished (see the branch rule in "Git Workflow"); `main` gets `develop` only at a release.
 - Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
@@ -293,6 +293,8 @@ The review of every research folder is tracked in `research/REVIEW.md` (status, 
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
 
 ## Decisions Log
+
+- **Released 2.4.4** (fixes only): the interface leftovers (footer on a low window, context-menu paste with a decimal comma, stale warning clicks) and the close-fin warning after the run (`Ra_b < 90`, text by orientation and face, no result changes). Decided with the reviewer: the natural-convection form `laminar` as the default of new projects, the low-Ra warning and the correction of `docs/validation.md` section 22 go to 2.5.0 with the memory guard; the channel correction `phi` and a value `auto` are not implemented (evidence only for fins up, originals not obtained; no board reaches Ra 5e7).
 
 - **Close-fin warning on the channel Rayleigh number** (`fix/fin-warning`, proposal A of `research/fin-channel`; release 2.4.4): the input check "air gap under 4 mm in still air" is gone and `checks.check_fin_channels` warns after the run when `Ra_b = g beta theta b^4 Pr / (nu^2 L) < 90` (`phi < 0.9`; theta the mean block excess from `arrays["block_T"]`, L the longer side of the block, air at ambient + theta/2), through the same auxiliary FVM run as the thick-plate check for the Lumped and Analytic. Of the 667 grid cases (of 1080) that lose 10 % or more of the finned-face conductance it misses 1, the old rule 367. The review weighted the block excess by `block_cov` (a block cut at the outline read 27 K instead of 35 K) and gave the 3D solid its own block temperature instead of the auxiliary FVM. Warning only: 30 runs of the finned block (five models, gaps 1.5 to 14.5 mm) are bit-identical to 2.4.3. The correction of the coefficient (proposal B) stays in the Planned chapter of `docs/versions.md` as a feature after the open items of the investigation.
 

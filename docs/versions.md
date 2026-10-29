@@ -4,7 +4,7 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
-## Unreleased (2.4.4): interface leftovers
+## 2.4.4 - 2026-10-29: interface leftovers and the close-fin warning
 
 * The Simulation footer (Run, progress, warnings) no longer takes a low dock: the settings keep at least 120 px (they scroll); the warning list is no longer of fixed height (a fixed height is also a minimum, so 30 warnings raised the minimum height of the window from 418 to 574 px) but shrinks down to `WarningList.MIN_HEIGHT` (40 px, two lines) and scrolls, and gets at most a quarter of the dock and 150 px (`panels.WarningList._fit`, `set_max_height`, `main_window._FooterLimiter`). Measured offscreen: the lowest window is 450 px without warnings (418 before: the settings strip went from 88 to 120 px) and 496 px with 30 warnings (574 before); a window cannot be made 420 px high.
 * The count of unknowns under the cell size is a full-width row (it spans both columns of the form), so its wrapped text is no longer cut to one line; the cut was seen in a real window and is not reproduced offscreen, where the old row was not cut either, so the test checks the spanning row.
