@@ -24,7 +24,7 @@
 * `d_v` in the `A_via` formula is the drill diameter (the plating is inside it).
 * The tooltip of the via diameter (`gui/tips.py`) and the docstring of `Via.diameter` say "finished hole": see `research/via-fill/INTEGRATION.md` 3 (a finished hole of 0.3 mm is a 0.35 mm drill: 15 % less resistance open, 27 % copper-filled).
 
-## `docs/roadmap.md`, "What we want to implement"
+## `docs/versions.md` "Planned", "What we want to implement"
 
 * "Via as a disc, not a point: Peaceman well index or spreading over the cells of the disc in the FVM and FDM, and no per-cell clip in the 3D solid, so that boards with vias converge with the cell (`research/via-fill/INTEGRATION.md` 1 and 2)."
 * "Lumped and Analytic: vias 35 to 52 % too effective on a via array under a part (the copper-fill gain), measured against an independent solver (`research/via-fill` README 7.3)."

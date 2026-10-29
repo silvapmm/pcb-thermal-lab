@@ -33,6 +33,6 @@ The FVM moves by 0.03 to 0.08 points from 1 to 0.25 mm; the gap is the edge loss
 * "The default paste costs only 0.6 to 1 K against a good paste": the table it comes from (`research/component-heatsink/README.md` 4.5, table E) gives 0.1 to 0.6 K on the four parts (MOSFET 0.6, LDO 0.2, buck 0.1, diode 0.1 K).
 * "1 mm 76.8, 3 mm 74.3, 6 mm 71.7 °C with fins" and "71.7 to 72.2 °C": printed by no script; `study_notes_r2.py` prints 76.4, 73.8, 71.2 and 71.2 to 71.8 °C (`research/component-heatsink/NOTES.md`, which already has the printed values).
 
-## 5. `docs/roadmap.md`
+## 5. `docs/versions.md` "Planned"
 
-* The text of `research/theory/docs/roadmap-entry.md` ("Open points of the research branch") is not in `docs/roadmap.md`; the file said it had been added. Updated there for what changed since (the 3D one-layer laminate is corrected in the program; Culham and Yovanovich 1998, Lush 2004, Milton chapters 3 and 23 and the multigrid primer's byline were read or confirmed).
+* The text of `research/theory/docs/roadmap-entry.md` ("Open points of the research branch") is not in `docs/versions.md` "Planned"; the file said it had been added. Updated there for what changed since (the 3D one-layer laminate is corrected in the program; Culham and Yovanovich 1998, Lush 2004, Milton chapters 3 and 23 and the multigrid primer's byline were read or confirmed).

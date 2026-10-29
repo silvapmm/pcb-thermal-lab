@@ -1,7 +1,8 @@
 """!
 @file check_figures.py
-@brief Checks the figures of every research folder against the rules of `research/README.md` ("Pictures" and "Diagrams and illustrations").
+@brief Checks the figures of every research folder against the figure rules of `CLAUDE.md` ("Research branches": "Diagrams and illustrations (always)" and "Figures").
 @details Question answered: is every figure of every `research/<topic>/figures/` linked from a document of its folder, does every image link resolve, is each figure captioned, is each number `fig_NN` used once, and does the folder have at least one data figure and one diagram?
+         The conventions: figures live in `research/<topic>/figures/` as `fig_NN_topic.png` (NN in order of creation, one numbering for the data figures of `scripts/make_figures.py` and the diagrams of `scripts/make_diagrams.py`, shapes shared in `research/diagram_kit.py`), are committed on purpose, and are linked from the README files with `![caption](figures/fig_NN_topic.png)` followed by an italic line with the figure number and file name.
          The checks, for every folder that has a `figures/` directory:
            1. every PNG in `figures/` is linked, with the Markdown image syntax `![...](path)`, from a `.md` file of the folder;
            2. every image link in the `.md` files of the folder resolves to an existing file (the path is relative to the `.md` file, so `docs/` files use `../figures/`);

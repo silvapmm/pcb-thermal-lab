@@ -2,14 +2,16 @@
 
 The text below is the project's `docs/research.md` as it stood: what was read, what was simulated and what is still open, section by section (R2 to R8 and E3 to E8). Script names point to this folder.
 
+**Status against the program** (checked against the code and `docs/versions.md`): the junction-to-pad resistance, the top path with a fixed θSA, the interface as one sheet, the typical heatsinks and the heater type (source or component, `Heater.role`) are implemented; the top-path loop defect found by the review is corrected (`api._top_path_split`). Still open: the junction node, the heatsink scenarios, the Foster chain, the top path in time, a heatsink larger than its contact. The section "Open now: the heater as a pure source or as a component" records a decision that is now implemented; the naming and the order of the boxes were still to be tuned. The two sections headed R3 are different questions (air flow, near the top; a heatsink larger than its contact, after R2): `INTEGRATION.md` "R3" means the second. The README of this folder holds the numbers; this file adds the reading notes and the options, and it duplicates `docs/research.md`, which is reset when the work is adopted.
+
 
 This file collects investigations that are **not implemented yet**: what was read, what was simulated, what is still open. It is used until the work is implemented;
-then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/roadmap.md`, the scripts stay in `examples/`, and this file goes back to the empty template below.
+then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/versions.md` "Planned", the scripts stay in `research/component-heatsink/scripts/`, and this file goes back to the empty template below.
 Values marked *assumed* are not from a datasheet. Everything is reproducible with the scripts named in each section.
 
 ## Open now: the Component element (junction node, heatsink scenarios, Foster chain)
 
-**Decided and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md` 1.11); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented (`docs/models.md` section 6, `docs/validation.md` section 9, `research/component-heatsink/scripts/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
+**Decided and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/versions.md` "Planned" 1.11); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented (`docs/models.md` section 6, `docs/validation.md` section 9, `research/component-heatsink/scripts/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
 
 Reproduce: `research/component-heatsink/scripts/component_study.py`, `research/component-heatsink/scripts/heatsink_study.py`, `research/component-heatsink/scripts/block_contact_study.py`.
 
@@ -42,7 +44,7 @@ A bare mould carries about 1 % of the heat (0.4 to 0.8 K against the same juncti
 
 **Findings.** A scaling factor is a fair estimate for a large heatsink and misses by tens of per cent for a small one; the natural-convection value itself falls as the temperature rise grows (quoted at a 75 K rise by Boyd/Aavid, 10.8 K/W at 1 W against 7.68 at 75 K for the SAME Sky part). The air speed of the board (Environment) acts on the board faces only, so a heatsink with its own fan has a different flow.
 
-**Decision.** Implemented: catalogue values by flow, two lists (heatsink, then air flow, only the flows the catalogue gives). Not implemented, in `docs/roadmap.md`: "other speed (estimated)" by a factor, the default flow linked to the board air speed, heatsinks with a fan (Boyd 40 mm sets about 1.1 K/W), the heatsink defined by its geometry with the fin channel effect, and the scaling of θSA with the temperature rise.
+**Decision.** Implemented: catalogue values by flow, two lists (heatsink, then air flow, only the flows the catalogue gives). Not implemented, in `docs/versions.md` "Planned": "other speed (estimated)" by a factor, the default flow linked to the board air speed, heatsinks with a fan (Boyd 40 mm sets about 1.1 K/W), the heatsink defined by its geometry with the fin channel effect, and the scaling of θSA with the temperature rise.
 
 ### R2. Heatsinks and interface materials: typical values and what they do
 
@@ -174,7 +176,7 @@ One environment setting would drive all of it: the air speed already used for th
 
 ### R7. Vertical information and presentation
 
-* **Vertical (z) information to carry**: the stack-up (layer thicknesses and dielectrics, roadmap section 8), the height of the component above the board (the air gap `g` under a heatsink or plate, R3, comes from it), the orientation of the board (horizontal or vertical; the computed `h` already has it), and for enclosures the free height above the board. A "vertical layout" panel or a small side view would make the gap, the stack and the interfaces visible; to design with the maintainer.
+* **Vertical (z) information to carry**: the stack-up (layer thicknesses and dielectrics, `docs/versions.md` "Planned", variable stack-up), the height of the component above the board (the air gap `g` under a heatsink or plate, R3, comes from it), the orientation of the board (horizontal or vertical; the computed `h` already has it), and for enclosures the free height above the board. A "vertical layout" panel or a small side view would make the gap, the stack and the interfaces visible; to design with the maintainer.
 * **Perfect contact in the interface form**: the value (0.01 K cm²/W) must be presented intuitively, for example as a named choice ("soldered or bonded: perfect contact") next to the pastes and pads, not as a number to remember; to design with the maintainer.
 
 ### R8. Heatsink on a component: plate or only K/W?
@@ -206,7 +208,7 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 
 1. Interface with its own area: default the whole contact face; perfect contact `R'' = 0.01 K cm²/W` shown as a named choice ("soldered or bonded"); outside the interface the air gap of R3 (default 1 mm)?
 2. Heatsink on a component: K/W only (R8, spreading is 1 to 4 % of the chain for aluminium and copper)?
-3. Heatsink scenarios (natural scaling, forced factors): later (`docs/roadmap.md`, "What we want to implement", Component).
+3. Heatsink scenarios (natural scaling, forced factors): later (`docs/versions.md` "Planned", "What we want to implement", Component).
 
 ## Open now: the heater as a pure source or as a component
 
@@ -394,5 +396,5 @@ What it shows:
 # Research (open investigations)
 
 Nothing pending. Add a section per investigation: the question, what was read (with links), what was simulated (script and numbers), the proposal and the open questions.
-When it is implemented, fold the findings into models.md, validation.md and roadmap.md and delete the section.
+When it is implemented, fold the findings into models.md, validation.md and versions.md ("Planned") and delete the section.
 ```

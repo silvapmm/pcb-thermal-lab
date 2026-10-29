@@ -150,7 +150,7 @@ docs/                  versions.md (what was implemented in every version, and i
 ico/                   application icon
 .claude/agents/        the project agents (researcher, executor, reviewer, maintainer; see "Agents and workflow")
 research/              one folder per investigation (see "Research branches"); not part of the program
-  README.md            index of the investigations by area of the program (status and question of each) and the rules for figures and diagrams
+  README.md            the index of the investigations (folder, status, question), the layout of a folder and a pointer to the figure check
   diagram_kit.py      shapes shared by the make_diagrams.py scripts (boxes, arrows, layer stacks, resistors)
   theory/              the explained theory: one file per topic in `topics/` (model, equation or planned method: picture, formulation, limits, tests, paths into the investigations, sources), `BIBLIOGRAPHY.md` (every source with its reading status), 30 figures, 37 topics; to be folded into `docs/theory.md` when adopted (on the branch `research/gerbers` until it is merged)
   <topic>/             everything about one investigation; the same layout in every folder:

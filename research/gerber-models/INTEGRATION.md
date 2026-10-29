@@ -92,6 +92,13 @@ Only where the cell conductances are read, and only when imported copper exists.
 * How the Lumped and Analytic models should use a mask is open: they average over rings or regions much larger than a cell.
 * The zone `pattern` needs a decision of the maintainer: which patterns, which default for files that already use `fill` below 1 (kept as it is, with a warning that the arithmetic value is the optimistic limit?).
 
+## 7. Status against the program (checked against the code)
+
+* **Not adopted**: `pcbthermal/copper.py` does not exist; no model takes face conductances from a mask; there is no `Zone.pattern`; the diagonal faces are not in the network (sections 2, 4 and 9 are designs).
+* **Still as described in section 0, point 2**: zones are combined per cell with `np.maximum` (`fvm.py` line 78 on the current `develop`); the correction of section 8.1 is not applied.
+* **Done in the program**: the laminate under a single copper layer in the 3D solid (section 8.2) and the laminate nodes of one-layer boards in the FVM, FDM and Lumped (`laminate.py`).
+* The section numbers 8 and 9 are cited by other documents, which is why the numbering skips from 6 to this section.
+
 ## 8. Two corrections to the program found by the research, with their measured impact (README 4.39)
 
 1. **Combine zones by the maximum per sample point, not per cell** (`geometry.zone_fill`, used by `fvm.py`, `fdm.py`, `solid3d.py`, `analytic.py`, `checks.py` in place of the loop with `np.maximum`). Copper tiled in abutting zones is no longer lost (-8.2 % FVM, -19.1 % FDM, -8.3 % 3D on 0.5 mm strips: back to the single-zone value); overlapping zones keep the larger fill (the FDM moves by -0.5 % on a partly overlapping pair, from its node averaging); **the example boards do not move at all**. The simpler additive rule double counts overlap (-8.2 %) and failed four program tests: not proposed.

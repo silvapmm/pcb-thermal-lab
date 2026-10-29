@@ -6,7 +6,7 @@
 
 Where it fits in the section of a part: `research/component-heatsink/figures/fig_03_heatsink_convection_scenarios.png` and `fig_05_part_and_top_path_schematic.png`.
 
-**Status: planned, partly researched** (`docs/roadmap.md` "Heatsink air flow", `docs/research.md` R3 and R6). Implemented today: a typed `theta_SA` or a typical heatsink from an eleven-entry library with its test conditions; metal block with plate fins and a uniform coefficient.
+**Status: planned, partly researched** (`docs/versions.md` "Planned" "Heatsink air flow", `docs/research.md` R3 and R6). Implemented today: a typed `theta_SA` or a typical heatsink from an eleven-entry library with its test conditions; metal block with plate fins and a uniform coefficient.
 
 ## 1. The problem
 

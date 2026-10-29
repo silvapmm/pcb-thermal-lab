@@ -6,7 +6,7 @@
 
 The reader that exists on the research branch, and the full chain from the Gerber files to the temperature: `research/gerber-import/figures/fig_17_nets_from_files.png` (nets), `fig_16_outline_how.png` (outline), `research/gerber-models/figures/fig_10_pipeline.png` (the whole chain); the copper mapping is topic 17.
 
-**Status: planned** (`docs/roadmap.md`, "Import of copper and parts"); the Gerber reader and the mappings are researched, not in the program.
+**Status: planned** (`docs/versions.md` "Planned", "Import of copper and parts"); the Gerber reader and the mappings are researched, not in the program.
 
 ## 1. KiCad import
 
@@ -22,7 +22,7 @@ A CSV or BOM (`reference, power_w, theta, tj_max`) applied to footprints by desi
 
 ## 4. Passive areas and a component library
 
-Component types for a **cooled area** (extra `h`), a **contact to a fixed temperature**, a **material patch**; a library of typical `theta_JC`, `theta_JB`, `psi_JB`, size and mass by family or part number (presets for processors with lid and paste). Probes and tables, export for ParaView or an external 3D check, pass/fail checks with an exit code and a result cache are further ideas of the same roadmap section.
+Component types for a **cooled area** (extra `h`), a **contact to a fixed temperature**, a **material patch**; a library of typical `theta_JC`, `theta_JB`, `psi_JB`, size and mass by family or part number (presets for processors with lid and paste). Probes and tables, export for ParaView or an external 3D check, pass/fail checks with an exit code and a result cache are further ideas of the same section of `docs/versions.md` "Planned".
 
 ## 5. Licence rule
 

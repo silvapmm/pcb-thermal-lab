@@ -10,6 +10,7 @@ The work of this folder is in the program since 2.3.0 (the block in the FVM, FDM
 | Block layer of the FVM and FDM | `blocks.extra_layers`, used by `fvm.py`, `fdm.py` | `tests/test_blocks.py`, `tests/test_heatsink_part.py` |
 | Block in the Lumped (ring layer) and Analytic (Schur complement on the tile graph) | `lumped.py`, `analytic.py` (both call `blocks.extra_layers`) | `tests/test_block_models.py` |
 | Fin air-gap warning (below 4 mm in still air) | `checks.py` | `tests/test_heatsink_part.py` |
+| Side walls of a finned block without the fin ratio (`blocks.wall_h`, the correction below) | `blocks.wall_h`, `extra_layers` (`h_wall`), `solid3d.py` | `tests/test_block_side_loss.py` |
 | Thick-plate warning with the flux into the block | `checks.check_thick_plates`, `checks._block_flux_under` | `tests/test_thick_plate.py` |
 
 ## A defect of the program found in the review: the fin ratio on the sides of the block (corrected in the program)
@@ -33,7 +34,7 @@ The error grows with the ratio of the side area `t × perimeter` to the base are
 
 **Decision of the maintainer**: the correction was applied (a `fix/` branch with the reviewer).
 
-## Open (limits of the model, in `docs/roadmap.md`)
+## Open (limits of the model, in `docs/versions.md` "Planned")
 
 * The channel effect between close fins (Elenbaas; Bar-Cohen and Rohsenow): the warning at 4 mm of air gap leaves a 6.5 mm gap, near the optimum spacing of a short array, with a channel coefficient that a remembered correlation puts 10 to 30 % below the typed one (`README.md` 4.1). A channel correlation for still air, or a lower warning threshold, is the maintainer's choice.
 * A time simulation with a block in the Lumped and Analytic models.

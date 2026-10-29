@@ -2,7 +2,7 @@
 
 What is already in the program (releases 2.3.0 and 2.4.0: the junction-to-pad resistance with its limit, the package families, the top path, the interface as one sheet, the heater types and typical heatsinks) is described in the program's `docs/versions.md`, `docs/models.md` and `docs/theory.md`; this file keeps only what is still open.
 
-## Open (in `docs/roadmap.md`)
+## Open (in `docs/versions.md` "Planned")
 
 * **Junction node (JESD15-3 two-resistor)**: only worth it with a heatsink on top (this folder: without one the node is 1.3 to 3.4 K below the worst-case offset; with a 12 K/W heatsink the top takes 41 to 51 % of the heat and the rise of the junction roughly halves, README 4.10).
 * **Heatsink scenarios**: θSA scaled with the temperature rise from a reference rise, an "other speed (estimated)" factor, the flow linked to the board air speed, heatsinks with a fan, a heatsink from its geometry with the channel effect, comparison with catalogue curves. `heatsink_convection_study.py` is the first look at the scaling and the forced factors.

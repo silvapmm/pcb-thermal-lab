@@ -249,7 +249,7 @@ def fig_one_layer_independent():
     plt.close(fig)
 
 
-# Sizes that the program's documents report (NOT reproduced on the quiet machine, cause not established: memory pressure or the computed-h loop; study_solve_cost.py now measures the same sizes) (CHANGELOG.md "A 3D-solid run that never ended", docs/versions.md, docs/roadmap.md):
+# Sizes that the program's documents report (NOT reproduced on the quiet machine, cause not established: memory pressure or the computed-h loop; study_solve_cost.py now measures the same sizes) (CHANGELOG.md "A 3D-solid run that never ended", docs/versions.md, docs/versions.md "Planned"):
 # 3D solid: (unknowns, seconds, GB); layered models: (unknowns, seconds, GB). The 400 000 unknowns point of docs/versions.md is 276 s and "5 GB".
 REPORTED_3D = [(160_000, 49.0, 2.2), (254_000, 130.0, 4.4), (400_000, 276.0, 5.0), (512_000, 320.0, 8.0)]
 REPORTED_LAYERED = [(1_000_000, 97.0, 4.4), (2_000_000, 273.0, 8.4)]

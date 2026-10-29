@@ -105,7 +105,7 @@ Fabricator pages, not the IPC standard, which was not read (what was read and ho
 3. Atlas PCB, thermal via array article, https://www.atlaspcb.com/blog/thermal-via-pcb-heat-dissipation-array-design (192 °C/W per open via with the geometry of 4.1; its 185 K/W for an epoxy-filled, capped via and its 45 K/W for a copper-filled via are given without a geometry).
 4. D. W. Peaceman, "Interpretation of well-block pressures in numerical reservoir simulation", SPE Journal 18 (1978) 183-194: the equivalent radius 0.198 Δx of a point source in one cell of a five-point stencil (from memory, not re-read; used only to explain section 7.3, which is measured).
 
-## 7. Independent review
+## 7. Review
 
 Reviewer agent, program of this branch (equal to `develop` `a9c1cd1` plus the merges since; the example-board numbers are identical on `develop` `3e90a7f`). Every number of this section is printed by `scripts/study_via_model_checks.py`.
 
