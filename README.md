@@ -94,26 +94,27 @@ sim.save("results")               # report, JSON, CSV fields, figures
 
 ## Documentation
 
-In the program: **Help - User guide** (`F1`; the same HTML file is `pcbthermal/help/index.html`) explains every parameter, every model and the results. In the repository:
-[`docs/versions.md`](docs/versions.md) (what was implemented in every version, where and how it is tested), and three technical documents: [`docs/models.md`](docs/models.md) (what the models are, how they work, power profiles, computed heat transfer coefficients, which one to use),
-[`docs/validation.md`](docs/validation.md) (the same scenarios in every model, against a 3D solid, the old program, solvers, time-dependent checks) and
-[`docs/roadmap.md`](docs/roadmap.md) (planned work and its evidence, and the ideas taken from similar projects such as the KiCad thermal plug-ins). A documented example with power profiles from CSV files: [`examples/csv_profiles`](examples/csv_profiles).
-Short release notes: [`CHANGELOG.md`](CHANGELOG.md).
+In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/index.html`) explains every parameter, model and result. In the repository:
+[`docs/versions.md`](docs/versions.md) (what was implemented in every version, where and how it is tested, and what is planned),
+[`docs/models.md`](docs/models.md) (the models, power profiles, computed heat transfer, which model to use),
+[`docs/theory.md`](docs/theory.md) (every equation and approximation),
+[`docs/validation.md`](docs/validation.md) (the same scenarios in every model, against a 3D solid, the old program and the solvers),
+[`docs/calculators.md`](docs/calculators.md) (the Power Calculator) and the release notes [`CHANGELOG.md`](CHANGELOG.md). An example with power profiles from CSV files: [`examples/csv_profiles`](examples/csv_profiles).
 
-## Versions and branches
+## Versions
 
-- Version **2.4.1** (2026-10-22): the MIT License stated consistently (LICENSE, README, About box, CLAUDE.md) and a note that results are not validated against a physical board; no change to the models.
-- Version **2.4.0** (2026-10-22): parts with junction temperature, a heatsink on the package, advanced stack-up, board outlines, cancellable calculation process, power calculator, help and tooltips (details in [`docs/versions.md`](docs/versions.md)).
-- Version **2.3.0** (2026-10-17): the finite-difference model also does animation, step responses and power profiles; metal blocks; the 3D solid model.
-- Version **2.2.0** (2026-10-16): power tables from CSV files, a finite-difference model, a per-heater analytic transient, a 3D-solid validation and clean documents.
-- Version **2.1.0** (2026-10-16): power profiles (square wave) and computed heat transfer coefficients.
-- Version **2.0.0** (2026-10-16): first release of the rebuilt program. The original wxPython program was 1.0.0 (git tag `legacy-wxpython-1.0.0`).
-- `main`: released versions, tagged `vMAJOR.MINOR.PATCH`. `develop`: integration branch for the next version. Work happens on feature branches.
-- Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the application (title bar, status bar, About) and in every report.
+Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
+
+- **2.4.1** (2026-10-22): the MIT licence stated the same way in LICENSE, README and the About box, and a note that results are not validated against a physical board; no change to the models.
+- **2.4.0** (2026-10-22): parts with a junction temperature and a heatsink on the package, advanced stack-up with a cross-section view, any board outline, calculations that can be cancelled, the Power Calculator, a built-in user guide, tooltips and Preferences.
+- **2.3.0** (2026-10-17): the finite-difference model also does animation and power profiles, metal blocks (heat spreaders) and the 3D solid model.
+- **2.2.0** (2026-10-16): power tables from CSV files, a finite-difference model, a better analytic time response, a 3D check and a stress-tested application.
+- **2.1.0** (2026-10-16): square-wave power profiles and heat transfer coefficients computed from the board temperature.
+- **2.0.0** (2026-10-16): first release of the rebuilt program (the original wxPython program was 1.0.0, tag `legacy-wxpython-1.0.0`).
 
 ## Research
 
-The investigations behind the models (what was simulated, compared and read, with figures) are in [`research/`](research/INDEX.md), one folder per investigation; the scripts that reproduce the tables of `docs/validation.md` are there.
+The investigations behind the models (what was simulated, compared and read, with figures) are in [`research/`](research/README.md), one folder per investigation; the scripts that reproduce the tables of `docs/validation.md` are there.
 
 ## Author and license
 
