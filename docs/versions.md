@@ -4,6 +4,12 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
+## Unreleased
+
+* **Zone union per sample point**: zones of one layer are combined by the union of their points, then averaged over the cell (`geometry.zone_fill`, used by the FVM, FDM, 3D solid, Analytic and the input check), instead of the larger of their shares of a cell; two zones that meet inside a cell no longer lose the copper of one of them (0.6 to 0.7 K on a 20 K rise in the test case; real copper 5 to 15 % cool before). The example boards give the same numbers (`tests/test_zone_union.py`).
+
+---
+
 ## 2.4.2 - 2026-10-29: interface review, calculator uncertainty, corrections
 
 User-visible changes first.
@@ -89,10 +95,9 @@ What we want to **implement** in the program, each item once, with the evidence 
 ### Next, in order (maintainer)
 
 1. **Block beyond the outline** (`fix/block-beyond-outline`). The FVM and the 3D solid pin the block layer outside the outline (`fvm.py` `g_pin`, `solid3d.py` `pin`) and `checks.py` measures coverage against the box, so the warning is silent; the block reads 55 % cold (FVM 40.7 K, 3D 41.1 K against FDM 90.0 K). Approach: clip the block to the outline and warn, as the Lumped and Analytic already do with the equivalent rectangle; check that the block is scaled with it there. Test: each model against its own clipped run; the check covers the outline for blocks and zones. Evidence: `research/block-and-fins/README.md` section 7.
-2. **Zone union** (`fix/zone-union`). Zones of a layer are combined by the maximum per sample point (`geometry.zone_fill`), losing the copper of two zones that abut in a cell (5 to 15 % cool on real copper). Test: the strips case. Evidence: `research/gerber-models/README.md` 4.39.
-3. **Top resistance** (`fix/top-resistance`). `Heater.top_resistance()` uses `theta` while `analysis.part_split` uses `junction_theta()` (API or JSON only); make both agree for every role. With it, the **via label**: relabel the tooltip (`gui/tips.py` key `diameter`) and the docstrings of `Via.diameter` and `add_via` from "finished hole" to "drill diameter" (no number changes). Evidence: `research/theory` review.
-4. **Memory limit and guard** (`pcbthermal/memory.py`; fix or feature to decide: a wrong unknown count in the panel is a fix, a new Preferences setting with a guard is a feature and makes the version 2.5.0, fixes only 2.4.2). Physical RAM, the memory of each model from its unknowns (coefficient per slab class, growth about N^(4/3)), a verdict ok / refuse in `api.simulate`, the jobs, the interface and the CLI. **Default limit 70 % of the physical memory, editable in Preferences** (`solver` section of `defaults.json`); a "slow" warning below it; the fixed 3D limit of 250 000 becomes RAM-based with an absolute ceiling; the unknown count shown for the layered models (it ignores the laminate nodes and the block layers: 2 400 shown, 9 600 real) is corrected in the same item. Test: simulated RAMs of 8, 16 and 64 GB; the 502 mm board refused in under 60 s; a failed RAM read falls back to the fixed ceiling. Evidence: `research/solid3d-verification/docs/for-the-project-documents.md`, its fig_09. Related: reuse the factorisation in the computed-h loop of the 3D solid.
-5. **Wait for the investigation**: the point via (below), the fin warning and the items after the investigations. The faster split stays as it is.
+2. **Top resistance** (`fix/top-resistance`). `Heater.top_resistance()` uses `theta` while `analysis.part_split` uses `junction_theta()` (API or JSON only); make both agree for every role. With it, the **via label**: relabel the tooltip (`gui/tips.py` key `diameter`) and the docstrings of `Via.diameter` and `add_via` from "finished hole" to "drill diameter" (no number changes). Evidence: `research/theory` review.
+3. **Memory limit and guard** (`pcbthermal/memory.py`; fix or feature to decide: a wrong unknown count in the panel is a fix, a new Preferences setting with a guard is a feature and makes the version 2.5.0, fixes only 2.4.2). Physical RAM, the memory of each model from its unknowns (coefficient per slab class, growth about N^(4/3)), a verdict ok / refuse in `api.simulate`, the jobs, the interface and the CLI. **Default limit 70 % of the physical memory, editable in Preferences** (`solver` section of `defaults.json`); a "slow" warning below it; the fixed 3D limit of 250 000 becomes RAM-based with an absolute ceiling; the unknown count shown for the layered models (it ignores the laminate nodes and the block layers: 2 400 shown, 9 600 real) is corrected in the same item. Test: simulated RAMs of 8, 16 and 64 GB; the 502 mm board refused in under 60 s; a failed RAM read falls back to the fixed ceiling. Evidence: `research/solid3d-verification/docs/for-the-project-documents.md`, its fig_09. Related: reuse the factorisation in the computed-h loop of the 3D solid.
+4. **Wait for the investigation**: the point via (below), the fin warning and the items after the investigations. The faster split stays as it is.
 
 ### Fixes waiting for a study
 

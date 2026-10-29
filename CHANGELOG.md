@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **Zones that meet inside a cell** keep the copper of both: the zones of a layer are combined by the union of their points (`geometry.zone_fill`) and not by the larger of their shares of a cell, which lost the copper of the other zone (5 to 15 % too cool on real copper, 0.6 to 0.7 K in the test case). The example boards do not change.
+
 ## [2.4.2] - 2026-10-29
 
 ### Added

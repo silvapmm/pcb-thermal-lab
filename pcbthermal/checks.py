@@ -10,7 +10,7 @@ of every warning says what is wrong and what to do.
 
 import numpy as np
 
-from .geometry import coverage_fraction, points_in_polygon, polygon_area, polygon_centroid
+from .geometry import coverage_fraction, points_in_polygon, polygon_area, polygon_centroid, zone_fill
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -58,9 +58,7 @@ def check_problem(problem, cell_mm=1.0):
     board_cover = b.cover(nx, ny, dx, dy)               # Ones for a rectangular board
 
     # --- Copper fill of every layer (union of its zones), used by several checks
-    fill = np.zeros((b.layers, ny, nx))
-    for z in problem.zones:
-        fill[z.layer] = np.maximum(fill[z.layer], coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
+    fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, 4)
 
     for k, s in enumerate(problem.heatsinks):
         if s.has_fins() and b.air_speed == 0 and s.fin_pitch - s.fin_thickness < 4e-3:

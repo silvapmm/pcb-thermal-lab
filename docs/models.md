@@ -6,7 +6,7 @@ guide. **Every equation, discretisation and approximation is stated in [`theory.
 
 ## 1. The physical description (theory §1)
 
-A board has `N` copper layers (layer 1 = top), a total thickness, copper zones (polygons with a fill factor), heaters (power over a footprint on one layer),
+A board has `N` copper layers (layer 1 = top), a total thickness, copper zones (polygons with a fill factor; where zones of one layer overlap or touch, the fill of a point is the largest fill of the zones that contain it), heaters (power over a footprint on one layer),
 plated vias, heatsinks (extra heat transfer on an outer face) and boundary conditions: ambient temperature and a heat transfer coefficient `h` on the top, bottom and edges.
 
 * SI units inside the package; project files and the builder API use millimetres and 1-based layers.
