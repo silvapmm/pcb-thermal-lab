@@ -176,6 +176,7 @@ network, an iterations GIF instead of time) and the numbers before and after are
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
+python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements.txt -r research/gerber-import/requirements.txt   # once: the Gerber studies (gerbonara, shapely, pygerber, pcb-tools); kept out of .venv so that the program's environment stays clean
 .venv/bin/python -m pcbthermal gui [project.pcbt.json]               # application
 .venv/bin/python -m pcbthermal run examples/example_board.pcbt.json  # CLI: all models, report, plots
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json   # direct vs CG vs SOR

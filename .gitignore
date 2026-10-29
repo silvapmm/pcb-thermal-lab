@@ -21,3 +21,4 @@ examples/csv_profiles/output_*/
 
 # worktrees that the agents create (temporary)
 .claude/worktrees/
+.venv-research/

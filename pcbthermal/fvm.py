@@ -463,6 +463,24 @@ def attach_block_results(res, net, T_all, theta):
         res.extras[f"block_{tag}_w_to_air"] = float((net.g_block[bi["layer"]] * layer_theta).sum())
 
 
+def unknowns(problem, cell_mm=2.0):
+    """!
+    @brief Number of unknowns of the layered finite-volume model of a problem, counted without building it (the same layers as Network).
+    @details The model has one node per copper layer, the laminate nodes of a one-layer board (laminate.py) and one layer per face that carries
+             metal blocks (blocks.py), each of nx x ny cells. The application shows this number next to the cell size; counting only
+             the copper layers hid 3 of 4 unknowns on a one-layer board with a block.
+    @param problem A Problem.
+    @param cell_mm Target size of the cells in millimetres (the grid is round(width / cell) by round(height / cell), at least 2 each).
+    @return Tuple (unknowns, layers, nx, ny) with layers the number of node layers of the model.
+    """
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    lam = laminate.nodes(b)
+    layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
+    return layers * nx * ny, layers, nx, ny
+
+
 def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=1e-9, sor_criterion="residual"):
     """!
     @brief Steady-state FVM solution of a problem.

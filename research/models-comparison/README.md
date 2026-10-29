@@ -354,16 +354,11 @@ Own computation. The removed program is documented by its code at tag `legacy-wx
 
 ## 7. Review
 
-The `reviewer` agent re-ran every script of the folder on the program at `0ea5f07` (`validation_study.py` with and without `--fem`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py` with `--compare` against `out/complex_boards_before.json`, `study_lumped_rings.py`) and compared every printed number with this README and with `docs/validation.md`. What it found and changed:
-
-1. **Stale numbers.** The Lumped column of the 19 scenarios (section 4.2, both tables) held the values from before the minimum ring width in six rows (up to 0.07 K; `docs/validation.md` already had the current ones). The two step animations of 4.6 had stale FVM rows (0.2 to 0.4 °C) and a stale FDM row; the FVM-Analytic gap is 2.2 °C, not "within 2". The solver table of 4.4 showed CG on one board only, left out the fifth board and quoted timings from before the symmetric ordering. All replaced by the printed output.
-2. **Numbers no script printed.** Sections 4.6 and 4.7 came from `docs/validation.md` and the tests; `scripts/study_time_and_coefficients.py` now prints them. The off-grid heater of 4.2.1 (103.59 °C) could not be rebuilt from its description or from the history; it is replaced by an explicit polygon case (`scripts/study_offgrid_heater.py`, 102.25 °C reference) and the old number is stated as not reproduced.
-3. **Statements the tables contradict.** The FDM does not "jump by ±0.5 °C" around the FVM and area sampling does not remove the grid dependence on the example board (4.2.1); the FDM is not "within about 1 %" of the FVM on the board of 4.5 (−2.4 % at 1 mm); the Analytic is not "exact" on uniform boards (0.3 to 1.0 % from the FVM) and is −4.3 % on the copper island; the explanation of the Analytic's hot one-layer boards had the wrong sign (4.8).
-4. **A broken option.** `validation_study.py --fem` failed with an import error (the finite-element solid moved to `../solid3d-verification/scripts/`); fixed, and its table (4.1) is the one of `docs/validation.md` section 3, digit for digit.
-5. **Independent check of the reference of 4.8** (`scripts/study_complex_boards_independent.py`): the 3D solid at 1 mm is within 1.4 % of a solver that shares no code with the program on three one-layer boards (0.2 % at 0.5 mm); the models keep their ranking against it.
-6. **Folder layout.** The folder table named scripts without their `scripts/` folder and a `fem3d_validation.py` path that does not exist; the figure 3 title said 1e-9 K where the table shows up to 1.7e-8 K.
-
-The corrections that `docs/validation.md` needs (it cannot be edited on this branch) are in `docs/for-the-project-documents.md`.
+* **Status**: reviewed on the program at `0ea5f07` (still current in the `pcbthermal/` physics code); every script was re-run (`validation_study.py` with and without `--fem`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py --compare`, `study_lumped_rings.py`) and the tables of this README are the ones the scripts print.
+* **Independent checks**: the 3D solid of the one-layer boards of 4.8 against a solver that shares no code with the program (`study_complex_boards_independent.py`, within 1.4 % at 1 mm, 0.2 % at 0.5 mm; the models keep their ranking); the finite-element table of 4.1 (`--fem`) against `docs/validation.md` section 3, digit for digit.
+* **Limits**: no measurement of a physical board (the protocol is a plan, `docs/measurement-protocol.md`); the "old" rows of 4.5 (the removed wxPython program) and the tolerances quoted in 4.6 and 4.7 (asserted by tests) were not re-run; the off-grid heater of 103.59 °C once quoted in 4.2.1 could not be rebuilt and is replaced by an explicit polygon case (`study_offgrid_heater.py`); timings are of one run on one machine.
+* **Defects of the program found**: none in the models; `validation_study.py --fem` had a broken import (the finite-element solid moved to `../solid3d-verification/scripts/`), fixed in the study.
+* **Text for the project documents**: `docs/for-the-project-documents.md` (corrections `docs/validation.md` needs).
 
 ## What was read and what was not verified
 
