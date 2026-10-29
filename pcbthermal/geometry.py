@@ -9,6 +9,34 @@ board. This module depends only on NumPy so it can run headless.
 import numpy as np
 
 
+def polygon_self_intersects(poly):
+    """!
+    @brief Whether the outline of a polygon crosses itself (two of its edges that are not neighbours cut each other).
+    @details The fill of the program follows the even-odd rule, so a crossing outline leaves the crossed part empty (a pentagram is filled
+             between its arms, not in its centre), and the Gerber format does not allow such a contour. The test is exact for proper crossings;
+             edges that only touch at an end point or run along each other are not reported.
+    @param poly Array-like (n, 2) of vertices; the closing edge from the last to the first vertex is included.
+    @return bool.
+    """
+    p = np.asarray(poly, dtype=float)
+    n = len(p)
+    if n < 4:
+        return False                                      # A triangle cannot cross itself
+    a, b = p, np.roll(p, -1, axis=0)                      # Edge i goes from a[i] to b[i]
+    for i in range(n - 2):
+        # Edges after i, leaving out the neighbour i + 1 and, for the first edge, the closing neighbour n - 1
+        j = np.arange(i + 2, n if i > 0 else n - 1)
+        if len(j) == 0:
+            continue
+        d1 = (b[i, 0] - a[i, 0]) * (a[j, 1] - a[i, 1]) - (b[i, 1] - a[i, 1]) * (a[j, 0] - a[i, 0])
+        d2 = (b[i, 0] - a[i, 0]) * (b[j, 1] - a[i, 1]) - (b[i, 1] - a[i, 1]) * (b[j, 0] - a[i, 0])
+        d3 = (b[j, 0] - a[j, 0]) * (a[i, 1] - a[j, 1]) - (b[j, 1] - a[j, 1]) * (a[i, 0] - a[j, 0])
+        d4 = (b[j, 0] - a[j, 0]) * (b[i, 1] - a[j, 1]) - (b[j, 1] - a[j, 1]) * (b[i, 0] - a[j, 0])
+        if np.any((d1 * d2 < 0) & (d3 * d4 < 0)):         # The end points of each edge lie strictly on both sides of the other
+            return True
+    return False
+
+
 def polygon_area(poly):
     """!
     @brief Area of a simple polygon using the shoelace formula.
@@ -65,6 +93,34 @@ def points_in_polygon(px, py, poly):
     return inside
 
 
+def _sample_mask(poly, nx, ny, dx, dy, samples):
+    """!
+    @brief Which sub-samples of the cells in the bounding box of a polygon lie inside it.
+    @param poly Polygon vertices (n, 2) in metres.
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param samples Sub-samples per cell side.
+    @return None when the polygon touches no cell, else (i0, i1, j0, j1, mask) with mask of shape (ni, samples, nj, samples), True inside.
+    """
+    p = np.asarray(poly, dtype=float)
+    # Index range of the cells touched by the polygon bounding box (clipped to the board)
+    j0 = max(int(np.floor(p[:, 0].min() / dx)), 0)
+    j1 = min(int(np.ceil(p[:, 0].max() / dx)), nx)
+    i0 = max(int(np.floor(p[:, 1].min() / dy)), 0)
+    i1 = min(int(np.ceil(p[:, 1].max() / dy)), ny)
+    if j1 <= j0 or i1 <= i0:
+        return None
+    ni, nj = i1 - i0, j1 - j0
+    # Sub-sample centres inside every cell of the bounding box
+    sub = (np.arange(samples) + 0.5) / samples
+    xs = (j0 + (np.arange(nj)[:, None] + sub[None, :])) * dx   # (nj, samples)
+    ys = (i0 + (np.arange(ni)[:, None] + sub[None, :])) * dy   # (ni, samples)
+    gx, gy = np.meshgrid(xs.reshape(-1), ys.reshape(-1))
+    return i0, i1, j0, j1, points_in_polygon(gx, gy, p).reshape(ni, samples, nj, samples)
+
+
 def coverage_fraction(poly, nx, ny, dx, dy, samples=4):
     """!
     @brief Fraction of every grid cell that is covered by a polygon.
@@ -78,28 +134,46 @@ def coverage_fraction(poly, nx, ny, dx, dy, samples=4):
     @param samples Sub-samples per cell side (accuracy of the fraction is about 1/samples^2).
     @return Array of shape (ny, nx) with values in [0, 1].
     """
-    p = np.asarray(poly, dtype=float)
     cov = np.zeros((ny, nx))
-    # Index range of the cells touched by the polygon bounding box (clipped to the board)
-    j0 = max(int(np.floor(p[:, 0].min() / dx)), 0)
-    j1 = min(int(np.ceil(p[:, 0].max() / dx)), nx)
-    i0 = max(int(np.floor(p[:, 1].min() / dy)), 0)
-    i1 = min(int(np.ceil(p[:, 1].max() / dy)), ny)
-    if j1 <= j0 or i1 <= i0:
+    got = _sample_mask(poly, nx, ny, dx, dy, samples)
+    if got is None:
         return cov
-    ni, nj = i1 - i0, j1 - j0
-    # Sub-sample centres inside every cell of the bounding box
-    sub = (np.arange(samples) + 0.5) / samples
-    xs = (j0 + (np.arange(nj)[:, None] + sub[None, :])) * dx   # (nj, samples)
-    ys = (i0 + (np.arange(ni)[:, None] + sub[None, :])) * dy   # (ni, samples)
-    xs = xs.reshape(-1)
-    ys = ys.reshape(-1)
-    gx, gy = np.meshgrid(xs, ys)
-    mask = points_in_polygon(gx, gy, p)
+    i0, i1, j0, j1, mask = got
     # Average the samples of each cell: (ni, s, nj, s) -> (ni, nj)
-    frac = mask.reshape(ni, samples, nj, samples).mean(axis=(1, 3))
-    cov[i0:i1, j0:j1] = frac
+    cov[i0:i1, j0:j1] = mask.mean(axis=(1, 3))
     return cov
+
+
+def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
+    """!
+    @brief Copper fill of every layer: the union of its zones, taken at every sub-sample point and then averaged over the cell.
+    @details Zones of one layer overlap or touch; where they do, the fill of a point is the largest fill of the zones that contain it. Taking that
+             maximum per cell (the older rule) lost the copper of two zones that meet inside a cell: each covered half of it and the cell kept only
+             the larger half. The union per sample point keeps both halves (hatched zones keep their fill inside the polygon).
+    @param zones Iterable of zones with polygon (metres), layer (0-based) and fill (0 to 1).
+    @param layers Number of board layers.
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param samples Sub-samples per cell side.
+    @return Array of shape (layers, ny, nx) with values in [0, 1].
+    """
+    out = np.zeros((layers, ny, nx))
+    for layer in range(layers):
+        mine = [z for z in zones if z.layer == layer]
+        if not mine:
+            continue
+        fine = np.zeros((ny, samples, nx, samples))       # Fill of every sub-sample point of this layer
+        for z in mine:
+            got = _sample_mask(z.polygon, nx, ny, dx, dy, samples)
+            if got is None:
+                continue
+            i0, i1, j0, j1, mask = got
+            window = fine[i0:i1, :, j0:j1, :]
+            np.maximum(window, mask * z.fill, out=window)
+        out[layer] = fine.mean(axis=(1, 3))
+    return out
 
 
 def cell_index_of_point(x, y, nx, ny, dx, dy):

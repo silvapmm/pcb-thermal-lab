@@ -22,7 +22,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from . import blocks, laminate
-from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
+from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
 from .results import SteadyResult, TransientResult
 from .numfmt import num
 
@@ -72,10 +72,7 @@ class Network:
             raise ValueError("copper thickness must be smaller than thickness / layers")
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
-        f = np.zeros((L, ny, nx))
-        for z in problem.zones:
-            cov = coverage_fraction(z.polygon, nx, ny, dx, dy, samples=4) * z.fill
-            f[z.layer] = np.maximum(f[z.layer], cov)
+        f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         self.fill = f
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell

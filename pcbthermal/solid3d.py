@@ -29,7 +29,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .fvm import ORDERING
-from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
+from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid, zone_fill
 from .results import SteadyResult
 
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
@@ -155,9 +155,7 @@ class Solid:
         self.area_b = Ab
 
         # --- Copper fill of every layer and the plated area of the vias in every cell
-        fill = np.zeros((L, ny, nx))
-        for z in problem.zones:
-            fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
+        fill = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
         via_frac = np.zeros((ny, nx))
         for v in problem.vias:
             if 0.0 <= v.x < W and 0.0 <= v.y < H:

@@ -19,7 +19,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid
+from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
 from . import blocks, fvm, laminate
 from .fvm import ORDERING
 from .results import SteadyResult
@@ -131,9 +131,14 @@ class Network:
         self.area = area
 
         # Copper fill at the nodes
-        fill = np.zeros((L, ny, nx))
-        for z in problem.zones:
-            fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
+        if sampling == "area":
+            # The union of the zones per sample point on the cells, then averaged over the cells around every node
+            cell_fill = zone_fill(problem.zones, L, cells_x, cells_y, dx, dy, 4)
+            fill = np.stack([_node_average(cell_fill[k]) for k in range(L)])
+        else:
+            fill = np.zeros((L, ny, nx))                                     # Point sampling: a node is inside or outside, the maximum is exact
+            for z in problem.zones:
+                fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
         S = (fill * m.k_copper * tc + k_lam * (slab - fill * tc)) * ncov     # Sheet conductance per node (W/K)
         # Heat capacity of every node (J/K)
         self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * rho_cp_lam) * area[None]
