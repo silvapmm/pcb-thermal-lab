@@ -30,9 +30,10 @@ import math
 from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
-from .checks import check_problem
+from .checks import check_problem, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
+from .numfmt import num
 
 MODEL_NAMES = ("fvm", "lumped", "analytic")
 COMPARISON_MODELS = ("fdm", "solid3d")          # Comparison models: never the reference of the decisions
@@ -177,7 +178,7 @@ class Simulation:
                  "| :-- | --: | --: | --: | --: | --: | --: | --: | --: |"]
         for r in self.table():
             lines.append(f"| {r['model']} | {r['t_max_c']:.2f} | {r['t_mean_c']:.2f} | {r['delta_t_k']:.2f} | "
-                         f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {r['energy_balance']:+.0e} | "
+                         f"{r['r_theta_k_per_w']:.3f} | {r['power_in_w']:.3f} | {num(r['energy_balance'], sign=True)} | "
                          f"{r['error_vs_reference'] * 100:+.1f} % | {r['seconds']:.2f} |")
         lines += self._profile_markdown()
         for w in self.warnings:
@@ -192,12 +193,12 @@ class Simulation:
         if not self.decisions:
             return []
         lines = ["", f"Power profiles (decision from the {self.profile_reference} step response, "
-                     f"threshold {self.options.profile.threshold_c:g} °C):", "",
+                     f"threshold {num(self.options.profile.threshold_c)} °C):", "",
                  "| Heater | Period [s] | Duty | Average [W] | Peak [W] | Oscillation [°C] | % of rise | Decision |",
                  "| :-- | --: | --: | --: | --: | --: | --: | :-- |"]
         for d in self.decisions:
             if d.kind != "constant":
-                lines.append(f"| {d.name} | {d.period:g}{'' if d.repeat else ' (once)'} | {_duty_text(d)} | {d.average_power:.3f} | {d.peak_power:.3f} | "
+                lines.append(f"| {d.name} | {num(d.period)}{'' if d.repeat else ' (once)'} | {_duty_text(d)} | {d.average_power:.3f} | {d.peak_power:.3f} | "
                              f"{d.oscillation:.2f} | {d.oscillation_percent:.1f} % | {d.regime} |")
             else:
                 lines.append(f"| {d.name} | - | - | {d.average_power:.3f} | {d.peak_power:.3f} | - | - | constant |")
@@ -225,7 +226,7 @@ class Simulation:
         lines = [head, "-" * len(head)]
         for r in self.table():
             lines.append(f"{r['model']:9s} {r['t_max_c']:8.2f} {r['t_mean_c']:8.2f} {r['delta_t_k']:8.2f} "
-                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {r['energy_balance']:+9.0e} "
+                         f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {num(r['energy_balance'], sign=True):>9} "
                          f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
         for w in self.warnings:
             lines.append(f"WARNING: {w}")
@@ -239,14 +240,14 @@ class Simulation:
         ref = self.reference
         lines = [f"PCB Thermal Lab {__version__} - report: {self.problem.name}",
                  f"Board {self.problem.board.width * 1000:.1f} x {self.problem.board.height * 1000:.1f} mm, "
-                 f"{self.problem.board.layers} layers, ambient {self.problem.board.ambient:g} degC, "
+                 f"{self.problem.board.layers} layers, ambient {num(self.problem.board.ambient)} degC, "
                  f"total power {self.problem.total_power():.3f} W", "", self.to_text()]
         if self.h_used:
             b = self.problem.board
             lines.append("")
-            lines.append(f"Heat transfer coefficients computed from correlations (emissivity {b.emissivity_top:g} top, "
-                         f"{b.emissivity_bottom:g} bottom, {b.orientation} board, air speed {b.air_speed:g} m/s, "
-                         f"convection multiplier {b.h_calibration:g}):")
+            lines.append(f"Heat transfer coefficients computed from correlations (emissivity {num(b.emissivity_top)} top, "
+                         f"{num(b.emissivity_bottom)} bottom, {b.orientation} board{' (' + b.natural_form + ' form)' if b.orientation == 'vertical' else ''}, air speed {num(b.air_speed)} m/s, "
+                         f"convection multiplier {num(b.h_calibration)}):")
             for name, (ht, hb) in self.h_used.items():
                 e = self.results[name].extras
                 lines.append(f"  {name}: top {ht:.2f} W/m2K (convection {e['h_top_convection']:.2f} + radiation "
@@ -255,10 +256,10 @@ class Simulation:
         if self.decisions:
             lines.append("")
             lines.append(f"Power profiles (steady models use the {self.options.steady_power} power; decision from the "
-                         f"{self.profile_reference} step response, threshold {self.options.profile.threshold_c:g} C):")
+                         f"{self.profile_reference} step response, threshold {num(self.options.profile.threshold_c)} C):")
             for d in self.decisions:
                 if d.kind != "constant":
-                    lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {d.period:g} s, duty {_duty_text(d)}, "
+                    lines.append(f"  {d.name}: {'period' if d.repeat else 'one-shot, length'} {num(d.period)} s, duty {_duty_text(d)}, "
                                  f"average {d.average_power:.3f} W, "
                                  f"on {d.peak_power:.3f} W, oscillation {d.oscillation:.2f} C "
                                  f"({d.oscillation_percent:.1f} % of the rise) -> {d.regime}")
@@ -275,7 +276,7 @@ class Simulation:
         if ref.T is not None:
             lines.append(f"Reference model: {ref.model}")
             hs = hotspots(ref, self.options.hotspot_c)
-            lines.append(f"Hotspots above {self.options.hotspot_c:g} degC: {len(hs)}")
+            lines.append(f"Hotspots above {num(self.options.hotspot_c)} degC: {len(hs)}")
             for h in hs[:10]:
                 lines.append(f"  layer {h['layer']}: {h['t_max']:.1f} degC at ({h['x_mm']:.1f}, {h['y_mm']:.1f}) mm, "
                              f"{h['area_mm2']:.1f} mm2")
@@ -288,7 +289,7 @@ class Simulation:
                 if h["power_top_w"] > 0:
                     extra += f", top path {h['power_top_w']:.2f} W ({100.0 * h['power_top_w'] / h['power_w']:.0f} % of the power, {h['r_top']:.1f} K/W)"
                 if h["margin_k"] is not None:
-                    extra += f", limit {h['tj_max']:g} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
+                    extra += f", limit {num(h['tj_max'])} degC (margin {h['margin_k']:.1f} K, power limit {h['p_limit_w']:.2f} W)"
                 nominal = f", {h['power_nominal_w']:.2f} W nominal" if abs(h["power_w"] - h["power_nominal_w"]) > 1e-9 else ""
                 lines.append(f"Heater {h['name']} (layer {h['layer']}, {h['power_w']:.2f} W{nominal}): "
                              f"mean {h['t_mean']:.1f}, max {h['t_max']:.1f} degC{extra}")
@@ -380,14 +381,124 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0):
     return float(min(max(min(sizes) / 4.0, lo), hi))
 
 
+def _top_path_split(problem, pr, totals, once, active):
+    """!
+    @brief Find the heat that enters the board from every part with a top path, for given total powers of the parts.
+    @details The unknown of part i is P_b,i, the heat into the board. The part sends p_top,i = part_split(T_max,i(P_b)) to the ambient through its top, so the
+             split is the root of g_i(P_b) = P_b,i - P_i + p_top,i = 0. A plain fixed-point iteration P_b <- P - p_top(T_max(P_b)) has the slope
+             -R_b/(R_top + theta) (R_b: the board's resistance under the part) and diverges when it exceeds 1, which happens on small pads, so it is not used.
+             g is monotone in P_b (g' = 1 + R_b/(R_top + theta) >= 1, 1 where part_split clips the top heat at P) with g(0) <= 0 <= g(P): the root is bracketed by [0, P].
+             One part: Illinois regula falsi on [0, P]; with fixed face coefficients the board is affine in P_b, so the secant between the two ends gives
+             the root at once (3 board solves in all) unless the top heat is clipped at P_b = P (R_b > R_top, the small pads: g has a kink, 6 solves);
+             with computed coefficients (Picard loop inside every solve) it takes 6 to 7, and up to about 20 when the root is close to the clip.
+             Several parts: their splits interact through the board; a Broyden quasi-Newton iteration on the vector P_b (starting Jacobian by finite
+             differences with the wide steps P_b,j -> 0, exact for an affine board only when no top heat is clipped and the hottest cells do not move), projected
+             on [0, P] and with step halving, solves the coupled system (measured on random boards of 2 to 4 parts: median 8 to 9 solves, 90 % within 25, at most 57).
+    @param problem The Problem (not modified; owns the heaters and their top paths).
+    @param pr Working copy of the problem whose heater powers are set here to the board powers.
+    @param totals Power dissipated by every part in W (fixed during this solve).
+    @param once Function pr -> (SteadyResult, (h_top, h_bottom) or None) that solves the board.
+    @param active Indices of the parts with a top path and a junction (the others send all their power into the board).
+    @return Tuple (SteadyResult, hh, board powers in W, number of board solves, converged flag).
+    """
+    count = [0]
+
+    def evaluate(x):
+        # One board solve with the board powers x of the active parts; returns the residuals g_i and the solution
+        board = list(totals)
+        for k, xi in zip(active, x):
+            board[k] = float(xi)
+        for h, pw in zip(pr.heaters, board):
+            h.power = pw
+        res, hh = once(pr)
+        count[0] += 1
+        rows = heater_stats(res, problem, totals)
+        g = np.array([board[k] - totals[k] + part_split(problem.heaters[k], rows[k]["t_max"], totals[k], res.ambient)[1] for k in active])
+        return g, res, hh, board
+
+    scale = np.array([totals[k] for k in active])
+    tol = 1e-5                                               # Relative to the part's power: far below the 0.1 K that matters
+    best = None                                              # (worst relative residual, res, hh, board)
+
+    def keep(g, res, hh, board):
+        nonlocal best
+        err = float(np.max(np.abs(g) / scale))
+        if best is None or err < best[0]:
+            best = (err, res, hh, board)
+        return err
+
+    if len(active) == 1:
+        p = scale[0]
+        g_hi, res, hh, board = evaluate(np.array([p]))       # All the power into the board: the first iterate of the old loop, g >= 0
+        if keep(g_hi, res, hh, board) > tol:
+            g_lo, res, hh, board = evaluate(np.array([0.0]))                # Nothing into the board: g <= 0
+            if keep(g_lo, res, hh, board) > tol:
+                glo, ghi, g_lo_v, g_hi_v, side = 0.0, p, float(g_lo[0]), float(g_hi[0]), 0
+                for _ in range(40):
+                    x = ghi - g_hi_v * (ghi - glo) / (g_hi_v - g_lo_v)      # Secant (regula falsi) between the ends of the bracket
+                    g, res, hh, board = evaluate(np.array([x]))
+                    if keep(g, res, hh, board) <= tol or ghi - glo < 1e-9 * p:
+                        break
+                    gv = float(g[0])
+                    if gv > 0:                                               # Root below x: the upper end moves
+                        ghi, g_hi_v = x, gv
+                        if side == 1:
+                            g_lo_v *= 0.5                                    # Illinois: halve the retained end so the bracket keeps shrinking
+                        side = 1
+                    else:
+                        glo, g_lo_v = x, gv
+                        if side == -1:
+                            g_hi_v *= 0.5
+                        side = -1
+    else:
+        n = len(active)
+        x = scale.copy()
+        g0, res, hh, board = evaluate(x)
+        keep(g0, res, hh, board)
+        if best[0] > tol:
+            jac = np.empty((n, n))
+            for j in range(n):
+                xj = x.copy()
+                xj[j] = 0.0
+                gj, res, hh, board = evaluate(xj)
+                keep(gj, res, hh, board)
+                jac[:, j] = (g0 - gj) / scale[j]                        # dg/dP_b,j over the whole range
+            g = g0
+            for _ in range(40):
+                try:
+                    step = np.linalg.solve(jac, -g)
+                except np.linalg.LinAlgError:
+                    break
+                lam = 1.0
+                for _ in range(6):                                       # Halve the step until the projected trial does not make the residual worse
+                    xn = np.clip(x + lam * step, 0.0, scale)
+                    gn, res, hh, board = evaluate(xn)
+                    err = keep(gn, res, hh, board)
+                    if np.max(np.abs(gn) / scale) <= np.max(np.abs(g) / scale) or lam < 0.1:
+                        break
+                    lam *= 0.5
+                if err <= tol:
+                    break
+                dx, dg = xn - x, gn - g
+                if float(dx @ dx) > 0:
+                    jac = jac + np.outer(dg - jac @ dx, dx) / float(dx @ dx)  # Broyden "good" update
+                x, g = xn, gn
+    err, res, hh, board = best
+    # The best iterate is returned (for a converged run it is the last one); the board powers pair with it
+    return res, hh, board, count[0], err <= 10 * tol
+
+
 def _solve_with_tc(problem, name, options, computed):
     """!
     @brief Solve one model, iterating on the powers when a heater has a power temperature coefficient or a top path.
     @details P = P0 (1 + tc (Tj - 25 degC)) with Tj the junction (or the hottest board point under a part without theta); with a top path (theta_sa) the part sends
-             part of P to the ambient through the top and only the rest enters the board (analysis.part_split). Both are a fixed-point loop around the solve,
-             like the computed heat transfer coefficients; the board receives the power that is not taken by the top. Without either it is a plain solve.
-             The loop stops when the board powers change by less than 1e-5 (relative), or reports a thermal runaway when the device passes 1500 degC or the
-             power grows 50 times (no stable operating point).
+             part of P to the ambient through the top and only the rest enters the board (analysis.part_split).
+             The power coefficient is a fixed-point loop around the solve, like the computed heat transfer coefficients: it stops when the powers change by less than
+             1e-5 (relative), or reports a thermal runaway when the device passes 1500 degC or the power grows 50 times (no stable operating point; the slope of the loop
+             alpha P0 R is the physical runaway condition); after 80 iterations without either it warns that the powers did not settle.
+             The split of a part with a top path is not a fixed-point loop: for the powers of the parts it is the root of a monotone scalar equation per part, solved
+             by _top_path_split (secant / quasi-Newton), because the fixed-point iteration diverges when the board under the part resists more than the top path.
+             With both, the power coefficient loop goes around the top-path solve. Without either it is a plain solve.
     @param problem A Problem (steady powers; it is not modified).
     @param name Model name.
     @param options SolverOptions.
@@ -408,31 +519,64 @@ def _solve_with_tc(problem, name, options, computed):
     base = [h.power for h in problem.heaters]
     pr = copy.deepcopy(problem)
     totals = list(base)                      # Power dissipated by every part
-    board = list(base)                       # Power that enters the board (the total minus the top path)
-    runaway = False
+    runaway, settled, split_ok, solves = False, False, True, 0
+    change = 0.0
     for it in range(1, 81):
-        for h, pw in zip(pr.heaters, board):
-            h.power = pw
-        res, hh = once(pr)
-        amb = res.ambient
-        new_total, new_board = [], []
+        # Parts whose top heat must be solved for: a top path, a junction to hang it on, and some power
+        active = [k for k, h in enumerate(problem.heaters) if tops[k] and h.junction_theta() > 0 and totals[k] > 0]
+        if active:
+            res, hh, board, n, ok = _top_path_split(problem, pr, totals, once, active)
+            solves += n
+            split_ok = split_ok and ok
+        else:
+            for h, pw in zip(pr.heaters, totals):
+                h.power = pw
+            res, hh = once(pr)
+            solves += 1
+        new_total = []
         for h, row, b, tc in zip(problem.heaters, heater_stats(res, problem, totals), base, tcs):
-            mx = row["t_max"]
-            device = row["t_junction"] if row["t_junction"] is not None else mx
+            device = row["t_junction"] if row["t_junction"] is not None else row["t_max"]
             total = max(b * (1.0 + tc * (device - 25.0)), 0.0) if tc else b
-            _, p_top = part_split(h, mx, total, amb)
             new_total.append(total)
-            new_board.append(total - p_top)
             runaway = runaway or device > 1500.0 or (b > 0 and total > 50.0 * b)
-        change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new_board, board)), default=0.0)
+        change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new_total, totals)), default=0.0)
         if runaway or change < 1e-5:
+            settled = not runaway
             break                                                   # `totals` still pairs with the board power of the last solve
-        totals, board = new_total, new_board
+        totals = new_total
     res.extras["power_tc_iterations"] = float(it)
+    res.extras["top_path_solves"] = float(solves)
     res.extras["thermal_runaway"] = float(runaway)
     if runaway:
         res.warnings.append("no stable operating point: the power grows faster with temperature than the board removes heat (thermal runaway)")
+    elif not settled:
+        # Close to runaway the fixed point converges slowly; the result is the last iterate, not the operating point
+        res.warnings.append(f"the powers of the parts did not settle in {it} iterations (last relative change {num(change)}): "
+                            "the board is close to thermal runaway and the temperatures are underestimated")
+    if not split_ok:
+        res.warnings.append("the top-path split did not converge: the heat taken by the top of a part and the heat entering the board are not consistent "
+                            "(the junction temperatures may be wrong)")
     return res, hh, totals
+
+
+def _block_flux_result(sim):
+    """!
+    @brief The result that carries the heat flux into the metal blocks, for the thick-plate warning.
+    @details The reference result of the FVM or FDM has it. For the other models (Lumped, Analytic, 3D solid) a quiet auxiliary FVM run of the same
+             problem (steady power, cell of at least 2 mm, no other model, its own warnings dropped) gives it, so the warning rests on a simulation and
+             not on the flux of the footprint, which overstates a block under the board 5 to 70 times. Nothing is run without a metal block.
+    @param sim Simulation with its results.
+    @return SteadyResult with arrays["block_flux"], or the reference result when no such run is possible (the check then falls back to the footprint flux).
+    """
+    ref = sim.reference
+    if "block_flux" in ref.arrays or not blocks.has_blocks(sim.problem):
+        return ref
+    try:
+        steady = sim.problem.steady_copy(sim.options.steady_power) if sim.problem.has_profiles() else sim.problem
+        aux = simulate(steady, SolverOptions(models=("fvm",), cell_mm=max(sim.options.cell_mm, 2.0)))
+    except ValueError:
+        return ref
+    return aux.reference
 
 
 def _part_warnings(sim):
@@ -446,10 +590,11 @@ def _part_warnings(sim):
     for row, h in zip(sim.heater_rows(), sim.problem.heaters):
         if row["margin_k"] is not None and row["margin_k"] < 0 and not runaway:
             out.append(f"{row['name']}: the junction reaches {row['t_junction'] if row['t_junction'] is not None else row['t_max']:.1f} degC, "
-                       f"{-row['margin_k']:.1f} K above its limit of {row['tj_max']:g} degC (power limit {row['p_limit_w']:.2f} W with this board)")
+                       f"{-row['margin_k']:.1f} K above its limit of {num(row['tj_max'])} degC (power limit {row['p_limit_w']:.2f} W with this board)")
         if h.is_component() and h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
             out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
+    out += check_thick_plates(sim.problem, sim.heater_rows(), _block_flux_result(sim))
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
     if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):
@@ -515,7 +660,8 @@ def _solve_computed_h(problem, name, o):
     for it in range(1, 31):
         b.h_top, b.h_bottom = ht, hb
         res = _run_model(p, name, o)
-        nt, nb, info = convection.board_h(problem.board, res.layer_mean[0], res.layer_mean[-1])
+        # The bottom face of a one-layer board is its last laminate node (laminate.py), not the copper node
+        nt, nb, info = convection.board_h(problem.board, res.layer_mean[0], res.extras.get("bottom_face_mean", res.layer_mean[-1]))
         done = abs(nt - ht) < 0.01 and abs(nb - hb) < 0.01
         ht, hb = nt, nb
         if done:
@@ -525,8 +671,12 @@ def _solve_computed_h(problem, name, o):
                        "h_top_convection": info["top"]["convection"], "h_top_radiation": info["top"]["radiation"],
                        "h_bottom_convection": info["bottom"]["convection"], "h_bottom_radiation": info["bottom"]["radiation"]})
     if problem.board.orientation == "horizontal" and not 1e4 <= info["top"]["rayleigh"] <= 1e11:
-        res.warnings.append(f"the top-face Rayleigh number {info['top']['rayleigh']:.2g} is outside 1e4 to 1e11, "
+        res.warnings.append(f"the top-face Rayleigh number {num(info['top']['rayleigh'], 2)} is outside 10.00E3 to 100.00E9, "
                             "where the natural-convection correlation was fitted; the coefficient is an extrapolation")
+    if problem.board.orientation == "vertical" and problem.board.natural_form == "laminar" and info["top"]["rayleigh"] > 1e9:
+        # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
+        res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
+                            "choose the general form")
     if it == 30 and not done:
         res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")
     return res, ht, hb, it
@@ -567,7 +717,7 @@ def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=
 
     lo, hi = math.log(0.1), math.log(10.0)
     if not predicted(math.exp(hi)) <= measured_c <= predicted(math.exp(lo)):
-        raise ValueError(f"the measured {measured_c:g} degC is outside what a multiplier between 0.1 and 10 can give "
+        raise ValueError(f"the measured {num(measured_c)} degC is outside what a multiplier between 0.1 and 10 can give "
                          f"({predicted(math.exp(hi)):.1f} to {predicted(math.exp(lo)):.1f} degC): check the powers, the ambient "
                          "temperature and where the measurement was taken")
     for _ in range(40):

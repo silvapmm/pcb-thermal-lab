@@ -48,7 +48,7 @@ def test_boxes_of_every_element(win):
     assert titles(win) == ["Part", "Junction", "Heatsink on the package", "Package top: junction to case", "Interface: package top to heatsink", "Position and size"]
     win.doc.set_props("heater", 0, theta_sa=0.0)
     select(win, "via")
-    assert titles(win) == ["Via"]
+    assert titles(win) == ["Position, size and fill"]
     select(win, "heatsink")
     assert titles(win) == ["Manual input", "Position and size"]
     win._load_problem(example_block_board(), "block")
@@ -182,10 +182,18 @@ def test_side_panels_scroll_so_every_field_stays_reachable(win):
     """The panels are taller than a short dock: they sit in scroll areas, and the position and size of a selected zone can be reached by scrolling."""
     from PySide6.QtWidgets import QScrollArea
     for dock, panel in ((win.dock_board, win.board_panel), (win.dock_sim, win.solver_panel), (win.dock_inspector, win.inspector)):
-        area = dock.widget()
+        # The Simulation dock holds the scroll area and, below it, the Run footer that stays in sight: the scroll area is inside a host widget
+        host = dock.widget()
+        area = host if isinstance(host, QScrollArea) else host.findChild(QScrollArea)
         assert isinstance(area, QScrollArea) and area.widget() is panel and area.widgetResizable()
+        assert (host is area) == (dock is not win.dock_sim)
     win.resize(1300, 560)                                                      # A short window
     win.show()
+    sim_host = win.dock_sim.widget()
+    footer, sim_area = win.solver_panel.footer, sim_host.findChild(QScrollArea)
+    assert footer.parent() is sim_host and not sim_area.isAncestorOf(footer)       # Run, the progress and the warnings are outside the scroll area
+    assert footer.isVisible() and sim_host.rect().contains(footer.mapTo(sim_host, footer.rect().bottomLeft()))     # ... and inside the dock, below the settings, in a short window
+    assert win.solver_panel.run.isVisibleTo(footer)
     select(win, "zone")
     form = win.inspector.form_host
     x_spin = next(s for s in form.findChildren(QAbstractSpinBox) if s.toolTip().startswith("X of"))

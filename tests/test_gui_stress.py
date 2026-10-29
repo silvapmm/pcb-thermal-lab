@@ -334,11 +334,33 @@ def test_solver_panel_every_option(win, qtbot):
 
 # ------------------------------------------------------------------ odd boards
 
-@pytest.mark.parametrize("build", ["one_layer", "twelve_layers", "tiny_board", "big_board", "heater_outside", "zero_power",
+def _one_layer_variant(kind):
+    """!
+    @brief One-layer boards that exercise the laminate nodes (pcbthermal/laminate.py) with a metal block, an outline, and a profile with computed coefficients.
+    @param kind "block", "outline" or "profile".
+    @return Problem.
+    """
+    import math
+    from pcbthermal import SquareWave
+    p = Problem.new(60, 40, 1).add_zone(1, rect=(10, 10, 50, 30)).add_heater(1, 1.0, rect=(25, 15, 31, 21))
+    if kind == "block":
+        p.add_heatsink(1, 10.0, rect=(15, 12, 45, 28), thickness_mm=3.0)
+    elif kind == "outline":
+        p.set_outline([[30 + 19.5 * math.cos(a), 20 + 19.5 * math.sin(a)] for a in (2 * math.pi * k / 48 for k in range(48))])
+    else:
+        p.board.h_mode = "computed"
+        p.heaters[0].set_profile(SquareWave(p_on=4.0, period=60.0, duty=0.25))
+    return p
+
+
+@pytest.mark.parametrize("build", ["one_layer", "one_layer_block", "one_layer_outline", "one_layer_profile", "twelve_layers", "tiny_board", "big_board", "heater_outside", "zero_power",
                                    "no_zone", "tiny_heater", "all_inner_heater", "overlapping", "many_vias", "corner_heatsink"])
 def test_odd_boards_run_or_refuse_cleanly(win, qtbot, popups, build):
     p = {
         "one_layer": lambda: Problem.new(60, 40, 1).add_full_copper().add_heater(1, 1.0, rect=(20, 15, 30, 25)),
+        "one_layer_block": lambda: _one_layer_variant("block"),
+        "one_layer_outline": lambda: _one_layer_variant("outline"),
+        "one_layer_profile": lambda: _one_layer_variant("profile"),
         "twelve_layers": lambda: Problem.new(60, 40, 12).add_full_copper(list(range(1, 13))).add_heater(1, 2.0, rect=(20, 15, 30, 25)),
         "tiny_board": lambda: Problem.new(8, 6, 2).add_full_copper().add_heater(1, 0.1, rect=(2, 2, 5, 4)),
         "big_board": lambda: Problem.new(400, 300, 2).add_full_copper().add_heater(1, 20.0, rect=(100, 100, 140, 140)),
@@ -870,8 +892,10 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     """The calculator finds the power of a part from a temperature, writes it into the heater, and the datasheet route works; no heater and bad inputs do not crash."""
     from pcbthermal.gui.calculator import PowerCalculator
     load(win, example_board())
+    # A 2 mm cell keeps the band cheap: with the default board description it runs seven sources (four design terms), three times in this scenario
+    win.doc.set_options(cell_mm=2.0)
     truth = win.doc.problem.heaters[0].power
-    row = simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=1.0)).heater_rows()[0]
+    row = simulate(win.doc.problem, SolverOptions(models=("fvm",), cell_mm=2.0)).heater_rows()[0]
     dlg = PowerCalculator(win.doc)
     qtbot.addWidget(dlg)
     dlg.point.setCurrentIndex(dlg.point.findData("mean"))
@@ -890,6 +914,16 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     dlg.use.setEnabled(True)
     dlg.use.click()
     assert win.doc.problem.heaters[0].power == pytest.approx(truth, rel=0.01)
+    # The board-description control: every level runs; "none" has no design terms and the others list them apart in the result
+    for level in ("none", "estimated"):
+        dlg.measured.setValue(row["t_mean"])
+        dlg.design.setCurrentIndex(dlg.design.findData(level))
+        win.doc.set_props("heater", 0, power=1.0, merge=False)
+        dlg.compute.click()
+        qtbot.waitUntil(lambda: dlg.use.isEnabled(), timeout=120000)
+        has_design = any(c.get("design") for c in dlg.out["contributions"])
+        assert has_design == (level != "none") and ("Board description" in dlg.result.text()) == (level != "none")
+        assert dlg.out["best_w"] <= truth <= dlg.out["worst_w"]
     dlg.measured.setValue(10.0)                                               # Below the ambient: an error message, no crash
     dlg.compute.click()
     qtbot.waitUntil(lambda: "above the ambient" in dlg.result.text(), timeout=120000)
@@ -901,3 +935,136 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     empty = PowerCalculator(Document())
     qtbot.addWidget(empty)
     assert not empty.compute.isEnabled()
+
+
+def test_natural_form_control_in_the_application(win, qtbot):
+    """The vertical natural convection form: shown with computed h, enabled only for a vertical board, written to the document, undone, run, saved and reloaded."""
+    load(win, example_board())
+    bp = win.board_panel
+    assert [bp.natural_form.itemData(i) for i in range(bp.natural_form.count())] == ["general", "laminar"] and bp.natural_form.toolTip()
+    bp.h_mode.setCurrentIndex(1)
+    assert not bp.natural_form.isEnabled()                                 # Horizontal: the form does not enter the correlation
+    bp.orientation.setCurrentIndex(1)
+    assert bp.natural_form.isEnabled()
+    bp.natural_form.setCurrentIndex(1)
+    assert win.doc.problem.board.natural_form == "laminar"
+    run(win, qtbot, ("fvm",))
+    assert win.sim.h_used
+    win.doc.stack.undo()
+    assert win.doc.problem.board.natural_form == "general"
+    bp.refresh()
+    assert bp.natural_form.currentData() == "general"
+    # Every combination of orientation and form, back and forth, never breaks the panel
+    for o in (0, 1, 0):
+        for f in (1, 0, 1):
+            bp.orientation.setCurrentIndex(o)
+            bp.natural_form.setCurrentIndex(f)
+            assert win.doc.problem.board.natural_form == ("laminar" if f else "general")
+    win.doc.problem.validate()
+
+
+def test_a_3d_model_too_large_is_refused_in_the_application(win, qtbot, popups):
+    """Regression of the random-actions hang: a 502.5 mm board with the 3D solid at 2 mm (a million unknowns) kept the calculation process in
+    a direct solve for hours. The panel now says it will not run, the other models answer at once and the 3D solid alone fails with the cell to use."""
+    import time
+    from pcbthermal import solid3d
+    p = example_profile_board()
+    p.board.width = p.board.height = 0.5025
+    p.board.h_mode = "computed"
+    load(win, p)
+    win.doc.set_options(models=("solid3d", "lumped"), cell_mm=2.0)
+    win.solver_panel.refresh()
+    assert "will not run" in win.solver_panel.cells_label.text()
+    t0 = time.time()
+    run(win, qtbot, ("solid3d", "lumped"), cell=2.0)
+    assert set(win.sim.results) == {"lumped"} and any("3D solid was not run" in w for w in win.sim.warnings)
+    run(win, qtbot, ("solid3d",), cell=2.0, expect_ok=False)            # Alone: the job fails with the message, it does not wait
+    assert time.time() - t0 < 120 and not win.worker.isRunning()
+    assert any(k == "critical" and "use a cell of" in t for k, _, t in popups)
+    win.doc.set_options(models=("solid3d",), cell_mm=20.0)
+    win.solver_panel.refresh()
+    assert "will not run" not in win.solver_panel.cells_label.text() and solid3d.unknowns(win.doc.problem, 20.0)[0] <= solid3d.MAX_CELLS
+
+
+def test_inner_copper_choice_in_the_application(win, qtbot):
+    """The inner copper combo of the Stack-up tab: disabled on two layers and in the simple stack-up, reloads the template as one undoable edit, survives layer changes, runs every model."""
+    load(win, example_board())
+    page = win.stackup_page
+    win.tabs.setCurrentIndex(TAB_STACKUP)
+    page.mode.setCurrentIndex(0)                                           # Simple: every layer has the outer copper, nothing to choose
+    assert not page.inner_oz.isEnabled()
+    page.mode.setCurrentIndex(1)                                           # Advanced
+    win.board_panel.layers.setValue(2)
+    assert not page.inner_oz.isEnabled()                                   # No inner copper on two layers
+    win.board_panel.layers.setValue(3)
+    assert page.inner_oz.isEnabled()                                       # Three layers have one inner layer
+    for n in (6, 4):
+        win.board_panel.layers.setValue(n)
+        page.inner_oz.setCurrentIndex(page.inner_oz.findData(0.5))        # Start every round from the default
+        assert page.inner_oz.isEnabled() and page.inner_oz.currentData() == 0.5
+        b = win.doc.problem.board
+        total = b.total_thickness()
+        page.inner_oz.setCurrentIndex(page.inner_oz.findData(1.0))
+        assert b.template_inner_oz == 1.0 and b.copper_thickness[1] == pytest.approx(35e-6)
+        assert b.total_thickness() == pytest.approx(total + (n - 2) * 19.8e-6)   # Dielectrics kept: the board grows by the extra inner copper
+        win.doc.stack.undo()                                                     # One step brings back the 0.5 oz stack-up
+        b = win.doc.problem.board
+        assert b.template_inner_oz == 0.5 and b.copper_thickness[1] == pytest.approx(15.2e-6) and page.inner_oz.currentData() == 0.5
+        win.doc.stack.redo()
+        win.board_panel.layers.setValue(n + 2 if n == 4 else 8)            # The choice is kept when the layer count changes
+        assert win.doc.problem.board.copper_thickness[1] == pytest.approx(35e-6)
+        win.doc.problem.validate()
+    run(win, qtbot, ALL_MODELS, cell=2.0)
+    page.inner_oz.setCurrentIndex(page.inner_oz.findData(0.5))
+    assert win.doc.problem.board.copper_thickness[1] == pytest.approx(15.2e-6)
+
+
+def test_warning_list_under_run_with_many_warnings(win, qtbot):
+    """Many warnings at once (parts off the board, overlapping parts, a via off the board, no power): the list is capped in height and scrolls, every warning about an element selects it on its layer, a rename keeps the list in step, undo removes the warnings."""
+    def build(proj):
+        pr = proj.problem
+        for k in range(6):
+            pr.add_heater(1 + (k % 2), 1.0, rect=(10 + 5 * k, 10, 20 + 5 * k, 20), name=f"P{k}")    # Overlapping, no copper under them
+        pr.add_heater(1, 1.0, rect=(90, 70, 130, 100), name="Off")                                   # Partly off the 100 x 80 mm board
+        pr.add_via(500.0, 500.0)
+        pr.add_zone(1, rect=(-50, -50, -20, -20), name="Z")                                          # Zone off the board
+    win.doc.edit("Many", build)
+    win._update_checks()
+    box = win.solver_panel.checks
+    assert len(box.warnings) >= 8 and box.isVisibleTo(win.solver_panel.footer)
+    assert box.height() <= box.MAX_HEIGHT
+    for w in box.warnings:
+        if w.kind is not None:
+            box.warning_clicked.emit(w.kind, w.index)
+            assert win.canvas.selected_elements() == [(w.kind, w.index)]
+    box.warning_clicked.emit("heater", 999)                                  # A stale index is ignored
+    box.warning_clicked.emit("nothing", 0)
+    win.doc.stack.undo()
+    win._update_checks()
+    assert len(box.warnings) == 1 and box.warnings[0].kind is None            # The empty board's own warning: one line, no count
+    assert "warnings" not in box.toPlainText()
+
+
+def test_preferences_every_section_in_both_themes(win, qtbot, tmp_path, monkeypatch):
+    """Open Preferences from the window, visit every section by the list and by the keyboard in both themes at a small size, edit a table cell and a field, save, reset and close."""
+    from PySide6.QtWidgets import QApplication
+    from pcbthermal.gui import theme as th
+    from pcbthermal.gui.preferences import PreferencesDialog
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(tmp_path / "cfg"))
+    for theme in ("dark", "light"):
+        th.apply_theme(QApplication.instance(), theme)
+        d = PreferencesDialog(win)
+        qtbot.addWidget(d)
+        d.resize(640, 480)
+        d.show()
+        for row in range(d.sections.count()):
+            d.sections.setCurrentRow(row)
+            assert d.pages.currentIndex() == row and d.pages.currentWidget().isVisibleTo(d)
+            d.grab()
+        table, cols = d.tables["via_fills"]
+        table.item(1, 1).setText("0,5")                                    # A decimal comma is read as a point
+        assert d.data["libraries"]["via_fills"][1]["k_w_per_mk"] == 0.5
+        d.widgets[("new_board", "ambient_c")].setValue(31.0)
+        d.save()
+        d.reset()
+        d.close()

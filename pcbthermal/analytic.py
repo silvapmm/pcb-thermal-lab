@@ -40,10 +40,11 @@ import numpy as np
 
 from scipy.special import k0
 
-from . import blocks
+from . import blocks, laminate
 from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
+from .numfmt import num
 
 
 def _equivalent_rectangle(poly, width, height):
@@ -239,7 +240,7 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
         B = Dl - Dl @ np.linalg.solve(M, Dl)
         h_face = b.h_top if ly["face"] == 0 else b.h_bottom
         face = h_face * tw * th * ly["cov"][tuple(tiles.T)]                      # Face conductance that the block hides
-        out.append({"layer": ly["board_layer"], "tiles": tiles, "B": B, "face": face, "M": M, "g_link": g_link, "g_amb": g_amb})
+        out.append({"layer": ly["board_layer"], "tiles": tiles, "B": B, "face": face, "side": ly["face"], "M": M, "g_link": g_link, "g_amb": g_amb})
     return out
 
 
@@ -256,6 +257,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
+    problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     forced = blocks.has_blocks(problem) and not local_corrections           # A block is a local correction: it cannot be smeared over the board
     local_corrections = local_corrections or forced
     sh = _effective_sheet(problem, cell_mm)
@@ -302,6 +304,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     # --- Local corrections for vias and heatsinks through the tile Green-function system
     heatsink_extraction = 0.0
     block_power = 0.0
+    hidden = {"top": 0.0, "bottom": 0.0}                         # Face heat of the area under the blocks, taken off the face totals
     if local_corrections and (problem.vias or problem.heatsinks):
         ntx, nty, tw, th = _tile_grid(W, H, lam)
         c_via = np.zeros((nty, ntx, max(L - 1, 0)))                    # Via conductance of each tile across each gap
@@ -363,6 +366,8 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
                 phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
                 block_power += float((e["g_amb"] * phi).sum())
+                # The face under the block does not lose heat to the air; the a_00 mode below counts the whole face, so this part is taken off it
+                hidden["top" if e["side"] == 0 else "bottom"] += float((e["face"] * y[rows_e]).sum())
             f = -(C @ y).reshape(Nt, L)                       # Heat injected into every tile and layer (W)
             heatsink_extraction = float(sum(g_heatsink[l, row, col] * y[r * L + l]
                                         for r, (row, col) in enumerate(active) for l in range(L)))
@@ -381,8 +386,8 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
 
     l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
     # Heat leaving through the faces: the a_00 mode integrates each layer exactly
-    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * a_mn[0, 0, 0]),
-             "bottom": float(b.h_bottom * W * H * a_mn[0, 0, L - 1]),
+    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * a_mn[0, 0, 0]) - hidden["top"],
+             "bottom": float(b.h_bottom * W * H * a_mn[0, 0, L - 1]) - hidden["bottom"],
              "heatsinks": float(heatsink_extraction if local_corrections else
                             sum(h_l[k] * W * H * a_mn[0, 0, k] for k in range(L))
                             - b.h_top * W * H * a_mn[0, 0, 0] - b.h_bottom * W * H * a_mn[0, 0, L - 1])}
@@ -651,6 +656,7 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     ms = _ModalSet(problem, cell_mm, n_terms)
     t_end = t_end or 10.0 * ms.tau
     times = np.geomspace(1e-5, t_end, n_times)
@@ -692,7 +698,7 @@ class _AnalyticAdapter:
         self.warnings = []
         if ms.scaled:
             what = "via conductance" if ms.scaled[0][0] == "vias" else "heatsink coefficient"
-            scales = ", ".join(f"{sc:.3g}" for _, sc, _ in ms.scaled)
+            scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
             self.warnings.append(
                 f"the analytic transient smears the vias and heatsinks over the board and, for every heater, scales the {what} "
                 f"(factors {scales}) so that its steady response matches the locally corrected steady model; the dynamics near "
@@ -771,6 +777,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     from . import profiles
     return profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic",
                                 progress)
@@ -792,6 +799,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
     from .results import TransientResult
     problem = problem.steady_copy("average") if problem.has_profiles() else problem
+    problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     ad = _AnalyticAdapter(problem, cell_mm, n_terms)
     ms = ad.ms
     if log_times:

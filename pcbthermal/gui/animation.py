@@ -87,13 +87,19 @@ class AnimationTab(QWidget):
         self.export.setToolTip("Save the animation as a GIF file.")
         self.export.clicked.connect(self._export_gif)
 
+        # Two rows (what is computed, then how): in one row the settings made the Results tab about 1040 px wide, which the
+        # main window took from its side docks
         top = QHBoxLayout()
-        for lbl, w in (("Model", self.model), ("Duration", self.t_end), ("Frames", self.frames), ("Scheme", self.scheme),
-                       ("Spacing", self.spacing)):
+        for lbl, w in (("Model", self.model), ("Duration", self.t_end), ("Frames", self.frames)):
             top.addWidget(QLabel(lbl))
             top.addWidget(w)
-        top.addWidget(self.compute)
         top.addStretch(1)
+        how = QHBoxLayout()
+        for lbl, w in (("Scheme", self.scheme), ("Spacing", self.spacing)):
+            how.addWidget(QLabel(lbl))
+            how.addWidget(w)
+        how.addWidget(self.compute)
+        how.addStretch(1)
         play = QHBoxLayout()
         for w in (self.play, self.slider):
             play.addWidget(w, 1 if w is self.slider else 0)
@@ -107,6 +113,7 @@ class AnimationTab(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addLayout(top)
+        lay.addLayout(how)
         lay.addWidget(self.status)
         lay.addWidget(self.canvas, 1)
         lay.addLayout(play)

@@ -155,6 +155,7 @@ class MainWindow(QMainWindow):
         @param doc Optional Document to edit (default: a new empty board).
         @param settings Optional QSettings (tests pass a temporary one so real preferences are untouched).
         """
+        th.fix_number_locale()                                  # Decimal point everywhere, before any spin box exists
         super().__init__()
         self.settings = settings or QSettings("PMS Labs", "PCB Thermal Lab")
         self.theme_name = self.settings.value("theme", "dark")
@@ -167,10 +168,13 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
         self.stackup_page = StackupPage(self.doc, self.theme_name)
-        self.tabs.addTab(self.stackup_page, "Stack-up")
+        # The pages are in scroll areas: the minimum width of a tab widget is that of its widest page (about 810 px for the Stack-up,
+        # Power profile and Results pages, more with the advanced stack-up table), and the main window took it from the side docks, which
+        # opened about 200 px wide at 1280 x 800 and 105 px at 1100 x 700. A page narrower than its controls now scrolls instead
+        self.tabs.addTab(self._scrolled(self.stackup_page), "Stack-up")
         self.profile_page = ProfilePage(self.doc, self.theme_name)
-        self.tabs.addTab(self.profile_page, "Power profile")
-        self.tabs.addTab(self.results, "Results")
+        self.tabs.addTab(self._scrolled(self.profile_page), "Power profile")
+        self.tabs.addTab(self._scrolled(self.results), "Results")
         self.setCentralWidget(self.tabs)
 
         self.board_panel = BoardPanel(self.doc)
@@ -201,6 +205,7 @@ class MainWindow(QMainWindow):
         self.board_panel.draw_outline_requested.connect(lambda: self.tool_actions["outline"].setChecked(True))
         self.solver_panel.run_requested.connect(self.run_simulation)
         self.solver_panel.cancel_requested.connect(self.cancel_simulation)
+        self.solver_panel.checks.warning_clicked.connect(self._select_from_warning)
         self.results.animation.compute_requested.connect(self.compute_animation)
         self.tabs.currentChanged.connect(self._suggest_animation)
         self._check_timer = QTimer(self)                      # Re-check the design shortly after the last edit
@@ -219,19 +224,36 @@ class MainWindow(QMainWindow):
         geo = self.settings.value("geometry")
         if geo:
             self.restoreGeometry(geo)
+        # The arrangement of the docks the user left is restored too, when the window is first shown (before that the dock sizes are not applied)
+        self._saved_state = self.settings.value("window_state")
+        self._docks_sized = False
         self.layer_combo.setToolTip("Layer on which new zones and heaters are drawn; the other layers are shown faded.")
         self.snap_combo.setToolTip("Grid distance the drawn and dragged elements snap to (off = free placement).")
         tips.apply(self)
         self.canvas.set_tool("select")
 
     # ------------------------------------------------------------------ construction
-    def _dock(self, title, widget, area, scroll=True):
+    @staticmethod
+    def _scrolled(page):
+        """!
+        @brief Put a page of the central tabs in a scroll area, so that its width does not set the minimum width of the tabs.
+        @param page The page widget.
+        @return QScrollArea holding the page (resized with the view while the view is larger than the page's minimum).
+        """
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.NoFrame)
+        area.setWidget(page)
+        return area
+
+    def _dock(self, title, widget, area, scroll=True, footer=None):
         """!
         @brief Add a titled dock widget.
         @param title Dock title.
         @param widget Content widget.
         @param area Qt dock area.
         @param scroll True to put the widget in a scroll area (panels of fields); False for a list that scrolls by itself.
+        @param footer Optional widget kept below the scroll area, always visible (the Run button of the Simulation panel).
         @return The QDockWidget.
         """
         d = QDockWidget(title, self)
@@ -241,8 +263,17 @@ class MainWindow(QMainWindow):
             area_widget = QScrollArea()
             area_widget.setWidgetResizable(True)
             area_widget.setFrameShape(QFrame.NoFrame)
-            area_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            # A dock narrower than its fields scrolls sideways instead of squeezing the rows on top of each other (they overlapped with the bar always off)
+            area_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             area_widget.setWidget(widget)
+            if footer is not None:
+                host = QWidget()
+                hl = QVBoxLayout(host)
+                hl.setContentsMargins(0, 0, 0, 0)
+                hl.setSpacing(0)
+                hl.addWidget(area_widget, 1)
+                hl.addWidget(footer)
+                area_widget = host
             d.setWidget(area_widget)
         else:
             d.setWidget(widget)
@@ -257,11 +288,57 @@ class MainWindow(QMainWindow):
         self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea)
         self.dock_elements = self._dock("Elements", self.elements, Qt.LeftDockWidgetArea, scroll=False)
         self.splitDockWidget(self.dock_board, self.dock_elements, Qt.Vertical)
-        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea)
+        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea, footer=self.solver_panel.footer)
         self.dock_inspector = self._dock("Properties", self.inspector, Qt.RightDockWidgetArea)
         self.splitDockWidget(self.dock_sim, self.dock_inspector, Qt.Vertical)
-        self.resizeDocks([self.dock_board, self.dock_sim], [310, 300], Qt.Horizontal)
-        self.resizeDocks([self.dock_sim, self.dock_inspector], [380, 420], Qt.Vertical)
+        # The widths are set in showEvent (_size_docks): before the window is shown resizeDocks has no effect and the docks started about 110 px wide
+
+    def _size_docks(self):
+        """!
+        @brief Give the side docks a readable width for the window size (first start, or no saved arrangement).
+
+        @note Before this the docks opened about 110 px wide at the default window size, so every field of the Board,
+              Simulation and Properties panels was cut off.
+        """
+        w = max(self.width(), 800)
+        # The widest panels need about 300 (Board) and 340 px (Properties of a heatsink) plus a scroll bar
+        left = int(min(max(0.21 * w, 305), 440))              # Board panel and element list
+        right = int(min(max(0.24 * w, 355), 480))             # Simulation settings and Properties
+        self.resizeDocks([self.dock_board, self.dock_sim], [left, right], Qt.Horizontal)
+        h = max(self.height(), 600)
+        self.resizeDocks([self.dock_board, self.dock_elements], [int(0.62 * h), int(0.38 * h)], Qt.Vertical)
+        self.resizeDocks([self.dock_sim, self.dock_inspector], [int(0.45 * h), int(0.55 * h)], Qt.Vertical)
+
+    def _first_layout(self):
+        """!
+        @brief Restore the saved dock arrangement, or give the docks their default widths when there is none (or it cannot be read).
+        """
+        try:
+            restored = bool(self._saved_state) and self.restoreState(self._saved_state)
+        except (TypeError, ValueError):                          # A hand-edited settings file can hold text where the state was
+            restored = False
+        if not restored:
+            self._size_docks()
+            return
+        # restoreState brings back where the docks are and which are shown, but not always their sizes: those are applied from the saved numbers
+        sizes = self.settings.value("dock_sizes")
+        try:
+            bw, sw, bh, eh, sh, ih = (int(v) for v in sizes)
+        except (TypeError, ValueError):
+            return
+        self.resizeDocks([self.dock_board, self.dock_sim], [bw, sw], Qt.Horizontal)
+        self.resizeDocks([self.dock_board, self.dock_elements], [bh, eh], Qt.Vertical)
+        self.resizeDocks([self.dock_sim, self.dock_inspector], [sh, ih], Qt.Vertical)
+
+    def showEvent(self, e):
+        """!
+        @brief Lay out the docks the first time the window is shown (saved arrangement or default widths).
+        @param e QShowEvent.
+        """
+        super().showEvent(e)
+        if not self._docks_sized:
+            self._docks_sized = True
+            QTimer.singleShot(0, self._first_layout)         # After the first layout pass: during showEvent the dock layout ignores the sizes
 
     def _act(self, text, slot=None, shortcut=None, checkable=False, checked=False, tip=""):
         """!
@@ -310,19 +387,19 @@ class MainWindow(QMainWindow):
             self.doc.duplicate(self.canvas.selected_elements())), "Ctrl+D")
         self.a_selall = self._act("Select all on layer", self._select_all, QKeySequence.SelectAll)
 
-        self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0")
+        self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0", tip="Zoom to show the whole board (Ctrl+0)")
         self.a_zin = self._act("Zoom in", lambda: self.canvas.zoom(1.25), QKeySequence.ZoomIn)
         self.a_zout = self._act("Zoom out", lambda: self.canvas.zoom(0.8), QKeySequence.ZoomOut)
-        self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True)
+        self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G); the snap distance is chosen in the tool bar")
         self.a_sgrid = self._act("Solver grid", self._toggle_solver_grid, "Shift+G", True, False,
-                                 "Show the cells of the FVM mesh")
+                                 "Show the cells of the FVM mesh (Shift+G); their size is the cell size of the Simulation panel")
         self.a_overlay = self._act("Temperature on board", self._toggle_overlay, "T", True, False,
-                                   "Paint the last result over the board")
+                                   "Paint the last result over the board (T)")
         self.a_bg = self._act("Background image…", self.set_background)
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
-        self.a_run = self._act("Run simulation", self.run_simulation, "F5")
-        self.a_calc = self._act("Power calculator…", self.show_calculator,
+        self.a_run = self._act("Run simulation", self.run_simulation, "F5", tip="Solve the selected models (F5)")
+        self.a_calc = self._act("Power Calculator…", self.show_calculator,
                                 tip="Find the power of a part from a temperature you measured (drawn board, or a datasheet parameter)")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
@@ -418,7 +495,7 @@ class MainWindow(QMainWindow):
         self.a_poly.setIcon(th.tool_icon("polygon", self.theme_name))
         self.a_fit.setIcon(th.tool_icon("fit", self.theme_name))
         self.a_grid.setIcon(th.tool_icon("grid", self.theme_name))
-        self.a_sgrid.setIcon(th.tool_icon("grid", self.theme_name))
+        self.a_sgrid.setIcon(th.tool_icon("solver_grid", self.theme_name))
         self.a_run.setIcon(th.tool_icon("run", self.theme_name))
         self.a_overlay.setIcon(th.tool_icon("overlay", self.theme_name))
         logo = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"
@@ -528,6 +605,21 @@ class MainWindow(QMainWindow):
             self.layer_combo.setCurrentIndex(next(iter(layers)))      # Switch to the layer of the element
         self.canvas.set_selection(items)
         self.inspector.set_selection(items)
+
+    def _select_from_warning(self, kind, index):
+        """!
+        @brief Select the element that a clicked input warning is about (switching to its layer).
+        @param kind Element kind ("zone", "heater", "heatsink" or "via").
+        @param index 0-based index of the element in its list.
+        """
+        lst = getattr(self.doc.problem, {"zone": "zones", "heater": "heaters", "heatsink": "heatsinks", "via": "vias"}.get(kind, ""), None)
+        if lst is None or not 0 <= index < len(lst):
+            return
+        layer = getattr(lst[index], "layer", None)
+        if layer is not None and self.canvas.layer != layer:
+            self.layer_combo.setCurrentIndex(layer)         # The element is drawn on its own layer
+        self.canvas.set_selection([(kind, index)])
+        self._on_canvas_selection([(kind, index)])
 
     def _on_created(self, kind, index):
         """!
@@ -877,6 +969,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>Right-click</b></td><td>On a shape: add or delete a vertex, duplicate, delete; on an empty spot: add a heater, zone, heatsink or via there</td></tr>
 <tr><td><b>Del, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
+<tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
@@ -906,6 +999,9 @@ class MainWindow(QMainWindow):
         if self._confirm_discard():
             compute.shutdown()                         # Nothing keeps running in the background after the window closes
             self.settings.setValue("geometry", self.saveGeometry())
+            self.settings.setValue("window_state", self.saveState())      # Dock positions and visibility
+            self.settings.setValue("dock_sizes", [self.dock_board.width(), self.dock_sim.width(), self.dock_board.height(),
+                                                  self.dock_elements.height(), self.dock_sim.height(), self.dock_inspector.height()])
             e.accept()
         else:
             e.ignore()

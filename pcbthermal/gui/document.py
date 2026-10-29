@@ -442,6 +442,18 @@ class Document(QObject):
         """
         self.edit("Typical stack-up", lambda proj: proj.problem.board.apply_template())
 
+    def set_inner_copper_oz(self, oz):
+        """!
+        @brief Choose the inner copper weight of the typical stack-ups and reload the template of the current layer count (one undoable edit, like the layer count).
+        @param oz 0.5 (15.2 um) or 1 (35 um).
+        """
+        def mutate(proj):
+            b = proj.problem.board
+            b.template_inner_oz = float(oz)
+            b.apply_template()
+
+        self.edit("Inner copper weight", mutate)
+
     def set_options(self, **fields):
         """!
         @brief Change solver options (not part of the undo history).

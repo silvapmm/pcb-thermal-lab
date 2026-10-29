@@ -21,9 +21,10 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import blocks
-from .geometry import edge_length_per_cell, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
+from . import blocks, laminate
+from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
 from .results import SteadyResult, TransientResult
+from .numfmt import num
 
 # Column ordering of the sparse LU: the thermal matrices are symmetric, and the symmetric minimum-degree ordering gives about half
 # the fill and 40 % less time than the default COLAMD (measured on the example board at 1 and 0.5 mm)
@@ -53,6 +54,7 @@ class Network:
         self.n_board = b.layers                        # Board layers; the metal blocks, if any, add layers after them
         self.extra_links = []                          # (layer a, layer b, conductance array) between non-adjacent layers
         self.block_info = []
+        self.laminate_layers = []                      # Indices of the laminate node layers of a one-layer board (laminate.py)
         self.dx, self.dy = b.width / nx, b.height / ny
         L, dx, dy = b.layers, self.dx, self.dy
         # Fraction of every cell that is board (all ones for a rectangle); cells off the board carry nothing
@@ -62,6 +64,10 @@ class Network:
         slab = b.slab_thicknesses()          # Thickness represented by each layer node (m)
         k_lam, rho_cp_lam = b.layer_laminate()   # In-plane conductivity and volumetric heat capacity of the dielectric part of each node
         t_cu = np.asarray(b.copper_thickness)
+        # A one-layer board gets laminate nodes under its copper (laminate.py): the copper node keeps the copper and half a gap
+        self.laminate = laminate.nodes(b)
+        if self.laminate is not None:
+            slab = np.array([self.laminate.copper_slab])
         if np.any(t_cu >= slab):
             raise ValueError("copper thickness must be smaller than thickness / layers")
 
@@ -95,20 +101,23 @@ class Network:
         self.g_heatsink = np.zeros((L, ny, nx))
         self.g_side = np.zeros((L, ny, nx))
         self.g_top[0] = b.h_top * cell
-        self.g_bottom[L - 1] = b.h_bottom * cell       # For one layer top and bottom share layer 0
+        if self.laminate is None:
+            self.g_bottom[L - 1] = b.h_bottom * cell   # (With laminate nodes the bottom film acts on the last of them, below)
         for s in problem.heatsinks:
             if s.is_block() and with_blocks:
                 continue                               # A metal block is a layer of its own (below)
             cov = coverage_fraction(s.polygon, nx, ny, dx, dy, samples=4)
             self.g_heatsink[s.layer] += s.h_extra * cell * cov
         self.g_block = np.zeros((L, ny, nx))
+        if self.laminate is not None:
+            self._add_laminate(b, cell)
         if with_blocks:
             area = cell.copy()
             layers = blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, nx, ny, dx, dy, samples=n), area, f, dx, dy)
             self._add_blocks(layers)
         if b.h_side and b.has_outline():
             # Edge of a non-rectangular board: the length of the outline inside every cell times the slab thickness
-            edge = edge_length_per_cell(b.outline, nx, ny, dx, dy) * self.active
+            edge = edge_length_on_board(b.outline, nx, ny, dx, dy, self.active)
             self.g_side[:L] += b.h_side * slab[:, None, None] * edge[None]
         elif b.h_side:
             # Each edge cell exposes a face of (cell edge length) x (slab thickness)
@@ -118,9 +127,11 @@ class Network:
             self.g_side[:L, 0, :] += b.h_side * dx * sl
             self.g_side[:L, -1, :] += b.h_side * dx * sl
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
-        if not self.active.all():
-            # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0)
-            self.g_amb[:, ~self.active] += 1.0
+        # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0).
+        # The pin is kept apart (g_pin) because it is not a path to the air: the time constant must leave it out
+        self.g_pin = np.zeros_like(self.g_amb)
+        self.g_pin[:, ~self.active] = 1.0
+        self.g_amb = self.g_amb + self.g_pin
 
         # --- Heat sources (W): the requested power is spread exactly over the covered cells.
         # The unit-power distribution of every heater (weights that sum to 1) is kept, so that the source of a
@@ -149,6 +160,42 @@ class Network:
 
         self.K = self._assemble() if assemble else None
 
+    def _edge_lengths(self):
+        """!
+        @brief Length of the board edge exposed in every cell (m): the outline inside the cell, or the cell sides on the border of a rectangle.
+        @return Array (ny, nx).
+        """
+        b = self.problem.board
+        if b.has_outline():
+            return edge_length_on_board(b.outline, self.nx, self.ny, self.dx, self.dy, self.active)
+        e = np.zeros((self.ny, self.nx))
+        e[:, 0] += self.dy
+        e[:, -1] += self.dy
+        e[0, :] += self.dx
+        e[-1, :] += self.dx
+        return e
+
+    def _add_laminate(self, b, cell):
+        """!
+        @brief Append the laminate nodes of a one-layer board (laminate.py) as node layers under the copper, joined by vertical conductances.
+        @param b The Board.
+        @param cell Board area of every cell (m2), shape (ny, nx).
+        """
+        layers = laminate.extra_layers(b, self.laminate, cell, self.cover, self._edge_lengths(), b.h_side)
+        zeros = np.zeros((len(layers), self.ny, self.nx))
+        base = self.nl
+        self.S = np.concatenate([self.S, np.stack([ly["S"] for ly in layers])])
+        self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in layers])])
+        self.g_top = np.concatenate([self.g_top, zeros])
+        self.g_bottom = np.concatenate([self.g_bottom, np.stack([ly["g_bottom"] for ly in layers])])
+        self.g_heatsink = np.concatenate([self.g_heatsink, zeros])
+        self.g_side = np.concatenate([self.g_side, np.stack([ly["g_side"] for ly in layers])])
+        self.g_block = np.concatenate([self.g_block, zeros])
+        for k, ly in enumerate(layers):
+            self.extra_links.append((base + k - 1 if k else 0, base + k, ly["g_link"]))
+        self.laminate_layers = list(range(base, base + len(layers)))
+        self.nl = base + len(layers)
+
     def _add_blocks(self, layers):
         """!
         @brief Append the layers of the metal blocks to the arrays of the network (see blocks.py).
@@ -156,7 +203,7 @@ class Network:
         """
         if not layers:
             return
-        nb, ny, nx = self.n_board, self.ny, self.nx
+        base, ny, nx = self.nl, self.ny, self.nx            # The block layers come after the board and the laminate nodes
         E = len(layers)
         zeros = np.zeros((E, ny, nx))
         self.S = np.concatenate([self.S, np.stack([ly["S"] for ly in layers])])
@@ -164,14 +211,15 @@ class Network:
         for name in ("g_top", "g_bottom", "g_heatsink", "g_side"):
             setattr(self, name, np.concatenate([getattr(self, name), zeros]))
         self.g_block = np.concatenate([self.g_block, np.stack([ly["g_amb"] for ly in layers])])
+        # (g_pin is built after the blocks, so it already has their layers)
         for k, ly in enumerate(layers):
-            idx = nb + k
+            idx = base + k
             self.extra_links.append((ly["board_layer"], idx, ly["g_link"]))
             # The face covered by the block no longer exchanges heat with the air
             (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
             self.block_info.append({"layer": idx, "face": ly["face"], "cov": ly["cov"], "names": ly["names"],
-                                    "g_link": ly["g_link"]})
-        self.nl = nb + E
+                                    "g_link": ly["g_link"], "board_layer": ly["board_layer"]})
+        self.nl = base + E
 
     # ------------------------------------------------------------------ assembly
     @staticmethod
@@ -263,7 +311,7 @@ class Network:
                          (the rule of the original program, which can stop far from the solution).
         @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step).
         """
-        if self.extra_links:
+        if self.block_info:
             raise ValueError("SOR does not support metal blocks: use the direct solver or the conjugate gradients")
         L, ny, nx = self.nl, self.ny, self.nx
         if omega is None:
@@ -279,7 +327,12 @@ class Network:
         gr[:, :, :-1], gl[:, :, 1:] = gx, gx
         gu[:, :-1, :], gd[:, 1:, :] = gy, gy
         if L > 1:
-            gb[:-1], ga[1:] = self.gz, self.gz
+            # Vertical conductances between consecutive node layers: the dielectric gaps of the board and the links of the laminate nodes
+            gzz = np.zeros((L - 1, ny, nx))
+            gzz[:self.n_board - 1] = self.gz
+            for a, b_layer, g in self.extra_links:
+                gzz[a] += g                            # The laminate links join consecutive layers (a, a + 1)
+            gb[:-1], ga[1:] = gzz, gzz
         l_i, i_i, j_i = np.indices((L, ny, nx))
         colour = (l_i + i_i + j_i) % 2 == 0
         masks = (colour, ~colour)
@@ -358,13 +411,30 @@ def _result_from_theta(net, theta, residual, model="fvm"):
     )
     if not inside.all():
         res.arrays["board_mask"] = inside              # The plots leave the cells off the board blank
+    attach_laminate_results(res, net, T_all, cover)
     attach_block_results(res, net, T_all, theta)
     return res
 
 
+def attach_laminate_results(res, net, T_all, weights):
+    """!
+    @brief Put the mean temperature of the bottom face of a one-layer board (its last laminate node) in a result, for the computed heat transfer coefficients.
+    @param res SteadyResult of the board.
+    @param net Network with laminate nodes (nothing is done without them).
+    @param T_all Temperatures of all node layers in degC.
+    @param weights Board area or cover of every cell or node, shape (ny, nx).
+    """
+    layers = getattr(net, "laminate_layers", None)
+    if not layers:
+        return
+    res.extras["bottom_face_mean"] = float((T_all[layers[-1]] * weights).sum() / weights.sum())
+
+
 def attach_block_results(res, net, T_all, theta):
     """!
-    @brief Put the temperature of the metal blocks, and the heat they take, in a result.
+    @brief Put the temperature of the metal blocks, the heat they take and the heat flux entering them in a result.
+    @details arrays["block_flux"] is the heat flux through the interface into every block cell or node, in W/m2 of block area (zero off the blocks),
+             and arrays["block_face"] the face (0 top, 1 bottom) of every block layer; checks.check_thick_plates reads them.
     @param res SteadyResult of the board.
     @param net Network with block layers (nothing is done without them).
     @param T_all Temperatures of all layers, board first, in degC.
@@ -372,16 +442,26 @@ def attach_block_results(res, net, T_all, theta):
     """
     if not net.block_info:
         return
-    nb = net.n_board
-    res.arrays["block_T"] = T_all[nb:]                 # (blocks layers, ny, nx), ambient where there is no block
+    # Only the block layers: on a one-layer board the laminate nodes sit between the board layer and the blocks
+    ids = [bi["layer"] for bi in net.block_info]
+    res.arrays["block_T"] = T_all[ids]                 # (blocks layers, ny, nx), ambient where there is no block
     res.arrays["block_cov"] = np.stack([bi["cov"] for bi in net.block_info])
+    res.arrays["block_face"] = np.array([bi["face"] for bi in net.block_info])
+    # Plan area of every cell (FVM) or node (FDM) on the board, in m2: the flux is the heat into the block over the block's share of it
+    area = net.area if hasattr(net, "area") else net.dx * net.dy * net.cover
+    flux = []
+    for bi in net.block_info:
+        heat = bi["g_link"] * (theta[bi["board_layer"]] - theta[bi["layer"]])
+        share = bi["cov"] * area
+        flux.append(np.where(share > 0, heat / np.where(share > 0, share, 1.0), 0.0))
+    res.arrays["block_flux"] = np.stack(flux)
     for k, bi in enumerate(net.block_info):
         sel = bi["cov"] > 0
         tag = "top" if bi["face"] == 0 else "bottom"
         layer_theta = theta[bi["layer"]]
         res.extras[f"block_{tag}_max"] = float(T_all[bi["layer"]][sel].max())
         res.extras[f"block_{tag}_mean"] = float((T_all[bi["layer"]][sel] * bi["cov"][sel]).sum() / bi["cov"][sel].sum())
-        res.extras[f"block_{tag}_w_to_block"] = float((bi["g_link"] * (theta[net.extra_links[k][0]] - layer_theta)).sum())
+        res.extras[f"block_{tag}_w_to_block"] = float((bi["g_link"] * (theta[bi["board_layer"]] - layer_theta)).sum())
         res.extras[f"block_{tag}_w_to_air"] = float((net.g_block[bi["layer"]] * layer_theta).sum())
 
 
@@ -406,7 +486,7 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
         r.extras.update({"iterations": float(info["iterations"]), "omega": info["omega"],
                          "converged": float(info["converged"])})
         if not info["converged"]:
-            r.warnings.append(f"SOR did not converge in {info['iterations']} sweeps (residual {res:.1e})")
+            r.warnings.append(f"SOR did not converge in {info['iterations']} sweeps (residual {num(res)})")
         return r
     theta, res = net.solve_steady(method=method)
     return _result_from_theta(net, theta, res)
@@ -451,6 +531,7 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
     ny, nx = net.ny, net.nx
     nb = getattr(net, "n_board", net.nl)
     steady_theta, _ = net.solve_steady()
+    weights = mean_weights(net)                             # Board area of every cell or node: the mean leaves out what is off the board
 
     # --- Time grid: every frame is one time step, and the steps are built so that few distinct dt occur
     # (one LU factorisation per distinct dt). Linear: one dt. Logarithmic: dt doubles stage after stage.
@@ -472,6 +553,7 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
     x = np.zeros(N)                                         # Rise above ambient, starts at zero
     frames = {0: x.reshape(net.nl, ny, nx)[:nb] + ambient}
     cache = {}
+    kept = set(keep.tolist())
     for k, dt in enumerate(dts, start=1):
         key = round(float(dt), 12)
         if key not in cache:
@@ -480,12 +562,13 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
             cache[key] = (spla.splu(A, permc_spec=ORDERING), B)
         lu, B = cache[key]
         x = lu.solve(B @ x + q)
-        if k in set(keep.tolist()):
+        if k in kept:
             frames[k] = x.reshape(net.nl, ny, nx)[:nb] + ambient
     frames = np.asarray([frames[k] for k in keep])
+    inside = weights > 0
     return TransientResult(
-        times=times, t_max=frames.reshape(len(times), -1).max(axis=1),
-        t_mean=frames.reshape(len(times), -1).mean(axis=1), frames=frames,
+        times=times, t_max=frames[:, :, inside].reshape(len(times), -1).max(axis=1),
+        t_mean=(frames * weights).sum(axis=(1, 2, 3)) / (nb * weights.sum()), frames=frames,
         steady_t_max=float(steady_theta[:nb].max() + ambient), ambient=ambient, grid=grid,
     )
 
@@ -528,7 +611,7 @@ def step_responses_from_network(net, t_end=None, ratio=3.0, per_stage=4, stages=
     @return Tuple (times, z, rth).
     """
     if t_end is None:
-        t_end = 10.0 * float(net.C.sum() / net.g_amb.sum())
+        t_end = 10.0 * board_time_constant(net)
     Q = net.Qw_matrix.toarray()                                   # (cells, heaters), unit power each
     rth = (spla.splu(net.K.tocsc(), permc_spec=ORDERING).solve(Q)).max(axis=0)
     # Step sizes: per_stage steps of dt0 * ratio^j for j = 0..stages-1, scaled so that they sum to t_end
@@ -563,4 +646,27 @@ def estimate_time_constant(problem, cell_mm=5.0):
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
     net = Network(problem, nx, ny, assemble=False, with_blocks=False)
-    return float(net.C.sum() / net.g_amb.sum())
+    return board_time_constant(net)
+
+
+def board_time_constant(net):
+    """!
+    @brief Total heat capacity over the total conductance to the ambient of a network, C_total / G_total.
+    @details The conductance that pins the cells or nodes off a board with an outline (g_pin, 1 W/K each) keeps the matrix regular but is not a
+             path to the air; it is left out (counting it gave 0.2 s instead of about 100 s on a round board of 100 mm).
+    @param net A network with C, g_amb and optionally g_pin (fvm.Network, fdm.Network).
+    @return Time constant in seconds.
+    """
+    g = net.g_amb.sum() - (net.g_pin.sum() if getattr(net, "g_pin", None) is not None else 0.0)
+    return float(net.C.sum() / g)
+
+
+def mean_weights(net):
+    """!
+    @brief Weights of the board mean over the grid of a network: the board area of every cell (FVM) or node (FDM).
+    @param net A network (fvm.Network has cover and dx, dy; fdm.Network has area).
+    @return Array (ny, nx) in m2, zero off the board.
+    """
+    if getattr(net, "area", None) is not None:
+        return np.asarray(net.area, dtype=float)
+    return np.asarray(net.cover, dtype=float) * net.dx * net.dy

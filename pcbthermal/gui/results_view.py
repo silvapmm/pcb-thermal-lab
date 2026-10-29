@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleS
 
 from .. import analysis, plots
 from . import theme as th
+from . import tips
+from ..numfmt import num
 
 
 @contextlib.contextmanager
@@ -75,6 +77,22 @@ def _fill(table, rows):
             if c > 0:
                 item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             table.setItem(r, c, item)
+
+
+def _fit_height(table, min_rows=3, max_rows=12):
+    """!
+    @brief Give a table the height of its rows, so that it shows them all without a scroll bar while there are at most max_rows of them.
+    @details The table of the models had a fixed ceiling of 170 px, which showed a scroll bar as soon as five models ran although the window had room for
+             more: the height now follows the number of rows (at least min_rows, so that an empty table does not collapse) and only above max_rows the
+             vertical scroll bar appears.
+    @param table QTableWidget (header on top, no horizontal scroll bar: its columns stretch).
+    @param min_rows Rows of height reserved even when the table has fewer.
+    @param max_rows Largest number of rows shown without a scroll bar.
+    @return None.
+    """
+    rows = min(max(table.rowCount(), min_rows), max_rows)
+    h = table.horizontalHeader().height() + rows * table.verticalHeader().defaultSectionSize() + 2 * table.frameWidth() + 2
+    table.setFixedHeight(h)
 
 
 class PlotTab(QWidget):
@@ -172,7 +190,7 @@ class PlotTab(QWidget):
         have = [k for k, r in sim.results.items() if r.T is not None]
         self.model.clear()
         for k in have:
-            self.model.addItem(k, k)
+            self.model.addItem(tips.model_label(k), k)        # The name of the Simulation panel, the key as data
         self.model.setCurrentIndex(max(self.model.findData("fvm"), 0))
         n = sim.problem.board.layers
         self.layer.clear()
@@ -293,11 +311,16 @@ class ResultsView(QWidget):
         sl = QVBoxLayout(summary)
         self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
                                    "Balance", "Error vs ref", "Time s"])
-        self.model_table.setMaximumHeight(170)
+        _fit_height(self.model_table)                        # The height follows the rows (no scroll bar below 12 rows), see _fit_height
+        # The model names of the Simulation panel ("Lumped (LPTN)") were cut to "Lumped ..." in a column of the same width as the numbers
+        self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.warnings = QLabel()
         self.warnings.setWordWrap(True)
         self.report = QPlainTextEdit()
         self.report.setReadOnly(True)
+        # An empty Results tab said nothing: it now tells a first-time user what to do
+        self.report.setPlaceholderText("No results yet. Draw at least one heater with a power above zero on the Board tab and press Run simulation (F5): "
+                                       "the table above compares the models and the report of the run appears here.")
         self.report.setStyleSheet("font-family: Menlo, Consolas, monospace;")
         sl.addWidget(self.model_table)
         sl.addWidget(self.warnings)
@@ -358,11 +381,12 @@ class ResultsView(QWidget):
         @param sim Simulation.
         """
         self.sim = sim
-        rows = [[r["model"], f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
-                 f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{r['energy_balance']:+.0e}",
+        rows = [[tips.model_label(r["model"]), f"{r['t_max_c']:.2f}", f"{r['t_mean_c']:.2f}", f"{r['delta_t_k']:.2f}",
+                 f"{r['r_theta_k_per_w']:.3f}", f"{r['power_in_w']:.3f}", f"{num(r['energy_balance'], sign=True)}",
                  "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",
                  f"{r['seconds']:.2f}"] for r in sim.table()]
         _fill(self.model_table, rows)
+        _fit_height(self.model_table)
         warns = sim.warnings
         self.warnings.setText("<br>".join(f"⚠ {w}" for w in warns))
         self.warnings.setVisible(bool(warns))

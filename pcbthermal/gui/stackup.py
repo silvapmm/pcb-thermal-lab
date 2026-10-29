@@ -8,11 +8,13 @@
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPolygonF
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QPushButton,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QPushButton,
                                QSizePolicy, QSplitter, QTableWidget, QVBoxLayout, QWidget)
 
 from ..model import DIELECTRICS, Dielectric
 from . import theme as th
+from .panels import compact_combos
+from ..numfmt import num
 
 _UNITS = (("µm and mm", "both"), ("µm", "um"), ("mm", "mm"))
 
@@ -48,10 +50,10 @@ def format_thickness(metres, unit="both"):
     """
     um, mm = metres * 1e6, metres * 1e3
     if unit == "um":
-        return f"{um:.4g} µm"
+        return f"{num(um, 4)} µm"
     if unit == "mm":
-        return f"{mm:.4g} mm"
-    return f"{um:.4g} µm ({mm:.4g} mm)"
+        return f"{num(mm, 4)} mm"
+    return f"{num(um, 4)} µm ({num(mm, 4)} mm)"
 
 
 class StackupView(QWidget):
@@ -199,7 +201,8 @@ class StackupEditor(QTableWidget):
     @brief Table with one row per copper layer and per dielectric gap, editing the board of the document.
     """
 
-    COLUMNS = ("Layer", "Material", "Thickness (µm)", "k through (W/mK)", "k in-plane (W/mK)", "ρ (kg/m³)", "cp (J/kgK)")
+    # Two-line titles (name, then the unit): a one-line title was cut to "hickness (µm" in a column of 92 px
+    COLUMNS = ("Layer", "Material", "Thickness\n(µm)", "k through\n(W/mK)", "k in-plane\n(W/mK)", "ρ\n(kg/m³)", "cp\n(J/kgK)")
     TIPS = ("Copper layer or dielectric gap between two copper layers, from the top face down.",
             "Dielectric material. Choosing one fills the four properties with typical values (indicative; edit them for your laminate). Copper is described in the Materials box above.",
             "Thickness in micrometres (1 oz copper is 35 µm, 0.5 oz 17.5 µm, 2 oz 70 µm; a 0.2 mm prepreg is 200 µm).",
@@ -222,6 +225,8 @@ class StackupEditor(QTableWidget):
         self.setToolTip("Every copper layer and dielectric gap of the advanced stack-up, top face first. Edit the thickness and the material properties of each.")
         self.verticalHeader().setVisible(False)
         self.horizontalHeader().setStretchLastSection(True)
+        self.horizontalHeader().setFixedHeight(2 * self.fontMetrics().height() + 12)       # Room for the two lines of the titles
+        self.horizontalHeader().setDefaultAlignment(Qt.AlignCenter)
         self.setMinimumWidth(520)
         doc.changed.connect(self.refresh)
         self.refresh()
@@ -257,6 +262,7 @@ class StackupEditor(QTableWidget):
         pr = self.doc.problem
         b = pr.board
         self._updating = True
+        focus_cell = self._focused_cell()                  # The rebuild destroys the cell being edited: its focus is given back below
         self.setRowCount(0)
         if b.is_advanced():
             layers = stack_layers(pr)
@@ -292,7 +298,24 @@ class StackupEditor(QTableWidget):
             self.setColumnWidth(1, 190)
             for c in range(2, 7):
                 self.setColumnWidth(c, 92)
+            if focus_cell is not None and focus_cell[0] < self.rowCount():
+                w = self.cellWidget(*focus_cell)
+                if w is not None and w.isEnabled():
+                    w.setFocus(Qt.TabFocusReason)
         self._updating = False
+
+    def _focused_cell(self):
+        """!
+        @brief Row and column of the cell widget that has the keyboard focus.
+        @return (row, column), or None when the focus is not in the table.
+        """
+        w = QApplication.focusWidget()
+        for r in range(self.rowCount()):
+            for c in range(self.columnCount()):
+                cell = self.cellWidget(r, c)
+                if cell is not None and w is not None and (cell is w or cell.isAncestorOf(w)):
+                    return r, c
+        return None
 
     def _set_copper(self, layer, um):
         """!
@@ -380,13 +403,36 @@ class StackupPage(QWidget):
                                 "It is loaded automatically when you change the number of layers. The templates are in pcbthermal/data/stackups.json: edit that file to change them. "
                                 "They are typical values, not the stack-up of your fabricator.")
         self.typical.clicked.connect(self.doc.load_typical_stackup)
-        for text, w in (("Stack-up ", self.mode), ("  Units ", self.unit), ("  Scale ", self.scale), ("  ", self.typical)):
+        self.inner_oz = QComboBox()
+        self.inner_oz.addItem("0.5 oz (15.2 µm)", 0.5)
+        self.inner_oz.addItem("1 oz (35 µm)", 1.0)
+        self.inner_oz.setToolTip("Finished thickness of the INNER copper layers of the typical advanced stack-up (boards of 3 or more layers). 0.5 oz = 15.2 µm is the "
+                                 "default; 1 oz = 35 µm is what PCBWay, PCBGOGO, Bittele and AdvancedPCB list (JLCPCB's own 1 oz inner copper is about 30 µm). Choosing it reloads "
+                                 "the typical stack-up with 35 µm inner copper and the dielectrics of the template unchanged, so the board is about 0.02 mm thicker per inner layer "
+                                 "(1.586 to 1.626 mm for 4 layers, 2.4 to 2.6 mm for 12): fabricators pick another build for 1 oz, they do not thin the dielectrics. It is derived from "
+                                 "the shipped templates, not a fabricator table. With a plane on every inner layer it makes the board about 7 K (10 to 13 % of the rise) cooler "
+                                 "than 0.5 oz; with copper only on the outer layers it changes the result by less than 0.3 K. "
+                                 "Disabled with fewer than 3 layers and in the simple stack-up (where every layer has the outer copper thickness).")
+        self.inner_oz.currentIndexChanged.connect(self._inner_oz_changed)
+        # The bar holds what changes the board; Units and Scale only change the drawing, so they sit above the diagram. In one row the five
+        # controls made the page about 1240 px wide, and the tab widget took that width from the side docks of the main window
+        for text, w in (("Stack-up ", self.mode), ("  ", self.typical), ("  Inner copper ", self.inner_oz)):
             bar.addWidget(QLabel(text))
             bar.addWidget(w)
         bar.addStretch(1)
         lay.addLayout(bar)
         split = QSplitter(Qt.Horizontal)
         self.view = StackupView(theme)
+        left = QWidget()
+        ll = QVBoxLayout(left)
+        ll.setContentsMargins(0, 0, 0, 0)
+        look = QHBoxLayout()
+        for text, w in (("Units ", self.unit), ("  Scale ", self.scale)):
+            look.addWidget(QLabel(text))
+            look.addWidget(w)
+        look.addStretch(1)
+        ll.addLayout(look)
+        ll.addWidget(self.view, 1)
         self.editor = StackupEditor(doc)
         right = QWidget()
         rl = QVBoxLayout(right)
@@ -398,7 +444,7 @@ class StackupPage(QWidget):
         rl.addLayout(self.params)
         rl.addWidget(self.editor, 1)
         rl.addStretch(0)
-        split.addWidget(self.view)
+        split.addWidget(left)
         split.addWidget(right)
         split.setStretchFactor(0, 2)
         split.setStretchFactor(1, 3)
@@ -422,6 +468,10 @@ class StackupPage(QWidget):
         """
         for box in boxes:
             self.params.addWidget(box)
+        # The long entries (laminate presets, the readable scale) need not set the width of the page: the open list shows them in full
+        compact_combos(self, 18)
+        for c in (self.mode, self.inner_oz, self.unit, self.scale):       # The lists of the bars have room: they keep their full text
+            c.setSizeAdjustPolicy(QComboBox.AdjustToContents)
 
     def set_theme(self, theme):
         """!
@@ -438,6 +488,10 @@ class StackupPage(QWidget):
         b = pr.board
         self._updating = True
         self.mode.setCurrentIndex(1 if b.is_advanced() else 0)
+        self.inner_oz.setCurrentIndex(max(self.inner_oz.findData(b.template_inner_oz), 0))
+        # Only an advanced board with an inner layer has inner copper to choose (the simple stack-up gives every layer the outer copper,
+        # and stackup_template changes the inner layers from 3 layers up, the generic 3-layer template included)
+        self.inner_oz.setEnabled(b.is_advanced() and b.layers >= 3)
         self._updating = False
         self.editor.setVisible(b.is_advanced())
         layers = stack_layers(pr)
@@ -460,6 +514,17 @@ class StackupPage(QWidget):
         self.view.unit = self.unit.currentData()
         self.view.true_scale = bool(self.scale.currentData())
         self.view.update()
+
+    def _inner_oz_changed(self, _i):
+        """!
+        @brief Reload the typical stack-up with the chosen inner copper weight.
+        @param _i Ignored.
+        """
+        if self._updating:
+            return
+        oz = self.inner_oz.currentData()
+        if oz != self.doc.problem.board.template_inner_oz:
+            self.doc.set_inner_copper_oz(oz)
 
     def _mode_changed(self, _i):
         """!
@@ -499,5 +564,5 @@ class StackupPage(QWidget):
             if pr.vias:
                 what += f"; {len(pr.vias)} vias cross it"
         self.info.setText(f"<b>{ly['label'] if ly['kind'] == 'copper' else 'Dielectric ' + str(ly['index'] + 1) + '-' + str(ly['index'] + 2) + ' (' + ly['material'] + ')'}</b>: "
-                          f"thickness {format_thickness(ly['thickness'], 'both')}; k through {ly['k_through']:g} W/mK, in-plane {ly['k_inplane']:g} W/mK; "
-                          f"density {ly['rho']:g} kg/m³, specific heat {ly['cp']:g} J/kgK{what}.")
+                          f"thickness {format_thickness(ly['thickness'], 'both')}; k through {num(ly['k_through'])} W/mK, in-plane {num(ly['k_inplane'])} W/mK; "
+                          f"density {num(ly['rho'])} kg/m³, specific heat {num(ly['cp'])} J/kgK{what}.")

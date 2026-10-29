@@ -71,7 +71,7 @@ def test_analysis_and_full_run(window, qtbot):
     assert tab.model.count() == 3
     for i in range(tab.view.count()):
         tab.view.setCurrentIndex(i)
-    assert window.tabs.indexOf(window.profile_page) == TAB_PROFILE
+    assert window.tabs.widget(TAB_PROFILE).widget() is window.profile_page          # The page sits in a scroll area of its tab
 
 
 def test_import_and_export_csv_buttons(window, tmp_path, monkeypatch):

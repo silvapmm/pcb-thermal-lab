@@ -35,7 +35,6 @@ class GuideWindow(QDialog):
         self.search.setToolTip("Type a word and press Enter to find it in the guide; Enter again for the next one.")
         self.search.returnPressed.connect(self.find_next)
         self.browser_btn = QPushButton("Open in the browser")
-        self.browser_btn.setToolTip("Open the same guide in your web browser.")
         self.browser_btn.clicked.connect(open_guide_in_browser)
         bar.addWidget(self.search, 1)
         bar.addWidget(self.browser_btn)
@@ -46,7 +45,6 @@ class GuideWindow(QDialog):
         self.view.setSource(QUrl.fromLocalFile(str(GUIDE)))
         lay.addWidget(self.view, 1)
         box = QDialogButtonBox(QDialogButtonBox.Close)
-        box.button(QDialogButtonBox.Close).setToolTip("Close the guide.")
         box.rejected.connect(self.reject)
         lay.addWidget(box)
 
@@ -100,6 +98,5 @@ class AboutDialog(QDialog):
         top.addWidget(self.text, 1)
         lay.addLayout(top)
         box = QDialogButtonBox(QDialogButtonBox.Close)
-        box.button(QDialogButtonBox.Close).setToolTip("Close this box.")
         box.rejected.connect(self.reject)
         lay.addWidget(box)

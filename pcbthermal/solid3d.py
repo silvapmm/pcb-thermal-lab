@@ -18,22 +18,90 @@
          exactly over its footprint on the copper slab of its layer.
 
          The result has the same layout as the FVM (one temperature per copper layer: the temperature of its slab), so the plots and tables work.
-         Only the steady state is implemented. The model needs no other package than SciPy; the offline FEM script (examples/fem3d_validation.py,
+         Only the steady state is implemented. The model needs no other package than SciPy; the offline FEM script (research/solid3d-verification/scripts/fem3d_validation.py,
          scikit-fem) checks this model in turn.
 """
+
+import contextlib
 
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .fvm import ORDERING
-from .geometry import coverage_fraction, edge_length_per_cell, nearest_active_cell, polygon_centroid
+from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
 from .results import SteadyResult
 
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
 K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a block)
-MAX_CELLS = 2_000_000        # More unknowns than this would not fit a direct solve in memory
+# Largest 3D model that is solved. The direct sparse solve of a 3D grid fills in far more than the layered 2D models. Measured on a quiet
+# 16 GB machine (research/solid3d-verification/docs/for-the-project-documents.md): on the example board (16 slabs) 158 000 unknowns take
+# 7.2 s and 2.15 GB, 247 000 take 15.3 s and 3.5 GB, 392 000 take 32.8 s and 7.4 GB and 512 000 take 57.7 s and 9.9 GB resident; on a plain
+# two-layer board (6 slabs) 500 000 unknowns take 9.3 s and 3.3 GB. Time and memory depend on the board (slab count, vias, blocks), on the
+# machine and on the computed-h loop (the solve is repeated 3 to 6 times). The older figures of this comment (tens of seconds to minutes, 4.4 GB
+# at 254 000) were not reproduced and are withdrawn. The limit is kept at 250 000, a value set for memory: at it the example board needs 3.5 GB.
+MAX_CELLS = 250_000
 K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is R'' times this)
+
+
+@contextlib.contextmanager
+def size_limit(max_cells):
+    """!
+    @brief Change MAX_CELLS inside a with block and restore it after (for the offline studies that accept long solves on a large machine).
+    @details The application keeps the limit; a study that needs a finer 3D grid (the 0.5 mm columns of validation_study.py, the 6-layer board of
+             study_complex_boards.py) runs inside `with solid3d.size_limit(2_000_000):`, so a test that imports the study is not affected.
+    @param max_cells Largest number of unknowns accepted inside the block.
+    @return Context manager (yields nothing).
+    """
+    global MAX_CELLS
+    old = MAX_CELLS
+    MAX_CELLS = int(max_cells)
+    try:
+        yield
+    finally:
+        MAX_CELLS = old
+
+
+def unknowns(problem, cell_mm=2.0, n_diel=4):
+    """!
+    @brief Number of unknowns of the 3D model of a problem, counted without building it (same slabs as Solid).
+    @details Used to refuse a model that is too large before anything is assembled, and by the application to show the size next to the cell.
+    @param problem A Problem.
+    @param cell_mm Target size of the cells in the plan in millimetres.
+    @param n_diel Slabs across every dielectric gap.
+    @return Tuple (unknowns, slabs, nx, ny).
+    """
+    b = problem.board
+    L = b.layers
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    ns = L + n_diel * (L - 1)                                    # A copper slab per layer and n_diel slabs in every gap
+    if L == 1 and float(b.slab_thicknesses()[0] - np.asarray(b.copper_thickness)[0]) > 0:
+        ns += n_diel                                             # The laminate under the copper of a one-layer board
+    thick = {}
+    for s in problem.heatsinks:
+        if s.is_block():
+            face = 0 if (s.layer == 0 or L == 1) else 1
+            thick[face] = max(thick.get(face, 0.0), s.thickness)
+    # Every face with a block gets a pad slab and 1 to 6 metal slabs (one per millimetre of the thickest block), as in Solid
+    ns += sum(1 + int(np.clip(round(t * 1000.0), 1, 6)) for t in thick.values())
+    return ns * nx * ny, ns, nx, ny
+
+
+def check_size(problem, cell_mm=2.0, n_diel=4):
+    """!
+    @brief Refuse a 3D model above MAX_CELLS unknowns, before anything is built.
+    @param problem A Problem.
+    @param cell_mm Target size of the cells in the plan in millimetres.
+    @param n_diel Slabs across every dielectric gap.
+    @throws ValueError If the model would have more than MAX_CELLS unknowns.
+    """
+    n, ns, nx, ny = unknowns(problem, cell_mm, n_diel)
+    if n > MAX_CELLS:
+        # Suggest the cell that brings the model under the limit (the unknowns go as 1 / cell^2)
+        hint = np.ceil(cell_mm * (n / MAX_CELLS) ** 0.5 * 10.0) / 10.0    # Rounded up to 0.1 mm, so the printed cell is enough
+        raise ValueError(f"the 3D model would have {n} unknowns ({ns} slabs of {nx} x {ny} cells), more than the {MAX_CELLS} a direct solve "
+                         f"handles (the limit keeps the memory of a solve to a few GB); use a cell of {hint:.1f} mm or more")
 
 
 def _edge_length(cov, dx, dy):
@@ -65,6 +133,7 @@ class Solid:
         @throws ValueError If the model would have more than MAX_CELLS unknowns.
         """
         problem.validate()
+        check_size(problem, cell_mm, n_diel)                        # Before any array of the size of the model is made
         self.problem = problem
         b, m = problem.board, problem.board.materials
         L, W, H = b.layers, b.width, b.height
@@ -158,14 +227,21 @@ class Solid:
                 kz = via_frac * m.k_copper + (1.0 - via_frac) * g_kz[l]
                 for _ in range(n_diel):
                     add("fr4", l, gaps[l] / n_diel, g_kip[l], kz)
+        if L == 1:
+            # A one-layer board has no gap, but its laminate is still there under the copper: the slab of the layered models (thickness minus
+            # copper, FR-4 of `materials`) as dielectric slabs, so it spreads heat sideways and the bottom face loses heat through it.
+            # Without it the board was only its copper (a 20 mm pad on a 60 mm board read 120 degC against about 74 in the other models)
+            t_lam = float(b.slab_thicknesses()[0] - tc[0])
+            if t_lam > 0:
+                kz = via_frac * m.k_copper + (1.0 - via_frac) * m.k_fr4_through
+                for _ in range(n_diel):
+                    add("fr4", 0, t_lam / n_diel, m.k_fr4_inplane, kz)
         last_board = len(slabs) - 1
         if 1 in faces:
             for kind, dz, kx, kz in block_slabs(1):
                 add(kind, L - 1, np.maximum(dz, 1e-9), kx, kz)
         ns = len(slabs)
-        n = ns * ny * nx
-        if n > MAX_CELLS:
-            raise ValueError(f"the 3D model would have {n:,} unknowns ({ns} slabs of {nx} x {ny} cells); use a larger cell size")
+        n = ns * ny * nx                                         # Equal to unknowns() (checked by the tests), so check_size above saw this size
         self.ns, self.n = ns, n
 
         # --- Conductances inside the solid (W/K): x and y neighbours in a slab, z neighbours between slabs
@@ -224,7 +300,7 @@ class Solid:
         # Edges of the board
         if b.h_side and b.has_outline():
             # Non-rectangular board: the outline length inside every cell, through half a cell of the slab's own material
-            edge = edge_length_per_cell(b.outline, nx, ny, dx, dy) * self.active
+            edge = edge_length_on_board(b.outline, nx, ny, dx, dy, self.active)
             on = edge > 0
             for s in range(first_board, last_board + 1):
                 sl = slabs[s]
@@ -246,12 +322,13 @@ class Solid:
                 eta = np.where(hc > 0, np.tanh(m * hc) / np.where(m * hc > 0, m * hc, 1.0), 1.0)
                 ratio = np.where(fi["p"] > 0, (1.0 - fi["t"] / np.where(fi["p"] > 0, fi["p"], 1.0)) + 2.0 * hc * eta / np.where(fi["p"] > 0, fi["p"], 1.0), 1.0)
             h_tot = h_face * ratio + f["he"]
+            h_sd = h_face + f["he"]                                  # The fins stand on the exposed face: the side walls see no fin ratio
             edge = _edge_length(f["cov"], dx, dy)
             blk_ids = [s for s, sl in enumerate(slabs) if sl["kind"] == "blk" and ((s < first_board) == (face == 0))]
             outer = blk_ids[0] if face == 0 else blk_ids[-1]
             vk[outer] += Ab / (1.0 / np.maximum(h_tot, 1e-12) + slabs[outer]["dz"] / (2.0 * slabs[outer]["kz"])) * f["cov"]
             for s in blk_ids:
-                vk[s] += h_tot * slabs[s]["dz"] * edge
+                vk[s] += h_sd * slabs[s]["dz"] * edge
             for s in range(ns):
                 if slabs[s]["kind"] in ("pad", "blk") and ((s < first_board) == (face == 0)):
                     vl[s] += ISOLATED

@@ -1,10 +1,10 @@
 # Calculators
 
-The auxiliary tools of the program that answer a question with a few numbers instead of a simulation of a whole board. Today there is one, the **Power calculator** (Simulation menu); this file documents what it does, which formulas and parameters it uses, how it was validated, what it cannot do, and the sources. A new calculator gets its own section here.
+The auxiliary tools of the program that answer a question with a few numbers instead of a simulation of a whole board. Today there is one, the **Power Calculator** (Simulation menu); this file documents what it does, which formulas and parameters it uses, how it was validated, what it cannot do, and the sources. A new calculator gets its own section here.
 
-## 1. Power calculator: the watts a part dissipates, from a temperature you measured
+## 1. Power Calculator: the watts a part dissipates, from a temperature you measured
 
-**Window.** *Simulation → Power calculator…*. Two tabs, **one per route; they are independent ways to the same number and you fill only one** (route 2 updates as you type and has its own *Use as the power of a part* button; route 1 has *Calculate*). The window keeps one size: the parameters a point does not use (θ, ψJT) are greyed, not removed. Every field and every option of *Measured at* and of *Power to use* has a hint, and the **Help** button opens a formatted explanation (`pcbthermal/help/calculator.html`).
+**Window.** *Simulation → Power Calculator…*. Two tabs, **one per route; they are independent ways to the same number and you fill only one** (route 2 updates as you type and has its own *Use as the power of a part* button; route 1 has *Calculate*). The window keeps one size: the parameters a point does not use (θ, ψJT) are greyed, not removed. Every field and every option of *Measured at* and of *Power to use* has a hint, and the **Help** button opens a formatted explanation (`pcbthermal/help/calculator.html`).
 
 **The question.** You measured a temperature on a board (a thermocouple next to a part, a sense diode in it, an infrared reading of its top) and you want to know how many watts that part dissipates. It is the simulation run backwards. Code: `pcbthermal/inverse.py` (the maths), `pcbthermal/gui/calculator.py` (the window), `pcbthermal/jobs.py` (the calculation runs in the separate process, so the window never freezes).
 
@@ -16,7 +16,7 @@ The auxiliary tools of the program that answer a question with a few numbers ins
 P = (T_measured − T(0)) / R          R = (T(P_run) − T(0)) / P_run
 ```
 
-and two model runs (the part at 0 W and at any `P_run`) give `T(0)` and `R`; a third run checks the answer. With computed convection (the coefficients grow with temperature) the relation is not linear and a secant iteration finishes it (a few more runs). One last run reports what the model reads at the power found.
+and two model runs (the part at 0 W and at any `P_run`) give `T(0)` and `R`; a third run checks the answer. With computed convection (the coefficients grow with temperature) the relation is not linear and a secant iteration finishes it (a few more runs; on the CSD17308Q3 board the junction is 6 K below the two-run line at 2 W with computed convection). One last run reports what the model reads at the power found.
 
 **What the copper does.** The program does not "see" the heat in the copper. The copper, the vias, the stack-up and the air decide `R`, how many kelvin each watt raises at the point you measured: a plane under the part spreads the heat, `R` is small and the same temperature means more watts; a bare board has a large `R` and the same temperature means fewer watts. That is why the board you draw must be the real one, and why the result window shows `R`.
 
@@ -41,18 +41,50 @@ The result window gives the power, the temperatures the model reads at that powe
 
 The nominal power is what the calculator returns for the inputs as typed. Because the board, the heat transfer, θ, ψJT and the reading are known only approximately, `inverse.power_band` also gives a **best case** (lowest plausible power) and a **worst case** (highest plausible power, the one to check margins with):
 
-1. Each source is moved **alone** to both ends of its uncertainty and the calculator is run again: the **copper** (thickness of every layer, ±25 %), the **heat transfer** (both face coefficients, or the convection multiplier when computed, ±30 %), **θ** (±20 %, only for the junction and the top), **ψJT** (±30 %, only for the top) and the **reading** (±1 K). The defaults are in *Preferences → Power calculator* (the `calculator` section of `defaults.json`).
+1. Each source is moved **alone** to both ends of its uncertainty and the calculator is run again: the **copper** (thickness of every layer, ±25 %), the **heat transfer** (both face coefficients, or the convection multiplier when computed, ±30 %), **θ** (±20 %, only for the junction and the top), **ψJT** (±30 %, only for the top) and the **reading** (±1 K). The defaults are in *Preferences → Power Calculator* (the `calculator` section of `defaults.json`). These are uncertain **numbers**; the doubt about the **drawing** of the board is the design uncertainty of section 1.1c, which is added by the same rule.
 2. A source moves the power down on one side and up on the other (more copper means a lower board resistance, so more watts for the same reading). The downward deviations of all the sources are added as the **root of the sum of squares**, and so are the upward ones: `best = P − √Σ(P − low_i)²`, `worst = P + √Σ(high_i − P)²`. This is the usual way to add independent uncertainties; stacking all of them at once would give a range nobody has seen.
 3. The selector **Power to use** (Best case / Nominal / Worst case) says which of the three the button *Use as the power of this part* writes into the heater, with undo. **Nothing else in the program changes**: the simulation uses that single number when you next run it.
 
-Example (the board of table 2.2, U1 at 2 W, θ 6, ψJT 2, 1 mm resolution):
+Example (the board of table 2.2, U1 at 2 W, θ 6, ψJT 2, 1 mm resolution), numbers only (design level *None*, which is the band as it was before the design uncertainty was added):
 
 | Measured at | nominal | best case | worst case | what each source moves (W) |
 | :-- | --: | --: | --: | :-- |
 | board ring | 2.00 W | 1.62 W | 2.31 W | copper 1.81–2.15, heat transfer 1.68–2.25, reading 1.89–2.11 |
 | top of the package | 2.00 W | 1.69 W | 2.27 W | copper 1.79–2.16, heat transfer 1.82–2.13, θ 1.87–2.15, ψJT 1.93–2.07, reading 1.94–2.06 |
 
-**Same board or a variant?** The power is fitted to the drawn board. Simulating *that same board* with it reproduces the measurement (the copper's error cancels); simulating *variants* (more copper, a heatsink) keeps the power, which is physically right, but the board's error does not cancel, so use the worst case for margins.
+With the default board description (*Drawn by hand from the layout*, section 1.1c) the same example gives **ring 2.00 / 1.56 / 2.34 W** and **top 2.00 / 1.60 / 2.31 W** (nominal / best / worst); the design terms add, for the top: coverage 1.90–2.00, copper weight 1.79–2.16, inner planes 1.94–2.00, vias 1.97–2.02 W. The worst case rises by 0.03 to 0.05 W, the best case falls by 0.06 to 0.08 W. (On this board every zone is solid, so coverage and planes have no upward side.) The nominal never changes.
+
+**Same board or a variant?** The power is fitted to the drawn board. Simulating *that same board* with it reproduces the measurement (the copper's error cancels); simulating *variants* (more copper, a heatsink) keeps the power, which is physically right, but the board's error does not cancel, so use the worst case for margins (and a board description level that matches how the board was drawn: without the design uncertainty the worst case holds only when the board is drawn right).
+
+### 1.1c Design uncertainty: how well the drawing matches the board
+
+The terms of section 1.1b are uncertain *numbers* on a board that is assumed drawn right. The review of the calculator showed that this band does **not** cover a wrongly drawn board: in three of four drawing errors the true 2 W was above the worst case. The **Board description** list of the calculator adds four more one-at-a-time sources, moved to both ends like the others and combined with them by the root of the sum of squares (`inverse.power_band`, `design_*` entries of the `calculator` section of `defaults.json`, editable in *Preferences → Power Calculator*):
+
+![Power Calculator: the Board description list and the terms of the result (example board, hand-drawn level, 2 mm cell)](images/calculator_design.png)
+
+*Screenshot: `docs/images/calculator_design.png`, made by `examples/make_screenshots.py`.*
+
+| Source | what is moved | the drawn board is changed by | measured sensitivity (table 2.2) | source of the percentage |
+| :-- | :-- | :-- | :-- | :-- |
+| copper coverage | the fill of every zone of the outer layers (the inner ones belong to the planes term, so that the same doubt is not counted twice) | fill × (1 ∓ a), limited to 1 (a pour that is already solid cannot be more solid) | top pad half filled: −13 % of power | assumed (a hatched pour is about 50 %) |
+| copper weight | the thickness of every layer, on top of the 25 % of the copper number | thickness × (1 ∓ a) | copper 17.5 instead of 35 µm: −24 % | assumed (0.5 oz taken for 1 oz is 50 %) |
+| inner planes | the inner layers | down: fill × (1 − a); up: a board-sized plane at fill a in an inner layer that has none, fill × (1 + a) in one that has a zone | no inner planes: −34 % | assumed |
+| vias | the barrel copper (number or plating) | plating × (1 ∓ a) | no vias under the part: −11 % | assumed |
+
+**Levels.** `a` is the amplitude of the source at the level *Estimated* (defaults: coverage 40 %, weight 50 %, planes 50 %, vias 50 %) times the multiplier of the level: **None** 0, **Drawn from the real fabrication files** 0.2, **Drawn by hand from the layout** 0.5 (the default), **Estimated** 1. The sensitivities in the table are *measured* (table 2.2); the amplitudes and the multipliers of the levels are *assumed* judgements of how wrong each kind of drawing usually is, they are not fitted to any data, and are editable. Every amplitude (and the copper uncertainty) is limited to 99 % when read, so a thickness or a plating never reaches 0 or below, and the best case is never below 0 W (`tests/test_calculator_design.py`). The internal key of the level *Drawn from the real fabrication files* stays `cad`. A source with nothing to change (no vias, no inner layer, no zone) is left out. With the level *None*, or a multiplier of 0, no design source is run and the band is **bit-identical** to the one of section 1.1b (`tests/test_calculator_design.py`).
+
+**What it covers and what not** (the four drawing errors of table 2.2, power recovered at the top of the package, true power 2 W, computed with the default uncertainties, 1 mm):
+
+| Drawn board (real board: the example, 2 W) | nominal | numbers only (None) | **Drawn by hand** | **Estimated** |
+| :-- | --: | :-- | :-- | :-- |
+| top copper half filled (hatched) | 1.735 | 1.474–1.956, **out** | 1.396–2.012, **in** (2 W is 0.012 W from the edge) | 1.177–2.113, **in** |
+| copper 17.5 µm instead of 35 µm | 1.519 | 1.288–1.715, **out** | 1.207–1.766, **out** | 0.999–1.858, **out** |
+| no vias under the part (no via term: nothing drawn to move) | 1.780 | 1.505–2.014, in | 1.422–2.064, in | 1.196–2.157, in |
+| no inner planes (only the top copper drawn: the bottom plane is missing too) | 1.312 | 1.109–1.484, **out** | 1.029–1.646, **out** | 0.831–1.818, **out** |
+
+So the design term brings **2 of the 4** drawing errors inside the band at the level *Drawn by hand* (hatched, no vias; the hatched pour only just), and also 2 of 4 at *Estimated*; it does **not** cover a copper weight half the real one nor a missing set of inner planes, even at the widest level (worst case 1.86 and 1.82 W against a true 2 W). The amplitudes were not enlarged to cover them: the missing plane can only be added at a fill `a` (50 %), and the copper weight at +50 %, while the real errors were +100 % of copper and a full plane. The cases are the boards of the band study (section 4, part 2), run with `inverse.power_band(..., uncertainty={"design_level": ...})`; the table is measured with the coverage study of section 4 (several minutes, too long for a test): its columns none, hand and estimated reproduce the table to the last digit, and it also prints the column *Drawn from the real fabrication files* (hatched 1.462–1.967 out, half-weight copper 1.275–1.725 out, no vias 1.492–2.024 in, no planes 1.096–1.531 out); the column *None* also reproduces part 2 of the band study (`none`). At the level *Drawn from the real fabrication files* the band is only a little wider than *None* (example at the ring: 1.607–2.317 W against 1.616–2.311 W).
+
+The design term is an honest widening, not a guarantee: a drawing error larger than the amplitude of the chosen level is not covered, and the "up" moves reach only as far as their amplitude (a plane that is missing can be added at the fill `a`, not at 100 %). Choose *Estimated* when the board is a guess. Errors of kinds not listed (a missing heatsink or metal block, a wrong stack-up, a different air flow, a different `h` model, a part near the board edge) are not covered either. Limits of the four terms: the vias term moves the plating, so it adds no via where none is drawn and barely moves a via filled with copper (its core already conducts like copper); the copper weight term is the same change as the copper number term, added as a second independent cause (fabrication tolerance and a wrong weight), so at the level *Drawn by hand* the two together are about ±35 % of copper (root sum of squares of 25 and 25); an amplitude of 100 % or more (Preferences accepts it) makes a thickness or a plating zero or negative, which is not a meaningful board.
 
 ### 1.2 Route 2: from a datasheet parameter
 
@@ -64,23 +96,25 @@ From the definitions `Tj − Ta = θJA·P` and `Tj − Ttop = ψJT·P` follows `
 
 ## 2. Validation
 
-### 2.1 Against datasheets (`examples/calculator_validation.py`, `tests/test_calculator_validation.py`)
+### 2.1 Against datasheets (`tests/test_calculator_validation.py`)
 
 A datasheet gives RθJA for a *stated* board. Built in the program, that board must return the datasheet's thermal resistance: the calculator must give 1 W when the junction is `RθJA` above ambient. Computed natural convection and radiation, horizontal board, still air.
 
 | Case | datasheet RθJA (K/W) | model RθJA (K/W) | power returned for 1 W | error |
 | :-- | --: | --: | --: | --: |
 | TI CSD17308Q3 on its datasheet board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, 1 in² pad), RθJA typical | 46 | 46.8 | 0.983 W | −1.7 % |
-| JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47-like, **package data assumed**) | 32.5 | 31.6 | 1.030 W | +3.0 % |
+| JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47, **via array assumed**) | 32.5 | 31.6 | 1.030 W | +3.0 % |
 | the same, measured on the top with ψJT 0.3 K/W | 32.5 | 31.5 | 1.030 W | +3.0 % |
-| the same JEDEC board **without** the thermal vias | - | 67.4 | (0.48 W) | the exposed pad needs the vias (JESD51-5) |
+| the same JEDEC board **without** the thermal vias | - | 68.1 (0.5 mm; 73 to 84 K/W at other cell sizes) | (0.48 W) | the exposed pad needs the vias (JESD51-5) |
 
 * The CSD17308Q3 datasheet also gives 58 K/W as a *maximum* and 165 K/W for the minimum pad (also a maximum). A maximum covers the spread of parts and boards, not this board, so it is not a target (the model gives 45.7 K/W when the junction is 58 K above ambient because the computed convection improves with temperature). The pad of the minimum-pad case is not stated, so that case cannot be built.
-* The JEDEC 2s2p board follows ROHM application note 64AN113E (JESD51-3/5/7/9/10): 114.3 × 76.2 × 1.6 mm, 70 µm top and bottom traces, two 74.2 × 74.2 mm planes of 35 µm, thermal vias Ø0.30 mm at 1.2 mm pitch. The traces are not drawn. The TPS7A47 values used (RθJA 32.5, θJC(bot) 1.7, ψJT 0.3 K/W) are from its datasheet; the 5 × 5 mm body, the 3.15 mm pad and the 3 × 3 via array are assumptions, so this row is an indication (−3 %), not a proof.
+* The JEDEC 2s2p board follows ROHM application note 64AN113E (JESD51-3/5/7/9/10): 114.3 × 76.2 × 1.6 mm, 70 µm top and bottom traces, two 74.2 × 74.2 mm planes of 35 µm, thermal vias Ø0.30 mm at 1.2 mm pitch. The traces are not drawn. The TPS7A47 values used (RθJA 32.5, θJC(bot) 1.7, ψJT 0.3 K/W) are from its datasheet (SBVS204G); the 5 × 5 mm body and the 3.15 mm pad are from its package drawing RGW0020A; the 3 × 3 via array is an assumption, so this row is an indication (+3 %), not a proof.
+* **Cell size and model error.** At 0.25 mm the two rows are −2.3 % (CSD17308Q3, 47.1 K/W) and +1.3 % (JEDEC, 32.1 K/W); the no-via board depends strongly on the cell (83.6, 68.1, 72.9 and 74.5 K/W at 1, 0.5, 0.35 and 0.25 mm; its heat leaves through a source a few cells wide) but needs the vias at every size. On the CSD17308Q3 board the FVM's board resistance is 2.4 % below an independent 3D solver and the program's 3D solid is within 0.1 % of it, so part of the agreement is a model error: with the 3D solid the calculator would return about 0.96 W (−4 %; estimated, **not printed by any script**: 46.8 × 48.3 / 47.2 = 47.9 K/W, 46 / 47.9 = 0.96). These numbers and the cell sweep come from the cell-size study of section 4 (the datasheet script prints the first four rows only, at 0.5 mm).
+* **The JEDEC bottom copper.** ROHM 64AN113E table 2 reads the backside copper of the 2s2p board as 74.2 × 74.2 mm of 70 µm (text extracted from the PDF; the study draws traces, as JESD51-7 is usually described, from memory); with that plane the model gives 26.4 K/W at 0.5 mm (+23 % of power), so the JEDEC row holds only for the traces reading.
 * The ψJT row only checks that the top-of-package point is consistent with the junction point; the model has no top path in the JEDEC case, so ψJT cannot be predicted (that needs the junction node of the roadmap).
 * Tests: the three rows above with tolerances of 3 % (CSD17308Q3) and 5 % (JEDEC), and the factor of about two for the missing vias.
 
-### 2.2 Sensitivity to the board and to the data (`examples/power_from_top_study.py`, `docs/validation.md` section 19)
+### 2.2 Sensitivity to the board and to the data (`docs/validation.md` section 19)
 
 Part of 2 W, θ = 6 K/W, ψJT = 2 K/W on the example board; the top reading is made on the real board and the power is recovered on a drawn board that differs:
 
@@ -104,7 +138,7 @@ Part of 2 W, θ = 6 K/W, ψJT = 2 K/W on the example board; the top reading is m
 
 On a known board the model's own temperature at every point (max, mean, ring, junction, top) gives back the power within 0.1 %, with constant and with computed heat transfer coefficients; a part without θ is refused for the junction and the top; a board with less copper gives a lower power for the same top temperature; a larger ψJT gives a larger power.
 
-### 2.4 How to reduce the error (`examples/calculator_calibration_study.py`)
+### 2.4 How to reduce the error
 
 The large deltas of table 2.2 come from one thing: the board resistance `R` (kelvin per watt at the measured point) of the *drawn* board is not that of the *real* board, mostly because of the copper. Three ways to cope were tried on the same example (U1 at 2 W; the drawn board has half or a quarter of the real copper; thermocouples at 1 mm and 10 mm from the part; the study is not part of the program yet):
 
@@ -120,7 +154,7 @@ The large deltas of table 2.2 come from one thing: the board resistance `R` (kel
 * **D. Measure the right thing**: an electrical temperature-sensitive parameter of the junction (the diode forward voltage at a low sensing current, calibrated with the K-factor of JESD51-1) gives Tj without θ and ψ; a black paint of known emissivity on the case makes an infrared reading usable; a thermocouple touching the board disturbs the field, so its contact resistance matters. These remove errors of the *measurement*, not of the board.
 * **E. Know the board better**: weigh or measure the copper (area and thickness of every layer), count the vias, take the stack-up from the fabricator, and measure `h` with a part of known power (that is A again).
 
-**Decisions (2026-10-22, maintainer):** the uncertainty band (C) with the best / nominal / worst selector is implemented (section 1.1b). The two-point fit (B) stays a study and is not offered in the program. The known-power reference (A) is not implemented: it fits only parts whose dissipation can be fixed (resistors, LEDs, diodes, LDOs, MOSFETs at a known current, or a test resistor soldered in their place), not a CPU or a module, and its main benefit, correcting a copper that was drawn wrongly, disappears when the copper comes from Gerber or KiCad files; it remains useful against errors in the air flow, so it is kept as a possible later option.
+**Decisions (maintainer):** the uncertainty band (C) with the best / nominal / worst selector is implemented (section 1.1b). The two-point fit (B) stays a study and is not offered in the program. The known-power reference (A) is not implemented: it fits only parts whose dissipation can be fixed (resistors, LEDs, diodes, LDOs, MOSFETs at a known current, or a test resistor soldered in their place), not a CPU or a module, and its main benefit, correcting a copper that was drawn wrongly, disappears when the copper comes from Gerber or KiCad files; it remains useful against errors in the air flow, so it is kept as a possible later option.
 
 ## 3. Limits
 
@@ -131,9 +165,16 @@ The large deltas of table 2.2 come from one thing: the board resistance `R` (kel
 
 ## 4. Reproduce
 
+Evidence for the tables of sections 1 and 2: each script below prints the table named in its comment.
+
 ```sh
-.venv/bin/python examples/calculator_validation.py     # table 2.1
-.venv/bin/python examples/power_from_top_study.py       # table 2.2
+.venv/bin/python research/power-calculator/scripts/calculator_validation.py     # table 2.1
+.venv/bin/python research/power-calculator/scripts/power_from_top_study.py       # table 2.2
+.venv/bin/python research/power-calculator/scripts/calculator_calibration_study.py  # table 2.4
+# longer studies:
+.venv/bin/python research/power-calculator/scripts/study_power_band.py [level]     # the example of 1.1b; level none = numbers-only band
+.venv/bin/python research/power-calculator/scripts/study_design_term_coverage.py   # the coverage table of 1.1c
+.venv/bin/python research/power-calculator/scripts/study_cell_size.py              # cell sweep of table 2.1 (about 30 minutes)
 .venv/bin/python -m pytest -q tests/test_calculator_validation.py tests/test_inverse.py
 ```
 

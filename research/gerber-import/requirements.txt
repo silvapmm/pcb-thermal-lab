@@ -1,0 +1,15 @@
+# Extra packages of the Gerber import research (not needed by the program itself).
+# The studies run with NumPy and SciPy only (the independent reader native_gerber.py); gerbonara and shapely are only the cross-check route.
+# Install in a separate virtual environment, for example:
+#   .venv/bin/pip install -r research/gerber-import/requirements.txt   (from the repository root, with the project's .venv)
+numpy>=1.24
+scipy>=1.11
+pytest>=7
+# Optional, for study_native_check.py, study_raster_error.py (phase 2) and GERBER_READER=shapely:
+gerbonara>=1.6        # Apache-2.0: reads Gerber and Excellon, gives vector primitives
+shapely>=2.0          # BSD-3-Clause (the wheels bundle GEOS, LGPL-2.1)
+# Optional, only for study_render_compare.py, compare_readers.py and study_gerber_writer.py (the other tools of the comparison):
+pygerber==2.4.3       # MIT
+pcb-tools==0.1.6      # Apache-2.0
+gerber-writer         # Apache-2.0 (Ucamco's writer)
+pillow                # MIT-CMU (reads the rasters of the other tools)

@@ -4,6 +4,7 @@
     "Finished outer copper of 1 oz is about 35 um (an 18 um base foil plus about 17 to 20 um of plating); finished inner copper of 0.5 oz is about 15 to 17.5 um (JLCPCB quotes 15.2 um for 4 to 8 layers).",
     "Between two copper layers there is glass-reinforced epoxy (FR-4: woven glass cloth in epoxy resin), as a core or as one or more prepreg sheets. The thickness in a gap is the one measured over a plane; over etched copper the resin fills the gap and the average is a little thicker.",
     "The solder mask (about 15 to 25 um of polymer on each outer face) is not modelled: its resistance (20 um / 0.25 W/mK = 8e-5 m2K/W) is about a thousand times smaller than the film resistance of the air (1/h = 0.1 m2K/W at 10 W/m2K).",
+    "Inner copper weight: the entries are the 0.5 oz (15.2 um) set. Board.template_inner_oz = 1 (the Inner copper choice of the Stack-up tab) makes every inner copper layer 35 um and keeps every dielectric thickness, so the board is thicker than the nominal by 19.8 um per inner layer (fabricators pick another build for 1 oz, they do not thin the dielectrics); that set is derived from these entries, it is not a fabricator table (docs/validation.md section 14.1).",
     "Layer counts that are not listed (3, 5, 7, 9, 11) use outer 35 um, inner 15.2 um and equal gaps that bring the board to the thickness of the next listed template below it.",
     "Materials: names of the dielectric presets of the program (Board DIELECTRICS)."
   ],
@@ -12,7 +13,7 @@
     "JLCPCB: 0.5 oz inner copper is 15.2 um finished for 4 to 8 layers; prepreg types 7628 / 3313 / 1080 / 2116",
     "Weller PCB and JHYPCB 8-layer 1.6 mm guides (1080 prepreg outside, cores 0.18 to 0.35 mm, 1 oz outer copper, Tg170 for 8 layers or more)",
     "PCBWay multilayer laminated structure page (1080 prepreg about 0.075 mm, 2116 about 0.13 mm before lamination)",
-    "JLCPCB impedance page (https://jlcpcb.com/impedance) and PCBWay stack-up pages (https://www.pcbway.com/multi-layer-laminated-structure.html) were compared with these templates on 2026-10-22: the maximum temperature of the example board differs by under 0.5 % (docs/validation.md section 14)",
+    "JLCPCB impedance page (https://jlcpcb.com/impedance) and PCBWay stack-up pages (https://www.pcbway.com/multi-layer-laminated-structure.html) were compared with these templates on 2026-10-22: with the outer copper only, the maximum temperature of the example board differs by 0.1 to 1.5 C (0.2 to 2.0 % of the rise); with a plane on every inner layer the 0.5 oz inner copper of the templates makes the board 5 to 8 K (up to 13 % of the rise) hotter than the 1 oz inner copper of the PCBWay, PCBGOGO, Bittele and AdvancedPCB tables, so the templates are the conservative choice (docs/validation.md section 14)",
     "6, 8, 10 and 12-layer entries are constructed from these figures so that the layers add up to the nominal thickness; they are representative, not a fabricator's table"
   ],
   "templates": {

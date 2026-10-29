@@ -19,8 +19,8 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .geometry import coverage_fraction, edge_length_per_cell, nearest_active_cell, points_in_polygon, polygon_centroid
-from . import blocks, fvm
+from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid
+from . import blocks, fvm, laminate
 from .fvm import ORDERING
 from .results import SteadyResult
 
@@ -109,6 +109,9 @@ class Network:
         wy = np.full(ny, dy); wy[[0, -1]] = 0.5 * dy
         area = np.outer(wy, wx)                                              # m2
         slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (equal in the simple stack-up)
+        self.laminate = laminate.nodes(b)                                    # Laminate nodes under the copper of a one-layer board (laminate.py)
+        if self.laminate is not None:
+            slab = np.full((1, 1, 1), self.laminate.copper_slab)
         k_lam, rho_cp_lam = (v[:, None, None] for v in b.layer_laminate())  # Dielectric part of each node
         tc = np.asarray(b.copper_thickness)[:, None, None]
 
@@ -134,17 +137,33 @@ class Network:
         S = (fill * m.k_copper * tc + k_lam * (slab - fill * tc)) * ncov     # Sheet conductance per node (W/K)
         # Heat capacity of every node (J/K)
         self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * rho_cp_lam) * area[None]
-        # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py)
+        # Edge length exposed in the control volume of every node (for the edge coefficient of the laminate nodes)
+        if b.has_outline():
+            edge_nodes = edge_length_on_board(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy, self.active)
+        else:
+            edge_nodes = np.zeros((ny, nx))
+            edge_nodes[:, 0] += wy
+            edge_nodes[:, -1] += wy
+            edge_nodes[0, :] += wx
+            edge_nodes[-1, :] += wx
+        lam = laminate.extra_layers(b, self.laminate, area, ncov, edge_nodes, b.h_side) if self.laminate is not None else []
+        NL = len(lam)
+        self.laminate_layers = list(range(L, L + NL))
+        if NL:
+            S = np.concatenate([S, np.stack([ly["S"] for ly in lam])])
+            self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in lam])])
+        # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py), after the laminate nodes
         ex = blocks.extra_layers(problem, cover, area, fill, dx, dy)
         E = len(ex)
-        self.n_board, self.nl = L, L + E
+        self.n_board, self.nl = L, L + NL + E
         if E:
             S = np.concatenate([S, np.stack([ly["S"] for ly in ex])])
             self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in ex])])
-        self.extra_links = [(ly["board_layer"], L + k, ly["g_link"]) for k, ly in enumerate(ex)]
-        self.block_info = [{"layer": L + k, "face": ly["face"], "cov": ly["cov"], "names": ly["names"], "g_link": ly["g_link"]}
-                           for k, ly in enumerate(ex)]
-        Lt = L + E
+        self.extra_links = [(L + k - 1 if k else 0, L + k, ly["g_link"]) for k, ly in enumerate(lam)]
+        self.extra_links += [(ly["board_layer"], L + NL + k, ly["g_link"]) for k, ly in enumerate(ex)]
+        self.block_info = [{"layer": L + NL + k, "face": ly["face"], "cov": ly["cov"], "names": ly["names"], "g_link": ly["g_link"],
+                            "board_layer": ly["board_layer"]} for k, ly in enumerate(ex)]
+        Lt = L + NL + E
 
         n = Lt * ny * nx
         idx = np.arange(n).reshape(Lt, ny, nx)
@@ -180,17 +199,22 @@ class Network:
         self.g_top = np.zeros((Lt, ny, nx)); self.g_bottom = np.zeros_like(self.g_top)
         self.g_heatsink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top); self.g_block = np.zeros_like(self.g_top)
         self.g_top[0] = b.h_top * area
-        self.g_bottom[L - 1] = b.h_bottom * area
+        if NL:
+            for k, ly in enumerate(lam):                       # The bottom film acts on the last laminate node, the edge on every one
+                self.g_bottom[L + k] = ly["g_bottom"]
+                self.g_side[L + k] = ly["g_side"]
+        else:
+            self.g_bottom[L - 1] = b.h_bottom * area
         for sk in problem.heatsinks:
             if sk.is_block():
                 continue                                       # A metal block is a layer of its own
             self.g_heatsink[sk.layer] += sk.h_extra * area * cover(sk.polygon, 4)
         for k, ly in enumerate(ex):
-            self.g_block[L + k] = ly["g_amb"]
+            self.g_block[L + NL + k] = ly["g_amb"]
             (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
         if b.h_side and b.has_outline():
             # Non-rectangular board: the outline length inside the control volume of every node times the slab thickness
-            edge = edge_length_per_cell(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy) * self.active
+            edge = edge_length_on_board(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy, self.active)
             self.g_side[:L] += b.h_side * slab[:, :, :] * edge[None]
         elif b.h_side:
             sl = slab[:, :, 0]                                  # (L, 1): per-layer slab
@@ -199,8 +223,10 @@ class Network:
             self.g_side[:L, 0, :] += b.h_side * wx[None, :] * sl
             self.g_side[:L, -1, :] += b.h_side * wx[None, :] * sl
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
-        if not self.active.all():
-            self.g_amb[:, ~self.active] += 1.0                  # Nodes off the board are pinned to ambient (they carry no heat)
+        # Nodes off the board are pinned to ambient (they carry no heat); the pin is kept apart because it is not a path to the air
+        self.g_pin = np.zeros_like(self.g_amb)
+        self.g_pin[:, ~self.active] = 1.0
+        self.g_amb = self.g_amb + self.g_pin
         rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(self.g_amb.ravel())
         self.K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()
 
@@ -273,6 +299,7 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
         warnings=[])
     if not inside.all():
         out.arrays["board_mask"] = inside
+    fvm.attach_laminate_results(out, net, theta_all + b.ambient, area)
     fvm.attach_block_results(out, net, theta_all + b.ambient, theta_all)
     return out
 

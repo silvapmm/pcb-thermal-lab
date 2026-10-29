@@ -121,8 +121,11 @@ def cell_index_of_point(x, y, nx, ny, dx, dy):
 def edge_length_per_cell(poly, nx, ny, dx, dy):
     """!
     @brief Length of the polygon outline that lies inside every grid cell (the perimeter that exchanges heat through the board edge).
-    @details Every edge is sampled at steps of a tenth of the smaller cell side and each sample adds its step length to the cell that contains it;
-             a point on a cell border is counted in the cell above or to the right, so the total is the perimeter to within a fraction of a percent.
+    @details Every edge is sampled at steps of a tenth of the smaller cell side and each sample adds its step length to the cell that contains it.
+             Every sample is first nudged a thousandth of the smaller cell side towards the inside of the polygon: a side that lies exactly on a
+             grid line would otherwise be given (by the floor and by rounding) to the cell outside the board, and the callers, which keep only
+             the cells on the board, would drop its edge loss. The nudge is far above floating-point noise and far below a cell, so nothing else
+             moves. The total is the perimeter to within a fraction of a percent, whichever way the outline is placed on the grid.
     @param poly Closed polygon (n, 2) in metres (the last vertex joins the first).
     @param nx Number of cells along x.
     @param ny Number of cells along y.
@@ -133,17 +136,56 @@ def edge_length_per_cell(poly, nx, ny, dx, dy):
     p = np.asarray(poly, dtype=float)
     out = np.zeros((ny, nx))
     step = min(dx, dy) / 10.0
+    nudge = 1e-3 * min(dx, dy)                                   # Distance moved towards the inside of the polygon
+    # Orientation: positive signed area = counter-clockwise, so the inside is on the left of every side
+    sign = 1.0 if np.sum(p[:, 0] * np.roll(p[:, 1], -1) - np.roll(p[:, 0], -1) * p[:, 1]) >= 0 else -1.0
     for a, b in zip(p, np.roll(p, -1, axis=0)):
         length = float(np.hypot(*(b - a)))
         if length <= 0:
             continue
+        # Unit vector pointing into the board, perpendicular to the side
+        inward = sign * np.array([-(b[1] - a[1]), b[0] - a[0]]) / length
         n = max(int(np.ceil(length / step)), 1)
         t = (np.arange(n) + 0.5) / n                             # Midpoints of the n pieces
-        x, y = a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])
+        x = a[0] + t * (b[0] - a[0]) + nudge * inward[0]
+        y = a[1] + t * (b[1] - a[1]) + nudge * inward[1]
         j = np.clip((x // dx).astype(int), 0, nx - 1)
         i = np.clip((y // dy).astype(int), 0, ny - 1)
         np.add.at(out, (i, j), length / n)
     return out
+
+
+def edge_length_on_board(poly, nx, ny, dx, dy, active):
+    """!
+    @brief Length of the polygon outline inside every cell that is on the board, with the whole perimeter kept.
+    @details `edge_length_per_cell` gives the outline to the cells it crosses; where it crosses a cell taken as off the board (a sliver of
+             board that none of the cover sub-samples falls in), the callers would drop that length. It is moved instead to the nearest cell
+             on the board (centre distance; split equally between equally near cells, so that mirror images stay mirror images), the cell
+             that conducts the heat of the sliver in the model. Without this a slanted or curved outline lost 2 to 6 % of its perimeter at
+             every cell size (a disc, an ellipse, a rotated square), so the edge loss did not converge with the grid.
+    @param poly Closed polygon (n, 2) in metres (the last vertex joins the first).
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param active Boolean array (ny, nx), True for the cells on the board.
+    @return Array (ny, nx) of lengths in metres, zero off the board; it adds up to the perimeter when any cell is on the board.
+    """
+    out = edge_length_per_cell(poly, nx, ny, dx, dy)
+    active = np.asarray(active, dtype=bool)
+    lost = (out > 0) & ~active
+    if not lost.any() or not active.any():
+        return out * active
+    for i, j in zip(*np.nonzero(lost)):
+        # Search the 5 x 5 window around the cell first (the nearest board cell is almost always a neighbour); fall back to the whole grid
+        i0, j0 = max(i - 2, 0), max(j - 2, 0)
+        ci, cj = np.nonzero(active[i0:i + 3, j0:j + 3])
+        ci, cj = (ci + i0, cj + j0) if ci.size else np.nonzero(active)
+        d = np.hypot((cj - j) * dx, (ci - i) * dy)
+        best = d <= d.min() * (1.0 + 1e-9)                      # Every equally near cell gets an equal share
+        np.add.at(out, (ci[best], cj[best]), out[i, j] / int(best.sum()))
+        out[i, j] = 0.0
+    return out * active
 
 
 def polygon_is_simple(poly):

@@ -10,6 +10,19 @@
 from PySide6.QtWidgets import (QAbstractSpinBox, QCheckBox, QComboBox, QFormLayout, QLabel, QLayout, QLineEdit, QPushButton, QRadioButton, QSlider,
                                QTableWidget, QTreeWidget)
 
+# Names of the models shown in the results (tables and lists); the keys (fvm, lumped, ...) stay in the files, the reports and the API
+MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped (LPTN)", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid"}
+
+
+def model_label(key):
+    """!
+    @brief Name of a model for the results views.
+    @param key Model key (fvm, lumped, analytic, fdm, solid3d).
+    @return The display name, or the key itself when it is not a known model.
+    """
+    return MODEL_LABELS.get(key, key)
+
+
 TIPS = {
     # Board
     "ambient": "Air temperature around the board in °C. Every temperature is a rise above it.",
@@ -19,7 +32,7 @@ TIPS = {
     # Simulation
     "cell size": "Size of a solver cell in millimetres. Smaller is more accurate and slower; the number of unknowns is shown below. Auto picks a quarter of the smallest part.",
     "fvm solver": "How the finite-volume system is solved: sparse direct (exact, default), conjugate gradients, or SOR (to compare; slow).",
-    "lumped rings": "Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint).",
+    "lumped rings": "Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint). Rings narrower than one cell are merged, so 10 is enough and more change nothing.",
     "analytic modes": "Cosine modes per direction of the analytical series (more modes resolve smaller parts).",
     "local via and heatsink corrections": "Apply the vias and heatsinks locally in the analytical model (Green-function update) instead of smearing them over the board.",
     "hotspot limit": "Temperature in °C above which an area is reported as a hotspot and outlined in the temperature map.",
@@ -46,9 +59,9 @@ TIPS = {
     "duty (time on)": "Fraction of every period spent at the on-state power, in percent (the average power is the on-state power times the duty).",
     "power while on": "Power during the on part of the period, in watts.",
     "power while off": "Power during the off part of the period, in watts (0 for a pure on/off wave).",
-    "enter the average power instead of the power while on": "Type the average power and let the program compute the on-state power from the duty.",
+    "type the average power": "Type the average power instead of the power while on; the program computes the on-state power from the duty.",
     "average power": "Mean power over a period in watts: what the steady-state models use.",
-    "repeat the table (otherwise it runs once and the last power is held)": "Repeat the power table every cycle, or run it once and hold the last power.",
+    "repeat the table": "Repeat the power table every cycle; unticked, the table runs once and the last power is held.",
     "start from": "Initial state of the time simulation: the steady state of the average power, or a temperature you type.",
     "initial temperature": "Temperature in °C of the whole board at t = 0 (when starting from a typed temperature).",
     "simulate": "How long the time simulation runs: until the cycle repeats, a number of cycles, or a fixed time.",

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Power calculator - help</title>
+<title>Power Calculator - help</title>
 <style>
   body { font-family: "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.5; max-width: 62em; margin: 0 auto; padding: 1em 1.5em 4em; color: #1f2328; background: #ffffff; }
   h1 { border-bottom: 2px solid #2563eb; padding-bottom: .2em; }
@@ -26,7 +26,7 @@
 </head>
 <body>
 
-<h1>Power calculator</h1>
+<h1>Power Calculator</h1>
 <p>The calculator answers one question: <b>how many watts does this part dissipate?</b> You give a temperature you measured, and it gives back the power. Use it when you do not know a part's power (a converter in a real circuit, a load you cannot read) and want to put the right number in the simulation.</p>
 
 <div class="tip"><b>Two routes, one answer.</b> They are two independent ways to the same number: pick <b>one</b> tab, you do not fill both. Route 1 solves the board you drew; Route 2 is a pencil-and-paper formula with a datasheet parameter. They are not connected to each other.</div>
@@ -60,7 +60,17 @@
 <tr><td><b>Nominal</b></td><td>The calculation with your inputs as typed</td><td>The best single estimate</td></tr>
 <tr><td><b>Worst case</b></td><td>The highest plausible power (the hottest assumptions)</td><td>To check margins: Tj, power limit, hotspots, as a designer would</td></tr>
 </table>
-<p>Each source of doubt is moved alone to both ends of its uncertainty and the calculator is run again: the <b>copper</b> (default ±25 %), the <b>heat transfer</b> (±30 %), <b>θ</b> (±20 %), <b>ψJT</b> (±30 %) and the <b>reading</b> (±1 K). The deviations are combined as the root of the sum of squares, separately below and above the nominal power, which is how independent uncertainties are normally added (stacking all of them at once would give a range nobody has seen). The values are in <b>Preferences - Power calculator</b>. The table in the result shows what each source contributes, so you can see which one dominates.</p>
+<p>Each source of doubt is moved alone to both ends of its uncertainty and the calculator is run again: the <b>copper</b> (default ±25 %), the <b>heat transfer</b> (±30 %), <b>θ</b> (±20 %), <b>ψJT</b> (±30 %) and the <b>reading</b> (±1 K). The deviations are combined as the root of the sum of squares, separately below and above the nominal power, which is how independent uncertainties are normally added (stacking all of them at once would give a range nobody has seen). The values are in <b>Preferences - Power Calculator</b>. The table in the result shows what each source contributes, so you can see which one dominates.</p>
+<h3>Board description (design uncertainty)</h3>
+<p>The sources above are uncertain <i>numbers</i>. The band also needs to know how well the <i>drawing</i> matches the real board: a hatched pour drawn solid, 0.5 oz copper taken for 1 oz, inner planes or vias that are not what the layout says. The list <b>Board description</b> says how much you trust your drawing:</p>
+<table>
+<tr><th>Level</th><th>Use it when</th></tr>
+<tr><td><b>None (numbers only)</b></td><td>The old band: only the numbers above. It does <b>not</b> cover a wrongly drawn board.</td></tr>
+<tr><td><b>Drawn from the real fabrication files</b></td><td>The copper, vias and planes were drawn from the fabrication files (small doubt, 20 % of the amplitudes of Preferences)</td></tr>
+<tr><td><b>Drawn by hand from the layout</b></td><td>You drew zones, pads and vias yourself from the layout (half of the amplitudes; the default)</td></tr>
+<tr><td><b>Estimated (no layout at hand)</b></td><td>The board is a guess (the full amplitudes)</td></tr>
+</table>
+<p>Four more sources are moved alone to both ends, like the others, and added by the root of the sum of squares: the <b>copper coverage</b> (the fill of every zone on the top and bottom layers), the <b>copper weight</b> (the thickness of every layer, on top of the copper number above), the <b>inner planes</b> (smaller than drawn, or present although not drawn) and the <b>vias</b> (their barrel copper: number or plating). They are listed apart in the result as <i>Board description</i>. The amplitudes (at the level estimated) and the multiplier of each level are in <b>Preferences - Power Calculator</b> (the <code>design_*</code> entries). The sensitivities behind them were measured (a half-filled pad moves the power 13 %, half the copper 24 %, no inner planes 34 %, no vias 11 %); the percentages and the multipliers of the levels are <b>assumed</b>, not measured. The band is a guide: it does not cover every drawing error (see <code>docs/calculators.md</code> section 1.1c).</p>
 <p>The selector <b>Power to use</b> chooses which of the three goes into the part when you press <b>Use as the power of this part</b>; the simulation then uses that single number. Nothing is changed in the models until you press the button, and it can be undone.</p>
 <div class="note"><b>Same board or a variant?</b> The power is fitted to the drawn board. If you simulate <i>that same board</i> with it, you reproduce your measurement and the errors of the copper cancel. If you simulate <i>variants</i> (more copper, a heatsink) the power is kept, which is physically right, but the board's error is not cancelled: use the worst case for margins.</div>
 

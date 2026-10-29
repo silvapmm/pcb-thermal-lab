@@ -141,13 +141,13 @@ def test_calculator_shows_the_parameters_its_point_needs_and_the_program_starts_
     win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
     qtbot.addWidget(win)
     assert not win.doc.problem.heaters and not win.doc.problem.zones                      # An empty board: no example is loaded at start-up
-    assert win.a_calc.text() == "Power calculator…"
+    assert win.a_calc.text() == "Power Calculator…"
     doc = Document()
     doc.open_problem(example_board(), "example")
     d = PowerCalculator(doc)
     qtbot.addWidget(d)
     d.show()
-    assert d.windowTitle() == "Power calculator"
+    assert d.windowTitle() == "Power Calculator"
     for key, theta_on, psi_on in (("ring", False, False), ("max", False, False), ("junction", True, False), ("top", True, True)):
         d.point.setCurrentIndex(d.point.findData(key))
         assert d.theta.isEnabled() == theta_on and d.psi_jt.isEnabled() == psi_on          # Greyed when the point does not use them, still in place
@@ -227,7 +227,88 @@ def test_help_sits_before_close_and_preferences_has_a_power_calculator_tab(qtbot
     p = PreferencesDialog(win)
     qtbot.addWidget(p)
     assert p.windowTitle() == "Preferences"
-    assert [p.tabs.tabText(i) for i in range(p.tabs.count())][-2:] == ["Defaults for new projects", "Power calculator"]
+    assert p.section_titles()[-2:] == ["Defaults for new projects", "Power Calculator"]
     p.widgets[("calculator", "copper_uncertainty_pct")].setValue(40.0)
+    p.widgets[("calculator", "design_level")].setCurrentText("estimated")              # The design-uncertainty level and amplitudes are in the same tab
+    p.widgets[("calculator", "design_vias_pct")].setValue(35.0)
     p.save()
     assert defaults.value("calculator", "copper_uncertainty_pct") == 40.0
+    assert defaults.value("calculator", "design_level") == "estimated" and defaults.value("calculator", "design_vias_pct") == 35.0
+    # The calculator opens with the level of the Preferences and lists the four confidence levels
+    d2 = PowerCalculator(doc)
+    qtbot.addWidget(d2)
+    assert d2.design.currentData() == "estimated" and [d2.design.itemData(i) for i in range(d2.design.count())] == ["none", "cad", "hand", "estimated"]
+    d2.band.setChecked(False)                                                          # Without the band the board description does nothing: greyed
+    assert not d2.design.isEnabled()
+    d2.band.setChecked(True)
+    assert d2.design.isEnabled()
+
+
+def test_preferences_show_readable_labels_and_read_a_decimal_comma(qtbot):
+    """!
+    @brief The Preferences tables and forms show titles with units (the JSON key is in the tooltip), a decimal comma is read and a word typed
+           in a number column keeps the old value of that row.
+
+    @note Regression: the titles were the JSON keys (`k_w_per_mk`), and "0,45" or a typo silently became the value of the first shipped entry (0 W/mK for a via fill).
+    """
+    from pcbthermal.gui.preferences import PreferencesDialog
+    d = PreferencesDialog()
+    qtbot.addWidget(d)
+    table, cols = d.tables["via_fills"]
+    assert table.horizontalHeaderItem(1).text() == "k (W/mK)" and "k_w_per_mk" in table.horizontalHeaderItem(1).toolTip()
+    table.item(1, 1).setText("0,45")
+    assert d.data["libraries"]["via_fills"][1]["k_w_per_mk"] == 0.45
+    table.item(2, 1).setText("eight")
+    assert d.data["libraries"]["via_fills"][2]["k_w_per_mk"] == 8.0 and table.item(2, 1).text() == "8"
+    w = d.widgets[("new_board", "ambient_c")]
+    form = w.parentWidget().layout()
+    assert form.labelForField(w).text() == "Ambient (°C)" and "ambient_c" in w.toolTip()
+
+
+def test_preferences_sections_are_a_list_with_stacked_pages(qtbot, tmp_path):
+    """!
+    @brief The eight sections are a list on the left (first one selected, no title cut, Up and Down change the page) with their pages stacked on the right.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    from pcbthermal.gui.preferences import SECTION_LIST_WIDTH, PreferencesDialog
+    d = PreferencesDialog()
+    qtbot.addWidget(d)
+    d.resize(640, 480)
+    d.show()
+    qtbot.waitExposed(d)
+    titles = d.section_titles()
+    assert len(titles) == 8 and titles[-2:] == ["Defaults for new projects", "Power Calculator"] and d.pages.count() == 8
+    assert d.sections.currentRow() == 0 and d.pages.currentIndex() == 0 and d.focusWidget() is d.sections
+    assert d.sections.width() == SECTION_LIST_WIDTH == 240
+    metrics = d.sections.fontMetrics()
+    assert all(metrics.horizontalAdvance(t) + 24 < d.sections.width() - 2 for t in titles)          # No title is cut (padding 12 px each side)
+    for i in range(1, 8):                                                                       # The keyboard walks through every page
+        QTest.keyClick(d.sections, Qt.Key_Down)
+        assert d.sections.currentRow() == i and d.pages.currentIndex() == i
+    QTest.keyClick(d.sections, Qt.Key_Up)
+    assert d.pages.currentIndex() == 6
+    assert d.sections.toolTip()
+
+
+def test_preferences_decimals_follow_the_shipped_value_and_show_a_saved_value_in_full(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief A field of the defaults gets its decimals from the shipped value, and more when the user's saved value needs them.
+
+    @note Regression: the decimals followed the user's value, so a heater power saved as 10 W left one decimal for that field (0.25 W
+          could no longer be typed), and a saved 0.3125 mm via was shown and could be reset as 0.313.
+    """
+    from pcbthermal import defaults
+    from pcbthermal.gui.preferences import PreferencesDialog
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(tmp_path / "cfg"))
+    data = defaults.load()
+    data["new_elements"]["heater_power_w"] = 10.0
+    data["new_elements"]["via_diameter_mm"] = 0.3125
+    defaults.save_user(data)
+    d = PreferencesDialog()
+    qtbot.addWidget(d)
+    power = d.widgets[("new_elements", "heater_power_w")]
+    via = d.widgets[("new_elements", "via_diameter_mm")]
+    assert power.decimals() == 3 and power.value() == 10.0
+    assert via.decimals() == 4 and via.value() == 0.3125
+    assert d.widgets[("materials", "rho_fr4")].decimals() == 1
