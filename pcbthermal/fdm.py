@@ -269,6 +269,23 @@ class Network:
         return theta.reshape(self.nl, self.ny, self.nx), res
 
 
+def unknowns(problem, cell_mm=2.0):
+    """!
+    @brief Number of unknowns of the finite-difference model of a problem, counted without building it (the same layers as Network).
+    @details The nodes are the corners of the cells, (cells_x + 1) x (cells_y + 1), on the same layers as the finite-volume model: one per copper layer,
+             the laminate nodes of a one-layer board and one per face that carries metal blocks.
+    @param problem A Problem.
+    @param cell_mm Target size of the cells in millimetres.
+    @return Tuple (unknowns, layers, nodes_x, nodes_y).
+    """
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2) + 1
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2) + 1
+    lam = laminate.nodes(b)
+    layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
+    return layers * nx * ny, layers, nx, ny
+
+
 def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
     """!
     @brief Steady-state finite-difference solution of a problem.
