@@ -87,8 +87,14 @@ def _menu(target, pos, *names):
 
     seen = []
 
+    tries = [0]
+
     def answer():
         menu = QApplication.activePopupWidget()
+        if menu is None and tries[0] < 100:             # A loaded machine opens the popup late: wait up to 5 s
+            tries[0] += 1
+            QTimer.singleShot(50, answer)
+            return
         seen.append([a.text().replace("&", "").split("\t")[0].lower() for a in menu.actions()] if menu else None)
         if menu is not None:
             for name in names:
