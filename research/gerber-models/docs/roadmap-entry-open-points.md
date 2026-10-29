@@ -1,4 +1,4 @@
-# Open points of the research branch (text moved out of docs/roadmap.md)
+# Open points of the research branch (text moved out of docs/versions.md "Planned")
 
 Notes from the work on `research/gerbers` (details in the folders named; nothing of this is in the program).
 

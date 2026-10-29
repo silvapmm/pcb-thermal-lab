@@ -35,7 +35,7 @@ Correlations of isothermal plates (20 to 30 % on a board with hot spots), the ed
 
 ## 5. Where it is tested
 
-Textbook air properties and closed forms, 1 to 3 % (`tests/`); `docs/validation.md`; the orientation study in `docs/models.md` section 18; the effect on the example board in `docs/roadmap.md` section 2.
+Textbook air properties and closed forms, 1 to 3 % (`tests/`); `docs/validation.md`; the orientation study in `docs/models.md` section 18; the effect on the example board in `docs/versions.md` "Planned" section 2.
 
 ## 6. Related topics
 

@@ -1,6 +1,6 @@
 # Roadmap entry: open points of the research branch
 
-Text for `docs/roadmap.md` (a section "Open points of the research branch"), written at the maintainer's request. It is **not** in `docs/roadmap.md` of `develop` (checked at `3e90a7f`): a research branch does not edit the project documents, so it waits here for adoption. Updated by the review of this folder where the program or the reading moved on.
+Text for `docs/versions.md` "Planned" (a section "Open points of the research branch"), written at the maintainer's request. It is **not** in `docs/versions.md` "Planned" of `develop` (checked at `3e90a7f`): a research branch does not edit the project documents, so it waits here for adoption. Updated by the review of this folder where the program or the reading moved on.
 
 ### Open points of the research branch (so that they are not forgotten)
 

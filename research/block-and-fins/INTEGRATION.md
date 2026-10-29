@@ -33,7 +33,7 @@ The error grows with the ratio of the side area `t × perimeter` to the base are
 
 **Decision of the maintainer**: the correction was applied (a `fix/` branch with the reviewer).
 
-## Open (limits of the model, in `docs/roadmap.md`)
+## Open (limits of the model, in `docs/versions.md` "Planned")
 
 * The channel effect between close fins (Elenbaas; Bar-Cohen and Rohsenow): the warning at 4 mm of air gap leaves a 6.5 mm gap, near the optimum spacing of a short array, with a channel coefficient that a remembered correlation puts 10 to 30 % below the typed one (`README.md` 4.1). A channel correlation for still air, or a lower warning threshold, is the maintainer's choice.
 * A time simulation with a block in the Lumped and Analytic models.
