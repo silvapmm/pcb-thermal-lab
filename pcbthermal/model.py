@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file model.py
 @brief Data model of the PCB thermal problem and JSON readers.
@@ -701,14 +703,24 @@ class Heater:
             return self.pad_thickness / self.pad_k * 1e4
         return self.interface
 
+    def has_top_path(self):
+        """!
+        @brief Whether the part has a path to the ambient through the top of its package.
+        @details Only a component has one: a part with a junction (theta > 0) and a heatsink on top (theta_sa > 0). A pure source is a power over
+                 a footprint with, at most, the interface under it, so it has no junction to hang a top path on; the fields theta and theta_sa that
+                 a file or the API may still carry on a source are ignored (the interface does not show them either).
+        @return bool.
+        """
+        return self.is_component() and self.theta > 0 and self.theta_sa > 0
+
     def top_resistance(self):
         """!
         @brief Total resistance of the top path, junction to ambient.
-        @details theta_jc_top + interface / footprint area + theta_sa, in series; the path exists only for a part with a junction
-                 resistance theta and a heatsink resistance theta_sa.
+        @details theta_jc_top + interface / footprint area + theta_sa, in series; the path exists only for a component with a junction
+                 resistance theta and a heatsink resistance theta_sa (has_top_path).
         @return Resistance in K/W, or 0.0 when the heater has no top path.
         """
-        if self.theta <= 0 or self.theta_sa <= 0:
+        if not self.has_top_path():
             return 0.0
         area_cm2 = max((self.contact_area or self.area()) * 1e4, 1e-9)           # The paste covers the lid/case, which can differ from the footprint
         return self.theta_jc_top + self.interface_kcm2() / area_cm2 + self.theta_sa
@@ -758,7 +770,7 @@ class Via:
     """
     x: float                                    # X position (m)
     y: float                                    # Y position (m)
-    diameter: float                             # Finished hole diameter (m)
+    diameter: float                             # Drill diameter (m): the plating is inside it, finished hole = drill - 2 x plating
     filled: bool = False                        # True for a copper-filled via (solid rod, electroplated copper fill)
     name: str = ""                              # Optional label
     fill_k: float = 0.0                         # Conductivity (W/mK) of the fill of the barrel (epoxy resin about 0.3, conductive paste about 8, copper 385); 0 = open barrel
@@ -1089,7 +1101,7 @@ class Problem:
         @brief Add one via (mm).
         @param x X position in mm.
         @param y Y position in mm.
-        @param diameter Finished hole diameter in mm.
+        @param diameter Drill diameter in mm (the plating is inside it: finished hole = drill - 2 x plating).
         @param filled True for a copper-filled via (electroplated copper fill).
         @param name Optional label.
         @param fill_k Conductivity in W/mK of the fill (epoxy resin about 0.3, conductive paste about 8, copper 385; see VIA_FILLS); 0 for an open barrel.
@@ -1105,7 +1117,7 @@ class Problem:
         @param rect Rectangle (x0, y0, x1, y1) in mm.
         @param nx Vias along x.
         @param ny Vias along y.
-        @param diameter Finished hole diameter in mm.
+        @param diameter Drill diameter in mm (the plating is inside it: finished hole = drill - 2 x plating).
         @param filled True for copper-filled vias.
         @param fill_k Conductivity in W/mK of a non-copper fill (0 = open barrel).
         @return self.

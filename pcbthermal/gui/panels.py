@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file panels.py
 @brief Side panels: board parameters, element list, inspector and solver settings.
@@ -12,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import solid3d
+from .. import fdm, fvm, solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -1034,7 +1036,7 @@ class Inspector(QWidget):
                 fill_k.valueChanged.connect(edit_k)
                 lay.addRow("X", x)
                 lay.addRow("Y", y)
-                lay.addRow("Diameter", d)
+                lay.addRow("Drill diameter", d)
                 lay.addRow("Fill", fill)
                 lay.addRow("Fill conductivity", fill_k)
                 lay.addRow(typical)
@@ -1466,11 +1468,13 @@ class SolverPanel(QWidget):
         """
         b = self.doc.problem.board
         c = self.cell.value()
-        n = max(int(round(b.width * 1000 / c)), 2) * max(int(round(b.height * 1000 / c)), 2) * b.layers
+        n = fvm.unknowns(self.doc.problem, c)[0]                   # The nodes the model really has: copper layers, laminate nodes of a one-layer board, block layers
         text = f"{n} unknowns"
         if n > 1_000_000:
             # The layered models have no hard limit; measured with the direct solver on a plain board (quiet 16 GB machine): 1 million unknowns 5.2 s and 2.7 GB, 2 million 12.4 s and 5.5 GB
             text += " (slow: about 3 GB of memory per million)"
+        if self.cb["fdm"].isChecked():
+            text += f" (FDM: {fdm.unknowns(self.doc.problem, c)[0]})"       # Its nodes are the corners of the cells, one more row and column
         if self.cb["solid3d"].isChecked():
             # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
             n3 = solid3d.unknowns(self.doc.problem, c)[0]

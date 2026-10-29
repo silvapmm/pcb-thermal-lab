@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_stackup.py
 @brief Simple and advanced stack-up: per-layer copper, per-gap dielectric thickness and material, in every model, in the files.

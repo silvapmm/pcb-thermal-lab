@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_multilayer_real.py
 @brief The mappings on a real four-layer board (Cadence Allegro, inner planes, 283 plated holes) with the typical 4-layer stack-up of the program, thin and thick copper.

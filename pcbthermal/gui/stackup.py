@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file stackup.py
 @brief Stack-up tab: the vertical cross-section of the board drawn to scale and the table that edits every copper layer and every dielectric.

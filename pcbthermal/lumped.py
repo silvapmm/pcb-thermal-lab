@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file lumped.py
 @brief Lumped-parameter thermal network (LPTN): one offset-contour network per heater, superposed.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_laminate.py
 @brief The laminate of a one-layer board: node layers under the copper in the FVM, FDM and Lumped, the series film in the Analytic model, and the bottom face for the computed coefficients.

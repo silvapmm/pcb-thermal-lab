@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_notes_r2.py
 @brief Reproduce the two sets of numbers of NOTES.md R2 that no other script printed: the metal block with fins (metals and thickness) and the "perfect contact" table.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_kicad_pixels.py
 @brief The nets of the Stormduino's own `.kicad_pcb`, drawn on the pixel grid, against the copper the independent reader draws from its Gerbers (README 4.46).

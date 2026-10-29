@@ -1,6 +1,6 @@
 # Review register of the investigations
 
-What the independent `reviewer` agent has checked in each folder, so that a later session continues where the last one stopped; the findings are in the chapter `N. Review` of each folder's README, this file only registers them. Status `reviewed` means the findings are fixed and the numbers of the documents are the ones the scripts print now. Program version is the last commit of `develop` that touched `pcbthermal/` when the studies were last run. Update a row in the commit of the review it records; what is left to finish is `ROADMAP.md` section 1.
+What the independent `reviewer` agent has checked in each folder, so that a later session continues where the last one stopped; the chapter `N. Review` of each folder's README holds the status, the independent checks, the limits (what was not verified) and the defects of the program found; this file only registers them. Status `reviewed` means the findings are fixed and the numbers of the documents are the ones the scripts print now. Program version is the last commit of `develop` that touched `pcbthermal/` when the studies were last run. Update a row in the commit of the review it records; what is left to finish is `ROADMAP.md` section 1.
 
 | Folder | Status | Program version | Open points (details in the README of the folder) |
 | :-- | :-- | :-- | :-- |
@@ -9,14 +9,15 @@ What the independent `reviewer` agent has checked in each folder, so that a late
 | `effective-conductivity/` | reviewed | `6eb9adf` | F1: the Culham and Yovanovich shortfall above Biot 60 is not closed |
 | `outline/` | reviewed | `0ea5f07` | edge loss on grid lines: corrected in the program |
 | `stackup/` | reviewed | `0ea5f07` | none |
-| `block-and-fins/` | reviewed | `a9c1cd1` | fin ratio on the sides: corrected in the program; open: a block beyond the outline is pinned to the ambient in the FVM and 3D solid, and the warning says the opposite |
+| `block-and-fins/` | reviewed | `a9c1cd1` | fin ratio on the sides: corrected in the program; a block beyond the outline pinned to the ambient: corrected in the program (`fix/block-beyond-outline`) |
 | `component-heatsink/` | reviewed | `1674d52` | top-path loop: corrected in the program |
 | `power-calculator/` | reviewed | `6eb9adf` | none; the band does not hold the true power for a drawing error (D4) |
-| `via-fill/` | reviewed | `6eb9adf` | open: the point via does not converge with the cell (A5); the 3D solid clips a via larger than its cell; the tooltip says "finished hole" while the model uses the drill |
+| `via-fill/` | reviewed | `6eb9adf` | open: the point via does not converge with the cell (A5); the 3D solid clips a via larger than its cell; the tooltip says "finished hole" while the model uses the drill; Lumped and Analytic overstate vias (A6) |
 | `theory/` | reviewed | `3e90a7f` | open: `Heater.top_resistance()` uses `theta`, `analysis.part_split` uses `junction_theta()` |
 | `gerber-import/` | reviewed | `a6f822b` | none in the program (no model involved) |
-| `gerber-models/` | reviewed | `6eb9adf` | open: zones combined by the maximum per cell (-8.2 % FVM, -19.1 % FDM on abutting strips); two laminate nodes 5.5 to 13.6 % cool on patterned copper (A11); the laminate of a one-layer board in the 3D solid is corrected |
+| `gerber-models/` | reviewed | `a6f822b` | open: zones combined by the maximum per cell (-8.2 % FVM, -19.1 % FDM on abutting strips); two laminate nodes 5.5 to 13.6 % cool on patterned copper (A11); the laminate of a one-layer board in the 3D solid is corrected |
 | `gerber-nets/` | reviewed | not applicable (no electrical code in `pcbthermal/`) | none in the program; limits: return current in the ground net, resistivity, plated outer copper |
+| `zone-union/` | reviewed | `98bae17` | open (decisions in `INTEGRATION.md` 3 and 4): adopt the per-point union (prototype `fix/zone-union`, 681 passed); limit found, not about zones: the layered models lose 12 to 14 points of the peak on a part over bare laminate (README 8.3); the real-board reference is 5 to 14 % low at 0.25 mm |
 
 Program defects found by a review are never corrected from a research branch: they are items of `docs/versions.md` ("Planned") or are marked "corrected in the program" above.
 

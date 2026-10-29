@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_sampson_boundary.py
 @brief Does the mapping hold in the regime where Sampson (2017) found smearing to fail: heat that must cross copper-free regions to fixed-temperature posts, with little or no convection?

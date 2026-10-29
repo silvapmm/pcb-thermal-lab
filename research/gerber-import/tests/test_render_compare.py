@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_render_compare.py
 @brief The independent reader and the vector truth (gerbonara + shapely) draw the same copper on our IC board, pixel by pixel: the pixels that differ are few and lie on an exact edge (README 4.45).

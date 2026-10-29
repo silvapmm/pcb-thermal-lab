@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_diagonal_gate.py
 @brief A detector of the cells that should get diagonal faces: the hybrid network of README 4.44 adds the diagonal conduction a fixed share alpha in every cell; here the share is decided cell by cell from the cell's own conductance tensor, and the result is compared with the fixed shares on the track study and on the 42 real windows.

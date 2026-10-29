@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_outline.py
 @brief Can the board outline be read from the profile layer? The independent reader's stroke mask turned into the board shape (even-odd rule on the stroke crossings) against the exact vector construction, on the profile layers of the downloaded boards and on synthetic outlines with arcs, a slot and open contours.

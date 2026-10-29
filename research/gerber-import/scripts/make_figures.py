@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
 @brief The data figures of phase 1 (figures 1 to 5 and 9 to 15): our IC board, the validation summary, the Stormduino nets, the mask, the reader, the four tools pixel by pixel, the KiCad nets pixel by pixel and the board outline.

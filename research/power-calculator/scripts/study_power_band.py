@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_power_band.py
 @brief What band (best, nominal, worst) does inverse.power_band give on the example of docs/calculators.md section 1.1b, and does it hold the true power when the drawn board really differs?

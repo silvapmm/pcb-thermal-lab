@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file heatsink_study.py
 @brief Heatsinks and thermal interface materials on the parts of component_study.py: a top heatsink with different pastes and pads, and a metal block under the board with different metals and interfaces.

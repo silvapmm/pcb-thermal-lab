@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_muzychka_2003.py
 @brief The numerical examples of Muzychka, Culham and Yovanovich (J. Electronic Packaging 125, 2003, 178-185) with the independent 3D solver and with the five models of the program.

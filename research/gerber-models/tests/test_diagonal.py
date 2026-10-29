@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_diagonal.py
 @brief The nine-point prototype (README 4.44): the cell tensor of uniform, axis-aligned and diagonal copper, the nine-point solver against the five-point one, and the effect on a 45-degree track.

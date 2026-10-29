@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_independent_datasheet_board.py
 @brief Does the board model that the calculator runs backwards give the right board resistance on the CSD17308Q3 datasheet board, checked against a solver that shares none of the program's code?

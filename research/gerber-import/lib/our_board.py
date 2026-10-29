@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file our_board.py
 @brief A small board of our own design for figures and tests: an IC in the middle, eight signal nets that leave it radially and run round it on circular arcs to test points, and a ground net (exposed pad with thermal vias, a spoke and a ring with vias).

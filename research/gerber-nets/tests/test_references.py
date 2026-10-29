@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_references.py
 @brief The prototypes against references that do not share their assumptions (study_references.py, README section "Review"): the corner of an L bend, a ring sector, an exact

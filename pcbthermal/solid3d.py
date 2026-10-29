@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file solid3d.py
 @brief Three-dimensional finite-volume model of the board as a solid: the comparison that does not use the "one node per copper layer" idea.
@@ -23,14 +25,18 @@
 """
 
 import contextlib
+import logging
+import math
 
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .fvm import ORDERING
-from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
+from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid, zone_fill
 from .results import SteadyResult
+
+log = logging.getLogger(__name__)
 
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
 K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a block)
@@ -155,14 +161,25 @@ class Solid:
         self.area_b = Ab
 
         # --- Copper fill of every layer and the plated area of the vias in every cell
-        fill = np.zeros((L, ny, nx))
-        for z in problem.zones:
-            fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
+        fill = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
         via_frac = np.zeros((ny, nx))
         for v in problem.vias:
             if 0.0 <= v.x < W and 0.0 <= v.y < H:
-                via_frac[min(int(v.y / dy), ny - 1), min(int(v.x / dx), nx - 1)] += v.thermal_area(b.via_plating, b.materials.k_copper) / A
+                a_via = v.thermal_area(b.via_plating, b.materials.k_copper)
+                if a_via <= A:
+                    via_frac[min(int(v.y / dy), ny - 1), min(int(v.x / dx), nx - 1)] += a_via / A      # The copper of the via fits in the cell that holds its centre
+                else:
+                    # Larger than a cell (a copper-filled via or a fine mesh): its copper is spread over the cells of its disc in proportion to the
+                    # part of each cell the disc covers, so that no copper is lost to the clip below (a 0.5 mm copper fill kept 32 % at 0.25 mm cells)
+                    t = np.linspace(0.0, 2.0 * math.pi, 65)[:-1]
+                    disc = np.c_[v.x + 0.5 * v.diameter * np.cos(t), v.y + 0.5 * v.diameter * np.sin(t)]
+                    share = coverage_fraction(disc, nx, ny, dx, dy, 8)
+                    if share.sum() > 0.0:
+                        via_frac += a_via * share / share.sum() / A
+        if float(via_frac.max(initial=0.0)) > 1.0:
+            log.warning("the copper of the vias in one cell is larger than the cell: the excess is clipped; use a finer cell for this model")
         via_frac = np.minimum(via_frac, 1.0)
+        self.via_frac = via_frac                                   # Copper area of the vias as a fraction of every cell (the area of the barrels is conserved)
 
         tc = np.asarray(b.copper_thickness)
         gaps = b.gap_thicknesses()                                  # (L-1,) thickness of every gap
@@ -188,7 +205,7 @@ class Solid:
             if not s.is_block():
                 continue
             face = 0 if (s.layer == 0 or L == 1) else 1
-            c = cover(s.polygon, 4)
+            c = cover(s.polygon, 4) * bcov                     # The block is cut at the board outline (cells off the board are pinned to the ambient)
             f = faces.setdefault(face, {"cov": np.zeros((ny, nx)), "t": np.zeros((ny, nx)), "k": np.ones((ny, nx)),
                                         "r": np.zeros((ny, nx)), "he": np.zeros((ny, nx)), "names": [], "fins": {}})
             take = c > 0

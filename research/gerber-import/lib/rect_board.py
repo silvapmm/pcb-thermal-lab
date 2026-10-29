@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file rect_board.py
 @brief A simple test board made only of squares and rectangles (one copper layer, 40 x 30 mm), for comparing the models of the program on geometry that needs no interpretation.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_angles.py
 @brief Tracks that are not at 0 or 90 degrees: area, connectivity and electrical resistance of a thin track on the pixel grid, against the angle.

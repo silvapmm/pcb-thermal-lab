@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_track_angle.py
 @brief A track at an angle on the pixel grid (phase 3): connectivity, area and resistance with the five-point stencil.

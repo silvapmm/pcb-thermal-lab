@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_transient.py
 @brief Does the conductance mapping also give the right time response? The heat capacity stays an arithmetic (volume) average; only the conductances change.

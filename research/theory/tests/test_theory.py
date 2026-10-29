@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_theory.py
 @brief Checks of the theory folder: every figure and link in the topics exists, every bibliography key used in a topic is defined, and every topic has the required sections.

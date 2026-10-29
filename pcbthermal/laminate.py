@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file laminate.py
 @brief The laminate of a one-layer board as extra node layers under the copper (FVM, FDM and, through the FVM network, Lumped), and as a series resistance under the bottom film (Analytic).

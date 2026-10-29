@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file results_view.py
 @brief Results area: summary table, temperature maps, gradients, profiles and component statistics.
@@ -304,6 +306,8 @@ class ResultsView(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.tabs = QTabWidget()
+        self.tabs.tabBar().setElideMode(Qt.ElideNone)             # "Components" was cut to "Compone…" in a narrow window
+        self.tabs.tabBar().setUsesScrollButtons(True)
         lay.addWidget(self.tabs)
 
         # Summary: models table, warnings and the text report

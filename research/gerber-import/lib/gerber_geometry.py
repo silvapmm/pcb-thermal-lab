@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file gerber_geometry.py
 @brief Gerber copper layer -> exact vector geometry (shapely) -> centre-sampled copper mask.

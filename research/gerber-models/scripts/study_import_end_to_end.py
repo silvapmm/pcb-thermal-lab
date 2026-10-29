@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_import_end_to_end.py
 @brief Where the import stands: the Gerber set of a board goes through `lib/importer.py` into the program's own finite-volume network, and the result is compared with the program as it is and with the resolved pixel grid.

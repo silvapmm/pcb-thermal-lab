@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_complex_boards_independent.py
 @brief Is the reference of study_complex_boards.py (the program's 3D solid at 1 mm) right on its one-layer boards? A check against a solver that shares no code with the program.

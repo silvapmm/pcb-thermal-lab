@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file heatsink_convection_study.py
 @brief A heatsink known only by its sink-to-ambient resistance: fixed value, natural-convection scaling with the temperature rise, and forced convection factors.

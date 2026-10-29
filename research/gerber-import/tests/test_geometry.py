@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_geometry.py
 @brief The Gerber reader on tiny synthetic files written by the test: areas, polarity, holes and the centre-sampled mask.

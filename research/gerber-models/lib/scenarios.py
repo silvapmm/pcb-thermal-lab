@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file scenarios.py
 @brief Boundary-limited conduction scenarios (fixed-temperature posts or border, little or no convection), the regime in which smeared conductivity fails most (Sampson, Electronics Cooling 2017).

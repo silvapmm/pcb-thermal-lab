@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_references.py
 @brief Do the two prototypes (joule.py, pdn.py) agree with references that do not share their assumptions? Closed forms of a strip, an L bend and a ring sector, the hand counts of the

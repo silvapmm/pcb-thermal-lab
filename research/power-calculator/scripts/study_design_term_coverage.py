@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_design_term_coverage.py
 @brief Does the design-uncertainty term of inverse.power_band bring the true power inside the band when the drawn board differs from the real one?

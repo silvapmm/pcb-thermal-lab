@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_vias_nets.py
 @brief Do the plated holes of a Gerber set map to the program's vias, and to the nets of the polygons? Run on the KiCad X2 test set of gerbonara's resources (copper layers with net names and aperture functions, plated and non-plated drill files) and on an older KiCad set without attributes.

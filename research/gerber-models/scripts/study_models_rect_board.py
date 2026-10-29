@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_models_rect_board.py
 @brief The five models of the program on a board of squares and rectangles (lib/rect_board.py): the program's own zones, the fine mask and the cell mappings, with the copper on the cell edges and between them.

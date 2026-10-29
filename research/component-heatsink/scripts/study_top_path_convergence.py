@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_top_path_convergence.py
 @brief Does the fixed-point loop of the program's top path (api._solve_with_tc) reach the operating point on every board? The loop against the exact root of the same equation and against the junction-node prototype.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file top_path_study.py
 @brief The top path of a part (junction-to-case, interface and heatsink on the package) in the program against the junction-node prototype, on the four chips of component_study.py.

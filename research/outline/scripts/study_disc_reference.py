@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_disc_reference.py
 @brief Are the FVM reference and the same-area rectangle right on a round board, checked against a reference that does not use the program's grid?

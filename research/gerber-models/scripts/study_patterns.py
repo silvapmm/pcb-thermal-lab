@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_patterns.py
 @brief Regular copper patterns (hatch stripes, cross-hatch, isolated squares, perforated plane): where do the scalar mappings fail?

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file fdm.py
 @brief Node-centred finite-difference thermal solver of the same layered model, kept as a comparison model.
@@ -19,7 +21,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid
+from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
 from . import blocks, fvm, laminate
 from .fvm import ORDERING
 from .results import SteadyResult
@@ -131,9 +133,14 @@ class Network:
         self.area = area
 
         # Copper fill at the nodes
-        fill = np.zeros((L, ny, nx))
-        for z in problem.zones:
-            fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
+        if sampling == "area":
+            # The union of the zones per sample point on the cells, then averaged over the cells around every node
+            cell_fill = zone_fill(problem.zones, L, cells_x, cells_y, dx, dy, 4)
+            fill = np.stack([_node_average(cell_fill[k]) for k in range(L)])
+        else:
+            fill = np.zeros((L, ny, nx))                                     # Point sampling: a node is inside or outside, the maximum is exact
+            for z in problem.zones:
+                fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
         S = (fill * m.k_copper * tc + k_lam * (slab - fill * tc)) * ncov     # Sheet conductance per node (W/K)
         # Heat capacity of every node (J/K)
         self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * rho_cp_lam) * area[None]
@@ -153,7 +160,7 @@ class Network:
             S = np.concatenate([S, np.stack([ly["S"] for ly in lam])])
             self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in lam])])
         # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py), after the laminate nodes
-        ex = blocks.extra_layers(problem, cover, area, fill, dx, dy)
+        ex = blocks.extra_layers(problem, lambda poly, n: cover(poly, n) * ncov, area, fill, dx, dy)      # Cut at the outline, as in the FVM
         E = len(ex)
         self.n_board, self.nl = L, L + NL + E
         if E:
@@ -267,6 +274,23 @@ class Network:
         theta = spla.spsolve(self.K, q, permc_spec=ORDERING)
         res = float(np.linalg.norm(self.K @ theta - q) / max(np.linalg.norm(q), 1e-300))
         return theta.reshape(self.nl, self.ny, self.nx), res
+
+
+def unknowns(problem, cell_mm=2.0):
+    """!
+    @brief Number of unknowns of the finite-difference model of a problem, counted without building it (the same layers as Network).
+    @details The nodes are the corners of the cells, (cells_x + 1) x (cells_y + 1), on the same layers as the finite-volume model: one per copper layer,
+             the laminate nodes of a one-layer board and one per face that carries metal blocks.
+    @param problem A Problem.
+    @param cell_mm Target size of the cells in millimetres.
+    @return Tuple (unknowns, layers, nodes_x, nodes_y).
+    """
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2) + 1
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2) + 1
+    lam = laminate.nodes(b)
+    layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
+    return layers * nx * ny, layers, nx, ny
 
 
 def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):

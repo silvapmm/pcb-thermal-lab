@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file checks.py
 @brief Model-validity checks: warnings about inputs that make a result physically doubtful.
@@ -10,7 +12,7 @@ of every warning says what is wrong and what to do.
 
 import numpy as np
 
-from .geometry import coverage_fraction, points_in_polygon, polygon_area, polygon_centroid
+from .geometry import coverage_fraction, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -58,9 +60,7 @@ def check_problem(problem, cell_mm=1.0):
     board_cover = b.cover(nx, ny, dx, dy)               # Ones for a rectangular board
 
     # --- Copper fill of every layer (union of its zones), used by several checks
-    fill = np.zeros((b.layers, ny, nx))
-    for z in problem.zones:
-        fill[z.layer] = np.maximum(fill[z.layer], coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
+    fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, 4)
 
     for k, s in enumerate(problem.heatsinks):
         if s.has_fins() and b.air_speed == 0 and s.fin_pitch - s.fin_thickness < 4e-3:
@@ -70,6 +70,12 @@ def check_problem(problem, cell_mm=1.0):
     heater_cov = []
     for k, h in enumerate(problem.heaters):
         name = h.name or f"Heater {k + 1}"
+        if h.role == "source":
+            # A pure source has no junction and no package top: these fields (from a file or the API; the interface zeroes them) are not used
+            ignored = [label for label, value in (("theta", h.theta), ("theta_jc_top", h.theta_jc_top), ("theta_sa", h.theta_sa), ("interface", h.interface),
+                                                  ("contact_area", h.contact_area), ("pad_thickness", h.pad_thickness), ("pad_k", h.pad_k)) if value > 0]
+            if ignored:
+                _add(out, "heater", k, f"{name}: a heat source ignores {', '.join(ignored)}; they belong to a component (set its type to Component, or clear them).")
         area = polygon_area(h.polygon)
         if area <= 0:
             _add(out, "heater", k, f"{name}: the footprint has zero area.")
@@ -113,6 +119,9 @@ def check_problem(problem, cell_mm=1.0):
         area = polygon_area(z.polygon)
         if area > 0 and float(cov.sum() * dx * dy) / area < 0.5:
             _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: more than half of the zone is outside the board.")
+        if polygon_self_intersects(z.polygon):
+            _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: the outline crosses itself; the fill follows the even-odd rule, so the crossed part is left empty. "
+                       "Redraw the zone without the crossing.")
 
     # --- Metal blocks: they only take heat where they overlap copper of their face
     block_cov = {}
@@ -120,10 +129,13 @@ def check_problem(problem, cell_mm=1.0):
         if not s.is_block():
             continue
         name = s.name or f"Heatsink {k + 1}"
-        cov = coverage_fraction(s.polygon, nx, ny, dx, dy, 4)
+        # Measured against the board outline, not only against the box: a block over the cut-away part of a board has no board under it
+        cov = coverage_fraction(s.polygon, nx, ny, dx, dy, 4) * board_cover
         area = polygon_area(s.polygon)
         if area > 0 and float(cov.sum() * dx * dy) / area < 0.9:
-            _add(out, "heatsink", k, f"{name}: part of the metal block is outside the board; only the part inside is modelled.")
+            _add(out, "heatsink", k, f"{name}: part of the metal block is outside the board" + (" outline" if b.has_outline() else "") +
+                       "; the FVM, FDM and 3D solid cut it there and model only the part inside (the Lumped and Analytic models take the block "
+                       "whole on the rectangle of the same area).")
         if cov.sum() > 0:
             overlap = float((fill[s.layer] * cov).sum() * dx * dy)
             if overlap < 1e-6:

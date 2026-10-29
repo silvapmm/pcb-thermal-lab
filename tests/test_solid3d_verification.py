@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_solid3d_verification.py
 @brief The 3D solid against an analytical benchmark (spreading resistance of a circular source, Yovanovich 2003) and a grid-convergence study (Richardson, GCI).

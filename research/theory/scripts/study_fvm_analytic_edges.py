@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_fvm_analytic_edges.py
 @brief Why the Analytic model is 0.3 to 1 % above the FVM on the uniform boards: the FVM mesh error, or the edges the series leaves insulated?

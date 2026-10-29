@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_kicad_nets.py
 @brief The Stormduino check of the nets against its `.kicad_pcb` file (needs data/storm: scripts/fetch_boards.py and the KiCad file; skipped otherwise).

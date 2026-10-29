@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file results.py
 @brief Result containers shared by the three solvers.
@@ -7,6 +9,18 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import numpy as np
+
+# Names of the models shown to the user (tables, lists, plots); the keys (fvm, lumped, ...) stay in the files, the reports and the API
+MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped (LPTN)", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid"}
+
+
+def model_label(key):
+    """!
+    @brief Name of a model for the results views and the plots.
+    @param key Model key (fvm, lumped, analytic, fdm, solid3d).
+    @return The display name, or the key itself when it is not a known model.
+    """
+    return MODEL_LABELS.get(key, key)
 
 
 @dataclass

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_heatsink_part.py
 @brief Finned metal blocks, the contact area of a part, gaps made of several sheets (prepreg and core), and the controls added with them.

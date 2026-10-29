@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_thick_plate_criterion.py
 @brief The thick-plate criterion of the program (`checks.check_thick_plates`) over the 74 cases of `block_equivalent_study.py`: how large is q'' t / (2 k) against the rise?

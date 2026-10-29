@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_channel_correlations.py
 @brief Natural convection between vertical isothermal parallel plates: the Elenbaas correlation (1942) against the blended correlation of Raithby and Hollands, as quoted and analysed by Martin, Raithby and Yovanovich (1991), and the plate spacing that dissipates the most heat per unit of base area.

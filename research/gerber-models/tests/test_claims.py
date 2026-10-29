@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_claims.py
 @brief The claims of the research as tests: each one is a number the documents quote (CONCLUSIONS.md lists them), checked on small deterministic cases that need only NumPy and SciPy.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_kicad_nets.py
 @brief Confirm the polygon-to-net association against an independent truth: the Stormduino (KiCad 5, MIT) Gerber set read by our reader, and the nets of its own `.kicad_pcb` file.

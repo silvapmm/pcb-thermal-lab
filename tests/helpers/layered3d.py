@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file layered3d.py
 @brief A small independent 3D finite-volume conduction solver for a laminated block (layers of different conductivity, convection on the two faces, adiabatic sides).

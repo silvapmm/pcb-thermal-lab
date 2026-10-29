@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file analytic.py
 @brief Closed-form multilayer fin model: exact modal solution for a uniform board.
@@ -42,7 +44,7 @@ from scipy.special import k0
 
 from . import blocks, laminate
 from .fvm import Network
-from .geometry import coverage_fraction, polygon_area, polygon_centroid
+from .geometry import coverage_fraction, polygon_area, polygon_centroid, zone_fill
 from .results import SteadyResult
 from .numfmt import num
 
@@ -129,10 +131,7 @@ def _effective_sheet(problem, cell_mm):
     warnings = []
 
     # --- Copper fill field of every layer and its heater-influence weighted average
-    fill_map = np.zeros((L, ny, nx))
-    for z in problem.zones:
-        fill_map[z.layer] = np.maximum(fill_map[z.layer],
-                                       coverage_fraction(z.polygon, nx, ny, dx, dy, 4) * z.fill)
+    fill_map = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)
     h_tot = float(b.h_top + b.h_bottom)
     d_diel = b.gap_thicknesses()                                          # (L-1,) one per gap
     g_diel = b.gap_properties()[0] / d_diel if L > 1 else np.zeros(0)     # Vertical conductance per area of each gap (W/m2K)
@@ -212,9 +211,7 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
             g_link, g_amb.
     """
     b = problem.board
-    fill_t = np.zeros((L, nty, ntx))
-    for z in problem.zones:
-        fill_t[z.layer] = np.maximum(fill_t[z.layer], coverage_fraction(z.polygon, ntx, nty, tw, th, 4) * z.fill)
+    fill_t = zone_fill(problem.zones, L, ntx, nty, tw, th, 4)
     area_t = np.full((nty, ntx), tw * th)
     out = []
     for ly in blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, ntx, nty, tw, th, n), area_t, fill_t, tw, th):

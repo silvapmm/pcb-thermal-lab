@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_diagonal_heldout.py
 @brief A held-out test of the gate that decides which cells get diagonal faces (README 4.48): the thresholds and the gate were chosen on the 42 windows and the 0 and 45 degree tracks, so here they are tested, unchanged, on data they never saw.

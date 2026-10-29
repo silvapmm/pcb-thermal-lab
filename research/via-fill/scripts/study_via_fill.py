@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_via_fill.py
 @brief What fills a via barrel and how much it matters for heat: open, epoxy resin, conductive paste, electroplated copper.

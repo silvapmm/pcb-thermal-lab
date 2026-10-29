@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_orientation.py
 @brief Board orientation follows from the layer numbering (layer 1 = top, faces up): the computed convection against the textbook formulas and the behaviour they imply.

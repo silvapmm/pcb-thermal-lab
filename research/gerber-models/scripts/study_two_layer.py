@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_two_layer.py
 @brief Validate the mappings on a two-layer board with plated holes (Stormduino, an Arduino Uno clone).

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_conduction.py
 @brief Exact and limiting cases of the conduction solvers and of the mappings (no Gerber needed).

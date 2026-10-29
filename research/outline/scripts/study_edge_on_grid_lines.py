@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_edge_on_grid_lines.py
 @brief Does the program count the whole edge of a board with an outline, also when a side of the outline lies on a grid line or leaves a thin slice of board in a cell?

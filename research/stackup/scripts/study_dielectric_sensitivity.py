@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_dielectric_sensitivity.py
 @brief Does "the dielectric conductivity and thickness move the temperature by about 1 %, the copper by 5 %" hold beyond the 4-layer board with vias, and does an independent solver agree?

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file __init__.py
 @brief PCB thermal physics core (no GUI dependencies).
@@ -12,7 +14,7 @@ Typical use:
     from pcbthermal import Problem, SolverOptions, simulate
 """
 
-__version__ = "2.4.2"
+__version__ = "2.4.3"
 __author__ = "Pedro Silva (PMS Labs)"
 __project_url__ = "https://github.com/silvapmm/pcb-thermal-lab"
 

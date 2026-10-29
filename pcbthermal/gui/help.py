@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file help.py
 @brief The Help menu: the user guide (an HTML file, shown in the program or in the browser) and the About box.

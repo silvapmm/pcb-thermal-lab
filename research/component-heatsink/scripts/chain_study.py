@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file chain_study.py
 @brief Several thermal levels in one chain: junction, pad, board, interface, metal block under the board, and on the other side the package top, interface and heatsink.

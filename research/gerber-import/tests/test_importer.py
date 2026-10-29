@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_importer.py
 @brief The import of a Gerber set on our own board (phase 1): the box, the copper mask, the plated holes with their net and kind, and the warning for an aperture thinner than the pixel; no program needed.

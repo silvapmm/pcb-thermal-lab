@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_reader_conformance.py
 @brief The independent reader against gerbonara on the test files that gerbonara itself is tested with (many CAD tools, and small files that each test one feature).

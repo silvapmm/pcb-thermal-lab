@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the outline rule: a board with an outline, the bounding box, and the rectangle of the same area on which the Lumped and Analytic models are run, with the positions scaled and the field stretched back.

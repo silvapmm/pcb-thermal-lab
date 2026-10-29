@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the metal block and its fins: the cross-section with the heat path and its thermal-resistance chain, the fin and its efficiency curve, and the three ways the Lumped and Analytic models can represent a block.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file importer.py
 @brief The import of a Gerber set: the files to the board box, a mask per copper layer (binary and coverage), the plated holes matched to pads and nets, and the warnings; NumPy only, nothing of the program is needed.

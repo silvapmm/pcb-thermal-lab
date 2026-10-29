@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file preferences.py
 @brief Preferences: the defaults and the material libraries of the program, kept in a JSON file the user can edit here or by hand.
@@ -129,7 +131,7 @@ class PreferencesDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Preferences")
-        self.resize(760, 560)
+        self.resize(980, 600)                                      # The list of sections takes 240 px; the Defaults page needs the rest
         self.data = defaults.load()                         # The working copy: shipped plus the user's file
         self.saved = False                                  # True once Save or Reset changed the files
         lay = QVBoxLayout(self)

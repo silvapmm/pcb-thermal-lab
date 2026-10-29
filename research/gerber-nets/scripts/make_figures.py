@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
 @brief The pictures of phase 3: tracks at any angle on the pixel grid, nets and Joule heat (synthetic board and our IC board), and the electrical prototype with a link.

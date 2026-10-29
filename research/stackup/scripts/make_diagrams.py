@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the stack-up: the simple mode (equal gaps, the thickness shared by the layers) against the advanced mode (copper per layer, material and thickness per gap), the thickness that each node represents and the vertical conductance between nodes as a series of half gaps.

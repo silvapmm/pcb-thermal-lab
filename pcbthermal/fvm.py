@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file fvm.py
 @brief Cell-centred finite-volume thermal solver for a multi-layer PCB (steady and transient).
@@ -22,7 +24,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from . import blocks, laminate
-from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid
+from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
 from .results import SteadyResult, TransientResult
 from .numfmt import num
 
@@ -72,10 +74,7 @@ class Network:
             raise ValueError("copper thickness must be smaller than thickness / layers")
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
-        f = np.zeros((L, ny, nx))
-        for z in problem.zones:
-            cov = coverage_fraction(z.polygon, nx, ny, dx, dy, samples=4) * z.fill
-            f[z.layer] = np.maximum(f[z.layer], cov)
+        f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
         self.fill = f
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
@@ -113,7 +112,8 @@ class Network:
             self._add_laminate(b, cell)
         if with_blocks:
             area = cell.copy()
-            layers = blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, nx, ny, dx, dy, samples=n), area, f, dx, dy)
+            # The block is cut at the board outline: a cell off the board carries no block (it would be pinned to the ambient and drain the block)
+            layers = blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, nx, ny, dx, dy, samples=n) * self.cover, area, f, dx, dy)
             self._add_blocks(layers)
         if b.h_side and b.has_outline():
             # Edge of a non-rectangular board: the length of the outline inside every cell times the slab thickness
@@ -463,6 +463,24 @@ def attach_block_results(res, net, T_all, theta):
         res.extras[f"block_{tag}_mean"] = float((T_all[bi["layer"]][sel] * bi["cov"][sel]).sum() / bi["cov"][sel].sum())
         res.extras[f"block_{tag}_w_to_block"] = float((bi["g_link"] * (theta[bi["board_layer"]] - layer_theta)).sum())
         res.extras[f"block_{tag}_w_to_air"] = float((net.g_block[bi["layer"]] * layer_theta).sum())
+
+
+def unknowns(problem, cell_mm=2.0):
+    """!
+    @brief Number of unknowns of the layered finite-volume model of a problem, counted without building it (the same layers as Network).
+    @details The model has one node per copper layer, the laminate nodes of a one-layer board (laminate.py) and one layer per face that carries
+             metal blocks (blocks.py), each of nx x ny cells. The application shows this number next to the cell size; counting only
+             the copper layers hid 3 of 4 unknowns on a one-layer board with a block.
+    @param problem A Problem.
+    @param cell_mm Target size of the cells in millimetres (the grid is round(width / cell) by round(height / cell), at least 2 each).
+    @return Tuple (unknowns, layers, nx, ny) with layers the number of node layers of the model.
+    """
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    lam = laminate.nodes(b)
+    layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
+    return layers * nx * ny, layers, nx, ny
 
 
 def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=1e-9, sor_criterion="residual"):

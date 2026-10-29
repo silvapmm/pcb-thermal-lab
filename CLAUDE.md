@@ -61,7 +61,15 @@ These rules are mandatory for all code and documentation in this repository.
 
    Use at least `@brief`, `@param`, and `@return` (plus `@throws`, `@note`,
    `@see` where useful). Start each file with a `@file` / `@brief` header block.
-4. Keep the documentation in sync with the code: update docstrings and this file
+4. **Licence header on every Python file** (maintainer, mandatory, always): the first two lines of every `.py` file (after a shebang or an encoding line, if any, and before the module docstring, which stays the first statement) are exactly:
+
+   ```python
+   #  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+   #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+   ```
+
+   It applies to `pcbthermal/`, `tests/`, `examples/` and `research/`, to every new file too, and `tests/test_license_header.py` fails for a file without it.
+5. Keep the documentation in sync with the code: update docstrings and this file
    whenever behavior changes. `tests/test_docs.py` fails if a module, class, function or method in
    `pcbthermal/` or `examples/` lacks `@brief`, an `@param` per argument, or an `@return` for a returned value.
 
@@ -176,6 +184,7 @@ network, an iterations GIF instead of time) and the numbers before and after are
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
+python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements.txt -r research/gerber-import/requirements.txt   # once: the Gerber studies (gerbonara, shapely, pygerber, pcb-tools); kept out of .venv so that the program's environment stays clean
 .venv/bin/python -m pcbthermal gui [project.pcbt.json]               # application
 .venv/bin/python -m pcbthermal run examples/example_board.pcbt.json  # CLI: all models, report, plots
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json   # direct vs CG vs SOR
@@ -186,7 +195,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 
 ## Branches and Versions
 
-- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.2** (2026-10-29). Numbering (maintainer's rule): only fixes give a patch number (2.4.3 next), any `feature/` item in the version makes it a minor number (2.5.0). `pcbthermal.__version__` stays the released number on `develop` until the release commit that bumps it.
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.3** (2026-10-29). Numbering (maintainer's rule): only fixes give a patch number (2.4.4 next), any `feature/` item in the version makes it a minor number (2.5.0). `pcbthermal.__version__` stays the released number on `develop` until the release commit that bumps it.
 - `develop`: integration branch for the next version; every fix, feature, documents and research branch starts from it and merges back into it when finished (see the branch rule in "Git Workflow"); `main` gets `develop` only at a release.
 - Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
@@ -284,6 +293,10 @@ The review of every research folder is tracked in `research/REVIEW.md` (status, 
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
 
 ## Decisions Log
+
+- **Released 2.4.3** (fixes only, so a patch number): block cut at the outline, union of zones with the self-intersection warning, top path only on a component, source-fields warning, unknown count, drill-diameter label, 3D via spread, interface cleanups and the licence header; `develop` merged into `main`, tag `v2.4.3`. Open for 2.5.0: the memory guard (feature).
+
+- **Licence header on every Python file** (maintainer): every `.py` file starts with two comment lines, the copyright of Pedro Silva (PMS Labs) and the MIT notice, before the module docstring; added to the 313 files that existed, and `tests/test_license_header.py` makes it a rule for every new file. The wording is the maintainer's ("All rights reserved" next to the MIT licence; the licence of the project is MIT, see `LICENSE`).
 
 - **Times and memory corrected, stale text of the merge removed** (documentation correction for 2.4.2, branch `docs/timings`): the times of the 3D solid and the layered FVM written in the documents (49 s, 130 s, 276 s, 320 s; 97 s and 273 s) were not reproduced on a quiet 16 GB machine (`research/solid3d-verification/docs/for-the-project-documents.md`: example board 247 000 unknowns 15.3 s and 3.5 GB, 512 000 unknowns 57.7 s and 9.9 GB resident; plain two-layer board 500 000 unknowns 9.3 s and 3.3 GB; layered FVM 1 million 5.2 s and 2.7 GB, 2 million 12.4 s and 5.5 GB); why they differed is not established, so the documents say only that the old numbers were not reproduced and that the figures depend on the machine, the board and the computed-h loop. The limit `MAX_CELLS = 250 000` is unchanged (the memory guard is a separate item of `docs/versions.md` (chapter 'Planned')); the figures in the entry "3D solid limited to 250 000 unknowns" below are the old ones. The pointers to the research branch were removed now that the research folders are in `develop`.
 

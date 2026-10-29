@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file check_correlations.py
 @brief Numerical checks of the correlations and formulas that the reference compilation of the maintainer quotes, so that what was transcribed or written from memory is at least internally consistent: the 2D Hashin-Shtrikman bounds and the Keller-Dykhne product, the Bar-Cohen and Rohsenow composite and its limits, the Elenbaas correlation, the two Churchill-Chu vertical-plate forms, the Hollands (1984) equation and the Churchill-Chu all-range form against the worked values in the source of the Python `ht` library (read from the package, MIT licence; its examples are given with the Grashof number, not the Rayleigh number), and the series and parallel conductivities of the printed board example.

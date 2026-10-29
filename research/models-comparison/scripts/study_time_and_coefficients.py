@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_time_and_coefficients.py
 @brief Which numbers do the time-dependent models and the computed heat transfer coefficients give now? Prints the tables of README sections 4.6 and 4.7.

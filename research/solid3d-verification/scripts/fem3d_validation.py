@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file fem3d_validation.py
 @brief Independent 3D finite-element check of the layered models and the 3D solid (offline script, not part of the program).
