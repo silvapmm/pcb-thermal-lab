@@ -18,6 +18,7 @@ Studies that are not part of the program, one folder per investigation, named af
 | [`stackup/`](stackup/README.md) | implemented | The advanced stack-up in the five models, its sensitivity, the typical templates against fabricators. |
 | [`via-fill/`](via-fill/README.md) | implemented | What fills a via barrel and how much it matters. |
 | [`fin-channel/`](fin-channel/README.md) | open, reviewed | The channel effect between close fins of the finned block: Elenbaas and composite correlations read and reproduced, measured fin arrays, the program's block with the channel coefficient, a rule for the warning and a correction. |
+| [`fin-channel-sources/`](fin-channel-sources/README.md) | open | The sources `fin-channel` could not open: Elenbaas and Bar-Cohen and Rohsenow through the papers that print them, the array of Bar-Cohen, Iyengar and Kraus reproduced, Ostrach's table, measured arrays on a horizontal base. |
 | [`zone-union/`](zone-union/README.md) | open, reviewed | How the zones of one copper layer are combined into the copper of a cell: what the CAD tools mean, which rule is right, the five models against an independent solver, sampling, cost, edge cases. |
 
 * [`ROADMAP.md`](ROADMAP.md): what is left to finish, in the order recommended, and the pool of open questions to investigate.

@@ -1,0 +1,3 @@
+# Roadmap entry (text for `research/ROADMAP.md`)
+
+**C3b. The originals of the channel effect and a second horizontal data set.** Why: `fin-channel-sources` reproduced the formulas from secondary sources and found one measured horizontal set (six arrays, plot values); the originals (Elenbaas 1942, Bar-Cohen and Rohsenow 1984) and the experimental papers of Leung and Probert, Starner and McManus, Harahap and McManus are paywalled and still not read. Next step: the maintainer fetches the citations listed in section 9 of `fin-channel-sources/README.md`; then read their data tables, reproduce one array per paper with `lib/sources.py` and compare the `phi` form on a horizontal base.
