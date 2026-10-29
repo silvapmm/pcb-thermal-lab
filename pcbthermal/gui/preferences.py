@@ -129,7 +129,7 @@ class PreferencesDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("Preferences")
-        self.resize(760, 560)
+        self.resize(980, 600)                                      # The list of sections takes 240 px; the Defaults page needs the rest
         self.data = defaults.load()                         # The working copy: shipped plus the user's file
         self.saved = False                                  # True once Save or Reset changed the files
         lay = QVBoxLayout(self)
