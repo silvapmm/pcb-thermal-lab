@@ -1,4 +1,4 @@
-# Integration: where the metal block and its fins live, and a defect found in the review
+# Integration: where the metal block and its fins live, and a defect found in the review (corrected)
 
 The work of this folder is in the program since 2.3.0 (the block in the FVM, FDM and 3D solid, the fins) and 2.4.0 (the block in the Lumped and Analytic steady states).
 
@@ -12,7 +12,9 @@ The work of this folder is in the program since 2.3.0 (the block in the FVM, FDM
 | Fin air-gap warning (below 4 mm in still air) | `checks.py` | `tests/test_heatsink_part.py` |
 | Thick-plate warning with the flux into the block | `checks.check_thick_plates`, `checks._block_flux_under` | `tests/test_thick_plate.py` |
 
-## A defect of the program found in the review: the fin ratio on the sides of the block
+## A defect of the program found in the review: the fin ratio on the sides of the block (corrected in the program)
+
+**Status: corrected** on `fix/finned-block-sides` (`blocks.wall_h` gives the side walls `h_face + h_extra`, `extra_layers` carries it as `h_wall`, `solid3d.py` does the same; `docs/versions.md`, `docs/validation.md` section 3 and the Decisions Log of `CLAUDE.md`, "Side walls of a finned block"). The finned blocks of the table below became 65.0 / 70.0 / 56.6 K in the FVM. The description and the option that follow are kept as the record.
 
 **What.** `blocks.extra_layers` gives every block cell the conductance to the ambient `h_tot (A c + t L_edge)` with `h_tot = h_face × fin_ratio + h_extra`; `solid3d.py` does the same (`vk[s] += h_tot * dz * edge`). The first term is right: the fins stand on the exposed base face, and the ratio is per unit of base area. The second term gives the **sides** of the base plate the fin ratio too, though the sides carry no fins; they should see `h_face + h_extra`. `docs/theory.md` section 7 writes the exposed term as `(h_face + h_extra)(Δx Δy c + t L_edge)` (no fin ratio at all) and the Lumped bullet of the same section as `h_exp (A c + t L_edge)`: neither describes the code as a fin model should be.
 
@@ -27,9 +29,9 @@ The work of this folder is in the program since 2.3.0 (the block in the FVM, FDM
 
 The error grows with the ratio of the side area `t × perimeter` to the base area (thick plates, small blocks) and with the fin ratio. It is optimistic (too cool), in the same direction as the channel effect that the program also ignores.
 
-**Correction (not applied: `pcbthermal/` is not edited on a research branch).** In `blocks.extra_layers`, keep `h_tot` for the base and use `h_side = h_face + s.h_extra` for the sides: `g_amb = h_tot * area * c + (h_face + s.h_extra) * s.thickness * side`; the same in `solid3d.py` (`vk[s] += (h_face + f["he"]) * slabs[s]["dz"] * edge`). The Lumped and Analytic models take `g_amb` from `blocks.extra_layers` and follow. Whether `h_extra` (a typed extra coefficient of the exposed face) should apply to the sides is a choice: it does now, and the correction keeps that. A regression test: the finned block of `tests/test_heatsink_part.py` with the side area made large (a thick, small block) against a hand sum of the conductances of one cell, or the second table of the study (+5.5 to +6.4 % after the change). Numbers that move: `docs/validation.md` section 12 D and `docs/models.md` section 15 (finned rows), the finned cases of `block_equivalent_study.py`.
+**Correction (applied afterwards on `fix/finned-block-sides`, as written here).** In `blocks.extra_layers`, keep `h_tot` for the base and use `h_side = h_face + s.h_extra` for the sides: `g_amb = h_tot * area * c + (h_face + s.h_extra) * s.thickness * side`; the same in `solid3d.py` (`vk[s] += (h_face + f["he"]) * slabs[s]["dz"] * edge`). The Lumped and Analytic models take `g_amb` from `blocks.extra_layers` and follow. Whether `h_extra` (a typed extra coefficient of the exposed face) should apply to the sides is a choice: it does now, and the correction keeps that. A regression test: the finned block of `tests/test_heatsink_part.py` with the side area made large (a thick, small block) against a hand sum of the conductances of one cell, or the second table of the study (+5.5 to +6.4 % after the change). Numbers that move: `docs/validation.md` section 12 D and `docs/models.md` section 15 (finned rows), the finned cases of `block_equivalent_study.py`.
 
-**Decision for the maintainer**: apply the correction (a `fix/` branch with the reviewer), or keep the present rule and state it in `docs/theory.md` (the sides of a finned block counted as finned) as a known optimistic choice.
+**Decision of the maintainer**: the correction was applied (a `fix/` branch with the reviewer).
 
 ## Open (limits of the model, in `docs/roadmap.md`)
 

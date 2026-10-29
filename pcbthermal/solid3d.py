@@ -34,11 +34,12 @@ from .results import SteadyResult
 
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
 K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a block)
-# Largest 3D model that is solved. The direct sparse solve of a 3D grid fills in far more than the layered 2D models: measured on a 4-layer
-# board (16 slabs), the memory grew to about 2.2 GB at 160 000 unknowns, 4.4 GB at 254 000 and 5.3 GB at 394 000, and 1 000 000 did not
-# finish in 25 minutes with the process thrashing in swap on a 16 GB machine (the old limit, 2 million, let the application wait for hours).
-# The limit is memory-bound; the times depend on the memory pressure (seconds to minutes) and are not quoted here, because a clean-machine
-# measurement is still to be made. With computed heat transfer coefficients the solve is repeated 3 to 6 times, so the limit is kept near the 4 GB point.
+# Largest 3D model that is solved. The direct sparse solve of a 3D grid fills in far more than the layered 2D models. Measured on a quiet
+# 16 GB machine (research/solid3d-verification/docs/for-the-project-documents.md): on the example board (16 slabs) 158 000 unknowns take
+# 7.2 s and 2.15 GB, 247 000 take 15.3 s and 3.5 GB, 392 000 take 32.8 s and 7.4 GB and 512 000 take 57.7 s and 9.9 GB resident; on a plain
+# two-layer board (6 slabs) 500 000 unknowns take 9.3 s and 3.3 GB. Time and memory depend on the board (slab count, vias, blocks), on the
+# machine and on the computed-h loop (the solve is repeated 3 to 6 times). The older figures of this comment (tens of seconds to minutes, 4.4 GB
+# at 254 000) were not reproduced and are withdrawn. The limit is kept at 250 000, a value set for memory: at it the example board needs 3.5 GB.
 MAX_CELLS = 250_000
 K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is R'' times this)
 
@@ -100,7 +101,7 @@ def check_size(problem, cell_mm=2.0, n_diel=4):
         # Suggest the cell that brings the model under the limit (the unknowns go as 1 / cell^2)
         hint = np.ceil(cell_mm * (n / MAX_CELLS) ** 0.5 * 10.0) / 10.0    # Rounded up to 0.1 mm, so the printed cell is enough
         raise ValueError(f"the 3D model would have {n} unknowns ({ns} slabs of {nx} x {ny} cells), more than the {MAX_CELLS} a direct solve "
-                         f"handles in a few minutes and a few GB; use a cell of {hint:.1f} mm or more")
+                         f"handles (the limit keeps the memory of a solve to a few GB); use a cell of {hint:.1f} mm or more")
 
 
 def _edge_length(cov, dx, dy):

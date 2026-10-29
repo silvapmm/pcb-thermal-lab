@@ -17,6 +17,7 @@ This file is the index; `research/README.md` holds the layout rules, the rules f
 | Models | `solid3d-verification/` | implemented (2.3.0, 2.4.0; one-layer laminate corrected after 2.4.1) | Does the 3D solid reproduce an exact solution; how far are the layered models from a 3D solution. |
 | Models | `block-and-fins/` | implemented (2.3.0, 2.4.0) | Metal block and fins: the fin formula, and the block in the Lumped and Analytic models. |
 | Board | `outline/` | implemented (2.4.0; time constant corrected after 2.4.1) | Which rectangle for the Lumped and Analytic models on a board with an outline. |
+| Board | `stackup/` | implemented (2.4.0; 1 oz inner-copper option after 2.4.1) | The advanced stack-up in the five models, how sensitive the temperature is to each stack-up number, and how the typical templates compare with fabricators' tables (including the 1 oz inner copper). |
 | Board | `via-fill/` | implemented (2.4.0) | What fills a via barrel and how much it matters. |
 
 Everything in `research/` that is ours (documents, scripts, figures) is MIT like the rest of the repository (see the README of the project). Third-party boards used to validate studies are downloaded by a script into the folder's git-ignored `data/` and are never committed; each folder's README states their licences.
