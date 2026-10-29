@@ -7,7 +7,7 @@
 
 from PySide6.QtCore import QEvent, QLocale, QObject, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QKeyEvent, QKeySequence, QPainter, QPalette, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QWidget
+from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QWidget
 
 THEMES = {
     "dark": {
@@ -58,6 +58,8 @@ class _CommaToPoint(QObject):
         @param event The event.
         @return True when the event was replaced (and so consumed), otherwise False.
         """
+        if event.type() == QEvent.ContextMenu:
+            return self._context_menu(obj, event)
         if event.type() != QEvent.KeyPress:
             return False
         spin = obj if isinstance(obj, QAbstractSpinBox) else (obj.parentWidget() if isinstance(obj, QWidget) else None)
@@ -71,6 +73,35 @@ class _CommaToPoint(QObject):
             spin.lineEdit().insert(QApplication.clipboard().text().replace(",", "."))
             return True
         return False
+
+
+    def _context_menu(self, obj, event):
+        """!
+        @brief Show the standard menu of the line edit of a spin box with a Paste that turns commas into points.
+        @param obj Object that receives the event.
+        @param event The QContextMenuEvent.
+        @return True when the menu was shown here, False for any other widget.
+        """
+        spin = obj.parentWidget() if isinstance(obj, QLineEdit) else None
+        if not isinstance(spin, QAbstractSpinBox) or obj is not spin.lineEdit():
+            return False
+        menu = obj.createStandardContextMenu()
+        paste = next((a for a in menu.actions() if a.text().replace("&", "").split("\t")[0] == "Paste"), None)
+        if paste is not None:
+            paste.triggered.disconnect()                       # The default slot would paste "0,45" as typed, which the spin box reads as 45
+            paste.triggered.connect(lambda: obj.insert(QApplication.clipboard().text().replace(",", ".")))
+        _show_menu(menu, event.globalPos())
+        menu.deleteLater()
+        return True
+
+
+def _show_menu(menu, pos):
+    """!
+    @brief Run a context menu (a function of its own so that a test can answer the menu without a mouse).
+    @param menu The QMenu.
+    @param pos Global position of the menu in pixels.
+    """
+    menu.exec(pos)
 
 
 _COMMA_FILTER = None    # The single event filter installed by fix_number_locale
