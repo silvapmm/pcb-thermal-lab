@@ -204,26 +204,27 @@ def fig_05():
     ax.set_xlim(0, 12)
     ax.set_ylim(0, 6)
     cols = [
-        ("Gerber (Ucamco spec, 2.9 and 4.6)", dk.BLUE,
+        ("Gerber (Ucamco spec 2026.05, pages 14, 96, 98)", dk.BLUE,
          ["The image is the stack of levels in file order.", "A dark object darkens, a clear object clears the levels below.",
           "Objects may overlap; within a level the order does not matter.", "A region is filled; contours of one G36/G37 pair:",
           "'the overall filled area is the union of the filled areas'.", "=> overlapping dark copper = geometric union.", "A copper layer may carry the label type Hatched (a file attribute);", "the copper itself is still objects: there is no density."]),
-        ("KiCad (zone documentation)", "#2ca02c",
+        ("KiCad (manual 9.0, zone_filler.cpp)", "#2ca02c",
          ["Zone priority orders the fill of overlapping zones.", "Lower priority keeps clearance to the fill of higher priority.",
           "Same priority, same net: the zones overlap and are one copper.", "Different nets: one keeps clearance to the other.",
-          "Fill types: solid or hatch pattern (width, gap, orientation).", "=> overlap = union for one net, knock-out for two nets."]),
-        ("Altium (polygon pour documentation)", "#d62728",
+          "Same net, higher priority: its outline is cut from the lower zone", "(source: it is 'in charge of the fill parameters' there).",
+          "Fill types: solid or hatch pattern (width, gap, orientation).", "=> solid copper of one net: the union; a hatched zone of higher", "priority keeps its own pattern inside its outline."]),
+        ("Altium (polygon pour properties page)", "#d62728",
          ["Overlapping polygons: the pour order decides who owns the area.", "'Bring to front' makes a polygon pour over the others.",
           "Pour Over Same Net Polygons Only (default) pours over same-net polygons.", "Hatched: track width below the grid size; modes 90, 45, horizontal, vertical.",
-          "=> same net: union; otherwise the higher order wins."]),
+          "=> the higher order owns the shared area; for solid copper", "of one net the result is the union."]),
     ]
     for i, (head, color, lines) in enumerate(cols):
         x = 0.1 + 4.0 * i
         dk.box(ax, x, 4.9, 3.8, 0.8, head, color=color, bold=True, size=8)
         for j, t in enumerate(lines):
-            ax.text(x + 0.05, 4.55 - 0.55 * j, t, fontsize=6.8, va="top", wrap=True)
-    ax.text(6, 0.25, "None of the three says that a hatched zone is a density: it is a pattern; the union of the copper they draw is the geometric union of the patterns.\n"
-                     "Sources: Gerber spec revision 2016.01 read in the sections cited; KiCad and Altium pages read through a summary (README, section 1).", ha="center", fontsize=7.2, style="italic")
+            ax.text(x + 0.05, 4.55 - 0.45 * j, t, fontsize=6.8, va="top", wrap=True)
+    ax.text(6, 0.25, "None of the three says that a hatched zone is a density: it is a pattern. Solid copper that overlaps is the geometric union in all three;\n"
+                     "where hatched zones overlap, KiCad and Altium give the area to one zone (priority, pour order). Sources read in their text: README, sections 2 and 12.", ha="center", fontsize=7.2, style="italic")
     dk.save(fig, FIGURES / "fig_05_cad_semantics.png")
 
 
