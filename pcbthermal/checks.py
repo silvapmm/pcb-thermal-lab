@@ -22,6 +22,7 @@ THICK_PLATE_LIMIT = 0.05
 # A fin channel is called close when its channel Rayleigh number is below this value: the channel then keeps less than 90 % of the coefficient of the
 # isolated plate (phi(90) = 0.90, research/fin-channel)
 FIN_CHANNEL_RA_LIMIT = 90.0
+FIN_CHANNEL_RA_BOUND = 14.0    # Below it the loss is given as an upper bound
 
 
 class CheckWarning(str):
@@ -341,8 +342,19 @@ def check_fin_channels(problem, result=None):
         ra = fin_channel_rayleigh(gap, length, theta, b.ambient)
         if ra < FIN_CHANNEL_RA_LIMIT:
             phi = fin_channel_fraction(ra)
+            loss = 100 * (1 - phi)
+            # Below Ra_b 14 the closed-channel model is far too pessimistic for arrays open in front (research/fin-channel-sources), so the loss is a bound
+            loss_text = (f"up to {loss:.0f} % less (a bound: arrays open in front lose less)" if ra < FIN_CHANNEL_RA_BOUND
+                         else f"{loss:.0f} % less")
+            if b.orientation == "vertical":
+                where = "Valid for a vertical board."
+            elif s.layer == 0:
+                where = ("Fins up on a horizontal board: measured arrays (one paper, six arrays) lose about as much; "
+                         "the effect is not otherwise quantified.")
+            else:
+                where = "Fins down on a horizontal board: the effect is not quantified (no measurement was found)."
             out.append(f"{s.name or f'Heatsink {j + 1}'}: the channel between the fins ({num(1000 * gap, 3)} mm wide, about {num(1000 * length, 3)} mm long, block {theta:.0f} K above "
-                       f"the air) has a channel Rayleigh number of {ra:.0f}; the air between the fins cools {100 * (1 - phi):.0f} % less than a plate of the same height "
+                       f"the air) has a channel Rayleigh number of {ra:.0f}; the air between the fins cools {loss_text} than a plate of the same height "
                        f"({phi:.2f} of its coefficient), and the model does not slow it. Use a larger pitch, shorter channels, or the datasheet theta_SA. "
-                       "Valid for a vertical board; for a horizontal board the effect is not quantified.")
+                       + where)
     return out
