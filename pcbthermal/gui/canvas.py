@@ -716,11 +716,13 @@ class BoardView(QGraphicsView):
             py = origin.y() - v * scale
             major = abs(v / step - round(v / step)) < 1e-6
             painter.drawLine(size - (9 if major else 4), int(py), size, int(py))
-            if major and py > size:
+            text = num(v)
+            # The rotated label runs upward from its tick: leave it out when it would reach the corner square where "mm" is written
+            if major and py - 2 - painter.fontMetrics().horizontalAdvance(text) > size:
                 painter.save()
                 painter.translate(11, int(py) - 2)
                 painter.rotate(-90)
-                painter.drawText(0, 0, f"{num(v)}")
+                painter.drawText(0, 0, text)
                 painter.restore()
             k += 1
         painter.drawText(2, 12, "mm")

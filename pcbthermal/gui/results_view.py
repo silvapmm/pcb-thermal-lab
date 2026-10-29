@@ -304,6 +304,8 @@ class ResultsView(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.tabs = QTabWidget()
+        self.tabs.tabBar().setElideMode(Qt.ElideNone)             # "Components" was cut to "Compone…" in a narrow window
+        self.tabs.tabBar().setUsesScrollButtons(True)
         lay.addWidget(self.tabs)
 
         # Summary: models table, warnings and the text report
