@@ -17,6 +17,7 @@ What the independent `reviewer` agent has checked in each folder, so that a late
 | `gerber-import/` | reviewed | `a6f822b` | none in the program (no model involved) |
 | `gerber-models/` | reviewed | `a6f822b` | open: zones combined by the maximum per cell (-8.2 % FVM, -19.1 % FDM on abutting strips); two laminate nodes 5.5 to 13.6 % cool on patterned copper (A11); the laminate of a one-layer board in the 3D solid is corrected |
 | `gerber-nets/` | reviewed | not applicable (no electrical code in `pcbthermal/`) | none in the program; limits: return current in the ground net, resistivity, plated outer copper |
+| `fin-channel/` | reviewed | `11b3bc4` | none in the program; all numbers reproduced, the channel solver checked by a second solver (0.3 %); corrected in the folder: the baseline of README 5 and 6 (a 7 % offset between the composite's plate limit and the Churchill and Chu plate had been read as "no channel effect at 6.5 mm" and the `phi` form as conservative; the channel effect is +1.9 % of the rise there), the 3D-solid pitch counted `h_extra` twice (regression test), the `beta` and block-temperature notes, Figure 10; open: decisions in `INTEGRATION.md` 6 (rule at `Ra_b < 90`, the `phi` option, C3a, radiation, the plate level) |
 | `zone-union/` | reviewed | `98bae17` | open (decisions in `INTEGRATION.md` 3 and 4): adopt the per-point union (prototype `fix/zone-union`, 681 passed); limit found, not about zones: the layered models lose 12 to 14 points of the peak on a part over bare laminate (README 8.3); the real-board reference is 5 to 14 % low at 0.25 mm |
 
 Program defects found by a review are never corrected from a research branch: they are items of `docs/versions.md` ("Planned") or are marked "corrected in the program" above.
@@ -28,6 +29,6 @@ Row 4 of `ROADMAP.md` section 1; the recommendation to start from is after each.
 * gerber-nets: the ground return current (not yet; list it as a limit); the copper resistivity (1.72e-8 ohm m with 0.393 %/K, editable); whether the rho(T) loop reuses `api._solve_with_tc` (reuse, evaluated on the hottest track cell, iterated to convergence).
 * gerber-models: the default mapping of an import (flow-based faces for patterned copper, the fill as the fast fallback); a `fix/` branch for the union of zones per sample point; refine the laminate nodes (investigate first, A11); the 42-window studies on the program's network.
 * via-fill: the point via (A5), the label of the via diameter (drill), Lumped and Analytic overstating vias (A6), the 3D clip of a large via.
-* block-and-fins: the 4 mm threshold of the fin warning or a channel correlation (C3).
+* block-and-fins and fin-channel: the 4 mm threshold of the fin warning (C3): replace it by a rule on the channel Rayleigh number and whether to add the correction (`fin-channel/INTEGRATION.md`).
 * gerber-import: the reader accepting LM/LR/LS and aperture blocks (E10).
 * the other folders: the items in each folder's `INTEGRATION.md` and in `docs/versions.md` ("Planned").

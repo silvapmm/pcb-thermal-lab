@@ -60,7 +60,7 @@ Both are steady state only; the time simulations still refuse a block, and SOR d
 
 * Fin efficiency and corrected length: [IncroperaDeWitt]. Spreading resistance of a small source on a plate (the plate model's comparison, the worked example of Seri Lee's article): [EC1998Spreading], topic 18; [Lee1995] was cited for it earlier and has not been located.
 * Static condensation (Schur complement) of finite-element codes and Kron reduction: [MFEMStaticCond], [Kron2022].
-* Channel effect between fins (not modelled): [ElenbaasBCR]. Heatsink catalogues: [HeatsinkCatalogues]. Interface measurement standard: [ASTMD5470].
+* Channel effect between fins (not modelled in the program; measured on a copy in `research/fin-channel/`: for vertical channels of 40 mm at 3 W the conductance of the finned face is 25 % below the uniform-coefficient value at a 4.5 mm gap and 8 % below at 5.5 mm; see its README, sections 5 and 6): [ElenbaasBCR], [TeertstraReview], [Yazicioglu2009]. Heatsink catalogues: [HeatsinkCatalogues]. Interface measurement standard: [ASTMD5470].
 * Own computation: [L-block].
 
 *What was read and what was not verified:* equations from `docs/theory.md` section 7 (read in full); the plate check is against [EC1998Spreading] (its worked example, read); [Lee1995] could not be found; the channel correlation is not used.
