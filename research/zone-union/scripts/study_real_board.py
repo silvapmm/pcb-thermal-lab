@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_real_board.py
 @brief Q7: what the rule that combines zones does on a real board drawn as a crowd of solid polygons (the Stormduino from its KiCad file: tracks, pads, zone fills).

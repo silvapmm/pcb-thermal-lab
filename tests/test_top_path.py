@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_top_path.py
 @brief The split of the power of a part with a top path (a heatsink on the package) is the root of a scalar equation, also on small pads where a fixed-point loop diverges.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_thick_plate.py
 @brief The thick-plate warning: q'' t / (2 k) above 5 % of the rise of a heater (a bound on how much hotter the surface under a source can be than the through-thickness mean of the layered models).

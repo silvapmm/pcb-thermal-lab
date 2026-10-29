@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file paths.py
 @brief The folders of the zone-union investigation, found from this file so that scripts and tests agree wherever they are run from.

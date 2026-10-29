@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_outline_time_constant.py
 @brief Does the time constant of a board with an outline, and the step response the power profiles use, leave out the cells off the board?

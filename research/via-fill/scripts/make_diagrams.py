@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the via fills: the cross-section of a barrel open, with a resin plug, with conductive paste and with electroplated copper, and the heat path through the barrel and its fill.

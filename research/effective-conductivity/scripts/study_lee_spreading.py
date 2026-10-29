@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_lee_spreading.py
 @brief The spreading resistance of a small square source on a base plate (Seri Lee, Electronics Cooling, January 1998): centre, edge-midpoint and corner positions with the independent 3D solver.

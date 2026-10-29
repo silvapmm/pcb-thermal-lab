@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_native_gerber.py
 @brief The NumPy-only Gerber and Excellon reader on small files written by the tests: every area is compared with its analytic value.

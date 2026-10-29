@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief The drawings of the zone-union investigation: a cell with two zones and its sample points, the rules at a point, what a hatched pour is and how two of them can combine, the cases compared, the CAD semantics, and where the fill enters the program.

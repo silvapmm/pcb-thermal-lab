@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_cell_size.py
 @brief Do the datasheet rows of calculator_validation.py depend on the cell size, and how much does the JEDEC row depend on how the test board is read?

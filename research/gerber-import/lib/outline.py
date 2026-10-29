@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file outline.py
 @brief The board outline from the profile layer (Edge.Cuts) of a Gerber set: the shape of the board as a mask and as a polygon, with the cut-outs, and a check that the contour is closed.

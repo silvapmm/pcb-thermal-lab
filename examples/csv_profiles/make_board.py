@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_board.py
 @brief Writes board.pcbt.json: the 100 x 80 mm, 4-layer example board used by the tests (two heaters, vias, partial copper, a heatsink).

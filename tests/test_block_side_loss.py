@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_block_side_loss.py
 @brief The side walls of a finned metal block lose heat with the plain coefficient: the fins stand on the exposed face, not on the sides.

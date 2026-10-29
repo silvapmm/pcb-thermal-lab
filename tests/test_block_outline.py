@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_block_outline.py
 @brief A metal block that extends beyond the board outline is cut at the outline in the FVM, FDM and 3D solid, and the input check says so.

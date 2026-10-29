@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_block_against_fem.py
 @brief Does the metal block of the FVM and FDM (a heatsink with a thickness) follow an independent 3D finite-element solid?

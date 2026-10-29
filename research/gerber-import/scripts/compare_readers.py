@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file compare_readers.py
 @brief The independent reader against the other Python Gerber tools, on files with a known copper area (made with gerbonara, see make_synthetic.py) and on the real boards.

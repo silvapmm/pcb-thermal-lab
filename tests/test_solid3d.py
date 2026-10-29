@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_solid3d.py
 @brief The 3D finite-volume solid: agreement with the layered FVM, vias, metal blocks, energy balance, size limit and use in the API.

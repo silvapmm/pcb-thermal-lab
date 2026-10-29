@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_calculator_design.py
 @brief The design-uncertainty terms of the power calculator band: zero term identical to the old band, root-sum-square combination, levels in the defaults, Preferences round trip.

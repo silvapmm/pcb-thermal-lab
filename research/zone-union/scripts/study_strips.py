@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_strips.py
 @brief Q4 (where the zone edges fall): the error of the old rule against the width of abutting strips and the offset of their joints with respect to the cell grid.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_culham_1998.py
 @brief Repeat the test coupons of Culham and Yovanovich (ITherm 1998) with an independent 3D finite-volume solver and compare the effective conductivity with the values the paper reports.

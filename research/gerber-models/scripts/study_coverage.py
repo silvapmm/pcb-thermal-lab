@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_coverage.py
 @brief Does a grey-level (coverage) mask help the conduction mapping when the copper has thin tracks, compared with a binary mask at the same pixel?

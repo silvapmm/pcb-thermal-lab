@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file diagonal.py
 @brief A nine-point network for the thermal grid: faces to the four diagonal neighbours as well as to the four axial ones, a conductance tensor per cell from local conduction problems, and the stencil that goes with it (research prototype for the diagonal copper of README 4.42).

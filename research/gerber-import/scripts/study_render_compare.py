@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_render_compare.py
 @brief Does the independent reader draw the same copper as the other tools? The same layer rendered by four methods and compared pixel by pixel: the independent reader, gerbonara + shapely (the vector truth, sampled at the pixel centres), pygerber and pcb-tools (rasters with anti-aliasing).

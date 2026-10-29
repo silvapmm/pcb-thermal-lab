@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file block_contact_study.py
 @brief Research on heatsinks larger than their contact: the plate model against a published spreading-resistance example, a big block touching the board only in a patch, and the effect of a temperature-dependent power.

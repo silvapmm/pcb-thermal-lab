@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file outline_rectangle_study.py
 @brief How good is the rectangle of the same area that the lumped and analytic models use on a board with an outline?

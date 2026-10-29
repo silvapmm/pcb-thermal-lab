@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_coverage_real.py
 @brief The coverage mask against the binary mask on real copper: 20 mm windows of the downloaded boards, truth = the 0.025 mm mask solved pixel by pixel.

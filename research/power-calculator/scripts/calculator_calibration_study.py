@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file calculator_calibration_study.py
 @brief How to reduce the error of the power calculator when the drawn board is not exactly the real one: a known-power reference, two measurement points, an uncertainty band.

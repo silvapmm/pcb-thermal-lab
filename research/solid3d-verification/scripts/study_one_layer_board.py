@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_one_layer_board.py
 @brief Does the 3D solid keep the laminate of a one-layer board, and how close are the layered models to an independent 3D solver on such a board?

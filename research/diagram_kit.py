@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file diagram_kit.py
 @brief Small drawing helpers shared by the `make_diagrams.py` scripts of the research folders: boxes, arrows, a layer stack and a resistor, in plain matplotlib (no data, no program).

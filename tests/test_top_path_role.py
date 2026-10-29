@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_top_path_role.py
 @brief Only a component has a top path: a pure source that carries theta and theta_sa (through the API or a JSON file) ignores them.

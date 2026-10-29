@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_boards_matrix.py
 @brief Every mapping of copper to face conductances on every board we have, in one table: the Stormduino, our IC board, the rectangle board (edges on the cells and between them) and eight synthetic boards (perforated plane, hatched plane, plane with holes, island and ring, random board, diagonal and horizontal tracks, a pads-and-arcs board written by Ucamco's `gerber-writer`).

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_gerber_writer.py
 @brief A third independent writer: files made with the `gerber-writer` library (Ucamco's Python library for writing Gerber X2 files) read by the independent reader and by gerbonara.

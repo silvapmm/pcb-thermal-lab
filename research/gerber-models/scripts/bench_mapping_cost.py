@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file bench_mapping_cost.py
 @brief What do the mappings cost on a board-sized layer? Time and peak memory of the bounds (lambda) and of the flow-based faces for 0.5 to 8 million pixels.

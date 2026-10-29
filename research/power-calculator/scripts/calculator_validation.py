@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file calculator_validation.py
 @brief Validation of the power calculator against datasheets: the datasheet's own board, built in the program, must give the datasheet's thermal resistance.

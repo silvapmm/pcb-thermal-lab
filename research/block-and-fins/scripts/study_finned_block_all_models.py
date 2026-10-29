@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_finned_block_all_models.py
 @brief A finned metal block in every model (the table "D. Finned metal block" of the program's `docs/validation.md` section 12), and how much the fin ratio applied

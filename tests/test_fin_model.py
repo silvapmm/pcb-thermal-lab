@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_fin_model.py
 @brief The plate-fin model of the metal block against an independent 2D finite-volume solution of one fin, and the fin limits it states.

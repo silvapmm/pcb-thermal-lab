@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_nets.py
 @brief Holes, pads and nets matched by position, on small synthetic files written by the tests (a plated via, a component hole, a non-plated hole, a conflicting net).

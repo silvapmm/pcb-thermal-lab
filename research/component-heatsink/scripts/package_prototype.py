@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file package_prototype.py
 @brief Prototype (not part of the program): a power MOSFET on a copper pad as a simple heater and as a junction node, to see what the extra model changes.

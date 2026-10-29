@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file base_spreading_study.py
 @brief How much does the base of a heatsink add to its catalogue resistance when the source is a small component? A 3D conduction solve of a plate with a uniform film coefficient.

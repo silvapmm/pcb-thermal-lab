@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_program_vs_coupon.py
 @brief The five models of the program against the independent 3D solver on the Cu / FR4 / Cu version of the coupon of Culham and Yovanovich (1998), for several source sizes.

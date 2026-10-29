@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_synthetic.py
 @brief Gerber files made with gerbonara whose copper area is known exactly: very thin tracks, diagonal tracks, planes with holes, hatched planes, islands, and a random board.

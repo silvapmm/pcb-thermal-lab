@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_one_layer_independent.py
 @brief Do the corrected models of the program agree with the independent solver on a one-layer board, and how far were they before the corrections?

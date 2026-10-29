@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
 @brief The data figures of the zone-union investigation, drawn from the JSON files that the studies write in out/ (run the studies first, see README 'How to run').

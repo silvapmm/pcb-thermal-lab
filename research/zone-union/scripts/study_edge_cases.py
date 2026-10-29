@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_edge_cases.py
 @brief Q6: the edge cases of the zone union: zones partly or wholly outside the board, boards with an outline, degenerate and self-intersecting polygons, vias and a metal block on split copper, the heat capacity and time constant, and the input checks.

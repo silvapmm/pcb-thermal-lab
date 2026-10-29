@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file blocks.py
 @brief Metal blocks attached to the outer faces of the board: the extra thermal nodes they add to a cell or node network.

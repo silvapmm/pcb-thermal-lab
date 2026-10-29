@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_importer.py
 @brief The import path end to end on our own board: the set is read, the program's Problem is built (vias from the drill file), and the program's network with imported face conductances reproduces the program's own run when the faces are the program's own formula.

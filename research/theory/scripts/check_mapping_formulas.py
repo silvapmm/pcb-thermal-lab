@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file check_mapping_formulas.py
 @brief Numerical check of the properties of the 2D effective-medium formulas used by the mapping research (Bruggeman, Hashin-Shtrikman, Wiener), the only confirmation they have in this repository because no textbook was read.

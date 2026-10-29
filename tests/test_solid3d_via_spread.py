@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_solid3d_via_spread.py
 @brief The copper of a via larger than a cell of the 3D solid is spread over the cells of its disc, not clipped to one cell.

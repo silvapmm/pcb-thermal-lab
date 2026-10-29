@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of a part with its top path: the cross-section (die, pad, board, paste, heatsink), the junction-node network with the program's fixed-point loop, and the two branches of resistances from the junction.

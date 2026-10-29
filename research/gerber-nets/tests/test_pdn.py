@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_pdn.py
 @brief The electrical prototype (pdn.py): a strip against its squares, the energy balance with a link, and floating copper (no current, no heat).

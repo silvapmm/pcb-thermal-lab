@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file power_from_top_study.py
 @brief How well can the power of a part be found from a temperature measured on top of its package, and how much does it depend on the board?

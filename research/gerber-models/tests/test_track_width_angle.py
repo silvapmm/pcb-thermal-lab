@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_track_width_angle.py
 @brief One track across the heater (README 4.42): the 1 mm cells reproduce an axis-aligned track and lose much of an isolated diagonal one; the baseline of the cells without copper is the grid error. Uses only the conduction solver of this folder; about 25 s.

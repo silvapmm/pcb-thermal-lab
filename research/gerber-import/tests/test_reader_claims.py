@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_reader_claims.py
 @brief Claims about reading and rasterising (phase 1), as tests: the net of a thin wire, and a track as wide as the pixel.

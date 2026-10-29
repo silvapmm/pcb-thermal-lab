@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file prototype_in_program.py
 @brief The mappings run through the program's own finite-volume network (pcbthermal.fvm.Network), without changing a line of it.

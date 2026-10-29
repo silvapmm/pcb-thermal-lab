@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file readers.py
 @brief One interface for the Gerber and Excellon reading used by the studies: the independent NumPy reader (default) or gerbonara + shapely (to cross-check).

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_zone_union.py
 @brief Zones of one layer are combined by the union of their points, not by the larger of their shares of a cell.

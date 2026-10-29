@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file joule.py
 @brief Current in a copper net and the heat it makes: the Laplace equation on the pixels of a net mask (research prototype for "how much does the 5 V net heat up").

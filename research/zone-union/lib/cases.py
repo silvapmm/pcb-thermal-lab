@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file cases.py
 @brief The test boards of the zone-union investigation: each case gives the zones for the models (polygon and fill) and the resolved copper for the reference (solid polygons).

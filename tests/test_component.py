@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_component.py
 @brief The junction of a part: theta in the worst case, the limit and its margin, the power limit, the ring temperature with psi_JB and the power temperature coefficient.

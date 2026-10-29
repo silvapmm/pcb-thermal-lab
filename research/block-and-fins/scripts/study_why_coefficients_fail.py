@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_why_coefficients_fail.py
 @brief Why are the equivalent-coefficient approaches too hot? A direct test of the explanation "the block spreads the heat of the centre of the pad to the whole pad,

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_inverse.py
 @brief Power from a measured temperature: the forward model reproduces the measurement, with constant and computed heat transfer coefficients.

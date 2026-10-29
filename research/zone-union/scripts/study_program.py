@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_program.py
 @brief Q3 and Q7: the cases of gerber-models 4.39 on the program's default materials, and the three example boards of the repository, under the old rule and the per-point union, in the five models.

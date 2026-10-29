@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file stackup_vendor_check.py
 @brief How much does the maximum temperature of the example board change between the program's typical stack-ups and the published ones of fabricators?

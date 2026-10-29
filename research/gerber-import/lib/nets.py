@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file nets.py
 @brief Plated holes and nets: which holes of a drill file are vias or component holes, which pad and net each one touches on every copper layer.

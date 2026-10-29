@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_solve_cost.py
 @brief How long does a steady solve take and how much memory does it need, against the number of unknowns, for the 3D solid and for the layered finite-volume model (the numbers behind the 250 000 unknowns limit of `solid3d.MAX_CELLS`)?

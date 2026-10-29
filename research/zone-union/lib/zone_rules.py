@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file zone_rules.py
 @brief The rules that combine the zones of one copper layer into the copper fill of a cell, all in one function, so that they can be compared on the same boards.

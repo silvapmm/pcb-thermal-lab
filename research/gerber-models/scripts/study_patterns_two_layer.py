@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_patterns_two_layer.py
 @brief The patterns of study_patterns.py on a two-layer board as the program models it: a patterned top layer over a full plane or over bare laminate.

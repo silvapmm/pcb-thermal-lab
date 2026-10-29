@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_inner_copper_1oz.py
 @brief How much hotter is the example board with the program's 0.5 oz (15.2 um) inner copper than with 1 oz (35 um) inner copper, for every typical stack-up template?

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_scalar_formulas.py
 @brief Scalar mappings from the copper fraction alone: arithmetic, geometric, Bruggeman and the Hashin-Shtrikman bounds, on the 42 windows of study_mapping.py.

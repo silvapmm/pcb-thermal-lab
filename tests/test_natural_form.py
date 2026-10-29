@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_natural_form.py
 @brief Board.natural_form: the general (default) and laminar forms of Churchill and Chu for a vertical board; the default leaves every result unchanged.

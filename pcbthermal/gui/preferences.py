@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file preferences.py
 @brief Preferences: the defaults and the material libraries of the program, kept in a JSON file the user can edit here or by hand.

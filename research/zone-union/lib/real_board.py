@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file real_board.py
 @brief A real board (the Stormduino, from its own KiCad file) drawn as program zones: every track, pad and zone fill becomes a solid zone polygon, the way an import of CAD polygons would hand them to the program.

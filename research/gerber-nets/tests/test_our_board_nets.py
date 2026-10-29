@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_our_board_nets.py
 @brief The IC board of our own as a bench for the current of a net: the resistance of a long arc track and its Joule heat (phase 3).

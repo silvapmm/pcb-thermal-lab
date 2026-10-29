@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_post_board.py
 @brief An analogue of the post-mounted board of Sampson (2017): a 100 x 124 mm board held at four corner posts, copper that does not reach the posts, 1 W, with and without convection.

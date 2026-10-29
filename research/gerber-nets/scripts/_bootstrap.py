@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file _bootstrap.py
 @brief Puts the import paths of this investigation (phase 3) in order; every script imports it first (`import _bootstrap`), so scripts run from any folder.

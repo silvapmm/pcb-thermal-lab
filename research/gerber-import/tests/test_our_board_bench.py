@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_our_board_bench.py
 @brief The IC board of our own (our_board.py) as a bench for the reader: its nets, clearances, holes and vias (phase 1; the resistance of an arc is in gerber-nets, the thermal mapping in gerber-models).
