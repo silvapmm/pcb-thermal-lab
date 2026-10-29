@@ -2,9 +2,11 @@
 
 The text below is the project's `docs/research.md` as it stood: what was read, what was simulated and what is still open, section by section (R2 to R8 and E3 to E8). Script names point to this folder.
 
+**Status against the program** (checked against the code and `docs/versions.md`): the junction-to-pad resistance, the top path with a fixed θSA, the interface as one sheet, the typical heatsinks and the heater type (source or component, `Heater.role`) are implemented; the top-path loop defect found by the review is corrected (`api._top_path_split`). Still open: the junction node, the heatsink scenarios, the Foster chain, the top path in time, a heatsink larger than its contact. The section "Open now: the heater as a pure source or as a component" records a decision that is now implemented; the naming and the order of the boxes were still to be tuned. The two sections headed R3 are different questions (air flow, near the top; a heatsink larger than its contact, after R2): `INTEGRATION.md` "R3" means the second. The README of this folder holds the numbers; this file adds the reading notes and the options, and it duplicates `docs/research.md`, which is reset when the work is adopted.
+
 
 This file collects investigations that are **not implemented yet**: what was read, what was simulated, what is still open. It is used until the work is implemented;
-then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/versions.md` "Planned", the scripts stay in `examples/`, and this file goes back to the empty template below.
+then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/versions.md` "Planned", the scripts stay in `research/component-heatsink/scripts/`, and this file goes back to the empty template below.
 Values marked *assumed* are not from a datasheet. Everything is reproducible with the scripts named in each section.
 
 ## Open now: the Component element (junction node, heatsink scenarios, Foster chain)

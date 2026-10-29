@@ -19,6 +19,6 @@ Not for the physics, but for what the files do not say: which file is which laye
 ## 3. Costs and risks
 
 * No new dependency; gerbonara and shapely stay as a test reference (the NumPy reader draws the same pixels as gerbonara + shapely except centres that fall exactly on an edge: at most 0.012 % of the copper on a shifted grid on 12 layers of 8 real boards, README 4.45; and the same raster to the digit on 14 files of known area).
-* The reader was written from the format as commonly documented, the Ucamco specification was not read in full; 161 of 164 comparable gerbonara test files agree within 3 % of the area, 6 are refused as unsupported (README 4.17).
+* The reader was written from the format as commonly documented, the Ucamco specification (revision 2024.05) was read only in the passages the reader implements, by the review (README 7), not in full; 161 of 164 comparable gerbonara test files agree within 3 % of the area, 6 are refused as unsupported (README 4.17).
 * Non-rectangular outlines are only a box in the importer; the polygon from the profile layer is prototyped in README 4.47 (`lib/outline.py`) and maps to `Board.outline`, which exists in the program.
 * Documentation rules when adopted (`CLAUDE.md`): user guide, tooltips, `docs/validation.md`, tests, the whole battery.

@@ -10,6 +10,7 @@ The work of this folder is in the program since 2.3.0 (the block in the FVM, FDM
 | Block layer of the FVM and FDM | `blocks.extra_layers`, used by `fvm.py`, `fdm.py` | `tests/test_blocks.py`, `tests/test_heatsink_part.py` |
 | Block in the Lumped (ring layer) and Analytic (Schur complement on the tile graph) | `lumped.py`, `analytic.py` (both call `blocks.extra_layers`) | `tests/test_block_models.py` |
 | Fin air-gap warning (below 4 mm in still air) | `checks.py` | `tests/test_heatsink_part.py` |
+| Side walls of a finned block without the fin ratio (`blocks.wall_h`, the correction below) | `blocks.wall_h`, `extra_layers` (`h_wall`), `solid3d.py` | `tests/test_block_side_loss.py` |
 | Thick-plate warning with the flux into the block | `checks.check_thick_plates`, `checks._block_flux_under` | `tests/test_thick_plate.py` |
 
 ## A defect of the program found in the review: the fin ratio on the sides of the block (corrected in the program)
