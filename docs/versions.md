@@ -6,9 +6,9 @@ What was implemented in every version (with the module where it lives and how it
 
 ## Unreleased (2.4.4): interface leftovers
 
-* The Simulation footer (Run, progress, warnings) no longer takes a low dock: the settings keep at least 120 px (they scroll) and the warning list gets at most a quarter of the dock height (`panels.WarningList.set_max_height`, `main_window._FooterLimiter`).
-* The count of unknowns under the cell size is a full-width row, so its wrapped text is no longer cut to one line.
-* A decimal comma pasted through the right-click menu of a number field is read as a point (`theme._CommaToPoint._context_menu`; the key and shortcut paths already did this).
+* The Simulation footer (Run, progress, warnings) no longer takes a low dock: the settings keep at least 120 px (they scroll); the warning list is no longer of fixed height (a fixed height is also a minimum, so 30 warnings raised the minimum height of the window from 418 to 574 px) but shrinks down to `WarningList.MIN_HEIGHT` (40 px, two lines) and scrolls, and gets at most a quarter of the dock and 150 px (`panels.WarningList._fit`, `set_max_height`, `main_window._FooterLimiter`). Measured offscreen: the lowest window is 450 px without warnings (418 before: the settings strip went from 88 to 120 px) and 496 px with 30 warnings (574 before); a window cannot be made 420 px high.
+* The count of unknowns under the cell size is a full-width row (it spans both columns of the form), so its wrapped text is no longer cut to one line; the cut was seen in a real window and is not reproduced offscreen, where the old row was not cut either, so the test checks the spanning row.
+* A decimal comma pasted through the right-click menu of a number field is read as a point (`theme._CommaToPoint._context_menu`; the key and shortcut paths already did this). Qt builds the spin-box menu inside C++, so the menu is rebuilt with the same entries (Undo, Redo, Cut, Copy, Paste, Delete, Select All of the number without its unit, Step up, Step down) and a Paste that turns commas into points; the right click on the arrows (an event to the spin box itself) gets it too.
 * A click on a warning between an edit and the next check does nothing: the list is marked stale at the edit (`WarningList.set_stale`) and refreshed by the check; a click on a removed element was already ignored.
 * Tests: `tests/test_ui_cleanup.py`.
 

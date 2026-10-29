@@ -1249,6 +1249,7 @@ class WarningList(QTextBrowser):
     warning_clicked = Signal(str, int)
     TIP = "Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about."
     MAX_HEIGHT = 150                                  # Pixels; more warnings than fit scroll
+    MIN_HEIGHT = 40                                   # Pixels; a low window squeezes the list down to about two lines, never below
 
     def __init__(self, parent=None):
         """!
@@ -1304,7 +1305,7 @@ class WarningList(QTextBrowser):
         @brief Limit the height of the list (a low window keeps room for the Run button).
         @param height Maximum height in pixels; at least 40.
         """
-        height = max(40, min(int(height), self.MAX_HEIGHT))
+        height = max(self.MIN_HEIGHT, min(int(height), self.MAX_HEIGHT))
         if height != self.max_height:
             self.max_height = height
             if self.warnings:
@@ -1312,11 +1313,23 @@ class WarningList(QTextBrowser):
 
     def _fit(self):
         """!
-        @brief Set the height to the wrapped text, up to the maximum.
+        @brief Let the height follow the wrapped text, up to the maximum, and let a low dock squeeze it down to MIN_HEIGHT.
         """
         self.document().setTextWidth(max(self.viewport().width(), 100))
         h = int(self.document().size().height()) + 6
-        self.setFixedHeight(min(h, self.max_height))
+        # Not a fixed height: a fixed height is a minimum too, and the list then raised the minimum height of the whole
+        # window (30 warnings forced a window asked for 420 px to 559 px); the list shrinks first and scrolls
+        self.setMinimumHeight(min(h, self.MIN_HEIGHT))
+        self.setMaximumHeight(min(h, self.max_height))
+
+    def sizeHint(self):
+        """!
+        @brief Preferred size: the height of the wrapped text up to the maximum, so that a tall dock shows the whole list.
+        @return QSize.
+        """
+        s = super().sizeHint()
+        s.setHeight(self.maximumHeight() if self.warnings else 0)
+        return s
 
     def resizeEvent(self, event):
         """!

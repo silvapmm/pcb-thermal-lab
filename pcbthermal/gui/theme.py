@@ -5,6 +5,7 @@
 @brief Light and dark themes, canvas colours and painted icons for the GUI.
 """
 
+import shiboken6
 from PySide6.QtCore import QEvent, QLocale, QObject, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QKeyEvent, QKeySequence, QPainter, QPalette, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QWidget
@@ -77,31 +78,42 @@ class _CommaToPoint(QObject):
 
     def _context_menu(self, obj, event):
         """!
-        @brief Show the standard menu of the line edit of a spin box with a Paste that turns commas into points.
+        @brief Show the menu of a spin box (Qt's own: Undo to Select All, Step up, Step down) with a Paste that turns commas into points.
+        @details Qt's QAbstractSpinBox builds this menu inside its C++ contextMenuEvent, where its Paste cannot be reached; the
+                 same menu is rebuilt here so that Paste can be replaced. The event comes to the line edit (right click on the
+                 text, menu key) or to the spin box itself (right click on the arrows).
         @param obj Object that receives the event.
         @param event The QContextMenuEvent.
         @return True when the menu was shown here, False for any other widget.
         """
-        spin = obj.parentWidget() if isinstance(obj, QLineEdit) else None
-        if not isinstance(spin, QAbstractSpinBox) or obj is not spin.lineEdit():
+        if isinstance(obj, QAbstractSpinBox):
+            spin = obj
+        elif isinstance(obj, QLineEdit) and isinstance(obj.parentWidget(), QAbstractSpinBox) and obj is obj.parentWidget().lineEdit():
+            spin = obj.parentWidget()
+        else:
             return False
-        menu = obj.createStandardContextMenu()
-        paste = next((a for a in menu.actions() if a.text().replace("&", "").split("\t")[0] == "Paste"), None)
-        if paste is not None:
-            paste.triggered.disconnect()                       # The default slot would paste "0,45" as typed, which the spin box reads as 45
-            paste.triggered.connect(lambda: obj.insert(QApplication.clipboard().text().replace(",", ".")))
-        _show_menu(menu, event.globalPos())
-        menu.deleteLater()
+        edit = spin.lineEdit()
+        menu = edit.createStandardContextMenu()
+        for a in menu.actions():
+            # Found by object name, not by text, so that a translated Qt keeps the conversion
+            if a.objectName() == "edit-paste":
+                a.triggered.disconnect()                       # The default slot would paste "0,45" as typed, which the spin box reads as 45
+                a.triggered.connect(lambda: edit.insert(QApplication.clipboard().text().replace(",", ".")))
+            elif a.objectName() == "select-all":
+                a.triggered.disconnect()                       # As in Qt's spin box menu: select the number, not the prefix or the suffix
+                a.triggered.connect(spin.selectAll)
+        menu.addSeparator()
+        enabled = spin.stepEnabled()
+        up = menu.addAction("Step up")
+        up.setEnabled(bool(enabled & QAbstractSpinBox.StepUpEnabled))
+        up.triggered.connect(lambda: spin.stepBy(1))
+        down = menu.addAction("Step down")
+        down.setEnabled(bool(enabled & QAbstractSpinBox.StepDownEnabled))
+        down.triggered.connect(lambda: spin.stepBy(-1))
+        menu.exec(event.globalPos())
+        shiboken6.delete(menu)                                 # As Qt's own menu: deleted now (a deleteLater on top of the Python owner crashed)
+        event.accept()
         return True
-
-
-def _show_menu(menu, pos):
-    """!
-    @brief Run a context menu (a function of its own so that a test can answer the menu without a mouse).
-    @param menu The QMenu.
-    @param pos Global position of the menu in pixels.
-    """
-    menu.exec(pos)
 
 
 _COMMA_FILTER = None    # The single event filter installed by fix_number_locale
