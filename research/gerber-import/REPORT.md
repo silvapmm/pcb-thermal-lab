@@ -137,7 +137,7 @@ The comparisons found real defects, all fixed and covered by tests: **the vector
 * The nets were checked against a CAD file on **one** board and KiCad 5 only; zone fills were not compared net by net (they carry no net in the Gerber: the net comes from connectivity).
 * Not supported (reported, the file refused): aperture blocks, mirrored/rotated/scaled apertures, moire, image offset/mirror/scale/rotation, an axis swap, incremental coordinates, a drill file without a unit. The importer takes the board box; the polygon outline of a non-rectangular board is a separate prototype (README 4.47), not yet joined to `importer.import_board`.
 * The pixel-by-pixel comparison against pygerber and pcb-tools depends on my alignment and threshold; why pygerber differs by 1.5 % along the edges was not examined.
-* All boards are public hobby designs; the Ucamco specification was not read in full (the review checked the passages named in README section 7); pcb-tools and pygerber were run with their defaults.
+* All boards are public hobby designs; the Ucamco specification was not read in full (the review checked the passages named in the README, "What was read and what was not verified"); pcb-tools and pygerber were run with their defaults.
 
 ## 7. How to reproduce
 
