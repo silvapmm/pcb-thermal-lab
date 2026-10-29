@@ -976,8 +976,8 @@ class Inspector(QWidget):
                     fh.setToolTip("Height of the plate fins on the exposed face of the block (0 = a plain plate). The program computes the area gain and the fin efficiency "
                                   "tanh(mL)/(mL) of the metal.")
                     ft.setToolTip("Thickness of one fin.")
-                    fp.setToolTip("Distance between the axes of two fins. The air gap is pitch minus thickness: in still air less than about 4 to 6 mm chokes the "
-                                  "natural convection (the program warns; it does not slow the air between the fins).")
+                    fp.setToolTip("Distance between the axes of two fins. The air gap is pitch minus thickness: in still air a narrow gap (a few millimetres) chokes the "
+                                  "natural convection (the program warns after the run; it does not slow the air between the fins).")
                     for key, spin in (("fin_height", fh), ("fin_thickness", ft), ("fin_pitch", fp)):
                         spin.valueChanged.connect(lambda v, k=key: self.doc.set_props(kind, i, **{k: v / 1000.0}))
                     lay.addRow("Fin height", fh)

@@ -12,11 +12,16 @@ of every warning says what is wrong and what to do.
 
 import numpy as np
 
+from . import blocks, convection
 from .geometry import coverage_fraction, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
 THICK_PLATE_LIMIT = 0.05
+
+# A fin channel is called close when its channel Rayleigh number is below this value: the channel then keeps less than 90 % of the coefficient of the
+# isolated plate (phi(90) = 0.90, research/fin-channel)
+FIN_CHANNEL_RA_LIMIT = 90.0
 
 
 class CheckWarning(str):
@@ -61,11 +66,6 @@ def check_problem(problem, cell_mm=1.0):
 
     # --- Copper fill of every layer (union of its zones), used by several checks
     fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, 4)
-
-    for k, s in enumerate(problem.heatsinks):
-        if s.has_fins() and b.air_speed == 0 and s.fin_pitch - s.fin_thickness < 4e-3:
-            _add(out, "heatsink", k, f"{s.name or f'Heatsink {k + 1}'}: the air gap between the fins is {1000 * (s.fin_pitch - s.fin_thickness):.1f} mm; in still air fins closer than about "
-                       "4 to 6 mm choke the natural convection and the model (which does not slow the air between the fins) overestimates the cooling: use a larger pitch or the datasheet theta_SA.")
 
     heater_cov = []
     for k, h in enumerate(problem.heaters):
@@ -247,4 +247,95 @@ def check_thick_plates(problem, rows, result=None):
                 out.append(f"{row['name'] or 'Heater'}: {what} ({num(1000 * t, 3)} mm, {num(k)} W/mK) is thick and poorly conducting for the heat flux under the part: the surface "
                            f"under the source can be hotter than the model shows by up to {drop:.1f} K ({100 * drop / rise:.0f} % of its rise of {rise:.1f} K){note}; the models "
                            "keep one temperature through the thickness. The value is a bound, not added to the results.")
+    return out
+
+
+def fin_channel_fraction(ra_b):
+    """!
+    @brief Fraction of the isolated-plate coefficient that a vertical fin channel keeps, phi = [1 + (14.16 / Ra_b^(3/4))^2]^(-1/2).
+    @details It follows from the composite of Bar-Cohen and Rohsenow (1984), Nu_b = [(24 / Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2), divided by the
+             isolated-plate term 0.59 Ra_b^(1/4); 14.16 = 24 x 0.59. It is used only to word the warning, never to change a result.
+    @param ra_b Channel Rayleigh number (dimensionless, positive).
+    @return Number between 0 and 1.
+    """
+    return (1.0 + (24.0 * 0.59 / ra_b ** 0.75) ** 2) ** -0.5
+
+
+def fin_channel_rayleigh(gap, length, theta, ambient):
+    """!
+    @brief Channel Rayleigh number Ra_b = g beta theta b^4 Pr / (nu^2 L) of the air between two fins.
+    @details The air properties are taken at the film temperature ambient + theta / 2 (convection.air_properties) and beta = 1 / T_film.
+    @param gap Air gap between two fins (pitch minus thickness) in m.
+    @param length Length of the channel in m.
+    @param theta Mean excess temperature of the block over the ambient air in K.
+    @param ambient Ambient air temperature in degC.
+    @return Ra_b, dimensionless (0 for a degenerate input).
+    """
+    if gap <= 0 or length <= 0 or theta <= 0:
+        return 0.0
+    air = convection.air_properties(ambient + theta / 2.0)
+    return convection.G * air["beta"] * theta * gap ** 4 * air["pr"] / (air["nu"] ** 2 * length)
+
+
+def _block_excess(result, problem, block):
+    """!
+    @brief Mean excess temperature of one metal block over the ambient air, from a solved result.
+    @param result SteadyResult with arrays block_T (FVM, FDM, 3D solid), or None.
+    @param problem The Problem that was solved.
+    @param block The Heatsink (a block).
+    @return Mean excess in K over the cells or nodes inside the block polygon, or None when the result does not carry the block temperatures.
+    """
+    if result is None or "block_T" not in result.arrays:
+        return None
+    b = problem.board
+    face = 0 if (block.layer == 0 or b.layers == 1) else 1
+    faces = blocks.block_faces(problem)             # The order of the block layers of the result
+    T = np.asarray(result.arrays["block_T"])
+    if face not in faces or T.shape[0] != len(faces):
+        return None
+    field = T[faces.index(face)]
+    ny, nx = field.shape
+    off = 0.0 if getattr(result, "grid", "cells") == "nodes" else 0.5
+    X, Y = np.meshgrid((np.arange(nx) + off) * result.dx, (np.arange(ny) + off) * result.dy)
+    inside = points_in_polygon(X, Y, block.polygon)
+    if not inside.any():
+        return None
+    return float(field[inside].mean() - b.ambient)
+
+
+def check_fin_channels(problem, result=None):
+    """!
+    @brief Post-run warning for plate fins so close that the air between them is slowed (the model gives one coefficient to every face).
+    @details For every finned block in still air the check computes the channel Rayleigh number Ra_b = g beta theta b^4 Pr / (nu^2 L) with b the air gap
+             (pitch minus thickness), L the longer side of the bounding box of the block (the program has no fin direction; the longer side is the
+             conservative choice), theta the mean excess of the block over the ambient air from the solved result, the air at ambient + theta / 2 and
+             beta = 1 / T_film. It warns when Ra_b < FIN_CHANNEL_RA_LIMIT (90): the channel keeps less than 90 % of the coefficient of an isolated plate
+             (Bar-Cohen and Rohsenow 1984, research/fin-channel). The threshold caught all but 1 of 1080 cases of the study grid (the old rule, a gap
+             below 4 mm, missed 367). The text gives the fraction phi and the loss of the finned face; nothing is added to the results. Forced air
+             (air speed above zero) gets through narrow channels and is not checked. Without block temperatures in the result (Lumped, Analytic) the check
+             says nothing: api runs an auxiliary FVM, as for the thick-plate check, so the warning still rests on a simulation.
+    @param problem The Problem that was solved.
+    @param result The SteadyResult that carries arrays block_T, or None.
+    @return List of warning strings (empty when no channel is close).
+    """
+    out = []
+    b = problem.board
+    if b.air_speed > 0:
+        return out
+    for j, s in enumerate(problem.heatsinks):
+        if not s.has_fins():
+            continue
+        theta = _block_excess(result, problem, s)
+        if theta is None or theta <= 0:
+            continue
+        xs, ys = [p[0] for p in s.polygon], [p[1] for p in s.polygon]
+        length = max(max(xs) - min(xs), max(ys) - min(ys))
+        gap = s.fin_pitch - s.fin_thickness
+        ra = fin_channel_rayleigh(gap, length, theta, b.ambient)
+        if ra < FIN_CHANNEL_RA_LIMIT:
+            phi = fin_channel_fraction(ra)
+            out.append(f"{s.name or f'Heatsink {j + 1}'}: the channel between the fins ({num(1000 * gap, 3)} mm wide, about {num(1000 * length, 3)} mm long, block {theta:.0f} K above "
+                       f"the air) has a channel Rayleigh number of {ra:.0f}; the air between the fins cools {100 * (1 - phi):.0f} % less than a plate of the same height "
+                       f"({phi:.2f} of its coefficient), and the model does not slow it. Use a larger pitch, shorter channels, or the datasheet theta_SA. "
+                       "Valid for a vertical board; for a horizontal board the effect is not quantified.")
     return out

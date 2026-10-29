@@ -43,7 +43,7 @@ TIPS = {
     "block thickness": "Thickness of the metal block in millimetres (plates 1 to 10 mm). Thicker spreads the heat of the contact better; the metal matters less than the thickness and the area.",
     "fin height": "Height of the fins of the block in millimetres (0 = plain plate; extrusions 10 to 50 mm). Taller fins add area but their tips are cooler: the program applies the fin efficiency.",
     "fin thickness": "Thickness of one fin in millimetres (extruded fins 0.5 to 3 mm). Thin fins in a poor conductor lose efficiency.",
-    "fin pitch": "Distance between the axes of two fins in millimetres. The air gap is pitch minus thickness: in still air under 4 to 6 mm it chokes the natural convection (the program warns but does not model it).",
+    "fin pitch": "Distance between the axes of two fins in millimetres. The air gap is pitch minus thickness: in still air a narrow gap (a few millimetres, depending on the length and the temperature of the block) chokes the natural convection; after the run the program warns from the channel Rayleigh number but does not model it.",
     "block k": "Thermal conductivity of the metal block in W/mK (aluminium 204, copper 386, brass 111, steel 54, stainless 14). Choose a metal above or type your alloy.",
     # Power profile page
     "profile": "Power of the part in time: constant, square wave, or a table from a CSV file.",

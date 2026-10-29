@@ -32,7 +32,7 @@ import math
 from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
-from .checks import check_problem, check_thick_plates
+from .checks import check_fin_channels, check_problem, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
 from .numfmt import num
@@ -596,7 +596,9 @@ def _part_warnings(sim):
         if h.is_component() and h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
             out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
-    out += check_thick_plates(sim.problem, sim.heater_rows(), _block_flux_result(sim))
+    flux_result = _block_flux_result(sim)
+    out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result)
+    out += check_fin_channels(sim.problem, flux_result)
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
     if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):
