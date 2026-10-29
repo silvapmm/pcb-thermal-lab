@@ -59,6 +59,22 @@ def split_board(angle_deg, offset_mm):
     return clip_halfplane(board, p0, n), clip_halfplane(board, p0, -n)
 
 
+def split_board_gap(angle_deg, offset_mm, gap_mm):
+    """!
+    @brief The board cut in two zones separated by a clearance of constant width (a copper gap) along a line through the centre shifted along its normal.
+    @param angle_deg Direction of the line (0 = along x).
+    @param offset_mm Shift of the centre line of the gap along its normal (mm).
+    @param gap_mm Width of the gap (mm).
+    @return tuple of two polygons; the strip of width gap_mm between them has no copper.
+    """
+    a = np.radians(angle_deg)
+    n = np.array([-np.sin(a), np.cos(a)])
+    board = rect(0, 0, SIZE, SIZE)
+    p_hi = np.array([SIZE / 2, SIZE / 2]) + n * (offset_mm + gap_mm / 2)
+    p_lo = np.array([SIZE / 2, SIZE / 2]) + n * (offset_mm - gap_mm / 2)
+    return clip_halfplane(board, p_hi, n), clip_halfplane(board, p_lo, -n)
+
+
 def stripes(vertical, width, pitch, shift=0.0):
     """!
     @brief Solid stripes (separate rectangles) that make a hatched pattern over the whole board.

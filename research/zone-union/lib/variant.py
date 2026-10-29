@@ -31,7 +31,7 @@ from ._zone_rules import combine as _combine
 
 def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
     """!
-    @brief Copper fill of every layer under the rule named in ZONE_RULE (default max_point, the prototype).
+    @brief Copper fill of every layer under the rule named in ZONE_RULE (default max_point, the prototype) with ZONE_SAMPLES sub-samples per side (default the caller's 4).
     @param zones Zones.
     @param layers Number of layers.
     @param nx Cells along x.
@@ -41,7 +41,7 @@ def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
     @param samples Sub-samples per cell side.
     @return Array (layers, ny, nx).
     """
-    return _combine(zones, layers, nx, ny, dx, dy, samples, _os.environ.get("ZONE_RULE", "max_point"))
+    return _combine(zones, layers, nx, ny, dx, dy, int(_os.environ.get("ZONE_SAMPLES", samples)), _os.environ.get("ZONE_RULE", "max_point"))
 '''
 
 

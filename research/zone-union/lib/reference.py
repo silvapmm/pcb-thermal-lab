@@ -40,7 +40,7 @@ def raster(polys, nx, ny, dx, samples=4):
     return m.reshape(ny, samples, nx, samples).mean(axis=(1, 3))
 
 
-def reference_rise(problem, polys_by_layer, dx_mm, k_lam=0.3, n_gap=4, samples=4):
+def reference_rise(problem, polys_by_layer, dx_mm, k_lam=0.3, n_gap=4, samples=4, n_lam=8):
     """!
     @brief Steady rise of the heater of a problem with resolved copper, in the independent solver.
     @param problem Problem (board data and one rectangular heater; its zones are NOT used).
@@ -49,6 +49,7 @@ def reference_rise(problem, polys_by_layer, dx_mm, k_lam=0.3, n_gap=4, samples=4
     @param k_lam Isotropic conductivity of the laminate (W/mK).
     @param n_gap Sub-slabs per dielectric gap.
     @param samples Sub-samples per fine cell side for the area fraction.
+    @param n_lam Sub-slabs of the laminate under the copper of a one-layer board (fewer slabs, fewer unknowns).
     @return dict with max (hottest heater cell, K above ambient), mean (mean over the heater cells) and fill (the fine fill maps per layer).
     @throws ValueError If the board does not fit the fine grid.
     """
@@ -68,7 +69,7 @@ def reference_rise(problem, polys_by_layer, dx_mm, k_lam=0.3, n_gap=4, samples=4
         if k < Lc - 1:
             slabs.append(((b.thickness - sum(b.copper_thickness)) / (Lc - 1), k_lam, n_gap))
     if Lc == 1:
-        slabs.append((b.thickness - b.copper_thickness[0], k_lam, 8))
+        slabs.append((b.thickness - b.copper_thickness[0], k_lam, n_lam))
     h = problem.heaters[0]
     x0, y0 = h.polygon.min(axis=0)
     x1, y1 = h.polygon.max(axis=0)
