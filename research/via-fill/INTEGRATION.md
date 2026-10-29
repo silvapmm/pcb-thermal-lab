@@ -22,7 +22,7 @@ The via fill itself is in the program (2.4.0). The review (README sections 4.4 t
 
 **Correction proposed.** Spread the via area over the cells of its disc (as in 1 b) before clipping, and warn if a cell is still over 1 (vias closer than their diameter). Test: a 0.5 mm copper fill at 0.25 and 0.5 mm cells gives the same series conductance through the board.
 
-## 3. "Finished hole diameter" is the wrong label
+## 3. "Finished hole diameter" is the wrong label (corrected in the program: the label is "Drill diameter", branch `fix/via-label`)
 
 **What.** `Via.thermal_area` takes the diameter as the drill (plating inside it: `r_in = d/2 − t`), the convention of the thermal-via article used as the source of 192 K/W. The tooltip (`gui/tips.py`, key `diameter`) and the docstring of `Via.diameter` (`model.py`) call it the "finished hole diameter", which on a fabricator's drawing is the hole after plating. A user who types the finished hole of the drawing gets 18 % less copper than the board has (0.3 mm finished hole: 162.8 instead of 192.4 K/W open, 43.2 instead of 58.8 K/W copper-filled).
 

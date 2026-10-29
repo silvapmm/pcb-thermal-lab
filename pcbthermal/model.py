@@ -768,7 +768,7 @@ class Via:
     """
     x: float                                    # X position (m)
     y: float                                    # Y position (m)
-    diameter: float                             # Finished hole diameter (m)
+    diameter: float                             # Drill diameter (m): the plating is inside it, finished hole = drill - 2 x plating
     filled: bool = False                        # True for a copper-filled via (solid rod, electroplated copper fill)
     name: str = ""                              # Optional label
     fill_k: float = 0.0                         # Conductivity (W/mK) of the fill of the barrel (epoxy resin about 0.3, conductive paste about 8, copper 385); 0 = open barrel
@@ -1099,7 +1099,7 @@ class Problem:
         @brief Add one via (mm).
         @param x X position in mm.
         @param y Y position in mm.
-        @param diameter Finished hole diameter in mm.
+        @param diameter Drill diameter in mm (the plating is inside it: finished hole = drill - 2 x plating).
         @param filled True for a copper-filled via (electroplated copper fill).
         @param name Optional label.
         @param fill_k Conductivity in W/mK of the fill (epoxy resin about 0.3, conductive paste about 8, copper 385; see VIA_FILLS); 0 for an open barrel.
@@ -1115,7 +1115,7 @@ class Problem:
         @param rect Rectangle (x0, y0, x1, y1) in mm.
         @param nx Vias along x.
         @param ny Vias along y.
-        @param diameter Finished hole diameter in mm.
+        @param diameter Drill diameter in mm (the plating is inside it: finished hole = drill - 2 x plating).
         @param filled True for copper-filled vias.
         @param fill_k Conductivity in W/mK of a non-copper fill (0 = open barrel).
         @return self.

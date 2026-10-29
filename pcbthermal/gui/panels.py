@@ -1034,7 +1034,7 @@ class Inspector(QWidget):
                 fill_k.valueChanged.connect(edit_k)
                 lay.addRow("X", x)
                 lay.addRow("Y", y)
-                lay.addRow("Diameter", d)
+                lay.addRow("Drill diameter", d)
                 lay.addRow("Fill", fill)
                 lay.addRow("Fill conductivity", fill_k)
                 lay.addRow(typical)

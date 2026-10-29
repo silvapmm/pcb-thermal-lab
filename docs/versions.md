@@ -7,6 +7,7 @@ What was implemented in every version (with the module where it lives and how it
 ## Unreleased
 
 * **Unknowns of the layered models counted as built**: `fvm.unknowns` and `fdm.unknowns` (laminate nodes of a one-layer board, block layers, the FDM nodes at the corners of the cells) feed the number shown under the cell size (`tests/test_unknown_count.py`: equal to `Network.nl x nx x ny` for six boards at three cells).
+* **Via diameter labelled as the drill** (`gui/tips.py` key `drill diameter`, the *Drill diameter* field, `Via.diameter`, the guide, `docs/models.md`): the text now says what the model uses; no number changes.
 
 * **Top path only on a component**: `Heater.has_top_path()` (a component with `theta > 0` and `theta_sa > 0`) is the one condition used by `top_resistance()` and so by the report row and the split of the power; a pure source that carries `theta` and `theta_sa` from a file or the API ignores them (it used to show `r_top > 0` with no heat through the top, and with an interface under it a hidden top path that cooled the part by 39 K in the test case) (`tests/test_top_path_role.py`).
 
