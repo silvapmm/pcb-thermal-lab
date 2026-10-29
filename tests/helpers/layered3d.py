@@ -6,7 +6,7 @@
          applied to a rectangle of the top face, convection (a film coefficient) on the rest of the top face and on the bottom face, the four sides insulated.
          Temperatures are rises over the ambient.
 @note This is a copy of research/effective-conductivity/lib/layered3d.py (the investigation that wrote and tested it against a series circuit, two energy balances,
-      a uniform layer and three published results; that folder is not on develop yet, it lives on the branch research/gerbers), kept here as the independent
+      a uniform layer and three published results; that folder is `research/effective-conductivity/`), kept here as the independent
       reference of tests/test_layered_vs_3d.py. The same code is in research/solid3d-verification/lib/layered3d.py. It imports nothing from pcbthermal.
 """
 

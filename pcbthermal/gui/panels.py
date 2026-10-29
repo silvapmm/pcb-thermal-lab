@@ -1346,8 +1346,8 @@ class SolverPanel(QWidget):
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
                            "than the heater, a copper edge across a footprint). "
-                           f"Limited to {solid3d.MAX_CELLS} unknowns (shown below the cell size; about 4 GB of memory and "
-                           "two minutes per solve at the limit): a larger model is not run and the other models still answer.",
+                           f"Limited to {solid3d.MAX_CELLS} unknowns (shown below the cell size; about 15 s and 3.5 GB of memory "
+                           "per solve on the example board at the limit, measured on one machine): a larger model is not run and the other models still answer.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
         for k, c in self.cb.items():
@@ -1471,15 +1471,15 @@ class SolverPanel(QWidget):
         n = max(int(round(b.width * 1000 / c)), 2) * max(int(round(b.height * 1000 / c)), 2) * b.layers
         text = f"{n} unknowns"
         if n > 1_000_000:
-            # The layered models have no hard limit; measured with the direct solver: 1 million unknowns 97 s and 4.4 GB, 2 million 273 s and 8.4 GB
-            text += " (slow: about 4 GB of memory per million)"
+            # The layered models have no hard limit; measured with the direct solver on a plain board (quiet 16 GB machine): 1 million unknowns 5.2 s and 2.7 GB, 2 million 12.4 s and 5.5 GB
+            text += " (slow: about 3 GB of memory per million)"
         if self.cb["solid3d"].isChecked():
             # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
             n3 = solid3d.unknowns(self.doc.problem, c)[0]
             if n3 > solid3d.MAX_CELLS:
                 note = f"; above {solid3d.MAX_CELLS}: it will not run, use a larger cell"
             elif n3 > solid3d.MAX_CELLS // 2:
-                note = "; slow: minutes and GB of memory"
+                note = "; slow: tens of seconds and several GB of memory"
             else:
                 note = ""
             text += f" (3D solid: {n3}{note})"
