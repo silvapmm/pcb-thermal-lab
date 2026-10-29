@@ -70,7 +70,7 @@ def test_table_cases_in_every_model(model):
     assert len(w) == 1 and "0.79 of its coefficient" in w[0] and "21 % less" in w[0] and "27 K above the air" in w[0]
     assert channel_warnings(run(6.5, model=model)) == []
     w = channel_warnings(run(3.5, model=model))
-    assert len(w) == 1 and "71 % less" in w[0] and "Valid for a vertical board" in w[0]
+    assert len(w) == 1 and "up to 71 % less" in w[0] and "Fins down on a horizontal board" in w[0]
     assert channel_warnings(run(20.0, model=model)) == []
 
 
@@ -130,3 +130,24 @@ def test_the_3d_solid_uses_its_own_block_temperature():
     # The auxiliary FVM run is a simulation of its own and calls the check too, so look for the result of every model among the calls
     assert any(r is sims["solid3d"].reference for r in seen) and any(r is sims["fdm"].reference for r in seen)
     assert not any(r is sims["lumped"].reference for r in seen) and all(r is not None and "block_T" in r.arrays for r in seen)
+
+
+def test_the_text_depends_on_the_orientation_and_the_face_and_bounds_the_loss_of_a_very_close_channel():
+    # Ra_b below 14 gives the loss as a bound; Ra_b above it states it. The last sentence follows Board.orientation and the face of the block
+    def text(orientation, face_up, gap=3.5):
+        p = board((15.0, 1.5, gap + 1.5))
+        p.heaters[0].power = 3.0
+        p.board.orientation = orientation
+        if face_up:
+            p.heatsinks[0].layer = 0                                        # the test block is on the bottom layer (fins down) unless moved
+        sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
+        return channel_warnings(sim)
+
+    up = text("horizontal", True)
+    assert len(up) == 1 and "Fins up on a horizontal board" in up[0] and "up to" in up[0]
+    vertical = text("vertical", True)
+    assert len(vertical) == 1 and vertical[0].endswith("Valid for a vertical board.")
+    down = text("horizontal", False)
+    assert len(down) == 1 and "Fins down on a horizontal board" in down[0]
+    moderate = text("horizontal", False, gap=5.5)
+    assert len(moderate) == 1 and "up to" not in moderate[0] and "% less than a plate" in moderate[0]
