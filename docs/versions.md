@@ -12,6 +12,7 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ## Unreleased: user interface review
 
+* **Interface polish** (`fix/ui-polish`): no tooltip on the command buttons Run simulation, Auto, Calculate, Help, Close, Open in the browser and Use as the power of a part (the exempt labels are `NO_TOOLTIP_BUTTONS` of `tests/test_tooltips.py`); `results_view._fit_height` gives the table of the models the height of its rows (3 to 12 rows without a vertical scroll bar; `test_model_table_shows_five_models_without_a_scroll_bar`); the inner copper choice is `0.5 oz (15.2 µm)`; the name **Power Calculator** in the menu, the dialogs, the guide and the documents.
 * **Properties form laid out at once**: `Inspector.rebuild` shows the new form and activates its layouts before returning (a widget added to a layout is shown by a queued call). The Stack-up page keeps the full text of its bar lists (`AdjustToContents`) while the lists of its boxes and table are compact. Test: `tests/test_gui.py::test_properties_form_is_never_squeezed_after_a_rebuild` (fails on the old code).
 
 * **Texts**: `tips.MODEL_LABELS` / `tips.model_label` name the models in the results views (Summary table, the model lists of the plots and of the power-profile results, the model boxes of Preferences; the data of each list stays the key); a placeholder in the empty report; special value texts on the optional fields of a part; the simple stack-up note points to the Stack-up list. Test: `tests/test_gui.py::test_first_run_texts_say_what_to_do_and_what_zero_means`.
@@ -50,7 +51,7 @@ For each version: the **headline**, a table of **what was implemented** (feature
 
 ## Unreleased: screenshots and block numbers
 
-* **Documents and screenshots only** (branch `docs/screenshots-and-block-numbers`; no change to `pcbthermal/`): every image in `docs/images/` regenerated with `examples/make_screenshots.py` (window 2400 x 1363, wide docks so no field of either dock is cut; they showed version 2.3.0 and the old layout); three new screenshots, `calculator_design.png` (Power calculator, *Board description* list and result terms, 2 mm cell), `stackup_inner_copper.png` (Stack-up tab, *Inner copper* 1 oz) and `environment_natural_form.png` (Environment panel, computed, vertical, *Vertical natural convection*), referenced in `README.md`, `docs/calculators.md` and `docs/models.md`. `docs/validation.md` section 17 re-run with `research/block-and-fins/scripts/block_equivalent_study.py` on this program: Lumped 15.6 / 31.4, 8.8 / 18.8, 1.9 / 4.7; Analytic unchanged. The guide now says what the Cell size label shows above 125 000 and above 250 000 unknowns of the 3D solid.
+* **Documents and screenshots only** (branch `docs/screenshots-and-block-numbers`; no change to `pcbthermal/`): every image in `docs/images/` regenerated with `examples/make_screenshots.py` (window 2400 x 1363, wide docks so no field of either dock is cut; they showed version 2.3.0 and the old layout); three new screenshots, `calculator_design.png` (Power Calculator, *Board description* list and result terms, 2 mm cell), `stackup_inner_copper.png` (Stack-up tab, *Inner copper* 1 oz) and `environment_natural_form.png` (Environment panel, computed, vertical, *Vertical natural convection*), referenced in `README.md`, `docs/calculators.md` and `docs/models.md`. `docs/validation.md` section 17 re-run with `research/block-and-fins/scripts/block_equivalent_study.py` on this program: Lumped 15.6 / 31.4, 8.8 / 18.8, 1.9 / 4.7; Analytic unchanged. The guide now says what the Cell size label shows above 125 000 and above 250 000 unknowns of the 3D solid.
 
 ## Unreleased: documentation corrections from the reviews of the research folders
 
@@ -137,7 +138,7 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 | Feature | Code | Tests / evidence |
 | :-- | :-- | :-- |
 | **Calculation in a separate process**: Cancel button (Ctrl+.), window never freezes, nothing left running after closing | `jobs.py`, `gui/compute.py` | `test_compute.py` |
-| **Power calculator** (power from a measured temperature, by the board model or a datasheet parameter) | `inverse.py`, `gui/calculator.py` | `test_inverse.py` |
+| **Power Calculator** (power from a measured temperature, by the board model or a datasheet parameter) | `inverse.py`, `gui/calculator.py` | `test_inverse.py` |
 | **Help menu**: HTML user guide (in the program or the browser), About box (version, author, project link, libraries) | `help/index.html`, `gui/help.py` | `test_help.py` |
 | **Tooltips on every control**, checked by a test | `gui/tips.py` | `test_tooltips.py` |
 | Rulers and scale bar on the board, drag keeps every element on the board (a via no longer jumps off), shape position and size fields, tool keys S Z H C V O, tab shortcuts Ctrl+1..4, hidden unused heat transfer fields, units on every field | `gui/canvas.py`, `gui/document.py`, `gui/panels.py`, `gui/main_window.py` | `test_gui_stress.py` |
@@ -183,9 +184,9 @@ Work of the branches `feature/component-element` and `feature/junction-node` (me
 
 | Preferences: libraries and defaults in JSON (shipped `defaults.json` + user `user_defaults.json` with only the differences), editor window, start-up notice; via fill by name with an editable typical value | `defaults.py`, `data/defaults.json`, `model.reload_libraries/new_problem`, `gui/preferences.py`, `gui/panels.py`, `gui/main_window.py` | `test_defaults.py` |
 
-| Power calculator reworked (name, parameters inside the window, hints, result with temperatures and board resistance), validated against datasheet boards; empty board at start-up | `gui/calculator.py`, `inverse.py`, `gui/app.py`, `research/power-calculator/scripts/calculator_validation.py`, `docs/calculators.md` | `test_calculator_validation.py`, `test_inverse.py` |
+| Power Calculator reworked (name, parameters inside the window, hints, result with temperatures and board resistance), validated against datasheet boards; empty board at start-up | `gui/calculator.py`, `inverse.py`, `gui/app.py`, `research/power-calculator/scripts/calculator_validation.py`, `docs/calculators.md` | `test_calculator_validation.py`, `test_inverse.py` |
 
-| Power calculator: tabs per route, constant window size, Help window, uncertainty band with best / nominal / worst selector (`inverse.power_band`, `calculator` defaults) | `inverse.py`, `jobs.py`, `gui/calculator.py`, `help/calculator.html`, `defaults.json` | `test_inverse.py` (band), `test_defaults.py` (window, selector, routes) |
+| Power Calculator: tabs per route, constant window size, Help window, uncertainty band with best / nominal / worst selector (`inverse.power_band`, `calculator` defaults) | `inverse.py`, `jobs.py`, `gui/calculator.py`, `help/calculator.html`, `defaults.json` | `test_inverse.py` (band), `test_defaults.py` (window, selector, routes) |
 
 | Heater type (heat source with an interface under it / component), package family fills θ, θJC(top), Tj max from the library in Preferences | `model.Heater.role/base_*/junction_theta`, `analysis.part_split`, `gui/panels.py`, `defaults.json` | `test_component.py`, `test_inspector_sections.py` |
 

@@ -79,6 +79,22 @@ def _fill(table, rows):
             table.setItem(r, c, item)
 
 
+def _fit_height(table, min_rows=3, max_rows=12):
+    """!
+    @brief Give a table the height of its rows, so that it shows them all without a scroll bar while there are at most max_rows of them.
+    @details The table of the models had a fixed ceiling of 170 px, which showed a scroll bar as soon as five models ran although the window had room for
+             more: the height now follows the number of rows (at least min_rows, so that an empty table does not collapse) and only above max_rows the
+             vertical scroll bar appears.
+    @param table QTableWidget (header on top, no horizontal scroll bar: its columns stretch).
+    @param min_rows Rows of height reserved even when the table has fewer.
+    @param max_rows Largest number of rows shown without a scroll bar.
+    @return None.
+    """
+    rows = min(max(table.rowCount(), min_rows), max_rows)
+    h = table.horizontalHeader().height() + rows * table.verticalHeader().defaultSectionSize() + 2 * table.frameWidth() + 2
+    table.setFixedHeight(h)
+
+
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
@@ -295,7 +311,7 @@ class ResultsView(QWidget):
         sl = QVBoxLayout(summary)
         self.model_table = _table(["Model", "Tmax °C", "Tmean °C", "ΔT °C", "Rθ K/W", "Power W",
                                    "Balance", "Error vs ref", "Time s"])
-        self.model_table.setMaximumHeight(170)
+        _fit_height(self.model_table)                        # The height follows the rows (no scroll bar below 12 rows), see _fit_height
         # The model names of the Simulation panel ("Lumped (LPTN)") were cut to "Lumped ..." in a column of the same width as the numbers
         self.model_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.warnings = QLabel()
@@ -370,6 +386,7 @@ class ResultsView(QWidget):
                  "reference" if r["model"] == sim.reference.model else f"{r['error_vs_reference'] * 100:+.1f} %",
                  f"{r['seconds']:.2f}"] for r in sim.table()]
         _fill(self.model_table, rows)
+        _fit_height(self.model_table)
         warns = sim.warnings
         self.warnings.setText("<br>".join(f"⚠ {w}" for w in warns))
         self.warnings.setVisible(bool(warns))

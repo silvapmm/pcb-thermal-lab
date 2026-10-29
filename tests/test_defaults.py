@@ -141,13 +141,13 @@ def test_calculator_shows_the_parameters_its_point_needs_and_the_program_starts_
     win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
     qtbot.addWidget(win)
     assert not win.doc.problem.heaters and not win.doc.problem.zones                      # An empty board: no example is loaded at start-up
-    assert win.a_calc.text() == "Power calculator…"
+    assert win.a_calc.text() == "Power Calculator…"
     doc = Document()
     doc.open_problem(example_board(), "example")
     d = PowerCalculator(doc)
     qtbot.addWidget(d)
     d.show()
-    assert d.windowTitle() == "Power calculator"
+    assert d.windowTitle() == "Power Calculator"
     for key, theta_on, psi_on in (("ring", False, False), ("max", False, False), ("junction", True, False), ("top", True, True)):
         d.point.setCurrentIndex(d.point.findData(key))
         assert d.theta.isEnabled() == theta_on and d.psi_jt.isEnabled() == psi_on          # Greyed when the point does not use them, still in place
@@ -227,7 +227,7 @@ def test_help_sits_before_close_and_preferences_has_a_power_calculator_tab(qtbot
     p = PreferencesDialog(win)
     qtbot.addWidget(p)
     assert p.windowTitle() == "Preferences"
-    assert p.section_titles()[-2:] == ["Defaults for new projects", "Power calculator"]
+    assert p.section_titles()[-2:] == ["Defaults for new projects", "Power Calculator"]
     p.widgets[("calculator", "copper_uncertainty_pct")].setValue(40.0)
     p.widgets[("calculator", "design_level")].setCurrentText("estimated")              # The design-uncertainty level and amplitudes are in the same tab
     p.widgets[("calculator", "design_vias_pct")].setValue(35.0)
@@ -278,7 +278,7 @@ def test_preferences_sections_are_a_list_with_stacked_pages(qtbot, tmp_path):
     d.show()
     qtbot.waitExposed(d)
     titles = d.section_titles()
-    assert len(titles) == 8 and titles[-2:] == ["Defaults for new projects", "Power calculator"] and d.pages.count() == 8
+    assert len(titles) == 8 and titles[-2:] == ["Defaults for new projects", "Power Calculator"] and d.pages.count() == 8
     assert d.sections.currentRow() == 0 and d.pages.currentIndex() == 0 and d.focusWidget() is d.sections
     assert d.sections.width() == SECTION_LIST_WIDTH == 240
     metrics = d.sections.fontMetrics()

@@ -399,7 +399,7 @@ class MainWindow(QMainWindow):
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
         self.a_run = self._act("Run simulation", self.run_simulation, "F5", tip="Solve the selected models (F5)")
-        self.a_calc = self._act("Power calculator…", self.show_calculator,
+        self.a_calc = self._act("Power Calculator…", self.show_calculator,
                                 tip="Find the power of a part from a temperature you measured (drawn board, or a datasheet parameter)")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 

@@ -1,6 +1,6 @@
 """!
 @file calculator.py
-@brief Power calculator: the watts a part dissipates, from a temperature you measured.
+@brief Power Calculator: the watts a part dissipates, from a temperature you measured.
 @details Two independent routes, one per tab (docs/calculators.md, and the Help button of the window):
          * **From the drawn board** (inverse.power_from_temperature / power_band, run in the calculation process): the board you drew (its copper, vias, stack-up, heat transfer)
            is solved at two powers and the power that makes the model read your temperature at the chosen point is found. The copper does not "give" the heat: it decides how
@@ -25,7 +25,7 @@ HELP_FILE = Path(__file__).resolve().parents[1] / "help" / "calculator.html"
 DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band covers only the doubt about numbers (copper thickness, heat transfer, θ, ψJT, reading). It does not cover a wrongly drawn board."),
           ("Drawn from the real fabrication files", "cad", "The board was drawn from the real fabrication files (the copper, vias and planes as manufactured): a small doubt about the description (20 % of the 'estimated' amplitudes by default)."),
           ("Drawn by hand from the layout", "hand", "You drew the zones, pads and vias from the layout by hand: half of the 'estimated' amplitudes by default (copper coverage, copper weight, inner planes, vias)."),
-          ("Estimated (no layout at hand)", "estimated", "The board is a guess (a hatched pour drawn solid, unknown copper weight, planes or vias not known): the full amplitudes of Preferences - Power calculator."))
+          ("Estimated (no layout at hand)", "estimated", "The board is a guess (a hatched pour drawn solid, unknown copper weight, planes or vias not known): the full amplitudes of Preferences - Power Calculator."))
 POINTS = (("Board temperature 1 mm around the part (ring)", "ring",
            "The board 0.5 to 1.5 mm outside the package: the point where the datasheet's ψJB takes the board temperature. Measure it with a thermocouple taped on the copper "
            "next to the part. Needs nothing from the datasheet."),
@@ -74,7 +74,7 @@ class CalculatorHelp(QDialog):
         @param parent Qt parent.
         """
         super().__init__(parent)
-        self.setWindowTitle("Power calculator - help")
+        self.setWindowTitle("Power Calculator - help")
         self.resize(820, 700)
         lay = QVBoxLayout(self)
         self.view = QTextBrowser()
@@ -83,7 +83,6 @@ class CalculatorHelp(QDialog):
         self.view.setSource(QUrl.fromLocalFile(str(HELP_FILE)))
         lay.addWidget(self.view, 1)
         box = QDialogButtonBox(QDialogButtonBox.Close)
-        box.button(QDialogButtonBox.Close).setToolTip("Close the help.")
         box.rejected.connect(self.reject)
         lay.addWidget(box)
 
@@ -99,7 +98,7 @@ class PowerCalculator(QDialog):
         @param parent Qt parent.
         """
         super().__init__(parent)
-        self.setWindowTitle("Power calculator")
+        self.setWindowTitle("Power Calculator")
         self.doc, self.worker, self.out = doc, None, None
         lay = QVBoxLayout(self)
         intro = QLabel("Finds the watts a part dissipates from a temperature you measured. Choose <b>one</b> of the two routes.")
@@ -112,10 +111,8 @@ class PowerCalculator(QDialog):
         lay.addWidget(self.tabs, 1)
         bottom = QHBoxLayout()
         self.help_btn = QPushButton("Help")
-        self.help_btn.setToolTip("Open the detailed help of the calculator: the routes, the parameters, the band, the validation, the limits.")
         self.help_btn.clicked.connect(lambda: CalculatorHelp(self).exec())
         self.close_btn = QPushButton("Close")
-        self.close_btn.setToolTip("Close the calculator.")
         self.close_btn.clicked.connect(self.reject)
         bottom.addStretch(1)
         bottom.addWidget(self.help_btn)                                      # Help sits right before Close
@@ -175,7 +172,7 @@ class PowerCalculator(QDialog):
             self.design.setItemData(self.design.count() - 1, tip, 3)
         self.design.setCurrentIndex(max(0, self.design.findData(defaults.value("calculator", "design_level"))))
         self.design.setToolTip("How well the drawn board matches the real one (the design uncertainty of the band). The copper coverage, copper weight, inner planes and vias are "
-                               "moved one at a time and added to the other sources as the root of the sum of squares. Amplitudes: Preferences - Power calculator. "
+                               "moved one at a time and added to the other sources as the root of the sum of squares. Amplitudes: Preferences - Power Calculator. "
                                "Without it the band does not cover a wrongly drawn board. Each option has a hint.")
         f.addRow("Board description", self.design)
         lay.addLayout(f)
@@ -187,8 +184,6 @@ class PowerCalculator(QDialog):
         lay.addWidget(self.band)
         row = QHBoxLayout()
         self.compute = QPushButton("Calculate")
-        self.compute.setToolTip("Runs the board model and finds the power that reproduces the measurement. The result is as good as the board drawn "
-                                "(copper, vias, stack-up, heat transfer coefficients) and as the measurement (a probe that touches the board cools it a little).")
         self.compute.clicked.connect(self._run)
         row.addWidget(self.compute)
         row.addStretch(1)
@@ -244,7 +239,6 @@ class PowerCalculator(QDialog):
         self.use2 = QPushButton("Use as the power of a part")
         self.use2.setMinimumWidth(260)
         self.use2.setMinimumHeight(30)
-        self.use2.setToolTip("Write this power in the part chosen in Route 1 (it can be undone).")
         self.use2.clicked.connect(self._use2)
         row = QHBoxLayout()
         row.addWidget(self.use2)

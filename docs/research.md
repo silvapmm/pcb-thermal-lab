@@ -211,7 +211,7 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 
 | Box in Properties | Fields | What it is | Where the number comes from | When it is used |
 | :-- | :-- | :-- | :-- | :-- |
-| Part | Power | heat dissipated | you (or the Power calculator) | always |
+| Part | Power | heat dissipated | you (or the Power Calculator) | always |
 | Junction | θ junction-pad (K/W) | resistance from the junction to the pad / board under the part | datasheet: RθJC(bottom or exposed pad), θJ-L, Rth j-sp (never θJA); or the family list | to report `Tj = T_board,max + P_board·θ`; without it the report gives the board temperature under the part only |
 | Junction | *Typical θ by package family* (list) | fills θ with an indicative value | the library `package_theta` (web summaries, **not** datasheets) | only as a starting value, always replaced by the datasheet number |
 | Junction | Tj max, ψJB, Power coefficient | junction limit (margin, power limit), second estimate of Tj from the board ring, power that changes with temperature | datasheet | optional reports and the power loop |

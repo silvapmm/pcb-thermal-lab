@@ -508,3 +508,26 @@ def test_a_typed_or_pasted_decimal_comma_is_a_point_in_a_spin_box(win, qtbot):
     qtbot.addWidget(name)
     QTest.keyClicks(name, "a,b")
     assert name.text() == "a,b"
+
+
+def test_model_table_shows_five_models_without_a_scroll_bar(qtbot):
+    """!
+    @brief The table of the models of the Results tab takes the height of its rows, so that five models are visible with no vertical scroll bar.
+    @param qtbot pytest-qt fixture.
+    @return None.
+    """
+    from pcbthermal.gui.results_view import _fill, _fit_height, _table
+    t = _table(["Model", "Tmax °C", "Tmean °C"])
+    qtbot.addWidget(t)
+    t.resize(600, 400)
+    t.show()
+    rows = [[name, "85.6", "60.2"] for name in ("FVM", "FDM", "Lumped (LPTN)", "Analytic", "3D solid")]
+    _fill(t, rows)
+    _fit_height(t)
+    qtbot.wait(50)
+    assert t.verticalScrollBar().maximum() == 0 and not t.verticalScrollBar().isVisible()
+    assert t.height() >= t.horizontalHeader().height() + 5 * t.verticalHeader().defaultSectionSize()
+    # Many more rows than the ceiling: the table stops growing and scrolls
+    _fill(t, rows * 4)
+    _fit_height(t)
+    assert t.height() < t.horizontalHeader().height() + 20 * t.verticalHeader().defaultSectionSize()

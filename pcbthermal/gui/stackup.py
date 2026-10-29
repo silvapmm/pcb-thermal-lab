@@ -404,9 +404,9 @@ class StackupPage(QWidget):
                                 "They are typical values, not the stack-up of your fabricator.")
         self.typical.clicked.connect(self.doc.load_typical_stackup)
         self.inner_oz = QComboBox()
-        self.inner_oz.addItem("0.5 oz (15.2 µm, JLCPCB standard)", 0.5)
+        self.inner_oz.addItem("0.5 oz (15.2 µm)", 0.5)
         self.inner_oz.addItem("1 oz (35 µm)", 1.0)
-        self.inner_oz.setToolTip("Finished thickness of the INNER copper layers of the typical advanced stack-up (boards of 3 or more layers). 0.5 oz = 15.2 µm is the JLCPCB standard and the "
+        self.inner_oz.setToolTip("Finished thickness of the INNER copper layers of the typical advanced stack-up (boards of 3 or more layers). 0.5 oz = 15.2 µm is the "
                                  "default; 1 oz = 35 µm is what PCBWay, PCBGOGO, Bittele and AdvancedPCB list (JLCPCB's own 1 oz inner copper is about 30 µm). Choosing it reloads "
                                  "the typical stack-up with 35 µm inner copper and the dielectrics of the template unchanged, so the board is about 0.02 mm thicker per inner layer "
                                  "(1.586 to 1.626 mm for 4 layers, 2.4 to 2.6 mm for 12): fabricators pick another build for 1 oz, they do not thin the dielectrics. It is derived from "
