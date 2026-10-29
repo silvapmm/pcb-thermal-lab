@@ -701,14 +701,24 @@ class Heater:
             return self.pad_thickness / self.pad_k * 1e4
         return self.interface
 
+    def has_top_path(self):
+        """!
+        @brief Whether the part has a path to the ambient through the top of its package.
+        @details Only a component has one: a part with a junction (theta > 0) and a heatsink on top (theta_sa > 0). A pure source is a power over
+                 a footprint with, at most, the interface under it, so it has no junction to hang a top path on; the fields theta and theta_sa that
+                 a file or the API may still carry on a source are ignored (the interface does not show them either).
+        @return bool.
+        """
+        return self.is_component() and self.theta > 0 and self.theta_sa > 0
+
     def top_resistance(self):
         """!
         @brief Total resistance of the top path, junction to ambient.
-        @details theta_jc_top + interface / footprint area + theta_sa, in series; the path exists only for a part with a junction
-                 resistance theta and a heatsink resistance theta_sa.
+        @details theta_jc_top + interface / footprint area + theta_sa, in series; the path exists only for a component with a junction
+                 resistance theta and a heatsink resistance theta_sa (has_top_path).
         @return Resistance in K/W, or 0.0 when the heater has no top path.
         """
-        if self.theta <= 0 or self.theta_sa <= 0:
+        if not self.has_top_path():
             return 0.0
         area_cm2 = max((self.contact_area or self.area()) * 1e4, 1e-9)           # The paste covers the lid/case, which can differ from the footprint
         return self.theta_jc_top + self.interface_kcm2() / area_cm2 + self.theta_sa
