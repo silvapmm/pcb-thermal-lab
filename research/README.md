@@ -17,6 +17,7 @@ Studies that are not part of the program, one folder per investigation, named af
 | [`outline/`](outline/README.md) | implemented | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | [`stackup/`](stackup/README.md) | implemented | The advanced stack-up in the five models, its sensitivity, the typical templates against fabricators. |
 | [`via-fill/`](via-fill/README.md) | implemented | What fills a via barrel and how much it matters. |
+| [`fin-channel/`](fin-channel/README.md) | open, studied (awaiting the reviewer) | The channel effect between close fins of the finned block: Elenbaas and composite correlations read and reproduced, measured fin arrays, the program's block with the channel coefficient, a rule for the warning and a correction. |
 | [`zone-union/`](zone-union/README.md) | open, reviewed | How the zones of one copper layer are combined into the copper of a cell: what the CAD tools mean, which rule is right, the five models against an independent solver, sampling, cost, edge cases. |
 
 * [`ROADMAP.md`](ROADMAP.md): what is left to finish, in the order recommended, and the pool of open questions to investigate.
