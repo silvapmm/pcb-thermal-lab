@@ -100,6 +100,7 @@ What we want to **implement** in the program, each item once, with the evidence 
 
 ### Next, in order (maintainer)
 
+1. **Memory limit and guard** (`pcbthermal/memory.py`; fix or feature to decide: the unknown count in the panel is corrected (`fix/unknown-count`); a new Preferences setting with a guard is a feature and makes the version 2.5.0). Physical RAM, the memory of each model from its unknowns (coefficient per slab class, growth about N^(4/3)), a verdict ok / refuse in `api.simulate`, the jobs, the interface and the CLI. **Default limit 70 % of the physical memory, editable in Preferences** (`solver` section of `defaults.json`); a "slow" warning below it; the fixed 3D limit of 250 000 becomes RAM-based with an absolute ceiling; the unknown count shown for the layered models (it ignores the laminate nodes and the block layers: 2 400 shown, 9 600 real) is corrected in the same item. Test: simulated RAMs of 8, 16 and 64 GB; the 502 mm board refused in under 60 s; a failed RAM read falls back to the fixed ceiling. Evidence: `research/solid3d-verification/docs/for-the-project-documents.md`, its fig_09. Related: reuse the factorisation in the computed-h loop of the 3D solid.
 2. **Wait for the investigation**: the point via (below), the fin warning and the items after the investigations. The faster split stays as it is.
 
 ### Fixes waiting for a study
