@@ -16,7 +16,7 @@ The via fill itself is in the program (2.4.0). The review (README sections 4.4 t
 * (b) Always spread the via over the cells of its disc (plus a minimum of one cell): simpler, correct on fine cells, but at 1 mm the via becomes a point again (no change there, the current behaviour is close to right).
 * Test: the via-array board of `study_via_model_checks.py` against `layered3d.py` with resolved barrels, gain within 0.1 K from 1 mm to 0.0625 mm; and the existing example-board tables re-run (they move by up to 0.3 K at 0.5 mm).
 
-## 2. The 3D solid cuts a via larger than its cell
+## 2. The 3D solid cuts a via larger than its cell (corrected in the program: the copper is spread over the cells of its disc, branch `fix/3d-via-spread`)
 
 **What.** `solid3d.py` sets `via_frac = min(Σ A_via / A_cell, 1)` per cell. A copper fill (or several vias in one cell) larger than the cell loses the excess copper: a 0.3 mm copper fill keeps 88 % at 0.25 mm cells, a 0.5 mm copper fill 32 % (README 4.7). The 3D solid is the reference of several studies; on fine cells it would read too hot with copper-filled vias.
 
