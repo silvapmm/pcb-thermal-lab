@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **Metal block beyond the board outline** is cut at the outline in the FVM, FDM and 3D solid; before, it drained into the cells off the board and the part read about 38 K too cold (FVM 66.8 against 104.7 degC on the test board) without any warning. The input check now measures the block against the outline.
+
 ## [2.4.2] - 2026-10-29
 
 ### Added
