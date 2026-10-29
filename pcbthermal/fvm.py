@@ -110,7 +110,8 @@ class Network:
             self._add_laminate(b, cell)
         if with_blocks:
             area = cell.copy()
-            layers = blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, nx, ny, dx, dy, samples=n), area, f, dx, dy)
+            # The block is cut at the board outline: a cell off the board carries no block (it would be pinned to the ambient and drain the block)
+            layers = blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, nx, ny, dx, dy, samples=n) * self.cover, area, f, dx, dy)
             self._add_blocks(layers)
         if b.h_side and b.has_outline():
             # Edge of a non-rectangular board: the length of the outline inside every cell times the slab thickness

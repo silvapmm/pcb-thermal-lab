@@ -186,7 +186,7 @@ class Solid:
             if not s.is_block():
                 continue
             face = 0 if (s.layer == 0 or L == 1) else 1
-            c = cover(s.polygon, 4)
+            c = cover(s.polygon, 4) * bcov                     # The block is cut at the board outline (cells off the board are pinned to the ambient)
             f = faces.setdefault(face, {"cov": np.zeros((ny, nx)), "t": np.zeros((ny, nx)), "k": np.ones((ny, nx)),
                                         "r": np.zeros((ny, nx)), "he": np.zeros((ny, nx)), "names": [], "fins": {}})
             take = c > 0

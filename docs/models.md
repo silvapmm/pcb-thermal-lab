@@ -131,7 +131,7 @@ It is not a truth either: the barrel is a lumped copper area (no plating geometr
 
 `check_problem` (also run by `simulate` and live in the application under the Run button) never blocks a run; it warns about inputs that make a result doubtful: a heater partly outside the board
 (its power would be moved onto the part inside), no copper under a heater, a copper edge or hatching crossing a footprint (Lumped and Analytic unreliable), a heater only a few cells wide, overlapping
-heaters, vias or zones outside the board, a metal block with no copper under it (or an almost perfect contact), plate fins closer than still air allows (under 4 mm of air gap), a footprint of zero area, zones or metal blocks partly outside the board, two heatsinks that overlap (only the later one is used in the overlap) and zero total power. After the run, the thick-plate check of section 4b.
+heaters, vias or zones outside the board, a metal block with no copper under it (or an almost perfect contact), plate fins closer than still air allows (under 4 mm of air gap), a footprint of zero area, zones or metal blocks partly outside the board or its outline (a block is cut at the outline in the FVM, FDM and 3D solid; Lumped and Analytic take it whole on the rectangle of the same area), two heatsinks that overlap (only the later one is used in the overlap) and zero total power. After the run, the thick-plate check of section 4b.
 
 ## 4. Power profiles (time-dependent power) (theory §10)
 

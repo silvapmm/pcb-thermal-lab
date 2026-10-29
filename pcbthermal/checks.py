@@ -118,10 +118,13 @@ def check_problem(problem, cell_mm=1.0):
         if not s.is_block():
             continue
         name = s.name or f"Heatsink {k + 1}"
-        cov = coverage_fraction(s.polygon, nx, ny, dx, dy, 4)
+        # Measured against the board outline, not only against the box: a block over the cut-away part of a board has no board under it
+        cov = coverage_fraction(s.polygon, nx, ny, dx, dy, 4) * board_cover
         area = polygon_area(s.polygon)
         if area > 0 and float(cov.sum() * dx * dy) / area < 0.9:
-            _add(out, "heatsink", k, f"{name}: part of the metal block is outside the board; only the part inside is modelled.")
+            _add(out, "heatsink", k, f"{name}: part of the metal block is outside the board" + (" outline" if b.has_outline() else "") +
+                       "; the FVM, FDM and 3D solid cut it there and model only the part inside (the Lumped and Analytic models take the block "
+                       "whole on the rectangle of the same area).")
         if cov.sum() > 0:
             overlap = float((fill[s.layer] * cov).sum() * dx * dy)
             if overlap < 1e-6:
