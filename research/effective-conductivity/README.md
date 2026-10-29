@@ -416,7 +416,7 @@ Culham and Yovanovich (1998); Muzychka, Culham and Yovanovich (2003); Lemczyk, M
 * Seri Lee's three positions, the cross and case 1 of Muzychka and others, the five layer orders and the series and parallel limits of Culham and Yovanovich, the library's worked example; the solver's own tests (series circuit, energy balance to 1e-9 with and without a film under the source, uniform layer).
 * **Not reproduced or not explained:** the effective conductivity above Biot 60 (five definitions of the mean wall temperature and a variant tested; a bound shows that the stated stack cannot give it); the 1.62 mm thickness stated against the layers' 1.6501 mm; the Bar-Cohen and Rohsenow correlation (the paper was not obtained, only the quoted optimum); the second case of Muzychka and others (a heat-sink base with four sources) and their compound-plate case 1 (b) were not run.
 
-## 8. Review (reviewer agent)
+## 8. Review
 
 Every study re-run on the program at `0ea5f07`, then the figures, the diagrams and the tests of the folder (`QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q research/effective-conductivity/tests`, and `tests/test_docs.py`).
 

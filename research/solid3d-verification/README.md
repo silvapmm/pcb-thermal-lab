@@ -248,7 +248,7 @@ With full copper the 3D solid and the layered models now agree within 1.2 % of t
 
 Yovanovich, J. Electronic Packaging 125 (2003) 169 to 177, Table 3 (as cited in the header of `solid3d_verification.py`; title from memory in the last section); Roache, grid convergence index, ASME V&V 20 (method; the standard was not read, the formula is the common three-grid GCI with safety factor 1.25). Own computation for the rest.
 
-## 7. Review (reviewer agent)
+## 7. Review
 
 Every study of the folder was re-run on the program of `develop` at `0ea5f07` (merged into `research/gerbers`), and every number of this README was compared with what the scripts print. What was found:
 

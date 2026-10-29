@@ -379,7 +379,7 @@ JLCPCB 1 oz (30 um inner copper) minus the program variants at 30 um, in K
 * No blind or buried vias, sequential lamination, heavy copper or metal-core boards were checked against a fabricator table.
 * No measurement of a physical board.
 
-## 7. Review (reviewer agent, program at `0ea5f07`)
+## 7. Review
 
 Every study of the folder was re-run on the corrected program (`stackup_outline_study.py`, `stackup_vendor_check.py`, the new `study_dielectric_sensitivity.py`, `make_figures.py`, `make_diagrams.py`); `tests/test_stackup.py` and `tests/test_templates.py` pass (17 tests).
 

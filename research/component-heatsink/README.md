@@ -386,7 +386,7 @@ See `NOTES.md` (the references of every section, from JEDEC-based application no
 * Not re-opened: onsemi's SS14 page returned HTML, not the PDF. From memory only: Seri Lee and others' spreading formula (Electronics Cooling, 1998), used as a closed-form check of the heatsink base; the Electronics Cooling volumetric factors of forced air; the heatsink catalogue values of the library.
 * An earlier draft said "1 to 3 K" for the junction offset; the table was re-read from the output and corrected to 2.5 to 10 K. All nine studies reproduce the numbers of this README; `docs/validation.md` section 9 is current except the points listed in `docs/for-the-project-documents.md`.
 
-## 7. Review (reviewer agent)
+## 7. Review
 
 Every study was re-run on the program of `develop` `1674d52` (the physics code is the same on this branch). Tables 4.1 A to C, 4.2 to 4.5, 4.6 natural rows and 4.8 reproduce to the last digit; the plate check of 4.8 is 0.664 K/W against 0.66 in Seri Lee (1998).
 

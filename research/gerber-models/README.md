@@ -924,7 +924,7 @@ None of them maps the copper to the cell conductances as above: the mesh project
 * The two proposed corrections to the program were measured on copies outside the repository; the program's tests that touch zones, the 3D solid, the outline and the stack-up were run on the copies (57 passed, 2 GUI errors for lack of `pytest-qt`), the whole battery was not.
 * The share alpha of the hybrid diagonal faces was chosen on the same 42 windows it is tested on (no held-out set).
 
-## Review (independent reviewer)
+## 9. Review
 
 Status: **reviewed** (findings R1 to R7 fixed in the folder; program defects reported in `research/REVIEW.md`). Program used: `develop` at `a6f822b` (the worktree given on `PYTHONPATH`), which has the laminate nodes of a one-layer board, the 3D solid's laminate under one copper layer, the Lumped ring width and the later corrections; this research branch's own copy of `pcbthermal/` differs from it only in the top-path split and the finned-block sides, which no study here uses. The studies that use only the research solver (`lib/conduction.py`, `lib/scenarios.py`, `lib/diagonal.py`) do not depend on the program. Findings are written here as they are found; each names its evidence.
 

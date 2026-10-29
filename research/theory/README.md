@@ -193,7 +193,7 @@ A topic is adopted when the maintainer decides: its text is folded into `docs/th
 * **Read in this work**: the source of the Python `ht` package (version 1.2.0, MIT: the Hollands and Churchill-Chu functions and their worked examples), which showed that its documentation and its code differ in the Hollands formula. The maintainer's reference compilation (kept in `docs/reference-compilation.md`) is a second-hand source: what it read, it read; this repository only checked its numbers.
 * **Checked numerically here**: the properties of the Bruggeman and Hashin-Shtrikman formulas (`scripts/check_mapping_formulas.py`), the correlations of `scripts/check_correlations.py`, the area loss of a polygon corner (topic 35, figure 28), the coverage sum against the polygon area (topic 28, figure 21), and the explanation of topic 37 (`scripts/study_fvm_analytic_edges.py`: it was wrong). Everything else in the topics is copied from the project documents and the READMEs of the investigations; the review of this folder compared those numbers with the current READMEs and `docs/` of `develop` (section 7).
 
-## 7. Review (reviewer agent)
+## 7. Review
 
 The folder was reviewed against `develop` at `3e90a7f` (the program, `docs/theory.md`, `docs/validation.md`, `docs/models.md`, `docs/calculators.md`) and against the current READMEs of the investigations it cites. What changed:
 

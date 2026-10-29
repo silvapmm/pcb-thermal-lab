@@ -162,7 +162,7 @@ Incropera and DeWitt (fin efficiency, straight fin with a corrected length, annu
 * While reproducing the study (before the review) two corrections were made: the script still called flags that no longer exist (`block_nodes`, `block_tiles`) and the case count was 74, not 62 (4 geometries × 6 thickness/metal pairs × 3 interfaces + 2 finned); the documents were corrected.
 * Not implemented: the channel effect between fins; a time simulation with a block in Lumped and Analytic.
 
-## 7. Review (reviewer agent)
+## 7. Review
 
 Program: `develop` `a9c1cd1` (the physics code is the same as at `1674d52` and on `research/gerbers`; only `pcbthermal/help/index.html` and a docstring of `model.py` differ). Every study re-run, the figures regenerated; the list at the end of this section has the detail.
 

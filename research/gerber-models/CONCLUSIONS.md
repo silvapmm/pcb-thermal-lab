@@ -4,7 +4,7 @@ Written on branch `research/gerbers` (phase 2 of three of the Gerber research, s
 
 **Scope**: this file concludes on the copper in the simulation models (the mappings, the five models, the import into the program's FVM, the corrections to the program). The reading of the files is concluded in [`../gerber-import/CONCLUSIONS.md`](../gerber-import/CONCLUSIONS.md), the nets with a current in [`../gerber-nets/CONCLUSIONS.md`](../gerber-nets/CONCLUSIONS.md).
 
-**After the independent review** (README, section Review): the numbers that run the program were re-run on `develop` at `a6f822b` and replaced below; the 42-window studies use a one-sheet reference that an independent 3D solver shows to be 22 % cool on real one-layer copper, so their percentages are the mapping error inside that idealisation (about half of what the program shows); the program's own pixel run is 10 % cool against the same 3D solution (two laminate nodes bridge the clearances).
+**After the independent review** (README, section 9 "Review"): the numbers that run the program were re-run on `develop` at `a6f822b` and replaced below; the 42-window studies use a one-sheet reference that an independent 3D solver shows to be 22 % cool on real one-layer copper, so their percentages are the mapping error inside that idealisation (about half of what the program shows); the program's own pixel run is 10 % cool against the same 3D solution (two laminate nodes bridge the clearances).
 
 ## 1. Where we stand
 
