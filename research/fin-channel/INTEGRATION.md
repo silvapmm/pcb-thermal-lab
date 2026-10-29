@@ -27,12 +27,14 @@ What would enter the program, the measured impact of each proposal, what does no
 
 | case | expected |
 | :-- | :-- |
-| gap 5.5 mm, `L` 40 mm, 40 K (`Ra_b` about 62) | warns; `phi` 0.85 (rise +4.7 % with the `phi` form; the full coefficient against the Churchill and Chu plate: loss 8 %, rise +2.4 %) |
-| gap 6.5 mm, `L` 40 mm, 40 K (`Ra_b` about 137) | no warning |
-| gap 6.5 mm, `L` 100 mm, 20 K (`Ra_b` about 32) | warns; loss of the finned face 31 % (channel effect; 24 % against the Churchill and Chu plate) |
-| gap 3.5 mm, `L` 40 mm, 3 W (`Ra_b` about 12) | warns; rise +27.1 % with the `phi` form (+22.5 % with the full coefficient) |
+| gap 5.5 mm, `L` 40 mm, 37.4 K, 25 degC air (`Ra_b` 62.4, table A of README 5; at 40 K and 20 degC air it is 70.4, `phi` 0.86) | warns; `phi` 0.85 (rise +4.7 % with the `phi` form; the full coefficient against the Churchill and Chu plate: loss 8 %, rise +2.4 %) |
+| gap 6.5 mm, `L` 40 mm, 40 K, 20 degC air (`Ra_b` about 137) | no warning |
+| gap 6.5 mm, `L` 100 mm, 20 K, 20 degC air (`Ra_b` about 32) | warns; loss of the finned face 31 % (channel effect; 24 % against the Churchill and Chu plate) |
+| gap 3.5 mm, `L` 40 mm, 3 W, block 46.6 K in the channel run of table A, 25 degC air (`Ra_b` 11.9; with the program's typed 10 W/m²K the block is 23 K above the air and `Ra_b` is 7) | warns; rise +27.1 % with the `phi` form (+22.5 % with the full coefficient) |
 | gap 20 mm, any | no warning |
 | `phi(54.38)` = 0.816, `phi(121.5)` = 0.933, `phi(90.07)` = 0.900 | the function |
+
+**Correction (review of the adoption branch).** The first version of this table labelled the 5.5 mm and 3.5 mm rows with 40 K and 3 W but quoted the `Ra_b` of table A of README 5, which is computed at the board's 25 degC ambient and at the mean wall excess of the channel run (37.4 K and 46.6 K, with the convection-only plate coefficient of the study, not the coefficient the program is given). The values now give the conditions of each number; `checks.fin_channel_rayleigh` reproduces 62.4 and 11.9 from them (`tests/test_fin_channel_warning.py`).
 
 ## 3. Proposal B: the correction (a model change; optional)
 

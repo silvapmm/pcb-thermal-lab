@@ -51,8 +51,12 @@ def test_channel_fraction_function_values_of_the_study():
 
 
 def test_rayleigh_of_the_table_cases_at_a_stated_excess():
-    # Ra_b at 20 degC ambient for the block excess named in the table (the study's "about 62" had a rise of 36 K; the number moves as theta^(1/2-ish))
+    # Ra_b at 20 degC ambient for the block excess named in the INTEGRATION table: 40 K gives 70.4 at 5.5 mm, not the "about 62" written there
     assert fin_channel_rayleigh(5.5e-3, 40e-3, 40.0, 20.0) == pytest.approx(70.4, rel=0.01)
+    # The 62.4 and 11.9 of research/fin-channel README 5 table A are at the board's 25 degC ambient and the mean wall excess of the channel run
+    # (37.4 K at 5.5 mm, 46.6 K at 3.5 mm, convection-only plate coefficient): the same function reproduces them
+    assert fin_channel_rayleigh(5.5e-3, 40e-3, 37.37, 25.0) == pytest.approx(62.4, rel=0.005)
+    assert fin_channel_rayleigh(3.5e-3, 40e-3, 46.6, 25.0) == pytest.approx(11.9, rel=0.005)
     assert fin_channel_rayleigh(6.5e-3, 40e-3, 40.0, 20.0) == pytest.approx(137.4, rel=0.01)       # The table: about 137
     assert fin_channel_rayleigh(6.5e-3, 100e-3, 20.0, 20.0) == pytest.approx(32.0, rel=0.01)       # The table: about 32
     assert fin_channel_rayleigh(20e-3, 40e-3, 40.0, 20.0) > 1e4
@@ -98,3 +102,31 @@ def test_no_fins_no_warning_and_no_result_changes():
         api.check_fin_channels = saved
     assert channel_warnings(quiet) == [] and len(channel_warnings(sim)) == 1
     assert sim.reference.t_max == quiet.reference.t_max
+
+
+def test_a_block_cut_at_the_outline_reads_the_excess_of_the_block_on_the_board():
+    # An L-shaped board cuts a quarter of the block away; the cut cells hold the ambient temperature and must not lower the mean excess (review:
+    # the unweighted mean over the polygon read 27 K for a block 35 K above the air)
+    import numpy as np
+    p = board((15.0, 1.5, 7.0))
+    p.board.outline = np.array([[0, 0], [0.06, 0], [0.06, 0.02], [0.03, 0.02], [0.03, 0.04], [0, 0.04]])
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
+    bt, cov = sim.reference.arrays["block_T"][0], sim.reference.arrays["block_cov"][0]
+    mean = float(((bt - sim.reference.ambient) * cov).sum() / cov.sum())
+    w = channel_warnings(sim)
+    assert len(w) == 1 and f"block {mean:.0f} K above the air" in w[0] and mean > 33
+
+
+def test_the_3d_solid_uses_its_own_block_temperature():
+    # The FVM, FDM and 3D solid give the check their own block temperatures; only the Lumped and Analytic use the auxiliary FVM run
+    import pcbthermal.api as api
+    seen = []
+    saved = api.check_fin_channels
+    api.check_fin_channels = lambda problem, result=None: seen.append(result) or []
+    try:
+        sims = {m: run(5.5, model=m) for m in ("solid3d", "fdm", "lumped")}
+    finally:
+        api.check_fin_channels = saved
+    # The auxiliary FVM run is a simulation of its own and calls the check too, so look for the result of every model among the calls
+    assert any(r is sims["solid3d"].reference for r in seen) and any(r is sims["fdm"].reference for r in seen)
+    assert not any(r is sims["lumped"].reference for r in seen) and all(r is not None and "block_T" in r.arrays for r in seen)

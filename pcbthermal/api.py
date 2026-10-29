@@ -598,7 +598,8 @@ def _part_warnings(sim):
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
     flux_result = _block_flux_result(sim)
     out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result)
-    out += check_fin_channels(sim.problem, flux_result)
+    # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the Lumped and Analytic
+    out += check_fin_channels(sim.problem, sim.reference if "block_T" in sim.reference.arrays else flux_result)
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
     if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):

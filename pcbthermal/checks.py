@@ -283,7 +283,8 @@ def _block_excess(result, problem, block):
     @param result SteadyResult with arrays block_T (FVM, FDM, 3D solid), or None.
     @param problem The Problem that was solved.
     @param block The Heatsink (a block).
-    @return Mean excess in K over the cells or nodes inside the block polygon, or None when the result does not carry the block temperatures.
+    @return Mean excess in K over the cells or nodes inside the block polygon, weighted by the covered fraction of the block (block_cov), or None when the
+            result does not carry the block temperatures.
     """
     if result is None or "block_T" not in result.arrays:
         return None
@@ -297,10 +298,14 @@ def _block_excess(result, problem, block):
     ny, nx = field.shape
     off = 0.0 if getattr(result, "grid", "cells") == "nodes" else 0.5
     X, Y = np.meshgrid((np.arange(nx) + off) * result.dx, (np.arange(ny) + off) * result.dy)
-    inside = points_in_polygon(X, Y, block.polygon)
-    if not inside.any():
+    inside = points_in_polygon(X, Y, block.polygon).astype(float)
+    # Weight by the covered fraction: a block cut at the board outline has cells inside its polygon but off the board, which hold the ambient
+    # temperature (block_T is ambient where there is no block); an unweighted mean counted them and read an L-shaped board 25 % too cool
+    if "block_cov" in result.arrays and np.asarray(result.arrays["block_cov"]).shape == T.shape:
+        inside = inside * np.asarray(result.arrays["block_cov"])[faces.index(face)]
+    if inside.sum() <= 0:
         return None
-    return float(field[inside].mean() - b.ambient)
+    return float(((field - b.ambient) * inside).sum() / inside.sum())
 
 
 def check_fin_channels(problem, result=None):
@@ -308,12 +313,14 @@ def check_fin_channels(problem, result=None):
     @brief Post-run warning for plate fins so close that the air between them is slowed (the model gives one coefficient to every face).
     @details For every finned block in still air the check computes the channel Rayleigh number Ra_b = g beta theta b^4 Pr / (nu^2 L) with b the air gap
              (pitch minus thickness), L the longer side of the bounding box of the block (the program has no fin direction; the longer side is the
-             conservative choice), theta the mean excess of the block over the ambient air from the solved result, the air at ambient + theta / 2 and
+             conservative choice; for a block cut at the board outline it is still the side of the drawn polygon), theta the mean excess of the block over the
+             ambient air from the solved result (weighted by the covered fraction of the block), the air at ambient + theta / 2 and
              beta = 1 / T_film. It warns when Ra_b < FIN_CHANNEL_RA_LIMIT (90): the channel keeps less than 90 % of the coefficient of an isolated plate
-             (Bar-Cohen and Rohsenow 1984, research/fin-channel). The threshold caught all but 1 of 1080 cases of the study grid (the old rule, a gap
-             below 4 mm, missed 367). The text gives the fraction phi and the loss of the finned face; nothing is added to the results. Forced air
-             (air speed above zero) gets through narrow channels and is not checked. Without block temperatures in the result (Lumped, Analytic) the check
-             says nothing: api runs an auxiliary FVM, as for the thick-plate check, so the warning still rests on a simulation.
+             (Bar-Cohen and Rohsenow 1984, research/fin-channel). Of the 667 cases of the 1080-case study grid whose channel costs 10 % or more of the
+             finned-face conductance, the threshold missed 1 (the old rule, a gap below 4 mm, missed 367). The text gives the fraction phi and the loss of
+             the finned face; nothing is added to the results. Forced air (air speed above zero) gets through narrow channels and is not checked. Without
+             block temperatures in the result (Lumped, Analytic) the check says nothing: api runs an auxiliary FVM, as for the thick-plate check, so the
+             warning still rests on a simulation.
     @param problem The Problem that was solved.
     @param result The SteadyResult that carries arrays block_T, or None.
     @return List of warning strings (empty when no channel is close).
