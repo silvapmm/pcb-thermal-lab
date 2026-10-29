@@ -14,7 +14,7 @@
          * "channel 0.59": the composite of Bar-Cohen and Rohsenow as written in the Waterloo review (plate limit 0.59);
          * "channel exact": the same composite with the plate limit replaced by the exact boundary-layer coefficient 0.5157 (the fully developed limit 24 is unchanged).
 
-         Results go to out/finned_block.json.
+         Results go to out/finned_block.json; the review added the decomposition of the -0.1 % of `fin-channel` at 6.5 mm (out/fin_channel_decomposition.json).
 
 Usage: .venv/bin/python research/plate-h-level/scripts/study_finned_block.py   (about 1 minute)
 """
@@ -84,6 +84,29 @@ def row(gap_mm, length=0.040, power=3.0):
     return out
 
 
+def fin_channel_decomposition(gap_mm=6.5, length=0.040, power=3.0):
+    """!
+    @brief The -0.1 % of `research/fin-channel` at a gap taken apart (added by the review): board faces at the laminar form, as in `fin-channel`, and on the finned face
+           (a) the laminar form (the baseline), (b) the plate 0.59 Ra_b^(1/4) with no channel, (c) the composite with its 0.59 (the run of `fin-channel`), (d) the `phi` form on
+           the laminar coefficient (the channel effect alone).
+    @param gap_mm Gap between the fins in mm.
+    @param length Channel length in m.
+    @param power Part power in W.
+    @return dict with the four rises in K.
+    """
+    p = case(15.0, 1.5, gap_mm + 1.5, power)
+    base = solve_uniform(p, length, "laminar")
+    out = {"gap_mm": gap_mm, "laminar": base["rise"]}
+    for key, fun in (("plate_059_fins", lambda ra: 0.59 * ra ** 0.25), ("channel_059_fins", ch.nu_bcr)):
+        p = case(15.0, 1.5, gap_mm + 1.5, power)
+        p.board.h_top = p.board.h_bottom = base["h"]
+        out[key] = pp.solve_channel(p, length, "fvm", 1.0, nu_fun=fun)["rise"]
+    p = case(15.0, 1.5, gap_mm + 1.5, power)
+    p.board.h_top = p.board.h_bottom = base["h"]
+    out["phi_laminar"] = pp.solve_phi(p, length, 1.0)["rise"]
+    return out
+
+
 def main():
     """!
     @brief Run the gaps, print the table and write out/finned_block.json.
@@ -100,9 +123,18 @@ def main():
     for r in rows:
         base = r["uniform_laminar"]["rise"]
         print(f"gap {r['gap_mm']:.1f}: " + "  ".join(f"{k}: {100 * (r[k]['rise'] / base - 1):+.1f}" for k in ("uniform_general", "uniform_bl", "uniform_mcadams", "channel_059", "channel_exact")))
+    # The configuration of research/fin-channel (board faces at the laminar form) taken apart at 6.5 mm
+    d = fin_channel_decomposition()
+    b = d["laminar"]
+    print(f"fin-channel configuration at {d['gap_mm']} mm (board faces laminar): laminar {b:.1f} K; plate 0.59 on the fins {d['plate_059_fins']:.1f} K "
+          f"({100 * (d['plate_059_fins'] / b - 1):+.1f} %); composite 0.59 on the fins {d['channel_059_fins']:.1f} K ({100 * (d['channel_059_fins'] / b - 1):+.1f} %, "
+          f"{100 * (d['channel_059_fins'] / d['plate_059_fins'] - 1):+.1f} % from the plate 0.59); phi form on the laminar coefficient {d['phi_laminar']:.1f} K "
+          f"({100 * (d['phi_laminar'] / b - 1):+.1f} %)")
     os.makedirs(OUT, exist_ok=True)
     with open(os.path.join(OUT, "finned_block.json"), "w") as f:
         json.dump(rows, f, indent=1)
+    with open(os.path.join(OUT, "fin_channel_decomposition.json"), "w") as f:
+        json.dump(d, f, indent=1)
 
 
 if __name__ == "__main__":

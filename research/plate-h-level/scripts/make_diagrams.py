@@ -67,10 +67,10 @@ def boundary_layer():
     ax = axs[1]
     ax.set_xlim(0, 10)
     ax.set_ylim(-0.3, 10.6)
-    dk.box(ax, 0.3, 8.6, 9.4, 1.5, "mean Nusselt number Nu = h L / k as a function of Ra = g beta dT L^3 / (nu alpha)\nand Pr, for a vertical isothermal plate of height L", color="#eef2f7", size=7.2)
-    rows = [("Ra < 1e3", "conduction and the leading edge\ndominate: no thin layer", "#f4e3c9"),
-            ("1e4 < Ra < 1e8", "laminar thin layer + leading edge:\nthe range of PCBs (40 to 200 mm, 10 to 60 K:\nRa 6e4 to 3e7)", "#d7ecd2"),
-            ("1e9 < Ra", "transition to turbulence at the top:\nh stops falling with height", "#e5d7ee")]
+    dk.box(ax, 0.3, 8.6, 9.4, 1.5, "mean Nusselt number Nu = h L / k of a vertical isothermal\nplate of height L, a function of Pr and of\nRa = g beta dT L^3 / (nu alpha)", color="#eef2f7", size=7.2)
+    rows = [("Ra below\nabout 1e4", "conduction and the leading edge\ndominate: the layer is not thin\n(pure layer theory -5 % at 1e4, -15 % at 1e3)", "#f4e3c9"),
+            ("1e4 < Ra < 1e9", "laminar thin layer + leading edge:\nthe range of PCBs (40 to 200 mm, 10 to 60 K:\nRa 6e4 to 3e7)", "#d7ecd2"),
+            ("Ra above\nabout 1e9", "transition to turbulence at the top:\nh stops falling with height", "#e5d7ee")]
     y = 6.2
     for lab, txt, col in rows:
         dk.box(ax, 0.3, y, 2.5, 1.5, lab, color=col, size=7.5)
@@ -99,12 +99,12 @@ def where_levels_come_from():
     dk.arrow(ax, 10.2, 5.4, 2.0, 4.6, label="")
     dk.arrow(ax, 3.8, 3.95, 4.4, 3.95)
     dk.arrow(ax, 8.0, 3.95, 8.6, 3.95, label="")
-    ax.text(8.0, 4.0, "blend with turbulent", fontsize=6, ha="center", va="bottom")
+    ax.text(8.3, 3.15, "(blends in the turbulent rise)", fontsize=6, ha="center", va="top")
     dk.box(ax, 0.2, 1.1, 3.6, 1.3, "Squire integral method\n0.508 [Pr/(0.952+Pr)]^(1/4)\n6 % above the exact value", color="#f4e3c9", size=7)
     dk.box(ax, 4.4, 1.1, 3.6, 1.3, "0.59 Ra^(1/4) (McAdams, empirical,\n1e4 < Ra < 1e9)", color="#f4e3c9", size=7)
-    dk.box(ax, 8.6, 1.1, 3.2, 1.3, "plate limit of the composite of\nBar-Cohen and Rohsenow:\nNu_b = [(24/Ra_b)^2 + (1/(0.59 Ra_b^(1/4)))^2]^(-1/2)", color="#f4e3c9", size=6.6)
+    dk.box(ax, 8.6, 1.1, 3.2, 1.3, "plate limit of the composite of\nBar-Cohen and Rohsenow: Nu_b =\n[(24/Ra_b)^2 + (0.59 Ra_b^(1/4))^-2]^(-1/2)", color="#f4e3c9", size=6.6)
     dk.arrow(ax, 8.0, 1.75, 8.6, 1.75)
-    ax.text(0.2, 0.55, "pink: approximation or empirical level; blue: the exact result; green: the levels of the program. 0.59 is 14 % above the exact 0.5157; it is an empirical constant (the original paper of the composite was not obtained).", fontsize=6.5)
+    ax.text(0.2, 0.55, "tan: approximation or empirical level; blue: the exact result; green: the levels of the program. 0.59 is 14 % above the exact 0.5157; it is an empirical constant (the original paper of the composite was not obtained).", fontsize=6.5)
     dk.save(fig, OUT / "fig_02_where_the_levels_come_from.png", "Where each coefficient of the vertical plate comes from")
 
 

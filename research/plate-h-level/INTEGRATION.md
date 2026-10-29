@@ -5,7 +5,7 @@ What would enter the program, the measured impact, what does not change and the 
 ## 1. What the study found, for the decision
 
 * The exact laminar boundary layer of an isothermal vertical plate in air is `Nu = 0.5157 Ra^(1/4)` (own solver; Ostrach's Table I reproduced to 0.02 %) [3]. The `Ra^(1/4)` term of the Churchill and Chu **laminar** form is 0.28 % below it, and its `0.68` is the leading-edge term: the program's `laminar` form already **is** "the exact boundary layer plus the leading edge" [3, 4].
-* A full 2D numerical plate (own solver, grid and domain checked, energy balance 0.96 to 1.01) says the real mean `Nu` is, against the program's two forms [6]:
+* A full 2D numerical plate (own solver, grid and domain checked; the review's finer grid moves `Nu` by 0.01 to 0.11 % at `Ra` 1e5 to 1e7) says the real mean `Nu` is, against the program's two forms [6]:
 
 | Ra | numerical / laminar form | numerical / general form | numerical / 0.59 Ra^(1/4) |
 | --: | --: | --: | --: |
@@ -16,7 +16,7 @@ What would enter the program, the measured impact, what does not change and the 
 | 1e7 | 0.992 | 0.941 | 0.885 |
 | 3e7 | 0.994 | 0.900 | 0.882 |
 
-  (the last two rows are good to 3 to 4 %, from the energy balance). So over the range of the boards (`Ra` 6e4 to 3e7 for 40 to 200 mm at 10 to 60 K) the laminar form is the closest level (high by 0.6 to 2.2 %), the all-range form is 5 % low at the small boards and 6 to 10 % high at the large ones, and `0.59` is 4 to 12 % high.
+  (the first version said the last two rows were good only to 3 to 4 %, from the energy balance; the review's finer grid moves `Nu` by 0.01 % at 1e7 and raises the balance, so the shortfall is in the far-boundary flux, not in `Nu`; 3e7 was not re-checked). So over the range of the boards (`Ra` 6e4 to 3e7 for 40 to 200 mm at 10 to 60 K) the laminar form is the closest level (high by 0.6 to 2.2 %), the all-range form is 5 % low at the small boards and 6 to 11 % high at the large ones, and `0.59` is 4 to 13 % high.
 * The published air measurements (three sets, plot values) scatter by +-15 % and cannot tell the forms apart [5].
 * **The choice matters little for the rise**: at most 2 % between the two forms of Churchill and Chu on a 40 mm board (0.4 % from 100 mm up), 2 to 4 % for `0.59` (7.5 % convection only), 2.2 to 3.6 % on the finned block of `fin-channel` [7, 8]. The radiation, which does not depend on the level, is about half of the total coefficient.
 
@@ -27,11 +27,11 @@ What would enter the program, the measured impact, what does not change and the 
 | Option | Value | Name in the interface | What it is |
 | :-- | :-- | :-- | :-- |
 | 1 | `laminar` | "Boundary layer (Churchill and Chu, laminar)" | the exact laminar boundary-layer coefficient plus the leading-edge term; within 0.6 to 2.2 % of the 2D numerical plate over `Ra` 1e4 to 3e7; right below `Ra` 1e9; the recommended default |
-| 2 | `general` | "All Rayleigh numbers (Churchill and Chu)" | the single formula that joins the laminar and the turbulent regime; 5 % lower `h` than the numerical plate at `Ra` 1e4 to 1e5 (conservative for the rise), 6 to 10 % higher at 1e7 to 3e7; the right one above `Ra` 1e9 |
+| 2 | `general` | "All Rayleigh numbers (Churchill and Chu)" | the single formula that joins the laminar and the turbulent regime; 5 % lower `h` than the numerical plate at `Ra` 1e4 to 1e5 (conservative for the rise), 6 to 11 % higher at 1e7 to 3e7; the right one above `Ra` 1e9 |
 
-`0.59 Ra^(1/4)` and the composite's plate limit are not offered: it is 14 % above the exact boundary layer and 4 to 12 % above the numerical plate, and it is not a boundary-layer result.
+`0.59 Ra^(1/4)` and the composite's plate limit are not offered: it is 14 % above the exact boundary layer and 4 to 13 % above the numerical plate, and it is not a boundary-layer result.
 
-**Default.** Two defensible choices, for the maintainer: (a) **change the default to the laminar form** for new projects (the closest to the numerical plate; changes the rise of a vertical board with computed `h` by -0.1 to -2 % (small boards) and +0.3 % at most for large ones); (b) keep `general` (no change of any number; conservative for boards under 100 mm; 6 to 10 % high in `h` above `Ra` 2e6, that is for 150 mm faces and taller, where it makes the board cooler than the numerical plate). The study recommends (a), with the old files (no key `natural_form` in the JSON) read as `general` so that their results do not change (`model.py` reads `b.get("natural_form", "general")` today and keeps doing so).
+**Default.** Two defensible choices, for the maintainer: (a) **change the default to the laminar form** for new projects (the closest to the numerical plate; changes the rise of a vertical board with computed `h` by -0.1 to -2 % (small boards) and +0.3 % at most for large ones); (b) keep `general` (no change of any number; conservative for boards under 100 mm; 6 to 11 % high in `h` above `Ra` 2e6, that is for 150 mm faces and taller, where it makes the board cooler than the numerical plate). The study recommends (a), with the old files (no key `natural_form` in the JSON) read as `general` so that their results do not change (`model.py` reads `b.get("natural_form", "general")` today and keeps doing so). Note of the review: the program already writes `natural_form` into every saved project, so only files older than the option lack the key; the default of new projects is the `natural_form` of the `new_board` section of `pcbthermal/data/defaults.json` (and of a user's `user_defaults.json`), besides the dataclass default of `Board`. Weight of the evidence: the preference for (a) rests on the 2D numerical plate alone (the air data cannot separate the forms, and their mean is 3.7 % above the laminar form), the gain is at most 2 % of the rise, and (b) errs on the hot side for boards under 100 mm; the 2D plate has no side entrainment, which would raise the real coefficient of a narrow board and so also points towards (a).
 
 **Automatic switch (optional).** Above `Ra` 1e9 the laminar form is -25 % at 1e9 against the all-range form and lacks the turbulent rise; a value `auto` (laminar below `Ra` 1e9, all-range above) would remove the need to choose. Not measured here (no board of the program has `Ra` above 5e7); the program already warns above 1e9 for the laminar form.
 
