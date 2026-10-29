@@ -186,7 +186,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # once
 
 ## Branches and Versions
 
-- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.1** (2026-10-22). The next release is **2.4.2**: `develop` holds fixes since 2.4.1 (the numbering follows the work, maintainer's rule: only fixes give a patch number, so 2.4.2; any `feature/` item in the version makes it a minor number, 2.5.0). `pcbthermal.__version__` stays 2.4.1 on `develop` until the release commit that bumps it.
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.2** (2026-10-29). Numbering (maintainer's rule): only fixes give a patch number (2.4.3 next), any `feature/` item in the version makes it a minor number (2.5.0). `pcbthermal.__version__` stays the released number on `develop` until the release commit that bumps it.
 - `develop`: integration branch for the next version; every fix, feature, documents and research branch starts from it and merges back into it when finished (see the branch rule in "Git Workflow"); `main` gets `develop` only at a release.
 - Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI

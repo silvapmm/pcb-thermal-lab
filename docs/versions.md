@@ -4,7 +4,7 @@ What was implemented in every version (with the module where it lives and how it
 
 ---
 
-## Unreleased (next version 2.4.2)
+## 2.4.2 - 2026-10-29: interface review, calculator uncertainty, corrections
 
 User-visible changes first.
 
