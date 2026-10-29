@@ -1,12 +1,12 @@
 # Research (open investigations)
 
 This file collects investigations that are **not implemented yet**: what was read, what was simulated, what is still open. It is used until the work is implemented;
-then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/roadmap.md`, the scripts stay in `examples/`, and this file goes back to the empty template below.
+then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/versions.md` (chapter 'Planned'), the scripts stay in `examples/`, and this file goes back to the empty template below.
 Values marked *assumed* are not from a datasheet. Everything is reproducible with the scripts named in each section. A copy of these notes, with the studies, their results and the figures, is in `research/component-heatsink/` (README, NOTES.md).
 
 ## Open now: the Component element (junction node, heatsink scenarios, Foster chain)
 
-**Decided (2026-10-17) and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/roadmap.md`, section 4); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented on 2026-10-21 (`docs/models.md` section 6, `docs/validation.md` section 9, `research/component-heatsink/scripts/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
+**Decided (2026-10-17) and implemented the same day:** θ in the worst case (all the power enters the board; one junction-to-pad number; `θJA` never an input); a top heatsink as a fixed `θsa` in K/W only (scenarios noted in `docs/versions.md` (chapter 'Planned'), section 4); K/W only for the heatsink on a component (R8). The power temperature coefficient went in with the first delivery. The fixed-`θsa` top path was implemented on 2026-10-21 (`docs/models.md` section 6, `docs/validation.md` section 9, `research/component-heatsink/scripts/top_path_study.py`); what is below about scenarios, the plate layer and the interface with its own area is the part still open.
 
 Reproduce: `research/component-heatsink/scripts/component_study.py`, `research/component-heatsink/scripts/heatsink_study.py`, `research/component-heatsink/scripts/block_contact_study.py`.
 
@@ -39,7 +39,7 @@ A bare mould carries about 1 % of the heat (0.4 to 0.8 K against the same juncti
 
 **Findings.** A scaling factor is a fair estimate for a large heatsink and misses by tens of per cent for a small one; the natural-convection value itself falls as the temperature rise grows (quoted at a 75 K rise by Boyd/Aavid, 10.8 K/W at 1 W against 7.68 at 75 K for the SAME Sky part). The air speed of the board (Environment) acts on the board faces only, so a heatsink with its own fan has a different flow.
 
-**Decision.** Implemented: catalogue values by flow, two lists (heatsink, then air flow, only the flows the catalogue gives). Not implemented, in `docs/roadmap.md`: "other speed (estimated)" by a factor, the default flow linked to the board air speed, heatsinks with a fan (Boyd 40 mm sets about 1.1 K/W), the heatsink defined by its geometry with the fin channel effect, and the scaling of θSA with the temperature rise.
+**Decision.** Implemented: catalogue values by flow, two lists (heatsink, then air flow, only the flows the catalogue gives). Not implemented, in `docs/versions.md` (chapter 'Planned'): "other speed (estimated)" by a factor, the default flow linked to the board air speed, heatsinks with a fan (Boyd 40 mm sets about 1.1 K/W), the heatsink defined by its geometry with the fin channel effect, and the scaling of θSA with the temperature rise.
 
 ### R2. Heatsinks and interface materials: typical values and what they do (2026-10-17)
 
@@ -203,7 +203,7 @@ So for aluminium or copper bases the spreading is 1 to 4 % of the top chain (it 
 
 1. Interface with its own area: default the whole contact face; perfect contact `R'' = 0.01 K cm²/W` shown as a named choice ("soldered or bonded"); outside the interface the air gap of R9 (default 1 mm)?
 2. Heatsink on a component: K/W only (R8, spreading is 1 to 4 % of the chain for aluminium and copper)?
-3. Heatsink scenarios (natural scaling, forced factors): later (`docs/roadmap.md`, section 4).
+3. Heatsink scenarios (natural scaling, forced factors): later (`docs/versions.md` (chapter 'Planned'), section 4).
 
 ## Open now: the heater as a pure source or as a component (to align, 2026-10-22)
 

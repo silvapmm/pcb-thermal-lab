@@ -2,7 +2,7 @@
 
 PCB Thermal Lab solves the steady and time-dependent temperature of a PCB with **five models** (four of the same layered description plus a 3D solid). This document
 explains the description, each model, the features built on top of them (power profiles, computed heat transfer coefficients, parts), and gives a decision
-guide. **Every equation, discretisation and approximation is stated in [`theory.md`](theory.md)** (section numbers are quoted below as "theory §n"); the numbers that back every statement are in [`validation.md`](validation.md); what is planned is in [`roadmap.md`](roadmap.md); open investigations are in [`research.md`](research.md).
+guide. **Every equation, discretisation and approximation is stated in [`theory.md`](theory.md)** (section numbers are quoted below as "theory §n"); the numbers that back every statement are in [`validation.md`](validation.md); what is planned is in the chapter 'Planned' of [`versions.md`](versions.md); open investigations are in [`research.md`](research.md).
 
 ## 1. The physical description (theory §1)
 
@@ -188,7 +188,7 @@ A heater is a **source**: its power enters the board under the footprint and the
 **Sanity check**: if `θ·P` is larger than the board's own rise under the part the program warns that θ is probably a `θJA`. For two-terminal parts the heat enters by the terminals, so draw the source as the two terminal areas.
 **How much it matters** (docs/validation.md section 9): θ adds 2 to 28 % of the rise for chips and diodes (about 90 % for a small resistor); ±30 % in θ moves `Tj` by 0.8 to 3 K for chips. The power coefficient is the larger effect for a power MOSFET (2 W at 25 °C reaches 138 to 210 °C instead of 108 °C for 0.33 to 0.67 %/K).
 **The top path** (heatsink on the package): the interface matters on a small package (10 K·cm²/W over 11 mm² is 92 K/W, more than the heatsink): use 0.3 to 0.5 for paste, 1.7 for a soft gap pad, 5 to 10 for a gap pad; 0 means perfect contact (optimistic; 0.01 changes the result by 0.05 K). `θJC(top)` is the datasheet number (or `Rth j-case top`); `θSA` the heatsink's value at your air flow. The junction node uses the hottest board point under the footprint, which is about 0.4 to 0.8 K above the same network with a uniform conductance (`docs/validation.md` section 9).
-**Not in this version** (noted in `docs/roadmap.md`, "What we want to implement", Component element): heatsink scenarios driven by the air speed, the heatsink as a plate layer with spreading, an interface with its own area and the air gap, the Foster chain for pulses.
+**Not in this version** (noted in `docs/versions.md` (chapter 'Planned'), "What we want to implement", Component element): heatsink scenarios driven by the air speed, the heatsink as a plate layer with spreading, an interface with its own area and the air gap, the Foster chain for pulses.
 
 ## 7. Python API and command line
 

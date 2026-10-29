@@ -136,7 +136,7 @@ def test_one_layer_board_with_a_pad_documented_errors():
     err = {m: one_layer_program(m, True) / ref - 1.0 for m in ("fvm", "solid3d", "fdm", "lumped", "analytic")}
     assert err["fvm"] == pytest.approx(-0.030, abs=0.01)
     assert err["solid3d"] == pytest.approx(0.001, abs=0.005)                      # +0.2 % at 0.5 mm; it was +40 % without the laminate
-    # Documented limits of the other three on a bare pad (docs/roadmap.md): all low, and in this order
+    # Documented limits of the other three on a bare pad (docs/versions.md, chapter Planned): all low, and in this order
     assert err["fdm"] == pytest.approx(-0.126, abs=0.02)
     assert err["lumped"] == pytest.approx(-0.170, abs=0.02)
     assert err["analytic"] == pytest.approx(-0.302, abs=0.03)
