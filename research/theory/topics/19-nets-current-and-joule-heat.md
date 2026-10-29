@@ -23,7 +23,7 @@ The Gerber X2 attribute `TO.N` names the net of an object (`TD` ends it); the re
 
 ## 4. Numbers of the prototype
 
-A synthetic board: 1 A through a track of 70 squares gives 32 mohm and 32 mW (30.7 to 32.4 mohm for pixels of 0.0125 to 0.05 mm; by hand 34 mohm). In the scenario of figure 9 of `gerber-nets` (5 V source, a 0.1 ohm link, a 1.5 A sink), 225 mW is dissipated in the link, 18 times the 12 mW of all the copper of the rail; the balance closes to 0.002 mW in 7.5 W. A tilted track on the pixel grid: the five-point stencil is up to 2 times too resistive on a track of 1.5 to 2 pixels across, 6 % at 12 pixels.
+A synthetic board: 1 A through a track of 70 squares gives 32 mohm and 32 mW (32.27 to 32.34 mohm for pixels of 0.05 to 0.0125 mm on a lattice with no edge on a pixel centre; by hand 34 mohm). In the scenario of figure 9 of `gerber-nets` (5 V source, a 0.1 ohm link, a 1.5 A sink), 225 mW is dissipated in the link, 18 times the 12 mW of all the copper of the rail; the balance closes to 0.0004 mW in 7.5 W. A tilted track on the pixel grid: the five-point stencil is up to 2 times too resistive on a track of 1.5 to 2 pixels across, 6 % at 12 pixels.
 
 ## 5. Related topics
 
