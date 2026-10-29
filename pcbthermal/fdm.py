@@ -153,7 +153,7 @@ class Network:
             S = np.concatenate([S, np.stack([ly["S"] for ly in lam])])
             self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in lam])])
         # Metal blocks: one extra layer of nodes per face that carries blocks (see blocks.py), after the laminate nodes
-        ex = blocks.extra_layers(problem, cover, area, fill, dx, dy)
+        ex = blocks.extra_layers(problem, lambda poly, n: cover(poly, n) * ncov, area, fill, dx, dy)      # Cut at the outline, as in the FVM
         E = len(ex)
         self.n_board, self.nl = L, L + NL + E
         if E:
