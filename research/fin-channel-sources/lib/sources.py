@@ -17,6 +17,7 @@
 import math
 import os
 import sys
+import types
 
 import numpy as np
 from scipy.integrate import solve_bvp
@@ -28,6 +29,11 @@ if FIN_CHANNEL_LIB not in sys.path:
     sys.path.insert(0, FIN_CHANNEL_LIB)
 
 import channel as ch                                         # noqa: E402
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+from pcbthermal import blocks                                # noqa: E402  (imported, never edited: the fin ratio of the program's block)
 
 G = ch.G
 
@@ -325,14 +331,15 @@ ENCIT_ARRAYS = {
 }
 
 # Mean coefficient on the total wetted area against the base excess (K, W/m2K), read from the plots of Figures 4 to 6 of the paper (PLOT VALUES, +-0.3 W/m2K,
-# +-2 K; the "experimental" curves, radiation neglected by the authors, heater power less the conduction loss through the MDF insulation)
+# +-2 K; the "experimental" curves, radiation neglected by the authors, heater power less the conduction loss through the MDF insulation). Every plotted point is
+# listed (the review added four that a first reading had left out: array 2 at 36 K, array 5 at 35 and 51 K, array 6 at 13 K): 47 points.
 ENCIT_H_MEASURED = {
     1: [(14, 6.2), (20, 7.9), (33, 8.0), (45, 8.3), (59, 8.7), (76, 9.0), (91, 9.7)],
-    2: [(12, 4.7), (27, 6.2), (35, 6.9), (51, 7.6), (56, 7.8), (62, 8.1), (68, 8.3)],
+    2: [(12, 4.7), (27, 6.2), (35, 6.9), (36, 6.85), (51, 7.6), (56, 7.8), (62, 8.1), (68, 8.3)],
     3: [(14, 6.3), (23, 6.3), (27, 7.8), (32, 8.8), (41, 9.3), (49, 10.0), (59, 10.3)],
     4: [(11, 2.6), (19, 3.1), (27, 4.0), (35, 4.5), (44, 5.4), (58, 5.5), (69, 6.0)],
-    5: [(12, 3.0), (26, 4.0), (33, 4.6), (41, 5.0), (49, 5.1), (60, 5.35), (65, 5.5)],
-    6: [(8, 2.5), (17, 3.6), (22, 4.2), (29, 4.6), (36, 5.0), (43, 5.4), (50, 5.75), (56, 6.0)],
+    5: [(12, 3.0), (26, 4.0), (33, 4.6), (35, 4.45), (42, 4.95), (49, 5.05), (51, 5.1), (60, 5.35), (65, 5.5)],
+    6: [(8, 2.5), (13, 3.0), (17, 3.6), (22, 4.2), (29, 4.6), (36, 5.0), (43, 5.4), (50, 5.75), (56, 6.0)],
 }
 
 
@@ -349,19 +356,24 @@ def array_geometry(a):
     return {"free_base": free_base, "sides": sides, "tips": tips, "total": free_base + sides + tips, "h": h, "t": t, "s": s, "l": l, "w": w, "n": n}
 
 
-def uniform_h_array(a, delta_t, k_fin=200.0, t_amb_c=20.0, channel_length=None):
+def uniform_h_array(a, delta_t, k_fin=200.0, t_amb_c=20.0, channel_length=None, fins="program"):
     """!
     @brief What the program's finned block does with this array on a horizontal base: one uniform coefficient on every face, the horizontal-plate coefficient of a plate hot
            face up (McAdams, Nu = 0.54 Ra^(1/4), length area/perimeter of the base) and the straight-fin efficiency; returned as the mean coefficient on the total wetted area.
-    @details `pcbthermal.blocks.fin_ratio` with the face coefficient of `convection.h_natural_horizontal(..., facing_up=True)`; the fin tip is counted with the sides at the
-             corrected height and the same coefficient. Convection only.
+    @details With fins = "program" the heat is the one of `pcbthermal.blocks.fin_ratio` (called, not copied): per unit of base area (1 - t/p) + 2 Hc eta / p, so the block
+             of width W carries W/p fins (6.12 for the 14.35 mm arrays, 13.2 for the 5.55 mm ones, against 7 and 14 real fins). With fins = "actual" the same uniform
+             coefficient is put on the real fins (n fins, n - 1 gaps), which isolates the channel effect from the fin count. In both cases the heat is divided by the real
+             wetted area (free base, fin sides and tips), the area basis of the measurement. Face coefficient from the fits of `channel.air` (the same fits as
+             `convection.air_properties`). Convection only.
     @param a Entry of ENCIT_ARRAYS.
     @param delta_t Base excess in K.
     @param k_fin Fin conductivity in W/mK (6063-T5: 200 is a typical value, not given by the paper).
     @param t_amb_c Ambient in degC.
     @param channel_length If given (m), the coefficient is multiplied by the channel fraction phi(Ra_b) of Proposal B of `research/fin-channel/INTEGRATION.md`, with Ra_b computed
            with this length of channel (the vertical-channel rule used outside its orientation; the length is a choice: the fin length or half of it).
+    @param fins "program" (the fin ratio of the program, W/p fins) or "actual" (the real fins of the array).
     @return Dict with h_face, eta, q (W), h_mean (W/m2K on the total area) and phi.
+    @throws ValueError For another value of fins.
     """
     g = array_geometry(a)
     p = ch.air(t_amb_c + 0.5 * delta_t)
@@ -375,7 +387,15 @@ def uniform_h_array(a, delta_t, k_fin=200.0, t_amb_c=20.0, channel_length=None):
     hc = g["h"] + 0.5 * g["t"]
     m = math.sqrt(2.0 * h_face / (k_fin * g["t"]))
     eta = math.tanh(m * hc) / (m * hc)
-    q = delta_t * h_face * (g["free_base"] + eta * (g["sides"] + g["tips"]))
+    if fins == "actual":
+        # The real array: n fins and n - 1 gaps, the uniform coefficient on every wetted face
+        q = delta_t * h_face * (g["free_base"] + eta * (g["sides"] + g["tips"]))
+    elif fins == "program":
+        # The program's block: the fin ratio per unit of base area times the base area W L (the program does not know where the first and last fins stand)
+        block = types.SimpleNamespace(has_fins=lambda: True, fin_thickness=g["t"], fin_pitch=g["s"] + g["t"], fin_height=g["h"], k=k_fin)
+        q = delta_t * h_face * blocks.fin_ratio(h_face, block) * g["w"] * g["l"]
+    else:
+        raise ValueError("fins must be 'program' or 'actual'")
     return {"h_face": h_face, "eta": eta, "q": q, "h_mean": q / (g["total"] * delta_t), "ra": ra, "phi": phi}
 
 

@@ -143,3 +143,31 @@ def test_phi_form_lowers_the_uniform_coefficient():
     uw, pw = S.uniform_h_array(w, 40.0), S.uniform_h_array(w, 40.0, channel_length=0.1)
     assert pn["h_mean"] < un["h_mean"] and pw["h_mean"] <= uw["h_mean"] + 1e-12
     assert pn["phi"] < pw["phi"]
+
+
+def test_program_fin_count_is_the_fin_ratio_of_the_block():
+    """!
+    @brief Regression of the review: the "program" coefficient of the horizontal arrays is the heat of `pcbthermal.blocks.fin_ratio` (W/p fins), not the real fins.
+    @details The first version put the program's coefficient on the 7 or 14 real fins while the program's block carries W/p = 6.12 or 13.2; the 14.35 mm gap read 0.92
+             instead of 1.02 (measured over predicted against predicted over measured, mean).
+    @return None.
+    """
+    from pcbthermal import convection
+    a = S.ENCIT_ARRAYS[2]
+    u = S.uniform_h_array(a, 40.0)
+    act = S.uniform_h_array(a, 40.0, fins="actual")
+    g = S.array_geometry(a)
+    # Independent route: the program's own face coefficient (A/P of the 100 x 100 mm base is 25 mm) and its fin ratio
+    h = convection.h_natural_horizontal(60.0, 20.0, 0.025, True)[0]
+    p = (a["s"] + a["t"]) * 1e-3
+    hc = (a["h"] + 0.5 * a["t"]) * 1e-3
+    m = math.sqrt(2.0 * h / (200.0 * a["t"] * 1e-3))
+    ratio = (1.0 - a["t"] * 1e-3 / p) + 2.0 * hc * math.tanh(m * hc) / (m * hc) / p
+    q = h * ratio * g["w"] * g["l"] * 40.0
+    assert abs(u["h_mean"] / (q / (g["total"] * 40.0)) - 1.0) < 1e-3
+    assert act["h_mean"] > u["h_mean"] * 1.05          # the real array has 7 fins, the block 6.12
+    try:
+        S.uniform_h_array(a, 40.0, fins="other")
+        raise AssertionError("an unknown fins value must raise")
+    except ValueError:
+        pass

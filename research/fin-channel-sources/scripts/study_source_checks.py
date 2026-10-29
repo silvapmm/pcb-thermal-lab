@@ -10,8 +10,8 @@
          B. Bar-Cohen, Iyengar and Kraus (2003): the array coefficient of its Figure 2 (52.4 W/m2K near 8 mm) and Figure 4 (198 W/m2K at s = t = 9 mm), the optimum spacing
             constant of its equation 17 (2.66) against the one recomputed from its equation 13 (2.7156), and the identity of its equation 13 with equation 21 of the review.
          C. Ostrach (1953) Table I against an independent solution of the similarity equations, and the Prandtl function of Churchill and Chu against both.
-         D. Six measured short fin arrays on a horizontal base (ENCIT 2012, plot values) against the uniform coefficient the program gives its finned block, and against
-            the correlations of Tari and Mehrtash (2013).
+         D. Six measured short fin arrays on a horizontal base (ENCIT 2012, plot values) against the uniform coefficient the program gives its finned block (its fin
+            ratio, imported from `pcbthermal.blocks`), the same coefficient on the real fins, and the correlations of Tari and Mehrtash (2013).
          Results go to `research/fin-channel-sources/out/source_checks.json` for `make_figures.py`.
 Usage: .venv/bin/python research/fin-channel-sources/scripts/study_source_checks.py   (about 1 minute; the numerical channel takes most of it)
 """
@@ -158,29 +158,38 @@ def study_d(results):
     for k, a in S.ENCIT_ARRAYS.items():
         rows = []
         for dt, hm in S.ENCIT_H_MEASURED[k]:
-            u = S.uniform_h_array(a, dt)
+            u = S.uniform_h_array(a, dt)                                  # the program's fin ratio (W/p fins)
+            u_act = S.uniform_h_array(a, dt, fins="actual")               # the same coefficient on the real fins
             t_up = S.tari_horizontal_up(a, dt)
             phi_l = S.uniform_h_array(a, dt, channel_length=a["l"] * 1e-3)
             phi_h = S.uniform_h_array(a, dt, channel_length=0.5 * a["l"] * 1e-3)
-            rows.append({"dt": dt, "h_meas": hm, "h_uniform": u["h_mean"], "h_face": u["h_face"], "eta": u["eta"], "tari_h": t_up["h"], "tari_in_range": t_up["in_range"],
-                         "tari_down": S.tari_horizontal_down(a, dt), "phi_L": phi_l["phi"], "h_phi_L": phi_l["h_mean"], "phi_L2": phi_h["phi"], "h_phi_L2": phi_h["h_mean"]})
-            ratios_by_gap[a["s"]].append(hm / u["h_mean"])
+            phi_l_act = S.uniform_h_array(a, dt, channel_length=a["l"] * 1e-3, fins="actual")
+            rows.append({"dt": dt, "h_meas": hm, "h_uniform": u["h_mean"], "h_uniform_actual": u_act["h_mean"], "h_face": u["h_face"], "eta": u["eta"], "tari_h": t_up["h"],
+                         "tari_in_range": t_up["in_range"], "tari_down": S.tari_horizontal_down(a, dt), "phi_L": phi_l["phi"], "h_phi_L": phi_l["h_mean"],
+                         "h_phi_L_actual": phi_l_act["h_mean"], "phi_L2": phi_h["phi"], "h_phi_L2": phi_h["h_mean"]})
+            ratios_by_gap[a["s"]].append(u["h_mean"] / hm)
         out[k] = rows
         meas = np.array([r["h_meas"] for r in rows])
         uni = np.array([r["h_uniform"] for r in rows])
         tar = np.array([r["tari_h"] for r in rows])
-        print("   array %d (S %5.2f mm, H %4.1f mm): measured %.1f to %.1f; program uniform %.1f to %.1f (measured / uniform %.2f to %.2f); Tari-Mehrtash eq. 5 %.1f to %.1f (%.2f to %.2f of measured)" % (
-            k, a["s"], a["h"], meas.min(), meas.max(), uni.min(), uni.max(), (meas / uni).min(), (meas / uni).max(), tar.min(), tar.max(), (tar / meas).min(), (tar / meas).max()))
+        act = np.array([r["h_uniform_actual"] for r in rows])
+        print("   array %d (S %5.2f mm, H %4.1f mm, %d points): measured %.1f to %.1f; program %.1f to %.1f (program / measured %.2f to %.2f); uniform h on the real fins %.2f to %.2f"
+              " of measured; Tari-Mehrtash eq. 5 %.1f to %.1f (%.2f to %.2f of measured)" % (
+                  k, a["s"], a["h"], len(rows), meas.min(), meas.max(), uni.min(), uni.max(), (uni / meas).min(), (uni / meas).max(), (act / meas).min(), (act / meas).max(),
+                  tar.min(), tar.max(), (tar / meas).min(), (tar / meas).max()))
     for s, v in ratios_by_gap.items():
-        print("   gap %5.2f mm: measured / program's uniform coefficient, mean %.2f (min %.2f, max %.2f, %d points)" % (s, np.mean(v), np.min(v), np.max(v), len(v)))
+        rows = [r for k, a in S.ENCIT_ARRAYS.items() if a["s"] == s for r in out[k]]
+        act = np.array([r["h_uniform_actual"] / r["h_meas"] for r in rows])
+        print("   gap %5.2f mm: program / measured, mean %.2f (min %.2f, max %.2f, %d points); uniform h on the real fins / measured, mean %.2f (min %.2f, max %.2f)" % (
+            s, np.mean(v), np.min(v), np.max(v), len(v), act.mean(), act.min(), act.max()))
     # The vertical-channel fraction phi of Proposal B used outside its orientation, with the channel length taken as the fin length L or as L/2 (the chimney of Harahap and McManus)
     for s in (5.55, 14.35):
         rows = [r for k, a in S.ENCIT_ARRAYS.items() if a["s"] == s for r in out[k]]
         meas = np.array([r["h_meas"] for r in rows])
-        for key, label in (("h_phi_L", "phi with L = fin length"), ("h_phi_L2", "phi with L = half the fin length")):
+        for key, label in (("h_phi_L", "phi with L = fin length"), ("h_phi_L2", "phi with L = half the fin length"), ("h_phi_L_actual", "phi, L = fin length, real fins")):
             pred = np.array([r[key] for r in rows])
             print("   gap %5.2f mm, %-34s: phi %.2f to %.2f, predicted / measured mean %.2f (min %.2f, max %.2f)" % (
-                s, label, min(r["phi_L" if key == "h_phi_L" else "phi_L2"] for r in rows), max(r["phi_L" if key == "h_phi_L" else "phi_L2"] for r in rows),
+                s, label, min(r["phi_L2" if key == "h_phi_L2" else "phi_L"] for r in rows), max(r["phi_L2" if key == "h_phi_L2" else "phi_L"] for r in rows),
                 np.mean(pred / meas), np.min(pred / meas), np.max(pred / meas)))
     out["ratios"] = {str(s): v for s, v in ratios_by_gap.items()}
     # The same arrays rotated (what the program would be asked if the board is horizontal and the block is on the underside): downward correlation, program's face down

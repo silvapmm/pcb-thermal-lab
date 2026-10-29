@@ -65,7 +65,7 @@ def horizontal_panel(ax):
     ax.text(5, 6.3, "central chimney", ha="center", fontsize=7)
     ax.text(0.9, 4.2, "inflow from\nboth ends", ha="center", fontsize=7)
     ax.text(5, 7.2, "fin spacing S is across the page, the channel is open on top", ha="center", fontsize=6.5)
-    ax.set_title("fins up on a horizontal base: two inflows and one chimney\n(no closed vertical channel; the program's examples are of this kind)", fontsize=8)
+    ax.set_title("fins up on a horizontal base: two inflows and one chimney\n(no closed vertical channel; the arrays of section 7 are of this kind)", fontsize=8)
     ax.axis("off")
 
 
