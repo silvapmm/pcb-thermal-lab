@@ -10,7 +10,9 @@ What is already in the program (releases 2.3.0 and 2.4.0: the junction-to-pad re
 * **Top path in the time simulation** (steady state only today).
 * **A heatsink larger than its contact** and a plate layer on top of a package (`NOTES.md` R3 and R8).
 
-## A defect of the program found in the review: the top-path loop on small pads
+## A defect of the program found in the review: the top-path loop on small pads (corrected in the program)
+
+**Status: corrected** on `fix/top-path-convergence` (`api._top_path_split` solves the root `g(P_b) = 0` of each part instead of iterating; see `docs/versions.md` and the Decisions Log of `CLAUDE.md`, "The top-path split is a root, not a loop"). The text below is the description of the defect and the design that was proposed, kept as the record; the program follows it (Illinois regula falsi for one part, Broyden for several, the power temperature coefficient as an outer fixed-point loop, the message "the top-path split did not converge"). `scripts/study_top_path_convergence.py` on the corrected program prints a program junction equal to the exact root on all eight rows (README 4.11).
 
 **What happens.** `api._solve_with_tc` finds the split of the power of a part with a top path by plain fixed-point iteration, `P_b <- P − p_top(T_max(P_b))`, with `p_top` from `analysis.part_split`. Linearised, the map has the slope `−R_b/(R_top + θ)` (`R_b` the board's resistance under the part). Above 1 the iterates oscillate and grow; the loop stops after 80 iterations on the last iterate. On the four chips with an 8 mm pad (ratio 1.3 to 2.4) the reported junction is 17 to 58 K below the operating point (MOSFET 33.2 against 90.9 °C), on the unsafe side, and the warning says the board is "close to thermal runaway", which is not the cause (there is no power coefficient). Between 0.9 and 1 (the LDO on the 25 mm pad) the loop does not settle in 80 iterations either, but its last iterate is within 0.1 K. Evidence: `scripts/study_top_path_convergence.py`, README 4.11.
 
