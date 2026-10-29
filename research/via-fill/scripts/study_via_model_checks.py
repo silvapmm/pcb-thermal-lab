@@ -2,7 +2,7 @@
 @file study_via_model_checks.py
 @brief Review checks of the via model behind the via-fill study: closed form of the barrel, every model per fill, the limits, the cell size, an independent solver.
 
-@details Questions answered (README section 7):
+@details Questions answered (README sections 4.4 to 4.8):
          1. Does the program put exactly the closed-form barrel conductance k_Cu A / d into its network (FVM, example board)?
          2. Do the five models agree on the effect of the fill, and how large is it against the two limits (no vias, perfectly conducting vias)?
          3. Does the gain of a copper fill depend on the cell size of the FVM (a via is a point feature in one cell)?
