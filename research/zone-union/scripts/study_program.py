@@ -3,7 +3,7 @@
 @brief Q3 and Q7: the cases of gerber-models 4.39 on the program's default materials, and the three example boards of the repository, under the old rule and the per-point union, in the five models.
 @details Question answered: (1) does this folder reproduce the numbers of gerber-models 4.39 (one zone, 40 abutting strips, two overlapping zones of fill 0.5, fills 0.8 and 0.4 overlapping partly) for the old rule, the additive rule and the per-point union?
          (2) do the example boards (`examples/*.pcbt.json`) give the same numbers under both rules (the proposal must not move them)? The examples are run with the cell of the project (the default of `simulate`), and every model.
-         Modes (from the repository root): develop (the program as it is), variant (every rule on the copy), report (tables, out/study_program.txt).
+         Modes (from the repository root): develop (the program as it is), variant (every rule on the copy), report (tables, out/study_program.txt), fdm-additive (review: the -2.3 % of 4.39).
          Run: .venv/bin/python research/zone-union/scripts/study_program.py develop | variant | report
 """
 
@@ -111,10 +111,39 @@ def report():
     (OUT / "study_program.txt").write_text("\n".join(lines))
 
 
+def fdm_additive_at_nodes():
+    """!
+    @brief Review: trace the FDM difference on the partly overlapping pair (-2.0 % here, -2.3 % in gerber-models 4.39) by running the program's FDM with the additive rule written
+           at the nodes, as gerber-models did (each zone's share averaged to the nodes, then min(1, fill + share)).
+    @details The module text of the program's fdm.py is copied in memory, the one line of the zone loop is replaced, and the copy is executed as a separate module of the package;
+             no file of the program is changed. Prints the peak rise of the program and of the copy and the change.
+    @return float The change in percent.
+    """
+    import types
+    variant.use(False)
+    import cases
+    import pcbthermal.fdm as fdm
+    src = open(fdm.__file__).read()
+    old = "fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)"
+    if src.count(old) != 1:
+        raise RuntimeError("the zone loop of fdm.py has changed")
+    mod = types.ModuleType("pcbthermal.fdm_additive_at_nodes")
+    mod.__package__ = "pcbthermal"
+    exec(compile(src.replace(old, "fill[z.layer] = np.minimum(fill[z.layer] + cover(z.polygon, 4) * z.fill, 1.0)"), "fdm_additive_at_nodes", "exec"), mod.__dict__)
+    p, _ = cases.build(cases.make_cases()["fills 0.8 and 0.4 overlapping partly"], isotropic=False)
+    a = fdm.solve_steady(p, 1.0).t_max - p.board.ambient
+    b = mod.solve_steady(p, 1.0).t_max - p.board.ambient
+    change = 100 * (b / a - 1)
+    print(f"FDM, fills 0.8 and 0.4 overlapping partly, 1 mm: program {a:.2f} K, additive at the nodes {b:.2f} K, change {change:+.2f} %")
+    return change
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "report"
     if mode in ("develop", "variant"):
         run(mode)
+    elif mode == "fdm-additive":
+        fdm_additive_at_nodes()
     else:
         sys.path.insert(0, str(variant.build()))
         report()

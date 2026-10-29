@@ -5,7 +5,7 @@
          and how much does the old rule lose? Windows of 24 x 24 mm of the two-layer board (1.6 mm, 35 um copper, laminate 0.3 W/mK isotropic as in the reference), a 6 x 6 mm part of 1 W on the top
          layer, cells of 0.5 and 1.0 mm, rules max_cell (the program as it is: taken from the unmodified program in a separate process), max_point (prototype), prob, sum_clip, priority; the copper
          area of the cell field is printed too. The reference is the independent solver at 0.25 mm on the same polygons. Needs the fetched Stormduino (see lib/real_board.py).
-         Run from the repository root: .venv/bin/python research/zone-union/scripts/study_real_board.py [develop|variant|reference|report]; out/real_board_*.json, out/study_real_board.txt.
+         Run from the repository root: .venv/bin/python research/zone-union/scripts/study_real_board.py [develop|variant|reference|fills|decompose|report]; out/real_board_*.json, out/study_real_board.txt.
 """
 
 import _bootstrap  # noqa: F401  (import paths)
@@ -157,6 +157,55 @@ def fills():
     return out
 
 
+def decompose():
+    """!
+    @brief Where the error of the models on the real board comes from (review): the independent solver run on the program's own cell fill (the cells of 1 and 0.5 mm, old rule and union,
+           laminate resolved in 4 slabs) against the resolved reference, and the FVM against that same coarse solver; the peak and the mean over the part; the fill of the cell
+           where the coarse solver is hottest; and the convergence of the reference itself (0.25 mm and 0.125 mm, 2 slabs per dielectric gap).
+    @details Added by the review of the folder. The coarse solver shares the cell fill of the program but not its layered idealisation (one node per copper layer holding half
+             of the laminate), so: reference -> coarse solver = the scalar fill at the size of the cell (the mapping); coarse solver -> FVM = the layered idealisation;
+             old -> union = the rule. Memory about 1.5 GB (the 0.125 mm reference).
+    @return None (prints, writes out/real_board_decompose.json).
+    """
+    variant.use(True)
+    import layered3d as L3
+    import real_board
+    import reference
+    import zone_rules as zr
+    from pcbthermal import SolverOptions, simulate
+    objs, wins = windows()
+    out = {}
+    for x0, y0, _ in wins:
+        w = real_board.window(objs, x0, y0, SIZE)
+        p = build(w, None)
+        key = f"window x={x0:.0f} y={y0:.0f}"
+        polys = {k: [q * 1e-3 for q in v] for k, v in w.items()}
+        row = {"reference": {}}
+        for dx in (0.25, 0.125):
+            r = reference.reference_rise(p, polys, dx, n_gap=2)
+            row["reference"][f"{dx}/2"] = {"max": float(r["max"]), "mean": float(r["mean"])}
+        kc, kl = p.board.materials.k_copper, 0.3
+        part = tuple(np.array(PART) * 1e-3)
+        for cell in CELLS:
+            n = int(round(SIZE / cell))
+            d = SIZE * 1e-3 / n
+            xs = (np.arange(n) + 0.5) * cell
+            under = (xs[None, :] > PART[0]) & (xs[None, :] < PART[2]) & (xs[:, None] > PART[1]) & (xs[:, None] < PART[3])
+            for rule in ("max_cell", "max_point"):
+                f = zr.combine(p.zones, 2, n, n, d, d, 4, rule)
+                slabs = [(35e-6, kl + f[0] * (kc - kl), 1), (1.6e-3 - 70e-6, kl, 4), (35e-6, kl + f[1] * (kc - kl), 1)]
+                c = L3.solve(d, n, n, slabs, part, 1.0, p.board.h_top, p.board.h_bottom, film_under_source=True)
+                hot = np.unravel_index(np.where(c["mask_source"], c["T"][0], -np.inf).argmax(), (n, n))
+                variant.set_rule(rule)
+                T = np.asarray(simulate(p, SolverOptions(models=("fvm",), cell_mm=cell)).results["fvm"].T)[0] - p.board.ambient
+                row[f"{cell}/{rule}"] = {"coarse max": float(c["cell_max_source"]), "coarse mean": float(c["cell_mean_source"]),
+                                         "fill at the coarse hot cell": float(f[0][hot]), "fvm max": float(T.max()), "fvm mean": float(T[under].mean())}
+        out[key] = row
+        print(key, json.dumps(row), flush=True)
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "real_board_decompose.json").write_text(json.dumps(out, indent=1))
+
+
 def report():
     """!
     @brief Print the tables from the saved files.
@@ -197,6 +246,8 @@ if __name__ == "__main__":
         run(mode)
     elif mode == "fills":
         fills()
+    elif mode == "decompose":
+        decompose()
     else:
         sys.path.insert(0, str(variant.build()))
         report()

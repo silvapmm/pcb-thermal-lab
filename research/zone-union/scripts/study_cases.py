@@ -134,6 +134,48 @@ def run_reference():
     (OUT / "cases_reference.json").write_text(json.dumps(res, indent=1))
 
 
+def run_converge(heavy=False):
+    """!
+    @brief Convergence of the independent solver on the cases whose reference was not converged (review): the stripes, the crossed stripes and the frame with an island,
+           against the fine cell and the number of laminate slabs, and the estimate of the converged value when the two effects are taken as independent.
+    @details Added by the review of the folder. The table of README 4.6 uses 0.125 mm with 2 laminate slabs; this mode measures how far that is from the converged value.
+             The estimate is r(0.125, 4) * r(0.25, 16) / r(0.25, 4) (fine-cell effect at 4 slabs times slab effect at 0.25 mm). The runs at 16 slabs peak at about 4 GB of memory
+             and are made only with `heavy`; without it the estimate uses the numbers of the heavy run written in HEAVY below (measured with this same code).
+    @param heavy True to also run the 16-slab and 0.1 mm grids (about 4 GB, a few minutes).
+    @return None (prints, writes out/cases_converge.json).
+    """
+    variant.use(False)
+    import cases
+    import reference
+    # Measured by the review with heavy=True (mean rise over the part, K): (0.25 mm, 16 slabs) and the frame at 0.1 mm with 2 and 3 slabs
+    HEAVY = {"hatch: one zone of vertical stripes (fill 0.5)": {"0.25/16": 266.344},
+             "hatch: crossed hatched zones (vertical and horizontal stripes)": {"0.25/16": 158.391},
+             "one zone": {"0.25/16": 141.022},
+             "frame with a hole and an island 0.3 mm inside it": {"0.25/16": 141.817, "0.1/2": 206.972, "0.1/3": 202.242}}
+    names = list(HEAVY)
+    grids = [(0.25, 2), (0.25, 4), (0.25, 8), (0.125, 2), (0.125, 4)] + ([(0.25, 16), (0.1, 2), (0.1, 3)] if heavy else [])
+    C = cases.make_cases()
+    res = {}
+    for name in names:
+        p, resolved = cases.build(C[name])
+        res[name] = dict(HEAVY[name]) if not heavy else {}
+        for dx, nl in grids:
+            if dx == 0.1 and "frame" not in name:
+                continue
+            res[name][f"{dx}/{nl}"] = float(reference.reference_rise(p, resolved, dx, n_lam=nl)["mean"])
+        r = res[name]
+        if "frame" not in name:                                          # the 0.25 mm grid does not see the gap of the frame: no estimate from it
+            r["estimate"] = r["0.125/4"] * r["0.25/16"] / r["0.25/4"]
+        print(f"{name:66s}" + "  ".join(f"{k}: {v:.2f}" for k, v in r.items()), flush=True)
+    base = res["hatch: one zone of vertical stripes (fill 0.5)"]
+    for name in ("one zone", "hatch: crossed hatched zones (vertical and horizontal stripes)"):
+        r = res[name]
+        print(f"change when the second hatched zone is added ({'shifted, solid' if name == 'one zone' else 'crossed'}): "
+              f"at 0.125 mm / 2 slabs {100 * (r['0.125/2'] / base['0.125/2'] - 1):+.1f} %, estimate {100 * (r['estimate'] / base['estimate'] - 1):+.1f} %")
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "cases_converge.json").write_text(json.dumps(res, indent=1))
+
+
 def report():
     """!
     @brief Print the tables (also saved in out/study_cases.txt): errors against the reference per rule, the other models, the fills that have no resolved copper, and the hatched cases.
@@ -174,7 +216,7 @@ def report():
 
     out("Check: the variant with the old rule against the unmodified program (peak rise, K; largest difference over all cases and both cells)")
     worst = {m: max(abs(var[n][str(c)]["max_cell"][m] - old(n, c, m)) for n in var for c in CELLS) for m in MODELS}
-    out("  " + "  ".join(f"{m} {worst[m]:.4f}" for m in MODELS) + "   (the FDM of develop samples its nodes by points, the variant averages the cells: the old rule is taken from develop)")
+    out("  " + "  ".join(f"{m} {worst[m]:.4f}" for m in MODELS) + "   (the FDM of develop takes the maximum of the zones after averaging each zone over the four cells around a node, the variant takes it on the cells and then averages: the old rule is taken from develop)")
     # Reference convergence
     out("\nReference convergence (one zone / hatch cases; peak rise of the independent solver, K, by fine cell and laminate slabs)")
     for name in ("one zone", "two zones meeting at x = 10.37 mm", "hatch: one zone of vertical stripes (fill 0.5)", "hatch: crossed hatched zones (vertical and horizontal stripes)"):
@@ -232,6 +274,8 @@ if __name__ == "__main__":
         run_reference()
     elif mode == "hatch":
         run_hatch()
+    elif mode == "converge":
+        run_converge(heavy="--heavy" in sys.argv)
     else:
         sys.path.insert(0, str(variant.build()))
         report()
