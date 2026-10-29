@@ -6,6 +6,8 @@ What was implemented in every version (with the module where it lives and how it
 
 ## Unreleased
 
+* **Heat source with component fields**: the input check warns that a pure source ignores `theta`, `theta_jc_top`, `theta_sa`, `interface`, `contact_area` and the top sheet (`checks.py`); tests fix that `tj_max`, `psi_jb` and `power_tc` work on a source (`tests/test_source_fields.py`).
+
 * **Unknowns of the layered models counted as built**: `fvm.unknowns` and `fdm.unknowns` (laminate nodes of a one-layer board, block layers, the FDM nodes at the corners of the cells) feed the number shown under the cell size (`tests/test_unknown_count.py`: equal to `Network.nl x nx x ny` for six boards at three cells).
 * **Via diameter labelled as the drill** (`gui/tips.py` key `drill diameter`, the *Drill diameter* field, `Via.diameter`, the guide, `docs/models.md`): the text now says what the model uses; no number changes.
 

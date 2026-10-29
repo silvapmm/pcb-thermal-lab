@@ -70,6 +70,12 @@ def check_problem(problem, cell_mm=1.0):
     heater_cov = []
     for k, h in enumerate(problem.heaters):
         name = h.name or f"Heater {k + 1}"
+        if h.role == "source":
+            # A pure source has no junction and no package top: these fields (from a file or the API; the interface zeroes them) are not used
+            ignored = [label for label, value in (("theta", h.theta), ("theta_jc_top", h.theta_jc_top), ("theta_sa", h.theta_sa), ("interface", h.interface),
+                                                  ("contact_area", h.contact_area), ("pad_thickness", h.pad_thickness), ("pad_k", h.pad_k)) if value > 0]
+            if ignored:
+                _add(out, "heater", k, f"{name}: a heat source ignores {', '.join(ignored)}; they belong to a component (set its type to Component, or clear them).")
         area = polygon_area(h.polygon)
         if area <= 0:
             _add(out, "heater", k, f"{name}: the footprint has zero area.")
