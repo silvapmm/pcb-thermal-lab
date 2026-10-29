@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_via_model_checks.py
 @brief Review checks of the via model behind the via-fill study: closed form of the barrel, every model per fill, the limits, the cell size, an independent solver.

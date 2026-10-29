@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_models_self.py
 @brief The mapping in every model of the program, each against itself: the same model run on the fine mask (0.1 mm cells, the truth of that model) and on 1 mm cells with a cell conductance mapped from the mask.

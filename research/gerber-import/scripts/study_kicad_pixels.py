@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_kicad_pixels.py
 @brief The nets against the KiCad project, pixel by pixel: the copper of the Stormduino drawn from its own `.kicad_pcb` (tracks, vias, pads, zone fills, each with its net) against the copper the independent reader draws from the Gerber files.

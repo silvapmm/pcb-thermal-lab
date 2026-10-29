@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_inner_copper.py
 @brief Inner copper weight of the typical stack-up templates: 0.5 oz (15.2 um, default, unchanged) and 1 oz (35 um, derived).

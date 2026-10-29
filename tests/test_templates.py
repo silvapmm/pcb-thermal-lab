@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_templates.py
 @brief Typical stack-up templates (JSON), board orientation, rounded outlines, and the controls added with them.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_source_fields.py
 @brief A heat source (role "source") ignores the junction and package fields and the input check says so; the fields that work on a source keep working.

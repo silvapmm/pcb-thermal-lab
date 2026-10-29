@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the nets phase: from the mask of a net to its Joule heat (README 4.20) and the proposed order of work up to the electro-thermal loop (CONCLUSIONS 4).

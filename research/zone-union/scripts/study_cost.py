@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_cost.py
 @brief Q5: time and memory of the zone fill under the old rule, the per-point union (prototype) and the exact polygon union (shapely), on boards of 1, 4 and 25 million sample points.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_pdn_links.py
 @brief The electrical side of an electro-thermal run on the rectangle board: a 5 V source, a current sink and a ferrite-bead link between two separate pieces of copper of one net, and where the heat is made.

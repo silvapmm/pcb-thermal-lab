@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file windows.py
 @brief Cut 36 x 36 mm windows (0.1 mm pixels, centre-sampled copper) out of the downloaded boards for the mapping studies.

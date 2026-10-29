@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file fin_validation.py
 @brief Check of the plate-fin model of the metal block (`blocks.fin_ratio`) against an independent two-dimensional finite-volume solution of one fin.

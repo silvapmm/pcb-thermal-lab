@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_mapping_options.py
 @brief Every mapping of copper to face conductances as a selectable option, on four boards, through the program's own finite-volume network: the error of the mean heater rise against the same network on the 0.1 mm pixel grid.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_gui_stress.py
 @brief Stress tests of the application: every model, every results view, every editor, odd inputs and random user actions.

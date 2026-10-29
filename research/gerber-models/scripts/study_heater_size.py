@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_heater_size.py
 @brief Does the best mapping depend on the size of the heated part? Heaters of 1.2, 3, 6 and 12 mm (square) on the 42 windows of study_mapping.py.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_native_check.py
 @brief Cross-check of the independent reader (native_gerber.py, NumPy only) against gerbonara + shapely on the same windows.

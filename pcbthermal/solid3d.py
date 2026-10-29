@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file solid3d.py
 @brief Three-dimensional finite-volume model of the board as a solid: the comparison that does not use the "one node per copper layer" idea.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_models_our_board.py
 @brief Our own IC board (lib/our_board.py) in the five models of the program: each model against itself on the fine mask, the five fine results side by side, and the cell mappings in each.

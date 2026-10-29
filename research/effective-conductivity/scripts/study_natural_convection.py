@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_natural_convection.py
 @brief The natural convection of a vertical plate in the program (Churchill and Chu, general form) against the laminar form of the same paper, over the Rayleigh numbers of a board, and the effect on h.

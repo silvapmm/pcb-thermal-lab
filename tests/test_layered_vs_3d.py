@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_layered_vs_3d.py
 @brief The layered models of the program against an independent 3D conduction solver (tests/helpers/layered3d.py, which imports nothing from the program) on a laminate coupon and on a one-layer board.

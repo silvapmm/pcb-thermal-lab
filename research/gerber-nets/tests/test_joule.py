@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_joule.py
 @brief The current/Joule prototype against closed forms: a straight strip, strips in series and in parallel, and the conservation of the power.

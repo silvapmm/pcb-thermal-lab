@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_help.py
 @brief Help menu: the user guide opens (in the program), its links work, it documents what the program has, and the About box shows the program data.

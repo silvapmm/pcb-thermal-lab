@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_inspector_sections.py
 @brief The Properties panel groups the fields of each element in titled boxes; a manual-input heatsink is typed as h or as theta_SA; the simple stack-up lives in the Stack-up tab.

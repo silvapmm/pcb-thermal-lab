@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_laminate_reference.py
 @brief Review question: since the program gives a one-layer board two laminate nodes under the copper, which fine reference is right for the mapping studies, and how large is the bias of the fill fraction then?

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file zone_shapely.py
 @brief The union of the zones computed once as polygons (a polygon boolean union by GEOS through shapely) and the exact area of every cell: the alternative to the sub-sample lattice, and an exact reference for the fill field.

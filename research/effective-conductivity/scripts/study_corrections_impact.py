@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_corrections_impact.py
 @brief What the corrections and proposals of this investigation would change, measured on copies of the program (nothing in pcbthermal/ is edited): the cell size of the plate check, the laminar form of Churchill and Chu, and the thick-plate criterion.

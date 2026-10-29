@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the Gerber models phase: the laminate the 3D solid lacks under a single copper layer (README 4.39) and the chain of references used to validate the models on the rectangle board (README 4.37).

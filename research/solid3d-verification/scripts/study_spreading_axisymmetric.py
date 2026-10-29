@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_spreading_axisymmetric.py
 @brief Yovanovich's spreading resistance of an isoflux circular source on a flux tube from a third, independent solver: an axisymmetric finite-volume model in cylindrical coordinates (no square tube, no staircase circle), compared with the published table and with the program's 3D solid (README 4.1 and 4.3).

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_reader_scope.py
 @brief Can the independent reader read any copper layer and any drill file? Only copper and drills matter here (silkscreen, mask, paste and assembly layers are not needed).

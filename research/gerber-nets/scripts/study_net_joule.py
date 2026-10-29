@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_net_joule.py
 @brief From a Gerber with net names to the heat of one net: read the net's copper, put 1 A through it between its two farthest pads and map the Joule power to 1 mm cells.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file boards_synthetic.py
 @brief Deterministic synthetic copper layouts written as Gerber text (round tracks and pads, a ground pour with clearance holes), used by the tests and the studies.

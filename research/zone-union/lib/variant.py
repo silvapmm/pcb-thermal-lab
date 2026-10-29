@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file variant.py
 @brief Builds, outside the program, a copy of `pcbthermal` in which the way the zones are combined can be chosen (env ZONE_RULE), and puts it first on the import path.

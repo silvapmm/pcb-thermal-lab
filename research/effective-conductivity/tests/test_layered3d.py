@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_layered3d.py
 @brief The independent 3D solver against a series circuit, the energy balance, a uniform layer, and three published numbers (Seri Lee's plate, the cross of Muzychka et al., the coupon limits of Culham and Yovanovich).

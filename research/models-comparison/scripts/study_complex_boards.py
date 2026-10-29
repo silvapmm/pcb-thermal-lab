@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_complex_boards.py
 @brief How do the five models compare with the 3D solid on boards closer to real ones, and what did the corrections of the review change?

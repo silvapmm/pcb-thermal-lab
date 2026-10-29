@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file kicad_pcb.py
 @brief A small reader of KiCad `.kicad_pcb` files (text, s-expressions): nets, tracks, vias, pads and zones, with the net of each, as an independent truth for the nets read from Gerber files.

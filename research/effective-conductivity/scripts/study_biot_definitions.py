@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_biot_definitions.py
 @brief Why the effective conductivity of the coupon of Culham and Yovanovich falls at a high Biot number in the independent solver, and which definition of the mean wall temperature could give the plateau of the paper's Figure 5.

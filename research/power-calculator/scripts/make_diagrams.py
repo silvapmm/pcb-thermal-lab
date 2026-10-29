@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the power calculator: the board model run backwards (two runs, an affine relation, the watts), and the band of the answer from the one-at-a-time effects.

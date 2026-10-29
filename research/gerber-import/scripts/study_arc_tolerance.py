@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_arc_tolerance.py
 @brief Is the farthest differing pixel of README 4.45 (0.045 px = 4.5 micrometres from the exact edge) the reader's own arc tolerance? The 12-layer comparison on the shifted grid re-run with a ten times finer tolerance and a finer vector truth.

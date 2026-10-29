@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_fem_hand_checks.py
 @brief Do the finite-element checks of README section 4.2 (element size, elements per gap, example board) reproduce from a script?

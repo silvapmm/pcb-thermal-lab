@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_via_fill.py
 @brief What fills a via barrel (open, epoxy resin, conductive paste, electroplated copper): the equivalent area, the models, the file and the form.

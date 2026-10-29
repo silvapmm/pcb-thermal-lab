@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file native_gerber.py
 @brief An independent Gerber (RS-274X) and Excellon reader and rasteriser that needs only NumPy: no gerbonara, no shapely, no GEOS.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
 @brief Schematic diagrams of the layered models against the 3D solid: one node per copper layer with sheet conductances, against real slabs with the vertical gradient resolved, and the verification ladder against exact and independent references.

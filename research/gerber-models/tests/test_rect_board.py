@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_rect_board.py
 @brief The rectangle board in the five models of the program: convergence with the cell size and the spread between the models (README 4.35 and 4.37). Needs the program's dependencies.

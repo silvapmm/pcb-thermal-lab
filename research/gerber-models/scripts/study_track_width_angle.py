@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_track_width_angle.py
 @brief What is the thinnest track the chain recognises, and does it handle any angle? One track of width w at angle theta crosses a 16 x 16 mm window under a 6 x 6 mm heater; the heater temperature from the 1 mm cells (four mappings, four input masks) against a resolved reference.

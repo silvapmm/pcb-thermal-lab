@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_small_pad_convergence.py
 @brief Where is the converged temperature of a one-sided copper pad hardly larger than its heater, and how far are the two 3D models of README section 4.2 from it?

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_rect_convergence.py
 @brief How the five models of the program converge with the cell size on the rectangle board, to separate the error of the grid from the difference of the physics.

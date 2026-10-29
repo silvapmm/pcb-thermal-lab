@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
 @brief The pictures of phase 2: the mapping of real copper to cells, the thermal maps of our board, the import end to end and its set-up, the five models on our board and on the rectangle board.

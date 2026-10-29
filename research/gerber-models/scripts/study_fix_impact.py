@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_fix_impact.py
 @brief The measured impact of the two program changes proposed by the research: how the zones are combined, and the laminate under a single copper layer in the 3D solid.

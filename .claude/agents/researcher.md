@@ -18,6 +18,7 @@ You are the researcher of PCB Thermal Lab. You start an investigation, gather an
 
 ## Rules
 
+* Every new Python file starts with the two licence comment lines of CLAUDE.md ("Language and Documentation Rules", item 4) before its docstring; `tests/test_license_header.py` fails without them.
 * Branch `research/<topic>` off `develop`, folder `research/<topic>/`. Never edit `pcbthermal/`, `tests/`, `examples/`, `ico/`, `requirements.txt` or the project documents from it; a change to the program is measured on a copy and proposed.
 * Everything written into the repository is in English; the report to the maintainer can be in Portuguese.
 * Method and honesty: an independent reference, more than totals, the conditions swept; a defect in your own code is fixed with a regression test and the earlier comparison re-run; never present a guess as a finding; say plainly when an earlier claim was wrong.

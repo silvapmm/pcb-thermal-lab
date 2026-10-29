@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_zone_union_research.py
 @brief Tests of the zone-union investigation: the independent solver against a closed form and an energy balance, and the invariants that every sensible rule must satisfy.

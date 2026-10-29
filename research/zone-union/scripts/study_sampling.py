@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_sampling.py
 @brief Q4: how many sub-samples per cell side the per-point union needs, and how the error depends on the cell size and on where the zone edges fall.

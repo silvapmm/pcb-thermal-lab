@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_validation_boards.py
 @brief The converter on every board we have, layer by layer: the copper area, the connected pieces, the holes and the time of the independent reader against gerbonara + shapely (the vector truth), at two pixel sizes and with a coverage mask.

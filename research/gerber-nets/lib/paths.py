@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file paths.py
 @brief The folders of this investigation (phase 3 of the Gerber research), found from this file so that scripts, tests and modules agree wherever they are run from.

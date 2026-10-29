@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file profile_results.py
 @brief Results of the time simulation with power profiles: temperature versus time, peak map and the last window as frames.

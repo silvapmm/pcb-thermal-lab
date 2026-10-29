@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file check_figures.py
 @brief Checks the figures of every research folder against the figure rules of `CLAUDE.md` ("Research branches": "Diagrams and illustrations (always)" and "Figures").

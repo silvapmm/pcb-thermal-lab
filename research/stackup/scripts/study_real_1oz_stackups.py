@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_real_1oz_stackups.py
 @brief What do fabricators really use for the dielectric thicknesses when the inner copper is 1 oz, and which rule should the program's 1 oz variant follow?

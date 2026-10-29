@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_ui_cleanup.py
 @brief Small interface fixes: model names on the comparison plot, ticks of a very long log axis, the inner tab bar of the results, the size of Preferences.

@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_diagonal.py
 @brief Do diagonal couplings fix the diagonal copper? The track study of README 4.42 and the 42 real windows of 4.4 with a nine-point network (lib/diagonal.py: a conductance tensor per cell from four local problems) against the five-point mappings, with a five-point and a nine-point reference.

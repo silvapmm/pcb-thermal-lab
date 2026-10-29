@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file faces.py
 @brief The import path of the research from the masks to the program: a `pcbthermal.Problem` for the imported board, the face conductances of every copper layer (every mapping of `METHODS`), and the program's own finite-volume network solved with them.

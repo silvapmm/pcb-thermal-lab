@@ -1,3 +1,5 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file reference.py
 @brief The independent reference of the zone-union investigation: the resolved copper of a board (binary polygons on a fine grid) solved by the independent 3D conduction solver.
