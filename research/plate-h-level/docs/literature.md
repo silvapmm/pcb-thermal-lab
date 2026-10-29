@@ -1,0 +1,3 @@
+# Text for the literature status (to use when the work is adopted)
+
+Read in full: Ostrach, NACA Report 1111 (1953), Table I (`-H'(0)`, `F''(0)`, the profiles) reproduced by an independent solver to 0.02 %; Jaffer, arXiv:2201.02612 (2023), for the equation of Churchill and Chu, the air data sets they used and the figure of their measurements (plot values). Seen as a summary or a secondary text: Squire (0.508), LeFevre, Churchill and Usagi (equations 12 to 14 of a secondary paper), Sparrow and Gregg (1958), the textbook 0.59. Not obtained: Churchill and Chu (1975), Raithby and Hollands, King, Cheesewright, Jakob, Bar-Cohen and Rohsenow. Entries in `research/theory/BIBLIOGRAPHY.md`: `[Ostrach1953]`, `[Jaffer2023]`, `[IIETAIntegral]`, `[SparrowGregg1958]`, `[McAdams0.59]`.

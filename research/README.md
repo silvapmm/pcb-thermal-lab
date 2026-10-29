@@ -17,6 +17,7 @@ Studies that are not part of the program, one folder per investigation, named af
 | [`outline/`](outline/README.md) | implemented | Which rectangle for the Lumped and Analytic models on a board with an outline. |
 | [`stackup/`](stackup/README.md) | implemented | The advanced stack-up in the five models, its sensitivity, the typical templates against fabricators. |
 | [`via-fill/`](via-fill/README.md) | implemented | What fills a via barrel and how much it matters. |
+| [`plate-h-level/`](plate-h-level/README.md) | open, awaiting the reviewer | Which natural-convection level for a vertical face: the exact boundary-layer coefficient (Ostrach reproduced), the program's two Churchill and Chu forms and the 0.59 of the composite against a 2D numerical plate and published air data, and how much the choice moves the rise of a board and of the finned block. |
 | [`fin-channel/`](fin-channel/README.md) | open, reviewed | The channel effect between close fins of the finned block: Elenbaas and composite correlations read and reproduced, measured fin arrays, the program's block with the channel coefficient, a rule for the warning and a correction. |
 | [`zone-union/`](zone-union/README.md) | open, reviewed | How the zones of one copper layer are combined into the copper of a cell: what the CAD tools mean, which rule is right, the five models against an independent solver, sampling, cost, edge cases. |
 
