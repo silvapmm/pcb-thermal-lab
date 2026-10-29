@@ -49,7 +49,7 @@ LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name app
                 "dielectrics": "Dielectrics of the stack-up: conductivity across and along the plane (W/mK), density (kg/m³) and specific heat (J/kgK).",
                 "package_theta": "Typical values by package family: junction-to-pad θ, junction-to-case (top) θJC(top) (K/W) and the maximum junction temperature (°C): a starting value, never the datasheet's.",
                 "heatsinks": "Typical heatsinks for the top of a package and their catalogue θSA (K/W) with the source and the test conditions in the note: a starting value, your θSA depends on air flow, orientation and mounting."}
-SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power calculator", "solver": "Solver of a new project"}
+SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project"}
 SECTION_HINTS = {"new_board": "The values a board starts with when you choose File - New board (and when the program starts).",
                  "new_elements": "The values of an element when you draw it or add it from the right-click menu.",
                  "materials": "Copper and the simple-stack-up dielectric of a new board. The dielectrics of the advanced stack-up are a library.",
@@ -154,7 +154,7 @@ class PreferencesDialog(QDialog):
         for lib in defaults.LIBRARIES:
             self._add_section(LIBRARY_TITLES[lib], self._library_tab(lib))
         self._add_section("Defaults for new projects", self._defaults_tab())
-        self._add_section("Power calculator", self._calculator_tab())
+        self._add_section("Power Calculator", self._calculator_tab())
         self.sections.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.sections.setCurrentRow(0)                      # The first page is shown
         self.sections.setFocus()                            # Up and Down change the page from the start
@@ -269,7 +269,7 @@ class PreferencesDialog(QDialog):
         """
         w = QWidget()
         lay = QVBoxLayout(w)
-        note = QLabel("The Power calculator gives a best case, a nominal and a worst case power. Each source of doubt is moved alone to both ends of its uncertainty (±, below) "
+        note = QLabel("The Power Calculator gives a best case, a nominal and a worst case power. Each source of doubt is moved alone to both ends of its uncertainty (±, below) "
                       "and the effects are added as the root of the sum of squares. Change the percentages to what you know about your board and your measurement.")
         note.setWordWrap(True)
         th.hint(note)

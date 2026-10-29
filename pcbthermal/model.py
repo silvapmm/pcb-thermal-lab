@@ -136,7 +136,7 @@ def stackup_template(layers, path=None, inner_oz=0.5):
              The result is derived from the shipped template, it is not a published fabricator table (key `derived`).
     @param layers Number of copper layers.
     @param path Template file (default: the shipped one).
-    @param inner_oz Inner copper weight in oz: 0.5 (15.2 um, JLCPCB standard, the template as it is; default) or 1 (35 um).
+    @param inner_oz Inner copper weight in oz: 0.5 (15.2 um, the template as it is; default) or 1 (35 um).
     @return Dict with name, mode ("simple" or "advanced"), copper_um (list), dielectrics (list of dicts kind, thickness_um, material) and total_thickness_um.
     @throws ValueError If `inner_oz` is not 0.5 or 1.
     """
@@ -193,7 +193,7 @@ class Board:
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
     dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
-    template_inner_oz: float = 0.5              # Inner copper weight the typical stack-up templates load: 0.5 (15.2 um, JLCPCB standard) or 1 (35 um); see stackup_template
+    template_inner_oz: float = 0.5              # Inner copper weight the typical stack-up templates load: 0.5 (15.2 um) or 1 (35 um); see stackup_template
     outline: Optional[np.ndarray] = field(default=None, compare=False)   # Board outline (n, 2) in metres inside the width x height box; None = the whole rectangle
 
     def apply_template(self, path=None):

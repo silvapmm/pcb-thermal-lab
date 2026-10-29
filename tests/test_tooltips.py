@@ -23,6 +23,9 @@ from pcbthermal.gui.main_window import MainWindow
 
 KINDS = (QAbstractSpinBox, QComboBox, QCheckBox, QPushButton, QLineEdit, QSlider, QRadioButton, QTableWidget, QTreeWidget)
 
+# Command buttons whose label already says what they do: the maintainer asked for no tooltip on them (a tooltip on a button like Close only gets in the way)
+NO_TOOLTIP_BUTTONS = {"Run simulation   (F5)", "Auto", "Calculate", "Help", "Close", "Use as the power of a part", "Open in the browser"}
+
 
 def missing(root, label):
     """!
@@ -38,6 +41,8 @@ def missing(root, label):
             if isinstance(w, QLineEdit) and isinstance(parent, (QAbstractSpinBox, QComboBox)):
                 continue                                             # The editor inside a spin box or combo box
             if parent is not None and isinstance(parent, KINDS) and parent.toolTip():
+                continue
+            if isinstance(w, QPushButton) and w.text() in NO_TOOLTIP_BUTTONS:
                 continue
             if not w.toolTip():
                 out.append((label, type(w).__name__, getattr(w, "text", lambda: "")() if not isinstance(w, QLineEdit) else w.objectName()))

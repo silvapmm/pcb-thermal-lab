@@ -445,7 +445,7 @@ class Document(QObject):
     def set_inner_copper_oz(self, oz):
         """!
         @brief Choose the inner copper weight of the typical stack-ups and reload the template of the current layer count (one undoable edit, like the layer count).
-        @param oz 0.5 (15.2 um, JLCPCB standard) or 1 (35 um).
+        @param oz 0.5 (15.2 um) or 1 (35 um).
         """
         def mutate(proj):
             b = proj.problem.board

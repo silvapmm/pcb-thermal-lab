@@ -1,10 +1,10 @@
 # Calculators
 
-The auxiliary tools of the program that answer a question with a few numbers instead of a simulation of a whole board. Today there is one, the **Power calculator** (Simulation menu); this file documents what it does, which formulas and parameters it uses, how it was validated, what it cannot do, and the sources. A new calculator gets its own section here.
+The auxiliary tools of the program that answer a question with a few numbers instead of a simulation of a whole board. Today there is one, the **Power Calculator** (Simulation menu); this file documents what it does, which formulas and parameters it uses, how it was validated, what it cannot do, and the sources. A new calculator gets its own section here.
 
-## 1. Power calculator: the watts a part dissipates, from a temperature you measured
+## 1. Power Calculator: the watts a part dissipates, from a temperature you measured
 
-**Window.** *Simulation → Power calculator…*. Two tabs, **one per route; they are independent ways to the same number and you fill only one** (route 2 updates as you type and has its own *Use as the power of a part* button; route 1 has *Calculate*). The window keeps one size: the parameters a point does not use (θ, ψJT) are greyed, not removed. Every field and every option of *Measured at* and of *Power to use* has a hint, and the **Help** button opens a formatted explanation (`pcbthermal/help/calculator.html`).
+**Window.** *Simulation → Power Calculator…*. Two tabs, **one per route; they are independent ways to the same number and you fill only one** (route 2 updates as you type and has its own *Use as the power of a part* button; route 1 has *Calculate*). The window keeps one size: the parameters a point does not use (θ, ψJT) are greyed, not removed. Every field and every option of *Measured at* and of *Power to use* has a hint, and the **Help** button opens a formatted explanation (`pcbthermal/help/calculator.html`).
 
 **The question.** You measured a temperature on a board (a thermocouple next to a part, a sense diode in it, an infrared reading of its top) and you want to know how many watts that part dissipates. It is the simulation run backwards. Code: `pcbthermal/inverse.py` (the maths), `pcbthermal/gui/calculator.py` (the window), `pcbthermal/jobs.py` (the calculation runs in the separate process, so the window never freezes).
 
@@ -41,7 +41,7 @@ The result window gives the power, the temperatures the model reads at that powe
 
 The nominal power is what the calculator returns for the inputs as typed. Because the board, the heat transfer, θ, ψJT and the reading are known only approximately, `inverse.power_band` also gives a **best case** (lowest plausible power) and a **worst case** (highest plausible power, the one to check margins with):
 
-1. Each source is moved **alone** to both ends of its uncertainty and the calculator is run again: the **copper** (thickness of every layer, ±25 %), the **heat transfer** (both face coefficients, or the convection multiplier when computed, ±30 %), **θ** (±20 %, only for the junction and the top), **ψJT** (±30 %, only for the top) and the **reading** (±1 K). The defaults are in *Preferences → Power calculator* (the `calculator` section of `defaults.json`). These are uncertain **numbers**; the doubt about the **drawing** of the board is the design uncertainty of section 1.1c, which is added by the same rule.
+1. Each source is moved **alone** to both ends of its uncertainty and the calculator is run again: the **copper** (thickness of every layer, ±25 %), the **heat transfer** (both face coefficients, or the convection multiplier when computed, ±30 %), **θ** (±20 %, only for the junction and the top), **ψJT** (±30 %, only for the top) and the **reading** (±1 K). The defaults are in *Preferences → Power Calculator* (the `calculator` section of `defaults.json`). These are uncertain **numbers**; the doubt about the **drawing** of the board is the design uncertainty of section 1.1c, which is added by the same rule.
 2. A source moves the power down on one side and up on the other (more copper means a lower board resistance, so more watts for the same reading). The downward deviations of all the sources are added as the **root of the sum of squares**, and so are the upward ones: `best = P − √Σ(P − low_i)²`, `worst = P + √Σ(high_i − P)²`. This is the usual way to add independent uncertainties; stacking all of them at once would give a range nobody has seen.
 3. The selector **Power to use** (Best case / Nominal / Worst case) says which of the three the button *Use as the power of this part* writes into the heater, with undo. **Nothing else in the program changes**: the simulation uses that single number when you next run it.
 
@@ -58,9 +58,9 @@ With the default board description (*Drawn by hand from the layout*, section 1.1
 
 ### 1.1c Design uncertainty: how well the drawing matches the board
 
-The terms of section 1.1b are uncertain *numbers* on a board that is assumed drawn right. The review of `research/power-calculator` (README 4.7) showed that this band does **not** cover a wrongly drawn board: in three of four drawing errors the true 2 W was above the worst case. The **Board description** list of the calculator adds four more one-at-a-time sources, moved to both ends like the others and combined with them by the root of the sum of squares (`inverse.power_band`, `design_*` entries of the `calculator` section of `defaults.json`, editable in *Preferences → Power calculator*):
+The terms of section 1.1b are uncertain *numbers* on a board that is assumed drawn right. The review of `research/power-calculator` (README 4.7) showed that this band does **not** cover a wrongly drawn board: in three of four drawing errors the true 2 W was above the worst case. The **Board description** list of the calculator adds four more one-at-a-time sources, moved to both ends like the others and combined with them by the root of the sum of squares (`inverse.power_band`, `design_*` entries of the `calculator` section of `defaults.json`, editable in *Preferences → Power Calculator*):
 
-![Power calculator: the Board description list and the terms of the result (example board, hand-drawn level, 2 mm cell)](images/calculator_design.png)
+![Power Calculator: the Board description list and the terms of the result (example board, hand-drawn level, 2 mm cell)](images/calculator_design.png)
 
 *Screenshot: `docs/images/calculator_design.png`, made by `examples/make_screenshots.py`.*
 
