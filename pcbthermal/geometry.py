@@ -9,6 +9,34 @@ board. This module depends only on NumPy so it can run headless.
 import numpy as np
 
 
+def polygon_self_intersects(poly):
+    """!
+    @brief Whether the outline of a polygon crosses itself (two of its edges that are not neighbours cut each other).
+    @details The fill of the program follows the even-odd rule, so a crossing outline leaves the crossed part empty (a pentagram is filled
+             between its arms, not in its centre), and the Gerber format does not allow such a contour. The test is exact for proper crossings;
+             edges that only touch at an end point or run along each other are not reported.
+    @param poly Array-like (n, 2) of vertices; the closing edge from the last to the first vertex is included.
+    @return bool.
+    """
+    p = np.asarray(poly, dtype=float)
+    n = len(p)
+    if n < 4:
+        return False                                      # A triangle cannot cross itself
+    a, b = p, np.roll(p, -1, axis=0)                      # Edge i goes from a[i] to b[i]
+    for i in range(n - 2):
+        # Edges after i, leaving out the neighbour i + 1 and, for the first edge, the closing neighbour n - 1
+        j = np.arange(i + 2, n if i > 0 else n - 1)
+        if len(j) == 0:
+            continue
+        d1 = (b[i, 0] - a[i, 0]) * (a[j, 1] - a[i, 1]) - (b[i, 1] - a[i, 1]) * (a[j, 0] - a[i, 0])
+        d2 = (b[i, 0] - a[i, 0]) * (b[j, 1] - a[i, 1]) - (b[i, 1] - a[i, 1]) * (b[j, 0] - a[i, 0])
+        d3 = (b[j, 0] - a[j, 0]) * (a[i, 1] - a[j, 1]) - (b[j, 1] - a[j, 1]) * (a[i, 0] - a[j, 0])
+        d4 = (b[j, 0] - a[j, 0]) * (b[i, 1] - a[j, 1]) - (b[j, 1] - a[j, 1]) * (b[i, 0] - a[j, 0])
+        if np.any((d1 * d2 < 0) & (d3 * d4 < 0)):         # The end points of each edge lie strictly on both sides of the other
+            return True
+    return False
+
+
 def polygon_area(poly):
     """!
     @brief Area of a simple polygon using the shoelace formula.

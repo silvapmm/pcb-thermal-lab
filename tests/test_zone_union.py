@@ -69,3 +69,30 @@ def test_a_hatched_zone_keeps_its_fill_and_zones_that_do_not_touch_are_unchanged
     assert np.allclose(field[0, :, :19], 0.5) and np.allclose(field[0, :, 25:], 1.0)
     assert np.allclose(field[0, :, 20:24], 0.0)               # The gap between the zones has no copper
     assert not field[1].any()                                  # A layer without zones stays empty
+
+
+def test_a_zone_whose_outline_crosses_itself_is_warned_and_ordinary_shapes_are_not():
+    from pcbthermal.checks import check_problem
+    from pcbthermal.geometry import polygon_self_intersects
+    square = [[0, 0], [10, 0], [10, 10], [0, 10]]
+    l_shape = [[0, 0], [10, 0], [10, 4], [4, 4], [4, 10], [0, 10]]
+    bowtie = [[0, 0], [10, 10], [10, 0], [0, 10]]
+    pentagram = [[5, 0], [8, 10], [0, 4], [10, 4], [2, 10]]
+    assert not polygon_self_intersects(square) and not polygon_self_intersects(l_shape)
+    assert not polygon_self_intersects([[0, 0], [5, 0], [2, 3]])
+    assert polygon_self_intersects(bowtie) and polygon_self_intersects(pentagram)
+    p = Problem.new(40, 20, 2)
+    p.add_zone(1, polygon=bowtie, name="Pour")
+    p.add_zone(2, rect=(0, 0, 40, 20))
+    msgs = [str(w) for w in check_problem(p) if "crosses itself" in str(w)]
+    assert len(msgs) == 1 and "Pour" in msgs[0]
+    ok = Problem.new(40, 20, 2)
+    ok.add_zone(1, polygon=l_shape)
+    assert not [w for w in check_problem(ok) if "crosses itself" in str(w)]
+
+
+def test_the_fdm_point_sampling_path_keeps_the_maximum_per_node_which_is_exact_there():
+    from pcbthermal import fdm
+    split = fdm.solve_steady(two_zone_board(), 0.5, sampling="point").t_max
+    whole = fdm.solve_steady(one_zone_board(), 0.5, sampling="point").t_max
+    assert split == pytest.approx(whole, abs=1e-9)

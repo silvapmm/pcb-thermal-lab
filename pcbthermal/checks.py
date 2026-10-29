@@ -10,7 +10,7 @@ of every warning says what is wrong and what to do.
 
 import numpy as np
 
-from .geometry import coverage_fraction, points_in_polygon, polygon_area, polygon_centroid, zone_fill
+from .geometry import coverage_fraction, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -111,6 +111,9 @@ def check_problem(problem, cell_mm=1.0):
         area = polygon_area(z.polygon)
         if area > 0 and float(cov.sum() * dx * dy) / area < 0.5:
             _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: more than half of the zone is outside the board.")
+        if polygon_self_intersects(z.polygon):
+            _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: the outline crosses itself; the fill follows the even-odd rule, so the crossed part is left empty. "
+                       "Redraw the zone without the crossing.")
 
     # --- Metal blocks: they only take heat where they overlap copper of their face
     block_cov = {}
