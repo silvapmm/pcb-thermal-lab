@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.4.2-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-670%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.4.3-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-716%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -105,6 +105,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.4.3** (2026-10-29): corrections found by the investigations: a metal block is cut at the board outline, zones that meet inside a cell keep the copper of both, the top path exists only on a component, the 3D solid keeps the copper of a large via, the unknowns shown are the ones the models have, the via field is the drill diameter, plus an input warning for a source with component fields and small interface cleanups.
 - **2.4.2** (2026-10-29): a reviewed interface (wider panels, Preferences as a list of sections, the decimal point everywhere, engineering notation for very small and very large numbers, a list of the input warnings), the Power Calculator with the uncertainty of the board description, an inner copper choice of 1 oz, corrections for one-layer boards, board outlines, the top path and finned blocks, measured run times and shorter documents.
 - **2.4.1** (2026-10-22): the MIT licence stated the same way in LICENSE, README and the About box, and a note that results are not validated against a physical board; no change to the models.
 - **2.4.0** (2026-10-22): parts with a junction temperature and a heatsink on the package, advanced stack-up with a cross-section view, any board outline, calculations that can be cancelled, the Power Calculator, a built-in user guide, tooltips and Preferences.

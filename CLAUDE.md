@@ -195,7 +195,7 @@ python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements
 
 ## Branches and Versions
 
-- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.2** (2026-10-29). Numbering (maintainer's rule): only fixes give a patch number (2.4.3 next), any `feature/` item in the version makes it a minor number (2.5.0). `pcbthermal.__version__` stays the released number on `develop` until the release commit that bumps it.
+- `main`: released versions only, each tagged `vMAJOR.MINOR.PATCH` (annotated tag). Current release: **v2.4.3** (2026-10-29). Numbering (maintainer's rule): only fixes give a patch number (2.4.4 next), any `feature/` item in the version makes it a minor number (2.5.0). `pcbthermal.__version__` stays the released number on `develop` until the release commit that bumps it.
 - `develop`: integration branch for the next version; every fix, feature, documents and research branch starts from it and merges back into it when finished (see the branch rule in "Git Workflow"); `main` gets `develop` only at a release.
 - Tag `legacy-wxpython-1.0.0` marks the original wxPython program (version 1.0.0), kept for reference.
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
@@ -293,6 +293,8 @@ The review of every research folder is tracked in `research/REVIEW.md` (status, 
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
 
 ## Decisions Log
+
+- **Released 2.4.3** (fixes only, so a patch number): block cut at the outline, union of zones with the self-intersection warning, top path only on a component, source-fields warning, unknown count, drill-diameter label, 3D via spread, interface cleanups and the licence header; `develop` merged into `main`, tag `v2.4.3`. Open for 2.5.0: the memory guard (feature).
 
 - **Licence header on every Python file** (maintainer): every `.py` file starts with two comment lines, the copyright of Pedro Silva (PMS Labs) and the MIT notice, before the module docstring; added to the 313 files that existed, and `tests/test_license_header.py` makes it a rule for every new file. The wording is the maintainer's ("All rights reserved" next to the MIT licence; the licence of the project is MIT, see `LICENSE`).
 
