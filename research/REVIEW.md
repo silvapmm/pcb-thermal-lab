@@ -17,6 +17,7 @@ What the independent `reviewer` agent has checked in each folder, so that a late
 | `gerber-import/` | reviewed | `a6f822b` | none in the program (no model involved) |
 | `gerber-models/` | reviewed | `a6f822b` | open: zones combined by the maximum per cell (-8.2 % FVM, -19.1 % FDM on abutting strips); two laminate nodes 5.5 to 13.6 % cool on patterned copper (A11); the laminate of a one-layer board in the 3D solid is corrected |
 | `gerber-nets/` | reviewed | not applicable (no electrical code in `pcbthermal/`) | none in the program; limits: return current in the ground net, resistivity, plated outer copper |
+| `zone-union/` | reviewed | `98bae17` | open (decisions in `INTEGRATION.md` 3 and 4): adopt the per-point union (prototype `fix/zone-union`, 681 passed); limit found, not about zones: the layered models lose 12 to 14 points of the peak on a part over bare laminate (README 8.3); the real-board reference is 5 to 14 % low at 0.25 mm |
 
 Program defects found by a review are never corrected from a research branch: they are items of `docs/versions.md` ("Planned") or are marked "corrected in the program" above.
 
