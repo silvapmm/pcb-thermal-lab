@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **Interface leftovers**: the Simulation footer no longer takes a low window (the warning list shrinks to two lines and scrolls instead of raising the minimum height of the window, it takes at most a quarter of the dock, and the settings keep a strip of 120 px); the count of unknowns spans the whole row of the form; a decimal comma pasted from the right-click menu of a number field is read as a point (the menu keeps Undo, Cut, Copy, Select All, Step up and Step down); a click on a warning after an edit and before the check is ignored instead of selecting another element.
+
 ## [2.4.3] - 2026-10-29
 
 ### Fixed
