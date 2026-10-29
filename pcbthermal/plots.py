@@ -16,6 +16,7 @@ from matplotlib.figure import Figure
 
 from .geometry import points_in_polygon
 from .numfmt import PLAIN_MAX, PLAIN_MIN, eng, num
+from .results import model_label
 
 CMAPS = ("inferno", "hot", "viridis", "plasma", "magma", "turbo", "coolwarm")
 
@@ -31,6 +32,11 @@ def engineering_ticks(fig):
         for axis in (ax.xaxis, ax.yaxis):
             if isinstance(axis.get_major_formatter(), (ticker.ScalarFormatter, ticker.LogFormatter)):
                 axis.set_major_formatter(_ProgramFormatter())
+                if axis.get_scale() == "log":
+                    lo, hi = axis.get_view_interval()
+                    if lo > 0 and np.log10(hi / lo) > 6.0:
+                        # A tick per decade, written 10.00E-6, 100.00E-6, 1.00E-3, ..., crowds the axis: one every three decades is the step of the notation
+                        axis.set_major_locator(ticker.LogLocator(base=1000.0, numticks=20))
     return fig
 
 
@@ -326,7 +332,7 @@ def draw_comparison(fig, results):
         ax.text(k - 0.2, results[n].t_max + 0.5, f"{results[n].t_max:.1f}", ha="center", fontsize=8)
         ax.text(k + 0.2, results[n].t_mean + 0.5, f"{results[n].t_mean:.1f}", ha="center", fontsize=8)
     ax.set_xticks(x)
-    ax.set_xticklabels(names)
+    ax.set_xticklabels([model_label(n) for n in names])        # "Lumped (LPTN)", as the tables, not the key `lumped`
     ax.set_ylabel("Temperature (°C)")
     ax.legend()
     ax.grid(axis="y", alpha=0.3)

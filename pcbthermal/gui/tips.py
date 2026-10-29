@@ -10,17 +10,7 @@
 from PySide6.QtWidgets import (QAbstractSpinBox, QCheckBox, QComboBox, QFormLayout, QLabel, QLayout, QLineEdit, QPushButton, QRadioButton, QSlider,
                                QTableWidget, QTreeWidget)
 
-# Names of the models shown in the results (tables and lists); the keys (fvm, lumped, ...) stay in the files, the reports and the API
-MODEL_LABELS = {"fvm": "FVM", "lumped": "Lumped (LPTN)", "analytic": "Analytic", "fdm": "FDM", "solid3d": "3D solid"}
-
-
-def model_label(key):
-    """!
-    @brief Name of a model for the results views.
-    @param key Model key (fvm, lumped, analytic, fdm, solid3d).
-    @return The display name, or the key itself when it is not a known model.
-    """
-    return MODEL_LABELS.get(key, key)
+from ..results import MODEL_LABELS, model_label  # noqa: E402,F401  (the names live in the core, the plots use them too)
 
 
 TIPS = {
