@@ -365,6 +365,36 @@ KiCad `.kicad_pcb` file format (text, s-expressions), version 20171130, as in th
 ### [ProfileLayer]
 The board outline as the Gerber profile layer (web searches, snippets only): the X2 file attribute `TF.FileFunction,Profile,NP` (DipTrace forum https://diptrace.com/forum/viewtopic.php?p=33620; https://en.wikipedia.org/wiki/Gerber_format); Altium on a closed path (https://altium.com/documentation/node/304685/printable/print?version=22); KiCad forum threads on strokes and gaps (https://forum.kicad.info/t/kicad-edge-cuts-rejected-by-jlcpcb/27159, https://forum.kicad.info/t/gerber-file-errors-due-to-edge-cuts-not-connected/9467, https://forum.kicad.info/t/how-to-define-the-board-outline-pcb-edge/32166); MacroFab https://help.macrofab.com/knowledge/how-to-ensure-the-board-outline-is-correct. **Status S.** No source gave a rule for the size of a gap to close. Topic 20.
 
+### [Gerber2026]
+Ucamco, *The Gerber Layer Format Specification*, revision 2026.05, downloaded from https://www.ucamco.com/en/guest/downloads/gerber-format (file `gerber-layer-format-specification-revision-2026-05_en.pdf`, 219 pages), text extracted locally, nothing stored in the repository. **Read in full for the points of `research/zone-union`**: the section "Polarity" (printed page 14: objects have a polarity, dark or clear, "Objects can overlap", a clear object clears the objects beneath it, "An object is totally dark or totally clear"), the region statement G36/G37 (printed pages 96 to 97: "Each contour is filled individually. The overall filled area is the union of the filled areas of each individual contour"; two overlapping contours may be merged into one region object), the rule that contours must not self-intersect (4.10.3), and the file attribute `.FileFunction` whose Copper layer type is one of Plane, Signal, Mixed or Hatched (a label of the layer, not a density). The rest of the specification was not read. **Status R for those passages.** Used by `research/zone-union` (README 2).
+
+### [Gerber2016Mirror]
+The same specification, revision 2016.01, from a third-party mirror (https://argmaster.github.io/pygerber/2.3.1/gerber_specification/gerber-layer-format-specification-revision-2016-01_en.pdf), text extracted locally: section 2.9 "Dark and Clear Polarity" and section 4.6 (region mode, the examples "Overlapping Contours", "Non-overlapping and Touching", "Overlapping and Touching") read; the statements agree with [Gerber2026]. **Status R for those sections** (a mirror, not Ucamco's own file). `research/zone-union`.
+
+### [KiCadZones9]
+KiCad 9.0 documentation, PCB Editor, zones: https://docs.kicad.org/9.0/en/pcbnew/pcbnew.html. The page is 520 772 characters; the fetch tool returned answers about two windows of it (characters 0 to 100 000 and 100 000 to 200 000), not the page itself. Statements found: zone priority "determines the order in which multiple zones on a single layer are filled"; lower-priority zones keep clearance to the filled areas of higher-priority zones; two zones on the same layer with the same priority overlap (short-circuit) unless they have different nets; fill type solid or hatch pattern with orientation, hatch width and hatch gap, smoothing. The hatch statement says the pattern "will fill the area with a pattern that contains less copper". The part of the page on islands and refill was only summarised. **Status S** (a summary by the fetch tool; the text of the page was not read). `research/zone-union`.
+
+### [KiCadZoneFillerSource]
+KiCad source file `pcbnew/zone_filler.cpp` (https://gitlab.com/kicad/code/kicad/-/raw/master/pcbnew/zone_filler.cpp), first 100 000 of 190 365 characters, through the fetch tool's summary: hatch handling in `knockoutThermalReliefs`, `findHighestPriorityZone` ("Prefer any same-net zone over a higher-priority different-net zone"), `zone_fill_dependency` ("Same-net zones always use outlines to produce determinate results"), knock-out of the fills of higher-priority zones. The hatch builder and the same-net merge step were not in the part seen. **Status S.** `research/zone-union`.
+
+### [AltiumPolygonPour]
+Altium Designer documentation, Polygon Pour properties: https://altium.com/documentation/altium-designer/pcb-polygon-pour-properties?version=19 (version 19 of the page; the current one returned 404 at its address) and the search result for the polygon pour pages (https://www.altium.com/documentation/cstu/polygon-pour-0). Statements found: hatched fill with Track Width and Grid Size (a width below the grid size gives a hatched pour, above it a solid one) and the modes 90 Degree, 45 Degree, Horizontal, Vertical; "Pour Over Same Net Polygons Only" is the default; "When two polygons overlap, Altium Designer needs to know which one should occupy the shared area"; higher pour order takes precedence; the change shows after a repour. **Status S** (through the fetch tool's summary).  `research/zone-union`.
+
+### [Clipper2]
+A. Johnson, Clipper2 documentation, https://www.angusj.com/clipper2/Docs/Overview.htm: line and polygon clipping, union, difference and XOR, "based on but significantly extends Bala Vatti's polygon clipping algorithm", fill rules EvenOdd, NonZero, Positive, Negative, integer coordinates for robustness. **Status S** (the overview through the fetch tool; the library was not used). `research/zone-union`.
+
+### [Vatti1992]
+B. R. Vatti, "A generic solution to polygon clipping", Communications of the ACM 35 (7), 1992, pp. 56 to 63. **Status M** (named by Clipper2 and by the paper of Greiner and Hormann; the paper was not opened; the page numbers are from memory). `research/zone-union`.
+
+### [GreinerHormann1998]
+G. Greiner and K. Hormann, "Efficient clipping of arbitrary polygons", ACM Transactions on Graphics 17 (2), 1998. **Status S**: a search result quoted that "only the Weiler algorithm and Vatti's algorithm can handle the general case in reasonable time" and that simple modifications give the union and the difference; the paper was not opened. `research/zone-union`.
+
+### [WeilerAtherton1977]
+K. Weiler and P. Atherton, "Hidden surface removal using polygon area sorting", Computer Graphics (SIGGRAPH '77) 11 (2), pp. 214 to 222; the SIGGRAPH history archive lists the title as "Hidden Surface Removal using Polygon Clipping", the page numbers agree. **Status S** (search results; the paper was not opened). `research/zone-union`.
+
+### [Shapely]
+Shapely 2.2.0 (BSD-3-Clause; GEOS), https://shapely.readthedocs.io/. **Status R as a tool**: installed outside the project's environment (`pip install --no-deps --target research/zone-union/out/pylib shapely`, git-ignored) and used as the exact polygon union and cell area in `research/zone-union/lib/zone_shapely.py`; it is not a dependency of the program and the proposal does not use it. `research/zone-union`.
+
 ## 11. Own computations (status L)
 
 These are not publications; they are the repository's own studies that give numbers quoted in the topics. Paths are from the repository root.

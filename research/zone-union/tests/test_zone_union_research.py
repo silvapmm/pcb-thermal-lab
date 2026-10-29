@@ -112,3 +112,31 @@ def test_layers_are_combined_independently_and_no_copper_is_created_or_lost():
 def test_unknown_rule_is_refused():
     with pytest.raises(ValueError):
         zr.combine([], 1, 2, 2, 1.0, 1.0, 4, "nonsense")
+
+
+def test_variant_of_the_program_applies_the_prototype_and_gives_the_one_zone_value():
+    # A separate process: the variant is a copy of the package, which must not be mixed with the program that pytest imports
+    import subprocess
+    code = (
+        "import sys\n"
+        f"sys.path[:0] = [{str(HERE / 'lib')!r}]\n"
+        "import variant\n"
+        "variant.use()\n"
+        "from pcbthermal import Problem, SolverOptions, simulate\n"
+        "def board(pieces):\n"
+        "    p = Problem.new(20, 20, 1, 1.6, 35.0, h_top=10.0, h_bottom=10.0, h_side=None)\n"
+        "    p.add_heater(1, 1.0, rect=(8, 8, 12, 12))\n"
+        "    for j in range(40 if pieces else 1):\n"
+        "        p.add_zone(1, rect=(0.5 * j, 0, 0.5 * (j + 1), 20) if pieces else (0, 0, 20, 20))\n"
+        "    return p\n"
+        "def rise(p, rule):\n"
+        "    variant.set_rule(rule)\n"
+        "    return simulate(p, SolverOptions(models=('fvm',), cell_mm=1.0)).results['fvm'].t_max\n"
+        "one, strips = board(False), board(True)\n"
+        "print(rise(one, 'max_point'), rise(strips, 'max_point'), rise(strips, 'max_cell'))\n"
+    )
+    out = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, cwd=str(HERE.parents[1]), timeout=170)
+    assert out.returncode == 0, out.stderr
+    one, union, old = (float(v) for v in out.stdout.split())
+    assert union == pytest.approx(one, abs=1e-9)                    # abutting strips equal one zone under the per-point union
+    assert old > one + 5.0                                          # the old rule loses the copper: about 14 K hotter on this board
