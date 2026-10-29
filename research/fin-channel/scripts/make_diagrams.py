@@ -149,7 +149,7 @@ def where_it_enters():
     dk.box(ax, 0.2, 4.6, 2.6, 1.2, "Problem\nblock with fins\n(gap, height, k)", dk.AIR)
     dk.box(ax, 3.6, 4.6, 2.8, 1.2, "block temperature\n(first guess: the\nuniform-h solve)", dk.AIR)
     dk.box(ax, 7.2, 4.6, 2.8, 1.2, "Ra_b = g beta theta b^4 Pr\n/ (nu^2 L)", "#f2e394")
-    dk.box(ax, 10.8, 4.6, 3.0, 1.2, "Nu_b (composite) ->\nh_ch = Nu_b k / b\nfin efficiency, h_exp", "#f2e394")
+    dk.box(ax, 10.8, 4.6, 3.0, 1.2, "phi(Ra_b) -> h_fin = phi h_face\nh_exp = h_fin fin_ratio(h_fin)\n+ h_extra", "#f2e394")
     dk.box(ax, 10.8, 2.4, 3.0, 1.2, "blocks.exposed_h\n(used by the FVM, FDM,\nLumped and Analytic)", dk.COPPER, bold=True)
     dk.box(ax, 7.2, 2.4, 2.8, 1.2, "the existing solve\n(FVM, FDM, Lumped,\nAnalytic, 3D solid)", dk.AIR)
     dk.box(ax, 3.6, 2.4, 2.8, 1.2, "new block temperature\nchanged by < 0.05 K?", "#d9ead3")
@@ -160,7 +160,7 @@ def where_it_enters():
     dk.arrow(ax, 10.8, 3.0, 10.0, 3.0)
     dk.arrow(ax, 7.2, 3.0, 6.4, 3.0)
     dk.arrow(ax, 3.6, 3.0, 2.8, 3.0, label="yes")
-    dk.arrow(ax, 5.0, 3.6, 5.0, 4.6, label="no: repeat (3 to 5 solves)")
+    dk.arrow(ax, 5.0, 3.6, 5.0, 4.6, label="no: repeat (2 to 8 solves in the study)")
     ax.text(7.0, 0.9, "Measured on a copy (lib/program_patch.py): `blocks.exposed_h` replaced in memory; the program's files are untouched.\n"
                      "The 3D solid has its own copy of the fin ratio: the same effect is obtained there with the equivalent fin pitch.\n"
                      "Vertical board only (the validated case); orientation and channel length L are inputs the program does not have yet.", ha="center", fontsize=7.5)

@@ -192,3 +192,35 @@ def test_rule_cases_of_the_integration_document():
     assert ch.ra_channel(40.0, 0.0065, 0.040) > 90.0
     assert ch.ra_channel(20.0, 0.0065, 0.100) < 90.0
     assert ch.ra_channel(10.0, 0.020, 0.200) > 90.0
+
+
+def test_solid3d_effective_pitch_counts_the_extra_coefficient_once(monkeypatch):
+    """!
+    @brief Regression (review): for the 3D solid the block's pitch is replaced so that h_face x ratio = h_exp of the channel; the program adds h_extra itself, so the
+           exposed coefficient seen by the 3D solid must be h_exp + h_extra, not h_exp + 2 h_extra (the target once included h_extra).
+    @param monkeypatch Pytest fixture used to capture the problem handed to the 3D solid instead of solving it.
+    @return None.
+    """
+    from pcbthermal import blocks
+    import program_patch as pp
+    from study_program_finned_block import case
+    p = case(15.0, 1.5, 8.0, 3.0)
+    s0 = p.heatsinks[0]
+    s0.h_extra = 3.0
+    seen = {}
+
+    def capture(q, cell_mm=1.0):
+        """!
+        @brief Record the problem the 3D solid would get and solve it with the FVM instead (fast; only the block_T arrays are needed).
+        @param q Problem.
+        @param cell_mm Cell size in mm.
+        @return SteadyResult.
+        """
+        seen["problem"] = q
+        return pp.fvm.solve_steady(q, cell_mm=4.0)
+    monkeypatch.setitem(pp.MODELS, "solid3d", type("M", (), {"solve_steady": staticmethod(capture)}))
+    monkeypatch.setitem(pp.MODELS, "fvm", type("M", (), {"solve_steady": staticmethod(lambda q, cell_mm=1.0: pp.fvm.solve_steady(q, cell_mm=4.0))}))
+    out = pp.solve_channel(p, 0.040, "solid3d", 4.0, max_pass=1)
+    s = next(x for x in seen["problem"].heatsinks if x.has_fins())
+    h_face = seen["problem"].board.h_bottom
+    assert blocks.exposed_h(s, h_face) == pytest.approx(out["h_exp"] + 3.0, rel=1e-6)

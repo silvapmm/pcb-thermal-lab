@@ -9,6 +9,9 @@
          * the fraction of the isolated-plate limit of the composite, `phi = Nu_b / (0.59 Ra_b^(1/4)) = [1 + (14.16 / Ra_b^(3/4))^2]^(-1/2)` (a function of Ra_b alone);
          * the loss of the finned face, `rho = h_exp(channel) / h_exp(program)`, with `h_exp(program) = h_pl x fin_ratio(h_pl)` and `h_pl` the isolated vertical plate of height L
            at theta (Churchill and Chu, laminar form), the coefficient the program's computed mode gives for a plate of that height.
+         * the same loss against the composite's own isolated-plate limit, `rho_bl = h_exp(channel) / h_exp(0.59 Ra_b^(1/4) k / b)` (added by the review: the
+           Churchill and Chu plate is 1 to 13 % below that limit, so `rho` mixes the channel effect with the difference between two plate correlations; `rho_bl` is the
+           channel effect alone, about `phi`).
          It then asks which rule separates the cases with `rho < 0.9` (a loss of 10 % of the finned-face conductance) from the others: the program's rule today (still air, gap below 4 mm)
          and the rule `Ra_b < Ra_crit`; the best `Ra_crit` is searched, and the gap at which each rule changes its answer is tabulated.
 
@@ -52,7 +55,11 @@ def point(gap, height, length, theta):
     h_prog = h_pl * ((1.0 - T_FIN / p) + 2.0 * hc * eta / p)
     ra = c["ra_b"]
     phi = (1.0 + (14.16 / ra ** 0.75) ** 2) ** -0.5
-    return {"ra_b": ra, "phi": phi, "rho": c["h_exp"] / h_prog, "h_ch": c["h_ch"], "h_pl": h_pl}
+    # The boundary-layer limit of the composite itself, at the block temperature: h = 0.59 Ra_b^(1/4) k / b (= 0.59 Ra_L^(1/4) k / L)
+    h_bl = 0.59 * ch.ra_channel(theta, gap, length) ** 0.25 * ch.air(20.0 + 0.5 * theta)["k"] / gap
+    eta_bl = ch.fin_efficiency(h_bl, K_FIN, T_FIN, hc)
+    h_bl_exp = h_bl * ((1.0 - T_FIN / p) + 2.0 * hc * eta_bl / p)
+    return {"ra_b": ra, "phi": phi, "rho": c["h_exp"] / h_prog, "rho_bl": c["h_exp"] / h_bl_exp, "h_ch": c["h_ch"], "h_pl": h_pl, "h_bl": h_bl}
 
 
 def main():
@@ -114,6 +121,24 @@ def main():
     for length, theta in itertools.product((0.030, 0.040, 0.060, 0.100), (20.0, 40.0, 60.0)):
         d = point(0.0065, 0.015, length, theta)
         print(f"| {1000 * length:g} | {theta:g} | {d['ra_b']:.0f} | {d['h_ch']:.2f} | {d['h_pl']:.2f} | {100 * (1 - d['rho']):.0f} % |")
+    # F (review): the same counts when the loss is measured against the composite's own isolated-plate limit, so that it is the channel effect alone
+    rho_bl = np.array([d["rho_bl"] for d in pts])
+    bad_bl = rho_bl < 0.9
+    print("\nF. The loss against the composite's own isolated-plate limit (0.59 Ra_b^(1/4) k / b), the channel effect alone")
+    print(f"   {bad_bl.sum()} cases with rho_bl < 0.9; the 4 mm rule misses {int((bad_bl & ~w4).sum())}, false positives {int((w4 & ~bad_bl).sum())}")
+    print("| Ra_crit | warns | false negatives | false positives |")
+    print("| --: | --: | --: | --: |")
+    for rc in (30, 50, 70, 90, 110, 130):
+        w = ra < rc
+        print(f"| {rc} | {int(w.sum())} | {int((bad_bl & ~w).sum())} | {int((w & ~bad_bl).sum())} |")
+    print("   ratio of that limit to the Churchill and Chu laminar plate (the baseline of A to E), min / median / max: "
+          f"{min(d['h_bl'] / d['h_pl'] for d in pts):.3f} / {np.median([d['h_bl'] / d['h_pl'] for d in pts]):.3f} / {max(d['h_bl'] / d['h_pl'] for d in pts):.3f}")
+    print("\nG. The 6.5 mm gap (fins 15 x 1.5 mm): loss of the finned face against the Churchill and Chu plate (as in E) and against the composite's own plate limit")
+    print("| channel length (mm) | block excess (K) | Ra_b | phi | loss against the plate | loss against the limit (channel effect) |")
+    print("| --: | --: | --: | --: | --: | --: |")
+    for length, theta in itertools.product((0.030, 0.040, 0.060, 0.100), (20.0, 40.0, 60.0)):
+        d = point(0.0065, 0.015, length, theta)
+        print(f"| {1000 * length:g} | {theta:g} | {d['ra_b']:.0f} | {d['phi']:.2f} | {100 * (1 - d['rho']):.0f} % | {100 * (1 - d['rho_bl']):.0f} % |")
     with open(os.path.join(OUT, "warning_rule.json"), "w") as f:
         json.dump({"points": pts, "best_ra_crit": best[0]}, f)
 

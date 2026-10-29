@@ -6,7 +6,7 @@
 
 @details The program gives the exposed face of a finned block the coefficient `h_face x fin_ratio(h_face) + h_extra`. Here that function is replaced by the channel
          coefficient of `channel.exposed_h_channel` (composite correlation of Bar-Cohen and Rohsenow by default), which depends on the temperature of the block, so the run is
-         repeated with the block excess temperature of the previous run until it changes by less than 0.05 K (three to five solves). Everything else (the board, the block plate,
+         repeated with the block excess temperature of the previous run until it changes by less than 0.05 K (two to eight solves in the studies, counting the first uniform one). Everything else (the board, the block plate,
          the contact, the side walls) is the program's code unchanged; FVM, FDM, Lumped, Analytic and the 3D solid all reach `blocks.exposed_h` through `blocks.extra_layers`.
 """
 
@@ -195,7 +195,9 @@ def solve_channel(problem, length, model="fvm", cell_mm=1.0, nu_fun=ch.nu_bcr, m
             s = next(x for x in q.heatsinks if x.has_fins())
             h_face = q.board.h_bottom if (s.layer != 0 and q.board.layers > 1) else q.board.h_top
             last = ch.exposed_h_channel(theta, s.fin_pitch - s.fin_thickness, s.fin_thickness, s.fin_height, length, s.k, float(problem.board.ambient), nu_fun)
-            s.fin_pitch = effective_pitch(s, h_face, last["h_exp"] + s.h_extra)
+            # The 3D solid adds h_extra itself (h_face x ratio + h_extra), so the target of the pitch is the finned-face part alone; passing h_exp + h_extra here
+            # counted the extra coefficient twice (found by the review; no effect on the studies, whose blocks have h_extra = 0)
+            s.fin_pitch = effective_pitch(s, h_face, last["h_exp"])
             r = MODELS[model].solve_steady(q, cell_mm=cell_mm)
         else:
             with channel_effect(theta, length, nu_fun) as last:

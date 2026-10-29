@@ -2,7 +2,7 @@
 
 Proposal A (a `fix/` item):
 
-* The warning about close fins now depends on the length of the channels and the temperature of the block: it warns after the solve when the channel Rayleigh number `Ra_b = g beta theta b^4 Pr / (nu^2 L)` is below 90 (the channel keeps less than 90 % of the isolated-plate coefficient), instead of "gap below 4 mm". It flags the cases where the finned face loses 10 % or more of its conductance that the old rule missed (312 of 612 on the study grid).
+* The warning about close fins now depends on the length of the channels and the temperature of the block: it warns after the solve when the channel Rayleigh number `Ra_b = g beta theta b^4 Pr / (nu^2 L)` is below 90 (the channel keeps less than 90 % of the isolated-plate coefficient), instead of "gap below 4 mm". It flags the cases where the channel costs the finned face 10 % or more of its conductance that the old rule missed (367 of 667 on the study grid).
 
 Proposal B (a `feature/` item, only if decided):
 
