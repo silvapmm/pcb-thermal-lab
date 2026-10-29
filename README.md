@@ -113,7 +113,7 @@ Short release notes: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Research
 
-The investigations behind the models (what was simulated, compared and read, with figures) are in [`research/`](research/INDEX.md), one folder per investigation; the scripts that reproduce the tables of `docs/validation.md` are there.
+The investigations behind the models (what was simulated, compared and read, with figures) are in [`research/`](research/README.md), one folder per investigation; the scripts that reproduce the tables of `docs/validation.md` are there.
 
 ## Author and license
 
