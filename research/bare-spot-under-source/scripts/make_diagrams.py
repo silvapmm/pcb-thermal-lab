@@ -61,7 +61,7 @@ def section(ax, bare, title):
             xe = 6 + sgn * 2.1
             dk.arrow(ax, xe - sgn * 0.6, zt - 0.5, xe + sgn * 1.2, zt - 0.1, color=dk.BLUE, width=1.0)
         ax.text(6, zt - gap / 2 - 0.2, "vertical conduction through the laminate:\n$R = d / (k_z A)$, large", ha="center", fontsize=7.5, color=dk.HEAT)
-        ax.text(10.2, zt - 1.0, "a little heat leaves\nsideways into the copper\nat the window edge\n(through a thin skin)", fontsize=7, color=dk.BLUE, ha="center")
+        ax.text(10.2, zt - 1.0, "much of the heat leaves\nsideways through the upper\nlaminate into the copper\nat the window edge", fontsize=7, color=dk.BLUE, ha="center")
     else:
         for sgn in (-1, 1):
             dk.arrow(ax, 6 + sgn * 1.5, zt - tcu / 2, 6 + sgn * 4.8, zt - tcu / 2, color=dk.BLUE, width=1.4)
