@@ -94,7 +94,8 @@ def fig_convergence(path):
                           ("block", "#2ca02c", "(c) via blocks"), ("woodbury", "#ff7f0e", "(b) Woodbury, first inner solve")):
             h = r[v]["history"]
             ax.semilogy(*zip(*h), color=c, label=lab, linestyle="--" if v == "woodbury" else "-")
-        ax.set_xlabel("sweeps")
+        ax.set_xscale("log")
+        ax.set_xlabel("sweeps (log scale; the program's rule stops at its 200000 limit)")
         ax.set_ylabel("relative residual of the true K")
         ax.set_title(key.replace(" 0.5", ", 0.5 mm cell"), fontsize=9)
         ax.grid(alpha=0.3)
@@ -117,8 +118,10 @@ def fig_sweeps(path):
     for i, (lab, c) in enumerate((("board without vias", "#555555"), ("(a) lagged", "#1f77b4"), ("(c) blocks", "#2ca02c"))):
         ys = [om[k][i] if om[k][i] else np.nan for k in om]
         axs[0].semilogy(xs, ys, "o-", color=c, label=lab)
+        fail = [x for x, k in zip(xs, om) if not om[k][i]]
+        axs[0].plot(fail, [2.2e4] * len(fail), "x", color=c, markersize=9)
     axs[0].set_xlabel("omega")
-    axs[0].set_ylabel("sweeps to 1e-9 (gaps: no convergence in 20000)")
+    axs[0].set_ylabel("sweeps to 1e-9 (x = not converged in 20000)")
     axs[0].set_title("3 x 3 array, 0.5 mm: relaxation factor", fontsize=9)
     axs[0].legend(fontsize=7)
     axs[0].grid(alpha=0.3)
@@ -127,9 +130,11 @@ def fig_sweeps(path):
     for i, (lab, c) in enumerate((("(a) lagged", "#1f77b4"), ("(c) blocks", "#2ca02c"))):
         ys = [st[k][2 * i] if st[k][2 * i] else np.nan for k in st]
         axs[1].loglog(xs, ys, "o-", color=c, label=lab)
+        fail = [x for x, k in zip(xs, st) if not st[k][2 * i]]
+        axs[1].plot(fail, [2.2e4] * len(fail), "x", color=c, markersize=9)
     axs[1].set_xlabel("s: K = A + s K_via")
-    axs[1].set_ylabel("sweeps to 1e-9 (gaps: no convergence in 20000)")
-    axs[1].set_title("stiffness of the via part", fontsize=9)
+    axs[1].set_ylabel("sweeps to 1e-9 (x = diverged or not converged)")
+    axs[1].set_title("stiffness of the via part (s = 1 is the real copper-filled via)", fontsize=9)
     axs[1].legend(fontsize=7)
     axs[1].grid(alpha=0.3)
     fig.tight_layout()
