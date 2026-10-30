@@ -48,7 +48,7 @@ def main():
     say(f"(1) 1D column: solver {r['max']:.6f} K, series circuit {ex:.6f} K, balance {r['balance']:.9f}")
 
     ex = cf.plate_mean_rise(10e-3, 10e-3, 4e-3, 4e-3, 5e-3, 5e-3, 1e-3, 0.3, 500.0, 1.0)
-    for d, ns in ((0.2, 10), (0.1, 20), (0.05, 20)):
+    for d, ns in ((0.5, 10), (0.2, 10), (0.1, 20)):
         m = int(round(10 / d))
         t = time.time()
         r = r3.solve(d * 1e-3, m, m, [(1e-3, 0.3, 0.3, ns)], (3e-3, 3e-3, 7e-3, 7e-3), 1.0, 0.0, 500.0)

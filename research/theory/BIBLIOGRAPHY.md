@@ -486,3 +486,29 @@ A checklist for the maintainer (what to obtain, what to extract from each, what 
 2. For the planned topics: the Nexperia note AN11261 in full (only a summary was seen), Briggs and others and the pyamg documentation, Elenbaas and Bar-Cohen and Rohsenow in the originals.
 3. The JEDEC standards themselves (JESD51 family), IPC-4761 and IPC-2152.
 4. Replace every "M" and "S" entry by a read source, or keep the statement marked, when a topic is adopted into `docs/theory.md`.
+
+
+## 15. Sources of `research/bare-spot-under-source/` (a spot without copper under a source)
+
+Opened for this investigation; the status is what was done in this folder, not what was recorded before. Searches for sources that give the number of nodes through a PCB, or the thermal resistance of a pad over a copper-free window, found only vendor notes and forum posts (below): **no source was found that prescribes the vertical discretisation of a laminate under a bare spot**, so the treatment of the folder rests on its own convergence study.
+
+### [Muzychka2003] (read again here)
+Eqs. 16 to 28 (the separated solution, the coefficients `A_m`, `A_n`, `A_mn`, the mean source temperature of Eq. 27 and the 1D term of Eq. 28) read in full from the open copy of the Waterloo group (`mhtl03-1.pdf`, 8 pages, text extracted locally; nothing stored in the repository) and **reproduced**: `research/bare-spot-under-source/lib/closed_forms.py` implements them and the resolved solver agrees with Eq. 27 within +0.67 / +0.20 % at 0.2 / 0.1 mm cells (README 2.1). The compound-channel form of `f(zeta)` (Eq. 30) was seen only as extracted text and not used. **Status R** for Eqs. 16 to 28. Topics 01, 02.
+
+### [Muzychka2004Orthotropic] (read again here)
+The section "Application to Orthotropic Systems" (Eqs. 37 to 42, Fig. 9, Eqs. 39 and 40 for `k_xy` as the thickness-weighted mean and `k_z` as the series value; the transformation `xi = z / gamma`, `gamma = sqrt(k_z / k_r)`, `k_eff = sqrt(k_r k_z)`, `t_eff = t / gamma`) read from the extracted text of `mhtl04-27.pdf`; the rest of the paper (compound disk and channel solutions, edge cooling) was not read. The transformation says that the thickness that matters for lateral spreading in an anisotropic laminate is `t sqrt(k_xy / k_z)` (1.7 times the thickness for FR-4 at 0.9 / 0.3 W/mK); it was not used to build a closed form for the bare window (the window is smaller than the validity of the series-and-parallel rule that the paper states: "if the source size is considerably larger than the thickness of individual layers"). **Status R for the section named, S for the rest.** Topics 01, 18, 22.
+
+### [MuzychkaMultilayer2018]
+Y. S. Muzychka, *Spreading resistance in multilayered orthotropic flux channels with different conductivities in the three spatial directions*, J. Heat Transfer (doi 10.1115/1.4038712, as the search result gave it), and the Memorial University thesis records (research.library.mun.ca/13266). Only the abstract was seen through a search result. It would give the exact solution of a layered orthotropic channel for the case of a source on bare laminate over a plane; **not obtained. Status S (abstract only).**
+
+### [MonierVinard2017]
+Analytical multilayer PCB model of Monier-Vinard, Laraqi and others, HAL record hal-01473763: the page was blocked by the bot protection of the archive (same as recorded in `docs/validation.md` section 21). **Status N** here.
+
+### [VendorNotes]
+Cadence resources page on thermal design in HDI (thin dielectrics as a vertical conduction path), Wolfspeed application note PRD-07635 (resistance network of horizontal copper and vertical FR-4 branches), Siemens blog "All models are wrong but some are useful, part IV" and the Siemens knowledge base note on the material map (a layer of cells per PCB layer is costly; the board as one orthotropic material; a refined mesh under a component), the CFD-Online thread on SmartPCB meshing (about 5 to 6 cells through 1.6 mm in practice), the Ansys Icepak gridcut method (effective conductivity per cell from copper fraction and layer thickness). All **status S** (search summaries; no formula or number was taken from them). They agree with the observation of the folder that the vertical resolution under the part matters and that it is expensive when done everywhere.
+
+### [Lasance]
+Lasance (Philips), the board models of Lasance and Vinke, and the "pattern continuity check" approach to the effective conductivity of a PCB (found through aminer): named by search results only, **not opened. Status N.** The statement that the effective conductivity depends on the shape of the pattern and not on the copper area alone is the one of [CulhamYovanovich1998] and `research/gerber-models` 4.10.
+
+### Own computations (status L)
+`research/bare-spot-under-source/lib/resolved3d.py` (the resolved 3D reference), `layered.py` (the layered FVM with refined gaps), the sweeps of `scripts/` and their numbers (README sections 2 to 7).
