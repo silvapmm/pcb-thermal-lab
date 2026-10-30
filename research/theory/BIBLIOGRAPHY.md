@@ -535,6 +535,18 @@ Politecnico di Milano (2009), a one-dimensional lumped model of a via from axisy
 ### [LasanceEllison]
 Lasance and Ellison on compact PCB and via models (Electronics Cooling and conference papers). **Status N**: not found by search; not opened. The statement that the equivalent vertical conductivity of a via array ignores the spreading in the planes is not checked against them.
 
+### [Guenin2004] (added by the review)
+B. Guenin, *Thermal vias - a packaging engineer's best friend*, Electronics Cooling, August 2004, https://www.electronics-cooling.com/2004/08/thermal-vias-a-packaging-engineers-best-friend/. **Status S**: the text of the web page was read (a die on a BT substrate between two 35 um copper planes joined by 0 x 0 to 11 x 11 vias, ANSYS reference; a 1D model of the vias underestimates the resistance by up to 27 %, a circular-fin unit cell of the via with the plane as the fin is within 22 %, 6 % with the die spreading; 15.9 K/W without vias); its tables and equations are images that the page does not carry, so the case was **not reproduced**. It is the published statement of the mechanism of this folder: the converging flow in the planes is what a per-via 1D model leaves out.
+
+### [Dietz1965] and the pseudo-steady-state well equation (added by the review)
+D. N. Dietz, *Determination of average reservoir pressure from build-up surveys*, J. Petroleum Technology (1965), SPE-1156-PA. **Status S for the equation, M for the shape factors**: the dimensionless productivity index of a well in a closed circular drainage area, `J_D = 1 / (ln(r_e/r_w) - 3/4 + S)`, read on the pengtools wiki page *JD* (which cites Dietz, Wolcott and Rueda et al.); it is the asymptote of the Krogh resistance of this folder (the same mathematics: uniform depletion, a well at the centre, a closed rim). The shape factors 31.62 (circle) and 30.88 (square) are from memory; with them the square cell agrees with its equal-area disc within 0.5 % (`research/lumped-analytic-vias/scripts/study_review.py` part 5).
+
+### [Li1998] (added by the review)
+R. S. Li, *Optimization of thermal via design parameters based on an analytical thermal resistance model*, ITherm 1998, DOI 10.1109/ITHERM.1998.689605. **Status S**: the abstract only (a catalogue record): the via cluster is treated as one-dimensional parallel networks, lateral spreading neglected, correlated with a finite-element model. Not opened.
+
+### [DTIC-AD1011632] (added by the review)
+A DTIC technical report on heterogeneous integration whose contents list thermal constriction resistance and microspreading resistance in via-array unit cells (https://apps.dtic.mil/sti/tr/pdf/AD1011632.pdf; probably related to [Fish2017], not checked). **Status N**: HTTP 403 from the session; only a search snippet of its contents.
+
 ### [Ibraguimov2022] and [Peaceman1978] (used again here)
 As in `research/point-via-convergence/`: the lattice constant 0.19851 and the target radius `exp(-1/4) r_v` come from there; nothing new was read.
 

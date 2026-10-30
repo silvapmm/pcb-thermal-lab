@@ -12,6 +12,8 @@ A through via of L planes is the star of L such resistances, the barrel conducta
 
 ## Lumped model
 
+*Review note: the cluster term below is not recommended (README 10); the micro well `R_c(r_c, a)` with `r_c` from the ring area per via is the part that corrects the identified cause.*
+
 For every ring and group of vias (vias at most twice their nearest-neighbour distance apart): micro cell `r_c = min(sqrt(A_ring / n_ring), d_nn) / sqrt(pi)`, cluster radius `r_cl = sqrt(N_g) r_c`, macro radius `R = sqrt(sum of the touched ring areas / pi)`; the well of plane `l` is `R_c(r_c, a) + N_g R_c(R, r_cl)` (second term if `N_g > 1`). The sheets of the ring are coupled by the reduced star, in place of the adjacent conductance `gz` alone. Known limits: a via or row outside the footprint (isotherms around the footprint); dense arrays of open barrels (the effect is underestimated by 8 to 24 %).
 
 ## Analytic model

@@ -1,6 +1,6 @@
 # Text for the project documents (when the work is adopted)
 
-Not applied to `README.md`, `CHANGELOG.md`, `docs/` or `CLAUDE.md` from the research branch; to be copied on the `fix/via-constriction` branch.
+Not applied to `README.md`, `CHANGELOG.md`, `docs/` or `CLAUDE.md` from the research branch; to be copied on the `fix/via-constriction` branch. **Review note**: the texts below describe both proposals as the researcher wrote them; the reviewer recommends the Analytic proposal and, for the Lumped model, the micro well alone or nothing (README 10, `INTEGRATION.md` 6): if so, drop the cluster term and the legacy option from these texts and quote the Lumped numbers of `L_ring`.
 
 ## `docs/research.md` (while the decision is open)
 
