@@ -7,7 +7,7 @@
          lib/graded_pad3d.py (graded grid, three scales, limit fitted; checked against the exact series on a uniform board to 0.01 %, tests/test_graded_pad3d.py); its energy balance
          and the spread between the finest grid and the limit are stored with every row. The references are slow (20 to 60 s per board); they are cached in out/refs_pads.json and
          the finished table is written to baseline/pads.csv (committed), from which `rerun_baseline.py` re-runs only the models.
-         Usage: .venv/bin/python research/gap-subdivision/scripts/study_baseline_pads.py   (from the repository root; about 10 to 15 minutes with 4 processes the first time).
+         Usage: .venv/bin/python research/gap-subdivision/scripts/study_baseline_pads.py   (from the repository root; 1.5 to 3 hours with 4 processes the first time, the 3- and 4-layer references being the slow ones; a minute with the cache).
 """
 
 import csv
@@ -81,7 +81,7 @@ def _ref(args):
     """
     tag, bd, cell = args
     t = time.time()
-    # Four layers or more: the medium grid (about 5 times fewer unknowns, same limit to 0.03 %, README 2.3)
+    # Four layers or more: the medium grid (about 2 times fewer unknowns, limit within 0.04 % of the exact series on uniform boards, README 2.2)
     r = B.graded_peak(bd, cell, preset="medium" if bd.layers >= 4 else "fine")
     r["seconds"] = time.time() - t
     return tag, cell, r

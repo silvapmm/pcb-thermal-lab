@@ -192,7 +192,7 @@ def all_models(bd, cell_mm, p=None, models=MODELS):
     return out
 
 
-# A lighter grid of lib/graded_pad3d.py for boards of four layers or more (about 5 times fewer unknowns; fitted limit within 0.03 % of the exact series on a uniform board and equal to the fine grid's on pad10-full, README 2.3)
+# A lighter grid of lib/graded_pad3d.py for boards of four layers or more (about 2 times fewer unknowns on the 4-layer uniform board; fitted limit within 0.04 % of the exact series on uniform boards of 2, 4 and 8 layers and within 0.001 % of the fine grid's on pad10-full, README 2.2)
 MEDIUM = dict(hf=0.06e-3, hmax=1.0e-3, g=0.35, hz=10e-6, dzmax=200e-6)
 
 

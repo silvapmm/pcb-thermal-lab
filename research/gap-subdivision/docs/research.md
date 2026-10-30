@@ -6,7 +6,7 @@
 
 **Results.**
 
-* Boards with copper in every cell: FVM and FDM -0.72 to +1.04 %, Analytic -0.91 to +0.02 %, 3D solid 0 to +1.33 %, Lumped -1.70 to +4.14 % against the exact series (44 boards; 300 more in a grid: FVM errors above 2.5 % only for a 2 mm source on a 1 mm cell). The gap nodes change those numbers by 0.0 to 0.26 points.
+* Boards with copper in every cell: FVM -0.72 to +1.04 %, FDM -1.31 to +0.19 %, Analytic -0.91 to +0.02 %, 3D solid 0 to +1.33 %, Lumped -1.70 to +4.14 % against the exact series (44 boards; 300 more in a grid: FVM errors above 2.5 % only for a 2 mm source on a 1 mm cell). The gap nodes change those numbers by 0.0 to 0.26 points.
 * The 2-layer FVM shortfall is a bare-laminate effect around a pad with a thick gap: -10.5 to -0.3 % for pads of 6 to 26 mm (1.6 mm gap), -0.2 to +0.3 % with a 0.1 to 0.4 mm gap, -10.2 % at 3.2 mm; the Analytic is -13 to -46 % on small pads.
 * Cause: lateral conduction in the bare laminate across the gap (in-plane conductivity to 0.01 W/mK removes it; through conductivity sets its size; nodes under the pad do nothing; the reading of the surface at the node is 0.04 points).
 * Extra nodes in the cells that show laminate remove the gap error like 1 / n (70 % at n = 4 graded, 90 % at n = 8); the total error depends on the cell (the in-plane error has the opposite sign, +1.3 % at 0.5 mm).
