@@ -2,7 +2,7 @@
 
 **Question** (maintainer): the red-black SOR of the FVM stops with "did not converge" 19.4 K (0.5 mm) and 21.9 K (0.25 mm) below the direct solver on the 3 x 3 array once the vias are treated by the mean-potential coupling of `research/point-via-convergence/` (the treatment `mw_disc@eta`), while CG matches the direct solver to 1e-11 K. Is there no way to run SOR with it, not even with an approximation of the vias?
 
-**Answer in short.** There is, and it is cheap. The failure is not a property of SOR on this matrix; it is the way the program's `Network.solve_sor` is written: it rebuilds the off-diagonals from the six-neighbour stencil and takes only the diagonal from the assembled matrix, so it iterates a different matrix (the one without the via off-diagonals but with the via diagonal, a leak to the ambient that was never there). The true matrix is symmetric positive definite, so SOR does converge on it (Ostrowski-Reich); what the red-black ordering cannot do is update the cells of one via footprint independently. Treating the cells of every via (footprint cells of all layers) as one block, solved exactly after the red and black colours, gives an SOR that reaches the direct solution to 1e-8 K and is stable for every stiffness tried (up to 10^4 times the real via). *Review (section 8):* the block step must be relaxed by the same omega as the colours, with the blocks coloured so that no two coupled blocks move at once (variant c'); the unrelaxed step of the first version (c) needs the sweeps of the board without vias only while the via cells are few (1.02 to 1.06 times on the boards of this study) and up to 2.8 times as many on dense arrays, while (c') needs 0.79 to 1.00 times; its convergence for every 0 < omega < 2 is now proved (an energy argument, section 8), not only measured. Putting the via part into the residual (explicit, "lagged") also works for the vias of the 3 x 3 board but diverges for a stiffer via or a finer cell. The old point link as an approximation for SOR only gives a different answer from the direct solver (0.2 to 1.1 K here), which defeats the use of SOR as a check. Nothing of the program was edited.
+**Answer in short.** There is, and it is cheap. The failure is not a property of SOR on this matrix; it is the way the program's `Network.solve_sor` is written: it rebuilds the off-diagonals from the six-neighbour stencil and takes only the diagonal from the assembled matrix, so it iterates a different matrix (the one without the via off-diagonals but with the via diagonal, a leak to the ambient that was never there). The true matrix is symmetric positive definite, so SOR does converge on it (Ostrowski-Reich); what the red-black ordering cannot do is update the cells of one via footprint independently. Treating the cells of every via (footprint cells of all layers) as one block, solved exactly after the red and black colours, gives an SOR that reaches the direct solution to 1e-8 K and is stable for every stiffness tried (up to 10^4 times the real via). *Review (section 8):* the block step must be relaxed by the same omega as the colours, with the blocks coloured so that no two coupled blocks move at once (variant c'); the unrelaxed step of the first version (c) needs the sweeps of the board without vias only while the via cells are few (0.97 to 1.06 times on the boards of this study) and up to 2.8 times as many on dense arrays, while (c') needs 0.79 to 1.00 times; its convergence for every 0 < omega < 2 is now proved (an energy argument, section 8), not only measured. Putting the via part into the residual (explicit, "lagged") also works for the vias of the 3 x 3 board but diverges for a stiffer via or a finer cell. The old point link as an approximation for SOR only gives a different answer from the direct solver (0.2 to 1.1 K here), which defeats the use of SOR as a check. Nothing of the program was edited.
 
 All numbers below are printed by the scripts of this folder (run from the repository root with `.venv/bin/python research/sor-with-via-couplings/scripts/<script>.py`; the tests are in `tests/`). The maintainer's rule was followed: the simplest cases come first and each says which single effect it isolates.
 
@@ -225,6 +225,67 @@ Whichever is chosen, the stop rule "did not converge" worked as designed: it was
 * The unit-cell board (494 K) is far outside any design; it is kept because it has the weakest cooling and shows the stencil-limited convergence. Its numbers are not used to say anything about temperature.
 * FDM, the 3D solid and transient paths do not use `solve_sor` (only the FVM steady path does, `api.py` line 630): not checked here.
 
+## 8. Review
+
+* **Status**: reviewed by the independent reviewer with the program at `4911017` (develop at 2.4.4, untouched). The four studies were re-run: every table of sections 2, 3.1 to 3.3, 4.3 and 5 is reproduced to the printed digit (the wall times of 3.4 and 5 were not re-measured: the runs shared the machine); the 14 folder tests pass. The cause is confirmed and the answer stands, with one correction: the variant to adopt is (c'), not (c).
+* **Independent checks**: (1) `pcbthermal/fvm.py` lines 320 to 356: `solve_sor` takes `K.diagonal()` and rebuilds the off-diagonals from `S`, `gz` and `extra_links` only, so it iterates `K_drop`; the toy closed forms checked by hand (`t - b = (q/2)/(gz + gv/2)`, 2 x 2 system of `K_drop`). (2) An own matrix with own via couplings (`scripts/study_review.py`: area weights of a disc, a barrel chain between layer means; nothing of the program or of `lib/`): symmetric, positive definite, positive off-diagonals, `sum |off| / diag` 1.13 for one real via (up to 3.9 for a via ten times stiffer), and on all seven cases the program's rule converges to `K_drop` (8.1, table C: the two last columns agree to the printed digit). (3) A proof of the convergence of block SOR (8.4) and Young's optimum of omega (8.3), with the sources of section 9.
+* **Defects found** (studies and documents; the program is untouched): (1) the block step of (c) is not relaxed (`block_omega = 1`), so the via cells lose the over-relaxation: 2.8 times the sweeps of the board without vias on a 9 x 9 array (11560 against 4169), 2.0 times with footprints touching, 2.1 times on the 3 x 3 array at Young's omega 1.9613 (8.3); "the same sweeps as the board without vias, for any layout" was true only for the sparse vias of the study (0.97 to 1.06 times). Corrected by (c'): blocks coloured (no two coupled blocks in a group, greedy colouring of the block graph of `K`), groups in turn, each relaxed by omega: 0.79 to 1.00 times the sweeps of the board without vias (8.2). Over-relaxing the blocks of (c) all at once instead diverges (spectral radius 1.87 at `omega_b` 1.5 on touching footprints, 8.1 table B). (2) "Block SOR convergence measured only, status M": proved (8.4). (3) "No theory gives the optimum omega": for the board without vias Young's theory does; the gain is 6.0 times (694 against 4169 sweeps), not five, and 2.9 times on the example board. (4) A test docstring said 1e4 where the code uses 1e3.
+* **Limits**: the speed of (c') is measured, not proved (the proof gives convergence, not the rate); the own boards are small (128 to 576 unknowns, dense eigenvalues) and weakly cooled; Young's omega was computed here with a shift-invert eigensolver (a factorisation, as costly as the direct solve), so the program needs a cheap estimate of `rho_J` (from the SOR's own residual decay, Saad 4.2.5, or a few Lanczos steps), not tried; the step stop rule (`criterion="step"`) must include the change of the block step on adoption; the FDM has no SOR.
+* **Text for the project documents**: `docs/for-the-project-documents.md`, corrected to (c') and the proof; `INTEGRATION.md` option 1 corrected; the omega item is a separate fix (`docs/roadmap-entry.md`).
+
+### 8.1 Own matrix, simple cases (`scripts/study_review.py`)
+
+Each case isolates one effect (R1 a single footprint; R2 a 5 x 5 array whose footprints of 2 x 2 cells touch in x and y; R2b the same on four layers; R3 three blocks that touch each other in a triangle, a block graph that is not two-colourable; R4 sheet conductance random over three decades; R5 an outline, cells off the board pinned by 1 W/K and reached by footprints; R6 a node-centred border as in the FDM). Sweeps per decade of error `ln 10 / -ln rho` from the dense spectral radius, energy margin `lambda_min(2 D_B - K_VV) / lambda_max(D_B)` (positive: blocks moved at once without relaxation cannot increase the energy error):
+
+| case | N | via cells | energy margin | no-via, omega 1.9 | (c), omega 1.9 | (c'), omega 1.9 | no-via, 1.97 | (c), 1.97 | (c'), 1.97 |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| R1 one via | 288 | 24 | 0.1424 | 1190 | 1775 | 1117 | 304 | 995 | 283 |
+| R2 5 x 5, touching | 288 | 200 | 0.0073 | 1190 | 15809 | 735 | 304 | 15602 | 172 |
+| R2b same, 4 layers | 576 | 400 | 0.0044 | 2405 | 31616 | 1481 | 659 | 31201 | 393 |
+| R3 triangle of blocks | 128 | 8 | 0.0305 | 1136 | 3003 | 1126 | 288 | 2246 | 286 |
+| R4 random sheet | 288 | 200 | 0.0002 | 54 | 872 | 23 | 76 | 861 | 80 |
+| R5 outline, pinned | 288 | 200 | 0.0028 | 22 | 44 | 23 | 76 | 75 | 79 |
+| R6 node-centred | 288 | 200 | 0.0073 | 1299 | 18692 | 757 | 336 | 18530 | 178 |
+
+Every radius is below 1 for (c) and (c') at omega 1.0, 1.5, 1.9 and 1.97 (the script prints all four). Table B (R2b, colours at 1.5): blocks at once 0.99997 / 0.99993 / **1.86576** / **2.63102** at `omega_b` 0.5 / 1 / 1.5 / 1.9, blocks one after another 0.99996 / 0.99989 / 0.99976 / 0.99950. Table C: (c') iterated at omega 1.9 ends within 1e-9 to 1e-6 K per watt of the direct solution on every case.
+
+### 8.2 The program's boards (`scripts/study_block_over.py`, program's omega, residual 1e-9)
+
+| board | cell (mm) | N | blocks (groups) | via cells | no-via | (c) | (c') | (c') - direct (K) |
+| :-- | --: | --: | --: | --: | --: | --: | --: | --: |
+| 3 x 3 array, pitch 3.5 mm | 0.5 | 7056 | 9 (1) | 144 | 4169 | 4260 | 3770 | 8.6e-09 |
+| 3 x 3 array, pitch 3.5 mm | 0.25 | 28224 | 9 (1) | 144 | 8680 | 8440 | 7920 | 4.2e-09 |
+| 9 x 9 array, pitch 0.5 mm (footprints touch) | 0.25 | 28224 | 81 (2) | 1296 | 8680 | 17570 | 7760 | 4.3e-09 |
+| 9 x 9 array, pitch 0.75 mm | 0.25 | 28224 | 81 (1) | 1296 | 8680 | 12250 | 7550 | 4.1e-09 |
+| 9 x 9 array, pitch 1.0 mm | 0.5 | 7056 | 81 (2) | 1296 | 4169 | 11560 | 3280 | 7.6e-09 |
+| example board | 1.0 | 32000 | 9 (1) | 64 | 2247 | 2390 | 2250 | 1.0e-08 |
+
+The slowdown of (c) follows the number of via cells, not the contact of the footprints (the 0.75 mm array has one group and is 1.4 times slower). (c') at 1e4 times the via stiffness: 3610 sweeps, 8.1e-9 K.
+
+### 8.3 The relaxation factor
+
+3 x 3 array at 0.5 mm: `rho_J` of the board without vias 0.999806, Young's optimum 1.9613 (the formula gives 1.8609):
+
+| omega | no-via | (c) | (c') |
+| --: | --: | --: | --: |
+| 1.8609 (formula) | 4169 | 4260 | 3770 |
+| 1.9000 | 2931 | 3170 | 2650 |
+| 1.9500 | 1274 | 1770 | 1130 |
+| 1.9613 (Young) | 694 | 1430 | 640 |
+| 1.9700 | 805 | 1160 | 780 |
+| 1.9800 | 1185 | 920 | 1190 |
+| 1.9900 | 2310 | 1730 | 2270 |
+
+Boards without vias: example board at 1 mm 2247 sweeps with the formula (1.9391), 781 with Young's 1.9671 (2.9 times fewer); 3 x 3 array at 0.25 mm 8680 against 1431 (6.1 times).
+
+![block step and omega](figures/fig_08_block_step_relaxed_and_omega.png)
+
+*Figure 08, `fig_08_block_step_relaxed_and_omega.png`: left, sweeps of the board without vias, of (c) and of (c') from sparse to dense vias (table 8.2); right, sweeps against omega on the 3 x 3 array with the program's formula and Young's optimum marked (table 8.3).*
+
+### 8.4 Why block SOR converges (proof)
+
+Split the unknowns into groups `g` swept in turn: the red cells and the black cells without the via cells, then the groups of mutually uncoupled via blocks. Within a group `K_gg` is diagonal (a colour: once the via cells are taken out, the stencil couples a cell only to the other colour and the via part couples only via cells) or block diagonal (uncoupled blocks), so the update of a group at once is the exact step `x_g <- x_g + omega_g K_gg^-1 r_g`. For the error `e` and the energy `E = e^T K e` of the symmetric positive definite `K`, this step gives `E_new = E - omega_g (2 - omega_g) r_g^T K_gg^-1 r_g`: for `0 < omega_g < 2` it never increases `E` and decreases it unless `r_g = 0`. A sweep that keeps `E` has `r_g = 0` for every group in turn, so `K e = 0` and `e = 0`; the sweep is therefore a strict contraction in the energy norm and the iteration converges for any `0 < omega < 2` and any `omega_b` in (0, 2), whatever the layout of the vias. For blocks that are coupled but moved at once (variant c), the step is `x_V <- x_V + omega_b D_B^-1 r_V` and `E_new = E - r_V^T D_B^-1 ((2 / omega_b) D_B - K_VV) D_B^-1 r_V`; at `omega_b = 1`, `2 D_B - K_VV` is the via part (positive semi-definite) plus the stencil inside the blocks with the sign of the couplings between blocks reversed, which is weakly diagonally dominant with a positive diagonal and so positive semi-definite: (c) converges (energy margin above 0 in 8.1), and nothing holds for `omega_b > 1` (it diverges). This is Ostrowski's theorem for a block diagonal `D` (Varga, Theorem 3.6, from a secondary source) with the colours and the blocks allowed different factors. The ordering of the remaining cells in two colours stays valid: a red cell is coupled only to black cells and to via cells.
+
 ## 9. What was read and what was not verified
 
 * **Read in full or in the sections used**: Saad, *Iterative Methods for Sparse Linear Systems*, 2nd ed. (open copy of the author): sections 3.3, 4.1 (SOR, SSOR, block relaxation, Algorithm 4.2), 4.2 (M-matrices, regular splittings, Theorems 4.9, 4.10, 4.16) and 10.2 (SSOR preconditioner), pages as in `research/theory/BIBLIOGRAPHY.md` section 16 ([Saad2003]); the sections on multicolouring of general graphs (3.3) were read but not needed after the block variant was chosen. Rasmussen and others, OPM Flow (arXiv:1910.06059), the well Schur complement, equations 25 and 26 and Figure 6 (status R for those pages only).
@@ -232,4 +293,4 @@ Whichever is chosen, the stop rule "did not converge" worked as designed: it was
 * **Not obtained (N)**: Young (1971), Varga (1962), Wallis (SPE 12265 and the 1985 paper), Zhou, Jiang and Tchelepi (2013), Golub and Van Loan (status M: the Woodbury identity in `lib/sorvia.py` is verified by the tests, not read from the book). The reservoir-simulation literature is therefore known only for the idea that wells are eliminated by Schur complements and used with CPR as a preconditioner, not for any convergence statement about SOR; the CPR idea (a coarse correction on the stiff variable) is the same shape as (b) but was not tried as a preconditioner here.
 * **Reproduced**: the numbers 19.4 K and 21.9 K of `point-via-convergence` (section 2.4); the closed form of the toy; the fixed point of the program's rule as the solution of the dropped matrix.
 * **Not verified**: any published SOR case with dense couplings (none found in the open sources read); the SOR/GS behaviour on a board with a computed heat transfer coefficient or a metal block (SOR refuses blocks); the effect of the variants on the transient networks (they do not use SOR).
-* **Review**: section 8.
+* **Review** (section 8): the reviewer re-read Saad's Theorem 4.10 (p. 122, point SOR on a symmetric positive definite matrix, stated without proof) and Theorem 4.16 with eq. 4.47 (pp. 126-127, Young's relation and `omega_opt` for consistently ordered matrices) in the open copy, and the course handout of E. Klausmeier, *Iterative methods* (Theorem 9, Ostrowski-Reich, point version, after Burden and Faires; status R). The block statement of Ostrowski's theorem (`A = D - L - L*` Hermitian with `D` block diagonal, `rho < 1` iff `A` positive definite and `0 < omega < 2`, Varga 1962, Theorem 3.6) is known only from a blog of the same author that quotes it (status S); Varga and Xu (1992, *Iterative methods by space decomposition and subspace correction*, the energy argument of 8.4 in general form) were not obtained (the open copy found returned a web page). The proof of 8.4 is written out and checked numerically (8.1); it does not rest on those sources. No published numerical case of SOR with dense couplings was found by the reviewer either.
