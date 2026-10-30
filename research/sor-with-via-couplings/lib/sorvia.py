@@ -9,7 +9,9 @@
          Variants implemented here (names used in the README):
          * `program`  the program's rule (stencil off-diagonals, diagonal of K): reproduces the failure;
          * `lagged`   (a) the via part is an explicit term `K_via theta` of the residual, recomputed at every colour update (Jacobi-like on the via part);
-         * `block`    (c) the cells of every via (footprint x layers) are one block solved exactly (dense inverse) after the two colours (block Gauss-Seidel);
+         * `block`    (c) the cells of every via (footprint x layers) are one block solved exactly (dense inverse) after the two colours, all blocks at once, not relaxed;
+         * `block_over` (c', review) the same blocks, coloured so that no two blocks of one group are coupled, the groups one after another, each block step relaxed by
+           the same omega as the colours (a block SOR in the strict sense: it keeps the over-relaxation on the via cells, README 9);
          * `woodbury` (b) SOR on the stencil matrix A = K - K_via only, with the via part by the Sherman-Morrison-Woodbury identity (m + 1 SOR solves of A,
            m = footprint means: layers x vias) and a small direct solve of the capacitance matrix;
          * `ssor_cg`  (d) conjugate gradients preconditioned by symmetric SOR on the true K.
@@ -98,7 +100,7 @@ class RB:
     @brief Red-black SOR on a network with optional extra (via) operator, via blocks and an explicit matrix for the residual.
     """
 
-    def __init__(self, net, K=None, diag=None, omega=None, Kv=None, blocks=None, block_omega=1.0):
+    def __init__(self, net, K=None, diag=None, omega=None, Kv=None, blocks=None, block_omega=1.0, colour_blocks=False):
         """!
         @brief Prepare the iteration.
         @param net The network (its stencil arrays are used).
@@ -107,7 +109,8 @@ class RB:
         @param omega Relaxation factor (None: the program's 2 / (1 + sin(pi / max(nx, ny)))).
         @param Kv Sparse via part added explicitly to the residual of every point update (None: dropped, as in the program).
         @param blocks List of index arrays (flat unknowns); each is a block solved exactly after the colours (None: no blocks). Cells of a block are skipped by the colours.
-        @param block_omega Relaxation factor of the block step.
+        @param block_omega Relaxation factor of the block step (None: the same as omega).
+        @param colour_blocks True: split the blocks into groups of mutually uncoupled blocks (greedy colouring of the block graph of K) updated one group after another.
         """
         self.net = net
         self.K = (net.K if K is None else K).tocsr()
@@ -121,18 +124,29 @@ class RB:
         col = (li + ii + jj) % 2 == 0
         self.masks = [col, ~col]
         self.blocks = blocks
-        self.block_omega = block_omega
+        self.block_omega = self.omega if block_omega is None else block_omega
+        self.groups = []
         if blocks:
             skip = np.zeros(L * ny * nx, bool)
             for b in blocks:
                 skip[b] = True
             skip = skip.reshape(self.shape)
             self.masks = [m & ~skip for m in self.masks]
-            rows = np.concatenate(blocks)
-            self.Kb = self.K[rows, :]
-            inv = [np.linalg.inv(self.K[b][:, b].toarray()) for b in blocks]
-            self.Binv = sp.block_diag(inv, format="csr")
-            self.brows = rows
+            owner = np.full(L * ny * nx, -1)
+            for k, b in enumerate(blocks):
+                owner[b] = k
+            colour = [0] * len(blocks)
+            if colour_blocks:
+                # Greedy colouring: two blocks are neighbours when K couples a cell of one to a cell of the other (the stencil across touching footprints)
+                for k, b in enumerate(blocks):
+                    nb = owner[self.K[b].indices]
+                    used = {colour[j] for j in set(nb.tolist()) if 0 <= j < k}
+                    colour[k] = min(c for c in range(len(blocks) + 1) if c not in used)
+            for c in sorted(set(colour)):
+                members = [b for b, cb in zip(blocks, colour) if cb == c]
+                rows = np.concatenate(members)
+                inv = [np.linalg.inv(self.K[b][:, b].toarray()) for b in members]
+                self.groups.append((rows, self.K[rows, :], sp.block_diag(inv, format="csr")))
 
     def _neigh(self, t, pad):
         """!
@@ -164,10 +178,11 @@ class RB:
             new = new / self.diag
             theta = theta + self.omega * np.where(m, new - theta, 0.0)
         if self.blocks:
-            # Block Gauss-Seidel step: the exact solve of every via block given the rest
-            r = q.ravel()[self.brows] - self.Kb @ theta.ravel()
+            # Block step: the exact solve of every via block given the rest (one group after another; a group holds blocks that K does not couple)
             tf = theta.ravel().copy()
-            tf[self.brows] += self.block_omega * (self.Binv @ r)
+            for brows, Kb, Binv in self.groups:
+                r = q.ravel()[brows] - Kb @ tf
+                tf[brows] += self.block_omega * (Binv @ r)
             theta = tf.reshape(self.shape)
         return theta
 
@@ -225,7 +240,7 @@ def solve_variant(net, variant, omega=None, tol=1e-9, max_iter=200000, block_ome
     """!
     @brief Solve K theta = Q with one of the SOR variants.
     @param net An assembled network (inside or outside the patch; the via blocks are read from `net._via_blocks` when present).
-    @param variant program, lagged, block or woodbury.
+    @param variant program, lagged, block, block_over or woodbury.
     @param omega Relaxation factor (None: the program's).
     @param tol Stopping tolerance of the residual.
     @param max_iter Sweep limit (per solve).
@@ -240,6 +255,8 @@ def solve_variant(net, variant, omega=None, tol=1e-9, max_iter=200000, block_ome
         return RB(net, omega=omega, Kv=Kv if Kv.nnz else None).solve(Q, tol, max_iter)
     if variant == "block":
         return RB(net, omega=omega, blocks=via_blocks(net), block_omega=block_omega).solve(Q, tol, max_iter)
+    if variant == "block_over":
+        return RB(net, omega=omega, blocks=via_blocks(net), block_omega=None, colour_blocks=True).solve(Q, tol, max_iter)
     if variant == "woodbury":
         return _woodbury(net, omega, tol, max_iter)
     raise ValueError(variant)

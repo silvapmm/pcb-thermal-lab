@@ -3,9 +3,9 @@
 """!
 @file make_figures.py
 @brief Data figures of the SOR-with-vias study: the real matrix, the convergence curves, the relaxation and stiffness sweeps, and the temperature error of the program's SOR.
-@details Figures 04 to 07 of figures/ (the diagrams 01 to 03 are drawn by make_diagrams.py). Figures 05 and 06 read `out/study_variants.json` (run `study_variants.py` first);
+@details Figures 04 to 08 of figures/ (the diagrams 01 to 03 are drawn by make_diagrams.py). Figures 05 and 06 read `out/study_variants.json` (run `study_variants.py` first);
          figures 04 and 07 are computed here from a small board.
-         Files: fig_04_the_matrix_with_via_couplings.png, fig_05_convergence_of_the_variants.png, fig_06_omega_and_via_stiffness.png, fig_07_error_of_the_programs_sor.png.
+         Files: fig_04_the_matrix_with_via_couplings.png, fig_05_convergence_of_the_variants.png, fig_06_omega_and_via_stiffness.png, fig_07_error_of_the_programs_sor.png, fig_08_block_step_relaxed_and_omega.png (review; reads out/study_block_over.json).
          Usage: python research/sor-with-via-couplings/scripts/make_figures.py   (from the repository root).
 """
 
@@ -168,9 +168,46 @@ def fig_error(path):
     plt.close(fig)
 
 
+def fig_block_over(path):
+    """!
+    @brief Review: sweeps of the board without vias, of the block step at once and unrelaxed (c) and of the coloured, relaxed block step (c'), from sparse to dense
+           vias (left), and against omega on the 3 x 3 array at 0.5 mm with the program's formula and Young's optimum marked (right). Reads out/study_block_over.json.
+    @param path Output file.
+    @return None.
+    """
+    d = json.load(open(HERE.parent / "out" / "study_block_over.json"))
+    fig, axs = plt.subplots(1, 2, figsize=(11.5, 4.4))
+    rows = d["part1"]
+    x = np.arange(len(rows))
+    for k, (key, lab, col) in enumerate((("novia", "board without vias", "#999999"), ("block", "(c) blocks at once, omega_b = 1", "#d62728"),
+                                         ("block_over", "(c') blocks coloured, omega_b = omega", "#1f77b4"))):
+        axs[0].bar(x + (k - 1) * 0.27, [r[key] or np.nan for r in rows], 0.27, label=lab, color=col)
+    labels = ["3x3, 0.5", "3x3, 0.25", "9x9 p0.5\n(touch), 0.25", "9x9 p0.75,\n0.25", "9x9 p1.0,\n0.5", "example,\n1.0"]
+    axs[0].set_xticks(x)
+    axs[0].set_xticklabels(labels[:len(rows)], fontsize=7)
+    axs[0].set_ylabel("sweeps to a residual of 1e-9")
+    axs[0].set_title("program's omega; board, cell (mm)", fontsize=9)
+    axs[0].legend(fontsize=7)
+    p2 = sorted(d["part2"], key=lambda r: r["omega"])
+    w = [r["omega"] for r in p2]
+    for key, lab, col in (("novia", "board without vias", "#999999"), ("block", "(c)", "#d62728"), ("block_over", "(c')", "#1f77b4")):
+        axs[1].plot(w, [r[key] or np.nan for r in p2], "o-", label=lab, color=col)
+    axs[1].axvline(d["omega_program"], color="k", ls=":", lw=1)
+    axs[1].axvline(d["omega_young"], color="g", ls="--", lw=1)
+    axs[1].text(d["omega_program"], axs[1].get_ylim()[1] * 0.95, " program's formula", fontsize=7, va="top")
+    axs[1].text(d["omega_young"], axs[1].get_ylim()[1] * 0.80, " Young's optimum", fontsize=7, va="top", color="g")
+    axs[1].set_xlabel("omega")
+    axs[1].set_ylabel("sweeps to a residual of 1e-9")
+    axs[1].set_title("3 x 3 array, 0.5 mm", fontsize=9)
+    axs[1].legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(path, dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
-    @brief Draw the four data figures.
+    @brief Draw the data figures.
     @return None.
     """
     bd.pc.load_libraries()
@@ -182,6 +219,10 @@ def main():
         fig_sweeps(OUT / "fig_06_omega_and_via_stiffness.png")
     else:
         print("run study_variants.py first for figures 05 and 06")
+    if (HERE.parent / "out" / "study_block_over.json").exists():
+        fig_block_over(OUT / "fig_08_block_step_relaxed_and_omega.png")
+    else:
+        print("run study_block_over.py first for figure 08")
 
 
 if __name__ == "__main__":

@@ -112,10 +112,10 @@ def test_program_rule_fails_and_fixed_point_is_the_dropped_matrix(small):
     assert np.abs(r2["theta"].ravel() - ref).max() < 1e-6
 
 
-@pytest.mark.parametrize("variant", ["lagged", "block", "woodbury"])
+@pytest.mark.parametrize("variant", ["lagged", "block", "block_over", "woodbury"])
 def test_variants_reach_the_direct_solution(small, variant):
     """!
-    @brief The three SOR variants converge to the direct solution of the true K.
+    @brief The SOR variants converge to the direct solution of the true K.
     @param small The network.
     @param variant Variant name.
     @return None.
@@ -141,7 +141,7 @@ def test_ssor_cg_reaches_the_direct_solution(small, order):
 
 def test_stiff_via_lagged_loses_what_block_keeps(small):
     """!
-    @brief The lagged variant needs the via part to be soft: at K_via x 1e4 the block variant still converges.
+    @brief The lagged variant needs the via part to be soft: at K_via x 1e3 the block variant still converges.
     @param small The network.
     @return None.
     """
@@ -149,3 +149,42 @@ def test_stiff_via_lagged_loses_what_block_keeps(small):
     th = spla.spsolve(net.K, net.Q.ravel())
     r = sv.solve_variant(net, "block", tol=1e-10, max_iter=60000)
     assert r["converged"] and np.abs(r["theta"].ravel() - th).max() < 1e-5
+
+
+def test_block_colouring_separates_coupled_blocks():
+    """!
+    @brief Review: on a dense array whose footprints touch, the colouring of `block_over` puts no two blocks that K couples in one group, and the result is the direct one.
+    @return None.
+    """
+    net = bd.net_for(bd.pc.array_board(385.0, pitch_mm=1.0, n=5), 0.5)
+    th, _ = net.solve_steady("direct")
+    rb = sv.RB(net, blocks=sv.via_blocks(net), block_omega=None, colour_blocks=True)
+    assert len(rb.groups) >= 2                                               # the footprints touch, so one group is not enough
+    K = net.K.tocsr()
+    blocks = sv.via_blocks(net)
+    owner = np.full(K.shape[0], -1)
+    for k, b in enumerate(blocks):
+        owner[b] = k
+    for rows, _Kb, _Binv in rb.groups:
+        mine = set(owner[rows].tolist())
+        for k in mine:
+            nb = set(owner[K[blocks[k]].indices].tolist()) - {-1, k}
+            assert not (nb & mine)
+    r = rb.solve(net.Q, tol=1e-11, max_iter=60000)
+    assert r["converged"] and np.abs(r["theta"] - th).max() < 1e-6
+
+
+def test_energy_argument_on_touching_blocks():
+    """!
+    @brief Review (own matrix of `scripts/study_review.py`): blocks relaxed one after another converge for omega_b in (0, 2); all at once they diverge for omega_b > 1
+           on touching footprints, and converge for omega_b <= 1 because 2 D_B - K_VV is positive definite.
+    @return None.
+    """
+    sys.path.insert(0, os.path.join(os.path.dirname(LIB), "scripts"))
+    import study_review as R
+    b = R.board(**R.cases()[1][2])                                           # R2: 5 x 5 array, footprints touching in x and y, two layers
+    assert R.energy_margin(b) > 0.0
+    assert R.Sweeps(b, 1.5, "simultaneous", omega_b=1.0).radius() < 1.0
+    assert R.Sweeps(b, 1.5, "simultaneous", omega_b=1.5).radius() > 1.0
+    for ob in (0.5, 1.5, 1.9):
+        assert R.Sweeps(b, 1.5, "sequential", omega_b=ob).radius() < 1.0
