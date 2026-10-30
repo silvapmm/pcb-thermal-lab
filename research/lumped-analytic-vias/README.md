@@ -298,7 +298,7 @@ The program's Lumped and Analytic models on the example board give the gain of t
 
 ## 9. Reproducing
 
-From the repository root (`.venv/bin/python`): `research/lumped-analytic-vias/scripts/study_unit_cell.py` (20 s), `study_arrays.py` (about 8 minutes), `study_causes.py` (about 15 minutes, the 3D part), `study_discretisation.py` (5 minutes), `study_real_boards.py` (2 minutes), `study_via_fill_rows.py` (1 minute), then `make_diagrams.py` and `make_figures.py`. Tests: `.venv/bin/python -m pytest research/lumped-analytic-vias/tests`.
+From the repository root (`.venv/bin/python`): `research/lumped-analytic-vias/scripts/study_unit_cell.py` (20 s), `study_arrays.py` (about 8 minutes), `study_causes.py` (about 15 minutes, the 3D part), `study_discretisation.py` (5 minutes), `study_real_boards.py` (2 minutes), `study_via_fill_rows.py` (1 minute), `study_review.py` (the review checks, about 8 minutes), then `make_diagrams.py` and `make_figures.py`. Tests: `.venv/bin/python -m pytest research/lumped-analytic-vias/tests`.
 
 ## 10. Review
 
