@@ -165,3 +165,39 @@ def test_cluster_group_improves_the_row(libs):
     e_ref, _, _ = hz.reference_uniform(prob, 1.0 / 8)
     err = hz.errors(prob, e_ref, 0.5, ["L_ring", "L_grp"])
     assert abs(err["L_grp"]) < 0.5 * abs(err["L_ring"])
+
+
+def test_copper_fill_gain_of_the_example_board(libs):
+    """!
+    @brief The roadmap symptom A6: the copper-fill gain of the example board is 6.3 to 6.8 K in the program (the corrected FVM puts it at 4.2 K); the patches bring both models within 0.5 K of 4.2 K.
+    @param libs Fixture.
+    @return None.
+    """
+    from pcbthermal.examples import example_board
+
+    def gain(model, ctx):
+        out = []
+        for fill in (0.0, 385.0):
+            prob = example_board()
+            for v in prob.vias:
+                v.fill_k = fill
+            with ctx():
+                out.append(pc.max_rise(prob, model, 0.5))
+        return out[0] - out[1]
+    null = hz.VARIANTS["L_prog"][1]
+    assert gain("lumped", null) > 6.0 and gain("analytic", null) > 5.8
+    assert abs(gain("lumped", hz.VARIANTS["L_grp0"][1]) - 4.2) < 0.5
+    assert abs(gain("analytic", hz.VARIANTS["A_fin"][1]) - 4.2) < 0.5
+
+
+def test_analytic_fine_tiles_resolve_a_dense_array(libs):
+    """!
+    @brief 5 x 5 vias at 1.2 mm under a 6 mm source: the patched Analytic model with 1 mm tiles is within 3 % of the fine-grid reference and closer than the program.
+    @param libs Fixture.
+    @return None.
+    """
+    prob = cases.pad(4, 5, 1.2, 0.3, 385.0, 20.0, 6.0)
+    e_ref, _, _ = hz.reference_uniform(prob, 1.0 / 16)
+    err = hz.errors(prob, e_ref, 0.5, ["A_prog", "A_fin"])
+    assert abs(err["A_fin"]) < 3.0
+    assert abs(err["A_prog"]) > abs(err["A_fin"])

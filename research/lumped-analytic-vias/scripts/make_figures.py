@@ -29,7 +29,7 @@ import constriction as cr                                                   # no
 
 OUT = HERE.parent / "figures"
 DATA = HERE.parent / "out"
-COL = {"L_prog": "#d62728", "L_ring": "#ff9896", "L_grp": "#1f77b4", "A_prog": "#8c564b", "A_on": "#c49c94", "A_fin": "#2ca02c", "A_bil": "#98df8a", "FVM": "0.5", "FVM_fix": "0.2"}
+COL = {"L_prog": "#d62728", "L_ring": "#ff9896", "L_grp0": "#1f77b4", "A_prog": "#8c564b", "A_on": "#c49c94", "A_fin": "#2ca02c", "A_bil": "#98df8a", "FVM": "0.5", "FVM_fix": "0.2"}
 
 
 def fig_unit_cell(path):
@@ -40,7 +40,7 @@ def fig_unit_cell(path):
     """
     rows = json.load(open(DATA / "unit_cell.json"))
     fig, axs = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
-    for ax, model, names in zip(axs, ("Lumped", "Analytic"), (("L_prog", "L_ring", "L_grp"), ("A_prog", "A_on", "A_fin"))):
+    for ax, model, names in zip(axs, ("Lumped", "Analytic"), (("L_prog", "L_ring", "L_grp0"), ("A_prog", "A_on", "A_fin"))):
         for n in names:
             for layers, ls in ((2, "-"), (4, "--")):
                 pts = sorted((r["task"][2], r["err"][n]) for r in rows if r["task"][0] == layers and r["task"][1] == 0.3 and r["task"][3] == 385.0)
@@ -87,7 +87,7 @@ def fig_gain(path):
     pitch = [r["task"][1][2] for r in sel]
     fig, ax = plt.subplots(figsize=(7, 4.4))
     ax.plot(pitch, [r["G_ref"] for r in sel], "k-o", lw=2.5, label="reference (fine-grid layered solver)")
-    for n in ("FVM_fix", "L_prog", "L_grp", "A_prog", "A_fin"):
+    for n in ("FVM_fix", "L_prog", "L_grp0", "A_prog", "A_fin"):
         ax.plot(pitch, [r["E"]["385.0"][n] - r["E"]["0.0"][n] for r in sel], "-s", color=COL[n], label=n)
     ax.set_xlabel("via pitch (mm)")
     ax.set_ylabel("gain of the copper fill, K")
@@ -105,7 +105,7 @@ def fig_real(path):
     @return None.
     """
     rows = json.load(open(DATA / "real_boards.json"))
-    names = ["FVM", "L_prog", "L_grp", "A_prog", "A_fin"]
+    names = ["FVM", "L_prog", "L_grp0", "A_prog", "A_fin"]
     labels = [f"{r['board']}\n{'Cu' if r['fill'] else 'open'}" for r in rows]
     x = np.arange(len(rows))
     fig, ax = plt.subplots(figsize=(11, 4.4))
