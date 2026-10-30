@@ -1,1 +1,0 @@
-example, 9 vias at 3.5 mm fill 0.0: E_ref 9.573 K  FVM -7.5%  L_prog +16.5%  L_ring -3.4%  L_grp0 -3.4%  L_grp -3.4%  A_prog +4.7%  A_on -12.7%  A_bil -17.5%  A_fin -3.1%
