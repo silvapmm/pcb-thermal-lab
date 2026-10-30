@@ -5,9 +5,9 @@
 @brief Data figures of the point-via study (figures 06 and later), drawn from the outputs of the study scripts in out/ (git-ignored) and from the lattice kernel.
 @details fig_06: the potential kernel of the stencil and the equivalent radius; fig_07: effective radius of a footprint against the cell; fig_08: unit-cell via effect error against
          the cell; fig_09: copper-fill gain of the 3 x 3 board against the cell; fig_10: the same on a fine series of cells; fig_11: the example board; fig_12: lone via and row;
-         fig_13: the 3D solid. A figure whose input file is missing is skipped. Run the studies first (each study script says how long it takes).
+         fig_13: the 3D solid; fig_14: the target radius against an axisymmetric 3D solve (review). A figure whose input file is missing is skipped. Run the studies first (each study script says how long it takes).
 Files: fig_06_lattice_equivalent_radius.png, fig_07_effective_radius_of_footprints.png, fig_08_unit_cell_error_against_cell.png, fig_09_array_board_gain_against_cell.png,
-         fig_10_array_board_fine_sweep.png, fig_11_example_board_gain_against_cell.png, fig_12_lone_via_and_row.png, fig_13_solid3d_gain_against_cell.png.
+         fig_10_array_board_fine_sweep.png, fig_11_example_board_gain_against_cell.png, fig_12_lone_via_and_row.png, fig_13_solid3d_gain_against_cell.png, fig_14_target_radius_against_3d.png.
 Usage: python research/point-via-convergence/scripts/make_figures.py   (from the repository root)
 """
 
@@ -299,13 +299,54 @@ def fig13():
     plt.close(fig)
 
 
+def fig14():
+    """!
+    @brief The target radius on other stack-ups (review): the radius r_t* that matches the axisymmetric 3D via effect, and the error of the layered via at 0.78 r_v and r_v,
+           for every case of study_target_radius.py (parsed from out/target_radius.txt).
+    @return None.
+    """
+    p = DATA / "target_radius.txt"
+    if not p.exists():
+        return
+    rows = [[c.strip() for c in l.strip().strip("|").split("|")] for l in p.read_text().splitlines() if l.startswith("| ") and "stack-up" not in l and ":--" not in l]
+    rows = [r for r in rows if math.pi * (float(r[2]) / 2) ** 2 / float(r[1]) ** 2 <= 0.04 or r[4] == "whole"]     # drilled holes that remove > 4 % of the plane left out
+    stacks = list(dict.fromkeys(r[0] for r in rows))
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+    marks = {"open": "o", "copper": "s"}
+    for k, st in enumerate(stacks):
+        for r in (x for x in rows if x[0] == st):
+            xpos = k + (-0.2 if r[4] == "whole" else 0.2) + (float(r[2]) - 0.6) * 0.15
+            col = "#1f77b4" if r[4] == "whole" else "#d62728"
+            if r[8] != "nan":
+                axes[0].plot(xpos, float(r[8]), marks[r[3]], color=col, markersize=4, alpha=0.8)
+            axes[1].plot(xpos - 0.05, float(r[6]), marks[r[3]], color=col, markersize=4, alpha=0.8)
+            axes[1].plot(xpos + 0.05, float(r[7]), marks[r[3]], markerfacecolor="none", color=col, markersize=4, alpha=0.6)
+    axes[0].axhline(math.exp(-0.25), color="k", linestyle="--", linewidth=0.8)
+    axes[0].axhline(1.0, color="k", linestyle=":", linewidth=0.8)
+    axes[0].set_ylabel("r_t* / r_v matching the 3D via effect")
+    axes[0].set_title("radius that reproduces the 3D barrel (dashed 0.78, dotted 1)", fontsize=9)
+    axes[1].axhline(0.0, color="k", linewidth=0.6)
+    axes[1].set_ylabel("error of the layered via effect (% of E)")
+    axes[1].set_title("filled marker: r_t = 0.78 r_v; hollow: r_t = r_v", fontsize=9)
+    for ax in axes:
+        ax.set_xticks(range(len(stacks)))
+        ax.set_xticklabels(stacks, fontsize=7)
+    axes[0].plot([], [], "o", color="#1f77b4", label="plane whole, open")
+    axes[0].plot([], [], "s", color="#1f77b4", label="plane whole, copper fill")
+    axes[0].plot([], [], "o", color="#d62728", label="plane drilled, open")
+    axes[0].legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_14_target_radius_against_3d.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Draw every data figure whose input exists.
     @return None.
     """
     OUT.mkdir(exist_ok=True)
-    for f in (fig06, fig07, fig08, fig09, fig10, fig11, fig12, fig13):
+    for f in (fig06, fig07, fig08, fig09, fig10, fig11, fig12, fig13, fig14):
         f()
     print("written", sorted(p.name for p in OUT.glob("fig_*.png")))
 

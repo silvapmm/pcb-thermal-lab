@@ -8,7 +8,7 @@
          and, far away, a(x) = (2/pi) ln|x| + kappa + O(|x|^-2) with kappa = (2 gamma + 3 ln 2) / pi (Fukai and Uchiyama 1996, Kozma and Schreiber 2004; the
          constant is checked numerically here, not taken on trust).
          The continuum point sink in a sheet of conductance S has phi(0) - phi(r) = ln(r / r_eq) / (2 pi S) outside a hole of radius r_eq, so the node of the lattice
-         sink behaves as a hole of radius r_eq = exp(-pi kappa / 2) dx = exp(-(gamma + 1.5 ln 2)) dx = 0.19846 dx (the "0.198" of the program documents).
+         sink behaves as a hole of radius r_eq = exp(-pi kappa / 2) dx = exp(-(gamma + 1.5 ln 2)) dx = 0.19851 dx (the "0.198" of the program documents).
          Peaceman's own argument (all four neighbours equal, Darcy flow between the neighbour ring and the equivalent radius) gives exp(-pi/2) dx = 0.20788 dx.
          The weights of a distributed sink (sum 1) have an effective radius ln r_eff = (pi / 2) (E - kappa), with E = sum_ab w_a w_b a(a - b) (the mean potential seen by the
          distribution, see `effective_radius`).
@@ -23,7 +23,7 @@ import scipy.sparse.linalg as spla
 
 EULER_GAMMA = 0.5772156649015329
 KAPPA = (2.0 * EULER_GAMMA + 3.0 * math.log(2.0)) / math.pi          # asymptotic constant of the potential kernel
-R_EQ_EXACT = math.exp(-math.pi * KAPPA / 2.0)                          # equivalent radius of a point sink in units of the lattice spacing (0.19846)
+R_EQ_EXACT = math.exp(-math.pi * KAPPA / 2.0)                          # equivalent radius of a point sink in units of the lattice spacing (0.19851)
 R_EQ_PEACEMAN = math.exp(-math.pi / 2.0)                               # Peaceman's radial-flow argument (0.20788)
 
 
