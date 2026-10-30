@@ -21,7 +21,7 @@ import program_cases as pc                                                  # no
 import program_patch as pp                                                  # noqa: E402
 
 ETA = math.exp(-0.25)
-TREATMENTS = ["program", "peaceman", "area", "mw_tuned", "mw_area@eta", "mw_tuned@eta"]
+TREATMENTS = ["program", "peaceman", "area", "mw_tuned", "mw_area@eta", "mw_tuned@eta", "mw_disc@eta"]
 
 
 def example_with(fill_k=None):

@@ -25,7 +25,7 @@ import resolved_boards as rb                                                # no
 
 CELLS = [1.0, 0.5, 0.25, 0.125, 0.0625]
 ETA = math.exp(-0.25)
-TREATMENTS = ["program", "peaceman", "mw_tuned", "mw_area@eta", "mw_tuned@eta"]
+TREATMENTS = ["program", "peaceman", "mw_tuned", "mw_area@eta", "mw_tuned@eta", "mw_disc@eta"]
 SIDE, SOURCE, GAP, PITCH, POWER = 16.0, 3.0, 1.0, 1.0, 0.5
 
 

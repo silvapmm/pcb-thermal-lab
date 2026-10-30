@@ -33,7 +33,7 @@ import resolved_boards as rb                                                # no
 CELLS = [1.0, 0.5, 0.25, 0.125, 0.0625]
 POSITIONS = {"corner": (0.0, 0.0), "edge": (0.5, 0.0), "centre": (0.5, 0.5)}      # offset of the via from the centre of the board, in cells
 ETA = math.exp(-0.25)                                                       # radius of the uniform sink density over the disc, in units of the via radius
-TREATMENTS = ["program", "peaceman", "area", "tuned", "mw_point", "mw_ring", "mw_area", "mw_tuned", "mw_area@eta", "mw_tuned@eta"]
+TREATMENTS = ["program", "peaceman", "area", "tuned", "mw_point", "mw_ring", "mw_area", "mw_tuned", "mw_area@eta", "mw_tuned@eta", "mw_disc@eta"]
 POWER = 0.01
 LAYERS = 4
 
@@ -112,11 +112,18 @@ def main():
     with mp.Pool(args.procs) as pool:
         runs = pool.map(program_run, tasks, chunksize=1)
     refs = {}
+    cache_path = os.path.join(os.path.dirname(HERE), "out", "unit_cell_refs.json")
+    cache = json.load(open(cache_path)) if os.path.exists(cache_path) else {}            # the references do not depend on the treatments: kept between runs
     for (p, d, f) in cs:
         for pn in POSITIONS:
             for c in CELLS:
                 if p / c >= 2:
-                    refs[(p, d, f, pn, c)] = reference(p, d, f, POSITIONS[pn], p / max(int(round(p / c)), 2))
+                    key = (p, d, f, pn, c)
+                    if str(key) not in cache:
+                        cache[str(key)] = list(reference(p, d, f, POSITIONS[pn], p / max(int(round(p / c)), 2)))
+                    refs[key] = tuple(cache[str(key)])
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    json.dump(cache, open(cache_path, "w"))
     os.makedirs(os.path.join(os.path.dirname(HERE), "out"), exist_ok=True)
     rows = []
     for r in runs:

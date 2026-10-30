@@ -28,10 +28,10 @@ import viakernel as vk                                                      # no
 OUT = HERE.parent / "figures"
 DATA = HERE.parent / "out"
 COL = {"program": "#d62728", "peaceman": "#9467bd", "area": "#8c564b", "tuned": "#7f7f7f", "mw_point": "#bcbd22", "mw_ring": "#17becf", "mw_area": "#2ca02c",
-       "mw_tuned": "#ff7f0e", "mw_area@eta": "#2ca02c", "mw_tuned@eta": "#1f77b4"}
+       "mw_tuned": "#ff7f0e", "mw_area@eta": "#2ca02c", "mw_tuned@eta": "#1f77b4", "mw_disc@eta": "#e377c2"}
 LAB = {"program": "program (point in one cell)", "peaceman": "independent links, Peaceman then area", "area": "independent links, area of the disc", "tuned": "independent links, tuned",
        "mw_point": "mean coupling, point + well", "mw_ring": "mean coupling, ring", "mw_area": "mean coupling, area", "mw_tuned": "mean coupling, tuned (r = r_v)",
-       "mw_area@eta": "mean coupling, area, r = 0.78 r_v", "mw_tuned@eta": "mean coupling, tuned, r = 0.78 r_v (recommended)"}
+       "mw_area@eta": "mean coupling, area, r = 0.78 r_v", "mw_tuned@eta": "mean coupling, tuned point, r = 0.78 r_v", "mw_disc@eta": "mean coupling, centred disc, r = 0.78 r_v"}
 
 
 def load(name):
@@ -130,7 +130,7 @@ def fig08():
     for ax, c in zip(axs, cases):
         sel = [r for r in rows if r["task"][:3] == list(c)]
         cells = sorted({r["task"][4] for r in sel}, reverse=True)
-        for tr in ("program", "peaceman", "mw_tuned", "mw_area@eta", "mw_tuned@eta"):
+        for tr in ("program", "peaceman", "mw_area@eta", "mw_tuned@eta", "mw_disc@eta"):
             ys = []
             for cell in cells:
                 errs = [100 * (r["E"][tr] / r["E_ref"] - 1) for r in sel if r["task"][4] == cell]
@@ -195,7 +195,7 @@ def fig10():
         c = [r[0] for r in rows]
         ax.plot(c, [r[1] for r in rows], "o" + ls, color=COL["program"], label=f"{model.upper()} program", markersize=3.5)
         ax.plot(c, [r[2] for r in rows], "^" + ls, color=COL["mw_area@eta"], label=f"{model.upper()} mean coupling, area", markersize=3.5)
-        ax.plot(c, [r[3] for r in rows], "s" + ls, color=COL["mw_tuned@eta"], label=f"{model.upper()} mean coupling, tuned", markersize=3.5)
+        ax.plot(c, [r[3] for r in rows], "s" + ls, color=COL["mw_disc@eta"], label=f"{model.upper()} mean coupling, centred disc", markersize=3.5)
     if not ok:
         plt.close(fig)
         return
@@ -247,7 +247,7 @@ def fig12():
     fig, axs = plt.subplots(1, len(cases), figsize=(3.6 * len(cases) + 1, 4.2), sharey=True)
     for ax, c in zip(axs, cases):
         sel = sorted([r for r in rows if tuple(r["task"][1:4]) == c], key=lambda r: -r["task"][4])
-        for tr in ("program", "peaceman", "mw_tuned", "mw_area@eta", "mw_tuned@eta"):
+        for tr in ("program", "peaceman", "mw_area@eta", "mw_tuned@eta", "mw_disc@eta"):
             ax.plot([r["task"][4] for r in sel], [100 * (r["E"][tr] / r["E_ref"] - 1) for r in sel], "o-", color=COL[tr], label=LAB[tr], markersize=3.5)
         ax.axhline(0, color="k", linewidth=0.6)
         ax.set_xscale("log")

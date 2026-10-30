@@ -68,6 +68,30 @@ S. McCormick and R. Tamstorf (byline to confirm on the title page), a multigrid 
 ### [SciPySuperLU]
 SciPy's sparse direct solver (SuperLU) with the symmetric minimum-degree ordering is the program's direct solver (`docs/theory.md` section 2); the library documentation is not recorded as a source. **Status M.** Topic 02.
 
+### [Peaceman1978]
+D. W. Peaceman, *Interpretation of well-block pressures in numerical reservoir simulation*, SPE Journal 18 (3) (1978) 183-194, doi 10.2118/6893-PA. **Status S**: the full text was not obtained (SPE, paywalled); the abstract (found through a search) says that the well-block pressure equals the actual flowing pressure at a radius of about 0.2 Δx, and the 0.14 sqrt(Δx² + Δy²) of the original (0.198 Δx on a square grid) is from memory and from patents that quote it. Used by `research/point-via-convergence/` for the idea of the well index (a point source in one cell of a five-point stencil has the pressure of a hole of radius 0.2 Δx); the constant used there is **computed** (exp(-(γ + 1.5 ln 2)) = 0.19851, README 2), not taken from this source. Topics 02, 03, 04.
+
+### [Peaceman1983]
+D. W. Peaceman, *Interpretation of well-block pressures in numerical reservoir simulation with nonsquare grid blocks and anisotropic permeability*, SPE Journal 23 (3) (1983) 531-543, doi 10.2118/10528-PA. **Status N** (paywalled; the form `r0 = 0.28 [ ... ]^(1/2) / [ ... ]` seen in a conference paper reduces to 0.198 Δx on a square isotropic grid, which agrees with the computed constant). Topic 03.
+
+### [Ibraguimov2022]
+A. Ibraguimov, E. Zakirov, I. Indrupskiy, D. Anikeev, *Fundamentals in Peaceman model for well-block radius for non-linear flows near well*, arXiv:2203.10140 (2022), https://arxiv.org/pdf/2203.10140. **Read in part (R for sections 1 and 5.1, text extracted from the PDF)**: the five-point balance (1.1), Peaceman's argument that `p1 - p0 = q α / 4` and the radial Darcy law `p(r) = p_θ + q α ln(r/θ) / (2π)` fix `R0 = Δ e^(-π/2)` (= 0.2079 Δ), independent of the flow rate and the well radius; their Theorem 3 (the same value from the Green function) was **not** read. The study here finds that the exact lattice value is 0.19851 Δ, not 0.2079 Δ: the e^(-π/2) argument takes the four neighbours as equal and the radial law as exact at the first neighbour, which is an approximation (README 2). Topic 03.
+
+### [Gjerde2019]
+I. G. Gjerde, K. Kumar, J. M. Nordbotten, *A singularity removal method for coupled 1D-3D flow models*, arXiv:1812.03055 (2018; Computational Geosciences 24 (2020)), https://arxiv.org/pdf/1812.03055. **Status S** (the abstract and introduction read: a line source induces a logarithmic singularity in the reservoir pressure that is hard to resolve numerically; the pressure is split into an explicit singular term and a smooth background that the grid can carry). The idea (subtract the known logarithm, let the grid carry the rest) is the same as the well and the footprint of the point-via study; the paper's formulas were not checked. Topic 02.
+
+### [WolfsteinerDurlofskyAziz2003]
+C. Wolfsteiner, L. J. Durlofsky, K. Aziz, *Calculation of well index for nonconventional wells on arbitrary grids*, Computational Geosciences 7 (2003) 61-82, doi 10.1023/A:1022431729275. **Status S** (abstract seen: the well index of each block from an accurate semi-analytical Green's-function solution coupled with a local finite-difference calculation). **Not obtained** (paywalled). Topic 02.
+
+### [FukaiUchiyama1996]
+Y. Fukai, K. Uchiyama, *Potential kernel for two-dimensional random walk*, Annals of Probability 24 (4) (1996) 1979-1992, https://projecteuclid.org/euclid.aop/1041903213; and [KozmaSchreiber2004] G. Kozma, E. Schreiber, *An asymptotic expansion for the discrete harmonic potential*, Electron. J. Probab. 9 (2004), arXiv:math/0212156. **Status S** (found through a search; the expansion `a(x) = (2/π) ln|x| + (2γ + 3 ln 2)/π + O(|x|^-2)` is quoted from memory and from the abstracts' wording; **verified numerically here** by the exact recurrence and a finite solve, `lib/lattice.py`, status L). Topic 03.
+
+### [ShenWang2019Vias]
+Y. Shen, H. Wang, F. Blaabjerg, H. Zhao, T. Long, *Thermal modeling and design optimization of PCB vias and pads*, IEEE Trans. Power Electronics (2019), doi 10.1109/TPEL.2019.2915029 (accepted manuscript, Aalborg University repository https://vbn.aau.dk/ws/files/335464153/Thermal_Modeling_and_Design_Optimization_of_PCB_Vias_and_Pads.pdf). **Read in part (R for the abstract, the introduction and the verification section; the formulas (3) to (5) of the via array were not checked)**: the via array as parallel vertical resistances of the unit cells; the CFD check in ANSYS Icepak of a DPAK pad (120.3 K/W without vias, 1.86 K/W with 0.25 mm vias). It contains no guidance on meshing a via. Topic 04.
+
+### [IcepakGuidance]
+ANSYS training and forum pages on PCB via arrays in Icepak (https://innovationspace.ansys.com/courses/wp-content/uploads/sites/5/2021/07/AEDT_Icepak_Int_2020R1_EN_LE02.2.pdf and a 2023 forum thread). **Status S** (search summaries only): vias are either smeared into an orthotropic board conductivity or modelled explicitly with a mesh fine enough to resolve them; no rule for the cell size next to a via was found. Topic 04.
+
 ## 2. Heat conduction theory, spreading resistance, fins
 
 ### [CarslawJaeger]

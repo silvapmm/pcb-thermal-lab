@@ -160,6 +160,37 @@ def tuned_weights(cx, cy, r_via, dx, origin=0.0, r_point=None, sub=48):
     return disc_weights(cx, cy, 0.5 * (lo + hi), dx, origin, sub, "area")
 
 
+def disc_target_weights(cx, cy, r_via, r_target, dx, origin=0.0, sub=48):
+    """!
+    @brief Area weights of the via disc, enlarged only if its effective radius is below the radius wanted; always centred on the true position of the via.
+    @details The footprint of the recommended treatment: the disc of the via itself (so that the barrel is where it is, not moved to the cell that holds its centre); when the
+             lattice effective radius of that footprint is already above the target, the surplus is a positive Peaceman well and nothing else is done; when it is below (the disc
+             lies inside one cell, or on fine cells where the uniform area weights have a radius e^(-1/4) times that of the circle), the radius of the disc is enlarged until the
+             effective radius equals the target, which keeps the footprint centred.
+    @param cx Centre x in m.
+    @param cy Centre y in m.
+    @param r_via Drill radius in m (the geometric disc).
+    @param r_target Effective radius wanted in m.
+    @param dx Cell size in m.
+    @param origin Lower edge of cell 0 in m.
+    @param sub Samples per cell side.
+    @return dict {(i, j): w}.
+    """
+    w = disc_weights(cx, cy, r_via, dx, origin, sub, "area")
+    if effective_radius(w, dx) >= r_target:
+        return w
+    lo, hi = r_via, 2.0 * r_via
+    while effective_radius(disc_weights(cx, cy, hi, dx, origin, sub, "area"), dx) < r_target:
+        lo, hi = hi, 2.0 * hi
+    for _ in range(30):
+        mid = 0.5 * (lo + hi)
+        if effective_radius(disc_weights(cx, cy, mid, dx, origin, sub, "area"), dx) < r_target:
+            lo = mid
+        else:
+            hi = mid
+    return disc_weights(cx, cy, 0.5 * (lo + hi), dx, origin, sub, "area")
+
+
 def kron_barrel(g_gap, g_well):
     """!
     @brief Conductances between the sheet nodes of the layers joined by a barrel with wells.

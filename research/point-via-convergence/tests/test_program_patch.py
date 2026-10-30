@@ -35,14 +35,14 @@ def setup_module(module):
 @pytest.mark.parametrize("model", ["fvm", "fdm"])
 def test_the_point_patch_is_the_program(model):
     """!
-    @brief The "point" copy gives exactly the temperatures of the unpatched program.
+    @brief The "point" copy gives the temperatures (to 1e-12) of the unpatched program.
     @param model fvm or fdm.
     @return None.
     """
     p = pc.array_board(385.0)
     base = pc.max_rise(p, model, 1.0)
     with pp.patched("point"):
-        assert pc.max_rise(p, model, 1.0) == base
+        assert pc.max_rise(p, model, 1.0) == pytest.approx(base, rel=1e-12)       # the weights are 1.0: equal up to the rounding of w / sum(w)
     assert pc.max_rise(p, model, 1.0) == base                                # the original is back
 
 
@@ -53,12 +53,12 @@ def test_the_patch_is_removed_on_exit():
     """
     from pcbthermal import fdm
     a, b, c = fvm.Network.__init__, fvm.Network._assemble, fdm.Network.__init__
-    with pp.patched("mw_tuned", eta=ETA):
+    with pp.patched("mw_disc", eta=ETA):
         assert fvm.Network.__init__ is not a
     assert (fvm.Network.__init__, fvm.Network._assemble, fdm.Network.__init__) == (a, b, c)
 
 
-@pytest.mark.parametrize("name", ["mw_tuned", "mw_area", "area", "peaceman"])
+@pytest.mark.parametrize("name", ["mw_disc", "mw_area", "area", "peaceman"])
 def test_a_board_without_vias_is_bit_identical(name):
     """!
     @brief No vias, no change.
@@ -81,7 +81,7 @@ def test_energy_balance_and_symmetry_with_mean_couplings(cell):
     """
     p = pc.array_board(385.0)
     nx = int(round(p.board.width / (cell * 1e-3)))
-    with pp.patched("mw_tuned", eta=ETA):
+    with pp.patched("mw_disc", eta=ETA):
         net = fvm.Network(p, nx, nx)
         theta, res = net.solve_steady()
     K = net.K
@@ -104,7 +104,7 @@ def test_copper_fill_gain_converges_to_the_resolved_reference():
     assert ref == pytest.approx(-4.51, abs=0.05)
     program = []
     for cell in (1.0, 0.5, 0.25, 0.125):
-        with pp.patched("mw_tuned", eta=ETA):
+        with pp.patched("mw_disc", eta=ETA):
             g = pc.max_rise(pc.array_board(385.0), "fvm", cell) - pc.max_rise(pc.array_board(0.0), "fvm", cell)
         assert abs(g - ref) < 0.3, (cell, g, ref)
         program.append(pc.max_rise(pc.array_board(385.0), "fvm", cell) - pc.max_rise(pc.array_board(0.0), "fvm", cell))

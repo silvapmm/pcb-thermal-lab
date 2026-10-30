@@ -33,7 +33,7 @@ STATE = {"name": "point", "c0": lattice.R_EQ_EXACT, "sub": 16, "eta": 1.0}
 # (mode, footprint rule) of every treatment
 TREATMENTS = {
     "point": ("indep", "point"), "area": ("indep", "area"), "ring": ("indep", "ring"), "peaceman": ("indep", "peaceman"), "tuned": ("indep", "tuned"),
-    "mw_point": ("mean", "point"), "mw_area": ("mean", "area"), "mw_ring": ("mean", "ring"), "mw_tuned": ("mean", "tuned"),
+    "mw_point": ("mean", "point"), "mw_disc": ("mean", "disc"), "mw_area": ("mean", "area"), "mw_ring": ("mean", "ring"), "mw_tuned": ("mean", "tuned"),
 }
 
 
@@ -59,6 +59,8 @@ def _footprint(rule, v, rv, dx, origin, r0, sub, r_target=None):
         return vk.disc_weights(v.x, v.y, rv, dx, origin, sub, "ring")
     if rule == "peaceman":
         return vk.disc_weights(v.x, v.y, 0.0, dx, origin) if r0 > rv else vk.disc_weights(v.x, v.y, rv, dx, origin, sub, "area")
+    if rule == "disc":
+        return vk.disc_target_weights(v.x, v.y, rv, r_target, dx, origin)
     if rule == "tuned":
         w = vk.tuned_weights(v.x, v.y, r_target, dx, origin, r_point=r0)
         return w if w is not None else vk.disc_weights(v.x, v.y, 0.0, dx, origin)

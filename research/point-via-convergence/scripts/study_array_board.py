@@ -24,7 +24,7 @@ import resolved_boards as rb                                                # no
 
 CELLS = [1.0, 0.5, 0.25, 0.125, 0.0625]
 ETA = math.exp(-0.25)                                                       # radius of the uniform sink density over the disc, in units of the via radius
-TREATMENTS = ["program", "peaceman", "area", "tuned", "mw_point", "mw_ring", "mw_area", "mw_tuned", "mw_area@eta", "mw_tuned@eta"]
+TREATMENTS = ["program", "peaceman", "area", "tuned", "mw_point", "mw_ring", "mw_area", "mw_tuned", "mw_area@eta", "mw_tuned@eta", "mw_disc@eta"]
 
 
 def run(model, tr, cell, fill):
@@ -48,14 +48,14 @@ def sweep(model):
     """!
     @brief Gain against a fine series of cells (21 mm divided into n cells) for the program and the recommended treatment: does the treatment change smoothly across the regimes?
     @param model fvm or fdm.
-    @return list of (cell mm, program gain, mean-coupling area gain, mean-coupling tuned gain).
+    @return list of (cell mm, program gain, mean-coupling area gain, mean-coupling centred-disc gain).
     """
     rows = []
     for n in (21, 28, 35, 42, 56, 70, 84, 105, 126, 168, 210, 252, 336):
         c = 21.0 / n
-        g = [run(model, tr, c, 385.0) - run(model, tr, c, 0.0) for tr in ("program", "mw_area@eta", "mw_tuned@eta")]
+        g = [run(model, tr, c, 385.0) - run(model, tr, c, 0.0) for tr in ("program", "mw_area@eta", "mw_disc@eta")]
         rows.append((c, g[0], g[1], g[2]))
-        print(f"* {c:.4f} mm: program {g[0]:+.2f}, mw_area@eta {g[1]:+.2f}, mw_tuned@eta {g[2]:+.2f}", flush=True)
+        print(f"* {c:.4f} mm: program {g[0]:+.2f}, mw_area@eta {g[1]:+.2f}, mw_disc@eta {g[2]:+.2f}", flush=True)
     return rows
 
 
