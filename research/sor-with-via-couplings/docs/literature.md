@@ -1,0 +1,3 @@
+# Literature status
+
+Entries are in `research/theory/BIBLIOGRAPHY.md` section 16. Read: Saad (2003), sections 3.3, 4.1, 4.2, 10.2 (open copy of the author); OPM Flow (arXiv:1910.06059), well Schur complement. Search summary only: the CPR preconditioner with wells (Nilsen and others, 2023). Not obtained: Young (1971), Varga (1962), Wallis (SPE 12265, 1985), Zhou, Jiang and Tchelepi (2013). From memory: Golub and Van Loan (Sherman-Morrison-Woodbury). No published numerical case of SOR with dense couplings was found, so none was reproduced; the closed form of a toy and an independent matrix check (direct solver) take its place.
