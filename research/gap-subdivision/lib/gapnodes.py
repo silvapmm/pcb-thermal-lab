@@ -43,7 +43,7 @@ def run(problem, cell_mm, n, where="all", grading="equal", half_layer=False, mar
     @param problem A Problem.
     @param cell_mm Cell size in mm.
     @param n Sub-gaps per gap (1 = the program).
-    @param where "all", "bare" or "none" (see the module description).
+    @param where "all", "bare", "under" (only the cells with copper in both layers of the gap: a probe) or "none" (see the module description).
     @param grading "equal" or "graded".
     @param half_layer True: add the half-layer laminate path to the vertical conductance and the face correction under the source (no new unknown).
     @param margin Margin of cells around the bare cells for where = "bare" (None: ceil(d / cell) + 1).
@@ -59,6 +59,9 @@ def run(problem, cell_mm, n, where="all", grading="equal", half_layer=False, mar
         return {"peak": r["peak"], "peak_all": r["peak_all"], "unknowns": L * N, "nodes": L}
     if where == "all":
         fl = [np.ones((net.ny, net.nx), dtype=bool) for _ in range(L - 1)]
+    elif where == "under":
+        # Single-effect probe: only the cells where both layers of the gap are copper (the gap under the pad), none of the bare laminate
+        fl = [np.minimum(net.fill[g], net.fill[g + 1]) >= 1.0 - 1e-12 for g in range(L - 1)]
     else:
         fl = []
         for g, d in enumerate(gaps):

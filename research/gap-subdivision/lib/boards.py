@@ -166,3 +166,69 @@ def program_peak(bd, model, cell_mm, p=None):
     p = p or problem(bd)
     res = simulate(p, SolverOptions(models=(model,), cell_mm=cell_mm)).results
     return float(res[model].t_max - p.board.ambient)
+
+
+MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+
+
+def all_models(bd, cell_mm, p=None, models=MODELS):
+    """!
+    @brief Peak rise and energy-balance error of the program's models on a board (unchanged program).
+    @param bd A Board.
+    @param cell_mm Cell size in mm.
+    @param p The Problem (built when None).
+    @param models Model keys to run.
+    @return dict {model: (peak rise in K, balance error)}; (nan, nan) for a model the program refuses (the 3D solid above its size limit).
+    """
+    p = p or problem(bd)
+    out = {}
+    for m in models:
+        try:
+            res = simulate(p, SolverOptions(models=(m,), cell_mm=cell_mm)).results[m]
+            out[m] = (float(res.t_max - p.board.ambient), float(res.balance_error))
+        except ValueError:
+            # The 3D solid refuses a board above MAX_CELLS unknowns
+            out[m] = (float("nan"), float("nan"))
+    return out
+
+
+def graded_peak(bd, cell_mm, scales=(2.0, 1.414, 1.0), p=None):
+    """!
+    @brief Converged peak rise of a board (pads allowed) from the graded 3D solver: three grids, the limit fitted v0 + C s^p.
+    @param bd A Board (square board, centred square source and pads).
+    @param cell_mm Cell size in mm of the model it will be compared with (even number of cells across the board).
+    @param scales Grid scales, decreasing.
+    @param p The Problem (built when None).
+    @return dict with peak (extrapolated K), finest (K at the finest grid), order (fitted p), balance (energy, finest grid), unknowns (finest grid), spread (percent between the finest value and the limit).
+    """
+    import graded_pad3d as gp
+    nb = numbers(p or problem(bd))
+    pads = []
+    for l in range(bd.layers):
+        if l in bd.empty_layers:
+            pads.append(0)
+        elif bd.pad is not None and l in bd.pad_layers:
+            pads.append(bd.pad * 1e-3)
+        else:
+            pads.append(None)
+    vals, last = [], None
+    for sc in scales:
+        last = gp.solve(bd.layers, nb["t_cu"], nb["gaps"], bd.size * 1e-3, bd.source * 1e-3, pads, cell_mm * 1e-3, bd.power, nb["h_top"], nb["h_bottom"], nb["k_cu"],
+                        nb["k_gap_xy"][0], nb["k_gap_z"][0], scale=sc)
+        vals.append(last["peak"])
+    v0, order = gp.extrapolate(list(scales), vals)
+    return {"peak": float(v0), "finest": float(vals[-1]), "order": float(order), "balance": last["balance"], "unknowns": last["unknowns"], "spread": 100.0 * (vals[-1] - v0) / v0}
+
+
+def samecell_peak(bd, cell_mm, nsub=32, p=None):
+    """!
+    @brief Peak rise of the independent resolved 3D solver on the SAME in-plane grid as the model (cell = dx) with the gaps cut into many sub-slabs.
+    @details The difference between a layered model and this number is the through-thickness discretisation alone; the difference between this number and the converged graded solver
+             is the in-plane discretisation of that cell size alone.
+    @param bd A Board.
+    @param cell_mm Cell size in mm (the in-plane cell of both the 3D solver and the model).
+    @param nsub Sub-slabs per gap (32 is converged to 0.01 %).
+    @param p The Problem (built when None).
+    @return Peak rise in K.
+    """
+    return resolved_peak(bd, cell_mm, cell_mm, nsub, p)["peak"]
