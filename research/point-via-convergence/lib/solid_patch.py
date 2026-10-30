@@ -13,6 +13,7 @@
 
 import contextlib
 import inspect
+import math
 import re
 import textwrap
 
@@ -47,8 +48,12 @@ def via_fraction(problem, nx, ny, dx, dy):
             w = vk.disc_weights(v.x, v.y, 0.0, dx, 0.0)
         elif name == "area":
             w = vk.disc_weights(v.x, v.y, rv, dx, 0.0, 16, "area")
+        elif name == "disc_eta":
+            # centred disc enlarged to the radius of the uniform sink density (0.78 r_v); a disc inside one cell stays a point
+            w = vk.disc_target_weights(v.x, v.y, rv, math.exp(-0.25) * rv, dx, 0.0) if math.exp(-0.25) * rv > lattice.R_EQ_EXACT * dx else vk.disc_weights(v.x, v.y, 0.0, dx, 0.0)
         else:
-            w = vk.tuned_weights(v.x, v.y, rv, dx, 0.0)
+            r_t = rv * (math.exp(-0.25) if name == "tuned_eta" else 1.0)
+            w = vk.tuned_weights(v.x, v.y, r_t, dx, 0.0)
             if w is None:
                 w = vk.disc_weights(v.x, v.y, 0.0, dx, 0.0)
         for (i, j), x in w.items():
@@ -61,7 +66,7 @@ def via_fraction(problem, nx, ny, dx, dy):
 def patched(name="point"):
     """!
     @brief Install a copy of the 3D solid constructor with a footprint rule for the vias; restore the original on exit.
-    @param name point, area or tuned.
+    @param name point, area, tuned, tuned_eta or disc_eta.
     @return Context manager.
     """
     from pcbthermal import solid3d

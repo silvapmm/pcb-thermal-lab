@@ -160,9 +160,9 @@ def fig09():
     axs = np.atleast_1d(axs)
     for ax, d in zip(axs, data):
         for tr, row in d["rows"].items():
-            if tr not in COL:
+            if tr not in ("program", "area", "peaceman", "mw_tuned", "mw_area@eta", "mw_disc@eta"):
                 continue
-            ax.plot(d["cells"], [g for _, g in row], "o-", color=COL[tr], label=LAB[tr], markersize=3.5, linewidth=1.2, alpha=1.0 if tr in ("program", "mw_tuned@eta") else 0.6)
+            ax.plot(d["cells"], [g for _, g in row], "o-", color=COL[tr], label=LAB[tr], markersize=3.5, linewidth=1.2, alpha=1.0 if tr in ("program", "mw_disc@eta") else 0.65)
         for k, v in d["ref"].items():
             if k.startswith("3d"):
                 ax.axhline(v[1], color="k", linestyle="--", linewidth=0.8)
@@ -223,6 +223,8 @@ def fig11():
     axs = np.atleast_1d(axs)
     for ax, d in zip(axs, data):
         for tr, row in d["rows"].items():
+            if tr in ("mw_tuned@eta", "mw_tuned"):
+                continue
             ax.plot(d["cells"], [g for _, g in row], "o-", color=COL.get(tr, "k"), label=LAB.get(tr, tr), markersize=3.5)
         ax.set_xscale("log")
         ax.invert_xaxis()
@@ -261,13 +263,47 @@ def fig12():
     plt.close(fig)
 
 
+def fig13():
+    """!
+    @brief The 3D solid: copper-fill gain of the 3 x 3 board against the cell for the footprint rules (parsed from the table printed by study_solid3d.py).
+    @return None.
+    """
+    p = DATA / "solid3d.txt"
+    if not p.exists():
+        return
+    lines = p.read_text().splitlines()
+    head = [l for l in lines if l.startswith("| rule") and "mm" in l][0]
+    cells = [float(c.strip().split()[0]) for c in head.strip("|").split("|")[1:]]
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    names = {"program": "program (point if it fits the cell, disc if not)", "point": "always the cell of the centre", "area": "area of the disc", "tuned": "tuned, r = r_v",
+             "tuned_eta": "tuned, r = 0.78 r_v", "disc_eta": "centred disc, r = 0.78 r_v"}
+    cols = {"program": "#d62728", "point": "#8c564b", "area": "#2ca02c", "tuned": "#7f7f7f", "tuned_eta": "#1f77b4", "disc_eta": "#e377c2"}
+    for l in lines:
+        parts = [x.strip() for x in l.strip("|").split("|")]
+        if parts[0] in names and len(parts) == len(cells) + 1 and "/" in parts[1] and parts[0] in cols and "program" not in lines[lines.index(l) - 1][:0]:
+            ys = [float(x.split("/")[1]) for x in parts[1:]]
+            if len(set(parts[1:])) and l in lines[:lines.index([m for m in lines if m.startswith("## 2")][0])]:
+                ax.plot(cells, ys, "o-", color=cols[parts[0]], label=names[parts[0]], markersize=3.5)
+    ax.axhline(-4.5, color="k", linestyle=":", linewidth=0.8)
+    ax.set_xscale("log")
+    ax.invert_xaxis()
+    ax.set_xlabel("cell (mm)")
+    ax.set_ylabel("copper-fill gain (K)")
+    ax.set_ylim(-6, -0.5)
+    ax.set_title("3D solid of the program, 3 x 3 via-array board (dotted: reference -4.5 K)", fontsize=9)
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_13_solid3d_gain_against_cell.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Draw every data figure whose input exists.
     @return None.
     """
     OUT.mkdir(exist_ok=True)
-    for f in (fig06, fig07, fig08, fig09, fig10, fig11, fig12):
+    for f in (fig06, fig07, fig08, fig09, fig10, fig11, fig12, fig13):
         f()
     print("written", sorted(p.name for p in OUT.glob("fig_*.png")))
 

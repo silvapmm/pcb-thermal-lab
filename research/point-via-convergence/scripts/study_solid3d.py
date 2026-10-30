@@ -31,8 +31,8 @@ def shifted_board(fill, shift_mm):
     """
     p = pc.array_board(fill)
     for v in p.vias:
-        v.x += shift_mm
-        v.y += shift_mm
+        v.x += shift_mm * 1e-3                                                  # coordinates are in metres
+        v.y += shift_mm * 1e-3
     return p
 
 
@@ -64,17 +64,17 @@ def main():
     ap.add_argument("--fine", action="store_true")
     args = ap.parse_args()
     pc.load_libraries()
-    cells = [1.0, 0.5, 0.25] + ([0.125] if args.fine else [])
+    cells = [1.0, 0.5, 0.25, 21.0 / 126] + ([0.125] if args.fine else [])
     print("## 1. 3D solid of the program, 3 x 3 array board: open rise / copper-fill gain (K)\n")
     with solid3d.size_limit(2_000_000):
         print("| rule | " + " | ".join(f"{c} mm" for c in cells) + " |")
         print("| :-- |" + " --: |" * len(cells))
-        for tr in ("program", "point", "area", "tuned"):
+        for tr in ("program", "point", "area", "tuned", "tuned_eta", "disc_eta"):
             print(f"| {tr} | " + " | ".join("{:.2f} / {:+.2f}".format(*gain(c, tr)) for c in cells) + " |", flush=True)
         print("\n## 2. Via array shifted inside the cells (0.5 mm cells; shift in mm): open / gain\n")
         print("| rule | " + " | ".join(f"{s}" for s in (0.0, 0.125, 0.25, 0.375)) + " |")
         print("| :-- |" + " --: |" * 4)
-        for tr in ("program", "area", "tuned"):
+        for tr in ("program", "area", "tuned_eta", "disc_eta"):
             print(f"| {tr} | " + " | ".join("{:.2f} / {:+.2f}".format(*gain(0.5, tr, s)) for s in (0.0, 0.125, 0.25, 0.375)) + " |", flush=True)
 
 
