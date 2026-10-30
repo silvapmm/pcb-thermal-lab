@@ -50,11 +50,11 @@ def run(problem, net, treatment, gaps, kz, kxy):
     tcu = [float(x) for x in problem.board.copper_thickness] if treatment.get("vert") or kind == "vert" else None
     if kind == "none":
         r = LY.solve(net, gaps, kz, kxy, [None] * (L - 1), [None] * (L - 1))
-        return {"peak": r["peak"], "unknowns": L * N, "flagged": [0] * (L - 1)}
+        return {"peak": r["peak"], "peak_all": r["peak_all"], "unknowns": L * N, "flagged": [0] * (L - 1)}
     if kind == "vert":
         # Only the vertical path across the copper-free part of a layer is corrected: no new unknown
         r = LY.solve(net, gaps, kz, kxy, [None] * (L - 1), [None] * (L - 1), tcu=tcu)
-        return {"peak": r["peak"], "unknowns": L * N, "flagged": [0] * (L - 1)}
+        return {"peak": r["peak"], "peak_all": r["peak_all"], "unknowns": L * N, "flagged": [0] * (L - 1)}
     fl = flags_for(net, gaps, treatment.get("margin"))
     if kind == "nodes":
         n = treatment["n"]
@@ -62,10 +62,10 @@ def run(problem, net, treatment, gaps, kz, kxy):
         parts = [np.full(n, d / n) if f.any() else None for d, f in zip(gaps, fl)]
         r = LY.solve(net, gaps, kz, kxy, parts, fl, tcu=tcu)
         extra = sum((n - 1) * int(f.sum()) for f in fl)
-        return {"peak": r["peak"], "unknowns": L * N + extra, "flagged": [int(f.sum()) for f in fl]}
+        return {"peak": r["peak"], "peak_all": r["peak_all"], "unknowns": L * N + extra, "flagged": [int(f.sum()) for f in fl]}
     if kind == "skin":
         a = treatment["alpha"]
         flb = [LY.flag_bare(np.minimum(net.fill[g], net.fill[g + 1]), 1.0, 0) for g in range(L - 1)]
         r = LY.solve(net, gaps, kz, kxy, [None] * (L - 1), flb, skin=[a * d for d in gaps])
-        return {"peak": r["peak"], "unknowns": L * N, "flagged": [int(f.sum()) for f in flb]}
+        return {"peak": r["peak"], "peak_all": r["peak_all"], "unknowns": L * N, "flagged": [int(f.sum()) for f in flb]}
     raise ValueError(kind)

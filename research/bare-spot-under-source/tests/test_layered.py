@@ -80,3 +80,36 @@ def test_more_nodes_warm_a_bare_window_towards_the_reference():
     assert peaks[0] < peaks[1] < peaks[2]
     ref = C.reference(case, 0.25, 8, p)["max"]
     assert abs(peaks[2] - ref) < abs(peaks[0] - ref)
+
+
+def test_vertical_correction_is_local_and_helps_thin_gaps():
+    """!
+    @brief The vertical correction leaves a full-copper board untouched and moves a bare window of a thin-gap board towards the resolved reference (to under 1 %).
+    @return None.
+    """
+    full = C.Case("f", layers=4, stack="template", size=12.0, part=4.0)
+    p, net, gaps, kz, kxy = _setup(full, 1.0)
+    assert TR.run(p, net, {"kind": "vert"}, gaps, kz, kxy)["peak"] == TR.run(p, net, {"kind": "none"}, gaps, kz, kxy)["peak"]
+    case = C.Case("w", layers=4, stack="template", size=12.0, part=4.0, window=C.centred_window(4, 12.0))
+    p, net, gaps, kz, kxy = _setup(case, 0.5)
+    ref = C.reference(case, 0.25, 8, p)["max"]
+    e0 = abs(TR.run(p, net, {"kind": "none"}, gaps, kz, kxy)["peak"] / ref - 1)
+    e1 = abs(TR.run(p, net, {"kind": "vert"}, gaps, kz, kxy)["peak"] / ref - 1)
+    assert e1 < e0 and e1 < 0.01
+
+
+def test_via_barrels_survive_the_refinement():
+    """!
+    @brief A board with a via and a window: refining the gap keeps the barrel as a parallel path (the peak with a via is lower than without).
+    @return None.
+    """
+    case = C.Case("v", layers=2, size=12.0, part=4.0, window=C.centred_window(4, 12.0))
+    p = C.problem(case)
+    q = C.problem(case)
+    p.add_via(6.0, 6.0, 0.4)
+    peaks = []
+    for prob in (q, p):
+        net = LY.network(prob, 0.5)
+        gaps, kz, kxy = LY.gap_data(prob)
+        peaks.append(TR.run(prob, net, {"kind": "nodes", "n": 3, "vert": True}, gaps, kz, kxy)["peak"])
+    assert peaks[1] < peaks[0] - 0.5

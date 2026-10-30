@@ -87,6 +87,7 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
     S = [net.S[l].copy() for l in range(L)]
     Q = [net.Q[l].copy() for l in range(L)]
     G = [net.g_amb[l].copy() for l in range(L)]
+    vias = []                                                     # (gap, conductance array) of the barrels of vias in refined gaps
     chain = []                                                    # per gap: list of (S, link conductance arrays between consecutive nodes)
     gap_nodes = []
     for g in range(L - 1):
@@ -96,7 +97,8 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
         else:
             ta = tb = np.zeros((ny, nx))
         tadd = ta + tb
-        gz_g = np.where(tadd > 0, kz[g] * cell / (gaps[g] + tadd), net.gz[g])
+        via_g = np.maximum(net.gz[g] - kz[g] * cell / gaps[g], 0.0)         # the barrels of vias: parallel to the whole gap, between the two copper nodes
+        gz_g = np.where(tadd > 0, kz[g] * cell / (gaps[g] + tadd) + via_g, net.gz[g])
         if parts[g] is None or len(parts[g]) < 2:
             gap_nodes.append(None)
             chain.append([gz_g])
@@ -116,6 +118,7 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
         sub[0] += ta                                                # the added path goes to the outer sub-gaps (the node sits at mid-thickness of its layer)
         sub[-1] += tb
         links = [kz[g] * cell / sub[i] for i in range(m)]
+        vias.append((g, via_g))
         # Lateral conduction: copper nodes give up the laminate that moves to the new nodes (refined cells only)
         S[g] = S[g] - np.where(fl, kxy[g] * (d / 2 - s[0] / 2) * net.cover, 0.0)
         S[g + 1] = S[g + 1] - np.where(fl, kxy[g] * (d / 2 - s[-1] / 2) * net.cover, 0.0)
@@ -165,13 +168,23 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
         seq = [pos[("L", g, None)]] + ([pos[("G", g, j)] for j in range(len(gap_nodes[g]))] if gap_nodes[g] is not None else []) + [pos[("L", g + 1, None)]]
         for a, b, lk in zip(seq[:-1], seq[1:], chain[g]):
             couple(idx[a], idx[b], lk)
+    for g, v in vias:
+        couple(idx[pos[("L", g, None)]], idx[pos[("L", g + 1, None)]], v)
     diag = np.stack(Gn).ravel()
     rows.append(np.arange(nn * ny * nx))
     cols.append(np.arange(nn * ny * nx))
     vals.append(diag)
     K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(nn * ny * nx,) * 2).tocsc()
     th = spla.spsolve(K, np.stack(Qn).ravel()).reshape(nn, ny, nx)
-    return {"T": th, "top": th[pos[("L", 0, None)]], "peak": float(th[pos[("L", 0, None)]].max()), "nodes": nn, "unknowns": nn * ny * nx}
+    top = th[pos[("L", 0, None)]]
+    peak_node = float(top.max())
+    if tcu is not None:
+        # The heat is injected at the node, mid-thickness of the top layer, but the part sits on the face: where the copper is absent half the layer thickness of laminate lies between
+        dq = Q[0] * (1.0 - net.fill[0]) * tcu[0] / 2 / (kz[0] * cell)
+        top = top + dq
+    base = [th[pos[("L", l, None)]] for l in range(L)]
+    peak_all = max(float(top.max()), max(float(b.max()) for b in base[1:]) if L > 1 else 0.0)
+    return {"T": th, "top": top, "peak": float(top.max()), "peak_all": peak_all, "peak_node": peak_node, "nodes": nn, "unknowns": nn * ny * nx}
 
 
 def network(problem, cell_mm):
