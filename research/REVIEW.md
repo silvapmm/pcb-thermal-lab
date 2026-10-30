@@ -13,6 +13,7 @@ What the independent `reviewer` agent has checked in each folder, so that a late
 | `component-heatsink/` | reviewed | `1674d52` | top-path loop: corrected in the program |
 | `power-calculator/` | reviewed | `6eb9adf` | none; the band does not hold the true power for a drawing error (D4) |
 | `via-fill/` | reviewed | `6eb9adf` | open: the point via does not converge with the cell (A5); the 3D solid clips a via larger than its cell; the tooltip says "finished hole" while the model uses the drill; Lumped and Analytic overstate vias (A6) |
+| `point-via-convergence/` | written, not reviewed | `3d672f1` (develop at 2.4.4) | open: the reviewer has not checked it; the lattice constant, the references and every table of README 4 and 6 are to be re-run; decisions in `INTEGRATION.md` (target radius, SOR, Lumped `gz_via`, 3D rule) |
 | `theory/` | reviewed | `3e90a7f` | open: `Heater.top_resistance()` uses `theta`, `analysis.part_split` uses `junction_theta()` |
 | `gerber-import/` | reviewed | `a6f822b` | none in the program (no model involved) |
 | `gerber-models/` | reviewed | `a6f822b` | open: zones combined by the maximum per cell (-8.2 % FVM, -19.1 % FDM on abutting strips); two laminate nodes 5.5 to 13.6 % cool on patterned copper (A11); the laminate of a one-layer board in the 3D solid is corrected |

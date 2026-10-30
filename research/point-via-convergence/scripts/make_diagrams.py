@@ -5,7 +5,9 @@
 @brief Drawings of the situation of the point via: the section of a via with the heat entering each plane, the via on grids of different cell, the Peaceman well, the footprint of
        a via on the cells, and the network of the mean-potential coupling.
 @details Figures 01 to 05 of figures/ (the data figures 06 and later are drawn by make_figures.py). Only the lattice kernel of lib/lattice.py is computed (for the footprint maps);
-         no study is run. Usage: python research/point-via-convergence/scripts/make_diagrams.py   (from the repository root).
+         no study is run.
+         Files: fig_01_via_section_and_flux.png, fig_02_via_on_the_cell_grid.png, fig_03_peaceman_well.png, fig_04_footprint_of_the_barrel.png, fig_05_mean_potential_coupling.png.
+         Usage: python research/point-via-convergence/scripts/make_diagrams.py   (from the repository root).
 """
 
 import math

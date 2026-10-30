@@ -6,6 +6,8 @@
 @details fig_06: the potential kernel of the stencil and the equivalent radius; fig_07: effective radius of a footprint against the cell; fig_08: unit-cell via effect error against
          the cell; fig_09: copper-fill gain of the 3 x 3 board against the cell; fig_10: the same on a fine series of cells; fig_11: the example board; fig_12: lone via and row;
          fig_13: the 3D solid. A figure whose input file is missing is skipped. Run the studies first (each study script says how long it takes).
+Files: fig_06_lattice_equivalent_radius.png, fig_07_effective_radius_of_footprints.png, fig_08_unit_cell_error_against_cell.png, fig_09_array_board_gain_against_cell.png,
+         fig_10_array_board_fine_sweep.png, fig_11_example_board_gain_against_cell.png, fig_12_lone_via_and_row.png, fig_13_solid3d_gain_against_cell.png.
 Usage: python research/point-via-convergence/scripts/make_figures.py   (from the repository root)
 """
 
