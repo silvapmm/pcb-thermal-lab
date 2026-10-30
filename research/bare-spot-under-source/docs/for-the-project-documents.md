@@ -16,7 +16,7 @@ A board with copper under the part (fill 1 in the hottest cell) is not affected 
 
 ## For `docs/validation.md`
 
-New section "A part over a window without copper": the sweep of `README` 3 (four stack-ups, windows 0 to 20 mm, cells 1 and 0.5 mm, five models against the resolved reference), the table of the treatments of `README` 6 and the rows of `README` 7. The reference of the sweeps is 0.3 to 2.1 % above the converged value (`README` 2.2 and 9); quote the converged values of `README` 9 where they exist.
+New section "A part over a window without copper": the sweep of `README` 3 (four stack-ups, windows 0 to 20 mm, cells 1 and 0.5 mm, five models against the resolved reference), the table of the treatments of `README` 6 and the rows of `README` 7. The reference of the sweeps is 0.3 to 2.2 % above the converged value (`README` 2.2 and 9); quote the converged values of `README` 9 where they exist.
 
 ## For `docs/versions.md`, chapter "Planned"
 
