@@ -512,3 +512,32 @@ Lasance (Philips), the board models of Lasance and Vinke, and the "pattern conti
 
 ### Own computations (status L)
 `research/bare-spot-under-source/lib/resolved3d.py` (the resolved 3D reference), `layered.py` (the layered FVM with refined gaps), the sweeps of `scripts/` and their numbers (README sections 2 to 7).
+
+## 16. Sources of `research/sor-with-via-couplings/` (SOR with the dense via couplings)
+
+### [Saad2003]
+Y. Saad, *Iterative Methods for Sparse Linear Systems*, 2nd edition, SIAM, 2003, open copy at https://www-users.cse.umn.edu/~saad/IterMethBook_2ndEd.pdf (567 PDF pages; printed page = PDF page - 20). **Status R for the parts used** (extracted to text locally, nothing stored in the repository): section 3.3 (greedy multicolouring, Algorithm 3.6, p. 90-91), section 4.1 (SOR and SSOR, p. 108; block relaxation and Algorithm 4.2, p. 112), section 4.2 (regular splittings and M-matrices, p. 118-119; Theorem 4.9 diagonal dominance, p. 121; Theorem 4.10, SOR converges for 0 < omega < 2 if and only if A is symmetric positive definite, p. 122; Theorem 4.16 of Young, the relation between the SOR and Jacobi eigenvalues for consistently ordered matrices, (lambda + omega - 1)^2 = lambda omega^2 mu^2, p. 126), the notes of chapter 4 (relaxation methods are now mostly used as preconditioners, p. 132), section 10.2 (the SSOR preconditioner M = (D - omega E) D^-1 (D - omega F), omega = 1 gives symmetric Gauss-Seidel, p. 299). **Not read**: chapters 11 to 14 (parallel methods, domain decomposition, block Gaussian elimination 14.2.1). Used by the topics of this folder only.
+
+### [Young1971]
+D. M. Young, *Iterative Solution of Large Linear Systems*, Academic Press, 1971 (the theory of consistent orderings and the optimal omega). **Status N**: not obtained (a book); its Theorem on consistent orderings is known here only through [Saad2003] Theorem 4.16.
+
+### [Varga1962]
+R. S. Varga, *Matrix Iterative Analysis*, Prentice-Hall, 1962 (M-matrices, regular splittings). **Status N**: not obtained; cited by [Saad2003] (notes of chapter 4).
+
+### [GolubVanLoan]
+G. H. Golub, C. F. Van Loan, *Matrix Computations* (Sherman-Morrison-Woodbury formula, block Gauss-Seidel). **Status M**: the formula used in `lib/sorvia.py` (`woodbury`) is the push-through form of the identity, checked numerically in the tests of the folder, not read from the book.
+
+### [OPMFlow2019]
+A. F. Rasmussen and others, *The Open Porous Media Flow reservoir simulator*, arXiv:1910.06059 (Computers and Mathematics with Applications 81, 2021). **Status R for section 2.2 and 2.3 only** (PDF pages 12-13, equations 25 and 26 and Figure 6): the well equations are added to the global system by a Schur complement, (A - sum_w C_w D_w^-1 B_w) x_r = R_r - sum_w C_w D_w^-1 R_w, x_w = D_w^-1 (R_w - B_w x_r); the rest of the paper was not read.
+
+### [Wallis1983]
+J. R. Wallis, *Incomplete Gaussian elimination as a preconditioning for generalized conjugate gradient acceleration*, SPE 12265 (1983), and Wallis, Kendall, Little, SPE 13536 (1985) (the constrained pressure residual, CPR, preconditioner; the SPE number of the second paper is as a search summary gave it). **Status N**: paywalled and not opened; known through search summaries only, which credit the 1983 paper with the origin of CPR.
+
+### [Nilsen2023]
+H. M. Nilsen and others, *Constrained pressure residual preconditioner including wells for reservoir simulation*, SPE Reservoir Simulation Conference (2023) (the authors and the title as a catalogue record and a search summary gave them). **Status S**: a search summary: wells enter only through a Schur complement, without explicit fill-in, and the pressure system is extended to include the well-reservoir coupling; the paper was not opened.
+
+### [ZhouJiangTchelepi2013]
+Y. Zhou, Y. Jiang, H. A. Tchelepi, *A scalable multistage linear solver for reservoir models with multisegment wells*, Computational Geosciences 17 (2013). **Status N**: named by a search result, not opened.
+
+### [Peaceman1978] used here
+The Peaceman well of the via treatment is the one of section 7 of this file (status S); this folder does not rely on its text.
