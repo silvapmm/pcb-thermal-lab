@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "lib"))
 import harness as hz                                                         # noqa: E402
 import program_cases as pc                                                   # noqa: E402
 
-NAMES = ["FVM", "FVM_fix", "L_prog", "L_ring", "L_grp", "A_prog", "A_on", "A_bil"]
+NAMES = ["FVM", "FVM_fix", "L_prog", "L_ring", "L_grp0", "L_grp", "A_prog", "A_on", "A_bil", "A_fin"]
 
 
 def run_case(task):

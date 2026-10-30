@@ -143,9 +143,9 @@ def part3():
     @return None.
     """
     print("\n## 3. Neighbours: a n x n cluster at 1 mm pitch in an 8 mm cell (error of the via effect, percent)\n")
-    print("| layers | fill | n | E_ref K | L_prog | L_ring (cell of the ring) | L_nn (micro cell only) | L_grp (micro + cluster) | A_prog | A_on | A_bil |")
-    print("| --: | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: |")
-    names = ["L_prog", "L_ring", "L_nn", "L_grp", "A_prog", "A_on", "A_bil"]
+    print("| layers | fill | n | E_ref K | L_prog | L_ring (cell of the ring) | L_nn (micro cell only) | L_grp0 (micro + cluster) | L_grp (+ cap 0.75 fin length) | A_prog | A_on | A_bil | A_fin |")
+    print("| --: | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |")
+    names = ["L_prog", "L_ring", "L_nn", "L_grp0", "L_grp", "A_prog", "A_on", "A_bil", "A_fin"]
     for layers in (2, 4):
         for fill in (0.0, 385.0):
             for n in (1, 2, 3, 4):

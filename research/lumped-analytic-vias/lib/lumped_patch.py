@@ -36,7 +36,7 @@ sys.path.insert(0, HERE)
 
 import constriction as cr                                                   # noqa: E402
 
-OPTIONS = {"mode": "off", "eta": cr.ETA, "c3": 0.75, "cell": "ring", "cap_lambda": 1.0, "cluster": False, "scale": 1.0, "macro_scale": 1.0, "peak": False}
+OPTIONS = {"mode": "off", "eta": cr.ETA, "c3": 0.75, "cell": "ring", "cap_lambda": 1.0, "cluster": False, "scale": 1.0, "macro_scale": 1.0, "peak": False, "macro_cap": 0.0}
 ACL0 = [0.0]                                                                # area covered by the cells of the vias of ring 0
 GZVIA = {}                                                                  # barrel-only couplings of the last network built, for the peak term
 PROBLEM = {"p": None}                                                       # the Problem being solved (the network does not keep the vias)
@@ -141,6 +141,8 @@ def _via_couplings(net, cov, idx, R, cnt, ring_sum, S, g_top, g_bot, gz, nb):
                     lam_cap = OPTIONS["cap_lambda"] * float(np.sqrt(s_l / g_loss))
                     rc_cell = min(r_cell, lam_cap)
                     rc_macro = min(r_macro, lam_cap)
+                if OPTIONS["macro_cap"] > 0 and g_loss > 0:
+                    rc_macro = min(rc_macro, OPTIONS["macro_cap"] * float(np.sqrt(s_l / g_loss)))   # the cluster draws heat only from within a few fin lengths of the sheet
                 if mode == "log":
                     rc = max(np.log(rc_cell / a) - OPTIONS["c3"], 0.0) / (2.0 * np.pi * s_l) if rc_cell > a else 0.0
                 elif mode == "bessel" and g_loss > 0 and rc_cell > a:
@@ -247,7 +249,7 @@ def _compile_heater_network():
 
 
 @contextlib.contextmanager
-def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, cluster=False, scale=1.0, macro_scale=1.0, peak=False):
+def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, cluster=False, scale=1.0, macro_scale=1.0, peak=False, macro_cap=0.0):
     """!
     @brief Install the Lumped model with the constriction of the vias; restore the original on exit.
     @param mode "off", "krogh", "log" or "bessel" (see the module header).
@@ -255,6 +257,7 @@ def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, clus
     @param c3 Constant of the "log" mode.
     @param cell "ring" or "cap".
     @param cap_lambda Cap of the cell radius in fin lengths ("cap" and "nn").
+    @param macro_cap Cap of the macro radius in fin lengths of the sheet (0 = none).
     @param peak True: add to the lateral heat of the peak term the heat that the source layer sends into the barrels under the footprint.
     @param macro_scale Factor on the cluster (macro) constriction only (study knob).
     @param scale Factor on every constriction resistance (study knob).
@@ -265,7 +268,7 @@ def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, clus
     old_net = lumped._heater_network
     old_solve = lumped.solve_steady
     old_opts = dict(OPTIONS)
-    OPTIONS.update(mode=mode, eta=eta, c3=c3, cell=cell, cap_lambda=cap_lambda, cluster=cluster, scale=scale, macro_scale=macro_scale, peak=peak)
+    OPTIONS.update(mode=mode, eta=eta, c3=c3, cell=cell, cap_lambda=cap_lambda, cluster=cluster, scale=scale, macro_scale=macro_scale, peak=peak, macro_cap=macro_cap)
     try:
         lumped._heater_network = _compile_heater_network()
 

@@ -36,7 +36,7 @@ sys.path.insert(0, HERE)
 
 import constriction as cr                                                   # noqa: E402
 
-OPTIONS = {"mode": "off", "eta": cr.ETA, "spread": "none", "c": 0.25, "iso": 0.7, "dscale": 1.0, "mscale": 1.0}
+OPTIONS = {"mode": "off", "eta": cr.ETA, "spread": "none", "c": 0.25, "iso": 0.7, "dscale": 1.0, "mscale": 1.0, "tile_k": 0.0, "tile_min": 1.0}
 NN = {}                                                                     # id(via) -> nearest-neighbour distance of the problem being solved
 
 
@@ -167,6 +167,31 @@ def _self_terms(G, active, tw, th, S, L, problem):
     return G
 
 
+def _tile_grid_vias(W, H, lam, problem):
+    """!
+    @brief Tile grid of the patched model: the program's rule, refined to `tile_k` times the median nearest-neighbour distance of the vias when that is smaller (never below `tile_min` mm).
+    @param W Board width in m.
+    @param H Board height in m.
+    @param lam Fin length in m.
+    @param problem The Problem.
+    @return Tuple (ntx, nty, tw, th) as the program's `_tile_grid`.
+    """
+    from pcbthermal import analytic
+    ntx, nty, tw, th = analytic._tile_grid_program(W, H, lam)
+    if OPTIONS["tile_k"] <= 0 or len(problem.vias) < 2:
+        return ntx, nty, tw, th
+    d = np.array(list(_nn_distances(problem)[id(v)] for v in problem.vias))
+    d = d[np.isfinite(d)]
+    if len(d) == 0:
+        return ntx, nty, tw, th
+    t = max(OPTIONS["tile_min"] * 1e-3, OPTIONS["tile_k"] * float(np.median(d)))
+    if t >= min(tw, th):
+        return ntx, nty, tw, th
+    ntx, nty = max(int(np.ceil(W / t - 1e-9)), 1), max(int(np.ceil(H / t - 1e-9)), 1)
+    return ntx, nty, W / ntx, H / nty
+
+
+_TILE_LINE = "ntx, nty, tw, th = _tile_grid(W, H, lam)"
 _VIA_LINE = "c_via[bb, a] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel"
 _ANCHOR = "G = Gm.reshape(Nt * L, Nt * L)"
 
@@ -185,6 +210,9 @@ def _compile_solver():
     indent = src[src.rfind("\n", 0, k) + 1:k]
     end = src.find("\n", k) + 1
     src = src[:end] + indent + "G = _self_terms(G, active, tw, th, S, L, problem)\n" + src[end:]
+    if _TILE_LINE not in src:
+        raise RuntimeError("tile line not found in analytic.solve_steady")
+    src = src.replace(_TILE_LINE, "ntx, nty, tw, th = _tile_grid_vias(W, H, lam, problem)", 1)
     k = src.find(_VIA_LINE)
     if k < 0:
         raise RuntimeError("via line not found in analytic.solve_steady")
@@ -193,24 +221,28 @@ def _compile_solver():
     exec(compile(src, "<patched analytic.solve_steady>", "exec"), analytic.__dict__, ns)
     analytic._self_terms = _self_terms
     analytic._spread_via = _spread_via
+    analytic._tile_grid_vias = _tile_grid_vias
+    analytic._tile_grid_program = analytic.__dict__.get('_tile_grid_program', analytic._tile_grid)
     return ns["solve_steady"]
 
 
 @contextlib.contextmanager
-def patched(mode="on", eta=cr.ETA, spread="none", c=0.25, iso=0.7, dscale=1.0, mscale=1.0):
+def patched(mode="on", eta=cr.ETA, spread="none", c=0.25, iso=0.7, dscale=1.0, mscale=1.0, tile_k=0.0, tile_min=1.0):
     """!
     @brief Install the Analytic steady solution with the self-terms of the vias; restore the original on exit.
     @param mode "off", "on", "krogh" or "log".
     @param eta r_t / r_v.
     @param spread "none" (the tile that holds the centre) or "bilinear".
     @param c Constant of the "log" mode.
+    @param tile_k Refine the tiles to this many times the median nearest-neighbour distance of the vias (0 keeps the program's tiles).
+    @param tile_min Smallest tile in mm of the refinement.
     @param iso A via is spread only if its nearest neighbour is at least this many tile sizes away.
     @return Context manager.
     """
     from pcbthermal import analytic
     old = analytic.solve_steady
     old_opts = dict(OPTIONS)
-    OPTIONS.update(mode=mode, eta=eta, spread=spread, c=c, iso=iso, dscale=dscale, mscale=mscale)
+    OPTIONS.update(mode=mode, eta=eta, spread=spread, c=c, iso=iso, dscale=dscale, mscale=mscale, tile_k=tile_k, tile_min=tile_min)
     NN.clear()
     try:
         analytic.solve_steady = _compile_solver()
@@ -219,6 +251,6 @@ def patched(mode="on", eta=cr.ETA, spread="none", c=0.25, iso=0.7, dscale=1.0, m
         analytic.solve_steady = old
         OPTIONS.clear()
         OPTIONS.update(old_opts)
-        for name in ("_self_terms", "_spread_via"):
+        for name in ("_self_terms", "_spread_via", "_tile_grid_vias", "_tile_grid_program"):
             if hasattr(analytic, name):
                 delattr(analytic, name)
