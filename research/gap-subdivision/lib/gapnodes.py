@@ -24,7 +24,7 @@ def parts_for(d, n, grading, ratio=2.0):
     @brief Sub-gap thicknesses of a gap of thickness d cut into n nodes' worth of sub-gaps.
     @param d Gap thickness in m.
     @param n Number of sub-gaps (n = 1 is the program's single link; n sub-gaps give n - 1 laminate nodes inside the gap).
-    @param grading "equal" or "graded" (outer sub-gaps thin, growing by `ratio` towards the middle, mirrored so that both copper faces are resolved).
+    @param grading "equal", "graded" (outer sub-gaps thin, growing by `ratio` towards the middle, mirrored so that both copper faces are resolved) or "top" (thin at the top copper, growing downward by `ratio`).
     @param ratio Growth ratio of a graded gap.
     @return numpy.ndarray of n thicknesses summing to d.
     """
@@ -32,6 +32,10 @@ def parts_for(d, n, grading, ratio=2.0):
         return np.array([d])
     if grading == "equal":
         return np.full(n, d / n)
+    if grading == "top":
+        # One-sided: the thinnest sub-gap touches the top copper (where the edge of a pad feeds the laminate), each next one `ratio` times thicker
+        w = np.array([ratio ** i for i in range(n)], dtype=float)
+        return d * w / w.sum()
     # Symmetric geometric grading: weights r^min(i, n-1-i), normalised to d
     w = np.array([ratio ** min(i, n - 1 - i) for i in range(n)], dtype=float)
     return d * w / w.sum()

@@ -192,13 +192,18 @@ def all_models(bd, cell_mm, p=None, models=MODELS):
     return out
 
 
-def graded_peak(bd, cell_mm, scales=(2.0, 1.414, 1.0), p=None):
+# A lighter grid of lib/graded_pad3d.py for boards of four layers or more (about 5 times fewer unknowns; fitted limit within 0.03 % of the exact series on a uniform board and equal to the fine grid's on pad10-full, README 2.3)
+MEDIUM = dict(hf=0.06e-3, hmax=1.0e-3, g=0.35, hz=10e-6, dzmax=200e-6)
+
+
+def graded_peak(bd, cell_mm, scales=(2.0, 1.414, 1.0), p=None, preset="fine"):
     """!
     @brief Converged peak rise of a board (pads allowed) from the graded 3D solver: three grids, the limit fitted v0 + C s^p.
     @param bd A Board (square board, centred square source and pads).
     @param cell_mm Cell size in mm of the model it will be compared with (even number of cells across the board).
     @param scales Grid scales, decreasing.
     @param p The Problem (built when None).
+    @param preset "fine" (the defaults of graded_pad3d.solve) or "medium" (MEDIUM).
     @return dict with peak (extrapolated K), finest (K at the finest grid), order (fitted p), balance (energy, finest grid), unknowns (finest grid), spread (percent between the finest value and the limit).
     """
     import graded_pad3d as gp
@@ -214,7 +219,7 @@ def graded_peak(bd, cell_mm, scales=(2.0, 1.414, 1.0), p=None):
     vals, last = [], None
     for sc in scales:
         last = gp.solve(bd.layers, nb["t_cu"], nb["gaps"], bd.size * 1e-3, bd.source * 1e-3, pads, cell_mm * 1e-3, bd.power, nb["h_top"], nb["h_bottom"], nb["k_cu"],
-                        nb["k_gap_xy"][0], nb["k_gap_z"][0], scale=sc)
+                        nb["k_gap_xy"][0], nb["k_gap_z"][0], scale=sc, **(MEDIUM if preset == "medium" else {}))
         vals.append(last["peak"])
     v0, order = gp.extrapolate(list(scales), vals)
     return {"peak": float(v0), "finest": float(vals[-1]), "order": float(order), "balance": last["balance"], "unknowns": last["unknowns"], "spread": 100.0 * (vals[-1] - v0) / v0}

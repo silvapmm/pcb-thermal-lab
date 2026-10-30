@@ -54,7 +54,8 @@ def rows():
         for kind in ("empty", "full"):
             out.append(("gap", f"gap{g:g}-{kind}", bottom_cfg(replace(BASE, gap=g), kind), CELL, kind))
     for l in (3, 4, 6, 8):
-        for g in (0.2, 1.6):
+        # A gap of 1.6 mm in a 6 or 8 layer board (11 to 14 mm thick) is not a board, and its fine reference has close to a million unknowns: only 3 and 4 layers get it
+        for g in ((0.2, 1.6) if l <= 4 else (0.2,)):
             out.append(("layers", f"L{l}-gap{g:g}-top-pad", replace(BASE, layers=l, gap=g), CELL, "full"))
         out.append(("layers", f"L{l}-gap0.4-all-pads", bottom_cfg(replace(BASE, layers=l, gap=0.4), "pad"), CELL, "pad"))
     for s in (2.0, 3.0, 6.0, 9.0):
@@ -80,7 +81,8 @@ def _ref(args):
     """
     tag, bd, cell = args
     t = time.time()
-    r = B.graded_peak(bd, cell)
+    # Four layers or more: the medium grid (about 5 times fewer unknowns, same limit to 0.03 %, README 2.3)
+    r = B.graded_peak(bd, cell, preset="medium" if bd.layers >= 4 else "fine")
     r["seconds"] = time.time() - t
     return tag, cell, r
 

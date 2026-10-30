@@ -87,16 +87,18 @@ def part_a():
     @brief Part A: the subdivision on uniform boards (nothing to fix).
     @return None.
     """
-    print("\nA. Uniform boards, error against the exact series (percent), all cells refined, n = 1 2 3 4 6 8 (equal | graded 2:1)")
-    for l in (2, 4, 8):
-        for g in (0.1, 0.4, 1.6):
-            for src, h in ((6.0, 10.0), (2.0, 100.0)):
-                bd = B.Board("u", layers=l, gap=g, source=src, h_top=h, h_bottom=h)
-                p = B.problem(bd)
-                ref = B.exact_peak(bd, CELL, p)
-                eq = [err(G.run(p, CELL, n, "all", "equal")["peak"], ref) for n in NS]
-                gr = [err(G.run(p, CELL, n, "all", "graded")["peak"], ref) for n in NS]
-                print(f"  L{l} gap {g:4.1f} src {src:3.0f} h {h:4.0f}  " + " ".join(f"{x:+6.2f}" for x in eq) + "  |  " + " ".join(f"{x:+6.2f}" for x in gr[1:]))
+    print("\nA. Uniform boards, error against the exact series (percent), every cell refined, n = 1 2 4 8 (equal | graded 2:1 from n = 2)")
+    for l, g in ((2, 1.6), (2, 0.4), (2, 0.1), (4, 0.4), (8, 0.2)):
+        for src, h in ((6.0, 10.0), (2.0, 100.0)):
+            bd = B.Board("u", layers=l, gap=g, source=src, h_top=h, h_bottom=h)
+            p = B.problem(bd)
+            ref = B.exact_peak(bd, CELL, p)
+            ns = (1, 2, 4, 8) if l < 8 else (1, 2, 4)
+            eq = [err(G.run(p, CELL, n, "all", "equal")["peak"], ref) for n in ns]
+            gr = [err(G.run(p, CELL, n, "all", "graded")["peak"], ref) for n in ns[1:]]
+            print(f"  L{l} gap {g:4.1f} src {src:3.0f} h {h:4.0f}  " + " ".join(f"{x:+6.2f}" for x in eq) + "  |  " + " ".join(f"{x:+6.2f}" for x in gr))
+            RECORDS.extend(("A", f"L{l}-gap{g:g}-src{src:g}-h{h:g}", "all-equal", n, round(v, 4), 0.0) for n, v in zip(ns, eq))
+            RECORDS.extend(("A", f"L{l}-gap{g:g}-src{src:g}-h{h:g}", "all-graded", n, round(v, 4), 0.0) for n, v in zip(ns[1:], gr))
 
 
 def pad_boards():
@@ -191,10 +193,13 @@ def part_c(nproc):
             r2 = references([(f"{tag}-kz{kz:g}", b2, CELL)], nproc)[f"{tag}-kz{kz:g}"]["peak"]
             z2 = B.samecell_peak(b2, CELL, 32, p2)
             line(f"(7) k_through {kz:g} W/mK", [both(p2, CELL, r2, z2, n, where="all") for n in NS])
-        for c in (1.0, 0.25):
-            r2 = references([(f"{tag}-cellprobe{c:g}", bd, c)], nproc)[f"{tag}-cellprobe{c:g}"]["peak"]
-            z2 = B.samecell_peak(bd, c, 32, p)
-            line(f"(6) cell {c:g} mm", [both(p, c, r2, z2, n, where="all") for n in NS])
+        # (6) the cell: a 4 mm source (its edge is on a grid line for every cell of the list) on the same pad
+        b4 = replace(bd, source=4.0)
+        p4 = B.problem(b4)
+        for c in (1.0, 0.5, 0.25):
+            r2 = references([(f"{tag}-src4-cell{c:g}", b4, c)], nproc)[f"{tag}-src4-cell{c:g}"]["peak"]
+            z2 = B.samecell_peak(b4, c, 32, p4)
+            line(f"(6) cell {c:g} mm, 4 mm source", [both(p4, c, r2, z2, n, where="all") for n in NS])
 
 
 def part_d():
@@ -213,6 +218,20 @@ def part_d():
             print(f"  where {where:5s} margin {str(margin):4s} n {n}: unknowns {r['unknowns']:7d} ({r['unknowns'] / 7200:.2f} x the program)  {time.time() - t:.2f} s")
 
 
+def write_records():
+    """!
+    @brief Write the records so far to baseline/gap_nodes.csv (after every part, so that a crash keeps what was measured).
+    @return None.
+    """
+    import csv
+    if not RECORDS:
+        return
+    with open(BS.BASELINE / "gap_nodes.csv", "w", newline="") as fh:
+        wr = csv.writer(fh)
+        wr.writerow(["part", "board", "probe", "n", "err_total_pct", "err_z_pct"])
+        wr.writerows(RECORDS)
+
+
 def main(argv):
     """!
     @brief Run the parts named on the command line (all by default).
@@ -220,20 +239,10 @@ def main(argv):
     @return None.
     """
     parts = [a.upper() for a in argv] or ["A", "B", "C", "D"]
-    if "A" in parts:
-        part_a()
-    if "B" in parts:
-        part_b(4)
-    if "C" in parts:
-        part_c(4)
-    if "D" in parts:
-        part_d()
-    if RECORDS:
-        import csv
-        with open(BS.BASELINE / "gap_nodes.csv", "w", newline="") as fh:
-            wr = csv.writer(fh)
-            wr.writerow(["part", "board", "probe", "n", "err_total_pct", "err_z_pct"])
-            wr.writerows(RECORDS)
+    for name, fn in (("A", part_a), ("B", lambda: part_b(4)), ("C", lambda: part_c(4)), ("D", part_d)):
+        if name in parts:
+            fn()
+            write_records()
 
 
 if __name__ == "__main__":
