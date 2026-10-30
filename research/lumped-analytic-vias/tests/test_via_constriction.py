@@ -201,3 +201,21 @@ def test_analytic_fine_tiles_resolve_a_dense_array(libs):
     err = hz.errors(prob, e_ref, 0.5, ["A_prog", "A_fin"])
     assert abs(err["A_fin"]) < 3.0
     assert abs(err["A_prog"]) > abs(err["A_fin"])
+
+
+def test_nearest_neighbour_cache_follows_the_problem(libs):
+    """!
+    @brief The nearest-neighbour cache of the Analytic patch follows the content of the problem, not its id (review regression).
+    @details The first version keyed the cache by id(problem): a via moved on the same object kept its old distances, and a new problem that
+             reused the id of a freed one raised a KeyError (tests/test_stackup.py with the patches installed).
+    @return None.
+    """
+    p = cases.array(4, 3, 3.5, 0.3, 0.0)
+    d0 = ap._nn_distances(p)[ap.vkey(p.vias[0])]
+    assert d0 == pytest.approx(3.5e-3)
+    for v in p.vias:                                                         # the same object, the array squeezed to 1 mm
+        v.x = 10.5e-3 + (v.x - 10.5e-3) / 3.5
+        v.y = 10.5e-3 + (v.y - 10.5e-3) / 3.5
+    assert ap._nn_distances(p)[ap.vkey(p.vias[0])] == pytest.approx(1.0e-3)
+    q = cases.array(4, 3, 2.0, 0.3, 0.0)                                     # another problem: no KeyError, its own distances
+    assert ap._nn_distances(q)[ap.vkey(q.vias[4])] == pytest.approx(2.0e-3)

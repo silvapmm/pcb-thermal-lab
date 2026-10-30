@@ -38,18 +38,40 @@ import constriction as cr                                                   # no
 
 OPTIONS = {"mode": "off", "eta": cr.ETA, "spread": "none", "c": 0.25, "iso": 0.7, "dscale": 1.0, "mscale": 1.0, "tile_k": 0.0, "tile_min": 1.0, "guard": 0.5, "tile_cap": 0.0}
 MAX_ACTIVE = 1200                                                           # most tiles of the system that the refinement may create
-NN = {}                                                                     # id(via) -> nearest-neighbour distance of the problem being solved
+NN = {}                                                                     # vkey(via) -> nearest-neighbour distance of the problem being solved
+
+
+def vkey(v):
+    """!
+    @brief Key of a via in the nearest-neighbour cache: its position (two vias at the same point are the same sink).
+    @param v The via.
+    @return tuple (x, y) in m.
+    """
+    return (float(v.x), float(v.y))
+
+
+def _content_key(problem):
+    """!
+    @brief Content key of the geometry the cache depends on (via positions and heater footprints).
+    @details The first version keyed the cache by id(problem): CPython reuses the id of a freed object, so a new problem could
+             meet the cache of an old one (a KeyError in tests/test_stackup.py with the patches installed, found by the review, or
+             silently stale distances when the via objects were also reallocated at the same addresses).
+    @param problem The Problem.
+    @return tuple Hashable key.
+    """
+    return (tuple(vkey(v) for v in problem.vias), tuple(tuple(map(tuple, h.polygon)) for h in problem.heaters))
 
 
 def _nn_distances(problem):
     """!
-    @brief Nearest-neighbour distance of every via of a problem (cached by the identity of the via objects).
+    @brief Nearest-neighbour distance of every via of a problem and its distance to the nearest heater (cached by the content of the problem).
     @param problem The Problem.
-    @return dict id(via) -> distance in m (inf for a lone via).
+    @return dict vkey(via) -> distance in m (inf for a lone via) and ("heater", vkey(via)) -> distance to the nearest footprint in m.
     """
-    if NN.get("_for") != id(problem):
+    key = _content_key(problem)
+    if NN.get("_for") != key:
         NN.clear()
-        NN["_for"] = id(problem)
+        NN["_for"] = key
         pts = np.array([(v.x, v.y) for v in problem.vias])
         if len(pts) > 1:
             from scipy.spatial import cKDTree
@@ -57,8 +79,8 @@ def _nn_distances(problem):
         else:
             d = np.full(len(pts), np.inf)
         for v, dv in zip(problem.vias, d):
-            NN[id(v)] = float(dv)
-            NN[("heater", id(v))] = _heater_distance(problem, v)
+            NN[vkey(v)] = float(dv)
+            NN[("heater", vkey(v))] = _heater_distance(problem, v)
     return NN
 
 
@@ -128,7 +150,7 @@ def _spread_via(c_via, v, a, bb, tw, th, ntx, nty, cond, problem):
     @param problem The Problem (for the nearest-neighbour distances).
     @return None.
     """
-    for (r, c), w in _weights(v, tw, th, ntx, nty, _nn_distances(problem)[id(v)], _nn_distances(problem)[("heater", id(v))]).items():
+    for (r, c), w in _weights(v, tw, th, ntx, nty, _nn_distances(problem)[vkey(v)], _nn_distances(problem)[("heater", vkey(v))]).items():
         c_via[r, c] += w * cond
 
 
@@ -159,7 +181,7 @@ def _self_terms(G, active, tw, th, S, L, problem):
     # Effective number of vias of every tile, the sum of their weights times radius, and of their nearest-neighbour distances
     n_eff, rsum, dsum = {}, {}, {}
     for iv, v in enumerate(problem.vias):
-        for key, w in _weights(v, tw, th, ntx, nty, d_nn[iv], _nn_distances(problem)[("heater", id(v))]).items():
+        for key, w in _weights(v, tw, th, ntx, nty, d_nn[iv], _nn_distances(problem)[("heater", vkey(v))]).items():
             n_eff[key] = n_eff.get(key, 0.0) + w
             rsum[key] = rsum.get(key, 0.0) + w * v.diameter / 2.0
             dsum[key] = dsum.get(key, 0.0) + w * d_nn[iv]
@@ -206,7 +228,7 @@ def _tile_grid_vias(W, H, lam, problem):
     if (OPTIONS["tile_k"] <= 0 and OPTIONS["tile_cap"] <= 0) or not problem.vias:
         return ntx, nty, tw, th
     t = min(tw, th)
-    d = np.array(list(_nn_distances(problem)[id(v)] for v in problem.vias))
+    d = np.array(list(_nn_distances(problem)[vkey(v)] for v in problem.vias))
     d = d[np.isfinite(d)]
     if OPTIONS["tile_k"] > 0 and len(d):
         t = min(t, max(OPTIONS["tile_min"] * 1e-3, OPTIONS["tile_k"] * float(np.median(d))))
