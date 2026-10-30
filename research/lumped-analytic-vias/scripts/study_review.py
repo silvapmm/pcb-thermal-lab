@@ -11,7 +11,8 @@
          (reference: the corrected FVM at 0.25 mm, as in `study_real_boards.py`).
          Part 4 (`analytic`): the constants of the Analytic proposal (tile cap, isolation, guard), the Green function with 64 modes against 128 and 300 on the example board,
          a 0.5 mm pitch array (not in the study) and the coarsening above 1200 active tiles.
-Usage: python research/lumped-analytic-vias/scripts/study_review.py [unit kinds macro analytic]   (from the repository root; about 15 minutes for all)
+         Part 5 (`dietz`): a square cell with a disc sink against Krogh on the equal-area disc and the pseudo-steady-state well equation of reservoir engineering.
+Usage: python research/lumped-analytic-vias/scripts/study_review.py [unit kinds macro analytic dietz]   (from the repository root; about 15 minutes for all)
 """
 
 import inspect
@@ -233,15 +234,44 @@ def part_analytic():
         print(f"| {n} x {n} at {pitch} mm | {n * n} | {e:.3f} | " + " | ".join(f"{100 * (x / e - 1):+.1f}" for x in r) + " |", flush=True)
 
 
+def part_dietz():
+    """!
+    @brief Part 5: a square cell (one sheet, uniform source, an equipotential disc of radius r_w held at zero) solved on a fine grid, against Krogh on the
+           equal-area disc and the pseudo-steady-state well equation with Dietz's shape factor of a square (C_A = 30.8828, from memory), mean minus wall.
+    @return None.
+    """
+    import scipy.sparse as sp
+    import scipy.sparse.linalg as spl
+    print("\n## 5. Square cell against Krogh (equal-area disc) and the well equation with Dietz's shape factor (2 pi S (mean - wall), S = 1)\n")
+    print("| side mm | r_w mm | grid | numeric | Krogh, disc | well equation, square |")
+    print("| --: | --: | --: | --: | --: | --: |")
+    for p, rw, n in ((4.0, 0.15, 800), (8.0, 0.15, 1200), (2.0, 0.3, 600)):
+        dx = p / n
+        xc = (np.arange(n) + 0.5) * dx
+        X, Y = np.meshgrid(xc, xc)
+        inside = ((X - p / 2) ** 2 + (Y - p / 2) ** 2 <= rw * rw).ravel()
+        idx = np.arange(n * n).reshape(n, n)
+        a = np.concatenate([idx[:, :-1].ravel(), idx[:-1, :].ravel()])
+        b = np.concatenate([idx[:, 1:].ravel(), idx[1:, :].ravel()])
+        K = sp.coo_matrix((-np.ones(2 * len(a)), (np.concatenate([a, b]), np.concatenate([b, a]))), shape=(n * n, n * n)).tocsr()
+        K = K + sp.diags(-np.asarray(K.sum(axis=1)).ravel())
+        free = ~inside
+        q = np.full(free.sum(), 1.0 / free.sum())
+        T = spl.spsolve(K[free][:, free].tocsc(), q)
+        R = p / math.sqrt(math.pi)
+        well = 0.5 * math.log(4 * p * p / (1.781072 * 30.8828 * rw * rw))
+        print(f"| {p} | {rw} | {n} | {2 * math.pi * T.mean():.4f} | {2 * math.pi * rr.krogh_disc(1.0, R, rw):.4f} | {well:.4f} |", flush=True)
+
+
 def main():
     """!
     @brief Run the parts named on the command line (all by default).
     @return None.
     """
     pc.load_libraries()
-    parts = sys.argv[1:] or ["unit", "kinds", "macro", "analytic"]
+    parts = sys.argv[1:] or ["unit", "kinds", "macro", "analytic", "dietz"]
     for p in parts:
-        {"unit": part_unit, "kinds": part_kinds, "macro": part_macro, "analytic": part_analytic}[p]()
+        {"unit": part_unit, "kinds": part_kinds, "macro": part_macro, "analytic": part_analytic, "dietz": part_dietz}[p]()
 
 
 if __name__ == "__main__":
