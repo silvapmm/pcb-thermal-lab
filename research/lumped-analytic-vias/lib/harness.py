@@ -43,7 +43,7 @@ VARIANTS = {
     "A_prog": ("analytic", lambda: contextlib.nullcontext()),
     "A_on": ("analytic", lambda: ap.patched("on")),
     "A_bil": ("analytic", lambda: ap.patched("on", spread="bilinear")),
-    "A_fin": ("analytic", lambda: ap.patched("on", spread="bilinear", tile_k=0.75)),
+    "A_fin": ("analytic", lambda: ap.patched("on", spread="bilinear", tile_cap=1.0)),
 }
 
 

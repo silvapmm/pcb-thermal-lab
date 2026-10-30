@@ -36,7 +36,7 @@ sys.path.insert(0, HERE)
 
 import constriction as cr                                                   # noqa: E402
 
-OPTIONS = {"mode": "off", "eta": cr.ETA, "c3": 0.75, "cell": "ring", "cap_lambda": 1.0, "cluster": False, "scale": 1.0, "macro_scale": 1.0, "peak": False, "macro_cap": 0.0}
+OPTIONS = {"mode": "off", "eta": cr.ETA, "c3": 0.75, "cell": "ring", "cap_lambda": 1.0, "cluster": False, "scale": 1.0, "macro_scale": 1.0, "peak": False, "macro_cap": 0.0, "lone_cap": 0.0}
 ACL0 = [0.0]                                                                # area covered by the cells of the vias of ring 0
 GZVIA = {}                                                                  # barrel-only couplings of the last network built, for the peak term
 PROBLEM = {"p": None}                                                       # the Problem being solved (the network does not keep the vias)
@@ -66,6 +66,8 @@ def _via_couplings(net, cov, idx, R, cnt, ring_sum, S, g_top, g_bot, gz, nb):
     """
     from pcbthermal.geometry import cell_index_of_point
     prob = PROBLEM["p"]
+    if prob is None:                                                         # no problem registered: the program's couplings
+        return {(l, l + 1): gz[l].astype(float).copy() for l in range(nb - 1)}
     b = prob.board
     L1 = nb - 1
     GZ = {(l, l + 1): gz[l].astype(float).copy() for l in range(L1)}
@@ -141,6 +143,8 @@ def _via_couplings(net, cov, idx, R, cnt, ring_sum, S, g_top, g_bot, gz, nb):
                     lam_cap = OPTIONS["cap_lambda"] * float(np.sqrt(s_l / g_loss))
                     rc_cell = min(r_cell, lam_cap)
                     rc_macro = min(r_macro, lam_cap)
+                if OPTIONS["lone_cap"] > 0 and n_g == 1 and g_loss > 0:
+                    rc_cell = min(rc_cell, OPTIONS["lone_cap"] * float(np.sqrt(s_l / g_loss)))   # a lone via draws heat from within a few fin lengths, not from the whole ring
                 if OPTIONS["macro_cap"] > 0 and g_loss > 0:
                     rc_macro = min(rc_macro, OPTIONS["macro_cap"] * float(np.sqrt(s_l / g_loss)))   # the cluster draws heat only from within a few fin lengths of the sheet
                 if mode == "log":
@@ -249,7 +253,7 @@ def _compile_heater_network():
 
 
 @contextlib.contextmanager
-def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, cluster=False, scale=1.0, macro_scale=1.0, peak=False, macro_cap=0.0):
+def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, cluster=False, scale=1.0, macro_scale=1.0, peak=False, macro_cap=0.0, lone_cap=0.0):
     """!
     @brief Install the Lumped model with the constriction of the vias; restore the original on exit.
     @param mode "off", "krogh", "log" or "bessel" (see the module header).
@@ -257,6 +261,7 @@ def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, clus
     @param c3 Constant of the "log" mode.
     @param cell "ring" or "cap".
     @param cap_lambda Cap of the cell radius in fin lengths ("cap" and "nn").
+    @param lone_cap Cap of the cell radius of a via without neighbours, in fin lengths of the sheet (0 = none).
     @param macro_cap Cap of the macro radius in fin lengths of the sheet (0 = none).
     @param peak True: add to the lateral heat of the peak term the heat that the source layer sends into the barrels under the footprint.
     @param macro_scale Factor on the cluster (macro) constriction only (study knob).
@@ -267,8 +272,9 @@ def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, clus
     from pcbthermal import lumped
     old_net = lumped._heater_network
     old_solve = lumped.solve_steady
+    old_units = lumped._unit_networks
     old_opts = dict(OPTIONS)
-    OPTIONS.update(mode=mode, eta=eta, c3=c3, cell=cell, cap_lambda=cap_lambda, cluster=cluster, scale=scale, macro_scale=macro_scale, peak=peak, macro_cap=macro_cap)
+    OPTIONS.update(mode=mode, eta=eta, c3=c3, cell=cell, cap_lambda=cap_lambda, cluster=cluster, scale=scale, macro_scale=macro_scale, peak=peak, macro_cap=macro_cap, lone_cap=lone_cap)
     try:
         lumped._heater_network = _compile_heater_network()
 
@@ -276,10 +282,16 @@ def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, clus
             PROBLEM["p"] = problem
             return old_solve(problem, rings, cell_mm)
         lumped.solve_steady = solve_steady
+
+        def unit_networks(problem, rings, cell_mm):
+            PROBLEM["p"] = problem                                    # the transient models build the same networks
+            return old_units(problem, rings, cell_mm)
+        lumped._unit_networks = unit_networks
         yield
     finally:
         lumped._heater_network = old_net
         lumped.solve_steady = old_solve
+        lumped._unit_networks = old_units
         OPTIONS.clear()
         OPTIONS.update(old_opts)
         PROBLEM["p"] = None

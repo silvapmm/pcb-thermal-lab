@@ -36,7 +36,8 @@ sys.path.insert(0, HERE)
 
 import constriction as cr                                                   # noqa: E402
 
-OPTIONS = {"mode": "off", "eta": cr.ETA, "spread": "none", "c": 0.25, "iso": 0.7, "dscale": 1.0, "mscale": 1.0, "tile_k": 0.0, "tile_min": 1.0}
+OPTIONS = {"mode": "off", "eta": cr.ETA, "spread": "none", "c": 0.25, "iso": 0.7, "dscale": 1.0, "mscale": 1.0, "tile_k": 0.0, "tile_min": 1.0, "guard": 0.5, "tile_cap": 0.0}
+MAX_ACTIVE = 1200                                                           # most tiles of the system that the refinement may create
 NN = {}                                                                     # id(via) -> nearest-neighbour distance of the problem being solved
 
 
@@ -57,10 +58,31 @@ def _nn_distances(problem):
             d = np.full(len(pts), np.inf)
         for v, dv in zip(problem.vias, d):
             NN[id(v)] = float(dv)
+            NN[("heater", id(v))] = _heater_distance(problem, v)
     return NN
 
 
-def _weights(v, tw, th, ntx, nty, d_nn=float("inf")):
+def _heater_distance(problem, v):
+    """!
+    @brief Distance of a via to the nearest heater footprint (0 inside it), in m.
+    @param problem The Problem.
+    @param v The via.
+    @return float Distance in m (inf without heaters).
+    """
+    from pcbthermal.geometry import points_in_polygon
+    best = float("inf")
+    for h in problem.heaters:
+        poly = list(h.polygon)
+        if bool(points_in_polygon(np.array([v.x]), np.array([v.y]), poly)[0]):
+            return 0.0
+        for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]):
+            dx, dy = x1 - x0, y1 - y0
+            t = 0.0 if dx == dy == 0 else min(max(((v.x - x0) * dx + (v.y - y0) * dy) / (dx * dx + dy * dy), 0.0), 1.0)
+            best = min(best, math.hypot(v.x - (x0 + t * dx), v.y - (y0 + t * dy)))
+    return best
+
+
+def _weights(v, tw, th, ntx, nty, d_nn=float("inf"), d_heater=0.0):
     """!
     @brief Weights of a via on the tiles.
     @param v The via.
@@ -69,12 +91,15 @@ def _weights(v, tw, th, ntx, nty, d_nn=float("inf")):
     @param ntx Tiles along x.
     @param nty Tiles along y.
     @param d_nn Nearest-neighbour distance of the via in m.
+    @param d_heater Distance of the via to the nearest heater footprint in m (0 inside).
     @return dict {(row, col): weight}, the weights add to 1: all on the tile of the centre ("none", or a via with a neighbour closer than `iso` tiles) or bilinear between the centres of the four nearest tiles.
     """
     c0 = min(max(int(v.x // tw), 0), ntx - 1)
     r0 = min(max(int(v.y // th), 0), nty - 1)
     # Only a via that is alone at the scale of a tile is spread; the vias of a cluster stay on their tile (their positions average out and the tile formulas for n vias apply)
-    if OPTIONS["spread"] != "bilinear" or d_nn < OPTIONS["iso"] * math.sqrt(tw * th):
+    size = math.sqrt(tw * th)
+    # A via outside the footprints but closer than `guard` tiles to one cannot be spread: its tiles would reach under the source (the mosaic cannot resolve it)
+    if OPTIONS["spread"] != "bilinear" or d_nn < OPTIONS["iso"] * size or 0.0 < d_heater < OPTIONS["guard"] * size:
         return {(r0, c0): 1.0}
     fx, fy = v.x / tw - 0.5, v.y / th - 0.5
     cl, rl = math.floor(fx), math.floor(fy)
@@ -103,7 +128,7 @@ def _spread_via(c_via, v, a, bb, tw, th, ntx, nty, cond, problem):
     @param problem The Problem (for the nearest-neighbour distances).
     @return None.
     """
-    for (r, c), w in _weights(v, tw, th, ntx, nty, _nn_distances(problem)[id(v)]).items():
+    for (r, c), w in _weights(v, tw, th, ntx, nty, _nn_distances(problem)[id(v)], _nn_distances(problem)[("heater", id(v))]).items():
         c_via[r, c] += w * cond
 
 
@@ -134,7 +159,7 @@ def _self_terms(G, active, tw, th, S, L, problem):
     # Effective number of vias of every tile, the sum of their weights times radius, and of their nearest-neighbour distances
     n_eff, rsum, dsum = {}, {}, {}
     for iv, v in enumerate(problem.vias):
-        for key, w in _weights(v, tw, th, ntx, nty, d_nn[iv]).items():
+        for key, w in _weights(v, tw, th, ntx, nty, d_nn[iv], _nn_distances(problem)[("heater", id(v))]).items():
             n_eff[key] = n_eff.get(key, 0.0) + w
             rsum[key] = rsum.get(key, 0.0) + w * v.diameter / 2.0
             dsum[key] = dsum.get(key, 0.0) + w * d_nn[iv]
@@ -178,13 +203,19 @@ def _tile_grid_vias(W, H, lam, problem):
     """
     from pcbthermal import analytic
     ntx, nty, tw, th = analytic._tile_grid_program(W, H, lam)
-    if OPTIONS["tile_k"] <= 0 or len(problem.vias) < 2:
+    if (OPTIONS["tile_k"] <= 0 and OPTIONS["tile_cap"] <= 0) or not problem.vias:
         return ntx, nty, tw, th
+    t = min(tw, th)
     d = np.array(list(_nn_distances(problem)[id(v)] for v in problem.vias))
     d = d[np.isfinite(d)]
-    if len(d) == 0:
-        return ntx, nty, tw, th
-    t = max(OPTIONS["tile_min"] * 1e-3, OPTIONS["tile_k"] * float(np.median(d)))
+    if OPTIONS["tile_k"] > 0 and len(d):
+        t = min(t, max(OPTIONS["tile_min"] * 1e-3, OPTIONS["tile_k"] * float(np.median(d))))
+    if OPTIONS["tile_cap"] > 0:
+        t = min(t, max(OPTIONS["tile_cap"], OPTIONS["tile_min"]) * 1e-3)
+    # The dense system has (active tiles x layers)^2 entries: with many vias the tiles are coarsened so that at most MAX_ACTIVE are used
+    est = min(4 * len(problem.vias), (W / t) * (H / t))
+    if est > MAX_ACTIVE:
+        t *= math.sqrt(est / MAX_ACTIVE)
     if t >= min(tw, th):
         return ntx, nty, tw, th
     ntx, nty = max(int(np.ceil(W / t - 1e-9)), 1), max(int(np.ceil(H / t - 1e-9)), 1)
@@ -227,7 +258,7 @@ def _compile_solver():
 
 
 @contextlib.contextmanager
-def patched(mode="on", eta=cr.ETA, spread="none", c=0.25, iso=0.7, dscale=1.0, mscale=1.0, tile_k=0.0, tile_min=1.0):
+def patched(mode="on", eta=cr.ETA, spread="none", c=0.25, iso=0.7, dscale=1.0, mscale=1.0, tile_k=0.0, tile_min=1.0, guard=0.5, tile_cap=0.0):
     """!
     @brief Install the Analytic steady solution with the self-terms of the vias; restore the original on exit.
     @param mode "off", "on", "krogh" or "log".
@@ -235,6 +266,8 @@ def patched(mode="on", eta=cr.ETA, spread="none", c=0.25, iso=0.7, dscale=1.0, m
     @param spread "none" (the tile that holds the centre) or "bilinear".
     @param c Constant of the "log" mode.
     @param tile_k Refine the tiles to this many times the median nearest-neighbour distance of the vias (0 keeps the program's tiles).
+    @param guard A via outside the heater footprints and closer than this many tiles to one is not spread (0 = always spread).
+    @param tile_cap Largest tile in mm in a board with vias (0 = no cap).
     @param tile_min Smallest tile in mm of the refinement.
     @param iso A via is spread only if its nearest neighbour is at least this many tile sizes away.
     @return Context manager.
@@ -242,7 +275,7 @@ def patched(mode="on", eta=cr.ETA, spread="none", c=0.25, iso=0.7, dscale=1.0, m
     from pcbthermal import analytic
     old = analytic.solve_steady
     old_opts = dict(OPTIONS)
-    OPTIONS.update(mode=mode, eta=eta, spread=spread, c=c, iso=iso, dscale=dscale, mscale=mscale, tile_k=tile_k, tile_min=tile_min)
+    OPTIONS.update(mode=mode, eta=eta, spread=spread, c=c, iso=iso, dscale=dscale, mscale=mscale, tile_k=tile_k, tile_min=tile_min, guard=guard, tile_cap=tile_cap)
     NN.clear()
     try:
         analytic.solve_steady = _compile_solver()
