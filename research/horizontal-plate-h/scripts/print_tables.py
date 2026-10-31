@@ -4,7 +4,8 @@
 @file print_tables.py
 @brief Print the markdown tables of the README (the numerical plates and the effect on the boards) from the JSON files of out/, so that the README quotes what the scripts wrote.
 @details Reads out/plate_h2d.json (study_plate_h2d.py) and out/board_effect.json (study_board_effect.py) and prints: (A) the numerical Nusselt numbers of both faces for every case with the ratios to the
-         levels; (B) the isolated-face and both-faces values and their ratio; (C) the rise of every board with the program's levels and the change with each other level.
+         levels; (B) the isolated-face and both-faces values and their ratio; (C), (D) the rise of every board with the program's levels and the change with each other level;
+         (B2) the local Nu at the centre of the lower face against Schulenberg's local formula (added by the review).
 
 Usage: .venv/bin/python research/horizontal-plate-h/scripts/print_tables.py   (instant)
 """
@@ -62,9 +63,24 @@ def main():
             b, u, d = get("both"), get("up"), get("down")
             if b and u and d and u[0]["nu_up"] > 0 and d[0]["nu_down"] > 0:
                 print(f"| {geom} | {ra:.0e} | {b[0]['nu_up'] / u[0]['nu_up']:.2f} | {b[0]['nu_down'] / d[0]['nu_down']:.2f} |")
+    print("\nB2. the local Nu at the centre of the lower face (the stagnation point) against Schulenberg's local formula (KfK 3713 equations 92 and 94; L = half width or radius,"
+          " the length of the report), and the solver's plate mean over its own centre value")
+    print("| geometry | Ra of the report's length | faces | solver, centre | Schulenberg 92/94 (printed 1.156) | ratio | Jaffer's coefficients (1.56) | ratio | solver mean / centre |")
+    print("| :-- | --: | :-- | --: | --: | --: | --: | --: | --: |")
+    for r in sorted(res, key=lambda q: (q["geometry"], q["ra_l"], q["faces"])):
+        if r["grid"] != "base" or r["faces"] == "up" or not np.isfinite(r["nu_down"]):
+            continue
+        disc = r["geometry"] == "disc"
+        f = 2.0 if disc else 1.0                                   # the stored local and mean values are on A/P (R/2 for the disc): back to R
+        ra_r = 8.0 * r["ra_l"] if disc else r["ra_l"]
+        centre = f * r["local_down"][0]
+        sch = f * float(C.schulenberg_disc(r["ra_l"]) if disc else C.schulenberg_strip(ra_r))
+        jaf = "" if disc else f"{float(C.schulenberg_strip(ra_r, jaffer_coefficients=True)):.3f}"
+        jr = "" if disc else f"{centre / float(C.schulenberg_strip(ra_r, jaffer_coefficients=True)):.3f}"
+        print(f"| {r['geometry']} | {ra_r:.0e} | {r['faces']} | {centre:.3f} | {sch:.3f} | {centre / sch:.3f} | {jaf} | {jr} | {f * r['nu_down'] / centre:.2f} |")
     be = load("board_effect.json")
     if be:
-        keys = ["jaffer", "up x0.6", "down x1.3", "up x0.6 down x1.3", "up x1.2", "down x0.7"]
+        keys = ["jaffer", "jaffer down", "R&H up", "up x0.6", "down x1.3", "up x0.6 down x1.3", "up x1.2", "down x0.7"]
         print("\nC. rise of the hottest point (K) with the program's levels and the change with each other level (convection and radiation)")
         print("| case | program (K) | " + " | ".join(keys) + " |")
         print("| :-- | --: | " + " | ".join("--:" for _ in keys) + " |")

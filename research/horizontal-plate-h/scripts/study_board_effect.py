@@ -10,7 +10,9 @@
          `correlations.use_horizontal` replaces `convection.h_natural_horizontal` in memory) with
 
          * `program`: the program's levels (the reference of the table);
-         * `jaffer`: Jaffer's equation 30 above and the downward formula (46, 51) below;
+         * `jaffer`: Jaffer's equation 30 above and his downward formula 56 below (with the shape metric L_R of the board);
+         * `jaffer down`: the program's upper face, Jaffer's lower face (the effect of the lower face alone; added by the review);
+         * `R&H up`: Raithby and Hollands' upper face as printed by Lienhard (8.37a/b), the program's lower face (the other published upper face, below the program's; added by the review);
          * `up x0.6`, `down x1.3`, `up x0.6 down x1.3`, `up x1.2`, `down x0.7`: sensitivity runs, the program's levels with a factor on one or both faces
            (the factors are NOT a result: they bracket what the numerical solutions and the literature suggest, section 6 of the README).
 
@@ -57,6 +59,8 @@ def levels_for(q):
     return {
         "program": (C.program_up, C.program_down),
         "jaffer": (C.jaffer_up, lambda ra: C.jaffer_down_shape(ra, q)),
+        "jaffer down": (C.program_up, lambda ra: C.jaffer_down_shape(ra, q)),
+        "R&H up": (C.raithby_hollands_up, C.program_down),
         "up x0.6": (scaled(C.program_up, 0.6), C.program_down),
         "down x1.3": (C.program_up, scaled(C.program_down, 1.3)),
         "up x0.6 down x1.3": (scaled(C.program_up, 0.6), scaled(C.program_down, 1.3)),

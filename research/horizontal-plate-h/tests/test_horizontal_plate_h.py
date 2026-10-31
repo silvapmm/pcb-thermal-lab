@@ -159,3 +159,74 @@ def test_grid_refinement_changes_nu_little():
         m.relax = 0.15
         res.append(m.run(max_steps=30000, check=1000, dt=1e-3)["nu_down"])
     assert res[0] == pytest.approx(res[1], rel=0.03)
+
+
+def test_jaffer_down_is_equation_56_with_the_unified_prandtl_function():
+    """!
+    @brief Regression (review): Jaffer's equation 56 scales Ra by Xi_all of equation 54 ([1 + (0.5/Pr)^sqrt(1/3)]^sqrt(3), 2.813 at Pr 0.71), not by Xi_R of equation 51 (Schulenberg's strip, 2.633), which the first version used (1.1 to 1.3 % high).
+    @return None.
+    """
+    assert C.xi_all(0.71) == pytest.approx(2.8126, abs=1e-3)
+    assert C.xi_r(0.71) == pytest.approx(2.6332, abs=1e-3)
+    for ra in (1e3, 1e5):
+        assert float(C.jaffer_down(ra)) == pytest.approx(0.341 + 0.550 * (ra / C.xi_all(0.71)) ** 0.2, rel=1e-12)
+        assert float(C.jaffer_down(ra)) < 0.341 + 0.550 * (ra / C.xi_r(0.71)) ** 0.2
+
+
+def test_lienhard_forms_and_their_lengths():
+    """!
+    @brief The forms printed by Lienhard on their own lengths: Fujii and Imura (8.38) on the width W of a two-dimensional plate (a long strip has W = 2 A/P), Kadambi and Drake (8.39) on the diameter (D = 4 A/P), Raithby and Hollands (8.37a/b) with the correction below Nu 10.
+    @details The review of `research/theory-sources` found 8.38 evaluated on A/P there (the plate inflated by 30 to 80 %); here the width is explicit. A long strip on its half width must agree with Schulenberg's strip within 5 % on the Ra^(1/5) coefficient (0.4396 against 0.4274).
+    @return None.
+    """
+    ra = 3e5
+    w = 2.0                                                       # a long strip: W = 2 a, A/P = a
+    nu_w = 0.58 * (w ** 3 * ra) ** 0.2                            # 8.38 on the width
+    assert float(C.fujii_imura_down(ra, w)) == pytest.approx(nu_w / w, rel=1e-12)
+    assert float(C.fujii_imura_down(1.0, 2.0)) == pytest.approx(float(C.schulenberg_strip(1.0)), rel=0.05)
+    nu_d = 0.82 * (64.0 * ra) ** 0.2 * 0.71 ** 0.034              # 8.39 on the diameter, D = 4 A/P
+    assert float(C.kadambi_drake_down(ra)) == pytest.approx(nu_d / 4.0, rel=1e-12)
+    nu = 0.560 * 1e4 ** 0.25 / (1 + (0.492 / 0.71) ** (9 / 16)) ** (4 / 9)
+    assert nu < 10.0 and float(C.raithby_hollands_up(1e4)) == pytest.approx(1.4 / np.log(1 + 1.4 / nu), rel=1e-12)
+    big = 0.560 * 1e6 ** 0.25 / (1 + (0.492 / 0.71) ** (9 / 16)) ** (4 / 9)
+    assert big > 10.0 and float(C.raithby_hollands_up(1e6)) == pytest.approx(big, rel=1e-12)
+
+
+def test_published_upper_faces_bracket_the_program():
+    """!
+    @brief Over the boards' range (Ra of A/P 1e3 to 5e5) Jaffer's upper face is above the program's and Raithby and Hollands' is at most 1 % above it and up to 20 % below: the program is neither the lowest nor the highest published level, so it is not shown to be conservative.
+    @return None.
+    """
+    ra = np.logspace(3, np.log10(5e5), 40)
+    assert np.all(C.jaffer_up(ra) > C.program_up(ra))
+    rh = C.raithby_hollands_up(ra) / C.program_up(ra)
+    assert rh.max() < 1.01 and rh.min() < 0.82
+
+
+def test_solver_centre_of_the_lower_face_is_schulenbergs_local_value():
+    """!
+    @brief Regression (review): Schulenberg's equations 92 and 94 are the LOCAL Nusselt number at the stagnation point of the centre (KfK 3713 pages 31, 32 and 36), not the plate mean;
+           the solver's local Nu at the centre of the isolated lower face reproduces them (strip within 6 %, disc within 3 % on the coarse grid; 0 to 4 % on the base grid), while its plate mean is 25 % or more above them.
+    @return None.
+    """
+    m = ph.HorizontalStrip(1e3, 0.71, hot_up=False, **COARSE); m.relax = 0.15
+    r = m.run(max_steps=30000, check=1000, dt=1e-3)
+    _, _, nd = m.nusselt_local()
+    assert nd[0] == pytest.approx(float(C.schulenberg_strip(1e3)), rel=0.06)
+    assert r["nu_down"] > 1.25 * float(C.schulenberg_strip(1e3))
+    d = ph.HorizontalStrip(8e3, 0.71, hot_up=False, axisym=True, **COARSE); d.relax = 0.15
+    d.run(max_steps=30000, check=1000, dt=1e-3)
+    _, _, ndd = d.nusselt_local()
+    assert ndd[0] == pytest.approx(2.0 * float(C.schulenberg_disc(1e3)), rel=0.03)    # Nu_R at the centre; schulenberg_disc returns Nu of A/P = R/2
+
+
+def test_heat_through_boxes_of_the_disc_agree():
+    """!
+    @brief The heat crossing three boxes around the disc agrees within 5 % from box to box (the field is nearly conservative) and exceeds the wall-gradient heat (the singular flux at the edge of a zero-thickness plate is under-resolved): the energy balance of the disc is a wall error, not a field error.
+    @return None.
+    """
+    d = ph.HorizontalStrip(8e3, 0.71, hot_up=False, axisym=True, **COARSE); d.relax = 0.15
+    d.run(max_steps=30000, check=1000, dt=1e-3)
+    boxes = [d.heat_through_box(*b) for b in ((1.5, 1.0, -0.5), (2.0, 2.0, -1.0), (3.0, 4.0, -2.0))]
+    assert max(boxes) / min(boxes) < 1.05
+    assert min(boxes) > 1.0

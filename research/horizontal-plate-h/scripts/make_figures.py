@@ -99,27 +99,35 @@ def fig_levels(corr):
     ax = axs[0, 0]
     ax.loglog(ras, C.program_up(ras), color="k", label="program: 0.54 Ra^(1/4), 0.15 Ra^(1/3) above 1e7")
     ax.loglog(ras, C.jaffer_up(ras), color=RED, label="Jaffer (30): [0.642 + 0.370 Ra^(1/6)]^2")
+    rh = ras <= 1e7
+    ax.loglog(ras[rh], C.raithby_hollands_up(ras[rh]), color=GREEN, label="Raithby-Hollands (Lienhard 8.37a/b), Ra < 1e7")
     ax.set_title("upper face (hot face looking up), L = A/P", fontsize=8.5)
     ax = axs[0, 1]
     ax.loglog(ras, C.program_down(ras), color="k", label="program: 0.27 Ra^(1/4)")
-    ax.loglog(ras, C.jaffer_down(ras), color=BLUE, label="Jaffer (46, 51), long strip (q = 1)")
+    ax.loglog(ras, C.jaffer_down(ras), color=BLUE, label="Jaffer (56), long strip (q = 1)")
     ax.loglog(ras, C.jaffer_down_shape(ras, 2.0), color=BLUE, linestyle="--", label="Jaffer, square (q = 2)")
     ax.loglog(ras, C.jaffer_down_shape(ras, 4 / np.pi), color=BLUE, linestyle=":", label="Jaffer, disc (q = 4/pi)")
-    ax.loglog(ras, C.schulenberg_strip(ras), color=GREEN, label="Schulenberg strip (92), as printed")
-    ax.loglog(ras, C.schulenberg_strip(ras, jaffer_coefficients=True), color=GREEN, linestyle="--", label="Schulenberg strip, Jaffer's coefficients")
-    ax.loglog(ras, C.schulenberg_disc(ras), color=ORANGE, label="Schulenberg disc (94), L = R/2")
+    ax.loglog(ras, C.schulenberg_strip(ras), color=GREEN, label="Schulenberg strip (92), as printed: LOCAL Nu at the centre")
+    ax.loglog(ras, C.schulenberg_strip(ras, jaffer_coefficients=True), color=GREEN, linestyle="--", label="Schulenberg strip, Jaffer's coefficients (local)")
+    ax.loglog(ras, C.schulenberg_disc(ras), color=ORANGE, label="Schulenberg disc (94), L = R/2 (local)")
+    fi = 64 * ras >= 1e6
+    ax.loglog(ras[fi], C.fujii_imura_down(ras[fi], 4.0), color=GREY, linestyle="--", label="Fujii-Imura (Lienhard 8.38) on the side of a square, Ra_W >= 1e6")
+    ax.loglog(ras, C.kadambi_drake_down(ras), color=GREY, linestyle=":", label="Kadambi-Drake disc (Lienhard 8.39)")
     ax.set_title("lower face (hot face looking down), L = A/P", fontsize=8.5)
     for ax in axs[0]:
         ax.axvspan(9.7e2, 5.0e5, color=GREEN, alpha=0.12)
         ax.set_xlabel("Ra of L = A/P"); ax.set_ylabel("Nu = h L / k"); ax.grid(alpha=0.3, which="both"); ax.legend(fontsize=6.3)
     ax = axs[1, 0]
     ax.semilogx(ras, C.jaffer_up(ras) / C.program_up(ras), color=RED, label="Jaffer / program")
+    ax.semilogx(ras[rh], C.raithby_hollands_up(ras[rh]) / C.program_up(ras[rh]), color=GREEN, label="Raithby-Hollands / program")
     ax.set_title("upper face: level / program", fontsize=8.5)
     ax = axs[1, 1]
     for fn, lab, st in ((C.jaffer_down, "Jaffer strip", "-"), (lambda r: C.jaffer_down_shape(r, 2.0), "Jaffer square", "--"), (lambda r: C.jaffer_down_shape(r, 4 / np.pi), "Jaffer disc", ":")):
         ax.semilogx(ras, fn(ras) / C.program_down(ras), color=BLUE, linestyle=st, label=lab)
-    ax.semilogx(ras, C.schulenberg_strip(ras) / C.program_down(ras), color=GREEN, label="Schulenberg strip")
-    ax.semilogx(ras, C.schulenberg_disc(ras) / C.program_down(ras), color=ORANGE, label="Schulenberg disc")
+    ax.semilogx(ras, C.schulenberg_strip(ras) / C.program_down(ras), color=GREEN, label="Schulenberg strip (local)")
+    ax.semilogx(ras, C.schulenberg_disc(ras) / C.program_down(ras), color=ORANGE, label="Schulenberg disc (local)")
+    ax.semilogx(ras[fi], C.fujii_imura_down(ras[fi], 4.0) / C.program_down(ras[fi]), color=GREY, linestyle="--", label="Fujii-Imura, square on its side")
+    ax.semilogx(ras, C.kadambi_drake_down(ras) / C.program_down(ras), color=GREY, linestyle=":", label="Kadambi-Drake disc")
     ax.set_title("lower face: level / program", fontsize=8.5)
     for ax in axs[1]:
         ax.axhline(1.0, color="k", linewidth=0.6); ax.axvspan(9.7e2, 5.0e5, color=GREEN, alpha=0.12)
@@ -131,7 +139,7 @@ def fig_levels(corr):
 
 def fig_numerics(res, corr):
     """!
-    @brief Figure 7: the numerical plates (strip and disc, isolated face and both faces hot) against the correlations, for the upper and the lower face.
+    @brief Figure 7: the numerical plates (strip and disc, isolated face and both faces hot) against the correlations, for the upper and the lower face; on the lower face also the local Nu at the centre against Schulenberg's local formulas.
     @param res Parsed out/plate_h2d.json.
     @param corr Parsed out/correlations.json (unused, kept for symmetry).
     @return None.
@@ -146,8 +154,12 @@ def fig_numerics(res, corr):
             ax.loglog(ras, C.program_down(ras), "k", label="program")
             ax.loglog(ras, C.jaffer_down(ras), color=BLUE, label="Jaffer strip")
             ax.loglog(ras, C.jaffer_down_shape(ras, 4 / np.pi), color=BLUE, linestyle=":", label="Jaffer disc")
-            ax.loglog(ras, C.schulenberg_strip(ras), color=GREEN, label="Schulenberg strip")
-            ax.loglog(ras, C.schulenberg_disc(ras), color=ORANGE, label="Schulenberg disc")
+            ax.loglog(ras, C.schulenberg_strip(ras), color=GREEN, label="Schulenberg strip (local, centre)")
+            ax.loglog(ras, C.schulenberg_disc(ras), color=ORANGE, label="Schulenberg disc (local, centre)")
+            for geom, col in (("strip", GREEN), ("disc", ORANGE)):          # the review: the solver's local Nu at the centre is the quantity of Schulenberg's formulas
+                pts = sorted((r["ra_l"], r["local_down"][0]) for r in res if r["geometry"] == geom and r["faces"] == "down" and r["grid"] == "base" and reliable(r))
+                if pts:
+                    ax.loglog(*zip(*pts), marker="x", linestyle="", color=col, markersize=8, label=f"solver, {geom}, local Nu at the centre")
         for geom, mk in (("strip", "o"), ("disc", "s")):
             for faces, fill in (("both", True), (face, False)):
                 pts = [(r["ra_l"], r["nu_" + face]) for r in res if r["geometry"] == geom and r["faces"] == faces and r["grid"] == "base" and reliable(r)]
@@ -233,7 +245,7 @@ def fig_board(be):
     @param be Parsed out/board_effect.json.
     @return None.
     """
-    keys = ["jaffer", "up x0.6", "down x1.3", "up x0.6 down x1.3", "up x1.2", "down x0.7"]
+    keys = ["jaffer", "jaffer down", "R&H up", "up x0.6", "down x1.3", "up x0.6 down x1.3", "up x1.2", "down x0.7"]
     fig, axs = plt.subplots(1, 2, figsize=(11.0, 4.6), sharey=True)
     for ax, pref, title in ((axs[0], "", "convection and radiation (the program's default)"), (axs[1], "conv_", "convection only (emissivity 0)")):
         rows = [r for r in be if (pref + "program") in r]

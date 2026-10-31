@@ -386,6 +386,29 @@ class HorizontalStrip:
         nu_u, nu_d = self.nusselt()
         return float(q / (nu_u + nu_d))
 
+    def heat_through_box(self, x_side, y_top, y_bottom):
+        """!
+        @brief Heat crossing a closed box around the plate (the half domain from the axis to x_side, from y_bottom to y_top), divided by the heat the plate's wall gradient gives.
+        @details Added by the review: the plate's Nu comes from a one-sided wall gradient that under-resolves the singular flux at the edge of a zero-thickness plate, and the convection
+                 is not conservative, so the heat crossing boxes of different sizes tells which of the two is the larger error. Convective plus conductive flux (v T - T_y on the top and
+                 bottom lines, u T - T_x on the side line), central differences at the nearest node lines, trapezoid rule, the weight 2 r for the disc.
+        @param x_side Side of the box (in L; taken at the nearest node line, must lie beyond the edge x = 1).
+        @param y_top Top of the box (in L, above the plate).
+        @param y_bottom Bottom of the box (in L, below the plate, negative).
+        @return float, heat through the box over the heat of the plate (1 for a conservative field and an exact wall flux).
+        """
+        u, v = self.velocities()
+        x, y, T = self.x, self.y, self.T
+        i = int(np.argmin(abs(x - x_side))); jt = int(np.argmin(abs(y - y_top))); jb = int(np.argmin(abs(y - y_bottom)))
+        tx = np.zeros_like(T); ty = np.zeros_like(T)
+        tx[1:-1, :] = self._ddx(T); ty[:, 1:-1] = self._ddy(T)
+        w = 2.0 * x if self.axisym else np.ones_like(x)       # rings of the disc (pi cancels against the plate)
+        top = np.trapezoid(w[:i + 1] * (v[:i + 1, jt] * T[:i + 1, jt] - ty[:i + 1, jt]), x[:i + 1])
+        bot = -np.trapezoid(w[:i + 1] * (v[:i + 1, jb] * T[:i + 1, jb] - ty[:i + 1, jb]), x[:i + 1])
+        side = (2.0 * x[i] if self.axisym else 1.0) * np.trapezoid(u[i, jb:jt + 1] * T[i, jb:jt + 1] - tx[i, jb:jt + 1], y[jb:jt + 1])
+        nu_u, nu_d = self.nusselt()
+        return float((top + bot + side) / (nu_u + nu_d))
+
     def run(self, max_steps=200000, check=2500, tol=2e-5, dt=None, window=6):
         """!
         @brief March to the steady state; if the history does not settle, report the mean over the last `window` checks and the amplitude.
