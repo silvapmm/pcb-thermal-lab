@@ -4,6 +4,10 @@
 
 *Figure 11 (`figures/fig_11_metal_block.png`): left, a block on the board through an interface sheet (the heat enters the block where it overlaps copper; over bare laminate it must also cross the FR-4); middle, a plate fin whose heat to the air falls along the fin, `eta = tanh(mL) / (mL)`; right, the two equivalents of the Lumped and Analytic models, which keep the block's lateral conduction.*
 
+![Metal block section](../figures/fig_41_block_section.png)
+
+*Figure 41 (`figures/fig_41_block_section.png`): left, a metal block on the board in section (illustrative proportions): the heat enters the block through the interface `R''` over copper, and over bare laminate also across half a slab of FR-4; it leaves through the exposed face (fins, `h_exp = h_face r_fin + h_extra`) and the side walls (`h_wall = h_face + h_extra`); the board face under the block loses nothing (factor `1 - c`). Right, the cell network these paths make.*
+
 ![Fin efficiency and fin ratio](../figures/fig_31_fin_efficiency_and_ratio.png)
 
 *Figure 31 (`figures/fig_31_fin_efficiency_and_ratio.png`): left, the efficiency `tanh(mL) / (mL)` of a plate fin against `mL` (closed form; the dots are the fins of the right panel at `H` = 10, 30 and 60 mm, `h` = 10 W/m2K, 1 mm thick, 5 mm pitch: `mL` 0.10 to 1.16, efficiency 0.996 to 0.706); right, the fin ratio of the program (`pcbthermal.blocks.fin_ratio`) against the fin height for aluminium (204 W/mK), copper (386) and carbon steel (54) of the program's metal library, with the line of fins that conduct perfectly. At 60 mm the ratio is 22.5 (aluminium), 23.6 (copper) and 17.9 (steel) against 25.0 for perfect fins. Computed by `scripts/make_figures.py`.*
@@ -29,7 +33,7 @@ One node per cell on that face, with the coverage `c` of the cell by the block:
 
 ## 3. Fins
 
-Plate fins on the block (height `H`, thickness `t_f`, pitch `p`): efficiency `eta = tanh(m H_c) / (m H_c)`, `m = sqrt(2 h_face / (k t_f))`, of a straight fin with a convecting tip taken as adiabatic at the corrected height `H_c = H + t_f / 2`; per unit of base area the fin ratio is `r_fin = (1 - t_f/p) + 2 H_c eta / p`, and only the exposed face carries it (`h_exp = h_face r_fin + h_extra`). The model has **no channel choking** between fins (the input checks warn when the gap is smaller than still air allows). Not modelled: the end faces of the fins, their heat capacity (a time simulation of a finned block responds too fast) and the conduction along the fins beyond the efficiency. Fins are validated against a 2D fin (24 cases within 0.08 %); the effect of the spacing on natural convection is not modelled (topic 13).
+Plate fins on the block (height `H`, thickness `t_f`, pitch `p`): efficiency `eta = tanh(m H_c) / (m H_c)`, `m = sqrt(2 h_face / (k t_f))`, of a straight fin with a convecting tip taken as adiabatic at the corrected height `H_c = H + t_f / 2`; per unit of base area the fin ratio is `r_fin = (1 - t_f/p) + 2 H_c eta / p`, and only the exposed face carries it (`h_exp = h_face r_fin + h_extra`). The model has **no channel choking** between fins: after the run `checks.check_fin_channels` warns when the channel Rayleigh number `Ra_b = g beta theta b^4 Pr / (nu^2 L)` is below 90, i.e. when the channel keeps less than 90 % of the isolated-plate coefficient, `phi = [1 + (14.16 / Ra_b^(3/4))^2]^(-1/2)` (composite of Bar-Cohen and Rohsenow as printed in the review [TeertstraReview]; `research/fin-channel/`); a warning only, never added to the result. Not modelled: the end faces of the fins, their heat capacity (a time simulation of a finned block responds too fast) and the conduction along the fins beyond the efficiency. Fins are validated against a 2D fin (24 cases within 0.08 %); the effect of the spacing on natural convection is not modelled (topic 13).
 
 ## 4. In the Lumped and Analytic models (steady state)
 
@@ -43,6 +47,10 @@ An equivalent coefficient `h_eq = 1 / (R'' + 1 / (h_face + h_extra))` (isotherma
   a dense matrix that couples the tiles of the block among themselves. `B` is added to the local conductance matrix `C` of topic 06, together with the negative conductance `-h_face A cov` for the face that the block hides. This is exact for the tile model.
 
 Both are steady state only; the time simulations still refuse a block, and SOR does not support blocks. Errors against the FVM over 74 cases: Lumped 1.9 % mean, 4.7 % maximum (2.0 and 4.8 % before the minimum ring width of topic 05); Analytic 1.1 % mean, 4.3 % maximum (`research/block-and-fins/README.md` 4.2).
+
+## 4.1 The thickness of a plate: a bound
+
+A node is the mean through the thickness, so the face that receives a flux `q''` is hotter than the node by at most `q'' t / (2 k)`. After the run `checks.check_thick_plates` compares this bound with the rise of every heater and warns above 5 % (for a block the flux is the largest flux that enters the block under the footprint, from the FVM/FDM result or a quiet auxiliary FVM run). Never added to the result (`docs/theory.md` 7).
 
 ## 5. How the program does it
 
@@ -60,7 +68,7 @@ Both are steady state only; the time simulations still refuse a block, and SOR d
 
 * Fin efficiency and corrected length: [IncroperaDeWitt]. Spreading resistance of a small source on a plate (the plate model's comparison, the worked example of Seri Lee's article): [EC1998Spreading], topic 18; [Lee1995] was cited for it earlier and has not been located.
 * Static condensation (Schur complement) of finite-element codes and Kron reduction: [MFEMStaticCond], [Kron2022].
-* Channel effect between fins (not modelled in the program; measured on a copy in `research/fin-channel/`: for vertical channels of 40 mm at 3 W the conductance of the finned face is 25 % below the uniform-coefficient value at a 4.5 mm gap and 8 % below at 5.5 mm; see its README, sections 5 and 6): [ElenbaasBCR], [TeertstraReview], [Yazicioglu2009]. Heatsink catalogues: [HeatsinkCatalogues]. Interface measurement standard: [ASTMD5470].
+* Channel effect between fins (warned, not modelled in the program; measured on a copy in `research/fin-channel/`: for vertical channels of 40 mm at 3 W the conductance of the finned face is 25 % below the uniform-coefficient value at a 4.5 mm gap and 8 % below at 5.5 mm; see its README, sections 5 and 6): [ElenbaasBCR], [BarCohenRohsenow1984], [TeertstraReview], [Yazicioglu2009]. Heatsink catalogues: [HeatsinkCatalogues]. Interface measurement standard: [ASTMD5470].
 * Own computation: [L-block].
 
 *What was read and what was not verified:* equations from `docs/theory.md` section 7 (read in full); the plate check is against [EC1998Spreading] (its worked example, read); [Lee1995] could not be found; the channel correlation is not used.
