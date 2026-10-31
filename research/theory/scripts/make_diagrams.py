@@ -57,7 +57,7 @@ def fvm_cell(path):
         for j in range(n):
             on = abs(i - j) <= 1 or abs(i - j) == 2 and False
             a.add_patch(Rectangle((1.2 + 1.3 * j, 5.4 - 1.0 * i), 1.3, 1.0, fc="#e8e8e8" if not on else ("#f4b6b6" if i == j else "#cfe3f5"), ec="grey", lw=0.5))
-    a.text(5, 0.6, "K = D − A: symmetric, positive definite M-matrix\n(D = row sums + ambient; A = face conductances ≥ 0)\nmaximum principle, unique solution, Σ G_amb θ = Σ Q", ha="center", va="top", fontsize=8)
+    a.text(5, 0.6, "K = D − N: symmetric, positive definite M-matrix\n(D = row sums + ambient; N = face conductances ≥ 0)\nmaximum principle, unique solution, Σ G_amb θ = Σ Q", ha="center", va="top", fontsize=8)
     dk.save(fig, path, "FVM: the balance of a cell, the face as two half cells, the matrix (theory section 2)")
 
 
@@ -184,7 +184,7 @@ def analytic_modes(path):
         ia.imshow(np.cos(m * np.pi * X) * np.cos(n * np.pi * Y), cmap="RdBu_r", origin="lower")
         ia.set_xticks([]); ia.set_yticks([]); ia.set_title(f"mode ({m},{n})", fontsize=8)
     axs[0].text(0.5, 1.06, "the board as a sum of cosines (insulated edges)", ha="center", fontsize=9, fontweight="bold", transform=axs[0].transAxes)
-    axs[0].text(0.5, -0.04, "each mode decouples: (S k_mn² + h) a_mn = q_mn on one layer; A_mn a_mn = q_mn on L layers", ha="center", fontsize=8, transform=axs[0].transAxes)
+    axs[0].text(0.5, -0.04, "each mode decouples: (S κ_mn² + h) a_mn = q_mn on one layer; A_mn a_mn = q_mn on N_L layers", ha="center", fontsize=8, transform=axs[0].transAxes)
     a = axs[1]
     a.axis("on")
     src = (x > 0.4) & (x < 0.6)
@@ -298,9 +298,9 @@ def part_runaway(path):
     dk.layer(a, 1, 1.0, 8, 0.35, CU); dk.layer(a, 1, 1.35, 8, 1.0, dk.FR4)
     dk.box(a, 3.0, 2.6, 4, 0.9, "package", "#d9d9d9"); dk.box(a, 4.2, 3.6, 1.6, 0.6, "junction", "#f4b6b6", size=7)
     dk.arrow(a, 5, 3.6, 5, 2.4, color=dk.HEAT, label="")
-    a.text(5.4, 2.0, "P θ", fontsize=8, color=dk.HEAT)
-    a.text(5, 5.2, "Tj = T_pad,max + P θ_part", ha="center", fontsize=9)
-    a.text(5, 0.2, "θ must be junction-to-pad:\nθJA and θJB would count the\nmaker's board twice", ha="center", fontsize=8, va="top")
+    a.text(5.4, 2.0, "P Θ_part", fontsize=8, color=dk.HEAT)
+    a.text(5, 5.2, "Tj = T_pad,max + P Θ_part", ha="center", fontsize=9)
+    a.text(5, 0.2, "Θ_part must be junction-to-pad:\nθJA and θJB would count the\nmaker's board twice", ha="center", fontsize=8, va="top")
     a.text(5, 7.4, "worst case: all the power enters the board", ha="center", fontsize=8.5, fontweight="bold")
     P0, alpha, Ta = 10.0, 0.004, 25.0
     T = np.linspace(25, 260, 200)
@@ -744,7 +744,7 @@ def coverage(path):
     a.text(5, 6.6, "Q_i = P c_i / sum(c)", ha="center", fontsize=13)
     a.text(5, 5.0, "the weights sum to 1: the power is exact\nwhatever the grid", ha="center", fontsize=9)
     a.text(5, 3.4, f"here: sum of the coverages = {cov.sum():.2f} cells,\nthe triangle has area {0.5 * abs((tri[1, 0] - tri[0, 0]) * (tri[2, 1] - tri[0, 1]) - (tri[1, 1] - tri[0, 1]) * (tri[2, 0] - tri[0, 0])):.2f} cells", ha="center", fontsize=9)
-    a.text(5, 1.6, "a footprint smaller than a sample sends all the power\nto the cell of its centroid\ncopper fill of a cell: f = max over zones (c_zone x fill)", ha="center", fontsize=8.5)
+    a.text(5, 1.6, "a footprint smaller than a sample sends all the power\nto the cell of its centroid\ncopper fill: largest zone fill at every sample, mean over the cell", ha="center", fontsize=8.5)
     dk.save(fig, path, "Sources and geometry: sub-sampled coverage and an exact power (theory section 1.3)")
 
 

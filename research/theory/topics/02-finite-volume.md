@@ -35,7 +35,7 @@ The source of a heater is `Q_i = P c_i / sum c` with `c_i` the sub-sampled cover
 
 ## 5. Accuracy
 
-Second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). The example board converges monotonically (within 0.25 % of the 0.25 mm value from 1 mm, `docs/validation.md` 2.1). The layered idealisation of topic 01 is the model error (0.4 to 2.2 % against the 3D solid). Direct, CG and SOR agree to 2e-8 K on five boards (1.7e-8 K on the 8-layer board, `docs/validation.md` 5; `docs/theory.md` 11 says 1e-8).
+Second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). On the example board the maximum is within 0.1 % of the 0.25 mm value from 1 mm on the aligned cells, but it is **not** monotonic in the cell: cells that do not divide the features move it by about 2 K (`docs/validation.md` 2.1; an earlier text said it converges monotonically, which was not right). The layered idealisation of topic 01 is the model error (0.4 to 2.2 % against the 3D solid). Direct, CG and SOR agree to 2e-8 K on five boards (1.7e-8 K on the 8-layer board, `docs/validation.md` 5; `docs/theory.md` 11 quotes 2e-8).
 
 ## 6. The via on the grid
 

@@ -660,7 +660,7 @@ A. Ibragimov et al., *Einstein material balance and modeling of the flow of comp
 The method of images for a no-flow boundary (a well and its mirror image of equal rate, parallel streamlines along the boundary), as stated in the vignette of the R package `anem` (rdrr.io/github/gopalpenny/anem). **Status S** (search snippet). A standard method; the study uses it with the lattice kernel, not with a source's formula.
 
 ### [Peaceman1978] and [Peaceman1983] near a boundary
-Not obtained (status N, see section 7). Whether either gives a well-block radius for a block next to a boundary is **unknown**. To open in the second phase.
+The full texts were not obtained ([Peaceman1978] status S from its abstract, section 1; [Peaceman1983] status N). Whether either gives a well-block radius for a block next to a boundary is **unknown**. To open in the second phase.
 
 ### Boards of study S2
 Stormduino Rev 2.2 (MIT, https://github.com/Chromico/stormduino, licence read at the source) and a four-layer Cadence Allegro board of gerbonara's test resources (licence not stated: numbers only). The Excellon holes are read in place by the independent reader of `research/gerber-import`; nothing is stored in the repository.

@@ -281,7 +281,7 @@ def fig_top_path():
     a.text(6, 7.6, "network of a part with a top path", ha="center", fontsize=9, fontweight="bold")
     dk.box(a, 0.2, 1.4, 1.6, 4.4, "junction\nTj", "#f4b6b6", size=8)
     dk.resistor(a, 1.8, 6.2, 5.2, "R_top = θJC,top + R''_if/A + θSA", size=7)
-    dk.resistor(a, 1.8, 4.4, 2.3, "θ (part)", size=7)
+    dk.resistor(a, 1.8, 4.4, 2.3, "Θ_part", size=7)
     dk.box(a, 4.4, 1.7, 1.9, 1.2, "T_max under\nthe footprint", "#9bbf8a", size=7)
     dk.resistor(a, 6.3, 8.6, 2.3, "R_b (board)", size=7)
     a.plot([6.2, 8.6], [5.2, 5.2], color="k")
@@ -289,7 +289,7 @@ def fig_top_path():
     dk.arrow(a, 1.0, 7.1, 1.0, 5.85, color=dk.HEAT); a.text(1.3, 6.6, "P", fontsize=9, color=dk.HEAT)
     a.text(3.1, 3.2, "P_b into the board", fontsize=7.5, color=dk.HEAT, ha="center")
     a.text(4.0, 5.9, "p_top to the air", fontsize=7.5, color=dk.HEAT, ha="center")
-    a.text(6, 0.5, "P = P_b + p_top;  Tj = T_max + P_b θ;  the board is affine in P_b", ha="center", fontsize=7.5)
+    a.text(6, 0.5, "P = P_b + p_top;  Tj = T_max + P_b Θ_part;  the board is affine in P_b", ha="center", fontsize=7.5)
     a = axs[1]; a.axis("on")
     for name, r_b, col in cases:
         gv = np.array([g(r_b, x) for x in pb])
@@ -305,7 +305,7 @@ def fig_top_path():
             a.annotate("kink: the top heat\nis clipped at P", (kink, g(r_b, kink)), (kink + 0.25, -1.3), fontsize=8, arrowprops={"arrowstyle": "->"})
     a.axhline(0, color="k", lw=0.6)
     a.set_xlabel("heat into the board P_b (W)"); a.set_ylabel("g(P_b) = P_b - P + p_top (W)")
-    a.set_title(f"the split is the root of g: monotone, bracketed by [0, P]\n(P = {power:g} W, θ = {theta:g} K/W, R_top = {r_top:g} K/W: illustrative)", fontsize=8.5)
+    a.set_title(f"the split is the root of g: monotone, bracketed by [0, P]\n(P = {power:g} W, Θ_part = {theta:g} K/W, R_top = {r_top:g} K/W: illustrative)", fontsize=8.5)
     a.legend(fontsize=8, loc="upper left"); a.grid(alpha=0.3)
     a = axs[2]; a.axis("on")
     a.plot(pb, pb, "k", lw=1, label="P_b")
@@ -320,7 +320,7 @@ def fig_top_path():
         x = y
     a.plot(*zip(*path), color="grey", lw=1, marker=".", ms=4, label="iteration")
     a.set_xlabel("P_b (W)"); a.set_ylabel("next P_b (W)")
-    a.set_title(f"the plain fixed point: slope -R_b/(R_top + θ) = {-r_b / (r_top + theta):.1f}\nbelow -1 it jumps between the ends (not used)", fontsize=8.5)
+    a.set_title(f"the plain fixed point: slope -R_b/(R_top + Θ_part) = {-r_b / (r_top + theta):.1f}\nbelow -1 it jumps between the ends (not used)", fontsize=8.5)
     a.legend(fontsize=7.5, loc="upper right"); a.grid(alpha=0.3)
     dk.save(fig, OUT / "fig_42_top_path_split.png", "Parts: the top path as a root, not a loop (theory section 9; part and board values illustrative)")
 
