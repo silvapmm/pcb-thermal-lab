@@ -102,17 +102,18 @@ A datasheet gives RθJA for a *stated* board. Built in the program, that board m
 
 | Case | datasheet RθJA (K/W) | model RθJA (K/W) | power returned for 1 W | error |
 | :-- | --: | --: | --: | --: |
-| TI CSD17308Q3 on its datasheet board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, 1 in² pad), RθJA typical | 46 | 46.8 | 0.983 W | −1.7 % |
+| TI CSD17308Q3 on its datasheet board (38.1 × 38.1 mm, 1.52 mm FR-4, 71 µm copper, 1 in² pad), RθJA typical | 46 | 47.5 | 0.968 W | −3.2 % |
 | JESD51-7 2s2p board, exposed-pad QFN with 9 thermal vias (TPS7A47, **via array assumed**) | 32.5 | 31.6 | 1.030 W | +3.0 % |
 | the same, measured on the top with ψJT 0.3 K/W | 32.5 | 31.5 | 1.030 W | +3.0 % |
 | the same JEDEC board **without** the thermal vias | - | 68.1 (0.5 mm; 73 to 84 K/W at other cell sizes) | (0.48 W) | the exposed pad needs the vias (JESD51-5) |
 
+* **The CSD17308Q3 row moved with the laminate nodes of the rule** (`docs/theory.md` 1.4): 0.983 W (−1.7 %) became 0.968 W (−3.2 %), towards the 3D estimate of about 0.96 W (the part sits on bare laminate under a two-layer board, where the earlier model was too cool); the test tolerance is 4 %. The other rows of this table are the values of the earlier construction; the JEDEC test still passes within 5 %, its numbers were not re-read.
 * The CSD17308Q3 datasheet also gives 58 K/W as a *maximum* and 165 K/W for the minimum pad (also a maximum). A maximum covers the spread of parts and boards, not this board, so it is not a target (the model gives 45.7 K/W when the junction is 58 K above ambient because the computed convection improves with temperature). The pad of the minimum-pad case is not stated, so that case cannot be built.
 * The JEDEC 2s2p board follows ROHM application note 64AN113E (JESD51-3/5/7/9/10): 114.3 × 76.2 × 1.6 mm, 70 µm top and bottom traces, two 74.2 × 74.2 mm planes of 35 µm, thermal vias Ø0.30 mm at 1.2 mm pitch. The traces are not drawn. The TPS7A47 values used (RθJA 32.5, θJC(bot) 1.7, ψJT 0.3 K/W) are from its datasheet (SBVS204G); the 5 × 5 mm body and the 3.15 mm pad are from its package drawing RGW0020A; the 3 × 3 via array is an assumption, so this row is an indication (+3 %), not a proof.
-* **Cell size and model error.** At 0.25 mm the two rows are −2.3 % (CSD17308Q3, 47.1 K/W) and +1.3 % (JEDEC, 32.1 K/W); the no-via board depends strongly on the cell (83.6, 68.1, 72.9 and 74.5 K/W at 1, 0.5, 0.35 and 0.25 mm; its heat leaves through a source a few cells wide) but needs the vias at every size. On the CSD17308Q3 board the FVM's board resistance is 2.4 % below an independent 3D solver and the program's 3D solid is within 0.1 % of it, so part of the agreement is a model error: with the 3D solid the calculator would return about 0.96 W (−4 %; estimated, **not printed by any script**: 46.8 × 48.3 / 47.2 = 47.9 K/W, 46 / 47.9 = 0.96). These numbers and the cell sweep come from the cell-size study of section 4 (the datasheet script prints the first four rows only, at 0.5 mm).
+* **Cell size and model error.** (The 0.25 mm values of this paragraph were measured before the laminate nodes of the rule and were not repeated.) At 0.25 mm the two rows are −2.3 % (CSD17308Q3, 47.1 K/W) and +1.3 % (JEDEC, 32.1 K/W); the no-via board depends strongly on the cell (83.6, 68.1, 72.9 and 74.5 K/W at 1, 0.5, 0.35 and 0.25 mm; its heat leaves through a source a few cells wide) but needs the vias at every size. On the CSD17308Q3 board the FVM's board resistance is 2.4 % below an independent 3D solver and the program's 3D solid is within 0.1 % of it, so part of the agreement is a model error: with the 3D solid the calculator would return about 0.96 W (−4 %; estimated, **not printed by any script**: 46.8 × 48.3 / 47.2 = 47.9 K/W, 46 / 47.9 = 0.96). These numbers and the cell sweep come from the cell-size study of section 4 (the datasheet script prints the first four rows only, at 0.5 mm).
 * **The JEDEC bottom copper.** ROHM 64AN113E table 2 reads the backside copper of the 2s2p board as 74.2 × 74.2 mm of 70 µm (text extracted from the PDF; the study draws traces, as JESD51-7 is usually described, from memory); with that plane the model gives 26.4 K/W at 0.5 mm (+23 % of power), so the JEDEC row holds only for the traces reading.
 * The ψJT row only checks that the top-of-package point is consistent with the junction point; the model has no top path in the JEDEC case, so ψJT cannot be predicted (that needs the junction node of the roadmap).
-* Tests: the three rows above with tolerances of 3 % (CSD17308Q3) and 5 % (JEDEC), and the factor of about two for the missing vias.
+* Tests: the three rows above with tolerances of 4 % (CSD17308Q3) and 5 % (JEDEC), and the factor of about two for the missing vias.
 
 ### 2.2 Sensitivity to the board and to the data (`docs/validation.md` section 19)
 
@@ -132,7 +133,7 @@ Part of 2 W, θ = 6 K/W, ψJT = 2 K/W on the example board; the top reading is m
 | measured top temperature 3 K low / high | 1.831 / 2.169 | −8.5 % / +8.5 % |
 | datasheet shortcut with θJA 30 % below / above the board's (19.7 K/W) | 3.002 / 1.499 | +50.1 % / −25.0 % |
 
-**Reading it.** On the datasheet's own board the calculator is within 2 to 3 % (table 2.1); the large deltas appear only when the drawn board is not the real one. The copper dominates (11 to 45 % for a wrong copper, planes or vias), the heat transfer, θ, ψJT and a 3 K measurement error each move the answer by 5 to 9 %.
+**Reading it.** On the datasheet's own board the calculator is within about 3 % (table 2.1); the large deltas appear only when the drawn board is not the real one. The copper dominates (11 to 45 % for a wrong copper, planes or vias), the heat transfer, θ, ψJT and a 3 K measurement error each move the answer by 5 to 9 %.
 
 ### 2.3 Self-consistency (`tests/test_inverse.py`)
 

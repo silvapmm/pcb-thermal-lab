@@ -89,15 +89,18 @@ def _board_mask(result, outline):
     return coverage_fraction(outline, nx, ny, result.dx, result.dy, BOARD_SAMPLES) >= 0.01
 
 
-def _footprint_stats(result, polygon, layer, outline=None):
+def _footprint_stats(result, polygon, layer, outline=None, face=False):
     """!
     @brief Coverage-weighted mean and maximum temperature under a polygon on one layer, over the part of it that is on the board.
     @details With an outline, a cell is weighted by the share of it that is both in the polygon and on the board (the cells off the board
              hold the ambient and would pull the mean and the minimum down); without one the weight is the coverage of the polygon.
+             With `face` the temperature read is the one at the face of the part: where the copper under a part is absent the FVM and FDM add the drop of the half layer of
+             laminate between their node and the face (laminate.face_terms, stored in the result), to the maximum in full and to the mean by the bare share of each cell.
     @param result A SteadyResult with a field.
     @param polygon Vertices (n, 2) in metres.
     @param layer 0-based layer.
     @param outline Board outline vertices (n, 2) in metres, or None for a rectangular board.
+    @param face True to add the face terms of the result (the part's own temperature); False for a zone or a ring, which have no heat source.
     @return Tuple (mean, max, min) or (nan, nan, nan) if the polygon covers no cell of the board.
     """
     ny, nx = result.T.shape[1:]
@@ -115,9 +118,13 @@ def _footprint_stats(result, polygon, layer, outline=None):
         cov = cov * on_board
     if cov.sum() <= 0:
         return float("nan"), float("nan"), float("nan")
-    T = result.T[min(layer, result.T.shape[0] - 1)]
+    li = min(layer, result.T.shape[0] - 1)
+    T = result.T[li]
     inside = cov > 0
-    return float((T * cov).sum() / cov.sum()), float(T[inside].max()), float(T[inside].min())
+    T_peak, T_mean = T, T
+    if face and "face_peak" in result.arrays:
+        T_peak, T_mean = T + result.arrays["face_peak"][li], T + result.arrays["face_mean"][li]
+    return float((T_mean * cov).sum() / cov.sum()), float(T_peak[inside].max()), float(T[inside].min())
 
 
 def zone_stats(result, problem):
@@ -206,7 +213,7 @@ def heater_stats(result, problem, powers=None):
     amb = result.ambient
     for k, h in enumerate(problem.heaters):
         power = h.power if powers is None else float(powers[k])
-        mean, mx, _ = _footprint_stats(result, h.polygon, h.layer, problem.board.outline)
+        mean, mx, _ = _footprint_stats(result, h.polygon, h.layer, problem.board.outline, face=True)
         tj, p_top = part_split(h, mx, power, amb)
         device = tj if tj is not None else mx
         ring = _ring_mean(result, h.polygon, h.layer, problem.board.outline)
