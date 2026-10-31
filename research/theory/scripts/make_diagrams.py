@@ -4,7 +4,8 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30.
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41 (the diagrams of the rewrite of the theory).
+         Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -38,7 +39,7 @@ def fvm_cell(path):
     # Arrows across the four faces of the centre cell (x 3.6 to 6.2, y 3.2 to 5.4, centre 4.9, 4.3)
     for (x0, y0, x1, y1, t) in ((5.8, 4.3, 7.0, 4.3, "Gx"), (4.0, 4.3, 2.8, 4.3, "Gx"), (4.9, 5.0, 4.9, 6.1, "Gy"), (4.9, 3.5, 4.9, 2.4, "Gy")):
         dk.arrow(a, x0, y0, x1, y1, color=dk.HEAT, label="")
-        a.text((x0 + x1) / 2, (y0 + y1) / 2 + 0.25, t, ha="center", fontsize=8, color=dk.HEAT)
+        a.text((x0 + x1) / 2 + (0.35 if t == "Gy" else 0.0), (y0 + y1) / 2 + (0.0 if t == "Gy" else 0.25), t, ha="center", va="center" if t == "Gy" else "baseline", fontsize=8, color=dk.HEAT)
     a.set_ylim(0, 8.4)
     a.text(5, 8.0, "plan: heat balance of one cell through its four faces", ha="center", fontsize=9, fontweight="bold")
     a = axs[1]
@@ -47,7 +48,7 @@ def fvm_cell(path):
     dk.box(a, 0.3, 4.6, 2.0, 1.0, "θ1", "#ffe9a8"); dk.box(a, 7.7, 4.6, 2.0, 1.0, "θ2", "#f3d9b1")
     dk.resistor(a, 2.3, 5.0, 5.1, "Δx/(2 S1 Δy)"); dk.resistor(a, 5.0, 7.7, 5.1, "Δx/(2 S2 Δy)")
     a.text(5, 3.3, "G = 2 S1 S2 / (S1 + S2) · Δy/Δx\nthe harmonic mean: a copper / FR-4 edge\nis a series, not an average", ha="center", fontsize=8.5)
-    a.text(5, 1.4, "vertical: Gz = k_th ΔxΔy/d + Σ vias k_cu A_via/d\nambient: G_amb = h Δx Δy", ha="center", fontsize=8.5)
+    a.text(5, 1.4, "vertical: Gz = k_th ΔxΔy/d (the vias are mean-potential\ncouplings on a footprint, section 2.6)\nambient: G_amb = h Δx Δy", ha="center", fontsize=8.5)
     a = axs[2]
     a.set_xlim(0, 10); a.set_ylim(0, 8)
     a.text(5, 7.6, "the matrix row", ha="center", fontsize=9, fontweight="bold")
@@ -109,7 +110,7 @@ def solid3d(path):
                 a.plot([0.5, 9.5], [y, y], color="k", lw=0.3)
                 y += 0.38
     a.add_patch(Rectangle((5.0, 1.0), 0.4, y - 1.0, fc=CU, ec="k"))
-    a.text(5.2, 0.5, "via: rod of the barrel's copper area", ha="center", fontsize=8)
+    a.text(5.2, 0.5, "via: the barrel's copper area (drill), spread on its footprint cells", ha="center", fontsize=8)
     dk.layer(a, 6.8, y, 2.4, 0.18, "#f2d9b0")                         # pad slab: thickness R'' x 1 W/mK, conductivity 1 W/mK
     a.text(9.4, y + 0.09, "pad slab (R'')", fontsize=7, va="center")
     dk.layer(a, 6.8, y + 0.18, 2.4, 0.9, dk.METAL, "metal block: n slabs", size=8)
@@ -390,8 +391,7 @@ def metal_block(path):
     a.text(5, 7.4, "Lumped / Analytic: keep the lateral conduction", ha="center", fontsize=9, fontweight="bold")
     dk.box(a, 0.5, 4.8, 3.9, 1.4, "Lumped: the block is one\nmore layer of the ring network", "#cfe3f5", size=8)
     dk.box(a, 5.6, 4.8, 3.9, 1.4, "Analytic: Schur complement\non the tile graph of the\nGreen-function correction", "#cfe3f5", size=8)
-    a.text(5, 2.8, "an equivalent coefficient (isothermal block) is 8 to 31 % off:\nthe block spreads the heat of the pad centre to the whole pad", ha="center", fontsize=8.5)
-    a.text(5, 1.0, "means 1.9 % / 1.1 % (Lumped / Analytic) against the FVM, 74 cases", ha="center", fontsize=8, style="italic")
+    a.text(5, 2.8, "one equivalent coefficient (an isothermal block) is not enough:\nthe block spreads the heat of the pad centre to the whole pad", ha="center", fontsize=8.5)
     dk.save(fig, path, "Metal blocks: the block on the board, a plate fin, the equivalents of the Lumped and Analytic models (theory section 7)")
 
 
@@ -568,7 +568,7 @@ def layered_idealisation(path):
     a.text(6, 7.7, "section: nodes, gaps and faces", ha="center", fontsize=9, fontweight="bold")
     a = axs[1]; a.set_xlim(0, 10); a.set_ylim(0, 8)
     a.text(5, 7.3, "what it assumes", ha="center", fontsize=9, fontweight="bold")
-    a.text(5, 5.0, "no gradient across a copper layer;\nthe gap is a 1D resistance (no spreading inside it:\n0.4 to 2 % against the 3D solid);\nthe air coefficients act on the outer layer node;\na one-layer board gets two laminate nodes\nunder its copper (laminate.py)", ha="center", fontsize=8.5)
+    a.text(5, 5.0, "no gradient across a copper layer;\nthe gap is a 1D resistance (no spreading inside it;\nthe 3D solid measures this error);\nthe air coefficients act on the outer layer node;\na one-layer board gets two laminate nodes\nunder its copper (laminate.py)", ha="center", fontsize=8.5)
     a.text(5, 2.0, "energy balance: Σ h∫θ dA + edge losses = Σ P\nevery result reports it", ha="center", fontsize=8.5, fontweight="bold")
     dk.save(fig, path, "The layered idealisation: nodes, gaps, faces and the energy balance (theory section 1.2)")
 
@@ -1041,12 +1041,138 @@ def why_agree(path):
     dk.save(fig, path, "Why the FVM and the Analytic model agree (validation section 4)")
 
 
-def main():
+def document_map(path):
     """!
-    @brief Draw and save every figure of this folder.
+    @brief Draw the map of `docs/theory.md`: the board description, the layered idealisation, the five models and the pieces they share (sources, vias, metal blocks, heat transfer coefficients, parts, profiles).
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(15, 6.4)
+    ax.set_xlim(0, 15); ax.set_ylim(0, 8.6)
+    dk.box(ax, 0.3, 6.9, 14.4, 1.4, "the board of the Problem: layers and stack-up, zones (copper fill), heaters and parts, vias, heatsinks and blocks, h per face, outline\n(section 1.1: the continuum problem; section 0: the symbols)", "#e8e8e8", size=8.5, bold=True)
+    dk.box(ax, 0.3, 4.9, 8.1, 1.4, "1.2 the layered idealisation: one node per copper layer and plan position,\nthe gap a 1D resistance, one h per face (1.3 sources, 1.4 a one-layer board)", "#cfe3f5", size=8)
+    dk.box(ax, 9.6, 4.9, 3.0, 1.4, "4. 3D solid\nreal slabs, no idealisation", "#f3d9b1", size=8, bold=True)
+    names = (("2. FVM\nthe reference", 0.3), ("3. FDM\ncomparison", 2.3), ("5. Lumped\nrings", 4.3), ("6. Analytic\ncosine series", 6.3))
+    for txt, x in names:
+        dk.box(ax, x, 3.0, 1.8, 1.2, txt, "#d9efd0", size=8, bold=True)
+        dk.arrow(ax, x + 0.9, 4.9, x + 0.9, 4.2)
+    dk.arrow(ax, 4.0, 6.9, 4.0, 6.3); dk.arrow(ax, 11.1, 6.9, 11.1, 6.3)
+    ax.text(11.1, 4.6, "same grid and sources as the FVM", fontsize=7.5, ha="center", va="top")
+    ax.text(9.6, 3.6, "a layered model against\nthe 3D solid: the error of the\nidealisation (section 11)", fontsize=7.5, va="center")
+    shared = (("7. metal blocks\n(plate, fins)", 0.3), ("2.6, 5.1, 6.1 vias\n(well, constriction)", 2.7), ("8. h per face\n(Picard loop)", 5.1), ("9. parts\n(junction, top path)", 7.5), ("10. profiles\n(time)", 9.9), ("11. checks\n(ladder)", 12.3))
+    ax.text(0.3, 2.3, "pieces that every model (or most) uses (yellow) or that run around the solvers (red)", fontsize=8.5, fontweight="bold")
+    for txt, x in shared:
+        dk.box(ax, x, 0.5, 2.2, 1.4, txt, "#f4b6b6" if "9." in txt or "8." in txt or "10." in txt else "#fff2b3", size=7.5)
+    dk.save(fig, path, "Map of the theory: board, layered idealisation, five models and the shared pieces (theory header)")
+
+
+def stackup_slabs(path):
+    """!
+    @brief Draw the advanced stack-up of theory section 1.2.1: a node per copper layer with the slab of half a gap on each side, gaps of different thickness, the vertical conductance of each gap and the sheets of one gap in series and side by side.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 5.4, 1, 3, ratios=[1.3, 1.0, 1.1])
+    a = axs[0]; a.set_xlim(0, 12); a.set_ylim(0, 9)
+    a.text(5, 8.6, "slab of a node: copper plus half of each adjacent gap", ha="center", fontsize=9, fontweight="bold")
+    cu = 0.3
+    y1, y2, y3 = 7.0, 4.3, 3.0                        # Top of copper 1, 2 and 3; the gaps are d1 = 2.4 and d2 = 1.0 (not to scale: illustrative)
+    for y in (y1, y2, y3):
+        dk.layer(a, 0.5, y - cu, 7.5, cu, CU)
+    dk.layer(a, 0.5, y2, 7.5, y1 - cu - y2, dk.FR4); dk.layer(a, 0.5, y3, 7.5, y2 - cu - y3, "#b6d3a6")
+    m1, m2 = y1 - cu - 0.5 * (y1 - cu - y2), y2 - cu - 0.5 * (y2 - cu - y3)     # Middle of the gap 1 and of the gap 2
+    for yy in (m1, m2):
+        a.plot([0.5, 9.4], [yy, yy], "k:", lw=0.9)
+    for y in (y1, y2, y3):
+        a.plot(4.2, y - cu / 2, "o", color="#1f4fd8", ms=6)
+    a.text(8.3, y1 - 0.15, "node 1", fontsize=7.5, va="center"); a.text(8.3, y2 - 0.15, "node 2", fontsize=7.5, va="center"); a.text(8.3, y3 - 0.15, "node 3", fontsize=7.5, va="center")
+    a.annotate("", (0.15, y1 - cu), (0.15, y2), arrowprops={"arrowstyle": "<->", "lw": 1})
+    a.text(-0.1, (y1 + y2) / 2 - 0.15, "d1", fontsize=8, ha="right"); a.annotate("", (0.15, y2 - cu), (0.15, y3), arrowprops={"arrowstyle": "<->", "lw": 1})
+    a.text(-0.1, (y2 + y3) / 2 - 0.15, "d2", fontsize=8, ha="right")
+    for (top, bot, txt) in ((y1, m1, "slab 1 = t_cu + d1/2"), (m1, m2, "slab 2 = t_cu + d1/2 + d2/2"), (m2, y3 - cu, "slab 3 = t_cu + d2/2")):
+        a.annotate("", (9.6, bot), (9.6, top), arrowprops={"arrowstyle": "<->", "lw": 1, "color": "#c23b3b"})
+        a.text(9.8, (top + bot) / 2, txt, fontsize=7, va="center", color="#c23b3b")
+    dk.arrow(a, 3, y1 + 0.1, 3, y1 + 0.9, color=dk.HEAT); a.text(3.3, y1 + 0.55, "h_top", fontsize=8, color=dk.HEAT)
+    dk.arrow(a, 3, y3 - cu - 0.05, 3, y3 - cu - 0.85, color=dk.HEAT); a.text(3.3, y3 - cu - 0.5, "h_bottom", fontsize=8, color=dk.HEAT)
+    a.text(5, 0.9, "the slabs add up to the thickness of the board;\nthe thicknesses here are illustrative", ha="center", fontsize=8, style="italic")
+    a = axs[1]; a.set_xlim(0, 10); a.set_ylim(0, 9)
+    a.text(5, 8.6, "the network of the nodes", ha="center", fontsize=9, fontweight="bold")
+    for k, y in enumerate((7.0, 4.2, 1.4)):
+        dk.box(a, 2.8, y, 3.4, 1.0, f"node {k + 1}: S_{k + 1} (sheet),\nC_{k + 1} (capacity)", "#cfe3f5", size=7.5)
+    for (ya, yb, j) in ((7.0, 5.2, 1), (4.2, 2.4, 2)):
+        a.plot([4.5, 4.5], [ya, yb], "k", lw=1.2)
+        a.add_patch(Rectangle((4.3, (ya + yb) / 2 - 0.3), 0.4, 0.6, fc="white", ec="k", lw=1.2))
+        a.text(5.0, (ya + yb) / 2, f"g_{j} = k_th,{j} / d_{j}", fontsize=8, va="center")
+    a.text(5, 0.4, "each gap j has its own d_j, k_th,j, k_ip,j, ρc_j", ha="center", fontsize=8)
+    a = axs[2]; a.set_xlim(0, 11); a.set_ylim(0, 9)
+    a.text(5.5, 8.6, "one gap made of several sheets", ha="center", fontsize=9, fontweight="bold")
+    cols = ("#9bbf8a", "#d8e6a0", "#9bbf8a")
+    for k, hh in enumerate((0.9, 0.5, 0.9)):
+        dk.layer(a, 0.8, (6.0, 5.5, 4.6)[k], 4.0, hh, cols[k])
+    for xx in (1.8, 2.8, 3.8):
+        dk.arrow(a, xx, 7.4, xx, 3.9, color=dk.HEAT, width=1.0)
+    a.text(2.8, 2.7, "through the gap: in series\nk_th = Σ t_i / Σ (t_i / k_th,i)", ha="center", fontsize=7.5)
+    x0 = 6.4
+    for k, w in enumerate((1.4, 0.8, 1.4)):
+        dk.layer(a, x0, 4.4, w, 1.8, cols[k]); x0 += w
+    dk.arrow(a, 6.2, 5.3, 10.3, 5.3, color=dk.HEAT, width=1.2); dk.arrow(a, 6.2, 4.7, 10.3, 4.7, color=dk.HEAT, width=1.0)
+    a.text(8.3, 3.2, "along the gap: side by side\nk_ip = Σ t_i k_ip,i / Σ t_i", ha="center", fontsize=7.5)
+    a.text(5.5, 0.9, "(combine_sheets; the sheets drawn are illustrative)", ha="center", fontsize=7.5, style="italic")
+    dk.save(fig, path, "Advanced stack-up: the slab of a node, the gaps and the sheets of a gap (theory section 1.2.1)")
+
+
+def block_section(path):
+    """!
+    @brief Draw the section of a metal block on the board with its heat paths (theory section 7): through the interface over copper, through the interface and half a slab of laminate over bare laminate, to the air by the exposed (finned) face and by the side walls, and the cell network those paths make.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 5.8, 1, 2, ratios=[1.45, 1.0])
+    a = axs[0]; a.set_xlim(0, 12); a.set_ylim(0, 9)
+    a.text(6, 8.6, "section: the paths of the heat (illustrative proportions)", ha="center", fontsize=9, fontweight="bold")
+    dk.layer(a, 0.5, 1.6, 11, 1.6, dk.FR4)
+    for (x0, x1) in ((0.5, 5.4), (7.4, 11.5)):
+        dk.layer(a, x0, 3.0, x1 - x0, 0.25, CU)
+    a.text(7.9, 2.35, "bare laminate\n(copper cut away)", fontsize=7, ha="center", va="center")
+    dk.layer(a, 3.0, 3.25, 6.0, 0.25, "#f3d9b1")
+    a.text(9.1, 3.375, "interface R''", fontsize=7, va="center")
+    dk.layer(a, 3.0, 3.5, 6.0, 1.1, dk.METAL, "plate: k, t, covers a fraction c of each cell", size=7.5)
+    for x in (3.3, 4.3, 5.3, 6.3, 7.3, 8.3):
+        dk.layer(a, x, 4.6, 0.25, 1.9, dk.METAL)
+    a.text(10.4, 7.2, "fins stand on the\nexposed face only", fontsize=7.5, ha="center")
+    dk.arrow(a, 4.2, 3.0, 4.2, 3.75, color=dk.HEAT, width=1.4); a.text(0.8, 2.3, "over copper: through\nR'' only, weight f", fontsize=7, color=dk.HEAT, va="center")
+    dk.arrow(a, 6.4, 1.9, 6.4, 3.75, color=dk.HEAT, width=1.4); a.text(6.6, 1.2, "over bare laminate: half a slab of FR-4 and R'',\nweight (1 - f)", fontsize=7, color=dk.HEAT)
+    for x in (4.7, 6.0, 7.3):
+        dk.arrow(a, x, 6.6, x, 7.6, color=dk.BLUE, width=1.2)
+    a.text(6.0, 7.9, "exposed face: h_exp = h_face · fin_ratio + h_extra", ha="center", fontsize=7.5, color=dk.BLUE)
+    dk.arrow(a, 3.0, 4.0, 2.0, 4.0, color=dk.BLUE, width=1.2); dk.arrow(a, 9.0, 4.0, 10.0, 4.0, color=dk.BLUE, width=1.2)
+    a.text(9.3, 5.0, "side walls:\nh_wall = h_face + h_extra\n(no fin ratio)", fontsize=7, color=dk.BLUE)
+    for x in (1.0, 11.0):
+        dk.arrow(a, x, 3.3, x, 4.1, color=dk.BLUE, width=1.0)
+    a.text(0.5, 5.0, "board face outside\nthe block: h_face", fontsize=7, color=dk.BLUE)
+    a.text(6.0, 0.55, "the board face under the block loses nothing: its coefficient is multiplied by (1 - c)", fontsize=7.5, ha="center", style="italic")
+    a = axs[1]; a.set_xlim(0, 10); a.set_ylim(0, 9)
+    a.text(5, 8.6, "one cell of the network", ha="center", fontsize=9, fontweight="bold")
+    dk.box(a, 0.4, 1.0, 3.2, 1.4, "board node of the face\n(layer l)", "#9bbf8a", size=8)
+    dk.box(a, 0.4, 4.6, 3.2, 1.4, "block node", dk.METAL, size=8)
+    a.plot([2.0, 2.0], [2.4, 4.6], "k", lw=1.4)
+    a.add_patch(Rectangle((1.8, 3.1), 0.4, 0.8, fc="white", ec="k", lw=1.2))
+    a.text(2.4, 3.5, "G = c A [ f / R'' + (1 - f) / (R'' + r_half) ]", fontsize=7.5, va="center")
+    a.text(2.0, 6.7, "neighbouring block nodes: S = k t c\n(harmonic mean, as the board)", ha="center", fontsize=7.5)
+    dk.arrow(a, 3.6, 5.3, 6.4, 5.3, color=dk.BLUE); a.text(6.6, 5.3, "exposed: h_exp A c", fontsize=7.5, va="center", color=dk.BLUE)
+    dk.arrow(a, 3.6, 4.9, 6.4, 4.2, color=dk.BLUE); a.text(6.6, 4.1, "sides: h_wall t L_edge", fontsize=7.5, va="center", color=dk.BLUE)
+    a.text(5, 0.2, "r_half = half a layer slab over its k_th; c the cover of the cell by the block,\nf the copper fill of the board layer", ha="center", fontsize=7.5)
+    dk.save(fig, path, "Metal block: the paths of the heat in section and the cell network they make (theory section 7)")
+
+
+def main(only=None):
+    """!
+    @brief Draw and save the figures of this folder.
+    @param only Optional set of figure numbers to draw (default: all); from the command line the numbers are the arguments.
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
+    only = set(only or ())
     for k, (name, fn) in enumerate((("layered_idealisation", layered_idealisation), ("fvm_cell", fvm_cell), ("fdm_nodes", fdm_nodes),
                                     ("solid3d_slabs", solid3d), ("lumped_rings", lumped_rings), ("analytic_modes", analytic_modes),
                                     ("theta_method", theta_method), ("heat_transfer", heat_transfer), ("part_runaway", part_runaway),
@@ -1058,8 +1184,13 @@ def main():
                                     ("verification_ladder", ladder), ("orientation", orientation), ("architecture", architecture),
                                     ("legacy_vs_current", legacy), ("time_results", time_results), ("input_checks", input_checks),
                                     ("curved_boards", curved_boards), ("prepreg", prepreg), ("why_fvm_analytic_agree", why_agree)), start=1):
-        fn(OUT / f"fig_{k:02d}_{name}.png")
+        if not only or k in only:
+            fn(OUT / f"fig_{k:02d}_{name}.png")
+    # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section)):
+        if not only or k in only:
+            fn(OUT / f"fig_{k:02d}_{name}.png")
 
 
 if __name__ == "__main__":
-    main()
+    main({int(x) for x in sys.argv[1:]})

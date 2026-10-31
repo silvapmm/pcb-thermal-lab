@@ -8,8 +8,10 @@
                  (`h_side` of the board against insulated edges) on the four uniform scenarios of `docs/validation.md` section 2 (the study of topic 37);
          fig_33: the through-thickness correction q'' t / (2 k) of a layer against its thickness, for copper, FR-4, steel and aluminium, with the 5 % limit of the
                  thick-plate check (`pcbthermal.checks.thick_plate_bound`, `THICK_PLATE_LIMIT`) on the rise of the example board.
+         fig_42: the top path of a part (theory section 9): the network of the junction, the residual `g(P_b)` of the split with its kink where the top heat is clipped, and the
+                 fixed-point iteration that the program does not use; `pcbthermal.analysis.part_split` is called for every number, the part and board values are illustrative.
          Every printed table is the source of the numbers in the README.
-         Usage: .venv/bin/python research/theory/scripts/make_figures.py   (from the repository root; about 3 minutes)
+         Usage: .venv/bin/python research/theory/scripts/make_figures.py [31 32 33 42]   (from the repository root; about 3 minutes for all, the numbers choose the figures)
 """
 
 import copy
@@ -27,10 +29,12 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "research" / "models-comparison" / "scripts"))
+sys.path.insert(0, str(ROOT / "research"))
 
-from pcbthermal import analytic, blocks, checks, fvm, model  # noqa: E402
+from pcbthermal import analysis, analytic, blocks, checks, fvm, model  # noqa: E402
 from pcbthermal.examples import example_board                 # noqa: E402
 import accuracy_study                                          # noqa: E402
+import diagram_kit as dk                                       # noqa: E402
 
 ## Output folder (committed on purpose; the README links to the files).
 OUT = HERE.parent / "figures"
@@ -223,16 +227,116 @@ def fig_thick_plate():
     plt.close(fig)
 
 
-def main():
+class _Part:
     """!
-    @brief Draw the three data figures of the folder.
+    @brief The two numbers `analysis.part_split` asks of a part, for an illustrative case.
+    """
+
+    def __init__(self, theta, r_top):
+        """!
+        @brief Store the resistances.
+        @param theta Junction-to-pad resistance in K/W.
+        @param r_top Resistance of the top path (package top, interface, heatsink) in K/W.
+        @return None.
+        """
+        self.theta = theta
+        self.r_top = r_top
+
+    def junction_theta(self):
+        """!
+        @brief Junction-to-pad resistance, as `Heater.junction_theta`.
+        @return float K/W.
+        """
+        return self.theta
+
+    def top_resistance(self):
+        """!
+        @brief Resistance of the top path, as `Heater.top_resistance`.
+        @return float K/W.
+        """
+        return self.r_top
+
+
+def fig_top_path():
+    """!
+    @brief The top path of a part: network, the residual g(P_b) of the split for a board resistance below and above the top resistance, and the plain fixed point on the second case.
+    @details The board is affine in the heat that enters it, T_max - T_amb = R_b P_b (one source, fixed coefficients), so g(P_b) = P_b - P + p_top(T_max(P_b)) with p_top from `analysis.part_split`.
+             Case A: R_b below R_top, one slope 1 + R_b/(R_top + theta). Case B: R_b above R_top, the top heat is clipped at P for P_b above P R_top / R_b, where g has a kink (slope 1).
+             The fixed-point map P_b <- P - p_top(T_max(P_b)) has slope -R_b/(R_top + theta); in case B its magnitude exceeds 1 and the iteration jumps between the two ends of [0, P].
+    @return None.
+    """
+    power, theta, r_top = 2.0, 5.0, 20.0                      # W, K/W, K/W: illustrative values
+    part = _Part(theta, r_top)
+    cases = (("A", 8.0, "#1f77b4"), ("B", 40.0, "#d62728"))   # Board resistance under the part in K/W
+    pb = np.linspace(0.0, power, 201)
+
+    def p_top(r_b, x):
+        return analysis.part_split(part, r_b * x, power, 0.0)[1]
+
+    def g(r_b, x):
+        return x - power + p_top(r_b, x)
+
+    fig, axs = dk.canvas(15, 5.4, 1, 3, ratios=[1.2, 1.0, 1.0])
+    a = axs[0]; a.set_xlim(0, 12); a.set_ylim(0, 8)
+    a.text(6, 7.6, "network of a part with a top path", ha="center", fontsize=9, fontweight="bold")
+    dk.box(a, 0.2, 1.4, 1.6, 4.4, "junction\nTj", "#f4b6b6", size=8)
+    dk.resistor(a, 1.8, 6.2, 5.2, "R_top = θJC,top + R''_if/A + θSA", size=7)
+    dk.resistor(a, 1.8, 4.4, 2.3, "θ (part)", size=7)
+    dk.box(a, 4.4, 1.7, 1.9, 1.2, "T_max under\nthe footprint", "#9bbf8a", size=7)
+    dk.resistor(a, 6.3, 8.6, 2.3, "R_b (board)", size=7)
+    a.plot([6.2, 8.6], [5.2, 5.2], color="k")
+    dk.box(a, 8.6, 1.4, 1.8, 4.4, "ambient", "#dbe9f7", size=8)
+    dk.arrow(a, 1.0, 7.1, 1.0, 5.85, color=dk.HEAT); a.text(1.3, 6.6, "P", fontsize=9, color=dk.HEAT)
+    a.text(3.1, 3.2, "P_b into the board", fontsize=7.5, color=dk.HEAT, ha="center")
+    a.text(4.0, 5.9, "p_top to the air", fontsize=7.5, color=dk.HEAT, ha="center")
+    a.text(6, 0.5, "P = P_b + p_top;  Tj = T_max + P_b θ;  the board is affine in P_b", ha="center", fontsize=7.5)
+    a = axs[1]; a.axis("on")
+    for name, r_b, col in cases:
+        gv = np.array([g(r_b, x) for x in pb])
+        a.plot(pb, gv, color=col, lw=2, label=f"case {name}: R_b = {r_b:g} K/W")
+        root = pb[np.argmin(np.abs(gv))]
+        # The root by the exact affine formula (unclipped branch) for the marker; checked against the grid minimum
+        root_exact = (power - power * theta / (r_top + theta)) / (1.0 + r_b / (r_top + theta))
+        a.plot([root_exact], [0], "o", color=col, ms=7)
+        assert abs(root - root_exact) < 0.02, (name, root, root_exact)
+        if r_b > r_top:
+            kink = power * r_top / r_b
+            a.plot([kink], [g(r_b, kink)], "s", color=col, ms=6)
+            a.annotate("kink: the top heat\nis clipped at P", (kink, g(r_b, kink)), (kink + 0.25, -1.3), fontsize=8, arrowprops={"arrowstyle": "->"})
+    a.axhline(0, color="k", lw=0.6)
+    a.set_xlabel("heat into the board P_b (W)"); a.set_ylabel("g(P_b) = P_b - P + p_top (W)")
+    a.set_title(f"the split is the root of g: monotone, bracketed by [0, P]\n(P = {power:g} W, θ = {theta:g} K/W, R_top = {r_top:g} K/W: illustrative)", fontsize=8.5)
+    a.legend(fontsize=8, loc="upper left"); a.grid(alpha=0.3)
+    a = axs[2]; a.axis("on")
+    a.plot(pb, pb, "k", lw=1, label="P_b")
+    name, r_b, col = cases[1]
+    mapped = np.array([power - p_top(r_b, x) for x in pb])
+    a.plot(pb, mapped, color=col, lw=2, label=f"P - p_top(T_max(P_b)), case {name}")
+    x = power
+    path = [(x, 0.0)]
+    for _ in range(6):                                          # Cobweb of the plain fixed point started with all the power in the board
+        y = power - p_top(r_b, x)
+        path += [(x, y), (y, y)]
+        x = y
+    a.plot(*zip(*path), color="grey", lw=1, marker=".", ms=4, label="iteration")
+    a.set_xlabel("P_b (W)"); a.set_ylabel("next P_b (W)")
+    a.set_title(f"the plain fixed point: slope -R_b/(R_top + θ) = {-r_b / (r_top + theta):.1f}\nbelow -1 it jumps between the ends (not used)", fontsize=8.5)
+    a.legend(fontsize=7.5, loc="upper right"); a.grid(alpha=0.3)
+    dk.save(fig, OUT / "fig_42_top_path_split.png", "Parts: the top path as a root, not a loop (theory section 9; part and board values illustrative)")
+
+
+def main(only=None):
+    """!
+    @brief Draw the data figures of the folder.
+    @param only Optional set of figure numbers (31, 32, 33, 42) to draw; default all. From the command line the numbers are the arguments (fig_32 is the slow one).
     @return None.
     """
     OUT.mkdir(exist_ok=True)
-    fig_fins()
-    fig_series_edges()
-    fig_thick_plate()
+    only = set(only or ())
+    for number, fn in ((31, fig_fins), (32, fig_series_edges), (33, fig_thick_plate), (42, fig_top_path)):
+        if not only or number in only:
+            fn()
 
 
 if __name__ == "__main__":
-    main()
+    main({int(x) for x in sys.argv[1:]})
