@@ -39,3 +39,4 @@ Row 4 of `ROADMAP.md` section 1; the recommendation to start from is after each.
 * block-and-fins and fin-channel: the 4 mm threshold of the fin warning (C3): replace it by a rule on the channel Rayleigh number and whether to add the correction (`fin-channel/INTEGRATION.md`).
 * gerber-import: the reader accepting LM/LR/LS and aperture blocks (E10).
 * the other folders: the items in each folder's `INTEGRATION.md` and in `docs/versions.md` ("Planned").
+| `rotated-square-3d/` | awaiting reviewer | `f5ed274` (develop at 2.4.4) | not yet reviewed; A3 re-measured (+0.8 to +3.1 K at 100 to 1000 W/m2K), cause found in the cut-cell treatment of `solid3d.py`, cut-cell copy measured (INTEGRATION P1); to check: the axisymmetric reference, the copy on patterned copper, the T +0.2 K at the default coefficient |
