@@ -196,4 +196,6 @@ def test_footprint_of_a_part_turned_45_degrees_is_short_on_4_by_4_samples():
     c8 = geometry.coverage_fraction(poly, 80, 80, 0.25e-3, 0.25e-3, 8).sum() * 0.0625e-6
     assert c4 < 0.98 * area
     assert abs(c8 - area) < abs(c4 - area)
-    assert rotsq.VARIANTS["cutcell_src8"][-1][0] in open(os.path.join(rotsq.ROOT, "pcbthermal", "solid3d.py"), encoding="utf-8").read()
+    # since 2.4.5 the program samples the footprint 8 x 8 itself (the old 4 x 4 line is gone)
+    assert geometry.BOARD_SAMPLES == 8
+    assert rotsq.VARIANTS["program_src8"] == []
