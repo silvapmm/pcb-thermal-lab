@@ -134,6 +134,7 @@ def test_cost_counts_unknowns(array3):
     assert c["unknowns"] == c["active"] * 4
 
 
+@pytest.mark.skipif(not tr.patch_available(), reason="the tile rule and the via self-term are in the program now (fix/via-constriction); the prototype patch has nothing to rewrite")
 def test_patch_is_installed_and_removed(array3):
     """!
     @brief Entering the context replaces `analytic.solve_steady` and adds the hooks; leaving it restores the program's function and removes the hooks and the rule.
@@ -164,6 +165,7 @@ def test_patch_removed_after_an_exception(array3):
     assert analytic.solve_steady is orig
 
 
+@pytest.mark.skipif(not tr.patch_available(), reason="the tile rule and the via self-term are in the program now (fix/via-constriction); the prototype patch has nothing to rewrite")
 def test_switched_off_patch_reproduces_the_program_bit_for_bit(array3):
     """!
     @brief mode "off", no spread, the program's tile and 64 modes: the maximum temperature equals the program's to the last digit.
@@ -176,6 +178,7 @@ def test_switched_off_patch_reproduces_the_program_bit_for_bit(array3):
     assert patched == base
 
 
+@pytest.mark.skipif(not tr.patch_available(), reason="the tile rule and the via self-term are in the program now (fix/via-constriction); the prototype patch has nothing to rewrite")
 def test_modes_hook_changes_the_answer_only_when_asked(array3):
     """!
     @brief With c = 0 the fixed 1 mm tile gives the same result as the explicit call without modes; with c = 2 on a board longer than 32 mm the result differs slightly.

@@ -143,6 +143,18 @@ def modes_needed(W, H, t, c=2.0):
     return max(64, int(math.ceil(c * W / t))), max(64, int(math.ceil(c * H / t)))
 
 
+def patch_available():
+    """!
+    @brief Whether the program's `analytic.solve_steady` still has the lines that `patched` rewrites.
+    @details Since `fix/via-constriction` the program holds the tile rule and the via self-term itself, so the prototype patch cannot be installed on it any more (the studies
+             of this folder ran on the program before that change).
+    @return bool True when every anchor of the old source is found.
+    """
+    from pcbthermal import analytic
+    src = textwrap.dedent(inspect.getsource(analytic.solve_steady))
+    return all(needle in src for needle in (ap._ANCHOR, ap._TILE_LINE, ap._VIA_LINE, _MODE_LINE))
+
+
 @contextlib.contextmanager
 def patched(kind="cap_nn", t_mm=1.0, k_nn=0.75, m_rad=8.0, floor_mm=0.25, cap_mm=1.0, modes_c=0.0, max_active=1200, mode="on", eta=cr.ETA, spread="bilinear", iso=0.7, guard=0.5):
     """!
