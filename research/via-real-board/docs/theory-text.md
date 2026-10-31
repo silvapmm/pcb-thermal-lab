@@ -22,11 +22,11 @@ while the continuum disc of radius `r_t` at distance `δ` from the edge (image a
 
 For a via near a corner (walls `x = p`, `y = q`) three images enter, two single and one diagonal (`D_true = 2 √(δ_x² + δ_y²)`), and `c` is the sum of the three terms. `δ` is clipped at `r_v`. If the denominator is not positive the well is infinite. The correction is zero when the via sits at the centre of the cell next to the wall (`P_img = a(1,0) = 1`, `D_lat = 0.955 Δ`, `c ≈ −0.05`); it grows as `ln(Δ/2δ)` for `δ → 0`.
 
-*Status: derived, implemented in `lib/edge_image.py`, not yet compared with the resolved reference (README 3).* Valid for walls parallel to an axis on a cell-centred grid (FVM); the FDM edge nodes are half volumes whose mirror is themselves, and a diagonal or curved edge has no lattice image.
+*Status: derived, implemented in `lib/edge_image.py` and compared with a resolved reference (the layered model on a 1/16 mm grid, barrel at real size): for a 0.3 mm via 0.16 mm from the edge on 1 mm cells the error of the via effect falls from +14.5 % to +0.7 % (+26 % to -1.0 % at a corner; +14.1 % to +1.1 % at an outline on a grid line; +2.5 % at an outline inside a cell, only with the footprint restricted to the board). README 3.* Valid for walls parallel to an axis on a cell-centred grid (FVM); the FDM edge nodes are half volumes whose mirror is themselves, and a diagonal or curved edge has no lattice image.
 
 ## The footprint on the cells of the board
 
-Cells off the board (an outline) are pinned to the ambient by `g_pin`; weight on them would couple the barrel to the pin. The footprint therefore keeps the cells with `cover > 0` with weight `w_a · cover_a`, renormalised, and the sheet conductance of the well is that of the cell of the largest weight on the board. At the border of the grid the weight outside it may instead be moved to the mirror cell (`fold`), which keeps `r_eff` of an uncut footprint; which of the two is better is measured in README 3.3.
+Cells off the board (an outline) are pinned to the ambient by `g_pin`; weight on them would couple the barrel to the pin. The footprint therefore keeps the cells with `cover > 0` with weight `w_a · cover_a`, renormalised, and the sheet conductance of the well is that of the cell of the largest weight on the board. With the image of the edge the restriction is **required**: on an outline that cuts a cell (cover 0.0625) the image without the restriction is -10.2 % at 1 mm and with it +2.5 % (README 3.3). Moving the weight outside the grid to the mirror cell (`fold`) gave the same result as the restriction in every case and is not proposed.
 
 ## The single footprint rule of the 3D solid
 
