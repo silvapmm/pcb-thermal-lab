@@ -311,6 +311,29 @@ class Network:
         res = np.linalg.norm(self.K @ theta - q) / max(np.linalg.norm(q), 1e-300)
         return theta.reshape(self.nl, self.ny, self.nx), float(res)
 
+    def sor_omega(self):
+        """!
+        @brief Estimate of Young's optimum relaxation factor of the red-black SOR from the Rayleigh quotient of the Jacobi matrix.
+        @details For the symmetric positive definite K = D - N with a two-colourable graph (the parity of l + i + j) the optimum is 2 / (1 + sqrt(1 - rho^2)), rho the
+                 spectral radius of D^-1 N (Young; Saad 2003, section 4.2.5). rho is bounded from below by the Rayleigh quotient 1 - (m^T K m) / (m^T D m) of the trial
+                 vector m = D^1/2 1 restricted to the nodes that have a link: one product with K, always a LOWER bound, so the omega that follows is below the optimum (safe side).
+                 K is the full matrix that the SOR solves, with the via couplings and the footprints. Nodes without any link (the cells off a board with an outline, pinned to the ambient)
+                 are left out of both sums: they are eigenvectors with mu = 0 and would dilute the quotient (omega near 1 on a round board). The result is capped at 1.999 as a guard.
+                 The old formula 2 / (1 + sin(pi / n)) is the optimum of a plate with fixed edges, and was 2.8 to 19 times slower on boards with insulated edges (research/young-omega-tiles).
+        @return float Relaxation factor in [1, 1.999].
+        """
+        K = self.K.tocsr()
+        d = np.asarray(K.diagonal(), float)
+        # Nodes with at least one off-diagonal entry: the row has more stored entries than the diagonal, or a stored off-diagonal that is not zero
+        off = np.asarray(abs(K).sum(axis=1)).ravel() - np.abs(d)
+        m = (off > 0).astype(float)
+        den = float(m @ d)
+        if den <= 0.0:
+            return 1.0
+        rho = 1.0 - float(m @ (K @ m)) / den
+        rho = min(max(rho, 0.0), 1.0)
+        return float(min(2.0 / (1.0 + np.sqrt(1.0 - rho * rho)), 1.999))
+
     def solve_sor(self, omega=None, tol=1e-9, max_iter=200000, criterion="residual"):
         """!
         @brief Solve K*theta = Q with red-black Successive Over-Relaxation (vectorised with NumPy).
@@ -318,7 +341,7 @@ class Network:
                  array operation, so the iteration is the classical SOR of the original program but fast.
                  theta_new = (sum_m G_m theta_m + Q) / diag, theta += omega * (theta_new - theta).
                  The cells of the vias are updated as dense blocks after the colours (block SOR).
-        @param omega Relaxation factor; None picks 2 / (1 + sin(pi / n)) with n the longest grid side.
+        @param omega Relaxation factor; None picks the estimate of Young's optimum of `sor_omega` (below 2, on the safe side).
         @param tol Stopping tolerance.
         @param max_iter Sweep limit.
         @param criterion "residual" stops when |K theta - Q| / |Q| < tol (reliable);
@@ -330,9 +353,9 @@ class Network:
         if self.block_info:
             raise ValueError("SOR does not support metal blocks: use the direct solver or the conjugate gradients")
         L, ny, nx = self.nl, self.ny, self.nx
-        if omega is None:
-            omega = 2.0 / (1.0 + np.sin(np.pi / max(nx, ny)))
         K, Q = self.K, self.Q
+        if omega is None:
+            omega = self.sor_omega()
         diag = K.diagonal().reshape(L, ny, nx)
         # Conductances towards the six neighbours (zero where the neighbour does not exist)
         gl = np.zeros((L, ny, nx)); gr = np.zeros((L, ny, nx))     # x-1, x+1
