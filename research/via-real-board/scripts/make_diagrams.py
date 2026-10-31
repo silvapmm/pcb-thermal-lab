@@ -180,7 +180,7 @@ def fig_block_colouring(path):
     """
     fig, axs = dk.canvas(12.5, 4.4, 1, 3)
     n = 12
-    vias = [(2, 2), (2, 5), (5, 3), (8, 8), (9, 4), (4, 9)]
+    vias = [(2, 2), (2, 4), (5, 3), (8, 8), (9, 6), (4, 9)]
     owner = {}
     for k, (i, j) in enumerate(vias):
         for di in (0, 1):

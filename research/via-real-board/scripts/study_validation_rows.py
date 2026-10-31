@@ -96,7 +96,8 @@ def run_tables(patched):
     """
     import validation_study as vs
     out = {}
-    with solid3d.size_limit(2_000_000):
+    # The program's own limit (250 000 unknowns) stays: the 3D solid above it needs more than the 4 GB this run may use, so those cells stay "-" in both tables (not compared)
+    with solid3d.size_limit(solid3d.MAX_CELLS):
         if patched:
             with ep.patched_edge(**runs.MW_BOARD), sp.patched("disc_eta"), ep.lumped_sees_gz_via():
                 out["2"] = vs.scenario_table(1.0)

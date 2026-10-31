@@ -32,6 +32,7 @@ sys.path.insert(0, HERE)
 import edge_image as ei                                                     # noqa: E402
 import program_patch as pp                                                  # noqa: E402
 import viakernel as vk                                                      # noqa: E402
+from pcbthermal.geometry import cell_index_of_point                         # noqa: E402
 
 ETA = math.exp(-0.25)                                                       # target radius / drill radius of the layered idealisation
 OPTS = {"board_only": True, "fold": False, "image": True, "s_mode": "max", "wall_cells": 6.0, "eta": ETA}
@@ -95,9 +96,9 @@ def via_hook_edge(net, problem, gz, d, S, dx, dy, nx, ny, origin):
         rv = v.diameter / 2.0
         rt = rt_factor * rv
         # The point conductance of the program's loop: the Lumped model keeps reading it from gz_via
-        ip, jp = int(math.floor((v.y - origin) / dx)), int(math.floor((v.x - origin) / dx))
-        if 0 <= ip < ny and 0 <= jp < nx:
-            net.gz_via[:, ip, jp] += gv
+        # (the program's own index function: `x // dx` differs from floor(x / dx) for a via exactly on a cell line, which the first run of the own via field found)
+        ip, jp = cell_index_of_point(v.x - origin, v.y - origin, nx, ny, dx, dy)
+        net.gz_via[:, ip, jp] += gv
         w = vk.disc_target_weights(v.x, v.y, rv, rt, dx, origin)           # as program_patch (rule "disc"): identical when every option is off
         n_all = len(w)
         if OPTS["fold"]:

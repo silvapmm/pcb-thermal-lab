@@ -50,6 +50,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--cells", type=float, nargs="+", default=[1.0, 0.5, 0.25])
     ap.add_argument("--sides", type=int, nargs="+", default=[5, 10, 20, 30, 50, 70])
+    ap.add_argument("--pitch", type=float, default=1.5, help="pitch of the growing array in mm")
+    ap.add_argument("--pitch-sides", type=int, nargs="+", default=[10, 20, 30, 40, 50, 60, 70])
     ap.add_argument("--max-nnz", type=int, default=40_000_000)
     ap.add_argument("--max-dense", type=int, default=30_000_000, help="refuse to build a treatment whose estimated dense coupling entries exceed this")
     ap.add_argument("--time", action="store_true")
@@ -69,6 +71,14 @@ def main(argv=None):
                 if tr == "mw" and est > args.max_dense:
                     print(f"| {len(holes)} vias, mw | skipped: estimated {est:,.0f} dense coupling entries (> {args.max_dense:,}) | | | | | |", flush=True)
                     continue
+                print(row(f"{len(holes)} vias, {tr}", ms.build(p, cell, tr), args), flush=True)
+    for cell in args.cells:                                                  # the fixed pad above saturates (the same cells hold more vias); a fixed pitch makes the touched cells grow
+        print(f"\n## own via field (fixed pitch {args.pitch:g} mm, board grows), cell {cell:g} mm\n")
+        print(head)
+        for n in args.pitch_sides:
+            holes, w, h = rbd.via_array_pitch(n, args.pitch)
+            p = rbd.problem_from_holes(holes, w, h, layers=4, center=(w / 2, h / 2))
+            for tr in ("program", "mw"):
                 print(row(f"{len(holes)} vias, {tr}", ms.build(p, cell, tr), args), flush=True)
     print("\n## real boards\n")
     print(head)

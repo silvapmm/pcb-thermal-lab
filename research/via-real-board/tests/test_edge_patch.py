@@ -77,6 +77,18 @@ def test_gz_via_is_the_programs_own_via_term():
     assert np.abs(new.gz - old.gz).max() > 0.0
 
 
+def test_gz_via_matches_on_vias_that_sit_on_cell_lines():
+    """!@brief Regression (first run of study_lumped_gzvia.py: 1.7e-2 W/K off on the own via field): the vias of an array that fall exactly on a cell line go to the same cell as in the program."""
+    import real_board as rbd
+    holes, w, h = rbd.own_via_field(10)
+    p = rbd.problem_from_holes(holes, w, h, layers=4)
+    nx, ny = _grid(p, 1.0)
+    old = fvm.Network(p, nx, ny, assemble=False)
+    with ep.patched_edge(**runs.MW_BOARD):
+        new = fvm.Network(p, nx, ny, assemble=False)
+    assert np.abs(old.gz - (new.gz + new.gz_via)).max() == 0.0
+
+
 def test_a_via_far_from_every_wall_is_not_changed_by_the_image():
     """!@brief The 3 x 3 array board has its vias far from the edges: the image option leaves the matrix identical and counts no edge via."""
     p = pc.array_board()
@@ -131,6 +143,16 @@ def test_a_board_without_vias_is_unchanged_by_the_patch():
     with ep.patched_edge(**runs.MW_IMAGE):
         k1 = fvm.Network(p, nx, ny).K
     assert abs(k0 - k1).max() == 0.0
+
+
+def test_reference_cut_must_lie_on_the_fine_grid():
+    """!@brief Regression (the first run of study_edge_outline.py crashed on a cut at 7.03125 mm): the reference refuses a cut the 1/16 mm grid cannot represent, and the defaults of the study are on it."""
+    q = er.edge_board(0.5, x_cut_mm=7.03125)
+    with pytest.raises(ValueError):
+        er.reference_rise(q, 1.0 / 16.0, True, 7.03125)
+    sys.path.insert(0, os.path.join(os.path.dirname(LIB), "scripts"))
+    import study_edge_outline as so
+    assert all(abs(c * 16 - round(c * 16)) < 1e-9 for c in so.DEFAULT_CUTS)
 
 
 def test_block_structure_counts_overlapping_footprints_as_one_block():

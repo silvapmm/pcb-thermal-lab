@@ -98,6 +98,20 @@ def own_via_field(n_side=10, pad_mm=7.0, ring_vias=24, drill_mm=0.3, board_mm=(6
     return holes, w, h
 
 
+def via_array_pitch(n_side, pitch_mm=1.5, drill_mm=0.3, margin_mm=10.0):
+    """!
+    @brief An n x n array of vias at a fixed pitch on a board that grows with it (the scaling case: the number of cells that the vias touch grows with the number of vias, which a fixed pad does not).
+    @param n_side Vias per side.
+    @param pitch_mm Pitch in mm.
+    @param drill_mm Drill diameter in mm.
+    @param margin_mm Bare margin round the array in mm.
+    @return tuple (holes, width_mm, height_mm).
+    """
+    side = (n_side - 1) * pitch_mm + 2.0 * margin_mm
+    holes = [(margin_mm + i * pitch_mm, margin_mm + j * pitch_mm, drill_mm) for i in range(n_side) for j in range(n_side)]
+    return holes, side, side
+
+
 def densest_window(holes, size_mm, width, height, step_mm=1.0):
     """!
     @brief Centre of the square window with the most holes.

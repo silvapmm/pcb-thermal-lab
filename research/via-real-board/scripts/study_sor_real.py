@@ -44,6 +44,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--cells", type=float, nargs="+", default=[1.0, 0.5])
     ap.add_argument("--cap", type=int, default=20000)
+    ap.add_argument("--only", nargs="*", default=None, help="run only the boards with these names (alleg, storm, own 100, own 900)")
     ap.add_argument("--max-inverse-gb", type=float, default=2.0)
     a = ap.parse_args(argv)
     logging.disable(logging.WARNING)
@@ -59,6 +60,8 @@ def main(argv=None):
     print("| board | cell (mm) | unknowns | blocks (largest, colours) | inverse memory (MB) | block SOR sweeps | max diff to direct (K) | sweeps without vias | program's rule: converged / diff to direct (K) |")
     print("| :-- | --: | --: | :-- | --: | --: | --: | --: | :-- |")
     for name, holes, w, h, layers in sets:
+        if a.only and name not in a.only:
+            continue
         p = rbd.problem_from_holes(holes, w, h, layers=layers)
         for c in a.cells:
             net = ms.build(p, c, "mw", board_only=True, image=False)

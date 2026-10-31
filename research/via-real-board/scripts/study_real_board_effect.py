@@ -52,6 +52,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--cells", type=float, nargs="+", default=[2.0, 1.0, 0.5, 0.25])
     ap.add_argument("--fdm", action="store_true")
+    ap.add_argument("--only", nargs="*", default=None, help="run only the boards with these names (alleg, storm, own 100, own 900)")
     ap.add_argument("--image", action="store_true", help="use the image of the edge in the recommended treatment")
     ap.add_argument("--max-unknowns", type=int, default=1_200_000)
     ap.add_argument("--save-maps", type=float, default=0.0, metavar="CELL_MM", help="save the top-layer fields (no via, program, recommended) of the Stormduino and the own field at this cell to out/maps_*.npz")
@@ -62,6 +63,8 @@ def main(argv=None):
     mw = dict(runs.MW_IMAGE if a.image else runs.MW_BOARD)
     models = ["fvm"] + (["fdm"] if a.fdm else [])
     for name, holes, w, h, layers in boards():
+        if a.only and name not in a.only:
+            continue
         p = rbd.problem_from_holes(holes, w, h, layers=layers)
         if a.save_maps and name != "alleg":                                  # the Allegro board has no stated licence: no picture of it is made
             paths.OUT.mkdir(parents=True, exist_ok=True)
