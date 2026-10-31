@@ -4,7 +4,7 @@
 @file make_fig_part_outline.py
 @brief Four pictures for `docs/theory.md` 1.3: how a part that crosses the board outline is spread over the cells it cuts (fix of 2.4.5, `geometry.part_weights`).
 
-@details fig_34: one cut cell with the part, the outline and the 8 x 8 samples coloured (part only, board only, both) and the 4 x 4 samples of the board cover;
+@details fig_34: one cut cell with the part, the outline and the 8 x 8 samples coloured (part only, board only, both) and the same 8 x 8 samples as the board cover of the model;
          fig_35: the weight of that cell by three rules (product of the two covers, plain intersection, intersection normalised to the board cover) and the power density each
          puts on the board part of the cell, relative to the density of the part; fig_36: the example board cut to a T at 1 mm, FVM temperature before and after the fix, and the
          hottest point against the cell size; fig_37: error of the hottest point of a small T against the position of the cut edge (edge-shift sweep), four rules, FVM at 1 and 0.5 mm.
@@ -53,7 +53,7 @@ def cell_numbers():
     share = both.sum() / board.sum()                       # share of the board part of the cell that the part covers
     return {"part": part, "board": board, "both": both, "cover4": cover4, "c_part": float(c_part), "c_b8": float(c_b),
             "inter": float(both.mean()), "share": float(share),
-            "w_product": float(c_part * cover4), "w_inter": float(both.mean()), "w_norm": float(share * cover4)}
+            "w_product": float(c_part * c_b), "w_inter": float(both.mean()), "w_norm": float(share * c_b)}
 
 
 def fig_cut_cell():
@@ -63,25 +63,25 @@ def fig_cut_cell():
     """
     d = cell_numbers()
     fig, axs = plt.subplots(1, 2, figsize=(11, 5.4))
-    for ax, ns, title in ((axs[0], 8, "8 x 8 samples (part and outline)"), (axs[1], 4, "4 x 4 samples (the board cover of the model)")):
+    for ax, ns, title in ((axs[0], 8, "8 x 8 samples (part and outline)"), (axs[1], 8, "8 x 8 samples (the board cover of the model)")):
         s = (np.arange(ns) + 0.5) / ns
         gx, gy = np.meshgrid(s, s)
         part = geometry.points_in_polygon(gx, gy, PART)
         board = geometry.points_in_polygon(gx, gy, BOARD)
         for x, y, p, b in zip(gx.ravel(), gy.ravel(), part.ravel(), board.ravel()):
             col = BOTH_C if (p and b) else PART_C if p else BOARD_C if b else NONE_C
-            if ns == 4:
-                col = BOARD_C if b else NONE_C
-            ax.plot(x, y, "s", color=col, ms=15 if ns == 4 else 9, mec="#555", mew=0.4)
+            if ax is axs[1]:
+                col = BOARD_C if b else NONE_C       # the cover counts the board samples only
+            ax.plot(x, y, "s", color=col, ms=9, mec="#555", mew=0.4)
         ax.add_patch(Rectangle((0, 0), 1, 1, fc="none", ec="k", lw=2))
-        if ns == 8:
+        if ax is axs[0]:
             ax.add_patch(Polygon(PART, closed=True, fc="none", ec="#c1440e", lw=2, ls="--"))
         ax.add_patch(Polygon(BOARD, closed=True, fc="none", ec="#1d4ed8", lw=2))
         ax.set_xlim(-0.12, 1.12); ax.set_ylim(-0.12, 1.12); ax.set_aspect("equal"); ax.set_xticks([]); ax.set_yticks([])
         ax.set_title(title, fontsize=10)
     axs[0].text(0.5, -0.19, f"part {d['part'].sum()}/64, board {d['board'].sum()}/64, both {d['both'].sum()}/64   (orange: part only, blue: board only, green: both)",
                 ha="center", fontsize=8.5, transform=axs[0].transData)
-    axs[1].text(0.5, -0.19, f"board cover c_b = {d['cover4']:.4f} (4 x 4)  against {d['board'].sum() / 64:.4f} (8 x 8)", ha="center", fontsize=8.5)
+    axs[1].text(0.5, -0.19, f"board cover c_b = {d['board'].sum() / 64:.4f} (8 x 8, geometry.BOARD_SAMPLES); the old 4 x 4 cover read {d['cover4']:.4f}", ha="center", fontsize=8.5)
     fig.suptitle("A cell cut by the board outline (blue line) and by the edge of a part (dashed)", fontsize=11)
     fig.tight_layout()
     fig.savefig(OUT / "fig_34_part_cut_cell.png", dpi=110)
@@ -98,7 +98,7 @@ def fig_weights():
     w = [d["w_product"], d["w_inter"], d["w_norm"]]
     # Density on the board part relative to the part's own: weight divided by (board share of the cell the model conducts with) times
     # the share of the board part that the part really covers; the right answer is 1
-    dens = [w[0] / (d["cover4"] * d["share"]), w[1] / (d["cover4"] * d["share"]), w[2] / (d["cover4"] * d["share"])]
+    dens = [w[0] / (d["c_b8"] * d["share"]), w[1] / (d["c_b8"] * d["share"]), w[2] / (d["c_b8"] * d["share"])]
     fig, axs = plt.subplots(1, 2, figsize=(11, 4.4))
     cols = ["#9aa5b1", "#e9c46a", "#2a9d8f"]
     axs[0].bar(range(3), w, color=cols)
@@ -207,9 +207,9 @@ def fig_edge_shift():
     inter = lambda poly, o, nx, ny, dx, dy, samples=8, cover=None: new_pw(poly, o, nx, ny, dx, dy, samples)   # noqa: E731
     cover_cls = model.Board.cover
     rules = {"before (2.4.4)": (old_weights, 4), "intersection only": (inter, 4), "fix (normalised to cover)": (new_pw, 4),
-             "fix + cover sampled 8 x 8 (not adopted)": (new_pw, 8)}
+             "fix + cover sampled 8 x 8 (fix/board-cover-8x8)": (new_pw, 8)}
     styles = {"before (2.4.4)": ("o-", "#c1440e"), "intersection only": ("^--", "#e9c46a"), "fix (normalised to cover)": ("s-", "#2a9d8f"),
-              "fix + cover sampled 8 x 8 (not adopted)": ("d:", "#264653")}
+              "fix + cover sampled 8 x 8 (fix/board-cover-8x8)": ("d:", "#264653")}
     fig, axs = plt.subplots(1, 2, figsize=(12, 4.4))
     spreads = {}
     for ax, (cell, n) in zip(axs, ((1.0, 12), (0.5, 12))):
@@ -219,8 +219,9 @@ def fig_edge_shift():
         refs = [fvm.solve_steady(tee(a), cell_mm=1 / 24).t_max for a in aa]            # fine-grid reference with the fixed rule
         for name, (f, cs) in rules.items():
             fvm.part_weights = f
-            if cs == 8:
-                model.Board.cover = lambda self, nx, ny, dx, dy, samples=4, minimum=0.01: cover_cls(self, nx, ny, dx, dy, 8, minimum)
+            # Pin the board cover of every rule to its own lattice: the program default (geometry.BOARD_SAMPLES) is 8 since fix/board-cover-8x8,
+            # so a rule of the 4 x 4 cover must force it (the default would silently turn the three first curves into 8 x 8 ones)
+            model.Board.cover = lambda self, nx, ny, dx, dy, samples=None, minimum=0.01, cs=cs: cover_cls(self, nx, ny, dx, dy, cs, minimum)
             err = np.array([fvm.solve_steady(tee(a), cell_mm=cell).t_max - r for a, r in zip(aa, refs)])
             model.Board.cover = cover_cls
             spreads[(cell, name)] = float(np.ptp(err))
