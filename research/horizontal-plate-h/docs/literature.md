@@ -1,0 +1,3 @@
+# Text for the literature status
+
+Read (the pages named in `README.md` section 2): T. Schulenberg, KfK 3713 (1984); A. G. Jaffer, arXiv:2201.02612v6 (horizontal sections). Seen as a summary: Lloyd and Moran (1974), Goldstein, Sparrow and Jones (1973), Goldstein and Lau (1983), Schulenberg (1985), Fujii and Imura (1972), Aihara et al., Faw and Dullforce (1982). Not obtained: Al-Arabi and El-Riedy (1976), Raithby and Hollands. Reproduced: the large- and small-Prandtl limits of Schulenberg's strip and disc formulas; the lower face of the numerical solution against the published forms (README 5); not reproduced: any measured upper-face value (the solver is far below the correlations).

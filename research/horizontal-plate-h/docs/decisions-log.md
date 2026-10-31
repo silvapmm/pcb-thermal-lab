@@ -1,0 +1,3 @@
+# Text for the Decisions Log of CLAUDE.md
+
+**Horizontal faces: the limit is documented, the coefficients stay** (investigation `research/horizontal-plate-h`, maintainer's rule that a limit of the model is lived with): the correlations 0.54 and 0.15 (up) and 0.27 (down) with `L = A/P` are kept; the upper face is within the scatter of the published fit, the lower face has the wrong exponent and no shape dependence but moves the rise of a board by under 3 % (4 % without radiation), and a possible fall of the upper-face coefficient on a free board could not be established. To be decided by the maintainer; this entry is a proposal.
