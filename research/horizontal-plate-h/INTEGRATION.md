@@ -1,0 +1,31 @@
+# horizontal-plate-h: how it would enter the program
+
+Nothing of `pcbthermal/` was edited. Everything below was measured on copies in memory (`lib/correlations.py`, `scripts/study_board_effect.py`). The numbers are in `README.md`; this file gives the proposals, their measured impact and what is left to the maintainer.
+
+## 1. What was found, in terms of decisions
+
+| Finding | Evidence | Size of the effect on the rise of a board |
+| :-- | :-- | :-- |
+| The upper-face correlation of the program (0.54 `Ra^(1/4)`, then 0.15 `Ra^(1/3)`) lies between the published levels over `Ra` 1e3 to 5e5 of `A/P`: Jaffer's fit 3 to 8 % above it, Raithby and Hollands' form (Lienhard 8.37) from 1 % above to 20 % below | README 3.2, 3.3 | -0.9 to +1.3 % of the rise with radiation for Raithby and Hollands (README 7); none worth a change |
+| The lower-face correlation (0.27 `Ra^(1/4)`) has the wrong exponent against every published form (`Ra^(1/5)`: Schulenberg, Fujii and Imura on the width, Kadambi and Drake, Jaffer) and no shape dependence: equal to Jaffer's square at `Ra` 1e3 and 16 to 43 % above it from 1e4 to 3e5 (more cooling than the published forms, not conservative), 29 % below his long strip at `Ra` 1e3 and equal at 1e5 | README 3.2, 3.3 | Jaffer's lower face alone: -0.5 to +0.9 % of the rise with radiation, -0.3 to +2.8 % without; -0.1 to +0.1 % for the finned block with fins down (README 7) |
+| Schulenberg's printed coefficients are consistent with his limits and with the solver's local Nu at the centre; his formulas are local values at the stagnation point, not plate means; Jaffer's correction replaces a number of the report | README 3.1, 5, 10 | a statement for the documents, no code |
+| A thin board with both faces hot loses part of its upper-face coefficient to the warm air of the lower face (30 to 45 % in the solver) | README 6 | if it were real at that size: +2 to +10 % of the rise (+5 % for the two examples), +3 to +5 % for the finned block with fins down; with radiation removed up to +21 % |
+| The solver cannot reproduce the measured upper face | README 5 | the size of the coupling is therefore not established; the measured upper-face data are for isolated faces |
+
+## 2. Proposals
+
+**A. Document the limit (recommended; no change of the program; the review agrees).** Text for `docs/theory.md`, `docs/models.md` and `docs/validation.md` is in `docs/theory-text.md` and `docs/research.md`: the horizontal coefficients are textbook correlations for an isolated face with `L = A/P`; the published upper-face levels lie on both sides of the program's; the lower face has the wrong exponent and no shape dependence and may be 29 % low (long strip, small `Ra`) or 43 % high (square, large `Ra`); neither face is shown to be conservative; the air warmed by the other face of a free board is not modelled; the published forms move the rise by -2.7 to +1.3 % with radiation (the program's default) and -3.8 to +3.3 % without it, and a 40 % loss of the upper face would add up to 10 % (21 % without radiation). **No statement that a face is "conservative" may be written: none is demonstrated** (README 3.3 and 10). No warning text in the interface is proposed (the effect does not reach the size at which the existing warnings fire); a line in the user guide's section on heat transfer would be enough. This is the maintainer's rule for a limit of the model.
+
+**B. Jaffer's forms as an option (not recommended now).** `Board.natural_form`-like switch (`horizontal_form`: `textbook` (default, bit-identical) or `jaffer`), with the shape factor `q` of the lower face taken from the outline (`q = (half the shorter side)/(A/P)` for a rectangle, `4/pi` for a disc; a general outline would need the harmonic-mean construction of Jaffer's equation 57). Measured impact on 12 boards and 3 finned blocks: the rise changes by **-2.7 to +0.6 %** (convection and radiation) and **-3.8 to +1.8 %** (convection only); the finned block with fins down by -0.5 to -0.4 % (re-run by the review with Jaffer's equation 56; the first version had -2.8 to +0.5, -4.0 to +1.7 and -0.6 to -0.5 %). The source is a fit of one author to plot values, the lower-face formula is a derivation that its author describes as a bound, and its shape metric needs a new geometry routine: more machinery than the effect warrants.
+
+**C. A correction of the upper face of a free board (not recommended).** The solver's coupling (README 6) cannot be turned into a coefficient: it comes from a steady symmetric two-dimensional solution that does not reproduce the isolated upper face of the measurements (12 to 36 % below at `Ra` 1e2 to 1e4, and no usable answer at 1e5). The review checked that the coupling is not a numerical artefact of the solver (the same fall when the heat is measured on closed boxes, README 10); whether it survives in three-dimensional unsteady flow is the open question. A factor would be a guess, and "up x0.6" is only a sensitivity (README 7).
+
+## 3. What would change the conclusion
+
+* A measurement or a three-dimensional unsteady solution of a thin free horizontal plate with both faces heated in air, at `Ra` 1e3 to 5e5: it would give the size of the coupling (C8 stays open for that case, see `research/ROADMAP.md`).
+* The originals of Fujii and Imura (1972), Al-Arabi and El-Riedy (1976), Raithby and Hollands (handbook chapter) and Lloyd and Moran (1974) read, and the downward measurements below `Ra` 1e5 (only Goldstein and Lau, 250 to 4500, 10 % scatter, are in that range).
+* The radiation between close fins and between the fins and the ground, which the fins-down finned block needs more than the convection correlation (C9, not solved here: the finned block was run with the program's uniform fin coefficient; the sensitivity of its rise to the lower-face coefficient is -2.4 to -2.6 % for +30 % and +2.9 to +3.0 % for -30 %).
+
+## 4. Risks and what does not change
+
+No input file, no model, no result of the program changes under proposal A. Under B a new key would have to be saved and old files keep `textbook`; the test of equivalence at `textbook` would be bit-identity of the examples. The vertical orientation (`plate-h-level`) is untouched, and so is the forced convection and the radiation.

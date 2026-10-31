@@ -24,7 +24,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from . import blocks, laminate
-from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
+from .geometry import part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
 from .results import SteadyResult, TransientResult
 from .numfmt import num
 
@@ -140,7 +140,8 @@ class Network:
         L = self.nl                                    # Board layers plus the block layers
         self.Q = np.zeros((L, ny, nx))
         for h in problem.heaters:
-            cov = coverage_fraction(h.polygon, nx, ny, dx, dy, samples=8) * self.active      # A part is only heated on the board
+            # Heated only where it is both on the part and on the board (intersection per sample), scaled to the board cover of the cell
+            cov = part_weights(h.polygon, b.outline, nx, ny, dx, dy, samples=8, cover=self.cover) * self.active
             if cov.sum() <= 0:
                 # Footprint smaller than the sampling: put all the power in the centroid cell
                 cx, cy = polygon_centroid(h.polygon)

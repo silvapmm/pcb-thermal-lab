@@ -367,12 +367,12 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 | Shape | Board area | FVM | FDM | 3D solid |
 | :-- | --: | --: | --: | --: |
 | rectangle (no outline) | 2400 mm² | 80.7 | -4.1 % | -1.5 % |
-| L shape | 1800 mm² | 108.2 | -4.9 % | -1.3 % |
+| L shape | 1800 mm² | 108.2 | -6.5 % | -1.3 % |
 | T shape | 1600 mm² | 105.1 | -3.1 % | -1.1 % |
 | ellipse | 1880 mm² | 93.1 | -3.5 % | -1.3 % |
 | chamfered corners (6 mm) | 2328 mm² | 82.2 | -4.0 % | -1.5 % |
 
-* Less board makes the heater hotter (the L shape has 25 % less board and the rise grows 34 %), the FVM and the independent 3D solid agree within 1.5 % on every shape, as they do on the rectangle.
+* Less board makes the heater hotter (the L shape has 25 % less board and the rise grows 34 %), the FVM and the independent 3D solid agree within 1.5 % on every shape, as they do on the rectangle. The FDM is 3 to 4 % low on every shape except the L, where it is 6.5 % low at 1 mm. The old table read -4.9 % there, close to the FVM by accident: the old FDM also put part of the power on the nodes outside the board's edge. The FDM now spreads the part over the board nodes only and on the L it converges monotonically with the cell, -6.5 / -4.4 / -3.3 % at 1 / 0.5 / 0.25 mm; the cause of the larger gap on the L at 1 mm was not investigated further (`python research/stackup/scripts/stackup_outline_study.py` at 1 mm; the other two cells from the same board).
 * Limits: cell-cover treatment of the boundary (a cell on the edge conducts with its covered fraction), so a neck narrower than two or three cells is poorly resolved; the lumped and analytic models need a rectangle and run on the rectangle of the same area (section 13).
 
 **C. Sensitivity to the stack-up numbers** (`python research/stackup/scripts/stackup_outline_study.py`; the typical 4-layer stack-up of `stackups.json`, base rise 84.5 K):
@@ -422,7 +422,7 @@ Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) m
 | ellipse | off-centre | 0.783 | 104.4 | -10.4 / -8.7 | -2.0 / -0.6 | -15.7 / -13.8 |
 | ellipse | near the edge | 0.783 | 119.7 | -16.4 / -14.0 | -10.1 / -5.7 | -21.2 / -19.2 |
 | L | near the edge | 0.750 | 115.6 | -12.7 / -10.1 | -6.0 / +0.3 | -17.7 / -15.6 |
-| T | example | 0.667 | 109.1 | -29.0 / -29.0 | -17.8 / -16.0 | -34.5 / -33.5 |
+| T | example | 0.667 | 107.6 | -27.7 / -27.7 | -16.3 / -14.4 | -33.3 / -32.3 |
 | T | centre | 0.667 | 123.4 | -15.9 / -14.5 | -1.7 / -0.4 | -18.2 / -19.7 |
 | chamfer | example | 0.964 | 86.4 | -2.9 / -2.9 | -2.8 / -1.8 | -10.3 / -9.1 |
 | chamfer | centre | 0.964 | 110.1 | -2.9 / -1.2 | -3.4 / +0.4 | -5.5 / -7.2 |
@@ -433,11 +433,12 @@ Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) m
 | rounded | off-centre | 0.984 | 98.6 | -3.3 / -1.6 | -5.0 / -0.9 | -9.1 / -7.1 |
 | rounded | near the edge | 0.984 | 112.0 | -9.1 / -6.4 | -10.3 / -5.8 | -14.2 / -12.1 |
 
-* Enlarging the box (the idea of growing outwards) is the worst choice in 29 of the 30 model-and-layout cells (5 to 35 % too cool: more area means more convection); the exception is the Lumped model on the rounded board with the parts at the centre. Shrinking to the same area is the best on average (mean absolute error, Lumped / Analytic: bounding box 9.2 / 7.7 %, same area 5.7 / 2.9 %, 1.1 × box 14.1 / 13.3 %). Its error is mostly on the cool side, not always: up to +2.9 % (ellipse, parts at the centre).
-* For a strongly cut shape (ellipse, L, T; area ratio below 0.8) the bounding box ignores 22 to 33 % of the board and is 6 to 29 % cool; the same-area rectangle brings parts away from the edge to within 0.4 to 2.9 %.
+* Enlarging the box (the idea of growing outwards) is the worst choice in 29 of the 30 model-and-layout cells (5 to 33 % too cool: more area means more convection); the exception is the Lumped model on the rounded board with the parts at the centre. Shrinking to the same area is the best on average (mean absolute error, Lumped / Analytic: bounding box 9.1 / 7.6 %, same area 5.6 / 2.8 %, 1.1 × box 14.0 / 13.2 %). Its error is mostly on the cool side, not always: up to +2.9 % (ellipse, parts at the centre).
+* For a strongly cut shape (ellipse, L, T; area ratio below 0.8) the bounding box ignores 22 to 33 % of the board and is 6 to 28 % cool; the same-area rectangle brings parts away from the edge to within 0.4 to 2.9 %.
 * Edge of the outline: the FVM reference used to drop part of the edge loss in two ways, a side lying exactly on a grid line (a T of 60 mm counted 170 of 240 mm of perimeter) and the slivers of board that a slanted or curved side leaves in cells taken as off the board (2 to 6 % of the perimeter of a disc, an ellipse or a turned square, at every cell size in the program's own sweep; the outline folder's `study_edge_on_grid_lines.py` measures 0.7 to 3.3 % on four shapes, so the upper end of the range comes from a wider sweep that was not repeated there). With both corrected (`geometry.edge_length_per_cell`, `geometry.edge_length_on_board`) the L row moves (reference 115.8 to 115.6 °C, errors -6.2 / +0.1 to -6.0 / +0.3) and the ellipse rows move by at most 0.1 point; the T, chamfer and rounded rows do not change. The T centre and chamfer centre entries were also refreshed to what the study prints now (they were left over from before the Lumped ring correction, not from this change). Checks against independent references (`tests/test_outline.py`): the edge length counted by the FVM and the FDM equals the perimeter of the polygon within 0.1 % for a rectangle, an L, a T and its mirror image, squares turned by 3 to 45 degrees, a disc and an ellipse; the round board of 80 mm with an edge film of 100 W/m²K (the radial solution of `research/outline/scripts/study_disc_reference.py`, 2000 rings) had an FVM time constant of 85.23 s against 84.51 s in closed form and a board mean rise 0.64 % high, now 84.52 s and 0.02 % (the FDM, never affected, 0.03 %); a 40 mm square turned by 3 degrees (edge film 100 W/m²K, 1 mm cells) read 0.98 K hotter than the same square on the grid (rise about 62 K), now 0.09 K.
-* Where it fails: a part near the edge of the real board or in the arm of a T has less board to spread into than the scaled rectangle gives it: Lumped 6 to 18 % cool, Analytic 0 to 16 %. For nearly rectangular outlines (chamfer, rounded: area ratio above 0.95) the three boxes differ by a few percent either way and the same-area box is not better than the bounding box (Lumped 3 to 5.5 % cool away from the edge). Scaling about the area centroid of the outline instead of the box centre gave no consistent gain (tried, not kept).
-* Independent check (`research/outline/scripts/study_disc_reference.py`): on a round board 80 mm across with a centred round part, a radial solution of the same layered model puts the FVM 0.52 % low on the maximum rise at 1 mm (0.16 % at 0.5 mm) and the 3D solid within 0.02 %, and the Lumped and Analytic models on the same-area square at +2.2 % and +0.5 %.
+* Where it fails: a part near the edge of the real board or in the arm of a T has less board to spread into than the scaled rectangle gives it: Lumped 6 to 16 % cool, Analytic 0 to 14 %. For nearly rectangular outlines (chamfer, rounded: area ratio above 0.95) the three boxes differ by a few percent either way and the same-area box is not better than the bounding box (Lumped 3 to 5.5 % cool away from the edge). Scaling about the area centroid of the outline instead of the box centre gave no consistent gain (tried, not kept).
+* Independent check (`research/outline/scripts/study_disc_reference.py`): on a round board 80 mm across with a centred round part, a radial solution of the same layered model puts the FVM 0.52 % low on the maximum rise at 1 mm (0.16 % at 0.5 mm) and the 3D solid within 0.11 %, and the Lumped and Analytic models on the same-area square at +2.2 % and +0.5 %.
+* A part that crosses the outline heats only the board part of each cell. Before 2.4.5 a cut cell got the power density of the whole cell: the reference of the T | example row was 109.1 °C at 1 mm against 106.9 at 2/3 mm, where no cell is cut, and an edge-shift sweep on a small T was up to +16 K off (section 23).
 * Not covered: parts in the cut region (they are off the board), holes, outlines with more than one lobe, and the time simulation (not available for these two models on an outline).
 
 ## 14. The typical stack-ups against fabricators' tables
@@ -559,10 +560,10 @@ All 24 cases of the script (four metals, h = 10, 30, 100 W/m²K, two fin sizes, 
 
 | ε = a/b | Table 3 (isoflux) | exact series, circular tube | exact series, square tube | 3D solid | against the table | against the square tube |
 | --: | --: | --: | --: | --: | --: | --: |
-| 0.2 | 0.8009 | 0.8010 | 0.8027 | 0.8076 | +0.8 % | +0.6 % |
-| 0.3 | 0.6649 | 0.6649 | 0.6676 | 0.6698 | +0.7 % | +0.3 % |
+| 0.2 | 0.8009 | 0.8010 | 0.8027 | 0.8062 | +0.7 % | +0.4 % |
+| 0.3 | 0.6649 | 0.6649 | 0.6676 | 0.6700 | +0.8 % | +0.4 % |
 
-The two series columns are closed forms (`research/solid3d-verification/scripts/solid3d_verification.py`, which prints the table, the 3D solid and the two series). The Bessel series `ψ = (16/(π ε)) Σ J1(δn ε)² / (δn³ J0(δn)²)` over the roots `δn` of `J1` reproduces Table 3 to its four digits (0.9401, 0.8010, 0.6649, 0.5337 for ε = 0.1 to 0.4), and the double cosine series of the same source on the **square** tube of the same area (the problem the 3D solid actually solves) gives 0.8027 and 0.6676. The square tube accounts for 0.2 to 0.4 points of the 0.7 to 0.8 %, the mesh (the staircase circle and cells of 1 mm) for the rest; the one-dimensional resistances that are subtracted are exact and play no part. For `ε = 0.1` the source is 2.8 mm across (three cells) and the difference grows to 2 %.
+The two series columns are closed forms (`research/solid3d-verification/scripts/solid3d_verification.py`, which prints the table, the 3D solid and the two series). The Bessel series `ψ = (16/(π ε)) Σ J1(δn ε)² / (δn³ J0(δn)²)` over the roots `δn` of `J1` reproduces Table 3 to its four digits (0.9401, 0.8010, 0.6649, 0.5337 for ε = 0.1 to 0.4), and the double cosine series of the same source on the **square** tube of the same area (the problem the 3D solid actually solves) gives 0.8027 and 0.6676. The square tube accounts for 0.3 to 0.4 points of the 0.7 to 0.8 %, the mesh (the staircase circle and cells of 1 mm) for the rest; the one-dimensional resistances that are subtracted are exact and play no part. For `ε = 0.1` the source is 2.8 mm across (three cells) and the difference grows to 2 %.
 
 **Grid convergence.** A square source aligned with every mesh (8 mm on a 48 mm block, 40 mm thick, 16 slabs) with the cell size halved twice (4, 2, 1 mm): the mean source temperature per watt is 75.47, 71.02 and 69.62 K/W; the convergence is monotone, the observed order is 1.68, the Richardson extrapolation is 68.99 K/W and the grid convergence index of the fine mesh (Roache, safety factor 1.25) is **1.14 %**. A circular source on the Cartesian grid does not converge monotonically (the staircase boundary changes with the mesh), which is why the aligned square is used for the GCI.
 
@@ -777,3 +778,36 @@ The bound with the flux into the block is above the real effect in every case (b
 From `research/effective-conductivity/` (README and seventeen figures counting the diagrams; the studies of the folder reproduce these numbers; the solver is `tests/helpers/layered3d.py` here). An independent finite-volume solver of a laminated block (`lib/layered3d.py` of that folder) reproduces: the centre, edge-midpoint and corner constriction resistance of Seri Lee's plate (0.668, 1.284 and 2.275 K/W against the article's 0.66, 1.29 and 2.38); the cross of five sources of Muzychka, Culham and Yovanovich (maximum 80.62 °C against 80.61, area-weighted mean source temperature 78.90 against 78.87) and their first case within 1 % of the rise (the centroid temperatures lie between the paper's two solutions); and the effective conductivity of the five layer orders of Culham and Yovanovich within 2 to 6 %. The five models of the program agree with it on the Cu / FR4 / Cu version of that coupon for source areas of 1 % to 100 % of the board (FVM, 3D solid and Analytic within 0.2 %, FDM within 1.2 % for a 5 mm source on 50 mm, Lumped within 0.3 %).
 
 One temperature node through the thickness is the mean of the layer: the surface under a source is hotter by at most `q'' t / (2 k)`, less when the heat spreads sideways (measured 1.6 % of the rise for a 10 mm plate of `k` 50 and 8 to 9 % for `k` 10, against bounds of 2.25 % and 14 to 16 %), negligible for copper layers. The Biot plateau of 4.8 W/mK in Figure 5 of Culham and Yovanovich cannot be reached by the stated stack: its top FR4 layer alone has 2.1 K/W under the source, the plateau needs 0.62 K/W. Not verified: Culham and Yovanovich (1998) was not re-opened after the first reading, and its definition of the mean wall temperature and the truncation of its series are untested as causes of the 2 to 6 %.
+
+## 23. A part across the board outline
+
+Since 2.4.5 a part that crosses the board outline heats only the part of each cell that is on the board (`geometry.part_weights`, `docs/theory.md` 1.3, `tests/test_part_across_outline.py`). Before, the FVM, the FDM and the 3D solid gave a cut cell the power density of the whole cell, on a board area smaller than the cell. The numbers below come from the program as it is now and, for the "before" columns, from the same program with the old rule put back by hand (the weight `coverage_fraction` of the part alone); the figures are 34 to 37 of `docs/theory.md` 1.3 (`python research/theory/scripts/make_fig_part_outline.py`).
+
+**The example board cut to a T** (100 × 80 mm, `h_side` 10 W/m²K, outline of `research/outline/scripts/outline_rectangle_study.py`), hottest point in degC at cells 1 / 2/3 / 0.5 / 1/3 mm. At 2/3 and 1/3 mm the edges of the T lie on grid lines and no cell is cut:
+
+| Model | before the fix | now |
+| :-- | --: | --: |
+| FVM | 109.06 / 106.86 / 110.80 / 106.96 | 107.56 / 106.86 / 107.38 / 106.96 |
+| FDM | not repeated | 105.25 / 105.61 / 106.51 / 106.71 |
+| 3D solid (1, 2/3, 0.5 mm) | not repeated | 107.79 / 107.08 / 107.20 |
+
+**Edge-shift sweep.** A small T (30 × 24 mm, 2 W part across the re-entrant corner, `h_side` 10 W/m²K) with the neck edge moved over one cell in 8 to 12 steps; the error of the hottest point against the same model with 1/24 mm cells (FVM, FDM) or 1/8 mm (3D solid), and the scatter (max minus min of the error, K):
+
+| Model, cell | before | intersection only | now | now + board cover sampled 8 × 8 (not adopted) |
+| :-- | --: | --: | --: | --: |
+| FVM, 1 mm | 15.72 | 4.77 | 2.95 | 1.47 |
+| FVM, 0.5 mm | 7.79 | 2.36 | 0.78 | 0.62 |
+| 3D solid, 1 mm | 14.74 | 1.60 | 1.69 | not run |
+| 3D solid, 0.5 mm | 7.98 | 0.96 | 0.60 | not run |
+| FDM, 1 mm | 18.81 | 1.39 | 1.39 | not run |
+| FDM, 0.5 mm | 11.25 | 0.47 | 0.47 | not run |
+
+At 1 mm the error before the fix reached +16.0 K (3D solid), +21.9 K (FDM) and about +16.5 K (FVM); now it stays within +1.9 K (3D solid), -1.8 K (FDM) and +2.9 K (FVM). Against the references aligned with the grid (1/3 mm), the small T at 1 mm reads FVM 230.84, FDM 229.34 and 3D solid 231.96 degC (aligned references 230.06, 229.76 and 231.13).
+
+**What the rule is for the FVM and the 3D solid.** The "intersection only" column is the share of the cell that is in the part and on the board, sampled 8 × 8; it ignores that the FVM and the 3D solid conduct with a board cover sampled 4 × 4, and the two disagree in a cut cell (1.5 K at 0.5 mm on the small T). The rule used, the share of the board samples that lie in the part times the cover of the model, removes that disagreement in the FVM and leaves the 3D solid at the same scatter. The FDM samples both 8 × 8 and needs no cover. A row that is the same in two columns means that the rule changes nothing there.
+
+**Read-outs.** The mean, minimum and ring temperatures under a part or a zone no longer include the cells or nodes off the board, which read the ambient: on the T board a zone showed a minimum of 25 degC; the mean under a small T part at 0.5 mm, FVM, went from 191.3 to 223.4 degC, the ring of `psi_jb` from 163.1 to 203.7 degC and the zone mean from 128.8 to 180.5 degC (the maximum and the junction temperature do not move; `tests/test_part_across_outline.py::test_statistics_leave_out_the_cells_off_the_board`). The Power Calculator uses the same read-outs for its mean and ring points.
+
+**Unchanged.** `python research/models-comparison/scripts/validation_study.py` prints the same table as before the fix (identical text), `research/gap-subdivision/scripts/rerun_baseline.py` moves no peak by more than 0.0001 % of the rise, the Lumped and Analytic models on the equivalent rectangle are bit-identical, and so is every board without an outline.
+
+**Limit.** A cut cell still conducts with its cover, so a part over a cut edge reads 0.5 to 0.7 K (about 1 % of the rise) hotter at 1 to 0.5 mm than with the edge on the grid lines (the scatter of the "now" rows is this residual). Treating the cut cell by its real shape (option P1 of `research/rotated-square-3d`) is in the chapter "Planned" of `versions.md`, with the sampling of the board cover 8 × 8 (`fix/board-cover-8x8`), which halves the scatter of the FVM at 1 mm.
