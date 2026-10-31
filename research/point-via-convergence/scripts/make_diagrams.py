@@ -110,8 +110,8 @@ def fig_peaceman(path):
     fig, (a, b) = plt.subplots(1, 2, figsize=(12.5, 4.4))
     r = np.logspace(-1.0, 1.3, 200)
     dx = 1.0
-    for rv, lab, col in ((0.4, "via larger than the equivalent radius ($r_v > r_{eq}$)", dk.BLUE), (0.1, "via smaller ($r_v < r_{eq}$)", dk.HEAT)):
-        a.plot(r, np.log(r / rv) / (2 * np.pi), color=col, label=f"continuum, hole $r_v = {rv}\\,\\Delta x$: {lab}", linewidth=1.4)
+    for rv, lab, col in ((0.4, "via larger than the equivalent radius ($r_t > r_{eq}$)", dk.BLUE), (0.1, "via smaller ($r_t < r_{eq}$)", dk.HEAT)):
+        a.plot(r, np.log(r / rv) / (2 * np.pi), color=col, label=f"continuum, hole $r_t = {rv}\\,\\Delta x$: {lab}", linewidth=1.4)
     xs = np.arange(1, 21)
     pot = lattice.a_of(xs, 0) / 4
     a.plot(xs, pot, "ko", markersize=3.5, label="five-point stencil, sink at the node (nodes along an axis)")
@@ -130,12 +130,12 @@ def fig_peaceman(path):
     dk.box(b, 0.2, 4.4, 2.2, 1.0, "far field\n$T_\\infty$", dk.AIR)
     dk.resistor(b, 2.6, 5.6, 4.9, "$\\ln(r/r_{eq})/(2\\pi S)$ (the grid has it)")
     dk.box(b, 5.7, 4.4, 2.0, 1.0, "node of the\nvia cell", "#cfe3f5")
-    dk.resistor(b, 7.8, 10.0, 4.9, "well: $\\ln(r_{eq}/r_v)/(2\\pi S)$")
-    b.text(5.0, 3.6, "$r_{eq} > r_v$: add the well in series (Peaceman): the node reaches the barrel\nthrough $G_c = 2\\pi S/\\ln(r_{eq}/r_v)$", ha="center", fontsize=8)
+    dk.resistor(b, 7.8, 10.0, 4.9, "well: $\\ln(r_{eq}/r_t)/(2\\pi S)$")
+    b.text(5.0, 3.6, "$r_{eq} > r_t$: add the well in series (Peaceman): the node reaches the barrel\nthrough $G_c = 2\\pi S/\\ln(r_{eq}/r_t)$", ha="center", fontsize=8)
     dk.box(b, 0.2, 1.7, 2.2, 1.0, "far field\n$T_\\infty$", dk.AIR)
     dk.resistor(b, 2.6, 5.6, 2.2, "$\\ln(r/r_{eq})/(2\\pi S)$ (too much)")
     dk.box(b, 5.7, 1.7, 2.0, 1.0, "node = barrel\n(needs less)", "#f6d0d0")
-    b.text(5.0, 0.7, "$r_{eq} < r_v$ (fine cells): the point is too constricted by\n$\\ln(r_v/r_{eq})/(2\\pi S)$: a negative well, so spread the barrel instead", ha="center", fontsize=8)
+    b.text(5.0, 0.7, "$r_{eq} < r_t$ (fine cells): the point is too constricted by\n$\\ln(r_t/r_{eq})/(2\\pi S)$: a negative well, so spread the barrel instead", ha="center", fontsize=8)
     dk.save(fig, path)
 
 
