@@ -162,6 +162,87 @@ def check_problem(problem, cell_mm=1.0):
     return out
 
 
+# Models whose layered idealisation has no vertical path through a bare cell of a gap (research/bare-spot-under-source, INTEGRATION P3)
+LAYERED_MODELS = ("fvm", "fdm", "lumped", "analytic")
+
+
+def check_model_limits(problem, models, cell_mm=1.0):
+    """!
+    @brief Warnings about the documented limits of the selected models on this input (text only; no result depends on them).
+    @details Two groups, each measured in a research folder: a part whose centre sits on bare laminate (the layered models read below a
+             resolved 3D solution; research/bare-spot-under-source, INTEGRATION P3) and vias in the Lumped model, which joins the planes
+             through the barrel conductance only (research/lumped-analytic-vias 4.3, research/lumped-via-groups 4.2; the numbers are those
+             of the program's Lumped model as it is, `L_prog`). The Analytic copper-spread warning lives in analytic._effective_sheet,
+             where its weights are computed.
+    @note The warning about vias on a coarse cell proposed by research/point-via-convergence is not here: its numbers (3.70 against
+          4.20 K) are those of the point-via treatment, not of the program as it is, whose FVM via effect on the example board is
+          9.02 / 8.86 / 8.84 K at 2 / 1 / 0.5 mm; it belongs with that fix.
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run ("fvm", "fdm", "lumped", "analytic", "solid3d").
+    @param cell_mm Cell size (mm) of the raster used for the geometric tests.
+    @return List of warning strings (CheckWarning, tagged with the heater or via) in input order.
+    """
+    out = []
+    models = set(models)
+    layered = sorted(models & set(LAYERED_MODELS))
+    b = problem.board
+    W, H = b.width, b.height
+    nx = max(int(round(W * 1000.0 / cell_mm)), 8)
+    ny = max(int(round(H * 1000.0 / cell_mm)), 8)
+    dx, dy = W / nx, H / ny
+
+    # --- A part on bare laminate. The proposal tests the fill of the hottest cell under the part; before the run that cell is not known,
+    # so the cells under the central half of the footprint (its polygon shrunk by two about the centroid) stand for it, and the smallest
+    # fill there is compared with 0.5. The mean fill of the whole footprint is not used: a 2 or 4 mm window under a 6 mm part has a mean
+    # fill of 0.89 or 0.56 and a window as large as the part a fill of 0, and those are the boards where the FVM was 10 to 23 % low.
+    if layered:
+        fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, 4)
+        any_copper = bool(fill.max() > 0.0)                     # A board with no copper at all has its own warnings and was not measured
+        for k, h in enumerate(problem.heaters):
+            if not any_copper or polygon_area(h.polygon) <= 0:
+                continue
+            c = np.asarray(polygon_centroid(h.polygon))
+            core = coverage_fraction(c + 0.5 * (np.asarray(h.polygon) - c), nx, ny, dx, dy, 4) > 0
+            if not core.any():
+                core = coverage_fraction(h.polygon, nx, ny, dx, dy, 4) > 0
+            if not core.any():
+                continue                                         # Off the board: check_problem says so
+            f_core = float(fill[h.layer][core].min())
+            if f_core < 0.5:
+                _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: the centre of the part sits on bare laminate (copper fill "
+                           f"{f_core:.2f} on layer {h.layer + 1}); the layered models ({', '.join(layered)}) read lower than a resolved 3D "
+                           "solution there: the FVM 3 to 11 % on 4- and 6-layer stack-ups and 4 to 23 % on 0.8 and 1.6 mm two-layer boards, "
+                           "the FDM up to 30 %, the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D "
+                           "solid for the final value.")
+
+    if not problem.vias:
+        return out
+
+    # --- Vias in the Lumped model (the program's model: barrel conductance only, no constriction of the heat converging on a barrel)
+    if "lumped" in models:
+        in_any = np.zeros(len(problem.vias), dtype=bool)
+        vx = np.array([v.x for v in problem.vias])
+        vy = np.array([v.y for v in problem.vias])
+        on_board = (vx >= 0) & (vx <= W) & (vy >= 0) & (vy <= H)          # A via off the board is ignored (check_problem says so)
+        for k, h in enumerate(problem.heaters):
+            inside = points_in_polygon(vx, vy, h.polygon) & on_board
+            in_any |= inside
+            n_in = int(inside.sum())
+            if n_in >= 1:
+                _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
+                           "model joins the planes through the barrel conductance only, so its via effect was measured up to 72 % too large "
+                           "(the part too cool; 21 % on average over 36 simple boards); use the FVM for via design.")
+        outside = np.flatnonzero(~in_any & on_board)
+        if outside.size:
+            # One warning for all of them: a Gerber board can have hundreds of vias away from the parts
+            v = problem.vias[int(outside[0])]
+            first = v.name or f"Via {int(outside[0]) + 1}"
+            _add(out, "via", int(outside[0]), f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside the "
+                       "footprint of every part; the Lumped model spreads such a via over a ring around the part, and its effect was measured "
+                       "73 % off on average for a lone via (up to 290 %) and 72 % for a row of five (research/lumped-analytic-vias 4.3); use the FVM.")
+    return out
+
+
 def thick_plate_bound(power, area, thickness, k):
     """!
     @brief Upper bound of how much hotter the surface under a source can be than the through-thickness mean the layered models keep: q'' t / (2 k).
