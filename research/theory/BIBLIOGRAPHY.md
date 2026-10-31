@@ -711,3 +711,37 @@ The two equation images of the article (files `A3form1_2` and `A3formula` of the
 
 ### What could not be obtained (for the maintainer to fetch)
 Churchill and Chu (1975), Churchill (1977), Hollands et al. (1976) and Hollands (1984), Churchill and Usagi (1972), Elenbaas (1942), Bar-Cohen and Rohsenow (1984), Hashin and Shtrikman (1962), Keller (1964), Dykhne (1970), Bruggeman (1935), Landauer (1952), Incropera and DeWitt (any edition), Torquato (2002), Patankar (1980), Carslaw and Jaeger, JEDEC JESD51-2A, -3, -7, -14 and JESD51-12, IPC-2152, IPC-4761, ASTM D5470, ASME V&V 20, Briggs, Henson and McCormick (*A Multigrid Tutorial*), Roache's books. Publisher paywall or an account is needed; the open archives and search gave no copy. The researcher did not try sources that require evading an access check.
+
+## 22. Sources of `research/gerber-real-boards/` (real boards: paste layers, placement files, X3 component layers, ODB++, open boards)
+
+Status of this folder: prepared, **no study has been run yet**; what is marked R below was read while preparing (file headers, repository metadata, download-page listings), nothing of a third party is stored in the repository.
+
+### [UcamcoDownloads]
+Ucamco, Gerber downloads page, https://www.ucamco.com/en/gerber/downloads : the list of specifications (Gerber Layer Format Rev 2026.05 and Rev 2024.05, the job-file schema, the XNC specification), of test and sample files and of the reference viewer. **Status S** (the page through the fetch tool: names, addresses and dates of the files; the files named below were then downloaded one by one). Topics 15, 20.
+
+### [UcamcoLayerFormatTests]
+*Gerber Layer Format - Test files*, https://www.ucamco.com/files/downloads/file_en/423/gerber-layer-format-test-files_en.zip (21 files, 54 kB; the names include `Nested_blocks.gbr`, `Block_with_different_orientations.gbr`, `Polarities_and_Apertures.gbr`, `sample_macro.gbr`, `SMD_prim_20.gbr`, `A_drill_file.gbr`, each with a `.png` of the correct rendering). **Status S** (the member list of the zip was read; the files were not opened yet: `study_conformance_rare.py` will). Licence not stated on the page. Not stored in the repository.
+
+### [UcamcoX3Samples]
+*Gerber Layer Format - X3* samples (Kit Dev Coldfire Xilinx, StickHub, Li-ion Charger, a component layer from the specification), https://www.ucamco.com/files/downloads/file_en/514/gerber-layer-format-x3-stickhub_en.zip and the neighbours 513, 515, 351. **Status R for StickHub** (the zip was downloaded to a scratch folder; the head of `StickHub-pnp_top.gbr` was read: `%TF.FileFunction,Component,L1,Top*%`, per part `%TO.C,<ref>*%`, `%TO.CFtp`, `%TO.CVal`, `%TO.CLbN`, `%TO.CMnt`, `%TO.CRot`, apertures `ComponentMain`, `ComponentOutline,Courtyard`, `ComponentPin`, `%TO.P,<ref>,<pin>,<name>*%`; 35 `TO.C` in the component layer and 35 in the paste file; the head of `StickHub-F_Paste.gbr` and of the job file: board 16.6 x 40.1 mm, 2 layers, 1.6 mm); **S for the other three** (member lists only). KiCad 8.99 output. Licence not stated. Topic 15.
+
+### [UcamcoFabricationExamples]
+*PCB fabrication data - Test file 1 and 2*, https://www.ucamco.com/files/downloads/file_en/220/pcb-fabrication-data-test-file-1_en.zip and `.../221/pcb-fabrication-data-test-file-2_en.zip`: Gerber layers (4 and 10 copper layers, plated and non-plated drills in Gerber format, profile) **and an IPC-2581 file** (`.ipc`, 1.16 and 0.90 MB). **Status S** (member lists and sizes; contents not opened). Licence not stated.
+
+### [GerberSpecAttributes]
+Ucamco, Gerber Layer Format Specification, revision 2024.05 (and 2026.05): the attribute dictionary (`TF`, `TA`, `TO`, `TD`), the file functions (`Paste`, `Component`, `Copper`), the aperture functions, the object attributes `TO.C`, `TO.CRot`, `TO.CMfr`, `TO.CMPN`, `TO.CFtp`, `TO.CVal`, `TO.CMnt`, `TO.CLbN`, `TO.P`, and the aperture blocks and transformations (`AB`, `LM`, `LR`, `LS`). **Status N for this folder** (the 2024.05 PDF was fetched as a binary file, its text layer uses glyph codes and could not be extracted without a PDF library; [Gerber2026] records that revision 2026.05 was extracted in another environment and read for other points). The attribute names used in `lib/x3.py` and `lib/paste.py` come from the real files above (R) and from search snippets (Eurocircuits, Pulsonix, the KiCad source `class_X2_gerber_attributes.cpp`: S); the section numbers are **not** recorded. To read before the code is adopted: the attribute sections, the component-layer section, and the sections on aperture blocks and transformations.
+
+### [OpenBoardsGitHub]
+Open hardware projects that publish Gerbers with paste layers and a placement file: Manawyrm/ISASTM (GPL-3.0), Manawyrm/CMM2-JLC (GPL-3.0), Open-Smartwatch/open-smartwatch-light (GPL-3.0), tommy-gilligan/RP2040-minimal-design (BSD-3-Clause), jmdaly/CO60 (CC-BY-SA-4.0), english1234/vstcm (GPL-2.0), brickbots/PiFinder (GPL-3.0, zip only), Duckle29/Vitamins-included (BSD-3-Clause, zip only). **Status R for the licences** (GitHub repository metadata through `gh api`, spdx identifiers) and for the file lists; **R for ISASTM** (the head of `ISASTM-F_Paste.gtp`: KiCad 5.1.6, `%TO.C,<ref>*%` before the openings of each part, `%TF.FileFunction,Paste,Top*%`; the head of `ISASTM-all-pos.csv` (`Ref,Val,Package,PosX,PosY,Rot,Side`) and of `ISASTM_cpl_jlc.csv` (`Designator,Val,Package,Mid X,Mid Y,Rotation,Layer`); the job file: 4 layers, 101.65 x 101.65 mm, 1.6 mm); **S for the others** (the file lists only; their sizes are printed by `fetch_boards.py`). Nothing is stored in the repository (`data/` is git-ignored).
+
+### [OdbppSiemens]
+Siemens, ODB++ resources, https://eda.sw.siemens.com/en-US/pcb/odb-plus-plus/resources : the specification is free after registration, a free viewer exists. **Status S** (a search summary; the page was not opened). The specification itself: **N** (needs a registration by the maintainer). The record layout in `lib/odb.py` (`CMP`, `TOP`, `PRP`, the directory tree `matrix/`, `steps/<step>/layers/comp_+_top/components`, `profile`, `eda/data`) is **M**, from memory of the format and of the open parsers.
+
+### [OdbppParsers]
+mcix/odbpp (Java, MIT; README via the fetch tool: reads .zip/.tgz/.tar.gz, symbols, components, BOM, netlists, EDA data; `examples/` holds `designodb_rigidflex.tgz` 11.6 MB, `flat_hierarchy-odb.tgz` 242 kB, `sandbox-odb_pc4.tgz` 630 kB, `sandbox-odb_wifi.tgz` 69 kB, `video-odb.tgz` 1.2 MB; the licence of the sample archives is not stated), ulikoehler/ODBPy (Python, Apache-2.0, alpha), capablemonkey/odb-pp-parser (Ruby), nam20485/OdbDesign (C++, AGPL-3.0: ideas only, no code). **Status S** (README summaries through the fetch tool and a search; the sample archives were not downloaded).
+
+### [IPC2581]
+IPC-2581 (the XML standard for PCB design data; two `.ipc` examples exist in [UcamcoFabricationExamples]). **Status N** (not read, no file opened).
+
+### Earlier folders used as the base
+`research/gerber-import` (the independent reader, README 4.x) and `research/gerber-models` (the mappings, README 4.4, 4.42 to 4.44) are the base of this folder; their READMEs, CONCLUSIONS and INTEGRATION files were read for the preparation (the parts quoted), the earlier sources of those folders ([Sampson2005] and the Electronics Cooling articles, listed in section 8) were **not** re-opened.

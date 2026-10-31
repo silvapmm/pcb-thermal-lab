@@ -6,6 +6,7 @@ Studies that are not part of the program, one folder per investigation, named af
 | :-- | :-- | :-- |
 | [`gerber-import/`](gerber-import/README.md) | open | Reading Gerber and Excellon files: an independent NumPy-only reader, holes, pads, nets, the outline, other readers pixel by pixel. Holds the map of the sections of the three Gerber folders. |
 | [`gerber-models/`](gerber-models/README.md) | open | The copper in the five models: mapping fine copper to grid conductances, the import into the FVM, corrections found in the program. |
+| [`gerber-real-boards/`](gerber-real-boards/README.md) | prepared, not run | Real boards for release 2.5.0: the default copper mapping on the program of 2.4.5, time and memory of whole boards, the transient, solder paste as parts with placement files, X3 and ODB++, the warn-or-refuse rule for Lumped and Analytic, the rare primitives, the fine-copper warning, the project-file format 2. Open boards with paste layers (GPL, BSD, CC-BY-SA) are fetched into `data/` (git-ignored); the Ucamco samples' licence is not stated. |
 | [`gerber-nets/`](gerber-nets/README.md) | open, early | Nets with voltage and current: Joule heat, tracks at any angle, sources, sinks, electro-thermal feedback. |
 | [`component-heatsink/`](component-heatsink/README.md) | implemented in part; junction node and heatsink scenarios open | The part, its top path, interfaces, heatsinks and the metal block. |
 | [`power-calculator/`](power-calculator/README.md) | implemented | The watts of a part from a measured temperature: validation, sensitivity, error. |
