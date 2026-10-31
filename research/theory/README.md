@@ -60,7 +60,7 @@ Code and documents are those of `develop`; "inv." is the investigation that hold
 
 ### 3.1 Diagrams and illustrations
 
-The 33 pictures of this folder are in `figures/`: 30 diagrams (figures 1 to 30, `scripts/make_diagrams.py`, shared shapes in `research/diagram_kit.py`) and three data figures (31 to 33, `scripts/make_figures.py`, section 3.1.1). The diagrams are embedded in topics 01 to 16, 25, 26 and 28 to 37. Topics 17 to 24 and 27 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
+The 37 pictures of this folder are in `figures/`: 30 diagrams (figures 1 to 30, `scripts/make_diagrams.py`, shared shapes in `research/diagram_kit.py`), three data figures (31 to 33, `scripts/make_figures.py`, section 3.1.1) and four pictures of the part across the board outline (34 to 37, `scripts/make_fig_part_outline.py`, about 6 minutes). The diagrams are embedded in topics 01 to 16, 25, 26 and 28 to 37. Topics 17 to 24 and 27 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
 
 | File | Drawn in | Topic |
 | :-- | :-- | :-- |
@@ -97,6 +97,10 @@ The 33 pictures of this folder are in `figures/`: 30 diagrams (figures 1 to 30, 
 | `figures/fig_31_fin_efficiency_and_ratio.png` | this folder (data) | 11 |
 | `figures/fig_32_analytic_modes_and_edges.png` | this folder (data) | 06, 37 |
 | `figures/fig_33_thick_plate_correction.png` | this folder (data) | 34, 01 |
+| `figures/fig_34_part_cut_cell.png` | this folder (`scripts/make_fig_part_outline.py`) | 28 |
+| `figures/fig_35_part_weight_rules.png` | this folder (`scripts/make_fig_part_outline.py`) | 28 |
+| `figures/fig_36_part_example_t.png` | this folder (`scripts/make_fig_part_outline.py`, data) | 28 |
+| `figures/fig_37_part_edge_shift.png` | this folder (`scripts/make_fig_part_outline.py`, data) | 28 |
 
 Curves that are only illustrative (the shape of a series, a fixed point with arbitrary numbers, a pulse train) say so in their italic line; no number of these pictures is a result. The numbers quoted in the topics come from the project documents and the READMEs of the investigations and are marked with the source.
 
@@ -160,9 +164,10 @@ Every section that explains a model, an equation or a method has a picture, in t
 | `README.md` | this index |
 | `BIBLIOGRAPHY.md` | every source: key, citation, address, reading status, topics that use it; the list of what to read next |
 | `topics/` | the 37 topic files |
-| `figures/` | `fig_01` to `fig_33`; 1 to 30 diagrams, 31 to 33 data figures |
+| `figures/` | `fig_01` to `fig_37`; 1 to 30 diagrams, 31 to 33 data figures, 34 to 37 the part across the outline |
 | `scripts/make_diagrams.py` | draws the 30 diagrams (no data, no program) |
 | `scripts/make_figures.py` | draws the three data figures 31 to 33 from closed forms and the program (about 3 minutes) |
+| `scripts/make_fig_part_outline.py` | draws figures 34 to 37 (a part across the board outline: the cut cell, the three rules, the example board cut to a T, the edge-shift sweep) with the program (about 6 minutes) |
 | `scripts/check_mapping_formulas.py` | numerical check of the properties of the 2D effective-medium formulas |
 | `scripts/check_correlations.py` | numerical checks of the correlations quoted by the compilation: 2D Hashin-Shtrikman and the Keller-Dykhne product, Bar-Cohen and Rohsenow, Elenbaas, Churchill-Chu against the worked example of the `ht` library, Hollands (with the correction found), the printed-board conductivities |
 | `scripts/study_fvm_analytic_edges.py` | the review's test of the explanation of topic 37: the Analytic model against the FVM at 1, 0.5 and 0.25 mm on the uniform scenarios, with and without the edge coefficient (under a minute) |

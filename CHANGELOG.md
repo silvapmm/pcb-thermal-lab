@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **Part across the board outline**: a part that crossed the outline heated each cut cell with the power density of the whole cell (FVM, FDM, 3D solid), up to 4 K too hot on the example board cut to a T at 1 to 0.5 mm and up to 16 K in an edge-shift sweep on a small T. Now each cell gets the share that is both in the part and on the board, consistent with the cell's board cover (`geometry.part_weights`). The mean, minimum and ring temperatures under parts and zones (and the mean and ring points of the Power Calculator) no longer count the cells off the board, which read the ambient: a zone on a T board showed a minimum of 25 degC, and the mean under a small T part read 191.3 instead of 223.4 degC at 0.5 mm. The 3D solid samples footprints 8 x 8 like the FVM. The Lumped and Analytic models and boards without an outline are unchanged (bit-identical); the maximum and the junction temperatures do not move.
+
 ## [2.4.4] - 2026-10-29
 
 ### Fixed

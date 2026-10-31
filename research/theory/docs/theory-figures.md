@@ -22,7 +22,7 @@
 | 25 contact area, gap, chain | `docs/research.md` R3, R5 | `figures/fig_17_air_gap.png`, `figures/fig_18_level_chain.png` |
 | 26 plate spreading | `docs/research.md` R3, R8 | `figures/fig_19_plate_spreading.png` |
 | 27 datasheet numbers and compact models | `docs/research.md` E3 to E8 | `research/component-heatsink/figures/fig_06_package_sections.png` |
-| 28 continuum and sources | `docs/theory.md` 1.1, 1.3 | `figures/fig_20_continuum.png`, `figures/fig_21_coverage.png` |
+| 28 continuum and sources | `docs/theory.md` 1.1, 1.3 | `figures/fig_20_continuum.png`, `figures/fig_21_coverage.png`, `figures/fig_34_part_cut_cell.png`, `figures/fig_35_part_weight_rules.png`, `figures/fig_36_part_example_t.png`, `figures/fig_37_part_edge_shift.png` |
 | 29 verification ladder | `docs/theory.md` 11 | `figures/fig_22_verification_ladder.png` |
 | 30 board orientation | `docs/models.md` 18 (and theory 8) | `figures/fig_23_orientation.png` |
 | 31 program architecture and API | `docs/models.md` 7, 8 | `figures/fig_24_architecture.png` |
