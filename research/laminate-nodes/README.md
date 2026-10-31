@@ -1,6 +1,6 @@
 # One construction for the laminate nodes of the layered models (investigation S5; roadmap A1, A11, A12)
 
-**Status: studies run, waits for the reviewer.** Steps 0 to 14 were run (the 42-window run and the deep reference of five boards excepted); section 3 holds the printed numbers. Numbers quoted from earlier folders are marked "(earlier folder)" and were not remeasured here. Headline: one rule (n = min(4, ceil(d / 0.4 mm)) sub-gaps in the cells with absent copper plus a margin, one link elsewhere, vertical correction, face value) reproduces the program bit for bit on boards with copper everywhere, equals `bare-spot-under-source` on two or more layers, and halves the shortfall of `laminate.py` on one-layer boards; the Analytic does not take it and the Lumped is erratic on it.
+**Status: reviewed (section 8); the corrections of the review are in the sections they touch.** Steps 0 to 14 were run (the 42-window run excepted); section 3 holds the printed numbers. Numbers quoted from earlier folders are marked "(earlier folder)" and were not remeasured here. Headline: one rule (n = min(4, ceil(d / 0.4 mm)) sub-gaps in the cells with absent copper plus a margin, one link elsewhere, vertical correction, face value) reproduces the program bit for bit on boards with copper everywhere, is within 0.03 point of `bare-spot-under-source` on two or more layers, and halves the shortfall of `laminate.py` on one-layer boards with drawn copper; on real one-layer layouts at the cells a user picks (0.8 mm) it gains only 0.2 to 2.8 points, because there the scalar fill of the cell is the error (3.8, corrected by the review). The Analytic does not take it and the Lumped is erratic on it. The point red-black SOR cannot run on the construction (any refined column next to a single link with an even n closes an odd cycle); a column red-black SOR does, in the program's number of sweeps (3.11).
 
 The program has four unreconciled treatments of the laminate between copper layers. This folder asks whether one construction can replace them, measures it against an independent resolved 3D reference with the 1/n law and Richardson, and writes down what must change in the program (INTEGRATION.md), for the fix of 2.4.5.
 
@@ -44,20 +44,20 @@ A **gap** is the laminate between two copper nodes; for a one-layer board it is 
 
 *Figure 4 (`figures/fig_04_one_layer_laminate_path.png`): the laminate path of a one-layer board: two nodes in every cell today, the rule's nodes only next to the absent copper.*
 
-### 1.3 The code (tests: 18 passed)
+### 1.3 The code (tests: 20 passed)
 
 `lib/` (all of it new; `bare-spot-under-source/lib` and `gap-subdivision/lib` are reused as they are):
 
 | file | what |
 | :-- | :-- |
 | `rule.py` | the rule as data (`Rule`, presets of the four old treatments), `n_for_gap`, `sub_gaps`, the mask `flag_cells` with `dilate`, the unknown counts |
-| `gapnet.py` | the construction on the **program's own `fvm.Network`** (arrays changed, extra node layers appended, `extra_links`): the direct solver, CG, the transient machinery and the Lumped's ring sums run on it unchanged; `solve_ragged` (matrix without the unused nodes); `solve_sor_general` (red-black SOR on any bipartite network); `peak_under_parts` (face term) |
+| `gapnet.py` | the construction on the **program's own `fvm.Network`** (arrays changed, extra node layers appended, `extra_links`): the direct solver, CG, the transient machinery and the Lumped's ring sums run on it unchanged; `solve_ragged` (matrix without the unused nodes); `solve_sor_general` (red-black SOR on any bipartite network); `solve_sor_columns` (column red-black SOR, valid on every construction; added by the review); `peak_under_parts` (face term) |
 | `fdmnet.py` | the same on the node-centred FDM (S and the vertical conductances recomputed, matrix reassembled, zero link at the border of the refined zone) |
 | `ref3d.py` | the independent resolved 3D reference: graded sub-slabs, one-layer laminate, vias as copper area, quadrant symmetry, steady and step response, `richardson` |
 | `boards.py` | one description (`Spec`) that gives the Problem and the masks of the reference; `simple_set()` |
 | `runner.py`, `report.py` | measurement with a cache of the reference, tables, the 1/n fit |
 
-`tests/`: `test_rule.py`, `test_gapnet.py` (empty mask = the program to the last bit; the one-layer ladder equals `laminate.py` for n = 1 and 2; a one-dimensional column does not depend on n; energy balance; ragged and SOR agree with the direct solve; the odd-cycle failure of the old barrel treatment; the FDM matrix and balance), `test_ref3d.py` (equals `bare-spot-under-source/lib/resolved3d.py`; quadrant equals full board; series circuit; Richardson on a known sequence; the transient tends to the steady value).
+`tests/`: `test_rule.py`, `test_gapnet.py` (empty mask = the program to the last bit; the preset "program" takes a given fill; the point colouring fails for an even n where refined and single-link columns meet and the column SOR solves those boards; the one-layer ladder equals `laminate.py` for n = 1 and 2; a one-dimensional column does not depend on n; energy balance; ragged and SOR agree with the direct solve; the odd-cycle failure of the old barrel treatment; the FDM matrix and balance), `test_ref3d.py` (equals `bare-spot-under-source/lib/resolved3d.py`; quadrant equals full board; series circuit; Richardson on a known sequence; the transient tends to the steady value).
 
 ### 1.4 The references
 
@@ -101,7 +101,7 @@ Every table below is the printed output of the named script (the `out/*.txt` and
 
 ### 3.1 The reference and the solvers (steps 0, 1)
 
-*Tests:* `pytest research/laminate-nodes/tests`: 18 passed (the rule, the construction on the program's `fvm.Network` with the empty mask equal to the program to the last bit, the one-layer ladder equal to `laminate.py`, the series column independent of n, energy balance, ragged and SOR equal to the direct solve, the independent reference equal to `bare-spot-under-source/lib/resolved3d.py`, quadrant equal to the full board, Richardson on a known sequence).
+*Tests:* `pytest research/laminate-nodes/tests`: 20 passed (18 before the review) (the rule, the construction on the program's `fvm.Network` with the empty mask equal to the program to the last bit, the one-layer ladder equal to `laminate.py`, the series column independent of n, energy balance, ragged and SOR equal to the direct solve, the independent reference equal to `bare-spot-under-source/lib/resolved3d.py`, quadrant equal to the full board, Richardson on a known sequence).
 
 *Convergence of the reference* (`study_reference.py`, `out/reference.json`, `out/reference_table_shallow.txt`): peak of the face in K, the distance of the production reference (0.25 mm, 8 sub-slabs) from its Richardson limit:
 
@@ -119,7 +119,7 @@ The production reference is 0.4 to 1.5 % **above** its limit, so every error of 
 
 *Face against slab centre* (same table, last column of the script): the reference's value at the centre of the top slab is 0.0 % (pad) to 1.0 % (windows on 2 layers) and 1.6 to 1.8 % (4 and 6 layers) below the face value that adds `Q t / (2 k_z A)` for the half slab above the node. The metric of the whole folder is the face value.
 
-*Not done:* the deep sequence for the five 1- and 2-layer boards was interrupted by the reboot and not re-run (the shallow rows above stand for them; 0.8 to 1.5 % to the limit, order 0.7 to 1.4: acceptable for these boards, not asymptotic-proven).
+*The five 1- and 2-layer rows are already the finest sequence of the script* (review): for them the cell sequence is 0.5, 0.25, 0.125 mm at 8 sub-slabs and the slab sequence 4, 8, 16; `--deep` only replaces the 4- and 6-layer rows (whose first run was not in the asymptotic range). An earlier version of this README listed "the deep sequence of the five 1- and 2-layer boards" as not done; there was nothing more to run at these grids. A further level (0.0625 mm, about 580 000 unknowns on a quadrant) was not run (memory). *Independent check of the reference* (review, `research/solid3d-verification/lib/layered3d.py`, which shares no code with `ref3d.py`; isotropic laminate 0.3 W/mK because that solver is isotropic, 0.25 mm, 8 sub-slabs, film under the source): 2L 1.6 mm window 6: ref3d 183.149 K, layered3d 183.043 K (+0.06 %); 2L 1.6 mm pad 10 on a bare bottom: 178.745 K both (+0.00 %). On the same isotropic boards the program reads -9.50 and -6.56 % and the rule -1.18 and -1.52 % against layered3d.
 
 ### 3.2 The four treatments and the rule on the simple boards (step 2)
 
@@ -142,7 +142,7 @@ The production reference is 0.4 to 1.5 % **above** its limit, so every error of 
 | 6L typical window 6 | 86.94 | -3.68 | -3.48 | -0.13 | -3.48 | -0.13 | 1.00 |
 | uniform boards (1L, 2L, 4L, 6L full) | | -0.03 to -0.26 | same | same | same | -0.03 to -0.26 | 0.67 to 1.00 |
 
-All 27 boards are in `out/s0_table.txt`. Reading: (1) on two and more layers the rule **is** `bare-spot-under-source` (the same numbers to the printed digit on every row: the law gives the same n and the same vertical correction); (2) the rule's gain over the program is largest on thick laminates (2L 3.2 mm window: -34.2 to -9.1 %; 2L 1.6 mm window: -18.4 to -3.1 %); (3) on **one-layer** boards it halves the error of `laminate.py` (pad 10: -4.08 to -1.80 %; window 4: -13.95 to -5.48 %) with fewer unknowns under the copper (0.67 to 1.0 x for windows) and 1.4 to 1.7 x for pads; (4) uniform boards are unchanged within 0.1 point (the one-layer full board -0.05 to -0.15 %: the single link under solid copper replaces the two-node chain; the full-copper case of doubt 1 is acceptable); (5) the windows of 2 to 4 mm on 1.6 mm, and the 3.2 mm laminate, keep -5 to -9 %: the law stops at n = 4 (section 3.3, 3.7).
+All 27 boards are in `out/s0_table.txt`. Reading: (1) on two and more layers the rule **is** `bare-spot-under-source` within 0.03 point (the law gives the same n and the same vertical correction; the margin shape, disc against diamond, and the barrels in the sub-links against across the gap are the only differences: 2L 3.2 mm window -9.13 against -9.10, 2L 1.6 mm window 2 -9.00 against -8.99, the other rows equal to the printed digit); (2) the rule's gain over the program is largest on thick laminates (2L 3.2 mm window: -34.2 to -9.1 %; 2L 1.6 mm window: -18.4 to -3.1 %); (3) on **one-layer** boards it halves the error of `laminate.py` (pad 10: -4.08 to -1.80 %; window 4: -13.95 to -5.48 %) with fewer unknowns under the copper (0.67 to 1.0 x for windows) and 1.4 to 1.7 x for pads; (4) uniform boards are unchanged within 0.1 point (the one-layer full board -0.05 to -0.15 %: the single link under solid copper replaces the two-node chain; the full-copper case of doubt 1 is acceptable); (5) the windows of 2 to 4 mm on 1.6 mm, and the 3.2 mm laminate, keep -5 to -9 %: the law stops at n = 4 (section 3.3, 3.7).
 
 ![error of the four treatments](figures/fig_16_four_treatments_and_the_rule.png)
 
@@ -202,7 +202,7 @@ The error does fall as `1/n` (the e_inf of the 1/n fit is within 1 % of the refe
 | margin 2 gaps | 2.31 | 9.26 | 0.24 | 1.31 | 1.58 |
 | shape diamond / square | 2.26 / 2.27 | 9.10 / 9.16 | 0.51 / 0.37 | 1.26 / 1.27 | 1.58 |
 
-The proposed mask is within 0.45 point of refining **every** cell (column "vs every cell") at 1.27 instead of 1.68 x the unknowns; "edge" and a margin of one cell or none are better on the mean error here (1.6 to 2.0 against 2.27) but leave up to 3.8 to 10.7 points from the refine-everywhere answer on some board (why their mean error is lower was not isolated: the signs of the errors are mixed on these boards and a lower mean may come from a cancellation with the cell effect of section 3.7, not from a closer physics). The rule of section 2 (b) ("bare + margin unless edge is within 0.5 points on every board") keeps the proposed mask. The threshold (1.0, 0.98, 0.9) and the shape of the margin do not matter on these boards (no cell has a fill between 0.9 and 1 except the off-grid pad edges of section 3.6).
+The proposed mask is within 0.45 point of refining **every** cell (column "vs every cell") at 1.27 instead of 1.68 x the unknowns; "edge" and a margin of one cell or none are better on the mean error here (1.6 to 2.0 against 2.27) but leave up to 3.8 to 10.7 points from the refine-everywhere answer on some board. **Why their mean error is lower** (review, `study_mask_bracket.py`, `out/log_mask_bracket.txt`): a partial mask refines fewer cells at the same n, so a sound answer lies between the program (n = 1) and "every cell"; these variants read **hotter than every cell** (1L pad 10: margin none +6.12, edge +2.67 against -2.09 for every cell; 2L 1.6 mm pad on a bare bottom: edge +2.45 against -2.03; 2L 1.6 mm window 6: margin none +2.05 against -3.13). Where the mask ends, the interior nodes have no lateral link to the next cell, whose laminate is lumped into its copper nodes: a mask that stops where the laminate still carries heat sideways is an insulating wall, which heats the part and cancels part of the cool error. Margin none leaves the bracket on 6 of 17 boards, margin 1 on 5, edge on 4, the proposed mask on 1 (1L window 4: -5.48 against -5.93, 0.45 point). The lower mean errors are this artefact, not better physics. The rule of section 2 (b) ("bare + margin unless edge is within 0.5 points on every board") keeps the proposed mask. The threshold (1.0, 0.98, 0.9) and the shape of the margin do not matter on these boards (no cell has a fill between 0.9 and 1 except the off-grid pad edges of section 3.6).
 
 ![mask variants](figures/fig_15_mask_variants.png)
 
@@ -248,7 +248,11 @@ The proposed mask is within 0.45 point of refining **every** cell (column "vs ev
 | hatch 1.0 mm duty 0.5 (peak) | 152.60 | -7.65 | -7.65 | -6.59 | -7.38 | -7.58 | -7.39 |
 | hatch 0.5 mm duty 0.3 (peak) | 163.88 | -11.17 | -11.15 | -10.16 | -10.67 | -10.91 | -10.68 |
 
-(1) The vertical correction **and** the face term are worth 3.1 to 3.8 points on the 4- and 6-layer boards under a window (-3.77 to -0.61 %; -3.68 to -0.13 %), 1.1 points on the thick 2-layer window, and nothing on a pad edge off the grid. (2) On windows the face exponent does not matter (a cell with fill 0 has the full term for every p); on hatching and on cut cells the full term (p = 0) is closest on **every** row printed (the errors are all negative, so p = 0 never overshoots on these boards): the rule of section 2 (c) (the smallest largest error) picks **p = 0**; the code's default is p = 1, left unchanged here so that the earlier tables stand: this is an open decision (differences 0.3 to 1.1 points, on boards where the model is already 7 to 25 % cool for another cause, section 3.7). A near-full cell (f = 0.99) with p = 0 gets the full half-layer drop: no board with such a cell and a source on it was run, so the overshoot at f close to 1 is **not measured**. (3) The error of a window edge inside the footprint grows with the offset (-22.5, -24.2, -25.5, -26.3 % for 0.0 to 0.375 mm): the scalar fill of a cut cell is the larger error here (section 4).
+(1) The vertical correction **and** the face term are worth 3.1 to 3.8 points on the 4- and 6-layer boards under a window (-3.77 to -0.61 %; -3.68 to -0.13 %), 1.1 points on the thick 2-layer window, and nothing on a pad edge off the grid. (2) On windows the face exponent does not matter (a cell with fill 0 has the full term for every p); on hatching and on cut cells the full term (p = 0) is closest on **every** row printed (the errors are all negative, so p = 0 never overshoots on these boards): the rule of section 2 (c) (the smallest largest error) picks **p = 0**; the code's default is p = 1, left unchanged here so that the earlier tables stand: this is an open decision (differences 0.3 to 1.1 points, on boards where the model is already 7 to 25 % cool for another cause, section 3.7). *Overshoot near f = 1* (review, `study_face_slot.py`, `out/log_face_slot.txt`): a two-dimensional model of a bare slot of width w in 35 um copper (face to the node level, copper walls and node level at the node temperature) gives the peak of the face over the 1D term `q t / (2 k_z)`: 0.05 at w = 5 um, 0.24 at 20 um, 0.42 at 35 um (w = t), 0.58 at 50 um, 0.87 at 100 um, 0.96 at 150 um, 0.98 at 200 um. So the full term (p = 0) is the right peak for a bare feature wider than about four copper thicknesses (0.15 mm, which every fabricated clearance is), and overstates it only on a sliver: a cell cut by an edge that leaves f = 0.9 to 0.99 in a 0.5 mm cell (a strip of 5 to 50 um) gets 1.7 to 19 times the true drop. The overshoot is bounded by the term itself (1.6 K for 1 W on a 6 mm part over 35 um copper, about 1 % of the rise on these boards). A guard that scales the term by the slot curve with the bare width `(1 - f) dx` removes it (INTEGRATION.md 7). (3) The error of a window edge inside the footprint grows with the offset (-22.5, -24.2, -25.5, -26.3 % for 0.0 to 0.375 mm): the scalar fill of a cut cell is the larger error here (section 4).
+
+![face term over a slot](figures/fig_17_face_term_over_a_slot.png)
+
+*Figure 17 (`figures/fig_17_face_term_over_a_slot.png`): the drop from the face of a bare slot to the copper node level over the 1D term, against the slot width over the copper thickness (review, `study_face_slot.py`); the full term (p = 0) is the dashed line.*
 
 *Part D, the program's 3D solid against the face value and the slab-centre value* (`out/vf_table.txt`, last table): +1.46 to -0.78 % against the face value on the 2-layer windows (+3.0 to +0.15 % against the centre), -1.3 to -2.0 % against the face value on the 4- and 6-layer windows (+0.3 to -0.1 % against the centre). The solid reads the slab centre; the difference to the face value is within 2 % on the 12 boards, so the proposal of reporting the face in `solid3d` is a 2 % refinement at most, not a defect.
 
@@ -277,23 +281,37 @@ The proposed mask is within 0.45 point of refining **every** cell (column "vs ev
 
 ### 3.8 Real windows (step 8)
 
-`study_windows_real.py` and `study_windows_cell.py` (`out/log_windows_real.txt`, `out/windows_cell.json`): the first window of each of the seven real one-layer boards of the Gerber research (36 mm, copper pixels of 0.2 mm, a 6 x 6 mm heater of 1 W at 12 to 18 mm, 1.6 mm laminate, 35 um copper, h = 10 W/m2K on both faces), the mean heater rise against the 0.2 mm resolved reference (8 sub-slabs, 291 000 unknowns), the program's scalar fill being the mean of the pixels of each cell. Error of the mean rise, percent:
+`study_windows_real.py`, `study_windows_cell.py` and `study_windows_reconcile.py` (`out/log_windows_real.txt`, `out/log_windows_cell.txt`, `out/log_windows_reconcile.txt`): the first window of each of the seven real one-layer boards of the Gerber research (36 mm, copper pixels of 0.2 mm, a 6 x 6 mm heater of 1 W at 12 to 18 mm, 1.6 mm laminate, 35 um copper, h = 10 W/m2K on both faces), the mean heater rise against the 0.2 mm resolved reference (8 sub-slabs, 291 000 unknowns), the program's scalar fill being the mean of the pixels of each cell. The resolved references are kept in `out/windows_ref_cache.json` (one 8 GB solve per window and orientation).
+
+**Corrected by the review.** The first version of this section had the program at -27 to -62 % at every cell size: the preset "program" did not take the fill of the mask (`gapnet.apply_ladder` returned before applying it on a one-layer board), so the program column solved the full-copper placeholder board of `problem()`; fixed, with a regression test (`test_program_preset_takes_a_given_fill`). The rule and "n = 8 everywhere" columns were right and are unchanged. Error of the mean rise, percent (this folder's orientation, see below):
 
 | window | copper % | program @0.8 mm | rule @0.8 | n=8 everywhere @0.8 | program @0.4 | rule @0.4 | program @0.2 | n=8 @0.2 | rule @0.2 |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: |
-| storm | 77 | -36.09 | -16.93 | -17.14 | -35.61 | -12.63 | -35.65 | -3.28 | -4.18 |
-| chibi | 80 | -34.64 | -25.04 | -25.35 | -34.15 | -19.52 | -34.19 | -3.89 | -5.51 |
-| easyeda | 86 | -27.56 | -21.83 | -22.39 | -27.02 | -18.02 | -27.06 | -5.11 | -6.70 |
-| pcbrnd | 68 | -33.83 | -21.52 | -21.60 | -33.34 | -10.27 | -33.38 | -3.00 | -4.54 |
-| pcad | 55 | -61.94 | -43.35 | -43.26 | -61.66 | -36.45 | -61.68 | -6.75 | -9.55 |
-| dip | 74 | -45.98 | -38.38 | -38.70 | -45.58 | -26.70 | -45.61 | -5.44 | -8.34 |
-| fritz | 27 | -61.52 | -21.13 | -20.83 | -61.24 | -8.39 | -61.26 | -3.71 | -4.70 |
+| storm | 77 | -18.32 | -16.93 | -17.14 | -14.48 | -12.63 | -7.45 | -3.28 | -4.18 |
+| chibi | 80 | -25.70 | -25.04 | -25.35 | -20.88 | -19.52 | -9.35 | -3.89 | -5.51 |
+| easyeda | 86 | -22.53 | -21.83 | -22.39 | -19.28 | -18.02 | -10.75 | -5.11 | -6.70 |
+| pcbrnd | 68 | -22.00 | -21.52 | -21.60 | -12.85 | -10.27 | -8.00 | -3.00 | -4.54 |
+| pcad | 55 | -45.66 | -43.35 | -43.26 | -40.02 | -36.45 | -17.09 | -6.75 | -9.55 |
+| dip | 74 | -38.89 | -38.38 | -38.70 | -29.79 | -26.70 | -15.07 | -5.44 | -8.34 |
+| fritz | 27 | -23.96 | -21.13 | -20.83 | -13.28 | -8.39 | -9.37 | -3.71 | -4.70 |
 
-The mask flags 87 to 100 % of the cells on these layouts, at 1.5 to 1.7 x the unknowns (`out/log_windows_real.txt`; the cost cap `budget = 2` never acted); the "edge" mask flags 93 to 99 %. **Finding:** the rule moves the 0.8 mm cell from -27 to -62 % (program) to -17 to -43 %, and at the pixel-sized cell (0.2 mm) the program stays at -27 to -62 % while the rule reaches -4.2 to -9.6 % (n = 8 everywhere: -3.0 to -6.8 %). So the remaining error at 0.8 and 0.4 mm is **copper finer than the cell** (tracks of 0.2 to 0.5 mm inside a 0.8 mm cell: a scalar fill cannot hold a track that carries heat along the laminate), not the number of nodes, which is the limit already written in section 4 and which the nodes do not touch. At the cell the layout needs, the construction gives -4 to -10 %, the same order as the 1.9 and 5.3 % that the earlier folder found with eight nodes on two windows; **the program's own numbers here (-27 to -62 %) are not those of that folder (-5.5 to -13.6 %)**: the heater block, the pixel and the metric were rebuilt (README 1.4), and the difference is not reconciled (the same code at full copper agrees with the reference within 0.7 %, so the reference and the board are not the cause; the earlier folder's layout may use a larger heater, which is less sensitive to the laminate). This is a discrepancy, not a result of agreement. Only the seven first windows were run (`--all`, 42 windows, not run).
+The mask flags 87 to 100 % of the cells on these layouts, at 1.5 to 1.7 x the unknowns (the cost cap `budget = 2` never acted); the "edge" mask flags 93 to 99 %. **Finding:** at the 0.8 mm cell the rule gains only 0.2 to 2.8 points over the program (-18 to -46 % to -17 to -43 %), and eight nodes everywhere are no better: at that cell the error is the **scalar fill of a cell with copper finer than the cell** (tracks and clearances of 0.2 to 0.5 mm inside a 0.8 mm cell; the fill fraction treats the copper of a cell as joined, gerber-models 4.4 and R2), which the nodes do not touch. At the pixel-sized cell (0.2 mm) the laminate is the error and the nodes repair most of it: program -7.5 to -17.1 %, rule -4.2 to -9.6 %, n = 8 everywhere -3.0 to -6.8 %. The answer to the fill error is a better mapping of the copper (the flow-based faces of gerber-models, -9.4 % against -23.9 % for the fill at 0.8 mm in R2), not more laminate nodes.
+
+*Reconciliation with gerber-models R2* (review). The two folders read the same masks of `windows_native.npz` but R2 flips their rows (row 0 at y = 0 of the board) and this folder took them as stored, so its windows are the **mirror images** of R2's: the heater, off the centre of the window, sits over different copper (the references differ: storm 84.15 K here, 72.91 K in R2). Run on R2's orientation and against **R2's own independent 3D solver** (its printed heater means; `study_windows_reconcile.py`, node value without a face term, R2's metric):
+
+| case | mean % | range % |
+| :-- | --: | --: |
+| program @0.2 mm (R2 printed: mean -9.8, range -13.6 to -5.5) | -9.81 | -13.64 to -5.53 |
+| rule @0.2 mm | -5.82 | -8.55 to -3.07 |
+| n = 8 everywhere @0.2 mm | -3.64 | -5.30 to -1.91 |
+| program @0.8 mm (R2 printed for the fill: -23.9) | -25.46 | -36.45 to -17.33 |
+| rule @0.8 mm | -24.54 | -35.65 to -16.98 |
+
+The program at the pixel reproduces R2 to the printed digit, so the earlier discrepancy is fully explained (the fill defect and the mirror); at 0.8 mm the program is 1.6 points cooler than R2's fill row, which R2 built through the faces of `lib/faces.py` (not investigated further). The rule's gain is confirmed against a second, independent reference: -9.8 to -5.8 % at the pixel, -25.5 to -24.5 % at 0.8 mm. Only the seven first windows were run (`--all`, 42 windows, not run).
 
 ![real windows](figures/fig_08_real_windows.png)
 
-*Figure 8 (`figures/fig_08_real_windows.png`): the mean error on the seven windows and, for the first one, the maps of the reference face, the fill and the rule's top node.*
+*Figure 8 (`figures/fig_08_real_windows.png`): the mean error on the seven windows at a 0.8 mm cell (program column corrected by the review) and, for the first one, the maps of the fill, the reference face and the rule's top node.*
 
 ### 3.9 The FDM (step 9)
 
@@ -334,22 +352,30 @@ The time to 63 % of the steady peak is 2.3 to 3.9 % off with the rule (7.8 to 14
 
 ### 3.11 Cost, memory and the SOR (step 11)
 
-`study_cost_sor.py` (`out/log_cost_sor.txt`): the unknowns (program, ragged, dense) and the direct-solve time:
+`study_cost_sor.py` (`out/log_cost_sor.txt`, re-run by the review): the unknowns (program, ragged, dense) and the direct-solve time:
 
 | board | cell | program unknowns | ragged x | dense x | dense solve s | ragged solve s | program solve s |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
-| 2L 100 x 80, pour 60 x 40, window 6 | 1.0 | 20 000 | 2.22 | 2.50 | 0.5 | 0.4 | 0.0 |
-| same | 0.5 | 80 000 | 2.21 | 2.50 | 2.1 | 1.7 | 0.2 |
-| 4L typical 100, window 6 | 0.5 | 160 000 | 1.00 | 1.00 | 1.4 | 1.3 | 1.2 |
-| 1L 100, pad 40 | 0.5 | 120 000 | 1.54 | 1.67 | 1.7 | 1.9 | 0.6 |
+| 2L 100 x 80, pour 60 x 40, window 6 | 1.0 | 20 000 | 2.22 | 2.50 | 0.3 | 0.2 | 0.0 |
+| same | 0.5 | 80 000 | 2.21 | 2.50 | 1.4 | 1.4 | 0.2 |
+| 4L typical 100, window 6 | 0.5 | 160 000 | 1.00 | 1.00 | 1.1 | 1.1 | 1.1 |
+| 1L 100, pad 40 | 0.5 | 120 000 | 1.54 | 1.67 | 1.4 | 1.3 | 0.5 |
 
-The direct solve costs 2.2 to 3 x the time of the program on the boards with a refined gap (proportional to the unknowns). Dense extra layers with pinned cells cost **more than 15 % over the ragged matrix on the 2-layer board** (0.5 against 0.4 s, 2.1 against 1.7 s: +25 %; +12 % over the one-layer board at 1 mm; at 0.5 mm the ragged was slower by 0.2 s in this run, which is noise on a loaded machine), so decision (d) of section 2 is **ragged assembly** (the unknown count for the memory guard is the ragged one only if the matrix is ragged). The peak resident memory read in the script is the process's maximum (1.0 to 1.4 GB, dominated by the first case; not a per-board figure).
+The direct solve costs 2 to 7 x the time of the program on the boards with a refined gap (the 2-layer pour has 2.2 x the unknowns and denser columns). The first run had the dense layers 25 % slower than the ragged matrix on the 2-layer board (0.5 against 0.4 s, 2.1 against 1.7 s); the review's run gives 0.3 against 0.2 s and 1.4 against 1.4 s: on a loaded machine the solve times do not separate the two. Decision (d) of section 2 still goes to the **ragged assembly**, on the unknown count (2.21 against 2.50 x, 1.54 against 1.67 x: 6 to 12 % fewer unknowns and no rows of pinned nodes), not on the time. The memory guard counts the ragged unknowns. The peak resident memory read in the script is the process's maximum (not a per-board figure).
 
-*SOR* (30 mm boards, 1 mm cells, residual 1e-8): the program's point SOR 719 iterations, the general red-black SOR on the program's K 720, on the ladder K 990 (2L pad on a bare bottom, colouring valid); **the one-layer ladder failed the bipartite colouring (`colours_ok False`)**, as did the ladder with the barrels in parallel and an even n (the odd-cycle failure the tests document). That the one-layer ladder is not bipartite is a **defect of the construction as written and not understood**: the colouring cannot be used on a one-layer board until it is fixed (the point SOR of the program runs on its own network). It blocks the SOR item of INTEGRATION.md for one-layer boards.
+*SOR* (30 mm boards, 1 mm cells, residual 1e-8; sweeps):
+
+| board | program point SOR | general red-black, program K | point red-black, ladder n = 4 | ladder, barrels parallel, n = 2 | **column red-black, ladder n = 4** | column red-black, barrels parallel, n = 2 |
+| :-- | --: | --: | --: | --: | --: | --: |
+| 2L 1.6 pad 10, bare bottom | 719 | 720 | 990 | no colouring | **730** | 720 |
+| 2L 1.6 window 6 | 5221 | 5230 | no colouring | no colouring | **5200** | 5200 |
+| 1L pad 10 | 775 | 780 | no colouring | no colouring | **730** | 720 |
+
+The column SOR agrees with the direct solve within 2e-7 to 4e-7 K at this tolerance. **Corrected by the review:** the first version said that "the one-layer ladder is not bipartite, a defect of the construction not understood", and that 2-layer ladders colour. The cause is general: in a refined gap a flagged column joins its two end nodes by n links and an unflagged column by one, and the lateral links close the cycle a(i) - b(i) - b(j) - [n links] - a(j) - a(i) of length n + 3, odd for every **even** n. The 2-layer board of the first run coloured only because its bottom is bare everywhere, so every cell was flagged; the 2L window (refined and single-link columns side by side) fails at n = 2 and 4 and colours at n = 3 and 5, and the one-layer pad likewise (measured with `gapnet.two_colour`; `test_mixed_columns_with_even_n_are_not_bipartite_and_column_sor_solves_them`). No point two-colouring exists for the default law (n = 2 or 4). Every link of the construction joins nodes of one plan cell (vertical, sub-links, barrels in either mode) or the same node of two plan neighbours, so a **block (column) red-black SOR**, coloured on the plan grid, is always valid (`gapnet.solve_sor_columns`): it relaxes all the nodes of a cell together by an exact solve of the column, and it needs the program's number of sweeps. The program's planned SOR for 2.4.5 (`research/sor-with-via-couplings`, option (c')) is a point red-black sweep plus relaxed, coloured **via blocks** (all the nodes of a via, skipped by the point sweep); the refined columns fit the same mechanism as blocks (every flagged cell's column, colour groups by the plan grid), which keeps the point sweep and a board without refined cells bit-identical to today. That hybrid was **not measured here**; the column red-black above is the measured prototype and the fallback.
 
 ![SOR sweeps](figures/fig_13_sor_sweeps.png)
 
-*Figure 13 (`figures/fig_13_sor_sweeps.png`): the sweeps of the point SOR on the program's network, the general SOR on the program's K and on the ladder's K.*
+*Figure 13 (`figures/fig_13_sor_sweeps.png`): the sweeps of the point SOR on the program's network, the general red-black SOR on the program's K and on the ladder's K (red: no two-colouring exists) and the column red-black SOR of the review (green), on three boards.*
 
 ### 3.12 The Analytic and the Lumped (step 12)
 
@@ -386,7 +412,7 @@ The direct solve costs 2.2 to 3 x the time of the program on the boards with a r
 
 | board | FVM program | FVM rule | change K | change % | 3D solid |
 | :-- | --: | --: | --: | --: | --: |
-| reference board (any variant: corner, 5 mm heater, 8 layers, two heaters, thin heater) | 65.70 to 109.40 | identical | 0.00 | 0.00 | 67.9 to 109.5 |
+| reference board and its variants (corner, 5 mm heater, 8 layers), heater on the bottom, long thin heater, heater 10 mm from two edges, two heaters | 65.70 to 109.40 | identical | 0.00 | 0.00 | 67.9 to 109.5 |
 | example board (also without heatsink, without vias, only U1) | 85.81 (88.91, 94.67, 79.97) | 85.82 (88.92, 94.68, 79.97) | +0.01 | +0.01 to +0.02 | 85.98 |
 | example, top copper over the full board / uniform | 85.29 / 96.68 | identical | 0.00 | 0.00 | 85.42 / 96.88 |
 | heater 5 mm inside the top-copper edge | 94.45 | 94.48 | +0.03 | +0.05 | 94.78 |
@@ -395,7 +421,7 @@ The direct solve costs 2.2 to 3 x the time of the program on the boards with a r
 | 30 x 30 mm copper island around the heater | 92.38 | 92.44 | +0.05 | +0.07 | 92.78 |
 | hatched copper (fill 0.5) on the top layer | 105.78 | 107.34 | +1.56 | +1.93 | 106.23 |
 
-Boards with copper in every cell of every gap are **bit for bit the program** (the refined set is empty: 0.00 K on 14 of the 22 rows, including the three example projects' uniform variants). The example board moves by +0.01 K (the zone edge around the heater flags 4964 cells in the first gap at 1.16 x the unknowns). The two largest movements are toward the 3D solid: the straddled edge 143.89 to 148.98 against 149.27, the board without copper under the heater 150.16 to 154.70 against 153.19 (the rule overshoots the 3D solid by 1.5 K there, 1 %), the hatching 105.78 to 107.34 against 106.23 (the rule overshoots by 1.1 K, 1 %). The FDM column is "n/a" (the table did not run the FDM on these boards); the Lumped moves by under 0.6 K. The 8-layer reference board reads "ValueError" in the 3D solid column (its size limit).The rows that move are the ones with a bare spot.
+Boards with copper in every cell of every gap are **bit for bit the program** (the refined set is empty: the same float on 12 of the 23 rows of `out/log_validation_rows.txt`, among them the uniform variants of the example; the first version said "14 of the 22 rows", corrected by the review; the six example rows with the zone edge move by 0.01 K). The example board moves by +0.01 K (the zone edge around the heater flags 4964 cells in the first gap at 1.16 x the unknowns). The two largest movements are toward the 3D solid: the straddled edge 143.89 to 148.98 against 149.27, the board without copper under the heater 150.16 to 154.70 against 153.19 (the rule is 1.5 K, 1 %, above the 3D solid there), the hatching 105.78 to 107.34 against 106.23 (1.1 K, 1 % above). That is not an established overshoot: the 3D solid reports the centre of its top slab, which is 1.3 to 2.0 % below the face value on windows (3.6 D), and the hatching is a uniform fill of 0.5 in the layered models and in the solid alike (3.6, 3.8). The FDM column is "n/a" (the table did not run the FDM on these boards); the Lumped moves by under 0.6 K. The 8-layer reference board reads "ValueError" in the 3D solid column (its size limit). The rows that move are the ones with a bare spot.
 
 ![validation rows](figures/fig_10_validation_rows.png)
 
@@ -406,30 +432,40 @@ Boards with copper in every cell of every gap are **bit for bit the program** (t
 * Blocks, metal heatsinks with a thickness: refused by `gapnet.build` (3.13 E). Outline and edge coefficient: built, checked by the energy balance only.
 * The FDM covers rectangular boards with insulated sides and stays 3 to 8 points below the FVM over a bare spot (3.9).
 * The reference's own grid error (3.1, 0.4 to 1.5 %) and the singular edge of a window (observed order 0.5 to 1.2) limit every number to a few tenths of a percent at best.
-* Copper finer than the cell (hatching, tracks, real layouts): the scalar fill of the cell is the larger error and the nodes do not touch it (3.8: -12 to -43 % at 0.4 to 0.8 mm cells on real windows; -4 to -10 % at the pixel). A window narrower than about two cells or about 1.5 times the gap is not repaired by any n (3.7).
-* The one-layer ladder is not bipartite (3.11): the coloured SOR is not available for one-layer boards as written.
+* Copper finer than the cell (hatching, tracks, real layouts): the scalar fill of the cell is the larger error and the nodes do not touch it (3.8: the program -13 to -46 % and the rule -8 to -43 % at 0.4 to 0.8 mm cells on real windows; at the pixel the program -7 to -17 %, the rule -4 to -10 %). A window narrower than about two cells or about 1.5 times the gap is not repaired by any n (3.7).
+* No point red-black colouring exists for an even n where refined and single-link columns meet (any board, 3.11); the column (block) red-black SOR is valid and was measured; the hybrid with the via blocks of `sor-with-via-couplings` was not.
+* The mask ends with an insulating wall for the interior nodes (3.4): 0.45 point on the 1L window 4, more for narrower margins.
+* The face term with p = 0 overstates the peak on cells cut by an edge into a sliver (f above about 0.9 at 0.5 mm), by at most the term itself (3.6).
 * The transient: the time constant improves, the earliest points of a one-layer board worsen (3.10).
 * The Analytic is not changed by the construction and is far off on any partial copper (3.12); the Lumped on the refined network is erratic (3.12).
-* The deep convergence of the reference was done only for the 4- and 6-layer boards (3.1); `--all` real windows (42) and the 3.2 mm narrow-window rows were not examined row by row.
+* The reference converges at 0.125 mm and 16 sub-slabs on every board of 3.1 and agrees with an independent solver within 0.06 % on two boards (isotropic laminate); a 0.0625 mm level was not run. `--all` real windows (42) and the 3.2 mm narrow-window rows were not examined row by row.
 
 ## 5. How to run
 
-From the repository root, with the program's environment (`.venv`), in the order of section 2; the real windows need `research/gerber-import/out/windows_native.npz` (built by the Gerber research; in a worktree set `LAMNODES_GERBER_OUT` to the folder of the main checkout). All outputs go to `out/` (git-ignored); `make_figures.py` and `make_diagrams.py` write the committed figures. `study_windows_cell.py` is run after `study_windows_real.py`.
+From the repository root, with the program's environment (`.venv`), in the order of section 2; the real windows need `research/gerber-import/out/windows_native.npz` (built by the Gerber research; in a worktree set `LAMNODES_GERBER_OUT` to the folder of the main checkout). All outputs go to `out/` (git-ignored); `make_figures.py` and `make_diagrams.py` write the committed figures. `study_windows_real.py`, `study_windows_cell.py` share the reference cache `out/windows_ref_cache.json` (the first one that meets a window solves it, 8 GB); `study_windows_reconcile.py` needs no 3D solve (R2's printed values). `study_mask_bracket.py` uses the reference cache of `runner.py` (run `study_s0_four_treatments.py` first); `study_face_slot.py` takes seconds.
 
 ## 6. What the program would change
 
-`laminate.py` becomes the module of the construction; `fvm.Network.__init__` builds the extra layers for every gap; `fdm.Network` the same with the border rule; `api.SolverOptions` and Preferences get the parameters; `fvm.unknowns`, `fdm.unknowns` and the memory guard count the extra nodes (ragged); `solve_sor` gets the depth colouring only after the one-layer colouring defect (3.11) is understood; `results.py` keeps the extra nodes out of the layer arrays; the reported peak adds the face term; `checks.py` gets the warnings of INTEGRATION.md 5. The numbers of the impact are in 3.2 and 3.14 and INTEGRATION.md 3.
+`laminate.py` becomes the module of the construction; `fvm.Network.__init__` builds the extra layers for every gap; `fdm.Network` the same with the border rule; `api.SolverOptions` and Preferences get the parameters; `fvm.unknowns`, `fdm.unknowns` and the memory guard count the extra nodes (ragged); `solve_sor` relaxes the refined columns as blocks (3.11; a point colouring does not exist for an even n); `results.py` keeps the extra nodes out of the layer arrays; the reported peak adds the face term; `checks.py` gets the warnings of INTEGRATION.md 5. The numbers of the impact are in 3.2 and 3.14 and INTEGRATION.md 3.
 
 ## 7. Doubts of the author
 
 1. The full-copper one-layer case (doubt 1 of the preparation) is within 0.1 point of the program (-0.15 against -0.05 %): resolved.
 2. The simple stack-up with three or more layers: `rebuild_slabs` is worth 1.9 and 0.7 points (3.13 B) and is not in the default rule: a decision.
 3. The barrel in the sub-links against across the gap: they differ by under 0.2 point on one board with a via under the part (3.13 A); no real via layout was run.
-4. The **discrepancy with the earlier folder on the real windows** (3.8): the program reads -27 to -62 % here against -5.5 to -13.6 % there; not reconciled.
-5. The one-layer ladder colouring defect (3.11) was not diagnosed.
-6. The transient's worst point on the one-layer board is worse with the rule (3.10).
-7. The face exponent: the data prefer p = 0 on every board printed, the default is p = 1; overshoot at f close to 1 not measured (3.6).
-8. The deep reference of the 1- and 2-layer boards was not re-run after the interruption.
+4. The discrepancy with the earlier folder on the real windows (3.8): **resolved by the review** (a defect of the study, the program column ignored the fill, and mirror-image windows; R2 reproduced to the printed digit).
+5. The colouring defect (3.11): **diagnosed by the review** (an odd cycle n + 3 for even n where refined and single-link columns meet, on any board), and a column SOR measured.
+6. The transient's worst point on the one-layer board is worse with the rule (3.10): open.
+7. The face exponent: the data prefer p = 0 on every board printed, the default is p = 1; the overshoot near f = 1 is **measured by the review** (3.6: up to the term itself on slivers; a guard by the bare width removes it).
+8. The deep reference of the 1- and 2-layer boards: **nothing to re-run** (3.1, review); checked against an independent solver.
+
+## 8. Review
+
+* **Status**: reviewed on the branch at `9968d64` (program at `develop` `b0ff0a7`, untouched: `git diff develop --stat -- pcbthermal tests examples ico README.md CHANGELOG.md CLAUDE.md docs requirements.txt` empty). Re-run by the review: the tests (20 passed), steps 2 (`study_s0_four_treatments.py`, the table identical to `out/s0_table.txt` to the last digit, references from the cache), 8 (`study_windows_real.py`, `study_windows_cell.py`, with the corrected program column; references from the cache seeded from the first run, same code), 11 (`study_cost_sor.py`), the figures 8 and 13; added `study_windows_reconcile.py`, `study_mask_bracket.py`, `study_face_slot.py`, `gapnet.solve_sor_columns` and two tests. Not re-run: steps 3 to 7, 9, 10, 12 to 14 (their tables were checked against their logs in `out/`, and 3.14 was corrected from its log).
+* **Independent checks**: the resolved reference against `research/solid3d-verification/lib/layered3d.py` (0.06 % and 0.00 % on two boards, 3.1); the program on the real windows against the independent 3D solver of gerber-models R2 (its printed values; R2 reproduced to the digit, 3.8); a 2D slot model for the face term (3.6); the bracket [program, every cell] for the masks (3.4).
+* **Defects found in this folder and fixed**: (1) the preset "program" ignored a given fill on one-layer boards, so the program column of the real windows solved a full-copper board (3.8; `gapnet.apply_ladder`, regression test); the headline "the rule moves the 0.8 mm cell from -27 to -62 % to -17 to -43 %" was wrong: the gain at 0.8 mm is 0.2 to 2.8 points. (2) The SOR diagnosis "the one-layer ladder is not bipartite, 2-layer ladders colour" was wrong: any board with refined and single-link columns side by side and an even n has odd cycles (3.11; column SOR added, test). (3) The windows are mirror images of R2's (documented in `study_windows_real.load_windows`, `flip=True` gives R2's). (4) Wrong statements corrected: the deep reference "not done" (3.1), "the same numbers to the printed digit" as bare-spot (3.2), "14 of 22 rows" (3.14), the dense layers "+25 %" (3.11, not reproduced), the overshoot against the 3D solid (3.14).
+* **Explanations tested**: the lower mean error of the masks "edge", "margin none" and "margin 1" is an insulating wall at the end of the mask (3.4); the remaining error on real windows at 0.8 mm is the fill (n = 8 everywhere is no better than the rule, 3.8).
+* **Open**: the literature check of the construction (no published case of a patterned layer reproduced; the construction is a discretisation of the same conduction equation, checked against two independent resolved solvers); the transient's earliest points on a one-layer board (3.10); the hybrid SOR (point sweep plus column blocks plus via blocks); the 42 windows; a 0.0625 mm reference level.
 
 ## What was read and what was not verified
 
@@ -437,6 +473,6 @@ From the repository root, with the program's environment (`.venv`), in the order
 
 **Sources:** no new published source was opened. The two published solutions used by the earlier folders (Muzychka, Culham, Yovanovich 2003; Yovanovich, Muzychka, Culham 1999) are entries R of `research/theory/BIBLIOGRAPHY.md`; Richardson extrapolation and the GCI (Roache) are from memory (M) and checked on a known sequence by `tests/test_ref3d.py`. A published numerical case of a source over a copper-free window or a patterned PCB layer, and compact-model literature on the number of nodes through a PCB dielectric, were **not searched in this phase and remain N**: the independent solver of this folder agrees with the earlier folders' two solvers (equality test) and with the series closed form, but **no published numerical case for the patterned-copper situation was reproduced here**, so the literature-check rule is met for the solver (earlier folders) and not for the construction.
 
-**Run:** steps 0 to 14 above except the 42-window `--all` run and the deep reference of the five 1- and 2-layer boards; `study_windows_cell.py` (added after the first real-window run to test the cell-size explanation); the figures 1 to 16 were regenerated from these outputs.
+**Run:** steps 0 to 14 above except the 42-window `--all` run; `study_windows_cell.py` (added after the first real-window run to test the cell-size explanation); the figures 1 to 16 were regenerated from these outputs. The review's runs are listed in section 8.
 
-**Not verified:** the discrepancy with the earlier folder's program numbers on the real windows (3.8); the colouring defect of the one-layer ladder (3.11); overshoot of the face term near f = 1; any model against a physical measurement; the Lumped's behaviour on the refined network beyond the 15 boards of 3.12; the transient with a short power pulse; the numbers quoted from earlier folders (theirs). Every error is against a resolved 3D reference that is itself 0.4 to 1.5 % above its Richardson limit.
+**Not verified:** any model against a physical measurement; a published numerical case of a patterned copper layer (the literature check of the construction, open); the Lumped's behaviour on the refined network beyond the 15 boards of 3.12; the transient with a short power pulse; the numbers quoted from earlier folders (theirs). Every error is against a resolved 3D reference that is itself 0.4 to 1.5 % above its Richardson limit.

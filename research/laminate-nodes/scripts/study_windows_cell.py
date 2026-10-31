@@ -15,7 +15,6 @@ import sys
 
 import boards as BD
 import gapnet as GN
-import ref3d as R3
 import report as RP
 import rule as RU
 import study_windows_real as W
@@ -31,7 +30,7 @@ def main():
     rules = {"program": RU.PRESETS["program"], "n=8 all": RU.Rule(n_fixed=8, mask="all", vert=False, face=-1.0), "rule": RU.Rule()}
     rows = []
     for name, m in W.load_windows("--all" in sys.argv):
-        ref = R3.solve_fills(nb, [m], W.PIX, 8, W.RECT, 1.0)
+        ref = W.reference(nb, name, m)
         row = {"window": name, "copper %": (".0f", 100 * m.mean()), "ref mean K": (".2f", ref["mean"])}
         for cell in (0.8, 0.4, 0.2):
             k = int(round(cell / W.PIX))

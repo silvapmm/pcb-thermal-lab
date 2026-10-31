@@ -32,7 +32,7 @@ Exact in one dimension for `f = 0`, a free correction (no unknown).
 
 **Reported peak (face term).** A part on the face of the top layer injects its heat at the node; where the copper is absent the half layer of laminate between the node and the face adds
 
-    θ_face = θ_node + Q (1 − f)^p t_a / (2 k_z A),       f < 1,        p = 1 in the code, p = 0 closest on every board measured (README 3.6; decision open)
+    θ_face = θ_node + Q (1 − f)^p t_a / (2 k_z A),       f < 1,        p = 1 in the code, p = 0 closest on every board measured (README 3.6; decision open; the reviewer advises p = 0 with the term scaled down on a bare sliver narrower than about four copper thicknesses, `study_face_slot.py`)
 
 for the hottest cell of the footprint (not to the field). The exponent decides the partly covered cell (the 3D solid and the resolved reference mix the conductivities of a partial cell arithmetically and have no face drop where the heat enters the copper directly).
 

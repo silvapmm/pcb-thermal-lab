@@ -62,7 +62,9 @@ def main():
             rows.append(row)
     RP.table(rows, list(rows[0]), title="Unknowns and direct-solve time: program, dense extra layers, ragged matrix")
     sor = []
-    for s in (BD.Spec("2L 1.6 pad 10 bare bottom 30", layers=2, shapes=[("pad", 10), ("none",)], vias=((15.0, 15.0),)), BD.Spec("1L pad 10 30", layers=1, shapes=[("pad", 10)])):
+    # The review added the 2L window (flagged and unflagged cells side by side: the case that breaks the point colouring for an even n) and the column (block) red-black SOR
+    for s in (BD.Spec("2L 1.6 pad 10 bare bottom 30", layers=2, shapes=[("pad", 10), ("none",)], vias=((15.0, 15.0),)), BD.Spec("2L 1.6 window 6 30", layers=2, shapes=[("window", 6), ("full",)]),
+              BD.Spec("1L pad 10 30", layers=1, shapes=[("pad", 10)])):
         p = BD.problem(s)
         base = GN.build(p, 1.0, RU.PRESETS["program"])
         t0 = time.perf_counter()
@@ -73,7 +75,13 @@ def main():
             t0 = time.perf_counter()
             _, res, info = GN.solve_sor_general(net, tol=1e-8, max_iter=60000)
             sor.append({"board": s.name, "case": name, "iterations": info["iterations"], "converged": info["converged"], "colours_ok": info["colours_ok"], "seconds": (".1f", time.perf_counter() - t0)})
-    RP.table(sor, ["board", "case", "iterations", "converged", "colours_ok", "seconds"], title="SOR sweeps to a residual of 1e-8 (30 mm boards, 1 mm cells)")
+        for name, net in (("ladder K, column red-black, n=4", GN.build(p, 1.0, RU.Rule(n_fixed=4))), ("ladder K, column red-black, barrels parallel, n=2", GN.build(p, 1.0, RU.Rule(n_fixed=2, via_mode="parallel")))):
+            t0 = time.perf_counter()
+            th, res, info = GN.solve_sor_columns(net, tol=1e-8, max_iter=60000)
+            dev = float(abs(th - net.solve_steady()[0]).max()) if th is not None else float("nan")
+            sor.append({"board": s.name, "case": name, "iterations": info["iterations"], "converged": info["converged"], "colours_ok": info["colours_ok"], "max |SOR - direct| K": (".1e", dev),
+                        "seconds": (".1f", time.perf_counter() - t0)})
+    RP.table(sor, ["board", "case", "iterations", "converged", "colours_ok", "max |SOR - direct| K", "seconds"], title="SOR sweeps to a residual of 1e-8 (30 mm boards, 1 mm cells)")
     RP.save("cost_sor", {"cost": rows, "sor": sor})
 
 

@@ -124,6 +124,40 @@ def test_parallel_barrel_breaks_the_colouring_for_even_n():
     assert GN.two_colour(net.K) is None
 
 
+def test_mixed_columns_with_even_n_are_not_bipartite_and_column_sor_solves_them():
+    """!
+    @brief Review: refined columns (n links) next to single-link columns close a cycle of length n + 3, so the point colouring fails for every even n on one- and two-layer
+           boards alike (odd n colours); the column (block) red-black SOR, coloured on the plan grid, converges to the direct solution in every case.
+    @return None.
+    """
+    for spec in (BD.Spec("1L", size=24.0, part=4.0, layers=1, shapes=[("window", 4)]), BD.Spec("2L", size=24.0, part=4.0, layers=2, shapes=[("window", 4), ("full",)])):
+        p = BD.problem(spec)
+        for n in (2, 3, 4):
+            net = GN.build(p, 1.0, RU.Rule(n_fixed=n))
+            F = net.ladder.gaps[0].flagged
+            assert F.any() and (~F).any()                                  # flagged and unflagged columns side by side
+            assert (GN.two_colour(net.K) is None) == (n % 2 == 0)
+            th, _ = net.solve_steady()
+            ths, res, info = GN.solve_sor_columns(net, tol=1e-11)
+            assert info["colours_ok"] and info["converged"]
+            assert np.allclose(ths, th, rtol=1e-6, atol=1e-8 * th.max())
+
+
+def test_program_preset_takes_a_given_fill():
+    """!
+    @brief Review: the preset "program" on a one-layer board takes a fill brought from a mask (it used to keep the fill of the Problem's zones, so on the real windows it solved a
+           full-copper board); a full fill reproduces the zones' run and a half fill changes it.
+    @return None.
+    """
+    p = BD.problem(_spec("1L full", layers=1, shapes=[("full",)]))
+    rl = RU.PRESETS["program"]
+    ref, _ = GN.build(p, 1.0, rl).solve_steady()
+    same, _ = GN.build(p, 1.0, rl, fill=np.ones((1, 12, 12))).solve_steady()
+    half, _ = GN.build(p, 1.0, rl, fill=np.full((1, 12, 12), 0.5)).solve_steady()
+    assert np.array_equal(same, ref)
+    assert half[0].max() > 1.01 * ref[0].max()
+
+
 def test_fdm_empty_mask_is_the_program():
     """!
     @brief The FDM with the construction and an empty mask has the matrix of the program's FDM (copper everywhere, two layers).

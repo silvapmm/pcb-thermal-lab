@@ -16,6 +16,7 @@
 
 import _bootstrap  # noqa: F401  (import paths)
 
+import json
 import sys
 
 import numpy as np
@@ -29,6 +30,40 @@ from pcbthermal import Problem
 
 PIX = 0.2                     # mm of the reference pixel
 RECT = (12.0, 12.0, 18.0, 18.0)
+REF_CACHE = RP.OUT / "windows_ref_cache.json"     # the resolved reference of every window (mean, peak), so that the 8 GB solve is made once per window and orientation
+REF_FIELD = RP.OUT / "windows_ref_field.npz"      # the reference face of the first window (for figure 8)
+
+
+def reference(nb, name, m02, flip=False, keep_field=False):
+    """!
+    @brief The resolved reference of a window, from the cache when it is there (review: the window studies used to solve it again in every script, 8 GB each).
+    @param nb dict from boards.board_numbers.
+    @param name Window name (the cache key, with the orientation).
+    @param m02 Copper mask at 0.2 mm, row 0 at y = 0 of the board model.
+    @param flip True when the mask was flipped (the orientation of gerber-models R2); only part of the key.
+    @param keep_field True: also return the face field (solved again when the cache has no field for this window).
+    @return dict with mean and max (K) and, with keep_field, surf.
+    """
+    key = f"{name} | {'flipped' if flip else 'as stored'}"
+    try:
+        cache = json.loads(REF_CACHE.read_text())
+    except Exception:
+        cache = {}
+    field = None
+    if keep_field and REF_FIELD.exists():
+        z = np.load(REF_FIELD, allow_pickle=True)
+        field = z["surf"] if str(z["key"]) == key else None
+    if key in cache and (not keep_field or field is not None):
+        out = dict(cache[key])
+        if keep_field:
+            out["surf"] = field
+        return out
+    r = R3.solve_fills(nb, [m02], PIX, 8, RECT, 1.0)
+    cache[key] = {"mean": r["mean"], "max": r["max"]}
+    REF_CACHE.write_text(json.dumps(cache, indent=1))
+    if keep_field:
+        np.savez_compressed(REF_FIELD, surf=r["surf"], key=key)
+    return r
 
 
 def problem():
@@ -42,10 +77,14 @@ def problem():
     return p
 
 
-def load_windows(all_windows):
+def load_windows(all_windows, flip=False):
     """!
     @brief The windows, 0.2 mm pixels.
+    @details The masks of windows_native.npz are stored with row 0 at the top of the image; gerber-models R2 flips them (row 0 at y = 0 of the board). This folder took them
+             as stored, so its windows are the **mirror images** (top to bottom) of R2's: the heater at 12 to 18 mm, off the centre of the 36 mm window, sits over different copper
+             (review; both the reference and the models see the same mirror, so each set is a valid test, but they are not the same windows). `flip=True` gives R2's orientation.
     @param all_windows True: the 42 windows; False: the first of each board.
+    @param flip True: rows flipped as in gerber-models R2.
     @return list of (name, mask02 float (180, 180)).
     """
     out_dir = _bootstrap.gerber_out()
@@ -58,6 +97,7 @@ def load_windows(all_windows):
         if not all_windows and mt[0] in seen:
             continue
         seen.add(mt[0])
+        m = m[::-1] if flip else m
         m02 = m.reshape(180, 2, 180, 2).mean(axis=(1, 3)) >= 0.5
         out.append((f"{mt[0]} ({mt[1]}, {mt[2]})", m02.astype(float)))
     return out
@@ -76,7 +116,7 @@ def main():
              "proposed budget 2": RU.Rule(budget=2.0)}
     rows, fields = [], {}
     for name, m02 in load_windows("--all" in sys.argv):
-        ref = R3.solve_fills(nb, [m02], PIX, 8, RECT, 1.0)
+        ref = reference(nb, name, m02, keep_field=not fields)
         n = m02.shape[0] // k
         fill = m02.reshape(n, k, n, k).mean(axis=(1, 3))[None]
         row = {"window": name, "copper %": (".0f", 100 * m02.mean()), "ref mean K": (".2f", ref["mean"]), "ref peak K": (".2f", ref["max"])}

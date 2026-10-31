@@ -2,10 +2,10 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
-@brief The data figures of the investigation (numbers 06 to 16), drawn from the JSON files that the study scripts leave in out/; a figure whose file is missing is skipped with a message.
+@brief The data figures of the investigation (numbers 06 to 17), drawn from the JSON files that the study scripts leave in out/; a figure whose file is missing is skipped with a message.
 @details One numbering with make_diagrams.py (figures 01 to 05 are the drawings). Each figure quotes only numbers that the README prints from the same files.
          06 error against n per stack-up with the 1/n line; 07 window width and gap sweeps; 08 real windows (bars and the fields of the first window); 09 error against unknowns for the laws of n;
-         10 the validation rows before and after; 11 the FDM; 12 the step response; 13 the SOR sweeps; 14 the face-term variants; 15 the mask variants; 16 the four treatments and the rule.
+         10 the validation rows before and after; 11 the FDM; 12 the step response; 13 the SOR sweeps; 14 the face-term variants; 15 the mask variants; 16 the four treatments and the rule; 17 the face term over a bare slot (review).
          Usage: .venv/bin/python research/laminate-nodes/scripts/make_figures.py   (from the repository root, after the studies).
 """
 
@@ -221,12 +221,19 @@ def fig13():
     if not d:
         return
     rows = d["sor"]
-    fig, ax = plt.subplots(figsize=(8, 3.5))
-    ax.barh(range(len(rows)), [r["iterations"] for r in rows])
+    fig, ax = plt.subplots(figsize=(9, 0.28 * len(rows) + 1.5))
+    # A point colouring that does not exist (odd cycle) has no sweeps: drawn as a red mark at zero (review: refined next to single-link columns with an even n)
+    its = [r["iterations"] for r in rows]
+    bad = [r.get("colours_ok") is False for r in rows]
+    ax.barh(range(len(rows)), its, color=["tab:red" if b else ("tab:green" if "column" in r["case"] else "tab:blue") for b, r in zip(bad, rows)])
+    for i, b in enumerate(bad):
+        if b:
+            ax.text(50, i, "no two-colouring (odd cycle)", va="center", fontsize=6, color="tab:red")
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([f"{r['board'][:18]} | {r['case']}" for r in rows], fontsize=6)
     ax.invert_yaxis()
-    ax.set_xlabel("sweeps to a residual of 1e-8")
+    ax.set_xlabel("sweeps to a residual of 1e-8 (green: column red-black SOR of the review)")
+    fig.subplots_adjust(left=0.42)
     finish(fig, "fig_13_sor_sweeps.png")
 
 
@@ -289,7 +296,29 @@ def fig16():
     finish(fig, "fig_16_four_treatments_and_the_rule.png")
 
 
+def fig17():
+    """!
+    @brief The face drop over a bare slot in the copper layer against the 1D term, against the slot width over the copper thickness (study_face_slot.py, review).
+    @return None.
+    """
+    rows = load("face_slot")
+    if not rows:
+        return
+    x = [val(r["w / t"]) for r in rows]
+    fig, ax = plt.subplots(figsize=(6, 3.6))
+    ax.semilogx(x, [val(r["peak / term"]) for r in rows], marker="o", label="peak of the face over the slot")
+    ax.semilogx(x, [val(r["mean / term"]) for r in rows], marker="s", label="mean of the face over the slot")
+    ax.axhline(1.0, color="k", linewidth=0.8, linestyle="--")
+    ax.axvline(4.0, color="tab:red", linewidth=0.8, linestyle=":")
+    ax.text(4.3, 0.1, "w = 4 t", color="tab:red", fontsize=7)
+    ax.set_xlabel("slot width over the copper thickness, w / t")
+    ax.set_ylabel("face drop / (q t / 2 k_z)")
+    ax.set_title("p = 0 gives 1 (dashed); a sliver gets much less", fontsize=8)
+    ax.legend(fontsize=7)
+    finish(fig, "fig_17_face_term_over_a_slot.png")
+
+
 if __name__ == "__main__":
     FIG.mkdir(exist_ok=True)
-    for f in (fig06, fig07, fig08, fig09, fig10, fig11, fig12, fig13, fig14, fig15, fig16):
+    for f in (fig06, fig07, fig08, fig09, fig10, fig11, fig12, fig13, fig14, fig15, fig16, fig17):
         f()

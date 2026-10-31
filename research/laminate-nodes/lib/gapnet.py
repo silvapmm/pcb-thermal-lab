@@ -144,6 +144,22 @@ def apply_ladder(net, problem, rule, fill=None, assemble=True):
     if one and not rule.one_layer:
         # laminate.py as it is: nothing to build (the preset "program" and the comparisons that keep the program's two laminate nodes)
         net.drop = np.zeros((net.nl, ny, nx), dtype=bool)
+        if fill is not None:
+            # A fill brought from a real mask must reach the copper node of the program too (review: before this the preset "program" kept the fill of the
+            # Problem's placeholder zone, full copper, on the real windows, and read -27 to -62 % for a board it was not solving). The copper node of laminate.py
+            # holds the copper and half a laminate gap (`copper_slab`); the laminate node layers do not depend on the fill.
+            f0 = np.asarray(fill, dtype=float)[0]
+            k_lam, rcp_lam = b.layer_laminate()
+            tc = float(np.asarray(b.copper_thickness, dtype=float)[0])
+            slab0 = net.laminate.copper_slab if getattr(net, "laminate", None) is not None else float(b.slab_thicknesses()[0])
+            cell0 = np.asarray(net.area, dtype=float) if getattr(net, "area", None) is not None else net.dx * net.dy * net.cover
+            mm = b.materials
+            net.fill = net.fill.copy()
+            net.fill[0] = f0
+            net.S = net.S.copy()
+            net.C = net.C.copy()
+            net.S[0] = (f0 * mm.k_copper * tc + k_lam[0] * (slab0 - f0 * tc)) * net.cover
+            net.C[0] = (f0 * mm.rho_copper * mm.cp_copper * tc + (slab0 - f0 * tc) * rcp_lam[0]) * cell0
         if assemble:
             net.K = net._assemble()
         return net
@@ -377,6 +393,55 @@ def two_colour(K):
     if np.any(colour[coo.row] == colour[coo.col]):
         return None
     return colour
+
+
+def solve_sor_columns(net, omega=None, tol=1e-9, max_iter=200000):
+    """!
+    @brief Red-black **column** (block) SOR: every plan cell (i, j) is one block holding all its nodes (copper, interior, bottom, ...), the blocks are coloured by (i + j) % 2 and each
+           colour is relaxed by an exact solve of its block-diagonal part.
+    @details Why (review): a ladder in which refined columns (n links between the copper nodes) sit next to single-link columns closes the cycle
+             a(i) - b(i) - b(j) - [n links] - a(j) - a(i) of length n + 3, odd for every even n, so the node graph is not bipartite and no point red-black colouring exists
+             (`two_colour` returns None for n = 2 and 4 on every board with flagged and unflagged cells side by side, one layer or two; n odd colours). Every link of the
+             construction joins two nodes of the same column (vertical links, sub-links, barrels in either mode, laminate nodes) or the same node index of two plan neighbours
+             (lateral links), so the plan grid, which is always bipartite, colours the blocks for any n, any mask and any via mode. Stopping rule and default omega as
+             `solve_sor_general`. Each colour's diagonal block is factored once (it is a set of independent small column systems).
+    @param net Network with K and Q.
+    @param omega Relaxation factor (None: the program's default 2 / (1 + sin(pi / max(nx, ny)))).
+    @param tol Residual tolerance |K theta - Q| / |Q|.
+    @param max_iter Sweep limit.
+    @return tuple (theta (nl, ny, nx), residual, dict(iterations, converged, omega, colours_ok)).
+    """
+    K = net.K.tocsr()
+    q = net.Q.ravel()
+    nl, ny, nx = net.nl, net.ny, net.nx
+    jj, ii = np.meshgrid(np.arange(nx), np.arange(ny))
+    plan = ((ii + jj) % 2).ravel()
+    colour = np.tile(plan, nl)                                         # node index = layer * ny * nx + row * nx + col
+    # Check that no link joins two blocks of the same colour (it would mean a link that is neither vertical nor between plan neighbours)
+    coo = K.tocoo()
+    off = coo.row != coo.col
+    cell_r, cell_c = coo.row[off] % (ny * nx), coo.col[off] % (ny * nx)
+    ok = not np.any((cell_r != cell_c) & (colour[coo.row[off]] == colour[coo.col[off]]))
+    if not ok:
+        return None, np.inf, {"iterations": 0, "converged": False, "omega": omega, "colours_ok": False}
+    if omega is None:
+        omega = 2.0 / (1.0 + np.sin(np.pi / max(nx, ny)))
+    idx = [np.flatnonzero(colour == c) for c in (0, 1)]
+    rows = [K[i] for i in idx]
+    lu = [spla.splu(K[i][:, i].tocsc()) for i in idx]
+    x = np.zeros(K.shape[0])
+    qn = max(np.linalg.norm(q), 1e-300)
+    converged, it = False, 0
+    for it in range(1, max_iter + 1):
+        for c in (0, 1):
+            i = idx[c]
+            r = q[i] - rows[c] @ x                                     # residual of the block with the current neighbours
+            x[i] += omega * lu[c].solve(r)
+        if it % 10 == 0 and np.linalg.norm(K @ x - q) / qn < tol:
+            converged = True
+            break
+    res = float(np.linalg.norm(K @ x - q) / qn)
+    return x.reshape(nl, ny, nx), res, {"iterations": it, "converged": converged, "omega": float(omega), "colours_ok": True}
 
 
 def solve_sor_general(net, omega=None, tol=1e-9, max_iter=200000):
