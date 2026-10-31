@@ -2,12 +2,12 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_lemczyk_1992.py
-@brief F2: the trace cells of Lemczyk, Mack, Culham and Yovanovich (J. Electronic Packaging 114, 1992, 413-419) reproduced with an independent 2D finite-volume solver and, for the thin cases, with the program.
+@brief F2: the trace cells of Lemczyk, Mack, Culham and Yovanovich (J. Electronic Packaging 114, 1992, 413-419) reproduced with an independent 2D finite-volume solver.
 @details The paper's Table 1 (dimensional heat flows Q_a of polyamide and FR4 traces, h1 = h2 = 10 W/m2K, contact temperature 90 C above a fluid at 20 C, L2 = 1 m) and Tables 2 and 3 (dimensionless
 resistance factors Psi = k L2 R for the cases a to d, Bi1 = Bi2) were read from the scan (pages 416, 4-digit numbers; the page is an image, so a misread digit is possible). Cases: (a) trace on the top face with
 the film over the whole top face, (b) mid-buried trace (half cell, twice the flow), (c) as (a) with h1 = 0, (d) trace on the bottom face with h1 = 0, solved as the mirror cell. The 2D solver is lib/strip2d.py.
-The program is run on the FR4 rows of Table 1 that a one-layer board can represent (one copper layer of the thickness t and conductivity k carrying a strip heater of the Q_a of the paper over a
-board of the cell width): it returns the mean temperature of the trace, to be compared with the 90 K contact temperature.
+The program is not run on these cells (10 to 2000 micrometres; README 3.7). The last part tests the review's explanation of the case c column: the paper's case c numbers at Bi2 0.01
+and 0.1 behave as if the bottom film were Bi1 = 0.001 instead of 0 (README 6).
 Run from the repository root: .venv/bin/python research/theory-sources/scripts/study_lemczyk_1992.py
 """
 
@@ -38,7 +38,7 @@ TABLE23 = [
 ]
 
 
-def psi(bi, t, w, case, n=300):
+def psi(bi, t, w, case, n=300, bi_off=1e-12):
     """!
     @brief Dimensionless resistance factor of one case (L1 = 1, k = 1, L2 = 1, contact temperature 1).
     @param bi Biot number h L1 / k (the same h on both faces).
@@ -46,9 +46,10 @@ def psi(bi, t, w, case, n=300):
     @param w Trace width over cell width.
     @param case One of "a", "b", "c", "d".
     @param n Cells per direction of the finest mesh.
+    @param bi_off Biot number of the film that the case switches off (1e-12, i.e. none; 1e-3 tests the review's reading of case c).
     @return float Psi = k L2 T_c / Q.
     """
-    tiny = 1e-12
+    tiny = bi_off
     if case == "a":
         q = s2.trace_heat_flow(w, t, 1.0, 1.0, bi, bi, tc=1.0, nx=n, nz=n)
     elif case == "c":
@@ -82,6 +83,12 @@ def main():
     # The one-dimensional limit w = L1 of case c is exact: Q = h2 L1 Tc, Psi = 1 / Bi2
     print("  case c with w = L1 (exact 1/Bi2): Bi 0.01 -> solver %.3f, 1/Bi %.3f, paper 90.91; Bi 0.1 -> solver %.4f, 1/Bi %.3f, paper 9.901"
           % (psi(0.01, 0.01, 1.0, "c"), 100.0, psi(0.1, 0.01, 1.0, "c"), 10.0))
+    # Review: the paper's two 1D values are 1/(Bi2 + 0.001) to four digits (90.909, 9.901); a residual bottom film Bi1 = 0.001 in case c reproduces them and the Bi2 = 0.01 rows
+    print("Case c with a residual bottom film Bi1 = 0.001 (review): Bi2 t/L1 w/L1 | paper | solver Bi1 = 0 | solver Bi1 = 0.001")
+    for bi, t, w, _, _, pc, _ in TABLE23:
+        if bi <= 0.1:
+            a0, a1 = psi(bi, t, w, "c"), psi(bi, t, w, "c", bi_off=1e-3)
+            print("  %6.3g %5.2f %4.2f | %8.4g | %8.4g (%+5.1f %%) | %8.4g (%+5.1f %%)" % (bi, t, w, pc, a0, 100 * (a0 / pc - 1), a1, 100 * (a1 / pc - 1)))
 
 
 if __name__ == "__main__":

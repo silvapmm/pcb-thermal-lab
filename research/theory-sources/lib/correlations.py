@@ -62,10 +62,13 @@ def hollands_iso15099(ra):
 
 def hollands_ht(pr, ra, root=3.0, ra_c_third=5803.0):
     """!
-    @brief Hollands (1984) multi-Prandtl equation as coded in `ht` 1.2.0 (Rac 1708), the root inside the logarithm selectable (3 as coded, 5 as documented).
+    @brief Hollands (1984) multi-Prandtl equation as coded in `ht` 1.2.0 (Rac 1708), with the root inside the logarithm selectable (3 as coded, 5 as documented).
+    @details The term is `2 (Ra^(1/3)/k2)^(1 - ln(Ra^(1/root)/k2))`: the base always carries the cube root, and only the root inside the logarithm changes, which is
+             exactly the difference between the `ht` code and its docstring (read in `ht` 1.2.0, `Nu_Nusselt_Rayleigh_Hollands`). The first version of this function applied
+             the fifth root to the base as well, a variant that neither the code nor the documentation prints (review, README 6).
     @param pr Prandtl number.
     @param ra Rayleigh number.
-    @param root Exponent denominator in Ra^(1/root) inside the logarithm term.
+    @param root Denominator of the exponent of Ra inside the logarithm (3 as coded, 5 as documented).
     @param ra_c_third Constant of the last bracket (5803 in `ht`, 5830 in the 1976 equation).
     @return Nusselt number.
     """
@@ -73,8 +76,9 @@ def hollands_ht(pr, ra, root=3.0, ra_c_third=5803.0):
         return 1.0
     k1 = 1.44 / (1.0 + 0.018 / pr + 0.00136 / (pr * pr))
     k2 = 75.0 * math.exp(1.5 * pr ** -0.5)
-    x = ra ** (1.0 / root) / k2
-    t2 = k1 + 2.0 * x ** (1.0 - math.log(x))
+    base = ra ** (1.0 / 3.0) / k2                               # the base of the power: cube root in the code and in the documentation
+    inner = ra ** (1.0 / root) / k2                             # inside the logarithm: cube root in the code, fifth root in the documentation
+    t2 = k1 + 2.0 * base ** (1.0 - math.log(inner))
     return 1.0 + _pos(1.0 - 1708.0 / ra) * _pos(t2) + _pos((ra / ra_c_third) ** (1.0 / 3.0) - 1.0)
 
 
@@ -106,7 +110,8 @@ def raithby_hollands_up(ra, pr):
 def fujii_imura_down(ra):
     """!
     @brief Fujii and Imura downward-facing hot plate, Lienhard 8.38 (valid 1e6 to 1e9 for a two-dimensional, nearly horizontal plate).
-    @param ra Rayleigh number.
+    @note The length of Ra and Nu is the **width L of the plate** (Lienhard, book page 437: "plates of width L"), not the A/P of 8.37a; for a strip of width W, A/P = W/2.
+    @param ra Rayleigh number on the plate width.
     @return Nusselt number.
     """
     return 0.58 * ra ** 0.2

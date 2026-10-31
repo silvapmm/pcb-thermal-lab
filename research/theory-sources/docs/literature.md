@@ -7,7 +7,7 @@ The full records are in `research/theory/BIBLIOGRAPHY.md` (updates under each ke
 | F3 | Churchill and Chu (1975) | S (never opened) | paper N (paywalled); equations R via Lienhard 8.13a, 8.13b | README 3.1 |
 | F3 | Churchill (1977) | S/M | N; evidence on the exponent from Jaffer and Jaffer (R, partial) | README 3.4 |
 | F3 | Hollands (1976, 1984) | S | N; exponent settled by the ISO form on page 5 of an open preprint (R) | README 3.3 |
-| F3 | Lienhard, A Heat Transfer Textbook 6.00 | not in the list | R (pages 311, 433 to 436) | section 18 |
+| F3 | Lienhard, A Heat Transfer Textbook 6.00 | not in the list | R (book pages 311, 419 to 421, 435 to 437) | section 18 |
 | F4 | Milton (2002) | R chapters 3.1 and 23.1 | also R: page 116, pages 195 and 196 | README 3.5 |
 | F4 | Bruggeman, Hashin-Shtrikman, Keller, Dykhne originals; Torquato (2002) | S/N | N (not obtained) | README 3.5 |
 | F1 | Culham and Yovanovich (1998) | R pp. 460 to 466 | R pp. 465 and 466 re-read (equation 11, Figure 5, boundary condition); the series truncation tested | README 3.6 |

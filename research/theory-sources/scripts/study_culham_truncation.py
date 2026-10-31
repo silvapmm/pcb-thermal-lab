@@ -47,6 +47,12 @@ def main():
         r1, k1 = effective_conductivity(5.0, m)
         r2, k2 = effective_conductivity(1e4, m)
         print("%4d | %7.4f %7.3f | %7.4f %7.3f" % (m, r1, k1, r2, k2))
+    # Review: the hypothesis "truncation and the 1.62 mm of the text together" tested directly: the three FR4 layers thinned to 0.5163 mm so that the stack is 1.62 mm thick
+    fr4 = (1.62e-3 - 2 * 0.0356e-3) / 3.0
+    thin = [(fr4, 0.4), (0.0356e-3, 400.0), (fr4, 0.4), (0.0356e-3, 400.0), (fr4, 0.4)]
+    print("Stack of 1.62 mm (FR4 layers 0.5163 mm), h = 5 W/m2K: modes per direction | k_e (paper 8.28)")
+    for m in (5, 7, 11, 21, 201):
+        print("%4d | %7.3f" % (m, effective_conductivity(5.0, m, thin)[1]))
 
 
 if __name__ == "__main__":

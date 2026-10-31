@@ -1,24 +1,24 @@
 # Text for the project documents
 
-Each block names the file and the place where it goes when the maintainer adopts it. Nothing here has been applied.
+Each block names the file and the place where it goes when the maintainer adopts it. Nothing here has been applied. The review corrected the blocks on the horizontal plate, the mixed convection, the Hollands exponent and the validation rows (README 6); its recommendation of which blocks to apply in 2.4.5 is in `INTEGRATION.md` 4.
 
 ## `pcbthermal/convection.py`, docstring of `h_natural_vertical`
 
 Replace "Churchill and Chu (1975) itself has not been opened." by:
 
-"The two forms are printed in Lienhard, A Heat Transfer Textbook (6th edition, open), equations 8.13a (laminar, Ra up to 1e9) and 8.13b (all Ra), pages 433 and 434, and reproduce its Example 8.1 (Nu 47.33). The 1975 paper (Int. J. Heat Mass Transfer 18, 1323) was not obtained."
+"The two forms are printed in Lienhard, A Heat Transfer Textbook (6th edition, open), equations 8.13a (laminar, Ra up to 1e9) and 8.13b (all Ra), pages 419 and 420, and reproduce its Example 8.1 (page 421, Nu 47.33). The 1975 paper (Int. J. Heat Mass Transfer 18, 1323) was not obtained."
 
 ## `pcbthermal/convection.py`, docstring of `h_natural_horizontal`
 
-Add: "For comparison, Raithby and Hollands (Lienhard equations 8.35, 8.37a and 8.37b) give a coefficient 7 to 26 percent lower than this one for boards of 100 mm and more (research/theory-sources 3.4); this function keeps the McAdams form."
+Add: "For comparison, Raithby and Hollands (Lienhard equations 8.35, 8.37a and 8.37b, pages 435 and 436) give an up-face coefficient 7 to 26 percent lower than this one for boards of 100 mm and more (3 to 11 percent of the total h with radiation); the down face has no comparable source in its range (Fujii and Imura, equation 8.38, is for a two-dimensional plate on its width). This function keeps the McAdams form (research/theory-sources 3.4)."
 
 ## `docs/theory.md`, heat transfer coefficients (natural convection of a vertical plate and mixed convection)
 
-"Vertical plate (equations 8.13a and 8.13b of Lienhard, A Heat Transfer Textbook, pages 433 and 434; Churchill and Chu 1975). The blend of natural and forced convection `h = (h_n^3 + h_f^3)^(1/3)` is the l_p norm with p = 3; Jaffer and Jaffer (arXiv 2401.09469, Table 4) find p between sqrt(3) and 3 for a vertical plate and p = 2 for a level flow over an upward-facing plate, for which the exponent 3 gives a convective coefficient 7 to 11 percent lower. Churchill (1977), the usual citation of the rule, was not obtained."
+"Vertical plate (equations 8.13a and 8.13b of Lienhard, A Heat Transfer Textbook, pages 433 and 434; Churchill and Chu 1975). The blend of natural and forced convection `h = (h_n^3 + h_f^3)^(1/3)` is the l_p norm with p = 3; Jaffer and Jaffer (arXiv 2401.09469, Table 4, fitted on rough plates) find p between sqrt(3) and 3 for a vertical plate in an aiding or opposing flow, p = 2 for a level flow along a vertical plate or over an upward-facing plate and p = 5 under a downward-facing plate; for a horizontal board the exponent 3 gives a convective coefficient 7 to 11 percent lower on the top face and up to 8 percent higher on the bottom face. Churchill (1977), the usual citation of the rule, was not obtained."
 
 ## `docs/research.md` R3 and any text that quotes the Hollands (1984) equation
 
-"The exponent inside the logarithm is the cube root: `Nu = 1 + [1 - 1708/Ra]* [k1 + 2 (Ra^(1/3)/k2)^(1 - ln(Ra^(1/3)/k2))] + [(Ra/5803)^(1/3) - 1]*`, `k1 = 1.44/(1 + 0.018/Pr + 0.00136/Pr^2)`, `k2 = 75 exp(1.5/sqrt(Pr))`. The documentation of the `ht` library writes the fifth root; the code uses the cube root, and the ISO 15099 form (Rohsenow et al. 1985, equation 9 of ASHRAE preprint OR-05-4-3: `k1 = 1.40`, `k2 = Ra^(1/3)/450.5`) confirms the cube root (within 0.5 percent of the code for Ra 3e3 to 3e5 at Pr 0.71). The paper of Hollands (1984) was not obtained."
+"The exponent inside the logarithm is the cube root: `Nu = 1 + [1 - 1708/Ra]* [k1 + 2 (Ra^(1/3)/k2)^(1 - ln(Ra^(1/3)/k2))] + [(Ra/5803)^(1/3) - 1]*`, `k1 = 1.44/(1 + 0.018/Pr + 0.00136/Pr^2)`, `k2 = 75 exp(1.5/sqrt(Pr))`. The documentation of the `ht` library writes the fifth root; the code uses the cube root, and the ISO 15099 form (Rohsenow et al. 1985, equation 9 of ASHRAE preprint OR-05-4-3: `k1 = 1.40`, `k2 = Ra^(1/3)/450.5`) confirms the cube root (within 0.3 percent of the code for Ra 2e3 to 1e7 at Pr 0.71; the documented fifth root inside the logarithm is 3 percent low at 1e7). The paper of Hollands (1984) was not obtained."
 
 ## `docs/theory.md` and the Gerber folders' text, effective medium (topic 17)
 
@@ -26,7 +26,7 @@ Add: "For comparison, Raithby and Hollands (Lienhard equations 8.35, 8.37a and 8
 
 ## `docs/validation.md`, new rows (independent 3D solver and models)
 
-"Muzychka, Culham and Yovanovich (2003), case 1 (b) (a 2 mm layer of k 350 on the 10 mm plate of k 10): centroids 56.55 and 59.94 C in the paper, 56.56 and 59.97 by the independent solver, 56.52 and 59.91 FVM, 56.53 and 59.92 3D solid, 56.52 and 59.91 Analytic. Case 2 (heat-sink base 50 x 50 x 10 mm, k 150, h 400, four sources): centroids 97.40, 103.82, 101.28, 99.94 in the paper, 97.41, 103.85, 101.31, 99.95 by the solver (extrapolated mean of the second source 102.373 K against 102.33 K), FVM 94.46, 98.30, 96.62, 96.13 (2.9 to 5.5 K low, 67 to 89 percent of the bound q'' t/(2k) of the through-thickness gradient). Lemczyk, Mack, Culham and Yovanovich (1992), Table 1: 16 heat flows within 0.5 percent (one at 1.15 percent) by an independent 2D solver; Tables 2 and 3, case a within 4.1 percent."
+"Muzychka, Culham and Yovanovich (2003), case 1 (b) (a 2 mm layer of k 350 on the 10 mm plate of k 10): centroids 56.55 and 59.94 C in the paper, 56.56 and 59.97 by the independent solver, 56.52 and 59.91 FVM, 56.49 and 59.88 FDM, 56.53 and 59.92 3D solid, 56.52 and 59.91 Analytic. Case 2 (heat-sink base 50 x 50 x 10 mm, k 150, h 400, four sources): centroids 97.40, 103.82, 101.28, 99.94 in the paper, 97.41, 103.85, 101.31, 99.95 by the solver (extrapolated mean of the second source 102.373 K against 102.33 K), FVM 94.46, 98.30, 96.62, 96.13 (2.9 to 5.6 K low in the FVM, FDM and Analytic, 67 to 89 percent of the bound q'' t/(2k) of the through-thickness gradient). Lemczyk, Mack, Culham and Yovanovich (1992), Table 1: 16 heat flows within 0.5 percent (one at 1.15 percent) by an independent 2D solver; Tables 2 and 3 typically within 0.1 to 2 percent, at most 4.1 (case a), 9.1 (b), 9.8 (c) and 8.2 percent (d); the case c column at Bi 0.01 matches within 0.9 percent if its bottom film is Bi1 = 0.001."
 
 ## `docs/calculators.md` and `docs/validation.md`, Lee (1998) and Yovanovich (2003)
 

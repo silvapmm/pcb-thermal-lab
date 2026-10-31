@@ -38,14 +38,14 @@ def fig_hollands():
     ra = np.logspace(3.2, 7, 60)
     fig, ax = plt.subplots(1, 2, figsize=(11, 4))
     for lab, f in (("Hollands et al. 1976 (eq. 14)", cr.hollands_1976), ("ISO 15099 / Rohsenow 1985 (eq. 9)", cr.hollands_iso15099),
-                   ("ht code, Ra^(1/3)", lambda r: cr.hollands_ht(0.71, r)), ("ht documentation, Ra^(1/5)", lambda r: cr.hollands_ht(0.71, r, root=5.0))):
+                   ("ht code, Ra^(1/3)", lambda r: cr.hollands_ht(0.71, r)), ("ht documentation, Ra^(1/5) in the log", lambda r: cr.hollands_ht(0.71, r, root=5.0))):
         ax[0].loglog(ra, [f(r) for r in ra], label=lab)
     ax[0].set_xlabel("Ra")
     ax[0].set_ylabel("Nu")
     ax[0].legend(fontsize=7)
     base = np.array([cr.hollands_iso15099(r) for r in ra])
     ax[1].semilogx(ra, [100 * (cr.hollands_ht(0.71, r) / b - 1) for r, b in zip(ra, base)], label="ht code (1/3)")
-    ax[1].semilogx(ra, [100 * (cr.hollands_ht(0.71, r, root=5.0) / b - 1) for r, b in zip(ra, base)], label="ht documentation (1/5)")
+    ax[1].semilogx(ra, [100 * (cr.hollands_ht(0.71, r, root=5.0) / b - 1) for r, b in zip(ra, base)], label="ht documentation (1/5 in the log)")
     ax[1].semilogx(ra, [100 * (cr.hollands_1976(r) / b - 1) for r, b in zip(ra, base)], label="1976 form")
     ax[1].set_xlabel("Ra")
     ax[1].set_ylabel("difference from ISO 15099 (%)")

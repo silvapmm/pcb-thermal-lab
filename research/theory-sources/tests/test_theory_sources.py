@@ -37,10 +37,42 @@ def test_lienhard_example_8_1():
 
 
 def test_hollands_code_form_matches_iso15099_at_air():
-    """!@brief The `ht` code form (cube root) agrees with the ISO 15099 form of the ASHRAE preprint within 0.5 % for Ra 3e3 to 3e5, the fifth-root variant does not at 1e7."""
-    for ra in (3e3, 1e4, 1e5, 3e5):
-        assert abs(cr.hollands_ht(0.71, ra) / cr.hollands_iso15099(ra) - 1) < 5e-3
-    assert abs(cr.hollands_ht(0.71, 1e7, root=5.0) / cr.hollands_iso15099(1e7) - 1) > 0.03
+    """!@brief The `ht` code form (cube root) agrees with the ISO 15099 form of the ASHRAE preprint within 0.3 % for Ra 2e3 to 1e7; the documented form (fifth root inside the logarithm) is 2 to 4 % low at 1e7."""
+    for ra in (2e3, 3e3, 1e4, 1e5, 3e5, 1e6, 1e7):
+        assert abs(cr.hollands_ht(0.71, ra) / cr.hollands_iso15099(ra) - 1) < 3e-3
+    assert 0.02 < 1 - cr.hollands_ht(0.71, 1e7, root=5.0) / cr.hollands_iso15099(1e7) < 0.04
+
+
+def test_hollands_documented_form_is_the_ht_docstring():
+    """!@brief Regression (review): the documented variant changes the root only inside the logarithm, `2 (Ra^(1/3)/k2)^(1 - ln(Ra^(1/5)/k2))`, as the `ht` 1.2.0 docstring prints it."""
+    pr, ra = 0.71, 1e7
+    k1 = 1.44 / (1.0 + 0.018 / pr + 0.00136 / pr ** 2)
+    k2 = 75.0 * math.exp(1.5 / math.sqrt(pr))
+    doc = 1.0 + (1.0 - 1708.0 / ra) * (k1 + 2.0 * (ra ** (1 / 3) / k2) ** (1.0 - math.log(ra ** 0.2 / k2))) + ((ra / 5803.0) ** (1 / 3) - 1.0)
+    assert abs(cr.hollands_ht(pr, ra, root=5.0) / doc - 1) < 1e-12
+    assert abs(doc - 13.510) < 1e-3
+
+
+def test_fujii_imura_is_evaluated_on_the_plate_width():
+    """!@brief Regression (review): the down-face comparison of the convection study evaluates Lienhard 8.38 on a plate width (2 A/P and the shorter side), not on A/P."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+    import study_natural_convection_sources as snc
+    from pcbthermal import convection as cv
+    row = [r for r in snc.part3() if (r[0], r[1], r[2]) == (300.0, 200.0, 60.0)][0]
+    props = cv.air_properties(50.0)
+    for width, value in ((2 * 0.06 / 1.0, row[8]), (0.2, row[9])):
+        assert abs(cr.fujii_imura_down(cv.rayleigh(60.0, width, props)) * props["k"] / width / value - 1) < 1e-12
+    assert row[9] < row[8] < row[7]                              # on its own length the 2D correlation is below the program here
+
+
+def test_lemczyk_case_c_with_a_residual_bottom_film():
+    """!@brief Review: with a bottom film Bi1 = 0.001 the 1D limit of case c is 1/(Bi2 + 1/(t/L1 + 1/Bi1)), which is the paper's 90.91 at Bi2 0.01 (0 gives 100)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import study_lemczyk_1992 as slm
+    exact = 1.0 / (0.01 + 1.0 / (0.01 + 1.0 / 1e-3))
+    assert abs(slm.psi(0.01, 0.01, 1.0, "c", n=40, bi_off=1e-3) / exact - 1) < 1e-6
+    assert abs(exact - 90.91) < 0.02
 
 
 def test_hashin_shtrikman_and_bruggeman_2d():
