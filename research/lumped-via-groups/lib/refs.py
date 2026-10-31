@@ -41,11 +41,26 @@ DEFAULT = dict(layers=4, n=3, pitch=1.0, dia=0.3, fill=0.0, side=30.0, src=10.0,
 def make_problem(spec):
     """!
     @brief Build the Problem of a spec.
-    @param spec dict (see the module header); missing keys take `DEFAULT`.
+    @param spec dict (see the module header); missing keys take `DEFAULT`. Extra keys: `src_aspect` (the source is `src * aspect` by `src / aspect` mm, same area) and `clusters`
+           (a list of (dx_mm, dy_mm, n, pitch_mm): the vias are those n x n arrays centred at the board centre plus the offsets; the key `n` is then ignored).
     @return Problem.
     """
     s = {**DEFAULT, **spec}
-    return cases.array(s["layers"], s["n"], s["pitch"], s["dia"], s["fill"], s["side"], s["src"], s["power"], 1.6, 10.0, 200.0, tuple(s["offset"]))
+    p = cases.array(s["layers"], s["n"], s["pitch"], s["dia"], s["fill"], s["side"], s["src"], s["power"], 1.6, 10.0, 200.0, tuple(s["offset"]))
+    if s.get("src_aspect"):
+        c = s["side"] / 2 + 0.0
+        w, h = s["src"] * s["src_aspect"], s["src"] / s["src_aspect"]
+        x0, y0 = c - w / 2 + s["offset"][0], c - h / 2 + s["offset"][1]
+        p.heaters[0].polygon = np.array([(x0 * 1e-3, y0 * 1e-3), ((x0 + w) * 1e-3, y0 * 1e-3), ((x0 + w) * 1e-3, (y0 + h) * 1e-3), (x0 * 1e-3, (y0 + h) * 1e-3)])
+    if s.get("clusters"):
+        p.vias = []
+        c = s["side"] / 2
+        for dx, dy, n, pitch in s["clusters"]:
+            h = (n - 1) / 2
+            for i in range(n):
+                for j in range(n):
+                    p.add_via(c + dx + (i - h) * pitch, c + dy + (j - h) * pitch, s["dia"], fill_k=s["fill"])
+    return p
 
 
 def _key(spec):
@@ -73,7 +88,6 @@ def reference(spec, dx_mm=1.0 / 16):
     s = {**DEFAULT, **spec}
     pc.load_libraries()
     p = make_problem(spec)
-    out = {}
     fields = {}
     for lab, vias in (("with", True), ("without", False)):
         T, dx = hz.reference_field(p, dx_mm, with_vias=vias)
@@ -81,13 +95,19 @@ def reference(spec, dx_mm=1.0 / 16):
     T = fields["with"]
     nn = T.shape[1]
     xs = (np.arange(nn) + 0.5) * dx
-    cx = s["side"] * 1e-3 / 2 + s["offset"][0] * 1e-3
-    cy = s["side"] * 1e-3 / 2 + s["offset"][1] * 1e-3
-    inside = (np.abs(xs[None, :] - cx) < s["src"] * 1e-3 / 2) & (np.abs(xs[:, None] - cy) < s["src"] * 1e-3 / 2)
-    half_x = ((s["n"] - 1) / 2 * s["pitch"] + s["pitch"] / 2) * 1e-3
-    half_y = ((s["n"] - 1) / 2 * s["pitch"] + s["pitch"] / 2) * 1e-3 if s["shape"] == "array" else s["pitch"] / 2 * 1e-3
-    core = (np.abs(xs[None, :] - cx) < half_x) & (np.abs(xs[:, None] - cy) < half_y) & inside
+    px = [q[0] for q in p.heaters[0].polygon]
+    py = [q[1] for q in p.heaters[0].polygon]
+    inside = (xs[None, :] > min(px)) & (xs[None, :] < max(px)) & (xs[:, None] > min(py)) & (xs[:, None] < max(py))
+    # the core: the cells within half a pitch of a via (the union of the squares around the vias), inside the footprint
+    core = np.zeros_like(inside)
+    half = s["pitch"] / 2 * 1e-3
+    if s.get("clusters"):
+        half = min(c[3] for c in s["clusters"]) / 2 * 1e-3
+    for v in p.vias:
+        core |= (np.abs(xs[None, :] - v.x) < half) & (np.abs(xs[:, None] - v.y) < half)
+    core &= inside
     ann = inside & ~core
+    out = {}
     L = T.shape[0]
     out["t_with"] = float(T[0].max())
     out["t_without"] = float(fields["without"][0].max())
@@ -130,6 +150,11 @@ VARIANTS = {
     "L_grp0": lambda: lg.patched(macro="all"),
     "L_out": lambda: lg.patched(macro="out"),
     "L_loss": lambda: lg.patched(macro="loss"),
-    "L_zone": lambda: lz.patched(),
-    "L_zone_nopeak": lambda: lz.patched(peak="none"),
+    # the ladder of the zone model, one change at a time
+    "L_zone0": lambda: lz.patched(geometry="disc", core_int=0.0, micro_peak=False, peak="annulus"),          # Krogh link alone, concentric discs
+    "L_zone_c1": lambda: lz.patched(geometry="disc", core_int=1.0, micro_peak=False, peak="annulus"),        # + the core-internal resistance Q / (8 pi S)
+    "L_zone_disc": lambda: lz.patched(geometry="disc", core_int=1.0, micro_peak=True, peak="annulus"),       # + the micro peak
+    "L_zone_p": lambda: lz.patched(geometry="potential", core_int=0.0, micro_peak=True, peak="annulus"),     # link of the real shapes (logarithmic potentials)
+    "L_zone": lambda: lz.patched(geometry="potential", core_int=0.0, micro_peak=True, peak="potential_lossy"),  # + the peak of the real shapes with the K0 kernel: the proposal
+    "L_zone_k": lambda: lz.patched(geometry="potential", core_int=0.0, micro_peak=True, peak="potential_lossy", micro_scale=0.0),  # no micro well: the vertical conductivity of the array
 }

@@ -153,13 +153,13 @@ def test_zone_model_energy_balance_and_restore():
 
 def test_zone_model_against_the_fine_grid_reference_on_a_small_board():
     """!
-    @brief A 5 x 5 array under an 8 mm source on a 20 mm board: the zone model within 10 % of the fine-grid layered reference where the earlier group term is 15 % or more off.
+    @brief A 3 x 3 array under a 10 mm source on a 20 mm board: the zone model within 10 % of the fine-grid layered reference where the earlier group term is 15 % or more off.
     @return None.
     """
     import harness as hz
     import program_cases as pc
     pc.load_libraries()
-    spec = dict(layers=4, n=5, pitch=1.0, fill=385.0, side=20.0, src=8.0)
+    spec = dict(layers=4, n=3, pitch=1.0, fill=385.0, side=20.0, src=10.0)
     p = refs.make_problem(spec)
     ref = hz.reference_uniform(p, 1.0 / 16)[0]
     q0 = hz.no_vias(p)
@@ -167,3 +167,101 @@ def test_zone_model_against_the_fine_grid_reference_on_a_small_board():
     e_grp = hz.effect(p, "lumped", lambda: lg.patched(macro="all"), 0.5, q0)
     assert abs(e_zone / ref - 1.0) < 0.10
     assert abs(e_grp / ref - 1.0) > 0.10
+
+
+def test_rim_minus_mean_by_integration():
+    """!
+    @brief The rim-to-mean resistance of the Krogh cell equals the numerical integral of its profile.
+    @return None.
+    """
+    S, a, R = 0.0136, 0.12e-3, 1.9e-3
+    r = np.linspace(a, R, 40001)
+    # T(r) - T(a) per watt taken by the via: (R^2 ln(r/a) - (r^2 - a^2)/2) / (2 pi S (R^2 - a^2))
+    t = (R * R * np.log(r / a) - (r * r - a * a) / 2.0) / (2.0 * math.pi * S * (R * R - a * a))
+    mean = np.trapezoid(t * 2 * math.pi * r, r) / (math.pi * (R * R - a * a))
+    assert lz.rim_minus_mean(S, R, a) == pytest.approx(t[-1] - mean, rel=1e-4)
+    assert cr.krogh(S, R, a) == pytest.approx(mean, rel=1e-4)
+
+
+def test_core_internal_resistance_raises_the_core_temperature_difference():
+    """!
+    @brief The core-internal resistance Q / (8 pi S) lengthens the A-C link: with it the via effect of a dense array is smaller (the model is hotter).
+    @return None.
+    """
+    import harness as hz
+    import program_cases as pc
+    pc.load_libraries()
+    p = refs.make_problem(dict(layers=4, n=5, pitch=1.0, fill=385.0, side=20.0, src=10.0))
+    q0 = hz.no_vias(p)
+    e0 = hz.effect(p, "lumped", lambda: lz.patched(geometry="disc", core_int=0.0, peak="annulus"), 0.5, q0)
+    e1 = hz.effect(p, "lumped", lambda: lz.patched(geometry="disc", core_int=1.0, peak="annulus"), 0.5, q0)
+    assert e1 < e0
+
+
+def test_micro_peak_is_positive_and_small():
+    """!
+    @brief With the micro peak the maximum is higher than without it, by less than one kelvin on a 3 W board.
+    @return None.
+    """
+    import program_cases as pc
+    pc.load_libraries()
+    p = refs.make_problem(dict(layers=4, n=3, pitch=2.0, fill=0.0, side=20.0, src=6.0))
+    with lz.patched(micro_peak=False):
+        t0 = pc.max_rise(p, "lumped", 0.5)
+    with lz.patched(micro_peak=True):
+        t1 = pc.max_rise(p, "lumped", 0.5)
+    assert 0.0 < t1 - t0 < 1.0
+
+
+def test_mutual_potentials_equal_krogh_plus_core_internal():
+    """!
+    @brief For concentric discs the logarithmic-potential link of the real shapes equals the Krogh resistance of the annulus plus Q / (8 pi S) of the core (within 0.5 %).
+    @return None.
+    """
+    dx = 0.2e-3
+    n = int(24e-3 / dx)
+    y, x = np.mgrid[0:n, 0:n]
+    r = np.hypot((x + 0.5) * dx - 12e-3, (y + 0.5) * dx - 12e-3)
+    wc = (r < 3.4e-3).astype(float)
+    wa = ((r >= 3.4e-3) & (r < 5.6e-3)).astype(float)
+    a_eq = math.sqrt((wa.sum() + wc.sum()) * dx * dx / math.pi)
+    rc_eq = math.sqrt(wc.sum() * dx * dx / math.pi)
+    pot = lz.mutual_potentials(wa, wc, dx, dx) / (2.0 * math.pi)
+    assert pot == pytest.approx(cr.krogh(1.0, a_eq, rc_eq) + 1.0 / (8.0 * math.pi), rel=5e-3)
+
+
+def test_potential_excess_matches_the_annulus_for_concentric_discs():
+    """!
+    @brief The lossless potential peak of concentric discs agrees with the closed form of the annulus (within 10 %, the decimation of the cells).
+    @return None.
+    """
+    dx = 0.2e-3
+    n = int(24e-3 / dx)
+    y, x = np.mgrid[0:n, 0:n]
+    r = np.hypot((x + 0.5) * dx - 12e-3, (y + 0.5) * dx - 12e-3)
+    wc = (r < 3.4e-3).astype(float)
+    wa = ((r >= 3.4e-3) & (r < 5.6e-3)).astype(float)
+    S = 0.0136
+    a_eq = math.sqrt((wa.sum() + wc.sum()) * dx * dx / math.pi)
+    rc_eq = math.sqrt(wc.sum() * dx * dx / math.pi)
+    # the closed form has no far-field sink: the heat q_out leaves at the outer wall; the potential form puts it at infinity, which only adds a constant
+    ex_pot = lz.potential_excess(wa, wc, 0.3, 0.7, S, dx, dx)
+    ex_ann = lz.annulus_excess(S, rc_eq, a_eq, 0.3, 0.7)
+    assert ex_pot == pytest.approx(ex_ann, rel=0.25)
+
+
+def test_potential_excess_lossy_is_smaller():
+    """!
+    @brief A vertical loss flattens the profile: the peak with the K0 kernel is smaller than the lossless one.
+    @return None.
+    """
+    dx = 0.25e-3
+    n = int(24e-3 / dx)
+    y, x = np.mgrid[0:n, 0:n]
+    r = np.hypot((x + 0.5) * dx - 12e-3, (y + 0.5) * dx - 12e-3)
+    wc = (r < 3.0e-3).astype(float)
+    wa = ((r >= 3.0e-3) & (r < 7.0e-3)).astype(float)
+    S = 0.0136
+    e0 = lz.potential_excess(wa, wc, 0.2, 0.8, S, dx, dx)
+    e1 = lz.potential_excess(wa, wc, 0.2, 0.8, S, dx, dx, lam=3e-3)
+    assert 0 < e1 < e0

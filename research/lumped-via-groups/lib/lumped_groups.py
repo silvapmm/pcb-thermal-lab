@@ -11,7 +11,7 @@
                      "loss" (the macro term from the lossy cell of `constriction.cell_with_loss`, the loss being the one of the plane under the group), "loss_out";
          * `macro_scale` factor on the macro resistance (the oracle scans of the study);
          * `micro`   "nn" (cell = Wigner-Seitz disc of the nearest neighbour, capped by the ring) or "ring" (the ring's area per via);
-         * `eff`     if > 0, the dense group is smeared: a group whose pitch is below `eff` fin lengths of the sheet loses its micro well in the planes where it is dense (study knob).
+         * `micro_scale` factor on the micro well (0 = no well: the planes are taken as isothermal at the barrel, the effective vertical conductivity of the array, as in the via-field models of the literature).
          Every group seen is recorded in `SEEN` (n_g, r_cl, R_macro, the fin length of each plane) so that the studies can relate the best macro factor to the geometry.
 @note The `lumped_patch` context manager does the rest (it compiles the copy of `_heater_network`); `patched` here installs this function first.
 """
@@ -134,7 +134,7 @@ def via_couplings(net, cov, idx, R, cnt, ring_sum, S, g_top, g_bot, gz, nb):
                     if 0 <= m < nb:
                         g_loss += max(gz[min(l, m), k] - gv_ring[min(l, m), k], 0.0) / area_k
                 lam[l] = float(np.sqrt(s_l / g_loss)) if g_loss > 0 else np.inf
-                rc = cr.krogh(s_l, r_cell, a)
+                rc = OPTIONS.get("micro_scale", 1.0) * cr.krogh(s_l, r_cell, a)
                 use_macro = n_g > 1 and r_macro > r_cl and mode != "none"
                 skip = OPTIONS.get("skip_rings", (0,) if mode in ("out", "loss_out") else ())
                 if k in skip:
@@ -148,7 +148,7 @@ def via_couplings(net, cov, idx, R, cnt, ring_sum, S, g_top, g_bot, gz, nb):
                         macro = cr.krogh(s_l, r_macro, r_cl)
                     rc += OPTIONS["macro_scale"] * n_g * macro
                 g_well[l] = np.inf if rc <= 0 else 1.0 / rc
-            SEEN.append({"ring": int(k), "n_g": int(n_g), "n": int(n), "r_cell": r_cell, "r_cl": r_cl, "r_macro": r_macro, "lam": lam.tolist(), "S": S[:, k].tolist()})
+            SEEN.append({"ring": int(k), "n_g": int(n_g), "n": int(n), "a": a, "r_cell": r_cell, "r_cl": r_cl, "r_macro": r_macro, "lam": lam.tolist(), "S": S[:, k].tolist()})
             G = cr.kron_barrel(g_gap, g_well) * n
             for l in range(nb):
                 for m in range(l + 1, nb):
@@ -163,18 +163,19 @@ def via_couplings(net, cov, idx, R, cnt, ring_sum, S, g_top, g_bot, gz, nb):
 
 
 @contextlib.contextmanager
-def patched(macro="all", macro_scale=1.0, micro="nn", loss_scale=1.0):
+def patched(macro="all", macro_scale=1.0, micro="nn", loss_scale=1.0, micro_scale=1.0):
     """!
     @brief Install the Lumped model with the constriction wells and the chosen group term; restore everything on exit.
     @param macro "all", "none", "out", "in", "loss" or "loss_out" (see the module header).
     @param macro_scale Factor on the macro resistance.
     @param micro "nn" or "ring".
     @param loss_scale Factor on the vertical loss used by the lossy macro cell.
+    @param micro_scale Factor on the micro well (0: no well, isothermal planes at the barrel).
     @return Context manager.
     """
     old_fn = lp._via_couplings
     old_opts = dict(OPTIONS)
-    OPTIONS.update(macro=macro, macro_scale=macro_scale, micro=micro, loss_scale=loss_scale)
+    OPTIONS.update(macro=macro, macro_scale=macro_scale, micro=micro, loss_scale=loss_scale, micro_scale=micro_scale)
     lp._via_couplings = via_couplings
     try:
         with lp.patched("krogh", cell="nn" if micro == "nn" else "ring", cluster=False):

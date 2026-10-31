@@ -28,6 +28,7 @@ import sys
 
 import numpy as np
 from scipy import ndimage
+from scipy.special import k0
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
@@ -40,7 +41,7 @@ import constriction as cr                                                   # no
 import lumped_groups as lg                                                  # noqa: E402
 import lumped_patch as lp                                                   # noqa: E402
 
-OPTIONS = {"link_scale": 1.0, "out_scale": 1.0, "max_core": 0.92, "core_r": 0.7071, "peak": "annulus", "macro_outside": True, "link": "krogh"}
+OPTIONS = {"link_scale": 1.0, "out_scale": 1.0, "max_core": 0.92, "core_r": 0.7071, "peak": "annulus", "macro_outside": True, "link": "krogh", "micro_peak": False, "a1_other": "heated", "core_int": 0.0, "pitch_guard": 0.0, "geometry": "disc"}
 LAST = {}                                                                    # diagnostics of the last zoned network (zone radii, flows)
 
 
@@ -87,13 +88,14 @@ def annulus_excess(S, r_c, a, q_in, q_out):
     return float(t.max() - mean)
 
 
-def core_mask(net, cov, prob):
+def core_mask(net, cov, prob, layer=0):
     """!
     @brief The cells of the footprint that the dense groups of vias cover.
     @param net Network (grid).
     @param cov Footprint coverage (ny, nx).
     @param prob The Problem (vias).
-    @return numpy.ndarray bool (ny, nx), or None when no group of two or more vias lies in the footprint.
+    @param layer Source layer (its fin length decides which groups are dense enough to count as a core).
+    @return numpy.ndarray bool (ny, nx), or None when no group of two or more vias lies in the footprint (or none is denser than `OPTIONS["pitch_guard"]` fin lengths).
     """
     from pcbthermal.geometry import cell_index_of_point
     if prob is None or len(prob.vias) < 2:
@@ -102,6 +104,12 @@ def core_mask(net, cov, prob):
     d_nn, group = lg._groups(pts)
     foot = cov > 0
     core = np.zeros(foot.shape, bool)
+    lam = math.inf
+    if OPTIONS["pitch_guard"] > 0:
+        # fin length of the source layer under the footprint: sqrt(S / g), g the conductance per area to the ambient and to the next layer
+        cell = net.dx * net.dy
+        g_area = (net.g_top[layer][foot] + net.g_bottom[layer][foot] + (net.gz[layer][foot] if layer < net.n_board - 1 else 0.0)).mean() / cell
+        lam = math.sqrt(float(net.S[layer][foot].mean()) / g_area) if g_area > 0 else math.inf
     for g in np.unique(group):
         mem = np.flatnonzero(group == g)
         cells = []
@@ -111,6 +119,8 @@ def core_mask(net, cov, prob):
                 cells.append((ci, cj, i))
         if len(cells) < 2:
             continue
+        if OPTIONS["pitch_guard"] > 0 and float(np.mean([d_nn[i] for _, _, i in cells])) > OPTIONS["pitch_guard"] * lam:
+            continue                                                         # vias farther apart than the fin length act as separate sinks, not as a core
         seed = np.zeros(foot.shape, bool)
         for ci, cj, _ in cells:
             seed[ci, cj] = True
@@ -118,6 +128,119 @@ def core_mask(net, cov, prob):
         dist = ndimage.distance_transform_edt(~seed, sampling=(net.dy, net.dx))
         core |= (dist <= r) & foot
     return core if core.any() else None
+
+
+def mutual_potentials(w_a, w_c, dx, dy, max_cells=700):
+    """!
+    @brief Mean logarithmic distances between two uniform distributions of heat on the grid (the lossless link between two regions of a sheet, any shapes).
+    @details For a uniform source over region A and a uniform sink over region C of equal strength Q, the temperature on an infinite sheet is
+             T(x) = -(Q / (2 pi S)) [ mean over A of ln|x - y| - mean over C of ln|x - y| ], so the difference of the area means is
+             T_A - T_C = (Q / (2 pi S)) (2 phi_AC - phi_AA - phi_CC), phi_XY the mean of ln|x - y| over x in X, y in Y. For concentric discs this is the Krogh resistance of the
+             annulus plus Q / (8 pi S) of the core (checked in the tests); for off-centre or rectangular regions it follows the real geometry.
+    @param w_a Weights of the cells of A (ny, nx), zero outside A.
+    @param w_c Weights of the cells of C (ny, nx).
+    @param dx Cell width in m.
+    @param dy Cell height in m.
+    @param max_cells Cells kept (evenly decimated) per region.
+    @return float 2 phi_AC - phi_AA - phi_CC (dimensionless).
+    """
+    def points(w):
+        idx = np.argwhere(w > 0)
+        step = max(int(np.ceil(len(idx) / max_cells)), 1)
+        idx = idx[::step]
+        return np.column_stack([idx[:, 1] * dx, idx[:, 0] * dy]), w[w > 0][::step], step
+
+    def mean_log(p, wp, q, wq, same, step):
+        d = np.hypot(p[:, None, 0] - q[None, :, 0], p[:, None, 1] - q[None, :, 1])
+        if same:
+            np.fill_diagonal(d, 0.447 * math.sqrt(dx * dy) * math.sqrt(step))        # mean log distance inside a cell
+        else:
+            d = np.maximum(d, 0.447 * math.sqrt(dx * dy))
+        return float((np.log(d) * wp[:, None] * wq[None, :]).sum() / (wp.sum() * wq.sum()))
+    pa, wa, sa = points(w_a)
+    pc_, wc, sc = points(w_c)
+    return 2.0 * mean_log(pa, wa, pc_, wc, False, 1) - mean_log(pa, wa, pa, wa, True, sa) - mean_log(pc_, wc, pc_, wc, True, sc)
+
+
+def potential_excess(w_a, w_c, q_in, q_out, S, dx, dy, max_cells=700, lam=None):
+    """!
+    @brief Hottest point of A above its area mean for the real shapes: a uniform generation `q_in + q_out` over A, a uniform sink `q_in` over C and a far-field sink `q_out`.
+    @details T(x) = -(1 / (2 pi S)) [ (q_in + q_out) phi_A(x) - q_in phi_C(x) ] + const, phi_X(x) the mean of ln|x - y| over y in X (the lossless sheet; a far-field sink adds a
+             constant). The maximum over the cells of A minus their weighted mean. For concentric discs it agrees with `annulus_excess` (see the tests).
+    @param w_a Weights of the cells of A.
+    @param w_c Weights of the cells of C.
+    @param q_in Heat that A sends to C in W.
+    @param q_out Heat that A sends to ring 1 in W.
+    @param S Sheet conductance in W/K.
+    @param dx Cell width in m.
+    @param dy Cell height in m.
+    @param max_cells Cells kept per region.
+    @param lam Fin length of the layer in m (sqrt(S / g) with g the vertical loss per area): the kernel -ln d becomes K0(d / lam) of the sheet with a uniform loss; None: lossless.
+    @return float K (0 if the net generation is not positive).
+    """
+    q = q_in + q_out
+    if q <= 0:
+        return 0.0
+
+    def points(w):
+        idx = np.argwhere(w > 0)
+        step = max(int(np.ceil(len(idx) / max_cells)), 1)
+        idx = idx[::step]
+        return np.column_stack([idx[:, 1] * dx, idx[:, 0] * dy]), w[w > 0][::step], step
+    pa, wa, sa = points(w_a)
+    pc_, wc, sc = points(w_c)
+
+    def phi(p, q_pts, wq, same, step):
+        d = np.hypot(p[:, None, 0] - q_pts[None, :, 0], p[:, None, 1] - q_pts[None, :, 1])
+        if same:
+            np.fill_diagonal(d, 0.447 * math.sqrt(dx * dy) * math.sqrt(step))
+        else:
+            d = np.maximum(d, 0.447 * math.sqrt(dx * dy))
+        # kernel of the sheet: -ln d (lossless) or K0(d / lam) with a vertical loss; the sign is that of -ln d so that the same formula holds
+        k = -np.log(d) if lam is None else k0(d / lam)
+        return (k * wq[None, :]).sum(axis=1) / wq.sum()
+    t = (q * phi(pa, pa, wa, True, sa) - q_in * phi(pa, pc_, wc, False, 1)) / (2.0 * math.pi * S)
+    return float(t.max() - (t * wa).sum() / wa.sum())
+
+
+def rim_minus_mean(S, R, a):
+    """!
+    @brief Temperature of the rim of the Krogh cell above the area mean of the cell, per watt taken by the via.
+    @param S Sheet conductance in W/K.
+    @param R Cell radius in m.
+    @param a Radius of the via in m.
+    @return float K/W: [b^2 ln b / (b^2 - 1) - 1/2] / (2 pi S) minus the Krogh mean-to-wall resistance (zero if R <= a).
+    """
+    if R <= a:
+        return 0.0
+    b = R / a
+    rim = (b * b * math.log(b) / (b * b - 1.0) - 0.5) / (2.0 * math.pi * S)
+    return rim - cr.krogh(S, R, a)
+
+
+def micro_peak(layer, th, node, S_layer):
+    """!
+    @brief Rise of the hottest point of the cells of the vias above the node mean, in the source layer: the heat of one via times the rim-to-mean resistance of its cell.
+    @param layer Source layer.
+    @param th (L, R) temperatures of the network.
+    @param node Index of the zone node that holds the vias.
+    @param S_layer Sheet conductance of that node in the source layer.
+    @return float K (0 if the node has no via).
+    """
+    seen = [g for g in lg.SEEN if g["ring"] == node]
+    n = sum(g["n"] for g in seen)
+    if n == 0:
+        return 0.0
+    i_tot = 0.0
+    for (l_a, l_b), g in lp.GZVIA.items():
+        if l_a == layer:
+            i_tot += g[node] * (th[layer, node] - th[l_b, node])
+        elif l_b == layer:
+            i_tot += g[node] * (th[layer, node] - th[l_a, node])
+    i_tot = max(i_tot, 0.0)
+    r_cell = sum(g["r_cell"] * g["n"] for g in seen) / n
+    a = sum(g["a"] * g["n"] for g in seen) / n
+    return i_tot / n * rim_minus_mean(S_layer, r_cell, a)
 
 
 def zoned_network(net, cov, layer, power, rings):
@@ -135,7 +258,7 @@ def zoned_network(net, cov, layer, power, rings):
     L, ny, nx = net.nl, net.ny, net.nx
     cell = net.dx * net.dy
     foot = cov > 0
-    core = core_mask(net, cov, prob)
+    core = core_mask(net, cov, prob, layer)
     if core is None or core.sum() > OPTIONS["max_core"] * foot.sum() or core.sum() == foot.sum():
         LAST.clear()
         return _plain(net, cov, layer, power, rings)
@@ -206,17 +329,30 @@ def zoned_network(net, cov, layer, power, rings):
                 g += gz[m, 0] / area_a
         return g
 
+    pot = None
+    if OPTIONS["geometry"] == "potential":
+        # the link of the real shapes of A and C (lossless): 2 phi_AC - phi_AA - phi_CC over 2 pi S, the core-internal resistance included
+        pot = mutual_potentials(cov * (idx2 == 0), cov * (idx2 == 1), net.dx, net.dy)
+
     def r_ac(l):
         if S[l, 0] <= 0 or S[l, 1] <= 0:
             return np.inf
+        if pot is not None:
+            return OPTIONS["link_scale"] * pot / (2.0 * math.pi * S[l, 0])
+        # inside the core the net injection (source, barrels, dielectric) is uniform over a disc of radius r_c, so the core mean differs from its boundary by Q / (8 pi S)
+        r_int = OPTIONS["core_int"] / (8.0 * math.pi * S[l, 1])
         if OPTIONS["link"] == "loss" and g_loss_a(l) > 0:
-            return OPTIONS["link_scale"] * cr.cell_with_loss(S[l, 0], g_loss_a(l), r_c, a_f, 1.0)["R_c"]
-        return OPTIONS["link_scale"] * cr.krogh(S[l, 0], a_f, r_c)
+            return OPTIONS["link_scale"] * cr.cell_with_loss(S[l, 0], g_loss_a(l), r_c, a_f, 1.0)["R_c"] + r_int
+        return OPTIONS["link_scale"] * cr.krogh(S[l, 0], a_f, r_c) + r_int
 
     def r_a2(l):
         if R < 3 or S[l, 0] <= 0 or S[l, 2] <= 0:
             return np.inf
         half_k1 = 0.5 * thick[2] / (S[l, 2] * length[2])
+        if l != layer and OPTIONS["a1_other"] == "through":
+            # a layer without the source: the heat enters at the core and leaves at the rim (log profile), mean of the annulus to the outer wall
+            mean = 2.0 * (a_f * a_f / 4.0 - r_c * r_c / 2.0 * math.log(a_f / r_c) - r_c * r_c / 4.0) / (a_f * a_f - r_c * r_c)
+            return OPTIONS["out_scale"] * mean / (2.0 * math.pi * S[l, 0]) + half_k1
         return OPTIONS["out_scale"] * annulus_out_resistance(S[l, 0], r_c, a_f) + half_k1
 
     def r_ring(l, k):
@@ -262,11 +398,15 @@ def zoned_network(net, cov, layer, power, rings):
     # Peak of the source layer: hottest point of the annulus A (or the core if it is hotter)
     q_in = (th[layer, 0] - th[layer, 1]) / r_ac(layer) if np.isfinite(r_ac(layer)) else 0.0
     q_out = (th[layer, 0] - th[layer, 2]) / r_a2(layer) if R > 2 and np.isfinite(r_a2(layer)) else 0.0
-    if OPTIONS["peak"] == "annulus":
+    if OPTIONS["peak"] in ("potential", "potential_lossy"):
+        lam_l = math.sqrt(S[layer, 0] / g_loss_a(layer)) if OPTIONS["peak"] == "potential_lossy" and g_loss_a(layer) > 0 else None
+        excess = potential_excess(cov * (idx2 == 0), cov * (idx2 == 1), q_in, q_out, S[layer, 0], net.dx, net.dy, lam=lam_l)
+    elif OPTIONS["peak"] == "annulus":
         excess = shape * annulus_excess(S[layer, 0], r_c, a_f, q_in, q_out)
     else:
         excess = 0.0
-    peak_extra = max(excess, th[layer, 1] - th[layer, 0], 0.0)
+    mp = micro_peak(layer, th, 1, S[layer, 1]) if OPTIONS["micro_peak"] else 0.0
+    peak_extra = max(excess, th[layer, 1] + mp - th[layer, 0], 0.0)
     LAST.clear()
     LAST.update(r_c=r_c, a_f=a_f, frac_c=frac_c, q_in=q_in, q_out=q_out, excess=excess, theta=th.copy(), shape=shape, cnt=cnt.copy())
     rho = rho_mean.copy()
@@ -289,34 +429,45 @@ def _plain(net, cov, layer, power, rings):
     @param rings Rings.
     @return dict as `lumped._heater_network`.
     """
-    return _STATE["plain"](net, cov, layer, power, rings)
+    rn = _STATE["plain"](net, cov, layer, power, rings)
+    if OPTIONS["micro_peak"] and lg.SEEN:
+        foot = cov > 0
+        rn["peak_extra"] = rn["peak_extra"] + micro_peak(layer, rn["theta"], 0, float(net.S[layer][foot].mean()))
+    return rn
 
 
 _STATE = {}
 
 
 @contextlib.contextmanager
-def patched(link_scale=1.0, out_scale=1.0, max_core=0.92, core_r=0.7071, peak="annulus", macro_outside=True, link="krogh"):
+def patched(link_scale=1.0, out_scale=1.0, max_core=0.92, core_r=0.7071, peak="potential_lossy", macro_outside=True, link="krogh", micro_peak=True, a1_other="heated", core_int=0.0, pitch_guard=0.0, micro_scale=1.0, geometry="potential"):
     """!
     @brief Install the zoned Lumped model; restore the program on exit.
     @param link_scale Factor on the A-to-C link resistance (the cell-problem calibration knob).
     @param out_scale Factor on the annulus-to-ring-1 resistance.
     @param max_core Largest share of the footprint the core may cover before the footprint stays one node.
     @param core_r Radius of the core around the vias, in nearest-neighbour distances.
-    @param peak "annulus" (the hottest point of the annulus) or "none".
+    @param peak "annulus" (the hottest point of the concentric annulus), "potential" (the real shapes through logarithmic potentials), "potential_lossy" (the same with the K0 kernel of the sheet with its vertical loss) or "none".
     @param macro_outside True: keep the group term for groups outside the footprint.
+    @param geometry "disc" (equivalent concentric discs, closed forms) or "potential" (the real shapes of A and C through the logarithmic potentials; replaces the Krogh link and the core-internal term).
+    @param micro_scale Factor on the micro wells of the vias (0: the planes isothermal at the barrels, the effective vertical conductivity of the array).
+    @param pitch_guard Largest nearest-neighbour distance of a group, in fin lengths of the source layer, that still counts as a core (0 = no limit).
+    @param core_int Factor on the resistance Q / (8 pi S) between the mean of the core and its boundary (1 = the uniform-injection disc), added to the A-C link.
+    @param a1_other "heated" (the annulus with a uniform source in every layer) or "through" (the log profile of heat entering at the core, in the layers without the source).
+    @param micro_peak True: add the rise of the hottest point of the cell of a via above the node mean (rim of the Krogh cell) to the peak.
     @param link "krogh" (lossless closed form) or "loss" (the lossy cell of `constriction.cell_with_loss`, the loss of the rest of the footprint in the layer).
     @return Context manager.
     """
     from pcbthermal import lumped
     old_opts = dict(OPTIONS)
-    OPTIONS.update(link_scale=link_scale, out_scale=out_scale, max_core=max_core, core_r=core_r, peak=peak, macro_outside=macro_outside, link=link)
+    OPTIONS.update(link_scale=link_scale, out_scale=out_scale, max_core=max_core, core_r=core_r, peak=peak, macro_outside=macro_outside, link=link, micro_peak=micro_peak, a1_other=a1_other, core_int=core_int, pitch_guard=pitch_guard, geometry=geometry)
     old_net, old_solve = lumped._heater_network, lumped.solve_steady
     macro = "all" if macro_outside else "none"
     try:
         # The plain network: wells in every ring, the group term outside the footprint only (skip_rings = (0,))
         with lg.patched(macro=macro):
             lg.OPTIONS["skip_rings"] = (0,)
+            lg.OPTIONS["micro_scale"] = micro_scale
             _STATE["plain"] = lumped._heater_network
             lumped._heater_network = zoned_network
 
