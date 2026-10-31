@@ -13,7 +13,7 @@ of every warning says what is wrong and what to do.
 import numpy as np
 
 from . import blocks, convection
-from .geometry import coverage_fraction, part_weights, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
+from .geometry import BOARD_SAMPLES, coverage_fraction, part_weights, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -85,7 +85,7 @@ def check_problem(problem, cell_mm=1.0):
         cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 4)
         heater_cov.append(cov)
         # Area of the part on the board: the part and the outline tested on the same samples (the product of the two covers is wrong on a cell cut by both)
-        inside = float((part_weights(h.polygon, b.outline, nx, ny, dx, dy, 4) * (board_cover > 0)).sum() * dx * dy) / area
+        inside = float((part_weights(h.polygon, b.outline, nx, ny, dx, dy, BOARD_SAMPLES if b.has_outline() else 4) * (board_cover > 0)).sum() * dx * dy) / area
         if inside < 0.98:
             _add(out, "heater", k, f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board; its full power "
                        "is applied to the part that is inside.")
