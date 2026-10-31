@@ -83,7 +83,7 @@ system; the problem is linear so the board is the sum over heaters (mutual heati
 The multilayer fin equation on the rectangle with insulated edges, expanded in `cos(mπx/W) cos(nπy/H)`: every mode is a small tridiagonal system over the layers (`analytic.py`). Exact on a uniform board. Refinements:
 
 * **copper weighted by influence, layer by layer**: `f_eff,l = Σ w f_l / Σ w` with `w = Σ_i P_i K₀(r_i/λ_l)` and the layer's own fin length `λ_l = √(S_l/(h_l + n_l g))` (about 5 mm for a layer that carries a heater, not the 34 mm of the whole stack);
-* **local vias and heatsinks** by a Green-function (Woodbury) update on 2.5 to 5 mm tiles: `(I + G C) y = y₀`; with vias the tile follows the via pitch (`min(1 mm, 0.75` of the median nearest-neighbour distance, at least 0.25 mm) and the via is read at its wall through a constriction self-term (section 6.1 of `docs/theory.md`; at most 4800 unknowns of the dense system);
+* **local vias and heatsinks** by a Green-function (Woodbury) update on 2.5 to 5 mm tiles: `(I + G_mod C_loc) y = y₀`; with vias the tile follows the via pitch (`min(1 mm, 0.75` of the median nearest-neighbour distance, at least 0.25 mm) and the via is read at its wall through a constriction self-term (section 6.1 of `docs/theory.md`; at most 4800 unknowns of the dense system);
 * **warnings** when the copper around the heater is strongly non-uniform or edge convection is significant.
 
 *Use it* for instant answers on boards close to uniform, to understand a design, and as an independent check. It fails when the copper is not uniform near the heater (24 % low with a 20 mm pad, 25 % when an edge crosses it);
