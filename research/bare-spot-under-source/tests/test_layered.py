@@ -33,7 +33,7 @@ def _setup(case, cell):
 
 def test_one_sub_gap_is_the_program():
     """!
-    @brief With no refinement the copy reproduces the program's FVM peak and field to 1e-9 K, for a bare window and a typical 4 layer stack-up.
+    @brief With no refinement the copy reproduces the program's FVM peak and field (the network of the earlier versions, `ladder=False`: see lib/layered.network) to 1e-9 K, for a bare window and a typical 4 layer stack-up.
     @return None.
     """
     for case in (C.Case("a", layers=2, size=12.0, part=4.0, window=C.centred_window(4, 12.0)), C.Case("b", layers=4, stack="template", size=12.0, part=4.0, window=C.centred_window(4, 12.0))):

@@ -11,6 +11,7 @@
          (the same equal gaps as explicit dielectrics, copper plus half of each adjacent gap).
 """
 
+import contextlib
 import os
 import sys
 from dataclasses import dataclass, field
@@ -26,7 +27,7 @@ for _p in (ROOT, BARE, HERE):
 
 import resolved3d as r3                                                       # noqa: E402  (independent 3D solver, bare-spot-under-source)
 import series                                                                 # noqa: E402
-from pcbthermal import Problem, SolverOptions, simulate                       # noqa: E402
+from pcbthermal import Problem, SolverOptions, laminate, simulate            # noqa: E402
 from pcbthermal.model import Materials                                        # noqa: E402
 
 
@@ -152,6 +153,22 @@ def resolved_peak(bd, cell_mm, dx_mm=0.25, nsub=8, p=None):
             blk = surf[i * r:(i + 1) * r, j * r:(j + 1) * r]
             best = max(best, float(blk.mean()))
     return {"peak": best, "mean": res["mean"], "balance": res["balance"], "unknowns": int(res["T"].size)}
+
+
+@contextlib.contextmanager
+def program_without_rule():
+    """!
+    @brief Make the program build the network of the versions before fix/laminate-nodes (one node per copper layer, no laminate rule) while inside; restored on exit.
+    @details The copy in lib/gapnodes.py cuts the gaps itself, starting from that network, so "n = 1 is the program" holds against the program without its rule; the program as it is now
+             applies the rule (sub-gaps where copper is absent) and is a different number on boards with absent copper.
+    @return Context manager.
+    """
+    old = laminate.uses_rule
+    laminate.uses_rule = lambda problem: False
+    try:
+        yield
+    finally:
+        laminate.uses_rule = old
 
 
 def program_peak(bd, model, cell_mm, p=None):

@@ -185,17 +185,20 @@ def solve_faces(ib, problem, faces):
     @return Temperature rise (layers, ny, nx) in K, rows from the bottom.
     """
     ny, nx = int(round(ib.height / ib.cell)), int(round(ib.width / ib.cell))
-    net = FaceNetwork(problem, nx, ny, assemble=False)
+    # ladder=False: the face conductances carry the whole laminate in the plane of the copper node (layer_faces); the laminate nodes that the program has built since fix/laminate-nodes
+    # would count it twice in the cells with absent copper, and the faces would not see the sheet it moves to them. The earlier network is the one the faces were designed for.
+    net = FaceNetwork(problem, nx, ny, assemble=False, ladder=False)
     net.set_faces(faces)
     return net.solve_steady()[0]
 
 
-def solve_today(ib, problem, kind="binary"):
+def solve_today(ib, problem, kind="binary", rule=True):
     """!
     @brief The program as it is: one zone per cell whose fill is the copper fraction of the cell (the fill-fraction path), solved by the program's own network.
     @param ib Imported board.
     @param problem Problem (it is copied: zones are added to a copy).
     @param kind "binary" or "coverage" mask to take the fractions from.
+    @param rule True: the program as it is (laminate nodes of fix/laminate-nodes in the cells with absent copper); False: the network of the earlier versions (the plumbing check of the faces).
     @return Temperature rise (layers, ny, nx) in K, rows from the bottom.
     """
     import copy
@@ -208,7 +211,7 @@ def solve_today(ib, problem, kind="binary"):
                 if f[i, j] > 1e-6:
                     p.add_zone(l + 1, rect=(j * ib.cell, i * ib.cell, (j + 1) * ib.cell, (i + 1) * ib.cell), fill=float(f[i, j]))
     ny, nx = int(round(ib.height / ib.cell)), int(round(ib.width / ib.cell))
-    return fvm.Network(p, nx, ny).solve_steady()[0]
+    return fvm.Network(p, nx, ny, ladder=rule).solve_steady()[0]
 
 
 def solve_fine(ib, problem, kind="binary"):
@@ -220,7 +223,8 @@ def solve_fine(ib, problem, kind="binary"):
     @return Temperature rise (layers, rows, cols) in K at the pixel grid, rows from the bottom.
     """
     ny, nx = int(round(ib.height / ib.pix)), int(round(ib.width / ib.pix))
-    net = fvm.Network(problem, nx, ny, assemble=False)
+    # ladder=False: the sheet of every pixel already holds the laminate (layer_sheets); with the program's laminate nodes it would be counted again in the pixels with absent copper
+    net = fvm.Network(problem, nx, ny, assemble=False, ladder=False)
     for l, S in enumerate(layer_sheets(ib, problem, kind)):
         net.S[l] = S * net.cover
     net.K = net._assemble()

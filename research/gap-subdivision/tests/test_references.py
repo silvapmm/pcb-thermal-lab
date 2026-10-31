@@ -36,7 +36,8 @@ def test_one_node_is_the_program_and_more_nodes_converge():
     """
     bd = B.Board("p", pad=6.0, pad_layers=(0,), **SMALL)
     p = B.problem(bd)
-    prog = B.program_peak(bd, "fvm", 0.5, p)
+    with B.program_without_rule():                     # the copy starts from the network of the versions before the program had the laminate rule
+        prog = B.program_peak(bd, "fvm", 0.5, p)
     assert abs(G.run(p, 0.5, 1, "all")["peak"] / prog - 1) < 1e-9
     # The reference on the same in-plane grid isolates the through-thickness discretisation
     ref = B.samecell_peak(bd, 0.5, 32, p)
