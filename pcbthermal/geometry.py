@@ -8,6 +8,8 @@ All coordinates are in metres, with the origin at the bottom-left corner of the
 board. This module depends only on NumPy so it can run headless.
 """
 
+import math
+
 import numpy as np
 
 
@@ -95,6 +97,13 @@ def points_in_polygon(px, py, poly):
     return inside
 
 
+# Sub-samples per cell side for everything that measures how much of a cell is on the board or in a part that crosses the outline.
+# ONE constant shared by Board.cover (FVM, 3D solid), part_weights (FVM, FDM, 3D solid, analysis) and the FDM node cover, so that the board share
+# a model gives a cut cell and the share of the part in it are sampled on the same lattice (a 4 x 4 board cover against 8 x 8 part weights gave an
+# edge-shift scatter of 2.95 K at 1 mm on a small T; 8 x 8 everywhere gives 1.47 K).
+BOARD_SAMPLES = 8
+
+
 def _sample_mask(poly, nx, ny, dx, dy, samples, clip=None):
     """!
     @brief Which sub-samples of the cells in the bounding box of a polygon lie inside it.
@@ -134,7 +143,9 @@ def coverage_fraction(poly, nx, ny, dx, dy, samples=4):
     """!
     @brief Fraction of every grid cell that is covered by a polygon.
     @details Each cell is sub-sampled on a samples x samples lattice; only the cells in the
-             polygon bounding box are evaluated, so small polygons are cheap.
+             polygon bounding box are evaluated, so small polygons are cheap. When the box holds more than
+             _EDGE_ONLY_CELLS cells (a board outline), the full lattice is taken only in the cells an edge touches
+             and one sample decides every other cell (`_coverage_edge_cells`, bit-identical to the full lattice).
     @param poly Polygon vertices (n, 2) in metres.
     @param nx Number of cells along x.
     @param ny Number of cells along y.
@@ -144,6 +155,19 @@ def coverage_fraction(poly, nx, ny, dx, dy, samples=4):
     @return Array of shape (ny, nx) with values in [0, 1].
     """
     cov = np.zeros((ny, nx))
+    p = np.asarray(poly, dtype=float)
+    if len(p) >= 3 and samples > 1:
+        # A large polygon (a board outline) is sampled in full only in the cells its edges touch: bit-identical, and 30 to 60 times
+        # cheaper in time and memory on a fine grid (a 128-vertex disc on 1000 x 1000 cells: 34 s and 2.6 GB at 8 x 8 for the full lattice)
+        j0 = max(int(np.floor(p[:, 0].min() / dx)), 0)
+        j1 = min(int(np.ceil(p[:, 0].max() / dx)), nx)
+        i0 = max(int(np.floor(p[:, 1].min() / dy)), 0)
+        i1 = min(int(np.ceil(p[:, 1].max() / dy)), ny)
+        if j1 <= j0 or i1 <= i0:
+            return cov
+        if (i1 - i0) * (j1 - j0) > _EDGE_ONLY_CELLS:
+            cov[i0:i1, j0:j1] = _coverage_edge_cells(p, i0, i1, j0, j1, dx, dy, samples)
+            return cov
     got = _sample_mask(poly, nx, ny, dx, dy, samples)
     if got is None:
         return cov
@@ -153,7 +177,63 @@ def coverage_fraction(poly, nx, ny, dx, dy, samples=4):
     return cov
 
 
-def part_weights(poly, outline, nx, ny, dx, dy, samples=8, cover=None):
+# Above this many cells in the bounding box, coverage_fraction samples in full only the cells touched by an edge of the polygon
+_EDGE_ONLY_CELLS = 4096
+
+
+def _coverage_edge_cells(p, i0, i1, j0, j1, dx, dy, samples):
+    """!
+    @brief Coverage of the cells of a bounding box, with the full sample lattice only in the cells that an edge of the polygon touches.
+    @details A cell that no edge touches lies wholly inside or wholly outside the polygon, so all its samples agree and one of them gives
+             its value (1.0 or 0.0, which is also the exact mean of its samples). The touched cells are found by walking every edge in steps
+             of a quarter of a cell and marking the cells of the steps, then growing the marks by one cell (a step can cross into a
+             neighbour); a mark too many only costs a full sampling. The sample points are the very ones of `_sample_mask`, so the result
+             is bit-identical to the full lattice.
+    @param p Polygon vertices (n, 2) in metres.
+    @param i0 First row of the box.
+    @param i1 Row after the last of the box.
+    @param j0 First column of the box.
+    @param j1 Column after the last of the box.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param samples Sub-samples per cell side.
+    @return Array (i1 - i0, j1 - j0) with values in [0, 1].
+    """
+    ni, nj = i1 - i0, j1 - j0
+    sub = (np.arange(samples) + 0.5) / samples
+    # Cells touched by an edge: walk every edge (the closing one included) in steps of at most a quarter of the smaller cell side
+    edge = np.zeros((ni, nj), dtype=bool)
+    step = 0.25 * min(dx, dy)
+    q = np.vstack([p, p[:1]])
+    for (xa, ya), (xb, yb) in zip(q[:-1], q[1:]):
+        t = np.linspace(0.0, 1.0, int(math.ceil(math.hypot(xb - xa, yb - ya) / step)) + 2)
+        jj = np.clip(np.floor((xa + t * (xb - xa)) / dx).astype(np.int64) - j0, 0, nj - 1)
+        ii = np.clip(np.floor((ya + t * (yb - ya)) / dy).astype(np.int64) - i0, 0, ni - 1)
+        edge[ii, jj] = True
+    # Grow the marks by one cell in the eight directions (rows, then columns)
+    grown = edge.copy()
+    grown[1:, :] |= edge[:-1, :]
+    grown[:-1, :] |= edge[1:, :]
+    edge = grown.copy()
+    edge[:, 1:] |= grown[:, :-1]
+    edge[:, :-1] |= grown[:, 1:]
+    # Untouched cells: their first sample point (the same coordinates as in _sample_mask) decides the whole cell
+    xs = (j0 + (np.arange(nj) + sub[0])) * dx
+    ys = (i0 + (np.arange(ni) + sub[0])) * dy
+    gx, gy = np.meshgrid(xs, ys)
+    box = points_in_polygon(gx, gy, p).astype(float)
+    # Touched cells: the full lattice, averaged like in coverage_fraction (a mean of 0/1 values over samples^2 points is exact)
+    ie, je = np.nonzero(edge)
+    if ie.size:
+        sx = (j0 + (je[:, None] + sub[None, :])) * dx          # (m, samples) along x
+        sy = (i0 + (ie[:, None] + sub[None, :])) * dy          # (m, samples) along y
+        gx = np.ascontiguousarray(np.broadcast_to(sx[:, None, :], (ie.size, samples, samples)))
+        gy = np.ascontiguousarray(np.broadcast_to(sy[:, :, None], (ie.size, samples, samples)))
+        box[ie, je] = points_in_polygon(gx, gy, p).mean(axis=(1, 2))
+    return box
+
+
+def part_weights(poly, outline, nx, ny, dx, dy, samples=BOARD_SAMPLES, cover=None):
     """!
     @brief Weight of every grid cell in the heating of a part: the share of the cell that is inside the part AND on the board.
     @details A part that crosses the board outline must heat the board only where it lies on it. The product of the two coverages

@@ -249,7 +249,22 @@ def _compile_heater_network():
     exec(compile(src, "<patched lumped._heater_network>", "exec"), lumped.__dict__, ns)
     lumped._via_couplings = _via_couplings
     lumped._lat_via = _lat_via
-    return ns["_heater_network"]
+    compiled = ns["_heater_network"]
+
+    def heater_network(net, cov, layer, power, rings, vias=None):
+        """!
+        @brief The compiled copy called the way the program calls `lumped._heater_network`.
+        @param net Network (per-cell arrays) of the problem.
+        @param cov Footprint coverage of the heater, array (ny, nx).
+        @param layer 0-based heater layer.
+        @param power Heater power (W).
+        @param rings Number of rings outside the footprint.
+        @param vias ViaSet of the program's own constriction (`viaconstriction.py`, adopted from this study); ignored here: the copy builds the couplings of the
+               study, from the barrel read as `net.gz + net.gz_via` (the program's own branch for a board without a ViaSet).
+        @return Dict of `lumped._heater_network`.
+        """
+        return compiled(net, cov, layer, power, rings, None)
+    return heater_network
 
 
 @contextlib.contextmanager

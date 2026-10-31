@@ -20,7 +20,7 @@ import os
 import numpy as np
 
 from . import defaults
-from .geometry import coverage_fraction, polygon_area, polygon_is_simple
+from .geometry import BOARD_SAMPLES, coverage_fraction, polygon_area, polygon_is_simple
 
 
 @dataclass
@@ -228,7 +228,7 @@ class Board:
         """
         return self.outline is not None
 
-    def cover(self, nx, ny, dx, dy, samples=4, minimum=0.01):
+    def cover(self, nx, ny, dx, dy, samples=BOARD_SAMPLES, minimum=0.01):
         """!
         @brief Fraction of every grid cell that lies on the board.
         @details All ones for a rectangular board; otherwise the coverage of the outline polygon. Cells with less than `minimum` are taken as off the board.
@@ -236,7 +236,7 @@ class Board:
         @param ny Number of cells along y.
         @param dx Cell width in metres.
         @param dy Cell height in metres.
-        @param samples Sub-samples per cell side.
+        @param samples Sub-samples per cell side (geometry.BOARD_SAMPLES, shared with the part weights and the FDM node cover).
         @param minimum Smallest coverage kept.
         @return Array (ny, nx) with values in [0, 1].
         """
