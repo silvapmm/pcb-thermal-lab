@@ -128,7 +128,7 @@ the construction of a board whose lower layers carry no copper. The results keep
 
 * *Lateral*: between two neighbouring cells the heat crosses the two half cells in series, `R = Δx/(2 S₁ Δy) + Δx/(2 S₂ Δy)`, so with `S` of each cell
   `G_x = (2 S₁ S₂ /(S₁ + S₂)) · Δy/Δx`   and   `G_y = (2 S₁ S₂ /(S₁ + S₂)) · Δx/Δy`   (the **harmonic mean** of the two sheet conductances: a copper/FR-4 edge is a series, not an average). It is zero when both are zero.
-* *Vertical*, between layers `l` and `l+1` in a cell: `G_z = k_th Δx Δy / d + Σ_{vias in the cell} k_cu A_via / d`. A via is assigned to the cell that contains its centre (it is a point feature; this costs about 0.5 % against the 3D rods on the example board at 0.5 mm cells). On cells finer than about 0.5 mm the point via over-constricts, because a source in one cell of a five-point stencil acts like a hole of radius `0.198 Δx` (Peaceman): the copper-fill gain of a via array falls from −4.4 K at 0.5 mm to −3.3 K at 0.0625 mm against −4.45 K for resolved barrels (`research/via-fill/README.md` 4.6; chapter Planned of versions.md).
+* *Vertical*, between layers `l` and `l+1` in a cell: `G_z = k_th Δx Δy / d` (the dielectric alone). The barrel of a via is **not** added here: it is a mean-potential coupling of a footprint of cells, described in "The via on the grid" below.
 * *Ambient*: `G_amb = (h_top or h_bottom) Δx Δy` on the outer layers, plus `h_extra Δx Δy c_hs` under a plain heatsink (`c_hs` its coverage), plus `h_side Δ_edge · slab` on edge cells. When a metal block covers the face, the board coefficient is multiplied by `1 − c` (section 7). On a board with an outline, `Δ_edge` is the length of the outline inside the cell (`geometry.edge_length_on_board`): the outline is sampled at a tenth of a cell, every sample is moved a thousandth of a cell towards the inside of the board (so a side lying on a grid line belongs to the cell on the board), and the length that falls in a cell taken as off the board (a sliver that no cover sample reached) goes to the nearest cell on the board, so `Σ Δ_edge` is the perimeter of the polygon whatever its position on the grid. The FDM and the 3D solid use the same rule (the FDM on the outline shifted by half a cell, onto its node control volumes).
 
 **System**: `K θ = Q`, `K = D − A` with `A` the symmetric matrix of non-negative face conductances and `D` its row sums plus the ambient conductances. `K` is symmetric, weakly diagonally dominant (strictly where there is an ambient path) and irreducible, so it is a symmetric positive definite **M-matrix**:
@@ -137,7 +137,7 @@ the solution exists, is unique and obeys the maximum principle (`θ ≥ 0`, no t
 **Solvers** (`fvm.Network.solve_steady`, `solve_sor`):
 * *direct*: sparse LU (SuperLU) with the symmetric minimum-degree ordering (`MMD_AT_PLUS_A`: half the fill and about 40 % less time than the default ordering); the relative residual `‖Kθ − Q‖/‖Q‖` is reported (about 10⁻¹³);
 * *conjugate gradients* with a Jacobi (diagonal) preconditioner, tolerance 10⁻¹²;
-* *red-black SOR*, `θ_new = (Σ G_m θ_m + Q)/D`, `θ ← θ + ω(θ_new − θ)` with `ω = 2/(1 + sin(π/n_max))`, stopped on the **residual** (10⁻⁹). The stop rule on the largest change of a sweep (the removed program's rule) can stop 3 to 16 K from the solution (`validation.md` section 5).
+* *red-black SOR*, `θ_new = (Σ G_m θ_m + Q)/D`, `θ ← θ + ω(θ_new − θ)` with `ω = 2/(1 + sin(π/n_max))`, stopped on the **residual** (10⁻⁹). With vias the cells of a footprint are coupled by the dense via blocks of `K`, which the six-neighbour update does not see; after the two colours each group of via blocks that `K` does not couple (greedy colouring) takes the exact solution of its block, `θ_B += ω K_BB⁻¹ (Q_B − K_B θ)` (block SOR: symmetric positive definite, converges for `0 < ω < 2`; 0.79 to 1.00 times the sweeps of the board without vias, within 10⁻⁸ K of the direct solver; `research/sor-with-via-couplings`). A block larger than 5 000 unknowns (`fvm.MAX_SOR_BLOCK`, 200 MB dense) is not inverted: the board is solved with the direct solver and the result says so. The stop rule on the largest change of a sweep (the removed program's rule) can stop 3 to 16 K from the solution (`validation.md` section 5).
 
 **Transient**: `C dθ/dt + K θ = Q(t)`, `C_i = c_l Δx Δy` (J/K). The **theta method**
 
@@ -148,7 +148,32 @@ One LU factorisation is needed per distinct `Δt`, so the steps are built in a f
 `Δt₀ = t_end(r − 1)/(4(r^{18} − 1))`, `t_end = 10 τ` and `τ = ΣC/ΣG_amb` (the uniform-board time constant; the hottest point reaches 63 % much sooner). `ΣG_amb` leaves out the 1 W/K that pins the cells off a board with an outline: it keeps the matrix regular but is not a path to the air. The board mean of a transient weights every cell by its board area, as the steady mean does.
 The **step response** `Z_i(t)` is the rise of the hottest point of heater `i` per watt; `R_th,i = Z_i(∞)`.
 
-**Accuracy**: second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). The example board moves monotonically with the cell (within 0.25 % of the 0.25 mm value from 1 mm), but with vias it has no limit (see the vertical conductance above). The layered idealisation of section 1.2 is the model error (0.4 to 2.2 % against the 3D solid).
+**The via on the grid** (`viawell.py`, FVM and FDM; the 3D solid uses one footprint rule for every via). A copper plane is a sheet of conductance `S`; a via of drill radius `r_v` drains it through the barrel and the temperature falls as `ln(r/r_v)/(2π S)` per watt: the *constriction*. A source in one cell of the five-point stencil is a point of the lattice whose potential is that of a hole of radius `r_eq = exp(-(γ + 1.5 ln 2)) Δx = 0.1985 Δx` (γ Euler's constant; Peaceman's radial argument gives `exp(-π/2) Δx = 0.2079 Δx`, his rounded value is 0.2). Adding the barrel conductance to the one cell that holds the via centre therefore under-constricts it on coarse cells (missing resistance `ln(r_eq/r_v)/(2π S)`, the *well*) and over-constricts it once `Δx < 5 r_v` (`r_eq < r_v`; the extra resistance `ln(r_v/r_eq)/(2π S)` grows as the cell shrinks and no series resistance removes it). The barrel has to be spread over several cells. Each via has:
+
+* a **footprint**: weights `w_a` (sum 1) on the cells that its disc covers (area of the disc in each cell, times the cover of the cell, restricted to the cells that are on the board and normalised); if the lattice effective radius of the footprint is smaller than the target `r_t`, the disc is enlarged (centre fixed) until it equals it. The effective radius of a distribution is `ln(r_eff/Δx) = (π/2)(E − κ)`, `E = Σ_ab w_a w_b a(a − b)`, `a` the potential kernel of the stencil (`a(x) → (2/π) ln|x| + κ`, `κ = (2γ + 3 ln 2)/π = 1.0291`; a single cell gives `r_eq`);
+* the **mean temperature of each plane over the footprint**, `T̄_l = Σ_a w_a T_{l,a}`;
+* a **well** between `T̄_l` and the barrel node of plane `l`, `G_c = 2π S_l / ln(r_eff/r_t)` (no well when `r_eff ≤ r_t`), the barrel nodes joined by `G_v = k_Cu A_via/d` per gap;
+* `r_t = e^(-1/4) r_v = 0.78 r_v`: the layered idealisation spreads the barrel uniformly over its disc, and the mean potential of a uniform disc is that of a circle of `e^(-1/4)` times its radius. Against an axisymmetric 3D solve with the barrel drawn the via effect of the model is within 1 % on a four-plane 1.6 mm board and -2.1 to +3.9 % over 2 to 6 planes and drills of 0.2 to 1 mm (`research/point-via-convergence/README.md` 3.2 and 3.3): `0.78 r_v` is one constant that is close on average, not the radius of a real barrel.
+
+The barrel nodes are eliminated (Kron reduction), which leaves couplings `G_lm` between the plane means; the matrix gets `G_lm (e_l ⊗ w − e_m ⊗ w)(e_l ⊗ w − e_m ⊗ w)ᵀ` for each pair of planes: `K` stays symmetric, positive semidefinite with zero row sum from the via, and no unknown is added. The couplings are the same for the steady state and the transient. The treatment converges with the cell: the worst error of the via effect against a fine-grid layered reference is 0.7 % at 1 mm, 0.5 % at 0.5 mm and 0.4 % from 0.25 mm (12 unit-cell cases), where the point via was 7, 10 and 20 % off; the copper-fill gain of the 3 × 3 via board is −4.50, −4.47 and −4.49 K (FVM) and −4.42, −4.51 and −4.49 K (FDM) at 1, 0.5 and 0.25 mm against −4.51 K resolved (against −4.78 to −3.34 K from 1 to 0.0625 mm with the point via). Limits: the lattice kernel has no image of a board edge, so a via within one cell of the edge is clipped and its effect is 12 to 15 % too large at a 1 mm cell (a warning, `checks.check_via_limits`); from a 2 mm cell the via is a fraction of a cell and the answer depends on where its centre falls in it (a warning). The Lumped model reads the point conductance of the cell of the via centre (`gz_via`), as before. Because the footprint cells are coupled, the SOR solves them as dense blocks (see section on the linear solvers).
+
+![A via in section: the paths of the heat to the barrel](images/via_section_and_flux.png)
+
+*Figure V1 (`images/via_section_and_flux.png`): a via in section; the heat of each copper plane flows sideways to the barrel (the constriction) and down the barrel through the gaps.*
+
+![The lattice sink and the Peaceman well](images/via_peaceman_well.png)
+
+*Figure V2 (`images/via_peaceman_well.png`): left, the potential of the nodes of a point sink on the lattice against the continuum holes (the nodes lie on a hole of radius 0.1985 Δx); right, the bookkeeping of resistances: a well is added when `r_eq > r_v`, and the barrel is spread when `r_eq < r_v`.*
+
+![The mean-potential coupling](images/via_mean_potential_coupling.png)
+
+*Figure V3 (`images/via_mean_potential_coupling.png`): the footprint, the mean temperature of each plane, the well and the barrel; after the Kron reduction only the couplings between the plane means remain.*
+
+![Copper-fill gain of the 3 x 3 board against the cell](images/via_array_board_gain.png)
+
+*Figure V4 (`images/via_array_board_gain.png`): the copper-fill gain of the 3 × 3 via board against the cell size, the program before and after the mean-potential via and the resolved reference.*
+
+**Accuracy**: second order in the cell size for smooth fields, first order at features (a via, a copper edge, a thin heater). The example board moves monotonically with the cell (within 0.25 % of the 0.25 mm value from 1 mm), and, with the mean-potential via, so does the via effect (see "The via on the grid"). The layered idealisation of section 1.2 is the model error (0.4 to 2.2 % against the 3D solid).
 
 ## 3. FDM: node-centred finite differences (the comparison)
 
@@ -157,11 +182,11 @@ half-cell balance (equivalent to a ghost node, second order). Written as the bal
 
 * the sheet conductance `S` is **sampled at the nodes**: either as the coverage of the control volume around the node (`sampling="area"`, the default: the four surrounding cell coverages weighted by the shared area) or as the classic point test (`"point"`: left and bottom edge in, right and top edge out);
 * the conductance between two nodes uses the **mean of the two nodal values**, arithmetic `(S₁ + S₂)/2` (default) or harmonic, times `width_of_face/Δ` where the face width is the control-volume side;
-* vertical: `G_z = k_th A_c/d` with `A_c` the control area, plus the via at the **nearest node** (spreading it over neighbours was tried and removed the constriction: temperatures 2 % too low; like the FVM, the point via does not converge on cells finer than about 0.5 mm, see section 2);
+* vertical: `G_z = k_th A_c/d` with `A_c` the control area; the vias are the same mean-potential couplings as in the FVM, on a footprint of **nodes** (the weights are the area of the disc of the via over the control volumes of the nodes; see "The via on the grid");
 * ambient and edge terms as in the FVM with the control-volume areas and lengths;
 * sources: the unit weights of a heater are the coverage of the footprint shared among the four nodes of each cell (area) or one for each node inside (point), normalised to 1: power exact.
 
-The transient machinery of the FVM is reused unchanged (`fvm.transient_from_network`), because the FDM network exposes the same `K, C, Q`. On boards without vias the FDM and FVM agree to about 0.1 %; with a via array the FDM is 2 to 3 % low at 1 mm (a point feature on the nearest node), closing with the grid.
+The transient machinery of the FVM is reused unchanged (`fvm.transient_from_network`), because the FDM network exposes the same `K, C, Q`. On boards without vias the FDM and FVM agree to about 0.1 %; with the via array the two differ by less than 1 % from 1 mm down (section "The via on the grid"; the FDM is not monotonic on coarse cells).
 
 ## 4. 3D solid: finite volumes in three dimensions
 
@@ -173,7 +198,7 @@ followed by `n` metal slabs (`n = round(thickness/1 mm)`, 1 to 6). Every cell of
 
 * copper slab with fill `f`: in-plane `k_x = f k_cu + (1 − f) k_ip`; through `k_z = f_eff k_cu + (1 − f_eff) k_th` with `f_eff = min(1, f + a_via)`;
 * dielectric slab: `k_x = k_ip`, `k_z = a_via k_cu + (1 − a_via) k_th`;
-* `a_via = Σ A_via / (Δx Δy)` over the vias whose centre is in the cell: the **real copper area of the barrel** (`D` in `A_via` is the **drill** diameter, the plating is inside it), in parallel in every slab (the lateral effect of the thin barrel wall is neglected); `a_via` is clipped at 1 per cell, so a via whose copper-equivalent area exceeds the cell (a 0.3 mm copper fill below 0.27 mm cells, a 0.5 mm copper fill below 0.44 mm) loses the excess copper (roadmap, section 1);
+* `a_via = Σ A_via w / (Δx Δy)` over the vias, each spread by the **one footprint rule of the FVM and FDM** (`viawell.tuned_footprint`: weights `w` on the cells of the board whose lattice effective radius is `0.78 r_v`, the cell of the centre alone when that is below the radius of a point sink on the grid), so that the copper area of the barrel is conserved and an open and a copper-filled via are the same model (before, a via smaller than a cell stayed a point and a larger one was spread, which made the "gain" of a fill the difference of two treatments): the **real copper area of the barrel** (`D` in `A_via` is the **drill** diameter, the plating is inside it), in parallel in every slab (the lateral effect of the thin barrel wall is neglected); `a_via` is clipped at 1 per cell, so a via whose copper-equivalent area exceeds the cell (a 0.3 mm copper fill below 0.27 mm cells, a 0.5 mm copper fill below 0.44 mm) loses the excess copper (roadmap, section 1);
 * block slabs: `k = k_metal · c` (`c` = block coverage of the cell), pad slab `k = 1 · c`; cells with no material get `k = 10⁻⁹ W/mK` and a leak of `10⁻⁹ W/K` to the ambient to keep the matrix regular.
 
 **Conductances** (each pair of neighbouring cells, harmonic mean of the half-cell resistances):

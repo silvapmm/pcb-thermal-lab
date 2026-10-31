@@ -100,7 +100,7 @@ def tmax(win, model="fvm"):
 def test_values_typed_in_the_new_places_change_the_result_sensibly(win):
     bp = win.board_panel
     base = tmax(win)
-    assert base == pytest.approx(85.34, abs=0.05)                              # The same number as before the reorganisation (cell 2 mm)
+    assert base == pytest.approx(85.07, abs=0.05)                              # The example board at a 2 mm cell (85.34 with the point via, before the mean-potential via)
     bp.copper.setValue(70.0)                                                   # Copper per layer, now in the Stack-up tab: twice the copper spreads better
     assert tmax(win) < base - 3.0
     bp.copper.setValue(35.0)
