@@ -270,12 +270,14 @@ On 2 mm cells the source edges fall a quarter of a cell off and the rounding giv
 
 | board | general form (program) | laminar form | change of the rise |
 | :-- | --: | --: | --: |
-| example board, powers x0.5 | 57.16 C | 56.98 C | -0.18 K (-0.6 %) |
-| example board, powers x1 | 86.72 C | 86.50 C | -0.22 K (-0.4 %) |
-| example board, powers x2 | 142.74 C | 142.56 C | -0.18 K (-0.1 %) |
+| example board, powers x0.5 | 56.87 C | 56.69 C | -0.18 K (-0.6 %) |
+| example board, powers x1 | 86.14 C | 85.92 C | -0.22 K (-0.4 %) |
+| example board, powers x2 | 141.57 C | 141.39 C | -0.18 K (-0.2 %) |
 | 2-layer board 100 x 60 mm, 3 W | 89.42 C | 88.99 C | -0.43 K (-0.7 %) |
 | 2-layer board 100 x 120 mm, 3 W | 84.61 C | 84.58 C | -0.03 K (-0.1 %) |
 | 2-layer board 100 x 200 mm, 3 W | 84.33 C | 84.47 C | +0.14 K (+0.2 %) |
+
+*Re-run on 2.4.5 (the script's `patched` function now accepts the `form` argument): the general-form column of the example board moved from 57.16, 86.72, 142.74 C to 56.87, 86.14, 141.57 C (-0.3 to -1.2 K); the laminar column moved by the same amount and the changes of the rise are the same (-0.18, -0.22, -0.18 K; the last percentage -0.1 % became -0.2 %). The three bare 2-layer boards, section A and section C are unchanged. The example-board shift is probably a 2.4.5 item (laminate rule on the partial copper of that board); it was not isolated by a run, so it is not confirmed.*
 
 The effect on the maximum temperature is **-0.7 to +0.2 % of the rise** (-0.43 to +0.14 K): radiation and the other terms of `h` dilute the 5 to 10 % that the correlations differ by. **No change is warranted by the numbers.**
 
