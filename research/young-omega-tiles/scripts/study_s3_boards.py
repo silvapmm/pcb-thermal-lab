@@ -68,6 +68,7 @@ def run_board(label, prob, cell):
     est["Rayleigh"] = {"rho": rq, "products": p, "seconds": t}
     cf = yg.rho_closed_form(0.0, float(net.g_amb.sum()), diag_sum=float(K.diagonal().sum()))
     est["closed form"] = {"rho": cf, "products": 0, "seconds": 0.0}
+    est["Rayleigh all nodes"] = {"rho": yg.rho_rayleigh(K, linked_only=False)[0], "products": 1, "seconds": 0.0}
     for k in (3, 5, 10, 20):
         (r, p, _h), t = yg.timed(yg.rho_lanczos, K, k)
         est[f"Lanczos {k}"] = {"rho": r, "products": p, "seconds": t}
@@ -106,7 +107,7 @@ def part1():
     outio.table(["board", "cell mm", "N", "rho_J (eigenvalues)", "omega_opt", "program's omega", "direct solve s", "eigenvalues s"],
                 [[r["label"], r["cell"], r["N"], f"{r['rho']:.6f}", f"{yg.omega_young(r['rho']):.4f}", f"{r['sweeps']['program']['omega']:.4f}", f"{r['t_direct']:.3f}", f"{r['t_exact_eig']:.2f}"]
                  for r in recs])
-    names = ["Rayleigh", "closed form", "Lanczos 3", "Lanczos 5", "Lanczos 10", "Lanczos 20", "power 50", "power 200"]
+    names = ["Rayleigh", "Rayleigh all nodes", "closed form", "Lanczos 3", "Lanczos 5", "Lanczos 10", "Lanczos 20", "power 50", "power 200"]
     print("Relative error of 1 - rho_J of each estimate (positive = below the true radius = omega on the safe side); products with K in the last row of each estimate in section 3.\n")
     outio.table(["board"] + names, [[r["label"]] + [f"{r['estimates'][n]['err_1mrho_pct']:+.2f} %" for n in names] for r in recs])
     cols = ["program", "Young exact", "Rayleigh", "Lanczos 10", "adaptive"] + ([] if QUICK else ["measured best"])
@@ -141,14 +142,20 @@ def part2():
         rho_st = yg.rho_exact(Kst)
         rho_full = yg.rho_exact(K)
         lz, p, _ = yg.rho_lanczos(Kst, 10)
+        lzf, _p2, _ = yg.rho_lanczos(K, 10)
+        rqf, _ = yg.rho_rayleigh(K)
         wy, wl = yg.omega_young(rho_st), yg.omega_young(lz)
         wp = yg.omega_program(net.nx, net.ny)
-        res = {w_name: sb.sweeps_block(net, w)["iterations"] for w_name, w in (("program", wp), ("Young stencil", wy), ("Lanczos 10 stencil", wl), ("Young full K", yg.omega_young(rho_full)))}
-        wb, itb, _t = sb.best_omega(lambda w: sb.sweeps_block(net, w, max_iter=20000)["iterations"], max(wp, wy - 0.03), min(wy + 0.015, 1.995))
-        rows.append([label, K.shape[0], f"{rho_st:.6f}", f"{rho_full:.6f}", f"{wp:.4f} / {res['program']}", f"{wy:.4f} / {res['Young stencil']}", f"{wl:.4f} / {res['Lanczos 10 stencil']}",
-                     f"{yg.omega_young(rho_full):.4f} / {res['Young full K']}", f"{wb:.4f} / {itb}"])
-        out.append({"label": label, "N": K.shape[0], "rho_stencil": rho_st, "rho_full": rho_full, "sweeps": res, "best": [wb, itb]})
-    outio.table(["board", "N", "rho_J stencil part", "rho_J full K", "program: omega / sweeps", "Young (stencil): omega / sweeps", "Lanczos 10 (stencil)", "Young (full K)", "measured best"], rows)
+        # The full K has positive entries inside a footprint: its Jacobi matrix is not non-negative, Young's theory does not apply to it and the measured sweeps decide
+        wf = yg.omega_young(rho_full)
+        res = {w_name: sb.sweeps_block(net, w, max_iter=40000)["iterations"] for w_name, w in
+               (("program", wp), ("Young stencil", wy), ("Lanczos 10 stencil", wl), ("Young full K", wf), ("Lanczos 10 full K", yg.omega_young(lzf)), ("Rayleigh full K", yg.omega_young(rqf)))}
+        wb, itb, _t = sb.best_omega(lambda w: sb.sweeps_block(net, w, max_iter=20000)["iterations"], wp, 1.995)
+        rows.append([label, K.shape[0], f"{rho_st:.6f}", f"{rho_full:.6f}", f"{lzf:.6f}", f"{rqf:.6f}", f"{wp:.4f} / {res['program']}", f"{wy:.4f} / {res['Young stencil']}", f"{wl:.4f} / {res['Lanczos 10 stencil']}",
+                     f"{wf:.4f} / {res['Young full K']}", f"{yg.omega_young(lzf):.4f} / {res['Lanczos 10 full K']}", f"{yg.omega_young(rqf):.4f} / {res['Rayleigh full K']}", f"{wb:.4f} / {itb}"])
+        out.append({"label": label, "N": K.shape[0], "rho_stencil": rho_st, "rho_full": rho_full, "rho_lanczos_full": lzf, "rho_rayleigh_full": rqf, "sweeps": res, "best": [wb, itb]})
+    outio.table(["board", "N", "rho_J stencil part", "rho_J full K", "Lanczos 10 full K", "Rayleigh full K", "program: omega / sweeps", "Young (stencil)", "Lanczos 10 (stencil)", "Young (full K)",
+                 "Lanczos 10 (full K)", "Rayleigh (full K)", "measured best (omega 1.5.. 1.995)"], rows)
     RES["part2"] = out
 
 

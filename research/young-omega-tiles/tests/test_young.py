@@ -105,6 +105,20 @@ def test_estimators_are_lower_bounds_and_lanczos_rises():
     assert (1 - r20) < (1 - rq)
 
 
+def test_rayleigh_ignores_decoupled_nodes():
+    """!
+    @brief Regression (found by `study_s3_boards.py`: a round board gave omega 1.009): cells off an outline are pinned and decoupled, they must not enter the Rayleigh quotient.
+    @return None.
+    """
+    import scipy.sparse as sp
+    K = yg.plate_matrix(1, 12, 12, 1.0, 1.0, 0.0, 0.01)
+    rho = yg.rho_rayleigh(K)[0]
+    big = sp.block_diag([K, sp.diags([1.0] * 200)]).tocsr()                    # 200 isolated cells pinned with a conductance of 1
+    assert yg.rho_rayleigh(big)[0] == pytest.approx(rho, abs=1e-12)
+    assert yg.rho_rayleigh(big, linked_only=False)[0] < 0.9 * rho              # the unmasked bound collapses
+    assert yg.rho_rayleigh(big)[0] <= yg.rho_exact(big) + 1e-12
+
+
 def test_closed_form_equals_rayleigh_on_a_plate():
     """!
     @brief The conductance totals give the Rayleigh bound without a product: sum of the row sums over the sum of the diagonal.

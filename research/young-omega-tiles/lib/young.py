@@ -208,15 +208,22 @@ def rho_exact(K, dense_limit=3000):
     return float(np.max(w))
 
 
-def rho_rayleigh(K):
+def rho_rayleigh(K, linked_only=True):
     """!
     @brief The Rayleigh-quotient lower bound of rho_J with the trial vector D^1/2 1: 1 - (1^T K 1) / (1^T D 1).
+    @details Nodes that have no link (the cells off a board with an outline are pinned to the ambient and decoupled) are eigenvectors of the Jacobi matrix with mu = 0: they dilute
+             the quotient (the loss of the pins is counted as loss of the board) and the bound collapses (omega 1.009 on a round board in `study_s3_boards.py`). They are left out of
+             the sums when `linked_only` is true (found by that study; regression test `test_rayleigh_ignores_decoupled_nodes`).
     @param K Sparse symmetric positive definite matrix.
+    @param linked_only True: sum only over the nodes that have at least one off-diagonal entry.
     @return Tuple (rho, products): one product with K.
     """
+    d = np.asarray(K.diagonal(), float)
     one = np.ones(K.shape[0])
-    d = K.diagonal()
-    return float(1.0 - (one @ (K @ one)) / d.sum()), 1
+    if linked_only:
+        off = np.asarray(abs(K - sp.diags(d)).sum(axis=1)).ravel()
+        one = (off > 0).astype(float)
+    return float(1.0 - (one @ (K @ one)) / (one @ d)), 1
 
 
 def rho_closed_form(g_links_total, g_amb_total, diag_sum=None):

@@ -169,7 +169,7 @@ def fig_lattice_cell(path):
         dk.layer(b, 0.5, y, 9, 1.4 - 0.0, dk.FR4, "", 7)
     dk.layer(b, 4.7, 0.4, 0.6, 6.5, "#b87333", "", 7)
     for y in (6.65, 4.65, 2.65, 0.65):
-        dk.resistor(b, 1.0, 4.7, y + 0.6, "")
+        dk.resistor(b, 1.0, 4.7, y + 0.25, "")             # the well sits in the plane, between the area mean and the barrel wall
     b.text(2.8, 7.5, "constriction $R_c$ per plane\n$(\\ln(R/r_t)-3/4)/(2\\pi S)$", ha="center", fontsize=7, color="#d62728")
     b.text(6.3, 3.5, "barrel $k_{Cu}A/d$\nper gap", fontsize=7)
     b.set_title("SECTION: the models carried only the barrel;\nthe constriction in series is the missing resistance")

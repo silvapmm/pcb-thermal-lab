@@ -138,7 +138,7 @@ def corpus(name="simple"):
     """!
     @brief Named sets of boards with their tags; each entry is a dict(label, problem, dx (mm of the reference), kind, pitch (mm or None), layers, fill).
     @details "simple": unit cells of pitch 0.8 to 8 mm (2 layers, copper fill) and two 4-layer open ones, a lone via at 2 and 4 mm from a source, a row of 5, 3 x 3 arrays at 3.5 and 1.0 mm,
-             the 5 x 5 thermal pad at 1.2 mm. "dense": pitch 0.45 to 1.0 with the 0.3 mm drill (unit cells and 5 x 5 pads) and drills of 0.2 to 0.8 mm at pitch 1.5, where the rule can break.
+             the 5 x 5 thermal pad at 1.2 mm. "dense": pitch 0.6 to 1.0 with the 0.3 mm drill (unit cells and 5 x 5 pads) and drills of 0.2 to 0.8 mm at pitch 1.5, where the rule can break.
     @param name "simple" or "dense".
     @return list of dicts.
     """
@@ -159,8 +159,8 @@ def corpus(name="simple"):
         add("3 x 3 array pitch 3.5, open", cases.array(4, 3, 3.5, 0.3, 0.0), "array", 3.5, fill=0.0)
         add("pad 5 x 5 pitch 1.2, Cu", cases.pad(4, 5, 1.2, 0.3, 385.0), "pad", 1.2)
     elif name == "dense":
-        for p in (0.45, 0.6, 0.8, 1.0):
-            add(f"unit cell {p} mm, 0.3 drill, 2 layers", unit_cell(p, 2), "unit", p, dx=0.05 if p in (0.6, 0.8, 1.0) else 0.05 * 0.9)
+        for p in (0.6, 0.8, 1.0):
+            add(f"unit cell {p} mm, 0.3 drill, 2 layers", unit_cell(p, 2), "unit", p, dx=0.05)
         for p in (0.6, 0.8, 1.0):
             add(f"pad 5 x 5 pitch {p} mm, 0.3 drill", cases.pad(4, 5, p, 0.3, 385.0, side_mm=30.0, source_mm=6.0), "pad", p, dx=0.05)
         for d in (0.2, 0.3, 0.5, 0.8):

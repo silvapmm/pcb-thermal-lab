@@ -23,11 +23,13 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "lib"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "lumped-via-groups", "lib"))
 
 import outio                                                                # noqa: E402
 import s4cases as sc                                                        # noqa: E402
 import harness as hz                                                        # noqa: E402
 import lumped_patch as lp                                                   # noqa: E402
+import lumped_zones as lz                                                   # noqa: E402
 import cases                                                                # noqa: E402
 
 QUICK = "--quick" in sys.argv
@@ -42,6 +44,7 @@ VARIANTS = {
     "cluster, lone cap 1": lambda: lp.patched("krogh", cell="nn", cluster=True, lone_cap=1.0),
     "cluster, lone cap 2": lambda: lp.patched("krogh", cell="nn", cluster=True, lone_cap=2.0),
     "cluster, lone cap 3": lambda: lp.patched("krogh", cell="nn", cluster=True, lone_cap=3.0),
+    "zones (lumped-via-groups)": lambda: lz.patched(geometry="potential", core_int=0.0, micro_peak=True, peak="potential_lossy"),
 }
 
 
@@ -68,7 +71,7 @@ def part1():
     @return None.
     """
     print("## 1. Lone via (copper fill, 2 layers, 3 mm source on a 30 mm board): error of the via effect against the distance and the number of rings (percent)\n")
-    names = ["program", "micro ring", "micro nn", "cluster (L_grp0)", "cluster, lone cap 1", "cluster, lone cap 2", "cluster, lone cap 3"]
+    names = ["program", "micro ring", "micro nn", "cluster (L_grp0)", "cluster, lone cap 1", "cluster, lone cap 2", "cluster, lone cap 3", "zones (lumped-via-groups)"]
     dists = (2.0, 4.0, 8.0) if QUICK else (2.0, 3.0, 4.0, 6.0, 8.0, 10.0)
     rings = (10,) if QUICK else (6, 10, 16, 24)
     rows, out = [], []
@@ -91,7 +94,7 @@ def part2():
     @return None.
     """
     print("## 2. Row of n vias beside a 3 mm source (copper fill, 2 layers, 16 mm board, gap 1 mm): error against n and pitch (percent)\n")
-    names = ["program", "micro nn", "cluster (L_grp0)", "cluster, macro cap 0.75", "cluster, lone cap 2"]
+    names = ["program", "micro nn", "cluster (L_grp0)", "cluster, macro cap 0.75", "cluster, lone cap 2", "zones (lumped-via-groups)"]
     rows, out = [], []
     for pitch in (1.0, 1.5):
         for n in ((1, 5) if QUICK else (1, 2, 3, 5, 7, 9)):
@@ -111,7 +114,7 @@ def part3():
     @return None.
     """
     print("## 3. Dense arrays under a source, open and copper-filled barrels: error of the via effect (percent)\n")
-    names = ["program", "micro ring", "cluster (L_grp0)", "cluster, macro cap 0.75"]
+    names = ["program", "micro ring", "cluster (L_grp0)", "cluster, macro cap 0.75", "zones (lumped-via-groups)"]
     rows, out = [], []
     boards = [("3 x 3 pitch 3.5", lambda f: cases.array(4, 3, 3.5, 0.3, f)), ("3 x 3 pitch 1.0", lambda f: cases.array(4, 3, 1.0, 0.3, f)),
               ("5 x 5 pitch 1.2 pad", lambda f: cases.pad(4, 5, 1.2, 0.3, f)), ("5 x 5 pitch 0.8 pad", lambda f: cases.pad(4, 5, 0.8, 0.3, f, 20.0, 6.0))]
