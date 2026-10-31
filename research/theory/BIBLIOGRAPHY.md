@@ -586,3 +586,14 @@ Y. Zhou, Y. Jiang, H. A. Tchelepi, *A scalable multistage linear solver for rese
 
 ### [Peaceman1978] used here
 The Peaceman well of the via treatment is the one of section 7 of this file (status S); this folder does not rely on its text.
+
+## 18. Sources of `research/young-omega-tiles/` (Young's omega of the SOR; the tile of the Analytic via correction)
+
+### [SaadEig2011]
+Y. Saad, *Numerical Methods for Large Eigenvalue Problems*, revised edition, SIAM, 2011, open copy of the author at https://www-users.cse.umn.edu/~saad/eig_book_2ndEd.pdf (286 PDF pages; printed page = PDF page - 10). **Status R for the parts used** (extracted to text locally, nothing stored in the repository): section 4.1.1, the power method (Algorithm 4.1, Theorem 4.1, printed pp. 86-87: the iterate converges to the dominant eigenvector at the rate `|lambda_2| / |lambda_1|`, "convergence may be extremely slow" when they are close); section 6.6, convergence of the Lanczos process (Theorem 6.3, eq. 6.39, the angle between an eigenvector and the Krylov space in terms of Chebyshev polynomials of `1 + 2 gamma_i`, printed p. 148; Theorem 6.4, eq. 6.42, `0 <= lambda_1 - lambda_1^(m) <= (lambda_1 - lambda_n) (tan theta(v_1, u_1) / C_{m-1}(1 + 2 gamma_1))^2`, printed p. 149: the Ritz value approaches the largest eigenvalue from below, and a start vector close to the eigenvector makes the angle small). Used for the choice of the estimators of the Jacobi spectral radius; the numbers of the bound were not evaluated for our matrices (the measured error is in the README of the folder).
+
+### [Saad2003] used again here
+Section 4.2.5, Theorem 4.16 and eq. 4.47 (Young's relation and the optimum `omega_opt = 2 / (1 + sqrt(1 - rho_J^2))` for a consistently ordered matrix), pp. 126-127, as in section 16; the model problem (5-point Laplacian, `rho_J = cos(pi / (n + 1))`) is the textbook case reproduced by `scripts/study_s3_exact.py` part A. [Young1971] and [Varga1962] stay **status N**. The adaptive estimate of omega from the decay of the iteration (Hageman and Young, *Applied Iterative Methods*, 1981) is **status N** (named in the literature, not opened): `young.adaptive_omega` is our own use of Young's relation, not their algorithm.
+
+### Sources of S4
+The constriction (Krogh cell, `(ln(R/r_t) - 3/4) / (2 pi S)`), the tile self-term and the references are those of section 17 and of `research/lumped-analytic-vias/README.md` (status as recorded there: the closed forms are derived and checked, no published numerical case of a via-array constriction was found); nothing new was opened for S4.
