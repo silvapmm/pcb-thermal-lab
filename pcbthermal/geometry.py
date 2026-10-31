@@ -95,7 +95,7 @@ def points_in_polygon(px, py, poly):
     return inside
 
 
-def _sample_mask(poly, nx, ny, dx, dy, samples):
+def _sample_mask(poly, nx, ny, dx, dy, samples, clip=None):
     """!
     @brief Which sub-samples of the cells in the bounding box of a polygon lie inside it.
     @param poly Polygon vertices (n, 2) in metres.
@@ -104,7 +104,9 @@ def _sample_mask(poly, nx, ny, dx, dy, samples):
     @param dx Cell width in metres.
     @param dy Cell height in metres.
     @param samples Sub-samples per cell side.
-    @return None when the polygon touches no cell, else (i0, i1, j0, j1, mask) with mask of shape (ni, samples, nj, samples), True inside.
+    @param clip Optional second polygon (n, 2) in metres, tested on the very same sample points.
+    @return None when the polygon touches no cell, else (i0, i1, j0, j1, mask) with mask of shape (ni, samples, nj, samples), True inside;
+            with clip, (i0, i1, j0, j1, mask, clip_mask), the second mask True inside the clip polygon.
     """
     p = np.asarray(poly, dtype=float)
     # Index range of the cells touched by the polygon bounding box (clipped to the board)
@@ -120,7 +122,12 @@ def _sample_mask(poly, nx, ny, dx, dy, samples):
     xs = (j0 + (np.arange(nj)[:, None] + sub[None, :])) * dx   # (nj, samples)
     ys = (i0 + (np.arange(ni)[:, None] + sub[None, :])) * dy   # (ni, samples)
     gx, gy = np.meshgrid(xs.reshape(-1), ys.reshape(-1))
-    return i0, i1, j0, j1, points_in_polygon(gx, gy, p).reshape(ni, samples, nj, samples)
+    shape = (ni, samples, nj, samples)
+    inside = points_in_polygon(gx, gy, p).reshape(shape)
+    if clip is None:
+        return i0, i1, j0, j1, inside
+    # The clip polygon on the very same sample points, so that the caller can intersect the two shapes sample by sample
+    return i0, i1, j0, j1, inside, points_in_polygon(gx, gy, np.asarray(clip, dtype=float)).reshape(shape)
 
 
 def coverage_fraction(poly, nx, ny, dx, dy, samples=4):
@@ -144,6 +151,46 @@ def coverage_fraction(poly, nx, ny, dx, dy, samples=4):
     # Average the samples of each cell: (ni, s, nj, s) -> (ni, nj)
     cov[i0:i1, j0:j1] = mask.mean(axis=(1, 3))
     return cov
+
+
+def part_weights(poly, outline, nx, ny, dx, dy, samples=8, cover=None):
+    """!
+    @brief Weight of every grid cell in the heating of a part: the share of the cell that is inside the part AND on the board.
+    @details A part that crosses the board outline must heat the board only where it lies on it. The product of the two coverages
+             (part x board) is exact only when one of them covers the whole cell; on a cell cut by both it is wrong (a part that covers
+             the whole cell gets the right weight, but a part edge and the outline in the same cell give part cover x board cover instead of
+             the area that is in both). The intersection is taken sample by sample on the same points.
+             When the model represents the board share of a cell by its own cover (sampled more coarsely than the part), the weight is
+             the share of the cell's board samples that are in the part, times that cover: the heat density on the board part of the cell
+             is then the part's density, consistently with the board area the model gives the cell (otherwise a cut cell whose cover reads
+             1/4 against a part weight of 3/8 gets 1.5 times the density; measured +1.3 K on a small T at 0.5 mm). The caller normalises the
+             weights so that the total power is exact.
+    @param poly Part polygon vertices (n, 2) in metres.
+    @param outline Board outline vertices (n, 2) in metres, or None for a rectangular board (then the result is coverage_fraction).
+    @param nx Number of cells along x.
+    @param ny Number of cells along y.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @param samples Sub-samples per cell side.
+    @param cover Optional board cover of every cell used by the model (ny, nx), in [0, 1]; None gives the plain intersection share.
+    @return Array of shape (ny, nx) with values in [0, 1].
+    """
+    if outline is None:
+        return coverage_fraction(poly, nx, ny, dx, dy, samples)
+    out = np.zeros((ny, nx))
+    got = _sample_mask(poly, nx, ny, dx, dy, samples, clip=outline)
+    if got is None:
+        return out
+    i0, i1, j0, j1, part, board = got
+    both = (part & board).sum(axis=(1, 3)).astype(float)       # Samples in the part and on the board, per cell
+    if cover is None:
+        out[i0:i1, j0:j1] = both / (samples * samples)
+        return out
+    n_board = board.sum(axis=(1, 3))
+    # Share of the board part of the cell that the part covers, times the board share the model uses for the cell
+    share = np.divide(both, n_board, out=np.zeros_like(both), where=n_board > 0)
+    out[i0:i1, j0:j1] = share * np.asarray(cover, dtype=float)[i0:i1, j0:j1]
+    return out
 
 
 def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):

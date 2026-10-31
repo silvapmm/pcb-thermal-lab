@@ -81,8 +81,33 @@ The stack is **not** homogenised: no averaged conductivity (series, parallel, ge
 
 ### 1.3 Sources and geometry
 
-A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for heaters, 4 for zones, heatsinks and blocks), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell.
+A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is sampled on an `s × s` lattice (`s = 8` for heaters, in all the models that spread a heater over the grid, 4 for zones, heatsinks and blocks), and the fraction of samples inside the polygon (even-odd ray test) is the **coverage** `c ∈ [0,1]` of the cell.
 A heater's source vector is `Q_i = P c_i / Σ c`: the power is **exact** whatever the grid (the weights sum to 1); if the footprint is smaller than a sample, all the power goes to the cell (or node) of the centroid. The copper fill of a cell is `f = max over the zones of the layer of (c_zone · fill)`.
+
+**A part that crosses the board outline** (FVM, FDM and 3D solid; `geometry.part_weights`). A cell cut by the outline has only a fraction `c_b` of board in it, and a part may cover only some of that board. The part and the outline are tested on the *same* `8 × 8` samples. Let `n_b` be the samples of the cell that are on the board, `n_pb` those that are in the part *and* on the board, and `c_b` the board cover the model uses for the cell (the FVM and the 3D solid sample it `4 × 4`). The weight of the cell is
+
+    c_i = (n_pb / n_b) · c_b          (FVM, 3D solid)
+    c_i = n_pb / 64                   (FDM, whose node cover is sampled 8 × 8 too, so n_b / 64 = c_b)
+
+and `Q_i = P c_i / Σ c` as above, so the power stays exact. The power density on the board part of the cut cell, `Q_i / (c_b Δx Δy)`, is then that of the part (`P / A_part`) in the share `n_pb / n_b` of the board part that the part really covers, consistently with the board area the model gives the cell for its conduction and its losses. Without an outline `c_i` is the plain coverage, bit for bit. Two simpler rules are wrong: the **product** `c_part · c_b` is right only when one of the two covers the whole cell (a part edge and the outline in the same cell give the product of two shares instead of the area that is in both), and the **plain intersection** `n_pb / 64` is right only if `c_b` is sampled the same way (with `c_b` from `4 × 4` samples a cut cell whose cover reads 1/4 against an intersection of 3/8 gets 1.5 times the density: +1.3 K on a small T at 0.5 mm). Before 2.4.5 the weight was the coverage of the part alone, so a cut cell received the power density of the whole cell on a board area smaller than the cell (2.2 K too hot on the example board cut to a T at 1 mm and 3.8 K at 0.5 mm, against the values at cells where no cell is cut, `validation.md` section 23). The statistics of a result (mean and minimum under a heater or a zone, the ring of `ψJB`) are taken over the cells or nodes that are on the board only; a cell off the board reads the ambient and used to pull the minimum and the mean down.
+
+*Remaining limit*: the cut cell still conducts with its cover (a cell with half the board has half the conductance, whatever the part inside it), so a part over a cut edge is 0.5 to 0.7 K (about 1 % of the rise) hotter at 1 to 0.5 mm than with the edge on the grid lines; treating the cut cell by its real shape is the remedy that stays in the chapter "Planned" of `versions.md`. The Lumped and Analytic models run on the rectangle of the same area and are not affected.
+
+![A cell cut by the outline and by the edge of a part](images/fig_34_part_cut_cell.png)
+
+*Figure 34 (`images/fig_34_part_cut_cell.png`): a cell cut by the board outline (solid blue line) and by the edge of a part (dashed); left, the `8 × 8` samples coloured by what they lie in (orange: part only, blue: board only, green: both); right, the `4 × 4` samples from which the model takes the board cover `c_b`.*
+
+![Weight and power density of a cut cell by three rules](images/fig_35_part_weight_rules.png)
+
+*Figure 35 (`images/fig_35_part_weight_rules.png`): the weight of that cell by the product of the covers, the plain intersection and the intersection normalised to the board cover (left), and the power density each puts on the board part of the cell relative to the density of the part (right; the correct value is 1).*
+
+![The example board cut to a T, before and after](images/fig_36_part_example_t.png)
+
+*Figure 36 (`images/fig_36_part_example_t.png`): the example board (100 × 80 mm) cut to a T, FVM at 1 mm, before and after the fix, and the hottest point against the cell size (at 2/3 and 1/3 mm the edge lies on grid lines and no cell is cut, so the two rules agree).*
+
+![Error against the position of the cut edge](images/fig_37_part_edge_shift.png)
+
+*Figure 37 (`images/fig_37_part_edge_shift.png`): error of the hottest point of a small T board (30 × 24 mm, 2 W part across the re-entrant corner) against the position of the cut edge within one cell, for four rules, FVM at 1 and 0.5 mm against a 1/24 mm reference; the fix cuts the scatter from 15.7 to about 3 K at 1 mm (numbers in `validation.md` section 23).*
 
 ### 1.4 A one-layer board: the laminate nodes
 

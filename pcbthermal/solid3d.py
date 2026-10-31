@@ -33,7 +33,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .fvm import ORDERING
-from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid, zone_fill
+from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid, zone_fill
 from .results import SteadyResult
 
 log = logging.getLogger(__name__)
@@ -367,7 +367,8 @@ class Solid:
         # --- Heaters on the copper slab of their layer, power exact over the footprint
         Q = np.zeros(n)
         for h in problem.heaters:
-            w = cover(h.polygon, 4) * self.active                # A part is only heated on the board
+            # Part and board by sample, scaled to the board cover of the cell; 8 x 8 keeps the area of a small turned part
+            w = part_weights(h.polygon, b.outline, nx, ny, dx, dy, 8, cover=bcov) * self.active
             if w.sum() <= 0:                                     # A part off the board: its power goes to the nearest board cell
                 cx, cy = polygon_centroid(h.polygon)
                 w = np.zeros((ny, nx))

@@ -21,7 +21,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .geometry import coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
+from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
 from . import blocks, fvm, laminate
 from .fvm import ORDERING
 from .results import SteadyResult
@@ -243,7 +243,8 @@ class Network:
             if sampling == "area":
                 # Each cell's covered area is shared by its four nodes
                 w = np.zeros((ny, nx))
-                cov = coverage_fraction(h.polygon, cells_x, cells_y, dx, dy, 8)
+                # Part and board by sample; the board cover of the nodes is sampled 8 x 8 too, so the plain intersection is consistent with it
+                cov = part_weights(h.polygon, b.outline, cells_x, cells_y, dx, dy, 8)
                 for di in (0, 1):
                     for dj in (0, 1):
                         w[di:di + cells_y, dj:dj + cells_x] += cov

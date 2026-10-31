@@ -26,6 +26,26 @@ A footprint polygon is rasterised on the grid by **sub-sampling**: every cell is
 
 so the power is **exact** whatever the grid (the weights sum to 1); if the footprint is smaller than a sample, all the power goes to the cell (or node) of the centroid. The copper fill of a cell is `f = max over the zones of the layer of (c_zone fill)`: the zone with the largest covered share wins in a cell. The research found that this maximum per cell loses half of the copper of two zones that abut inside one cell (it keeps one of the two coverages), and that an additive rule would double count zones that overlap; the proposed correction takes the maximum **per sample point** and then the mean (`research/gerber-models/README.md` 4.39, figure 11), which is right in both cases. It is measured on a copy outside the program and not applied.
 
+## 2.1 A part across the board outline
+
+On a board with an outline the weight of a cell is the share of its board samples that lie in the footprint times the board cover the model uses for the cell, `c_i = (n_pb / n_b) c_b` (FVM and 3D solid; the FDM uses the plain intersection `n_pb / 64`); the product of the part cover and the board cover and the plain intersection are wrong when the part edge and the outline cut the same cell, or when the cover is sampled more coarsely than the part. The text and the numbers are in `docs/theory.md` 1.3 and `docs/validation.md` section 23.
+
+![A cell cut by the outline and by a part](../figures/fig_34_part_cut_cell.png)
+
+*Figure 34 (`figures/fig_34_part_cut_cell.png`): a cell cut by the board outline (solid line) and by the edge of a part (dashed); left, the 8 x 8 samples coloured by what they lie in; right, the 4 x 4 samples that give the board cover of the model.*
+
+![Weight and density by three rules](../figures/fig_35_part_weight_rules.png)
+
+*Figure 35 (`figures/fig_35_part_weight_rules.png`): the weight of that cell by the product, the plain intersection and the intersection normalised to the cover, and the power density each puts on the board part relative to the part's own (correct value 1).*
+
+![Example board cut to a T](../figures/fig_36_part_example_t.png)
+
+*Figure 36 (`figures/fig_36_part_example_t.png`): the example board cut to a T, FVM at 1 mm before and after the fix, and the hottest point against the cell size.*
+
+![Error against the edge position](../figures/fig_37_part_edge_shift.png)
+
+*Figure 37 (`figures/fig_37_part_edge_shift.png`): error of the hottest point of a small T against the position of the cut edge, four rules, FVM at 1 and 0.5 mm.*
+
 ## 3. Why sub-sampling and not the cell centre
 
 A centre test turns a 1 mm heater on a 0.6 mm grid into 0 or 4 cells depending on the position, so the power, the peak and the mean footprint temperature would jump with the grid. Sub-sampling gives a coverage that changes smoothly with position and keeps the total power exact; the price is the first-order behaviour at features (topic 02).
