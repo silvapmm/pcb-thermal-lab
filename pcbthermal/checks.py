@@ -213,9 +213,9 @@ def check_model_limits(problem, models, cell_mm=1.0):
             if f_core < 0.5:
                 _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: the centre of the part sits on bare laminate (copper fill "
                            f"{f_core:.2f} on layer {h.layer + 1}); the layered models ({', '.join(layered)}) read lower than a resolved 3D "
-                           "solution there: the FVM 3 to 11 % on 4- and 6-layer stack-ups and 4 to 23 % on 0.8 and 1.6 mm two-layer boards, "
-                           "the FDM up to 30 %, the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D "
-                           "solid for the final value.")
+                           "solution there: the FVM (which cuts the laminate there into sub-gaps) 0 to 3 % on 4- and 6-layer stack-ups and 0.8 to 1.6 mm two-layer boards, "
+                           "up to 10 % on a 3.2 mm laminate or under a window narrower than the laminate is thick, the FDM 2 to 20 %, "
+                           "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value.")
 
     if not problem.vias:
         return out

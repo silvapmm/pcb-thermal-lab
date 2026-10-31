@@ -133,13 +133,14 @@ def test_one_layer_board_with_full_copper_the_fvm_and_the_3d_solid_match():
 
 def test_one_layer_board_with_a_pad_documented_errors():
     # The research folder measured these on 0.5 mm cells: FVM -2.5, FDM -7.4, Lumped -14.7, Analytic -28.8 %. On the 1 mm cells of this fast test the pad edge is
-    # sampled more coarsely and the errors are larger (measured here: -3.0, -12.6, -17.0 and -30.2 %), so the ranges below are those of the 1 mm cells.
+    # sampled more coarsely and the errors are larger. With the laminate nodes of the rule (laminate.py: four sub-gaps in the cells under and around the bare laminate, one link
+    # under the pad) measured here on 1 mm cells: FVM -1.7 % (it was -3.0 % with the two nodes of the earlier versions), FDM -12.3 %, Lumped -17.0 % and Analytic -30.2 %.
     ref = one_layer_reference(True)
     err = {m: one_layer_program(m, True) / ref - 1.0 for m in ("fvm", "solid3d", "fdm", "lumped", "analytic")}
-    assert err["fvm"] == pytest.approx(-0.030, abs=0.01)
+    assert err["fvm"] == pytest.approx(-0.0166, abs=0.005)
     assert err["solid3d"] == pytest.approx(0.001, abs=0.005)                      # +0.2 % at 0.5 mm; it was +40 % without the laminate
     # Documented limits of the other three on a bare pad (docs/versions.md, chapter Planned): all low, and in this order
-    assert err["fdm"] == pytest.approx(-0.126, abs=0.02)
+    assert err["fdm"] == pytest.approx(-0.123, abs=0.02)
     assert err["lumped"] == pytest.approx(-0.170, abs=0.02)
     assert err["analytic"] == pytest.approx(-0.302, abs=0.03)
     assert err["fvm"] > err["fdm"] > err["lumped"] > err["analytic"]
