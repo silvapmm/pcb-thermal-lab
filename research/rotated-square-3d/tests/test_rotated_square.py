@@ -145,3 +145,55 @@ def test_disc_cutcell_is_closer_to_the_axisymmetric_reference_than_the_program()
     cut = rotsq.variant_solid3d("cutcell").solve_steady(p, cell_mm=1.0).t_max - amb
     assert abs(cut - ref) < 0.01 * ref
     assert abs(prog - ref) > 0.03 * ref
+
+
+# --- Added by the review: an independent reference for the square and the footprint of a turned part
+
+def test_square_reference_is_the_program_rectangle_on_cells_the_edge_does_not_cut():
+    """!
+    @brief The independent quarter-board solver (`lib/square3d.py`, nothing of the program) and the program's rectangular 3D branch are the same
+           discretisation when no cell is cut: equal to rounding, so the ladder of the independent solver extrapolates the program's own continuum.
+    @return None.
+    """
+    import square3d
+    from pcbthermal import solid3d
+    p = Problem.new(20.0, 20.0, 2, h_side=2000.0).add_full_copper()
+    p.add_heater(1, 2.0, rect=(8, 8, 12, 12), name="U")
+    b = p.board
+    prog = solid3d.solve_steady(p, cell_mm=1.0).t_max - b.ambient
+    ref = square3d.solve_quarter(0.02, 0.004, 2.0, axisym3d.slabs_of(p), b.h_top, b.h_bottom, 2000.0, 10)
+    assert abs(ref["t_centre"] - prog) < 1e-9 * prog
+    assert abs(ref["balance"] - 1.0) < 1e-9
+
+
+def test_square_reference_series_circuit_and_second_order():
+    """!
+    @brief With insulated sides and the power over the whole face the quarter solver is the one-dimensional series circuit; with a part it
+           converges as the square of the cell (the Richardson step of the study is justified).
+    @return None.
+    """
+    import square3d
+    p = rotsq.board(0, 0.0, side_mm=20.0, box_mm=30.0, part_mm=3.0)
+    slabs = axisym3d.slabs_of(p)
+    full = square3d.solve_quarter(0.02, 0.02, 2.0, slabs, 10.0, 25.0, 0.0, 4)
+    r_down = sum(dz / kz for dz, _, kz in slabs[1:-1]) + 0.5 * slabs[0][0] / slabs[0][2] + 0.5 * slabs[-1][0] / slabs[-1][2] + 1.0 / 25.0
+    g_top = 1.0 / (1.0 / 10.0 + slabs[0][0] / (2.0 * slabs[0][2]))
+    assert abs(full["t_centre"] - (2.0 / 0.02 ** 2) / (g_top + 1.0 / r_down)) < 1e-6 * full["t_centre"]   # direct solve of a stiff matrix (copper beside films)
+    t = [square3d.solve_quarter(0.02, 0.004, 2.0, slabs, 10.0, 15.0, 2000.0, n)["t_centre"] for n in (10, 20, 40)]
+    ratio = (t[0] - t[1]) / (t[1] - t[2])
+    assert 3.0 < ratio < 5.0
+
+
+def test_footprint_of_a_part_turned_45_degrees_is_short_on_4_by_4_samples():
+    """!
+    @brief The 3D solid samples the footprint of a part on 4 x 4 points per cell (the FVM on 8 x 8): a 3 mm part turned by 45 degrees keeps
+           only 97.4 % of its area at 0.25 mm cells, which pushes power to the centre (+0.23 K on the 20 mm board of README 4, README 9.3).
+    @return None.
+    """
+    poly = np.array(rotsq.turned_square(3.0, 45.0, (10.0, 10.0))) / 1000.0
+    area = geometry.polygon_area(poly)
+    c4 = geometry.coverage_fraction(poly, 80, 80, 0.25e-3, 0.25e-3, 4).sum() * 0.0625e-6
+    c8 = geometry.coverage_fraction(poly, 80, 80, 0.25e-3, 0.25e-3, 8).sum() * 0.0625e-6
+    assert c4 < 0.98 * area
+    assert abs(c8 - area) < abs(c4 - area)
+    assert rotsq.VARIANTS["cutcell_src8"][-1][0] in open(os.path.join(rotsq.ROOT, "pcbthermal", "solid3d.py"), encoding="utf-8").read()

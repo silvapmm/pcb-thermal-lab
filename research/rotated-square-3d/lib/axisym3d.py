@@ -9,7 +9,7 @@
          and the rim is a plain boundary of the last ring (conduction over half a ring in series with the film). The slab list is read from the
          Problem in the way `pcbthermal.solid3d.Solid` builds it for a full-copper board (copper slab, `n_diel` dielectric slabs per gap, copper
          slab), so that the model solved is the same continuum problem; nothing of the program's grid, cover or edge-length rule is used.
-         Checked in tests/test_axisym3d.py against the series circuit, an energy balance and a one-dimensional fin.
+         Checked in tests/test_rotated_square.py against the modified Bessel solution of a thin plate, the series circuit and an energy balance.
 """
 
 import numpy as np

@@ -3,10 +3,11 @@
 """!
 @file make_figures.py
 @brief Data figures of the rotated-square investigation, drawn from the numbers the studies saved in out/ (run the studies first).
-@details Figures 04 to 07 of figures/ (the drawings 01 to 03 come from make_diagrams.py): the dependence of the answer on the shift and the turn
+@details Figures 04 to 08 of figures/ (the drawings 01 to 03 come from make_diagrams.py): the dependence of the answer on the shift and the turn
          against the number of cells per side (study_cut_cells.py, with --fine for the last point), the difference caused by turning the square at
          three edge coefficients (study_remeasure.py), the error against the axisymmetric reference on a round board (study_disc.py) and the total
-         edge conductance against the angle (study_edge_conductance.py).
+         edge conductance against the angle (study_edge_conductance.py); figure 08 (added by the review) the error against the continuum value of the
+         independent quarter-board solver (study_square_reference.py).
 Usage: .venv/bin/python research/rotated-square-3d/scripts/make_figures.py   (from the repository root)
 """
 
@@ -49,6 +50,8 @@ def fig_ladder():
             ax.plot(xs, ys, "o-", color=COL[m], label=NAME[m], lw=1.4 if m in ("solid3d", "cutcell") else 0.9)
         ax.set_xscale("log")
         ax.set_yscale("log")
+        ax.set_xticks([20, 40, 80, 160], ["20", "40", "80", "160"])   # plain ticks: the default log labels overlapped
+        ax.minorticks_off()
         ax.set_xlabel("cells per side of the 20 mm board")
         ax.set_title(title, fontsize=9)
         ax.grid(alpha=0.3, which="both")
@@ -131,9 +134,42 @@ def fig_conductance():
     plt.close(fig)
 
 
+def fig_square_reference():
+    """!
+    @brief Figure 08 (review): signed error of the maximum temperature against the continuum value of the independent quarter-board solver,
+           20 mm board at h_side 2000, for the half-cell shift and the turns of 20 and 45 degrees, against the cells per side.
+    @return None.
+    """
+    d = runs.load("square_reference.json")
+    if d is None:
+        return
+    ref = d["20mm_2000_square"]["richardson"]
+    cells = (0.5, 0.25, 0.125)
+    fig, axs = plt.subplots(1, 3, figsize=(10, 3.4), sharey=True)
+    styles = {"solid3d": ("program 3D", COL["solid3d"], "-"), "cutcell": ("copy: cut cells", COL["cutcell"], "-"),
+              "cutcell_src8": ("copy: cut cells, part sampled 8 x 8", COL["cutcell"], "--")}
+    for ax, lay in zip(axs, ("shift 1/2 cell", "turned 20", "turned 45")):
+        for m, (label, col, ls) in styles.items():
+            ax.plot([20.0 / c for c in cells], [d[f"20mm|{c:g}|{lay}|{m}"] - ref for c in cells], "o", ls=ls, color=col, label=label)
+        ax.plot([20.0 / c for c in cells], [d[f"20mm|{c:g}|aligned|solid3d"] - ref for c in cells], "s:", color="k", label="aligned (no cut cell)")
+        ax.axhline(0.0, color="k", lw=0.6)
+        ax.set_xscale("log")
+        ax.set_xticks([40, 80, 160], ["40", "80", "160"])
+        ax.minorticks_off()
+        ax.set_title(lay, fontsize=9)
+        ax.set_xlabel("cells per side of the 20 mm board")
+        ax.grid(alpha=0.3)
+    axs[0].set_ylabel(f"T_max minus continuum {ref:.2f} degC (K)")
+    axs[0].legend(fontsize=6)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_08_square_against_continuum.png", dpi=105)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     fig_ladder()
     fig_remeasure()
     fig_disc()
     fig_conductance()
+    fig_square_reference()

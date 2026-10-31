@@ -69,6 +69,11 @@ CUT_COVER = ('        import cutcell as _cutcell\n'
 
 CUT_LINKS_FLOOR = CUT_LINKS.replace("1e-3 * dx", "0.25 * dx").replace("1e-3 * dy", "0.25 * dy")
 
+# The footprint of a part: the 3D solid samples it on 4 x 4 points per cell, the FVM on 8 x 8 (added by the review: on a square turned by
+# 45 degrees the 4 x 4 lattice keeps 97.4 % of the area at 0.25 mm cells and the lost edge cells push the power to the centre)
+HEATER_LINE = 'w = cover(h.polygon, 4) * self.active'
+HEATER_8 = (HEATER_LINE, 'w = cover(h.polygon, 8) * self.active')
+
 # name -> list of (old text, new text); an empty list is the program as it is
 VARIANTS = {
     "program": [],
@@ -86,6 +91,14 @@ VARIANTS = {
     # the same with a floor of a quarter of a cell on each half distance (the centroid of a thin sliver can sit almost on the face)
     "cutcell_floor": [(KX_LINE, 'slabs[-1]["kx"] = np.maximum(slabs[-1]["kx"], K_FLOOR * 1e-3)'),
                       (COVER_LINE, CUT_COVER), (LINK_LINES, CUT_LINKS_FLOOR), (EDGE_LINE, STRIP_EDGE.format(kx="kx"))],
+    # (review) the power of a part crossing the outline over the board part of each cell only: the program weights a cell by the part's cover
+    # times 1 (active), so a cut cell gets the power of its whole area and the board part of it 1 / cover of the power density
+    "program_part_on_board": [(HEATER_LINE, 'w = cover(h.polygon, 8) * self.cover')],
+    # (review) the program with the footprint of a part sampled on 8 x 8 points per cell, as the FVM does
+    "program_src8": [HEATER_8],
+    # (review) the cut-cell copy with the same 8 x 8 footprint
+    "cutcell_src8": [(KX_LINE, 'slabs[-1]["kx"] = np.maximum(slabs[-1]["kx"], K_FLOOR * 1e-3)'),
+                     (COVER_LINE, CUT_COVER), (LINK_LINES, CUT_LINKS), (EDGE_LINE, STRIP_EDGE.format(kx="kx")), HEATER_8],
 }
 
 _CACHE = {}
@@ -115,6 +128,32 @@ def variant_solid3d(name):
     sys.modules[mod.__name__] = mod
     exec(compile(src, path + "#" + name, "exec"), mod.__dict__)
     _CACHE[name] = mod
+    return mod
+
+
+FVM_HEATER_LINE = "cov = coverage_fraction(h.polygon, nx, ny, dx, dy, samples=8) * self.active"
+
+
+def fvm_part_on_board():
+    """!
+    @brief (Review) A copy of the program's FVM module in which the power of a part is spread over the board part of each cell (the part's cover
+           times the board cover) instead of over the part's cover of every cell on the board, built in memory like `variant_solid3d`.
+    @return Module object with the names of `pcbthermal.fvm` (use `.solve_steady`).
+    @throws ValueError If the expression is not found exactly once in the source.
+    """
+    if "fvm_part_on_board" in _CACHE:
+        return _CACHE["fvm_part_on_board"]
+    path = os.path.join(ROOT, "pcbthermal", "fvm.py")
+    with open(path, encoding="utf-8") as fh:
+        src = fh.read()
+    if src.count(FVM_HEATER_LINE) != 1:
+        raise ValueError("the heater weight of fvm.py was not found exactly once; the copy needs updating")
+    mod = types.ModuleType("pcbthermal.fvm_part_on_board")
+    mod.__package__ = "pcbthermal"
+    mod.__file__ = path
+    sys.modules[mod.__name__] = mod
+    exec(compile(src.replace(FVM_HEATER_LINE, FVM_HEATER_LINE.replace("self.active", "self.cover")), path + "#part_on_board", "exec"), mod.__dict__)
+    _CACHE["fvm_part_on_board"] = mod
     return mod
 
 

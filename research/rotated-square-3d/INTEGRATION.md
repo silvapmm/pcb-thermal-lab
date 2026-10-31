@@ -34,9 +34,9 @@ What changes for the user: results of the 3D solid on a board with an outline th
 
 ## Risks and what to check before adopting
 
-* The scheme is a standard cut-cell finite-volume idea written from scratch; no source was opened for it (README 9). Its energy balance is exact (checked on a turned square to 1e-9) and it reproduces an independent axisymmetric reference on a round board, but patterned copper, vias and metal blocks on the outline were only run in the regression (no independent reference).
-* The T board at the default coefficient moves by +0.2 K and the cause (cells with two edges) is not isolated.
-* The 45 degree turn keeps +0.5 to +0.7 K; part of it is the discretisation of a turned source and is the same in the FVM (README 4.4).
+* The scheme is a standard cut-cell finite-volume idea written from scratch; no source was opened for it (README 10). Its energy balance is exact (checked on a turned square to 1e-9) and it reproduces an independent axisymmetric reference on a round board, but patterned copper, vias and metal blocks on the outline were only run in the regression (no independent reference).
+* The T board at the default coefficient moves by +0.2 K. *Review*: the cause is not the edge term but a part that crosses the outline (P0 below); with the power of the part on the board part of each cell the program and the copy agree on the T.
+* The 45 degree turn keeps +0.5 to +0.7 K at 40 to 80 cells per side; *review*: part of it is the 3D solid's 4 x 4 sampling of the footprint of a part (README 9.3), the rest (+0.44 / +0.18 K at 80 / 160 cells per side against the continuum value, README 9.2) is the board turn and stays with P1.
 * A change of the 3D solid changes the numbers of `docs/validation.md` for the outline cases and of the tests that compare the 3D solid with the other models on an outline; the whole battery has to run.
 * The 16 x 16 sampling grows the set-up by a sampling pass over every cell (measured nowhere here).
 
@@ -45,8 +45,17 @@ What changes for the user: results of the 3D solid on a board with an outline th
 * **P2, a documented limit instead** (no code change): `docs/validation.md` and `docs/theory.md` say that the 3D solid on an outline that is not on the grid lines depends on the position of the edge by up to 1 to 3 K at `h_side` 100 to 1000 W/m2K and 1 mm cells (and 2 K at 160 cells per side), 0.3 K or less at the default coefficient; the layered models do not show it to that size. The text for the documents is in `docs/for-the-project-documents.md`.
 * **P1a, the minimum change** (the edge term only, no new links): the physical conductivity and the distance of the strip (`strip` in the copy) remove about 70 % of the error at 40 cells per side and 60 % at 80 (README 4: 5.78 -> 1.67 K at 40, 3.58 -> 1.43 K at 80), but not the shift invariance; it needs the cell cover only and is a two-line change. Not recommended alone.
 
+## P0, found by the review: the power of a part that crosses the outline (FVM, FDM and 3D solid)
+
+Not part of A3, and a defect of the reference model at the default edge coefficient (README 9.4). The FVM (`fvm.py`, `cov = coverage_fraction(h.polygon, nx, ny, dx, dy, samples=8) * self.active`), the FDM (`fdm.py`, the heater weights around line 246) and the 3D solid (`solid3d.py`, `w = cover(h.polygon, 4) * self.active`) weight a board cell by the part's cover of the whole cell, so where a part crosses the outline the board part of a cut cell gets 1 / cover of the power density. Measured on copies (`rotsq.fvm_part_on_board`, variant `program_part_on_board`) with the weight "part cover times board cover": the example board cut to a T at 1 mm and `h_side` 10 goes from 109.06 to 107.56 degC in the FVM (value at 2/3 mm, where no cell is cut: 106.85) and from 109.31 to 107.79 in the 3D solid (107.08); a small T with the part over the re-entrant corner goes from +0.5 to +7.7 K above its grid-line value to within 0.1 to 0.9 K. The clean form is the sample-wise intersection of the part and the board (one lattice, both tests per sample); a `fix/part-across-outline` branch with a regression test (a part over a re-entrant corner, cut against grid-line cells) and the re-run of `docs/validation.md` 13 (its "T, example" FVM reference 109.1 degC is about 2.2 K high). The FDM was not run with the correction. Smaller, same branch or a separate one: sample the footprint of a part 8 x 8 in the 3D solid, as the FVM does (README 9.3).
+
+## Recommendation of the review
+
+P2 for A3 (README 9.5): the effect needs an outline off the grid lines and a typed `h_side` of about 100 W/m2K or more (default 10, where it is 0.3 K or less); at 1 mm it is +1.1 to +1.8 K (1.6 to 2.7 %) at 100 and about 7 % at 1000 in a comparison model, while the FVM, the reference, is within 0.6 % of its own reference there; P1 rewrites four expressions of the 3D solid, moves every 3D outline number and still leaves 0.2 to 0.5 K at 45 degrees. Keep P1 in 'Planned' as an option. Do P0.
+
 ## Decisions for the maintainer
 
-1. P1 (the cut-cell scheme in `solid3d.py`, on a `fix/` branch, with the 3D tests re-measured), P2 (document the limit) or both in order.
-2. Whether the FVM and the FDM keep their treatment (no change proposed: README 7).
-3. If P1: a regression test of the program equal to `test_shift_invariance_is_restored_by_the_cut_cells` and the disc against the axisymmetric reference (both exist in `tests/test_rotated_square.py` of this folder and can be copied).
+1. P1 (the cut-cell scheme in `solid3d.py`, on a `fix/` branch, with the 3D tests re-measured), P2 (document the limit) or both in order; the review recommends P2.
+2. P0 (the power of a part that crosses the outline, in the FVM, FDM and 3D solid): a `fix/` branch, recommended by the review.
+3. Whether the FVM and the FDM keep their treatment of the edge (no change proposed: README 7; P0 is a different matter).
+4. If P1: a regression test of the program equal to `test_shift_invariance_is_restored_by_the_cut_cells` and the disc against the axisymmetric reference (both exist in `tests/test_rotated_square.py` of this folder and can be copied).

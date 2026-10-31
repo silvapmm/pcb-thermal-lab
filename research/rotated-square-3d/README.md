@@ -4,11 +4,12 @@
 
 **Answer in short** (details, tables and limits below):
 
-* It still happens, and it is larger than +1.15 K at high edge coefficients: 40 mm square, 1 mm cells, 2 W part: +0.8 to +1.8 K at `h_side` 100 W/m2K, +2.5 to +3.1 K at 1000 W/m2K, within 0.3 K at the default 10 (section 2). It does not go away with the cell: at 160 cells per side the error is still +2.0 to +2.3 K (section 4.3).
+* It still happens, and it is larger than +1.15 K at high edge coefficients: 40 mm square, 1 mm cells, 2 W part: +0.8 to +1.8 K at `h_side` 100 W/m2K, +2.5 to +3.1 K at 1000 W/m2K, within 0.3 K at the default 10 (section 2). It falls only slowly with the cell: at 160 cells per side the error is still +2.0 to +2.3 K (section 4.1; against the continuum value of an independent solver +2.1 to +2.4 K, section 9.2).
 * It is not about turning: a **straight edge shifted by half a cell** gives +12 K at 20 cells per side and +2.0 K at 160 (section 4). It is the treatment of the cells that the outline cuts: the conducting cross-section is scaled by the cover of the cell in **all** directions, and the conduction to the edge is a fixed half cell (`0.25 (dx + dy)`) through that scaled conductivity (`pcbthermal/solid3d.py`, the lines that scale `kx` and the edge term). The edge of the turned square then conducts 27 to 38 % less than the aligned one at the same perimeter (section 3).
 * Against an independent axisymmetric reference (rings times the same slabs, no square grid) on a **round** board, where every edge cell is cut, the program's 3D solid is +6.6 % high at 1 mm and `h_side` 1000 and still +3.2 % at 0.25 mm; a **cut-cell copy** made in memory from the program's own source (links through the face aperture between the centroids of the board parts, edge conduction over half the depth of the board strip, conductivity not scaled) is within +0.6 % at 1 mm and +0.2 % at 0.25 mm (section 5).
 * On the shifted and turned squares the copy removes the dependence: 0.0 to 0.3 K at 40, 80 and 160 cells per side (the 45 degree turn: +0.7 and +0.5 K at 40 and 80), against 5.6 to 5.8, 3.6 to 3.7 and 2.0 to 2.3 K for the program (section 4). Where the program was right (a rectangle, the example board with the five outline presets at the default coefficient) the copy gives the same answer within 0.2 K, at 100 W/m2K within 0.4 K (section 6).
 * The FVM and the FDM show the same effect in a much milder form (FVM +4.6 K at 20 cells per side for a half-cell shift, +0.22 K at 80; FDM within 1.2 K) and agree with their own axisymmetric reference on a round board within 0.6 % at 1 mm (section 7). No change is proposed for them.
+* The review (section 9) confirmed the cut-cell copy against the continuum value of an independent solver on the shifted and turned squares (within 0.2 K at 40 cells per side and better, except the 45 degree turn), corrected the explanation of the 45 degree residual and of the T board (a part that crosses the outline: a separate defect of the FVM, the FDM and the 3D solid, +2.2 K on the example board cut to a T at the default coefficient), and recommends documenting the edge effect as a limit (P2) and fixing the part across the outline.
 * The decision (a correction of `solid3d.py` as measured here, or a documented limit) is the maintainer's: `INTEGRATION.md`.
 
 ## 1. The question, and what would answer it
@@ -155,7 +156,7 @@ The ratio is not an invariant of the problem: the node of a cell is closer to th
 
 4.3 The aligned board is itself not converged at 20 cells per side (90.86, 91.79, 91.47, 91.38 for the copy at 1, 0.5, 0.25, 0.125 mm): the comparison is to the aligned board **of the same cell**, which is the invariance test; the absolute error of the aligned board is the first column of section 5.
 
-4.4 The residual of the copy at 45 degrees (+0.3 to +0.8 K) was split: board turned 45 with the part on the grid +0.26 K and part turned 45 on the aligned board +0.23 to +0.37 K at 0.5 and 0.25 mm; the second is the discretisation of a turned source (the FVM shows +0.06). Not removed here.
+4.4 The residual of the copy at 45 degrees (+0.3 to +0.8 K) was split: board turned 45 with the part on the grid +0.26 K and part turned 45 on the aligned board +0.23 to +0.37 K at 0.5 and 0.25 mm. Not removed here. *Corrected by the review (section 9.3)*: the second share is not the discretisation of a turned source (the continuum effect of turning the part is -0.01 K, and an exact footprint on the same cells gives -0.03 K) but the 3D solid's sampling of the footprint on 4 x 4 points per cell, which keeps 97.4 % of the area of the turned part at 0.25 mm and puts the lost edge power in the centre; with 8 x 8 points (as the FVM samples it) the turned part reads +0.02 / +0.06 K instead of +0.37 / +0.23 K at 0.5 / 0.25 mm.
 
 4.5 The program's FVM and FDM also depend on the position of the edge at 20 cells per side (FVM +4.6 K for the half-cell shift, FDM -0.6 K) and not at 80 (+0.22 K, -0.38 K): section 7.
 
@@ -202,7 +203,7 @@ The example board (100 x 80 mm, 22 W, vias, heatsink) cut to the five presets of
 | rounded | 10 | 86.09 | 86.25 | 86.25 | -0.00 | 1.0000 |
 | rounded | 100 | 82.69 | 83.03 | 82.98 | -0.05 | 1.0000 |
 
-The only change above 0.2 K is the ellipse at 100 W/m2K (-0.38 K), where the copy moves towards the FVM. The T is +0.2 K at the default coefficient: its re-entrant corners are cells with two edges, where the copy's depth `c A / (2 L)` is a quarter cell and the program's is half a cell; not investigated further (the L, the chamfer and the rounded board are on the program within 0.05 K). Energy is conserved in the copy (a first version leaked 22 % of the power into the cells taken as off the board through links of a sliver; fixed with a regression test, `test_cutcell_copy_closes_the_energy_balance_on_a_turned_square`).
+The only change above 0.2 K is the ellipse at 100 W/m2K (-0.38 K), where the copy moves towards the FVM. The T is +0.2 K at the default coefficient. The first explanation (cells with two edges at the re-entrant corners) was wrong, *review section 9.4*: the difference is the same with no edge loss at all; the part U1 hangs over the cut-away corner of the T, and the program and the copy give a cut cell the power of the part's cover of the whole cell, so the board part of the cell gets 1 / cover of the power density. Both are +2.2 to +2.4 K above the value at 2/3 mm, where the T falls on grid lines; the copy differs from the program there only because its centroid links react differently to that misplaced power (the L, the chamfer and the rounded board are on the program within 0.05 K). Energy is conserved in the copy (a first version leaked 22 % of the power into the cells taken as off the board through links of a sliver; fixed with a regression test, `test_cutcell_copy_closes_the_energy_balance_on_a_turned_square`).
 
 ## 7. The layered models
 
@@ -223,13 +224,101 @@ The layered models and the 3D solid solve different idealisations (one node thro
 * Steady state; the 3D solid has no time simulation. Boards with a block or a heatsink on the outline edge were not tried.
 * The copy is a measurement tool (a text replacement of four expressions of `solid3d.py` executed in memory, `lib/rotsq.py`, which refuses to build if the source changed), not a proposed implementation; the cost of the 16 x 16 sampling per cell, and the way to write it vectorised in the program, are not measured (no timings are quoted).
 * Single outline shape (squares, a round board, five presets of the example board); L-shaped and T-shaped boards were only run for the regression, with no reference.
-* The independent reference covers a round board only. For a straight shifted edge and for the turned square the reference is the invariance (and the aligned board at the finest cell), not an independent solution.
+* The independent reference of the study covered a round board only; for the shifted and turned squares the review added the continuum value of an independent quarter-board solver (section 9.2).
 * The `+1.15 K` of the reviews was not re-run in its original setup (the board is not recorded there); section 2 reproduces its sign, size and dependence on the coefficient.
 
-## 9. What was read and what was not verified
+## 9. Review
+
+Status: **reviewed**. Every table of sections 2 to 7 was re-run (`study_remeasure.py`, `study_edge_conductance.py`, `study_cut_cells.py --fine`, `study_disc.py`, `study_regression.py`) and printed the same numbers to the digit quoted. The code of the copies (`lib/rotsq.py`, `lib/cutcell.py`) was read against `pcbthermal/solid3d.py`: the four replaced expressions are the ones the text names, the copy is refused when the source changes, and it changes only the outline branches (the rectangle stays bit-identical). The independent reference `lib/axisym3d.py` was read (the same slabs, films on both faces and on the rim over every slab, no grid of the program); its docstring named a test file and a fin check that do not exist and was corrected.
+
+### 9.1 What the review found
+
+| # | finding | kind | where |
+| :-- | :-- | :-- | :-- |
+| R1 | The shifted and turned squares had no independent reference (only the invariance). Added: `lib/square3d.py` and `scripts/study_square_reference.py`; the copy is confirmed, the program's error against the continuum is slightly larger than its difference to the aligned board. | study, completed | 9.2 |
+| R2 | The 45 degree residual was explained as the discretisation of a turned source. Wrong: it is the 3D solid's 4 x 4 sampling of the part's footprint (the FVM samples 8 x 8). | wrong explanation, corrected (4.4) | 9.3 |
+| R3 | The +0.2 K of the T board was explained by cells with two edges. Wrong: a part that crosses the outline puts the power of a whole cell on the board part of a cut cell, in the FVM, the FDM and the 3D solid. A program defect, separate from A3, at the default coefficient. | program defect (finding, not edited) and wrong explanation, corrected (6) | 9.4 |
+| R4 | "It does not go away with the cell" overstated: it falls by 0.5 to 0.6 per halving of the cell (4.1). | wording, corrected | answer |
+| R5 | `research/REVIEW.md` had the row of this folder after the decision list, outside the table. | register, corrected | |
+| R6 | The x ticks of figure 4 overlapped. | figure, corrected | |
+| R7 | `lib/axisym3d.py` named a test file (`tests/test_axisym3d.py`) and a fin check that do not exist. | docstring, corrected | |
+
+Checked and right: the claims of the question (1) to (4) as worded in the answer; the edge conductance ratios (0.70 to 0.73 at 1000, 0.62 to 0.68 at 5000 with the 10 degree rows of `out/edge_conductance.json`); the FVM edge term `h t L` equal to `h t P` at every angle; the energy balance of the copy (1e-9, test); the axisymmetric reference (Bessel to 0.2 %, series circuit to 1e-6, balance to 1e-9, 4000 and 2000 rings equal); the regression of section 6; the share of the cheaper variant P1a (5.78 -> 1.67 K at 40 cells per side, 71 %; 3.58 -> 1.43 K at 80, 60 %). Licence headers and Doxygen documentation pass `tests/test_license_header.py` and `tests/test_docs.py`; the documents carry no dates; no source is cited that was not opened (the cut-cell idea is attributed to no paper, as section 10 says).
+
+### 9.2 An independent continuum value for the shifted and turned squares
+
+A board and its part moved or turned together are the same continuum problem as the aligned board, so the continuum value of the aligned board is the answer of all of them. `lib/square3d.py` (imports nothing of the program) solves the aligned square on its quarter, with the same slabs and films, on cells the edge never cuts; on a 20 mm board at 1 mm cells it equals the program's rectangular branch to 1e-14 (test `test_square_reference_is_the_program_rectangle_on_cells_the_edge_does_not_cut`), it is the series circuit with insulated sides and converges as the square of the cell (test). The ladder (`scripts/study_square_reference.py`) to 1/32 mm and a Richardson step give:
+
+| board | part | 0.5 mm | 0.25 mm | 0.125 mm | 0.0625 mm | 0.03125 mm | continuum |
+| :-- | :-- | --: | --: | --: | --: | --: | --: |
+| 20 mm, `h_side` 2000 | aligned | 91.822 | 91.477 | 91.382 | 91.357 | 91.351 | 91.349 |
+| 20 mm, `h_side` 2000 | turned 45 (diamond) | 91.670 | 91.452 | 91.367 | 91.335 | 91.342 | 91.344 |
+| 40 mm, `h_side` 100 | aligned | 91.919 (1 mm) | 91.898 | 91.889 | 91.886 | | 91.886 |
+| 40 mm, `h_side` 1000 | aligned | 74.738 (1 mm) | 74.379 | 74.267 | 74.236 | | 74.226 |
+
+(the 40 mm rows are at 1, 0.5, 0.25, 0.125 mm; energy balance 1.000000 everywhere). Against that value (K above it):
+
+| cell | layout | program 3D | cut-cell copy | copy, part sampled 8 x 8 |
+| --: | :-- | --: | --: | --: |
+| 0.5 | aligned | +0.47 | +0.44 | +0.44 |
+| 0.5 | shift 1/2 cell | +6.25 | +0.21 | +0.21 |
+| 0.5 | turned 20 | +6.07 | +0.18 | +0.11 |
+| 0.5 | turned 45 | +5.28 | +1.14 | +0.79 |
+| 0.25 | aligned | +0.13 | +0.12 | +0.12 |
+| 0.25 | shift 1/2 cell | +3.71 | +0.08 | +0.08 |
+| 0.25 | turned 20 | +3.85 | +0.12 | +0.11 |
+| 0.25 | turned 45 | +3.91 | +0.61 | +0.44 |
+| 0.125 | aligned | +0.03 | +0.03 | +0.03 |
+| 0.125 | shift 1/2 cell | +2.07 | +0.03 | +0.03 |
+| 0.125 | turned 20 | +2.35 | +0.06 | +0.06 |
+| 0.125 | turned 45 | +1.45 | +0.26 | +0.18 |
+
+40 mm board of section 2 at 1 mm cells, against its continuum value (91.89 degC at `h_side` 100, 74.23 at 1000): program aligned +0.03 / +0.51 K, turned 20 (board and part) +1.09 / +3.41 K, board only turned 20 +1.31 / +3.63 K, turned 45 +1.78 / +3.37 K; the copy -0.29 to +0.38 K at 100 and +0.03 to +0.85 K at 1000 (+0.51 K with the 8 x 8 footprint at 45 degrees). The rise is about 67 K at 100 and 49 K at 1000, so the program's error on the turned square at 1 mm is 1.6 to 2.7 % at `h_side` 100 and about 7 % at 1000, the same size as the round board of section 5 (+1.5 % and +6.6 %).
+
+![against the continuum](figures/fig_08_square_against_continuum.png)
+
+*Figure 8 (`figures/fig_08_square_against_continuum.png`): the maximum temperature minus the continuum value of the independent solver, 20 mm board at `h_side` 2000, for the half-cell shift and the turns of 20 and 45 degrees, against the cells per side; program, cut-cell copy, the copy with the footprint sampled 8 x 8, and the aligned board (no cut cell) for scale.*
+
+Reading: the copy reaches the continuum value from 40 cells per side for a shifted or turned straight edge (within 0.21 K), so section 4's invariance test was not hiding an offset; the program is 2 to 6 K above it at 40 to 160 cells per side. The 45 degree turn of the board keeps a residual in the copy (+0.44 / +0.18 K at 80 / 160 cells per side with the 8 x 8 footprint), first order in the cell: P1 does not remove everything.
+
+### 9.3 The 45 degree residual (corrects 4.4)
+
+`scripts/study_turned_part.py`. On a 20 mm rectangle (no outline, no cut cell) at `h_side` 2000 the 3D solid reads, part turned 45 minus part aligned: +0.37 / +0.23 / +0.11 K at 0.5 / 0.25 / 0.125 mm; the same with the footprint sampled on 8 x 8 points (variant `program_src8` of `lib/rotsq.py`): +0.02 / +0.06 / +0.03 K; the independent solver with a 16 x 16 footprint: -0.15 / -0.03 / -0.02 K; the continuum: -0.005 K. The 4 x 4 lattice keeps 94.4 / 97.4 / 98.9 % of the area of the turned 3 mm part at the three cells (8 x 8: 97.4 / 98.9 / 99.6 %; test `test_footprint_of_a_part_turned_45_degrees_is_short_on_4_by_4_samples`) (test `test_footprint_of_a_part_turned_45_degrees_is_short_on_4_by_4_samples`), and the power normalised over the shorter footprint lands nearer the centre. A program finding (3D solid only; small, and only on a turned part), recorded, not edited: `coverage_fraction(h.polygon, 4)` in `solid3d.py` where the FVM uses 8.
+
+### 9.4 A part that crosses the outline (corrects 6; a program defect)
+
+`scripts/study_part_across_outline.py`. The FVM (`fvm.py`, `cov = coverage_fraction(h.polygon, ...) * self.active`), the FDM and the 3D solid (`w = cover(h.polygon, 4) * self.active`) weight a board cell by the part's cover of the **whole** cell. Where the part crosses the outline, a cut cell gets the power of its whole area on its board part: the power density there is 1 / cover too high. The warning "x % of the footprint is outside the board; its full power is applied to the part that is inside" describes the intent, which is right in total but not in place. At the default `h_side` 10 W/m2K, maximum temperature in degC:
+
+| board | cell (mm) | outline on grid lines | FVM | FVM, power on the board part | 3D solid | 3D, power on the board part |
+| :-- | --: | :-- | --: | --: | --: | --: |
+| small T (part over the re-entrant corner) | 1 | no | 233.08 | 230.84 | 234.27 | 231.96 |
+| | 0.5 | no | 237.65 | 230.63 | 239.16 | 231.83 |
+| | 1/3 | yes | 230.06 | 230.06 | 231.13 | 231.13 |
+| | 0.25 | no | 230.46 | 229.82 | 231.56 | 230.90 |
+| | 1/6 | yes | 229.96 | 229.96 | 231.03 | 231.03 |
+| | 0.125 | no | 231.16 | 229.96 | 232.34 | 231.08 |
+| | 1/12 | yes | 229.91 | 229.91 | | |
+| example board cut to the T (U1 over the corner) | 1 | no | 109.06 | 107.56 | 109.31 | 107.79 |
+| | 2/3 | yes | 106.85 | 106.85 | 107.08 | 107.08 |
+
+Where the outline is on the grid lines no cell is cut and every rule agrees; where it cuts cells the program is +0.5 to +7.7 K above that value and does not converge monotonically, and the weight "part cover times board cover" (a one-line change per model, measured on copies: `rotsq.fvm_part_on_board`, variant `program_part_on_board`) brings it within 0.1 to 0.9 K. The example board cut to a T is +2.2 K in the FVM at 1 mm for this reason, so the FVM reference of `docs/validation.md` 13 (row "T, example", 109.1 degC) is about 2.2 K (2.6 % of the rise) high and the Lumped and Analytic errors of that row are measured against it. This is not part of A3 (it is not the edge term, and it is in the reference model at the default coefficient); the product of the two covers is exact only when one of the two covers the cell, a sample-wise intersection is the clean form. The copy's +0.2 K on the T is this power reacting to the centroid links, not a defect of the edge term.
+
+### 9.5 Recommendation on A3 (asked by the maintainer)
+
+* **How often**: the edge coefficient is typed (the computed coefficients leave it alone) and its default is 10 W/m2K; the effect needs an outline that is not on the grid lines **and** `h_side` of about 100 W/m2K or more (a board edge clamped to a chassis or a card guide). At 10 W/m2K the 3D solid moves by 0.3 K or less on every board measured (40 mm square, round board -0.3 %, five outline presets).
+* **Size at the cells in use** (1 mm, 40 mm board): +1.1 to +1.8 K (1.6 to 2.7 % of the rise) at 100 W/m2K, +3.4 to +3.6 K (about 7 %) at 1000; round board +6.6 % at 1000, +3.2 % at 0.25 mm. Larger numbers (up to 12 K) need a small board (20 cells per side) at 2000 W/m2K.
+* **The FVM is the reference and is adequate here**: on the same round board it is within 0.6 % of its own axisymmetric reference at 1 mm from 10 to 5000 W/m2K, and its edge term is exact in length. At high edge coefficients the 3D solid and the layered models differ by physics (48.9 against 53.6 K on the round board at 1000), so a user who needs the edge-clamped case reads the FVM and uses the 3D solid as the comparison it is.
+* **Cost and risk of P1**: four rewritten expressions of `solid3d.py` (cover, links, edge term, conductivity), a sampling pass whose cost was not measured, every 3D number of an outline case and the tests that compare it move; a residual of 0.2 to 0.5 K stays at 45 degrees; patterned copper, vias and blocks on a cut edge have no independent reference. The gain is 1 to 4 K at 1 mm in a case the default does not reach, in a comparison model.
+* **Recommendation: P2** (document the limit; no change of `solid3d.py`), with P1 kept in `docs/versions.md` ('Planned') as an option if a user case with edge cooling appears. Separately, and more worth doing than P1: **fix the power of a part that crosses the outline** (9.4) in the FVM, FDM and 3D solid on a `fix/` branch, because it reaches the reference model at the default coefficient (+2.2 K on the example board cut to a T) and is a one-line change per model; and, smaller, sample the footprint of a part 8 x 8 in the 3D solid as the FVM does (9.3). Text of the limit: `docs/for-the-project-documents.md`.
+
+### 9.6 What the review did not verify
+
+The 1/32 mm step of the diamond reference is not monotone (91.335 then 91.342: the 16 x 16 sampling of its footprint), so its continuum is good to about 0.01 K; patterned copper, vias and blocks on a cut edge against a reference; the FDM with the corrected part weight (only the FVM and the 3D solid were run); the cost of P1's sampling; the original +1.15 K setup.
+
+## 10. What was read and what was not verified
 
 * **No new external source was opened for this investigation.** The question is internal to the program's grid: the reference is the invariance of the continuum problem under a translation and a rotation, the modified Bessel solution of a thin plate with a disc source (used only to check `lib/axisym3d.py`; the formulas are the standard `I0, K0, I1, K1` solution, written from memory and checked numerically by the test to 0.2 %), and the series circuit. Nothing was added to `research/theory/BIBLIOGRAPHY.md`.
 * **Read in full in the repository**: `pcbthermal/solid3d.py` (slab construction, links, edge term), `pcbthermal/geometry.py` (`edge_length_per_cell`, `edge_length_on_board`, `coverage_fraction`), `research/outline/README.md` (4.6), `research/outline/scripts/study_disc_reference.py` (the layered radial reduction, which `solve_layered_disc` repeats with its own constants), `docs/theory.md` as quoted in `CLAUDE.md`. The cut-cell finite-volume scheme (face apertures, centroid distances) is the standard idea of cut-cell methods; no paper was opened for it and none is cited.
-* **Reproduced**: every table above by the script named in its section (outputs in `out/`, git-ignored); tests `tests/test_rotated_square.py` (9 tests).
-* **Not verified**: the original +1.15 K setup; an independent solution for a shifted or turned **square** (only the invariance); patterned copper, vias and blocks against any reference; the T +0.2 K at the default coefficient (cause not isolated); the 45 degree residual of +0.3 to +0.8 K (split, not removed); whether the 16 x 16 sampling is the right resolution (the cover itself converges as 1/256; the sensitivity to `m` was not swept); the program's FVM and FDM at cells finer than 0.125 mm.
+* **Reproduced**: every table above by the script named in its section (outputs in `out/`, git-ignored); tests `tests/test_rotated_square.py` (12 tests: 9 of the study, 3 added by the review).
+* **Not verified**: the original +1.15 K setup; patterned copper, vias and blocks against any reference; the 45 degree residual of the board turn (+0.2 to +0.4 K left with an 8 x 8 footprint, not removed); (the independent square, the T board and the turned part were checked by the review, section 9); whether the 16 x 16 sampling is the right resolution (the cover itself converges as 1/256; the sensitivity to `m` was not swept); the program's FVM and FDM at cells finer than 0.125 mm.
 * **Defect in the investigation's own code, found and fixed**: the first cut-cell copy conducted heat into the cells taken as off the board (cover below 0.01) through the apertures of their faces: it lost 22 % of the power and read 4 K cool on a turned square at the finest cell; the apertures of cells off the board are now zero and a test checks the energy balance.
