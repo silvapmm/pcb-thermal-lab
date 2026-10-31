@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
-@brief Data figures of the investigation, drawn from the committed tables of data/ (and, for the profile of figure 07, one run of the references and models).
+@brief Data figures of the investigation, drawn from the tables of data/ written by the study scripts (git-ignored, regenerated) (and, for the profile of figure 07, one run of the references and models).
 @details Figures 04 to 08 of figures/ (01 to 03 are the drawings of make_diagrams.py). Run the study scripts first (study_baseline.py, study_causes.py, study_candidate.py, study_rows.py).
          Files: fig_04_error_against_pad_size.png, fig_05_decomposition_of_the_error.png, fig_06_fill_that_reproduces_the_reference.png, fig_07_profile_through_the_centre.png,
          fig_08_candidate_nodes_tiles_and_range.png.
@@ -21,7 +21,7 @@ import _bootstrap as BS                                                     # no
 
 def table(name):
     """!
-    @brief Read a committed table.
+    @brief Read a table of data/.
     @param name File stem in data/.
     @return list of dict rows with numbers converted where possible.
     """

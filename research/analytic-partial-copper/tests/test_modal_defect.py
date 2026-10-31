@@ -133,3 +133,50 @@ def test_reference_converges_with_the_cell():
     assert abs(v[1] / v[0] - 1.0) < 0.02
     assert abs(v[2] / v[1] - 1.0) < abs(v[1] / v[0] - 1.0) + 1e-3
     assert np.isfinite(v).all()
+
+
+def test_candidate_refuses_what_it_does_not_model():
+    """!
+    @brief Review regression: a board with a via, a heatsink or an outline is refused (the first version dropped them silently and returned a result without them).
+    @return None.
+    """
+    def base():
+        """!
+        @brief A fresh one-layer pad board of the small size.
+        @return Problem.
+        """
+        return P.problem(P.Pad(layers=1, pad=8.0, **SMALL))
+
+    with_via = base()
+    with_via.add_via(12.0, 12.0, diameter=0.3)
+    with_sink = base()
+    with_sink.add_heatsink(1, 50.0, rect=(2.0, 2.0, 6.0, 6.0))
+    with_outline = base()
+    with_outline.set_outline([(0.0, 0.0), (24.0, 0.0), (24.0, 24.0), (0.0, 20.0)])
+    for p in (with_via, with_sink, with_outline):
+        try:
+            D.solve(p, n_sub=1, tile_mm=1.0, n_terms=60)
+        except ValueError:
+            continue
+        raise AssertionError("the candidate must refuse a via, a heatsink or an outline")
+
+
+def test_copper_edge_inside_a_tile_runs_cool():
+    """!
+    @brief Review finding (a limit, pinned): a pad edge in the middle of a tile makes the candidate cooler than the FVM with the same nodes, because the partly covered tile conducts like
+           copper. 24 mm board, 4 mm part, two laminate nodes, 1 mm tiles: an 8 mm pad (edges on tile edges) follows the FVM at 0.25 mm within 1 %; an 8.5 mm pad (edges a quarter of
+           a tile off) is several percent cool (measured -6.8 %; -3.3 % with 0.5 mm tiles).
+    @return None.
+    """
+    keep = laminate.LAMINATE_NODES
+    errs = {}
+    try:
+        laminate.LAMINATE_NODES = 2
+        for pad in (8.0, 8.5):
+            p = P.problem(P.Pad(layers=1, pad=pad, **SMALL))
+            fvm = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.25)).results["fvm"].t_max - p.board.ambient
+            errs[pad] = D.solve(p, n_sub=2, tile_mm=1.0, cell_mm=0.25)["max"] / fvm - 1.0
+    finally:
+        laminate.LAMINATE_NODES = keep
+    assert abs(errs[8.0]) < 0.01, errs
+    assert errs[8.5] < -0.04, errs

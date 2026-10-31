@@ -1,6 +1,6 @@
 # Why the Analytic model is far from a 3D solution on a copper pad over bare laminate (A2)
 
-Status: **studied, awaiting the reviewer.** Branch `research/analytic-partial-copper`. Nothing in `pcbthermal/`, `tests/`, `examples/` or the project documents is edited; the candidate lives in `lib/defect.py` and is measured on a copy.
+Status: **studied and reviewed** (chapter 9, Review: the causes and the numbers reproduced; the warning trigger and the candidate's tile rule corrected; the reviewer recommends P1 with a new trigger and P3, not P2). Branch `research/analytic-partial-copper`. Nothing in `pcbthermal/`, `tests/`, `examples/` or the project documents is edited; the candidate lives in `lib/defect.py` and is measured on a copy.
 
 **Question.** The Analytic model (`pcbthermal/analytic.py`) is far from a resolved 3D solution on a board whose copper is a pad on bare laminate (`power-calculator` 4.7; `research/effective-conductivity` 4.11: -28.8 % on a one-layer board with a 20 mm pad; `research/gap-subdivision` README 3.2: -67 to +1 % on its two-layer pad boards). Which of three candidate causes is it: (1) the copper weighting and the **uniform sheet** it produces, (2) the **laminate** treatment (a film in series with the bottom film on a one-layer board, one node per copper layer on a multilayer one), (3) the **Green-function or Fourier truncation** at the pad edge? Is there a better estimate within the model, or is it a limit to state and warn about?
 
@@ -10,9 +10,9 @@ Status: **studied, awaiting the reviewer.** Branch `research/analytic-partial-co
 * **(1) and (2) both matter, and the first dominates on multilayer boards.** With the copper exact and the Analytic's own nodes (the program's FVM with one node per copper layer, and for a one-layer board one laminate node and the laminate in series with the bottom film) the error splits into the cost of the uniform sheet and the cost of the nodes (section 4.3). On a one-layer board with a 10 mm pad (reference 102.8 K): Analytic -28.9 % = **-12.6 points** (sheet) **-16.3 points** (nodes). On two layers with a bare second layer and the same pad (the same physical board): Analytic -61.2 % = -52.8 (sheet) -8.5 (nodes).
 * **The result depends on how the same board is entered.** The same physical board entered as one layer or as two layers with a bare second one gives 73.1 K or 39.9 K (10 mm pad), up to **1.8 times** apart, because the weights use a length `lambda_l = sqrt(S / (h + g_adjacent))` that changes when the vertical path is a gap conductance instead of a film (section 4.4). The error is a **shortfall** (the model is too cool) for pads up to 20 mm and an **excess** (+4.4 and +8.6 %) for one-layer pads of 30 and 40 mm; the roadmap called it "hot", which is the other sign.
 * **No fill value fixes it.** The fill that makes the uniform sheet reproduce the reference (`f*`) is neither the program's weighted fill nor the pad's area fraction, and it moves with the board (section 4.2).
-* **A better estimate exists in the same machinery** (section 5): put the laminate nodes through the thickness into the modal system, solve the series for a board of bare nodes, and put the copper back as extra lateral conductance on the links between tiles, through the Green-function (Woodbury) system the program already uses for vias (`(I + G C) y = y0`, `C` the lateral Laplacian of the added conductance). It follows the FVM with the same nodes (within 0.4 % on the one-layer 10 and 20 mm pads for 1 to 8 nodes; 0.6 to 0.7 % on the small board of the test), reaches **-0.9 to -3.4 % with 4 and 8 nodes** on pads of 10 to 20 mm at a converged tile (the layered limit, like the FVM with the same nodes), and on the 52 pad rows of the common baseline of `gap-subdivision` (graded 3D references) the program's Analytic is -66.7 to +1.3 % (mean absolute 17.9 %) while the candidate with 4 nodes is -2.9 to +2.1 % (mean 0.83 %, 46 rows where it runs). Boards with copper everywhere do not change (0.3 points at most).
+* **A better estimate exists in the same machinery** (section 5; the review found it limited to copper edges on tile edges and does not recommend adopting it, 9.3 and 9.7): put the laminate nodes through the thickness into the modal system, solve the series for a board of bare nodes, and put the copper back as extra lateral conductance on the links between tiles, through the Green-function (Woodbury) system the program already uses for vias (`(I + G C) y = y0`, `C` the lateral Laplacian of the added conductance). It follows the FVM with the same nodes when the copper edges lie on tile edges (within 0.4 % on the one-layer 10 and 20 mm pads for 1 to 8 nodes; on the part-sized 6 mm pad at the 1 mm tile 4 to 6 points above it; 0.6 to 0.7 % on the small board of the test), reaches **-0.9 to -3.4 % with 4 and 8 nodes** on pads of 10 to 20 mm at a converged tile (the layered limit, like the FVM with the same nodes), and on the 52 pad rows of the common baseline of `gap-subdivision` (graded 3D references) the program's Analytic is -66.7 to +1.3 % (mean absolute 17.9 %) while the candidate with 4 nodes is -2.9 to +2.1 % (mean 0.83 %, 46 rows where it runs). Boards with copper everywhere do not change (0.3 points at most).
 * **Limits of the candidate** (section 5.4 to 5.6): the tile must be at most a sixth of the part (three tiles across overshoots by 13 to 18 %); a part as small as its pad is -5 % with four nodes at a converged tile; a part over a 6 mm window in full copper is -6 % (the FVM is -20 %, the Analytic -57 %); heaters on the first layer only; vias, blocks and the transient are not combined with it.
-* **Cheaper fallback:** the program's input warning ("copper coverage varies strongly around the heaters", spread above 0.25) fires on 16 of the 18 pad boards of section 4 (errors -65.3 to +8.6 %), and the two it misses are -6.0 and -0.6 %; it does not say how large the error can be (section 6).
+* **Cheaper fallback:** the program's input warning ("copper coverage varies strongly around the heaters", spread above 0.25) fires on 16 of the 18 pad boards of section 4 (errors -65.3 to +8.6 %), and the two it misses are -6.0 and -0.6 %; it does not say how large the error can be (section 6). **Corrected by the review (9.4):** on the 52 pad rows of `gap-subdivision` the same warning stays silent on the two worst rows (`gap0.1-empty` -66.7 %, `gap0.2-empty` -62.0 %): the trigger, not only the text, has to change.
 
 ## Scripts and files
 
@@ -22,15 +22,16 @@ Status: **studied, awaiting the reviewer.** Branch `research/analytic-partial-co
 | `scripts/study_causes.py` | Truncation of the series, parity of the copy, the fill that reproduces the reference, the structure with exact copper, the split of the error, the warning | `data/causes.csv` |
 | `scripts/study_candidate.py` | The candidate: nodes, tiles, the opposite construction, out-of-sample cases, off-centre pads, two pads, a window, the board of `effective-conductivity` 4.11 | `data/candidate_*.csv` |
 | `scripts/study_rows.py` | The candidate on the 52 pad rows and the 44 uniform rows of `research/gap-subdivision/baseline` | `data/rows_pads.csv`, `data/rows_uniform.csv` |
-| `scripts/make_diagrams.py`, `scripts/make_figures.py` | Figures 01 to 03 (drawings) and 04 to 08 (data) | `figures/` |
+| `scripts/study_review.py` | The checks of the review: a second independent solver, the tile rule on five more boards, a copper edge inside a tile, the trigger of the warning on 119 boards, the size of the tile system on larger boards (chapter 9) | `data/review_*.csv` |
+| `scripts/make_diagrams.py`, `scripts/make_figures.py` | Figures 01 to 03 and 09 (drawings) and 04 to 08 (data) | `figures/` |
 | `lib/pads.py` | The designed boards, the program's Problem, the reference | |
 | `lib/general.py` | Boards that are not symmetric (off-centre pads, two pads, a window) and their whole-board reference | |
 | `lib/modal.py` | A copy of the modal solution of the Analytic with the sheet conductances given from outside (equals the program to 2e-16) | |
 | `lib/defect.py` | The candidate (nodes through the laminate, copper as a lateral defect on a bare base) | |
 | `lib/strip.py` | The closed form of a heated strip with a step in the sheet conductance | |
-| `tests/` | `test_modal_defect.py` (8 tests: the copy equals the program, the candidate equals the program on uniform boards, follows the FVM and conserves energy, beats the program on a pad, the tile rule and size limit, the coarse-tile overshoot, the reference converges) and `test_strip.py` (2 tests: the solver against the closed form of the strip, its limits) | |
+| `tests/` | `test_modal_defect.py` (10 tests: the copy equals the program, the candidate equals the program on uniform boards, follows the FVM and conserves energy, beats the program on a pad, the tile rule and size limit, the coarse-tile overshoot, the reference converges, and two added by the review: the candidate refuses vias, heatsinks and outlines, and a copper edge inside a tile runs cool) and `test_strip.py` (2 tests: the solver against the closed form of the strip, its limits) | |
 
-Run from the repository root with `.venv/bin/python research/analytic-partial-copper/scripts/<script>.py` (the first four in that order; the references are cached in `out/`, git-ignored). Tests: `.venv/bin/python -m pytest -q research/analytic-partial-copper/tests` (10 pass).
+Run from the repository root with `.venv/bin/python research/analytic-partial-copper/scripts/<script>.py` (the first four in that order, then `study_review.py`; the references are cached in `out/` and the tables written to `data/`, both git-ignored and regenerated by the scripts). Tests: `.venv/bin/python -m pytest -q research/analytic-partial-copper/tests` (12 pass).
 
 ## 1. The situation
 
@@ -61,7 +62,7 @@ Boards (`lib/pads.py`): 60 x 60 mm, 1.6 mm, copper 35 um, FR-4 0.3 W/mK through 
 
 * The reference is the resolved 3D solver of `research/bare-spot-under-source/lib/resolved3d.py` (imports nothing from the program), on a quadrant, 0.25 mm cells, 8 sub-slabs through the laminate, the copper slab being laminate where there is no copper; the peak is the hottest 0.5 mm block of the source surface. All numbers of the board (copper, laminate, films) are read from the program's Problem.
 * **Energy balance** closes to 1e-9 on every board (`ref_balance` in `data/baseline.csv`).
-* **Cell convergence** (one layer, `study_baseline.py`): 10 mm pad 103.84 / 102.80 / 102.37 K at 0.5 / 0.25 / 0.125 mm, 20 mm pad 56.30 / 56.00 / 55.89 K. The differences fall by about 2.4 each time, so the 0.25 mm reference is about **0.4 to 0.7 % above the converged value** at these pads; every error quoted against it is that much too negative for a model below it. (The whole-board references of section 5.5 are at 0.5 mm: about 1 to 1.5 % high.)
+* **Cell convergence** (one layer, `study_baseline.py`): 10 mm pad 103.84 / 102.80 / 102.37 K at 0.5 / 0.25 / 0.125 mm, 20 mm pad 56.30 / 56.00 / 55.89 K. The differences fall by about 2.4 and 2.6, so the 0.25 mm reference is about **0.3 to 0.7 % above the converged value** at these pads (Richardson limit 102.06 and 55.81 K, review); every error quoted against it is that much too negative for a model below it. (The whole-board references of section 5.5 are at 0.5 mm: about 1 to 1.5 % high.)
 * **A published case reproduced:** the solver reproduces Eq. 27 of Muzychka, Culham and Yovanovich (2003) for a rectangular source on a plate to +0.20 % at 0.1 mm (`research/bare-spot-under-source` 2.1; its four solver tests were re-run here and pass). **A closed form at a pad edge:** the heated strip of copper in a bare sheet (`lib/strip.py`, the fin equation with a step in the sheet conductance) against the solver, `tests/test_strip.py`: the rise next to the centre differs by 0.84, 0.67, 0.33 and 0.16 % at cells of 0.25, 0.2, 0.1 and 0.05 mm (first order in the cell, as the edge is under-resolved); the limits of the closed form (equal sheets: the infinite fin; a wide strip: `q / h`) are tested to 1e-9 and 1e-6. **No published numerical case of a part on a copper pad over bare laminate was found** (none in the repository either, `bare-spot-under-source` README 10).
 * **The board of `effective-conductivity` 4.11** (one layer, 20 mm pad, laminate 0.3 / 0.3) is reproduced: independent 71.61 K (0.72 % below its 72.12 at 0.5 mm cells), FVM 70.32 K (-1.8 %, there -2.5 %), Analytic 51.33 K (-28.3 %, there -28.8 %): the quoted number holds on that board; with the program's laminate (0.9 in the plane) the same pad is **-9.0 %**, a hint of cause (1), section 4.4.
 * The values of the 3D solid (+0.3 to +3.5 %) and of the other models are in section 3 for context; they are not the subject.
@@ -156,7 +157,7 @@ The **structure with the copper exact** is the program's FVM with the nodes of t
 
 ### 4.5 Which warning fires
 
-`analytic._effective_sheet` warns when the spread of the fill under the weights is above 0.25. It fires on 16 of the 18 pad boards (spread 0.26 to 0.50) and does not fire on the two-layer 40 mm pad boards (-6.0 % and -0.6 %). Every board with an error beyond 6.1 % in magnitude is warned (the unwarned two-layer 40 mm pad is -6.0 %). The warning text says the uniform-sheet assumption is weak and the FVM more reliable; it says nothing about the size or the sign (section 6).
+`analytic._effective_sheet` warns when the spread of the fill under the weights is above 0.25. It fires on 16 of the 18 pad boards (spread 0.26 to 0.50) and does not fire on the two-layer 40 mm pad boards (-6.0 % and -0.6 %). Every board with an error beyond 6.1 % in magnitude is warned (the unwarned two-layer 40 mm pad is -6.0 %). The warning text says the uniform-sheet assumption is weak and the FVM more reliable; it says nothing about the size or the sign (section 6). **Review (9.4):** this holds on these 18 boards only; on the 52 pad rows of `gap-subdivision` the same warning is silent on `gap0.1-empty` (-66.7 %) and `gap0.2-empty` (-62.0 %), the worst rows of the baseline.
 
 ## 5. A candidate: nodes through the laminate and the copper as a lateral defect on a bare base
 
@@ -216,7 +217,7 @@ The candidate stays within -0.4 to -3.6 % on all 13 cases while the Analytic run
 ### 5.4 The tile and the number of nodes (the limit found)
 
 * `data/candidate_tiles_nodes.csv`, one layer, 1, 0.5 and (pads 6 and 10) 0.25 mm tiles, n = 1 / 2 / 4 / 8 (error %): pad 6: -13.7 / -5.6 / +0.4 / +4.1, -14.5 / -8.8 / -5.2 / -2.6 and -14.5 / -8.8 / -5.5 / -3.6; pad 10: -9.0 / -5.0 / -2.5 / -1.0, -9.2 / -5.5 / -3.3 / -2.0 and -9.1 / -5.5 / -3.4 / -2.2; pad 14: -6.4 / -3.5 / -1.6 / -0.5 and -6.7 / -3.9 / -2.3 / -1.4; pad 20: -4.1 / -2.1 / -0.9 / -0.2 and -4.4 / -2.6 / -1.5 / -0.9. The 0.5 and 0.25 mm tiles agree within 0.2 points, so 0.5 mm is converged for a 6 mm part. **At the converged tile the candidate is below the reference and falls toward it as nodes are added** (like the FVM); the +0.4 and +4.1 % of the 1 mm tile at pad 6 are coarse-tile overshoot. **Use a converged tile: the converged accuracy is -3.4 / -2.3 / -1.5 % (n = 4) and -2.2 / -1.4 / -0.9 % (n = 8) for pads of 10 / 14 / 20 mm.** On the 1 mm tile the numbers of sections 5.2 and 5.6 are up to 1 point more favourable for n >= 4 (the tile rule of a sixth of the part is a compromise between cost and this bias).
-* **The tile must be at most a sixth of the part.** A 2 mm tile (the part three tiles across) with 4 nodes: +17.9 % on the 20 mm pad (66.0 K against 55.5 K at 1 mm; `test_three_tiles_across_the_part_overshoot` requires more than 10 %); a 1 mm tile on a 3 mm part: +12.9 % (0.5 mm: -1.8 %). The number of Green-function modes does not matter (240 against 100 modes at a 1 mm tile: 0.1 %; 500 against 300 base modes: 0.01 %). `defect.tile_for` applies the rule.
+* **The tile must be at most a sixth of the part** (necessary, not sufficient: the copper edges must also lie on tile edges, review 9.3). A 2 mm tile (the part three tiles across) with 4 nodes: +17.9 % against the reference on the 20 mm pad (66.0 K, against 55.5 K at 1 mm and a reference of 56.0 K; `test_three_tiles_across_the_part_overshoot` requires more than 10 %); a 1 mm tile on a 3 mm part: +12.9 % (0.5 mm: -1.8 %). The number of Green-function modes does not matter (240 against 100 modes at a 1 mm tile: 0.1 %; 500 against 300 base modes: 0.01 %). `defect.tile_for` applies the rule.
 * The opposite construction (copper base, bare tiles subtract; `base="max"`, n = 1, `data/candidate_tiles.csv`): 10 mm pad 77.8 / 86.4 K at 2 / 1 mm tiles, the bare base 86.6 / 93.6 K, the FVM with one laminate node 93.95 K; 20 mm pad 50.6 / 51.5 K against 56.0 / 53.7 and 53.68 (the 0.5 mm copper-base case was not run: its tile system is 12 000 unknowns). The copper base is below the FVM at every tile run, the bare base reaches it at 1 mm.
 * **Cost**: the dense tile system has (tiles with a defect) x (nodes that carry one) unknowns: one layer, 1 mm tiles, pad 10 / 20 / 40 mm: 140 / 480 / 1760; 0.5 mm: 480 / 1760 / 6720 (the research code refuses above 6000; times are not quoted, other agents were running). The base series needs the modal matrices (modes x modes x nodes squared: 300 x 300 x 15 squared is 160 MB at 15 nodes).
 
@@ -251,7 +252,7 @@ Examples (error %, program Analytic / n = 2 / n = 4): `pad6-empty` -45.6 / -5.3 
 
 ## 6. The warning, as a cheaper limit
 
-The program's warning (section 4.5) is the right trigger; what is missing is its content. Measured on these boards the Analytic can be **65 % too cool** (two layers, bare second, 6 mm pad) and **9 % too hot** (one layer, 40 mm pad), and the same board entered with one or two layers differs by 1.8 times. A text that says so (and that the FVM is the reference for any board with partial copper under or around a heater) costs nothing in physics and is proposal P1 of `INTEGRATION.md`.
+The program's warning (section 4.5) is the right trigger on these boards; what is missing is its content. (**Corrected by the review, 9.4:** the trigger misses thin gaps, where the error is largest; a second spread is proposed.) Measured on these boards the Analytic can be **65 % too cool** (two layers, bare second, 6 mm pad; 76 % with the laminate at 0.3 W/mK in the plane, review 9.1) and **9 % too hot** (one layer, 40 mm pad), and the same board entered with one or two layers differs by 1.8 times. A text that says so (and that the FVM is the reference for any board with partial copper under or around a heater) costs nothing in physics and is proposal P1 of `INTEGRATION.md`.
 
 ## 7. Limits of this study
 
@@ -265,4 +266,115 @@ The program's warning (section 4.5) is the right trigger; what is missing is its
 
 * **Read in full (R):** `pcbthermal/analytic.py` (steady solution, effective sheet, tile Green-function block) and `pcbthermal/laminate.py`; the sources of the independent solver (`research/bare-spot-under-source/lib/resolved3d.py`) and the baselines of `research/gap-subdivision` and `research/effective-conductivity` 4.11. **No new literature was opened** (`research/theory/BIBLIOGRAPHY.md` has the entry): Muzychka, Culham and Yovanovich (2003) stands as reproduced by `bare-spot-under-source`; Carslaw and Jaeger is status **M** for the fin equation (the algebra of the strip is derived in `lib/strip.py` and checked). No web search was made in this session; no published numerical case of a part on a pad over bare laminate was found in the repository (status **N**).
 * **Reproduced:** the program's Analytic on every row of the `gap-subdivision` baseline (5.7e-7); the board of `effective-conductivity` 4.11 (section 2.1); the modal copy (2e-16); the solver's four tests and the strip.
-* **Not verified:** whether the roadmap's "-32 % to -13 % on a 2-layer board with a 20 mm pad" comes from `power-calculator` (not found in 4.7; on the boards here the two-layer 20 mm pad is -38.0 % or -14.1 % on a 60 mm board and -2.4 % or +1.3 % on the 30 mm, 3 mm-part rows); the uniform-sheet Analytic with laminate nodes (the `-51 %` of `laminate.py`); the transient; vias, blocks and outlines with the candidate; boards from Gerber files; the candidate at more than 16 nodes (memory) or above 6000 tile unknowns; my own doubts: the candidate's tile rule rests on two boards (a 20 mm pad with a 6 mm part, a 14 mm pad with a 3 mm part) and may need `n` and the tile together (the coarse tile overshoots more with more nodes: n = 1 was +0.0 % at 2 mm, n = 4 +17.9 %), and the base solution with `nodes^2` modal matrices grows with `n` times the layers.
+* **Not verified:** whether the roadmap's "-32 % to -13 % on a 2-layer board with a 20 mm pad" comes from `power-calculator` (not found in 4.7; the review traced it to `docs/validation.md` section 21, Analytic variants on the CSD17308Q3 board with a script not in the repository, so it stays unreproduced; on the boards here the two-layer 20 mm pad is -38.0 % or -14.1 % on a 60 mm board and -2.4 % or +1.3 % on the 30 mm, 3 mm-part rows); the uniform-sheet Analytic with laminate nodes (the `-51 %` of `laminate.py`); the transient; vias, blocks and outlines with the candidate; boards from Gerber files; the candidate at more than 16 nodes (memory) or above 6000 tile unknowns; my own doubts: the candidate's tile rule rests on two boards (a 20 mm pad with a 6 mm part, a 14 mm pad with a 3 mm part) and may need `n` and the tile together (the coarse tile overshoots more with more nodes: n = 1 was +0.0 % at 2 mm, n = 4 +17.9 %), and the base solution with `nodes^2` modal matrices grows with `n` times the layers.
+
+## 9. Review
+
+Status: **reviewed** (the independent `reviewer` agent). Every study was re-run from empty caches (`out/` moved away): the ten tables of `data/` came out byte-identical, and every number of sections 2 to 6 above was compared with the printed output. The checks of this chapter are `scripts/study_review.py` (tables `data/review_*.csv`). What was wrong is corrected above and marked "review"; this chapter keeps the evidence.
+
+### 9.1 A second independent reference
+
+`tests/helpers/layered3d.py` (the program's test helper, imports nothing from the program, isotropic cells, so the laminate is taken as 0.3 W/mK in every direction; film also under the source, as the program) on a quadrant at 0.25 mm, against `resolved3d` of the same boards (part a):
+
+| Board (laminate 0.3 / 0.3) | layered3d (K) | resolved3d (K) | Analytic | FVM | candidate n = 4, 0.5 mm tile |
+| :-- | --: | --: | --: | --: | --: |
+| one layer, 10 mm pad | 159.165 | 159.165 | -57.0 | -3.8 | -2.8 |
+| one layer, 20 mm pad (the board of `effective-conductivity` 4.11) | 71.607 | 71.607 | -28.3 | -1.8 | -1.4 |
+| two layers, bare second, 10 mm pad | 159.148 | 159.148 | **-75.9** | -6.9 | -2.8 |
+| two layers, full second, 20 mm pad | 37.689 | 37.689 | -17.4 | -1.7 | -0.7 |
+| two layers, full second, 6 mm pad | 118.489 | 118.489 | -64.7 | -13.7 | -0.9 |
+
+The two solvers agree to 4.5e-7 relative and both close the energy balance: they are the same finite-volume discretisation written twice, so this checks the code of the reference, not its cell error; the cell error is the convergence of section 2.1 (Richardson limit 102.06 K and 55.81 K, the 0.25 mm reference 0.73 % and 0.33 % high) and the 3D solid's +0.3 to +3.5 % of section 3. With the laminate at 0.3 W/mK in the plane the Analytic reaches **-75.9 %** (two layers, bare second, 10 mm pad), beyond the -65.3 % of section 3: the "up to 65 %" of the earlier text was the worst case of the program's own laminate only.
+
+The cause split (4.3) was re-computed at a 0.25 mm cell: the structure moves by 0.1 to 0.3 point (one layer, 10 mm pad: -16.3 -> -16.4; 6 mm: -24.3 -> -24.5; two layers bare second 10 mm: -8.5 -> -8.7; full second: -9.2 -> -9.4). On two layers the candidate with one node is a second implementation of the same structure: 93.51 K against 93.88 K (bare second, 10 mm) and 51.62 K against 51.78 K (full second). On the 52 rows of 5.6 the candidate with one node equals the program's FVM (committed `fvm_K`) within -1.28 to +0.53 % (mean absolute 0.33 %).
+
+### 9.2 The tile rule on more boards
+
+Candidate against the program's FVM with the same laminate nodes at 0.25 mm (the same layered model), part k tiles across (part b; in brackets, when not 0, how far the pad edge falls inside a tile: 0.5 = in its middle):
+
+| board (mm) | pad (mm) | part (mm) | n | k = 2 | 3 | 4 | 6 | 8 | 12 |
+| --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| 40 | 10 | 2 | 2 | +2.5 | +2.1 (0.5) | +0.3 | -0.2 | -0.3 | -0.3 |
+| 40 | 10 | 2 | 4 | +2.4 | +7.5 (0.5) | +0.7 | -0.2 | -0.4 | -0.4 |
+| 40 | 10 | 4 | 2 | -6.6 (0.5) | +3.6 (0.25) | +0.5 | **-4.3 (0.5)** | -0.3 | -0.3 |
+| 40 | 10 | 4 | 4 | -6.9 (0.5) | +8.7 (0.25) | +0.9 | **-4.4 (0.5)** | -0.3 | -0.3 |
+| 60 | 20 | 4 | 2 | +5.3 | +1.6 | +0.5 | +0.2 | -0.1 | -0.1 |
+| 60 | 20 | 4 | 4 | +5.1 | +1.9 | +0.6 | +0.3 | -0.1 | -0.2 |
+| 60 | 20 | 10 | 2 | +7.1 | +10.2 | +1.9 | +0.8 | +0.3 | -0.0 |
+| 60 | 20 | 10 | 4 | +7.8 | +13.8 | +2.5 | +1.2 | +0.6 | +0.2 |
+| 40 | 16 | 3 | 2 | +25.1 | +10.8 | +2.7 | +0.2 | -0.5 | -0.2 |
+| 40 | 16 | 3 | 4 | +39.4 | +20.8 | +8.0 | +0.3 | -0.6 | -0.2 |
+
+Six tiles across is within 1.2 % **when the pad edges lie on tile edges** (k = 6 on the 60 mm boards and on the 16 mm pad; 0.3 % except the 10 mm part), but -4.3 % on the 40 mm board with a 4 mm part where the 10 mm pad edge falls in the middle of a tile; two to four tiles across scatter from -6.9 to +39.4 %, not monotonically. Eight and twelve tiles across are within 0.6 %. The rule "a sixth of the part" of 5.4 is necessary, not sufficient.
+
+### 9.3 A copper edge inside a tile (a limit of the candidate, and of the program's FVM at its own cell)
+
+Pads whose edge falls inside a tile (part c, figure 9): candidate with two nodes against the FVM with two nodes at 0.25 mm (where every edge here is on a cell edge):
+
+![A copper edge inside a tile](figures/fig_09_copper_edge_inside_a_tile.png)
+
+*Figure 9 (`figures/fig_09_copper_edge_inside_a_tile.png`): left, a pad edge on a tile edge; middle, the same pad half a millimetre wider, its edge in the middle of a 1 mm tile; right, what the tiles see: the half-covered tile has a sheet far above the bare laminate and carries the heat to its far side, as if the pad were a tile wider.*
+
+| board (mm) | tile (mm) | pad (mm) | edge inside the tile | candidate against the FVM (%) |
+| --: | --: | --: | --: | --: |
+| 60 | 1 | 10 / 10.5 / 11 / 11.5 / 12 | 0 / 0.75 / 0.5 / 0.25 / 0 | +0.2 / **-7.7** / -5.8 / -2.9 / +0.2 |
+| 60 | 1 | 20 / 20.5 / 21 / 21.5 | 0 / 0.75 / 0.5 / 0.25 | +0.3 / -3.6 / -2.6 / -1.2 |
+| 40 | 0.5 | 10 / 10.5 / 11 | 0 / 0.5 / 0 | -0.3 / -3.3 / -0.3 |
+
+A partly covered tile has a sheet `f k_cu t_cu + ...` that is already far above the bare laminate at f = 0.5, so it conducts like copper and the pad acts as if it reached the far side of the tile: the candidate is cool by up to 7.7 %. **Every board of sections 3 to 5 and every row of 5.6 had its pad edges on tile edges**, so none of them saw this. The program's own FVM has the same rule at its cell: the 10.5 mm pad on the 60 mm board is 86.91 / 90.70 / 93.60 / 93.51 K at 1 / 0.5 / 0.25 / 0.125 mm, i.e. -3.0 % at the default 0.5 mm cell where the edge is half a cell off (a limit of the program's cell fill, recorded here; `zone-union` and A12 met the same effect as clearances bridged by partly covered cells). `tests/test_modal_defect.py::test_copper_edge_inside_a_tile_runs_cool` pins it (8 mm pad within 1 %, 8.5 mm pad below -4 %).
+
+### 9.4 The trigger of the warning
+
+The claim of 4.5 and 6 (the program's warning is the right trigger, every board beyond 6.1 % is warned) holds on the 18 pad boards only. On 119 boards (part d: the 20 boards of section 3, the 52 pad and 44 uniform rows of `gap-subdivision`, and the three example boards, these against the program's FVM since they have no 3D reference here):
+
+| Trigger | warned | silent | silent beyond 5 % | worst silent board | warned within 2 % |
+| :-- | --: | --: | --: | :-- | --: |
+| the program's flag (spread at `lambda_l` above 0.25) | 60 | 59 | 5 | `gap0.1-empty` -66.7 % | 4 |
+| spread at the full-copper length above 0.25 | 69 | 50 | 1 | one layer, 6 mm pad, -36.9 % | 5 |
+| **the larger of the two above 0.25** | 70 | 49 | **0** | example board -1.9 % (against the FVM) | 5 |
+
+Silent under the program's flag and beyond 4 %: `gap0.1-empty` -66.7 %, `gap0.2-empty` -62.0 %, `gap0.2-full` -6.9 %, `gap0.1-full` -5.4 %, the 60 mm two-layer bare-second 40 mm pad -6.0 %, and the four `L3` to `L8-gap0.2-top-pad` rows -4.0 to -4.6 %. The example boards: spreads 0.06 / 0.14 (Analytic -1.9 % of the FVM), the reference board 0.00 / 0.00.
+
+The two rows the program misses are the worst of the baseline: on a thin gap `lambda_l` is about a millimetre (g = k_z / gap = 3000 W/m2K at 0.1 mm), the weights stay under the part, the pad is not seen (spread 0.07 and 0.16) and the sheet is taken as copper. A second spread with the fin length of the same layer as full copper sees the pad edge (0.39 to 0.50 on the thin gaps); the larger of the two above 0.25 leaves no board beyond 5 % silent and keeps the uniform rows and the example boards silent (largest second spread 0.14, on the example board). This is the trigger proposed in `INTEGRATION.md` P1.
+
+### 9.5 Cost of the candidate on larger boards
+
+Unknowns of the dense tile system with two nodes per gap (part e; counted, not solved):
+
+| Board | tile (mm) | unknowns |
+| :-- | --: | --: |
+| 60 x 60, one layer, 40 mm pad, 6 mm part | 1 | 1 760 |
+| 100 x 80, two layers, 60 x 40 mm top pour, full bottom, 6 mm part | 1 | 2 600 |
+| the same, 3 mm part | 0.5 | 10 000 |
+| 100 x 80, four layers, 60 x 40 top pour, 80 x 60 bottom pour, full inner layers, 6 mm part | 1 | 10 160 |
+| `examples/example_board.pcbt.json` without its 9 vias and its heatsink (the candidate refuses them) | 1 | 3 740 |
+
+A dense system of N unknowns needs N^2 doubles three times (G, G C and the factor): 0.9 GB at 6 000, 2.4 GB at 10 000; building G costs about `n_green^2 N^2` operations. An ordinary two-layer board of 100 x 80 mm with a pour is at or beyond the research limit; the example board would be within it without its vias and heatsink, which the candidate does not model.
+
+### 9.6 Findings and what was corrected
+
+| # | Finding | Class | Evidence | Done |
+| :-- | :-- | :-- | :-- | :-- |
+| R1 | The program's Analytic warning is silent on the two worst rows of the `gap-subdivision` baseline (-66.7 and -62.0 %) and on six more rows of -4.0 to -6.9 %; the claim that it is the right trigger rested on the 18 pad boards | wrong claim in the study; a limit of the program | 9.4, part d | claims corrected (sections Answer, 4.5, 6), a second spread measured, `INTEGRATION.md` P1 rewritten with the trigger and the text |
+| R2 | A copper edge inside a tile makes the candidate 3 to 8 % cool; every measured board had aligned edges; the tile rule is not monotone below six tiles | unexplained result / limit of the candidate | 9.2, 9.3, parts b and c | documented, the `@note` of `defect.solve`, regression test of the limit, `INTEGRATION.md` P2 risks |
+| R3 | `defect.solve` dropped vias, heatsinks and the outline silently (the docstring said "no vias or heatsinks", nothing checked it; the example board ran) | defect in the study's code | `test_candidate_refuses_what_it_does_not_model` fails on the first version | fixed: refused with a ValueError |
+| R4 | A partly covered cell conducts like copper in the program's FVM: a pad edge half a cell off is -3.0 % at 0.5 mm (-7.1 % at 1 mm) | limit of the program (not edited here) | 9.3 | recorded; for the maintainer (it belongs with A12's cell-fill questions) |
+| R5 | Figure 1 drew the program's one-layer board with a second node at the bottom face; the program has one node and a series film | wrong figure | `make_diagrams.py` | fixed, figure regenerated |
+| R6 | The roadmap's "-32 % to -13 %" comes from `docs/validation.md` section 21 (Analytic variants on the CSD17308Q3 board, script not in the repository), not `power-calculator` 4.7; its sign means too cool | stale document | `git log -S` on `research/ROADMAP.md`, `docs/validation.md` line of section 21 | ROADMAP row 10 and A2 corrected ("too cool, not hot", the source named, not reproduced) |
+| R7 | "Up to 65 % too cool" was the worst case of the program's laminate only; with 0.3 W/mK in the plane -75.9 % | incomplete claim | 9.1 | the warning text and P3 use 76 % |
+| R8 | The 52-row comparison counts the program over 52 rows and the candidate with four nodes over 46 | presentation | on the same 46 rows the program is -66.7 to +1.3 %, mean absolute 18.5 % (17.9 % on 52) | noted here; the conclusion does not change |
+| R9 | Small text: `data/` was called committed (it is git-ignored and regenerated), the 2 mm tile "+17.9 %" is against the reference (66.0 against 56.0 K), the reference is 0.3 to 0.7 % (not 0.4 to 0.7 %) above its limit, `study_rows.py` said 1 mm tiles (it uses a sixth of the part) and printed a fourth column header for the uniform rows | wrong document | the scripts and their output | corrected |
+
+Checked and confirmed: the baseline of section 3 to the digit; the series truncation (7.8e-6 from 300 to 600 modes, 0.21 % from the sampling cell); the parity of `lib/modal.py` (2.2e-16); the fills of 4.2; the split of 4.3; the 1.8 times of 4.4 (102.1 / 56.2) and the hand-computed lengths (2.3 and 8.7 mm, recomputed from the formula); the -9.0 / -28.3 % of the laminate conductivity; sections 5.2 to 5.6 to the digit; the closed form of the strip (`lib/strip.py`, the continuity of the rise and of the flux at the edge re-derived); the bibliography entry (no new source opened, Carslaw and Jaeger honestly M; the strip is an elementary fin equation that does not rest on the book's text); licence headers and the documentation gate (`tests/test_docs.py`, `tests/test_license_header.py` pass); no dates in the documents.
+
+### 9.7 Recommendation (for the maintainer's choice of P1 to P3)
+
+**P1 with the new trigger, and P3; not P2.** The candidate is right on the designed boards but it is the FVM's layered model solved by a dense Green-function system: what it gains over the program's FVM comes only from the laminate nodes that the FVM itself is offered (`gap-subdivision`, `bare-spot-under-source`); it needs copper edges on tile edges, which real copper never has; it reaches the research limit on an ordinary 100 x 80 mm board with a pour; and it was never combined with vias, blocks, outlines, inner-layer heaters or the transient. That is the complexity, cost and risk the maintainer's rule weighs against a limit we can live with. The exact texts are in `INTEGRATION.md` (P1 and the reviewer's recommendation).
+
+### 9.8 What the review did not verify
+
+* No physical measurement and no published case of a part on a pad over bare laminate (none was found by the study; the review made no web search).
+* The second reference is a second code of the same discretisation; a different discretisation (finite elements, or the program's 3D solid at a finer cell) was not run for these boards beyond the 3D solid's column of section 3.
+* The trigger was measured on 119 boards, all designed (square boards, one heater, rectangular copper) plus the three example boards against the FVM; no Gerber board was run through it.
+* The candidate with vias, blocks, outlines, several heaters or the transient (refused by the code now); the candidate at more than 16 nodes.
+* The uniform-sheet Analytic with laminate nodes (the -51 % quoted by `laminate.py`) remains unreproduced, as the study says.

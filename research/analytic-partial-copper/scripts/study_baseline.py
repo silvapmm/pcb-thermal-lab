@@ -6,7 +6,7 @@
 @details Question: how far is the Analytic model (and the others) from a resolved 3D solution on a pad board, and is the error always a shortfall? Boards: 60 x 60 mm, 1.6 mm, copper 35 um,
          a 6 x 6 mm part of 1 W in the centre, FR-4 0.3 through and 0.9 in the plane (the program's), films 10 and 15 W/m2K, no edge loss; pads of 6 to 40 mm and the board with full copper.
          The reference (lib/pads.py, resolved3d, quadrant, 0.25 mm cells, 8 sub-slabs through the laminate) is read as the program's 0.5 mm cell would read it; its cell convergence (0.5, 0.25, 0.125 mm)
-         is stored too. Writes data/baseline.csv (committed) and caches the results in out/.
+         is stored too. Writes data/baseline.csv (git-ignored, regenerated) and caches the results in out/.
          Usage: .venv/bin/python research/analytic-partial-copper/scripts/study_baseline.py   (from the repository root; several minutes).
 """
 

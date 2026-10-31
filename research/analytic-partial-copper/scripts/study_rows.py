@@ -5,7 +5,7 @@
 @brief The measured impact of the candidate on the baseline of research/gap-subdivision: its 52 pad boards (converged graded 3D reference) and its 44 uniform boards (exact series), the program's Analytic against the candidate with 1, 2 and 4 nodes through every gap.
 @details Question: how many of the designed boards of the common baseline change, in which direction, and does a board with copper everywhere stay where it is? The reference values are the committed
          columns `ref_K` of research/gap-subdivision/baseline/pads.csv (graded 3D, limit fitted) and uniform.csv (exact series); the program's Analytic column is recomputed here (it must equal the
-         committed `analytic_K`). The candidate is lib/defect.py with 1 mm tiles. Writes data/rows_pads.csv and data/rows_uniform.csv.
+         committed `analytic_K`). The candidate is lib/defect.py with the tile of `defect.tile_for` (a sixth of the part, 0.5 mm for the 3 mm part of these rows). Writes data/rows_pads.csv and data/rows_uniform.csv.
          Usage: .venv/bin/python research/analytic-partial-copper/scripts/study_rows.py   (from the repository root; about 10 minutes).
 """
 
@@ -98,7 +98,7 @@ def main():
             w.writeheader()
             w.writerows(rows)
     for name, rows in (("pads", pads), ("uniform", uni)):
-        print(f"\n{name}: error against the reference (%): program | n=1 | n=2 | n=4")
+        print(f"\n{name}: error against the reference (%): program | n=1 | n=2" + (" | n=4" if "cand4_K" in rows[0] else ""))
         for r in rows:
             e = lambda k: 100 * (r[k] / r["ref_K"] - 1)
             tail = f" | {e('cand4_K'):+6.1f}" if "cand4_K" in r else ""

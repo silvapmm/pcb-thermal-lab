@@ -82,13 +82,18 @@ def solve(problem, n_sub=1, tile_mm=1.0, cell_mm=0.5, n_terms=300, n_green=None,
     @param base "min": the base board is the weakest sheet of every node and the copper is added on the links (dS >= 0); "max": the base is the strongest and the bare tiles subtract.
     @param max_unknowns Largest size of the dense tile system (tiles with a defect times the nodes that carry one).
     @return dict with T (nodes, ny, nx) rise over the ambient, max (K, on the first node), tiles (number of tiles with a link that differs from the base) and nodes.
-    @throws ValueError If a heater is not on the first layer, or the tile system is larger than max_unknowns.
+    @throws ValueError If a heater is not on the first layer, the board has vias, heatsinks or an outline (not modelled here), or the tile system is larger than max_unknowns.
+    @note The fill of a tile that a copper edge crosses enters the harmonic mean like the FVM's partly covered cell, so a copper edge in the middle of a tile behaves as if the copper
+          reached further (README, chapter Review: -3 to -8 % against the FVM with the same nodes for an edge half a 1 mm tile off the grid). Results are claimed only for edges on tile edges.
     """
     problem.validate()
     b = problem.board
     W, H, L = b.width, b.height, b.layers
     if any(h.layer != 0 for h in problem.heaters):
         raise ValueError("the candidate takes heaters on the first copper layer")
+    # Vias, heatsinks and outlines are not part of the construction: refuse instead of silently dropping them (review finding)
+    if problem.vias or problem.heatsinks or b.has_outline():
+        raise ValueError("the candidate does not model vias, heatsinks or a board outline")
     st = stack(b, n_sub)
     n_nodes = len(st["slab"])
     m = b.materials

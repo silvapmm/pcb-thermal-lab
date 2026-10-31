@@ -3,9 +3,9 @@
 """!
 @file make_diagrams.py
 @brief Drawings of the situation: a part on a copper pad over bare laminate (the section with the paths of the heat, the nodes of the program and the candidate), the uniform sheet the Analytic model puts in its place, and the tiles of the candidate.
-@details Figures 01 to 03 of figures/ (the data figures from 04 on are drawn by make_figures.py). No study is run; the geometry is the board of the baseline (60 mm board, 1.6 mm, 6 mm part,
+@details Figures 01 to 03 and 09 of figures/ (the data figures 04 to 08 are drawn by make_figures.py). No study is run; the geometry is the board of the baseline (60 mm board, 1.6 mm, 6 mm part,
          pads of 6 to 40 mm; the vertical scale of the sections is exaggerated). Every number written on a drawing is one the README holds.
-         Files: fig_01_part_on_a_pad_section.png, fig_02_uniform_sheet_against_the_pad.png, fig_03_nodes_and_tiles_of_the_candidate.png.
+         Files: fig_01_part_on_a_pad_section.png, fig_02_uniform_sheet_against_the_pad.png, fig_03_nodes_and_tiles_of_the_candidate.png, fig_09_copper_edge_inside_a_tile.png (review).
          Usage: python research/analytic-partial-copper/scripts/make_diagrams.py   (from the repository root).
 """
 
@@ -51,14 +51,15 @@ def section(ax, title, nodes):
             dk.arrow(ax, x, zt - tcu - 0.1, x, zt - tcu - lam + 0.25, color=dk.HEAT, width=0.9)
         ax.text(7, zt - lam - 0.35, "heat goes down through the laminate over the pad\nand over the bare board, spreading in it sideways:\nthe laminate is a poor spreader", ha="center", va="top", fontsize=7)
     else:
-        n = 1 if nodes == "program" else 4
-        ys = np.linspace(zt - tcu / 2, zt - tcu - lam, n + 1)
+        # The program has a single node (the copper layer, holding the whole laminate sideways); the laminate is a series film to the bottom face, not a second node (review fix)
+        ys = [zt - tcu / 2] if nodes == "program" else np.linspace(zt - tcu / 2, zt - tcu - lam, 5)
         xs = [1.2, 4.0, 7.0, 10.0, 12.8]
         for x in xs:
             for j, y in enumerate(ys):
                 ax.add_patch(Circle((x, y), 0.11, facecolor=dk.COPPER if j == 0 and 4.2 < x < 9.8 else ("#f1e3c9" if j == 0 else "#7aa86d"), edgecolor="k", zorder=5))
-            if len(ys) > 1:
-                ax.plot([x, x], [ys[0], ys[-1]], color="k", linewidth=0.6, zorder=4)
+            ax.plot([x, x], [ys[0], zt - tcu - lam], color="k", linewidth=0.6, linestyle="-" if nodes != "program" else ":", zorder=4)
+        if nodes == "program":
+            ax.text(13.4, zt - tcu - lam / 2, "series film\nt_lam / k_z\n+ 1 / h_b", fontsize=6, va="center", ha="right")
         for y0, y1 in zip(ys[:-1], ys[1:]):
             ax.text(13.4, (y0 + y1) / 2, "k_z A / g", fontsize=6, va="center", ha="right")
         if nodes == "program":
@@ -148,9 +149,41 @@ def fig_tiles(path):
     dk.save(fig, path)
 
 
+def fig_edge_in_tile(path):
+    """!
+    @brief Figure 09 (review): a copper edge on a tile edge and inside a tile; the partly covered tile conducts like copper, so the pad acts as if it reached the far side of the tile.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(12, 4.2, 1, 3)
+    cases = [("pad edge on a tile edge", 10.0), ("pad edge in the middle of a tile", 10.5), ("what the tiles see (fill 0.5 ~ copper)", None)]
+    for ax, (title, edge) in zip(axs, cases):
+        ax.set_xlim(6, 14)
+        ax.set_ylim(0, 6)
+        ax.set_aspect("equal")
+        ax.set_title(title, fontsize=8)
+        ax.add_patch(Rectangle((6, 0), 8, 6, facecolor=dk.FR4, edgecolor="k"))
+        if edge is not None:
+            ax.add_patch(Rectangle((6, 0), edge - 6, 6, facecolor=dk.COPPER, edgecolor="none"))
+        else:
+            ax.add_patch(Rectangle((6, 0), 4, 6, facecolor=dk.COPPER, edgecolor="none"))
+            ax.add_patch(Rectangle((10, 0), 1, 6, facecolor=dk.COPPER, alpha=0.6, edgecolor="none"))
+            ax.text(10.5, 5.5, "f = 0.5", ha="center", fontsize=7, backgroundcolor="white")
+            dk.arrow(ax, 10.6, 3, 11.9, 3, color=dk.HEAT, width=1.2)
+        for x in range(6, 15):
+            ax.plot([x, x], [0, 6], color="k", linewidth=0.4)
+        for y in range(0, 7):
+            ax.plot([6, 14], [y, y], color="k", linewidth=0.4)
+    axs[0].text(10, -0.6, "edge on a tile edge: within 0.3 % of the FVM", ha="center", fontsize=7)
+    axs[1].text(10, -0.6, "edge 0.5 mm inside a 1 mm tile", ha="center", fontsize=7)
+    axs[2].text(10, -0.6, "the copper reaches the far side: -5.8 to -7.7 %", ha="center", fontsize=7)
+    dk.save(fig, path)
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     fig_section(OUT / "fig_01_part_on_a_pad_section.png")
     fig_uniform(OUT / "fig_02_uniform_sheet_against_the_pad.png")
     fig_tiles(OUT / "fig_03_nodes_and_tiles_of_the_candidate.png")
+    fig_edge_in_tile(OUT / "fig_09_copper_edge_inside_a_tile.png")
     print("figures written to", OUT)
