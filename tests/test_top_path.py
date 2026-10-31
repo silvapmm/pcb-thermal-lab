@@ -65,7 +65,7 @@ def test_small_pad_reaches_the_operating_point_and_not_a_thermal_runaway_warning
     root = brentq(lambda pb: pb - power + part_split(h, board_tmax(p, pb, opts), power, amb)[1], 1e-6, power, xtol=1e-5)
     tj_exact = part_split(h, board_tmax(p, root, opts), power, amb)[0]
     assert row["t_junction"] == pytest.approx(tj_exact, abs=0.1)
-    assert row["t_junction"] == pytest.approx(90.9, abs=0.1)
+    assert row["t_junction"] == pytest.approx(92.1, abs=0.1)         # 90.9 before fix/laminate-nodes: the rule adds the face drop of a part over the bare laminate next to its pad
     # Energy and the series-parallel closure
     assert row["power_top_w"] + row["power_board_w"] == pytest.approx(power)
     assert row["t_junction"] - amb == pytest.approx(h.top_resistance() * row["power_top_w"], rel=1e-6)
@@ -139,11 +139,11 @@ def split_residuals(problem, sim, options):
 
 
 def test_three_coupled_parts_on_one_small_pad_with_computed_coefficients():
-    # Three parts with different powers 4 mm apart on one 12 mm pad, computed h: Broyden on three coupled unknowns (the middle part sends 99.6 % up, close to the clip)
+    # Three parts with different powers 4 mm apart on one 12 mm pad, computed h: Broyden on three coupled unknowns (the middle part sends 87 % up)
     p = Problem.new(40, 40, 2)
     for layer in (1, 2):
         p.add_zone(layer, rect=(14, 14, 26, 26))
-    for k, power in enumerate((1.5, 1.0, 1.2)):
+    for k, power in enumerate((1.5, 1.3, 1.2)):             # (the middle part had 1.0 W and sent 100 % up, a clip, once the rule changed the board a little)
         x = 16.0 + 4.0 * k
         p.add_heater(1, power, rect=(x - 1.6, 18.4, x + 1.6, 21.6), name=f"U{k + 1}", theta=4.5, theta_jc_top=30.0, theta_sa=12.0, interface=0.5)
     opts = SolverOptions(models=("fvm",), cell_mm=0.5)

@@ -80,6 +80,7 @@ def test_fvm_matches_the_exact_rc_response_of_a_uniform_board(monkeypatch):
     # One layer, a heater over the whole board, insulated edges: the temperature is uniform and obeys C T' = P(t) - G T
     # (a single node: the laminate nodes of a one-layer board are switched off, the time integration is what is tested)
     monkeypatch.setattr(laminate, "LAMINATE_NODES", 0)
+    monkeypatch.setattr(laminate, "uses_rule", lambda problem: False)       # (the rule gives a one-layer board a bottom node too)
     p = reference_problem(layers=1, heater_mm=100.0, power=10.0)
     p.board.h_side = None
     net = fvm.Network(p, 8, 8, assemble=False)
@@ -215,6 +216,7 @@ def test_square_wave_as_table_gives_the_same_decision(monkeypatch):
     # Against the exact RC solution (uniform board): a three-level table
     from pcbthermal import TableProfile
     monkeypatch.setattr(laminate, "LAMINATE_NODES", 0)                 # The exact RC solution is that of a single node
+    monkeypatch.setattr(laminate, "uses_rule", lambda problem: False)
     u = reference_problem(layers=1, heater_mm=100.0, power=10.0)
     u.board.h_side = None
     net = fvm.Network(u, 8, 8, assemble=False)

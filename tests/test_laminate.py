@@ -40,8 +40,12 @@ def test_nodes_add_up_to_the_board_and_only_a_one_layer_board_has_them():
     assert lam.count == laminate.LAMINATE_NODES == 2
     assert lam.copper_slab + lam.slabs.sum() == pytest.approx(1.6e-3)
     assert laminate.nodes(Problem.new(60.0, 60.0, 2).board) is None
-    net = fvm.Network(p, 30, 30)
+    # The nodes of the earlier versions (the Lumped model, and a board with a metal block, still use them)
+    net = fvm.Network(p, 30, 30, ladder=False)
     assert net.nl == 3 and net.laminate_layers == [1, 2] and net.g_bottom[0].sum() == 0.0 and net.g_bottom[2].sum() > 0.0
+    # The rule: copper everywhere needs no interior node, only the bottom node that carries the bottom film
+    net = fvm.Network(p, 30, 30)
+    assert net.nl == 2 and net.laminate_layers == [1] and net.g_bottom[0].sum() == 0.0 and net.g_bottom[1].sum() > 0.0
 
 
 @pytest.mark.parametrize("model", ["fvm", "fdm"])
