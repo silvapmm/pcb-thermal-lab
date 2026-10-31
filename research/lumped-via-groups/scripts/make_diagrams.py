@@ -202,7 +202,7 @@ def fig_fish(path):
         ax.set_ylim(-1.2, 6.8)
         ax.add_patch(Rectangle((1, 0.5), 6, 4.6, facecolor="#dbe9f7", edgecolor="k"))
         ax.add_patch(Rectangle((3.4, 0.5), 1.2, 4.6, facecolor=dk.COPPER, edgecolor="k"))
-        ax.text(4.0, 2.8, "via\n$k_v$ = 400", ha="center", fontsize=8)
+        ax.text(4.0, 0.0, "via, $k_v$ = 400", ha="center", fontsize=8)
         ax.text(1.9, 1.0, "glass $k_s$ = 1", fontsize=8)
         if iso:
             ax.plot([1, 7], [5.1, 5.1], color="#1f77b4", lw=4)
@@ -212,7 +212,7 @@ def fig_fish(path):
                 dk.arrow(ax, x, 4.9, x, 0.8, color=dk.HEAT, width=1.1)
             for x in (3.7, 4.0, 4.3):
                 dk.arrow(ax, x, 4.9, x, 0.8, color=dk.HEAT, width=2.2)
-            ax.text(4, -0.6, "$k_{eff}=\\phi k_v+(1-\\phi)k_s$", ha="center", fontsize=9)
+            ax.text(4, -0.8, "$k_{eff}=\\phi k_v+(1-\\phi)k_s$", ha="center", fontsize=9)
         else:
             ax.text(4, 6.2, "flux or convection on the face: microspreading", ha="center", fontsize=9, fontweight="bold")
             for x in (1.6, 2.4, 3.0, 5.0, 5.6, 6.4):
@@ -223,7 +223,7 @@ def fig_fish(path):
             for x in (3.7, 4.0, 4.3):
                 dk.arrow(ax, x, 3.0, x, 0.8, color=dk.HEAT, width=2.2)
             ax.plot([1, 7], [0.5, 0.5], color="#1f77b4", lw=4)
-            ax.text(4, -0.6, "$R_{msp}$ in series with $R_{1D}$; 1240 K/W (thick cell, flux face)", ha="center", fontsize=9)
+            ax.text(4, -0.8, "$R_{msp}$ in series with $R_{1D}$; 1240 K/W (thick cell, flux face)", ha="center", fontsize=9)
     dk.save(fig, path)
 
 

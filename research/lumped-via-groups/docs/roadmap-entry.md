@@ -1,0 +1,3 @@
+# Text for `docs/versions.md` (chapter 'Planned'), after the investigation `lumped-via-groups`
+
+* **Lumped model: a group of vias under a larger footprint** (after the investigation `lumped-via-groups` and after the micro well of `lumped-analytic-vias`; branch `fix/lumped-via-groups` or part of `feature/lumped-micro-well`): two zones per layer for the footprint, the logarithmic-potential link of the real shapes, the micro peak, warnings (sparse arrays, elongated footprints, clusters off the centre, a raster coarser than a tenth of the core, vias outside the footprint). Evidence: `research/lumped-via-groups/README.md` 4 to 8 and `INTEGRATION.md`; to decide first: option A, B or C; the transient of the zoned network.
