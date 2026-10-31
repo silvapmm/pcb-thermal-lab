@@ -1,5 +1,5 @@
 # Text for `CHANGELOG.md` (Unreleased), if the zone model is adopted
 
 * **Changed**: the Lumped model represents a group of vias under a larger footprint with two nodes per layer for the footprint (the core covered by the vias and the rest), joined by a lateral link in parallel with the vertical paths, and adds the rise of the rim of the cell of one via to the peak. On the example board with a 5 x 5 or 7 x 7 array under U1 the maximum temperature changes by -1.1 K (open 5 x 5) to +1.9 K (copper 5 x 5) against the previous Lumped model and is within 0.7 K of the corrected FVM with open barrels; with the 9 vias of the example, +2.3 K (open) and +4.7 K (copper fill), towards the FVM.
-* **Added**: warnings of the Lumped model for a via or a row outside the footprint (10 to 30 % on an effect of 0.1 to 2 K), for sparse arrays, an elongated footprint, a cluster far off the centre of the footprint and a raster coarser than a tenth of the core.
+* **Added**: warnings of the Lumped model for a via or a row outside the footprint (10 to 30 % on an effect of 0.1 to 2 K), for an elongated footprint, a cluster off the centre of the footprint and a raster coarser than a tenth of the core.
 * **Fixed**: the group term of the earlier proposal is not added (it made the effect of dense arrays 18 to 32 % too small).

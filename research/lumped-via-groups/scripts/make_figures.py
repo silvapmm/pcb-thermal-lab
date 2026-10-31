@@ -9,7 +9,8 @@
          fig_08_zone_temperatures.png     the temperatures of the rest of the footprint (A) and of the core (C) in every layer, the reference against the series group term and the zones;
          fig_09_example_board.png         the example board of the program with arrays under U1 (`study_example_board.py`);
          fig_10_fish_microspreading.png   the reproduction of the published unit cell (`study_fish_case.py`);
-         fig_11_cell_link_exact.png       the cell problem against the two closed forms (`study_cell_link.py`).
+         fig_11_cell_link_exact.png       the cell problem against the two closed forms (`study_cell_link.py`);
+         fig_12_holdout_errors.png        the review: the error of E on the held-out boards, which were not used to choose the zone model (`study_holdout.py`).
 Usage: python research/lumped-via-groups/scripts/make_figures.py   (from the repository root, after the studies; missing inputs are skipped with a message).
 """
 
@@ -228,6 +229,34 @@ def fig_cell_exact(path):
     plt.close(fig)
 
 
+def fig_holdout(path):
+    """!
+    @brief Error of E of the program, the micro well alone, the series group term and the zone model on the held-out boards of the review.
+    @param path Output file.
+    @return None.
+    """
+    rows = _load("holdout.json")
+    if rows is None:
+        return
+    names = ["L_prog", "L_nn", "L_grp0", "L_zone"]
+    fig, ax = plt.subplots(figsize=(9.5, 7.5))
+    y = np.arange(len(rows))
+    for k, n in enumerate(names):
+        ax.scatter([r["err"][n] for r in rows], y + (k - 1.5) * 0.15, s=18, color=COLORS[n], label=n, zorder=3)
+    ax.axvspan(-10, 10, color="#2ca02c", alpha=0.08, zorder=1)
+    ax.axvline(0, color="k", lw=0.8)
+    ax.set_yticks(y)
+    ax.set_yticklabels([r["label"] for r in rows], fontsize=7)
+    ax.invert_yaxis()
+    ax.set_xlabel("error of the via effect E, % (positive: the model is cooler than the reference, unsafe)")
+    ax.set_title("Held-out boards (not used to choose the zone model); band: within 10 %", fontsize=10)
+    ax.legend(fontsize=8, loc="lower right")
+    ax.grid(axis="x", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Draw all the data figures that have their inputs.
@@ -240,6 +269,7 @@ def main():
     fig_example(OUT / "fig_09_example_board.png")
     fig_fish(OUT / "fig_10_fish_microspreading.png")
     fig_cell_exact(OUT / "fig_11_cell_link_exact.png")
+    fig_holdout(OUT / "fig_12_holdout_errors.png")
 
 
 if __name__ == "__main__":

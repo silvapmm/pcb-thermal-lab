@@ -11,11 +11,12 @@
          * node 1 = C, the core (the cells within `0.7071 d_nn` of a via of a group of two or more vias in the footprint; the barrels and their micro wells; the rest of the
            source), no macro term,
          * nodes 2.. = the rings outside the footprint, as in the program.
-         The lateral links in every layer are closed forms of the equivalent discs (radii of the core and of the footprint areas): A to C the Krogh mean-to-wall resistance of the
-         annulus, `krogh(S_A, a_f, r_c)` times `OPTIONS["link_scale"]`; A to ring 1 the mean-to-outer-wall resistance of the annulus (uniform source, insulated inner side) plus the
-         half ring of the program. The peak of the source layer is the hottest point of the annulus: the net lateral generation of A (what goes to C plus what goes to ring 1)
-         spread uniformly gives the profile between the two walls, the maximum at the radius where the radial flow changes sign (`annulus_excess`), times the shape factor
-         `4 (phi_mean - phi_min)` of the real footprint against the disc, which is 1 for a disc.
+         The proposal (the defaults of `patched`): the A-C link in every layer is the logarithmic-potential resistance of the real shapes, `(2 phi_AC - phi_AA - phi_CC) / (2 pi S)`
+         (`mutual_potentials`); A to ring 1 is the mean-to-outer-wall resistance of the equivalent annulus (uniform source, insulated inner side) plus the half ring of the program.
+         The peak of the source layer is the largest of three candidates: the hottest point of A (`potential_excess` with the `K0` kernel of the lossy sheet), the core mean plus
+         the rise of the rim of the cell of one via (`micro_peak`), and (added by the review, option `core_peak`) the core mean plus the micro peak plus the excess of the core's
+         own bump when the core is hotter than A (a core of weak or sparse vias, or vias that conduct nothing: without it the peak of such a core was its mean, 2 to 4 K low on the
+         simple boards). The older closed forms of concentric discs (`geometry="disc"`, `peak="annulus"`) stay as options for the ladder of the README.
          If no core exists, or it covers more than `OPTIONS["max_core"]` of the footprint, the network is the program's (with the micro wells and no macro term in ring 0).
          `patched` installs everything; the macro term of `lumped_groups` is kept for the groups OUTSIDE the footprint (rows beside a source).
 @note Steady state only (the transient attributes K, C are not built for the zoned network). Rectangular footprints; the radii are those of discs of the same area.
@@ -41,7 +42,8 @@ import constriction as cr                                                   # no
 import lumped_groups as lg                                                  # noqa: E402
 import lumped_patch as lp                                                   # noqa: E402
 
-OPTIONS = {"link_scale": 1.0, "out_scale": 1.0, "max_core": 0.92, "core_r": 0.7071, "peak": "annulus", "macro_outside": True, "link": "krogh", "micro_peak": False, "a1_other": "heated", "core_int": 0.0, "pitch_guard": 0.0, "geometry": "disc"}
+OPTIONS = {"link_scale": 1.0, "out_scale": 1.0, "max_core": 0.92, "core_r": 0.7071, "peak": "annulus", "macro_outside": True, "link": "krogh", "micro_peak": False, "a1_other": "heated", "core_int": 0.0, "pitch_guard": 0.0, "geometry": "disc", "core_peak": False,
+           "decimation": "stride"}
 LAST = {}                                                                    # diagnostics of the last zoned network (zone radii, flows)
 
 
@@ -162,7 +164,7 @@ def mutual_potentials(w_a, w_c, dx, dy, max_cells=700):
     return 2.0 * mean_log(pa, wa, pc_, wc, False, 1) - mean_log(pa, wa, pa, wa, True, sa) - mean_log(pc_, wc, pc_, wc, True, sc)
 
 
-def potential_excess(w_a, w_c, q_in, q_out, S, dx, dy, max_cells=700, lam=None):
+def potential_excess(w_a, w_c, q_in, q_out, S, dx, dy, max_cells=700, lam=None, decimation=None):
     """!
     @brief Hottest point of A above its area mean for the real shapes: a uniform generation `q_in + q_out` over A, a uniform sink `q_in` over C and a far-field sink `q_out`.
     @details T(x) = -(1 / (2 pi S)) [ (q_in + q_out) phi_A(x) - q_in phi_C(x) ] + const, phi_X(x) the mean of ln|x - y| over y in X (the lossless sheet; a far-field sink adds a
@@ -176,31 +178,66 @@ def potential_excess(w_a, w_c, q_in, q_out, S, dx, dy, max_cells=700, lam=None):
     @param dy Cell height in m.
     @param max_cells Cells kept per region.
     @param lam Fin length of the layer in m (sqrt(S / g) with g the vertical loss per area): the kernel -ln d becomes K0(d / lam) of the sheet with a uniform loss; None: lossless.
+    @param decimation "block" or "stride" when a zone has more than `max_cells` cells (None: `OPTIONS["decimation"]`).
     @return float K (0 if the net generation is not positive).
     """
     q = q_in + q_out
     if q <= 0:
         return 0.0
+    if (decimation or OPTIONS["decimation"]) == "block":
+        # blocks of k x k cells (review): every kept point is a block with its weight, its centroid and its own self distance, so the field has no aliasing
+        pa, wa, da = block_points(w_a, dx, dy, max_cells)
+        pc_, wc, dc = block_points(w_c, dx, dy, max_cells)
+    else:
+        # every step-th cell in row order (the researcher's version): on a region of more than max_cells cells the kept cells form stripes and the maximum of the
+        # field over them is biased upwards (+17 to +25 % on an annulus of 2400 cells, three times on a thin one; tests)
+        def points(w):
+            idx = np.argwhere(w > 0)
+            step = max(int(np.ceil(len(idx) / max_cells)), 1)
+            idx = idx[::step]
+            return np.column_stack([idx[:, 1] * dx, idx[:, 0] * dy]), w[w > 0][::step], np.full(len(idx), 0.447 * math.sqrt(dx * dy) * math.sqrt(step))
+        pa, wa, da = points(w_a)
+        pc_, wc, dc = points(w_c)
 
-    def points(w):
-        idx = np.argwhere(w > 0)
-        step = max(int(np.ceil(len(idx) / max_cells)), 1)
-        idx = idx[::step]
-        return np.column_stack([idx[:, 1] * dx, idx[:, 0] * dy]), w[w > 0][::step], step
-    pa, wa, sa = points(w_a)
-    pc_, wc, sc = points(w_c)
-
-    def phi(p, q_pts, wq, same, step):
+    def phi(p, q_pts, wq, dq, same):
         d = np.hypot(p[:, None, 0] - q_pts[None, :, 0], p[:, None, 1] - q_pts[None, :, 1])
         if same:
-            np.fill_diagonal(d, 0.447 * math.sqrt(dx * dy) * math.sqrt(step))
+            d[np.arange(len(p)), np.arange(len(p))] = dq
         else:
             d = np.maximum(d, 0.447 * math.sqrt(dx * dy))
         # kernel of the sheet: -ln d (lossless) or K0(d / lam) with a vertical loss; the sign is that of -ln d so that the same formula holds
         k = -np.log(d) if lam is None else k0(d / lam)
         return (k * wq[None, :]).sum(axis=1) / wq.sum()
-    t = (q * phi(pa, pa, wa, True, sa) - q_in * phi(pa, pc_, wc, False, 1)) / (2.0 * math.pi * S)
+    t = (q * phi(pa, pa, wa, da, True) - q_in * phi(pa, pc_, wc, dc, False)) / (2.0 * math.pi * S)
     return float(t.max() - (t * wa).sum() / wa.sum())
+
+
+def block_points(w, dx, dy, max_cells):
+    """!
+    @brief Cells of a region aggregated in blocks of k x k cells, k the smallest that keeps at most about `max_cells` blocks (the review's decimation of the potential integrals).
+    @param w Weights of the cells (ny, nx), zero outside the region.
+    @param dx Cell width in m.
+    @param dy Cell height in m.
+    @param max_cells Largest number of blocks wanted.
+    @return Tuple (positions (n, 2) in m, weights (n,), self distances (n,) in m): the weighted centroid of every block that holds part of the region, its summed weight,
+            and the mean log distance inside it, `0.447 sqrt(area)` (a square of the area of the cells of the region in the block; for k = 1 the program's cell term).
+    """
+    n = int((w > 0).sum())
+    k = max(int(math.ceil(math.sqrt(n / max_cells))), 1)
+    ny, nx = w.shape
+    big_y, big_x = -(-ny // k), -(-nx // k)
+    wp = np.zeros((big_y * k, big_x * k))
+    wp[:ny, :nx] = w
+    yy, xx = np.mgrid[0:big_y * k, 0:big_x * k]
+
+    def block_sum(a):
+        # sum of the k x k cells of every block
+        return a.reshape(big_y, k, big_x, k).sum(axis=(1, 3))
+    wb, xb, yb, nb = block_sum(wp), block_sum(wp * xx), block_sum(wp * yy), block_sum((wp > 0).astype(float))
+    m = wb > 0
+    pos = np.column_stack([xb[m] / wb[m] * dx, yb[m] / wb[m] * dy])
+    # self distance of a block of nb cells of the region: that of a square of the same area (for k = 1 exactly the cell term of the program and of the strided version)
+    return pos, wb[m], 0.447 * np.sqrt(nb[m] * dx * dy)
 
 
 def rim_minus_mean(S, R, a):
@@ -406,9 +443,16 @@ def zoned_network(net, cov, layer, power, rings):
     else:
         excess = 0.0
     mp = micro_peak(layer, th, 1, S[layer, 1]) if OPTIONS["micro_peak"] else 0.0
-    peak_extra = max(excess, th[layer, 1] + mp - th[layer, 0], 0.0)
+    excess_c = 0.0
+    if OPTIONS["core_peak"] and th[layer, 1] > th[layer, 0] and np.isfinite(r_ac(layer)):
+        # The core is hotter than the rest (sparse or weak vias, or vias that conduct nothing): its hottest point lies inside it and is above its mean by the bump of a
+        # uniformly heated region that sends its net lateral heat outwards, the program's own peak formula for a footprint (lossless kernel, on the safe side). Without it
+        # the peak of such a core was its mean: with vias that conduct nothing the zone model read 2 to 4 K below the program on the simple boards (review).
+        q_ca = (th[layer, 1] - th[layer, 0]) / r_ac(layer)
+        excess_c = potential_excess(cov * (idx2 == 1), cov * (idx2 == 0), 0.0, q_ca, S[layer, 1], net.dx, net.dy)
+    peak_extra = max(excess, th[layer, 1] + mp + excess_c - th[layer, 0], 0.0)
     LAST.clear()
-    LAST.update(r_c=r_c, a_f=a_f, frac_c=frac_c, q_in=q_in, q_out=q_out, excess=excess, theta=th.copy(), shape=shape, cnt=cnt.copy())
+    LAST.update(r_c=r_c, a_f=a_f, frac_c=frac_c, q_in=q_in, q_out=q_out, excess=excess, excess_c=excess_c, theta=th.copy(), shape=shape, cnt=cnt.copy())
     rho = rho_mean.copy()
     rho[0], rho[1] = 0.0, 1e-9                                               # keep the profile increasing for the interpolation of the temperature map
     return {"theta": th, "rho": rho, "dist": dist, "peak_extra": peak_extra,
@@ -440,7 +484,8 @@ _STATE = {}
 
 
 @contextlib.contextmanager
-def patched(link_scale=1.0, out_scale=1.0, max_core=0.92, core_r=0.7071, peak="potential_lossy", macro_outside=True, link="krogh", micro_peak=True, a1_other="heated", core_int=0.0, pitch_guard=0.0, micro_scale=1.0, geometry="potential"):
+def patched(link_scale=1.0, out_scale=1.0, max_core=0.92, core_r=0.7071, peak="potential_lossy", macro_outside=True, link="krogh", micro_peak=True, a1_other="heated", core_int=0.0, pitch_guard=0.0, micro_scale=1.0, geometry="potential",
+            core_peak=True, decimation="block"):
     """!
     @brief Install the zoned Lumped model; restore the program on exit.
     @param link_scale Factor on the A-to-C link resistance (the cell-problem calibration knob).
@@ -456,11 +501,14 @@ def patched(link_scale=1.0, out_scale=1.0, max_core=0.92, core_r=0.7071, peak="p
     @param a1_other "heated" (the annulus with a uniform source in every layer) or "through" (the log profile of heat entering at the core, in the layers without the source).
     @param micro_peak True: add the rise of the hottest point of the cell of a via above the node mean (rim of the Krogh cell) to the peak.
     @param link "krogh" (lossless closed form) or "loss" (the lossy cell of `constriction.cell_with_loss`, the loss of the rest of the footprint in the layer).
+    @param core_peak True (the review): when the core is hotter than A, the peak candidate of the core adds the bump of the core above its mean; False: the core mean plus the micro peak (the researcher's version).
+    @param decimation "block" (the review: blocks of k x k cells in the peak integral) or "stride" (every step-th cell, the researcher's version) when a zone holds more than 700 cells.
     @return Context manager.
     """
     from pcbthermal import lumped
     old_opts = dict(OPTIONS)
-    OPTIONS.update(link_scale=link_scale, out_scale=out_scale, max_core=max_core, core_r=core_r, peak=peak, macro_outside=macro_outside, link=link, micro_peak=micro_peak, a1_other=a1_other, core_int=core_int, pitch_guard=pitch_guard, geometry=geometry)
+    OPTIONS.update(link_scale=link_scale, out_scale=out_scale, max_core=max_core, core_r=core_r, peak=peak, macro_outside=macro_outside, link=link, micro_peak=micro_peak, a1_other=a1_other, core_int=core_int, pitch_guard=pitch_guard, geometry=geometry,
+                   core_peak=core_peak, decimation=decimation)
     old_net, old_solve = lumped._heater_network, lumped.solve_steady
     macro = "all" if macro_outside else "none"
     try:

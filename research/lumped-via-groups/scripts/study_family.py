@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "lib"))
 import refs                                                                  # noqa: E402
 import lumped_groups as lg                                                   # noqa: E402
 
-NAMES = ["L_prog", "L_ring", "L_nn", "L_grp0", "L_loss", "L_zone0", "L_zone_c1", "L_zone_disc", "L_zone_p", "L_zone", "L_zone_k"]
+NAMES = ["L_prog", "L_ring", "L_nn", "L_grp0", "L_loss", "L_zone0", "L_zone_c1", "L_zone_disc", "L_zone_p", "L_zone_r", "L_zone", "L_zone_k"]
 SCAN = (0.25, 0.5, 0.75)
 
 

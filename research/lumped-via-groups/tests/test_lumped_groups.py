@@ -232,7 +232,9 @@ def test_mutual_potentials_equal_krogh_plus_core_internal():
 
 def test_potential_excess_matches_the_annulus_for_concentric_discs():
     """!
-    @brief The lossless potential peak of concentric discs agrees with the closed form of the annulus (within 10 %, the decimation of the cells).
+    @brief The lossless potential peak of concentric discs (2400 cells in A, so 700 are kept) agrees with the closed form of the annulus within 3 % with the block decimation.
+    @details Regression of the review: the strided decimation of the researcher (every step-th cell in row order) put the peak 17 % above the closed form here (the earlier
+             test allowed 25 % and its docstring said 10 %); with every cell it is within 0.2 %.
     @return None.
     """
     dx = 0.2e-3
@@ -245,9 +247,11 @@ def test_potential_excess_matches_the_annulus_for_concentric_discs():
     a_eq = math.sqrt((wa.sum() + wc.sum()) * dx * dx / math.pi)
     rc_eq = math.sqrt(wc.sum() * dx * dx / math.pi)
     # the closed form has no far-field sink: the heat q_out leaves at the outer wall; the potential form puts it at infinity, which only adds a constant
-    ex_pot = lz.potential_excess(wa, wc, 0.3, 0.7, S, dx, dx)
     ex_ann = lz.annulus_excess(S, rc_eq, a_eq, 0.3, 0.7)
-    assert ex_pot == pytest.approx(ex_ann, rel=0.25)
+    assert lz.potential_excess(wa, wc, 0.3, 0.7, S, dx, dx, decimation="block") == pytest.approx(ex_ann, rel=0.03)
+    assert lz.potential_excess(wa, wc, 0.3, 0.7, S, dx, dx, max_cells=10 ** 5) == pytest.approx(ex_ann, rel=0.005)
+    # the strided decimation is biased upwards (kept to document the defect)
+    assert lz.potential_excess(wa, wc, 0.3, 0.7, S, dx, dx, decimation="stride") > 1.1 * ex_ann
 
 
 def test_potential_excess_lossy_is_smaller():
@@ -265,3 +269,24 @@ def test_potential_excess_lossy_is_smaller():
     e0 = lz.potential_excess(wa, wc, 0.2, 0.8, S, dx, dx)
     e1 = lz.potential_excess(wa, wc, 0.2, 0.8, S, dx, dx, lam=3e-3)
     assert 0 < e1 < e0
+
+
+def test_zone_model_with_vias_that_conduct_nothing_stays_near_the_program():
+    """!
+    @brief Regression of the review: vias that conduct nothing (plating 1e-12 m, open) have no effect, so the zone model must stay near the program without vias.
+    @details A sparse 3 x 3 array at 3 mm under a 12 mm source on a 20 mm board: the core is hotter than the rest of the footprint, and the researcher's version took the core
+             mean as its peak, 4.2 % of the rise below the program; with the bump of a hot core (`core_peak`) the offset is 0.8 %.
+    @return None.
+    """
+    import harness as hz
+    import program_cases as pc
+    pc.load_libraries()
+    p = refs.make_problem(dict(layers=4, n=3, pitch=3.0, fill=0.0, side=20.0, src=12.0))
+    p.board.via_plating = 1e-12
+    t0 = pc.max_rise(hz.no_vias(p), "lumped", 0.5)
+    with lz.patched():
+        t_new = pc.max_rise(p, "lumped", 0.5)
+    with lz.patched(core_peak=False, decimation="stride"):
+        t_old = pc.max_rise(p, "lumped", 0.5)
+    assert abs(t0 - t_new) < 0.015 * t0
+    assert t0 - t_old > 0.03 * t0

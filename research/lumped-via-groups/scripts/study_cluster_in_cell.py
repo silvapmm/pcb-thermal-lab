@@ -22,7 +22,7 @@ import program_cases as pc                                                   # n
 import refs                                                                  # noqa: E402
 import study_causes as sc                                                    # noqa: E402
 
-NAMES = ["L_prog", "L_nn", "L_grp0", "L_zone0", "L_zone"]
+NAMES = ["L_prog", "L_nn", "L_grp0", "L_zone0", "L_zone_r", "L_zone"]
 
 
 def main():
