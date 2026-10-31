@@ -166,3 +166,13 @@ Compared with the current code and `docs/theory.md`:
 10. **Section 7.4, `ϕ_ch` (7.5)**: stated as own algebra on the composite as printed (question 3 answered that way in the text; change if the reviewer prefers to drop it).
 11. **Section 3, the FDM limit** "not monotonic on coarse cells" was in the old text; its evidence is `validation.md` 2.1 (the FDM column is not monotonic from 4 mm to 1 mm).
 12. **`docs/validation.md` 25** carries numbers that were not re-run; a reviewer who re-runs the studies may correct them there.
+
+### Answers after the trim (branch `docs/theory-trim`, reviewed)
+
+The trim moved the via theory into one section, 1.5 (the Krogh cell is now eq. 1.8 and the target radius eq. 1.9), the Analytic equations became 6.1 to 6.3, and the help text now points to "theory sections 1.5, 5.1 and 6.1" (the earlier "kept" no longer holds).
+
+* **7**: yes, as the code does (`laminate.uses_rule`): the Lumped, and the FVM and FDM on a board with a metal block, keep the two laminate nodes of a one-layer board; with a block the FVM and FDM do not cut any gap. Section 1.4 now says both. Combining blocks with the rule is not in the Planned chapter; it is a question for the maintainer, not a defect.
+* **8**: agreed; section 2.3 says that with via blocks or laminate columns Young's relation does not hold and the factor is a safe-side heuristic, and the convergence for `0 < ω < 2` cites [Saad2003] Theorem 4.10 for the point case.
+* **9**: the sentence stays in section 1.5, next to eq. 1.8; the citations of sources not read now carry their status letter again (the trim had dropped them while section 12 still promised them).
+* **10**: kept as own algebra (L) on the composite as printed, eq. 7.5.
+* The numbers that were to stay on purpose: Lienhard's Example 8.1 (`Nu` 47.33) is back in section 8; Culham and Yovanovich's 2.7 W/mK and Seri Lee's 0.66, 1.29 and 2.38 K/W left the theory and are in `docs/validation.md` 22.1.
