@@ -1,231 +1,82 @@
-# Theory: what each model, equation and method is, with pictures and sources
+# Theory: what each model, equation and method is
 
-## 1. The question
-
-`docs/theory.md` states every equation the program solves, but as a dense text; the planned work lives in `docs/versions.md` "Planned" and `docs/research.md`; the evidence is spread over a dozen investigations. A reader needs one place that explains **what each method is, what its symbols mean, how the program does it, where it fails, where it is tested and what it is based on**, with a picture of the idea. This folder is that place: one file per topic in `topics/`, one bibliography for all of them, and the pictures drawn here or reached by a path into the investigation that made them. It changes nothing in the program and in the project documents.
-
-## 2. How to read it
-
-| Start with | If you want |
-| :-- | :-- |
-| the table in section 3 | the list of topics, what each is based on, the code and the document section behind it |
-| `topics/NN-*.md` | one topic: picture, formulation, limits, tests, related topics, sources |
-| `BIBLIOGRAPHY.md` | the citation of every source, its address, **whether it was read**, and which topics use it |
-
-Every topic file has the same layout: the picture with an italic line saying what it shows; what it is; the formulation (symbols, equations); what it assumes and where it fails; how the program does it (modules and document sections); where it is tested (paths into `docs/validation.md` and the investigations); related topics; sources by key; and a closing line "What was read and what was not verified". Topics for planned work say **Status: planned** at the top, give the idea and the tests that would accept it, and make no claim of results.
-
-## 3. The topics
-
-Code and documents are those of `develop`; "inv." is the investigation that holds the evidence (paths from `research/`).
-
-| # | Topic | Status | Picture | Code | `docs/` | Evidence |
-| --: | :-- | :-- | :-- | :-- | :-- | :-- |
-| 01 | [Layered idealisation](topics/01-layered-idealisation.md) | in program | fig. 1 | `model.py` | theory 1.2 | inv. `solid3d-verification`, `stackup` |
-| 02 | [Finite volumes (FVM)](topics/02-finite-volume.md) | in program | fig. 2 | `fvm.py` | theory 2 | inv. `models-comparison` |
-| 03 | [Finite differences (FDM)](topics/03-finite-difference.md) | in program | fig. 3 | `fdm.py` | theory 3 | inv. `models-comparison` |
-| 04 | [3D solid](topics/04-solid-3d.md) | in program | fig. 4 | `solid3d.py` | theory 4 | inv. `solid3d-verification` |
-| 05 | [Lumped rings (LPTN)](topics/05-lumped-rings.md) | in program | fig. 5 | `lumped.py` | theory 5 | inv. `models-comparison`, `outline` |
-| 06 | [Analytic series](topics/06-analytic-series.md) | in program | fig. 6 | `analytic.py` | theory 6 | inv. `models-comparison`, `block-and-fins` |
-| 07 | [Time stepping](topics/07-time-stepping.md) | in program | fig. 7 | `fvm.py` | theory 2 | `validation.md` 7 |
-| 08 | [Heat transfer coefficients](topics/08-heat-transfer-coefficients.md) | in program | fig. 8 | `convection.py`, `api.py` | theory 8 | `validation.md` |
-| 09 | [Parts and the junction](topics/09-parts-junction.md) | in program | fig. 9 | `analysis.py`, `api.py` | theory 9 | inv. `component-heatsink` |
-| 10 | [Power profiles](topics/10-power-profiles.md) | in program | fig. 10 | `profiles.py` | theory 10 | `validation.md` 7 |
-| 11 | [Metal blocks and fins](topics/11-metal-blocks-fins.md) | in program | fig. 11 | `blocks.py` | theory 7 | inv. `block-and-fins` |
-| 12 | [Foster chain](topics/12-foster-chain-planned.md) | **planned** | fig. 12 | - | Planned, Component element | - |
-| 13 | [Heatsink scenarios](topics/13-heatsink-scenarios-planned.md) | **planned** | fig. 13 | - | Planned, research R3 R6 | inv. `component-heatsink` |
-| 14 | [Virtual JEDEC test, known-power reference](topics/14-virtual-jedec-and-known-power-planned.md) | partly planned | fig. 14 | `inverse.py` | calculators 2.1, 2.4 | inv. `power-calculator` |
-| 15 | [Import and power list](topics/15-import-and-power-list-planned.md) | **planned** | fig. 15 | - | Planned, import | inv. `gerber-import` |
-| 16 | [Multigrid](topics/16-multigrid-planned.md) | **planned** (optional) | fig. 16 | - | Planned, solvers | `models-comparison` solver study |
-| 17 | [Copper to cells, the tensor](topics/17-copper-mapping-and-tensor.md) | researched | `gerber-models` figs 22, 23 | research `lib/conduction.py`, `diagonal.py` | Planned, import | inv. `gerber-models` |
-| 18 | [Spreading resistance](topics/18-spreading-resistance.md) | verification | `solid3d-verification` fig. 6 | `solid3d.py` | validation 16 | inv. `solid3d-verification` |
-| 19 | [Nets, current, Joule heat](topics/19-nets-current-and-joule-heat.md) | researched | `gerber-nets` figs 8, 6, 5 | research `lib/joule.py`, `pdn.py` | Planned idea 1 | inv. `gerber-nets` |
-| 20 | [Board outline](topics/20-board-outline.md) | rectangle rule in program; reader researched | `outline` fig. 4, `gerber-import` fig. 16 | `model.py` | validation 13 | inv. `outline`, `gerber-import` |
-| 21 | [Vias and fills](topics/21-vias-and-fills.md) | in program | `via-fill` fig. 4 | `model.py` | validation 18 | inv. `via-fill` |
-| 22 | [Stack-up](topics/22-stack-up.md) | in program | `stackup` fig. 4 | `model.py`, `data/stackups.json` | validation 12, 14 | inv. `stackup` |
-| 23 | [Power calculator](topics/23-power-calculator.md) | in program | `power-calculator` fig. 4 | `inverse.py` | calculators | inv. `power-calculator` |
-| 24 | [Thermal interfaces and metals](topics/24-thermal-interfaces-and-metals.md) | in program | `component-heatsink` fig. 4 | `model.py` (`METALS`, `INTERFACES`) | research R2, models 15, 16 | inv. `component-heatsink` |
-| 25 | [Contact area, air gap, chain of levels](topics/25-contact-area-gap-and-chain.md) | contact area in program; gap and chain researched | figs. 17, 18 | `blocks.py` | research R3, R5 | inv. `component-heatsink` |
-| 26 | [Plate spreading on a component](topics/26-plate-spreading-on-a-component.md) | decided (K/W only) | fig. 19 | - | research R3, R8 | inv. `component-heatsink` |
-| 27 | [Datasheet numbers and compact models](topics/27-datasheet-numbers-and-compact-models.md) | `theta` and top path in program; node not | `component-heatsink` figs. 6, 2 | `analysis.py` | research E3 to E8 | inv. `component-heatsink` |
-| 28 | [Continuum problem and sources](topics/28-continuum-and-sources.md) | in program | figs. 20, 21 | `model.py`, `geometry.py` | theory 1.1, 1.3 | `validation.md` |
-| 29 | [Verification ladder](topics/29-verification-ladder.md) | in program | fig. 22 | `tests/` | theory 11, validation | inv. `models-comparison`, `solid3d-verification` |
-| 30 | [Board orientation](topics/30-board-orientation.md) | in program | fig. 23 | `convection.py` | models 18 | `tests/test_orientation.py` |
-| 31 | [Program architecture and API](topics/31-program-architecture-and-api.md) | in program | fig. 24 | `api.py`, `cli.py`, `jobs.py` | models 7, 8 | `tests/` |
-| 32 | [The removed program against the current one](topics/32-legacy-program-against-current.md) | history | fig. 25 | tag `legacy-wxpython-1.0.0` | validation 6 | inv. `models-comparison` |
-| 33 | [Time-dependent results](topics/33-time-dependent-results.md) | in program | fig. 26 | `fvm.py`, `profiles.py` | validation 7 | `tests/test_fvm.py`, `test_profiles.py` |
-| 34 | [Input checks](topics/34-input-checks.md) | in program | fig. 27 | `checks.py` | models 3 | `tests/` |
-| 35 | [Curved boards](topics/35-curved-boards.md) | in program | fig. 28 | `geometry.py` | models 14 | `tests/test_templates.py` |
-| 36 | [Prepreg and sheets in a gap](topics/36-prepreg-and-sheets-in-a-gap.md) | in program | fig. 29 | `model.py` (`combine_sheets`) | models 17 | inv. `stackup` |
-| 37 | [Why the FVM and the Analytic model agree](topics/37-why-fvm-and-analytic-agree.md) | explanation | fig. 30 | - | validation 4 | inv. `models-comparison` |
-
-### 3.1 Diagrams and illustrations
-
-The 41 pictures of this folder are in `figures/`: 33 diagrams (figures 1 to 30, 38, 39 and 41, `scripts/make_diagrams.py`, shared shapes in `research/diagram_kit.py`), four data figures (31 to 33 and 42, `scripts/make_figures.py`, section 3.1.1) and four pictures of the part across the board outline (34 to 37, `scripts/make_fig_part_outline.py`, about 6 minutes). The diagrams are embedded in topics 01 to 16, 25, 26 and 28 to 37. Topics 17 to 24 and 27 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
-
-| File | Drawn in | Topic |
-| :-- | :-- | :-- |
-| `figures/fig_01_layered_idealisation.png` | this folder | 01 |
-| `figures/fig_02_fvm_cell.png` | this folder | 02 |
-| `figures/fig_03_fdm_nodes.png` | this folder | 03 |
-| `figures/fig_04_solid3d_slabs.png` | this folder | 04 |
-| `figures/fig_05_lumped_rings.png` | this folder | 05 |
-| `figures/fig_06_analytic_modes.png` | this folder | 06 |
-| `figures/fig_07_theta_method.png` | this folder | 07 |
-| `figures/fig_08_heat_transfer.png` | this folder | 08 |
-| `figures/fig_09_part_runaway.png` | this folder | 09 |
-| `figures/fig_10_profile_decision.png` | this folder | 10 |
-| `figures/fig_11_metal_block.png` | this folder | 11 |
-| `figures/fig_12_foster_chain_planned.png` | this folder | 12 |
-| `figures/fig_13_heatsink_scaling_planned.png` | this folder | 13 |
-| `figures/fig_14_virtual_jedec_planned.png` | this folder | 14 |
-| `figures/fig_15_import_to_power_planned.png` | this folder | 15 |
-| `figures/fig_16_multigrid_planned.png` | this folder | 16 |
-| `figures/fig_17_air_gap.png` | this folder | 25 |
-| `figures/fig_18_level_chain.png` | this folder | 25 |
-| `figures/fig_19_plate_spreading.png` | this folder | 26 |
-| `figures/fig_20_continuum.png` | this folder | 28 |
-| `figures/fig_21_coverage.png` | this folder | 28 |
-| `figures/fig_22_verification_ladder.png` | this folder | 29 |
-| `figures/fig_23_orientation.png` | this folder | 30 |
-| `figures/fig_24_architecture.png` | this folder | 31 |
-| `figures/fig_25_legacy_vs_current.png` | this folder | 32 |
-| `figures/fig_26_time_results.png` | this folder | 33 |
-| `figures/fig_27_input_checks.png` | this folder | 34 |
-| `figures/fig_28_curved_boards.png` | this folder | 35 |
-| `figures/fig_29_prepreg.png` | this folder | 36 |
-| `figures/fig_30_why_fvm_analytic_agree.png` | this folder | 37 |
-| `figures/fig_31_fin_efficiency_and_ratio.png` | this folder (data) | 11 |
-| `figures/fig_32_analytic_modes_and_edges.png` | this folder (data) | 06, 37 |
-| `figures/fig_33_thick_plate_correction.png` | this folder (data) | 34, 01 |
-| `figures/fig_34_part_cut_cell.png` | this folder (`scripts/make_fig_part_outline.py`) | 28 |
-| `figures/fig_35_part_weight_rules.png` | this folder (`scripts/make_fig_part_outline.py`) | 28 |
-| `figures/fig_36_part_example_t.png` | this folder (`scripts/make_fig_part_outline.py`, data) | 28 |
-| `figures/fig_37_part_edge_shift.png` | this folder (`scripts/make_fig_part_outline.py`, data) | 28 |
-| `figures/fig_38_document_map.png` | this folder | theory header |
-| `figures/fig_39_stackup_slabs.png` | this folder | 01, 22 |
-| `figures/fig_41_block_section.png` | this folder | 11 |
-| `figures/fig_42_top_path_split.png` | this folder (data) | 09 |
-| `figures/fig_44_laminate_nodes.png` | this folder | 01 |
-
-Curves that are only illustrative (the shape of a series, a fixed point with arbitrary numbers, a pulse train) say so in their italic line; no number of these pictures is a result. The numbers quoted in the topics come from the project documents and the READMEs of the investigations and are marked with the source.
-
-### 3.1.1 Data figures
-
-Three figures are computed, not drawn: every number in them comes from a closed form or from the program (`scripts/make_figures.py`, about 3 minutes; the printed tables are the source of the numbers in the captions). They do not change the program or the project documents.
-
-![Fin efficiency and fin ratio](figures/fig_31_fin_efficiency_and_ratio.png)
-
-*Figure 31 (`figures/fig_31_fin_efficiency_and_ratio.png`): left, the efficiency `tanh(mL) / (mL)` of a plate fin against `mL` (closed form; the dots are the fins of the right panel at `H` = 10, 30 and 60 mm, `h` = 10 W/m2K, 1 mm thick, 5 mm pitch: `mL` 0.10 to 1.16, efficiency 0.996 to 0.706); right, the fin ratio of the program (`pcbthermal.blocks.fin_ratio`) against the fin height for aluminium (204 W/mK), copper (386) and carbon steel (54) of the program's metal library, with the line of fins that conduct perfectly. At 60 mm the ratio is 22.5 (aluminium), 23.6 (copper) and 17.9 (steel) against 25.0 for perfect fins. Computed by `scripts/make_figures.py`.*
-
-![Analytic modes and edges](figures/fig_32_analytic_modes_and_edges.png)
-
-*Figure 32 (`figures/fig_32_analytic_modes_and_edges.png`): left, the rise of the hottest point of the example board in the Analytic model against the FVM at 0.5 mm cells (60.87 K) as the number of cosine modes grows: -7.85 % with 10 modes, -0.42 % with 20, then -1.94 % at 30 modes and from 75 to 300 (-2.04 % at 50); the curve is flat from 75 modes on, so the remaining -1.9 % is not truncation of the series; its cause on this board (vias, heatsink, partial copper) and why 20 modes is closer were not traced. Right, the four uniform scenarios of `docs/validation.md` 2: the Analytic against the FVM at 0.25 mm is +0.30 to +0.96 % with the board's `h_side` and -0.07 to -0.29 % with insulated edges in both (the study of topic 37). Computed by `scripts/make_figures.py`.*
-
-![Thick-plate correction](figures/fig_33_thick_plate_correction.png)
-
-*Figure 33 (`figures/fig_33_thick_plate_correction.png`): the through-thickness correction `q'' t / (2 k)` against the thickness of the plate for copper (385 W/mK), aluminium (204), carbon steel (54) and FR-4 (0.3 through the thickness), for the flux of U1 of the example board (4 W over 100 mm2, 40 kW/m2), with the limit of the thick-plate check, 5 % (`checks.THICK_PLATE_LIMIT`) of the 60.17 K rise: 3.01 K. The thickness at the limit is 57.9 mm for copper, 30.7 mm for aluminium, 8.12 mm for steel and 0.0451 mm for FR-4; the 35 um copper layer is 3 orders of magnitude below the limit. The rise here is that of the hottest point of the board (FVM, 0.5 mm), a stand-in for the rise of the heater that the check uses. Computed by `scripts/make_figures.py`.*
-
-### 3.1.2 Figures added for the rewrite of `docs/theory.md`
+This folder explains, one topic per file, every model, equation and planned method of the program: a picture of the idea, the formulation, the limits, how the program does it, where it is tested and the sources with their reading status. It adds no new results and changes nothing in the program. The text of topics 01 to 11, 28 and 29 is already folded into `docs/theory.md`; the folder stays as the longer explanation and the record.
 
 ![Map of the theory](figures/fig_38_document_map.png)
 
-*Figure 38 (`figures/fig_38_document_map.png`): the board of the Problem is idealised in layers (section 1.2) for the FVM, FDM, Lumped and Analytic models; the 3D solid builds real slabs from the same board. Underneath, the pieces that the models share (metal blocks, vias, the heat transfer coefficients and their loop, parts, profiles, the checks). Schematic, no numbers.*
+*Figure 38 (`figures/fig_38_document_map.png`): the map of the theory: the board is idealised in layers for the FVM, FDM, Lumped and Analytic models, the 3D solid builds real slabs from the same board, and underneath are the pieces the models share. Schematic, no numbers.*
 
-![Advanced stack-up](figures/fig_39_stackup_slabs.png)
+## How to read it
 
-*Figure 39 (`figures/fig_39_stackup_slabs.png`): left, three copper layers and two gaps of different thickness (illustrative): the node of a layer represents its copper plus half of each adjacent gap, so the slabs add up to the board thickness; middle, the network the nodes make, with `g_j = k_th,j / d_j` per gap; right, a gap made of several sheets: in series through the gap, side by side along it (`combine_sheets`).*
+Pick a topic in the table and open its file in `topics/`. Every topic file has the same order: picture, what it is, formulation, assumptions and limits, how the program does it, where it is tested, related topics, sources, and a closing line on what was read. Planned topics say **Status: planned** at the top and claim no results. Sources are cited by key; [`BIBLIOGRAPHY.md`](BIBLIOGRAPHY.md) gives each one with its address and whether it was read (R), seen as a summary (S), known from memory (M) or not obtained (N).
 
-![Metal block section](figures/fig_41_block_section.png)
+## The topics
 
-*Figure 41 (`figures/fig_41_block_section.png`): left, a metal block on the board in section (illustrative proportions): the heat enters the block through the interface `R''` over copper, and over bare laminate also across half a slab of FR-4; it leaves through the exposed face (fins, `h_exp = h_face r_fin + h_extra`) and the side walls (`h_wall = h_face + h_extra`); the board face under the block loses nothing (factor `1 - c`). Right, the cell network these paths make.*
+Code is the module in `pcbthermal/`; the research folder holds the evidence.
 
-![Top path split](figures/fig_42_top_path_split.png)
+| # | Topic | Status | Code | Research folder |
+| --: | :-- | :-- | :-- | :-- |
+| 01 | [Layered idealisation](topics/01-layered-idealisation.md) | in program | `model.py`, `laminate.py` | [stackup](../stackup/README.md), [solid3d-verification](../solid3d-verification/README.md), [effective-conductivity](../effective-conductivity/README.md) |
+| 02 | [Finite volumes (FVM)](topics/02-finite-volume.md) | in program | `fvm.py` | [models-comparison](../models-comparison/README.md) |
+| 03 | [Finite differences (FDM)](topics/03-finite-difference.md) | in program | `fdm.py` | [models-comparison](../models-comparison/README.md) |
+| 04 | [3D solid](topics/04-solid-3d.md) | in program | `solid3d.py` | [solid3d-verification](../solid3d-verification/README.md) |
+| 05 | [Lumped rings (LPTN)](topics/05-lumped-rings.md) | in program | `lumped.py` | [models-comparison](../models-comparison/README.md), [outline](../outline/README.md) |
+| 06 | [Analytic series](topics/06-analytic-series.md) | in program | `analytic.py` | [models-comparison](../models-comparison/README.md), [block-and-fins](../block-and-fins/README.md) |
+| 07 | [Time stepping](topics/07-time-stepping.md) | in program | `fvm.py` | - |
+| 08 | [Heat transfer coefficients](topics/08-heat-transfer-coefficients.md) | in program | `convection.py`, `api.py` | [effective-conductivity](../effective-conductivity/README.md) |
+| 09 | [Parts and the junction](topics/09-parts-junction.md) | in program | `analysis.py`, `api.py` | [component-heatsink](../component-heatsink/README.md) |
+| 10 | [Power profiles](topics/10-power-profiles.md) | in program | `profiles.py` | - |
+| 11 | [Metal blocks and fins](topics/11-metal-blocks-fins.md) | in program | `blocks.py` | [block-and-fins](../block-and-fins/README.md), [fin-channel](../fin-channel/README.md) |
+| 12 | [Foster chain](topics/12-foster-chain-planned.md) | **planned** | - | - |
+| 13 | [Heatsink scenarios](topics/13-heatsink-scenarios-planned.md) | **planned** | - | [component-heatsink](../component-heatsink/README.md) |
+| 14 | [Virtual JEDEC test, known-power reference](topics/14-virtual-jedec-and-known-power-planned.md) | partly planned | `inverse.py` | [power-calculator](../power-calculator/README.md) |
+| 15 | [Import and power list](topics/15-import-and-power-list-planned.md) | **planned** | - | [gerber-import](../gerber-import/README.md) |
+| 16 | [Multigrid](topics/16-multigrid-planned.md) | **planned** (optional) | - | [models-comparison](../models-comparison/README.md) |
+| 17 | [Copper to cells, the tensor](topics/17-copper-mapping-and-tensor.md) | researched | - | [gerber-models](../gerber-models/README.md) |
+| 18 | [Spreading resistance](topics/18-spreading-resistance.md) | verification | `solid3d.py` | [solid3d-verification](../solid3d-verification/README.md) |
+| 19 | [Nets, current, Joule heat](topics/19-nets-current-and-joule-heat.md) | researched | - | [gerber-nets](../gerber-nets/README.md) |
+| 20 | [Board outline](topics/20-board-outline.md) | in program; Gerber reader researched | `model.py`, `geometry.py` | [outline](../outline/README.md), [gerber-import](../gerber-import/README.md) |
+| 21 | [Vias and fills](topics/21-vias-and-fills.md) | in program | `model.py` | [via-fill](../via-fill/README.md) |
+| 22 | [Stack-up](topics/22-stack-up.md) | in program | `model.py`, `data/stackups.json` | [stackup](../stackup/README.md) |
+| 23 | [Power calculator](topics/23-power-calculator.md) | in program | `inverse.py` | [power-calculator](../power-calculator/README.md) |
+| 24 | [Thermal interfaces and metals](topics/24-thermal-interfaces-and-metals.md) | in program | `model.py` | [component-heatsink](../component-heatsink/README.md) |
+| 25 | [Contact area, air gap, chain of levels](topics/25-contact-area-gap-and-chain.md) | contact area in program; gap and chain researched | `blocks.py` | [component-heatsink](../component-heatsink/README.md) |
+| 26 | [Plate spreading on a component](topics/26-plate-spreading-on-a-component.md) | decided (K/W only) | - | [component-heatsink](../component-heatsink/README.md) |
+| 27 | [Datasheet numbers and compact models](topics/27-datasheet-numbers-and-compact-models.md) | `theta` and top path in program; junction node not | `analysis.py` | [component-heatsink](../component-heatsink/README.md) |
+| 28 | [Continuum problem and sources](topics/28-continuum-and-sources.md) | in program | `model.py`, `geometry.py` | [rotated-square-3d](../rotated-square-3d/README.md) |
+| 29 | [Verification ladder](topics/29-verification-ladder.md) | in program | `tests/` | [models-comparison](../models-comparison/README.md), [solid3d-verification](../solid3d-verification/README.md) |
+| 30 | [Board orientation](topics/30-board-orientation.md) | in program | `convection.py` | [horizontal-plate-h](../horizontal-plate-h/README.md) |
+| 31 | [Program architecture and API](topics/31-program-architecture-and-api.md) | in program | `api.py`, `cli.py`, `jobs.py` | - |
+| 32 | [The removed program against the current one](topics/32-legacy-program-against-current.md) | history | tag `legacy-wxpython-1.0.0` | [models-comparison](../models-comparison/README.md) |
+| 33 | [Time-dependent results](topics/33-time-dependent-results.md) | in program | `fvm.py`, `profiles.py` | - |
+| 34 | [Input checks](topics/34-input-checks.md) | in program | `checks.py` | [effective-conductivity](../effective-conductivity/README.md) |
+| 35 | [Curved boards](topics/35-curved-boards.md) | in program | `geometry.py` | - |
+| 36 | [Prepreg and sheets in a gap](topics/36-prepreg-and-sheets-in-a-gap.md) | in program | `model.py` | [stackup](../stackup/README.md) |
+| 37 | [Why the FVM and the Analytic model agree](topics/37-why-fvm-and-analytic-agree.md) | explanation | - | [models-comparison](../models-comparison/README.md) |
 
-*Figure 42 (`figures/fig_42_top_path_split.png`): left, a part with a top path: the junction joins the ambient through `R_top` and the board through `theta` and `R_b`; middle, the residual `g(P_b) = P_b - P + p_top` of the split, computed with `pcbthermal.analysis.part_split` for a board resistance below (A) and above (B) the top resistance (illustrative values `P` = 2 W, `theta` = 5 K/W, `R_top` = 20 K/W, `R_b` = 8 and 40 K/W): monotone, one root, a kink where the top heat is clipped at `P` (case B); right, the plain fixed point `P_b <- P - p_top(T_max(P_b))` on case B, slope -1.6: it jumps between 0 and 1.6 W and is not used. Computed by `scripts/make_figures.py`.*
+## Figures and scripts
 
-
-### 3.2 Coverage of the project documents
-
-Every section that explains a model, an equation or a method has a picture, in this folder or in an investigation. Result sections are covered by the data figures of the investigations. Nothing was left without a picture except what is listed under "No picture needed".
-
-| Document, section | Topic (picture here) | Or the investigation's figures |
-| :-- | :-- | :-- |
-| theory 1.1, 1.2, 1.3 | 28, 01, 28 | |
-| theory 2, 3, 4, 5, 6 | 02, 03, 04, 05, 06 | |
-| theory 7, 8, 9, 10 | 11, 08, 09, 10 | |
-| theory 11, 12 | 29, bibliography | |
-| models 1 | 01, 28 | |
-| models 2 (the five models) | 02 to 06 | `models-comparison` fig. 8 |
-| models 3 input checks | 34 | |
-| models 4 power profiles, 5 heat transfer, 6 parts | 10, 08, 09 and 27 | `component-heatsink` figs. 1, 5, 6 |
-| models 7 API and command line, 8 the application, 11 the calculation process | 31 | screenshots of the application in `docs/images/` (project documents) |
-| models 8 stack-up, 12 typical stack-ups, 17 prepreg | 22, 22, 36 | `stackup` figs. 1 to 5 |
-| models 9 outline, 14 curved boards | 20, 35 | `outline` figs. 1 to 5 |
-| models 10 power from a temperature | 23 | `power-calculator` figs. 4, 5 |
-| models 13 where the heat goes, 15 block and fins, 16 paste and package body | 09, 25, 27; 11, 24; 24, 27 | `component-heatsink`, `block-and-fins` |
-| models 18 orientation | 30 | |
-| validation 1, 2 scenarios | 29 | `models-comparison` figs. 1, 2, 9 |
-| validation 3 and 3.1 the 3D solid and the outer copper | 04, 18, 29 | `solid3d-verification` figs. 1 to 4, 8 |
-| validation 4 FVM and Analytic agree | 37 | |
-| validation 5 solvers | 02 | `models-comparison` fig. 3 |
-| validation 6 the removed program | 32 | |
-| validation 7 time | 33, 07 | |
-| validation 8 computed `h`, 9 parts | 08, 09 | |
-| validation 12 to 14 stack-up, outline, calculator, process, typical stack-ups | 22, 20, 23, 31 | `stackup`, `outline`, `power-calculator` |
-| validation 15, 17 fins and the block in Lumped and Analytic | 11 | `block-and-fins` figs. 1 to 5 |
-| validation 16 the 3D solid verified | 04, 18 | `solid3d-verification` figs. 1, 2, 6 |
-| validation 18, 19 via fill, power from the top of the package | 21, 23 | `via-fill`, `power-calculator` |
-| calculators 1 to 5 | 23, 14 | `power-calculator` figs. 1 to 5 |
-| Planned chapter: planned items | 12 to 16, 19, 15 | `gerber-nets`, `gerber-models` |
-| research R2 to R6, R8, E3 to E8 | 24 to 27, 13 | `component-heatsink` |
-
-**No picture needed:** `validation` 10 (literature) and 11 (how to reproduce: commands), `docs/versions.md` "Planned" "Ideas from similar projects and tools" (a table of tools, no method of ours), `research` R7 (presentation notes) and the open questions for the maintainer, `calculators` 4 and 5 (commands and sources), the `models.md` and `theory.md` sections that are only lists of parameters.
-
-## 4. Folder layout
-
-| Path | What it is |
-| :-- | :-- |
-| `README.md` | this index |
-| `BIBLIOGRAPHY.md` | every source: key, citation, address, reading status, topics that use it; the list of what to read next |
-| `topics/` | the 37 topic files |
-| `figures/` | `fig_01` to `fig_39`, `fig_41`, `fig_42`, `fig_44`; 1 to 30, 38, 39, 41 and 44 diagrams, 31 to 33 and 42 data figures, 34 to 37 the part across the outline (numbers 40 and 43 are not used: the figures planned there were not needed) |
-| `scripts/make_diagrams.py` | draws the 30 diagrams (no data, no program) |
-| `scripts/make_figures.py` | draws the three data figures 31 to 33 from closed forms and the program (about 3 minutes) |
-| `scripts/make_fig_part_outline.py` | draws figures 34 to 37 (a part across the board outline: the cut cell, the three rules, the example board cut to a T, the edge-shift sweep) with the program (about 6 minutes) |
-| `scripts/check_mapping_formulas.py` | numerical check of the properties of the 2D effective-medium formulas |
-| `scripts/check_correlations.py` | numerical checks of the correlations quoted by the compilation: 2D Hashin-Shtrikman and the Keller-Dykhne product, Bar-Cohen and Rohsenow, Elenbaas, Churchill-Chu against the worked example of the `ht` library, Hollands (with the correction found), the printed-board conductivities |
-| `scripts/study_fvm_analytic_edges.py` | the review's test of the explanation of topic 37: the Analytic model against the FVM at 1, 0.5 and 0.25 mm on the uniform scenarios, with and without the edge coefficient (under a minute) |
-| `docs/reference-compilation.md` | the maintainer's reference compilation, as received, with what this repository checked of it |
-| `docs/for-the-project-documents.md` | corrections for `docs/theory.md`, `docs/validation.md` and `docs/models.md` found by the review of this folder |
-| `docs/theory-figures.md` | where each topic goes in the project documents when it is adopted |
-| `tests/test_theory.py` | the checks of this folder: every figure and link exists, every bibliography key used in a topic is defined, every topic has the sections |
+The pictures are in `figures/` (`fig_01` to `fig_44`; 40 and 43 unused), each embedded with its caption in the topic it explains; [`docs/theory-figures.md`](docs/theory-figures.md) says where each one goes in the project documents. Topics 17 to 24 and 27 link the pictures of their investigations instead of copying them. `scripts/make_diagrams.py` draws the diagrams, `scripts/make_figures.py` the data figures (about 3 minutes) and `scripts/make_fig_part_outline.py` figures 34 to 37 (about 6 minutes); the other scripts are numerical checks named in the topics. Illustrative curves say so in their caption; they are not results.
 
 ```sh
-.venv/bin/python research/theory/scripts/make_diagrams.py        # the diagrams
-.venv/bin/python research/theory/scripts/make_figures.py         # the data figures
-.venv/bin/python -m pytest -q research/theory/tests              # the checks
+.venv/bin/python research/theory/scripts/make_diagrams.py
+.venv/bin/python -m pytest -q research/theory/tests              # links, figures, bibliography keys, topic sections
 ```
 
-## 5. Still to write
+## Adoption
 
-* Every section of `docs/theory.md`, the sections of `docs/models.md` that explain a model (7 API, 18 orientation included) and the sections 6 and 7 of `docs/validation.md` now have a topic; the other result sections of `docs/validation.md` are covered by the figures of the investigations named in the table (models-comparison, solid3d-verification, block-and-fins, via-fill, stackup, outline, power-calculator). Every section of `docs/theory.md` has a topic (1.1 and 1.3 are topic 28, 11 is topic 29, 12 is the bibliography). The items of `docs/research.md` R2 to R8 and E3 to E8 are topics 24 to 27, R4 and the open questions about the heater as a source or a component are in topic 27; R7 (vertical information and presentation) and the open questions for the maintainer are design notes without physics and have no topic.
-* The topics of the planned work (12 to 16) say what would be built; they become formulation and results when the work is done, and their text moves into `docs/theory.md` with the picture.
-
-## 6. Adoption
-
-A topic is adopted when the maintainer decides: its text is folded into `docs/theory.md` (or `docs/versions.md` "Planned" for planned work), its picture copied to `docs/images/`, its sources into the bibliography of the document that uses them. The folder stays as the record. Until then the project documents are not edited from a research branch (`CLAUDE.md`, "Research branches").
+A topic is adopted when the maintainer decides: its text goes into `docs/theory.md` (or `docs/versions.md` "Planned" for planned work), its picture into `docs/images/`, its sources into the bibliography of that document. Corrections for the project documents found here are in [`docs/for-the-project-documents.md`](docs/for-the-project-documents.md); `docs/` also holds the plan of the `docs/theory.md` rewrite, the maintainer's reference compilation and the list of sources to obtain.
 
 ## What was read and what was not verified
 
-* **Read in full**: `docs/theory.md` (all sections), the parts of `docs/models.md`, `docs/versions.md` "Planned", `docs/calculators.md` and `docs/validation.md` named in the topics, and the READMEs and literature notes of the investigations named in topics 17 to 23. The topic files restate them; they add structure, the pictures, the paths and the bibliography, not new results.
-* **Not opened in this work**: every textbook and standard of `BIBLIOGRAPHY.md` marked M or N; the statements taken from them are marked "(memory)" or "(from the project documents)" there. Sources marked S were seen as search summaries, by the earlier work that cites them or by the later round of checks described at the top of the bibliography (web search worked, page fetch and downloads were blocked, only the package index was readable).
-* **Read in this work**: the source of the Python `ht` package (version 1.2.0, MIT: the Hollands and Churchill-Chu functions and their worked examples), which showed that its documentation and its code differ in the Hollands formula. The maintainer's reference compilation (kept in `docs/reference-compilation.md`) is a second-hand source: what it read, it read; this repository only checked its numbers.
-* **Checked numerically here**: the properties of the Bruggeman and Hashin-Shtrikman formulas (`scripts/check_mapping_formulas.py`), the correlations of `scripts/check_correlations.py`, the area loss of a polygon corner (topic 35, figure 28), the coverage sum against the polygon area (topic 28, figure 21), and the explanation of topic 37 (`scripts/study_fvm_analytic_edges.py`: it was wrong). Everything else in the topics is copied from the project documents and the READMEs of the investigations; the review of this folder compared those numbers with the current READMEs and `docs/` of `develop` (section 7).
+* **Read in full**: `docs/theory.md`, the sections of `docs/models.md`, `docs/versions.md` "Planned", `docs/calculators.md` and `docs/validation.md` named in the topics, and the READMEs of the investigations they cite. The topics restate them; the numbers in a topic come from those documents and are marked with their source.
+* **Sources**: the reading status of each is in `BIBLIOGRAPHY.md`; statements from sources marked M or N are marked "(memory)" there. The Python `ht` package (1.2.0) was read: its documentation and its code differ in the Hollands formula. The maintainer's compilation (`docs/reference-compilation.md`) is second-hand; only its numbers were checked.
+* **Checked numerically here**: the Bruggeman and Hashin-Shtrikman properties (`scripts/check_mapping_formulas.py`), the correlations (`scripts/check_correlations.py`), the area loss of a polygon corner (topic 35), the coverage sum against the polygon area (topic 28) and the explanation of topic 37 (`scripts/study_fvm_analytic_edges.py`: the first explanation was wrong).
+* **Not verified**: the residual -0.1 to -0.3 % of the Analytic with insulated edges; the multigrid timings (quoted from `docs/versions.md`, printed by no script); the formulas of the planned topics 12 and 16 (textbook knowledge, no source opened).
 
-## 7. Review
+## Review
 
-* **Status**: reviewed against `develop` `3e90a7f` (the program, `docs/theory.md`, `docs/validation.md`, `docs/models.md`, `docs/calculators.md`) and against the current READMEs of the investigations the topics cite; the numbers of the topics are those of the READMEs, and the figures were read one by one.
-* **Independent checks**: the Lumped factors `f_R` and `f_P` re-derived from the disc solution (topic 05); the top-path closure and its root equation (topic 09); the fixed point of the power coefficient (figure 9); the theta-method factor and the explicit-Euler limit (figure 7); the series and parallel conductivities of the 1998 article and the correlations (`scripts/check_correlations.py`); the laminate construction of `laminate.py` (topic 01); the Bruggeman and Hashin-Shtrikman properties (`scripts/check_mapping_formulas.py`); the explanation of topic 37 tested with `scripts/study_fvm_analytic_edges.py` (the 0.3 to 1.0 % between the Analytic and the FVM is the edge loss that the cosine series leaves out, not the mesh error; with insulated edges the gap is -0.04 to -0.29 %).
-* **Limits**: the numbers of the Gerber investigations in topics 15, 17, 19 and 20 are those of their folders (reviewed there); the residual -0.1 to -0.3 % of the Analytic with insulated edges was not verified; the multigrid timings are quoted from `docs/versions.md` "Planned" and printed by no script; the planned topics (12 to 16) describe intended behaviour and the formulas of topics 12 and 16 are textbook knowledge written without a source; the pictures explain, they are not tests; every source of `BIBLIOGRAPHY.md` marked M, N or S was not opened in full (the status is in the bibliography, and none was raised without a record of the reading).
-* **Defects of the program found**: open: `Heater.top_resistance()` uses `theta` while `analysis.part_split` uses `junction_theta()` (`docs/versions.md` Planned, item "Top resistance"). The topics that went stale against later corrections of the program (3D size limit, block coefficients, top-path root, laminate nodes, outline edge, `natural_form`) were brought to the current program.
-* **Text for the project documents**: `docs/for-the-project-documents.md`.
+* **Status**: topics reviewed against `develop` `3e90a7f` and the READMEs of the investigations they cite; the figures were read one by one. Status in [`../REVIEW.md`](../REVIEW.md).
+* **Independent checks**: the Lumped factors `f_R` and `f_P` re-derived from the disc solution (topic 05); the top-path closure and its root (topic 09); the fixed point of the power coefficient (figure 9); the theta-method factor and the explicit-Euler limit (figure 7); the laminate construction (topic 01); the explanation of topic 37 (the 0.3 to 1.0 % between the Analytic and the FVM is the edge loss the cosine series leaves out, not mesh error).
+* **Limits**: the numbers of the Gerber topics (15, 17, 19, 20) are those of their folders, reviewed there; the pictures explain, they are not tests.
+* **Program defects**: none open. The one found here (`Heater.top_resistance()` with `theta` against `junction_theta()` in `analysis.part_split`) is closed: since 2.4.3 the top path exists only on a component (`Heater.has_top_path()`), where the two are the same value (`tests/test_top_path_role.py`).
