@@ -24,6 +24,7 @@ import logging
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
+from scipy.sparse import csgraph
 
 from . import blocks, laminate, viawell
 from .geometry import part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
@@ -46,7 +47,7 @@ class Network:
     @brief Assembled thermal network: conductances, capacities, sources and the sparse matrix.
     """
 
-    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True):
+    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True):
         """!
         @brief Build the network of a problem on an nx x ny grid.
         @param problem A validated Problem.
@@ -55,6 +56,9 @@ class Network:
         @param assemble If False, skip building the sparse matrix (the lumped model only needs the per-cell arrays).
         @param with_blocks If False the metal blocks (heatsinks with a thickness) are left out: the heatsinks only add their coefficient on the
                board face (the lumped and analytic models see them that way).
+        @param ladder True: the laminate nodes of the rule (laminate.py) in the cells with absent copper, and the bottom node of a one-layer board; False: the network of the earlier
+               versions (one node per copper layer, the two laminate nodes of a one-layer board), which the Lumped model reads ring by ring. A problem with a metal block always
+               gets the earlier treatment.
         """
         problem.validate()
         self.problem = problem
@@ -65,6 +69,9 @@ class Network:
         self.extra_links = []                          # (layer a, layer b, conductance array) between non-adjacent layers
         self.block_info = []
         self.laminate_layers = []                      # Indices of the laminate node layers of a one-layer board (laminate.py)
+        use_rule = bool(ladder) and laminate.uses_rule(problem)
+        self.ladder = None                             # laminate.Ladder when the rule was applied
+        self.drop = None                               # Boolean (nl, ny, nx) of the nodes that no cell uses (left out of the direct solve)
         self.dx, self.dy = b.width / nx, b.height / ny
         L, dx, dy = b.layers, self.dx, self.dy
         # Fraction of every cell that is board (all ones for a rectangle); cells off the board carry nothing
@@ -75,7 +82,7 @@ class Network:
         k_lam, rho_cp_lam = b.layer_laminate()   # In-plane conductivity and volumetric heat capacity of the dielectric part of each node
         t_cu = np.asarray(b.copper_thickness)
         # A one-layer board gets laminate nodes under its copper (laminate.py): the copper node keeps the copper and half a gap
-        self.laminate = laminate.nodes(b)
+        self.laminate = None if use_rule else laminate.nodes(b)        # (the rule gives a one-layer board its bottom node in _add_ladder instead)
         if self.laminate is not None:
             slab = np.array([self.laminate.copper_slab])
         if np.any(t_cu >= slab):
@@ -134,11 +141,14 @@ class Network:
             self.g_side[:L, :, -1] += b.h_side * dy * sl
             self.g_side[:L, 0, :] += b.h_side * dx * sl
             self.g_side[:L, -1, :] += b.h_side * dx * sl
+        pin_extra = self._add_ladder(b, cell) if use_rule else None      # After the edge conductance: the new nodes take their share of it from the copper nodes
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
         # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0).
         # The pin is kept apart (g_pin) because it is not a path to the air: the time constant must leave it out
         self.g_pin = np.zeros_like(self.g_amb)
         self.g_pin[:, ~self.active] = 1.0
+        if pin_extra is not None:
+            self.g_pin[L:] = np.maximum(self.g_pin[L:], pin_extra)             # Laminate nodes of the cells that do not use them are pinned too (and dropped from the direct solve)
         self.g_amb = self.g_amb + self.g_pin
 
         # --- Heat sources (W): the requested power is spread exactly over the covered cells.
@@ -204,6 +214,37 @@ class Network:
             self.extra_links.append((base + k - 1 if k else 0, base + k, ly["g_link"]))
         self.laminate_layers = list(range(base, base + len(layers)))
         self.nl = base + len(layers)
+
+    def _add_ladder(self, b, cell):
+        """!
+        @brief Apply the rule of laminate.py: interior laminate nodes in the cells with absent copper (plus a margin), the bottom node of a one-layer board, the vertical correction.
+        @details Changes the arrays of the copper nodes (S, C, gz, g_bottom, g_side), appends the new node layers after them and registers their links; boards with copper in every cell
+                 get no new node and keep the arrays of the earlier versions bit for bit (a one-layer board gets its bottom node).
+        @param b The Board.
+        @param cell Board area of every cell (m2), shape (ny, nx).
+        @return Boolean array (new layers, ny, nx) of the new nodes that are pinned (unused or off the board), or None when no layer was added.
+        """
+        plans = laminate.plan_gaps(b, self.fill, self.dx, self.active)
+        edge = self._edge_lengths() if b.h_side else np.zeros((self.ny, self.nx))
+        res = laminate.build(b, self.fill, cell, self.cover, self.active, edge, self.S, self.C, self.gz, self.g_bottom, self.g_side, plans)
+        self.S, self.C, self.gz, self.g_bottom, self.g_side = res.S, res.C, res.gz, res.g_bottom, res.g_side
+        self.ladder, self.drop = res.ladder, res.ladder.drop
+        k = len(res.layers)
+        if not k:
+            return None
+        zeros = np.zeros((k, self.ny, self.nx))
+        self.S = np.concatenate([self.S, np.stack([ly["S"] for ly in res.layers])])
+        self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in res.layers])])
+        self.g_top = np.concatenate([self.g_top, zeros])
+        self.g_heatsink = np.concatenate([self.g_heatsink, zeros])
+        self.g_block = np.concatenate([self.g_block, zeros])
+        self.g_bottom = np.concatenate([self.g_bottom, np.stack([ly["g_bottom"] for ly in res.layers])])
+        self.g_side = np.concatenate([self.g_side, np.stack([ly["g_side"] for ly in res.layers])])
+        self.extra_links = list(res.links)
+        if res.ladder.bottom_layer >= 0:
+            self.laminate_layers = [res.ladder.bottom_layer]          # The bottom face of a one-layer board (the computed coefficients read it)
+        self.nl = b.layers + k
+        return np.stack([ly["pin"] | ~self.active for ly in res.layers])
 
     def _add_blocks(self, layers):
         """!
@@ -298,7 +339,13 @@ class Network:
         """
         q = self.Q.ravel()
         if method == "direct":
-            theta = spla.spsolve(self.K.tocsc(), q, permc_spec=ORDERING)
+            if self.drop is not None and self.drop.any():
+                # Ragged solve: the laminate nodes that no cell uses (outside the flagged cells) are pinned rows of the matrix; leave them out of the factorisation
+                keep = np.flatnonzero(~self.drop.ravel())
+                theta = np.zeros(self.K.shape[0])
+                theta[keep] = spla.spsolve(self.K.tocsr()[keep][:, keep].tocsc(), q[keep], permc_spec=ORDERING)
+            else:
+                theta = spla.spsolve(self.K.tocsc(), q, permc_spec=ORDERING)
         elif method == "cg":
             # Jacobi (diagonal) preconditioner keeps CG cheap and robust for SPD thermal matrices
             dinv = 1.0 / self.K.diagonal()
@@ -356,6 +403,9 @@ class Network:
         K, Q = self.K, self.Q
         if omega is None:
             omega = self.sor_omega()
+        if self.ladder is not None and self.nl > self.n_board:
+            # Laminate nodes of the rule: the vertical neighbour is no longer layer +- 1 and no point colouring exists, so the plan columns are relaxed as blocks
+            return self._sor_columns(omega, tol, max_iter, criterion)
         diag = K.diagonal().reshape(L, ny, nx)
         # Conductances towards the six neighbours (zero where the neighbour does not exist)
         gl = np.zeros((L, ny, nx)); gr = np.zeros((L, ny, nx))     # x-1, x+1
@@ -431,6 +481,81 @@ class Network:
         res = float(np.linalg.norm(K @ theta.ravel() - Q.ravel()) / max(qn, 1e-300))
         return theta, res, {"iterations": it, "converged": converged, "omega": float(omega), "last_step": last_step}
 
+    def _sor_columns(self, omega, tol, max_iter, criterion):
+        """!
+        @brief Block SOR for a network with laminate nodes: every plan cell is a block of all its nodes (copper, interior, bottom), the blocks are coloured and each colour is solved exactly.
+        @details Why not the point red-black sweep: in a refined cell the two copper nodes are joined by n links and in a single-link cell by one, so the cycle
+                 a(i) - b(i) - b(j) - [n links] - a(j) - a(i) has length n + 3, odd for every even n, and no two-colouring of the nodes exists (the default rule gives n = 2 or 4).
+                 Every coupling of the network joins two nodes of one plan cell, the same node of two neighbouring cells, or the cells of a via footprint, so the blocks of the plan
+                 cells (merged where a via footprint joins them) can be coloured; the blocks of one colour are not coupled to each other and take the exact solution of their
+                 block-diagonal part, relaxed by omega (convergence for 0 < omega < 2, as for the via blocks). Nodes no cell uses are left out. A merged block above MAX_SOR_BLOCK
+                 unknowns is not factored: the board is solved directly (info["fallback"] = "direct").
+                 Measured on 30 mm boards at 1 mm: 730 / 5200 / 730 sweeps against 719 / 5221 / 775 for the point SOR of the earlier network (research/laminate-nodes, 3.11).
+        @param omega Relaxation factor.
+        @param tol Stopping tolerance.
+        @param max_iter Sweep limit.
+        @param criterion "residual" or "step" (see solve_sor).
+        @return Tuple (theta, residual, info) as solve_sor.
+        """
+        L, ny, nx = self.nl, self.ny, self.nx
+        cells = ny * nx
+        K = self.K.tocsr()
+        q = self.Q.ravel()
+        # Blocks: the plan cells, merged where a via footprint joins them (the via couples all the cells of its footprint)
+        links = []
+        for ci, cj, _w, _G in self.via_blocks:
+            c = (ci * nx + cj).astype(int)
+            links.append(np.stack([c[:-1], c[1:]], axis=1))
+        pairs = np.concatenate(links) if links else np.zeros((0, 2), dtype=int)
+        graph = sp.coo_matrix((np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])), shape=(cells, cells))
+        _, comp = csgraph.connected_components(graph, directed=False)
+        used = ~self.drop.ravel() if self.drop is not None else np.ones(L * cells, bool)
+        node_cell = np.tile(np.arange(cells), L)
+        node_block = comp[node_cell]
+        sizes = np.bincount(node_block[used], minlength=comp.max() + 1)
+        if sizes.max() > MAX_SOR_BLOCK:
+            log.warning("SOR: a block of %d unknowns (a via footprint with its laminate nodes) is too large for the block SOR; the direct solver is used instead", int(sizes.max()))
+            theta, res = self.solve_steady("direct")
+            return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct"}
+        # Colour the blocks greedily so that coupled blocks differ (blocks in raster order on a grid give the usual two colours)
+        coo = K.tocoo()
+        br, bc = node_block[coo.row], node_block[coo.col]
+        off = (br != bc) & used[coo.row] & used[coo.col]
+        nb_blocks = comp.max() + 1
+        neigh = [set() for _ in range(nb_blocks)]
+        for a, c in zip(br[off].tolist(), bc[off].tolist()):
+            neigh[a].add(c)
+        colour = np.zeros(nb_blocks, dtype=int)
+        for k in range(nb_blocks):
+            taken = {int(colour[o]) for o in neigh[k] if o < k}
+            colour[k] = min(c for c in range(len(taken) + 1) if c not in taken)
+        node_colour = colour[node_block]
+        groups = []
+        for c in range(int(colour.max()) + 1):
+            idx = np.flatnonzero(used & (node_colour == c))
+            if idx.size:
+                groups.append((idx, K[idx], spla.splu(K[idx][:, idx].tocsc())))
+        qn = np.linalg.norm(q)
+        x = np.zeros(L * cells)
+        converged, last_step, it = False, np.inf, 0
+        for it in range(1, max_iter + 1):
+            step = 0.0
+            for idx, rows, lu in groups:
+                d = omega * lu.solve(q[idx] - rows @ x)
+                x[idx] += d
+                step = max(step, float(np.abs(d).max()) / omega)
+            last_step = step
+            if criterion == "step":
+                if step < tol:
+                    converged = True
+                    break
+            elif it % 10 == 0 or step < tol:
+                if np.linalg.norm(K @ x - q) / max(qn, 1e-300) < tol:
+                    converged = True
+                    break
+        res = float(np.linalg.norm(K @ x - q) / max(qn, 1e-300))
+        return x.reshape(L, ny, nx), res, {"iterations": it, "converged": converged, "omega": float(omega), "last_step": last_step}
+
     def _sor_block_groups(self, vblocks):
         """!
         @brief Colour the via blocks and invert them, for the block step of the SOR.
@@ -503,7 +628,23 @@ def _result_from_theta(net, theta, residual, model="fvm"):
         res.arrays["board_mask"] = inside              # The plots leave the cells off the board blank
     attach_laminate_results(res, net, T_all, cover)
     attach_block_results(res, net, T_all, theta)
+    attach_face_terms(res, net, net.dx * net.dy * net.cover, net.dx)
     return res
+
+
+def attach_face_terms(res, net, cell, dx):
+    """!
+    @brief Put the rise between the node and the face of a part over absent copper in a result (laminate.face_terms), for the peak and mean read under the part.
+    @param res SteadyResult of the board.
+    @param net Network built with the laminate rule (nothing is done otherwise).
+    @param cell Board area of every cell or control volume in m2, shape (ny, nx).
+    @param dx Cell size or node spacing in m.
+    """
+    if getattr(net, "ladder", None) is None:
+        return
+    terms = laminate.face_terms(net.problem.board, net.fill, net.Q, cell, dx)
+    if terms is not None:
+        res.arrays["face_peak"], res.arrays["face_mean"] = terms
 
 
 def attach_laminate_results(res, net, T_all, weights):
@@ -557,17 +698,24 @@ def attach_block_results(res, net, T_all, theta):
 
 def unknowns(problem, cell_mm=2.0):
     """!
-    @brief Number of unknowns of the layered finite-volume model of a problem, counted without building it (the same layers as Network).
-    @details The model has one node per copper layer, the laminate nodes of a one-layer board (laminate.py) and one layer per face that carries
-             metal blocks (blocks.py), each of nx x ny cells. The application shows this number next to the cell size; counting only
-             the copper layers hid 3 of 4 unknowns on a one-layer board with a block.
+    @brief Number of unknowns of the layered finite-volume model of a problem, counted without building it (the same nodes as Network, ragged).
+    @details The model has one node per copper layer of nx x ny cells, the bottom node of a one-layer board, the laminate nodes of the rule (laminate.py) **only in the cells that
+             carry them** (the cells with absent copper next to a gap plus a margin: up to 2.5 times the unknowns of a thick two-layer board with a bare bottom, 1.0 times on boards
+             with copper everywhere), and, for a board with a metal block (blocks.py, which keeps the earlier treatment), one layer per face of blocks and the two laminate nodes
+             of a one-layer board. The application shows this number next to the cell size.
     @param problem A Problem.
     @param cell_mm Target size of the cells in millimetres (the grid is round(width / cell) by round(height / cell), at least 2 each).
-    @return Tuple (unknowns, layers, nx, ny) with layers the number of node layers of the model.
+    @return Tuple (unknowns, layers, nx, ny) with layers the number of node layers of the arrays (dense) and unknowns the nodes that are solved (ragged).
     """
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    if laminate.uses_rule(problem):
+        # The laminate nodes of the rule exist only in the flagged cells: count them as the network will (the same fill, cover and plan)
+        dx, dy = b.width / nx, b.height / ny
+        active = b.cover(nx, ny, dx, dy) > 0
+        fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, samples=4)
+        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active), nx * ny), nx, ny)
     lam = laminate.nodes(b)
     layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
     return layers * nx * ny, layers, nx, ny
@@ -758,7 +906,7 @@ def estimate_time_constant(problem, cell_mm=5.0):
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
-    net = Network(problem, nx, ny, assemble=False, with_blocks=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=False, ladder=False)       # (the laminate nodes change neither the total capacity nor the total conductance)
     return board_time_constant(net)
 
 

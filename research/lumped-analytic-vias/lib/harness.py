@@ -10,7 +10,6 @@
          `VARIANTS` lists the models compared: the program (`off`), the constriction patches of `lumped_patch` and `analytic_patch`, the FVM at 1 and 0.5 mm for scale.
 """
 
-import contextlib
 import copy
 import math
 import os
@@ -33,14 +32,14 @@ from constriction import ETA                                                 # n
 
 # name -> (model key, context-manager factory). The factories take no argument and return a fresh context.
 VARIANTS = {
-    "FVM": ("fvm", lambda: contextlib.nullcontext()),
+    "FVM": ("fvm", lambda: pp.patched("point")),                              # the program up to f2d5c03 (the point via); the current program holds the mean-potential via
     "FVM_fix": ("fvm", lambda: pp.patched("mw_disc", eta=ETA)),
-    "L_prog": ("lumped", lambda: contextlib.nullcontext()),
+    "L_prog": ("lumped", lambda: lp.patched("off")),                           # the program up to f2d5c03 (no constriction); the current program has it built in
     "L_ring": ("lumped", lambda: lp.patched("krogh", cell="ring")),
     "L_nn": ("lumped", lambda: lp.patched("krogh", cell="nn")),
     "L_grp0": ("lumped", lambda: lp.patched("krogh", cell="nn", cluster=True)),
     "L_grp": ("lumped", lambda: lp.patched("krogh", cell="nn", cluster=True, macro_cap=0.75)),
-    "A_prog": ("analytic", lambda: contextlib.nullcontext()),
+    "A_prog": ("analytic", lambda: ap.patched("off")),
     "A_on": ("analytic", lambda: ap.patched("on")),
     "A_bil": ("analytic", lambda: ap.patched("on", spread="bilinear")),
     "A_fin": ("analytic", lambda: ap.patched("on", spread="bilinear", tile_cap=1.0)),

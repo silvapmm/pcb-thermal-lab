@@ -11,7 +11,6 @@
          `VARIANTS` maps a name to a context-manager factory (the Lumped patches of this folder and of `lumped-analytic-vias`).
 """
 
-import contextlib
 import hashlib
 import json
 import os
@@ -159,7 +158,7 @@ def variants_f(f):
 OLD = dict(core_peak=False, decimation="stride")
 
 VARIANTS = {
-    "L_prog": lambda: contextlib.nullcontext(),
+    "L_prog": lambda: hz.lp.patched("off"),                      # the program up to f2d5c03 (no constriction), the study's baseline; the current program has the constriction built in
     "L_ring": lambda: lg.patched(macro="none", micro="ring"),
     "L_nn": lambda: lg.patched(macro="none"),
     "L_grp0": lambda: lg.patched(macro="all"),

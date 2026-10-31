@@ -16,7 +16,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from pcbthermal import fvm
+from pcbthermal import fvm, viawell
 
 
 def harmonic(a, b):
@@ -68,7 +68,7 @@ def flag_bare(fill, threshold=1.0, margin=0):
 def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
     """!
     @brief Steady rise of the layered model with refined gaps.
-    @param net A fvm.Network built with assemble=False (arrays S, gz, g_amb, Q, cover, fill are read).
+    @param net A fvm.Network built with assemble=False (arrays S, gz, g_amb, Q, cover, fill and the list via_blocks are read).
     @param gaps Thickness of every gap in m (layers - 1).
     @param kz Through conductivity of every gap in W/mK.
     @param kxy In-plane conductivity of every gap in W/mK.
@@ -87,7 +87,6 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
     S = [net.S[l].copy() for l in range(L)]
     Q = [net.Q[l].copy() for l in range(L)]
     G = [net.g_amb[l].copy() for l in range(L)]
-    vias = []                                                     # (gap, conductance array) of the barrels of vias in refined gaps
     chain = []                                                    # per gap: list of (S, link conductance arrays between consecutive nodes)
     gap_nodes = []
     for g in range(L - 1):
@@ -97,8 +96,9 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
         else:
             ta = tb = np.zeros((ny, nx))
         tadd = ta + tb
-        via_g = np.maximum(net.gz[g] - kz[g] * cell / gaps[g], 0.0)         # the barrels of vias: parallel to the whole gap, between the two copper nodes
-        gz_g = np.where(tadd > 0, kz[g] * cell / (gaps[g] + tadd) + via_g, net.gz[g])
+        # The program's gz holds the dielectric alone since the point via (fix/point-via): the barrels are the mean-potential couplings of net.via_blocks,
+        # added to the matrix below between the copper nodes of the layers, so the dielectric link is the only thing rebuilt here
+        gz_g = np.where(tadd > 0, kz[g] * cell / (gaps[g] + tadd), net.gz[g])
         if parts[g] is None or len(parts[g]) < 2:
             gap_nodes.append(None)
             chain.append([gz_g])
@@ -118,7 +118,6 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
         sub[0] += ta                                                # the added path goes to the outer sub-gaps (the node sits at mid-thickness of its layer)
         sub[-1] += tb
         links = [kz[g] * cell / sub[i] for i in range(m)]
-        vias.append((g, via_g))
         # Lateral conduction: copper nodes give up the laminate that moves to the new nodes (refined cells only)
         S[g] = S[g] - np.where(fl, kxy[g] * (d / 2 - s[0] / 2) * net.cover, 0.0)
         S[g + 1] = S[g + 1] - np.where(fl, kxy[g] * (d / 2 - s[-1] / 2) * net.cover, 0.0)
@@ -168,8 +167,13 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
         seq = [pos[("L", g, None)]] + ([pos[("G", g, j)] for j in range(len(gap_nodes[g]))] if gap_nodes[g] is not None else []) + [pos[("L", g + 1, None)]]
         for a, b, lk in zip(seq[:-1], seq[1:], chain[g]):
             couple(idx[a], idx[b], lk)
-    for g, v in vias:
-        couple(idx[pos[("L", g, None)]], idx[pos[("L", g + 1, None)]], v)
+    # The mean-potential couplings of the program's vias, between the copper nodes of the layers (viawell.py: the barrel through every gap, the wells in the sheets)
+    if getattr(net, "via_blocks", None):
+        layer_idx = np.stack([idx[pos[("L", l, None)]] for l in range(L)])
+        vr, vc, vv = viawell.matrix_entries(net.via_blocks, layer_idx)
+        rows.extend(vr)
+        cols.extend(vc)
+        vals.extend(vv)
     diag = np.stack(Gn).ravel()
     rows.append(np.arange(nn * ny * nx))
     cols.append(np.arange(nn * ny * nx))

@@ -247,6 +247,20 @@ def _tile_grid_vias(W, H, lam, problem):
 _TILE_LINE = "ntx, nty, tw, th = _tile_grid(W, H, lam)"
 _VIA_LINE = "c_via[bb, a] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel"
 _ANCHOR = "G = Gm.reshape(Nt * L, Nt * L)"
+# (text of the program since fix/via-constriction, the loop of the program up to f2d5c03): the via plan is switched off and the point loop is back
+_PROGRAM_VIAS = [
+    ("vs = viaconstriction.ViaSet(problem) if problem.vias and L > 1 else None", "vs = None"),
+    ("""        for iv, v in enumerate(problem.vias if vs is not None else []):
+            cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+            for (row, col), w in via_weights[iv].items():             # A via alone at the scale of a tile is shared by bilinear weights between four tiles
+                c_via[row, col] += w * cond
+""", """        for v in problem.vias:
+            a = min(max(int(v.x // tw), 0), ntx - 1)
+            bb = min(max(int(v.y // th), 0), nty - 1)
+            if L > 1:
+                c_via[bb, a] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+"""),
+]
 
 
 def _compile_solver():
@@ -266,6 +280,11 @@ def _compile_solver():
     if _TILE_LINE not in src:
         raise RuntimeError("tile line not found in analytic.solve_steady")
     src = src.replace(_TILE_LINE, "ntx, nty, tw, th = _tile_grid_vias(W, H, lam, problem)", 1)
+    # The program now holds the result of this study (viaconstriction.py): put back the loop it replaced, so that the copy is this study's patch on the earlier code
+    for old_text, new_text in _PROGRAM_VIAS:
+        if old_text not in src:
+            raise RuntimeError("via block of the program not found in analytic.solve_steady: " + old_text.strip().splitlines()[0])
+        src = src.replace(old_text, new_text, 1)
     k = src.find(_VIA_LINE)
     if k < 0:
         raise RuntimeError("via line not found in analytic.solve_steady")

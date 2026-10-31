@@ -1,0 +1,3 @@
+# Text for `CHANGELOG.md` (Unreleased), to be written at adoption
+
+Fixed: the laminate between copper layers has one construction in the FVM and the FDM: nodes through the gap where the copper is partly absent plus a margin, the vertical path of a cell without copper, and the face value of a part on bare laminate; boards with copper in every cell are unchanged to the last bit. On the simple boards the peak under a part over a window on a 1.6 mm two-layer board goes from -18.4 % to -3.1 % of a resolved 3D solution, on a 3.2 mm board from -34.2 % to -9.1 %, a one-layer pad of 10 mm from -4.1 % to -1.8 % (research/laminate-nodes README 3.2). The example board moves by 0.01 K.

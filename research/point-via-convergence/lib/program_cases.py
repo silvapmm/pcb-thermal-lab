@@ -151,7 +151,9 @@ def layer_parameters(problem):
     q = copy.deepcopy(problem)
     q.vias = []
     b = q.board
-    nx, ny = int(round(b.width / 1e-3)), int(round(b.height / 1e-3))
+    # At least one cell: a board under 0.5 mm (a unit cell of pitch 0.45 mm) rounded to 0 cells and divided by zero in fvm.Network (found by the review of
+    # research/young-omega-tiles); the parameters are uniform, so one cell reads the same numbers
+    nx, ny = max(int(round(b.width / 1e-3)), 1), max(int(round(b.height / 1e-3)), 1)
     net = fvm.Network(q, nx, ny, assemble=False)
     cell = net.dx * net.dy
     d = b.gap_thicknesses()

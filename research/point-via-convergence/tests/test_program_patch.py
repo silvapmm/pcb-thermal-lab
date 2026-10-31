@@ -18,7 +18,7 @@ sys.path.insert(0, LIB)
 import program_cases as pc                                                  # noqa: E402
 import program_patch as pp                                                  # noqa: E402
 import resolved_boards as rb                                                # noqa: E402
-from pcbthermal import fvm                                                  # noqa: E402
+from pcbthermal import fdm, fvm                                             # noqa: E402
 
 ETA = math.exp(-0.25)
 
@@ -32,18 +32,25 @@ def setup_module(module):
     pc.load_libraries()
 
 
+# Maximum rise (K) of the 3 x 3 copper-filled array board at 1 mm, measured on the program as it was at commit f2d5c03 (the point via: the barrel conductance in the
+# cell of the via centre), the last commit before the mean-potential via of `fix/point-via`; the program no longer has this treatment, the "point" copy does
+FROZEN_POINT = {"fvm": 35.61075071681979, "fdm": 35.962234905460555}
+# Copper-fill gain (K) of the same program, fvm, cells 1, 0.5, 0.25 and 0.125 mm
+FROZEN_GAIN = {1.0: -4.780266035987886, 0.5: -4.3815425436297915, 0.25: -3.979922806922353, 0.125: -3.6422609750418857}
+
+
 @pytest.mark.parametrize("model", ["fvm", "fdm"])
-def test_the_point_patch_is_the_program(model):
+def test_the_point_patch_is_the_program_of_f2d5c03(model):
     """!
-    @brief The "point" copy gives the temperatures (to 1e-12) of the unpatched program.
+    @brief The "point" copy gives the temperatures (to 1e-9) that the program gave at `f2d5c03`, before the mean-potential via (values frozen from that commit).
     @param model fvm or fdm.
     @return None.
     """
     p = pc.array_board(385.0)
     base = pc.max_rise(p, model, 1.0)
     with pp.patched("point"):
-        assert pc.max_rise(p, model, 1.0) == pytest.approx(base, rel=1e-12)       # the weights are 1.0: equal up to the rounding of w / sum(w)
-    assert pc.max_rise(p, model, 1.0) == base                                # the original is back
+        assert pc.max_rise(p, model, 1.0) == pytest.approx(FROZEN_POINT[model], rel=1e-9)
+    assert pc.max_rise(p, model, 1.0) == base                                # the program's current treatment is back
 
 
 def test_the_patch_is_removed_on_exit():
@@ -52,10 +59,10 @@ def test_the_patch_is_removed_on_exit():
     @return None.
     """
     from pcbthermal import fdm
-    a, b, c = fvm.Network.__init__, fvm.Network._assemble, fdm.Network.__init__
+    a, b = fvm.Network.__init__, fdm.Network.__init__
     with pp.patched("mw_disc", eta=ETA):
         assert fvm.Network.__init__ is not a
-    assert (fvm.Network.__init__, fvm.Network._assemble, fdm.Network.__init__) == (a, b, c)
+    assert (fvm.Network.__init__, fdm.Network.__init__) == (a, b)
 
 
 @pytest.mark.parametrize("name", ["mw_disc", "mw_area", "area", "peaceman"])
@@ -96,16 +103,16 @@ def test_energy_balance_and_symmetry_with_mean_couplings(cell):
 def test_copper_fill_gain_converges_to_the_resolved_reference():
     """!
     @brief The regression test asked by the roadmap: the copper-fill gain of the via-array board is within 0.3 K of the fine-grid reference from 1 to 0.125 mm
-           with the mean-potential treatment; the program itself leaves that band below 0.5 mm.
+           with the mean-potential treatment; the point via of `f2d5c03` (frozen) leaves that band below 0.5 mm and the program since `fix/point-via` is inside it.
     @return None.
     """
     par0, par1 = pc.layer_parameters(pc.array_board(0.0)), pc.layer_parameters(pc.array_board(385.0))
     ref = rb.array_quadrant(par1, 1 / 16 * 1e-3, 2.0, 5e-3) - rb.array_quadrant(par0, 1 / 16 * 1e-3, 2.0, 5e-3)
     assert ref == pytest.approx(-4.51, abs=0.05)
-    program = []
     for cell in (1.0, 0.5, 0.25, 0.125):
-        with pp.patched("mw_disc", eta=ETA):
-            g = pc.max_rise(pc.array_board(385.0), "fvm", cell) - pc.max_rise(pc.array_board(0.0), "fvm", cell)
-        assert abs(g - ref) < 0.3, (cell, g, ref)
-        program.append(pc.max_rise(pc.array_board(385.0), "fvm", cell) - pc.max_rise(pc.array_board(0.0), "fvm", cell))
-    assert abs(program[-1] - ref) > 0.5                                      # the program at 0.125 mm is outside the band: the test fails on the old code
+        with pp.patched("point"):
+            point = pc.max_rise(pc.array_board(385.0), "fvm", cell) - pc.max_rise(pc.array_board(0.0), "fvm", cell)
+        assert point == pytest.approx(FROZEN_GAIN[cell], rel=1e-9)         # the point via of f2d5c03, reproduced by the copy
+    assert abs(FROZEN_GAIN[0.125] - ref) > 0.5                               # the point via at 0.125 mm was outside the band: the test fails on the old code
+    program = pc.max_rise(pc.array_board(385.0), "fvm", 0.125) - pc.max_rise(pc.array_board(0.0), "fvm", 0.125)
+    assert abs(program - ref) < 0.3                                          # the program since fix/point-via is inside it
