@@ -640,7 +640,7 @@ Y. Zhou, Y. Jiang, H. A. Tchelepi, *A scalable multistage linear solver for rese
 ### [Peaceman1978] used here
 The Peaceman well of the via treatment is the one of section 7 of this file (status S); this folder does not rely on its text.
 
-## 18. Sources of `research/via-real-board/` (a via near an edge, a real board with 100 or more vias)
+## 20. Sources of `research/via-real-board/` (a via near an edge, a real board with 100 or more vias)
 
 ### [Ibragimov2023edge]
 A. Ibragimov et al., *Einstein material balance and modeling of the flow of compressible fluid near the boundary*, Contemporary Mathematics. Fundamental Directions (journals.rudn.ru/CMFD/article/view/37481). **Status S**: the title and the existence of a treatment of the Peaceman well block near a boundary were seen in a search result; the paper was **not opened**. It is the first source to open for the image of the edge in the well. The image term `c = ln(D_lat / D_true)` of the study is derived by the method of images from the lattice potential kernel and tested numerically; it is not taken from this paper.
@@ -653,6 +653,7 @@ Not obtained (status N, see section 7). Whether either gives a well-block radius
 
 ### Boards of study S2
 Stormduino Rev 2.2 (MIT, https://github.com/Chromico/stormduino, licence read at the source) and a four-layer Cadence Allegro board of gerbonara's test resources (licence not stated: numbers only). The Excellon holes are read in place by the independent reader of `research/gerber-import`; nothing is stored in the repository.
+
 ## 18. Sources of `research/lumped-via-groups/` (the via group term of the Lumped model)
 
 Opened for this investigation: each PDF was downloaded to a scratch directory outside the repository and extracted to text locally; nothing of a third party is stored in the repository. The closed forms used (Krogh cell, lossy cell, annulus with a core) are own derivations checked against a finite-difference cell solver and the earlier investigation's numerical references (status L).

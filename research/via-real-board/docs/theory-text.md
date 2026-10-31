@@ -1,10 +1,10 @@
 # Text for `docs/theory.md`: the via near an edge and the footprint on the board
 
-(Complements `research/point-via-convergence/docs/theory-text.md`. To be adopted only with the parts the studies confirm; figures `research/via-real-board/figures/fig_01` to `fig_05`, to be copied to `docs/images/`. The formulas are derived here; no source gives them (status in `research/theory/BIBLIOGRAPHY.md` section 18).)
+(Complements `research/point-via-convergence/docs/theory-text.md`. To be adopted only with the parts the studies confirm; figures `research/via-real-board/figures/fig_01` to `fig_05`, to be copied to `docs/images/`. The formulas are derived here; no source gives them (status in `research/theory/BIBLIOGRAPHY.md` section 20).)
 
 ## Notation
 
-`S_l` sheet conductance of plane `l` (W/K, the conductance between neighbouring cells of a square grid of side `Δ`); `r_v` drill radius; `r_t = e^(-1/4) r_v` the radius the model must reproduce; `w_a` footprint weights (sum 1) on cells `a` with centres `x_a`; `a(d)` the potential kernel of the five-point lattice, `a(d) = (2/π) ln|d| + κ + O(|d|^-2)`, `κ = (2γ + 3 ln 2)/π = 1.0291`, `a(0) = 0`, `a(1,0) = 1`, `a(1,1) = 4/π`.
+`S_l` sheet conductance of plane `l` (W/K, the conductance between neighbouring cells of a square grid of side `Δ`); `r_v` drill radius; `r_t = e^(-1/4) r_v` the radius the model must reproduce; `w_a` footprint weights (sum 1) on cells `a` with centres `x_a`; `a(d)` the potential kernel of the five-point lattice, `a(d) = (2/π) ln|d| + κ + O(|d|^-2)`, `κ = (2γ + 3 ln 2)/π = 1.0294`, `a(0) = 0`, `a(1,0) = 1`, `a(1,1) = 4/π`.
 
 ## The via as a well (recall)
 
@@ -20,9 +20,9 @@ while the continuum disc of radius `r_t` at distance `δ` from the edge (image a
 
 `G_c = 2π S_l / [ ln(r_eff / r_t) + c ]`, `c = ln(D_lat / D_true)`.
 
-For a via near a corner (walls `x = p`, `y = q`) three images enter, two single and one diagonal (`D_true = 2 √(δ_x² + δ_y²)`), and `c` is the sum of the three terms. `δ` is clipped at `r_v`. If the denominator is not positive the well is infinite. The correction is zero when the via sits at the centre of the cell next to the wall (`P_img = a(1,0) = 1`, `D_lat = 0.955 Δ`, `c ≈ −0.05`); it grows as `ln(Δ/2δ)` for `δ → 0`.
+For a via near a corner (walls `x = p`, `y = q`) three images enter, two single and one diagonal (`D_true = 2 √(δ_x² + δ_y²)`), and `c` is the sum of the three terms. `δ` is clipped at `r_v`. If the denominator is not positive (a small via whose footprint was enlarged to `r_eff = r_t`, with a negative `c`) the footprint is enlarged further until `ln(r_eff/r_t) + c > 0`; clipping the well to infinity instead left -3.3 % at a corner (README 3.2). The correction is close to zero when the via sits at the centre of the cell next to the wall (`P_img = a(1,0) = 1`, `D_lat = 0.955 Δ`, `c ≈ −0.05`); it grows as `ln(Δ/2δ)` for `δ → 0`.
 
-*Status: derived, implemented in `lib/edge_image.py` and compared with a resolved reference (the layered model on a 1/16 mm grid, barrel at real size): for a 0.3 mm via 0.16 mm from the edge on 1 mm cells the error of the via effect falls from +14.5 % to +0.7 % (+26 % to -1.0 % at a corner; +14.1 % to +1.1 % at an outline on a grid line; +2.5 % at an outline inside a cell, only with the footprint restricted to the board). README 3.* Valid for walls parallel to an axis on a cell-centred grid (FVM); the FDM edge nodes are half volumes whose mirror is themselves, and a diagonal or curved edge has no lattice image.
+*Status: derived, implemented in `lib/edge_image.py` and compared with a resolved reference (the layered model on a 1/16 mm grid, barrel at real size): for a 0.3 mm via 0.16 mm from the edge on 1 mm cells the error of the via effect falls from +14.5 % to +0.7 % (+26 % to -1.0 % at a corner, -0.5 to -0.3 % at d = 0.3 mm with the enlargement; +14.1 % to +1.1 % at an outline on a grid line; +2.5 % at an outline inside a cell, only with the footprint restricted to the board). README 3.* Valid for walls parallel to an axis on a cell-centred grid (FVM); the FDM edge nodes are half volumes whose mirror is themselves, and a diagonal or curved edge has no lattice image.
 
 ## The footprint on the cells of the board
 

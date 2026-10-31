@@ -167,3 +167,20 @@ def test_block_structure_counts_overlapping_footprints_as_one_block():
     p.add_via(8.0, 8.0, 0.3)
     net = ms.build(p, 0.5, "mw", board_only=True, image=False)
     assert ms.block_structure(net)["blocks"] == 2
+
+
+def test_a_negative_edge_term_enlarges_the_footprint_instead_of_an_infinite_well():
+    """!
+    @brief Regression of the review: the via 0.3 mm from both edges of the corner on 0.5 mm cells has a footprint enlarged to r_eff = r_t and a negative edge term; without
+           `enlarge` its wells are infinite (the -3.3 % of README 3.2), with it every well is finite and the footprint is larger.
+    """
+    p = er.edge_board(0.3, True, None, None, corner=True)
+    nx, ny = _grid(p, 0.5)
+    with ep.patched_edge(**dict(runs.MW_IMAGE, enlarge=False)):
+        fvm.Network(p, nx, ny)
+        assert ep.STATS["inf_wells"] == 1
+    with ep.patched_edge(**runs.MW_IMAGE):
+        net = fvm.Network(p, nx, ny)
+        assert ep.STATS["inf_wells"] == 0 and ep.STATS["enlarged"] >= 1
+    keys, _, G = net._via_blocks[0]
+    assert len(keys) > 3 and np.all(np.isfinite(G))

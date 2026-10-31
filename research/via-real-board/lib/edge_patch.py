@@ -11,6 +11,8 @@
          * `fold`        the part of the footprint that falls outside the grid is moved to the mirror cell instead of being dropped and renormalised;
          * `image`       the well of every layer is 2 pi S / (ln(r_eff / r_t) + c) with c the edge term of `edge_image.well_correction` (FVM only: the edge nodes of the FDM are half
                          volumes and have no mirror image);
+         * `enlarge`     (added by the review) with the image: when the edge term is negative and the well would need a negative resistance, the footprint is enlarged until
+                         ln(r_eff / r_t) + c > 0 instead of clipping the well to infinity;
          * `s_mode`      the sheet conductance of the well is that of the cell of the largest weight ("max", the prototype's rule) or the weighted mean ("mean");
          * `gz_via`      `net.gz_via` holds the barrel conductance of every gap at the cell of the via centre, which is exactly what the program's own loop adds to `gz`
                          (the Lumped model sums `gz` over rings and must keep seeing it; the assembled matrix does not use it).
@@ -35,8 +37,8 @@ import viakernel as vk                                                      # no
 from pcbthermal.geometry import cell_index_of_point                         # noqa: E402
 
 ETA = math.exp(-0.25)                                                       # target radius / drill radius of the layered idealisation
-OPTS = {"board_only": True, "fold": False, "image": True, "s_mode": "max", "wall_cells": 6.0, "eta": ETA}
-STATS = {"vias": 0, "edge_vias": 0, "dropped": 0, "inf_wells": 0}            # counters of the last network (reset by `patched_edge`)
+OPTS = {"board_only": True, "fold": False, "image": True, "enlarge": True, "s_mode": "max", "wall_cells": 6.0, "eta": ETA}
+STATS = {"vias": 0, "edge_vias": 0, "dropped": 0, "inf_wells": 0, "enlarged": 0}            # counters of the last network (reset by `patched_edge`)
 
 
 def walls_for(problem, v, reach):
@@ -127,6 +129,19 @@ def via_hook_edge(net, problem, gz, d, S, dx, dy, nx, ny, origin):
             if walls:
                 STATS["edge_vias"] += 1
                 c = ei.well_correction(w, (v.x, v.y), rv, dx, origin, walls)
+                # Review: the footprint is enlarged until r_eff = r_t, so the well resistance ln(r_eff/r_t) is 0 for a small via; a negative edge term (the lattice image
+                # nearer than the true one) then asks for a negative well resistance, which the infinite well clips (the corner at d = 0.3 mm on 0.5 mm cells, -3.3 %).
+                # Enlarge the footprint instead until ln(r_eff/r_t) + c > 0, i.e. r_eff = r_t exp(-c) (c depends on the footprint: a few passes).
+                for _ in range(4 if OPTS["enlarge"] else 0):
+                    if math.log(r_f / rt) + c > 1e-9:
+                        break
+                    w = vk.disc_target_weights(v.x, v.y, rv, rt * math.exp(-c) * (1.0 + 1e-6), dx, origin)
+                    w = ei.restrict_to_board(w, cover, ny, nx) if OPTS["board_only"] else w
+                    r_f = vk.effective_radius(w, dx)
+                    keys = list(w.keys())
+                    wv = np.array([w[k] for k in keys])
+                    c = ei.well_correction(w, (v.x, v.y), rv, dx, origin, walls)
+                    STATS["enlarged"] += 1
         if c == 0.0:
             g_well = [vk.well_conductance(s_eff[l], r_f, rt) if s_eff[l] > 0 else 0.0 for l in range(L)]
         else:
@@ -139,7 +154,7 @@ def via_hook_edge(net, problem, gz, d, S, dx, dy, nx, ny, origin):
 def patched_edge(**options):
     """!
     @brief Install the copies of the program's network code with `via_hook_edge`; restore the originals on exit.
-    @param options Any key of OPTS (board_only, fold, image, s_mode, wall_cells, eta).
+    @param options Any key of OPTS (board_only, fold, image, enlarge, s_mode, wall_cells, eta).
     @return Context manager; the counters of the networks built inside are in STATS.
     @throws KeyError If an option is unknown.
     """
@@ -149,7 +164,7 @@ def patched_edge(**options):
             raise KeyError(k)
     old_opts = dict(OPTS)
     OPTS.update(options)
-    STATS.update(vias=0, edge_vias=0, dropped=0, inf_wells=0)
+    STATS.update(vias=0, edge_vias=0, dropped=0, inf_wells=0, enlarged=0)
     try:
         with pp.patched("mw_disc", eta=OPTS["eta"]):
             fvm._via_hook = via_hook_edge                                  # the compiled copies look the hook up by name at call time
