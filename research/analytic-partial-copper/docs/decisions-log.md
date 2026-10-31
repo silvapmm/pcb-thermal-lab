@@ -1,0 +1,3 @@
+# Entry for the Decisions Log of `CLAUDE.md` (to write when the maintainer decides)
+
+* **Analytic model on partial copper** (investigation `analytic-partial-copper`, reviewed): the cause of the error on a copper pad over bare laminate is the uniform sheet (the heater-weighted fill) and the nodes, not the Fourier series; the program's warning missed the worst cases (thin gaps) and a second spread closes that; the candidate (laminate nodes and the copper as a lateral defect through the tile Green-function system) equals the FVM with the same nodes only when the copper edges lie on tile edges and grows to thousands of dense unknowns on real boards. Decision: (to be written; the reviewer advises P1 with the new trigger and P3, not P2).
