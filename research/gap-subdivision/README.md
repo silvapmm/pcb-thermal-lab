@@ -440,3 +440,7 @@ Against the pad and gap rows (h 10, 3 mm source, 0.5 mm cell) the FVM error as a
 4. Whether n = 3 or 4 is the "right" default is a choice between cost and the 1 / n tail; the numbers are in 5.2 and 5.5.
 5. The FDM, the transient and any board with a via, a block, a component or an outline were not run with extra nodes.
 6. The A1 probe on the reading (the half-layer correction) is only a test of a part sitting on copper; on a part over bare laminate it matters (`bare-spot-under-source`).
+
+## Library update after the point via and the via constriction of the program
+
+`lib/gapnodes.py` uses `bare-spot-under-source/lib/layered.py`, which now takes the vias from the program's mean-potential couplings (see that README); the tests pass, the numbers of this README were NOT re-run, and the rows with vias (the example projects) move with the change of the base FVM (example board, 1 mm: 85.81 to 85.22 K).

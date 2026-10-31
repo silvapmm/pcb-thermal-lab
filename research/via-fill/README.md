@@ -183,3 +183,7 @@ Fabricator pages, not the IPC standard, which was not read (what was read and ho
 * **Limits**: no physical board; the IPC-4761 text and the fill conductivities beyond the three fabricator pages were not read; the 16 W/mK and silver-epoxy ranges are not traced to a source; the Peaceman radius is from memory; the independent reference shares the layered stack, the films and the plane copper with the program, not the via model.
 * **Defects of the program found**: open: the point via does not converge with the cell below 0.5 mm (4.6, `research/ROADMAP.md` A5); the 3D solid clips a via larger than its cell (4.7; `INTEGRATION.md` 2); the tooltip and the docstring of `Via.diameter` say "finished hole" while the model uses the drill (4.8; `INTEGRATION.md` 3); Lumped and Analytic overstate vias (`research/ROADMAP.md` A6).
 * **Text for the project documents**: `docs/for-the-project-documents.md`; the program defects and the corrections proposed are in `INTEGRATION.md`.
+
+## Library update after the point via and the via constriction of the program
+
+`scripts/study_via_model_checks.py` part 1 read the barrel from `Network.gz`; it now reads `gz + gz_via` (the barrel conductance at the cell of the via centre). Re-run: the printed line is unchanged (0.01709 W/K per gap against the closed form 0.01709; 175.6 K/W). Parts 2 and 3 were NOT re-run; they run the program's models, which since `fix/point-via` and `fix/via-constriction` give other numbers for the vias than the ones of this README.

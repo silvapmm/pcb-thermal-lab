@@ -25,6 +25,19 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 
+def _blocks_of(net):
+    """!
+    @brief The mean-potential via blocks of a network in the format (cells, weights, G) that this module uses.
+    @param net A network with `_via_blocks` (built inside `program_patch.patched`, already in that format) or the program's own network (`net.via_blocks` of `viawell.py`,
+           blocks of (rows, cols, w, G), the format since `fix/point-via`).
+    @return list of (cells, w, G): cells a list of (i, j), w the weights (sum 1), G the (L, L) layer-to-layer conductances in W/K.
+    """
+    own = getattr(net, "_via_blocks", None)
+    if own is not None:
+        return own
+    return [(list(zip(ci.tolist(), cj.tolist())), w, G) for ci, cj, w, G in getattr(net, "via_blocks", [])]
+
+
 def stencil_parts(net):
     """!
     @brief Conductances of the stencil (six neighbours) of a network, as the program's `solve_sor` builds them, plus the matching sparse matrix.
@@ -79,7 +92,7 @@ def via_operator(net):
     idx = np.arange(n).reshape(net.nl, net.ny, net.nx)
     rows, cols, vals, Gs = [], [], [], []
     m0 = 0
-    for cells, w, G in getattr(net, "_via_blocks", []):
+    for cells, w, G in _blocks_of(net):
         L = G.shape[0]
         ci = np.array([c[0] for c in cells]); cj = np.array([c[1] for c in cells])
         for l in range(L):
@@ -224,7 +237,7 @@ def via_blocks(net):
     n = net.nl * net.ny * net.nx
     idx = np.arange(n).reshape(net.nl, net.ny, net.nx)
     sets = []
-    for cells, w, G in getattr(net, "_via_blocks", []):
+    for cells, w, G in _blocks_of(net):
         ci = np.array([c[0] for c in cells]); cj = np.array([c[1] for c in cells])
         sets.append(set(idx[:, ci, cj].ravel().tolist()))
     merged = []
@@ -239,7 +252,7 @@ def via_blocks(net):
 def solve_variant(net, variant, omega=None, tol=1e-9, max_iter=200000, block_omega=1.0):
     """!
     @brief Solve K theta = Q with one of the SOR variants.
-    @param net An assembled network (inside or outside the patch; the via blocks are read from `net._via_blocks` when present).
+    @param net An assembled network (inside or outside the patch; the via blocks are read from `net._via_blocks` when present, else from the program's `net.via_blocks`).
     @param variant program, lagged, block, block_over or woodbury.
     @param omega Relaxation factor (None: the program's).
     @param tol Stopping tolerance of the residual.
