@@ -44,7 +44,9 @@ non-uniformity change the number, not the argument.
 * **Rayleigh bound** (one product, or none): the trial vector `x = D^1/2 1` gives `x^T A_s x / x^T x = (1^T K 1) / (1^T D 1)`, so by the min-max principle
   `rho_J >= 1 - (1^T K 1) / (1^T D 1)`. `K 1` is the vector of the conductances to the ambient (the links cancel), so `1^T K 1 = G_amb` and `1^T D 1 = 2 G_links + G_amb` (every link appears in
   two diagonal entries): `rho_R = 1 - G_amb / (2 G_links + G_amb)` from sums that the assembly can keep, no product. The via couplings of the mean-potential treatment have zero row sums and add
-  their diagonal to `D`. The bound is exact when the uniform vector is the dominant eigenvector (a periodic plate with a uniform loss: `rho_J = 4 g / (4 g + a)`), and below `rho_J` otherwise: the
+  their diagonal to `D`. **The sums must leave out the nodes without a link** (the cells off a board with an outline are pinned to the ambient and decoupled: each is an eigenvector
+  with `mu = 0`, and counting their pins as loss of the board made the bound collapse, omega 1.009 on a round board): with `m` the indicator of the linked nodes the bound is
+  `rho_R = 1 - (m^T K m) / (m^T D m)`, still a Rayleigh quotient of `J_s` (trial vector `D^1/2 m`), one product with K; this masked form is the one proposed (README 2.5). The bound is exact when the uniform vector is the dominant eigenvector (a periodic plate with a uniform loss: `rho_J = 4 g / (4 g + a)`), and below `rho_J` otherwise: the
   `omega` it gives is on the safe side.
 * **Lanczos** (`k` products): `k` steps of the Lanczos process on `J_s` started at `D^1/2 1`; the largest eigenvalue of the `k x k` tridiagonal matrix is a lower bound of `rho_J` that rises with `k`
   (Saad, *Large Eigenvalue Problems*, Theorem 6.4, eq. 6.42: `0 <= lambda_1 - lambda_1^(m) <= (lambda_1 - lambda_n) (tan theta(v_1, u_1) / C_{m-1}(1 + 2 gamma_1))^2`, `C` the Chebyshev
@@ -62,8 +64,12 @@ the cases where SOR is used as a comparison solver (the README of the folder has
 
 ### A.6 With the mean-potential via couplings (variant c')
 
-The colours iterate the stencil with the diagonal of the whole `K`; Young's relation is exact only for that part (the full `K` has triangles in its graph and is not two-colourable). The omega is
-taken from the Jacobi matrix of `diag(K) + stencil` and the block step is relaxed by the same omega; the optimum measured on the full iteration is compared with it (README).
+The colours iterate the stencil with the diagonal of the whole `K`; Young's relation is exact only for that part (the full `K` has triangles in its graph and is not two-colourable). The plan
+was to take the omega from the Jacobi matrix of `diag(K) + stencil`; the measurements (README 2.6 and 2.6b, twelve boards) show that this omega is 1.6 to 7.8 times slower than one taken
+from the **full** `K`, whose masked Rayleigh bound gives an omega at or below the measured best of the block iteration (0 to 11 % more sweeps). The full `K` has positive entries inside a
+footprint, so its Jacobi matrix is not non-negative and Young's relation does not hold: the choice rests on the measurements. The iteration is a block SOR of a symmetric positive definite
+matrix with its diagonal blocks solved exactly, so it converges for every `0 < omega < 2` (Saad 2003 Theorem 4.10 for the point form; the block form, Varga 1962 Theorem 3.6, from a summary);
+it converged at omega 1.995 and 1.999 on the nine boards of 2.6b, after a transient growth of the residual of up to 62 times.
 
 ## B. The tile of the Analytic via correction and the Krogh well of the Lumped model
 

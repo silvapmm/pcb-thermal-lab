@@ -190,3 +190,32 @@ def test_modes_hook_changes_the_answer_only_when_asked(array3):
         b = sc.rise(prob, "analytic", 0.5, 300)
     assert a != b
     assert abs(a - b) < 0.05 * a
+
+
+def test_reference_parameters_of_a_cell_below_half_a_millimetre():
+    """!
+    @brief Regression (review): `program_cases.layer_parameters` rounded a 0.45 mm unit cell to 0 cells of 1 mm and divided by zero, which dropped the 0.45 mm pitch from the plan;
+           with at least one cell it reads the same uniform parameters as a larger cell, and the fine-grid reference runs.
+    @return None.
+    """
+    import program_cases as pc
+    small, big = pc.layer_parameters(sc.unit_cell(0.45, 2)), pc.layer_parameters(sc.unit_cell(1.0, 2))
+    for key in ("S", "gz_area"):
+        assert np.allclose(small[key], big[key])
+    assert small["h_bottom"] == pytest.approx(big["h_bottom"])
+    assert sc.reference_e(sc.unit_cell(0.45, 2), 0.05) > 0.0
+
+
+def test_rule_keeps_the_tile_below_the_pitch_of_a_dense_pad():
+    """!
+    @brief The rule gives 0.75 d_nn below 1.33 mm of pitch (0.34 mm at 0.45 mm, the held-out pad of `study_s4_heldout.py`), and the coarsening can lift it above that on a large
+           array (400 vias at 1.0 mm: 0.87 mm), which is why the coarsening has a warning in the proposal.
+    @return None.
+    """
+    import cases
+    rule = dict(tr.RULE, kind="cap_nn", cap_mm=1.0, k_nn=0.75, floor_mm=0.25)
+    pad = cases.pad(4, 5, 0.45, 0.3, 385.0, side_mm=16.0, source_mm=4.0)
+    assert tr.tile_by_rule(pad, 16e-3, 16e-3, 5e-3, rule) == pytest.approx(0.75 * 0.45e-3)
+    big = sc.big_array(20, 1.0)
+    w = big.board.width
+    assert tr.tile_by_rule(big, w, w, 5e-3, rule) > 0.75e-3 * 1.1
