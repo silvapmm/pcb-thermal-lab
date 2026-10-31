@@ -4,6 +4,8 @@ The question of the maintainer: when the zones of one copper layer meet or overl
 
 Nothing of the program was edited. The program is imported; the prototype was copied as a patch (`lib/zone_union_prototype.patch`, the diff of `fix/zone-union` against `develop`, `pcbthermal/` only) and applied to a **copy** of the package made in `out/variant/` (`lib/variant.py`), where the rule is chosen by an environment variable so that every rule runs on the same code. The program as it is (the old rule) is run unmodified in separate processes and is the "old" column everywhere.
 
+**Since 2.4.5 (the prototype is in the program).** `fix/zone-union` was merged, so `geometry.zone_fill` (rule `max_point`) is the program and `lib/zone_union_prototype.patch` no longer applies (every hunk is already there); it is kept as the record only. `lib/variant.py` now copies the package as it is and replaces `zone_fill` by the dispatch on `ZONE_RULE`; the "old" column of the studies is the copy with `ZONE_RULE=max_cell` (the rule of the program before 2.4.5) and the unmodified program equals `max_point`. The numbers below were measured before the merge; the copy with `max_cell` reproduces the old rule, except that the 26 K FDM difference of 4.1 is now measured against a program whose FDM already has the union, so the "old FDM" column cannot be rechecked against the program itself.
+
 ## Contents
 
 | # | Section | Question |

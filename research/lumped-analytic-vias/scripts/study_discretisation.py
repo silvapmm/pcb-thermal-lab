@@ -86,7 +86,7 @@ def part1(bs):
     print("| :-- | --: | :-- |" + " --: |" * 8)
     for label, prob, e_ref in bs:
         q0 = hz.no_vias(prob)
-        for name, ctx in (("program", lambda: contextlib.nullcontext()), ("cluster", lambda: lp.patched("krogh", cell="nn", cluster=True, macro_cap=0.75))):
+        for name, ctx in (("program", lambda: lp.patched("off")), ("cluster", lambda: lp.patched("krogh", cell="nn", cluster=True, macro_cap=0.75))):
             cells = []
             for r in (4, 6, 10, 20):
                 for c in (0.5, 1.0):

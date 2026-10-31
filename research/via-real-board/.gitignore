@@ -1,0 +1,5 @@
+# Downloaded boards (licences differ: never commit them), outputs of the studies
+data/
+out/
+*.npz
+__pycache__/

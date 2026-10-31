@@ -269,3 +269,7 @@ Not touched. The Lumped model uses the grid arrays of the FVM network (`lumped.p
 ## Reproduce
 
 `sh research/point-via-convergence/scripts/run_all.sh` from the repository root (`PY` selects the interpreter, default `.venv/bin/python`; about one hour) runs the studies into `out/` (git-ignored); then `make_diagrams.py` and `make_figures.py`; tests: `.venv/bin/python -m pytest -q research/point-via-convergence/tests` (18 tests, 10 s).
+
+## Library update after the point via and the via constriction of the program
+
+`lib/program_patch.py` was written against the program up to `f2d5c03`; the program now builds the vias with `viawell.build`. The copies now replace that call by `via_hook` (the study's treatments) and use the program's own `_assemble` for the matrix entries (`_assemble` is no longer copied). `point` is the point via of `f2d5c03`, tested against values frozen from that commit (FVM 35.61075 and FDM 35.96223 K at 1 mm; copper-fill gains -4.780, -4.382, -3.980, -3.642 K at 1, 0.5, 0.25, 0.125 mm). The folder tests pass (18). The numbers of this README were NOT re-run: the treatments `mw_*`, `area`, `peaceman` and `point` keep their numbers, but the columns that run the unpatched program ("program") now run the adopted treatment and move.

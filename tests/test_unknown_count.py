@@ -32,9 +32,25 @@ def boards():
     two_faces = example_board()
     two_faces.add_heatsink(1, 10.0, rect=(10, 10, 30, 30), thickness_mm=2.0)
     two_faces.add_heatsink(4, 10.0, rect=(50, 20, 80, 50), thickness_mm=2.0)
+    pad2 = Problem.new(60, 40, 2)                                  # Laminate nodes of the rule only under and around the bare spots
+    pad2.add_zone(1, rect=(20, 10, 40, 30))
+    pad2.add_heater(1, 1.0, rect=(26, 16, 34, 24))
+    pad1 = Problem.new(60, 40, 1)
+    pad1.add_zone(1, rect=(20, 10, 40, 30))
+    pad1.add_heater(1, 1.0, rect=(26, 16, 34, 24))
     return [("two layers", Problem.new(60, 40, 2).add_full_copper()), ("one layer", Problem.new(60, 40, 1).add_full_copper()),
+            ("two layers, pad on a bare bottom", pad2), ("one layer, pad", pad1),
             ("one layer, block", one_layer_with_block()), ("example", example_board()), ("example, bottom block", example_block_board()),
             ("example, two block faces", two_faces)]
+
+
+def solved(net):
+    """!
+    @brief Unknowns that the direct solver factors: all the nodes minus the laminate nodes of the rule that no cell uses.
+    @param net A fvm.Network or fdm.Network.
+    @return int.
+    """
+    return net.nl * net.nx * net.ny - (int(net.drop.sum()) if net.drop is not None else 0)
 
 
 @pytest.mark.parametrize("cell", [1.0, 2.0, 2.5])
@@ -43,7 +59,7 @@ def test_fvm_count_equals_the_unknowns_of_the_network(cell):
         n, layers, nx, ny = fvm.unknowns(p, cell)
         net = fvm.Network(p, nx, ny)
         assert layers == net.nl, name
-        assert n == net.nl * net.nx * net.ny, name
+        assert n == solved(net), name
 
 
 @pytest.mark.parametrize("cell", [1.0, 2.0, 2.5])
@@ -52,7 +68,7 @@ def test_fdm_count_equals_the_unknowns_of_the_network(cell):
         n, layers, nx, ny = fdm.unknowns(p, cell)
         net = fdm.Network(p, cell)
         assert layers == net.nl, name
-        assert n == net.nl * net.nx * net.ny, name
+        assert n == solved(net), name
 
 
 def test_the_old_count_missed_three_quarters_of_a_one_layer_board_with_a_block():

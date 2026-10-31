@@ -22,7 +22,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .geometry import BOARD_SAMPLES, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
-from . import blocks, fvm, laminate
+from . import blocks, fvm, laminate, viawell
 from .fvm import ORDERING
 from .results import SteadyResult
 
@@ -111,7 +111,9 @@ class Network:
         wy = np.full(ny, dy); wy[[0, -1]] = 0.5 * dy
         area = np.outer(wy, wx)                                              # m2
         slab = b.slab_thicknesses()[:, None, None]                           # Thickness of each layer node (equal in the simple stack-up)
-        self.laminate = laminate.nodes(b)                                    # Laminate nodes under the copper of a one-layer board (laminate.py)
+        use_rule = laminate.uses_rule(problem)                               # The laminate nodes of the rule (laminate.py); a board with a metal block keeps the earlier treatment
+        self.ladder, self.drop = None, None
+        self.laminate = None if use_rule else laminate.nodes(b)              # Legacy: laminate nodes under the copper of a one-layer board
         if self.laminate is not None:
             slab = np.full((1, 1, 1), self.laminate.copper_slab)
         k_lam, rho_cp_lam = (v[:, None, None] for v in b.layer_laminate())  # Dielectric part of each node
@@ -141,6 +143,7 @@ class Network:
             fill = np.zeros((L, ny, nx))                                     # Point sampling: a node is inside or outside, the maximum is exact
             for z in problem.zones:
                 fill[z.layer] = np.maximum(fill[z.layer], cover(z.polygon, 4) * z.fill)
+        self.fill = fill
         S = (fill * m.k_copper * tc + k_lam * (slab - fill * tc)) * ncov     # Sheet conductance per node (W/K)
         # Heat capacity of every node (J/K)
         self.C = (fill * m.rho_copper * m.cp_copper * tc + (slab - fill * tc) * rho_cp_lam) * area[None]
@@ -172,6 +175,29 @@ class Network:
                             "board_layer": ly["board_layer"]} for k, ly in enumerate(ex)]
         Lt = L + NL + E
 
+        # The rule of laminate.py: the copper nodes keep the copper and half a sub-gap, the interior nodes (and, for a one-layer board, the bottom node) are appended. It needs
+        # the single links, the bottom film and the edge conductance of the copper nodes, so they are built here for this case (the later code takes them from the result)
+        rule = None
+        if use_rule:
+            gz0 = (b.gap_properties()[0][:, None, None] * area[None] / b.gap_thicknesses()[:, None, None]) if L > 1 else np.zeros((0, ny, nx))
+            g_bottom0 = np.zeros((L, ny, nx))
+            g_bottom0[L - 1] = b.h_bottom * area
+            g_side0 = np.zeros((L, ny, nx))
+            self._board_edge(b, g_side0, slab, wx, wy, dx, dy)
+            plans = laminate.plan_gaps(b, fill, dx, self.active)
+            rule = laminate.build(b, fill, area, ncov, self.active, edge_nodes if b.h_side else np.zeros((ny, nx)), S, self.C, gz0, g_bottom0, g_side0, plans)
+            # (the vias below read the sheet conductance of the copper nodes before the laminate moved out of them, as in the FVM)
+            via_S = S
+            S = np.concatenate([rule.S, np.stack([ly["S"] for ly in rule.layers])]) if rule.layers else rule.S
+            self.C = np.concatenate([rule.C, np.stack([ly["C"] for ly in rule.layers])]) if rule.layers else rule.C
+            self.ladder, self.drop = rule.ladder, rule.ladder.drop
+            self.extra_links = list(rule.links)
+            self.laminate_layers = [rule.ladder.bottom_layer] if rule.ladder.bottom_layer >= 0 else []
+            Lt = L + len(rule.layers)
+            self.nl = Lt
+        else:
+            via_S = S
+
         n = Lt * ny * nx
         idx = np.arange(n).reshape(Lt, ny, nx)
         rows, cols, vals = [], [], []
@@ -187,18 +213,25 @@ class Network:
         # Lateral: face conductivity (mean of the two nodes) times the width of the face over the distance
         # (No heat crosses a face that touches a node off the board, whatever the mean of the two conductivities says)
         on = self.active
-        couple(idx[:, :, :-1], idx[:, :, 1:], _mean(S[:, :, :-1], S[:, :, 1:], mean) * wy[None, :, None] / dx * (on[:, :-1] & on[:, 1:])[None])
-        couple(idx[:, :-1, :], idx[:, 1:, :], _mean(S[:, :-1, :], S[:, 1:, :], mean) * wx[None, None, :] / dy * (on[:-1, :] & on[1:, :])[None])
+        fx = _mean(S[:, :, :-1], S[:, :, 1:], mean)
+        fy = _mean(S[:, :-1, :], S[:, 1:, :], mean)
+        if rule is not None and rule.layers:
+            # A laminate node joins its neighbour by the mean of the two only where both exist: the arithmetic mean would leak half of a refined node's conductance into
+            # the neighbouring node that no cell uses (a node pinned to the ambient)
+            for fq, sq in ((fx, (S[L:, :, :-1], S[L:, :, 1:])), (fy, (S[L:, :-1, :], S[L:, 1:, :]))):
+                fq[L:] = 0.5 * (sq[0] + sq[1]) * ((sq[0] > 0) & (sq[1] > 0))
+        couple(idx[:, :, :-1], idx[:, :, 1:], fx * wy[None, :, None] / dx * (on[:, :-1] & on[:, 1:])[None])
+        couple(idx[:, :-1, :], idx[:, 1:, :], fy * wx[None, None, :] / dy * (on[:-1, :] & on[1:, :])[None])
         # Vertical: dielectric over the control area, plus the via barrels at the nearest node
         if L > 1:
             d = b.gap_thicknesses()
-            gz = (b.gap_properties()[0][:, None, None] * area[None] / d[:, None, None]).copy()
-            for v in problem.vias:
-                # A via is a point: all its conductance goes to the node nearest to it (spreading it over the neighbours was
-                # tried and removes the constriction, giving temperatures 2 % too low against the 3D solid)
-                j = min(max(int(round(v.x / dx)), 0), nx - 1)
-                i = min(max(int(round(v.y / dy)), 0), ny - 1)
-                gz[:, i, j] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d
+            gz = (b.gap_properties()[0][:, None, None] * area[None] / d[:, None, None]).copy() if rule is None else rule.gz
+            # The barrel is a mean-potential coupling of a footprint of nodes (viawell.py), appended to the matrix entries
+            via_blocks, _gz_via = viawell.build(problem, d, via_S, ncov, dx, dy, nx, ny, -0.5 * dx, self.active)
+            vr, vc, vv = viawell.matrix_entries(via_blocks, idx)
+            rows.extend(vr)
+            cols.extend(vc)
+            vals.extend(vv)
             couple(idx[:L - 1], idx[1:L], gz)
         for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
             couple(idx[a_layer], idx[b_layer], g)
@@ -206,7 +239,13 @@ class Network:
         self.g_top = np.zeros((Lt, ny, nx)); self.g_bottom = np.zeros_like(self.g_top)
         self.g_heatsink = np.zeros_like(self.g_top); self.g_side = np.zeros_like(self.g_top); self.g_block = np.zeros_like(self.g_top)
         self.g_top[0] = b.h_top * area
-        if NL:
+        if rule is not None:
+            # The bottom film and the edge: the copper nodes after the laminate moved out of them, then the new nodes
+            self.g_bottom[:L], self.g_side[:L] = rule.g_bottom, rule.g_side
+            for k, ly in enumerate(rule.layers):
+                self.g_bottom[L + k] = ly["g_bottom"]
+                self.g_side[L + k] = ly["g_side"]
+        elif NL:
             for k, ly in enumerate(lam):                       # The bottom film acts on the last laminate node, the edge on every one
                 self.g_bottom[L + k] = ly["g_bottom"]
                 self.g_side[L + k] = ly["g_side"]
@@ -219,20 +258,14 @@ class Network:
         for k, ly in enumerate(ex):
             self.g_block[L + NL + k] = ly["g_amb"]
             (self.g_top if ly["face"] == 0 else self.g_bottom)[ly["board_layer"]] *= ly["face_scale"]
-        if b.h_side and b.has_outline():
-            # Non-rectangular board: the outline length inside the control volume of every node times the slab thickness
-            edge = edge_length_on_board(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy, self.active)
-            self.g_side[:L] += b.h_side * slab[:, :, :] * edge[None]
-        elif b.h_side:
-            sl = slab[:, :, 0]                                  # (L, 1): per-layer slab
-            self.g_side[:L, :, 0] += b.h_side * wy[None, :] * sl
-            self.g_side[:L, :, -1] += b.h_side * wy[None, :] * sl
-            self.g_side[:L, 0, :] += b.h_side * wx[None, :] * sl
-            self.g_side[:L, -1, :] += b.h_side * wx[None, :] * sl
+        if rule is None:
+            self._board_edge(b, self.g_side[:L], slab, wx, wy, dx, dy)
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
         # Nodes off the board are pinned to ambient (they carry no heat); the pin is kept apart because it is not a path to the air
         self.g_pin = np.zeros_like(self.g_amb)
         self.g_pin[:, ~self.active] = 1.0
+        if rule is not None and rule.layers:
+            self.g_pin[L:] = np.maximum(self.g_pin[L:], np.stack([ly["pin"] | ~self.active for ly in rule.layers]))      # Laminate nodes no cell uses
         self.g_amb = self.g_amb + self.g_pin
         rows.append(np.arange(n)); cols.append(np.arange(n)); vals.append(self.g_amb.ravel())
         self.K = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsc()
@@ -265,6 +298,29 @@ class Network:
         self.Qw_matrix = sp.csc_matrix(np.stack([w.ravel() for w in self.Qw], axis=1)) if self.Qw else sp.csc_matrix((n, 0))
         self.footprints = [np.flatnonzero(w.ravel() > 0) for w in self.Qw]
 
+    def _board_edge(self, b, g_side, slab, wx, wy, dx, dy):
+        """!
+        @brief Add the edge conductance of the copper nodes (edge coefficient times slab thickness times exposed length) to an array.
+        @param b The Board.
+        @param g_side Array (L, ny, nx) in W/K, changed in place.
+        @param slab Thickness represented by every layer node in m, shape (L, 1, 1).
+        @param wx Control-volume width of every node column in m (half on the edges).
+        @param wy Control-volume height of every node row in m.
+        @param dx Node spacing along x in m.
+        @param dy Node spacing along y in m.
+        """
+        L, nx, ny = g_side.shape[0], self.nx, self.ny
+        if b.h_side and b.has_outline():
+            # Non-rectangular board: the outline length inside the control volume of every node times the slab thickness
+            edge = edge_length_on_board(b.outline + np.array([0.5 * dx, 0.5 * dy]), nx, ny, dx, dy, self.active)
+            g_side[:L] += b.h_side * slab[:, :, :] * edge[None]
+        elif b.h_side:
+            sl = slab[:, :, 0]                                  # (L, 1): per-layer slab
+            g_side[:L, :, 0] += b.h_side * wy[None, :] * sl
+            g_side[:L, :, -1] += b.h_side * wy[None, :] * sl
+            g_side[:L, 0, :] += b.h_side * wx[None, :] * sl
+            g_side[:L, -1, :] += b.h_side * wx[None, :] * sl
+
     def solve_steady(self, method="direct"):
         """!
         @brief Solve K theta = Q.
@@ -272,23 +328,42 @@ class Network:
         @return Tuple (theta of shape (layers, ny, nx) in kelvin above ambient, relative residual).
         """
         q = self.Q.ravel()
-        theta = spla.spsolve(self.K, q, permc_spec=ORDERING)
+        if self.drop is not None and self.drop.any():
+            # Ragged solve: the laminate nodes no node uses are pinned rows; leave them out of the factorisation
+            keep = np.flatnonzero(~self.drop.ravel())
+            theta = np.zeros(self.K.shape[0])
+            theta[keep] = spla.spsolve(self.K.tocsr()[keep][:, keep].tocsc(), q[keep], permc_spec=ORDERING)
+        else:
+            theta = spla.spsolve(self.K, q, permc_spec=ORDERING)
         res = float(np.linalg.norm(self.K @ theta - q) / max(np.linalg.norm(q), 1e-300))
         return theta.reshape(self.nl, self.ny, self.nx), res
 
 
 def unknowns(problem, cell_mm=2.0):
     """!
-    @brief Number of unknowns of the finite-difference model of a problem, counted without building it (the same layers as Network).
-    @details The nodes are the corners of the cells, (cells_x + 1) x (cells_y + 1), on the same layers as the finite-volume model: one per copper layer,
-             the laminate nodes of a one-layer board and one per face that carries metal blocks.
+    @brief Number of unknowns of the finite-difference model of a problem, counted without building it (the same nodes as Network, ragged).
+    @details The nodes are the corners of the cells, (cells_x + 1) x (cells_y + 1), on the same layers as the finite-volume model: one per copper layer, the bottom node of a
+             one-layer board and the laminate nodes of the rule only where they are used (fvm.unknowns); with a metal block the earlier treatment: the laminate nodes of a
+             one-layer board and one layer per face that carries blocks.
     @param problem A Problem.
     @param cell_mm Target size of the cells in millimetres.
     @return Tuple (unknowns, layers, nodes_x, nodes_y).
     """
     b = problem.board
-    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2) + 1
-    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2) + 1
+    cells_x = max(int(round(b.width * 1000.0 / cell_mm)), 2)
+    cells_y = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    nx, ny = cells_x + 1, cells_y + 1
+    if laminate.uses_rule(problem):
+        # The laminate nodes of the rule exist only at the nodes that carry them: count them as the network will (area sampling of the fill, the default)
+        dx, dy = b.width / cells_x, b.height / cells_y
+        cell_fill = zone_fill(problem.zones, b.layers, cells_x, cells_y, dx, dy, 4)
+        fill = np.stack([_node_average(cell_fill[k]) for k in range(b.layers)])
+        if b.has_outline():
+            c = _node_average(coverage_fraction(b.outline, cells_x, cells_y, dx, dy, BOARD_SAMPLES))
+            active = np.where(c >= 0.01, c, 0.0) > 0
+        else:
+            active = np.ones((ny, nx), dtype=bool)
+        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active), nx * ny), nx, ny)
     lam = laminate.nodes(b)
     layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
     return layers * nx * ny, layers, nx, ny
@@ -325,6 +400,7 @@ def solve_steady(problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
     if not inside.all():
         out.arrays["board_mask"] = inside
     fvm.attach_laminate_results(out, net, theta_all + b.ambient, area)
+    fvm.attach_face_terms(out, net, area, dx)
     fvm.attach_block_results(out, net, theta_all + b.ambient, theta_all)
     return out
 

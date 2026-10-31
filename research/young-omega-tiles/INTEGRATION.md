@@ -1,6 +1,6 @@
 # Integration of S3 and S4 into the program
 
-Nothing here is implemented. Each item would be a `fix/` branch off `develop` with the reviewer and the whole battery, only after the maintainer decides. 2.4.5 takes fixes only: an estimate of
+**Status after the merge of `fix/sor-omega` and `fix/via-constriction`**: S3 (the Rayleigh-quotient Young omega, `fvm.Network.sor_omega`) and S4 (the tile rule `min(1 mm, 0.75 median d_nn)` and the via constriction of the Lumped and Analytic models) are now in the program (`docs/versions.md`); the text below is the design as it was proposed, and the items it lists as decisions that were not taken (Lumped macro cap, pitches below 0.45 mm) stay open. Original text: nothing here was implemented; each item would be a `fix/` branch off `develop` with the reviewer and the whole battery, only after the maintainer decides. 2.4.5 takes fixes only: an estimate of
 omega that changes only the sweep count and a tile rule that corrects a model error are fixes; a change of the answer of the Lumped or Analytic models with vias moves numbers in the documents.
 
 ## S3. Young's omega in `Network.solve_sor`
