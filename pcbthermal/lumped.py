@@ -26,7 +26,11 @@ approximation is made. For every layer and ring the real geometry is aggregated:
   expressed with the modified Bessel functions I0 and I1 of x = a / lambda, scales this term by
   4 (I0 - 2 I1 / x) / (x I1) and the peak term by 4 (2 / x^2 - 1 / (x I1)); both factors are 1 for x -> 0,
 - vertical conduction and conductance to ambient: the sums of the cell values of the ring (dielectric,
-  vias, top, bottom, heatsinks and edges).
+  top, bottom, heatsinks and edges);
+- vias: the barrels are kept apart from the dielectric. In every ring that holds vias, each plane reaches the barrel through a well (the constriction
+  resistance of the heat converging on a barrel in a sheet whose temperature is a ring mean: the Krogh cell of one via, plus, for a group of two or more vias,
+  the group as one disc whose radius is capped at 0.75 fin lengths); the barrel nodes are eliminated and the rings get couplings between all their planes
+  (viaconstriction.py, docs/theory.md section 6.1). Without vias the network is the one described above, bit for bit.
 
 Each heater gives a small dense linear system, solved exactly. Because the problem is linear, the
 temperature at any point is the sum of the rises caused by every heater (mutual heating comes from
@@ -42,7 +46,7 @@ from scipy import ndimage
 from scipy.linalg import lu_factor, lu_solve
 from scipy.special import ive
 
-from . import profiles
+from . import profiles, viaconstriction
 from .fvm import Network, board_time_constant
 
 RING_MIN_WIDTH = 1.0        # Minimum width of a ring in cells: thinner rings are merged (0 keeps the edges of the geometric series as they are)
@@ -137,7 +141,7 @@ def ring_edges(rho_max, dx, dy, rings, min_width=None):
     return edges
 
 
-def _heater_network(net, cov, layer, power, rings):
+def _heater_network(net, cov, layer, power, rings, vias=None):
     """!
     @brief Build and solve the offset-contour network of one heater.
     @param net Network (per-cell arrays) of the problem.
@@ -145,6 +149,8 @@ def _heater_network(net, cov, layer, power, rings):
     @param layer 0-based heater layer.
     @param power Heater power (W).
     @param rings Number of rings outside the footprint.
+    @param vias ViaSet of the problem (viaconstriction.py) or None for a board without vias; the barrels then join the sheets through a well each
+           (constriction of the heat converging on the barrel), also between non-adjacent sheets.
     @return Dict with theta (L, R), rho (R) mean distance of every ring, dist (ny, nx) map of the distance to the
             footprint, peak_extra, and the heat leaving by each path.
     """
@@ -190,8 +196,16 @@ def _heater_network(net, cov, layer, power, rings):
     g_side = np.array([ring_sum(net.g_side[l]) for l in range(L)])
     nb = net.n_board                                    # Board layers; a metal block adds layers after them
     g_block = np.array([ring_sum(net.g_block[l]) for l in range(L)])
-    # The rings read the barrel as a point conductance (gz_via); the FVM matrix holds it as mean-potential couplings instead
-    gz = np.array([ring_sum(net.gz[l] + net.gz_via[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))
+    far = {}                                            # Couplings between non-adjacent sheets (only with vias): (l, m) -> array (R,)
+    if vias is not None and len(vias) and nb > 1:
+        # The barrels are not in the dielectric gz: each ring and group of vias gets wells (constriction) in series with the barrel, Kron reduced
+        gz_diel = np.array([ring_sum(net.gz[l]) for l in range(nb - 1)])
+        coupling = viaconstriction.ring_couplings(vias, net, idx, R, cnt, S, g_top, g_bot, gz_diel, nb)
+        gz = np.array([coupling[(l, l + 1)] for l in range(nb - 1)])
+        far = {key: g for key, g in coupling.items() if key[1] > key[0] + 1}
+    else:
+        # The rings read the barrel as a point conductance (gz_via); the FVM matrix holds it as mean-potential couplings instead
+        gz = np.array([ring_sum(net.gz[l] + net.gz_via[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))
     links = [(a, b, ring_sum(g)) for a, b, g in net.extra_links]       # Contact of a block with its board face
     cap = np.array([ring_sum(net.C[l]) for l in range(L)])               # Heat capacity of every ring (J/K)
 
@@ -227,6 +241,10 @@ def _heater_network(net, cov, layer, power, rings):
             if l < nb - 1:
                 for k in range(R):
                     couple(l * R + k, (l + 1) * R + k, gz[l, k])
+        for (l_a, l_b), g_ab in far.items():                 # Barrel couplings across several gaps (the reduced star of the vias)
+            for k in range(R):
+                if g_ab[k] != 0.0:
+                    couple(l_a * R + k, l_b * R + k, g_ab[k])
         for a, b, g in links:
             for k in range(R):
                 if g[k] > 0:
@@ -256,6 +274,11 @@ def _heater_network(net, cov, layer, power, rings):
                 loss += gz[l, 0] * (th[l, 0] - th[l + 1, 0])
             if l > 0 and l < nb:
                 loss += gz[l - 1, 0] * (th[l, 0] - th[l - 1, 0])
+            for (l_a, l_b), g_ab in far.items():                   # Barrel couplings across several gaps
+                if l_a == l:
+                    loss += g_ab[0] * (th[l, 0] - th[l_b, 0])
+                elif l_b == l:
+                    loss += g_ab[0] * (th[l, 0] - th[l_a, 0])
             for a, b, g in links:                                  # Contact with a block: heat leaving this layer towards the block (or arriving)
                 if a == l:
                     loss += g[0] * (th[a, 0] - th[b, 0])
@@ -310,6 +333,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     power = problem.total_power()
     xs = (np.arange(nx) + 0.5) * net.dx
     ys = (np.arange(ny) + 0.5) * net.dy
+    vias = viaconstriction.ViaSet(problem) if problem.vias else None       # Nearest neighbours and groups, once for all the heaters
 
     theta_field = np.zeros((L, ny, nx))
     nets = []
@@ -318,7 +342,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     for h in problem.heaters:
         if h.power <= 0:
             continue
-        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, h.power, rings)
+        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, h.power, rings, vias)
         rn["centroid"] = polygon_centroid(h.polygon)
         nets.append((h, rn))
         for l in range(L):
@@ -373,8 +397,9 @@ def _unit_networks(problem, rings, cell_mm):
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
     net = Network(problem, nx, ny, assemble=False, with_blocks=False)
     systems = []
+    vias = viaconstriction.ViaSet(problem) if problem.vias else None
     for h in problem.heaters:
-        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, 1.0, rings)
+        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, 1.0, rings, vias)
         rn["centroid"] = polygon_centroid(h.polygon)
         systems.append(rn)
     return net, systems

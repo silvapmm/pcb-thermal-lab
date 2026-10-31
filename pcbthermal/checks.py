@@ -10,9 +10,11 @@ board onto the part that is inside, or placing a heater where there is no copper
 of every warning says what is wrong and what to do.
 """
 
+import math
+
 import numpy as np
 
-from . import blocks, convection, viawell
+from . import blocks, convection, viaconstriction, viawell
 from .geometry import BOARD_SAMPLES, coverage_fraction, part_weights, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
 from .numfmt import num
 
@@ -170,10 +172,10 @@ def check_model_limits(problem, models, cell_mm=1.0):
     """!
     @brief Warnings about the documented limits of the selected models on this input (text only; no result depends on them).
     @details Two groups, each measured in a research folder: a part whose centre sits on bare laminate (the layered models read below a
-             resolved 3D solution; research/bare-spot-under-source, INTEGRATION P3) and vias in the Lumped model, which joins the planes
-             through the barrel conductance only (research/lumped-analytic-vias 4.3, research/lumped-via-groups 4.2; the numbers are those
-             of the program's Lumped model as it is, `L_prog`). The Analytic copper-spread warning lives in analytic._effective_sheet,
-             where its weights are computed.
+             resolved 3D solution; research/bare-spot-under-source, INTEGRATION P3) and vias in the Lumped and Analytic models, which carry ring and
+             tile means and add the constriction of the heat converging on a barrel (viaconstriction.py; research/lumped-analytic-vias,
+             research/young-omega-tiles 3; the numbers are the error of the via effect against the FVM at 0.25 mm on the 29 boards of the
+             branch fix/via-constriction and 17 more boards of its review, measured on this program). The Analytic copper-spread warning lives in analytic._effective_sheet, where its weights are computed.
     @note The warning about vias on a coarse cell proposed by research/point-via-convergence is not here: its numbers (3.70 against
           4.20 K) are those of the point-via treatment, not of the program as it is, whose FVM via effect on the example board is
           9.02 / 8.86 / 8.84 K at 2 / 1 / 0.5 mm; it belongs with that fix.
@@ -218,28 +220,62 @@ def check_model_limits(problem, models, cell_mm=1.0):
     if not problem.vias:
         return out
 
-    # --- Vias in the Lumped model (the program's model: barrel conductance only, no constriction of the heat converging on a barrel)
+    # --- Vias in the Lumped and Analytic models: both carry area means (a ring, a tile) and add the constriction of the heat converging on a barrel
+    # (viaconstriction.py). The numbers are the error of the via effect (drop of the hottest temperature caused by the vias) against the FVM at 0.25 mm
+    # on the 29 boards of the branch fix/via-constriction (examples with 9, 25 and 49 vias, arrays of 4 to 576 vias at 1.0 to 3.5 mm, rows, lone vias, pads)
+    # and 17 boards of its review that were not used to build the model (6 and 2 layers, 30 to 80 mm boards, an array across or just outside the edge of a
+    # footprint, mixed drills, outlines, a heatsink, metal blocks, 500 and 2000 scattered vias), cells 0.5 and 1 mm (research/lumped-analytic-vias,
+    # research/young-omega-tiles 3). Lumped: 8 % mean on the first set, 20 % on the second (-21 to +80 %); Analytic: 1.8 % and 2.9 % (-14 to +8 %).
+    vx = np.array([v.x for v in problem.vias])
+    vy = np.array([v.y for v in problem.vias])
+    on_board = (vx >= 0) & (vx <= W) & (vy >= 0) & (vy <= H)              # A via off the board is ignored (check_problem says so)
     if "lumped" in models:
         in_any = np.zeros(len(problem.vias), dtype=bool)
-        vx = np.array([v.x for v in problem.vias])
-        vy = np.array([v.y for v in problem.vias])
-        on_board = (vx >= 0) & (vx <= W) & (vy >= 0) & (vy <= H)          # A via off the board is ignored (check_problem says so)
         for k, h in enumerate(problem.heaters):
             inside = points_in_polygon(vx, vy, h.polygon) & on_board
             in_any |= inside
             n_in = int(inside.sum())
             if n_in >= 1:
                 _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
-                           "model joins the planes through the barrel conductance only, so its via effect was measured up to 72 % too large "
-                           "(the part too cool; 21 % on average over 36 simple boards); use the FVM for via design.")
+                           "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
+                           "(dense arrays under a part: the part too hot) to 22 % too large (sparse arrays, rows: the part too cool), and up to 80 % too "
+                           "large for an array across the edge of the footprint (8 to 20 % on average over 46 boards); use the FVM for via design.")
         outside = np.flatnonzero(~in_any & on_board)
         if outside.size:
             # One warning for all of them: a Gerber board can have hundreds of vias away from the parts
             v = problem.vias[int(outside[0])]
             first = v.name or f"Via {int(outside[0]) + 1}"
             _add(out, "via", int(outside[0]), f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside the "
-                       "footprint of every part; the Lumped model spreads such a via over a ring around the part, and its effect was measured "
-                       "73 % off on average for a lone via (up to 290 %) and 72 % for a row of five (research/lumped-analytic-vias 4.3); use the FVM.")
+                       "footprint of every part; the Lumped model spreads such a via over a ring around the part: the effect of a lone via was "
+                       "measured 22 % too small to 65 % too large depending on the distance and the number of rings (an effect of 0.5 to 3 K), "
+                       "that of a row 6 to 21 % too large, and that of an array just outside the edge or of vias scattered over the board 19 to "
+                       "56 % too large (research/young-omega-tiles 3.8 and the review of fix/via-constriction); use the FVM.")
+    if "analytic" in models and on_board.any() and b.layers > 1:
+        # The tile of the correction follows the pitch (1 mm at most, 0.25 mm at least) and is enlarged when the dense system would pass MAX_UNKNOWNS;
+        # a pitch under 0.45 mm was not tested. The program's tile is 2.5 to 5 mm; the rule never reaches it, the guard can. The guard counts the tiles of the
+        # heatsinks and blocks too (viaconstriction.heatsink_tiles); this check uses a 5 mm program tile, the solver its own 2.5 to 5 mm one, so the
+        # coarsened tile quoted here can differ from the solver's when the guard goes beyond 2.5 mm.
+        vs = viaconstriction.ViaSet(problem)
+        nt = (int(math.ceil(W / 5e-3)), int(math.ceil(H / 5e-3)))
+        pl = viaconstriction.plan(problem, vs, (nt[0], nt[1], W / nt[0], H / nt[1]), b.layers)
+        t_rule, t_final, d_med = pl["t_rule"], pl["t_final"], viaconstriction.median_nn(vs)
+        n_unknown = pl["active"] * b.layers
+        if t_final > t_rule * (1.0 + 1e-6):
+            _add(out, None, None, f"Analytic model: the tile of the via correction was coarsened from {num(t_rule * 1e3, 2)} to {num(t_final * 1e3, 2)} mm "
+                                  f"to keep its dense system small (estimate of {viaconstriction.MAX_ACTIVE_TILES} active tiles, at most {viaconstriction.MAX_UNKNOWNS} unknowns counting "
+                                  f"the tiles of the heatsinks and metal blocks; {len(vs)} vias); the via effect is less accurate (measured 14 % too small to 3 % "
+                                  "too large at tiles of 1.6 to 2.4 mm: 500 and 2000 scattered vias, a heatsink or a block over most of the board; "
+                                  "not tested for 400 or more vias at a pitch under 1 mm).")
+        if d_med < 0.45e-3:
+            _add(out, None, None, f"Analytic model: the median via pitch is {num(d_med * 1e3, 2)} mm, below the 0.45 mm tested; the tile is cut to 0.25 mm at least and the "
+                                  "via effect is unverified.")
+        if n_unknown > 2400:
+            # Peak memory measured by the review: 0.15 GB of the program plus about four dense matrices of n^2 doubles (0.9 GB and 3 s at 4800 unknowns)
+            _add(out, None, None, f"Analytic model: the via correction solves a dense system of {n_unknown} unknowns (about {0.15 + 0.75 * (n_unknown / 4800.0) ** 2:.1f} GB "
+                                  "and a few seconds; 0.9 GB and 3 s were measured at 4800 unknowns).")
+        if len(vs) <= 2:
+            _add(out, None, None, "Analytic model: one or two vias beside or under a part were measured up to 16 % too small in the via effect "
+                                  "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale); use the FVM for the value.")
     return out
 
 

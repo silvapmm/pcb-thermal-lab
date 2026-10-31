@@ -281,6 +281,47 @@ the exact solution of the board with the local conductances for the tile-lumped 
 `b⁺ = e^{−λΔt} b + (1 − e^{−λΔt}) g/λ`. The transient cannot use the local corrections, so the vias (or the heatsink) are smeared over the board and their conductance is **scaled per heater** by bisection until the steady maximum equals that of the locally corrected model (a single global factor cooled the distant heater by 18 %).
 **Where it fails**: copper that is not uniform near a heater (24 % low with a 20 mm pad, 25 % when an edge crosses the footprint), strong edge convection (insulated edges assumed: even the default edge coefficient of 10 W/m²K makes it 0.3 to 1 % warm on a uniform board, which is the whole of its difference from the FVM there, `validation.md` section 4); the checks warn.
 
+### 6.1 Constriction of the heat converging on a via (Lumped and Analytic; `viaconstriction.py`)
+
+**The cause.** A reduced model carries one temperature per region: the **Lumped** model the mean temperature of a ring, the **Analytic** model the mean temperature of a tile of its Green-function mosaic. A via barrel does not see that mean: it sees the temperature of the copper at its wall, which is lower, because the heat of the whole plane has to converge on a disc of the size of the barrel. The difference between the area mean and the wall is a thermal resistance, the **constriction resistance**, in series with the barrel conductance `k_Cu A_via/d` of each gap. Both models used to join the planes through the barrel conductance alone and left it out, so the via effect was overstated (the copper-fill gain of the example board was 6.3 to 6.8 K against 4.2 K of the FVM; `validation.md` section 18). The FVM and FDM carry the same resistance through the mean-potential via of section 2 (`viawell.py`).
+
+![Constriction on a via barrel](images/via_constriction_krogh_cell.png)
+
+*Figure V5 (`images/via_constriction_krogh_cell.png`): left, the plan of one plane: the heat of a cell converges on the barrel; middle, the section: the constriction `R_c` of each plane is in series with the barrel of each gap; right, the profile of the temperature above the wall in the cell (closed form, `S = 1`): the area mean (what a ring or a tile carries) is above the wall by `R_c`.*
+
+**The Krogh cell.** A sink disc of radius `a` at the centre of a circular cell of radius `R`, a uniform source over the annulus and an insulated rim (the Wigner-Seitz cell of a lattice of vias), on a sheet of conductance `S` [W/K]. The mean temperature of the annulus above the temperature at the wall, per watt taken by the sink, is
+
+    R_K(S, R, a) = (1/(2 π S)) [ b⁴ ln b/(b² − 1)² − b²/(2 (b² − 1)) − 1/4 ],        b = R/a      (6.1)
+
+which tends to `(ln b − 3/4)/(2 π S)` for large `b`. The barrel of the layered idealisation is spread uniformly over its disc, so the sink radius is the radius at which a uniform sink density has the same mean potential, `a = e^(−1/4) r_via` (the target radius of section 2, `viawell.TARGET_RATIO`).
+
+**Lumped.** In a ring that holds `n` vias the plane `l` reaches the barrel through a **well** `R_w(l)` in series with the barrel. For a via that belongs to a group of `N_g` vias
+
+    R_w(l) = R_K(S_l, r_c, a) + N_g R_K(S_l, R_macro, r_cl)        (second term only if N_g > 1 and R_macro > r_cl)      (6.2)
+
+* `r_c = min( √(A_ring/(π n)), d_nn/√π )`: the radius of the cell of one via (the ring area shared among its vias, or the nearest-neighbour distance `d_nn`, whichever is smaller: a lone via in a wide ring does not get the whole ring);
+* `r_cl = √N_g r_c`: the disc that the group covers;
+* `R_macro`: the radius of the disc of the rings that the group touches, **capped at `0.75 λ_l`**, `λ_l = √(S_l/g_loss)` the fin length of the plane (the cluster draws heat from within a few fin lengths only);
+* the **groups** are found by single linkage at twice the larger nearest-neighbour distance of the two vias.
+
+The network of a ring becomes a star: sheet node of each plane, its well, the barrel node of the plane, the barrel conductance between adjacent barrel nodes. The barrel nodes are eliminated by Schur complement (Kron reduction, `viawell.kron_barrel`), which leaves **couplings between all the planes** of the ring, adjacent or not. The matrix of each heater keeps its size, and without vias the network is unchanged bit for bit.
+
+![The well in the rings](images/via_constriction_lumped_well.png)
+
+*Figure V6 (`images/via_constriction_lumped_well.png`): left, a lone via outside the footprint sits in one ring, and the ring carries its mean temperature at one radius: the angular gradient of the real field is lost; right, the network: one well per plane in series with the barrel.*
+
+**Analytic.** The correction of section 6 solves `(I + G C) y = y₀` on tiles. With vias:
+
+* the **tile** is `t = min(1 mm, 0.75 median d_nn)`, at least 0.25 mm and never above the program tile (2.5 to 5 mm without vias), so that the sink has the scale of the barrel; it is enlarged until the active tiles (those with a via, a heatsink or a block) times the layers are at most 4800 unknowns (the dense system takes about 0.9 GB and 3 s at that size; the same guard coarsens the tile when the estimate of active tiles passes 1200);
+* a via that is **alone at the scale of a tile** (`d_nn ≥ 0.7 t`, outside a guard of `0.5 t` around a footprint) is spread bilinearly over the four tiles around it, which keeps its first moment, and not put in the one tile that holds its centre;
+* the diagonal of `G` gets a **self-term** that makes the tile read the temperature at the wall: for `n ≤ 1` vias per tile `D = [ln(R_blk/a) − 1/4]/(2 π S n)`, `R_blk = R_tile/√n`; for `n > 1`, `D = ln(R_tile/r_cl)/(2 π S) + R_K(S, r_c, a)/n`, `R_tile = t/√π`.
+
+![Tiles over a via array](images/via_constriction_analytic_tiles.png)
+
+*Figure V7 (`images/via_constriction_analytic_tiles.png`): left, the tiles of the program (2.5 to 5 mm) over a 5 x 5 array of 0.3 mm vias at 1.2 mm pitch under a 6 mm source: one tile holds many vias and the tile mean is read; middle, the tiles of 1 mm with the self-term: the via is read at its wall; right, a tile that straddles a copper or source edge averages two different temperatures, which is why the tile must be small.*
+
+**Limits** (measured against the FVM at 0.25 mm, `validation.md` section 18): the effect of a **lone via** is from 22 % too small to 65 % too large in the Lumped model (it depends on the distance and the number of rings) and 16 % too small in the Analytic; an **array that straddles the footprint edge** is up to 80 % too large in the Lumped model, because the rings have no angular resolution (the part is then too cool); round boards and a two-layer 80 × 60 mm board are 16 to 21 % cool in the Lumped model (the safe side). The Analytic model with vias plus a large heatsink or block costs 2 to 3 s and about 0.9 GB (the guard above). The formulas are derivations checked numerically against the FVM and an axisymmetric solve (`research/lumped-analytic-vias`, `research/lumped-via-groups`, `research/young-omega-tiles`); the Krogh cell and Peaceman's well radius were **not opened as sources** in this repository (the status of each is in the bibliography of `research/theory`). The Analytic is the better of the two; the Lumped is an average improvement, warned for what it does not resolve, and a zonal Lumped model remains in "Planned".
+
 ## 7. Metal blocks (FVM, FDM, 3D solid; Lumped and Analytic in steady state)
 
 A heatsink with `thickness > 0` is a plate of metal (conductivity `k`, heat capacity `ρc`, thickness `t`) pressed on the top or bottom face through an interface of resistance per area `R''`. In the layered models it adds **one extra layer of nodes** (one per cell) on that face, with the coverage `c` of the cell by the block:

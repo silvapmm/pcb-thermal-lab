@@ -31,6 +31,9 @@ model needs laterally uniform properties, with these refinements:
   every tile with a via or a heatsink gets a lumped conductance, and the small dense system
   (I + G C) y = y0 gives the tile temperatures, where G is the modal response of the uniform
   board and C holds the local conductances.
+- With vias the tile is min(1 mm, 0.75 of the median nearest-neighbour distance), at least 0.25 mm, the barrel conductance of a via that is alone at the scale of a
+  tile is shared bilinearly among the four tiles around it, and the diagonal of G gets a self-term that makes the tile read the temperature at the wall of the barrel
+  instead of the tile mean (viaconstriction.py). Boards without vias keep the 2.5 to 5 mm tiles and are unchanged.
 - A validity check adds warnings when the copper is far from uniform around the heaters.
 Strongly non-uniform copper is still beyond this model: use the FVM then.
 """
@@ -42,7 +45,7 @@ import numpy as np
 
 from scipy.special import k0
 
-from . import blocks, laminate
+from . import blocks, laminate, viaconstriction
 from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid, zone_fill
 from .results import SteadyResult
@@ -263,6 +266,8 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @param n_terms Number of cosine modes per direction (300 resolves heaters of a few mm).
     @param local_corrections If True vias and heatsinks are applied locally (Green-function update);
                              if False they are smeared over the board (the older, cruder model).
+    @note With vias the tiles follow the pitch and the vias get the constriction of the heat converging on a barrel (viaconstriction.plan, add_self_terms); the correction
+          needs a dense system of (active tiles x layers)^2 entries, kept to 4800 unknowns.
     @note A metal block is a graph of tiles inside the Green-function correction (see _block_tiles) and needs the local corrections. Steady state only; against the FVM it is
           within 1 % on average and 4.5 % at most (docs/validation.md section 17).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
@@ -318,12 +323,16 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     hidden = {"top": 0.0, "bottom": 0.0}                         # Face heat of the area under the blocks, taken off the face totals
     if local_corrections and (problem.vias or problem.heatsinks):
         ntx, nty, tw, th = _tile_grid(W, H, lam)
+        vs = viaconstriction.ViaSet(problem) if problem.vias and L > 1 else None
+        if vs is not None:
+            # Vias: tile of min(1 mm, 0.75 nearest-neighbour distance) instead of 2.5 to 5 mm, so that the sink has the scale of the barrel (viaconstriction.py)
+            via_plan = viaconstriction.plan(problem, vs, (ntx, nty, tw, th), L)
+            (ntx, nty, tw, th), via_weights = via_plan["grid"], via_plan["weights"]
         c_via = np.zeros((nty, ntx, max(L - 1, 0)))                    # Via conductance of each tile across each gap
-        for v in problem.vias:
-            a = min(max(int(v.x // tw), 0), ntx - 1)
-            bb = min(max(int(v.y // th), 0), nty - 1)
-            if L > 1:
-                c_via[bb, a] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+        for iv, v in enumerate(problem.vias if vs is not None else []):
+            cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+            for (row, col), w in via_weights[iv].items():             # A via alone at the scale of a tile is shared by bilinear weights between four tiles
+                c_via[row, col] += w * cond
         g_heatsink = np.zeros((L, nty, ntx))
         for s in problem.heatsinks:
             if s.is_block():
@@ -355,6 +364,9 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                         acc += accx * np.outer(Uy[n], Uy[n])
                     Gm[:, l, :, k] = acc
             G = Gm.reshape(Nt * L, Nt * L)
+            if vs is not None:
+                # The mosaic gives the tile MEAN; the barrel sees its wall: add the response of the tile to its own sink (self-term) to the diagonal
+                G = viaconstriction.add_self_terms(G, active, via_weights, vs, tw, th, S)
             # Local conductance matrix C (W/K): vias couple adjacent layers, heatsinks go to ambient
             C = np.zeros((Nt * L, Nt * L))
             for r, (row, col) in enumerate(active):
@@ -372,7 +384,10 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
                 C[np.ix_(rows_e, rows_e)] += e["B"]
                 C[rows_e, rows_e] -= e["face"]                 # ... and the face under it no longer loses heat to the air
-            y = np.linalg.solve(np.eye(Nt * L) + G @ C, y0.reshape(-1))
+            lhs = G @ C
+            lhs[np.diag_indices_from(lhs)] += 1.0                  # I + G C in place: the identity matrix and the sum are two more matrices of (Nt L)^2 entries
+            y = np.linalg.solve(lhs, y0.reshape(-1))
+            del lhs
             for e in bt:                                       # Heat taken by the exposed surface of every block
                 rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
                 phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
