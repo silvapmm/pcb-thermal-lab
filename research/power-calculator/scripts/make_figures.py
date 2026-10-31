@@ -141,10 +141,10 @@ def fig_calibration():
 
 # Table of README 4.7 as printed by study_design_term_coverage.py (1 mm cells, true power 2 W, power recovered at the top of the package): board -> (nominal, {level: (best, worst)})
 DESIGN_COVERAGE = {
-    "top copper half filled (hatched)": (1.735, {"none": (1.474, 1.956), "cad": (1.462, 1.967), "hand": (1.396, 2.012), "estimated": (1.177, 2.113)}),
-    "copper 17.5 um instead of 35 um": (1.519, {"none": (1.288, 1.715), "cad": (1.275, 1.725), "hand": (1.207, 1.766), "estimated": (0.999, 1.858)}),
-    "no vias under the part": (1.780, {"none": (1.505, 2.014), "cad": (1.492, 2.024), "hand": (1.422, 2.064), "estimated": (1.196, 2.157)}),
-    "no inner planes": (1.312, {"none": (1.109, 1.484), "cad": (1.096, 1.531), "hand": (1.029, 1.646), "estimated": (0.831, 1.818)}),
+    "top copper half filled (hatched)": (1.686, {"none": (1.445, 1.885), "cad": (1.434, 1.894), "hand": (1.375, 1.931), "estimated": (1.171, 2.012)}),
+    "copper 17.5 um instead of 35 um": (1.521, {"none": (1.289, 1.718), "cad": (1.273, 1.728), "hand": (1.203, 1.768), "estimated": (0.995, 1.859)}),
+    "no vias under the part": (1.766, {"none": (1.493, 1.998), "cad": (1.473, 2.007), "hand": (1.392, 2.047), "estimated": (1.166, 2.140)}),
+    "no inner planes": (1.297, {"none": (1.098, 1.467), "cad": (1.081, 1.515), "hand": (1.008, 1.634), "estimated": (0.813, 1.809)}),
 }
 TRUE_POWER = 2.0
 
