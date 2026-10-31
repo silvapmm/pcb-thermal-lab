@@ -19,11 +19,13 @@ Crank-Nicolson). Because the scheme is a finite-volume balance, the heat leaving
 equals the injected power to solver precision, which the results report.
 """
 
+import logging
+
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import blocks, laminate
+from . import blocks, laminate, viawell
 from .geometry import part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
 from .results import SteadyResult, TransientResult
 from .numfmt import num
@@ -31,6 +33,12 @@ from .numfmt import num
 # Column ordering of the sparse LU: the thermal matrices are symmetric, and the symmetric minimum-degree ordering gives about half
 # the fill and 40 % less time than the default COLAMD (measured on the example board at 1 and 0.5 mm)
 ORDERING = "MMD_AT_PLUS_A"
+
+log = logging.getLogger(__name__)
+
+# Largest block of the block SOR (unknowns of the merged footprints of vias that touch): its dense inverse takes 8 n^2 bytes, so 5 000 unknowns are 200 MB.
+# Above it the SOR solves the board with the direct solver instead (a minimal guard; the memory limit by the estimated size is a separate item).
+MAX_SOR_BLOCK = 5000
 
 
 class Network:
@@ -85,14 +93,14 @@ class Network:
 
         # --- Vertical conductance between layer l and l+1 (W/K)
         self.gz = np.zeros((max(L - 1, 0), ny, nx))
+        self.via_blocks, self.gz_via = [], np.zeros_like(self.gz)
         if L > 1:
             d = b.gap_thicknesses()                    # One value per gap (equal in the simple stack-up)
             k_gap = b.gap_properties()[0]
             self.gz[:] = k_gap[:, None, None] * cell[None] / d[:, None, None]    # Dielectric alone
-            for v in problem.vias:
-                i, j = cell_index_of_point(v.x, v.y, nx, ny, dx, dy)
-                # The barrel conducts in parallel with the dielectric, across every gap
-                self.gz[:, i, j] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d
+            # The barrel is not added to gz: every via is a mean-potential coupling of a footprint of cells (viawell.py), appended to the matrix in
+            # _assemble. gz_via keeps the point conductance in the cell of the via centre, which the Lumped model reads ring by ring (gz + gz_via)
+            self.via_blocks, self.gz_via = viawell.build(problem, d, self.S, self.cover, dx, dy, nx, ny, 0.0, self.active)
 
         # --- Conductance to ambient (W/K): top, bottom, heatsinks and edges are kept separate
         self.g_top = np.zeros((L, ny, nx))
@@ -264,6 +272,11 @@ class Network:
             couple(idx[:nb - 1], idx[1:nb], self.gz)
         for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
             couple(idx[a_layer], idx[b_layer], g)
+        # The mean-potential couplings of the vias (they add to the diagonal and couple the footprint cells of the layers they join)
+        vr, vc, vv = viawell.matrix_entries(self.via_blocks, idx)
+        rows.extend(vr)
+        cols.extend(vc)
+        vals.extend(vv)
         # Conductance to ambient only adds to the diagonal
         n = L * ny * nx
         diag = self.g_amb.ravel()
@@ -304,13 +317,15 @@ class Network:
         @details Every sweep updates the "red" nodes (l+i+j even) and then the "black" ones, each colour in one
                  array operation, so the iteration is the classical SOR of the original program but fast.
                  theta_new = (sum_m G_m theta_m + Q) / diag, theta += omega * (theta_new - theta).
+                 The cells of the vias are updated as dense blocks after the colours (block SOR).
         @param omega Relaxation factor; None picks 2 / (1 + sin(pi / n)) with n the longest grid side.
         @param tol Stopping tolerance.
         @param max_iter Sweep limit.
         @param criterion "residual" stops when |K theta - Q| / |Q| < tol (reliable);
                          "step" stops when the largest change of one sweep is below tol in kelvin
                          (the rule of the original program, which can stop far from the solution).
-        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step).
+        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step); a board with vias whose footprint block is larger than
+                 MAX_SOR_BLOCK unknowns is solved directly (info["fallback"] = "direct").
         """
         if self.block_info:
             raise ValueError("SOR does not support metal blocks: use the direct solver or the conjugate gradients")
@@ -337,6 +352,24 @@ class Network:
         l_i, i_i, j_i = np.indices((L, ny, nx))
         colour = (l_i + i_i + j_i) % 2 == 0
         masks = (colour, ~colour)
+        # The vias couple all the cells of a footprint (a dense block of K that the six-neighbour update does not see), so the cells of every via are
+        # solved together: a block SOR. The two colours skip them and, after the colours, each group of blocks that K does not couple takes the exact
+        # solution of its block, relaxed by the same omega (research/sor-with-via-couplings, variant c'; convergence for 0 < omega < 2)
+        groups = []
+        if self.via_blocks:
+            idx3 = np.arange(L * ny * nx).reshape(L, ny, nx)
+            vblocks = viawell.unknown_blocks(self.via_blocks, idx3, self.n_board)
+            if max(len(bk) for bk in vblocks) > MAX_SOR_BLOCK:
+                # The dense inverse of such a block is too large: use the direct solver and say so
+                log.warning("SOR: a via block of %d unknowns is too large for the block SOR; the direct solver is used instead", max(len(bk) for bk in vblocks))
+                theta, res = self.solve_steady("direct")
+                return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct"}
+            groups = self._sor_block_groups(vblocks)
+            skip = np.zeros(L * ny * nx, bool)
+            for bk in vblocks:
+                skip[bk] = True
+            skip = skip.reshape(L, ny, nx)
+            masks = (colour & ~skip, ~colour & ~skip)
         qn = np.linalg.norm(Q)
         theta = np.zeros((L, ny, nx))
         pad = np.zeros((L + 2, ny + 2, nx + 2))
@@ -355,6 +388,14 @@ class Network:
                 delta = np.where(m, new - theta, 0.0)
                 theta = theta + omega * delta
                 step = max(step, float(np.abs(delta).max()))
+            if groups:
+                tf = theta.ravel().copy()
+                qf = Q.ravel()
+                for rows_g, K_g, Binv in groups:
+                    dtheta = omega * (Binv @ (qf[rows_g] - K_g @ tf))
+                    tf[rows_g] += dtheta
+                    step = max(step, float(np.abs(dtheta).max()) / omega)
+                theta = tf.reshape(L, ny, nx)
             last_step = step
             if criterion == "step":
                 if step < tol:
@@ -366,6 +407,31 @@ class Network:
                     break
         res = float(np.linalg.norm(K @ theta.ravel() - Q.ravel()) / max(qn, 1e-300))
         return theta, res, {"iterations": it, "converged": converged, "omega": float(omega), "last_step": last_step}
+
+    def _sor_block_groups(self, vblocks):
+        """!
+        @brief Colour the via blocks and invert them, for the block step of the SOR.
+        @details Two blocks are neighbours when K couples a cell of one to a cell of the other (touching footprints); the blocks are coloured greedily so
+                 that the blocks of one colour are mutually uncoupled and can be updated at once (moving neighbours at once with over-relaxation diverges).
+        @param vblocks List of integer arrays of flat unknowns (disjoint).
+        @return List of (rows, K[rows, :], block-diagonal inverse of K[rows, rows]) per colour.
+        """
+        K = self.K.tocsr()
+        owner = np.full(K.shape[0], -1)
+        for k, bk in enumerate(vblocks):
+            owner[bk] = k
+        colour = [0] * len(vblocks)
+        for k, bk in enumerate(vblocks):
+            near = {int(o) for o in owner[K[bk].indices] if 0 <= o < k}
+            used = {colour[o] for o in near}
+            colour[k] = min(c for c in range(len(vblocks) + 1) if c not in used)
+        groups = []
+        for c in sorted(set(colour)):
+            members = [bk for bk, ck in zip(vblocks, colour) if ck == c]
+            rows = np.concatenate(members)
+            inv = [np.linalg.inv(K[bk][:, bk].toarray()) for bk in members]
+            groups.append((rows, K[rows, :], sp.block_diag([sp.csr_matrix(m) for m in inv], format="csr")))
+        return groups
 
     def power_out(self, theta):
         """!
@@ -506,6 +572,11 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
                          "converged": float(info["converged"])})
         if not info["converged"]:
             r.warnings.append(f"SOR did not converge in {info['iterations']} sweeps (residual {num(res)})")
+        if info.get("fallback") == "direct":
+            # The user chose SOR: say in the result (not only in the log) that another solver produced it
+            r.extras["fallback_direct"] = 1.0
+            r.warnings.append(f"SOR not used: the cells of the vias form a block larger than {MAX_SOR_BLOCK} unknowns, too large for the block SOR; "
+                              "the board was solved with the direct solver instead")
         return r
     theta, res = net.solve_steady(method=method)
     return _result_from_theta(net, theta, res)

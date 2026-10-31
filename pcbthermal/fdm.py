@@ -22,7 +22,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .geometry import BOARD_SAMPLES, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
-from . import blocks, fvm, laminate
+from . import blocks, fvm, laminate, viawell
 from .fvm import ORDERING
 from .results import SteadyResult
 
@@ -193,12 +193,12 @@ class Network:
         if L > 1:
             d = b.gap_thicknesses()
             gz = (b.gap_properties()[0][:, None, None] * area[None] / d[:, None, None]).copy()
-            for v in problem.vias:
-                # A via is a point: all its conductance goes to the node nearest to it (spreading it over the neighbours was
-                # tried and removes the constriction, giving temperatures 2 % too low against the 3D solid)
-                j = min(max(int(round(v.x / dx)), 0), nx - 1)
-                i = min(max(int(round(v.y / dy)), 0), ny - 1)
-                gz[:, i, j] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d
+            # The barrel is a mean-potential coupling of a footprint of nodes (viawell.py), appended to the matrix entries
+            via_blocks, _gz_via = viawell.build(problem, d, S, ncov, dx, dy, nx, ny, -0.5 * dx, self.active)
+            vr, vc, vv = viawell.matrix_entries(via_blocks, idx)
+            rows.extend(vr)
+            cols.extend(vc)
+            vals.extend(vv)
             couple(idx[:L - 1], idx[1:L], gz)
         for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
             couple(idx[a_layer], idx[b_layer], g)

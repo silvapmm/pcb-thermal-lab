@@ -14,11 +14,13 @@ a 30 W/m²K heatsink on the bottom. Maximum temperature [°C]:
 
 | Model | Tmax | Error on the rise | Time |
 | :-- | --: | --: | --: |
-| FVM (0.5 mm) | 85.87 | reference | 0.9 s |
-| FDM (0.5 mm) | 85.22 | −1.1 % | 0.8 s |
-| Analytic | 84.69 | −1.9 % | 0.05 s |
-| Lumped | 84.66 (1 mm) | −1.9 % | 0.01 s |
-| 3D solid (finite elements, 0.5 mm, vias as copper rods) | 85.59 | −0.5 % (FVM +0.5 %) | |
+| FVM (0.5 mm) | 85.17 | reference | 0.9 s |
+| FDM (0.5 mm) | 85.11 | −0.1 % | 0.8 s |
+| Analytic | 84.69 | −0.8 % | 0.05 s |
+| Lumped | 84.66 (1 mm) | −0.8 % | 0.01 s |
+| 3D solid (finite elements, 0.5 mm, vias as copper rods) | 85.59 | +0.7 % (FVM −0.7 %) | |
+
+The FVM and FDM values are from `validation_study.py` after the mean-potential via (the Analytic, Lumped and finite-element values did not change; the times are those measured before it and were not repeated). With the point via the FVM read 85.87 °C and the FDM 85.22 °C at 0.5 mm.
 
 Every model closes the energy balance below 2e-12 (heat out equals power in: FVM and FDM −1.4e-12, 3D solid −1.1e-13, Lumped and Analytic about 1e-15).
 
@@ -29,12 +31,12 @@ Every model closes the energy balance below 2e-12 (heat out equals power in: FVM
 | Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
 | :-- | --: | --: | --: | --: | --: | :-: |
 | reference board (centred 20 mm heater) | 90.13 | 90.13 (+0.0 %) | 90.27 (+0.2 %) | 89.69 (−0.7 %) | 90.35 (+0.3 %) | - |
-| example board (full) | 85.81 | 84.38 (−2.4 %) | 85.98 (+0.3 %) | 84.66 (−1.9 %) | 84.65 (−1.9 %) | - |
-| example, no heatsink | 88.91 | 87.47 (−2.3 %) | 89.08 (+0.3 %) | 87.60 (−2.1 %) | 87.78 (−1.8 %) | - |
+| example board (full) | 85.22 | 85.12 (−0.2 %) | 85.98 (+1.2 %) | 84.66 (−0.9 %) | 84.65 (−1.0 %) | - |
+| example, no heatsink | 88.29 | 88.18 (−0.2 %) | 89.08 (+1.2 %) | 87.60 (−1.1 %) | 87.78 (−0.8 %) | - |
 | example, no vias | 94.67 | 94.58 (−0.1 %) | 94.91 (+0.3 %) | 96.51 (+2.6 %) | 94.56 (−0.2 %) | - |
-| example, top copper over the full board | 85.29 | 83.94 (−2.2 %) | 85.42 (+0.2 %) | 84.14 (−1.9 %) | 84.62 (−1.1 %) | - |
+| example, top copper over the full board | 84.72 | 84.67 (−0.1 %) | 85.42 (+1.2 %) | 84.14 (−1.0 %) | 84.62 (−0.2 %) | - |
 | example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (−0.0 %) | 96.88 (+0.3 %) | 98.34 (+2.3 %) | 97.15 (+0.7 %) | - |
-| example, only heater U1 | 79.97 | 78.54 (−2.6 %) | 80.12 (+0.3 %) | 77.82 (−3.9 %) | 78.71 (−2.3 %) | - |
+| example, only heater U1 | 79.38 | 79.27 (−0.2 %) | 80.12 (+1.4 %) | 77.82 (−2.9 %) | 78.71 (−1.2 %) | - |
 | example, only U1, uniform | 90.30 | 90.27 (−0.1 %) | 90.51 (+0.3 %) | 91.10 (+1.2 %) | 90.62 (+0.5 %) | - |
 | reference board, heater in the corner | 109.40 | 109.39 (−0.0 %) | 109.54 (+0.2 %) | 102.09 (−8.7 %) | 110.42 (+1.2 %) | - |
 | reference board, small 5 mm heater | 103.06 | 103.06 (+0.0 %) | 103.73 (+0.9 %) | 102.87 (−0.2 %) | 103.44 (+0.5 %) | - |
@@ -51,7 +53,7 @@ Every model closes the energy balance below 2e-12 (heat out equals power in: FVM
 
 Reading:
 
-* **FDM and FVM agree to about 0.1 % wherever there are no vias** (and exactly where the geometry lies on the grid). With the via array the FDM is 2 to 3 % low at 1 mm, because it puts a point feature on the nearest grid point; the gap narrows below 1 mm (−1.1 % at 0.5 mm, −0.5 % at 0.25 mm) but it is −1.1 % at 2 mm and −2.4 % at 1 mm, so not monotonically (section 2.1).
+* **FDM and FVM agree to about 0.1 % wherever there are no vias** (and exactly where the geometry lies on the grid). With the via array the FDM is now 0.2 % low at 1 mm and 0.1 % at 0.5 mm (it was 2 to 3 % low when it put the via on the nearest grid point), and 0.9 % low at 2 mm (section 2.1).
   It is 3.5 % low when a copper edge crosses the heater.
 * **Analytic** is within 1 % of the FVM on the uniform boards (0.3 to 1.0 %: the edge loss that the Analytic leaves out, not the mesh error of the FVM, section 4) and within 2.3 % with partial copper, vias, heatsinks, corners, thin heaters and several heaters, except a copper island around the heater (−4.3 %, no warning); it fails (−25 %) when a copper edge crosses the heater, and the input check warns.
 * **Lumped** stays within about 4 % in most cases, 9 % at worst (corners, thin heaters), and also fails when a copper edge crosses the heater.
@@ -60,15 +62,21 @@ Reading:
 
 | Spacing [mm] | FVM | FDM (area sampling) | FDM (point sampling, classic) | 3D solid |
 | --: | --: | --: | --: | --: |
-| 4 | 83.00 | 82.29 | 85.36 | 83.10 |
-| 2 | 85.34 | 84.66 | 86.18 | 85.48 |
-| 1 | 85.81 | 84.38 | 85.15 | 85.98 |
-| 0.5 | 85.87 | 85.22 | 85.58 | 85.56 |
-| 0.25 | 85.95 | 85.67 | 85.80 | - |
+| 4 | 83.52 | 83.79 | 86.68 | 83.10 |
+| 2 | 85.07 | 84.26 | 85.77 | 85.48 |
+| 1 | 85.22 | 85.12 | 85.90 | 85.98 |
+| 0.5 | 85.17 | 85.11 | 85.47 | 85.40 |
+| 0.25 | 85.15 | 85.13 | 85.26 | - |
 
-The FVM rises monotonically (0.06 K from 1 to 0.5 mm, 0.08 K from 0.5 to 0.25 mm; within 0.25 % of the rise from 1 mm, against the 0.25 mm value). It has no limit to converge to: without the vias the board settles (94.67, 94.71, 94.72 °C at 1, 0.5, 0.25 mm), with them a via in one cell adds a constriction that grows as the cell shrinks (a point source in a five-point stencil acts like a hole of radius 0.198 Δx; for a 0.3 mm via the right cell is about 0.5 to 0.8 mm). On a via-array board the copper-fill gain is −4.78, −4.38, −3.98, −3.34 K at 1, 0.5, 0.25, 0.0625 mm against −4.45 K with resolved barrels (`research/via-fill/README.md` 4.6; the chapter Planned of versions.md). The classic point-sampled FDM falls from above the FVM
-(+2.4 °C at 4 mm) to below it (−0.7 °C at 1 mm, −0.15 °C at 0.25 mm); area sampling stays 0.3 to 1.4 °C below the FVM and is not monotonic either (84.66 °C at 2 mm, 84.38 °C at 1 mm): with the via array it does not remove the dependence on the grid.
-The 3D solid column is not monotonic either (85.98 °C at 1 mm, 85.56 °C at 0.5 mm), which the text above does not read.
+With the mean-potential via (`viawell.py`) the FVM and FDM converge with the cell: from 1 mm the FVM reads 85.22, 85.17 and 85.15 °C (0.05 K and then 0.02 K) and the FDM 85.12, 85.11 and 85.13 °C, 0.1 K below the FVM or less from 1 mm down (the area-sampled FDM was 0.3 to 1.4 °C below it, and moved by 0.8 K between 2 and 1 mm). The coarse cells are the limit: at 2 mm the FVM is 85.07 °C and the FDM 84.26 °C, at 4 mm 83.52 and 83.79 °C, because a via is a fraction of a cell and the position of its centre in the cell matters (the program warns from 2 mm; `checks.check_via_limits`). Without the vias the board settles (94.67, 94.71, 94.72 °C at 1, 0.5, 0.25 mm). Before the change the via was a point in one cell of a five-point stencil, which acts like a hole of radius 0.1985 Δx, and the constriction grew as the cell shrank: on a 3 × 3 via board (the example's array, `research/point-via-convergence/scripts/study_array_board.py`) the copper-fill gain was −4.78 K at 1 mm and −3.34 K at 0.0625 mm against about −4.51 K resolved (the barrels drawn at their real size, 3D). The gain now:
+
+| Cell [mm] | 1 | 0.5 | 0.25 | Reference |
+| :-- | --: | --: | --: | --: |
+| FVM copper-fill gain [K] | −4.500 | −4.466 | −4.492 | −4.51 |
+| FDM copper-fill gain [K] | −4.415 | −4.511 | −4.489 | −4.51 |
+
+(the gains of the 3 × 3 board are from the closing run of the branch with the program's `Network` (three decimals), consistent with the two-decimal table of `research/point-via-convergence/README.md` 4.2; they were not re-run in the documents pass; the test `tests/test_point_via.py` fails if the gain is more than 0.3 K from the reference). The classic point-sampled FDM goes from above the FVM (+3.2 °C at 4 mm) to above it by 0.1 °C at 0.25 mm and is not monotonic (85.77, 85.90, 85.47, 85.26 °C from 2 to 0.25 mm): point sampling of the copper and of the heater, not the via, is its dependence on the grid.
+The 3D solid column is not monotonic either (85.98 °C at 1 mm, 85.40 °C at 0.5 mm; it now uses the footprint rule of the FVM for every via, which removed the rule that made an open and a filled via different models), which the text above does not read.
 
 **A heater that does not fall on the grid** (`research/models-comparison/scripts/study_offgrid_heater.py`, README 4.2.1 of that folder): reference board, 4 W, heater polygon (30.3, 30.3) to (40.7, 41.0) mm; the reference is the FVM at 0.1 mm, 102.25 °C. Maximum temperature [°C]:
 
@@ -195,10 +203,10 @@ representing each copper layer by one node and the dielectric between two layers
 | reference, 8 layers | CG (Jacobi) | 65.6612 | 4.6e-12 | 1e-12 | - | 0.03 |
 | reference, 8 layers | SOR, residual 1e-9, automatic ω | 65.6612 | 1.7e-08 | 1e-09 | 3247 | 0.79 |
 | reference, 8 layers | SOR, step 0.01 K, ω = 1.5 (original rule) | 53.1158 | 13 | 1e-01 | 384 | 0.10 |
-| example board (vias, heatsink, 2 heaters) | direct (sparse LU) | 85.8143 | 0 | 1e-13 | - | 0.15 |
-| example board (vias, heatsink, 2 heaters) | CG (Jacobi) | 85.8143 | 2.5e-11 | 1e-12 | - | 0.09 |
-| example board (vias, heatsink, 2 heaters) | SOR, residual 1e-9, automatic ω | 85.8143 | 1.1e-08 | 1e-09 | 2247 | 0.91 |
-| example board (vias, heatsink, 2 heaters) | SOR, step 0.01 K, ω = 1.5 (original rule) | 69.6449 | 16 | 1e-01 | 562 | 0.23 |
+| example board (vias, heatsink, 2 heaters) | direct (sparse LU) | 85.2249 | 0 | 1e-13 | - | 0.15 |
+| example board (vias, heatsink, 2 heaters) | CG (Jacobi) | 85.2249 | 2.5e-11 | 1e-12 | - | 0.09 |
+| example board (vias, heatsink, 2 heaters) | SOR, residual 1e-9, automatic ω | 85.2249 | 1.1e-08 | 1e-09 | 2244 | 0.78 |
+| example board (vias, heatsink, 2 heaters) | SOR, step 0.01 K, ω = 1.5 (original rule) | 69.0929 | 16 | 1e-01 | 561 | 0.20 |
 | weak cooling (h = 2 W/m²K, 200 mm) | direct (sparse LU) | 44.2990 | 0 | 1e-13 | - | 0.04 |
 | weak cooling (h = 2 W/m²K, 200 mm) | CG (Jacobi) | 44.2990 | 6.6e-12 | 1e-12 | - | 0.03 |
 | weak cooling (h = 2 W/m²K, 200 mm) | SOR, residual 1e-9, automatic ω | 44.2990 | 2.6e-09 | 1e-09 | 2237 | 0.60 |
@@ -209,11 +217,11 @@ representing each copper layer by one node and the dielectric between two layers
 | reference, insulated edges | SOR, step 0.01 K, ω = 1.5 (original rule) | 80.3174 | 10 | 2e-01 | 550 | 0.14 |
 
 Direct, CG and SOR with the residual criterion agree to **2e-8 K** or better on all five boards (SOR on 8 layers: 1.7e-8); the original program's stopping rule stops 2.7 to 16 K from the solution with a violated heat balance. The direct solver is the default
-(6 to 15 times faster than a correct SOR on these boards); SOR stays available as an independent check.
+(6 to 15 times faster than a correct SOR on these boards); SOR stays available as an independent check. With vias the SOR is a block SOR: after the two colours it solves the dense blocks of the via footprints exactly (relaxed by ω), so the example board with its nine vias still agrees with the direct solver to 1.1e-8 K in 2244 sweeps (2247 before the vias were blocks of cells); without the blocks the red-black update iterated another matrix and stopped 19 to 22 K from the direct solution on the 3 × 3 via board (`research/sor-with-via-couplings`). A via block above 5 000 unknowns is not inverted: the direct solver is used and the summary says *SOR not used* (`tests/test_point_via.py`).
 
 ## 6. The removed wxPython program against the current one
 
-Same example board (reference 85.81 °C). Old numbers were obtained by running the original code (git tag `legacy-wxpython-1.0.0`, commit `641da87` with the comparison script).
+Same example board (reference 85.81 °C with the point via, 85.22 °C with the mean-potential via, in the rows below). Old numbers were obtained by running the original code (git tag `legacy-wxpython-1.0.0`, commit `641da87` with the comparison script).
 
 | Program | Model | Tmax [°C] | Error on the rise | Power used [W] | Note |
 | :-- | :-- | --: | --: | --: | :-- |
@@ -225,10 +233,10 @@ Same example board (reference 85.81 °C). Old numbers were obtained by running t
 | old | FDM, 2 mm (defaults) | 76.94 | −15 % | 5.50 | "converged" |
 | old | FDM, 1 mm (defaults) | 66.56 | **−32 %** | 5.50 | error grows when the mesh is refined (step-size stopping rule) |
 | old | FDM, 1 mm (tight tolerance, ω = 1.9) | 82.50 | −5.5 % | 5.50 | the rest is modelling |
-| new | FVM, 1 mm | 85.81 | 0 | 5.50 | energy balance −1.4e-12 |
-| new | FDM (area sampling), 1 mm | 84.38 | −2.4 % | 5.50 | same physics, point features at nodes |
-| new | Lumped | 84.66 | −1.9 % | 5.50 | |
-| new | Analytic | 84.65 | −1.9 % | 5.50 | |
+| new | FVM, 1 mm | 85.22 | 0 | 5.50 | energy balance −1.4e-12 (point via: 85.81) |
+| new | FDM (area sampling), 1 mm | 85.12 | −0.2 % | 5.50 | same physics, vias as a footprint of nodes (point via: 84.38, −2.4 %) |
+| new | Lumped | 84.66 | −0.9 % | 5.50 | |
+| new | Analytic | 84.65 | −1.0 % | 5.50 | |
 
 What went wrong in the old FDM was not the finite-difference idea: a stopping rule on the step size (false convergence), a heater power that depended on the grid, no lateral conduction in FR-4, solid vias, heatsinks on inner layers ignored,
 boundary nodes with a full cell. All were fixed (conservative cell balance, exact power, anisotropic FR-4, hollow vias). A correct FDM (section 2) lands within 2.4 % of the FVM on this board at 1 mm and 1.1 % at 0.5 mm (within 0.1 % where there are no vias).
@@ -360,7 +368,7 @@ Board of the study: 60 × 40 mm, 4 layers with full copper, nine vias under a 6 
 | copper 17.5 µm on every layer | 102.5 | -6.0 % | -2.6 % | -5.9 % | +7.8 % |
 
 * The stack-up matters: the same board goes from 102.5 K (half-ounce copper) to 69.8 K (heavy outer copper) and from 80.7 to 71.2 K with a ceramic core; the models follow it in the same direction (every row of `test_stackup.py` checks the trend in all five models).
-* The spread between models is the same as on the plain board (FDM about 4 % low because a via is sampled at the nearest node, the 3D solid within 2.6 %, the Lumped 0.9 to 6.6 % low, the Analytic 2.5 to 8 % high): the advanced stack-up does not add a model error.
+* The spread between models is the same as on the plain board (FDM about 4 % low in that study, which was run with the via at the nearest node and was not repeated, the 3D solid within 2.6 %, the Lumped 0.9 to 6.6 % low, the Analytic 2.5 to 8 % high): the advanced stack-up does not add a model error.
 
 **B. Board outline.** Rise of the hottest point in K (FVM) and the FDM and the 3D solid as a difference from it:
 
@@ -596,7 +604,7 @@ The two series columns are closed forms (`research/solid3d-verification/scripts/
 | Copper, electroplated fill | 385 | 0.0707 | 58.8 | −69 % |
 
 * The 192 K/W of the open via is the closed form for this barrel, `R = L/(k A)` (0.3 mm drill, 25 µm plating, 1.6 mm, 385 W/mK), as stated by the thermal-via article (192 °C/W per via, 12 K/W for 16). Inside the program the barrel crosses only the dielectric gaps (1.46 mm on the example board, 175.6 K/W): the copper layers are plane copper.
-* On the example board (3 × 3 vias of 0.3 mm under U1, FVM at 0.5 mm): open 85.87 °C, resin 85.87 (−0.01 K), conductive paste 85.70 (−0.18 K), copper fill 81.98 (−3.89 K). All five models order the fills the same way (`test_via_fill.py`) but not with the same size: the copper-fill gain is −3.9 to −4.6 K in the FVM, FDM and 3D solid (0.5 and 1 mm cells) and −6.3 to −7.0 K in the Lumped and Analytic models. On a via-array board solved independently with the barrels drawn at their real size (`research/via-fill/README.md` 4.6) the gain is −4.45 K: the FVM, FDM and 3D solid are within 0.1 to 0.3 K at 0.5 to 1 mm cells, the Lumped and Analytic models 35 to 52 % too large. Below 0.5 mm the FVM gain shrinks by 0.3 to 0.4 K at every halving of the cell, because the via is a point in one cell (the chapter Planned of versions.md). The drill diameter is the one used (the plating is inside it).
+* On the example board (3 × 3 vias of 0.3 mm under U1, FVM at 0.5 mm): open 85.87 °C, resin 85.87 (−0.01 K), conductive paste 85.70 (−0.18 K), copper fill 81.98 (−3.89 K). All five models order the fills the same way (`test_via_fill.py`) but not with the same size: the copper-fill gain is −3.9 to −4.6 K in the FVM, FDM and 3D solid (0.5 and 1 mm cells) and −6.3 to −7.0 K in the Lumped and Analytic models. On a via-array board solved independently with the barrels drawn at their real size (`research/via-fill/README.md` 4.6) the gain is −4.45 K: the FVM, FDM and 3D solid are within 0.1 to 0.3 K at 0.5 to 1 mm cells, the Lumped and Analytic models 35 to 52 % too large. Below 0.5 mm the FVM gain used to shrink by 0.3 to 0.4 K at every halving of the cell, because the via was a point in one cell; with the mean-potential via it stays within 0.05 K of −4.5 K on the 3 × 3 board (section 2.1). The numbers of the example board in this paragraph (85.87, 85.70, 81.98 °C) are from the point via and were not repeated. The drill diameter is the one used (the plating is inside it).
 * So a "filled" via is **not** a thermal improvement unless it is copper-filled (or the fabricator says plated-shut copper); the program now has the four choices in the via's *Fill* list. Not modelled: the plated copper cap over the ends of a capped via, which adds a little copper at the pad, and the solder of a via-in-pad (and solder wicking into an open via).
 * Sources (fabricator pages, not the IPC standard, which was not read): JLCPCB, https://jlcpcb.com/blog/via-filling-guide (table of fill materials and IPC-4761 types V to VII); ALLPCB, https://www.allpcb.com/allelectrohub/how-to-choose-the-optimal-via-fill-material-for-pcb-design; the thermal via array article https://www.atlaspcb.com/blog/thermal-via-pcb-heat-dissipation-array-design (192 °C/W per via; its 185 K/W for an epoxy-filled via is not a model of the fill).
 

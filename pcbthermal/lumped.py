@@ -190,7 +190,8 @@ def _heater_network(net, cov, layer, power, rings):
     g_side = np.array([ring_sum(net.g_side[l]) for l in range(L)])
     nb = net.n_board                                    # Board layers; a metal block adds layers after them
     g_block = np.array([ring_sum(net.g_block[l]) for l in range(L)])
-    gz = np.array([ring_sum(net.gz[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))
+    # The rings read the barrel as a point conductance (gz_via); the FVM matrix holds it as mean-potential couplings instead
+    gz = np.array([ring_sum(net.gz[l] + net.gz_via[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))
     links = [(a, b, ring_sum(g)) for a, b, g in net.extra_links]       # Contact of a block with its board face
     cap = np.array([ring_sum(net.C[l]) for l in range(L)])               # Heat capacity of every ring (J/K)
 
