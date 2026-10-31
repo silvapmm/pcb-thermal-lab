@@ -162,6 +162,13 @@ class FaceNetwork(fvm.Network):
             couple(idx[:nb - 1], idx[1:nb], self.gz)
         for a_layer, b_layer, g in getattr(self, "extra_links", []):     # laminate nodes and block contacts of the program
             couple(idx[a_layer], idx[b_layer], g)
+        if getattr(self, "via_blocks", None):
+            # From the mean-potential via of the program (viawell.py) the barrels are no longer in gz but in via_blocks: without these entries the vias vanish
+            from pcbthermal import viawell
+            vr, vc, vv = viawell.matrix_entries(self.via_blocks, idx)
+            rows.extend(vr)
+            cols.extend(vc)
+            vals.extend(vv)
         n = L * ny * nx
         rows.append(np.arange(n))
         cols.append(np.arange(n))

@@ -12,7 +12,7 @@ of every warning says what is wrong and what to do.
 
 import numpy as np
 
-from . import blocks, convection
+from . import blocks, convection, viawell
 from .geometry import BOARD_SAMPLES, coverage_fraction, part_weights, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
 from .numfmt import num
 
@@ -439,4 +439,46 @@ def check_fin_channels(problem, result=None):
                        f"the air) has a channel Rayleigh number of {ra:.0f}; the air between the fins cools {loss_text} than a plate of the same height "
                        f"({phi:.2f} of its coefficient), and the model does not slow it. Use a larger pitch, shorter channels, or the datasheet theta_SA. "
                        + where)
+    return out
+
+
+# Cell size (mm) from which the via effect of the FVM and FDM is called uncertain: at 2 mm the via is a fraction of a cell
+VIA_COARSE_CELL_MM = 2.0
+
+
+def check_via_limits(problem, models, cell_mm):
+    """!
+    @brief Warnings about the vias on the grid: a via touching the edge of the board, and a cell too coarse for the vias (FVM and FDM).
+    @details The mean-potential via of the FVM and FDM (viawell.py) converges as the cell shrinks, but
+             * its kernel has no image of the board edge, so a via within one cell of the edge of the box or of the outline is clipped and its effect is
+               too large (research/via-real-board, README 3.1: +12 to +15 % for a via 0.16 mm from the edge at a 1 mm cell);
+             * from a 2 mm cell the via is a fraction of a cell and the position of its centre inside the cell moves the answer. Measured on the example
+               board (9 vias, the drop of the hottest temperature caused by the vias, 9.6 K at 0.25 mm): FVM -2.9 % at 2 mm, -0.3 % at 0.5 mm, FDM -4.0 % at
+               2 mm, -0.2 % at 0.5 mm, and at 3 and 4 mm the error is between -5 and +16 % (FVM) and -22 and -49 % (FDM), by the position of the vias
+               (the FDM -41 % first measured at 3 mm had the footprints up to one cell off in y, where dy differs from dx).
+    @param problem The Problem.
+    @param models Model keys that will run (the cell warning applies to "fvm" and "fdm").
+    @param cell_mm Cell size in mm.
+    @return List of warning strings (empty when nothing is doubtful).
+    """
+    out = []
+    if not problem.vias:
+        return out
+    b = problem.board
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
+    dx, dy = b.width / nx, b.height / ny
+    if any(m in ("fvm", "fdm") for m in models):
+        # The edge test reads the cells of the FVM/FDM grid; the 3D solid has the same footprint rule, so the warning is for the layered grids and the 3D
+        edge = viawell.edge_via_indices(problem, nx, ny, dx, dy, b.cover(nx, ny, dx, dy))
+        for k in edge[:5]:
+            v = problem.vias[k]
+            _add(out, "via", k, f"{v.name or f'Via {k + 1}'}: via touching the board edge (within one cell of the edge). The cut footprint has no image of the edge, so "
+                                "its effect can be too large by 12 to 15 % at a 1 mm cell; use a finer cell or read the result near it with care.")
+        if len(edge) > 5:
+            _add(out, None, None, f"{len(edge) - 5} more vias touch the board edge (see above).")
+    if cell_mm >= VIA_COARSE_CELL_MM and any(m in ("fvm", "fdm") for m in models):
+        _add(out, None, None, f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias: a via is a fraction of a cell, so the temperature drop they cause is uncertain "
+                              "by about 3 to 4 % at 2 mm and by 5 to 50 % at 3 to 4 mm, depending on where each via falls in its cell (example board: 9 vias, "
+                              "-3 % FVM and -4 % FDM at 2 mm, within 0.5 % at 0.5 mm). Use 1 mm or finer.")
     return out

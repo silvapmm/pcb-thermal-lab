@@ -86,8 +86,9 @@ def test_total_power_is_exact_in_every_model(cell):
 
 @pytest.mark.parametrize("model", [fvm, fdm, solid3d])
 def test_board_without_outline_and_a_rectangle_outline_are_unchanged(model):
-    # Values of develop before the change (example board, 2 mm cell): the helper falls back to the plain coverage without an outline
-    stored = {fvm: 85.3422592649492, fdm: 84.66429739375607, solid3d: 85.48327731195374}
+    # Values of the example board at a 2 mm cell: the helper falls back to the plain coverage without an outline. The FVM and FDM were re-baselined when
+    # the point via became the mean-potential via (develop gave 85.3423 and 84.6643); the 3D solid is unchanged at this cell (the via is a fraction of a cell)
+    stored = {fvm: 85.06626978381593, fdm: 84.26196372844217, solid3d: 85.48327731195374}
     assert model.solve_steady(example_board(), cell_mm=2.0).t_max == pytest.approx(stored[model], abs=1e-9)
     p = example_board()
     p.board.outline = np.array([[0, 0], [p.board.width, 0], [p.board.width, p.board.height], [0, p.board.height]])
