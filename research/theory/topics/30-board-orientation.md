@@ -24,6 +24,8 @@ So the upper face of a horizontal board takes more of the heat than the lower on
 
 Measured PCB studies show the orientation effect also depends on the components on the board (ribs and protrusions change the flow): the correlations are for a bare plate and the uncertainty stays at 20 to 30 %.
 
+The horizontal laws themselves were checked in `research/horizontal-plate-h/` (reviewed): over the Rayleigh numbers of boards (`Ra` of `A/P` 1e3 to 5e5) the published upper-face levels lie on both sides of `0.54 Ra^(1/4)` (Jaffer's fit [Jaffer2023] 3 to 8 % above, Raithby and Hollands as printed by Lienhard [RaithbyHollands] up to 20 % below); the published lower-face forms (Schulenberg [Schulenberg1984KfK], whose formulas are local values at the centre of the plate, Fujii and Imura on the width of a two-dimensional plate [FujiiImura1972], Kadambi and Drake [KadambiDrake], Jaffer) go as `Ra^(1/5)` and depend on the shape through half the shorter side, so `0.27 Ra^(1/4)` on `A/P` is 16 to 43 % above the published square from `Ra` 1e4 to 3e5 and 29 % below the long strip at 1e3. Neither face is shown to be conservative; with the published forms the rise of a board moves by -2.7 to +1.3 % with radiation. The air warmed by the lower face of a free board, drawn into the upper face, is not in any of these correlations (a steady two-dimensional solution shows the upper face falling to 0.56 to 0.70; size in a real board not established).
+
 ## 4. Where it is tested
 
 `tests/test_orientation.py`: the program against these numbers and against the behaviour they imply (upper face takes more, vertical symmetric, cold board swaps, facing-down half of facing-up at the same Rayleigh number, agreement with the formulas written out by hand, typed coefficients indifferent).
@@ -35,6 +37,7 @@ Measured PCB studies show the orientation effect also depends on the components 
 ## 6. Sources
 
 * The correlations: [IncroperaDeWitt] (horizontal plate laws), [ChurchillChu1975] (vertical plate), the characteristic length of a plate: [LloydMoran1974] (cited by `docs/models.md` section 18; not opened).
+* The check of the horizontal laws: [Jaffer2023], [Schulenberg1984KfK], [RaithbyHollands], [FujiiImura1972], [KadambiDrake] (`research/horizontal-plate-h/`).
 * Own computation (the tests).
 
 *What was read and what was not verified:* from `docs/models.md` section 18 (read in full); the "uncertainty 20 to 30 %" is the document's statement of measured PCB studies, not re-read.
