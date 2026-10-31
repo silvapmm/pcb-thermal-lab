@@ -1,6 +1,6 @@
 # Integration: one construction of the laminate nodes (S5), draft for the fix of 2.4.5
 
-**Status: measured (README section 3) and reviewed (README section 8); section 7 holds the reviewer's recommendation for every decision.** The sections are in the order the maintainer needs them: what changes, what moves, what is warned, what is left as a limit, what is decided. `pcbthermal/` is untouched; the construction lives on copies in `lib/`.
+**Status after the merge: the rule is implemented in the program (`fix/laminate-nodes`, `docs/versions.md`); the text below is the design as it was proposed. Status when written: measured (README section 3) and reviewed (README section 8); section 7 holds the reviewer's recommendation for every decision.** The sections are in the order the maintainer needs them: what changes, what moves, what is warned, what is left as a limit, what is decided. `pcbthermal/` is untouched; the construction lives on copies in `lib/`.
 
 ## 1. The proposal in one paragraph
 

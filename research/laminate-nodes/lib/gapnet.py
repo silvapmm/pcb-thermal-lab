@@ -34,6 +34,21 @@ import rule as RU
 
 
 @contextlib.contextmanager
+def rule_off():
+    """!
+    @brief Make the program build the network of the earlier versions (no laminate rule) while inside: since `fix/laminate-nodes` the program applies the rule itself, and this module adds its own.
+    @details Replaces `laminate.uses_rule` (looked up by name when a `fvm.Network` or `fdm.Network` is built) by a function that returns False; restored on exit.
+    @return Context manager.
+    """
+    old = laminate.uses_rule
+    laminate.uses_rule = lambda problem: False
+    try:
+        yield
+    finally:
+        laminate.uses_rule = old
+
+
+@contextlib.contextmanager
 def no_program_laminate():
     """!
     @brief Switch off the two laminate nodes that `laminate.py` gives a one-layer board while a network is built (restored on exit); the program is not edited, only its module attribute.
@@ -119,7 +134,7 @@ def build(problem, cell_mm, rule, fill=None, assemble=True):
     nx, ny = max(int(round(b.width * 1e3 / cell_mm)), 2), max(int(round(b.height * 1e3 / cell_mm)), 2)
     use_one = b.layers == 1 and rule.one_layer
     ctx = no_program_laminate() if use_one else contextlib.nullcontext()
-    with ctx:
+    with rule_off(), ctx:
         net = fvm.Network(problem, nx, ny, assemble=False, with_blocks=False)
     return apply_ladder(net, problem, rule, fill, assemble)
 

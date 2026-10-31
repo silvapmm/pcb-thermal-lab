@@ -39,7 +39,7 @@ def test_empty_mask_is_the_program():
     """
     for spec in (_spec("2L", layers=2), _spec("4L", layers=4, stack="template")):
         p = BD.problem(spec)
-        ref = fvm.Network(p, 12, 12, with_blocks=False)
+        ref = fvm.Network(p, 12, 12, with_blocks=False, ladder=False)
         net = GN.build(p, 1.0, RU.Rule(n_fixed=4))
         assert net.nl == ref.nl
         assert abs(net.K - ref.K).max() == 0.0 and np.array_equal(net.C, ref.C)
@@ -56,7 +56,7 @@ def test_one_layer_ladder_equals_laminate_py():
         old = laminate.LAMINATE_NODES
         laminate.LAMINATE_NODES = n
         try:
-            ref = fvm.Network(p, 12, 12, with_blocks=False)
+            ref = fvm.Network(p, 12, 12, with_blocks=False, ladder=False)
         finally:
             laminate.LAMINATE_NODES = old
         th_ref, _ = ref.solve_steady()
@@ -98,7 +98,7 @@ def test_energy_balance_and_nonnegative_arrays():
 
 def test_ragged_and_sor_agree_with_direct():
     """!
-    @brief The ragged solve gives the direct field on the nodes it keeps; the general red-black SOR converges to it; the graph is bipartite with the barrels in the sub-links.
+    @brief The ragged solve gives the direct field on the nodes it keeps; the general red-black SOR converges to the direct field of the same board without vias (the vias are dense couplings now).
     @return None.
     """
     spec = _spec("rag", layers=2, shapes=[("pad", 6), ("none",)], vias=((6.0, 6.0),))
@@ -108,9 +108,14 @@ def test_ragged_and_sor_agree_with_direct():
     thr, nun = GN.solve_ragged(net)
     assert nun < net.K.shape[0] or net.drop.sum() == 0
     assert np.allclose(thr[~net.drop], th[~net.drop], rtol=1e-9, atol=1e-12)
-    ths, res, info = GN.solve_sor_general(net, tol=1e-10)
+    # Since `fix/point-via` the vias are dense mean-potential couplings in the matrix, not barrels in the sub-links, so the point colouring of the general SOR no longer applies to a
+    # board with vias (the hybrid SOR with via blocks is an open item of the README); the SOR check runs on the same board without the via
+    p0 = BD.problem(_spec("rag0", layers=2, shapes=[("pad", 6), ("none",)]))
+    net0 = GN.build(p0, 1.0, RU.Rule(n_fixed=3))
+    th0, _ = net0.solve_steady()
+    ths, res, info = GN.solve_sor_general(net0, tol=1e-10)
     assert info["colours_ok"] and info["converged"] and res < 1e-9
-    assert np.allclose(ths, th, rtol=1e-5, atol=1e-7 * th.max())
+    assert np.allclose(ths, th0, rtol=1e-5, atol=1e-7 * th0.max())
 
 
 def test_parallel_barrel_breaks_the_colouring_for_even_n():

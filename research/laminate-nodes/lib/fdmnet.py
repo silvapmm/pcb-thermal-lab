@@ -35,7 +35,7 @@ def build(problem, cell_mm, rule, mean="arithmetic"):
     if b.has_outline() or b.h_side or any(s.is_block() for s in problem.heatsinks):
         raise NotImplementedError("the FDM measurement is for rectangular boards with insulated sides and no block")
     use_one = b.layers == 1 and rule.one_layer
-    with (GN.no_program_laminate() if use_one else GN.contextlib.nullcontext()):
+    with GN.rule_off(), (GN.no_program_laminate() if use_one else GN.contextlib.nullcontext()):
         net = fdm.Network(problem, cell_mm, mean)
     L, nx, ny, dx, dy = b.layers, net.nx, net.ny, net.dx, net.dy
     m = b.materials

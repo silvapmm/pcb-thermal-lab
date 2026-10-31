@@ -476,3 +476,7 @@ From the repository root, with the program's environment (`.venv`), in the order
 **Run:** steps 0 to 14 above except the 42-window `--all` run; `study_windows_cell.py` (added after the first real-window run to test the cell-size explanation); the figures 1 to 16 were regenerated from these outputs. The review's runs are listed in section 8.
 
 **Not verified:** any model against a physical measurement; a published numerical case of a patterned copper layer (the literature check of the construction, open); the Lumped's behaviour on the refined network beyond the 15 boards of 3.12; the transient with a short power pulse; the numbers quoted from earlier folders (theirs). Every error is against a resolved 3D reference that is itself 0.4 to 1.5 % above its Richardson limit.
+
+### Note after `fix/laminate-nodes`, `fix/point-via` and `fix/via-constriction`
+
+The rule is in the program now (`laminate.py`, `fvm.Network`, `fdm.Network`; `docs/versions.md`). `lib/gapnet.py` and `lib/fdmnet.py` build the prototype ladder on the network of the earlier versions through `gapnet.rule_off()` (it makes `laminate.uses_rule` false while the program's network is built), and the tests compare the prototype with that earlier network (`ladder=False`). The vias of the program are mean-potential couplings now, so the point-colouring SOR of the prototype is tested on boards without vias; the hybrid SOR with via blocks stays an open item. The numbers of the README are those of the program before these changes and were not re-run.
