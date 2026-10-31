@@ -811,3 +811,16 @@ The FVM rows are printed by `python research/theory/scripts/make_fig_part_outlin
 **Unchanged.** `python research/models-comparison/scripts/validation_study.py` prints the same table as before the fix (identical text), `research/gap-subdivision/scripts/rerun_baseline.py` moves no peak by more than 0.0001 % of the rise, the Lumped and Analytic models on the equivalent rectangle are bit-identical, and so is every board without an outline.
 
 **Limit.** A cut cell still conducts with its cover, so a part over a cut edge reads 0.5 to 0.7 K (about 1 % of the rise) hotter at 1 to 0.5 mm than with the edge on the grid lines (the scatter of the "now" rows is this residual). Treating the cut cell by its real shape (option P1 of `research/rotated-square-3d`) is in the chapter "Planned" of `versions.md`.
+
+## 24. Warnings of the limits of the models
+
+`checks.check_model_limits` and the Analytic spread test (`tests/test_model_limit_warnings.py`) warn; no temperature is changed. The numbers are those printed by the studies that proposed them, not re-measured here.
+
+| Warning | Trigger | Evidence |
+| :-- | :-- | :-- |
+| Analytic copper spread | the larger of the spread at `lambda_l` and the spread with the full-copper fin length above 0.25 | 119 boards: warned 70, silent 49, silent beyond 5 % error 0 (the program's earlier flag alone: 60 / 59 / 5; `gap0.1-empty` -66.7 % and `gap0.2-empty` -62.0 % were silent). `research/analytic-partial-copper` 9.4 |
+| Part on bare laminate | smallest copper fill in the central half of the footprint below 0.5 (layered models) | fires in 26 of 26 study cases at 0.5 / 1 / 2 mm, silent on full copper; the FVM reads 3 to 11 % low (4 and 6 layers), 4 to 23 % (two layers of 0.8 and 1.6 mm). `research/bare-spot-under-source` P3 |
+| Lumped, vias under a part | one or more vias in the footprint | via effect up to 72 % too large, 21 % on average over 36 simple boards (`L_prog`, the program's Lumped as it is). `research/lumped-via-groups` 4.2 |
+| Lumped, vias outside every part | one aggregated message | a lone via 73 % off on average (up to 290 %), a row of five 72 %. `research/lumped-analytic-vias` 4.3 |
+
+Not included: the warning for vias on a coarse cell (its numbers belong to the point-via treatment, not to the program as it is: the FVM via effect on the example board is 9.02 / 8.86 / 8.84 K at 2 / 1 / 0.5 mm) stays with `fix/point-via`.
