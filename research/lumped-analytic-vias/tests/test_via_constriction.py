@@ -102,30 +102,33 @@ def libs():
     pc.load_libraries()
 
 
-def test_lumped_off_is_the_program(libs):
+# Values (K) of the program as it was at commit f2d5c03 (the last before `fix/point-via` and `fix/via-constriction`, which adopted these patches), 0.5 mm cells; the
+# "off" mode of the patches is that program, the current one has the constriction built in
+FROZEN = {"lumped_unit": 360.2915219685997, "lumped_array": 32.27347498914426, "analytic_array": 33.81517429819902}
+
+
+def test_lumped_off_is_the_program_of_f2d5c03(libs):
     """!
-    @brief The patched Lumped with mode "off" gives the program's result to the last digit, on a lattice cell and on the via array.
+    @brief The patched Lumped with mode "off" gives the program's result at `f2d5c03` to the last digit (values frozen from that commit), on a lattice cell and on the via array.
     @param libs Fixture.
     @return None.
     """
-    for prob in (cases.unit_cell(4, 0.3, 385.0), cases.array(4, 3, 3.5, 0.3, 385.0)):
-        a = pc.max_rise(prob, "lumped", 0.5)
+    for key, prob in (("lumped_unit", cases.unit_cell(4, 0.3, 385.0)), ("lumped_array", cases.array(4, 3, 3.5, 0.3, 385.0))):
         with lp.patched("off"):
             b = pc.max_rise(prob, "lumped", 0.5)
-        assert a == pytest.approx(b, rel=1e-12)
+        assert b == pytest.approx(FROZEN[key], rel=1e-9)
 
 
-def test_analytic_off_is_the_program(libs):
+def test_analytic_off_is_the_program_of_f2d5c03(libs):
     """!
-    @brief The patched Analytic with mode "off" gives the program's result to the last digit.
+    @brief The patched Analytic with mode "off" gives the program's result at `f2d5c03` to the last digit (value frozen from that commit).
     @param libs Fixture.
     @return None.
     """
     prob = cases.array(4, 3, 3.5, 0.3, 385.0)
-    a = pc.max_rise(prob, "analytic", 0.5)
     with ap.patched("off"):
         b = pc.max_rise(prob, "analytic", 0.5)
-    assert a == pytest.approx(b, rel=1e-12)
+    assert b == pytest.approx(FROZEN["analytic_array"], rel=1e-9)
 
 
 def test_patches_restore_the_program(libs):
@@ -184,8 +187,7 @@ def test_copper_fill_gain_of_the_example_board(libs):
             with ctx():
                 out.append(pc.max_rise(prob, model, 0.5))
         return out[0] - out[1]
-    null = hz.VARIANTS["L_prog"][1]
-    assert gain("lumped", null) > 6.0 and gain("analytic", null) > 5.8
+    assert gain("lumped", hz.VARIANTS["L_prog"][1]) > 6.0 and gain("analytic", hz.VARIANTS["A_prog"][1]) > 5.8
     assert abs(gain("lumped", hz.VARIANTS["L_grp0"][1]) - 4.2) < 0.5
     assert abs(gain("analytic", hz.VARIANTS["A_fin"][1]) - 4.2) < 0.5
 

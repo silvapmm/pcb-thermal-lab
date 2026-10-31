@@ -110,7 +110,7 @@ def core_mask(net, cov, prob, layer=0):
     if OPTIONS["pitch_guard"] > 0:
         # fin length of the source layer under the footprint: sqrt(S / g), g the conductance per area to the ambient and to the next layer
         cell = net.dx * net.dy
-        g_area = (net.g_top[layer][foot] + net.g_bottom[layer][foot] + (net.gz[layer][foot] if layer < net.n_board - 1 else 0.0)).mean() / cell
+        g_area = (net.g_top[layer][foot] + net.g_bottom[layer][foot] + ((net.gz[layer][foot] + net.gz_via[layer][foot]) if layer < net.n_board - 1 else 0.0)).mean() / cell
         lam = math.sqrt(float(net.S[layer][foot].mean()) / g_area) if g_area > 0 else math.inf
     for g in np.unique(group):
         mem = np.flatnonzero(group == g)
@@ -280,7 +280,7 @@ def micro_peak(layer, th, node, S_layer):
     return i_tot / n * rim_minus_mean(S_layer, r_cell, a)
 
 
-def zoned_network(net, cov, layer, power, rings):
+def zoned_network(net, cov, layer, power, rings, vias=None):
     """!
     @brief `lumped._heater_network` with the footprint cut into the rest A (node 0) and the core C (node 1) when a group of vias covers only part of it.
     @param net Network (per-cell arrays) of the problem.
@@ -288,6 +288,7 @@ def zoned_network(net, cov, layer, power, rings):
     @param layer 0-based heater layer.
     @param power Heater power (W).
     @param rings Number of rings outside the footprint.
+    @param vias ViaSet that the program passes since `fix/via-constriction`; ignored (this copy builds its own via couplings from the barrels as point conductances).
     @return dict as `lumped._heater_network` (theta of shape (L, R + 1)); the program's own network if no zone split applies.
     """
     from pcbthermal import lumped
@@ -335,7 +336,7 @@ def zoned_network(net, cov, layer, power, rings):
     g_side = np.array([ring_sum(net.g_side[l]) for l in range(L)])
     nb = net.n_board
     g_block = np.array([ring_sum(net.g_block[l]) for l in range(L)])
-    gz = np.array([ring_sum(net.gz[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))
+    gz = np.array([ring_sum(net.gz[l] + net.gz_via[l]) for l in range(nb - 1)]) if nb > 1 else np.zeros((0, R))   # barrels as the point conductance of the program up to f2d5c03 (the program's FVM holds them as couplings now)
     links = [(a, b, ring_sum(g)) for a, b, g in net.extra_links]
     cov_a = float((cov * (idx2 == 0)).sum())
     cov_c = float((cov * (idx2 == 1)).sum())
@@ -463,7 +464,7 @@ def zoned_network(net, cov, layer, power, rings):
             "residual": float(np.linalg.norm(K @ theta - Q) / np.linalg.norm(Q))}
 
 
-def _plain(net, cov, layer, power, rings):
+def _plain(net, cov, layer, power, rings, vias=None):
     """!
     @brief The network of the program with the micro wells and the group term of `lumped_groups` (no zones).
     @param net Network.
@@ -471,6 +472,7 @@ def _plain(net, cov, layer, power, rings):
     @param layer Heater layer.
     @param power Power in W.
     @param rings Rings.
+    @param vias Ignored (see `zoned_network`).
     @return dict as `lumped._heater_network`.
     """
     rn = _STATE["plain"](net, cov, layer, power, rings)

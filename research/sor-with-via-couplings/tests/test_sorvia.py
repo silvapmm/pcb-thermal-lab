@@ -69,13 +69,15 @@ def test_point_treatment_has_no_via_part():
 
 def test_program_variant_is_the_programs_sor(small):
     """!
-    @brief `RB` with no via term reproduces `Network.solve_sor` sweep by sweep (same iterate after the same number of sweeps).
+    @brief `RB` with the coloured, relaxed via blocks (variant c') reproduces `Network.solve_sor` sweep by sweep (same iterate after the same number of sweeps).
+    @details Since the point-via fix the program's `solve_sor` is this variant (it used to drop the via couplings, which `RB(small)` without blocks still shows); the relaxation
+             factor is the one the program chose for the network.
     @param small The network.
     @return None.
     """
     th, _, info = small.solve_sor(tol=1e-300, max_iter=30)
-    r = sv.RB(small).solve(small.Q, tol=1e-300, max_iter=30)
-    assert np.abs(r["theta"] - th).max() < 1e-12
+    r = sv.RB(small, omega=info["omega"], blocks=sv.via_blocks(small), block_omega=None, colour_blocks=True).solve(small.Q, tol=1e-300, max_iter=30)
+    assert np.abs(r["theta"] - th).max() < 1e-9
 
 
 def test_via_part_is_positive_semidefinite_and_exact(small):
@@ -188,3 +190,19 @@ def test_energy_argument_on_touching_blocks():
     assert R.Sweeps(b, 1.5, "simultaneous", omega_b=1.5).radius() > 1.0
     for ob in (0.5, 1.5, 1.9):
         assert R.Sweeps(b, 1.5, "sequential", omega_b=ob).radius() < 1.0
+
+
+def test_blocks_are_read_from_the_programs_own_network():
+    """!
+    @brief On a network of the current program (no patch) the via blocks come from `net.via_blocks`, and K minus the via part is an M-matrix (non-positive off-diagonals).
+    @return None.
+    """
+    import scipy.sparse as sp
+    from pcbthermal import fvm
+    p = bd.pc.lone_via_board(6.0, 0.3, 385.0, source_mm=1.5, distance_mm=1.5)
+    net = fvm.Network(p, 12, 12)
+    assert len(sv.via_blocks(net)) == 1
+    Kfull = sv.via_operator(net)[0]
+    A = (net.K - Kfull).tocsr()
+    off = A - sp.diags(A.diagonal())
+    assert off.data.max() <= 1e-12
