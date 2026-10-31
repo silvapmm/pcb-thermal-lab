@@ -378,3 +378,10 @@ Checked and confirmed: the baseline of section 3 to the digit; the series trunca
 * The trigger was measured on 119 boards, all designed (square boards, one heater, rectangular copper) plus the three example boards against the FVM; no Gerber board was run through it.
 * The candidate with vias, blocks, outlines, several heaters or the transient (refused by the code now); the candidate at more than 16 nodes.
 * The uniform-sheet Analytic with laminate nodes (the -51 % quoted by `laminate.py`) remains unreproduced, as the study says.
+
+## Update for the program of 2.4.5 (laminate rule)
+
+Since `fix/laminate-nodes` the program's FVM applies the laminate rule itself (sub-gaps where copper is absent, face term). The candidate of this folder is the construction of the earlier versions
+(n laminate nodes in every cell), so the tests that compare it with "the program's FVM with the same nodes" now run the program with the rule switched off (`_earlier_laminate` in
+`tests/test_modal_defect.py`); with the rule on the same comparison reads -7.0 % (n = 1) and -2.3 % / -9.1 % (8.0 / 8.5 mm pad) against limits of 1.5 % and 1 %. Numbers of the studies that print
+the program's FVM (`fvm_K` columns of `study_candidate.py`, `study_causes.py`, `study_review.py`) were not re-run and move with the rule.

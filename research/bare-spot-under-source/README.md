@@ -320,3 +320,9 @@ From the repository root (the research environment is the program's `.venv`):
 ## Library update after the point via and the via constriction of the program
 
 `lib/layered.py` no longer reads the barrel from `net.gz` (it is the dielectric alone since `fix/point-via`): the vias are added to the matrix as the program's own mean-potential couplings (`viawell.matrix_entries` on `net.via_blocks`, between the copper nodes of the layers), in every gap, refined or not. The tests pass (one sub-gap is the program's FVM to round-off, the barrels survive the refinement). The numbers of this README were NOT re-run: on boards with vias (the three example projects, the stress scenarios) the base moves with the program's FVM (example board, 1 mm: 85.81 to 85.22 K), and the percentages that compare with the program's FVM or with the 3D solid move with it.
+
+## Update for the program of 2.4.5 (laminate rule)
+
+`lib/layered.py` builds its refined gaps on a copy of the network of the earlier versions; since `fix/laminate-nodes` the program's network already has laminate nodes and a ragged `gz`
+(an `IndexError` on the layer count), so `network()` now asks the program for `ladder=False`. The copy and its tests are unchanged in meaning: "one sub-gap is the program" is the program of 2.4.4.
+The columns of the studies that run the program's own FVM (`study_review.py`, `study_real_stormduino.py`, `study_validation_rows.py`) were not re-run and move with the rule.
