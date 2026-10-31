@@ -2,11 +2,15 @@
 
 ![The layered idealisation](../figures/fig_01_layered_idealisation.png)
 
-*Figure 1 (`figures/fig_01_layered_idealisation.png`): a section of the board as the models see it. Each copper layer is one node (one temperature per plan position) with a sheet conductance; the dielectric gap between two layers is a one-dimensional resistance `d/k_th`; the outer layers exchange heat with the air through `h_top` and `h_bottom`. A one-layer board gets two laminate nodes under the copper (`laminate.py`); redrawn with that note.*
+*Figure 1 (`figures/fig_01_layered_idealisation.png`): a section of the board as the models see it. Each copper layer is one node (one temperature per plan position) with a sheet conductance; the dielectric gap between two layers is a one-dimensional resistance `d/k_th`; the outer layers exchange heat with the air through `h_top` and `h_bottom`. Where copper is absent next to a gap the gap is cut into laminate nodes (`laminate.py`, `docs/theory.md` 1.4); redrawn with that note.*
 
 ![Advanced stack-up](../figures/fig_39_stackup_slabs.png)
 
 *Figure 39 (`figures/fig_39_stackup_slabs.png`): left, three copper layers and two gaps of different thickness (illustrative): the node of a layer represents its copper plus half of each adjacent gap, so the slabs add up to the board thickness; middle, the network the nodes make, with `g_j = k_th,j / d_j` per gap; right, a gap made of several sheets: in series through the gap, side by side along it (`combine_sheets`).*
+
+![The laminate nodes](../figures/fig_44_laminate_nodes.png)
+
+*Figure 44 (`figures/fig_44_laminate_nodes.png`): left, a section across a copper edge: the gap between two copper nodes is cut into `n` sub-gaps (here `n = 4`) in the cells where copper is absent plus a margin, and is the single link `k_z A / d` elsewhere; middle, the plan of the cells that are cut; right, `n` against the thickness of the gap and the one-layer board, whose laminate is a gap down to the bottom face. Illustrative proportions.*
 
 ![Thick-plate correction](../figures/fig_33_thick_plate_correction.png)
 
@@ -66,7 +70,7 @@ Seen from outside, a board of several layers has an in-plane and a through-plane
 ## 5. What it assumes and where it is wrong
 
 * No gradient across a copper layer, none across the thin dielectric laterally: the gap is a 1D resistance, so there is no spreading **inside** the gap. This costs 0.4 to 2 % against the 3D solid.
-* The top and bottom coefficients act directly on the outer layer node (the half slab in series is neglected, 1e-4 of the film resistance). This holds when both outer faces carry copper. **A one-layer board** has its laminate (`t_lam = slab - t_cu`) under the copper: the FVM, FDM and Lumped models cut it into two laminate nodes (`laminate.LAMINATE_NODES = 2`, slab `t_lam/2` each, the last one half of that and carrying `h_bottom`, joined by `k_th A / (t_lam/2)`), and the Analytic model keeps one node with `h_bottom` in series with the laminate, `1/(1/h_bottom + t_lam/k_th)` (`docs/theory.md` 1.4). One, two, three and four laminate nodes give -4.1, -2.5, -1.8 and -1.5 % on a bare 20 mm pad against an independent solver (`docs/validation.md` 21).
+* The top and bottom coefficients act directly on the outer layer node (the half slab in series is neglected, 1e-4 of the film resistance). This holds when both outer faces carry copper. **A one-layer board** has its laminate (`t_lam = slab - t_cu`) under the copper: a gap down to a bottom node that carries `h_bottom`. The FVM and FDM cut every gap into `n = min(4, ceil(d / 0.4 mm))` sub-gaps in the cells where copper is absent plus a margin (`docs/theory.md` 1.4, figure 44); the Lumped model and a board with a metal block keep two laminate nodes (`laminate.LAMINATE_NODES = 2`), and the Analytic model one node with `h_bottom` in series with the laminate, `1/(1/h_bottom + t_lam/k_th)`. The comparison of the numbers of nodes is in `docs/validation.md` 21 and 21.2.
 * One temperature per layer under a footprint (no gradient across a heater).
 * **No gradient through the thickness of a layer**: the node is the mean through the thickness, and the surface under a source is hotter than it by at most `q'' t / (2 k)` (all the heat of the source crossing the layer under it), less when the heat leaves sideways. Measured against an independent 3D solver (`research/effective-conductivity/` 4.6): 0.91 K against a bound of 1.25 K (1.6 % of the rise) for a 10 mm plate of `k` 50 under strong films, 4.7 and 7.1 K against 8 and 12 K (8 to 9 % of the rise) for `k` 10, where the heat spreads; the film acting on the node instead of the face adds about `h t / (2 k)` of the rise; 0.0001 K for 35 um of copper. It is irrelevant for the copper layers and matters only for a thick, poorly conducting layer or block.
 

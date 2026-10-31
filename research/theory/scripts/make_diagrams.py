@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41 (the diagrams of the rewrite of the theory).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 (the diagrams of the rewrite of the theory).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -568,7 +568,7 @@ def layered_idealisation(path):
     a.text(6, 7.7, "section: nodes, gaps and faces", ha="center", fontsize=9, fontweight="bold")
     a = axs[1]; a.set_xlim(0, 10); a.set_ylim(0, 8)
     a.text(5, 7.3, "what it assumes", ha="center", fontsize=9, fontweight="bold")
-    a.text(5, 5.0, "no gradient across a copper layer;\nthe gap is a 1D resistance (no spreading inside it;\nthe 3D solid measures this error);\nthe air coefficients act on the outer layer node;\na one-layer board gets two laminate nodes\nunder its copper (laminate.py)", ha="center", fontsize=8.5)
+    a.text(5, 5.0, "no gradient across a copper layer;\nthe gap is a 1D resistance (no spreading inside it;\nthe 3D solid measures this error);\nthe air coefficients act on the outer layer node;\nwhere copper is absent next to a gap the gap is cut\ninto laminate nodes (section 1.4, laminate.py)", ha="center", fontsize=8.5)
     a.text(5, 2.0, "energy balance: Σ h∫θ dA + edge losses = Σ P\nevery result reports it", ha="center", fontsize=8.5, fontweight="bold")
     dk.save(fig, path, "The layered idealisation: nodes, gaps, faces and the energy balance (theory section 1.2)")
 
@@ -1165,6 +1165,61 @@ def block_section(path):
     dk.save(fig, path, "Metal block: the paths of the heat in section and the cell network they make (theory section 7)")
 
 
+def laminate_nodes(path):
+    """!
+    @brief Draw the laminate nodes of theory section 1.4: a gap cut into n sub-gaps in the cells where copper is absent plus a margin, the single link elsewhere, the path across a copper edge, the one-layer board as a gap down to the bottom face.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 5.6, 1, 3, ratios=[1.5, 1.0, 1.0])
+    a = axs[0]; a.set_xlim(0, 14); a.set_ylim(0, 9)
+    a.text(7, 8.6, "section across a copper edge (gap d = 1.6 mm, n = 4; illustrative)", ha="center", fontsize=9, fontweight="bold")
+    # Two copper layers, the lower one with a window; the gap between them is cut in the masked cells
+    dk.layer(a, 0.5, 6.0, 13, 0.3, CU); dk.layer(a, 0.5, 2.0, 5.5, 0.3, CU); dk.layer(a, 9.0, 2.0, 4.5, 0.3, CU)
+    dk.layer(a, 0.5, 2.3, 13, 3.7, dk.FR4)
+    ys = [6.0, 5.075, 4.15, 3.225, 2.3]
+    for x0, x1 in ((6.0, 9.0),):
+        for y in ys[1:-1]:
+            a.plot([x0 - 2.0, x1 + 2.0], [y, y], "k:", lw=0.9)
+    for y in ys[1:-1]:
+        a.plot([4.0, 11.0], [y, y], "o", color="#1f4fd8", ms=0)
+    for xx in (4.5, 6.0, 7.5, 9.0, 10.5):
+        for y in ys[1:-1]:
+            a.plot(xx, y, "o", color="#1f4fd8", ms=5)
+    for xx in (4.5, 6.0, 7.5, 9.0, 10.5):
+        a.plot(xx, 6.15, "o", color="#1f4fd8", ms=5)
+    for xx in (1.5, 2.8, 12.0, 13.0):
+        a.plot(xx, 6.15, "o", color="#1f4fd8", ms=5); a.plot(xx, 2.15, "o", color="#1f4fd8", ms=5)
+        a.plot([xx, xx], [2.15, 6.15], color="#1f4fd8", lw=1.4)
+    a.plot([4.5, 4.5], [2.15, 6.15], color="#1f4fd8", lw=0.8)
+    a.add_patch(Rectangle((3.75, 1.5), 7.5, 5.2, fc="none", ec="#c23b3b", lw=1.2, ls="--"))
+    a.text(7.5, 0.7, "cut cells: copper absent in one layer,\nplus the margin ceil(d/dx) + 1 cells", ha="center", fontsize=7.5, color="#c23b3b")
+    a.text(1.8, 0.9, "single link\nk_z A / d", ha="center", fontsize=7.5)
+    a.text(12.6, 0.9, "single link\nk_z A / d", ha="center", fontsize=7.5)
+    dk.arrow(a, 6.0, 5.9, 7.2, 2.5, color=dk.HEAT, width=1.3)
+    a.text(2.6, 4.6, "sideways across\nthe laminate\nunder the edge", fontsize=7.5, color=dk.HEAT, ha="center")
+    a.text(7.5, 7.6, "copper nodes keep the copper and half of the first (last) sub-gap;\ninterior nodes hold (s_j + s_j+1)/2 of laminate; links k_z A / s_j", ha="center", fontsize=7.5)
+    a = axs[1]; a.set_xlim(0, 10); a.set_ylim(0, 9)
+    a.text(5, 8.6, "plan: which cells are cut", ha="center", fontsize=9, fontweight="bold")
+    n = 9
+    for i in range(n):
+        for j in range(n):
+            bare = (3 <= i <= 5) and (3 <= j <= 5)
+            near = (2 <= i <= 6) and (2 <= j <= 6)
+            col = "#ffd6d6" if bare else ("#fbe9c3" if near else "#e6eef7")
+            a.add_patch(Rectangle((0.6 + i * 0.9, 0.9 + j * 0.75), 0.9, 0.75, fc=col, ec="#888888", lw=0.5))
+    a.text(5, 0.35, "red: copper absent next to the gap (fill below 1)\norange: margin; blue: single link", ha="center", fontsize=7.5)
+    a = axs[2]; a.set_xlim(0, 10); a.set_ylim(0, 9)
+    a.text(5, 8.6, "n sub-gaps and a one-layer board", ha="center", fontsize=9, fontweight="bold")
+    a.text(5, 7.2, "n = min(4, ceil(d / 0.4 mm))\nd = 0.4, 0.8, 1.6, 3.2 mm: n = 1, 2, 4, 4", ha="center", fontsize=8)
+    dk.layer(a, 1.0, 4.9, 8, 0.3, CU, "copper (top face)", size=7)
+    dk.layer(a, 1.0, 2.3, 8, 2.6, dk.FR4, "laminate: a gap down to the bottom face,\ncut like any gap where the copper is absent", size=7)
+    dk.arrow(a, 5, 2.3, 5, 1.2, color=dk.HEAT); a.text(5.3, 1.5, "h_bottom on the last node", fontsize=7.5, color=dk.HEAT)
+    dk.arrow(a, 5, 5.3, 5, 6.2, color=dk.HEAT); a.text(5.3, 5.8, "h_top", fontsize=7.5, color=dk.HEAT)
+    a.text(5, 0.4, "Lumped: two laminate nodes; Analytic: a series film", ha="center", fontsize=7.5, style="italic")
+    dk.save(fig, path, "The laminate nodes: the cut gap, the cells that are cut, the one-layer board (theory section 1.4)")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1187,7 +1242,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 

@@ -105,6 +105,7 @@ The 41 pictures of this folder are in `figures/`: 33 diagrams (figures 1 to 30, 
 | `figures/fig_39_stackup_slabs.png` | this folder | 01, 22 |
 | `figures/fig_41_block_section.png` | this folder | 11 |
 | `figures/fig_42_top_path_split.png` | this folder (data) | 09 |
+| `figures/fig_44_laminate_nodes.png` | this folder | 01 |
 
 Curves that are only illustrative (the shape of a series, a fixed point with arbitrary numbers, a pulse train) say so in their italic line; no number of these pictures is a result. The numbers quoted in the topics come from the project documents and the READMEs of the investigations and are marked with the source.
 
@@ -187,7 +188,7 @@ Every section that explains a model, an equation or a method has a picture, in t
 | `README.md` | this index |
 | `BIBLIOGRAPHY.md` | every source: key, citation, address, reading status, topics that use it; the list of what to read next |
 | `topics/` | the 37 topic files |
-| `figures/` | `fig_01` to `fig_39`, `fig_41`, `fig_42`; 1 to 30, 38, 39 and 41 diagrams, 31 to 33 and 42 data figures, 34 to 37 the part across the outline (numbers 40 and 43 are not used: the figures planned there were not needed; 44 waits for the laminate nodes) |
+| `figures/` | `fig_01` to `fig_39`, `fig_41`, `fig_42`, `fig_44`; 1 to 30, 38, 39, 41 and 44 diagrams, 31 to 33 and 42 data figures, 34 to 37 the part across the outline (numbers 40 and 43 are not used: the figures planned there were not needed) |
 | `scripts/make_diagrams.py` | draws the 30 diagrams (no data, no program) |
 | `scripts/make_figures.py` | draws the three data figures 31 to 33 from closed forms and the program (about 3 minutes) |
 | `scripts/make_fig_part_outline.py` | draws figures 34 to 37 (a part across the board outline: the cut cell, the three rules, the example board cut to a T, the edge-shift sweep) with the program (about 6 minutes) |
