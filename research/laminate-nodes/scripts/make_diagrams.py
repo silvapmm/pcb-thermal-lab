@@ -40,7 +40,7 @@ def section(ax, mode, title):
     dk.layer(ax, 0.5, zb, 11, zt - tcu - zb, dk.FR4)
     dk.layer(ax, 0.5, zb - tcu, 11, tcu, dk.COPPER, "bottom plane")
     dk.layer(ax, 0.5, zt - tcu, 3.5, tcu, dk.COPPER)
-    dk.layer(ax, 8, zt - tcu, 3.5, tcu, dk.COPPER, "top copper")
+    dk.layer(ax, 8, zt - tcu, 3.5, tcu, dk.COPPER)
     dk.layer(ax, 4, zt - tcu, 4, tcu, dk.FR4)             # the window: laminate where the copper is absent
     dk.layer(ax, 4, zt, 4, 0.7, "#888888", "part")
     ax.text(6, zt + 1.0, "window", ha="center", fontsize=7, color="#555555")
@@ -50,7 +50,7 @@ def section(ax, mode, title):
         for z, txt in ((zt - tcu / 2, "node: copper + half gap"), (zb - tcu / 2, "node: copper + half gap")):
             for x in (2.2, 6.0, 9.8):
                 ax.add_patch(Circle((x, z), 0.1, color="k"))
-            ax.text(11.9, z, txt, fontsize=6, ha="right", va="center")
+            ax.text(11.9, z + (0.45 if z > 3 else -0.5), txt, fontsize=6, ha="right", va="center")
         for x in (6.0,):
             dk.arrow(ax, x, zt - tcu / 2 - 0.1, x, zb - tcu / 2 + 0.1, color=dk.BLUE, label="one link k_z A / d", size=6)
         ax.text(6, 0.4, "the node under the window sits at the hot surface and carries the lateral\nconductance of half the gap: it bridges the window edge", ha="center", fontsize=6.5)
@@ -59,8 +59,9 @@ def section(ax, mode, title):
             dk.arrow(ax, x, zt - tcu - 0.05, x, zb + 0.2, color=dk.BLUE, width=0.9)
         dk.arrow(ax, 5.2, zt - 0.6, 3.5, zt - 0.6, color=dk.BLUE, label="sideways in the laminate", size=6)
         dk.arrow(ax, 6.8, zt - 0.6, 8.6, zt - 0.6, color=dk.BLUE)
-        dk.arrow(ax, 3.4, zt - 0.2, 1.3, zt - 0.2, color=dk.HEAT, width=0.9, label="into the copper", size=6)
-        dk.arrow(ax, 8.6, zt - 0.2, 10.7, zt - 0.2, color=dk.HEAT, width=0.9)
+        dk.arrow(ax, 3.4, zt - 0.1, 1.3, zt - 0.1, color=dk.HEAT, width=0.9)
+        ax.text(2.3, zt + 0.15, "into the copper", fontsize=6, ha="center", color=dk.HEAT)
+        dk.arrow(ax, 8.6, zt - 0.1, 10.7, zt - 0.1, color=dk.HEAT, width=0.9)
         ax.text(6, 0.4, "the heat has to cross the laminate down from the surface before it reaches the copper\nedge: a vertical gradient that one node per layer cannot hold", ha="center", fontsize=6.5)
 
 
@@ -131,7 +132,7 @@ def fig_03():
         img[bare] = 2
         ax.axis("on")
         ax.imshow(img, origin="lower", cmap=__import__("matplotlib").colors.ListedColormap(["#e8e8e8", "#9bbf8a", "#f7d9a0"]), vmin=0, vmax=2)
-        ax.add_patch(Rectangle((11.5, 11.5), 7, 7, fill=False, edgecolor="k", linewidth=1.4))
+        ax.add_patch(Rectangle((11.5, 11.5), 6, 6, fill=False, edgecolor="k", linewidth=1.4))
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_title(f"{label}: {int(flag.sum())} of {n * n} cells", fontsize=8)

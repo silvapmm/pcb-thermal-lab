@@ -170,7 +170,7 @@ def solve_fills(nb, fills, dx_mm, nsub, rect_mm, power, ratio=1.0):
     mask = source_mask(nx, ny, dx_mm, rect_mm)
     q = np.zeros(shape)
     q[0][mask] = power / mask.sum()
-    T = spla.spsolve(K, q.ravel()).reshape(shape)
+    T = spla.spsolve(K, q.ravel(), permc_spec="MMD_AT_PLUS_A").reshape(shape)
     A = (dx_mm * 1e-3) ** 2
     surf = (T[0] + np.where(mask, q[0], 0.0) * dz[0] / (2 * sl[0]["kz"] * A)) / (1 + nb["h_top"] * dz[0] / (2 * sl[0]["kz"]))
     out = float((gt * T[0]).sum() + (gb * T[-1]).sum())
@@ -190,7 +190,7 @@ def solve_spec(spec, p, dx_mm, nsub, ratio=1.0, quadrant=None):
     """
     s = setup(spec, p, dx_mm, nsub, ratio, quadrant)
     nz, ny, nx = s["shape"]
-    T = spla.spsolve(s["K"], s["q"].ravel()).reshape(nz, ny, nx)
+    T = spla.spsolve(s["K"], s["q"].ravel(), permc_spec="MMD_AT_PLUS_A").reshape(nz, ny, nx)
     A, dz0 = s["dx"] ** 2, s["dz"][0]
     kz0 = s["sl"][0]["kz"]
     h_top = s["nb"]["h_top"]
@@ -201,7 +201,7 @@ def solve_spec(spec, p, dx_mm, nsub, ratio=1.0, quadrant=None):
             "balance": out / s["power"], "T": T, "mask": s["mask"], "surf": surf}
 
 
-def transient_spec(spec, p, dx_mm, nsub, times, ratio=1.0, quadrant=None, scheme=0.5):
+def transient_spec(spec, p, dx_mm, nsub, times, ratio=1.0, quadrant=None, scheme=0.5, substeps=8):
     """!
     @brief Step response of the reference: the board at rest, the power switched on at t = 0, the face peak and the mean of the source cells at the given times.
     @param spec A boards.Spec.
@@ -212,6 +212,7 @@ def transient_spec(spec, p, dx_mm, nsub, times, ratio=1.0, quadrant=None, scheme
     @param ratio Grading.
     @param quadrant See setup().
     @param scheme Theta of the theta method (0.5 Crank-Nicolson, 1 implicit Euler).
+    @param substeps Steps of the theta method between two times (the first interval, for scheme < 1, is taken by 8 implicit Euler steps).
     @return dict with times, peak (K, node value of the top slab; the face correction is the steady one and is left out), mean.
     """
     s = setup(spec, p, dx_mm, nsub, ratio, quadrant)
@@ -220,12 +221,14 @@ def transient_spec(spec, p, dx_mm, nsub, times, ratio=1.0, quadrant=None, scheme
     out_peak, out_mean, t = [], [], 0.0
     cache = {}
     nz, ny, nx = s["shape"]
-    for tt in times:
-        dt = (tt - t) / 4.0
-        for _ in range(4):
-            key = round(dt, 12)
+    for i, tt in enumerate(times):
+        # Rannacher start-up: a step input excites the stiff modes, which Crank-Nicolson only damps in sign; the first interval is taken by implicit Euler in small steps
+        th, nst = (1.0, 8) if (i == 0 and scheme < 1.0) else (scheme, substeps)
+        dt = (tt - t) / nst
+        for _ in range(nst):
+            key = (round(dt, 12), th)
             if key not in cache:
-                cache[key] = (spla.splu((sp.diags(C / dt) + scheme * K).tocsc()), (sp.diags(C / dt) - (1 - scheme) * K).tocsr())
+                cache[key] = (spla.splu((sp.diags(C / dt) + th * K).tocsc()), (sp.diags(C / dt) - (1 - th) * K).tocsr())
             lu, B = cache[key]
             x = lu.solve(B @ x + q)
         t = tt
@@ -266,3 +269,24 @@ def converged(spec, p, dxs=(0.5, 0.25, 0.125), nsubs=(4, 8, 16), ratio=1.0):
     out = richardson(v)
     out.update(values=v, unknowns=[r["unknowns"] for r in runs])
     return out
+
+
+def converged_split(spec, p, deep=False):
+    """!
+    @brief The distance of the production reference (0.25 mm cell, 8 sub-slabs per gap) from its limit, the cell and the sub-slabs separated (the joint sequence of `converged` is too heavy for many layers).
+    @details Cell sequence at 8 sub-slabs: 0.5, 0.25, 0.125 mm (boards with 4 or more layers: at 4 sub-slabs, the production value is then replaced by the 0.25 mm value of that sequence for the cell correction). Sub-slab sequence at 0.25 mm: 4, 8, 16
+             (4 or more layers: 2, 4, 8). Each sequence goes through `richardson`; the correction of a sequence is its limit over the production value minus one, and the total is their product.
+    @param spec A boards.Spec.
+    @param p The Problem.
+    @param deep True for the boards with 4 or more layers (the coarser sequences above).
+    @return dict with production (K), dx and nsub values, limits, orders, GCIs, corr_dx, corr_nz, corr_total (fractions of the production value).
+    """
+    dxs = (0.5, 0.25, 0.125)
+    nzs = (2, 4, 8) if deep else (4, 8, 16)
+    vx = [solve_spec(spec, p, d, 4 if deep else 8)["max"] for d in dxs]
+    vz = [solve_spec(spec, p, 0.25, n)["max"] for n in nzs]
+    prod = solve_spec(spec, p, 0.25, 8)["max"]
+    rx, rz = richardson(vx), richardson(vz)
+    cx = rx["limit"] / vx[1] - 1.0               # relative to the 0.25 mm cell of the same sub-slab count
+    cz = rz["limit"] / prod - 1.0
+    return {"production": prod, "dx_values": vx, "nz_values": vz, "dx_rich": rx, "nz_rich": rz, "corr_dx": cx, "corr_nz": cz, "corr_total": (1 + cx) * (1 + cz) - 1.0}

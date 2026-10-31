@@ -17,7 +17,8 @@ HERE = Path(__file__).resolve().parents[1]
 REPO = HERE.parents[1]
 OUT = HERE / "out"
 FIGURES = HERE / "figures"
-for extra in (str(HERE / "lib"), str(HERE.parent / "bare-spot-under-source" / "lib"), str(HERE.parent / "gap-subdivision" / "lib"), str(HERE.parent)):
+# Inserted at the front one by one, so the list is reversed: the own lib ends up first (gap-subdivision/lib has a boards.py of its own)
+for extra in (str(HERE.parent), str(HERE.parent / "gap-subdivision" / "lib"), str(HERE.parent / "bare-spot-under-source" / "lib"), str(HERE / "lib")):
     if extra not in sys.path:
         sys.path.insert(0, extra)
 if str(REPO) not in sys.path:

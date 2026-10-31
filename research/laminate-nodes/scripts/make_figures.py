@@ -238,7 +238,7 @@ def fig14():
     d = load("vertical_face")
     if not d:
         return
-    rows = d["A windows"]
+    rows = d["A windows peak"]
     keys = ["off", "vert only", "vert + p=0", "vert + p=1", "vert + p=2"]
     fig, ax = plt.subplots(figsize=(9, 3.8))
     x = np.arange(len(rows))

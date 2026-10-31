@@ -10,6 +10,8 @@
 
 import json
 import time
+
+import numpy as np
 from pathlib import Path
 
 import boards as BD
@@ -74,7 +76,7 @@ def fvm_peak(spec, rule, cell_mm, p=None, fill=None, solver="direct"):
     @param p The Problem (built from the spec when None).
     @param fill Optional copper fill replacing the one of the zones.
     @param solver "direct" or "ragged" (the matrix without the unused interior nodes).
-    @return dict with peak (with the face term), raw, unknowns (dense and ragged counts), flagged (cells per gap), seconds.
+    @return dict with peak (with the face term), mean (over the footprint, with the term), raw, unknowns (dense and ragged counts), flagged (cells per gap), seconds.
     """
     p = p or BD.problem(spec)
     net = GN.build(p, cell_mm, rule, fill=fill)
@@ -86,8 +88,9 @@ def fvm_peak(spec, rule, cell_mm, p=None, fill=None, solver="direct"):
         nun = theta.size
     dt = time.perf_counter() - t0
     peak, raw = GN.peak_under_parts(net, theta, p, rule)
+    mean = float(np.mean(np.concatenate([c for _, c in GN.footprint_values(net, theta, p, rule)])))       # mean over the footprint cells, with the face term
     one = p.board.layers == 1
-    return {"peak": peak, "raw": raw, "solved": nun, "counts": net.ladder.counts(one), "flagged": [int(g.flagged.sum()) for g in net.ladder.gaps],
+    return {"peak": peak, "raw": raw, "mean": mean, "solved": nun, "counts": net.ladder.counts(one), "flagged": [int(g.flagged.sum()) for g in net.ladder.gaps],
             "n": [g.n for g in net.ladder.gaps], "seconds": dt}
 
 

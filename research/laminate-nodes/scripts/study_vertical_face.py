@@ -23,21 +23,22 @@ VARIANTS = {"off": dict(vert=False, face=-1.0), "vert only": dict(vert=True, fac
             "vert + p=2": dict(vert=True, face=2.0), "p=1 only": dict(vert=False, face=1.0)}
 
 
-def run_specs(specs, cell, ref_dx, ref_nsub):
+def run_specs(specs, cell, ref_dx, ref_nsub, metric="peak"):
     """!
     @brief Errors of the variants (n = 1, so that only the vertical path and the reading differ) on a list of specs.
     @param specs List of boards.Spec.
     @param cell Cell of the program in mm.
     @param ref_dx Cell of the reference in mm.
     @param ref_nsub Sub-slabs of the reference.
+    @param metric "peak" (the hottest cell under the part) or "mean" (the mean of the footprint cells; for a part on partly covered cells the two differ by the face term of the hottest sub-cell).
     @return list of row dicts.
     """
     rows = []
     for s in specs:
         ref = RN.reference(s, ref_dx, ref_nsub)
-        row = {"board": s.name, "ref K": (".2f", ref["max"]), "ref centre vs face %": 100 * (ref["max_centre"] / ref["max"] - 1)}
+        row = {"board": s.name, "ref K": (".2f", ref[metric if metric == "mean" else "max"]), "ref centre vs face %": 100 * (ref["max_centre"] / ref["max"] - 1)}
         for k, kw in VARIANTS.items():
-            row[k] = RN.err(RN.fvm_peak(s, RU.with_(RU.Rule(), n_fixed=1, **kw), cell)["peak"], ref["max"])
+            row[k] = RN.err(RN.fvm_peak(s, RU.with_(RU.Rule(), n_fixed=1, **kw), cell)[metric], ref[metric if metric == "mean" else "max"])
         rows.append(row)
     return rows
 
@@ -49,12 +50,16 @@ def main():
     """
     A = [BD.Spec(f"{n}L {w} mm window", layers=n, stack=("simple" if n == 2 else "template"), shapes=[("window", w)] + [("full",)] * (n - 1)) for n in (2, 4, 6) for w in (2, 4, 6, 12)]
     B = [BD.Spec(f"pad edge {d:+.3f} mm", layers=2, shapes=[("pad", 10.0 + 2 * d), ("full",)]) for d in (0.0, 0.125, 0.25, 0.375)]
+    B2 = [BD.Spec(f"window {4 + 2 * d:g} mm (edge {d:+.3f})", layers=2, shapes=[("window", 4.0 + 2 * d), ("full",)]) for d in (0.0, 0.125, 0.25, 0.375)]
     C = [BD.Spec(f"hatch {p_} duty {du}", layers=2, size=20.0, shapes=[("hatch", p_, du), ("full",)]) for p_ in (0.5, 1.0, 2.0) for du in (0.3, 0.5)]
     out = {}
-    for tag, specs, rdx in (("A windows", A, 0.25), ("B pad edge off the grid", B, 0.125), ("C hatch", C, 0.125)):
-        rows = run_specs(specs, 0.5, rdx, 8)
-        RP.table(rows, list(rows[0]), title=f"Part {tag}: error of the peak, percent (n = 1)")
-        out[tag] = rows
+    for tag, specs, rdx in (("A windows", A, 0.25), ("B pad edge off the grid", B, 0.125), ("B2 window edge inside the footprint, off the grid", B2, 0.125), ("C hatch", C, 0.125)):
+        for metric in ("peak", "mean"):
+            if metric == "mean" and tag.startswith(("A", "B ")):
+                continue
+            rows = run_specs(specs, 0.5, rdx, 8, metric)
+            RP.table(rows, list(rows[0]), title=f"Part {tag}: error of the {metric} under the part, percent (n = 1)")
+            out[f"{tag} {metric}"] = rows
     # Part D: the 3D solid of the program on the windows of part A
     from pcbthermal import SolverOptions, simulate
     rows = []
