@@ -141,7 +141,7 @@ class Network:
         self.Q = np.zeros((L, ny, nx))
         for h in problem.heaters:
             # Heated only where it is both on the part and on the board (intersection per sample), scaled to the board cover of the cell
-            cov = part_weights(h.polygon, b.outline, nx, ny, dx, dy, samples=8, cover=self.cover) * self.active
+            cov = part_weights(h.polygon, b.outline, nx, ny, dx, dy, cover=self.cover) * self.active
             if cov.sum() <= 0:
                 # Footprint smaller than the sampling: put all the power in the centroid cell
                 cx, cy = polygon_centroid(h.polygon)
