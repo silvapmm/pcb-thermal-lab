@@ -86,8 +86,10 @@ def test_total_power_is_exact_in_every_model(cell):
 
 @pytest.mark.parametrize("model", [fvm, fdm, solid3d])
 def test_board_without_outline_and_a_rectangle_outline_are_unchanged(model):
-    # Values of develop before the change (example board, 2 mm cell): the helper falls back to the plain coverage without an outline
-    stored = {fvm: 85.3422592649492, fdm: 84.66429739375607, solid3d: 85.48327731195374}
+    # Values of the example board at a 2 mm cell: the helper falls back to the plain coverage without an outline. The FVM and FDM were re-baselined when
+    # the point via became the mean-potential via (develop gave 85.3423 and 84.6643); the 3D solid is unchanged at this cell (the via is a fraction of a cell)
+    # (fix/laminate-nodes: the example board has partial copper, so the laminate nodes and the vertical correction of the rule moved the FVM and FDM by +0.008 and +0.004 K)
+    stored = {fvm: 85.07464607663806, fdm: 84.26568445977094, solid3d: 85.48327731195374}
     assert model.solve_steady(example_board(), cell_mm=2.0).t_max == pytest.approx(stored[model], abs=1e-9)
     p = example_board()
     p.board.outline = np.array([[0, 0], [p.board.width, 0], [p.board.width, p.board.height], [0, p.board.height]])
@@ -164,3 +166,36 @@ def test_statistics_leave_out_the_cells_off_the_board(model):
         cov = coverage_fraction(h.polygon, rq.T.shape[2], rq.T.shape[1], rq.dx, rq.dy, 4)
         T = rq.T[h.layer]
         assert analysis._footprint_stats(rq, h.polygon, h.layer, q.board.outline)[0] == pytest.approx(float((T * cov).sum() / cov.sum()), rel=1e-15)
+
+
+def test_one_sampling_constant_is_shared_by_the_cover_and_the_part_weights():
+    # The board cover (FVM, 3D solid), the part weights and the FDM node cover must be sampled on the same lattice (geometry.BOARD_SAMPLES): a 4 x 4
+    # board cover against 8 x 8 part weights gave an edge-shift scatter of 2.95 K at 1 mm on the small T (1.47 K with 8 x 8 everywhere)
+    import inspect
+    from pcbthermal import geometry, model
+    assert geometry.BOARD_SAMPLES == 8
+    assert inspect.signature(model.Board.cover).parameters["samples"].default == geometry.BOARD_SAMPLES
+    assert inspect.signature(part_weights).parameters["samples"].default == geometry.BOARD_SAMPLES
+
+
+def test_board_cover_resolves_an_eighth_of_a_cell():
+    # A vertical edge at 3/8 of a cell cuts it into 3/8 and 5/8: exact on the 8 x 8 lattice (the 4 x 4 lattice read 1/4 or 1/2)
+    p = Problem.new(8.0, 4.0, 1).add_full_copper()
+    p.set_outline([[0, 0], [3.375, 0], [3.375, 4], [0, 4]])
+    cover = p.board.cover(8, 4, 1e-3, 1e-3)
+    assert np.allclose(cover[:, 3], 0.375, atol=1e-12)
+    assert np.allclose(cover[:, :3], 1.0) and np.allclose(cover[:, 4:], 0.0)
+
+
+def test_edge_shift_scatter_of_the_fvm_stays_small_at_1_mm():
+    # The stem edge of the small T moves over one cell (1 mm) in twelfths; the error against a fine grid (1/6 mm) must not jump from edge to
+    # edge. Measured: spread 3.0 K with the 4 x 4 board cover, 1.4 K with 8 x 8 (the part weights were already 8 x 8).
+    shifts = [10.0 + k / 12.0 for k in range(13)]
+
+    def tee(a):
+        q = small_t()
+        q.set_outline([[0, 12], [a, 12], [a, 0], [30.0 - a, 0], [30.0 - a, 12], [30, 12], [30, 24], [0, 24]])
+        return q
+
+    err = [fvm.solve_steady(tee(a), cell_mm=1.0).t_max - fvm.solve_steady(tee(a), cell_mm=1.0 / 6.0).t_max for a in shifts]
+    assert np.ptp(err) < 1.6

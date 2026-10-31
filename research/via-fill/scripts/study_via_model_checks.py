@@ -87,8 +87,10 @@ def part1_closed_form():
     b = p.board
     nx, ny = int(round(b.width / 1e-3)), int(round(b.height / 1e-3))
     plain = example_with(no_vias=True)
-    g_with = fvm.Network(p, nx, ny, assemble=False).gz
-    g_without = fvm.Network(plain, nx, ny, assemble=False).gz
+    # Since fix/point-via the barrel is not in `gz` any more (it is a mean-potential coupling in the matrix); `gz_via` holds its conductance at the cell of the via centre,
+    # which is what this check compares with the closed form k_Cu A / d
+    net_with, net_without = fvm.Network(p, nx, ny, assemble=False), fvm.Network(plain, nx, ny, assemble=False)
+    g_with, g_without = net_with.gz + net_with.gz_via, net_without.gz + net_without.gz_via
     v = p.vias[0]
     i, j = cell_index_of_point(v.x, v.y, nx, ny, b.width / nx, b.height / ny)
     gaps = b.gap_thicknesses()

@@ -32,7 +32,7 @@ import math
 from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
-from .checks import check_fin_channels, check_problem, check_thick_plates
+from .checks import check_fin_channels, check_model_limits, check_problem, check_thick_plates, check_via_limits
 from .model import Problem
 from .results import SteadyResult
 from .numfmt import num
@@ -836,7 +836,9 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     options = options or SolverOptions()
     options.validate()
     problem.validate()
-    sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm))
+    sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm)
+                     + check_model_limits(problem, options.models, options.cell_mm)
+                     + check_via_limits(problem, options.models, options.cell_mm))
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)
