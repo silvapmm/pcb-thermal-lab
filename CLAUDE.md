@@ -131,7 +131,7 @@ Mandatory, and applies to everything that ends up in the repository history or o
 pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   blocks.py            metal blocks (heatsinks with thickness): extra node layers for FVM/FDM
   model.py             Board, Materials, Zone, Heater, Via, Heatsink, Problem (+ mm builder API), JSON I/O
-  geometry.py          polygon area/centroid/point-in-polygon, cell coverage fractions
+  geometry.py          polygon area/centroid/point-in-polygon, cell coverage fractions, part_weights (a part across the board outline), outline edge length per cell
   solid3d.py           3D finite-volume solid (real slabs per copper layer, gap and block; steady state; comparison model, key `solid3d`; refused above MAX_CELLS = 250 000 unknowns)
   fdm.py               node-centred finite-difference model of the same layered physics (steady state, power-step animation, step responses and power profiles, `--model fdm|compare`; reuses the FVM transient machinery)
   fvm.py               reference finite-volume model: steady (direct, CG, SOR) and transient
@@ -151,7 +151,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor, rulers), panels, stackup (cross-section tab), calculator, help (guide, About), tips (tooltips), compute (calculation process), results_view, main_window, theme
-tests/                 pytest suite (about 670 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (about 820 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
   helpers/layered3d.py independent 3D conduction solver (imports nothing from pcbthermal), the reference of test_layered_vs_3d.py
 examples/              example boards (`.pcbt.json`), `csv_profiles/` (documented CSV power-profile example) and `make_screenshots.py`; the studies that used to live here are in `research/` (one folder per investigation, see `research/README.md`)
 docs/                  versions.md (what was implemented in every version, and in its last chapter 'Planned' what we want to implement in the program), models.md (models, features, API), theory.md (every equation and approximation of every model; update it with any model change), calculators.md (the auxiliary calculators: formulas, validation, limits, sources), validation.md (every scenario in every model, 3D check, history), research.md (open investigations, empty when nothing is pending), images/
@@ -293,6 +293,8 @@ The review of every research folder is tracked in `research/REVIEW.md` (status, 
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
 
 ## Decisions Log
+
+- **Part across the outline** (`fix/part-across-outline`, P0 of `research/rotated-square-3d`): the weight of a cut cell is the intersection share (samples in the part and on the board, over the board samples) normalised to the board cover the model uses for the cell (`geometry.part_weights`), because the plain intersection left a 4 x 4 / 8 x 8 disagreement (1.5 K at 0.5 mm on a small T) and the product of the covers is wrong when both edges cut the same cell; the FDM keeps the plain intersection (its node cover is sampled 8 x 8). The read-outs (mean, minimum, ring of `psi_jb`, zone statistics, Power Calculator points) are restricted to the board, since the cells off it read the ambient. The residual 0.5 to 0.7 K (about 1 % of the rise) at 1 to 0.5 mm is the treatment of a cut cell by its cover (option P1, in "Planned"). Sampling `Board.cover` 8 x 8 (scatter 2.95 to 1.47 K at 1 mm) is left as the candidate `fix/board-cover-8x8` for the maintainer. The figures 34 to 37 of `research/theory` are in `docs/theory.md` 1.3.
 
 - **Block SOR to be implemented** (maintainer: adopt the improved variant): the relaxed, coloured block SOR of `research/sor-with-via-couplings` goes into `fvm.Network.solve_sor` together with the point-via fix (`docs/versions.md`, chapter 'Planned'); the version (2.5.0 or an earlier one) is decided when the list is known. The Young relaxation factor is a separate small item.
 
