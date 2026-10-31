@@ -67,14 +67,15 @@ def test_vias_are_pure_couplings_symmetric_with_zero_row_sum():
 
 
 def test_gz_via_is_the_programs_own_via_term():
-    """!@brief gz + gz_via of the patched network equals the gz of the program, so the Lumped model sees the same vias as today; the patched gz alone has none of them."""
+    """!@brief The patched network has the program's own gz_via (the point conductance the Lumped model sums with gz, now in the program) and the same gz."""
     p = example_board()
     nx, ny = _grid(p, 1.0)
     old = fvm.Network(p, nx, ny, assemble=False)
     with ep.patched_edge(**runs.MW_BOARD):
         new = fvm.Network(p, nx, ny, assemble=False)
-    assert np.abs(old.gz - (new.gz + new.gz_via)).max() == 0.0
-    assert np.abs(new.gz - old.gz).max() > 0.0
+    assert np.abs(old.gz_via - new.gz_via).max() == 0.0
+    assert old.gz_via.max() > 0.0
+    assert np.abs(new.gz - old.gz).max() == 0.0
 
 
 def test_gz_via_matches_on_vias_that_sit_on_cell_lines():
@@ -86,7 +87,7 @@ def test_gz_via_matches_on_vias_that_sit_on_cell_lines():
     old = fvm.Network(p, nx, ny, assemble=False)
     with ep.patched_edge(**runs.MW_BOARD):
         new = fvm.Network(p, nx, ny, assemble=False)
-    assert np.abs(old.gz - (new.gz + new.gz_via)).max() == 0.0
+    assert np.abs(old.gz_via - new.gz_via).max() == 0.0
 
 
 def test_a_via_far_from_every_wall_is_not_changed_by_the_image():

@@ -28,7 +28,7 @@ from pcbthermal.examples import example_board
 
 def ring_sums_equal(problem, cell_mm=1.0):
     """!
-    @brief Largest difference between the `gz` the program gives to the Lumped model and `gz + gz_via` of the patched network (the sums over any region are then equal).
+    @brief Largest difference of `gz` and of `gz_via` between the program and the patched network (the Lumped model sums both) (the sums over any region are then equal).
     @param problem A Problem.
     @param cell_mm Cell in mm.
     @return float largest absolute difference of the arrays in W/K.
@@ -38,7 +38,7 @@ def ring_sums_equal(problem, cell_mm=1.0):
     old = fvm.Network(problem, nx, ny, assemble=False)
     with ep.patched_edge(**runs.MW_BOARD):
         new = fvm.Network(problem, nx, ny, assemble=False)
-    return float(np.abs(old.gz - (new.gz + new.gz_via)).max())
+    return float(max(np.abs(old.gz - new.gz).max(), np.abs(old.gz_via - new.gz_via).max()))
 
 
 def main():

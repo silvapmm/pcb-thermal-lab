@@ -72,7 +72,7 @@ def walls_for(problem, v, reach):
 def via_hook_edge(net, problem, gz, d, S, dx, dy, nx, ny, origin):
     """!
     @brief The mean-potential treatment with the options of this module; same contract as `program_patch.via_hook` (it is installed in its place).
-    @param net The network being built (`_via_blocks` and `gz_via` are set on it).
+    @param net The network being built (`_via_blocks` and `_gz_via_hook` are set on it).
     @param problem The Problem.
     @param gz Array (L-1, ny, nx) of vertical conductances of the dielectric (not modified: the vias are couplings in the matrix).
     @param d Gap thicknesses in m.
@@ -82,13 +82,15 @@ def via_hook_edge(net, problem, gz, d, S, dx, dy, nx, ny, origin):
     @param nx Cells (nodes) along x.
     @param ny Cells (nodes) along y.
     @param origin Lower edge of the first cell (0 for the FVM, -dx/2 for the FDM) in m.
-    @return None.
+    @return List of (rows, cols, w, G) blocks, the format of `viawell.build`.
     """
     b = problem.board
     m = b.materials
     L = gz.shape[0] + 1
     net._via_blocks = []
-    net.gz_via = np.zeros_like(gz)
+    blocks = []                                                            # the format of `viawell.build`: (rows, cols, w, G), written into the matrix by the program's _assemble
+    gz_pt = np.zeros_like(gz)                                              # kept on `net._gz_via_hook`; the patched constructor copies it to `net.gz_via` (see `patched_edge`)
+    net._gz_via_hook = gz_pt
     cover = getattr(net, "cover", None)
     rt_factor = OPTS["eta"]
     for v in problem.vias:
@@ -100,7 +102,7 @@ def via_hook_edge(net, problem, gz, d, S, dx, dy, nx, ny, origin):
         # The point conductance of the program's loop: the Lumped model keeps reading it from gz_via
         # (the program's own index function: `x // dx` differs from floor(x / dx) for a via exactly on a cell line, which the first run of the own via field found)
         ip, jp = cell_index_of_point(v.x - origin, v.y - origin, nx, ny, dx, dy)
-        net.gz_via[:, ip, jp] += gv
+        gz_pt[:, ip, jp] += gv
         w = vk.disc_target_weights(v.x, v.y, rv, rt, dx, origin)           # as program_patch (rule "disc"): identical when every option is off
         n_all = len(w)
         if OPTS["fold"]:
@@ -147,7 +149,10 @@ def via_hook_edge(net, problem, gz, d, S, dx, dy, nx, ny, origin):
         else:
             g_well = [ei.well_conductance_image(s_eff[l], r_f, rt, c) if s_eff[l] > 0 else 0.0 for l in range(L)]
         STATS["inf_wells"] += int(any(math.isinf(g) for g in g_well))
-        net._via_blocks.append((keys, wv, vk.kron_barrel(gv, g_well)))
+        G = vk.kron_barrel(gv, g_well)
+        net._via_blocks.append((keys, wv, G))
+        blocks.append((np.array([k[0] for k in keys]), np.array([k[1] for k in keys]), wv, G))
+    return blocks
 
 
 @contextlib.contextmanager
@@ -169,6 +174,22 @@ def patched_edge(**options):
         with pp.patched("mw_disc", eta=OPTS["eta"]):
             fvm._via_hook = via_hook_edge                                  # the compiled copies look the hook up by name at call time
             fdm._via_hook = via_hook_edge
+            # The compiled constructor resets `gz_via` after the hook; give the network the point conductance the hook computed (the program's own value)
+            compiled_init = fvm.Network.__init__
+
+            def init_with_gz_via(self, *args, **kwargs):
+                """!
+                @brief Run the compiled FVM constructor, then set `gz_via` from the hook.
+                @param self The network.
+                @param args Positional arguments of fvm.Network.
+                @param kwargs Keyword arguments of fvm.Network.
+                @return None.
+                """
+                compiled_init(self, *args, **kwargs)
+                if hasattr(self, "_gz_via_hook"):
+                    self.gz_via = self._gz_via_hook
+
+            fvm.Network.__init__ = init_with_gz_via
             yield
     finally:
         OPTS.clear()
@@ -178,32 +199,9 @@ def patched_edge(**options):
 @contextlib.contextmanager
 def lumped_sees_gz_via():
     """!
-    @brief Make the Lumped model read `gz + gz_via` (the proposed `gz_via` of the program): the vias stay in its rings as today while the assembled matrix uses the couplings.
-    @details Replaces the name `Network` of `pcbthermal.lumped` by a subclass of `fvm.Network` that adds `gz_via` (set by `via_hook_edge`) to `gz` after the constructor; use it inside
-             `patched_edge`. Without this the patched network has no via in `gz` and the Lumped model would lose its vias.
+    @brief Kept for the studies that call it: since `fix/point-via` the program's Lumped model sums `gz + gz_via` itself, so nothing is installed (a wrapper that added `gz_via`
+           to `gz` would count the vias twice).
+    @details Use it inside `patched_edge`; the patched network carries the program's own `gz_via` (see `patched_edge`).
     @return Context manager.
     """
-    from pcbthermal import fvm, lumped
-    base = fvm.Network
-
-    class LumpedNetwork(base):
-        """!@brief fvm.Network whose `gz` includes the point via conductance, for the ring sums of the Lumped model."""
-
-        def __init__(self, *args, **kwargs):
-            """!
-            @brief Build the network, then add `gz_via` to `gz`.
-            @param args Positional arguments of fvm.Network.
-            @param kwargs Keyword arguments of fvm.Network.
-            @return None.
-            """
-            base.__init__(self, *args, **kwargs)
-            gv = getattr(self, "gz_via", None)
-            if gv is not None:
-                self.gz = self.gz + gv
-
-    old = lumped.Network
-    lumped.Network = LumpedNetwork
-    try:
-        yield
-    finally:
-        lumped.Network = old
+    yield                                                                  # nothing to install: the program's Lumped model sums `gz + gz_via` itself

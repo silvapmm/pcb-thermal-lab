@@ -298,3 +298,9 @@ Temperatures in degrees C; only cells that moved by more than 0.05 are listed; *
 ## Reproduce
 
 `sh research/via-real-board/scripts/run_s1.sh`, `run_s2.sh`, `run_s2b.sh`, `run_s2c.sh`, `run_s2d.sh` from the repository root (no network: the boards are read from `research/gerber-import/data`, found by `lib/paths.py`), then `scripts/study_block_limit.py`, `check_reference.py`, `check_image_cost.py`, `make_diagrams.py`, `make_figures.py`; tests: `.venv/bin/python -m pytest -q research/via-real-board/tests` (26 tests, run from the repository root).
+
+### Note after `fix/point-via` and the laminate rule
+
+`gz_via` and the mean-potential couplings (`viawell.py`, `net.via_blocks`) are now in the program, and the Lumped model sums `gz + gz_via` itself, so the line proposed for `lumped.py` in section 4.7 and `INTEGRATION.md` exists. `lib/edge_patch.py` was adapted to the new contract: the hook returns the blocks in the format of `viawell.build` and the patched constructor sets `gz_via`; the two `gz_via` tests now compare the patched `gz_via` with the program's own. The numbers of the earlier sections are those of the program before these changes and were not re-run.
+
+`lumped_sees_gz_via` is now a no-op (the program's Lumped model sums `gz + gz_via` itself; a wrapper would count the vias twice), so the column "patched without `gz_via`" of `study_lumped_gzvia.py` no longer shows the loss of the vias (the difference of 10 to 20 K of section 4.7 belongs to the earlier program) and its "patched with" column equals the program.
