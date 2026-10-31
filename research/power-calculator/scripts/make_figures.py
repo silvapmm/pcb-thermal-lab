@@ -175,7 +175,7 @@ def fig_design_coverage():
         ax.invert_yaxis()
         ax.set_xlabel("recovered power (W)")
         ax.set_title(board, fontsize=9)
-    fig.suptitle("The band at the four levels of the design term: blue = holds the true power (2 of 4 boards at hand and at estimated), red = does not; black tick = nominal", fontsize=9.5)
+    fig.suptitle("The band at the four levels of the design term: blue = holds the true power (1 of 4 boards at hand, 2 of 4 at estimated), red = does not; black tick = nominal", fontsize=9.5)
     fig.tight_layout(rect=(0, 0, 1, 0.94))
     fig.savefig(OUT / "fig_06_design_term_coverage.png", dpi=110)
     plt.close(fig)
