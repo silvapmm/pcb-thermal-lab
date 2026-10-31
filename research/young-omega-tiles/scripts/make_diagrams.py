@@ -164,7 +164,8 @@ def fig_lattice_cell(path):
     b.set_xlim(0, 10)
     b.set_ylim(0, 8)
     for k, y in enumerate((6.4, 4.4, 2.4, 0.4)):
-        dk.layer(b, 0.5, y, 9, 0.5, dk.COPPER, f"plane {k + 1}", 7)
+        dk.layer(b, 0.5, y, 9, 0.5, dk.COPPER, "", 7)
+        b.text(8.2, y + 0.25, f"plane {k + 1}", ha="center", va="center", fontsize=7)   # label clear of the barrel and the well
     for y in (5.0, 3.0, 1.0):
         dk.layer(b, 0.5, y, 9, 1.4 - 0.0, dk.FR4, "", 7)
     dk.layer(b, 4.7, 0.4, 0.6, 6.5, "#b87333", "", 7)
@@ -243,7 +244,7 @@ def fig_krogh_rings(path):
     a.add_patch(Rectangle((-1.5, -1.5), 3, 3, facecolor="#f6c6c6", edgecolor="#d62728"))
     a.text(0, 0, "source", ha="center", fontsize=8)
     a.add_patch(Circle((4.4, 0.0), 0.18, facecolor="#b87333", edgecolor="k"))
-    a.annotate("lone via in ring 4\n(ring mean temperature, one radius:\nthe angular gradient is lost)", (4.4, 0), xytext=(1.5, 5.6), arrowprops=dict(arrowstyle="->"), fontsize=8)
+    a.annotate("lone via in one ring\n(ring mean temperature, one radius:\nthe angular gradient is lost)", (4.4, 0), xytext=(1.5, 5.6), arrowprops=dict(arrowstyle="->"), fontsize=8)
     for th in np.linspace(0, 2 * np.pi, 40):
         a.plot([3.8 * math.cos(th)], [3.8 * math.sin(th)], ".", color="#d62728", ms=2)
     a.set_title("PLAN: rings around the footprint; a via outside it sits in one ring", fontsize=9)
@@ -256,7 +257,7 @@ def fig_krogh_rings(path):
         b.add_patch(Rectangle((7.5, y + 0.1), 0.3, 0.3, facecolor="#b87333"))
     b.plot([7.65, 7.65], [2.1, 6.5], color="#b87333", lw=4)
     b.text(8.0, 4.3, "barrel", fontsize=8)
-    b.text(0.5, 7.4, "$R_w$ = $R_K$(S, $R_c$, a); $R_c$ = radius of the cell of one via (micro well)\n+ cluster disc ln(R/r$_{cl}$)/(2$\\pi$S) (macro well)", fontsize=8)
+    b.text(0.5, 7.4, "$R_w$ = $R_K$(S, $R_c$, a); $R_c$ = radius of the cell of one via (micro well)\n+ $N_g R_K$(S, $R_{macro}$, $r_{cl}$) for a group of $N_g$ vias (macro well)", fontsize=8)
     b.set_title("SECTION / network: one well per plane in series with the barrel", fontsize=9)
     dk.save(fig, path)
 
