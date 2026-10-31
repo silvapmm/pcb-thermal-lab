@@ -24,15 +24,15 @@ the uniform-board limit P / (h W H); the other modes add the lateral spreading p
 model needs laterally uniform properties, with these refinements:
 
 - Copper fill is averaged per layer with a weight equal to the influence of the heaters
-  (the fin Green function K0(r / lambda), lambda = sqrt(S / h)), so copper near a heater counts
+  (the fin Green function K0(r / lambda_l), lambda_l = sqrt(S_l / g_loss) the layer's own fin length), so copper near a heater counts
   more than copper far away.
 - Vias and heatsinks are local. They are removed from the uniform problem and added back through
   a Green-function (Woodbury) correction: the board is cut into tiles of a few millimetres,
   every tile with a via or a heatsink gets a lumped conductance, and the small dense system
-  (I + G C) y = y0 gives the tile temperatures, where G is the modal response of the uniform
-  board and C holds the local conductances.
+  (I + G_mod C_loc) y = y0 gives the tile temperatures, where G_mod is the modal response of the uniform
+  board between tiles and C_loc holds the local conductances.
 - With vias the tile is min(1 mm, 0.75 of the median nearest-neighbour distance), at least 0.25 mm, the barrel conductance of a via that is alone at the scale of a
-  tile is shared bilinearly among the four tiles around it, and the diagonal of G gets a self-term that makes the tile read the temperature at the wall of the barrel
+  tile is shared bilinearly among the four tiles around it, and the diagonal of G_mod gets a self-term that makes the tile read the temperature at the wall of the barrel
   instead of the tile mean (viaconstriction.py). Boards without vias keep the 2.5 to 5 mm tiles and are unchanged.
 - A validity check adds warnings when the copper is far from uniform around the heaters.
 Strongly non-uniform copper is still beyond this model: use the FVM then.
@@ -99,7 +99,7 @@ def _tile_grid(W, H, lam):
     @brief Tile grid used for the local corrections.
     @param W Board width (m).
     @param H Board height (m).
-    @param lam Fin length lambda = sqrt(S / h) (m).
+    @param lam Fin length of the whole stack, lambda = sqrt(sum_l S_l / h_tot) (m).
     @return Tuple (ntx, nty, tw, th): tile counts and tile size in metres.
     """
     target = min(max(lam / 4.0, 2.5e-3), 5e-3)            # Tiles between 2.5 and 5 mm, below lambda / 4
@@ -385,7 +385,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 C[np.ix_(rows_e, rows_e)] += e["B"]
                 C[rows_e, rows_e] -= e["face"]                 # ... and the face under it no longer loses heat to the air
             lhs = G @ C
-            lhs[np.diag_indices_from(lhs)] += 1.0                  # I + G C in place: the identity matrix and the sum are two more matrices of (Nt L)^2 entries
+            lhs[np.diag_indices_from(lhs)] += 1.0                  # I + G_mod C_loc in place: the identity matrix and the sum are two more matrices of (Nt L)^2 entries
             y = np.linalg.solve(lhs, y0.reshape(-1))
             del lhs
             for e in bt:                                       # Heat taken by the exposed surface of every block
