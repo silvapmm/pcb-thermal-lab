@@ -56,6 +56,9 @@ def test_pad_rows_are_reproduced_and_have_the_stated_shape():
         res = B.all_models(RB.pad_board(r), float(r["cell_mm"]), None, ("fvm",))
         assert abs(res["fvm"][0] / float(r["fvm_K"]) - 1) < 1e-4
     err = {r["tag"]: float(r["fvm_K"]) / float(r["ref_K"]) - 1 for r in rows}
-    assert err["pad6-full"] < err["pad10-full"] < err["pad14-full"] < err["pad20-full"] < err["pad26-full"] <= 0.0
+    # With the program's laminate rule (the baseline is regenerated for it) the shortfall is 1.05, 0.67, 0.41, 0.15 and 0.15 % for the pads of 6 to 26 mm: it still grows as the pad gets smaller,
+    # but the two largest pads are equal to within 0.1 point (before the rule: 10.5, 4.7, 2.3, 0.9 and 0.3 %, strictly ordered)
+    assert err["pad6-full"] < err["pad10-full"] < err["pad14-full"] < err["pad20-full"] <= 0.0
+    assert abs(err["pad26-full"] - err["pad20-full"]) < 1e-3 and err["pad26-full"] <= 0.0
     assert err["gap3.2-full"] < err["gap1.6-full"] < err["gap0.4-full"]
     assert all(abs(float(r["ref_balance"]) - 1) < 1e-6 for r in rows)

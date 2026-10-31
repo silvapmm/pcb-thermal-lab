@@ -979,3 +979,11 @@ The sections that run `pcbthermal` were re-run on `develop` at `a6f822b` and rep
 ### R5. Formulas written from memory, checked independently
 
 `tests/test_conduction.py::test_hashin_shtrikman_and_bruggeman_against_independent_forms`: each 2D Hashin-Shtrikman bound of `conduction.py` equals the 2D Maxwell-Garnett form of circular inclusions derived separately (to 1e-12); the 2D Bruggeman root obeys the Keller-Dykhne duality k(a, b) k(b, a) = a b exactly (its f = 1/2 value sqrt(a b) is Dykhne's); the numerical cell problem of a copper disc in a square cell (80 x 80 pixels, f = 0.05 to 0.2) lies on the lower bound within 0.1 %, as it should for small f, and Bruggeman 0.3 to 4 % above it. The Wiener bounds were re-derived (insulated rows: a lower bound by the complementary-energy principle; equipotential columns: an upper bound by the Dirichlet principle) and match the code. Figure 22's checkerboard lies above the harmonic mean (2.24 against 1.81 laminates) and below the Hashin-Shtrikman lower bound (2.35). No textbook was opened.
+
+## Update for the program of 2.4.5 (laminate rule)
+
+`lib/faces.py`: the imported face conductances and the pixel reference already hold the laminate in the plane of the copper node, so `solve_faces` and `solve_fine` build the network with `ladder=False`
+(the program's laminate nodes would count it twice); `solve_today` (the program's fill-fraction run) takes `rule=True|False`. Numbers that moved with the rule (4.31, 4.35, 4.37, not rewritten):
+our IC board, fill fraction against the pixel reference -4.8 % to -2.4 % (faces +7.3 %, unchanged); rectangle board at 0.25 mm: FDM against the FVM at 0.1 mm -4.13 % to -4.90 % (shift 0.4) and
+-2.87 % to -3.23 % (shift 0), FVM at 1 mm +1.35 % to +2.20 % (shift 0) and -6.9 % to -8.3 % (shift 0.4), 3D solid above the FVM +8.5 % to +3.0 %, Lumped -15.9 % to -20.2 %, Analytic -26.4 % to -30.2 %.
+With the rule switched off the program reproduces the earlier numbers exactly.

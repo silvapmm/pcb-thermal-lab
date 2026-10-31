@@ -193,14 +193,16 @@ def solve(net, gaps, kz, kxy, parts, flags, skin=None, tcu=None):
 
 def network(problem, cell_mm):
     """!
-    @brief The program's own network of a problem on a square grid of the given cell (arrays only, no matrix).
+    @brief The program's own network of a problem on a square grid of the given cell (arrays only, no matrix), **without the laminate rule** (`ladder=False`).
+    @details Since fix/laminate-nodes the program adds the laminate nodes itself (sub-gaps where copper is absent, extra node layers, ragged gz); this folder builds those nodes on a copy, so it starts
+             from the network of the earlier versions (one node per copper layer, a gz per gap), which is what `solve` indexes.
     @param problem A Problem.
     @param cell_mm Cell size in mm.
     @return fvm.Network.
     """
     b = problem.board
     nx, ny = int(round(b.width * 1e3 / cell_mm)), int(round(b.height * 1e3 / cell_mm))
-    return fvm.Network(problem, nx, ny, assemble=False)
+    return fvm.Network(problem, nx, ny, assemble=False, ladder=False)
 
 
 def gap_data(problem):

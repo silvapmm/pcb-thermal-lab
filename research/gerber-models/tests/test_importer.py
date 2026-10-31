@@ -40,13 +40,14 @@ def test_faces_of_the_programs_own_formula_reproduce_the_programs_run(tmp_path):
     ib, p = board(tmp_path)
     sheets = im.layer_sheets(ib, p, "binary")
     mine = im.solve_faces(ib, p, im.layer_faces(sheets, ib, p, "fill"))
-    program = im.solve_today(ib, p, "binary")
+    program = im.solve_today(ib, p, "binary", rule=False)       # the network the faces are built for (the program without its laminate rule)
     assert np.abs(mine - program).max() < 1e-6
 
 
 def test_imported_faces_and_the_fill_fraction_on_our_board(tmp_path):
     """!
-    @brief On our sparse IC board the program's fill fraction is cool (about -5 %) and the imported flow-based faces hot (about +7 %) against the program on the pixel grid.
+    @brief On our sparse IC board the program's fill fraction is cool (about -5 % before the laminate rule, -2.4 % with it) and the imported flow-based faces hot (about +7 %) against the program on the pixel grid.
+    @details The faces and the pixel reference are built on the network without the laminate rule (lib/faces.py: their sheets already hold the laminate), so the +7.3 % is unchanged.
     @details Review: this test said the faces were within 6 % and closer than the fill fraction. That held on the program before its laminate nodes (+4.0 against -5.0 %);
              on the program with them the faces are +7.3 % and the fill -4.8 % (README 4.31). Against an independent 3D solution of the board the order is the other way
              (faces -1.2 %, fill -12.2 %, README Review R2), because the program's pixel run is itself 7.6 % cool there.
@@ -57,5 +58,8 @@ def test_imported_faces_and_the_fill_fraction_on_our_board(tmp_path):
     ref = im.block_mean(im.solve_fine(ib, p, "binary"), ib)[0][17:23, 17:23].mean()
     flow = im.solve_faces(ib, p, im.layer_faces(im.layer_sheets(ib, p, "binary"), ib, p, "flow"))[0][17:23, 17:23].mean()
     today = im.solve_today(ib, p, "binary")[0][17:23, 17:23].mean()
+    earlier = im.solve_today(ib, p, "binary", rule=False)[0][17:23, 17:23].mean()
     assert 0.03 < flow / ref - 1 < 0.10
-    assert -0.08 < today / ref - 1 < -0.02
+    # The program of 2.4.5 has the laminate rule: its fill-fraction run is -2.4 % of the pixel reference (measured), the earlier network -4.8 %
+    assert -0.08 < earlier / ref - 1 < -0.02
+    assert -0.04 < today / ref - 1 < 0.0

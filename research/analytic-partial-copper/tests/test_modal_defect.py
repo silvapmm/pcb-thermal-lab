@@ -5,6 +5,7 @@
 @brief Tests of the copy of the modal solution (equals the program), of the candidate on uniform boards (equals the program), against the FVM with the same nodes, the energy balance and the reference.
 """
 
+import contextlib
 import os
 import sys
 from dataclasses import replace
@@ -18,6 +19,24 @@ import defect as D                                                           # n
 import modal as M                                                            # noqa: E402
 import pads as P                                                             # noqa: E402
 from pcbthermal import SolverOptions, laminate, simulate                     # noqa: E402
+
+
+
+@contextlib.contextmanager
+def _earlier_laminate():
+    """!
+    @brief Make the program build its network of the versions before fix/laminate-nodes (n legacy laminate nodes under the copper, no rule) while inside; restored on exit.
+    @details The candidate of this folder is the construction of those versions (n nodes through the laminate in every cell); since the program applies the rule itself (sub-gaps only where
+             copper is absent, plus a face term) the comparison "same nodes, same model" needs the program's old construction, which `laminate.uses_rule` switches off.
+    @return Context manager.
+    """
+    old = laminate.uses_rule
+    laminate.uses_rule = lambda problem: False
+    try:
+        yield
+    finally:
+        laminate.uses_rule = old
+
 
 SMALL = dict(size=24.0, source=4.0, h_top=10.0, h_bottom=15.0)
 
@@ -57,9 +76,10 @@ def test_candidate_follows_the_fvm_with_the_same_nodes():
     p = P.problem(bd)
     keep = laminate.LAMINATE_NODES
     try:
-        for n in (1, 2, 4):
+        for n in (1, 2, 4):  # (the program is run without its rule: see _earlier_laminate)
             laminate.LAMINATE_NODES = n
-            fvm = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5)).results["fvm"].t_max - p.board.ambient
+            with _earlier_laminate():
+                fvm = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5)).results["fvm"].t_max - p.board.ambient
             cand = D.solve(p, n_sub=n, tile_mm=0.5, cell_mm=0.5, n_terms=200)["max"]
             assert abs(cand / fvm - 1.0) < 0.015, (n, cand, fvm)
     finally:
@@ -174,7 +194,8 @@ def test_copper_edge_inside_a_tile_runs_cool():
         laminate.LAMINATE_NODES = 2
         for pad in (8.0, 8.5):
             p = P.problem(P.Pad(layers=1, pad=pad, **SMALL))
-            fvm = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.25)).results["fvm"].t_max - p.board.ambient
+            with _earlier_laminate():
+                fvm = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.25)).results["fvm"].t_max - p.board.ambient
             errs[pad] = D.solve(p, n_sub=2, tile_mm=1.0, cell_mm=0.25)["max"] / fvm - 1.0
     finally:
         laminate.LAMINATE_NODES = keep

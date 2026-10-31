@@ -444,3 +444,11 @@ Against the pad and gap rows (h 10, 3 mm source, 0.5 mm cell) the FVM error as a
 ## Library update after the point via and the via constriction of the program
 
 `lib/gapnodes.py` uses `bare-spot-under-source/lib/layered.py`, which now takes the vias from the program's mean-potential couplings (see that README); the tests pass, the numbers of this README were NOT re-run, and the rows with vias (the example projects) move with the change of the base FVM (example board, 1 mm: 85.81 to 85.22 K).
+
+## Update for the program of 2.4.5 (laminate rule)
+
+The program now has the rule that this folder proposed (laminate nodes where copper is absent). `lib/layered.py` (shared with bare-spot-under-source) builds the old network, and
+`boards.program_without_rule()` gives the program of 2.4.4 for the test "n = 1 is the program". `baseline/pads.csv` was regenerated with `scripts/rerun_baseline.py --update` (`uniform.csv` did not move):
+the FVM error against the reference changes from -4.7 % to -0.7 % (10 mm pad, full bottom), -10.5 % to -1.1 % (6 mm), -2.3 % to -0.4 % (14 mm), -0.9 % to -0.15 % (20 mm), -0.3 % to -0.15 % (26 mm),
+-10.2 % to -2.3 % (gap 3.2 mm); largest movement of a peak: FVM 10.6 %, FDM 6.9 % of the rise. The other baseline files (`gap_grading.csv`, `gap_nodes.csv`, `real_boards.csv`,
+`validation_impact.csv`) were not regenerated and hold the program of 2.4.4. The shape test now allows the 20 and 26 mm pads to be equal (0.15 % each).
