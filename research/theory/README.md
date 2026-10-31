@@ -60,7 +60,7 @@ Code and documents are those of `develop`; "inv." is the investigation that hold
 
 ### 3.1 Diagrams and illustrations
 
-The 37 pictures of this folder are in `figures/`: 30 diagrams (figures 1 to 30, `scripts/make_diagrams.py`, shared shapes in `research/diagram_kit.py`), three data figures (31 to 33, `scripts/make_figures.py`, section 3.1.1) and four pictures of the part across the board outline (34 to 37, `scripts/make_fig_part_outline.py`, about 6 minutes). The diagrams are embedded in topics 01 to 16, 25, 26 and 28 to 37. Topics 17 to 24 and 27 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
+The 41 pictures of this folder are in `figures/`: 33 diagrams (figures 1 to 30, 38, 39 and 41, `scripts/make_diagrams.py`, shared shapes in `research/diagram_kit.py`), four data figures (31 to 33 and 42, `scripts/make_figures.py`, section 3.1.1) and four pictures of the part across the board outline (34 to 37, `scripts/make_fig_part_outline.py`, about 6 minutes). The diagrams are embedded in topics 01 to 16, 25, 26 and 28 to 37. Topics 17 to 24 and 27 embed the pictures of the investigations that made them, by relative path, so a picture exists once and is not copied.
 
 | File | Drawn in | Topic |
 | :-- | :-- | :-- |
@@ -101,6 +101,11 @@ The 37 pictures of this folder are in `figures/`: 30 diagrams (figures 1 to 30, 
 | `figures/fig_35_part_weight_rules.png` | this folder (`scripts/make_fig_part_outline.py`) | 28 |
 | `figures/fig_36_part_example_t.png` | this folder (`scripts/make_fig_part_outline.py`, data) | 28 |
 | `figures/fig_37_part_edge_shift.png` | this folder (`scripts/make_fig_part_outline.py`, data) | 28 |
+| `figures/fig_38_document_map.png` | this folder | theory header |
+| `figures/fig_39_stackup_slabs.png` | this folder | 01, 22 |
+| `figures/fig_41_block_section.png` | this folder | 11 |
+| `figures/fig_42_top_path_split.png` | this folder (data) | 09 |
+| `figures/fig_44_laminate_nodes.png` | this folder | 01 |
 
 Curves that are only illustrative (the shape of a series, a fixed point with arbitrary numbers, a pulse train) say so in their italic line; no number of these pictures is a result. The numbers quoted in the topics come from the project documents and the READMEs of the investigations and are marked with the source.
 
@@ -118,7 +123,26 @@ Three figures are computed, not drawn: every number in them comes from a closed 
 
 ![Thick-plate correction](figures/fig_33_thick_plate_correction.png)
 
-*Figure 33 (`figures/fig_33_thick_plate_correction.png`): the through-thickness correction `q'' t / (2 k)` against the thickness of the plate for copper (385 W/mK), aluminium (204), carbon steel (54) and FR-4 (0.3 through the thickness), for the flux of U1 of the example board (4 W over 100 mm2, 40 kW/m2), with the limit of the thick-plate check, 5 % (`checks.THICK_PLATE_LIMIT`) of the 60.87 K rise: 3.04 K. The thickness at the limit is 58.6 mm for copper, 31 mm for aluminium, 8.2 mm for steel and 0.046 mm for FR-4; the 35 um copper layer is 3 orders of magnitude below the limit. The rise here is that of the hottest point of the board (FVM, 0.5 mm), a stand-in for the rise of the heater that the check uses. Computed by `scripts/make_figures.py`.*
+*Figure 33 (`figures/fig_33_thick_plate_correction.png`): the through-thickness correction `q'' t / (2 k)` against the thickness of the plate for copper (385 W/mK), aluminium (204), carbon steel (54) and FR-4 (0.3 through the thickness), for the flux of U1 of the example board (4 W over 100 mm2, 40 kW/m2), with the limit of the thick-plate check, 5 % (`checks.THICK_PLATE_LIMIT`) of the 60.17 K rise: 3.01 K. The thickness at the limit is 57.9 mm for copper, 30.7 mm for aluminium, 8.12 mm for steel and 0.0451 mm for FR-4; the 35 um copper layer is 3 orders of magnitude below the limit. The rise here is that of the hottest point of the board (FVM, 0.5 mm), a stand-in for the rise of the heater that the check uses. Computed by `scripts/make_figures.py`.*
+
+### 3.1.2 Figures added for the rewrite of `docs/theory.md`
+
+![Map of the theory](figures/fig_38_document_map.png)
+
+*Figure 38 (`figures/fig_38_document_map.png`): the board of the Problem is idealised in layers (section 1.2) for the FVM, FDM, Lumped and Analytic models; the 3D solid builds real slabs from the same board. Underneath, the pieces that the models share (metal blocks, vias, the heat transfer coefficients and their loop, parts, profiles, the checks). Schematic, no numbers.*
+
+![Advanced stack-up](figures/fig_39_stackup_slabs.png)
+
+*Figure 39 (`figures/fig_39_stackup_slabs.png`): left, three copper layers and two gaps of different thickness (illustrative): the node of a layer represents its copper plus half of each adjacent gap, so the slabs add up to the board thickness; middle, the network the nodes make, with `g_j = k_th,j / d_j` per gap; right, a gap made of several sheets: in series through the gap, side by side along it (`combine_sheets`).*
+
+![Metal block section](figures/fig_41_block_section.png)
+
+*Figure 41 (`figures/fig_41_block_section.png`): left, a metal block on the board in section (illustrative proportions): the heat enters the block through the interface `R''` over copper, and over bare laminate also across half a slab of FR-4; it leaves through the exposed face (fins, `h_exp = h_face r_fin + h_extra`) and the side walls (`h_wall = h_face + h_extra`); the board face under the block loses nothing (factor `1 - c`). Right, the cell network these paths make.*
+
+![Top path split](figures/fig_42_top_path_split.png)
+
+*Figure 42 (`figures/fig_42_top_path_split.png`): left, a part with a top path: the junction joins the ambient through `R_top` and the board through `theta` and `R_b`; middle, the residual `g(P_b) = P_b - P + p_top` of the split, computed with `pcbthermal.analysis.part_split` for a board resistance below (A) and above (B) the top resistance (illustrative values `P` = 2 W, `theta` = 5 K/W, `R_top` = 20 K/W, `R_b` = 8 and 40 K/W): monotone, one root, a kink where the top heat is clipped at `P` (case B); right, the plain fixed point `P_b <- P - p_top(T_max(P_b))` on case B, slope -1.6: it jumps between 0 and 1.6 W and is not used. Computed by `scripts/make_figures.py`.*
+
 
 ### 3.2 Coverage of the project documents
 
@@ -164,7 +188,7 @@ Every section that explains a model, an equation or a method has a picture, in t
 | `README.md` | this index |
 | `BIBLIOGRAPHY.md` | every source: key, citation, address, reading status, topics that use it; the list of what to read next |
 | `topics/` | the 37 topic files |
-| `figures/` | `fig_01` to `fig_37`; 1 to 30 diagrams, 31 to 33 data figures, 34 to 37 the part across the outline |
+| `figures/` | `fig_01` to `fig_39`, `fig_41`, `fig_42`, `fig_44`; 1 to 30, 38, 39, 41 and 44 diagrams, 31 to 33 and 42 data figures, 34 to 37 the part across the outline (numbers 40 and 43 are not used: the figures planned there were not needed) |
 | `scripts/make_diagrams.py` | draws the 30 diagrams (no data, no program) |
 | `scripts/make_figures.py` | draws the three data figures 31 to 33 from closed forms and the program (about 3 minutes) |
 | `scripts/make_fig_part_outline.py` | draws figures 34 to 37 (a part across the board outline: the cut cell, the three rules, the example board cut to a T, the edge-shift sweep) with the program (about 6 minutes) |

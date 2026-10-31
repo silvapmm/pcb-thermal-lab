@@ -4,6 +4,10 @@
 
 *Figure 9 (`figures/fig_09_part_runaway.png`): left, the worst case: all the power enters the board and the junction sits a series resistance `theta` above the hottest pad point; middle and right, the power that grows with temperature, `P(Tj) = P0 [1 + alpha (Tj - 25)]`, against what the board removes, `(Tj - T_amb) / R`: they cross at the fixed point (stable, `alpha R P0 < 1`) or never cross (thermal runaway, `alpha R P0 >= 1`). The numbers of the curves are illustrative.*
 
+![Top path split](../figures/fig_42_top_path_split.png)
+
+*Figure 42 (`figures/fig_42_top_path_split.png`): left, a part with a top path: the junction joins the ambient through `R_top` and the board through `theta` and `R_b`; middle, the residual `g(P_b) = P_b - P + p_top` of the split, computed with `pcbthermal.analysis.part_split` for a board resistance below (A) and above (B) the top resistance (illustrative values `P` = 2 W, `theta` = 5 K/W, `R_top` = 20 K/W, `R_b` = 8 and 40 K/W): monotone, one root, a kink where the top heat is clipped at `P` (case B); right, the plain fixed point `P_b <- P - p_top(T_max(P_b))` on case B, slope -1.6: it jumps between 0 and 1.6 W and is not used. Computed by `scripts/make_figures.py`.*
+
 See also the sections of the package drawn from the real section: `research/component-heatsink/figures/fig_05_part_and_top_path_schematic.png` and `fig_06_package_sections.png`.
 
 ## 1. What it is
