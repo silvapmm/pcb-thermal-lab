@@ -103,6 +103,9 @@ def fig_edge_cell(path):
                 ax.plot(cells, [pct(c) for c in r[3:]], "o-", label=r[2], color=COLOURS.get(r[2]))
         ax.set_xscale("log")
         ax.invert_xaxis()
+        ax.set_xticks(cells)
+        ax.set_xticklabels([f"{c:g}" for c in cells])
+        ax.minorticks_off()
         ax.axhline(0, color="k", linewidth=0.6)
         ax.set_title(f"via {d} mm from the edge", fontsize=9)
         ax.set_xlabel("cell (mm)")
@@ -209,7 +212,7 @@ def fig_scaling(path):
     ts = [t for t in tables(p[0]) if t["title"].startswith("own via field")]
     fig, axs = plt.subplots(1, 2, figsize=(11, 3.8))
     for t in ts:
-        cell = t["title"].split("cell")[1].strip()
+        cell = ("pitch " if "fixed pitch" in t["title"] else "pad ") + t["title"].split("cell")[1].strip()
         for tr, ls in (("program", "--"), ("mw", "-")):
             rows = [r for r in t["rows"] if r[0].endswith(tr) and "skipped" not in r[1]]
             if not rows:
@@ -235,8 +238,10 @@ def fig_sor(path):
     p = need("sor_real.txt")
     if not p:
         return
-    t = tables(p[0])[0]
-    rows = [r for r in t["rows"] if "skipped" not in r[5]]
+    rows = list(tables(p[0])[0]["rows"])
+    if (OUT / "sor_real_05.txt").exists():
+        rows += tables(OUT / "sor_real_05.txt")[0]["rows"]
+    rows = [r for r in rows if "skipped" not in r[5] and r[0] != "alleg"]            # no figure from the Allegro board (licence not stated)
     lab = [f"{r[0]} {r[1]} mm" for r in rows]
     fig, ax = plt.subplots(figsize=(10, 3.8))
     x = np.arange(len(rows))
@@ -294,6 +299,8 @@ def fig_convergence(path):
         return
     fig, ax = plt.subplots(figsize=(8, 4.2))
     for t in tables(p[0]):
+        if t["title"].startswith("alleg"):                                   # no stated licence: numbers only, nothing drawn from this board
+            continue
         for r in t["rows"]:
             if "via effect" in r[2]:
                 cells = [float(re.sub(r"[^\d.]", "", h)) for h in t["header"][3:-1]]
@@ -301,6 +308,9 @@ def fig_convergence(path):
                 ax.plot(cells, vals, "o-" if r[1] == "mw" else "s--", color=COLOURS.get("mw" if r[1] == "mw" else "program"), alpha=0.8, label=f"{t['title'].split(':')[0]} {r[0]} {r[1]}")
     ax.set_xscale("log")
     ax.invert_xaxis()
+    ax.set_xticks([2, 1, 0.5, 0.25])
+    ax.set_xticklabels(["2", "1", "0.5", "0.25"])
+    ax.minorticks_off()
     ax.set_xlabel("cell (mm)")
     ax.set_ylabel("via effect E (K)")
     ax.legend(fontsize=5.5, ncol=2)

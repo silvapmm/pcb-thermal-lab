@@ -77,14 +77,39 @@ def fills_table(cell_mm=0.5):
     @param cell_mm Cell in mm.
     @return str Markdown table of the maximum temperature (ambient plus rise) per model and fill.
     """
-    lines = ["| fill | fvm | fdm | solid3d | lumped | analytic |", "| :-- | --: | --: | --: | --: | --: |"]
+    lines = ["| fill | fvm | fdm | solid3d (1 mm) | lumped | analytic |", "| :-- | --: | --: | --: | --: | --: |"]
     for name, k in (("open", 0.0), ("resin 0.3", 0.3), ("paste 8", 8.0), ("copper 385", 385.0)):
         p = example_board()
         for v in p.vias:
             v.fill_k = k
         # No patch of its own: the caller has installed (or not) the treatment, and the copies of the program cannot be nested
-        row = [runs.rise(p, m, cell_mm, runs.PROGRAM) for m in ("fvm", "fdm", "solid3d", "lumped", "analytic")]
+        # The 3D solid at 0.5 mm has 512 000 unknowns (over the program's limit and over this run's memory): it is taken at 1 mm
+        row = [runs.rise(p, m, 1.0 if m == "solid3d" else cell_mm, runs.PROGRAM) for m in ("fvm", "fdm", "solid3d", "lumped", "analytic")]
         lines.append(f"| {name} | " + " | ".join(f"{x + p.board.ambient:.2f}" for x in row) + " |")
+    return "\n".join(lines)
+
+
+def scenario_table(cell_mm=1.0):
+    """!
+    @brief `validation_study.scenario_table` with the 3D solid skipped (shown as "-") where it would exceed the program's own size limit, instead of stopping (the 36-slab stress case has 360 000 unknowns).
+    @param cell_mm Cell in mm.
+    @return str Markdown table (same columns as the program's).
+    """
+    from pcbthermal import analytic, check_problem, fdm, fvm, lumped
+    import accuracy_study
+    import stress_study
+    import validation_study as vs
+    lines = ["| Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |", "| :-- | --: | --: | --: | --: | --: | :-: |"]
+    for name, p in accuracy_study.cases() + stress_study.cases():
+        f, d = fvm.solve_steady(p, cell_mm), fdm.solve_steady(p, cell_mm)
+        try:
+            s3 = solid3d.solve_steady(p, cell_mm)
+            s3txt = f"{s3.t_max:.2f} ({vs.error(s3, f):+.1f} %)"
+        except ValueError:
+            s3txt = "-"
+        l, a = lumped.solve_steady(p), analytic.solve_steady(p)
+        warn = "warns" if (check_problem(p, cell_mm) + a.warnings) else "-"
+        lines.append(f"| {name} | {f.t_max:.2f} | {d.t_max:.2f} ({vs.error(d, f):+.1f} %) | {s3txt} | {l.t_max:.2f} ({vs.error(l, f):+.1f} %) | {a.t_max:.2f} ({vs.error(a, f):+.1f} %) | {warn} |")
     return "\n".join(lines)
 
 
@@ -100,11 +125,11 @@ def run_tables(patched):
     with solid3d.size_limit(solid3d.MAX_CELLS):
         if patched:
             with ep.patched_edge(**runs.MW_BOARD), sp.patched("disc_eta"), ep.lumped_sees_gz_via():
-                out["2"] = vs.scenario_table(1.0)
+                out["2"] = scenario_table(1.0)
                 out["2.1"] = vs.mesh_table()
                 out["18"] = fills_table()
         else:
-            out["2"] = vs.scenario_table(1.0)
+            out["2"] = scenario_table(1.0)
             out["2.1"] = vs.mesh_table()
             out["18"] = fills_table()
     return out
