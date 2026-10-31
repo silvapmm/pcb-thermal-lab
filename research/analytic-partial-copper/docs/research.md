@@ -1,0 +1,8 @@
+# Analytic model on partial copper (A2): text for `docs/research.md`
+
+**Open, awaiting the reviewer.** Evidence: `research/analytic-partial-copper/`.
+
+* **What was found.** Against a resolved 3D solution the Analytic model is -37 to +9 % on a one-layer board with a copper pad of 6 to 40 mm and -65 to -0.6 % on two layers (60 mm board, 6 mm part); on a board with copper everywhere it is within 1.2 %. It is too cool for pads up to 20 mm and too hot (+4.4 and +8.6 %) for one-layer pads of 30 and 40 mm.
+* **Causes.** The cosine series has no pad edge (modes 300 to 600 move the peak by 8e-6): the copper enters as one weighted fill (`K0(r / lambda)`) and a uniform sheet; the split into the cost of the uniform sheet and the cost of the nodes (one per copper layer; the laminate of a one-layer board as a film) is -12.6 and -16.3 points of -28.9 % (one layer, 10 mm pad) and -52.8 and -8.5 of -61.2 % (two layers, bare second). The same board entered with one layer or two gives results up to 1.8 times apart.
+* **A candidate**: laminate nodes through the thickness and the copper as extra lateral conductance on the links of a tile grid, through the Green-function system the program already uses for vias; follows the FVM with the same nodes (0.1 to 0.7 %); on the 52 pad rows of the common baseline of `gap-subdivision` the program is -66.7 to +1.3 % (mean 17.9 %) and the candidate with 4 nodes -2.9 to +2.1 % (0.83 %). Limits: the tile at most a sixth of the part; cost with the copper area; one heater layer; not combined with vias, blocks, outlines, the transient.
+* **Left.** The reviewer; `n` fixed by A1 and A11; the combination with vias and blocks; a policy for boards with many small pads (Gerber); the transient.

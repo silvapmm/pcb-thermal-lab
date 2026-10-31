@@ -1,0 +1,38 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+"""!
+@file _bootstrap.py
+@brief Puts the import paths of research/analytic-partial-copper in order; every script imports it first, so scripts run from any folder.
+@details The own `lib` first, the lib of research/bare-spot-under-source (the independent resolved 3D solver) and of research/gap-subdivision (the designed boards and the baseline), the repository
+         root (the program, imported and never edited) and research/ (diagram_kit). OUT is the git-ignored folder of caches; DATA is the committed folder of the machine-readable results.
+"""
+
+import json
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parents[1]
+REPO = HERE.parents[1]
+OUT = HERE / "out"
+DATA = HERE / "data"
+FIGURES = HERE / "figures"
+for extra in (str(HERE / "lib"), str(REPO / "research" / "bare-spot-under-source" / "lib"), str(REPO / "research" / "gap-subdivision" / "lib"), str(REPO), str(HERE.parent)):
+    if extra not in sys.path:
+        sys.path.insert(0, extra)
+OUT.mkdir(exist_ok=True)
+DATA.mkdir(exist_ok=True)
+
+
+def cached(name, fn):
+    """!
+    @brief Load a result from out/<name>.json or compute and store it.
+    @param name File stem in out/.
+    @param fn Function without arguments that returns a JSON-serialisable value.
+    @return The value.
+    """
+    path = OUT / f"{name}.json"
+    if path.exists():
+        return json.loads(path.read_text())
+    value = fn()
+    path.write_text(json.dumps(value))
+    return value

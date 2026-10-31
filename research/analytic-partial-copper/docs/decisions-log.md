@@ -1,0 +1,3 @@
+# Entry for the Decisions Log of `CLAUDE.md` (to write when the maintainer decides)
+
+* **Analytic model on partial copper** (investigation `analytic-partial-copper`): the cause of the error on a copper pad over bare laminate is the uniform sheet (the heater-weighted fill) and the nodes, not the Fourier series; the candidate (laminate nodes and the copper as a lateral defect on a bare base through the tile Green-function system) follows the FVM with the same nodes and brings 52 pad rows from -66.7 / +1.3 % to -2.9 / +2.1 % with 4 nodes. Decision: (to be written: P1 warning, P2 feature, or P3 documented limit).
