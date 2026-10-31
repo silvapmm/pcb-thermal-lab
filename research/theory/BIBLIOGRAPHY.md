@@ -711,3 +711,22 @@ The two equation images of the article (files `A3form1_2` and `A3formula` of the
 
 ### What could not be obtained (for the maintainer to fetch)
 Churchill and Chu (1975), Churchill (1977), Hollands et al. (1976) and Hollands (1984), Churchill and Usagi (1972), Elenbaas (1942), Bar-Cohen and Rohsenow (1984), Hashin and Shtrikman (1962), Keller (1964), Dykhne (1970), Bruggeman (1935), Landauer (1952), Incropera and DeWitt (any edition), Torquato (2002), Patankar (1980), Carslaw and Jaeger, JEDEC JESD51-2A, -3, -7, -14 and JESD51-12, IPC-2152, IPC-4761, ASTM D5470, ASME V&V 20, Briggs, Henson and McCormick (*A Multigrid Tutorial*), Roache's books. Publisher paywall or an account is needed; the open archives and search gave no copy. The researcher did not try sources that require evading an access check.
+
+## 22. Sources of `research/memory-guard/` (the memory of the sparse direct solves)
+
+None of these was opened in the preparation of the folder; the statements that rest on them are hypotheses the measurements test.
+
+### [George1973]
+A. George, *Nested dissection of a regular finite element mesh*, SIAM J. Numer. Anal. 10 (1973) 345-363. Fill-in and operation count of the factor of an n x n grid (O(n^2 log n) and O(n^3)), and by extension of a k x k x k grid (O(k^4) fill, N^(4/3) in the unknowns). **Status M.** Used for the hypothesis of the exponent of the memory law.
+
+### [Davis2006]
+T. A. Davis, *Direct Methods for Sparse Linear Systems*, SIAM, 2006. Orderings (minimum degree, nested dissection), fill, the memory of LU and Cholesky factors. **Status M.**
+
+### [GeorgeLiu1981]
+A. George, J. W. H. Liu, *Computer Solution of Large Sparse Positive Definite Systems*, Prentice-Hall, 1981. Minimum degree and its tie-breaking (why a different numbering of the same matrix changes the ordering and the fill). **Status N.**
+
+### [LiSuperLU2005]
+X. S. Li, *An overview of SuperLU: algorithms, implementation, and user interface*, ACM Trans. Math. Softw. 31 (2005) 302-325, and the SuperLU user guide (author's site). Memory held by the factor and the work arrays, the column orderings behind SciPy's `permc_spec`. **Status N** (the guide is an open copy to fetch).
+
+### [PythonResource]
+Python documentation of `resource.getrusage` and `os.wait4`, and the `getrusage` man pages. The unit of `ru_maxrss` (bytes on macOS, kilobytes on Linux) and that `wait4` returns the usage of one child. **Status M.**
