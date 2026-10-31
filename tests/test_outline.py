@@ -335,7 +335,7 @@ def test_edge_length_on_board_moves_the_lost_slivers_to_the_nearest_board_cell()
     active = p.board.cover(30, 30, 2e-3, 2e-3) > 0
     raw = edge_length_per_cell(p.board.outline, 30, 30, 2e-3, 2e-3)
     on = edge_length_on_board(p.board.outline, 30, 30, 2e-3, 2e-3, active)
-    assert (raw * active).sum() < 0.97 * raw.sum()                       # the case does have slivers off the board
+    assert (raw * active).sum() < 0.995 * raw.sum()                      # the case does have slivers off the board (1.0 % of the edge with the 8 x 8 board cover, 4.0 % with 4 x 4)
     assert on[~active].sum() == 0.0
     assert on.sum() == pytest.approx(perimeter_mm(square(30)) / 1000.0, rel=1e-9)
     grew = np.argwhere(on > raw + 1e-15)

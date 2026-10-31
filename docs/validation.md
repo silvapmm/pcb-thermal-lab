@@ -781,33 +781,46 @@ One temperature node through the thickness is the mean of the layer: the surface
 
 ## 23. A part across the board outline
 
-Since 2.4.5 a part that crosses the board outline heats only the part of each cell that is on the board (`geometry.part_weights`, `docs/theory.md` 1.3, `tests/test_part_across_outline.py`). Before, the FVM, the FDM and the 3D solid gave a cut cell the power density of the whole cell, on a board area smaller than the cell. The numbers below come from the program as it is now and, for the "before" columns, from the same program with the old rule put back by hand (the weight `coverage_fraction` of the part alone); the figures are 34 to 37 of `docs/theory.md` 1.3 (`python research/theory/scripts/make_fig_part_outline.py`).
+Since 2.4.5 (and, with the board cover sampled 8 x 8, `fix/board-cover-8x8`) a part that crosses the board outline heats only the part of each cell that is on the board (`geometry.part_weights`, `docs/theory.md` 1.3, `tests/test_part_across_outline.py`). Before, the FVM, the FDM and the 3D solid gave a cut cell the power density of the whole cell, on a board area smaller than the cell. The numbers below come from the program as it is now and, for the "before" columns, from the same program with the old rule put back by hand (the weight `coverage_fraction` of the part alone); the figures are 34 to 37 of `docs/theory.md` 1.3 (`python research/theory/scripts/make_fig_part_outline.py`).
 
 **The example board cut to a T** (100 × 80 mm, `h_side` 10 W/m²K, outline of `research/outline/scripts/outline_rectangle_study.py`), hottest point in degC at cells 1 / 2/3 / 0.5 / 1/3 mm. At 2/3 and 1/3 mm the edges of the T lie on grid lines and no cell is cut:
 
 | Model | before the fix | now |
 | :-- | --: | --: |
-| FVM | 109.06 / 106.86 / 110.80 / 106.96 | 107.56 / 106.86 / 107.38 / 106.96 |
-| FDM | not repeated | 105.25 / 105.61 / 106.51 / 106.71 |
-| 3D solid (1, 2/3, 0.5 mm) | not repeated | 107.79 / 107.08 / 107.20 |
+| FVM | 109.06 / 106.86 / 110.80 / 106.96 | 107.56 / 106.86 / 107.37 / 106.96 |
+| FDM | not repeated | 105.25 / 105.61 / 106.51 / 106.71 (not repeated after the 8 x 8 cover; the FDM already sampled 8 x 8) |
+| 3D solid (1, 2/3, 0.5 mm) | not repeated | 107.79 / 107.08 / 107.18 |
 
 **Edge-shift sweep.** A small T (30 × 24 mm, 2 W part across the re-entrant corner, `h_side` 10 W/m²K) with the neck edge moved over one cell in 8 to 12 steps; the error of the hottest point against the same model with 1/24 mm cells (FVM, FDM) or 1/8 mm (3D solid), and the scatter (max minus min of the error, K):
 
-| Model, cell | before | intersection only | now | now + board cover sampled 8 × 8 (not adopted) |
+| Model, cell | before | intersection only | fix, cover 4 x 4 | fix/board-cover-8x8 |
 | :-- | --: | --: | --: | --: |
 | FVM, 1 mm | 15.72 | 4.77 | 2.95 | 1.47 |
 | FVM, 0.5 mm | 7.79 | 2.36 | 0.78 | 0.62 |
-| 3D solid, 1 mm | 14.74 | 1.60 | 1.69 | not run |
-| 3D solid, 0.5 mm | 7.98 | 0.96 | 0.60 | not run |
-| FDM, 1 mm | 18.81 | 1.39 | 1.39 | not run |
-| FDM, 0.5 mm | 11.25 | 0.47 | 0.47 | not run |
+| 3D solid, 1 mm | not reproduced | not reproduced | 3.23 | 1.56 |
+| FDM, 1 mm | not reproduced | not reproduced | 2.02 | 2.02 (unchanged) |
 
-At 1 mm the error before the fix reached +16.0 K (3D solid), +21.9 K (FDM) and about +16.5 K (FVM); now it stays within +1.9 K (3D solid), -1.8 K (FDM) and +2.9 K (FVM). Against the references aligned with the grid (1/3 mm), the small T at 1 mm reads FVM 230.84, FDM 229.34 and 3D solid 231.96 degC (aligned references 230.06, 229.76 and 231.13).
+The FVM rows are printed by `python research/theory/scripts/make_fig_part_outline.py` (reference: the same model with 1/24 mm cells). The 3D solid value is against 1/8 mm cells and was reproduced by the review of the branch. Earlier versions of this table gave other 3D solid and FDM scatters (1.69 and 0.60 for the 3D solid, 1.39 and 0.47 for the FDM) and "before" values for them; no script reproduces those, so they are withdrawn, and so are the 0.5 mm rows of the 3D solid and the FDM and the maxima of the error that were derived from them. The FVM error before the fix reached about 16.5 K at 1 mm. Against the 1/3 mm references the small T at 1 mm reads, with the 8 x 8 cover, FVM 231.87 (230.84 with the 4 x 4 cover) and 3D solid 233.02 (231.96); the aligned references were not repeated after the change.
 
-**What the rule is for the FVM and the 3D solid.** The "intersection only" column is the share of the cell that is in the part and on the board, sampled 8 × 8; it ignores that the FVM and the 3D solid conduct with a board cover sampled 4 × 4, and the two disagree in a cut cell (1.5 K at 0.5 mm on the small T). The rule used, the share of the board samples that lie in the part times the cover of the model, removes that disagreement in the FVM and leaves the 3D solid at the same scatter. The FDM samples both 8 × 8 and needs no cover. A row that is the same in two columns means that the rule changes nothing there.
+**The 8 x 8 cover is smoother, not more accurate.** The scatter halves only for the FVM and the 3D solid at 1 mm; the mean bias of +1.4 K at 1 mm remains, and at some edge positions the error is up to 1 K worse than with the 4 x 4 cover. The gain is that the answer varies less when an edge moves across the grid.
 
-**Read-outs.** The mean, minimum and ring temperatures under a part or a zone no longer include the cells or nodes off the board, which read the ambient: on the T board a zone showed a minimum of 25 degC; the mean under a small T part at 0.5 mm, FVM, went from 191.3 to 223.4 degC, the ring of `psi_jb` from 163.1 to 203.7 degC and the zone mean from 128.8 to 180.5 degC (the maximum and the junction temperature do not move; `tests/test_part_across_outline.py::test_statistics_leave_out_the_cells_off_the_board`). The Power Calculator uses the same read-outs for its mean and ring points.
+**What the rule is for the FVM and the 3D solid.** The share of the board samples that lie in the part times the cover of the model equals the plain intersection `n_pb / 64` exactly, because the cover is sampled on the same 8 x 8 lattice (`geometry.BOARD_SAMPLES`). With the earlier 4 x 4 cover the two disagreed in a cut cell (1.5 K at 0.5 mm on the small T) and the weight was normalised to the cover. The FDM always sampled both 8 x 8.
+
+**Read-outs.** The mean, minimum and ring temperatures under a part or a zone no longer include the cells or nodes off the board, which read the ambient: on the T board a zone showed a minimum of 25 degC; the mean under a small T part at 0.5 mm, FVM, went from 191.3 to 222.8 degC (223.4 with the 4 x 4 cover), the ring of `psi_jb` from 163.1 to 203.2 degC (203.7); the zone mean (128.8 before the fix) was not repeated with the 8 x 8 cover (the maximum and the junction temperature do not move; `tests/test_part_across_outline.py::test_statistics_leave_out_the_cells_off_the_board`). The Power Calculator uses the same read-outs for its mean and ring points.
 
 **Unchanged.** `python research/models-comparison/scripts/validation_study.py` prints the same table as before the fix (identical text), `research/gap-subdivision/scripts/rerun_baseline.py` moves no peak by more than 0.0001 % of the rise, the Lumped and Analytic models on the equivalent rectangle are bit-identical, and so is every board without an outline.
 
-**Limit.** A cut cell still conducts with its cover, so a part over a cut edge reads 0.5 to 0.7 K (about 1 % of the rise) hotter at 1 to 0.5 mm than with the edge on the grid lines (the scatter of the "now" rows is this residual). Treating the cut cell by its real shape (option P1 of `research/rotated-square-3d`) is in the chapter "Planned" of `versions.md`, with the sampling of the board cover 8 × 8 (`fix/board-cover-8x8`), which halves the scatter of the FVM at 1 mm.
+**Limit.** A cut cell still conducts with its cover, so a part over a cut edge reads 0.5 to 0.7 K (about 1 % of the rise) hotter at 1 to 0.5 mm than with the edge on the grid lines (the scatter of the "now" rows is this residual). Treating the cut cell by its real shape (option P1 of `research/rotated-square-3d`) is in the chapter "Planned" of `versions.md`.
+
+## 24. Warnings of the limits of the models
+
+`checks.check_model_limits` and the Analytic spread test (`tests/test_model_limit_warnings.py`) warn; no temperature is changed. The numbers are those printed by the studies that proposed them, not re-measured here.
+
+| Warning | Trigger | Evidence |
+| :-- | :-- | :-- |
+| Analytic copper spread | the larger of the spread at `lambda_l` and the spread with the full-copper fin length above 0.25 | 119 boards: warned 70, silent 49, silent beyond 5 % error 0 (the program's earlier flag alone: 60 / 59 / 5; `gap0.1-empty` -66.7 % and `gap0.2-empty` -62.0 % were silent). `research/analytic-partial-copper` 9.4 |
+| Part on bare laminate | smallest copper fill in the central half of the footprint below 0.5 (layered models) | fires in 26 of 26 study cases at 0.5 / 1 / 2 mm, silent on full copper; the FVM reads 3 to 11 % low (4 and 6 layers), 4 to 23 % (two layers of 0.8 and 1.6 mm). `research/bare-spot-under-source` P3 |
+| Lumped, vias under a part | one or more vias in the footprint | via effect up to 72 % too large, 21 % on average over 36 simple boards (`L_prog`, the program's Lumped as it is). `research/lumped-via-groups` 4.2 |
+| Lumped, vias outside every part | one aggregated message | a lone via 73 % off on average (up to 290 %), a row of five 72 %. `research/lumped-analytic-vias` 4.3 |
+
+Not included: the warning for vias on a coarse cell (its numbers belong to the point-via treatment, not to the program as it is: the FVM via effect on the example board is 9.02 / 8.86 / 8.84 K at 2 / 1 / 0.5 mm) stays with `fix/point-via`.

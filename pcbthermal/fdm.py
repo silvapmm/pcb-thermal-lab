@@ -21,7 +21,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
+from .geometry import BOARD_SAMPLES, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
 from . import blocks, fvm, laminate
 from .fvm import ORDERING
 from .results import SteadyResult
@@ -123,7 +123,7 @@ class Network:
 
         # Share of every node's control volume that is board (ones for a rectangle); nodes off the board carry nothing
         if b.has_outline():
-            ncov = cover(b.outline, 8)
+            ncov = cover(b.outline, BOARD_SAMPLES)
             ncov = np.where(ncov >= 0.01, ncov, 0.0)
         else:
             ncov = np.ones((ny, nx))
@@ -244,7 +244,7 @@ class Network:
                 # Each cell's covered area is shared by its four nodes
                 w = np.zeros((ny, nx))
                 # Part and board by sample; the board cover of the nodes is sampled 8 x 8 too, so the plain intersection is consistent with it
-                cov = part_weights(h.polygon, b.outline, cells_x, cells_y, dx, dy, 8)
+                cov = part_weights(h.polygon, b.outline, cells_x, cells_y, dx, dy)
                 for di in (0, 1):
                     for dj in (0, 1):
                         w[di:di + cells_y, dj:dj + cells_x] += cov

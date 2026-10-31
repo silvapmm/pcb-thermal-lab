@@ -159,10 +159,24 @@ def _effective_sheet(problem, cell_mm):
                 w += pw * k0(dist / lam_l)                  # Influence of the heater at this distance
             fill[l] = (fill_map[l] * w).sum() / w.sum()
             spread[l] = np.sqrt(((fill_map[l] - fill[l]) ** 2 * w).sum() / w.sum())
+            if l in heater_layers:
+                # Warning trigger only (the sheet above is not changed): the same spread with the fin length of this layer as full
+                # copper. On a thin gap the program's length is about a millimetre, the weights stay under the part and the pad edge is not
+                # seen, so the first spread is silent exactly on the boards that are worst (research/analytic-partial-copper, README 9.4).
+                S_cu = m.k_copper * tc[l] + k_lam[l] * (slab[l] - tc[l])
+                lam_cu = float(np.sqrt(S_cu / max(h_surf + g_adj, 1e-9)))
+                w_cu = np.zeros((ny, nx))
+                for (cx, cy), r0, pw, _ in centres:
+                    dist = np.maximum(np.hypot(xs[None, :] - cx, ys[:, None] - cy), max(r0, 0.5 * dx))
+                    w_cu += pw * k0(dist / lam_cu)
+                f_cu = (fill_map[l] * w_cu).sum() / w_cu.sum()
+                spread[l] = max(spread[l], float(np.sqrt(((fill_map[l] - f_cu) ** 2 * w_cu).sum() / w_cu.sum())))
         if spread.max() > 0.25:
             warnings.append(
-                f"copper coverage varies strongly around the heaters (spread {spread.max():.2f}); "
-                "the uniform-sheet assumption is weak, the FVM result is more reliable")
+                f"copper coverage varies around the heaters (spread {spread.max():.2f}): the Analytic model spreads the copper of each layer "
+                "into one uniform sheet and has no copper edge; on a part over a copper pad or a window it was measured between 76 % too cool "
+                "and 9 % too hot against a resolved 3D solution, and the same board entered as one layer or as two (bare second layer) "
+                "differed by up to 1.8 times. Use the FVM result for this board.")
     S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)                     # (L,)
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
