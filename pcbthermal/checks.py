@@ -114,9 +114,15 @@ def check_problem(problem, cell_mm=1.0):
                     _add(out, "heater", i, f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap on layer "
                                f"{hi.layer + 1}: their power densities add up.")
 
-    for k, v in enumerate(problem.vias):
-        if not (0.0 <= v.x <= W and 0.0 <= v.y <= H):
-            _add(out, "via", k, f"{v.name or f'Via {k + 1}'} is outside the board and is ignored by the solvers.")
+    # A via is judged by its drill disc against the outline (or the box): no board under it = ignored by every model; less than half = mostly off
+    for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
+        name = v.name or f"Via {k + 1}"
+        if share <= 0.0:
+            _add(out, "via", k, f"{name}: via outside the board outline and ignored by every model." if b.has_outline()
+                 else f"{name} is outside the board and is ignored by the solvers.")
+        elif share < 0.5:
+            _add(out, "via", k, f"{name}: more than half of the via is outside the board{' outline' if b.has_outline() else ''}; "
+                                "only the part on the board is used.")
 
     for k, z in enumerate(problem.zones):
         cov = coverage_fraction(z.polygon, nx, ny, dx, dy, 2)
@@ -228,7 +234,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
     # research/young-omega-tiles 3). Lumped: 8 % mean on the first set, 20 % on the second (-21 to +80 %); Analytic: 1.8 % and 2.9 % (-14 to +8 %).
     vx = np.array([v.x for v in problem.vias])
     vy = np.array([v.y for v in problem.vias])
-    on_board = (vx >= 0) & (vx <= W) & (vy >= 0) & (vy <= H)              # A via off the board is ignored (check_problem says so)
+    on_board = np.array([share > 0.0 for share in problem.via_board_shares()])   # A via with no board under it is ignored (check_problem says so)
     if "lumped" in models:
         in_any = np.zeros(len(problem.vias), dtype=bool)
         for k, h in enumerate(problem.heaters):

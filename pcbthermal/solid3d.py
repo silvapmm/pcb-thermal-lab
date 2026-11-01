@@ -164,7 +164,7 @@ class Solid:
         fill = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
         via_frac = np.zeros((ny, nx))
         for v in problem.vias:
-            if 0.0 <= v.x < W and 0.0 <= v.y < H:
+            if 0.0 <= v.x < W and 0.0 <= v.y < H:      # A via whose disc has no board cell gets an empty footprint below and adds nothing
                 a_via = v.thermal_area(b.via_plating, b.materials.k_copper)
                 # One footprint rule for every via (an open and a filled via are the same model): the weights whose lattice effective radius is 0.78 r_via,
                 # the radius of the uniform sink density of the layered models, centred on the via and on the cells of the board; the cell of the centre

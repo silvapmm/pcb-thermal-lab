@@ -632,6 +632,9 @@ def _run_model(problem, name, o):
         return fdm.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "solid3d":
         return solid3d.solve_steady(problem, cell_mm=o.cell_mm)
+    if name in RECTANGLE_ONLY:
+        # The grid models drop a via with no board under it by themselves (viawell.build); the ring and tile models read the via list, so it is cut here
+        problem = problem.drop_off_board_vias()
     if name == "lumped":
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=min(max(o.cell_mm, 0.5), 1.0))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,

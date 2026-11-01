@@ -305,6 +305,34 @@ def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
     return out
 
 
+def disc_board_share(x, y, r, width, height, outline=None):
+    """!
+    @brief Share of a disc (a drill) that lies on the board, from a fixed sample of the disc.
+    @details The sample is the centre plus 6 rings of 24 points at the mid-radii of equal-area annuli, so the share is an area fraction that does not
+             depend on any grid. The board is the box (0..width, 0..height) or, with an outline, the outline polygon. It is 0.0 only when no sample
+             point (centre included) is on the board, which is the rule "the via has no board under it".
+    @param x Centre x in m.
+    @param y Centre y in m.
+    @param r Radius in m (0 = a point).
+    @param width Board width in m (the box used when there is no outline).
+    @param height Board height in m.
+    @param outline Outline polygon (n, 2) in m, or None for the rectangle.
+    @return float in [0, 1].
+    """
+    n_ring, n_ang = 6, 24
+    # Mid-radius of the k-th of n equal-area annuli: r sqrt((k + 1/2) / n)
+    rad = r * np.sqrt((np.arange(n_ring) + 0.5) / n_ring)
+    ang = 2.0 * math.pi * (np.arange(n_ang) + 0.5) / n_ang
+    px = np.concatenate([[x], (x + rad[:, None] * np.cos(ang)[None, :]).ravel()])
+    py = np.concatenate([[y], (y + rad[:, None] * np.sin(ang)[None, :]).ravel()])
+    if outline is None:
+        inside = (px >= 0.0) & (px <= width) & (py >= 0.0) & (py <= height)
+    else:
+        inside = points_in_polygon(px, py, outline)
+    # The centre is one more sample, so a disc of zero radius is decided by its centre and a centre on the board is never share 0
+    return float(inside.mean())
+
+
 def cell_index_of_point(x, y, nx, ny, dx, dy):
     """!
     @brief Index of the grid cell that contains a point (clipped to the board).

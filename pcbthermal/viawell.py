@@ -26,7 +26,7 @@ import math
 
 import numpy as np
 
-from .geometry import cell_index_of_point, nearest_active_cell
+from .geometry import cell_index_of_point
 
 EULER_GAMMA = 0.5772156649015329
 KAPPA = (2.0 * EULER_GAMMA + 3.0 * math.log(2.0)) / math.pi        # asymptotic constant of the potential kernel of the five-point stencil
@@ -190,7 +190,7 @@ def tuned_footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
     @param cover Array (ny, nx) of the board share of each cell (dimensionless).
     @param dy Cell size along y in m (None = dx; see disc_weights).
     @param origin_y Lower y edge of row 0 in m (None = origin scaled by dy / dx).
-    @return dict {(i, j): w} with weights that sum to 1; the cell of the centre alone when no refinement applies or the footprint has no cell on the board.
+    @return dict {(i, j): w} with weights that sum to 1; the cell of the centre alone when no refinement applies; empty when the drill disc has no cell on the board (the via conducts nothing).
     """
     r_t = TARGET_RATIO * r_via
     ny, nx = cover.shape
@@ -198,6 +198,8 @@ def tuned_footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
     oy = origin * dy / dx if origin_y is None else origin_y
     h = math.sqrt(dx * dy)                     # lattice spacing of the effective radius (see footprint)
     point = {(min(max(int(math.floor((cy - oy) / dy)), 0), ny - 1), min(max(int(math.floor((cx - origin) / dx)), 0), nx - 1)): 1.0}
+    if not restrict_to_board(disc_weights(cx, cy, r_via, dx, origin, dy, oy), cover):
+        return {}                              # No cell of the board under the drill disc: the via conducts nothing
     if r_t <= POINT_SINK_RADIUS * h:
         return point
     w_pt = disc_weights(cx, cy, 0.0, dx, origin, dy, oy)
@@ -297,10 +299,11 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     @param nx Cells (nodes) along x.
     @param ny Cells (nodes) along y.
     @param origin Lower x edge of cell 0 in m (0 for the FVM, -dx/2 for the FDM nodes); the y edge is origin * dy / dx (-dy/2 for the FDM).
-    @param active Boolean array (ny, nx) of the cells on the board.
+    @param active Boolean array (ny, nx) of the cells on the board (no longer needed: a via without a board cell under its disc is skipped; kept so the call sites do not change).
     @return Tuple (blocks, gz_via): blocks is a list of (rows, cols, w, G) with the cell indices (integer arrays), the weights (sum 1) and the
             layer-to-layer conductances G (L, L) in W/K; gz_via is the array (L-1, ny, nx) with the barrel conductance in the cell of the via centre
-            (the point treatment of the earlier versions, kept for the Lumped model, which reads rings of cells).
+            (the point treatment of the earlier versions, kept for the Lumped model, which reads rings of cells). A via whose drill disc has no board
+            cell is left out of both.
     """
     b = problem.board
     k_cu = b.materials.k_copper
@@ -310,14 +313,13 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     oy = origin * dy / dx                      # lower y edge of row 0 (-dy/2 for the FDM nodes)
     for v in problem.vias:
         gv = k_cu * v.thermal_area(b.via_plating, k_cu) / d                # barrel conductance of every gap (W/K)
-        ip, jp = cell_index_of_point(v.x - origin, v.y - oy, nx, ny, dx, dy)
-        gz_via[:, ip, jp] += gv
         w, r_eff, r_t = footprint(v.x, v.y, v.diameter / 2.0, dx, origin, cover, dy, oy)
         if not w:
-            # The disc has no cell on the board: the via sits in the nearest board cell (the old clipping), as a one-cell footprint
-            i, j = (ip, jp) if active[ip, jp] else nearest_active_cell(active, v.x, v.y, dx, dy, offset=0.5 if origin == 0.0 else 0.0)
-            w = {(i, j): 1.0}
-            r_eff = effective_radius(w, math.sqrt(dx * dy))
+            # No cell of the board under the drill disc: the via conducts nothing. (It used to be moved onto the nearest board cell at the full barrel
+            # conductance, which made a via off the outline of a T worth 2.7 K instead of nothing.)
+            continue
+        ip, jp = cell_index_of_point(v.x - origin, v.y - oy, nx, ny, dx, dy)
+        gz_via[:, ip, jp] += gv
         ic, jc = max(w, key=w.get)
         # Sheet conductance per unit of board: the cell value carries the cover factor
         s_cell = [float(S[l, ic, jc]) / float(cover[ic, jc]) for l in range(L)]
