@@ -523,29 +523,32 @@ def _solve_with_tc(problem, name, options, computed):
     totals = list(base)                      # Power dissipated by every part
     runaway, settled, split_ok, solves = False, False, True, 0
     change = 0.0
-    for it in range(1, 81):
-        # Parts whose top heat must be solved for: a top path, a junction to hang it on, and some power
-        active = [k for k, h in enumerate(problem.heaters) if tops[k] and h.junction_theta() > 0 and totals[k] > 0]
-        if active:
-            res, hh, board, n, ok = _top_path_split(problem, pr, totals, once, active)
-            solves += n
-            split_ok = split_ok and ok
-        else:
-            for h, pw in zip(pr.heaters, totals):
-                h.power = pw
-            res, hh = once(pr)
-            solves += 1
-        new_total = []
-        for h, row, b, tc in zip(problem.heaters, heater_stats(res, problem, totals), base, tcs):
-            device = row["t_junction"] if row["t_junction"] is not None else row["t_max"]
-            total = max(b * (1.0 + tc * (device - 25.0)), 0.0) if tc else b
-            new_total.append(total)
-            runaway = runaway or device > 1500.0 or (b > 0 and total > 50.0 * b)
-        change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new_total, totals)), default=0.0)
-        if runaway or change < 1e-5:
-            settled = not runaway
-            break                                                   # `totals` still pairs with the board power of the last solve
-        totals = new_total
+    # The parts are solved again and again with other powers (top-path split, power coefficient): with fixed face coefficients the board matrix repeats,
+    # and its LU is reused within this block (FVM and FDM direct solve; fvm.factor_reuse)
+    with fvm.factor_reuse():
+        for it in range(1, 81):
+            # Parts whose top heat must be solved for: a top path, a junction to hang it on, and some power
+            active = [k for k, h in enumerate(problem.heaters) if tops[k] and h.junction_theta() > 0 and totals[k] > 0]
+            if active:
+                res, hh, board, n, ok = _top_path_split(problem, pr, totals, once, active)
+                solves += n
+                split_ok = split_ok and ok
+            else:
+                for h, pw in zip(pr.heaters, totals):
+                    h.power = pw
+                res, hh = once(pr)
+                solves += 1
+            new_total = []
+            for h, row, b, tc in zip(problem.heaters, heater_stats(res, problem, totals), base, tcs):
+                device = row["t_junction"] if row["t_junction"] is not None else row["t_max"]
+                total = max(b * (1.0 + tc * (device - 25.0)), 0.0) if tc else b
+                new_total.append(total)
+                runaway = runaway or device > 1500.0 or (b > 0 and total > 50.0 * b)
+            change = max((abs(a - c) / max(c, 1e-9) for a, c in zip(new_total, totals)), default=0.0)
+            if runaway or change < 1e-5:
+                settled = not runaway
+                break                                                   # `totals` still pairs with the board power of the last solve
+            totals = new_total
     res.extras["power_tc_iterations"] = float(it)
     res.extras["top_path_solves"] = float(solves)
     res.extras["thermal_runaway"] = float(runaway)

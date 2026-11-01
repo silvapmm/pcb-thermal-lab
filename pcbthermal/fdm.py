@@ -332,9 +332,9 @@ class Network:
             # Ragged solve: the laminate nodes no node uses are pinned rows; leave them out of the factorisation
             keep = np.flatnonzero(~self.drop.ravel())
             theta = np.zeros(self.K.shape[0])
-            theta[keep] = spla.spsolve(self.K.tocsr()[keep][:, keep].tocsc(), q[keep], permc_spec=ORDERING)
+            theta[keep] = fvm.direct_solve(self.K.tocsr()[keep][:, keep], q[keep])     # (reuses the factorisation inside fvm.factor_reuse())
         else:
-            theta = spla.spsolve(self.K, q, permc_spec=ORDERING)
+            theta = fvm.direct_solve(self.K, q)
         res = float(np.linalg.norm(self.K @ theta - q) / max(np.linalg.norm(q), 1e-300))
         return theta.reshape(self.nl, self.ny, self.nx), res
 
