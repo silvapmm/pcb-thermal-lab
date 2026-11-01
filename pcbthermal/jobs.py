@@ -34,6 +34,11 @@ def job_transient(progress, problem, kwargs):
     """
     kw = dict(kwargs)
     model = kw.pop("model", "fvm")
+    lam = kw.pop("laminate", None)                  # (s_max in m, n_max) of the run's options, or None for the defaults
+    if lam is not None:
+        from . import laminate
+        with laminate.using(*lam):                  # The network, the guard and the solve all see the same laminate rule
+            return job_transient(progress, problem, dict(kw, model=model))
     # The animation holds the matrix factor and the frames: checked before anything is allocated. The window checks it too before it sends the job (so the
     # message comes at once); this check covers the other callers, and a refusal here comes back as the job's error text. The fraction is the default one
     # (the Preferences value: the kwargs carry no SolverOptions).
@@ -60,12 +65,13 @@ def job_analyze(progress, problem, options):
     if ref is None:
         raise ValueError("select a model first")
     if ref in ("fvm", "fdm"):
-        memory.check(problem, (ref,), max(options.cell_mm, 2.0), fraction=options.memory_fraction, factor=memory.PROFILE_FACTOR)   # The step responses run on a cell of at least 2 mm
+        memory.check(problem, (ref,), max(options.cell_mm, 2.0), fraction=options.memory_fraction, factor=memory.PROFILE_FACTOR,
+                     laminate_params=options.laminate_params())   # The step responses run on a cell of at least 2 mm
     resp = step_response(problem, ref, options)
     return resp, profiles.decide(problem, resp, options.profile.threshold_c), ref
 
 
-def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt=0.0, band=False, uncertainty=None):
+def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt=0.0, band=False, uncertainty=None, laminate_params=None):
     """!
     @brief Power of a part from a measured temperature (inverse.power_from_temperature).
     @param progress Callable progress(message, fraction) (unused).
@@ -78,9 +84,15 @@ def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm,
     @param psi_jt Datasheet psi_JT in K/W for the point "top".
     @param band True to also compute the uncertainty band (inverse.power_band).
     @param uncertainty Optional dict of uncertainties for the band (see inverse.power_band).
+    @param laminate_params Tuple (s_max in m, n_max) of the project's laminate rule (SolverOptions.laminate_params()), or None for the defaults: the board model run backwards
+                           must be the board of the run.
     @return Dict of inverse.power_from_temperature, or of inverse.power_band with the band.
     """
     from .inverse import power_band, power_from_temperature
+    if laminate_params is not None:
+        from . import laminate
+        with laminate.using(*laminate_params):
+            return job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt, band, uncertainty)
     if band:
         return power_band(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm, psi_jt=psi_jt, uncertainty=uncertainty, progress=progress)
     return power_from_temperature(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm, psi_jt=psi_jt)
