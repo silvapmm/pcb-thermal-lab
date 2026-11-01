@@ -184,10 +184,10 @@ def _fd_hottest(p, dx_mm=0.25):
 
 @pytest.mark.parametrize("pos,h_side", [("centre", 50.0), ("corner", 50.0), ("corner", 200.0)])
 def test_series_against_an_independent_finite_difference_solver(pos, h_side):
-    """The same sheet solved by 2D finite differences (the source in the corner needs the odd functions): within 0.5 % (measured -0.003 to -0.2 %)."""
+    """The same sheet solved by 2D finite differences (the source in the corner needs the odd functions): within 0.1 % (measured -0.014 to -0.008 %, the finite-difference error of the 0.25 mm cell)."""
     p = _plate(40, 30, 8, h_side, layers=1, pos=pos)
     fd, series = _fd_hottest(p)
-    assert series == pytest.approx(fd, rel=0.005)
+    assert series == pytest.approx(fd, rel=0.001)
 
 
 # ------------------------------------------------------------------------------------------------ balance, symmetry
