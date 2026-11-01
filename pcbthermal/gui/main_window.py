@@ -964,11 +964,12 @@ class MainWindow(QMainWindow):
         source = self.sim.effective_problem if (self.sim is not None and not self._stale and self.sim.effective_problem) \
             else self.doc.problem
         problem = copy.deepcopy(source)
-        kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
+        kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0), laminate=self.doc.options.laminate_params())
         # The animation holds the factor of the matrix and the frames (memory.TRANSIENT_FACTOR): checked here with the preference, so that the message comes at once
         if kwargs.get("model", "fvm") in ("fvm", "fdm"):
             try:
-                memory.check(problem, (kwargs.get("model", "fvm"),), kwargs["cell_mm"], fraction=self.doc.options.memory_fraction, transient=True, base=memory.BASE_DEFAULT)
+                memory.check(problem, (kwargs.get("model", "fvm"),), kwargs["cell_mm"], fraction=self.doc.options.memory_fraction, transient=True, base=memory.BASE_DEFAULT,
+                             laminate_params=self.doc.options.laminate_params())
             except memory.MemoryGuardError as exc:
                 anim.computing_failed(str(exc))
                 return

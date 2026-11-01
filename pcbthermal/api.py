@@ -29,7 +29,7 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, memory, profiles, solid3d
+from . import __version__, analytic, blocks, convection, fdm, fvm, laminate, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from .checks import check_fin_channels, check_input, check_lumped_zones, check_thick_plates
@@ -56,6 +56,8 @@ class SolverOptions:
     analytic_local_corrections: bool = True      # Treat vias and heatsinks locally (Green's function update)
     hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
+    laminate_s_max_mm: float = 0.4               # Longest sub-gap of the laminate between two copper nodes in mm (FVM and FDM; laminate.py)
+    laminate_n_max: int = 4                      # Most sub-gaps in one gap, count (1 turns the cutting off; the error against a resolved 3D solid falls as 1/n); a gap gets min(n_max, ceil(d / s_max)), so a larger n_max needs a smaller s_max
     # A machine preference (Preferences, solver.memory_fraction), not part of a project: never saved in the project file, and an old file that has the key ignores it
     memory_fraction: float = field(default_factory=memory.default_fraction)   # Share of the physical memory a solve may use; a run above it is refused (memory.py)
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
@@ -78,7 +80,18 @@ class SolverOptions:
             raise ValueError("steady_power must be 'average' or 'peak'")
         if not memory.MIN_FRACTION <= self.memory_fraction <= memory.MAX_FRACTION:
             raise ValueError(f"memory_fraction must be between {memory.MIN_FRACTION} and {memory.MAX_FRACTION}")
+        if not 0.05 <= self.laminate_s_max_mm <= 5.0:
+            raise ValueError("laminate_s_max_mm must be between 0.05 and 5")
+        if not isinstance(self.laminate_n_max, int) or isinstance(self.laminate_n_max, bool) or not 1 <= self.laminate_n_max <= 16:
+            raise ValueError("laminate_n_max must be an integer between 1 and 16")
         self.profile.validate()
+
+    def laminate_params(self):
+        """!
+        @brief The two numbers of the laminate rule in SI units, for laminate.using().
+        @return Tuple (s_max in m, n_max).
+        """
+        return self.laminate_s_max_mm * 1e-3, self.laminate_n_max
 
     def to_dict(self):
         """!
@@ -87,6 +100,10 @@ class SolverOptions:
         """
         d = asdict(self)
         d.pop("memory_fraction", None)                  # The memory limit belongs to the machine, not to the project
+        # The laminate numbers are saved only when they are not the default, so that projects of the earlier versions are written as before
+        for key, default in (("laminate_s_max_mm", 0.4), ("laminate_n_max", 4)):
+            if d.get(key) == default:
+                d.pop(key, None)
         d["models"] = list(self.models)
         d["profile"] = self.profile.to_dict()
         return d
@@ -102,6 +119,10 @@ class SolverOptions:
         if "models" in known:
             known["models"] = tuple(known["models"])
         known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
+        # A JSON writer may give the count as 8.0: an integer-valued float is the integer (any other float still fails validation)
+        n = known.get("laminate_n_max")
+        if isinstance(n, float) and n.is_integer():
+            known["laminate_n_max"] = int(n)
         o = cls(**known)
         o.validate()
         return o
@@ -374,7 +395,7 @@ class Simulation:
         return written
 
 
-def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transient=False, base=memory.BASE_DEFAULT):
+def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transient=False, base=memory.BASE_DEFAULT, laminate_params=None):
     """!
     @brief Cell size that resolves the smallest heater with about four cells across its narrow side, and that the memory guard accepts.
     @details When models are given, a cell that the guard would refuse for one of them (fvm, fdm, solid3d) is replaced by the smallest cell that fits (memory.cell_that_fits),
@@ -388,12 +409,13 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     @param transient True when the cell is for a time simulation (memory.TRANSIENT_FACTOR).
     @param base Resident bytes of the process that will solve: memory.BASE_DEFAULT for the calculation process of the window (default), None for this process
                 (the command line solves in its own process).
+    @param laminate_params Tuple (s_max in m, n_max) of the laminate rule that the run will use (None: the current values), because they change the unknowns the guard counts.
     @return Cell size in millimetres: the heater-based one clipped to [lo, hi], enlarged until the models fit.
     """
     sizes = [min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0 for h in problem.heaters if h.power > 0]
     cell = float(min(max(min(sizes) / 4.0, lo), hi)) if sizes else hi
     if models:
-        for v in memory.check(problem, tuple(models), cell, fraction=fraction, transient=transient, base=base, refuse="return", quiet=True):
+        for v in memory.check(problem, tuple(models), cell, fraction=fraction, transient=transient, base=base, refuse="return", quiet=True, laminate_params=laminate_params):
             if v.verdict == "refuse" and v.cell_fit:
                 cell = max(cell, v.cell_fit)
     return cell
@@ -594,7 +616,8 @@ def _block_flux_result(sim):
         return ref
     try:
         steady = sim.problem.steady_copy(sim.options.steady_power) if sim.problem.has_profiles() else sim.problem
-        aux = simulate(steady, SolverOptions(models=("fvm",), cell_mm=max(sim.options.cell_mm, 2.0)))
+        aux = simulate(steady, SolverOptions(models=("fvm",), cell_mm=max(sim.options.cell_mm, 2.0), laminate_s_max_mm=sim.options.laminate_s_max_mm,
+                                           laminate_n_max=sim.options.laminate_n_max))
     except ValueError:
         return ref
     return aux.reference
@@ -723,9 +746,24 @@ def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=
     @return Tuple (multiplier, model temperature with it in degC).
     @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
     """
-    from .analysis import heater_stats
     options = copy.deepcopy(options) if options else SolverOptions()
     options.models = (model,)
+    with laminate.using(*options.laminate_params()):                  # The board of the project: its laminate rule, as in simulate()
+        return _calibrate_convection(problem, measured_c, options, heater)
+
+
+def _calibrate_convection(problem, measured_c, options, heater):
+    """!
+    @brief Body of calibrate_convection(), run with the laminate numbers of the options in force.
+    @param problem A Problem (it is not modified).
+    @param measured_c Measured steady temperature in degC.
+    @param options SolverOptions (a private copy) with the one model to run in models.
+    @param heater Name of the heater whose footprint maximum was measured; None for the board maximum.
+    @return Tuple (multiplier, model temperature with it in degC).
+    @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
+    """
+    from .analysis import heater_stats
+    model = options.models[0]
     p = copy.deepcopy(problem)
     p.board.h_mode = "computed"
     steady = p.steady_copy(options.steady_power) if p.has_profiles() else p
@@ -762,6 +800,18 @@ def step_response(problem, model, options):
     @brief Unit-step responses of the heaters with one model (the input of the average-or-resolve decision).
     @param problem A Problem with at least one heater.
     @param model "fvm", "lumped" or "analytic".
+    @param options SolverOptions.
+    @return profiles.StepResponse.
+    """
+    with laminate.using(*options.laminate_params()):
+        return _step_response(problem, model, options)
+
+
+def _step_response(problem, model, options):
+    """!
+    @brief Body of step_response(), run with the laminate numbers of the options in force.
+    @param problem A Problem with at least one heater.
+    @param model "fvm", "fdm", "lumped" or "analytic".
     @param options SolverOptions.
     @return profiles.StepResponse.
     """
@@ -855,6 +905,19 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     """
     options = options or SolverOptions()
     options.validate()
+    # The laminate numbers of the run apply to every network, count and memory estimate made below (laminate.using)
+    with laminate.using(*options.laminate_params()):
+        return _simulate(problem, options, progress)
+
+
+def _simulate(problem, options, progress):
+    """!
+    @brief Body of simulate(), run with the laminate numbers of the options in force.
+    @param problem A Problem.
+    @param options Validated SolverOptions.
+    @param progress Optional callback progress(message, fraction).
+    @return Simulation.
+    """
     problem.validate()
     # The memory guard: before any array of the size of a model is made. A refused 3D solid next to other models is skipped with a warning (the others still
     # answer); any other refusal raises MemoryGuardError with the cell that fits.

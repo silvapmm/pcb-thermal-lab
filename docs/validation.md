@@ -845,7 +845,21 @@ The rule (`pcbthermal/laminate.py`, `docs/theory.md` 1.4): a gap of thickness `d
 
 About 7 GB per million unknowns. An ordering by cell (all the nodes of a cell together) would give 12.7 s and 3.0 GB for the 2-layer board at 0.25 mm; it stays Planned (`docs/versions.md`, chapter 'Planned'); the memory guard of 2.5.0 (section 26) does not change the numbering.
 
-**The part peak and the profile curves.** The steady peak of a part on bare laminate includes the face term; the curves of a power profile, step responses and animations are the node maxima, without it (the term is linear in the power). The difference is 1.6 K for a 1 W 6 mm part and 14.6 K for a 1 W 2 x 2 mm part on bare laminate (documented limit; Planned).
+**The part peak and the profile curves.** The steady peak of a part on bare laminate includes the face term; the curves of a power profile carry the same quasi-static term for the power of each step (FVM and FDM; `feature/laminate-options`), while the board Tmax and the animation maps are node values. The difference is 1.6 K for a 1 W 6 mm part and 14.6 K for a 1 W 2 x 2 mm part on bare laminate.
+
+**Sub-gaps against the resolved reference** (`feature/laminate-options`; `research/gerber-real-boards` 10, error of the FVM on the rise): the island board with 4, 8 and 16 sub-gaps reads -3.90 / -2.25 / -1.41 %, the stripes board -1.47 / -0.93 % with 4 and 8. The sub-gaps need the longest sub-gap to follow: 8 of a 1.6 mm gap need `S_MAX` of 0.19 mm or less, 16 need 0.09 mm or less.
+
+**Memory margins of the options** (the review of `feature/laminate-options`; the estimate of the memory guard against the peak measured):
+
+| case | estimated | measured |
+| :-- | --: | --: |
+| 16 sub-gaps, 0.5 mm | 0.82 GB | 0.65 GB |
+| 16 sub-gaps, 0.4 mm | 1.35 GB | 1.28 GB |
+| 32 sub-gaps | 2.68 GB | 2.37 GB |
+
+The estimate stays above the measurement (the 32 sub-gap row is outside the range of the option, 1 to 16, and only shows the margin).
+
+**The decision with the face** (6 mm part on bare laminate, 0 to 2 W at 10 ms, threshold 1 K): the node alone oscillates 0.36 K and is averaged; with the face term the swing is 3.6 K and the run is resolved, peak 187.60 to 189.58 degC (`tests/test_profile_face.py`).
 
 **Limits.** The Lumped and Analytic models keep one node per gap and are not helped (their partial-copper limits stay as documented: `checks.check_model_limits`); a board with a metal block keeps the earlier treatment; the 3D solid reports the centre of its top slab, 1 to 2 % below the face over bare laminate. Red-black point SOR has no valid two-colouring where cut and uncut columns meet with `n` even, so the SOR relaxes each plan column as a block.
 
