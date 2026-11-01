@@ -95,7 +95,7 @@ def test_small_footprint_is_bit_identical(side, cell):
 @pytest.mark.parametrize("side", [20, 30, 31])
 def test_link_term_matches_exact_sum_at_half_millimetre(side):
     """!
-    @brief The mean-to-boundary term (the link of the footprint to ring 1) is within 1 % of the sum over every cell, the peak term too.
+    @brief The mean-to-boundary term (the link of the footprint to ring 1) is within 1 % of the sum over every cell, the peak term within 0.3 %.
     @param side Side of the square in mm.
     @return None.
     """
@@ -103,7 +103,61 @@ def test_link_term_matches_exact_sum_at_half_millimetre(side):
     assert (cov > 0).sum() > 900
     new, ex = lumped._footprint_potentials(cov, d, d), _exact_potentials(cov, d, d)
     assert (new[1] - new[0]) == pytest.approx(ex[1] - ex[0], rel=0.01)
-    assert (new[0] - new[2]) == pytest.approx(ex[0] - ex[2], rel=0.01)
+    assert (new[0] - new[2]) == pytest.approx(ex[0] - ex[2], rel=0.003)
+
+
+def _shape(kind, cell_mm):
+    """!
+    @brief Coverage array of a footprint that is not a centred square: an L, a square ring (a hole), a rectangle of an odd number of cells, one cut by the board edge.
+    @param kind "L", "ring", "odd" or "edge".
+    @param cell_mm Cell size in mm.
+    @return Tuple (cov, cell size in m).
+    """
+    n = int(round(1.0 / cell_mm))                 # cells per mm
+    cov = np.zeros((60 * n, 60 * n))
+    if kind == "L":
+        cov[10 * n:50 * n, 10 * n:25 * n] = 1.0
+        cov[10 * n:25 * n, 10 * n:50 * n] = 1.0
+    elif kind == "ring":
+        cov[10 * n:50 * n, 10 * n:50 * n] = 1.0
+        cov[20 * n:40 * n, 20 * n:40 * n] = 0.0
+    elif kind == "odd":
+        cov[20 * n:20 * n + 20, 5 * n:5 * n + 51] = 1.0           # 20 x 51 cells: block centroids fall off the hot centre
+    else:
+        cov[10 * n:35 * n, 0:25 * n] = 1.0                       # touches the board edge (adiabatic there: not a boundary)
+    return cov, cell_mm * 1e-3
+
+
+@pytest.mark.parametrize("kind", ["L", "ring", "odd", "edge"])
+def test_blocks_on_other_shapes(kind):
+    """!
+    @brief Above 900 cells, a footprint that is not convex, has a hole, has an odd number of cells or touches the board edge: both terms within 0.3 % of the sum over every cell.
+    @details The minimum read at a block centroid (the first version of the fix) was 1.1 % short on the 20 x 51 rectangle and 1.3 % on the ring at 1 mm.
+    @param kind Footprint kind of _shape.
+    @return None.
+    """
+    for cell in (1.0, 0.5):
+        cov, d = _shape(kind, cell)
+        if (cov > 0).sum() <= 900:
+            continue
+        new, ex = lumped._footprint_potentials(cov, d, d), _exact_potentials(cov, d, d)
+        assert (new[1] - new[0]) == pytest.approx(ex[1] - ex[0], rel=0.003)
+        assert (new[0] - new[2]) == pytest.approx(ex[0] - ex[2], rel=0.003)
+
+
+def test_no_jump_across_the_limit():
+    """!
+    @brief A 30 x 30 footprint (900 cells, every cell) and the same with one cell more (901, blocks) give terms within 0.1 % of each other's exact sums.
+    @return None.
+    """
+    d = 0.5e-3
+    for extra in (0, 1):
+        cov = np.zeros((38, 38))
+        cov[4:34, 4:34] = 1.0
+        cov[34, 4:4 + extra] = 1.0
+        new, ex = lumped._footprint_potentials(cov, d, d), _exact_potentials(cov, d, d)
+        assert (new[1] - new[0]) == pytest.approx(ex[1] - ex[0], rel=0.001)
+        assert (new[0] - new[2]) == pytest.approx(ex[0] - ex[2], rel=0.001)
 
 
 def test_old_stride_failed_this_check():
