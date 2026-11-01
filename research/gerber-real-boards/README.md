@@ -1,6 +1,6 @@
-# Real boards: importing a Gerber set without blowing the memory (investigation plan, prepared, not run)
+# Real boards: importing a Gerber set without blowing the memory
 
-**Status: first block run** (the light and medium studies: the boards and archives fetched, the folder's tests, the conformance and rare-primitive study 4.6, the ODB++ structure and the paste, placement and X3 parts of 4.4, and the project file 4.8). **Not run yet** (they wait for the memory ladder to finish on the machine): the copper mapping 4.1, time and memory 4.2, the transient 4.3, the Lumped and Analytic rule 4.5 and the fine-copper warning 4.7; their "Results" lines still say "Not run" and sections 4.1 to 4.3, 4.5 and 4.7 are still the plan. Nothing in `pcbthermal/` is changed (the program is only imported).
+**Status: both blocks run** (first block: the boards and archives, the folder's tests, the conformance and rare-primitive study 4.6, the ODB++ structure and the paste, placement and X3 parts of 4.4, and the project file 4.8; second block: the fine-copper warning 4.7, the copper mapping 4.1, the Lumped and Analytic rule 4.5, the transient 4.3 and time and memory 4.2). Sections 4.1 to 4.3, 4.5 and 4.7 carry their printed tables; the boards are open boards (section 3), the reference is always another model of the same physics, and no physical measurement exists. Not run: a 0.25 mm cell on a whole board (the estimate was above the 5 GB budget of the machine, section 4.2) and the inputs of figure 9 (the first block's outputs were lost with its worktree; the committed figure stays). Nothing in `pcbthermal/` is changed (the program is only imported).
 
 Release theme this serves: **2.5.0, "real boards"**: import a Gerber set (our own reader, no third-party dependency), turn it into the program's model, and do it without exhausting the memory. Decisions of the maintainer that bound the work: our own reader (the independent NumPy reader of `research/gerber-import`, validated pixel by pixel there); no physical board is available yet (so nothing here is a measurement, and the models keep their limits, which the program warns about); tests are local only.
 
@@ -88,7 +88,32 @@ Every script is run from the repository root with `.venv-research/bin/python res
 * **Success criterion** (fixed before the run). The default is the method with the smallest mean absolute error of the heater mean in Part B, provided its worst window is within 10 % and it beats the fill fraction by a factor of 2 in the mean; Part A with the nine-point reference decides ties.
 * **Script, tests.** `scripts/study_copper_mapping.py [--quick] [--part A|B]` (about two hours on a quiet 10-core machine with 16 GB; `--quick` is a smoke run); tests: `test_onesheet_and_real_boards.py` (a uniform window gives the same answer for every mapping; stripes across the heat make the fill fraction cooler than the pixel reference and the flow-based faces better).
 * **Not verified.** Any measurement on a physical board; copper thickness other than the program's default; a heater other than a 6 mm square on the top layer; the 3D solver as an independent check of Part B (done in `gerber-models`, not repeated); the diagonal gate (its held-out test failed there).
-* **Results.** Not run.
+* **Results** (the printed tables of `study_copper_mapping.py`; heater mean rise, error in percent against the reference, mean absolute / maximum absolute / bias).
+  **Part A**, one conducting sheet, 36 windows (6 boards, 6 windows each), pixel 0.05 mm, 36 mm window, 6 mm heater, against the five-point reference (the nine-point reference gives the same ranking, differences below 0.4 points):
+
+  | Mapping | cell 0.5 mm | cell 1.0 mm |
+  | :-- | :-- | :-- |
+  | fill fraction (the program's formula) | 16.83 / 25.58 / -16.83 | 20.07 / 26.99 / -20.07 |
+  | flow-based faces | **0.84 / 3.01** / +0.27 | 2.29 / 7.75 / +2.07 |
+  | flow-based faces + half the diagonal coupling | 1.60 / 4.10 / -1.52 | **1.08 / 3.88** / -0.20 |
+  | lambda 0.5 | 1.79 / 8.26 / +1.50 | 3.04 / 11.88 / +2.87 |
+  | geometric mean | 3.28 / 10.95 / +2.24 | 4.45 / 12.63 / +3.60 |
+
+  **Part B**, the program of 2.4.5 on multilayer windows (every copper layer, plated holes as vias, the laminate rule), 6 boards x 3 windows of 24 mm (three four-layer and three two-layer boards), pixel 0.05 mm, against the program's own network on the pixel grid (n = 18 per cell):
+
+  | Mapping | cell 0.5 mm | cell 1.0 mm |
+  | :-- | :-- | :-- |
+  | today (one zone per cell, fill = coverage) | 3.54 / 6.06 / -2.34 | 4.15 / 7.48 / -3.31 |
+  | flow-based faces | **1.14 / 2.97** / +1.09 | **2.53 / 7.22** / +2.53 |
+  | lambda 0.5 | 1.50 / 3.23 / +1.50 | 2.92 / 8.85 / +2.92 |
+
+  ![mapping errors](figures/fig_04_mapping_errors.png)
+
+  *Figure 4: `figures/fig_04_mapping_errors.png`, boxes of the errors at 0.5 mm (left Part A, right Part B).*
+
+* **Against the success criterion.** The flow-based faces have the smallest mean absolute error in Part B at both cell sizes and the worst window is within 10 % (2.97 and 7.22 %). The factor 2 over the fill fraction is met at 0.5 mm (3.54 / 1.14 = 3.1) and **not at 1.0 mm (4.15 / 2.53 = 1.6)**. The honest reading: the faces win everywhere, by a large factor on one sheet (0.84 against 16.8 % at 0.5 mm) and by 1.6 to 3 on the program's multilayer stack, where the other layers, the vias and the laminate hide part of the sheet error. The worst window of the faces in Part B is `vstcm` (42.72, -111.93) at 1.0 mm, +7.2 %.
+* **The offset of the held ring (investigated and settled).** The first block found a uniform copper window 16.5 % off at 1 mm for every mapping. A scratch check (a solid 36 mm window, 6 mm heater, held ring 1 mm, pixel 0.1 mm; the script is not kept in the repository) gives the cell model against the pixel reference: **1 mm cell 22.02 K against 21.49 K (+2.5 %), 0.5 mm 21.67 against 21.49 (+0.8 %), 2 mm 19.48 against 19.44 (+0.2 %)**; a pixel reference with the ring narrowed by half a cell gives 21.76 K at 1 mm, so the cause is the one suspected: the held cells carry the ring temperature at their *centre*, half a cell inside the pixel ring. The 16.5 % was a property of the unit test's small board (12 mm, 2 mm heater: the half cell is 8 % of the radius), not of the windows of the studies (36 mm): there the offset is at most 2.5 % and the same for every mapping, so the differences above are the mapping's. It is a property of the scenario (a held ring), not of the program, whose boundary is convective.
+* **Not verified.** Any measurement on a physical board; copper thickness other than the default; heaters other than a 6 mm square on the top layer; the reference of Part B is the program's own network on the pixel grid (the 3D solver of `gerber-models` was its check there and is not repeated); the diagonal coupling (it helps on one sheet at 1.0 mm, 1.08 against 2.29, but its held-out gate failed in `gerber-models` and it is worse at 0.5 mm, 1.60 against 0.84: not proposed).
 
 ### 4.2 Time and memory of real boards, and the memory per unknown (`study_time_memory.py`)
 
@@ -98,7 +123,31 @@ Every script is run from the repository root with `.venv-research/bin/python res
 * **Success criterion.** One coefficient with at most 25 % scatter over the cases, so that the guard can use `baseline + unknowns x coefficient`; otherwise the guard needs the structure (layers, non-zeros). A case whose peak is close to the physical memory is flagged (it may have paged).
 * **Script, tests.** `scripts/study_time_memory.py [--cells 1.0 0.5 0.25] [--boards isastm cmm2 oswlight] [--max-gb 12]`; tests: `test_fine_memory_format_odb.py` (the fit recovers a known coefficient and refuses empty input; the peak size is read).
 * **Not verified.** Paging effects; other machines; the 3D solid on an imported board; the GUI process on top of the calculation process; the layered models' time at one million or more unknowns on these boards beyond the cases run.
-* **Results.** Not run.
+* **Results** (nine cases, one fresh process each, 4-layer boards, pixel = cell / 10; seconds by phase; the peak is the resident size after the solve; another light job ran on the machine):
+
+  | Board | cell (mm) | pixel (mm) | unknowns of the faces | program count (`fvm.unknowns`) | non-zeros | import (s) | faces (s) | solve (s) | peak (GB) | peak after import (GB) |
+  | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+  | oswlight 36 x 36 mm | 1.0 | 0.1 | 5 476 | 9 583 | 38 428 | 1 | 0 | 0 | 0.24 | 0.10 |
+  | oswlight | 0.5 | 0.05 | 21 316 | 37 303 | 149 352 | 1 | 2 | 0 | 0.58 | 0.15 |
+  | oswlight | 0.25 | 0.025 | 84 100 | 147 175 | 590 294 | 2 | 8 | 1 | 1.04 | 0.38 |
+  | oswlight | 0.2 | 0.02 | 131 044 | 229 327 | 929 202 | 2 | 12 | 1 | 1.31 | 0.54 |
+  | isastm 102 x 102 mm | 1.0 | 0.1 | 41 616 | 72 828 | 283 982 | 7 | 4 | 1 | 0.86 | 0.30 |
+  | isastm | 0.5 | 0.05 | 166 464 | 291 312 | 1 117 124 | 8 | 14 | 5 | 1.96 | 1.00 |
+  | isastm | 0.35 | 0.035 | 338 724 | 592 767 | 2 299 726 | 9 | 27 | 6 | 3.20 | 1.94 |
+  | cmm2 131 x 103 mm | 1.0 | 0.1 | 53 972 | 94 451 | 388 670 | 7 | 5 | 1 | 0.90 | 0.30 |
+  | cmm2 | 0.5 | 0.05 | 214 020 | 374 535 | 1 630 974 | 9 | 19 | 3 | 1.96 | 0.89 |
+
+  Fit through the origin on the unknowns of the faces (baseline 78 MB removed): **9.7 KB per unknown** with a largest deviation of 211 % (the small cases: the constant costs of the importer and of Python dominate), **9.4 KB with 20 % deviation on the four cases above 100 000 unknowns**; on the program's own count the fit is 5.5 KB per unknown.
+
+  ![memory per unknown](figures/fig_05_memory_per_unknown.png)
+
+  *Figure 5: `figures/fig_05_memory_per_unknown.png`, peak against the unknowns of the faces with the fit through the origin of all nine cases.*
+
+* **Where the peak comes from.** The solve phase adds 0.01 to 0.2 GB over the faces phase; the peak is set by the importer's rasters (the import phase alone is 0.30 / 1.00 / 1.94 GB for ISASTM at 1.0 / 0.5 / 0.35 mm, about 55 bytes per pixel per copper layer; with pixel = cell / 10 that is about 5.5 KB per cell and layer) plus the face construction (a further 1.3 GB on ISASTM at 0.35 mm). The raster is a cost of the import that the memory law of `research/memory-guard` does not contain.
+* **Against the law of `research/memory-guard` (README 14.2, FVM, continuous law `1469 t_eff^0.79 N (N / 500 000)^0.24` bytes, t = 4, N the program's count, plus an assumed base of 0.3 GB).** Ratio measured / law: 0.77 (oswlight 1.0 mm), 1.72 (ISASTM 1.0), 1.56 (cmm2 1.0), 1.50 (oswlight 0.5), 1.38 (ISASTM 0.5), 1.33 (oswlight 0.25), 1.16 (oswlight 0.2), 1.07 (cmm2 0.5), **1.06 (ISASTM 0.35, 593 000 unknowns)**. So from about 150 000 unknowns the import's whole peak is within the law's safety factor of 1.40, but below 100 000 unknowns it is up to 1.7 times the law (the raster and fixed costs). The law was measured on the program's own path (`fvm.Network`, no importer); this study measured the research pipeline (importer plus face network in one process), so what is compared is the peak of an import against the solver's law, not the same code: the program's solve of an imported board is not measured here. The assumed base of 0.3 GB moves the ratios of the small boards.
+* **Against the success criterion.** One coefficient with at most 25 % scatter: **met only above 100 000 unknowns** (9.4 KB, 20 %); below that the guard needs a term in the pixels, `baseline + 55 x layers x pixels + k x unknowns`.
+* **Not run.** A whole board at 0.25 mm (ISASTM would be about 6 GB by the 55 B and 9.4 KB figures, cmm2 and CO60 more: above the 5 GB budget set for this session on a 16 GB machine shared with other jobs), CO60, RP2040, vstcm; the 3D solid on an imported board; paging. The importer reaching 6.5 GB on CO60 at 0.025 mm in the first block agrees with the raster figure: 285 x 95 mm at 0.025 mm is 43 million pixels per layer.
+* **Not verified.** Other machines; the GUI process on top of the calculation process; the layered models at one million unknowns or more on these boards.
 
 ### 4.3 The transient of an imported board with fine cells (`study_transient_fine.py`)
 
@@ -109,7 +158,23 @@ Every script is run from the repository root with `.venv-research/bin/python res
 * **Success criterion.** Step responses at 0.5 and 0.25 mm within 3 % of the reference at 0.1, 1, 10 s and the end, and within 2 % of each other.
 * **Script, tests.** `scripts/study_transient_fine.py [board] [--quick]` (about 20 minutes); no separate test (the pieces are tested in 4.1 and 4.2).
 * **Not verified.** A measured step response; power profiles (square waves) and the animation on imported boards; computed heat transfer coefficients (h is typed, 10 W/m2K).
-* **Results.** Not run.
+* **Results** (`study_transient_fine.py`, ISASTM, 30 mm window, 4 mm heater of 1 W, reference = the pixel network at 0.1 mm; heater mean rise): reference 7.99 K at 0.1 s, 27.24 K at 1.1 s, 37.14 K at 10.2 s, 73.66 K at 200 s, time constant 57.1 s, steady 102.27 K. Difference of the face network from the reference (percent of the rise at 0.1, 1.1, 10.2 and 200 s; time constant):
+
+  | Cell | copper capacity set | differences | time constant | steady-state offset |
+  | :-- | :-- | :-- | :-- | :-- |
+  | 1.0 mm | yes | +11.6, +18.3, +19.2, +9.7 % | -9.8 % | +3.6 % |
+  | 0.5 mm | yes | +4.0, +6.2, +7.3, +3.7 % | -2.7 % | +1.0 % |
+  | 0.25 mm | yes | +2.1, +3.3, +4.0, +2.1 % | -4.7 % | +1.8 % |
+  | 1.0 mm | no (bare laminate capacity) | +13.7, +19.3, +20.0, +11.5 % | -16.2 % | +3.6 % |
+  | 0.5 mm | no | +5.9, +7.1, +8.0, +5.5 % | -9.7 % | +1.0 % |
+  | 0.25 mm | no | +3.8, +4.2, +4.8, +3.9 % | -11.7 % | +1.8 % |
+
+  ![step response by cell](figures/fig_06_transient_by_cell.png)
+
+  *Figure 6: `figures/fig_06_transient_by_cell.png`, the heater's mean rise against time for the pixel reference and the three cells (copper capacity set).*
+
+* **Findings.** (1) The coarse network is too fast in the early response: +18 to +19 % at 1.1 and 10 s with 1.0 mm cells, +6 to +7 % at 0.5 mm, +3 to +4 % at 0.25 mm; the error roughly halves with each halving of the cell. Part of it is the steady offset of the cell model (+1 to +3.6 %), but at 10 s the excess is two to five times the steady offset, so the cell size matters in time more than at rest. (2) **Leaving out the copper's heat capacity moves the time constant by 6.4 to 7.0 points** (-9.8 against -16.2, -2.7 against -9.7, -4.7 against -11.7) and the early rise by 1 to 2 points: above the 5 % that the study set, so an import must set the capacity from the coverage. (3) **The criterion (within 3 % at 0.5 and 0.25 mm of the reference, and within 2 % of each other) is not met** at 0.5 mm (up to 7.3 %) and nearly at 0.25 mm (up to 4.0 %): a transient of an imported board wants 0.25 mm cells for a few percent, or the user accepts 7 to 20 % early excess at 0.5 and 1.0 mm.
+* **Not verified.** One board, one window, one heater position; a measured step response; power profiles (square waves) and the animation on imported boards; computed heat transfer coefficients (h typed, 10 W/m2K); the cause of the early excess (not isolated).
 
 ### 4.4 Solder paste, reference designators and positions, X3 and ODB++ (`study_paste_footprints.py`, `study_odb_structure.py`)
 
@@ -158,7 +223,16 @@ Every script is run from the repository root with `.venv-research/bin/python res
 * **Success criterion.** A rule on one indicator that separates the windows with error above 15 % from the rest with recall at least 0.9 for the warning and no refused window below 25 % error; if no indicator does, the rule is "always warn, never refuse" and this README says so.
 * **Script.** `scripts/study_lumped_analytic_rule.py [--quick]` (about 30 minutes).
 * **Not verified.** Non-rectangular outlines (the two models use the equivalent rectangle), parts with a top path, large via arrays; the models are run as the program runs them for zones, not on the face conductances.
-* **Results.** Not run.
+* **Results** (`study_lumped_analytic_rule.py`, 24 windows of 24 mm, 6 boards x 4, cell 1.0 mm; each imported window turned into one zone per cell with the coverage as fill; error of the heater mean against the pixel network ("fine") and against the face network ("faces")):
+
+  | Model | against the pixel network: mean (range) | against the face network: mean (range) |
+  | :-- | :-- | :-- |
+  | Lumped | -6.0 % (-1.4 to -12.4) | -7.8 % (-3.6 to -14.2) |
+  | Analytic | -6.3 % (-0.9 to -15.7) | -8.1 % (-3.1 to -17.5) |
+
+  Every window is cool (both models are below the references everywhere); only **one** window of 24 passes the 15 % limit for the Analytic (RP2040 at (75.2, -110.7): -15.7 % and -17.5 %; the Lumped there is -12.4 and -14.2 %), none for the Lumped. Correlation of the Lumped error with the indicators: heater block copper fraction 0.76, copper fraction 0.61, partial share of the top layer -0.37, thin share -0.27. The calibration at the 15 % limit has no bad case for the Lumped and one for the Analytic (partial share threshold 0.79, recall 1.0, false alarms 0.26 on one bad window: no statistics).
+* **Against the success criterion.** A rule that separates windows above 15 % cannot be built from one bad window. The data say instead that **the error is systematic (always cool, 1 to 16 %), so the rule is "always warn, never refuse"**, with the text "the Lumped and Analytic models read 1 to 16 % cool on imported copper (6 % on average in the windows tried)"; the heater block's copper fraction follows the error best (correlation 0.76: the less copper under and around the heater, the larger the shortfall) if a graded message is wanted, but there is no threshold in the data.
+* **Not verified.** Non-rectangular outlines (the two models use the equivalent rectangle), parts with a top path, large via arrays, cells other than 1.0 mm; the models are run as the program runs them for zones, not on the face conductances; 24 windows of 6 boards.
 
 ### 4.6 Conformance with the Ucamco test sets and the rare primitives (`study_conformance_rare.py`)
 
@@ -190,7 +264,23 @@ Every script is run from the repository root with `.venv-research/bin/python res
 * **Success criterion.** One indicator with recall 0.9 and false alarms under 0.3 for the 10 % limit at all three cell sizes with one threshold; a threshold that moves with the cell is a function of the cell and the warning must say so (graded warning).
 * **Script, tests.** `scripts/study_fine_copper_warning.py [--quick]` (about an hour); `test_fine_memory_format_odb.py` (solid copper is not fine, stripes are, the same stripes are not fine for a cell as narrow as they are, the calibration recovers a known threshold).
 * **Not verified.** Other heater sizes; other copper thicknesses; the multilayer stack (a layer under another is less sensitive: this is the one-sheet error, an upper bound); tilted copper (the indicator does not look at direction, and the diagonal residual of `gerber-models` 4.42 is a different failure).
-* **Results.** Not run.
+* **Results** (`study_fine_copper_warning.py`, 108 cases: 6 boards x 6 windows of 36 mm = 36 windows, each at the cells 0.5, 1.0 and 2.0 mm, pixel 0.05 mm, one-sheet physics, error of the heater mean against the five-point pixel reference; the `--quick` run of 36 cases gave the same picture):
+
+  | Cell | fill model error: mean (range) | flow model error: mean, largest absolute |
+  | :-- | :-- | :-- |
+  | 0.5 mm | -16.2 % (-28.0 to -2.1) | +0.26 %, 3.45 % |
+  | 1.0 mm | -18.7 % (-28.7 to -3.1) | +2.17 %, 5.52 % |
+  | 2.0 mm | -23.3 % (-32.3 to -12.6) | -0.34 %, 4.64 % |
+
+  The fill model is above 10 % in 100 of the 108 cases and above 5 % in 105; the flow model is above 10 % in none and above 5 % in 3 (all at 1.0 mm). Calibration (threshold with recall 0.9, false alarms among the good cases, bad cases over good cases), all cells together, for the **fill model** at the 10 % limit: partial share 0.266, false alarms 1.00 (100 / 8); thin share 0.073, 1.00 (100 / 8); heater block copper fraction 0.301, 0.38 (100 / 8). For the **flow model** at the 5 % limit (3 bad cases): partial share 0.591, recall 0.67, false alarms 0.48; thin share 0.344, 0.67 / 0.36; heater fraction 0.267, 0.67 / 0.90. The correlation of the fill model's error with the partial share is 0.06, 0.03 and -0.51 at 0.5, 1.0 and 2.0 mm, with the thin share -0.23, 0.02 and -0.36, with the copper fraction -0.07.
+
+  ![fine copper indicators](figures/fig_07_fine_copper_threshold.png)
+
+  *Figure 7: `figures/fig_07_fine_copper_threshold.png`, absolute error against the thin share for the fill model (left, the dashed line is the calibrated threshold) and the flow model (right).*
+
+* **Against the success criterion** (one indicator, recall 0.9 and false alarms under 0.3 for the 10 % limit at all three cells with one threshold): **not met by any indicator**. The fill mapping is wrong by 10 to 30 % on almost every real window (copper cut by clearances, whatever the share of thin copper), so no indicator separates bad from good because there are almost no good cases; the indicators measure how much copper is fine but the fill error does not follow it (correlation near zero). The flow-based faces are within 5.5 % on all 108 cases and a warning cannot be calibrated on the 3 cases above 5 %.
+* **What the warning should be.** (a) With the fill mapping an imported layer always carries the warning (10 to 30 % cool on real copper), which is the reason to change the default (4.1). (b) With the flow-based faces a fine-copper warning is not needed for accuracy at the cells studied (error under 5.5 %); the indicators do not predict the few cases above 5 % (recall 0.67 at false alarms 0.4 to 0.5), so the program should show **one fixed note** (the cell model of imported copper is approximate to a few percent, up to 8 % in the windows tried) and no threshold. If a per-layer warning is wanted anyway, the heater block copper fraction is the best of the rivals for the fill model (threshold 0.30, false alarms 0.38) and also follows the Lumped and Analytic error (4.5).
+* **Not verified.** Heaters other than 6 mm; other copper thicknesses; the multilayer stack (this is the one-sheet error, an upper bound: Part B of 4.1 shows 2 to 4 % for the fill on the program's stack); tilted copper (the indicators do not look at direction).
 
 ### 4.8 The project file (`study_project_file.py`, `lib/project_format.py`)
 
@@ -239,7 +329,7 @@ From the preparation (still true):
 
 From the runs:
 
-* **Defects of the never-run scripts and tests, corrected.** (1) The registration test asked that 80 % of the placement parts be within 2 mm of an unnamed proximity group after `pnp.register`: it got 47 of 131 on ISASTM; the cause is not the file but the method (section 4.4 B), so the test now asks what the data supports (the placement origin lies within 0.5 mm of the centre of its own named paste group for 90 % of the parts, no registration). (2) The uniform-copper test expected an error below 10 % against the pixel reference; it is 16.5 % at 1 mm and 5 % at 0.5 mm, the same for every mapping. My reading (not verified) is that the held ring is imposed at the *centre* of its cells, so the heater sees a ring half a cell nearer; the consequence is that **the absolute errors of the one-sheet scenario carry an offset of the coarse grid and only the differences between mappings are meaningful**, which the copper-mapping study (4.1) must remember. (3) The conformance script's second reader failed on every fabrication-example file (a Latin-1 byte in a comment makes gerbonara raise a decoding error): it now retries on a transcoded copy; without this fix 32 files looked "not compared". (4) The ODB++ study gained the checks that decide the frame (components inside the profile, pins on the paste flashes) and the paste study gained the by-name check and an "intact part" metric: the first metric of the script (a reference inside exactly one group) said 100 % at 0.3 mm for the smallest board while the part was in pieces, so it was replaced. (5) The bibliography section of this folder stays number 22 after merging `develop` (the merge brought a new section 20 and a section 21 of other folders).
+* **Defects of the never-run scripts and tests, corrected.** (1) The registration test asked that 80 % of the placement parts be within 2 mm of an unnamed proximity group after `pnp.register`: it got 47 of 131 on ISASTM; the cause is not the file but the method (section 4.4 B), so the test now asks what the data supports (the placement origin lies within 0.5 mm of the centre of its own named paste group for 90 % of the parts, no registration). (2) The uniform-copper test expected an error below 10 % against the pixel reference; it is 16.5 % at 1 mm and 5 % at 0.5 mm, the same for every mapping. The cause is the held ring imposed at the *centre* of its cells, half a cell inside the pixel ring (confirmed in the second block, section 4.1: at 36 mm the offset is 2.5 % at 1 mm and 0.8 % at 0.5 mm; a 12 mm unit-test board is far more sensitive); the consequence is that **the absolute errors of the one-sheet scenario carry an offset of the coarse grid and only the differences between mappings are meaningful**, which the copper-mapping study (4.1) must remember. (3) The conformance script's second reader failed on every fabrication-example file (a Latin-1 byte in a comment makes gerbonara raise a decoding error): it now retries on a transcoded copy; without this fix 32 files looked "not compared". (4) The ODB++ study gained the checks that decide the frame (components inside the profile, pins on the paste flashes) and the paste study gained the by-name check and an "intact part" metric: the first metric of the script (a reference inside exactly one group) said 100 % at 0.3 mm for the smallest board while the part was in pieces, so it was replaced. (5) The bibliography section of this folder stays number 22 after merging `develop` (the merge brought a new section 20 and a section 21 of other folders).
 * The library file used here (`lib/odb.py`, written from memory of the format) needed **no correction** on three archives from two exporters.
 
 ## 7. Decisions left to the maintainer
@@ -254,6 +344,6 @@ See `INTEGRATION.md`, section 6: the default mapping (after 4.1), embedded masks
 * **S**: the Ucamco downloads page (through the fetch tool); the README of mcix/odbpp and ODBPy, a search summary on ODB++ and its free specification; search summaries on the X2/X3 attributes; the file lists (not the contents) of the other open boards; the READMEs, CONCLUSIONS and INTEGRATION files of `gerber-import` and `gerber-models` (the parts quoted: not re-run).
 * **M**: the record kinds of ODB++ not used by the three samples (`lib/odb.py`).
 * **N**: the rest of the Gerber specification (the attribute dictionary sections other than the component ones, the aperture-block usage and transformation chapters beyond the overview, the file-function list of the paste and legend layers; the 2024.05 revision was not opened, only 2026.05); the ODB++ specification (needs a registration); IPC-2581 (no file opened); the other Ucamco X3 sample (Coldfire) beyond its areas.
-* **Run in this block**: the folder's tests (24 pass after the two corrections of section 6), studies 4.6, 4.4 (including the ODB++ structure) and 4.8, figures 8 and 9. **Not run**: 4.1, 4.2, 4.3, 4.5 and 4.7 (they wait for the memory ladder to finish).
+* **Run**: first block: the folder's tests (24 pass after the two corrections of section 6), studies 4.6, 4.4 (including the ODB++ structure) and 4.8, figures 8 and 9. Second block: 4.7 (108 cases), 4.1 parts A (36 windows) and B (18 cases), 4.5 (24 windows), 4.3 (ISASTM, three cells) and 4.2 (nine cases), figures 4 to 7. **Not run**: a whole board at 0.25 mm and CO60, RP2040 and vstcm in 4.2; the transient on boards other than ISASTM; the inputs of figure 9 (the first block's outputs were lost with a worktree; the committed figure is the first block's). All the numbers of the second block are against another model of the same physics.
 * **Not verified**: anything physical (no measurement; the placement-to-paste agreement is between two files of the same CAD export, not a check against a board); that the proximity result holds for other CAD tools than KiCad; why three of the seven KiCad boards have no `TO.C` in the paste layer; the licence of the sample archives (not stated); the position frame of an ODB++ job against its own Gerber output.
 * **Reproduction of a published case** (the literature-check rule): the published cases of this topic are the Ucamco test files and the specification's examples (study 4.6: 105 of 108 comparable files within 3 % of a second reader, the specification's own picture of `sample_macro` agrees with ours and not with the second reader, 2 files refused with a message because they use the aperture block); Sampson's method was reproduced in `gerber-models`; the cases of the Electronics Cooling articles were not re-opened here.

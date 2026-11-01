@@ -20,7 +20,7 @@ def test_uniform_window_all_mappings_agree():
     res = onesheet.run_window(cov, 0.1, cells_mm=(1.0,), heater_mm=2.0, with_reference9=False)
     errs = [v["5"] for m, v in res["errors"][1.0].items() if "diagonal" not in m]       # the diagonal variant adds conduction on purpose
     assert max(errs) - min(errs) < 1.0, errs
-    # The common offset is the scenario, not the mapping: the held ring is imposed at the centre of its cells, so the ring sits half a cell inside (16.5 % at 1 mm, 5 % at 0.5 mm, measured); only the differences between mappings mean something
+    # The common offset is the scenario, not the mapping: the held ring is imposed at the centre of its cells, so the ring sits half a cell inside (16.5 % at 1 mm, 5 % at 0.5 mm on this 12 mm board; 2.5 % and 0.8 % on a 36 mm window, README 4.1); only the differences between mappings mean something
     assert all(abs(e) < 20.0 for e in errs), errs
 
 
