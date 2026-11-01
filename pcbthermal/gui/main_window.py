@@ -780,11 +780,21 @@ class MainWindow(QMainWindow):
         if not self.doc.path:
             return self.save_file_as()
         try:
-            self.doc.save()
+            backup = self.doc.save()
         except Exception as exc:
             QMessageBox.critical(self, "Cannot save", str(exc))
             return False
+        self._report_backup(backup)
         return True
+
+    def _report_backup(self, backup):
+        """!
+        @brief Say in the status bar that a save changed the file format and kept a copy of the old file.
+        @param backup Path of the copy, or None (nothing is shown).
+        """
+        if backup:
+            self.statusBar().showMessage(f"Saved. The file format changed (a project with imported boards needs 2.5.0 or later); "
+                                         f"the old file was kept as {backup}", 15000)
 
     def save_file_as(self):
         """!
@@ -798,10 +808,11 @@ class MainWindow(QMainWindow):
         if not path.endswith(".json"):
             path += ".pcbt.json"
         try:
-            self.doc.save(path)
+            backup = self.doc.save(path)
         except Exception as exc:
             QMessageBox.critical(self, "Cannot save", str(exc))
             return False
+        self._report_backup(backup)
         return True
 
     def export_results(self):
