@@ -23,6 +23,11 @@ threshold in degC. Several heaters share an error budget: heaters are sorted by 
 first, while the sum of their oscillations stays within the threshold, so the neglected oscillation anywhere on the
 board is at most the threshold.
 
+For a part over absent copper (FVM and FDM, laminate.face_terms) the oscillation also carries the swing of the face, delta_P * R_face,max
+(StepResponse.face_rth, face_resistances): the resolved curves add the quasi-static face term of the power of each step, so the decision must
+see it. It is a first-order model (valid when the period is above about 10 tau_1 of the half copper layer, see _FVMAdapter._face_setup) and
+is not attenuated: the decision stays conservative. Without a face term the decision is the node's, bit for bit.
+
 The resolved heaters are then simulated together with the averaged ones in one time-stepping run (the response is
 linear). The power of a step is the exact mean of the wave over that step, so edges need not coincide with step
 boundaries and no energy is lost.
@@ -417,7 +422,7 @@ class ProfileResult:
     converged: bool = False
     seconds: float = 0.0                        # Computing time
     initial_c: float = 0.0                      # Start temperature (degC); for "average" the mean field maximum
-    steady_average_max: float = 0.0             # Steady maximum with every heater at its average power (degC)
+    steady_average_max: float = 0.0             # Steady maximum with every heater at its average power (degC), a part at its face (the steady Tmax of the board is the hottest node)
     steady_peak_max: float = 0.0                # Steady maximum with every heater at its on-state power (degC)
     peak_location: Optional[tuple] = None       # (layer, x_m, y_m) of the hottest cell of the peak map
     warnings: List[str] = field(default_factory=list)
