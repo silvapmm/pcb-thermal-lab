@@ -227,13 +227,74 @@ def fig_project_and_links():
     plt.close(fig)
 
 
+RULE_VARIANTS = ("today_off", "today_on", "flow_off", "flow_naive", "flow_on", "lambda_on")
+RULE_LABELS = ("fill\nrule off", "fill\nrule on", "faces\nrule off", "faces, old\nsheet, on", "faces, reduced\nsheet, on", "lambda 0.5\nreduced, on")
+
+
+def fig_rule_on():
+    """!
+    @brief The error of every mapping against the independent 3D reference with the laminate rule on and off (study_rule_on_faces): real two-layer windows, real four-layer windows and the synthetic boards, at the two cells.
+    @return None.
+    """
+    real = load("rule_on_faces_real.json")
+    syn = load("rule_on_faces_synthetic.json")
+    if real is None or syn is None:
+        return
+    rows = real["rows"] + syn["rows"]
+    groups = (("real, 2 layers", "real", 2), ("real, 4 layers", "real", 4), ("synthetic (2 and 4 layers)", "synthetic", None))
+    fig, axs = plt.subplots(2, 3, figsize=(12, 6.2), sharey=True)
+    for i, cell in enumerate((0.6, 1.2)):
+        for j, (title, kind, layers) in enumerate(groups):
+            ax = axs[i, j]
+            sel = [r for r in rows if r["kind"] == kind and r["cell"] == cell and (layers is None or r["layers"] == layers)]
+            rng = np.random.default_rng(3)
+            for x, v in enumerate(RULE_VARIANTS):
+                e = np.array([r["error"][v] for r in sel])
+                ax.plot(x + rng.uniform(-0.15, 0.15, e.size), e, "o", color="#1f77b4", alpha=0.55, markersize=4)
+                ax.plot([x - 0.3, x + 0.3], [np.abs(e).mean() * -1] * 2, color="#d62728", linewidth=2)      # minus the mean absolute error: the red bar is how far, on average, the points are from zero
+            ax.axhline(0, color="k", linewidth=0.6)
+            ax.set_xticks(range(len(RULE_VARIANTS)))
+            ax.set_xticklabels(RULE_LABELS, fontsize=6)
+            ax.set_title(f"{title}, cell {cell} mm (n = {len(sel)})", fontsize=8)
+            if j == 0:
+                ax.set_ylabel("heater mean rise error (%)")
+    fig.suptitle("Blue: one window each; red bar: minus the mean absolute error of the variant", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_10_rule_on_errors.png", dpi=105)
+    plt.close(fig)
+
+
+def fig_rule_shift():
+    """!
+    @brief How much the laminate rule moves the answer of the program as it is ("today") and of the faces, window by window (rule off against rule on).
+    @return None.
+    """
+    real = load("rule_on_faces_real.json")
+    if real is None:
+        return
+    rows = real["rows"]
+    fig, axs = plt.subplots(1, 2, figsize=(9, 4))
+    for ax, (a, b, title) in zip(axs, (("today_off", "today_on", "fill fraction (the program as it is)"), ("flow_off", "flow_on", "flow-based faces (old sheet, off; reduced sheet, on)"))):
+        for layers, color in ((2, "#d62728"), (4, "#1f77b4")):
+            sel = [r for r in rows if r["layers"] == layers]
+            ax.plot([r["error"][a] for r in sel], [r["error"][b] for r in sel], "o", color=color, label=f"{layers} layers", alpha=0.7)
+        ax.plot([-9, 3], [-9, 3], "k", linewidth=0.6)
+        ax.set_xlabel("error with the rule off (%)")
+        ax.set_ylabel("error with the rule on (%)")
+        ax.set_title(title, fontsize=8)
+        ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_11_rule_shift.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Draw every figure whose results exist.
     @return None.
     """
     FIG.mkdir(parents=True, exist_ok=True)
-    for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links):
+    for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links, fig_rule_on, fig_rule_shift):
         f()
 
 
