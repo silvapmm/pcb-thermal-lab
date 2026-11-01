@@ -8,18 +8,18 @@
 import shiboken6
 from PySide6.QtCore import QEvent, QLocale, QObject, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QKeyEvent, QKeySequence, QPainter, QPalette, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QWidget
+from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QProxyStyle, QStyle, QWidget
 
 THEMES = {
     "dark": {
         "window": "#1e2127", "base": "#15181d", "alt": "#23272e", "text": "#e6e8eb", "muted": "#8b949e", "hint": "#9aa3ad",
-        "accent": "#4c8dff", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
+        "accent": "#4c8dff", "on_accent": "#0b0d10", "link": "#6cb0ff", "link_visited": "#b79cf0", "indicator": "#8b949e", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
         "grid_minor": "#ffffff12", "grid_major": "#ffffff2a", "solver_grid": "#4cc9f040",
         "copper": "#d08a3c", "heater": "#ff5b4f", "heatsink": "#3aa0ff", "via": "#f2c14e",
     },
     "light": {
-        "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280", "hint": "#5f6570",
-        "accent": "#2563eb", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
+        "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#5f6672", "hint": "#5f6570",
+        "accent": "#2563eb", "on_accent": "#ffffff", "link": "#2563eb", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
         "copper": "#c77d2e", "heater": "#e0392d", "heatsink": "#1d78d8", "via": "#c9971c",
     },
@@ -141,6 +141,51 @@ def qcolor(spec, alpha=None):
     return c
 
 
+class _ThemeStyle(QProxyStyle):
+    """!
+    @brief Fusion style that outlines the indicators of radio buttons and check boxes with a visible colour.
+    @details Fusion derives the outline of an indicator from the window colour (darker), which is invisible on a dark window
+             (1.12:1) and weak on a light one (1.7 to 2.1:1), so an unchecked radio group looked as if it had no choices.
+             The outline is drawn again on top of Fusion's own drawing, so the check mark and the dot are kept.
+    """
+
+    def __init__(self, outline):
+        """!
+        @brief Build the style.
+        @param outline Outline colour string of the indicators (the theme's "indicator" entry).
+        """
+        super().__init__("Fusion")
+        self._outline = QColor(outline)
+
+    def drawPrimitive(self, element, option, painter, widget=None):
+        """!
+        @brief Draw a primitive; for a radio button or check box indicator add the contrast outline.
+        @param element QStyle primitive element.
+        @param option QStyleOption of the element.
+        @param painter QPainter.
+        @param widget The widget being drawn, or None.
+        """
+        super().drawPrimitive(element, option, painter, widget)
+        if element not in (QStyle.PE_IndicatorRadioButton, QStyle.PE_IndicatorCheckBox):
+            return
+        col = QColor(self._outline)
+        if not (option.state & QStyle.State_Enabled):
+            col.setAlpha(110)                                   # a disabled control stays visible but quieter
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(col, 1.0))
+        painter.setBrush(Qt.NoBrush)
+        r = QRectF(option.rect).adjusted(0.5, 0.5, -0.5, -0.5)
+        if element == QStyle.PE_IndicatorRadioButton:
+            painter.drawEllipse(r)
+        else:
+            painter.drawRoundedRect(r, 2, 2)
+        painter.restore()
+
+
+_STYLE = None           # Keeps the Python side of the current style alive
+
+
 def apply_theme(app, name):
     """!
     @brief Apply the Fusion style, a palette and a style sheet to the whole application.
@@ -148,7 +193,9 @@ def apply_theme(app, name):
     @param name "dark" or "light".
     """
     c = colors(name)
-    app.setStyle("Fusion")
+    global _STYLE
+    _STYLE = _ThemeStyle(c["indicator"])
+    app.setStyle(_STYLE)
     pal = QPalette()
     pal.setColor(QPalette.Window, QColor(c["window"]))
     pal.setColor(QPalette.WindowText, QColor(c["text"]))
@@ -160,7 +207,10 @@ def apply_theme(app, name):
     pal.setColor(QPalette.ToolTipBase, QColor(c["base"]))
     pal.setColor(QPalette.ToolTipText, QColor(c["text"]))
     pal.setColor(QPalette.Highlight, QColor(c["accent"]))
-    pal.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+    pal.setColor(QPalette.HighlightedText, QColor(c["on_accent"]))
+    pal.setColor(QPalette.Link, QColor(c["link"]))
+    pal.setColor(QPalette.LinkVisited, QColor(c["link_visited"]))
+    pal.setColor(QPalette.Disabled, QPalette.WindowText, QColor(c["muted"]))
     pal.setColor(QPalette.PlaceholderText, QColor(c["muted"]))
     pal.setColor(QPalette.Disabled, QPalette.Text, QColor(c["muted"]))
     pal.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(c["muted"]))
@@ -184,7 +234,7 @@ def apply_theme(app, name):
         QTabWidget::pane {{ border: none; border-top: 1px solid {c['border']}; }}
         QPushButton {{ border: 1px solid {c['border']}; border-radius: 6px; padding: 6px 14px; background: {c['alt']}; }}
         QPushButton:hover {{ border-color: {c['accent']}; }}
-        QPushButton#primary {{ background: {c['accent']}; border-color: {c['accent']}; color: white; font-weight: 600; }}
+        QPushButton#primary {{ background: {c['accent']}; border-color: {c['accent']}; color: {c['on_accent']}; font-weight: 600; }}
         QPushButton#primary:disabled {{ background: {c['border']}; color: {c['muted']}; }}
         QStatusBar {{ border-top: 1px solid {c['border']}; }}
         QHeaderView::section {{ background: {c['alt']}; border: none; padding: 4px 8px; }}
