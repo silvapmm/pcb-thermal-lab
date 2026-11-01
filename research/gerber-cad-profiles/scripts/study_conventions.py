@@ -93,7 +93,7 @@ def main():
     d = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     nfiles = collections.Counter()
     for key, truth, folder in sets():
-        for dp, _, fs in os.walk(folder):
+        for dp, _, fs in sm.walk(folder):
             for fn in fs:
                 p = os.path.join(dp, fn)
                 if os.path.splitext(fn)[1].lower() in sm.SKIP_EXT or os.path.getsize(p) == 0 or fn in ("LICENSE", "README", "SOURCE", "_SOURCE.txt"):

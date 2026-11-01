@@ -44,7 +44,21 @@ ROOTS = [
     ("zuken-emulated/Gerber", "zuken", None), ("zuken-emulated/Drill", "zuken", None), ("zuken-emulated/orig", "kicad", None),
     ("fab3000", "unknown", None), ("proteus/ottosdiy", "proteus", None),
 ]
+# nested folders that are another set (orcad/cc1310 is CAM350 output) or a copy (target3001/Target3001): left out when walking their parent
+NESTED = {"orcad": {"cc1310"}, "target3001": {"Target3001"}}
 SKIP_EXT = {".zip", ".tgz", ".pdf", ".png", ".bmp", ".jpg", ".dxf", ".3ds", ".gz"}
+
+
+def walk(root):
+    """!
+    @brief os.walk of a set that leaves out the nested sets and copies of NESTED.
+    @param root  Folder (absolute).
+    @return generator of (folder, sub-folders, files) as os.walk gives them.
+    """
+    skip = NESTED.get(os.path.basename(root.rstrip("/")), set())
+    for dp, dn, fs in os.walk(root):
+        dn[:] = [d for d in dn if d not in skip]
+        yield dp, dn, fs
 
 
 def collect(root):
@@ -54,7 +68,7 @@ def collect(root):
     @return dict Name relative to the folder -> first bytes.
     """
     out = {}
-    for dp, _, fs in os.walk(root):
+    for dp, _, fs in walk(root):
         for f in fs:
             p = os.path.join(dp, f)
             if os.path.splitext(f)[1].lower() in SKIP_EXT or os.path.getsize(p) == 0 or f == "_SOURCE.txt":
@@ -77,6 +91,7 @@ def main(argv):
     print("| set | truth | detected | confidence | version | files | files naming the truth | strongest evidence |")
     print("| :-- | :-- | :-- | :-- | :-- | --: | --: | :-- |")
     ok = total = 0
+    per_tool = {}                                             # truth -> [sets, files, files naming the truth]
     for rel, truth, _ in ROOTS:
         root = os.path.join(DATA, rel)
         if not os.path.isdir(root):
@@ -93,6 +108,10 @@ def main(argv):
             else:
                 silent.append(name)
         good = det.profile == truth
+        agg = per_tool.setdefault(truth, [0, 0, 0])
+        agg[0] += 1
+        agg[1] += len(files)
+        agg[2] += own
         ok += good
         total += 1
         ev = det.evidence[0] if det.evidence else None
@@ -114,6 +133,10 @@ def main(argv):
             f, "kicad" if "flat" in f else "unknown", det.profile, det.confidence, det.version, len(files),
             det.evidence[0].text if det.evidence else "no misc/info in the archive"))
     print("\nsets recognised as the truth: %d of %d" % (ok, total))
+    print("\n| tool | sets | files | files that name the tool by themselves |")
+    print("| :-- | --: | --: | --: |")
+    for t, (n, nf, no) in sorted(per_tool.items()):
+        print("| %s | %d | %d | %d (%.0f %%) |" % (t, n, nf, no, 100.0 * no / max(nf, 1)))
     return 0
 
 

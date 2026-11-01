@@ -69,7 +69,7 @@ def main(argv):
     rows = []
     t0 = time.time()
     for key, truth, folder in sets():
-        for dp, _, fs in os.walk(folder):
+        for dp, _, fs in sm.walk(folder):
             for f in sorted(fs):
                 p = os.path.join(dp, f)
                 if os.path.splitext(f)[1].lower() in sm.SKIP_EXT or f in ("LICENSE", "README", "SOURCE", "_SOURCE.txt", "listing.json"):

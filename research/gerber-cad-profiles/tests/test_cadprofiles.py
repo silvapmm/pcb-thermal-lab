@@ -195,3 +195,22 @@ def test_real_xpedition_set():
     f = os.path.join(folder, "ThruHolePlated.ncd")
     d = cp.detect_set({"ThruHolePlated.ncd": open(f, "rb").read(cp.HEAD_BYTES)})
     assert d.profile == "xpedition" and d.confidence == "high"
+
+
+def test_conventions_table():
+    """!
+    @brief The conventions file covers every profile of the marker table, nothing else (plus "generic"), and its layer-name regexes compile.
+    @return None
+    """
+    import json
+    import re
+    conv = json.load(open(os.path.join(BASE, "lib", "cad_conventions.json")))
+    prof = cp.load_table()["profiles"]
+    for key, val in conv.items():
+        if key.startswith("_") or key == "generic":
+            continue
+        assert key in prof, key
+        for rule in val.get("layer_rules", []):
+            re.compile(rule[0])
+    for key in prof:
+        assert key in conv, "no conventions for " + key
