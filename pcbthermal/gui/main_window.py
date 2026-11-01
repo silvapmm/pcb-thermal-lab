@@ -25,6 +25,7 @@ from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
 from .calculator import PowerCalculator
+from .import_window import ImportBoardWindow
 from .help import AboutDialog, GuideWindow, open_guide_in_browser
 from .preferences import PreferencesDialog
 from .canvas import BoardView
@@ -433,6 +434,8 @@ class MainWindow(QMainWindow):
         self.a_run = self._act("Run simulation", self.run_simulation, "F5", tip="Solve the selected models (F5)")
         self.a_calc = self._act("Power Calculator…", self.show_calculator,
                                 tip="Find the power of a part from a temperature you measured (drawn board, or a datasheet parameter)")
+        self.a_import = self._act("Import Gerber board…", self.show_import,
+                                  tip="Make a new project from fabrication files (Gerber copper, drills, outline, optional placement file): a folder, a ZIP archive or files")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
@@ -447,7 +450,7 @@ class MainWindow(QMainWindow):
 
         mb = self.menuBar()
         m = mb.addMenu("&File")
-        for a in (self.a_new, self.a_open, None):
+        for a in (self.a_new, self.a_open, self.a_import, None):
             m.addAction(a) if a else m.addSeparator()
         ex = m.addMenu("Open example")
         ex.addAction(self.a_ex_ref)
@@ -940,6 +943,14 @@ class MainWindow(QMainWindow):
             self.inspector.rebuild()
             self.stackup_page.refresh()
             self.statusBar().showMessage("Defaults saved. New boards and elements use them; open boards keep their values.", 6000)
+
+    def show_import(self):
+        """!
+        @brief Open the Gerber import window; a finished import is loaded as a new unsaved project.
+        """
+        dlg = ImportBoardWindow(self)
+        if dlg.exec() == QDialog.Accepted and dlg.problem is not None:
+            self._load_problem(dlg.problem, dlg.session.name)
 
     def show_calculator(self):
         """!

@@ -940,6 +940,58 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     assert not empty.compute.isEnabled()
 
 
+def test_import_window_in_the_application(win, qtbot, tmp_path, monkeypatch):
+    """The Gerber import window: opens from the File menu and closes, reads a folder and a ZIP of the synthetic set, survives wrong functions, a damaged file, an empty folder and a theme
+    switch on every step, answers Import now without the not-yet-merged copper, and leaves the open project alone."""
+    from pcbthermal.gui import import_session as ims
+    from pcbthermal.gui.import_window import ImportBoardWindow
+    from tests.helpers.synthetic_board import make_board, make_zip
+    load(win, example_board())
+    before = win.doc.problem.board.width
+    shown = []
+    monkeypatch.setattr(ImportBoardWindow, "exec", lambda self: (shown.append(self), self.show(), self.close(), 0)[3])   # Open and close, as the menu does
+    win.a_import.trigger()
+    assert len(shown) == 1 and win.doc.problem.board.width == before
+    dlg = ImportBoardWindow(win)
+    qtbot.addWidget(dlg)
+    notes = []
+    dlg.notify = lambda title, text: notes.append(title)
+    dlg.confirm = lambda title, text: True
+    dlg.show()
+    folder = make_board(tmp_path / "fab", inner=2)
+    dlg.open_path(str(make_zip(folder, tmp_path / "set.zip")))                 # A ZIP first
+    assert dlg.session.complete()
+    dlg.open_path(str(folder))                                                    # then a folder
+    for step in (1, 2, 0):
+        dlg.go(step)
+        win.toggle_theme()                                                        # the live theme switch on every step
+        dlg.page1.preview.grab()
+        dlg.stepper.grab()
+    # Every function of the list on every file, one after the other: nothing raises, the checks speak
+    for i in range(len(dlg.session.files)):
+        for role in ims.ROLES:
+            dlg.page1.table.cellWidget(i, 3).setCurrentText(role)
+        dlg.page1.table.cellWidget(i, 3).setCurrentText(dlg.session.files[i].role)
+    dlg.reload()
+    (folder / "F.gbr").write_text("not a gerber file at all\n%%%")              # a damaged copper file
+    dlg.open_path(str(folder))
+    dlg.page1.preview.grab()
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    dlg.open_path(str(empty))                                                     # an empty folder: a message, the window stays
+    assert "Cannot read the files" in notes
+    dlg.open_path(str(make_board(tmp_path / "fab2")))
+    assert dlg.session.complete()
+    assert dlg.do_import() is False and "Import not available" in notes           # the copper of the model is not merged: told, not crashed
+    QTest.mouseClick(dlg.next_btn, Qt.LeftButton)
+    QTest.mouseClick(dlg.back_btn, Qt.LeftButton)
+    dlg.page1.preview.zoom = 5.0
+    QTest.mouseDClick(dlg.page1.preview, Qt.LeftButton)
+    assert dlg.page1.preview.zoom == 1.0
+    dlg.close()
+    assert win.doc.problem.board.width == before                                  # the open project was not touched
+
+
 def test_natural_form_control_in_the_application(win, qtbot):
     """The vertical natural convection form: shown with computed h, enabled only for a vertical board, written to the document, undone, run, saved and reloaded."""
     load(win, example_board())

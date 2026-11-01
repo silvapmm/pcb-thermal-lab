@@ -46,6 +46,7 @@ parameter means, what each model does and what it can and cannot do. Hover the p
 <li><a href="#results">Reading the results</a></li>
 <li><a href="#profile">Power profiles and time simulation</a></li>
 <li><a href="#calc">Power Calculator</a></li>
+<li><a href="#import">Import Gerber board</a></li>
 <li><a href="#prefs">Preferences: defaults and libraries</a></li>
 <li><a href="#files">Files, export and the command line</a></li>
 <li><a href="#keys">Keyboard and mouse</a></li>
@@ -257,6 +258,15 @@ The power coefficient and the heatsink on the package apply to the steady-state 
 <li><b>Route 2, from a datasheet parameter</b>: <code>P = (Tj − T_ref) / parameter</code> for a known junction temperature (a sense diode) with ψJB (reference: the board 1 mm from the package), ψJT (the top of the case) or θ. No board model, so it is exact only on the datasheet's own board. It updates as you type and has its own <i>Use as the power of a part</i> button.</li>
 </ul>
 <p><b>How good is it?</b> On a datasheet's own board the model returns the datasheet's thermal resistance within 2 to 3 % (TI CSD17308Q3: 46.8 against 46 K/W; a JEDEC 2s2p board with an exposed-pad QFN: 31.6 against 32.5 K/W). When the drawn board is not the real one the error is large: <b>everything depends on the copper</b> (a hatched top copper gives 13 % too little power, a missing inner plane 34 %, missing vias 11 %; heat transfer ±30 % +6 / −9 %, ψJT ±1 K/W ±6 %, θ ±20 % ±7 %, 3 K of reading error ±8.5 %). The datasheet shortcut P = (Ttop − Tamb)/(θJA − ψJT) is not offered: with a θJA 30 % away from your board's it is 25 to 50 % off. Formulas, validation tables and sources: <code>docs/calculators.md</code>.</p>
+
+<h2 id="import">12b. Import Gerber board</h2>
+<p><b>File - Import Gerber board...</b> opens a separate window, like the Power Calculator, that turns the fabrication files of a board into a project. The header is a <b>stepper</b>: three numbered markers, <b>Files and layers</b>, <b>Parts</b> and <b>Model</b>. The current step is in the accent colour, a finished step has a check mark, a locked step is muted and its tooltip says why it is locked; a click on a marker that can be opened jumps to it. <b>Back</b> and <b>Next</b> are at the bottom and <b>Next</b> becomes <b>Import</b> on the last step. Once step 1 is complete a secondary <b>Import now</b> button imports with what is set so far (the later steps keep their defaults); if no heat source is defined it asks you to confirm.</p>
+<ul>
+<li><b>Step 1, files and layers.</b> Choose a <b>folder</b>, a <b>ZIP</b> archive (read in memory and never extracted to disk; an archive with an unsafe name, an enormous declared size or a compression ratio above 1000 is refused) or <b>files</b> one by one, or type a path and press Enter. Every file gets the <b>function</b> the program <i>detected from</i> its Gerber X2 attributes, the Excellon header or its name (the column says which); the function is a list you can change, and a file can be left out with its <b>Use</b> box. Two files that claim one function (two top copper files, two outlines) are shown in red and stop the import until you change one of them. Mask and legend files are listed and not used.</li>
+<li>The <b>Board</b> box gives the number of copper layers and the typical stack-up of the program for that count (not a fabricator table: the files do not carry the dielectrics; edit them in the Stack-up tab), the <b>outline</b> (size and area; without an outline the box of the copper is used) and the <b>drills</b>: plated holes up to 0.5 mm are vias, larger plated holes are component holes (a lead is not modelled) and non-plated holes are ignored.</li>
+<li>The <b>preview</b> draws the copper layer selected in the list (or in the box above the preview) at full strength and the others faded, the outline and the holes. Mouse wheel zooms, drag pans and a double click shows the whole board. It uses the colours of the theme and follows a theme switch.</li>
+<li><b>Steps 2 and 3</b> (the heat sources from the paste layer and the placement file, and the copper mapping, cell and memory verdict) are shown as pages that say they are not part of this version yet; <b>Back</b>, <b>Next</b>, <b>Import now</b> and the locked-step rule work as they will with the full pages.</li>
+</ul>
 
 <h2 id="prefs">13b. Preferences: defaults and libraries</h2>
 <p><b>Preferences</b> (Edit menu, <kbd>Ctrl</kbd>+<kbd>,</kbd>) edits what the program starts with. Everything is kept in a plain JSON file, so each user can have their own and share it:</p>
