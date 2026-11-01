@@ -2,6 +2,17 @@
 
 Design for a `feature/memory-guard` branch off `develop` (release 2.5.0, item 'memory limit and guard' of `docs/versions.md` Planned, with the SOR block guard and, if the ladder confirms it, the cell-major numbering). The research branch changes nothing of the program; the prototype is `lib/memory_model.py` with the measured coefficients (`MEASURED`, README 5.2) and the measured SOR block cost. The measured impact of each proposal is in section 7. Decisions left to the maintainer: README 13.
 
+## 0. Changes required by the review (README 14; they override the sections below where they differ)
+
+1. **The law**: one continuous law per model, peak = base + k1 t_eff^a N (N / 500 000)^(p - 1) with t_eff = min(t, cells / t) (`memory_model.CONTINUOUS`, `estimate_continuous`): FVM k1 1 469 B, p 1.24, a 0.79, safety 1.40; FDM 1 228 B, 1.34, 1.03, 1.24; 3D solid 1 063 B, 1.30, 0.98, 1.30. The class table of section 1 is flat in t and fell below four of six measured points at 8 and 12 copper layers (up to 1.41 times) and below the documents' 3D points at 393 000 and 500 000 unknowns (README 14.2): it is not to be implemented. `classify_by_t` goes.
+2. **The base**: the resident size of the calculating process when the check is made (0.108 GB measured for the calculation process), not the constant 0.08 GB.
+3. **The limit**: refusal at a fraction of the installed memory, default 60 % recommended (maintainer decision: 60 or 70 %), plus a warning (not a refusal) when the estimate is above the memory available at Run (`available_bytes()`: MemAvailable, `vm_stat`, `ullAvailPhys`), with an optional Preferences switch to refuse there too (README 14.7). Units: GB of 10^9 bytes in every message and the detected memory shown in Preferences (README 14.3).
+4. **The transient**: `TRANSIENT_FACTOR` 3.5 for the transient and animation jobs as the program is (measured), or 2 after the one-factor fix of `fvm.transient_from_network` (bit-identical, measured 1.9; `lib/review_copies.py`), which should come first (README 14.5). Power-profile runs: 2 (two factors; not measured).
+5. **The SOR**: 75 n^2 bytes (the largest measured), allowed within 25 % of the limit; the dense-inverse optimisation (27 n^2) is a separate proposal (README 14.6).
+6. **The command line**: exit code **3** for a refusal; `argparse` already uses 2 for a usage error.
+7. **Logging**: the module logs the estimate and, after the run, the measured peak of the process (`resource.getrusage`, bytes on macOS, KB on Linux), so the first runs on other machines check the law.
+8. **The importer** (Gerber, 2.5.0): its raster is estimated in bytes (pixels x layers drawn at once, about 6.5 GB for CO60 at 0.025 mm with every layer at once in the research importer) and it draws one layer at a time; the same module holds that small estimate.
+
 ## 1. `pcbthermal/memory.py` (new module, no GUI imports, no new dependency)
 
 Public functions (the prototype's names, adopted as they are):
@@ -16,7 +27,7 @@ Public functions (the prototype's names, adopted as they are):
 | `analytic_bytes(tiles, layers, modes)` | the dense tile matrices of the Analytic correction |
 | `verdict(estimate, limit, ...)` | `"ok"`, `"slow"` or `"refuse"` |
 | `largest_unknowns(klass, limit)`, `cell_that_fits(count, klass, limit, cell)` | the inverse: how many unknowns fit, and the cell that brings a model under the limit (for the message and the Auto suggestion) |
-| `sor_block_bytes(n)`, `sor_block_fits(n, limit, share)` | replace `fvm.MAX_SOR_BLOCK`: 72 n^2 bytes (README 9), allowed when it is at most `share` (25 % proposed) of the limit |
+| `sor_block_bytes(n)`, `sor_block_fits(n, limit, share)` | replace `fvm.MAX_SOR_BLOCK`: 75 n^2 bytes (README 9 and 14.6), allowed when it is at most `share` (25 % proposed) of the limit |
 | `check(problem, models, options)` (new, not in the prototype) | the one entry the callers use: counts the unknowns of every selected model (`fvm.unknowns`, `fdm.unknowns`, `solid3d.unknowns`, the tile count for the Analytic), classifies, returns a list of `(model, unknowns, estimate, verdict, cell_that_fits)`; raises `MemoryGuardError(ValueError)` with the text for the first `"refuse"` |
 
 The coefficient table (`MEASURED`) lives in the module as constants with a comment giving the series they come from; the base is 0.08 GB (the baseline child; the application with Qt starts higher and the module should read the process's own resident size at the start instead), and each class carries its safety factor 1.11 to 1.46 (README 13.b):
@@ -41,8 +52,8 @@ Physical memory detection without `psutil`: one reason is the licence table in t
 1. **`api.simulate`**: first thing after `SolverOptions.validate()`, `memory.check(problem, options.models, options)`; a `"refuse"` raises `MemoryGuardError` before any array is allocated (the message: the model, the unknowns, the estimate in GB, the limit, and "use a cell of X mm or more"); a `"slow"` adds a warning to the simulation (`problem_warnings`), shown in the Results summary and the report. `solid3d.check_size` and `MAX_CELLS` are removed (the 3D solid is covered by the same call); `solid3d.size_limit` stays for the offline studies, now over the ceiling.
 2. **`jobs.py`** (the calculation process): the check is made in the parent before the process is started (the user gets the message at once, nothing is spawned); the child repeats it because `jobs` can be called by other code, and a refusal comes back as the job's error text. The transient and animation jobs use `transient=True`.
 3. **Interface**: `panels.py` `_update_cells` shows `"{n} unknowns, about {GB} GB of {limit} GB"` per selected model, coloured green / amber / red from the verdict, replacing the fixed ">500 000" and "> MAX_CELLS" notes; the Run button is disabled with the reason as a tooltip when the verdict is "refuse"; the **Auto** cell suggestion (`api.suggest_cell_mm`) takes the larger of the heater-based cell and `cell_that_fits`, and says so. The Preferences page for the solver gets a number field "Memory limit (% of the physical memory)", default 70, range 10 to 95, tooltip: what it means, the detected memory, that the estimate may be wrong by the margin shown. A new `solver.memory_fraction` key in `data/defaults.json` (new projects and the user file; `api.default_options` reads it); the Power Calculator and the other callers of `simulate` are covered by (1).
-4. **CLI**: `run`, `transient`, `convergence` print the refusal message and exit with code 2 (a distinct code so scripts can tell it from a failure); `--memory-fraction` overrides the setting; `solvers` and `convergence` check every cell they will try before starting.
-5. **SOR**: `fvm.Network.solve_sor` asks `memory.sor_block_fits(n, limit)` instead of comparing with `MAX_SOR_BLOCK`; the fallback to the direct solver and its warning stay, with the new reason in the text. The comment of `fvm.py` that says 5 000 unknowns are 200 MB must be corrected: they are about 1.8 GB (README 9).
+4. **CLI**: `run`, `transient`, `convergence` print the refusal message and exit with code 3 (review: 2 is `argparse`'s usage error, so it is not distinct); `--memory-fraction` overrides the setting; `solvers` and `convergence` check every cell they will try before starting.
+5. **SOR**: `fvm.Network.solve_sor` asks `memory.sor_block_fits(n, limit)` instead of comparing with `MAX_SOR_BLOCK`; the fallback to the direct solver and its warning stay, with the new reason in the text. The comment of `fvm.py` that says 5 000 unknowns are 200 MB must be corrected: they are about 1.9 GB (README 9, 14.1).
 
 ## 3. The ordering of the unknowns (separate, smaller change in `fvm.py` and `fdm.py`)
 
@@ -50,13 +61,14 @@ Physical memory detection without `psutil`: one reason is the licence table in t
 
 ## 4. Tests of the feature
 
-* `tests/test_memory.py` (unit): the prototype's tests moved with the module, plus the fitted coefficients against the ladder's file shipped as test data (a handful of points, not the ladder).
+* `tests/test_memory.py` (unit): the prototype's tests moved with the module, plus the fitted coefficients against a handful of measured points shipped as constants (the ladder's and the review's 8 and 12-layer points, `REVIEW_POINTS` of the prototype's test).
+* `tests/test_fvm.py` (if the one-factor transient goes in): the frames are bit-identical to the old ones and the transient keeps one factor.
 * Simulated machines: patch `memory.ram_bytes` to 8, 16 and 64 GB; the same board is "refuse", "slow" and "ok".
 * `api.simulate` refuses the monkey's 502 mm board at 2 mm with computed h in under 60 s and allocates nothing large (assert on `tracemalloc` peak below 200 MB).
 * A failed RAM read (patched to None) falls back to the fixed limit and the 3D ceiling.
 * `tests/test_gui_stress.py`: a scenario that sets the limit to 10 % in Preferences, checks the Run button is disabled with a message for a fine cell, checks Auto gives a cell the verdict accepts, and restores; the existing monkey test, which once timed out on the 3D solid, must now end in the refusal quickly.
 * Documentation gate and tooltips: the new field has a tooltip (`gui/tips.py`), the user guide (`pcbthermal/help/index.html`) and `tests/test_help.py` get the new words.
-* CLI: exit code 2 and the message text.
+* CLI: exit code 3 and the message text.
 
 ## 5. Documents to update at adoption (not now)
 
@@ -82,9 +94,9 @@ Physical memory detection without `psutil`: one reason is the licence table in t
 
 | Proposal | Measured | Where |
 | :-- | :-- | :-- |
-| Estimator by class of t | exponent 1.08 to 1.41 (thick graphs steeper); ratios measured/fitted 0.75 to 1.33 in the worst class; safety factors 1.11 to 1.46; the provisional table of the preparation was up to 2.96 times below a measurement (6-layer plain board at 960 000 unknowns, 8.4 GB) and up to 2.4 times above (laminate boards) | README 5.2, 5.3 |
+| Estimator by class of t (replaced by the continuous law, README 14.2) | exponent 1.08 to 1.41 (thick graphs steeper); ratios measured/fitted 0.75 to 1.33 in the worst class; safety factors 1.11 to 1.46; the provisional table of the preparation was up to 2.96 times below a measurement (6-layer plain board at 960 000 unknowns, 8.4 GB) and up to 2.4 times above (laminate boards) | README 5.2, 5.3 |
 | 70 % default | 70 % of 16 GB is 12.0 GB and the usable memory at rest is about 12 GB; the machine swapped once with 5 to 7 GB solves next to other work. The largest boards that run at 11.2 GB (limit with safety): FVM 3.1 million (t up to 3.5), 2.0 million (t 3.5 to 4.5), 0.94 million (t above 4.5); FDM with laminate nodes 0.87 million; 3D 1.36 million, 786 000, 439 000 (the fixed limit is 250 000) | README 5.4, 8, 10 |
 | Cell-major | harmless, gain conditional, reviewer's numbers not reproduced | README 6 |
-| SOR block | 72 n^2 bytes measured (the first estimate 16 n^2); 5 000 unknowns take about 1.8 GB, not 200 MB | README 9 |
+| SOR block | 66 to 75 n^2 bytes measured, 75 used (the first estimate 16 n^2); 5 000 unknowns take about 1.9 GB, not 200 MB; a dense inverse would take 27 n^2 | README 9, 14.6 |
 | 3D ceiling | 2 million never binds at 16 GB; binds from about 26 GB (6 slabs) to 100 GB (26 slabs); predicted time at 2 million unknowns about 120 s | README 10 |
 | Slow mark | predicted solve time above 30 s instead of 35 % of the RAM; at the limit of 16 GB the predicted times are 17 to 62 s | README 5.4, 13.c |

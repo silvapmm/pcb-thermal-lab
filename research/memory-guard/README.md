@@ -1,6 +1,6 @@
 # Memory limit and guard
 
-**Status: run, waits for the reviewer.** The ladder (150 records), the class fit, the SOR block study and the figures were run on the maintainer's 16 GB Mac (program 2.4.5, `develop` d28142a). Sections 4 to 11 are the results with the numbers the scripts printed; 12 says how to repeat them; 13 answers the questions; 14 says what was read and what was not verified. The numbers of section 2 are quoted from other folders; every other number comes from `out/ladder.jsonl`, `out/class_fit.json` and `out/sor_block.json` (ignored by version control, produced by the scripts).
+**Status: reviewed (section 14): go for 2.5.0 with the changes of 14.10.** The ladder (150 records), the class fit, the SOR block study and the figures were run on the maintainer's 16 GB Mac (program 2.4.5, `develop` d28142a). Sections 4 to 11 are the results with the numbers the scripts printed; 12 says how to repeat them; 13 answers the questions; 14 is the review (the class table of 5.2 is replaced by a continuous law, the transient factor and the SOR cost are corrected); 15 says what was read and what was not verified. The numbers of section 2 are quoted from other folders; every other number comes from `out/ladder.jsonl`, `out/class_fit.json` and `out/sor_block.json` (ignored by version control, produced by the scripts).
 
 ## 1. The question
 
@@ -112,6 +112,8 @@ solid3d_t_6_12       3  1.28      10510       0.96 - 1.07                 0.96  
 solid3d_t_gt_12      6  1.23      18641       0.80 - 1.27                 0.71                1.40      solid3d_plain_6L,solid3d_vias_4L
 ```
 
+*Review (14.2): this table is flat in t inside and beyond its bins; four of six points measured at 8 and 12 copper layers are above its estimate with the safety factor (up to 1.41 times). It is replaced by one continuous law per model in t_eff.*
+
 Reading of the table (answer to 13.a):
 
 * **The plain layered FVM is linear only for thin graphs.** The exponent is 1.08 to 1.10 for t up to 4.5 and **1.36 for t above 4.5**; 1.41 for the FDM with laminate nodes; 1.23 to 1.28 for the 3D solid (whose points reach only 240 000 to 400 000 unknowns, so its laws are extrapolated beyond them). The statement of section 2 that the plain layered FVM is linear (2.7 KB per unknown from 1 to 2 million unknowns) is true for t = 2 and not general: a six-layer plain board takes 8.8 KB per unknown at 960 000.
@@ -208,11 +210,14 @@ cell  n_block  peak build  peak sor  diff GB  8 n^2 GB  diff/(8n^2)
 
 *Figure 07 (fig_07_sor_block_memory.png): measured memory of the block inverse against the block size, with 16 n^2 (the first estimate) and 72 n^2.*
 
+* *Review (14.1, 14.6): two points repeated at 74.1 and 74.7 n^2; the guard takes the largest measured value, 75 n^2 (5 000 unknowns: 1.9 GB); the program's build of the inverse takes 63 n^2 where a dense inverse would take 27 n^2.*
 * The cost is **72 n^2 bytes** (8.2 to 9.3 times the 8 n^2 of the dense inverse itself; the build holds the dense block, its inverse, LAPACK's work and the sparse copy that the iterations keep). The first estimate 16 n^2 was 4.5 times too low, and the comment of `fvm.py` ("5 000 unknowns are 200 MB") is wrong: **5 000 unknowns take about 1.8 GB** (2.12 GB measured at n = 5 400). The block size is not a smooth function of the cell (footprints merge at some cells and not at others: 128 unknowns in 25 blocks at 0.5 mm, 880 in one block at 1.0 mm).
 * Rule that replaces `MAX_SOR_BLOCK`: `72 n^2 <= share x limit`. With a share of 25 %: 70 % of 16 GB gives n up to 6 200; 8 GB at 70 % gives 4 400; 64 GB gives 12 500. The constant 5 000 is 1.8 GB, 16 % of the 16 GB limit. The SOR is a comparison solver, so a small share is enough; the share is a decision.
 * Not measured: a block above 9 000 unknowns (the watchdog stopped it), and several blocks together (the sum of the squares is assumed: the colours are inverted one after another and their sparse inverses stay in memory).
 
 ## 10. Study 7: the ceiling of the 3D solid (answer to 13.e)
+
+*Review (14.3, 14.4): the limit used here is 0.7 x 16e9; the program's 70 % is 0.7 x 17.2e9 = 12.0 GB; with the continuous law the ceilings at 12.0 GB are 1 167 000 (6 slabs), 795 000 (10), 558 000 (16) and 387 000 (26 slabs), trusted to about +-20 %.*
 
 The measured 3D laws with their safety factor give, at 70 % of 16 GB = 11.2 GB (table 5.4): **1.36 million unknowns for a plain 2-layer board (6 slabs), 786 000 for the 10-slab board, 439 000 for 16 to 26 slabs**, against the fixed 250 000 of `solid3d.MAX_CELLS` (5.4, 3.1 and 1.8 times more). These are extrapolations: the largest 3D points measured are 240 000 (6 slabs), 400 000 (10 slabs), 327 184 (16 slabs) and 260 000 (26 slabs), and the two points above them were stopped at the cutoff (531 674 unknowns of 26 slabs at 8.5 GB, 640 000 of 16 slabs at 9.3 GB; the law gives 10.1 GB and 12.6 GB without the safety factor for them, consistent). The documents' values for the example board (3.5 GB at 247 000 and 7.4 GB at 392 000 unknowns, 16 slabs) are within 12 % of the law of the class (3.9 and 6.9 GB), so they are not contradicted.
 
@@ -227,7 +232,7 @@ The ladder runs one point at a time and the SOR study one child at a time, both 
 All commands from the repository root with the program's environment:
 
 ```sh
-.venv/bin/python -m pytest -q research/memory-guard/tests                                              # 38 tests, seconds
+.venv/bin/python -m pytest -q research/memory-guard/tests                                              # 59 tests, seconds
 .venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --plan                            # the points and the provisional estimates
 .venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --run --quick                     # about 10 minutes
 .venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --run                             # resumable (out/ladder.jsonl)
@@ -236,6 +241,10 @@ All commands from the repository root with the program's environment:
 .venv/bin/python research/memory-guard/scripts/study_class_fit.py                                       # the classes by t, time, cell-major, count check (out/class_fit.json)
 .venv/bin/python research/memory-guard/scripts/study_sor_block.py                                       # the SOR block (out/sor_block.json)
 .venv/bin/python research/memory-guard/scripts/make_diagrams.py && .venv/bin/python research/memory-guard/scripts/make_figures.py
+.venv/bin/python research/memory-guard/scripts/study_review.py --points    # the review: 6 points at 8 and 12 layers, at most 3 GB each, stops above 1.5 GB of swap
+.venv/bin/python research/memory-guard/scripts/study_review.py --paths     # api.simulate, computed h, the transient and its one-factor copy
+.venv/bin/python research/memory-guard/scripts/study_review.py --sor       # the SOR block inverse, program path against dense
+.venv/bin/python research/memory-guard/scripts/study_review.py --fit       # the continuous law, the checks, the ceilings
 ```
 
 Close the other heavy programs first and watch `sysctl vm.swapusage`; a point above the cutoff is killed by the watchdog, but the machine can still swap below it when other work runs (section 11).
@@ -258,11 +267,118 @@ Close the other heavy programs first and watch `sysctl vm.swapusage`; a point ab
 
 (h) **Cost of the laminate rule at 0.25 mm** (the documents say about 7 GB per million unknowns on refined boards): 4.5 GB per million for the 2-layer partial-copper board (675 200 unknowns, 3.02 GB), 6.7 GB per million for the 2-layer stripes board (800 000, 5.37 GB), **8.8 GB per million for the 4-layer board with laminate nodes** (983 200, 8.62 GB) and for the 6-layer plain board (960 000, 8.41 GB, no laminate node at all). About 7 GB per million is the right order for a board at 0.25 mm with laminate nodes and 2 to 4 layers. The cost follows t, not the rule as such; the rule makes t larger.
 
+*Answers changed by the review (section 14): (a) and (b) one continuous law per model in t_eff with safety factors 1.40 (FVM), 1.24 (FDM), 1.30 (3D solid) instead of the classes; (d) recommended: refusal at 60 % of the installed memory, a warning (not a refusal) above the available memory (maintainer decision); (e) the ceilings at the program's 12.0 GB are 1 167 000 / 795 000 / 558 000 / 387 000 unknowns; (g) 75 n^2 bytes; the transient factor is 3.5 (2 with one factor kept), not 2; the command line exits with 3, not 2.*
+
 Decisions left to the maintainer: the margin (b); the slow mark (c); installed or available memory and the default fraction (d); the cell-major numbering (f); the share of the limit for the SOR block (g); psutil (not adopted: the available memory can be read without it); a second machine to repeat the ladder.
 
-## 14. What was read and what was not verified
+## 14. Review
+
+Independent review of this run (reviewer agent), on the same 16 GB Mac shared with another study (two processes of 3.3 to 4.4 GB). Every point of the review ran alone with `nice -n 10`, the swap read before and after; the review stopped running points when the swap in use passed 1.5 GB (it went from 1.1 GB to 6 GB while the other study ran), so one check asked of it (the cell-major point) was made later on a loaded machine and one (the 4-layer stripes point) was not made (14.9). The review's measurements are made by `scripts/study_review.py` (`--points`, `--paths`, `--sor`, `--fit`); its copies of two program paths are in `lib/review_copies.py`, and its tests in `tests/test_memory_model.py` and `tests/test_review_copies.py` (59 tests pass).
+
+**Verdict: go for 2.5.0, with the changes of 14.10.** The class table of 5.2 is not to be implemented as it is (14.2); the measurements of the ladder are sound and reproduced; the SOR finding is confirmed; the transient factor was wrong (14.5).
+
+### 14.1 What was re-run and reproduced
+
+* The 38 tests of the folder pass; `study_class_fit.py` prints every table of 5.2, 5.3, 5.4, 6 and the count check (96 points, 0 differ) to the printed digit from `out/ladder.jsonl`.
+* SOR block, two points re-run with the study's own child: n = 1 352 took 0.135 GB (74.1 n^2 bytes), n = 2 450 took 0.449 GB (74.7 n^2); the table of 9 has 0.13 and 0.45. So a block of 1 500 unknowns takes about 0.16 to 0.17 GB and one of 5 000 about 1.8 to 1.9 GB, and the comment at `pcbthermal/fvm.py:43` ("8 n^2 bytes, so 5 000 unknowns are 200 MB") is wrong by a factor of 9: a program defect of the comment and of the constant it justifies (`MAX_SOR_BLOCK = 5000` lets a 1.9 GB inverse through).
+* The unit of `ru_maxrss` on macOS: the local `man getrusage` reads "the maximum resident set size utilized (in bytes)".
+* The real entry points against the ladder's path: the ladder measured the FVM through `fvm.Network` and `solve_steady` (the FDM and the 3D solid through `api.simulate`). On the 4-layer plain board at 0.5 mm (160 000 unknowns) `api.simulate` peaks at 0.643 GB, the same as the network path, so the FVM laws hold for the program's entry. With computed coefficients (`h_mode = "computed"`) the peak is 0.727 GB (+13 %, inside every safety factor; one point). The calculation process of the application, with `pcbthermal.jobs` and `pcbthermal.plots` imported, starts at 0.108 GB (the ladder's base is 0.08 GB).
+
+### 14.2 R1: the class table is flat in t beyond its last edge (defect of the proposal, high)
+
+The classes of 5.2 have one law per bin of t, so the estimate does not grow with t inside a bin and beyond the last one (t above 4.5 for the FVM, above 12 for the 3D solid), and it jumps by a factor of 1.9 at t = 4.5 (at 500 000 unknowns: 2.51 GB with the safety factor at t = 4.4, 4.82 GB at t = 4.6). The ladder stops at t = 7 (FVM) and 26 (3D); the program's stack-up templates go to 12 copper layers, and the laminate nodes double t. Six points measured by the review at 8 and 12 copper layers, outside both fits (`study_review.py --points`, then `--fit`):
+
+| Model, board | Unknowns | t (t_eff) | Measured | Class table x safety | Measured / estimate | Continuous law | Measured / law |
+| :-- | --: | --: | --: | --: | --: | --: | --: |
+| FVM, 12 layers, 1.0 mm | 120 000 | 12 | 1.12 GB | 0.79 GB | **1.41** | 0.97 GB | 1.15 |
+| FVM, 8 layers, 0.7 mm | 163 592 | 8 | 1.17 GB | 1.15 GB | **1.02** | 1.03 GB | 1.14 |
+| FVM, 12 layers, 0.7 mm | 245 388 | 12 | 2.28 GB | 1.90 GB | **1.20** | 2.25 GB | 1.01 |
+| 3D solid, 12 layers, 3.0 mm | 60 984 | 56 (19.4) | 0.70 GB | 1.09 GB | 0.64 | 0.71 GB | 0.99 |
+| 3D solid, 8 layers, 2.0 mm | 90 000 | 36 | 1.92 GB | 1.70 GB | **1.14** | 1.98 GB | 0.97 |
+| 3D solid, 12 layers, 2.5 mm | 89 600 | 56 (28.6) | 1.45 GB | 1.69 GB | 0.86 | 1.59 GB | 0.91 |
+
+Four of six are **above the guard's estimate with its safety factor**: the guard of `INTEGRATION.md` 1 would let a run through that takes up to 1.41 times its limit. The measurements quoted from other folders (section 2) show the same on the 3D solid with 6 slabs, out of the ladder's range: 2.65 GB at 393 000 and 3.30 GB at 500 000 unknowns are 1.23 and 1.14 times the class law, above its safety factor 1.12.
+
+The review replaces the bins by **one continuous law per model**: peak = base + k1 t_eff^a N (N / 500 000)^(p - 1), with t_eff = min(t, cells / t). Fitted on the same ladder points (layer-major, N of at least 50 000):
+
+```
+fvm      pts  45  k1   1469 B  p 1.24  a 0.79   ladder measured/law 0.73 - 1.27 (safety 1.40)   class table measured/law 0.75 - 1.33
+fdm      pts   7  k1   1228 B  p 1.34  a 1.03   ladder measured/law 0.87 - 1.12 (safety 1.24)   class table measured/law 0.89 - 1.05
+solid3d  pts  15  k1   1063 B  p 1.30  a 0.98   ladder measured/law 0.84 - 1.18 (safety 1.30)   class table measured/law 0.80 - 1.27
+```
+
+It fits the ladder as well as the eight classes with three numbers per model, and it predicts the six review points within 0.91 to 1.15 and the quoted 3D points within 0.91 to 1.14, all inside its safety factor. The memory per unknown grows with the thickness of the graph (a = 0.8 to 1.0): figure 06 already shows it. The minimum with cells / t is needed when the graph is thicker than it is wide (the 3D solid of 56 slabs on 33 x 33 cells: with t = 56 the law gives 1.91 GB, with t_eff = 19.4 0.71 GB, measured 0.70); the explanation, that the smallest separator of such a graph is a horizontal plane and not a vertical one, is the nested-dissection argument of [George1973] (status M) and is supported by two points only. The price: on thin graphs at large N the continuous law is conservative, the documents' plain FVM points (t = 2) at 1 and 2 million unknowns are 0.88 and 0.78 of it, so a plain two-layer board is refused from about 2.3 million unknowns at 12.0 GB instead of 3.3 million. The prototype has it (`memory_model.CONTINUOUS`, `estimate_continuous`); `tests/test_memory_model.py` checks that it covers the ladder and review points and that the class table falls below the 12-layer and 8-layer points (the regression of this finding).
+
+The rule "never below 1.15" of 13.b was not applied in the table (`fdm_t_le_4.5` 1.11, `solid3d_t_le_6` 1.12); with the continuous law the factors are 1.24 to 1.40 and the point is moot.
+
+### 14.3 R2: the limit of 5.4 and 10 is 0.7 x 16e9, the program's is 0.7 x 17.2e9 (defect of the study, low)
+
+`study_class_fit.py` takes the limit as 0.7 x 16e9 = 11.2 GB; `ram_bytes()` reads 17 179 869 184 bytes (16 GiB), so the guard's 70 % is 12.0 GB, as section 8 says. The ceilings of 5.4 and 10 are therefore for a smaller limit than the one the program would use, and the documents mix GB of 1e9 bytes with "16 GB" machines of 16 GiB. Largest N within the limit with the safety factor (`study_review.py --fit`):
+
+| Board | Continuous law, 11.2 GB | Continuous law, 12.0 GB | Class table, 12.0 GB | Largest point measured |
+| :-- | --: | --: | --: | --: |
+| 3D solid, 6 slabs | 1 105 000 | 1 167 000 | 1 443 000 | 240 000 (ladder), 500 000 (documents) |
+| 3D solid, 10 slabs | 752 000 | 795 000 | 834 000 | 400 000 |
+| 3D solid, 16 slabs | 528 000 | 558 000 | 464 000 | 327 184 |
+| 3D solid, 26 slabs | 366 000 | 387 000 | 464 000 | 260 000 |
+| FVM, t = 2 | 2 178 000 | 2 308 000 | 3 281 000 | 1 975 000 (documents) |
+| FVM, t = 6 | 1 082 000 | 1 147 000 | 990 000 | 960 000 |
+| FVM, t = 12 | 696 000 | 738 000 | 990 000 | 245 388 (review) |
+
+A guard message should say GB of 10^9 bytes and the Preferences should show the detected memory in the same unit (17.2 GB here).
+
+### 14.4 R3: the 3D ceilings and how far the extrapolation is trusted
+
+At the program's 12.0 GB the 3D solid would be allowed 1.17 million unknowns with 6 slabs, 795 000 with 10, 558 000 with 16 and 387 000 with 26 (continuous law), against the fixed 250 000. These are 2.3 times (6 slabs, counting the documents' 500 000 point), 2.0, 1.7 and 1.5 times the largest measured points. Expected error: the ladder's scatter about the law is -16 % to +18 %, and an error of 0.05 in the exponent moves the estimate by 4 % at twice the measured range and 8 % at five times; so about +-20 % at the ceilings, which the safety factor 1.30 covers. The two 3D points stopped by the watchdog (8.50 GB and 9.33 GB, 26 and 16 slabs) are below the law (14.1 and 11.2 GB without the safety factor) and so do not contradict it. Of the FVM points stopped by the watchdog, the 6-layer partial board (960 000 unknowns, stopped at 8.63 GB) is at least 1.26 times the law (6.87 GB); its layer-major twin with copper everywhere took 8.41 GB (1.22), so it is expected inside the safety factor 1.40, but its true peak is not known. One quiet point of the 6-slab board near 1 million unknowns (about 7 GB) would close the question; it was not run (machine rule).
+
+The absolute ceiling of 2 million unknowns: with the continuous law (24 GB for 6 slabs at 2 million, with the safety factor) it binds from about 35 GB of installed memory at 70 % (41 GB at 60 %) for 6 slabs and about 150 GB for 26 slabs; keep it.
+
+### 14.5 R4: the animation transient keeps ten factors (defect in the program, medium; the transient factor of the proposal was wrong)
+
+`fvm.transient_from_network` (used by `fvm.solve_transient` and `fdm.solve_transient`) keeps the LU factor of every distinct time step in a dictionary; the logarithmic time grid has ten stages, so ten factors stay alive although a stage never comes back. Measured on the 4-layer plain board at 0.5 mm (`study_review.py --paths`): steady 0.643 GB, transient **2.245 GB (3.5 times)**, the copy that keeps one factor (`lib/review_copies.py`) **1.230 GB (1.9 times)**, with the same 11 frames bit for bit (`tests/test_review_copies.py`). The `TRANSIENT_FACTOR = 2` of the prototype was not measured and was too low for the program as it is; it is 3.5 in the prototype now. A rerun of the program's transient while the other study pushed the swap to 3.5 GB read 1.67 GB: such a point is disturbed (resident pages are swapped out) and is not used. Not measured: the power-profile path (`profiles.py` holds the steady factor and one step factor), `step_responses` (one factor per stage, two alive while the next is made), the FDM transient (same function, so the same ten factors are expected).
+
+### 14.6 R5: the SOR block: 75 n^2, and 27 n^2 with a dense inverse
+
+The guard should use the largest measured cost, 75 n^2 (the prototype said 72, the middle value; corrected, with its test). Where it comes from: `fvm.Network._sor_block_groups` inverts the block dense and then turns the full inverse into a CSR matrix and a block-diagonal sparse matrix (row and column indices for every one of the n^2 entries). On a synthetic block of 2 450 unknowns (`study_review.py --sor`) the program's path grows the peak by 62.7 n^2 bytes and the dense inverse alone by 26.7 n^2 (the dense block, its inverse and LAPACK's copy); the two hold the same numbers (`tests/test_review_copies.py`). Keeping the inverse dense (or a Cholesky factor) and applying it with a dense product would take 2.3 to 2.8 times less memory: a proposal for the program, `INTEGRATION.md` 2.5.
+
+### 14.7 R6: installed against available memory, and the default
+
+Section 8 shows that 70 % of the installed memory is all the memory that is free at rest on this machine. During this review the available memory (free + inactive + speculative + purgeable pages of `vm_stat`, the prototype's new `available_bytes()`) read **3.0 GB of 17.2** while the other study ran. A refusal on the available memory would therefore make the same project run or not depending on the moment (and the tests would depend on the machine's load); a limit on the installed memory alone lets a run page when other programs hold memory. Recommendation:
+
+* the **refusal** on a fraction of the installed memory, default **60 %** (10.3 GB on this machine: room for the interface, the system and an editor), editable in Preferences (10 to 90 %);
+* at Run, the available memory is read (`/proc/meminfo` MemAvailable, `vm_stat`, `GlobalMemoryStatusEx` ullAvailPhys; no dependency) and an estimate above it gives an amber **warning**, "other programs hold memory: X GB available now, the run may page", not a refusal; a Preferences switch "also refuse above the available memory" (off by default) for those who want it;
+* the cgroup limit, as in the prototype, lowers the installed memory inside a container.
+
+Decision for the maintainer: 60 % or 70 %, and whether the available-memory check warns or refuses.
+
+### 14.8 R7: the disturbed-point policy
+
+Removing the point that ran while the machine swapped and repeating it with a lower cutoff is sound. Its justification for the other points is not: the sampled and the kernel peaks are both resident sizes, and both fall when pages are swapped out, so their agreement does not show that a point was undisturbed. The other points of the stripes pass lie on the curves of the other series (the 4-layer stripes go from 2.00 to 5.26 GB between 0.5 and 0.35 mm, a local exponent of 1.35, no dip), so they are kept, but the stripes series and its cell-major copy are flagged to be repeated on a quiet machine, and a ladder should record the swap before and after each point (`study_review.py` does). Swap is not enough: on macOS the memory compressor lowers the resident size without any swap (14.9: 2.36 GB read where the quiet ladder read 3.02 GB), so a measurement point should also record the free pages and the pages held by the compressor (`vm_stat`), and the ladder for the coefficients should be run on a machine with nothing else large running.
+
+### 14.9 Not verified by the review
+
+* The cell-major numbering on the 2-layer partial-copper board at 0.25 mm (675 200 unknowns) was run once the swap had come back to 1.24 GB, both orders one after the other: layer-major 2.36 GB and 12.0 s, cell-major 2.35 GB and 10.2 s. The two orders agree (no gain of the kind 21.4 s / 4.5 GB to 12.7 s / 3.0 GB), which supports 6. But the absolute numbers are **disturbed**: the ladder read 3.02 GB and 6.7 s on the same board; this time the other study held 8.5 GB, the free pages were about 0.25 GB and the swap did not grow, so the likely cause is the memory compressor of macOS (compressed pages leave the resident size; a hypothesis, the compressor was not read). A resident peak read on a loaded Mac can therefore be low by 20 % or more without any swap. The review's six points of 14.2 ran with the same study present (swap steady at 1.1 GB); at that time the check point of 14.1 read 0.643 GB, equal to the ladder's 0.64, so no bias was seen then; if some were present, the true peaks are higher, which makes R1 stronger for the class table and would narrow the margin of the continuous law. The 4-layer stripes point (above 3 GB) was not run.
+* A machine other than this one, Windows and containers, the Analytic's tile law, the power-profile and FDM transients, the Gerber importer's memory (the research importer needs about 6.5 GB for CO60 at 0.025 mm, all layers at once: that is a cost the guard of the solvers does not see, see 14.10).
+
+### 14.10 The design of `INTEGRATION.md` for 2.5.0: what changes
+
+1. The law: the continuous law per model in t_eff (R1), not the bins; the base is the process's own resident size at the start (0.108 GB measured for the calculation process).
+2. The limit: refusal at 60 % of the installed memory by default, warning above the available memory (R6); GB of 10^9 bytes everywhere (R2).
+3. The transient: either the one-factor fix in `fvm.transient_from_network` first (bit-identical, factor 1.9) or a factor of 3.5 for the transient and animation jobs (R4); the power-profile runs keep two factors (factor 2, not measured).
+4. The SOR: 75 n^2 within 25 % of the limit; the comment of `fvm.py` corrected; the dense inverse is a separate optimisation (R5).
+5. The command line: **exit code 3, not 2**: `argparse` (used by `pcbthermal/cli.py`) already exits with 2 on a usage error, so 2 would not tell a refusal from a typing error.
+6. The 3D solid: keep `solid3d.size_limit()` for the studies and the 2 million ceiling; `check_size` becomes the guard's call.
+7. Computed coefficients add 13 % (one point): inside the safety factor; the guard needs no special case, but the first runs should log estimate against measurement.
+8. The importer (Gerber, 2.5.0) is not a solve: it should estimate its raster in bytes (pixels x layers drawn at once) and draw one layer at a time, so that the importer's peak stays far below the solver's; its own small guard, in the same module.
+
+### 14.11 Figures and literature
+
+The seven figures are legible and quote only numbers of this README. Two will be out of date when the design is decided: figure 01 says "limit = fraction x RAM (70 %)" and "per class", figure 04 draws the class laws and "70 % of 16 GB" at 11.2 GB (the program's 70 % is 12.0 GB); redraw them with the adopted law and limit. The literature statuses are honest: none of [George1973], [Davis2006], [GeorgeLiu1981], [LiSuperLU2005] was opened, and the README says the explanations of the exponents are hypotheses; the t_eff argument of R1 rests on [George1973] as well (M). [PythonResource] is now read for macOS (the man page); Linux not read.
+
+## 15. What was read and what was not verified
 
 * **Read in full:** the code of `pcbthermal/fvm.py` (`Network`, `solve_steady`, `solve_sor`, `_sor_block_groups`, `unknowns`, `MAX_SOR_BLOCK`), `viawell.unknown_blocks`, `laminate.uses_rule`, and the code of this folder. `fdm.py`, `solid3d.py`, `analytic.py`, `api.py` and `gui/panels.py` were read in the preparation of the folder and not re-read in this run.
 * **Reproduced from earlier measurements (section 2):** the 3D solid on a plain 2-layer board 1.21 GB at 240 000 unknowns (documents: 1.2 GB at 248 000) and the 16-slab board within 12 % of the law through the documents' points; the layered laminate board 4.5 GB per million (documents: 4.5 GB at 637 000); the 7 GB per million only for 4 layers (8.8). **Not reproduced: the reviewer's cell-major numbers (21.4 s and 4.5 GB to 12.7 s and 3.0 GB); the plain layered FVM linear at 2.7 KB per unknown (true only for t = 2).**
 * **Literature:** none of [George1973], [Davis2006], [LiSuperLU2005], [GeorgeLiu1981] was opened in this run; the explanations that the exponent grows with the thickness of the graph and that the minimum-degree ordering depends on the numbering are hypotheses that fit the measurements, status M, not results. The unit of `ru_maxrss` and the child's usage by `wait4` were checked by the measurement (baseline 0.08 GB, kernel value equal to the sampled peak), not by reading the manual.
-* **Not verified:** the transient factor 2 (no time simulation was measured); the computed-h loop's effect on the peak; the quadratic law of the Analytic (with vias and a heatsink it took 0.52 GB at 640 000 unknowns and 4 layers, 0.31 GB at 320 000 with 2 layers: far below every limit, but the number of via tiles was not varied); the Lumped (455 B per unknown at 500 000, 0.32 GB at 675 200: small); Windows and container detection; a machine other than this 16 GB Mac (the coefficients are those of SuperLU in the installed SciPy and the macOS allocator); boards from a Gerber import; 8 or more copper layers; the 3D solid above 400 000 unknowns (extrapolated); any point between 8.6 GB and the 11.2 GB limit; the FDM beyond 509 000 unknowns (3 and 4 points per class); the effect of the application itself (Qt, a second process) on the base; the stripes cell-major point at 0.25 mm (run during the swap episode, section 11). Times are those of a machine shared with other work.
+* **Read by the review:** `fvm.transient_from_network`, `fvm.step_responses_from_network`, `fvm.Network._sor_block_groups` and `solve_steady`, `jobs.job_transient`, the argument parser of `cli.py`, the panel's notes in `gui/panels.py` (`MAX_CELLS`, the 500 000 note), `man getrusage` (macOS). The review's six points, the entry-point and SOR checks were measured by the reviewer (14); the ladder was not re-run (machine rule), its file was re-read.
+* **Not verified:** the transient factor of the power-profile and FDM paths (the animation's was measured by the review, 14.5); the computed-h loop's effect on the peak; the quadratic law of the Analytic (with vias and a heatsink it took 0.52 GB at 640 000 unknowns and 4 layers, 0.31 GB at 320 000 with 2 layers: far below every limit, but the number of via tiles was not varied); the Lumped (455 B per unknown at 500 000, 0.32 GB at 675 200: small); Windows and container detection; a machine other than this 16 GB Mac (the coefficients are those of SuperLU in the installed SciPy and the macOS allocator); boards from a Gerber import; 8 or more copper layers; the 3D solid above 400 000 unknowns (extrapolated); any point between 8.6 GB and the 11.2 GB limit; the FDM beyond 509 000 unknowns (3 and 4 points per class); the effect of the application itself (Qt, a second process) on the base; the stripes cell-major point at 0.25 mm (run during the swap episode, section 11). Times are those of a machine shared with other work.

@@ -104,8 +104,67 @@ def estimate_measured(model: str, unknowns: float, cells: float, transient: bool
     return estimate_bytes(unknowns, key, {key: c}, transient) * safety
 
 
-# Transient: the steady factorisation and the step matrix are both kept (profiles.py calls splu twice), so the factor is about 2 (to be measured)
-TRANSIENT_FACTOR = 2.0
+# Transient (animation, fvm.solve_transient): measured by the review at 2.245 / 0.643 = 3.5 times the steady peak on a 4-layer board at 0.5 mm (README, Review R4),
+# because fvm.transient_from_network keeps the factor of all ten time-step stages; 1.230 / 0.643 = 1.9 with one factor kept (lib/review_copies.py). The first value (2.0) was
+# not measured and was too low for the program as it is.
+TRANSIENT_FACTOR = 3.5
+
+# CONTINUOUS law of the review (README, Review R1; scripts/study_review.py --fit): one law per model in the effective thickness t_eff = min(t, cells / t), fitted on the
+# 67 ladder points, with the safety factor largest ratio x 1.1. It replaces the bins of MEASURED, which are flat in t beyond the last edge and fell below the measurement on
+# a 12-layer FVM board (1.41 times) and an 8-layer 3D solid (1.14 times) even with their safety factor.
+CONTINUOUS: Dict[str, Tuple[float, float, float, float]] = {
+    # model: (k1 bytes per unknown at N_REF and t_eff = 1, exponent p in N, exponent a in t_eff, safety)
+    "fvm": (1469.0, 1.24, 0.79, 1.40),
+    "fdm": (1228.0, 1.34, 1.03, 1.24),
+    "solid3d": (1063.0, 1.30, 0.98, 1.30),
+}
+
+
+def estimate_continuous(model: str, unknowns: float, cells: float, transient: bool = False) -> float:
+    """!
+    @brief Estimated peak with the continuous law of the review and its safety factor.
+    @param model "fvm", "fdm" or "solid3d".
+    @param unknowns Unknowns the model builds.
+    @param cells Cells of the plan grid.
+    @param transient True for a time simulation (TRANSIENT_FACTOR).
+    @return Bytes.
+    """
+    k1, p, a, safety = CONTINUOUS[model]
+    n = max(float(unknowns), 1.0)
+    t = n / max(float(cells), 1.0)
+    t_eff = max(min(t, float(cells) / t), 1.0)
+    peak = MEASURED_BASE + k1 * t_eff ** a * n * (n / N_REF) ** (p - 1.0)
+    return peak * safety * (TRANSIENT_FACTOR if transient else 1.0)
+
+
+def available_bytes() -> Optional[int]:
+    """!
+    @brief Memory that can be used now without paging, read without a dependency; None if it cannot be read.
+    @details Linux: MemAvailable of /proc/meminfo. macOS: free + inactive + speculative + purgeable pages of `vm_stat` (the pages the system gives back
+             without writing them to swap). Windows: ullAvailPhys of GlobalMemoryStatusEx. A sketch of what the review proposes for the limit, min(fraction x installed, available).
+    @return int bytes or None.
+    """
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/meminfo") as fh:
+                for line in fh:
+                    if line.startswith("MemAvailable:"):
+                        return int(line.split()[1]) * 1024
+        except (OSError, ValueError):
+            return None
+    if sys.platform == "darwin":
+        try:
+            txt = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=5).stdout
+            page = int(txt.split("page size of")[1].split()[0])
+            pages = {}
+            for line in txt.splitlines()[1:]:
+                if ":" in line:
+                    key, val = line.split(":", 1)
+                    pages[key.strip()] = int(val.strip().rstrip("."))
+            return page * sum(pages.get(k, 0) for k in ("Pages free", "Pages inactive", "Pages speculative", "Pages purgeable"))
+        except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            return None
+    return None
 
 
 def ram_bytes() -> Optional[int]:
@@ -289,9 +348,10 @@ def sor_block_bytes(n: int) -> float:
     """!
     @brief Memory of the dense inverse of one SOR block (8 bytes per entry) with the copies of the build (dense block, its inverse, the sparse form kept for the iterations, the LAPACK work).
     @param n Unknowns of the block.
-    @return Bytes (72 n^2: measured 8.2 to 9.3 times the 8 n^2 of the dense inverse, README 9; the first estimate 16 n^2 was 4.5 times too low).
+    @return Bytes (75 n^2: measured 66 to 75 n^2 on the via board, README 9, and 74 to 75 n^2 when the review repeated n = 1352 and 2450; the first estimate 16 n^2 was 4.5 times too low).
     """
-    return 72.0 * float(n) * float(n)
+    # The review took the largest measured value (75) instead of the middle one (72): the guard must not fall below a measurement
+    return 75.0 * float(n) * float(n)
 
 
 def sor_block_fits(n: int, limit: float, share: float = 0.25) -> bool:

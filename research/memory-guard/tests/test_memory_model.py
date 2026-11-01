@@ -144,7 +144,7 @@ def test_fit_needs_two_sizes():
 
 def test_sor_block_guard_replaces_the_constant():
     """!
-    @brief 5 000 unknowns (16 n^2 = 400 MB) fit on a 16 GB machine at 70 %, 30 000 (14 GB) do not.
+    @brief 5 000 unknowns (75 n^2 = 1.9 GB) fit on a 16 GB machine at 70 % with a share of 25 %, 30 000 (68 GB) do not.
     @return None.
     """
     lim = mm.limit_bytes(0.7, 16e9)
@@ -182,8 +182,54 @@ def test_measured_estimate_covers_the_measurement(model, n, cells, peak):
 
 def test_sor_block_estimate_is_the_measured_one():
     """!
-    @brief The dense block inverse takes 72 n^2 bytes (measured 5.5 GB at n = 8 978: 72 n^2 = 5.8 GB), so the old limit of 5 000 unknowns is 1.8 GB and not 200 MB.
+    @brief The dense block inverse takes 75 n^2 bytes, the largest measured value (measured 5.5 GB at n = 8 978 and 0.45 GB at n = 2 450), so the old limit of 5 000 unknowns is about 1.9 GB and not 200 MB.
     @return None.
     """
-    assert mm.sor_block_bytes(8978) == pytest.approx(5.8e9, rel=0.02)
-    assert mm.sor_block_bytes(5000) == pytest.approx(1.8e9, rel=0.01)
+    assert mm.sor_block_bytes(8978) >= 5.5e9 and mm.sor_block_bytes(2450) >= 0.449e9 and mm.sor_block_bytes(1352) >= 0.135e9
+    assert mm.sor_block_bytes(5000) == pytest.approx(1.875e9, rel=0.01)
+
+
+# Points measured by the review OUTSIDE the thickness of the ladder (8 and 12 copper layers; README, Review R1): (model, unknowns, plan cells, peak bytes)
+REVIEW_POINTS = [("fvm", 120000, 10000, 1.120e9), ("fvm", 163592, 20449, 1.172e9), ("fvm", 245388, 20449, 2.278e9),
+                 ("solid3d", 60984, 1089, 0.701e9), ("solid3d", 90000, 2500, 1.924e9), ("solid3d", 89600, 1600, 1.447e9)]
+
+
+@pytest.mark.parametrize("model,n,cells,peak", REVIEW_POINTS + MEASURED_POINTS)
+def test_continuous_estimate_covers_every_point(model, n, cells, peak):
+    """!
+    @brief The continuous law of the review with its safety factor covers the ladder points and the review points (which were not in its fit), within 2.2 times.
+    @param model Model key.
+    @param n Unknowns of the point.
+    @param cells Plan cells of the point.
+    @param peak Measured peak in bytes.
+    @return None.
+    """
+    est = mm.estimate_continuous(model, n, cells)
+    assert peak <= est <= 2.2 * peak
+
+
+def test_class_table_falls_below_thick_boards():
+    """!
+    @brief Regression of the review's finding: the bins of MEASURED are flat in t beyond the last edge, so a 12-layer FVM board (t = 12) and an 8-layer 3D solid (t = 36) are estimated below their measured peak even with the safety factor.
+    @return None.
+    """
+    assert mm.estimate_measured("fvm", 120000, 10000) < 1.120e9
+    assert mm.estimate_measured("solid3d", 90000, 2500) < 1.924e9
+
+
+def test_transient_factor_is_the_measured_one():
+    """!
+    @brief The animation transient held 3.5 times the steady peak (2.245 against 0.643 GB, 4-layer board at 0.5 mm): the factor is not below it.
+    @return None.
+    """
+    assert mm.TRANSIENT_FACTOR >= 2.245 / 0.643 - 0.01
+
+
+def test_available_memory_is_at_most_the_installed():
+    """!
+    @brief The available memory, where it can be read, is positive and not above the installed memory.
+    @return None.
+    """
+    a, r = mm.available_bytes(), mm.ram_bytes()
+    if a is not None and r is not None:
+        assert 0 < a <= r
