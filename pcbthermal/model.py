@@ -1608,6 +1608,22 @@ class ImportedCopper:
                               str(d.get("mapping", "faces")), _unknown_keys(d, ImportedCopper.KEYS))
 
 
+def _profile_record(d):
+    """!
+    @brief Read the CAD profile record of an import, tolerating anything a hand-edited or newer file holds.
+    @param d Value of the key "cad_profile" (a dict with "key", "source" and "table", or None).
+    @return dict with the three keys, or None when absent or malformed.
+    """
+    if not isinstance(d, dict) or not isinstance(d.get("key"), str):
+        return None
+    source = d.get("source") if d.get("source") in ("detected", "user") else "detected"
+    try:
+        table = int(d.get("table", 0))
+    except (TypeError, ValueError):
+        table = 0
+    return {"key": d["key"][:64], "source": source, "table": table}
+
+
 @dataclass
 class ImportRecord:
     """!
@@ -1621,9 +1637,10 @@ class ImportRecord:
     settings: dict = field(default_factory=dict)                      # Layer roles and order, drill units, outline choice, ...
     warnings: list = field(default_factory=list)                      # Warnings of the import (text)
     holes: list = field(default_factory=list)                         # Plated holes [{"x_mm", "y_mm", "d_mm", "kind": "via" or "component"}, ...]
+    cad_profile: Optional[dict] = None                                # CAD profile of the name rules: {"key", "source": "detected" or "user", "table": version}; None = none recorded
     extra: dict = field(default_factory=dict)                         # Keys written by a later version, kept and written back
 
-    KEYS = ("name", "files", "box_mm", "parts", "copper", "settings", "warnings", "holes")
+    KEYS = ("name", "files", "box_mm", "parts", "copper", "settings", "warnings", "holes", "cad_profile")
 
     def to_dict(self):
         """!
@@ -1632,7 +1649,9 @@ class ImportRecord:
         """
         return _with_unknown({"name": self.name, "files": [f.to_dict() for f in self.files], "box_mm": [float(v) for v in self.box_mm],
                               "parts": [p.to_dict() for p in self.parts], "copper": None if self.copper is None else self.copper.to_dict(),
-                              "settings": copy.deepcopy(self.settings), "warnings": list(self.warnings), "holes": copy.deepcopy(self.holes)},
+                              "settings": copy.deepcopy(self.settings), "warnings": list(self.warnings), "holes": copy.deepcopy(self.holes),
+                              # written only when present, so a project without a profile stays byte-identical to the first format 2 files
+                              **({} if self.cad_profile is None else {"cad_profile": copy.deepcopy(self.cad_profile)})},
                              self.extra)
 
     @staticmethod
@@ -1646,7 +1665,7 @@ class ImportRecord:
                             [ImportPart.from_dict(p) for p in d.get("parts", [])],
                             None if d.get("copper") is None else ImportedCopper.from_dict(d["copper"]),
                             copy.deepcopy(dict(d.get("settings", {}))), list(d.get("warnings", [])), copy.deepcopy(list(d.get("holes", []))),
-                            _unknown_keys(d, ImportRecord.KEYS))
+                            _profile_record(d.get("cad_profile")), _unknown_keys(d, ImportRecord.KEYS))
 
 
 reload_libraries()

@@ -17,6 +17,7 @@ from typing import NamedTuple, Optional
 
 from .excellon import drill_function
 from .parser import attributes_as_commands
+from .profiles import rules_for
 
 HEAD_BYTES = 8192
 
@@ -175,11 +176,34 @@ def _from_name(name):
     return UNKNOWN
 
 
-def detect_function(name, head=""):
+def _from_profile(base, rules, generic):
+    """!
+    @brief The function from the name rules of a CAD profile (the tier between the content rules and the generic name rules).
+    @details The rule gives the kind and, when it knows, the side; a missing side of a layer kind is taken from the generic name reading. The source stays "name", so the
+             confidence stays "low": a profile makes the guess better, not certain.
+    @param base File name (no directory).
+    @param rules Rules of `profiles.rules_for` (compiled regex on the lower-case name, kind, side).
+    @param generic LayerFunction of the generic name rules for the same file.
+    @return LayerFunction, or None when no rule of the profile matches.
+    """
+    low = base.lower()
+    for rx, kind, side in rules:
+        if rx.search(low):
+            if side is None and kind in ("copper", "paste", "soldermask", "silkscreen"):
+                side = generic.side
+            index = generic.index if side == "inner" and generic.side == "inner" else None
+            plated = generic.plated if kind == "drill" and generic.kind == "drill" else None
+            return LayerFunction(kind, side, index, plated, "name")
+    return None
+
+
+def detect_function(name, head="", profile=None):
     """!
     @brief Detect the function of a file.
+    @details Order of trust: the X2 file function, the Excellon header, the content rules, the name rules of the CAD profile (`profile`), the generic name rules.
     @param name File name (a path is accepted; only the last part is used).
     @param head First kilobytes of the file content (may be empty: then only the name is used).
+    @param profile Key of the CAD profile whose name rules are used before the generic ones (None or "unknown": the generic rules only); see profiles.py.
     @return LayerFunction.
     """
     base = Path(str(name).replace("\\", "/")).name
@@ -193,6 +217,9 @@ def detect_function(name, head=""):
             by_name = _from_name(base)
             return LayerFunction("drill", None, None, plated if plated is not None else by_name.plated, "excellon")
     by_name = _from_name(base)
+    rules = rules_for(profile)
+    if rules:
+        by_name = _from_profile(base, rules, by_name) or by_name
     if head and by_name.kind == "copper" and not _looks_gerber(head):
         # Copper is always a Gerber file: a name such as "VNA-top-pos.csv" or "B_A_.log" with a side word is not copper when its content is not Gerber (review: a KiCad
         # placement file was proposed as top copper, which also hid it from the placement detection of the import)
@@ -222,10 +249,11 @@ def _gerber_head(head):
     return bool(re.search(r"%FS[LTD]?[AI]?X\d\dY\d\d", head))
 
 
-def detect_file(path):
+def detect_file(path, profile=None):
     """!
     @brief Detect the function of a file on disk, reading only its first kilobytes.
     @param path File path.
+    @param profile Key of the CAD profile for the name rules (None: generic).
     @return LayerFunction.
     """
     p = Path(path)
@@ -234,7 +262,7 @@ def detect_file(path):
             head = fh.read(HEAD_BYTES).decode("utf-8", "replace")
     except OSError:
         head = ""
-    return detect_function(p.name, head)
+    return detect_function(p.name, head, profile)
 
 
 def order_copper_layers(items):
@@ -250,16 +278,17 @@ def order_copper_layers(items):
 _NUMBERED = re.compile(r"(?:^|[-_. ])(?:layer|lyr|l)[-_ ]?(\d+)$")
 
 
-def detect_set(items):
+def detect_set(items, profile=None):
     """!
     @brief Detect the function of every file of a set, then resolve what one file cannot tell: the copper layers that are only numbered.
     @details A name such as `Layer1.gdo` ... `Layer4.gdo` says the order but not the side, so alone every one reads as an inner layer. In a set whose copper has no
              file-stated or named top and bottom, and that has at least two such numbered files, the lowest number is the top, the highest the bottom and the others are inner layers
              in order (the stack counted from the top); these stay "low" confidence (source "name"), for the user to confirm.
     @param items List of (name, head) pairs (head may be empty).
+    @param profile Key of the CAD profile for the name rules (None: generic).
     @return dict name -> LayerFunction.
     """
-    out = {n: detect_function(n, h) for n, h in items}
+    out = {n: detect_function(n, h, profile) for n, h in items}
     copper = [n for n, f in out.items() if f.kind == "copper"]
     if any(out[n].side in ("top", "bottom") for n in copper):
         return out                                                       # a top or bottom is known: the numbers are inner layers indeed
