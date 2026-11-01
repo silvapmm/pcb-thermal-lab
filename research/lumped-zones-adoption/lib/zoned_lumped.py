@@ -56,6 +56,8 @@ OPTIONS = {
     "decimation": "block",       # peak and link integrals of a zone with more than `max_cells` cells: "block" (blocks of k x k cells) or "stride" (every step-th cell)
     "footprint": "stride",       # potentials of the one-node footprint: "stride" (the program's, 900 cells) or "block" (the fix proposed in INTEGRATION.md 5)
     "max_cells": 700,            # cells (or blocks) kept per zone in the potential integrals
+    "share_rule": "grid",        # the share of the footprint covered by the core that decides zones against one node: "grid" (counted on the Lumped raster) or "fine" (counted on a 0.1 mm grid)
+    "fine_mm": 0.1,              # cell of the fine grid of the share rule (mm)
 }
 LAST = {}                        # diagnostics of the last network built (zones, flows, warnings)
 _ORIGINAL = {}                   # the program's functions, saved by `patched`
@@ -311,6 +313,63 @@ def core_mask(net, cov, vias, core_r=None):
         dist = ndimage.distance_transform_edt(~seed, sampling=(net.dy, net.dx))
         core |= (dist <= r) & foot
     return core if core.any() else None
+
+
+class _ViaView:
+    """!
+    @brief The positions, nearest-neighbour distances and groups of a ViaSet with the positions moved to another frame (what `core_mask` reads).
+    """
+
+    def __init__(self, vias, x, y, keep=None):
+        """!
+        @param vias ViaSet.
+        @param x New x positions in m (all the vias of the set).
+        @param y New y positions in m (all the vias of the set).
+        @param keep Boolean mask of the vias to keep (None: all); the others are dropped, not moved.
+        """
+        keep = np.ones(len(x), bool) if keep is None else np.asarray(keep, bool)
+        self.x, self.y = np.asarray(x)[keep], np.asarray(y)[keep]
+        self.d_nn, self.group = np.asarray(vias.d_nn)[keep], np.asarray(vias.group)[keep]
+
+    def __len__(self):
+        """!
+        @brief Number of vias.
+        @return int.
+        """
+        return len(self.x)
+
+
+def fine_core_share(net, cov, vias, fine_mm=None):
+    """!
+    @brief The share of the footprint covered by the core, counted on a grid of about `fine_mm` (the Lumped cell is split by an integer factor; the footprint mask is replicated), so that it does not depend on the raster.
+    @param net Network (grid of the Lumped raster).
+    @param cov Footprint coverage on the raster (ny, nx).
+    @param vias ViaSet or None.
+    @param fine_mm Target cell in mm (None: `OPTIONS["fine_mm"]`).
+    @return float share in [0, 1] (0 when there is no core).
+    """
+    from types import SimpleNamespace
+    h = (OPTIONS["fine_mm"] if fine_mm is None else fine_mm) * 1e-3
+    k = max(int(round(net.dx / h)), 1)
+    if k == 1:
+        core = core_mask(net, cov, vias)
+        return 0.0 if core is None else float(core.sum() / (cov > 0).sum())
+    # work on the bounding box of the footprint, at most 600 fine cells a side
+    ys, xs = np.nonzero(cov > 0)
+    i0, i1, j0, j1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+    k = min(k, max(int(600 // max(i1 - i0, j1 - j0)), 1))
+    cov_f = np.kron(cov[i0:i1, j0:j1], np.ones((k, k)))
+    net_f = SimpleNamespace(nx=(j1 - j0) * k, ny=(i1 - i0) * k, dx=net.dx / k, dy=net.dy / k)
+    # the vias in the frame of the box; a via outside the box is dropped: `cell_index_of_point` clips a point to the grid, so a via outside the box would be moved onto its
+    # border cells, which are footprint cells for a rectangle (the first version did that: a group straddling the footprint edge read 0.136 instead of 0.118; review)
+    x, y = vias.x - j0 * net.dx, vias.y - i0 * net.dy
+    keep = (x >= 0.0) & (x < net_f.nx * net_f.dx) & (y >= 0.0) & (y < net_f.ny * net_f.dy)
+    if keep.sum() < 2:
+        return 0.0
+    v = _ViaView(vias, x, y, keep)
+    core = core_mask(net_f, cov_f, v)
+    # weighted by the coverage: the replicated cells of a partly covered raster cell at the footprint edge count by their share, not whole
+    return 0.0 if core is None else float((core * cov_f).sum() / cov_f.sum())
 
 
 def zone_warnings(net, cov, core):
@@ -573,8 +632,15 @@ def heater_network(net, cov, layer, power, rings, vias=None):
     cell = net.dx * net.dy
     foot = cov > 0
     core = core_mask(net, cov, vias) if OPTIONS["zones"] else None
-    if core is not None and (core.sum() > OPTIONS["max_core"] * foot.sum() or core.sum() == foot.sum()):
-        core = None
+    if core is not None:
+        # the share of the footprint that the core covers decides between the zones and the one-node network; counted on the Lumped grid ("grid", the first design) it changes with
+        # the raster (the inverted-T example board: 82 % at 1.0 mm and 95 % at 0.5 mm, a jump of 2.9 K), counted on a fine grid of 0.1 mm ("fine") it does not
+        share = core.sum() / foot.sum()
+        if OPTIONS["share_rule"] == "fine":
+            # the zones need both: a core that leaves room on the geometric footprint and cells of A on the grid (with a handful of A cells the zone network read the part up to 14 % hot)
+            share = max(share, fine_core_share(net, cov, vias))
+        if share > OPTIONS["max_core"] or core.sum() == foot.sum():
+            core = None
     nz = 1 if core is None else 2
     dist = ndimage.distance_transform_edt(~foot, sampling=(net.dy, net.dx))
     outside = ~foot
@@ -784,6 +850,22 @@ def _own_point(system, theta):
     return peak(np.asarray(theta).reshape(-1, system["R"]))
 
 
+def _advance_zoned(self, states, dt, powers):
+    """!
+    @brief `lumped._LumpedAdapter.advance` with the unit source vector of the zoned system (the program's puts the whole power on node 0 of the layer, which would drive A alone).
+    @param self The adapter.
+    @param states List of state vectors.
+    @param dt Time step in s.
+    @param powers Power of every heater during the step (W).
+    @return list of new states.
+    """
+    out = []
+    for i, s in enumerate(self.systems):
+        src = powers[i] * (s["source"] if "source" in s else _unit_source(s))
+        out.append(self.steppers[i].advance(states[i], dt, src))
+    return out
+
+
 @contextlib.contextmanager
 def patched(**options):
     """!
@@ -793,14 +875,18 @@ def patched(**options):
     """
     old = dict(OPTIONS)
     OPTIONS.update(options)
-    _ORIGINAL.update(network=lumped._heater_network, own_point=lumped._own_point)
+    _ORIGINAL.update(network=lumped._heater_network, own_point=lumped._own_point, advance=lumped._LumpedAdapter.advance, step_responses=lumped.step_responses)
     lumped._heater_network = heater_network
     lumped._own_point = _own_point
+    lumped._LumpedAdapter.advance = _advance_zoned                  # the profile runner: the source split between A and C
+    lumped.step_responses = step_responses_zoned                    # the decision average-or-resolve when the Lumped model is the reference
     try:
         yield
     finally:
         lumped._heater_network = _ORIGINAL["network"]
         lumped._own_point = _ORIGINAL["own_point"]
+        lumped._LumpedAdapter.advance = _ORIGINAL["advance"]
+        lumped.step_responses = _ORIGINAL["step_responses"]
         OPTIONS.clear()
         OPTIONS.update(old)
 

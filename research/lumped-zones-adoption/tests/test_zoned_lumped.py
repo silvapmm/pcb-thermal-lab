@@ -319,3 +319,95 @@ def test_step_response_ends_at_the_steady_value():
         assert np.all(np.diff(z[0]) > -1e-9)
     t1, z1, r1 = lumped.step_responses(p, cell_mm=1.0)
     assert np.allclose(z0, z1) and np.allclose(r0, r1)
+
+
+def test_profile_runner_with_zones_ends_on_the_average_and_follows_the_wave():
+    """!
+    @brief The square-wave profile with the zones: the periodic mean equals the steady maximum of the average power (the start state), the peak exceeds it, and the run with the program's unpatched adapter does not (the source on A alone).
+    @return None (asserts).
+    """
+    from pcbthermal import profiles
+    from pcbthermal.model import SquareWave
+    zref.pc.load_libraries()
+    p = zref.refs.make_problem(dict(SMALL, src=10.0))
+    h = p.heaters[0]
+    h.profile = SquareWave(p_on=h.power / 0.5, period=1.0, duty=0.5, p_off=0.0)
+    opt = profiles.ProfileOptions(threshold_c=0.0, duration="stable", stable_c=0.05, theta=0.5)
+    resp = profiles.StepResponse("lumped", *lumped.step_responses(p, 10, 0.5))
+    dec = profiles.decide(p, resp, 0.0)
+    with zref.VARIANTS["Z_none"]():
+        res = lumped.run_profile(p, dec, opt, 10, 0.5)
+        assert zl.LAST["nz"] == 2
+    amb = p.board.ambient
+    # the mean of the periodic state is the steady value of the average power to within the cycle ripple of the peak formula
+    assert res.t_max.mean() - amb == pytest.approx(res.steady_average_max - amb, rel=0.05)
+    assert res.t_max.max() > res.steady_average_max
+    assert res.t_max.min() < res.steady_average_max
+    # the unpatched adapter puts all the power on A: hotter than the patched run
+    with zref.VARIANTS["Z_none"]():
+        saved = lumped._LumpedAdapter.advance
+        lumped._LumpedAdapter.advance = zl._ORIGINAL["advance"]
+        try:
+            bad = lumped.run_profile(p, dec, opt, 10, 0.5)
+        finally:
+            lumped._LumpedAdapter.advance = saved
+    assert bad.t_max.max() > res.t_max.max() + 1.0
+    # the patch is removed on exit
+    assert lumped._LumpedAdapter.advance is not zl._advance_zoned
+
+
+def test_shen_equations_and_the_unit_cell_solver():
+    """!
+    @brief The paper's equations at the Fig. 17 geometry, the one-dimensional no-via resistance, and the axisymmetric solver against a closed form (a solid column of copper: R = t / (k A) for a uniform flux).
+    @return None (asserts).
+    """
+    import shen_case as sc
+    assert sc.shen_array_resistance() == pytest.approx(1.587, abs=0.002)
+    assert sc.shen_no_via_resistance() == pytest.approx(145.17, abs=0.05)
+    # a column of one material (copper everywhere, no hole): the solver must give t / (k pitch^2) for the stack of copper layers and the gaps all at k = 393
+    saved = (sc.K_FR4_THROUGH, sc.K_FR4_INPLANE)
+    r = sc.unit_cell(phi=2.0e-6 + 2 * sc.T_PTH, k_fill=sc.K_CU, k_fr4_z=sc.K_CU, k_fr4_r=sc.K_CU, nr_out=12, nr_barrel=2, nr_hole=2)
+    assert (sc.K_FR4_THROUGH, sc.K_FR4_INPLANE) == saved
+    # the heat loads the area outside the hole only (a hole of 1 um radius) and the cell area is pitch^2: R = t / (k A_cell) with the disc of the same area
+    assert r == pytest.approx(sc.T_BOARD / (sc.K_CU * (sc.PHI + sc.SPACING) ** 2), rel=0.01)
+    # the program's own board is within 3 % of the solver on the full 12 x 12 array (FVM at 0.1 mm, a few tenths of a second)
+    from pcbthermal import SolverOptions, simulate
+    zref.pc.load_libraries()
+    prob = sc.program_problem()
+    t = simulate(prob, SolverOptions(models=("fvm",), cell_mm=0.1)).results["fvm"].t_max - prob.board.ambient
+    ref = sc.unit_cell(**dict(nr_out=96, nz_gap=28, nz_cu=8, nr_barrel=10, nr_hole=10)) / 144
+    assert t == pytest.approx(ref, rel=0.03)
+
+
+def test_fallback_decision_does_not_jump_with_the_raster():
+    """!
+    @brief The inverted-T example board (nine vias scaled to 3.02 mm pitch under a 10 mm part, a core of 82 % of the footprint at 1.0 mm and 95 % at 0.5 mm on the Lumped grid): with the share rule "fine" the choice is the one-node network (the program's value) at every raster, with the grid rule it jumps by 2.9 K between 1.0 and 0.5 mm.
+    @return None (asserts).
+    """
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(FOLDER)), "tests", "regression"))
+    import regress_boards as rbd
+    zref.pc.load_libraries()
+    p = rbd.build("example_cut_to_T")
+    prog = {c: zref.pc.max_rise(p, "lumped", c) for c in (1.0, 0.75, 0.5)}
+    with zl.patched(zone_macro="none", share_rule="fine"):
+        fine = {c: zref.pc.max_rise(p, "lumped", c) for c in (1.0, 0.75, 0.5)}
+    with zl.patched(zone_macro="none"):
+        grid = {c: zref.pc.max_rise(p, "lumped", c) for c in (1.0, 0.75, 0.5)}
+    for c in prog:
+        assert fine[c] == pytest.approx(prog[c], abs=1e-4)
+    assert abs(grid[1.0] - grid[0.5]) > 2.0                       # the jump of the grid rule
+
+
+def test_fine_share_ignores_the_vias_outside_the_footprint_box():
+    """!
+    @brief The share counted on the fine grid equals the share of the core on a whole-board 0.1 mm grid for a 5 x 5 array that straddles the footprint edge (6 mm off the centre of a 12 mm part); the first version moved the vias outside the box of the footprint onto its border cells (the grid index is clipped) and read 0.136 instead of 0.118 (review).
+    @return None (asserts).
+    """
+    spec = dict(layers=4, n=5, pitch=1.2, dia=0.3, fill=385.0, side=30.0, src=12.0, src_wh=(12.0, 12.0), offset=(6.0, 0.0))
+    p, net, vias, cov = build(spec, 0.5)
+    share = zl.fine_core_share(net, cov, vias)
+    _, net_f, vias_f, cov_f = build(spec, 0.1)
+    core = zl.core_mask(net_f, cov_f, vias_f)
+    ref = float((core * cov_f).sum() / cov_f.sum())
+    assert share == pytest.approx(ref, abs=1e-9)
+    assert share < 0.125
