@@ -181,3 +181,59 @@ def test_hybrid_locked_steps(synth, tmp_path):
     assert st[1][0] == "locked" and "Two files claim" in st[1][1] and not win.early_btn.isEnabled()
     win.go(1)
     assert win.step == 0
+
+
+def test_side_of_paste_mask_and_silk_from_the_name(tmp_path):
+    # Review: the first rule read any stem ending in "b" as the bottom side and missed "B_Paste" (KiCad names without X2) and the Protel extensions
+    cases = {"board-B_Paste.gbr": "Solder paste bottom", "board-F_Paste.gbr": "Solder paste top", "board-B_Mask.gbr": "Solder mask bottom", "pasteB.gbr": "Solder paste bottom",
+             "pasteF.gbr": "Solder paste top", "paste_bot.gbr": "Solder paste bottom", "top_paste_tab.gbr": "Solder paste top", "bottom-silk.gbr": "Legend (silkscreen) bottom",
+             "board.gtp": "Solder paste top", "board.gbp": "Solder paste bottom", "board.gbs": "Solder mask bottom"}
+    for name, want in cases.items():
+        (tmp_path / name).write_text("%FSLAX46Y46*%\n%MOMM*%\nM02*\n")
+        assert be.detect_function(tmp_path / name)[0] == want, name
+
+
+def test_two_plated_drill_files_are_both_read(synth, tmp_path):
+    # Review: the board kept one file per function, so a second plated drill file (vias apart from component holes) was dropped silently
+    import shutil
+    d = tmp_path / "b2"
+    shutil.copytree(synth, d)
+    (d / "drill_vias.drl").write_text("M48\n; #@! TF.FileFunction,Plated,1,2,PTH\nMETRIC,TZ\nT1C0.300\n%\nT1\nX30.0Y5.0\nM30\n")
+    files = be.scan(d)
+    assert sum(f["func"] == "Plated drill" for f in files) == 2 and not be.check_files(files)
+    assert len(be.load_board(files)["holes"]) == 3
+
+
+def test_reimport_applies_the_user_shape_to_the_new_openings(synth):
+    # Review: a part whose shape the user chose kept its STORED polygon when the part moved (heat at the old place), and took the new
+    # suggested polygon under the old shape name otherwise
+    board, files, parts, rec = _record(synth)
+    old = {k: v for k, v in rec.items()}
+    old["parts"] = [dict(p) for p in rec["parts"]]
+    u1 = next(p for p in old["parts"] if p["ref"] == "U1")
+    u1.update(shape="hull", shape_user=True, polygon=[(x + 2.0, y) for x, y in u1["polygon"]])     # stored before a layout revision moved it by 2 mm
+    merged = {p["ref"]: p for p in be.apply_reimport("update", old, rec)["record"]["parts"]}
+    new_u1 = next(p for p in rec["parts"] if p["ref"] == "U1")
+    assert merged["U1"]["shape"] == "hull" and merged["U1"]["polygon"] == new_u1["shapes"]["hull"]
+
+
+def test_diff_compares_centres_in_one_frame():
+    # Review: a part with openings in one import and none in the other was compared opening centre against placement origin
+    a = {"ref": "U1", "x": 10.0, "y": 10.0, "polygon": [(11.0, 9.0), (14.0, 9.0), (14.0, 11.0), (11.0, 11.0)]}
+    b = {"ref": "U1", "x": 10.0, "y": 10.0, "polygon": None}
+    assert be.diff_parts([a], [b])[0]["change"] == "kept"
+
+
+def test_archive_that_expands_too_much_is_refused(tmp_path, monkeypatch):
+    # Review: the declared sizes of an archive are checked before anything is written
+    import zipfile
+    z = tmp_path / "big.zip"
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as f:
+        f.writestr("F.gbr", "0" * 2_000_000)
+    monkeypatch.setattr(be, "MAX_UNZIPPED", 1_000_000)
+    with pytest.raises(ValueError, match="expands"):
+        be.open_source(z, tmp_path / "w")
+    with zipfile.ZipFile(tmp_path / "evil.zip", "w") as f:
+        f.writestr("../evil.txt", "x")
+    with pytest.raises(ValueError, match="unsafe"):
+        be.open_source(tmp_path / "evil.zip", tmp_path / "w2")

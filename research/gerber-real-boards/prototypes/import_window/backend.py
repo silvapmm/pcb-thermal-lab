@@ -35,6 +35,8 @@ FUNCTIONS = ["Top copper", "Inner copper 1", "Inner copper 2", "Inner copper 3",
 COPPER = ("Top copper", "Inner copper 1", "Inner copper 2", "Inner copper 3", "Inner copper 4", "Bottom copper")
 USED_BY_DEFAULT = COPPER + ("Board outline / profile", "Plated drill", "Non-plated drill", "Solder paste top", "Solder paste bottom", "Placement (pick and place)")
 DEFAULT_BOARD = RESEARCH / "gerber-real-boards" / "data" / "rp2040"
+## Largest total size of the files of an archive, bytes (a fabrication set is tens of MB; a value for the prototype, not measured).
+MAX_UNZIPPED = 2_000_000_000
 
 
 # ------------------------------------------------------------------------------------------------------------------------------ sources
@@ -54,6 +56,10 @@ def open_source(path, workdir):
         for m in z.namelist():
             if not (root / m).resolve().is_relative_to(root):          # zip-slip guard: the archive is untrusted data
                 raise ValueError(f"unsafe name in the archive: {m}")
+        # Size guard (review): a small archive can declare gigabytes (a 49 kB archive of 50 MB was accepted); the declared sizes are checked before writing
+        total = sum(i.file_size for i in z.infolist())
+        if total > MAX_UNZIPPED:
+            raise ValueError(f"the archive expands to {total / 1e6:.0f} MB, above the {MAX_UNZIPPED / 1e6:.0f} MB accepted")
         z.extractall(root)
     subs = [d for d in root.iterdir() if d.is_dir() and not d.name.startswith("__")]
     files = [f for f in root.iterdir() if f.is_file()]
@@ -78,7 +84,8 @@ def detect_function(path):
     p = Path(path)
     suffix = p.suffix.lower()
     try:
-        head = p.read_text(errors="replace")[:6000]
+        with open(p, "rb") as fh:                                       # only the head: a Gerber layer can be tens of MB (review)
+            head = fh.read(6000).decode("utf-8", errors="replace")
     except OSError:
         return "Ignore", "unreadable"
     if suffix in (".drl", ".xln", ".exc", ".txt") and re.search(r"(M48|METRIC|INCH)", head) and not head.lstrip().startswith("%"):
@@ -115,9 +122,18 @@ def detect_function(path):
         return "Board outline / profile", "name"
     if role == "drill":
         return "Plated drill", "name"
+    # Protel / Altium extensions name the function and the side in the suffix (review: these files were ignored)
+    protel = {".gtp": "Solder paste top", ".gbp": "Solder paste bottom", ".gts": "Solder mask top", ".gbs": "Solder mask bottom",
+              ".gto": "Legend (silkscreen) top", ".gbo": "Legend (silkscreen) bottom"}
+    if suffix in protel:
+        return protel[suffix], "name (Protel extension)"
+    # The side is a whole word of the name (B_Paste, paste_bot, pasteB, bottom-mask), not any trailing "b": the first rule read
+    # "board-B_Paste" as the top paste and "top_paste_tab" as the bottom one (review)
+    tokens = [t for t in re.split(r"[^a-z0-9]+", stem) if t]
     for key, (a, b) in (("paste", ("Solder paste top", "Solder paste bottom")), ("mask", ("Solder mask top", "Solder mask bottom")), ("silk", ("Legend (silkscreen) top", "Legend (silkscreen) bottom"))):
         if key in name:
-            return (b if re.search(r"(bot|\.gb|[a-z]b$)", stem) or stem.endswith(("_b", "-b", ".b")) else a), "name"
+            bottom = any(t in ("b", "bot", "bottom", "back") or (t.startswith(key) and t[len(key):] in ("b", "bot", "bottom")) for t in tokens)
+            return (b if bottom else a), "name"
     if suffix in (".csv", ".pos", ".txt", ".xy"):
         try:
             if pnp.read_placement(p):
@@ -184,6 +200,8 @@ def load_board(files, cache=None):
     """
     cache = {} if cache is None else cache
     used = {f["func"]: f for f in files if f["use"] and f["func"] != "Ignore"}
+    # Several drill files of one function are normal (Altium writes vias and component holes apart); the dict above keeps one per function, so the drills are listed whole (review)
+    drills = {fn: [f for f in files if f["use"] and f["func"] == fn] for fn in ("Plated drill", "Non-plated drill")}
     outline = used.get("Board outline / profile")
     boxes = []
     if outline:
@@ -214,8 +232,8 @@ def load_board(files, cache=None):
     if outline:
         board["outline"] = ng.render(outline["path"], box[0], box[3], w, h, pix)
     for fn in ("Plated drill", "Non-plated drill"):
-        if fn in used:
-            for (x, y, d, plated) in ng.read_drill(used[fn]["path"]):
+        for f in drills[fn]:
+            for (x, y, d, plated) in ng.read_drill(f["path"]):
                 board["holes"].append((x, y, d, fn == "Plated drill" if plated is None else bool(plated)))
     pix_p = max(0.05, max(w, h) / 2000.0)
     for side, fn in (("top", "Solder paste top"), ("bottom", "Solder paste bottom")):
@@ -394,7 +412,9 @@ def build_record(name, board, files, parts, mapping="faces", cell_mm=1.0):
                            holes=[(round(x, 4), round(y, 4), round(d, 4)) for x, y, d, p in board["holes"] if p],
                            parts=[])
     rec["parts"] = [{"ref": p["ref"], "package": p["package"], "x": round(p["x"], 4), "y": round(p["y"], 4), "side": p["side"], "use": bool(p["use"]), "power_w": p["power"], "tj_max_c": p["tj"],
-                     "role": p["role"], "shape": p["shape"], "shape_user": bool(p["shape_user"]), "polygon": shape_polygon(p)} for p in parts]
+                     "role": p["role"], "shape": p["shape"], "shape_user": bool(p["shape_user"]), "polygon": shape_polygon(p),
+                     # both shapes of the openings, so that a re-import can apply the user's choice to the new openings (review)
+                     "shapes": {k: shape_polygon(dict(p, shape=k)) for k in ("box", "hull")} if p.get("box") is not None else {}} for p in parts]
     rec["settings"] = {"mapping": mapping, "cell_mm": cell_mm}
     return rec
 
@@ -441,8 +461,11 @@ def diff_parts(old, new, move_tol=0.3, size_tol=0.2):
         else:
             parts, detail = [], []
             pa, pb = a.get("polygon"), b.get("polygon")
-            ca = _centre(pa) if pa else (a["x"], a["y"])
-            cb = _centre(pb) if pb else (b["x"], b["y"])
+            # One frame for both: the centre of the openings when both have them, else the placement origin of both (the review found
+            # that mixing them reported a part as moved by the offset of its pads from its origin, 1 to 3 mm on a SOT-223)
+            both = bool(pa and pb)
+            ca = _centre(pa) if both else (a["x"], a["y"])
+            cb = _centre(pb) if both else (b["x"], b["y"])
             d = math.hypot(ca[0] - cb[0], ca[1] - cb[1])
             if d > move_tol:
                 parts.append("moved")
@@ -541,7 +564,11 @@ def apply_reimport(mode, old_rec, new_rec, remove_refs=(), file_choice=None):
             for k in ("power_w", "tj_max_c", "role", "use"):
                 q[k] = o[k]
             if o.get("shape_user"):
-                q["shape"], q["shape_user"], q["polygon"] = o["shape"], True, o.get("polygon") if o.get("shape") == p.get("shape") else p.get("polygon")
+                # The user's choice (box or hull) is kept and applied to the NEW openings. The first version kept the stored polygon when the
+                # choice equalled the suggestion (a moved part kept its heat source at the old place) and took the new suggested polygon
+                # otherwise (the record said "hull" over a box polygon) (review)
+                q["shape"], q["shape_user"] = o["shape"], True
+                q["polygon"] = (p.get("shapes") or {}).get(o["shape"]) or p.get("polygon")
             changes.append(f"{p['ref']}: kept power {o['power_w']:g} W" if o["power_w"] else f"{p['ref']}: matched")
         parts.append(q)
     new_refs = {p["ref"] for p in new_rec["parts"]}
@@ -650,7 +677,7 @@ def default_source(workdir):
     @return tuple (path, text saying which one).
     """
     if DEFAULT_BOARD.is_dir():
-        return DEFAULT_BOARD, "RP2040 minimal board (git-ignored download, licence not checked: for the maintainer's eyes)"
+        return DEFAULT_BOARD, "RP2040 minimal board (git-ignored download, BSD-3-Clause, Copyright (c) 2020-2022 Raspberry Pi Ltd, 2023 Tommy Gilligan)"
     return make_synthetic(Path(workdir) / "synthetic"), "synthetic board"
 
 

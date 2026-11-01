@@ -315,7 +315,7 @@ def draw_source_shape(out, refs=(("U1", "SOT-223 regulator"), ("U2", "SOIC-8 fla
                  fontsize=8, family="monospace", va="top")
     fig.text(0.03, 0.17, "Red solid = A, bounding box of the openings. Green dashed = B, convex hull. White = openings, brown = top copper.\n"
              "Hot-spot rise: program FVM (0.25 mm cell) on a synthetic 30 x 30 mm board, two layers of full copper (35 um), 1 W, source centred, default h.\n"
-             "INDICATIVE only: not the RP2040 board, not a measurement. 'openings only' = the pads heated by area, the lower bound of the spreading.",
+             "INDICATIVE only: not the RP2040 board, not a measurement. 'openings only' = the power on the openings alone; not a bound (below the box for spread pads, above it for the QFN).",
              fontsize=8.5, color="#444", va="top")
     fig.savefig(out)
     plt.close(fig)

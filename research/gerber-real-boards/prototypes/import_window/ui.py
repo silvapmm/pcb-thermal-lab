@@ -3,7 +3,7 @@
 """!
 @file ui.py
 @brief Widgets of the Gerber import window prototype: the session, the zoomable preview, the three step pages, the re-import dialog and the three window layouts (tabs, wizard, hybrid).
-@details PySide 6 widgets with the program theme (`pcbthermal.gui.theme`, tokens only). The pages are shared by the three layouts, so the same behaviour is tested in each. What is simulated: the Import button writes
+@details PySide 6 widgets with the program theme (`pcbthermal.gui.theme`). The stepper header uses theme tokens only; the preview canvas and the memory verdict still write colour literals (review: about 18, to be read from the theme table when the window enters the program). The pages are shared by the three layouts, so the same behaviour is tested in each. What is simulated: the Import button writes
          a summary record (JSON) and shows a message; the project is not created. Everything else reads the files for real through `backend`.
 """
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer, Signal, QObject
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPalette, QPen, QPolygonF
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPushButton, QRadioButton, QSizePolicy, QStackedWidget, QTableWidget, QTableWidgetItem, QTabWidget, QToolTip,
                                QVBoxLayout, QWidget)
@@ -1231,7 +1231,10 @@ class Stepper(QWidget):
             # The line to the next marker: accent once this step is finished, border colour otherwise
             if i + 1 < len(slots):
                 p.setPen(QPen(QColor(self.c["accent"] if state == "done" else self.c["border"]), 2))
-                p.drawLine(QPointF(cx + r + 150, cy), QPointF(slots[i + 1].left() + 8 - 6, cy))
+                # The line starts after the label (150 px) but never past the next marker on a narrow window (review)
+                x0, x1 = cx + r + 150, slots[i + 1].left() + 8 - 6
+                if x1 > x0:
+                    p.drawLine(QPointF(x0, cy), QPointF(x1, cy))
             accent, border = QColor(self.c["accent"]), QColor(self.c["border"])
             if state == "current":
                 p.setPen(Qt.NoPen)
@@ -1243,7 +1246,8 @@ class Stepper(QWidget):
                 p.setPen(QPen(border, 2))
                 p.setBrush(QColor(self.c["alt"]))
             p.drawEllipse(QPointF(cx, cy), r, r)
-            mark = QColor("#ffffff") if state == "current" else accent if state == "done" else QColor(self.c["muted"])
+            # The number on the accent disc takes the theme's highlighted-text colour (the palette of pcbthermal.gui.theme), not a literal (review)
+            mark = self.palette().color(QPalette.HighlightedText) if state == "current" else accent if state == "done" else QColor(self.c["muted"])
             p.setPen(QPen(mark, 2.2))
             if state == "done":
                 p.drawLine(QPointF(cx - 6, cy), QPointF(cx - 2, cy + 5))
@@ -1608,7 +1612,8 @@ class HybridWindow(SteppedWindow):
             if i == self.step:
                 out.append(("current", f"Step {i + 1}: {t}. You are here."))
             elif not self.reachable(i):
-                out.append(("locked", f"Locked: step 1 is not complete. {'; '.join(sx.problems())}."))
+                why = "; ".join(sx.problems()) or "the files could not be read into a board"      # no blocking line but no board: say so (review: the tip ended in ". .")
+                out.append(("locked", f"Locked: step 1 is not complete. {why}."))
             elif i == 0:
                 out.append(("done", "Step 1: files and layers are complete. Click to go back."))
             elif i == 1 and sx.heat_sources():

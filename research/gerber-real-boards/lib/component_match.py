@@ -189,6 +189,37 @@ def improved_match(parts, pads, mirror_bottom=False, tol=0.3):
     return byref, bypad
 
 
+def bottom_convention(parts, pads, tol=0.3):
+    """!
+    @brief Detect from the files themselves whether the placement file writes the X of bottom-side parts negated (a KiCad export option), by trying both and keeping the one that puts more bottom openings inside an envelope.
+    @details Found by the review: isastm writes the bottom X negated (C13 at x -34.40 for openings at +33.91 and +34.89), cmm2 of the same author does not. The local mirror of the footprint does not decide it:
+             every SMD envelope of the name table is centred, so a mirror (and the sign of a rotation by a multiple of 90 degrees) leaves it unchanged. A tie keeps the file as it is.
+    @param parts list of part dicts (ref, package, x, y, rot, side), positions in mm
+    @param pads list of opening dicts (x, y, side) in mm
+    @param tol tolerance in mm added to the envelope
+    @return tuple (convention "as is" or "negated X", openings assigned as is, openings assigned negated)
+    """
+    bot_parts = [p for p in parts if p["side"] == "bottom"]
+    bot_pads = [q for q in pads if q["side"] == "bottom"]
+    if not bot_parts or not bot_pads:
+        return "as is", 0, 0
+    n_as = len(improved_match(bot_parts, bot_pads, tol=tol)[1])
+    n_neg = len(improved_match([dict(p, x=-p["x"]) for p in bot_parts], bot_pads, tol=tol)[1])
+    return ("negated X" if n_neg > n_as else "as is"), n_as, n_neg
+
+
+def apply_bottom_convention(parts, convention):
+    """!
+    @brief Bring the bottom-side parts to the frame of the Gerber files.
+    @param parts list of part dicts
+    @param convention "as is" or "negated X" (from bottom_convention)
+    @return list of part dicts (new dicts for the changed parts)
+    """
+    if convention != "negated X":
+        return list(parts)
+    return [dict(p, x=-p["x"]) if p["side"] == "bottom" else p for p in parts]
+
+
 def part_rows(name="rp2040"):
     """!
     @brief The table of the parts of a board: prototype status (group rule, 0.6 mm link, 0.8 mm pick), improved status (envelope rule), the openings in each part and the reason of each miss.
@@ -259,17 +290,21 @@ def part_rows(name="rp2040"):
     return rows, unclaimed, dict(bd=bd, parts=parts, pads=pads, byref=byref, bypad=bypad)
 
 
-def board_counts(name):
+def board_counts(name, bottom="as is"):
     """!
     @brief The counts of one board for the comparison table: parts, the prototype rule (group rule, no TO.C used), the envelope rule, and the openings against the TO.C truth when the paste file has it.
     @param name board folder name under data/.
-    @return dict parts, proto, improved, openings, and ok, wrong, missed (None without TO.C).
+    @param bottom "as is" (the placement file read as written, the first table of README 11.4), "negated X" or "auto" (bottom_convention decides from the openings; the rule to adopt).
+    @return dict parts, proto, improved, openings, bottom (the convention used), and ok, wrong, missed, proto_bad (prototype parts with a wrong or mixed group; None or absent without TO.C).
     """
     folder = DATA / name
     bd = b.load_board(b.scan(folder))
     box, parts = bd["box"], bd["placement"]
     pads = {s: read_pads(folder, s, box) for s in ("top", "bottom")}
     allpads = pads["top"] + pads["bottom"]
+    if bottom == "auto":
+        bottom = bottom_convention(parts, allpads)[0]
+    parts = apply_bottom_convention(parts, bottom)
     bd2 = dict(bd)
     bd2["groups"] = {}
     for side, fn in (("top", "pasteF.gbr"), ("bottom", "pasteB.gbr")):
@@ -280,12 +315,23 @@ def board_counts(name):
                 g["side"], g["id"] = side, f"{side[0]}{i}"
         bd2["groups"][side] = gs
     pa, _ = b.match_parts(bd2)
+    # The designators the TO.C truth gives to the openings of every prototype group (to count the parts the group rule names wrongly)
+    group_truth = {}
+    for side, fn in (("top", "pasteF.gbr"), ("bottom", "pasteB.gbr")):
+        gs = bd2["groups"][side]
+        t = truth_pads(folder, side, [q for g in gs for q in g["pads"]]) if gs else None
+        k = 0
+        for g in gs:
+            group_truth[g["id"]] = set(t[k:k + len(g["pads"])]) if t else None
+            k += len(g["pads"])
     byref, bypad = improved_match(parts, allpads)
-    out = dict(parts=len(parts), proto=sum(1 for p in pa if p["groups"]), improved=len(byref), openings=len(allpads), ok=None, wrong=None, missed=None)
+    out = dict(parts=len(parts), proto=sum(1 for p in pa if p["groups"]), improved=len(byref), openings=len(allpads), bottom=bottom, ok=None, wrong=None, missed=None)
     tr = {s: truth_pads(folder, s, pads[s]) for s in ("top", "bottom")}
     if any(t is not None for t in tr.values()):
         truth = (tr["top"] or [None] * len(pads["top"])) + (tr["bottom"] or [None] * len(pads["bottom"]))
         ok = sum(1 for i, r in bypad.items() if truth[i] == r)
         wrong = sum(1 for i, r in bypad.items() if truth[i] not in (None, r))
         out.update(ok=ok, wrong=wrong, missed=sum(1 for t in truth if t) - ok - wrong)
+        # Prototype parts whose group holds an opening of another part (or of none): "wrong or mixed" in README 11.4
+        out["proto_bad"] = sum(1 for p in pa if p["groups"] and any(group_truth.get(g) not in (None, {p["ref"]}) for g in p["groups"]))
     return out
