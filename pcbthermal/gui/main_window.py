@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBo
 
 from .. import __version__
 from .. import defaults
-from .. import fvm
+from .. import fvm, memory
 from ..checks import check_problem
 from ..examples import example_board
 from ..model import reference_problem
@@ -853,7 +853,16 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "Cannot run", str(exc))
             return
-        self.solver_panel.set_running(True, "Starting…")
+        # The memory guard in the window: a model above the limit never starts a process (the panel disables Run too; F5 and the menu arrive here), and a run that
+        # needs more than the memory available now only warns
+        self.solver_panel.refresh()
+        if self.solver_panel.blocked:
+            QMessageBox.warning(self, "Cannot run: not enough memory", self.solver_panel.blocked)
+            return
+        low = [v.message for v in self.solver_panel.verdicts() if v.exceeds_available]
+        self.solver_panel.set_running(True, "Starting…" if not low else "Starting… " + low[0])
+        if low:
+            self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
         self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), copy.deepcopy(self.doc.options))
         self.worker.progress.connect(self.solver_panel.set_progress)
@@ -900,6 +909,8 @@ class MainWindow(QMainWindow):
         d = PreferencesDialog(self)
         d.exec()
         if d.saved:
+            self.doc.options.memory_fraction = memory.default_fraction()       # The machine preference may have changed; the panel shows the new verdicts
+            self.solver_panel.refresh()
             self._show_defaults_state()
             self.inspector.rebuild()
             self.stackup_page.refresh()
@@ -940,6 +951,13 @@ class MainWindow(QMainWindow):
             else self.doc.problem
         problem = copy.deepcopy(source)
         kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
+        # The animation holds the factor of the matrix and the frames (memory.TRANSIENT_FACTOR): checked here with the preference, so that the message comes at once
+        if kwargs.get("model", "fvm") in ("fvm", "fdm"):
+            try:
+                memory.check(problem, (kwargs.get("model", "fvm"),), kwargs["cell_mm"], fraction=self.doc.options.memory_fraction, transient=True, base=memory.BASE_DEFAULT)
+            except memory.MemoryGuardError as exc:
+                anim.computing_failed(str(exc))
+                return
         self._anim_worker = ProcessWorker("transient", problem, kwargs)
         self._anim_worker.done.connect(lambda tr: anim.set_result(tr, problem))
         self._anim_worker.failed.connect(anim.computing_failed)

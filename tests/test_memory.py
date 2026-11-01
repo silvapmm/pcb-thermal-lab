@@ -402,3 +402,39 @@ def test_memory_fraction_option_sets_the_limit(cli_board, tmp_path, monkeypatch,
     assert cli.main(args + ["--memory-fraction", "0.12"]) == memory.EXIT_CODE
     assert cli.main(args + ["--memory-fraction", "2"]) == 2
     capsys.readouterr()
+
+
+def test_preferences_field_sets_the_machine_limit(qtbot, tmp_path, monkeypatch):
+    """!
+    @brief The Preferences field "memory limit" has a tooltip with the detected memory and a range of 0.10 to 0.95; saving it changes memory.default_fraction() and new options.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setenv("PCBTHERMAL_CONFIG", str(tmp_path / "cfg"))
+    from pcbthermal import SolverOptions
+    from pcbthermal.gui.preferences import PreferencesDialog
+    d = PreferencesDialog()
+    qtbot.addWidget(d)
+    w = d.widgets[("solver", "memory_fraction")]
+    assert (w.minimum(), w.maximum()) == (memory.MIN_FRACTION, memory.MAX_FRACTION) and w.value() == 0.6
+    assert "Memory detected" in w.toolTip() and "not saved in project files" in w.toolTip()
+    w.setValue(0.4)
+    d.save()
+    assert memory.default_fraction() == 0.4 and SolverOptions().memory_fraction == 0.4
+
+
+def test_the_estimate_and_the_measured_peak_are_logged_once_per_run(caplog):
+    """!
+    @brief A steady run logs the estimate of each checked model and, once at the end, the measured peak next to the largest estimate.
+    @param caplog pytest fixture.
+    @return None.
+    """
+    import logging
+    from pcbthermal import SolverOptions, simulate
+    with caplog.at_level(logging.INFO, logger=memory.log.name):
+        simulate(reference_problem(), SolverOptions(models=("fvm",), cell_mm=5.0))
+    texts = [r.getMessage() for r in caplog.records]
+    assert sum("estimate" in t and "limit" in t for t in texts) == 1
+    assert sum("measured peak" in t for t in texts) == 1

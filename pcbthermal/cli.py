@@ -47,7 +47,11 @@ def _cell_arg(args, problem, default):
     """
     if args.cell_mm is None:
         return default
-    return suggest_cell_mm(problem) if args.cell_mm == "auto" else float(args.cell_mm)
+    if args.cell_mm != "auto":
+        return float(args.cell_mm)
+    # The automatic cell also has to fit the memory of the models the command solves
+    chosen = getattr(args, "model", "fvm")
+    return suggest_cell_mm(problem, models=RUN_MODELS if chosen == "compare" else (chosen,))
 
 
 def _guard(problem, models, cells, transient=False):

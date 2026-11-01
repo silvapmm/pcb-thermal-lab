@@ -37,15 +37,14 @@ def job_transient(progress, problem, kwargs):
     # The animation holds the matrix factor and the frames: checked before anything is allocated. Only here, in the calculation process: the window does not check
     # an animation before it sends the job (to do in the interface round), so a refusal comes back as the job's error text. The fraction is the default one
     # (the kwargs carry no SolverOptions).
-    if model in ("fvm", "fdm"):
-        memory.check(problem, (model,), kw.get("cell_mm", 2.0), transient=True)
+    verdicts = memory.check(problem, (model,), kw.get("cell_mm", 2.0), transient=True) if model in ("fvm", "fdm") else []
     if model == "analytic":
         # The closed-form model needs neither a scheme nor a step; it takes the frames and the spacing
         kw.pop("theta_scheme", None)
         return analytic.solve_transient(problem, **kw)
-    if model == "fdm":
-        return fdm.solve_transient(problem, **kw)
-    return fvm.solve_transient(problem, **kw)
+    result = fdm.solve_transient(problem, **kw) if model == "fdm" else fvm.solve_transient(problem, **kw)
+    memory.log_peak(verdicts)                                   # Estimate and measured peak side by side, once per animation
+    return result
 
 
 def job_analyze(progress, problem, options):

@@ -82,6 +82,7 @@ class Verdict:
     cell_fit: Optional[float]         # Smallest cell in mm that fits (None if none up to 50 mm, or if the run is not refused)
     message: str                      # Text for the user ("" when ok)
     exceeds_available: bool = False   # The estimate is above the memory available now (a warning, not a refusal)
+    exact: bool = True                # False when unknowns and estimate are the lower bound (the exact count was not made because the bound alone was above the limit)
 
 
 _fraction_override: Optional[float] = None       # Fraction forced for the process (None: DEFAULT_FRACTION)
@@ -578,7 +579,7 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
         if low:
             msg = (msg + "; " if msg else "") + f"the estimate of {est / GB:.1f} GB is above the {avail / GB:.1f} GB available now, the machine may swap"
             log.warning("memory guard: %s", msg)                                # Also in the log: the animation job has no warnings list to carry it
-        out.append(Verdict(model, n, est, limit, v, secs, fit, msg, low))
+        out.append(Verdict(model, n, est, limit, v, secs, fit, msg, low, exact))
         log.info("memory guard: %s %d unknowns, estimate %.2f GB, limit %.2f GB, %s", model, n, est / GB, limit / GB, v)
     if refuse == "raise":
         for item in out:

@@ -374,18 +374,26 @@ class Simulation:
         return written
 
 
-def suggest_cell_mm(problem, lo=0.25, hi=2.0):
+def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None):
     """!
-    @brief Cell size that resolves the smallest heater with about four cells across its narrow side.
+    @brief Cell size that resolves the smallest heater with about four cells across its narrow side, and that the memory guard accepts.
+    @details When models are given, a cell that the guard would refuse for one of them (fvm, fdm, solid3d) is replaced by the smallest cell that fits (memory.cell_that_fits),
+             which may be above hi: the memory wins over the resolution, and the caller says so.
     @param problem A Problem.
-    @param lo Smallest cell size returned (mm).
-    @param hi Largest cell size returned (mm).
-    @return Cell size in millimetres, clipped to [lo, hi]; hi when there is no heater.
+    @param lo Smallest cell size returned from the heaters (mm).
+    @param hi Largest cell size returned from the heaters (mm); also the answer when there is no heater.
+    @param models Model keys the cell has to fit (None: the memory is not considered).
+    @param fraction Share of the physical memory allowed (None: memory.default_fraction()).
+    @return Cell size in millimetres: the heater-based one clipped to [lo, hi], enlarged until the models fit.
     """
     sizes = [min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0 for h in problem.heaters if h.power > 0]
-    if not sizes:
-        return hi
-    return float(min(max(min(sizes) / 4.0, lo), hi))
+    cell = float(min(max(min(sizes) / 4.0, lo), hi)) if sizes else hi
+    if models:
+        # The solve runs in the calculation process, whose resident size is the default base (not the window's)
+        for v in memory.check(problem, tuple(models), cell, fraction=fraction, base=memory.BASE_DEFAULT, refuse="return"):
+            if v.verdict == "refuse" and v.cell_fit:
+                cell = max(cell, v.cell_fit)
+    return cell
 
 
 def _top_path_split(problem, pr, totals, once, active):
