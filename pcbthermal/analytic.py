@@ -47,9 +47,9 @@ import numpy as np
 
 from scipy.special import k0
 
-from . import blocks, laminate, viaconstriction
+from . import blocks, copper, laminate, viaconstriction
 from .fvm import Network
-from .geometry import coverage_fraction, polygon_area, polygon_centroid, zone_fill
+from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 from .numfmt import num
 
@@ -136,7 +136,7 @@ def _effective_sheet(problem, cell_mm):
     warnings = []
 
     # --- Copper fill field of every layer and its heater-influence weighted average
-    fill_map = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)
+    fill_map = copper.problem_fill(problem, nx, ny, dx, dy, 4)
     # Edge loss transferred to the faces (Muzychka, Culham and Yovanovich 2003, AIAA 2003-4188, eq. 29: h_eff A_b = h A_b + h_e A_e): the
     # cosine series has insulated edges, so the heat that the real edge convects is spread over the area of each layer as an extra
     # surface coefficient h_side * perimeter * slab_l / (W H) (W/m2K), the edge area of each layer node over its plan area (the same split by
@@ -237,7 +237,7 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
             g_link, g_amb.
     """
     b = problem.board
-    fill_t = zone_fill(problem.zones, L, ntx, nty, tw, th, 4)
+    fill_t = copper.problem_fill(problem, ntx, nty, tw, th, 4)
     area_t = np.full((nty, ntx), tw * th)
     out = []
     for ly in blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, ntx, nty, tw, th, n), area_t, fill_t, tw, th):
