@@ -112,10 +112,11 @@ def test_frozen_build_marks_unchanged_records_bit_and_compares_within_the_tolera
     b = rset("rc", [rec("plate_uniform", "fvm", 2.0, 80.0), rec("plate_pad", "fvm", 2.0, 110.0)], "2.4.5")
     f = F.build(a, b, "2.4.5")
     assert f["records"]["plate_uniform|fvm|2"]["class"] == "bit" and f["records"]["plate_pad|fvm|2"]["class"] == "moved"
-    assert not F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0), rec("plate_pad", "fvm", 2.0, 110.0 + 5e-7)])
+    assert not F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0), rec("plate_pad", "fvm", 2.0, 110.0 + 5e-9)])
     assert F.compare(f, [rec("plate_pad", "fvm", 2.0, 110.0 + 5e-6)])
-    assert F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0 + 1e-12)])               # a bit record is exact
-    assert not F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0 + 1e-12)], bit_tol_k=1e-9)
+    assert F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0 + 5e-8)])                # one policy for bit and moved records
+    assert not F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0 + 1e-12)])
+    assert F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0 + 1e-12)], exact=True)   # exact equality only as an option
     assert F.compare(f, [rec("plate_pad", "fvm", 2.0, 110.0, unknowns=101)])           # the unknown count is exact
 
 
@@ -213,15 +214,14 @@ def test_a_bounded_time_to_63_percent_is_expected_inside_and_an_alarm_outside():
     assert [r["class"] for r in out] == ["expected", "expected_out_of_range"]
 
 
-def test_bit_tolerance_on_the_heat_balance_is_not_relative_to_round_off():
+def test_tolerance_policy_on_the_heat_balance_is_not_relative_to_round_off():
     """!
-    @brief Review: with PCBT_FROZEN_BIT_TOL a balance error of 1e-14 W that becomes 1e-13 W after a library update is not a difference (it was: the tolerance was relative to
-           the round-off itself).
+    @brief Review: a balance error of 1e-14 W that becomes 1e-13 W after a library update is not a difference (the tolerance is absolute, 1e-9 W), a real imbalance is.
     @return None.
     """
     a = rset("v2.4.4", [rec("plate_uniform", "fvm", 2.0, 80.0, balance_error=-4.4e-14)], "2.4.4")
     f = F.build(a, a, "2.4.5")
     run = [rec("plate_uniform", "fvm", 2.0, 80.0 + 3e-11, balance_error=-1.15e-13)]
-    assert F.compare(f, run)                                                   # exact by default
-    assert not F.compare(f, run, bit_tol_k=1e-9)
-    assert F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0, balance_error=1e-3)], bit_tol_k=1e-9)
+    assert not F.compare(f, run)
+    assert F.compare(f, run, exact=True)
+    assert F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0, balance_error=1e-3)])
