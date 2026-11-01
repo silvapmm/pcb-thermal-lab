@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBo
 
 from .. import __version__
 from .. import defaults
-from .. import fvm
-from ..checks import check_problem
+from .. import fvm, memory
+from ..checks import check_input
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
@@ -242,6 +242,8 @@ class MainWindow(QMainWindow):
         self._check_timer.timeout.connect(self._update_checks)
         self.doc.changed.connect(self._on_doc_changed)
         self.doc.state_changed.connect(self._update_title)
+        self._checks_key = None                               # (models, cell) the live checks were last scheduled for
+        self.doc.state_changed.connect(self._on_options_changed)
         self.doc.state_changed.connect(lambda: self.canvas.__setattr__("solver_cell", self.doc.options.cell_mm))
 
         th.apply_theme(QApplication.instance(), self.theme_name)
@@ -662,12 +664,24 @@ class MainWindow(QMainWindow):
         self.tool_actions["select"].setChecked(True)
         self.canvas.set_tool("select")
 
+    def _on_options_changed(self):
+        """!
+        @brief Schedule the live checks again when the selected models or the cell changed (the limits of the models and the via checks depend on them).
+        """
+        key = (tuple(self.doc.options.models), self.doc.options.cell_mm)
+        if key != self._checks_key:
+            self._checks_key = key
+            self._check_timer.start()
+
     def _update_checks(self):
         """!
-        @brief Run the input validity checks and show them in the Simulation panel.
+        @brief Run the live input checks (validity, limits of the selected models, vias; no solve) and show them in the Simulation panel.
+        @details The same warnings, in the same order, that api.simulate puts at the head of the warnings of a run: the list shows the one-line form of each, the
+                 Results summary and the tooltip of the item hold the full measured text, and the summary adds only what a run knows.
+                 Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
-            self.solver_panel.set_checks(check_problem(self.doc.problem, max(self.doc.options.cell_mm, 0.5)))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5)))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 
@@ -766,11 +780,21 @@ class MainWindow(QMainWindow):
         if not self.doc.path:
             return self.save_file_as()
         try:
-            self.doc.save()
+            backup = self.doc.save()
         except Exception as exc:
             QMessageBox.critical(self, "Cannot save", str(exc))
             return False
+        self._report_backup(backup)
         return True
+
+    def _report_backup(self, backup):
+        """!
+        @brief Say in the status bar that a save changed the file format and kept a copy of the old file.
+        @param backup Path of the copy, or None (nothing is shown).
+        """
+        if backup:
+            self.statusBar().showMessage(f"Saved. The file format changed (a project with imported boards needs 2.5.0 or later); "
+                                         f"the old file was kept as {backup}", 15000)
 
     def save_file_as(self):
         """!
@@ -784,10 +808,11 @@ class MainWindow(QMainWindow):
         if not path.endswith(".json"):
             path += ".pcbt.json"
         try:
-            self.doc.save(path)
+            backup = self.doc.save(path)
         except Exception as exc:
             QMessageBox.critical(self, "Cannot save", str(exc))
             return False
+        self._report_backup(backup)
         return True
 
     def export_results(self):
@@ -853,7 +878,16 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "Cannot run", str(exc))
             return
-        self.solver_panel.set_running(True, "Starting…")
+        # The memory guard in the window: a model above the limit never starts a process (the panel disables Run too; F5 and the menu arrive here), and a run that
+        # needs more than the memory available now only warns
+        self.solver_panel.refresh()
+        if self.solver_panel.blocked:
+            QMessageBox.warning(self, "Cannot run: not enough memory", self.solver_panel.blocked)
+            return
+        low = [v.message for v in self.solver_panel.verdicts() if v.exceeds_available]
+        self.solver_panel.set_running(True, "Starting…" if not low else "Starting… " + low[0])
+        if low:
+            self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
         self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), copy.deepcopy(self.doc.options))
         self.worker.progress.connect(self.solver_panel.set_progress)
@@ -900,6 +934,8 @@ class MainWindow(QMainWindow):
         d = PreferencesDialog(self)
         d.exec()
         if d.saved:
+            self.doc.options.memory_fraction = memory.default_fraction()       # The machine preference may have changed; the panel shows the new verdicts
+            self.solver_panel.refresh()
             self._show_defaults_state()
             self.inspector.rebuild()
             self.stackup_page.refresh()
@@ -939,7 +975,15 @@ class MainWindow(QMainWindow):
         source = self.sim.effective_problem if (self.sim is not None and not self._stale and self.sim.effective_problem) \
             else self.doc.problem
         problem = copy.deepcopy(source)
-        kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
+        kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0), laminate=self.doc.options.laminate_params())
+        # The animation holds the factor of the matrix and the frames (memory.TRANSIENT_FACTOR): checked here with the preference, so that the message comes at once
+        if kwargs.get("model", "fvm") in ("fvm", "fdm"):
+            try:
+                memory.check(problem, (kwargs.get("model", "fvm"),), kwargs["cell_mm"], fraction=self.doc.options.memory_fraction, transient=True, base=memory.BASE_DEFAULT,
+                             laminate_params=self.doc.options.laminate_params())
+            except memory.MemoryGuardError as exc:
+                anim.computing_failed(str(exc))
+                return
         self._anim_worker = ProcessWorker("transient", problem, kwargs)
         self._anim_worker.done.connect(lambda tr: anim.set_result(tr, problem))
         self._anim_worker.failed.connect(anim.computing_failed)
@@ -986,6 +1030,8 @@ class MainWindow(QMainWindow):
         self.results.set_theme(self.theme_name)
         self.profile_page.set_theme(self.theme_name)
         self.stackup_page.set_theme(self.theme_name)
+        self.solver_panel.refresh()                                         # The memory verdicts take the colours of the new theme
+        self.solver_panel.checks.recolour()                                 # The links of the warnings take the link colour of the new palette
         self._refresh_icons()
 
     def show_shortcuts(self):

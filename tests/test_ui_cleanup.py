@@ -259,3 +259,39 @@ def test_the_count_of_unknowns_spans_the_whole_form_row(qtbot, tmp_path):
     win.resizeDocks([win.dock_sim], [200], Qt.Horizontal)
     qtbot.wait(100)
     assert lab.height() >= lab.heightForWidth(lab.width()) - 1
+
+
+def test_warning_list_shows_the_one_line_form_and_the_full_text_as_tooltip(qtbot):
+    """!
+    @brief A warning with a short form is listed by that form; the item under the mouse gives the full text as its tooltip, in a list of one and of several.
+    @param qtbot The pytest-qt fixture.
+    @return None.
+    """
+    from PySide6.QtCore import QEvent, QPoint
+    from PySide6.QtGui import QHelpEvent
+
+    from pcbthermal.checks import CheckWarning
+    from pcbthermal.gui.panels import WarningList
+
+    w = WarningList()
+    qtbot.addWidget(w)
+    w.resize(500, 300)
+    a, b = CheckWarning("U1: full measured text " * 12), CheckWarning("second full text")
+    a.kind, a.index, a.short = "heater", 0, "U1: short form"
+    b.kind, b.index = "heater", 1
+    for items in ([a], [a, b]):
+        w.set_warnings(items)
+        w.show()
+        plain = w.toPlainText()
+        assert "U1: short form" in plain and "measured text" not in plain
+        shown = []
+        from PySide6.QtWidgets import QToolTip
+        orig = QToolTip.showText
+        QToolTip.showText = staticmethod(lambda pos, text, *args: shown.append(text))
+        try:
+            doc_y = 8 if len(items) == 1 else 28                 # Inside the first item (below the count line of a list of several)
+            ev = QHelpEvent(QEvent.ToolTip, QPoint(10, doc_y), w.viewport().mapToGlobal(QPoint(10, doc_y)))
+            w.viewportEvent(ev)
+        finally:
+            QToolTip.showText = orig
+        assert shown and "measured text" in "".join(shown).replace("\n", " "), (len(items), shown)

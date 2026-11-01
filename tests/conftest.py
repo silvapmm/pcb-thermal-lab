@@ -14,6 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # GUI tests run without a display; matplotlib must use the PySide 6 binding
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_API", "pyside6")
+# The memory guard refuses by a share of the physical memory, so the same test would solve a million 3D unknowns on a 64 GB machine and refuse them on
+# 16 GB: the battery runs as on a 16 GB machine (set before any calculation process is spawned, which inherits it; memory.MEMORY_ENV)
+os.environ.setdefault("PCBTHERMAL_MEMORY_BYTES", str(16 * 10 ** 9))
 
 
 import pytest  # noqa: E402

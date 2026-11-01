@@ -57,6 +57,39 @@ def krogh(s_sheet, r_cell, a):
     return (b2 * b2 * 0.5 * math.log(b2) / (b2 - 1.0) ** 2 - b2 / (2.0 * (b2 - 1.0)) - 0.25) / (2.0 * math.pi * s_sheet)
 
 
+def annulus_out_resistance(s_sheet, r_in, r_out):
+    """!
+    @brief Mean-to-outer-wall resistance of an annulus with a uniform source whose heat leaves only through the outer wall (the inner side is insulated).
+    @details The link from the zone A of a footprint (the footprint outside the core of the vias) to the first ring: T(r) - T(r_out) = q / (2 S) [(r_out^2 - r^2) / 2 - r_in^2 ln(r_out / r)] per unit
+             generation q, averaged over the annulus and divided by the heat generated, q pi (r_out^2 - r_in^2) (docs/theory.md 5, research/lumped-zones-adoption).
+    @param s_sheet Sheet conductance in W/K.
+    @param r_in Inner radius in m (the core).
+    @param r_out Outer radius in m (the footprint of the same area).
+    @return float Area mean temperature minus outer-wall temperature per watt generated in the annulus, K/W; 0 if r_out <= r_in.
+    """
+    if r_out <= r_in:
+        return 0.0
+    i1 = r_out * r_out * (r_out * r_out - r_in * r_in) / 4.0 - (r_out ** 4 - r_in ** 4) / 8.0
+    i2 = r_in * r_in * (r_out * r_out / 4.0 - r_in * r_in / 2.0 * math.log(r_out / r_in) - r_in * r_in / 4.0)
+    mean = (i1 - i2) / ((r_out * r_out - r_in * r_in) / 2.0) / (2.0 * s_sheet)
+    return mean / (math.pi * (r_out * r_out - r_in * r_in))
+
+
+def rim_minus_mean(s_sheet, r_cell, a):
+    """!
+    @brief Temperature of the rim of the Krogh cell above the area mean of the cell, per watt taken by the via (the micro peak of the zone model).
+    @param s_sheet Sheet conductance in W/K.
+    @param r_cell Cell radius in m.
+    @param a Radius of the sink disc (target radius of the via) in m.
+    @return float K/W: [b^2 ln b / (b^2 - 1) - 1/2] / (2 pi S), b = r_cell / a, minus the Krogh mean-to-wall resistance; 0 if r_cell <= a.
+    """
+    if r_cell <= a:
+        return 0.0
+    b = r_cell / a
+    rim = (b * b * math.log(b) / (b * b - 1.0) - 0.5) / (2.0 * math.pi * s_sheet)
+    return rim - krogh(s_sheet, r_cell, a)
+
+
 def nearest_neighbour(points):
     """!
     @brief Distance from every point to its nearest neighbour.
@@ -126,7 +159,7 @@ class ViaSet:
         return len(self.x)
 
 
-def ring_couplings(vs, net, idx, n_rings, cnt, s_ring, g_top, g_bot, gz_diel, nb):
+def ring_couplings(vs, net, idx, n_rings, cnt, s_ring, g_top, g_bot, gz_diel, nb, want_barrel=False):
     """!
     @brief Couplings between the sheets of every ring of a Lumped network, with the constriction of the vias (micro well plus capped cluster well, Kron reduced).
     @param vs ViaSet of the problem.
@@ -139,12 +172,17 @@ def ring_couplings(vs, net, idx, n_rings, cnt, s_ring, g_top, g_bot, gz_diel, nb
     @param g_bot (L, R) the same through the bottom face in W/K.
     @param gz_diel (nb - 1, R) dielectric conductance of every gap and ring in W/K (the barrels are not in it).
     @param nb Number of board layers.
+    @param want_barrel True to return also the barrel-only couplings and the vias of every node (what the micro peak of the zone model reads); False (default) is the
+           function of release 2.4.5, bit for bit.
     @return Dict {(l, m): array (R,)} of conductances in W/K between the sheets l < m of every ring; the adjacent pairs carry the dielectric plus the reduced barrel.
+            With want_barrel the tuple (gz, via_gz, seen): via_gz has the same keys and holds the reduced barrels only (no dielectric), seen is a list of dicts
+            {node, n, r_cell, a} (vias of a group in a node, Wigner-Seitz radius of their cell in m, target radius in m).
     """
     gz = {(l, l + 1): gz_diel[l].astype(float).copy() for l in range(nb - 1)}
+    via_gz, seen = {}, []
     nv = len(vs)
     if nv == 0 or nb < 2:
-        return gz
+        return (gz, via_gz, seen) if want_barrel else gz
     cell = net.dx * net.dy
     ring_of = np.array([int(idx[cell_index_of_point(vs.x[i], vs.y[i], net.nx, net.ny, net.dx, net.dy)]) for i in range(nv)])
     n_ring = np.bincount(ring_of, minlength=n_rings)             # vias in every ring
@@ -188,7 +226,13 @@ def ring_couplings(vs, net, idx, n_rings, cnt, s_ring, g_top, g_bot, gz_diel, nb
                         if (l, m) not in gz:
                             gz[(l, m)] = np.zeros(n_rings)
                         gz[(l, m)][k] += reduced[l, m]
-    return gz
+                        if want_barrel:
+                            if (l, m) not in via_gz:
+                                via_gz[(l, m)] = np.zeros(n_rings)
+                            via_gz[(l, m)][k] += reduced[l, m]
+            if want_barrel:
+                seen.append({"node": int(k), "n": n, "r_cell": r_cell, "a": a})
+    return (gz, via_gz, seen) if want_barrel else gz
 
 
 # ------------------------------------------------------------------------------------------------ Analytic tiles
@@ -306,10 +350,15 @@ def heater_distance(problem, vs):
         a, c = poly, np.roll(poly, -1, axis=0)
         e = c - a
         len2 = np.maximum((e ** 2).sum(axis=1), 1e-300)
-        for i in np.flatnonzero(~inside):
+        idx = np.flatnonzero(~inside)
+        # Vectorised over the vias in blocks (a loop over the vias took 1.2 s for 8500 vias and 20 parts, and the input checks run it live at every edit);
+        # the same elementwise operations in the same order as the per-via loop, so the distances are bit-identical
+        for s in range(0, idx.size, 4096):
+            i = idx[s:s + 4096]
+            px, py = vs.x[i][:, None], vs.y[i][:, None]
             # Distance to every edge of the polygon (projection clamped to the segment), the smallest one
-            t = np.clip(((vs.x[i] - a[:, 0]) * e[:, 0] + (vs.y[i] - a[:, 1]) * e[:, 1]) / len2, 0.0, 1.0)
-            out[i] = min(out[i], float(np.hypot(vs.x[i] - (a[:, 0] + t * e[:, 0]), vs.y[i] - (a[:, 1] + t * e[:, 1])).min()))
+            t = np.clip(((px - a[:, 0]) * e[:, 0] + (py - a[:, 1]) * e[:, 1]) / len2, 0.0, 1.0)
+            out[i] = np.minimum(out[i], np.hypot(px - (a[:, 0] + t * e[:, 0]), py - (a[:, 1] + t * e[:, 1])).min(axis=1))
     return out
 
 

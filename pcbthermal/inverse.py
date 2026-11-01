@@ -22,6 +22,7 @@ import math
 
 from . import defaults
 from .analysis import heater_stats
+from . import fvm
 from .api import SolverOptions, _run_model
 
 POINTS = ("max", "mean", "ring", "junction", "top")
@@ -114,33 +115,36 @@ def power_from_temperature(problem, index, measured_c, point="ring", ambient_c=N
     rise = float(measured_c) - amb
     if rise <= 0:
         raise ValueError("the measured temperature must be above the ambient temperature")
-    options = SolverOptions(models=(model,), cell_mm=cell_mm)
-    p0 = max(pr.heaters[index].power, 1.0)
-    # Other heaters keep their power, so the point is affine in the power of the part: T = T(0) + P (T(p0) - T(0)) / p0
-    t_zero = _temperature(pr, model, options, index, point, 0.0, psi_jt)
-    t0 = _temperature(pr, model, options, index, point, p0, psi_jt)
-    runs = 2
-    if t0 - t_zero <= 0:
-        raise ValueError("the model shows no temperature rise at the measured point: is the part near the point and on the board?")
-    if t_zero >= amb + rise:
-        raise ValueError("the measured temperature is not higher than what the other heaters alone give at that point")
-    p1 = p0 * (amb + rise - t_zero) / (t0 - t_zero)   # Exact when the coefficients are constant
-    t1 = _temperature(pr, model, options, index, point, p1, psi_jt)
-    runs += 1
-    linear = abs(t1 - amb - rise) <= tolerance * rise
-    pa, ta, pb, tb = p0, t0, p1, t1
-    for _ in range(max_iter):
-        if abs(tb - amb - rise) <= tolerance * rise:
-            break
-        # Secant step on (power, temperature)
-        slope = (tb - ta) / (pb - pa) if pb != pa else (tb - t_zero) / pb
-        pa, ta = pb, tb
-        pb = max(pb + (amb + rise - tb) / slope, 1e-9)
-        tb = _temperature(pr, model, options, index, point, pb, psi_jt)
+    # With constant coefficients every run below has the same board matrix (only the power, the right-hand side, changes): one LU serves them all.
+    # The key of the reuse is the content of the matrix, so a changed board or a computed-h step (new coefficients) factorises again, never a wrong reuse.
+    with fvm.factor_reuse():
+        options = SolverOptions(models=(model,), cell_mm=cell_mm)
+        p0 = max(pr.heaters[index].power, 1.0)
+        # Other heaters keep their power, so the point is affine in the power of the part: T = T(0) + P (T(p0) - T(0)) / p0
+        t_zero = _temperature(pr, model, options, index, point, 0.0, psi_jt)
+        t0 = _temperature(pr, model, options, index, point, p0, psi_jt)
+        runs = 2
+        if t0 - t_zero <= 0:
+            raise ValueError("the model shows no temperature rise at the measured point: is the part near the point and on the board?")
+        if t_zero >= amb + rise:
+            raise ValueError("the measured temperature is not higher than what the other heaters alone give at that point")
+        p1 = p0 * (amb + rise - t_zero) / (t0 - t_zero)   # Exact when the coefficients are constant
+        t1 = _temperature(pr, model, options, index, point, p1, psi_jt)
         runs += 1
-    state = point_temperatures(pr, model, options, index, pb, psi_jt)
-    return {"power_w": pb, "temperature_c": tb, "rise_k": rise, "runs": runs + 1, "linear": bool(linear), "at_power": state,
-            "resistance_k_per_w": rise / pb if pb > 0 else float("inf")}
+        linear = abs(t1 - amb - rise) <= tolerance * rise
+        pa, ta, pb, tb = p0, t0, p1, t1
+        for _ in range(max_iter):
+            if abs(tb - amb - rise) <= tolerance * rise:
+                break
+            # Secant step on (power, temperature)
+            slope = (tb - ta) / (pb - pa) if pb != pa else (tb - t_zero) / pb
+            pa, ta = pb, tb
+            pb = max(pb + (amb + rise - tb) / slope, 1e-9)
+            tb = _temperature(pr, model, options, index, point, pb, psi_jt)
+            runs += 1
+        state = point_temperatures(pr, model, options, index, pb, psi_jt)
+        return {"power_w": pb, "temperature_c": tb, "rise_k": rise, "runs": runs + 1, "linear": bool(linear), "at_power": state,
+                "resistance_k_per_w": rise / pb if pb > 0 else float("inf")}
 
 
 DESIGN_LEVELS = ("none", "cad", "hand", "estimated")           # How the board was described: see power_band ("cad" = drawn from the real fabrication files; the key is kept stable)

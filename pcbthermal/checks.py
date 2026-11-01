@@ -14,8 +14,8 @@ import math
 
 import numpy as np
 
-from . import blocks, convection, viaconstriction, viawell
-from .geometry import BOARD_SAMPLES, coverage_fraction, part_weights, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
+from . import blocks, convection, copper, lumped, viaconstriction, viawell
+from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -31,22 +31,35 @@ class CheckWarning(str):
     """!
     @brief A warning text that also knows which element it is about, so the interface can select that element when the warning is clicked.
 
-    @details It is a plain string for every other use (printing, joining, comparing), with two extra attributes.
+    @details It is a plain string (the full text) for every other use (printing, joining, comparing), with three extra attributes: kind, index and
+             short, the one-line form that the live list under Run shows (the full text is its tooltip). See line().
     """
 
     kind = None
     index = None
+    short = None                                   # One-line form of the text for the live list; None when the text is already one line
 
 
-def _add(out, kind, index, text):
+def line(w):
+    """!
+    @brief The one-line form of a warning for the live list: its short text, or the full text when it has none.
+    @param w A warning (CheckWarning or plain string).
+    @return str One-line text.
+    """
+    return getattr(w, "short", None) or str(w)
+
+
+def _add(out, kind, index, text, short=None):
     """!
     @brief Append a warning to a list, tagged with the element it is about.
     @param out List of warnings being built.
     @param kind Element kind ("zone", "heater", "heatsink" or "via"), or None for a warning about the whole design.
     @param index 0-based index of the element in its list, or None.
-    @param text Warning text.
+    @param text Full warning text (what the Results summary shows and the tooltip of the live list).
+    @param short One-line form for the live list under Run (None: the full text is already short).
     """
     w = CheckWarning(text)
+    w.short = short
     w.kind = kind
     w.index = index
     out.append(w)
@@ -67,10 +80,17 @@ def check_problem(problem, cell_mm=1.0):
     out = []
     board_cover = b.cover(nx, ny, dx, dy)               # Ones for a rectangular board
 
-    # --- Copper fill of every layer (union of its zones), used by several checks
-    fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, 4)
+    # --- Copper fill of every layer (union of its zones, the imported layers from their masks), used by several checks
+    try:
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+        imported_layers = set(copper.CopperSource.of(problem).layers) if copper.has_imported(problem) else set()
+    except ValueError as exc:
+        # Damaged or mismatched imported copper: every run would refuse it, so say why here and check the rest on the drawn zones
+        _add(out, None, None, f"The imported copper cannot be used: {exc}.", "The imported copper cannot be used (see the details).")
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4, source=False)
+        imported_layers = set()
 
-    heater_cov = []
+    heater_poly = []                                    # Footprint of every heater with an area (None otherwise), for the exact overlap test
     for k, h in enumerate(problem.heaters):
         name = h.name or f"Heater {k + 1}"
         if h.role == "source":
@@ -78,19 +98,25 @@ def check_problem(problem, cell_mm=1.0):
             ignored = [label for label, value in (("theta", h.theta), ("theta_jc_top", h.theta_jc_top), ("theta_sa", h.theta_sa), ("interface", h.interface),
                                                   ("contact_area", h.contact_area), ("pad_thickness", h.pad_thickness), ("pad_k", h.pad_k)) if value > 0]
             if ignored:
-                _add(out, "heater", k, f"{name}: a heat source ignores {', '.join(ignored)}; they belong to a component (set its type to Component, or clear them).")
+                _add(out, "heater", k, f"{name}: a heat source ignores {', '.join(ignored)}; they belong to a component (set its type to Component, or clear them).",
+                 f"{name}: a heat source ignores {', '.join(ignored)}.")
         area = polygon_area(h.polygon)
         if area <= 0:
             _add(out, "heater", k, f"{name}: the footprint has zero area.")
-            heater_cov.append(None)
+            heater_poly.append(None)
             continue
         cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 4)
-        heater_cov.append(cov)
-        # Area of the part on the board: the part and the outline tested on the same samples (the product of the two covers is wrong on a cell cut by both)
-        inside = float((part_weights(h.polygon, b.outline, nx, ny, dx, dy, BOARD_SAMPLES if b.has_outline() else 4) * (board_cover > 0)).sum() * dx * dy) / area
-        if inside < 0.98:
+        heater_poly.append(h.polygon)
+        # Share of the part on the board from the geometry itself (exact clip to the box; a lattice on the part for an outline), not from the cell
+        # raster: the 4 x 4 samples per cell read a part under about two cells as partly outside although it was inside
+        inside = part_board_share(h.polygon, W, H, b.outline if b.has_outline() else None)
+        if inside <= 0.0:
+            # Nothing of the part is on the board: there is no "part that is inside" to take the power
+            _add(out, "heater", k, f"{name}: the whole footprint is outside the board, so the part heats nothing; move it onto the board.",
+                 f"{name}: the footprint is entirely outside the board.")
+        elif inside < 0.98:
             _add(out, "heater", k, f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board; its full power "
-                       "is applied to the part that is inside.")
+                       "is applied to the part that is inside.", f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board.")
         n_across = min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) / min(dx, dy)
         if n_across < 3:
             _add(out, "heater", k, f"{name}: the smallest side is only {n_across:.1f} cells wide; use a cell size of "
@@ -99,20 +125,24 @@ def check_problem(problem, cell_mm=1.0):
             f_mean = float((fill[h.layer] * cov).sum() / cov.sum())
             if f_mean < 0.02:
                 _add(out, "heater", k, f"{name}: there is no copper under it on layer {h.layer + 1}; the heat can only spread "
-                           "through the FR-4 and the part will run very hot.")
+                           "through the FR-4 and the part will run very hot.", f"{name}: no copper under it on layer {h.layer + 1}; it will run very hot.")
             elif f_mean < 0.98:
                 _add(out, "heater", k, f"{name}: a copper edge or hatching crosses its footprint (copper fill {f_mean:.2f}); the "
-                           "Lumped and Analytic models are unreliable here, use the FVM.")
+                           "Lumped and Analytic models are unreliable here, use the FVM.",
+                     f"{name}: a copper edge crosses its footprint (fill {f_mean:.2f}); use the FVM.")
 
     for i in range(len(problem.heaters)):
         for j in range(i + 1, len(problem.heaters)):
             hi, hj = problem.heaters[i], problem.heaters[j]
-            if hi.layer == hj.layer and heater_cov[i] is not None and heater_cov[j] is not None:
-                overlap = float((np.minimum(heater_cov[i], heater_cov[j])).sum() * dx * dy)
+            if hi.layer == hj.layer and heater_poly[i] is not None and heater_poly[j] is not None:
+                # Exact area of the intersection of the two footprints: the 4 x 4 cover of each cell made neighbours 0.3 mm apart "overlap" when
+                # both covers touched the same cell
+                overlap = polygon_overlap_area(hi.polygon, hj.polygon)
                 small = min(polygon_area(hi.polygon), polygon_area(hj.polygon))
                 if overlap > 0.05 * small:
                     _add(out, "heater", i, f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap on layer "
-                               f"{hi.layer + 1}: their power densities add up.")
+                               f"{hi.layer + 1} ({100 * overlap / small:.0f} % of the smaller footprint): their power densities add up.", f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap "
+                               f"({100 * overlap / small:.0f} % of the smaller).")
 
     # A via is judged by its drill disc against the outline (or the box): no board under it = ignored by every model; less than half = mostly off
     for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
@@ -122,16 +152,22 @@ def check_problem(problem, cell_mm=1.0):
                  else f"{name} is outside the board and is ignored by every model.")
         elif share < 0.5:
             _add(out, "via", k, f"{name}: more than half of the via is outside the board{' outline' if b.has_outline() else ''}; "
-                                "the models still count its whole barrel, on the part that is on the board.")
+                                "the models still count its whole barrel, on the part that is on the board.",
+                 f"{name}: more than half of the via is outside the board.")
 
     for k, z in enumerate(problem.zones):
-        cov = coverage_fraction(z.polygon, nx, ny, dx, dy, 2)
         area = polygon_area(z.polygon)
-        if area > 0 and float(cov.sum() * dx * dy) / area < 0.5:
+        # Share on the board from the geometry (exact clip to the box, a lattice on the zone for an outline): the 2 x 2 samples per cell read a small
+        # zone inside the board as mostly outside, and the raster ignored the outline
+        if area > 0 and part_board_share(z.polygon, W, H, b.outline if b.has_outline() else None) < 0.5:
             _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: more than half of the zone is outside the board.")
         if polygon_self_intersects(z.polygon):
             _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: the outline crosses itself; the fill follows the even-odd rule, so the crossed part is left empty. "
-                       "Redraw the zone without the crossing.")
+                       "Redraw the zone without the crossing.", f"{z.name or f'Zone {k + 1}'}: the outline crosses itself.")
+        if z.layer in imported_layers:
+            # copper.override_fill: the masks of an imported layer are the whole copper of that layer, so a zone drawn there changes nothing
+            _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: copper layer {z.layer + 1} is imported, and its masks replace the drawn zones of that layer: "
+                                 "this zone is ignored by every model.", f"{z.name or f'Zone {k + 1}'}: ignored, its layer is imported.")
 
     # --- Metal blocks: they only take heat where they overlap copper of their face
     block_cov = {}
@@ -142,32 +178,53 @@ def check_problem(problem, cell_mm=1.0):
         # Measured against the board outline, not only against the box: a block over the cut-away part of a board has no board under it
         cov = coverage_fraction(s.polygon, nx, ny, dx, dy, 4) * board_cover
         area = polygon_area(s.polygon)
-        if area > 0 and float(cov.sum() * dx * dy) / area < 0.9:
+        # Same geometric share as the parts: a 3 mm block on a 2.5 mm cell read as partly outside at 2 of 10 positions with the cell cover
+        if area > 0 and part_board_share(s.polygon, W, H, b.outline if b.has_outline() else None) < 0.9:
             _add(out, "heatsink", k, f"{name}: part of the metal block is outside the board" + (" outline" if b.has_outline() else "") +
                        "; the FVM, FDM and 3D solid cut it there and model only the part inside (the Lumped and Analytic models take the block "
-                       "whole on the rectangle of the same area).")
+                       "whole on the rectangle of the same area).", f"{name}: part of the metal block is outside the board.")
         if cov.sum() > 0:
             overlap = float((fill[s.layer] * cov).sum() * dx * dy)
             if overlap < 1e-6:
                 _add(out, "heatsink", k, f"{name}: the metal block does not overlap any copper on its face, so it takes almost no heat "
-                           "(through the bare laminate only); add a copper pad under it.")
+                           "(through the bare laminate only); add a copper pad under it.",
+                     f"{name}: the metal block touches no copper; add a copper pad under it.")
             elif overlap < 0.25 * area:
                 _add(out, "heatsink", k, f"{name}: only {100 * overlap / area:.0f} % of the metal block touches copper; the heat enters "
-                           "the block through that overlap only.")
+                           "the block through that overlap only.", f"{name}: only {100 * overlap / area:.0f} % of the metal block touches copper.")
         if s.interface_resistance() < 1e-5:
             _add(out, "heatsink", k, f"{name}: an interface resistance below 10.00E-6 m2K/W is a perfect contact; a gap pad or paste is "
-                       "usually 100.00E-6 to 1.00E-3 m2K/W (0.5 mm of a 1 to 5 W/mK pad).")
+                       "usually 100.00E-6 to 1.00E-3 m2K/W (0.5 mm of a 1 to 5 W/mK pad).",
+                     f"{name}: an interface resistance below 10.00E-6 m2K/W is a perfect contact.")
         face = 0 if (s.layer == 0 or b.layers == 1) else 1
-        block_cov.setdefault(face, []).append((name, cov))
+        block_cov.setdefault(face, []).append((name, s.polygon))
     for face, items in block_cov.items():
         for i in range(len(items)):
             for j in range(i + 1, len(items)):
-                if float(np.minimum(items[i][1], items[j][1]).sum() * dx * dy) > 1e-7:
+                if polygon_overlap_area(items[i][1], items[j][1]) > 1e-10:      # Exact; 1e-10 m2 is 0.0001 mm2 (touching blocks do not overlap)
                     _add(out, None, None, f"{items[i][0]} and {items[j][0]} overlap: in the overlap only the later one is used.")
 
     if problem.total_power() <= 0:
         _add(out, None, None, "The total heater power is zero: the board stays at ambient temperature.")
     return out
+
+
+def check_input(problem, models, cell_mm=1.0):
+    """!
+    @brief Every warning that can be known before a run: the validity checks, the documented limits of the selected models and the via checks.
+    @details The one list that the application shows live under the Run button (at every edit and change of the models or the cell, after a short pause)
+             and that api.simulate puts at the head of the warnings of a run, so the Results summary holds the same warnings in the same order (the window checks at a
+             cell of at least 0.5 mm, so below that cell the texts that quote cells can differ) and adds after them only what a run knows. The text of a warning is
+             the full measured one (Results summary, tooltip of the live list); its attribute short is the one-line form that the live list shows (see line()). Only cheap geometry is
+             used (rasters of the board at the cell, point-in-polygon tests, the tile plan of the Analytic correction, no solve: about 0.2 s for 8500 vias and 20 parts,
+             0.5 s on an outline); the warnings that need a run (thick plates, close fins, the zone model of the Lumped, the models' own notes) are only in the Results.
+    @param problem A Problem (assumed structurally valid).
+    @param models Iterable of model keys that will run.
+    @param cell_mm Cell size (mm) of the raster used for the geometric tests.
+    @return List of warning strings (CheckWarning, tagged with the element) in the order validity, model limits, vias.
+    """
+    models = tuple(models)
+    return check_problem(problem, cell_mm) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
 
 
 # Models whose layered idealisation has no vertical path through a bare cell of a gap (research/bare-spot-under-source, INTEGRATION P3)
@@ -198,6 +255,51 @@ def _board_via_groups(vx, vy, on_board):
     return labels, d_nn
 
 
+def _lumped_via_cases(polygon, vx, vy, inside, groups, d_nn):
+    """!
+    @brief The three geometric cases in which the Lumped model reads a part with a via group too cool: the group continues past the edge of the footprint,
+           its vias stand off the footprint centre, the footprint is elongated. Only a group of two or more vias with at least one under the footprint counts.
+    @param polygon Footprint polygon, sequence of (x, y) in m.
+    @param vx x of all the vias in m.
+    @param vy y of all the vias in m.
+    @param inside Boolean array, True for the vias (with board under them) inside the footprint.
+    @param groups Group label of every via (-1 for none), from _board_via_groups.
+    @param d_nn Nearest-neighbour distance of every via in m, from _board_via_groups.
+    @return Tuple (across, off_centre, elongated) of bool; all False when no group qualifies.
+    @note The reach of the "across" case: a via of the group outside the footprint counts only when it lies within twice the median nearest-neighbour distance of the
+          group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage alone joins any via to its
+          nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group that "crossed" the edge.
+    """
+    poly = np.asarray(polygon, dtype=float)
+    side_x, side_y = np.ptp(poly[:, 0]), np.ptp(poly[:, 1])
+    small, large = min(side_x, side_y), max(side_x, side_y)
+    if small <= 0.0:
+        return False, False, False
+    centroid = np.asarray(polygon_centroid(polygon))
+    elongated = large / small > VIA_SIDE_RATIO
+    any_across = any_offset = qualifies = False
+    for g in np.unique(groups[inside]):
+        members = groups == g
+        if members.sum() < 2:
+            continue
+        qualifies = True
+        mine = members & inside
+        out_idx = np.flatnonzero(members & ~inside)
+        if out_idx.size and not any_across:
+            # Distance of every outside member to the nearest member in the footprint (brute force in blocks keeps the memory bounded)
+            reach = min(2.0 * float(np.median(d_nn[mine])), small)
+            xi, yi = vx[mine], vy[mine]
+            for s in range(0, out_idx.size, 2048):
+                j = out_idx[s:s + 2048]
+                d2 = (vx[j, None] - xi[None, :]) ** 2 + (vy[j, None] - yi[None, :]) ** 2
+                if bool((d2.min(axis=1) <= reach * reach * (1.0 + 1e-12)).any()):
+                    any_across = True
+                    break
+        offset = float(np.hypot(vx[mine].mean() - centroid[0], vy[mine].mean() - centroid[1]))
+        any_offset = any_offset or offset > VIA_OFFSET_FRACTION * small
+    return any_across, any_offset, bool(elongated and qualifies)
+
+
 def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
     """!
     @brief Text of the warning for a part that the Lumped model can read too cool because of its vias, or None. The rule: a via group of two or more vias,
@@ -217,36 +319,7 @@ def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
           joins any via to its nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group
           that "crossed" the edge, and the warning fired on nearly every part of a board with scattered vias (review of fix/lumped-via-warning-limits).
     """
-    poly = np.asarray(polygon, dtype=float)
-    side_x, side_y = np.ptp(poly[:, 0]), np.ptp(poly[:, 1])
-    small, large = min(side_x, side_y), max(side_x, side_y)
-    if small <= 0.0:
-        return None
-    centroid = np.asarray(polygon_centroid(polygon))
-    elongated = large / small > VIA_SIDE_RATIO
-    fires = False
-    for g in np.unique(groups[inside]):
-        members = groups == g
-        if members.sum() < 2:
-            continue
-        mine = members & inside
-        out_idx = np.flatnonzero(members & ~inside)
-        across = False
-        if out_idx.size:
-            # Distance of every outside member to the nearest member in the footprint (brute force in blocks keeps the memory bounded)
-            reach = min(2.0 * float(np.median(d_nn[mine])), small)
-            xi, yi = vx[mine], vy[mine]
-            for s in range(0, out_idx.size, 2048):
-                j = out_idx[s:s + 2048]
-                d2 = (vx[j, None] - xi[None, :]) ** 2 + (vy[j, None] - yi[None, :]) ** 2
-                if bool((d2.min(axis=1) <= reach * reach * (1.0 + 1e-12)).any()):
-                    across = True
-                    break
-        offset = float(np.hypot(vx[mine].mean() - centroid[0], vy[mine].mean() - centroid[1]))
-        if across or offset > VIA_OFFSET_FRACTION * small or elongated:
-            fires = True
-            break
-    if not fires:
+    if not any(_lumped_via_cases(polygon, vx, vy, inside, groups, d_nn)):
         return None
     # The numbers are those of research/lumped-zones-adoption 8.4, reproduced by the review of this branch against a 1/8 mm reference: the via effect of
     # the 5 x 5 copper array shifted 7 mm under a 12 mm part 220 % too large (3.2 times), 10.8 K = 26 % of the rise in the error of the effect and 10.3 K =
@@ -255,6 +328,62 @@ def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
             "stands off its centre, or lies under an elongated footprint (side ratio above 1.5), where the rings overstate the via effect (measured up to "
             "3.2 times the reference: the part up to about 11 K, a quarter of its rise, too cool for an array across the edge of a 12 mm footprint; "
             "6.3 K, 17.5 % of its rise, for a 5 x 5 array 1.5 mm off the centre of a 12 x 8 mm part); use the FVM for via design.")
+
+
+def check_lumped_zones(problem, result):
+    """!
+    @brief Warnings after a Lumped run about the parts over a group of vias, from the network of the run (which footprint was zoned is known only then).
+    @details Per heater with at least one via under its footprint. A part the zone model splits (result.arrays["zoned_heaters"]): a group that continues past the edge
+             of the footprint is read up to 16 % of the rise too cool (measured 1 to 16 % of the rise on a 5 x 5 array across the edge, steady state and profile), a group off
+             the centre or under an elongated footprint 1 to 5 % and 2 to 4 % (research/lumped-zones-adoption 8.4, 10.1); a core across fewer than ten raster cells has its via
+             effect up to 20 % too small. A part that stays one node (the core fills more than 92 % of the footprint on the fine grid or on the grid) keeps the text of
+             lumped_via_cool_warning, which check_model_limits leaves out for the parts that the fine count says will be zoned: for those (the fine count says zoned, the
+             count on the raster keeps one node) the text comes here, after a note that the footprint was kept as one node.
+    @param problem A Problem.
+    @param result The SteadyResult of the Lumped model (arrays["zoned_heaters"], one row per heater: zoned flag, cells across the core), or None.
+    @return List of warning strings (CheckWarning, tagged with the heater).
+    """
+    out = []
+    if result is None or "zoned_heaters" not in result.arrays or not problem.vias:
+        return out
+    rows = np.asarray(result.arrays["zoned_heaters"])
+    vx = np.array([v.x for v in problem.vias])
+    vy = np.array([v.y for v in problem.vias])
+    on_board = np.array([share > 0.0 for share in problem.via_board_shares()])
+    groups = d_nn = None
+    for k, h in enumerate(problem.heaters):
+        if k >= len(rows) or h.power <= 0:
+            continue
+        inside = points_in_polygon(vx, vy, h.polygon) & on_board
+        if not inside.any():
+            continue
+        if groups is None:
+            groups, d_nn = _board_via_groups(vx, vy, on_board)
+        name = h.name or f"Heater {k + 1}"
+        zoned = bool(rows[k, 0])
+        if not zoned:
+            if lumped.will_be_zoned(problem, h):                       # The pre-run check left this part out: the grid count kept it one node
+                # Measured on four such boards (4 x 4 and 5 x 5 arrays whose core fills 82 to 92 % of the footprint on the fine grid, 93 to 94 % on the raster): the one
+                # node at 0.5 mm within +0.1 to +0.9 % of the rise of the FVM at 0.25 mm (review of feature/lumped-zones)
+                _add(out, "heater", k, f"{name}: the core of the vias covers more than {100 * lumped.MAX_CORE:.0f} % of the footprint on the 0.5 mm raster of the Lumped model, "
+                                       "so the footprint was kept as one node (the pre-run note about the split does not apply)")
+                msg = lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
+                if msg:
+                    _add(out, "heater", k, f"{name}: {msg}")
+            continue
+        across, off_centre, elongated = _lumped_via_cases(h.polygon, vx, vy, inside, groups, d_nn)
+        if across:
+            _add(out, "heater", k, f"{name}: the Lumped model splits this footprint into the vias' core and the rest, but its vias form an array that continues past the edge "
+                                   "of the footprint, which the split does not resolve: the part can be read too cool, up to 16 % of its rise (measured 1 to 16 % of the rise "
+                                   "for a 5 x 5 array across the edge, steady state and power profile); use the FVM for via design.")
+        elif off_centre or elongated:
+            _add(out, "heater", k, f"{name}: the Lumped model splits this footprint into the vias' core and the rest; its vias stand off the centre of the footprint or the "
+                                   "footprint is elongated (side ratio above 1.5): the part can be read too cool, measured 1 to 5 % of its rise (off centre) and 2 to 4 % "
+                                   "(elongated) against 17 % without the split; use the FVM for via design.")
+        if rows[k, 1] < 10:
+            _add(out, "heater", k, f"{name}: the core of the vias is {int(rows[k, 1])} raster cells across, coarser than a tenth of the core: the via effect of this part "
+                                   "can be 20 % too small (the part too hot); use the FVM for via design.")
+    return out
 
 
 def check_model_limits(problem, models, cell_mm=1.0):
@@ -286,7 +415,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
     # fill there is compared with 0.5. The mean fill of the whole footprint is not used: a 2 or 4 mm window under a 6 mm part has a mean
     # fill of 0.89 or 0.56 and a window as large as the part a fill of 0, and those are the boards where the FVM was 10 to 23 % low.
     if layered:
-        fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, 4)
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
         any_copper = bool(fill.max() > 0.0)                     # A board with no copper at all has its own warnings and was not measured
         for k, h in enumerate(problem.heaters):
             if not any_copper or polygon_area(h.polygon) <= 0:
@@ -303,7 +432,9 @@ def check_model_limits(problem, models, cell_mm=1.0):
                            f"{f_core:.2f} on layer {h.layer + 1}); the layered models ({', '.join(layered)}) read lower than a resolved 3D "
                            "solution there: the FVM (which cuts the laminate there into sub-gaps) 0 to 3 % on 4- and 6-layer stack-ups and 0.8 to 1.6 mm two-layer boards, "
                            "up to 10 % on a 3.2 mm laminate or under a window narrower than the laminate is thick, the FDM 2 to 20 %, "
-                           "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value.")
+                           "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value.",
+                     f"{h.name or f'Heater {k + 1}'}: the part sits on bare laminate (fill {f_core:.2f}); the layered models read low (the FVM up to 10 %); "
+                     "use the 3D solid.")
 
     if not problem.vias or b.layers < 2:
         return out                                              # A one-layer board has no gap: its vias join nothing and change no model
@@ -320,20 +451,43 @@ def check_model_limits(problem, models, cell_mm=1.0):
     if "lumped" in models:
         in_any = np.zeros(len(problem.vias), dtype=bool)
         groups = d_nn = None                                     # Via groups and nearest neighbours, built once and only when a part has vias under it
+        zone_board = None                                        # Board and ViaSet of lumped.will_be_zoned, built once (not per part: 0.8 s with 8500 vias and 20 parts, live)
         for k, h in enumerate(problem.heaters):
             inside = points_in_polygon(vx, vy, h.polygon) & on_board
             in_any |= inside
             n_in = int(inside.sum())
             if n_in >= 1:
-                _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
-                           "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
-                           "(the part too hot) to 33 % too large (the part too cool by up to 14 % of its rise: dense arrays that cover a quarter or less "
-                           "of a large footprint, sparse arrays and rows; 8 to 20 % on average over 46 boards, 11 % over 36 more); use the FVM for via design.")
+                if zone_board is None:
+                    # What will_be_zoned builds by itself for every part: the equivalent rectangle of an outline (the board the Lumped model solves) and the vias on the board
+                    zp = problem.equivalent_rectangle()[0] if b.has_outline() else problem
+                    kept = zp.drop_off_board_vias()
+                    zone_board = (zp, viaconstriction.ViaSet(kept) if len(kept.vias) >= 2 else None)
+                zoned = lumped.will_be_zoned(zone_board[0], zone_board[0].heaters[k], vias=zone_board[1])
+                if zoned:
+                    # The numbers of the zone model (research/lumped-zones-adoption INTEGRATION 0.1: 36 family and 26 held-out boards against 1/8 mm references)
+                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
+                               "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): its via effect was "
+                               "measured 4.0 to 4.6 % off on average (up to 21 %) and the hottest temperature 1.6 to 2.6 % of the rise off on average (up to 7.6 %) "
+                               "over 62 boards; "
+                               "use the FVM for via design.",
+                         f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
+                         "(via effect up to 21 % off); use the FVM.")
+                else:
+                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
+                               "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
+                               "(the part too hot) to 33 % too large (the part too cool by up to 14 % of its rise: dense arrays that cover a quarter or less "
+                               "of a large footprint, sparse arrays and rows; 8 to 20 % on average over 46 boards, 11 % over 36 more); use the FVM for via design.",
+                         f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped model is approximate here "
+                         "(-21 to +33 % of the via effect); use the FVM.")
                 if groups is None:
                     groups, d_nn = _board_via_groups(vx, vy, on_board)
-                msg = lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
+                # A part that the zone model will split gets its text after the run, from the network (check_lumped_zones)
+                msg = None if zoned else lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
                 if msg:
-                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {msg}")
+                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {msg}",
+                         # The rule has three triggers (array past the edge, off centre, elongated footprint): the short form names none of them alone
+                         f"{h.name or f'Heater {k + 1}'}: the Lumped model can read this part too cool, unsafe for a design (up to about 11 K, a quarter "
+                         "of its rise); use the FVM.")
         outside = np.flatnonzero(~in_any & on_board)
         if outside.size:
             # One warning for all of them: a Gerber board can have hundreds of vias away from the parts
@@ -344,7 +498,9 @@ def check_model_limits(problem, models, cell_mm=1.0):
                        "measured 22 % too small to 65 % too large depending on the distance and the number of rings (an effect of 0.5 to 3 K), "
                        "that of a row 6 to 21 % too large, that of vias scattered over the board 19 to 56 % too large, and that of an array just "
                        "outside the edge of a footprint up to 2.3 times the reference (the part up to 4 K, 9 % of its rise, too cool; "
-                       "research/young-omega-tiles 3.8, the review of fix/via-constriction, research/lumped-zones-adoption 8.4); use the FVM.")
+                       "research/young-omega-tiles 3.8, the review of fix/via-constriction, research/lumped-zones-adoption 8.4); use the FVM.",
+                 f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside every footprint; the Lumped model is approximate here "
+                 "(effect 22 % too small to 65 % too large, an array just beside a part up to 2.3 times); use the FVM.")
     if "analytic" in models and on_board.any() and b.layers > 1:
         # The tile of the correction follows the pitch (1 mm at most, 0.25 mm at least) and is enlarged when the dense system would pass MAX_UNKNOWNS;
         # a pitch under 0.45 mm was not tested. The program's tile is 2.5 to 5 mm; the rule never reaches it, the guard can. The guard counts the tiles of the
@@ -360,17 +516,20 @@ def check_model_limits(problem, models, cell_mm=1.0):
                                   f"to keep its dense system small (estimate of {viaconstriction.MAX_ACTIVE_TILES} active tiles, at most {viaconstriction.MAX_UNKNOWNS} unknowns counting "
                                   f"the tiles of the heatsinks and metal blocks; {len(vs)} vias); the via effect is less accurate (measured 14 % too small to 3 % "
                                   "too large at tiles of 1.6 to 2.4 mm: 500 and 2000 scattered vias, a heatsink or a block over most of the board; "
-                                  "not tested for 400 or more vias at a pitch under 1 mm).")
+                                  "not tested for 400 or more vias at a pitch under 1 mm).",
+                 f"Analytic model: via tile coarsened to {num(t_final * 1e3, 2)} mm; the via effect is less accurate (14 % too small to 3 % too large).")
         if d_med < 0.45e-3:
             _add(out, None, None, f"Analytic model: the median via pitch is {num(d_med * 1e3, 2)} mm, below the 0.45 mm tested; the tile is cut to 0.25 mm at least and the "
-                                  "via effect is unverified.")
+                                  "via effect is unverified.", f"Analytic model: median via pitch {num(d_med * 1e3, 2)} mm, below the 0.45 mm tested.")
         if n_unknown > 2400:
             # Peak memory measured by the review: 0.15 GB of the program plus about four dense matrices of n^2 doubles (0.9 GB and 3 s at 4800 unknowns)
             _add(out, None, None, f"Analytic model: the via correction solves a dense system of {n_unknown} unknowns (about {0.15 + 0.75 * (n_unknown / 4800.0) ** 2:.1f} GB "
-                                  "and a few seconds; 0.9 GB and 3 s were measured at 4800 unknowns).")
+                                  "and a few seconds; 0.9 GB and 3 s were measured at 4800 unknowns).",
+                 f"Analytic model: the via correction solves {n_unknown} unknowns (about {0.15 + 0.75 * (n_unknown / 4800.0) ** 2:.1f} GB and a few seconds).")
         if len(vs) <= 2:
             _add(out, None, None, "Analytic model: one or two vias beside or under a part were measured up to 16 % too small in the via effect "
-                                  "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale); use the FVM for the value.")
+                                  "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale); use the FVM for the value.",
+                 "Analytic model: one or two vias were measured up to 16 % too small in the via effect; use the FVM.")
     return out
 
 
@@ -467,7 +626,7 @@ def check_thick_plates(problem, rows, result=None):
 def fin_channel_fraction(ra_b):
     """!
     @brief Fraction of the isolated-plate coefficient that a vertical fin channel keeps, phi = [1 + (14.16 / Ra_b^(3/4))^2]^(-1/2).
-    @details It follows from the composite of Bar-Cohen and Rohsenow (1984), Nu_b = [(24 / Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2), divided by the
+    @details It follows from the composite of Bar-Cohen and Rohsenow (1984), read as printed in equation 21 (p 83) of Teertstra, Culham and Yovanovich, J. Electronics Manufacturing 7 (2) (1997) 79-92, Nu_b = [(24 / Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2), divided by the
              isolated-plate term 0.59 Ra_b^(1/4); 14.16 = 24 x 0.59. It is used only to word the warning, never to change a result.
     @param ra_b Channel Rayleigh number (dimensionless, positive).
     @return Number between 0 and 1.
@@ -530,7 +689,7 @@ def check_fin_channels(problem, result=None):
              conservative choice; for a block cut at the board outline it is still the side of the drawn polygon), theta the mean excess of the block over the
              ambient air from the solved result (weighted by the covered fraction of the block), the air at ambient + theta / 2 and
              beta = 1 / T_film. It warns when Ra_b < FIN_CHANNEL_RA_LIMIT (90): the channel keeps less than 90 % of the coefficient of an isolated plate
-             (Bar-Cohen and Rohsenow 1984, research/fin-channel). Of the 667 cases of the 1080-case study grid whose channel costs 10 % or more of the
+             (Bar-Cohen and Rohsenow 1984, read as printed in equation 21, p 83, of Teertstra, Culham and Yovanovich, J. Electronics Manufacturing 7 (2) (1997) 79-92; research/fin-channel). The review takes beta = 1 / T_0 (the inlet air): the Ra_b here is about 5 % lower at a 30 K excess, a 4 % shift of the threshold; the low-Ra branch of a finite array is the lower bound of the coefficient (Martin, Raithby and Yovanovich 1991, p 904), so the warning errs on the safe side (research/theory-sources 9.3). Of the 667 cases of the 1080-case study grid whose channel costs 10 % or more of the
              finned-face conductance, the threshold missed 1 (the old rule, a gap below 4 mm, missed 367). The text gives the fraction phi and the loss of
              the finned face; nothing is added to the results. Forced air (air speed above zero) gets through narrow channels and is not checked. Without
              block temperatures in the result (Lumped, Analytic) the check says nothing: api runs an auxiliary FVM, as for the thick-plate check, so the
@@ -573,6 +732,40 @@ def check_fin_channels(problem, result=None):
     return out
 
 
+# Face Rayleigh number below which the natural-convection coefficient of a vertical board is called uncertain (research/plate-h-level INTEGRATION.md 2,
+# "Warnings"): a face about 10 mm high at a 10 K excess. The 2D numerical plate of that study covers Ra 1e4 to 3e7 only; below 1e3 the boundary layer is not
+# thin compared with the plate (the pure boundary-layer value is 15 % below the laminar form at 1e3, README 4) and the two forms of Churchill and Chu
+# differ by up to 4 to 6 % (+4.3 % at 1e3, -5.8 % at 10); the air drawn in at the sides of a small 3D board is not in either form
+LOW_RAYLEIGH_LIMIT = 1.0e3
+
+
+def check_low_rayleigh(board, info):
+    """!
+    @brief Post-run warning for a vertical board whose face Rayleigh number is so low that the coefficient of natural convection is uncertain.
+    @details The Rayleigh number is that of the board height and the mean face-to-air excess at the film temperature (convection.h_natural_vertical,
+             as returned by convection.board_h); a face about 10 mm high at a 10 K excess has Ra 1e3. Below LOW_RAYLEIGH_LIMIT no study of the program checks
+             the coefficient (research/plate-h-level: the numerical plate starts at 1e4), the layer is not thin compared with the face, and the plate
+             correlation does not count the air drawn in at the sides; the two forms of Churchill and Chu agree to 4 to 6 % there, so the warning is about
+             the correlation itself, not about the choice of form. A face where forced convection is at least the natural one is not counted (the natural
+             term hardly enters the blend of convection.board_h). Horizontal boards are not checked here (their range warning, Ra 1e4 to 1e11 on the top
+             face, is in api._solve_computed_h; research/plate-h-level did not study them) and neither are boards with typed coefficients.
+             Called once per simulation, from the reference model (api._part_warnings), so that five models do not give five copies.
+    @param board Board with orientation, h_mode and height (m).
+    @param info Dict of convection.board_h: per face "top" / "bottom" the "rayleigh" number (dimensionless) and the "natural" and "forced" coefficients (W/m2K).
+    @return List of warning strings (empty when the Rayleigh number is not low or the board is not vertical in computed mode).
+    """
+    if board.orientation != "vertical" or board.h_mode != "computed":
+        return []
+    # Faces where natural convection is the larger part of the convection
+    ras = [info[f]["rayleigh"] for f in ("top", "bottom") if info[f]["natural"] > info[f]["forced"]]
+    if not ras or min(ras) >= LOW_RAYLEIGH_LIMIT:
+        return []
+    return [f"the face Rayleigh number {num(min(ras), 2)} of the vertical board ({num(board.height * 1000.0, 3)} mm high) is below {num(LOW_RAYLEIGH_LIMIT, 2)}: "
+            "the face is too small or too little heated for a thin boundary layer, and the natural-convection coefficient is not checked there "
+            "(the plate correlation does not count the air drawn in at the sides; the general and laminar forms differ by 4 to 6 %); treat the "
+            "convection as uncertain and, where it matters, fit it to a measurement (convection multiplier) or type the coefficients"]
+
+
 # Cell size (mm) from which the via effect of the FVM and FDM is called uncertain: at 2 mm the via is a fraction of a cell
 VIA_COARSE_CELL_MM = 2.0
 
@@ -605,11 +798,13 @@ def check_via_limits(problem, models, cell_mm):
         for k in edge[:5]:
             v = problem.vias[k]
             _add(out, "via", k, f"{v.name or f'Via {k + 1}'}: via touching the board edge (within one cell of the edge). The cut footprint has no image of the edge, so "
-                                "its effect can be too large by 12 to 15 % at a 1 mm cell; use a finer cell or read the result near it with care.")
+                                "its effect can be too large by 12 to 15 % at a 1 mm cell; use a finer cell or read the result near it with care.",
+                 f"{v.name or f'Via {k + 1}'}: via within one cell of the board edge; its effect can be 12 to 15 % too large at 1 mm.")
         if len(edge) > 5:
             _add(out, None, None, f"{len(edge) - 5} more vias touch the board edge (see above).")
     if cell_mm >= VIA_COARSE_CELL_MM and any(m in ("fvm", "fdm") for m in models):
         _add(out, None, None, f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias: a via is a fraction of a cell, so the temperature drop they cause is uncertain "
                               "by about 3 to 4 % at 2 mm and by 5 to 50 % at 3 to 4 mm, depending on where each via falls in its cell (example board: 9 vias, "
-                              "-3 % FVM and -4 % FDM at 2 mm, within 0.5 % at 0.5 mm). Use 1 mm or finer.")
+                              "-3 % FVM and -4 % FDM at 2 mm, within 0.5 % at 0.5 mm). Use 1 mm or finer.",
+             f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias (3 to 50 % uncertainty in their effect); use 1 mm or finer.")
     return out

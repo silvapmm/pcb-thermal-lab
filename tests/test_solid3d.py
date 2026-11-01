@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "research" / "solid3d-verification" / "scripts"))
 import copper_dissipation as cd                                       # noqa: E402
-from pcbthermal import Problem, SolverOptions, fvm, simulate, solid3d  # noqa: E402
+from pcbthermal import Problem, SolverOptions, fvm, memory, simulate, solid3d  # noqa: E402
 from pcbthermal.examples import example_board, example_profile_board   # noqa: E402
 from pcbthermal.model import reference_problem                         # noqa: E402
 from test_blocks import board                                          # noqa: E402
@@ -60,12 +60,10 @@ def test_metal_block_in_3d_matches_the_layered_models():
 
 def test_too_large_a_model_is_refused_and_simulate_skips_it(monkeypatch):
     p = example_board()
-    monkeypatch.setattr(solid3d, "MAX_CELLS", 1000)                    # Pretend the machine is small
-    with pytest.raises(ValueError, match="unknowns"):
-        solid3d.solve_steady(p, 2.0)
-    sim = simulate(p, SolverOptions(models=("fvm", "solid3d"), cell_mm=2.0))
-    assert set(sim.results) == {"fvm"} and any("3D solid was not run" in w for w in sim.warnings)
-    with pytest.raises(ValueError):                                     # Alone there is nothing else to answer
+    monkeypatch.setattr(memory, "ram_bytes", lambda: 2 * 10 ** 8)       # Pretend the machine is tiny: the limit is below any estimate
+    sim = simulate(p, SolverOptions(models=("lumped", "solid3d"), cell_mm=2.0))
+    assert set(sim.results) == {"lumped"} and any("3D solid was not run" in w for w in sim.warnings)
+    with pytest.raises(memory.MemoryGuardError, match="use a cell of|no cell"):   # Alone there is nothing else to answer
         simulate(p, SolverOptions(models=("solid3d",), cell_mm=2.0))
 
 
@@ -97,15 +95,16 @@ def test_a_model_above_the_limit_is_refused_at_once_with_the_cell_to_use():
     """Regression: a 3D model of a million unknowns (the old limit was 2 million) was solved, for hours and in swap; it is now refused before it is built."""
     import time
     p = big_board()
-    assert solid3d.unknowns(p, 2.0)[0] > 1_000_000 > solid3d.MAX_CELLS
+    assert solid3d.unknowns(p, 2.0)[0] > 1_000_000
     t0 = time.time()
-    with pytest.raises(ValueError, match=r"use a cell of \d"):
-        solid3d.solve_steady(p, 2.0)
+    with pytest.raises(memory.MemoryGuardError, match=r"use a cell of \d"):
+        simulate(p, SolverOptions(models=("solid3d",), cell_mm=2.0))
     sim = simulate(p, SolverOptions(models=("solid3d", "lumped"), cell_mm=2.0))
     assert time.time() - t0 < 60                                        # It used to take more than 25 minutes per solve
     assert set(sim.results) == {"lumped"} and any("3D solid was not run" in w for w in sim.warnings)
     hint = float(next(w for w in sim.warnings if "3D solid" in w).split("use a cell of ")[1].split(" mm")[0])
-    assert solid3d.unknowns(p, hint)[0] <= solid3d.MAX_CELLS * 1.02     # The suggested cell brings the model to the limit
+    v = memory.check(p, ("solid3d",), hint, refuse="return")[0]
+    assert v.verdict != "refuse"                                        # The suggested cell brings the model under the limit
 
 
 def test_solid3d_in_the_api_and_with_profiles():

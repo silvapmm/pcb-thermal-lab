@@ -6,15 +6,18 @@
 """
 
 import numpy as np
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QToolTip
 import html
+import textwrap
 import math
 
 from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import fdm, fvm, solid3d
+from .. import fdm, fvm, laminate, memory, solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -22,6 +25,7 @@ from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
 from . import theme as th
+from ..checks import line
 from ..numfmt import num
 
 
@@ -189,7 +193,7 @@ class BoardPanel(QWidget):
         self.natural_form.addItem("General (Churchill and Chu, whole range)", "general")
         self.natural_form.addItem("Laminar (Churchill and Chu, Ra below 1.00E9)", "laminar")
         self.natural_form.setToolTip("Correlation of the natural convection of a vertical board (computed heat transfer, vertical orientation only). General: the "
-                                     "Churchill and Chu form for the whole Rayleigh range (default). Laminar: the same authors' laminar form for Ra below 1.00E9, which "
+                                     "Churchill and Chu form for the whole Rayleigh range (what a project file saved before this option keeps). Laminar: the same authors' laminar form for Ra below 1.00E9 (the default of new projects, the nearer to a numerical plate from Ra 1000 to 30.00E6), which "
                                      "textbooks recommend for laminar flow; it gives a coefficient from +6.5 % (50 mm board, 10 K) to -10 % (200 mm, 80 K) of the general one. "
                                      "Both forms are taken from textbooks and checked numerically, not from the original paper; on the example board the laminar form changes "
                                      "the rise by -0.7 to +0.2 %, inside the 20 to 30 % uncertainty of h. Above Ra 1.00E9 (a board of about 0.5 m) use the general form.")
@@ -1247,7 +1251,8 @@ class WarningList(QTextBrowser):
     """
 
     warning_clicked = Signal(str, int)
-    TIP = "Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about."
+    TIP = ("Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about; hold the mouse on one "
+           "for its full text (the same text is in the Results summary after a run).")
     MAX_HEIGHT = 150                                  # Pixels; more warnings than fit scroll
     MIN_HEIGHT = 40                                   # Pixels; a low window squeezes the list down to about two lines, never below
 
@@ -1283,7 +1288,7 @@ class WarningList(QTextBrowser):
         if len(self.warnings) > 1:
             parts.append(f"<p><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
         for w in self.warnings:
-            text = html.escape(str(w))
+            text = html.escape(line(w))                   # The one-line form; the full measured text is the tooltip of the item (viewportEvent)
             kind, index = getattr(w, "kind", None), getattr(w, "index", None)
             if kind is not None and index is not None:
                 text = f'<a href="{kind}:{index}" style="text-decoration:none">{text}</a>'
@@ -1291,6 +1296,43 @@ class WarningList(QTextBrowser):
         self.setHtml("".join(parts))
         self.setVisible(True)
         self._fit()
+
+    def changeEvent(self, event):
+        """!
+        @brief Rebuild the text when the palette changes (theme switch): the link colour is fixed when the HTML is set.
+        @param event QEvent.
+        """
+        super().changeEvent(event)
+        if event.type() == QEvent.PaletteChange and self.warnings and not getattr(self, "_rebuilding", False):
+            self._rebuilding, stale = True, self.stale
+            try:
+                self.set_warnings(self.warnings)
+                if stale:
+                    self.set_stale()
+            finally:
+                self._rebuilding = False
+
+    def viewportEvent(self, event):
+        """!
+        @brief Show the full text of the warning under the mouse as a tooltip (the list shows the one-line form).
+        @param event The Qt event.
+        @return bool True when the event was handled.
+        """
+        if event.type() == QEvent.ToolTip and self.warnings and not self.stale:
+            block = self.cursorForPosition(event.pos()).blockNumber() - (1 if len(self.warnings) > 1 else 0)    # Block 0 is the count when there are several
+            if 0 <= block < len(self.warnings):
+                QToolTip.showText(event.globalPos(), "\n".join(textwrap.wrap(str(self.warnings[block]), 90)), self)
+                return True
+        return super().viewportEvent(event)
+
+    def recolour(self):
+        """!
+        @brief Draw the same warnings again after a change of theme: Qt gives a link its colour from the palette when the HTML is read, not when it is painted.
+        """
+        stale = self.stale
+        self.set_warnings(self.warnings)
+        if stale:
+            self.set_stale()
 
     def set_stale(self):
         """!
@@ -1380,15 +1422,18 @@ class SolverPanel(QWidget):
         tips = {"fvm": "Reference model. Any geometry, full temperature field, exact energy balance. Use it for final answers "
                        "and whenever a warning appears. Cost grows with the number of cells.",
                 "lumped": "Fast network (milliseconds). Handles partial copper, vias, heatsinks and several heaters; "
-                          "within about 4 % in most cases. Weak when a copper edge crosses the heater, at corners and for thin heaters.",
+                          "within about 4 % in most cases. A part over a dense group of vias is split into the core of the vias and the rest of the footprint "
+                          "(the board then runs on a 0.5 mm cell). Weak when a copper edge crosses the heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, heatsinks and "
-                            "partial copper. Assumes insulated edges and rectangular heaters; unreliable if a copper edge crosses a heater.",
+                            "partial copper. Moves the edge loss to the faces (warned when a part near the edge or a large edge coefficient makes that matter) and assumes "
+                            "rectangular heaters; unreliable if a copper edge crosses a heater.",
                 "solid3d": "The board as a real 3D solid (every copper layer and dielectric gap a slab, vias with their copper area, metal blocks as "
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
                            "than the heater, a copper edge across a footprint). "
-                           f"Limited to {solid3d.MAX_CELLS} unknowns (shown below the cell size; about 15 s and 3.5 GB of memory "
-                           "per solve on the example board at the limit, measured on one machine): a larger model is not run and the other models still answer.",
+                           "Limited by the memory guard (the unknowns are shown below the cell size; about 15 s and 3.5 GB of memory "
+                           "per solve on the example board at 250 000 unknowns, measured on one machine): a model whose estimated memory is above the limit is not run "
+                           "and the other models still answer.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
         for k, c in self.cb.items():
@@ -1401,12 +1446,17 @@ class SolverPanel(QWidget):
         f = QFormLayout(g)
         self.cell = _spin(0.1, 20, 1.0, 2, 0.25, "mm")
         self.auto_cell = QPushButton("Auto")
-        self.auto_cell.clicked.connect(lambda: self.cell.setValue(suggest_cell_mm(self.doc.problem)))
+        self.auto_cell.clicked.connect(self._auto_cell)
         cell_row = QHBoxLayout()
         cell_row.addWidget(self.cell, 1)
         cell_row.addWidget(self.auto_cell)
         self.cells_label = QLabel()
         self.cells_label.setWordWrap(True)                 # With the 3D solid selected the count and its note are long
+        self.cells_label.setTextFormat(Qt.RichText)        # The verdict of each model is coloured
+        self.cells_label.setToolTip("Unknowns of each selected model and the memory the solve is estimated to need, against the limit (Preferences, memory limit). "
+                                    "Green: fits. Amber: slow (tens of seconds or more). Red: above the limit, it will not run; use the cell shown.")
+        self._running = False                              # True while a calculation runs
+        self.blocked = ""                                  # Why Run is disabled (a model above the memory limit), "" when it is not
         self.solver = QComboBox()
         self.solver.addItem("Sparse direct (exact)", "direct")
         self.solver.addItem("Conjugate gradients", "cg")
@@ -1418,6 +1468,16 @@ class SolverPanel(QWidget):
         self.modes.setSingleStep(20)
         self.local = QCheckBox("Local via and heatsink corrections")
         self.hot = _spin(-50, 1000, 100, 1, 5, "°C")
+        self.lam_s = _spin(0.05, 5.0, 0.4, 2, 0.05, "mm")
+        self.lam_n = QSpinBox()
+        self.lam_n.setRange(1, 16)
+        self.lam_n.setValue(4)
+        self.lam_s.setToolTip("Longest sub-gap of the laminate between two copper nodes in mm (0.05 to 5, default 0.40). A gap thicker than this is cut into equal sub-gaps with a node at every "
+                              "boundary, only where copper is absent next to it (FVM and FDM). Smaller: more nodes, closer to a resolved 3D solid, slower and larger.")
+        self.lam_n.setToolTip("Most sub-gaps in one gap of the laminate (1 to 16, default 4). 1 turns the cutting off. A gap of thickness d gets min(this, d / sub-gap rounded up) "
+                              "sub-gaps, so with the default 0.40 mm a 1.6 mm two-layer board already has 4 and a larger number changes nothing unless the sub-gap is made smaller "
+                              "too (8 needs 0.19 mm or less, 16 needs 0.09 mm or less). The error against a resolved 3D solid falls as 1/n (an island board: -3.9, -2.25 and -1.41 % with 4, 8 and 16 "
+                              "sub-gaps); every extra sub-gap adds node layers in the cells with absent copper, which the memory estimate counts.")
         self.solver.setToolTip("How the finite-volume system is solved: sparse direct (exact, default), conjugate gradients, or SOR (to compare; slow).")
         self.rings.setToolTip("Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint). Rings narrower than one cell are merged, so 10 is enough and more change nothing.")
         self.modes.setToolTip("Cosine modes per direction of the analytical series (more modes resolve smaller parts).")
@@ -1429,6 +1489,8 @@ class SolverPanel(QWidget):
         f.addRow("Analytic modes", self.modes)
         f.addRow(self.local)                               # Full width: in the field column its long text made the panel about 350 px wide
         f.addRow("Hotspot limit", self.hot)
+        f.addRow("Laminate sub-gap", self.lam_s)
+        f.addRow("Laminate sub-gaps", self.lam_n)
         lay.addWidget(g)
 
         self.run = QPushButton("Run simulation   (F5)")
@@ -1457,7 +1519,7 @@ class SolverPanel(QWidget):
         fl.addWidget(self.checks)
         lay.addStretch(1)
 
-        for w in (self.cell, self.rings, self.modes, self.hot):
+        for w in (self.cell, self.rings, self.modes, self.hot, self.lam_s, self.lam_n):
             w.valueChanged.connect(self._apply)
         self.solver.currentIndexChanged.connect(self._apply)
         self.local.toggled.connect(self._apply)
@@ -1474,7 +1536,11 @@ class SolverPanel(QWidget):
         @param _ Ignored (extra arguments of the Qt signal).
         """
         on = lambda k: self.cb[k].isChecked()                                  # noqa: E731
-        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.rings, on("lumped"), "the Lumped model"),
+        # The laminate rule is not applied to a board with a metal block (laminate.uses_rule), so its two numbers are greyed there too
+        blocked = not laminate.uses_rule(self.doc.problem)
+        lam_on = (on("fvm") or on("fdm")) and not blocked
+        lam_why = "a board with a metal block, where the rule does not apply" if blocked else "the FVM or the FDM"
+        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.lam_s, lam_on, lam_why), (self.lam_n, lam_on, lam_why), (self.rings, on("lumped"), "the Lumped model"),
                                     (self.modes, on("analytic"), "the Analytic model"), (self.local, on("analytic"), "the Analytic model")):
             base = widget.property("base_tip")
             if base is None:                                                      # First time: remember the tooltip the control had
@@ -1497,35 +1563,61 @@ class SolverPanel(QWidget):
         self.modes.setValue(o.analytic_modes)
         self.local.setChecked(o.analytic_local_corrections)
         self.hot.setValue(o.hotspot_c)
+        self.lam_s.setValue(o.laminate_s_max_mm)
+        self.lam_n.setValue(o.laminate_n_max)
         self._updating = False
         self._update_cells()
         self._update_availability()
 
+    def verdicts(self):
+        """!
+        @brief The memory verdicts of the selected models that the guard estimates (FVM, FDM, 3D solid) at the current cell.
+        @details The estimate starts from the cheap lower bound of the unknowns; the exact count (which samples the copper) is made only when the bound fits. The base
+                 is that of the calculation process, where the solve runs.
+        @return List of memory.Verdict.
+        """
+        models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
+        return memory.check(self.doc.problem, models, self.cell.value(), fraction=self.doc.options.memory_fraction, base=memory.BASE_DEFAULT, refuse="return",
+                            quiet=True, laminate_params=self.doc.options.laminate_params())
+
     def _update_cells(self):
         """!
-        @brief Show the number of FVM cells of the current setting.
+        @brief Show the unknowns and the memory verdict (ok, slow, refuse) of each selected model, and disable Run when a model would be refused.
         """
-        b = self.doc.problem.board
-        c = self.cell.value()
-        n = fvm.unknowns(self.doc.problem, c)[0]                   # The nodes the model really has: copper layers, laminate nodes of the rule (only where they are used), block layers
-        text = f"{n} unknowns"
-        if n > 500_000:
-            # The layered models have no hard limit. Direct solver, 16 GB machine: a plain board takes 5.2 s and 2.7 GB at 1 million unknowns, but boards with the laminate
-            # nodes of the rule and many layers take about 7 GB per million (2 layers 637 000 unknowns 21 s and 4.5 GB; 4 layers 681 000 unknowns 66 s and 7.6 GB)
-            text += " (slow: up to 7 GB of memory per million, a minute or more)"
-        if self.cb["fdm"].isChecked():
-            text += f" (FDM: {fdm.unknowns(self.doc.problem, c)[0]})"       # Its nodes are the corners of the cells, one more row and column
-        if self.cb["solid3d"].isChecked():
-            # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
-            n3 = solid3d.unknowns(self.doc.problem, c)[0]
-            if n3 > solid3d.MAX_CELLS:
-                note = f"; above {solid3d.MAX_CELLS}: it will not run, use a larger cell"
-            elif n3 > solid3d.MAX_CELLS // 2:
-                note = "; slow: tens of seconds and several GB of memory"
-            else:
-                note = ""
-            text += f" (3D solid: {n3}{note})"
-        self.cells_label.setText(text)
+        rows, blocked = [], ""
+        # Darker tones on a light window, lighter ones on a dark window (the theme's ok, warn and bad entries), each 4.5:1 or more on its window
+        tone = th.colors(th.current_name())
+        colours = {"ok": tone["ok"], "slow": tone["warn"], "refuse": tone["bad"]}
+        names = {"fvm": "FVM", "fdm": "FDM", "solid3d": "3D solid"}
+        for v in self.verdicts():
+            gb = f"about {v.estimate / memory.GB:.1f} GB of {v.limit / memory.GB:.1f} GB"
+            least = "" if v.exact else "at least "
+            text = f"{names[v.model]}: {least}{v.unknowns} unknowns, {gb}"                  # No thousands separator (the rule of every count shown)
+            if v.verdict == "slow":
+                text += "; slow"
+            elif v.verdict == "refuse":
+                text += (f"; above the memory limit, it will not run: use a cell of {v.cell_fit:.1f} mm or more" if v.cell_fit
+                         else "; above the memory limit, it will not run")
+            elif v.exceeds_available:
+                text += "; more than the memory available now"
+            rows.append(f'<span style="color:{colours[v.verdict]}">{html.escape(text)}</span>')
+            # The 3D solid is only skipped when other models run next to it; any other refusal stops the run (api.simulate)
+            if v.verdict == "refuse" and (v.model != "solid3d" or len(self.doc.options.models) == 1):
+                blocked = blocked or v.message
+        self.cells_label.setText("<br>".join(rows))
+        self.blocked = blocked
+        self.run.setEnabled(not blocked and not self._running)
+        self.run.setToolTip(f"Cannot run: {blocked}" if blocked else "Solve the selected models (F5).")
+
+    def _auto_cell(self):
+        """!
+        @brief Set the cell from the heaters, enlarged to the smallest cell the memory guard accepts for the selected models, and say so.
+        """
+        models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
+        base = suggest_cell_mm(self.doc.problem)
+        cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction, laminate_params=self.doc.options.laminate_params())
+        self.cell.setValue(cell)
+        self.status.setText(f"Auto: the cell was enlarged to {cell:.1f} mm to fit the memory limit." if cell > base + 1e-9 else "")
 
     def _apply(self, *_):
         """!
@@ -1540,16 +1632,17 @@ class SolverPanel(QWidget):
             self.cb["fvm"].setChecked(True)
             self._updating = False
             models = ("fvm",)
+        # set_options emits state_changed, whose refresh shows the counts, the memory verdicts and the greyed settings: not repeated here (the memory check
+        # counts the unknowns, which samples the copper, and runs at every keystroke of the cell field)
         self.doc.set_options(models=models, cell_mm=self.cell.value(), linear_solver=self.solver.currentData(),
                              lumped_rings=self.rings.value(), analytic_modes=self.modes.value(),
-                             analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value())
-        self._update_cells()
-        self._update_availability()
+                             analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value(),
+                             laminate_s_max_mm=self.lam_s.value(), laminate_n_max=self.lam_n.value())
 
     def set_checks(self, warnings):
         """!
         @brief Show the validity checks of the current design under the Run button.
-        @param warnings List of warning strings from checks.check_problem.
+        @param warnings List of warning strings from checks.check_input (validity, model limits, vias).
         """
         self.checks.set_warnings(warnings)
 
@@ -1559,8 +1652,9 @@ class SolverPanel(QWidget):
         @param running True while running.
         @param text Status text.
         """
-        self.run.setEnabled(not running)
+        self._running = running
         self.cancel.setVisible(running)
+        self.run.setEnabled(not running and not self.blocked)
         self.status.setText(text)
         if not running:
             self.progress.setValue(0)

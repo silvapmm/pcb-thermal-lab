@@ -29,7 +29,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy.sparse import csgraph
 
-from . import blocks, laminate, viawell
+from . import copper, memory, blocks, laminate, viawell
 from .geometry import part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
 from .results import SteadyResult, TransientResult
 from .numfmt import num
@@ -40,9 +40,9 @@ ORDERING = "MMD_AT_PLUS_A"
 
 log = logging.getLogger(__name__)
 
-# Largest block of the block SOR (unknowns of the merged footprints of vias that touch): its dense inverse takes 8 n^2 bytes, so 5 000 unknowns are 200 MB.
-# Above it the SOR solves the board with the direct solver instead (a minimal guard; the memory limit by the estimated size is a separate item).
-MAX_SOR_BLOCK = 5000
+# Blocks of the block SOR (unknowns of the merged footprints of vias that touch): the build of the dense inverse of a block of n unknowns takes about 75 n^2 bytes
+# (measured 66 to 75 n^2; 5 000 unknowns are about 1.9 GB, not the 200 MB an earlier comment said) and every inverse is kept, so the sum over the blocks is allowed
+# up to a quarter of the memory limit (memory.sor_block_fits). Above it the SOR solves the board with the direct solver instead and says so.
 
 # Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
 # several times with other powers). One entry per thread, released before a new factorisation, so the peak memory is that of one LU, as with spsolve.
@@ -53,9 +53,10 @@ _REUSE = threading.local()
 def factor_reuse():
     """!
     @brief Within this block, a direct solve of a matrix identical to the previous one reuses its LU factorisation instead of factorising again.
-    @details Used by api._solve_with_tc around the top-path split and the power-coefficient loop, which solve the same board with other part powers: with fixed
-             face coefficients every board solve has the same matrix (6 factorisations become 1 for one part with a top path; with computed coefficients the
-             matrix changes at every Picard step and nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
+    @details Used by api._solve_with_tc around the top-path split and the power-coefficient loop, and by inverse.power_from_temperature around its runs at
+             other powers, which solve the same board with other part powers: with fixed face coefficients every board solve has the same matrix (6 factorisations
+             become 1 for one part with a top path, 4 become 1 for the Power Calculator; with computed coefficients the matrix changes at every Picard step and
+             nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
              released when the outermost block ends, so the peak memory is that of a plain solve. SuperLU's splu + solve gives the same numbers as spsolve
              with the same column ordering (tests/test_top_path.py checks it to 1e-9 K). Nested blocks share the outer one.
     @return Context manager (yields nothing).
@@ -84,6 +85,9 @@ def direct_solve(A, b):
     A.sum_duplicates()                             # Canonical form, so that equal matrices give equal bytes
     # The key is the exact content (structure and values), hashed: two matrices differ by a face coefficient in the computed-h loop
     digest = hashlib.blake2b(digest_size=20)
+    # (the dtypes go in too, so that the byte stream parses one way only; a 160-bit digest makes an accidental collision of two consecutive matrices
+    # about 2^-160, and a different key only costs a new factorisation, never a wrong reuse)
+    digest.update(f"{A.indptr.dtype.str}{A.indices.dtype.str}{A.data.dtype.str}".encode())
     for arr in (np.asarray(A.shape), A.indptr, A.indices, A.data):
         digest.update(np.ascontiguousarray(arr).tobytes())
     key = digest.hexdigest()
@@ -108,7 +112,7 @@ class Network:
     @brief Assembled thermal network: conductances, capacities, sources and the sparse matrix.
     """
 
-    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True):
+    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True, faces=None):
         """!
         @brief Build the network of a problem on an nx x ny grid.
         @param problem A validated Problem.
@@ -120,6 +124,9 @@ class Network:
         @param ladder True: the laminate nodes of the rule (laminate.py) in the cells with absent copper, and the bottom node of a one-layer board; False: the network of the earlier
                versions (one node per copper layer, the two laminate nodes of a one-layer board), which the Lumped model reads ring by ring. A problem with a metal block always
                gets the earlier treatment.
+        @param faces Imported copper (copper.py): None takes `problem.imported` when it has masks (and nothing changes for a problem without), False ignores it, or a
+               copper.CopperSource. The cell fill of the imported layers comes from the masks; with the "faces" or "lambda" mapping the in-plane couplings of those layers are
+               the face conductances of the reduced sheet (built when the matrix is assembled), with "fill" the program's harmonic mean of the cell values.
         """
         problem.validate()
         self.problem = problem
@@ -150,7 +157,9 @@ class Network:
             raise ValueError("copper thickness must be smaller than thickness / layers")
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
+        self.copper = copper.resolve(faces, problem)                     # The imported copper (masks), or None for a drawn board
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
+        copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
@@ -202,6 +211,12 @@ class Network:
             self.g_side[:L, :, -1] += b.h_side * dy * sl
             self.g_side[:L, 0, :] += b.h_side * dx * sl
             self.g_side[:L, -1, :] += b.h_side * dx * sl
+        # The faces of the imported layers are built on the sheet the copper node keeps after the rule: keep the sheet before it and the two-phase values of a pixel
+        self._lateral = None
+        self._face_context = None
+        if self.copper is not None and self.copper.mapping != "fill" and assemble:
+            # (sheet of the copper nodes before the rule, sheet of a pixel with copper, sheet of a bare pixel), the last two per layer in W/K
+            self._face_context = (self.S[:L].copy(), m.k_copper * t_cu + k_lam * (slab - t_cu), k_lam * slab)
         pin_extra = self._add_ladder(b, cell) if use_rule else None      # After the edge conductance: the new nodes take their share of it from the copper nodes
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
         # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0).
@@ -332,6 +347,25 @@ class Network:
                                     "g_link": ly["g_link"], "board_layer": ly["board_layer"]})
         self.nl = base + E
 
+    def _imported_faces(self):
+        """!
+        @brief The face conductances of the imported layers, built once on the sheet the copper node keeps after the laminate rule.
+        @details dS = (sheet before the rule - sheet after it) / cover is what the rule moved into the interior laminate nodes of the cell; it is taken off every pixel of the
+                 cell before the faces are computed (copper.py), so the laminate is not counted twice. Without the rule dS is zero.
+        @return dict layer index -> (gx (ny, nx - 1), gy (ny - 1, nx)) in W/K; empty for a drawn board or the "fill" mapping.
+        """
+        if self._lateral is None:
+            self._lateral = {}
+            if self._face_context is not None:
+                s_pre, a_full, b_bare = self._face_context
+                b = self.problem.board
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    for layer in self.copper.layers:
+                        red = np.where(self.cover > 0, np.maximum(s_pre[layer] - self.S[layer], 0.0) / self.cover, 0.0)
+                        self._lateral[layer] = self.copper.lateral(layer, a_full[layer], b_bare[layer], red, self.cover, self.ny, self.nx, b.width, b.height)
+                self._face_context = None                       # The copy of the sheet is not needed again
+        return self._lateral
+
     # ------------------------------------------------------------------ assembly
     @staticmethod
     def _harmonic(a, b):
@@ -368,6 +402,10 @@ class Network:
         # Lateral couplings: face width / distance gives dy/dx (x) and dx/dy (y)
         gx = self._harmonic(self.S[:, :, :-1], self.S[:, :, 1:]) * self.dy / self.dx
         gy = self._harmonic(self.S[:, :-1, :], self.S[:, 1:, :]) * self.dx / self.dy
+        for layer, (fx, fy) in self._imported_faces().items():          # Imported copper: the face conductances of the reduced sheet
+            on = self.active
+            gx[layer] = fx * (on[:, :-1] & on[:, 1:])
+            gy[layer] = fy * (on[:-1, :] & on[1:, :])
         couple(idx[:, :, :-1], idx[:, :, 1:], gx)
         couple(idx[:, :-1, :], idx[:, 1:, :], gy)
         if nb > 1:
@@ -423,7 +461,7 @@ class Network:
         """!
         @brief Estimate of Young's optimum relaxation factor of the red-black SOR from the Rayleigh quotient of the Jacobi matrix.
         @details For the symmetric positive definite K = D - N with a two-colourable graph (the parity of l + i + j) the optimum is 2 / (1 + sqrt(1 - rho^2)), rho the
-                 spectral radius of D^-1 N (Young; Saad 2003, section 4.2.5). rho is bounded from below by the Rayleigh quotient 1 - (m^T K m) / (m^T D m) of the trial
+                 spectral radius of D^-1 N (Young; Saad 2003, section 4.2.5, Theorem 4.16 and eq. 4.47, pp 126-127; the theorem holds for consistently ordered matrices). rho is bounded from below by the Rayleigh quotient 1 - (m^T K m) / (m^T D m) of the trial
                  vector m = D^1/2 1 restricted to the nodes that have a link: one product with K, always a LOWER bound, so the omega that follows is below the optimum (safe side).
                  K is the full matrix that the SOR solves, with the via couplings and the footprints. Nodes without any link (the cells off a board with an outline, pinned to the ambient)
                  are left out of both sums: they are eigenvectors with mu = 0 and would dilute the quotient (omega near 1 on a round board). The result is capped at 1.999 as a guard.
@@ -442,7 +480,7 @@ class Network:
         rho = min(max(rho, 0.0), 1.0)
         return float(min(2.0 / (1.0 + np.sqrt(1.0 - rho * rho)), 1.999))
 
-    def solve_sor(self, omega=None, tol=1e-9, max_iter=200000, criterion="residual"):
+    def solve_sor(self, omega=None, tol=1e-9, max_iter=200000, criterion="residual", memory_limit=None):
         """!
         @brief Solve K*theta = Q with red-black Successive Over-Relaxation (vectorised with NumPy).
         @details Every sweep updates the "red" nodes (l+i+j even) and then the "black" ones, each colour in one
@@ -455,8 +493,10 @@ class Network:
         @param criterion "residual" stops when |K theta - Q| / |Q| < tol (reliable);
                          "step" stops when the largest change of one sweep is below tol in kelvin
                          (the rule of the original program, which can stop far from the solution).
-        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step); a board with vias whose footprint block is larger than
-                 MAX_SOR_BLOCK unknowns is solved directly (info["fallback"] = "direct").
+        @param memory_limit Memory limit in bytes of the guard (None: memory.limit_bytes()); the dense inverses of the via blocks may take a quarter of it.
+        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step); a board with vias whose footprint blocks would need more than a
+                 quarter of the memory limit (75 n^2 bytes for a block of n unknowns, summed over the blocks, since every inverse is kept) is solved directly
+                 (info["fallback"] = "direct", info["block"] = the largest n, info["block_bytes"] = the sum).
         """
         if self.block_info:
             raise ValueError("SOR does not support metal blocks: use the direct solver or the conjugate gradients")
@@ -466,7 +506,7 @@ class Network:
             omega = self.sor_omega()
         if self.ladder is not None and self.nl > self.n_board:
             # Laminate nodes of the rule: the vertical neighbour is no longer layer +- 1 and no point colouring exists, so the plan columns are relaxed as blocks
-            return self._sor_columns(omega, tol, max_iter, criterion)
+            return self._sor_columns(omega, tol, max_iter, criterion, memory_limit)
         diag = K.diagonal().reshape(L, ny, nx)
         # Conductances towards the six neighbours (zero where the neighbour does not exist)
         gl = np.zeros((L, ny, nx)); gr = np.zeros((L, ny, nx))     # x-1, x+1
@@ -474,6 +514,10 @@ class Network:
         ga = np.zeros((L, ny, nx)); gb = np.zeros((L, ny, nx))     # layer-1, layer+1
         gx = self._harmonic(self.S[:, :, :-1], self.S[:, :, 1:]) * self.dy / self.dx
         gy = self._harmonic(self.S[:, :-1, :], self.S[:, 1:, :]) * self.dx / self.dy
+        for layer, (fx, fy) in self._imported_faces().items():          # Imported copper: the face conductances of the reduced sheet
+            on = self.active
+            gx[layer] = fx * (on[:, :-1] & on[:, 1:])
+            gy[layer] = fy * (on[:-1, :] & on[1:, :])
         gr[:, :, :-1], gl[:, :, 1:] = gx, gx
         gu[:, :-1, :], gd[:, 1:, :] = gy, gy
         if L > 1:
@@ -493,11 +537,16 @@ class Network:
         if self.via_blocks:
             idx3 = np.arange(L * ny * nx).reshape(L, ny, nx)
             vblocks = viawell.unknown_blocks(self.via_blocks, idx3, self.n_board)
-            if max(len(bk) for bk in vblocks) > MAX_SOR_BLOCK:
-                # The dense inverse of such a block is too large: use the direct solver and say so
-                log.warning("SOR: a via block of %d unknowns is too large for the block SOR; the direct solver is used instead", max(len(bk) for bk in vblocks))
+            biggest = max(len(bk) for bk in vblocks)
+            sizes = [len(bk) for bk in vblocks]
+            if not memory.sor_block_fits(sizes, memory.limit_bytes() if memory_limit is None else memory_limit):
+                # The dense inverses of the blocks (all kept for the iterations) take too much of the memory limit: use the direct solver and say so
+                need = sum(memory.sor_block_bytes(k) for k in sizes)
+                log.warning("SOR: the via blocks (%d, the largest of %d unknowns; about %.1f GB for their dense inverses) are too large for the block SOR; "
+                            "the direct solver is used instead", len(sizes), biggest, need / memory.GB)
                 theta, res = self.solve_steady("direct")
-                return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct"}
+                return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct", "block": float(biggest),
+                                    "block_bytes": float(need)}
             groups = self._sor_block_groups(vblocks)
             skip = np.zeros(L * ny * nx, bool)
             for bk in vblocks:
@@ -542,20 +591,22 @@ class Network:
         res = float(np.linalg.norm(K @ theta.ravel() - Q.ravel()) / max(qn, 1e-300))
         return theta, res, {"iterations": it, "converged": converged, "omega": float(omega), "last_step": last_step}
 
-    def _sor_columns(self, omega, tol, max_iter, criterion):
+    def _sor_columns(self, omega, tol, max_iter, criterion, memory_limit=None):
         """!
         @brief Block SOR for a network with laminate nodes: every plan cell is a block of all its nodes (copper, interior, bottom), the blocks are coloured and each colour is solved exactly.
         @details Why not the point red-black sweep: in a refined cell the two copper nodes are joined by n links and in a single-link cell by one, so the cycle
                  a(i) - b(i) - b(j) - [n links] - a(j) - a(i) has length n + 3, odd for every even n, and no two-colouring of the nodes exists (the default rule gives n = 2 or 4).
                  Every coupling of the network joins two nodes of one plan cell, the same node of two neighbouring cells, or the cells of a via footprint, so the blocks of the plan
                  cells (merged where a via footprint joins them) can be coloured; the blocks of one colour are not coupled to each other and take the exact solution of their
-                 block-diagonal part, relaxed by omega (convergence for 0 < omega < 2, as for the via blocks). Nodes no cell uses are left out. A merged block above MAX_SOR_BLOCK
-                 unknowns is not factored: the board is solved directly (info["fallback"] = "direct").
+                 block-diagonal part, relaxed by omega (convergence for 0 < omega < 2, as for the via blocks). Nodes no cell uses are left out. A merged block whose dense
+                 bound (75 n^2 bytes) is above a quarter of the memory limit is not factored: the board is solved directly (info["fallback"] = "direct"). The
+                 bound is conservative here: the blocks of one colour are factored by a sparse LU, which takes far less than a dense inverse.
                  Measured on 30 mm boards at 1 mm: 730 / 5200 / 730 sweeps against 719 / 5221 / 775 for the point SOR of the earlier network (research/laminate-nodes, 3.11).
         @param omega Relaxation factor.
         @param tol Stopping tolerance.
         @param max_iter Sweep limit.
         @param criterion "residual" or "step" (see solve_sor).
+        @param memory_limit Memory limit in bytes (None: memory.limit_bytes()).
         @return Tuple (theta, residual, info) as solve_sor.
         """
         L, ny, nx = self.nl, self.ny, self.nx
@@ -574,10 +625,11 @@ class Network:
         node_cell = np.tile(np.arange(cells), L)
         node_block = comp[node_cell]
         sizes = np.bincount(node_block[used], minlength=comp.max() + 1)
-        if sizes.max() > MAX_SOR_BLOCK:
-            log.warning("SOR: a block of %d unknowns (a via footprint with its laminate nodes) is too large for the block SOR; the direct solver is used instead", int(sizes.max()))
+        if not memory.sor_block_fits(int(sizes.max()), memory.limit_bytes() if memory_limit is None else memory_limit):
+            log.warning("SOR: a block of %d unknowns (a via footprint with its laminate nodes; about %.1f GB) is too large for the block SOR; the direct solver is used instead",
+                        int(sizes.max()), memory.sor_block_bytes(int(sizes.max())) / memory.GB)
             theta, res = self.solve_steady("direct")
-            return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct"}
+            return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct", "block": float(sizes.max())}
         # Colour the blocks greedily so that coupled blocks differ (blocks in raster order on a grid give the usual two colours)
         coo = K.tocoo()
         br, bc = node_block[coo.row], node_block[coo.col]
@@ -776,13 +828,14 @@ def unknowns(problem, cell_mm=2.0):
         dx, dy = b.width / nx, b.height / ny
         active = b.cover(nx, ny, dx, dy) > 0
         fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, samples=4)
+        copper.override_fill(fill, copper.resolve(None, problem), ny, nx, b.width, b.height)
         return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active), nx * ny), nx, ny)
     lam = laminate.nodes(b)
     layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
     return layers * nx * ny, layers, nx, ny
 
 
-def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=1e-9, sor_criterion="residual"):
+def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=1e-9, sor_criterion="residual", memory_limit=None):
     """!
     @brief Steady-state FVM solution of a problem.
     @param problem A Problem.
@@ -791,6 +844,7 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
     @param sor_omega Relaxation factor for "sor" (None = automatic).
     @param sor_tol Tolerance for "sor".
     @param sor_criterion "residual" or "step" (see Network.solve_sor).
+    @param memory_limit Memory limit in bytes for the SOR block guard (None: memory.limit_bytes()).
     @return SteadyResult (for "sor" the extras hold iterations, omega and converged).
     """
     b = problem.board
@@ -798,7 +852,7 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
     net = Network(problem, nx, ny)
     if method == "sor":
-        theta, res, info = net.solve_sor(omega=sor_omega, tol=sor_tol, criterion=sor_criterion)
+        theta, res, info = net.solve_sor(omega=sor_omega, tol=sor_tol, criterion=sor_criterion, memory_limit=memory_limit)
         r = _result_from_theta(net, theta, res)
         r.extras.update({"iterations": float(info["iterations"]), "omega": info["omega"],
                          "converged": float(info["converged"])})
@@ -807,8 +861,10 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
         if info.get("fallback") == "direct":
             # The user chose SOR: say in the result (not only in the log) that another solver produced it
             r.extras["fallback_direct"] = 1.0
-            r.warnings.append(f"SOR not used: the cells of the vias form a block larger than {MAX_SOR_BLOCK} unknowns, too large for the block SOR; "
-                              "the board was solved with the direct solver instead")
+            n_blk = int(info.get("block", 0))
+            need = info.get("block_bytes", memory.sor_block_bytes(n_blk))
+            r.warnings.append(f"SOR not used: the cells of the vias form blocks (the largest of {n_blk} unknowns) whose dense inverses need about {need / memory.GB:.1f} GB, "
+                              "too much for the block SOR within the memory limit; the board was solved with the direct solver instead")
         return r
     theta, res = net.solve_steady(method=method)
     return _result_from_theta(net, theta, res)
@@ -874,15 +930,17 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
     q = net.Q.ravel()
     x = np.zeros(N)                                         # Rise above ambient, starts at zero
     frames = {0: x.reshape(net.nl, ny, nx)[:nb] + ambient}
-    cache = {}
+    # Only the factor of the current step size is kept: the steps of a stage are equal and a stage never comes back, so an old factor is dead
+    # weight (ten factors were held before; the peak memory of an animation fell from about 3.5 to 1.9 times a steady solve).
+    current_key, lu, B = None, None, None
     kept = set(keep.tolist())
     for k, dt in enumerate(dts, start=1):
         key = round(float(dt), 12)
-        if key not in cache:
+        if key != current_key:
+            lu = B = None                                   # Free the old factor before the new one is built
             A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
             B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
-            cache[key] = (spla.splu(A, permc_spec=ORDERING), B)
-        lu, B = cache[key]
+            lu, current_key = spla.splu(A, permc_spec=ORDERING), key
         x = lu.solve(B @ x + q)
         if k in kept:
             frames[k] = x.reshape(net.nl, ny, nx)[:nb] + ambient

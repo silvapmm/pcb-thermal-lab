@@ -307,7 +307,7 @@
     "emissivity_top": 0.9,
     "emissivity_bottom": 0.9,
     "orientation": "horizontal",
-    "natural_form": "general",
+    "natural_form": "laminar",
     "air_speed": 0.0,
     "h_calibration": 1.0
   },
@@ -350,6 +350,7 @@
     "linear_solver": "direct",
     "lumped_rings": 10,
     "analytic_modes": 300,
-    "hotspot_c": 100.0
+    "hotspot_c": 100.0,
+    "memory_fraction": 0.6
   }
 }

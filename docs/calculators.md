@@ -16,7 +16,9 @@ The auxiliary tools of the program that answer a question with a few numbers ins
 P = (T_measured − T(0)) / R          R = (T(P_run) − T(0)) / P_run
 ```
 
-and two model runs (the part at 0 W and at any `P_run`) give `T(0)` and `R`; a third run checks the answer. With computed convection (the coefficients grow with temperature) the relation is not linear and a secant iteration finishes it (a few more runs; on the CSD17308Q3 board the junction is 6 K below the two-run line at 2 W with computed convection). One last run reports what the model reads at the power found.
+and two model runs (the part at 0 W and at any `P_run`) give `T(0)` and `R`; a third run checks the answer. With computed convection (the coefficients grow with temperature) the relation is not linear and a secant iteration finishes it (a few more runs; on the CSD17308Q3 board the junction is 6 K below the two-run line at 2 W with computed convection). One last run reports what the model reads at the power found. At manual coefficients the runs share one factorisation of the board matrix (`fvm.factor_reuse`): the results are bit-identical to separate solves (84 of 84 cases) and the calculation is about 3.8 times faster; with computed coefficients the matrix changes at every step, nothing is reused and the time is as before (up to about 17 % more for the hash and the extra factorisation).
+
+Times at manual h (example board, one call and the band at design level *hand*): 1 mm, one call 0.34 to 0.11 s, band 4.8 to 1.5 s; 0.5 mm, one call 4.80 to 1.28 s (679 to 605 MB), band 84.5 to 21.6 s (2024 to 1952 MB).
 
 **What the copper does.** The program does not "see" the heat in the copper. The copper, the vias, the stack-up and the air decide `R`, how many kelvin each watt raises at the point you measured: a plane under the part spreads the heat, `R` is small and the same temperature means more watts; a bare board has a large `R` and the same temperature means fewer watts. That is why the board you draw must be the real one, and why the result window shows `R`.
 
