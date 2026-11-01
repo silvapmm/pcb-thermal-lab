@@ -1,0 +1,4 @@
+# Text for `docs/versions.md` (chapter 'Planned'), the zonal Lumped model
+
+* **Feature, after the investigation `lumped-zones-adoption`**: the footprint of a part with a via core in two zones per layer in the Lumped model (steady state and time), with the warnings and the raster rule. Evidence: `research/lumped-via-groups/` (the model, measured on the program up to 2.4.4) and `research/lumped-zones-adoption/` (the adoption on the 2.4.5 wells, with the transient, the raster and the worst cases). Design: `research/lumped-zones-adoption/INTEGRATION.md`. A `feature/` branch off `develop` with the reviewer and the whole battery.
+* **Fix, separate item**: the stride decimation of `lumped._footprint_potentials` above 900 cells (the link to ring 1 short by 4 to 11 % for 20 to 30 mm footprints); evidence in `research/lumped-zones-adoption/` study 5. A `fix/` branch.
