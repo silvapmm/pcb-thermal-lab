@@ -32,11 +32,13 @@ from pcbthermal.geometry import coverage_fraction, polygon_area   # noqa: E402
 from robin_basis import Basis   # noqa: E402
 
 
-def edge_beta(sh, problem):
+def edge_beta(sh, problem, rule="flux"):
     """!
     @brief The common edge parameter of the Robin basis.
     @param sh Dict from analytic._effective_sheet.
     @param problem The Problem.
+    @param rule "flux" (keeps the total edge conductance: h sum(slab) / sum(S)), "ls" (least squares of beta S_l against h slab_l: h sum(slab S) / sum(S^2)) or
+                "heater" (the parameter of the layer of the first heater).
     @return Tuple (beta in 1/m, h_side effective W/m2K on the rectangle).
     """
     b = problem.board
@@ -44,7 +46,13 @@ def edge_beta(sh, problem):
         return 0.0, 0.0
     perim = getattr(b, "edge_perimeter", None) or 2.0 * (sh["W"] + sh["H"])
     h_eff = b.h_side * perim / (2.0 * (sh["W"] + sh["H"]))          # keeps the total edge conductance of a board with an outline
-    return h_eff * float(sh["slab"].sum()) / float(sh["S"].sum()), h_eff
+    S, slab = sh["S"], sh["slab"]
+    if rule == "ls":
+        return h_eff * float((slab * S).sum()) / float((S * S).sum()), h_eff
+    if rule == "heater":
+        l = problem.heaters[0].layer
+        return h_eff * float(slab[l]) / float(S[l]), h_eff
+    return h_eff * float(slab.sum()) / float(S.sum()), h_eff
 
 
 def modal_matrix(sh, h_surf, g, eig2):
@@ -69,16 +77,18 @@ def modal_matrix(sh, h_surf, g, eig2):
     return A
 
 
-def solve(problem, cell_mm=1.0, n_terms=300, edge="faces", n_green=64, strip_mm=1.0, local=True):
+def solve(problem, cell_mm=1.0, n_terms=300, edge="faces", n_green=64, strip_mm=1.0, local=True, beta_rule="flux", strip_modes=150):
     """!
     @brief Steady Analytic solution with the chosen edge treatment.
     @param problem A Problem (no metal block).
     @param cell_mm Sampling cell in mm.
     @param n_terms Modes per direction.
     @param edge "faces", "none", "robin", "robin_res" (Robin with the layer mismatch of the edge parameter moved to the faces) or "strips".
-    @param n_green Modes per direction of the tile Green function (vias, heatsinks); "strips" uses at least this many.
+    @param n_green Modes per direction of the tile Green function (vias, heatsinks).
     @param strip_mm Tile size along the outline for "strips".
     @param local Apply the local corrections of vias and heatsinks.
+    @param beta_rule Rule of the common edge parameter (see edge_beta).
+    @param strip_modes Modes per direction of the Green function of the edge tiles for "strips".
     @return Dict with T (L, ny, nx rise over ambient + ambient), t_max, a (M, N, L), bx, by, sh, p_faces, p_edge, p_heatsinks, beta.
     """
     problem = problem.drop_off_board_vias()
@@ -92,7 +102,7 @@ def solve(problem, cell_mm=1.0, n_terms=300, edge="faces", n_green=64, strip_mm=
     h_surf[0] += b.h_top
     h_surf[L - 1] += b.h_bottom
     robin = edge in ("robin", "robin_res")
-    beta, h_eff = (edge_beta(sh, problem) if robin else (0.0, 0.0))
+    beta, h_eff = (edge_beta(sh, problem, beta_rule) if robin else (0.0, 0.0))
     res = np.zeros(L)
     if edge == "faces":
         h_surf = h_surf + sh["h_edge"]
@@ -131,8 +141,7 @@ def solve(problem, cell_mm=1.0, n_terms=300, edge="faces", n_green=64, strip_mm=
             length = (th if c == 0 else 0.0) + (th if c == ntx - 1 else 0.0) + (tw if r == 0 else 0.0) + (tw if r == nty - 1 else 0.0)
             for l in range(L):
                 C[i * L + l, i * L + l] += hs * sh["slab"][l] * length
-        mg_modes = max(n_green, 150)
-        Mg, Ng = min(M, mg_modes), min(N, mg_modes)
+        Mg, Ng = min(M, strip_modes), min(N, strip_modes)
     elif local and nvs and edge != "strips":
         ntx, nty, tw, th = analytic._tile_grid(W, H, lam)
         vs = viaconstriction.ViaSet(problem) if problem.vias and L > 1 else None

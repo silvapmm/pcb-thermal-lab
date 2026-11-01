@@ -179,3 +179,17 @@ def test_muzychka_equation_21_against_finite_volumes_and_fin_limit():
     assert r21 == pytest.approx(r3d, rel=0.01)
     rfin = mz.fin_limit(a, b, c, d, t, k, h, he, he)
     assert rfin == pytest.approx(r21, rel=0.03)         # thin sheet: tau = t / sqrt(A_s) = 0.1
+
+
+def test_step_response_ends_at_the_steady_resistance():
+    """!
+    @brief The unit-step response of the copy tends to the steady resistance of the same treatment (rise per watt at the hottest point), and Robin time constants are finite.
+    @return None.
+    """
+    p = uniform(h_side=200.0, x0=0.0, y0=0.0)
+    for edge in ("faces", "robin"):
+        times, z, rth, t63 = ae.step_response(p, edge, n_terms=120)
+        steady = (ae.solve(p, 1.0, edge=edge, n_terms=120)["t_max"] - 25.0) / 2.0
+        assert rth == pytest.approx(steady, rel=1e-6)
+        assert z[-1] == pytest.approx(rth, rel=1e-3)
+        assert 0.0 < t63 < times[-1]
