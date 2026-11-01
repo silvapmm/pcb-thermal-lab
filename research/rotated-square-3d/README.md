@@ -11,6 +11,7 @@
 * The FVM and the FDM show the same effect in a much milder form (FVM +4.6 K at 20 cells per side for a half-cell shift, +0.22 K at 80; FDM within 1.2 K) and agree with their own axisymmetric reference on a round board within 0.6 % at 1 mm (section 7). No change is proposed for them.
 * The review (section 9) confirmed the cut-cell copy against the continuum value of an independent solver on the shifted and turned squares (within 0.2 K at 40 cells per side and better, except the 45 degree turn), corrected the explanation of the 45 degree residual and of the T board (a part that crosses the outline: a separate defect of the FVM, the FDM and the 3D solid, +2.2 K on the example board cut to a T at the default coefficient), and recommends documenting the edge effect as a limit (P2) and fixing the part across the outline.
 * The decision (a correction of `solid3d.py` as measured here, or a documented limit) is the maintainer's: `INTEGRATION.md`.
+* **Section 10 (added later): the same idea in the layered FVM** (option P1 of `docs/versions.md` 'Planned'). The program's FVM links are a factor c (the cover) too small across a cut; cut-cell links (aperture over centroid distances) cut the shift and turn dependence of a 20 mm square by 4 to 5 times and the round-board peak error at 1 mm and `h_side` 1000 from +0.69 % to +0.22 % of the rise, halve the scatter of the example board cut to a T (0.48 to 0.22 K) but leave about 1 K of the small T at 1 mm. Light cases only; go for 2.6.0 as a low-priority item, no-go for 2.5.0 (10.7).
 
 ## 1. The question, and what would answer it
 
@@ -319,10 +320,139 @@ The two findings of 9.3 and 9.4 were adopted: `fix/board-cover-8x8` samples the 
 
 The 1/32 mm step of the diamond reference is not monotone (91.335 then 91.342: the 16 x 16 sampling of its footprint), so its continuum is good to about 0.01 K; patterned copper, vias and blocks on a cut edge against a reference; the FDM with the corrected part weight (only the FVM and the 3D solid were run); the cost of P1's sampling; the original +1.15 K setup.
 
-## 10. What was read and what was not verified
+## 10. Option P1 in the layered FVM: cut cells by their real shape (prototype and light measurements)
+
+**Question.** `docs/validation.md` 23 and the chapter 'Planned' say that a cell cut by the outline conducts with its cover, so a part over a cut edge reads 0.5 to 0.7 K (about 1 % of the rise) hotter at 1 to 0.5 mm than with the edge on the grid lines, and that a cut-cell scheme is the remedy. The maintainer asked whether it is worth doing in the layered FVM (and what it means for the FDM and the 3D solid), and in which version. Everything below is a prototype on a copy (`lib/fvm_cutcell.py`, a subclass of `fvm.Network`; `pcbthermal/` is untouched) and **light cases only** (tier `light` of `scripts/study_cut_cells_fvm.py`, every case below 0.6 GB and a few seconds); the heavy sweeps are listed in 10.8 and were not run.
+
+**Answer in short.**
+
+* The program's FVM joins two cells with the harmonic mean of the cover-scaled sheet conductances over one cell width (`fvm.py`, `S * cover`, then `gx = harmonic(S1, S2) dy/dx`). Into an edge cell of cover c (board on the side of the neighbour) that is `2c/(1+c)` of a link, against the exact `2/(1+c)` of a straight edge: **the program is a factor c too small across the cut** (Figure 9, Figure 10). Along the edge it is right (aperture = cover).
+* The cut-cell links (aperture of the face over the distance between the centroids of the two board parts, nodes at the centroids; `links`) remove the dependence on the cut where the geometry is simple: a 20 mm square at `h_side` 2000 shifted by half a cell or turned 20 and 45 degrees moves the maximum by +0.45 / +0.56 / +0.47 K (program, 0.5 mm) and by +0.11 / +0.12 / +0.13 K (links), against the aligned board of the same scheme (10.3). On a round board against the axisymmetric reduction the error of the peak at 1 mm and `h_side` 1000 falls from +0.69 % to +0.22 % of the rise (+0.28 to 0.00 % at 0.5 mm) and the rim loss from -0.27 % to +0.17 %.
+* **The gain on the case that motivated it is modest.** The example board cut to a T: the hottest point over five cells (1 to 0.25 mm) spreads over 0.48 K in the program and 0.22 K with the links (0.6 % and 0.3 % of the 81 K rise; the aligned references are 106.56 and 106.53). The small T (2 W over the re-entrant corner) at 1 mm: scatter of the error over the neck positions 1.26 K (program) against 1.01 K (links) and 0.63 against 0.40 K at 0.5 mm; the residual is not removed (10.4), and it is not the sampling of the geometry (`sens`: the scatter of `links` is 1.5 / 1.0 / 1.1 K with 8 / 16 / 64 samples per cell side, single points move by up to 0.3 K).
+* **Where the program is already right**: an insulated rectangle with the edge moved over a cell (closed form, 10.2): every variant within 0.03 K of each other (the cut cell is a dead end for the heat); `h_side` 10 on the disc (all variants +0.19 % at 1 mm: the cell-centred read-out, not the edge).
+* **Cost**: the geometry (cover, centroid, apertures) is sampled only at the cells the outline crosses and costs 0.07 s at 800 000 cells (T board) and 0.2 s at 176 000 cells (disc with 128 sides); network build time and the matrix are the same size; the sparse matrix stays symmetric positive definite; no singular link (largest x link 1.2 to 1.6 of a whole pair; 28 to 56 cells with a cover under 0.1 on a turned 40 mm square); the implicit transient runs (time to 63 %: 33.78 s against 33.87 s). What it moves: every number of a board whose outline cuts cells (frozen records, `docs/validation.md` 13 and 23, the tests that fix those numbers).
+* **Go / no-go** (10.7): **no-go for 2.5.0, go as a low-priority item for 2.6.0** for the variant `links` in the FVM only (about 60 lines); not for the Lumped and Analytic (they run on the equivalent rectangle); the FDM and the 3D solid need their own design (INTEGRATION.md).
+
+### 10.1 What is in the prototype (and Figures 9 to 11)
+
+![one cut cell, program and cut-cell link](figures/fig_09_cut_cell_link.png)
+
+*Figure 9 (`figures/fig_09_cut_cell_link.png`): a whole cell and a cell cut at c = 0.4 (board towards the whole cell). Left, the program: node at the cell centre, conductivity times the cover, distance one cell width. Right, the cut-cell link: node at the centroid of the board part, cross-section the aperture of the shared face, distance d1 + d2 between the centroids measured along the normal.*
+
+![link ratio](figures/fig_10_link_ratio.png)
+
+*Figure 10 (`figures/fig_10_link_ratio.png`): link conductance into a cut edge cell divided by the exact straight-edge value, against the cover (closed forms: program c, aperture only (1 + c)/2, cut-cell links 1).*
+
+![links around the re-entrant corner](figures/fig_11_tee_links.png)
+
+*Figure 11 (`figures/fig_11_tee_links.png`): the small T board with the neck edge at 10.5 mm, 1 mm cells; line width proportional to the lateral conductance of the top layer in the program (left, nodes at the cell centres) and in the prototype (right, nodes at the centroids; the link from the whole cell above the corner into the half-board cell below is a half-width diagonal). Dashed: the part. No solve.*
+
+Variants of `lib/fvm_cutcell.py` (`scheme`): `program` (the unmodified FVM); `aperture` (nodes stay at the cell centres, only the cross-section of the link becomes the aperture; the form of Johansen and Colella's partial-face flux, eq. 15 and 16 of the report); `links` (nodes at the centroids of the board parts; conductance `a dy / (d1/Sp1 + d2/Sp2)`, with `Sp` the physical sheet conductance `S / cover`); `links+strip` (`links` plus the conduction from the centroid to the outline, half the depth of the board strip, in series with the edge film). Everything else of the network (cover, capacities, vertical links, films, laminate nodes, vias) is the program's; a board with a metal block is refused. For a board without an outline the matrix is the program's (test). The geometry is `lib/cutcell.py` (`cut_geometry_fast`, 16 x 16 samples in the cut cells, equal to the full sampling in a test).
+
+### 10.2 The independent references
+
+* **Insulated rectangle: closed form** (`lib/sheetmodes.py`): the layered idealisation of a two-layer full-copper board with insulated edges is diagonal in the cosine modes (each mode a 2 x 2 system); the point value at the centre of the hot cell is summed to 300 modes (the series is converged to 1e-8 relative between 200 and 800 modes). Its own tests: the power is conserved (mean rise times the film conductances, 1e-9), and the program's FVM without cut cells approaches it as the cell squared (+0.8 K at 1 mm, +0.2 K at 0.5 mm for a 237 K peak).
+* **Round board: axisymmetric reduction of the same layered model** (`lib/layered_disc.py`, 4000 rings; the rim loss and the whole radial field, which `axisym3d.solve_layered_disc` did not return). The cell-centred unknown is a **point value** at the cell centre, so the peak of the FVM is compared with the field at `dx/sqrt(2)` from the centre (the hot cells touch the disc centre), not with the centre value nor with the mean over the cell: the first run of this study compared with the centre value of the reference and made the cut cells look worse than the program (a read-out offset of 0.4 % at 1 mm hid the effect); the table below is the corrected one.
+* **The program at 1/12 mm cells** for the small T (the neck edge sits on grid lines there for every position used, `a = 10 + k/12` mm); it is a proxy of the continuum, good to the discretisation error of that cell (about 1/144 of the 1 mm error).
+
+### 10.3 Results
+
+`scripts/study_cut_cells_fvm.py disc`. 40 mm round board (128-sided polygon), two copper planes, 2 W in a 3 mm radius part; peak of the hottest cell and heat leaving by the rim, both against the axisymmetric reduction; per cent of the rise (peak) and of the rim loss (rim). Each cell shows peak / rim.
+
+| h_side | rise at the hot cell centre (K) | cell (mm) | program | aperture | links | links+strip |
+| --: | --: | --: | --: | --: | --: | --: |
+| 10 | 94.144 | 1 | +0.19 / -0.06 | +0.19 / -0.02 | +0.19 / -0.01 | +0.19 / -0.02 |
+| 100 | 74.958 | 1 | +0.30 / -0.16 | +0.24 / +0.01 | +0.22 / +0.07 | +0.25 / -0.03 |
+| 100 | 75.380 | 0.5 | +0.08 / -0.09 | +0.05 / +0.01 | +0.04 / +0.04 | +0.06 / -0.01 |
+| 1000 | 48.309 | 1 | +0.69 / -0.27 | +0.33 / +0.06 | +0.22 / +0.17 | +0.44 / -0.04 |
+| 1000 | 48.734 | 0.5 | +0.28 / -0.19 | +0.07 / +0.02 | +0.00 / +0.08 | +0.11 / -0.02 |
+| 1000 | 48.840 | 0.25 | +0.12 / -0.11 | -0.00 / +0.01 | -0.04 / +0.04 | +0.01 / -0.01 |
+| 5000 | 42.539 | 1 | +0.75 / -0.21 | +0.35 / +0.09 | +0.19 / +0.20 | +0.51 / -0.05 |
+| 5000 | 42.965 | 0.5 | +0.33 / -0.17 | +0.06 / +0.03 | -0.02 / +0.09 | +0.13 / -0.03 |
+
+(The whole table, with 10 W/m2K at 0.5 and 0.25 mm, 100 at 0.25 and 5000 at 0.25, is printed by the script; `out/cutfvm_disc_light.json`.) Reading: the program is 0.3 to 0.75 % of the rise high at 1 mm when the edge is cooled hard; `links` is 0.2 % high and reaches the reference from 0.5 mm; `links+strip` sits between (the half-cell conduction toward the rim lowers the edge-cell values but also moves the aligned convention, see below). At the program's default (`h_side` 10) there is nothing to gain: 0.19 % for every variant at 1 mm is the cell-centred read-out.
+
+`scripts/study_cut_cells_fvm.py square`. 20 mm square, 3 mm part, `h_side` 2000, board and part moved together; maximum temperature in degC (difference to the aligned board of the same scheme and cell, K):
+
+| cell (mm) | layout | program | aperture | links | links+strip |
+| --: | :-- | --: | --: | --: | --: |
+| 0.5 | aligned | 80.08 (+0.00) | 80.08 (+0.00) | 80.08 (+0.00) | 80.30 (+0.00) |
+| 0.5 | shift 1/2 cell | 80.53 (+0.45) | 80.30 (+0.22) | 80.19 (+0.11) | 80.30 (+0.00) |
+| 0.5 | turned 20 | 80.64 (+0.56) | 80.30 (+0.22) | 80.20 (+0.12) | 80.31 (+0.01) |
+| 0.5 | turned 45 | 80.55 (+0.47) | 80.29 (+0.20) | 80.21 (+0.13) | 80.34 (+0.04) |
+| 0.25 | aligned | 80.27 (+0.00) | 80.27 (+0.00) | 80.27 (+0.00) | 80.38 (+0.00) |
+| 0.25 | shift 1/2 cell | 80.49 (+0.22) | 80.38 (+0.11) | 80.32 (+0.05) | 80.38 (+0.00) |
+| 0.25 | turned 20 | 80.56 (+0.29) | 80.38 (+0.11) | 80.33 (+0.06) | 80.38 (+0.01) |
+| 0.25 | turned 45 | 80.50 (+0.23) | 80.38 (+0.11) | 80.34 (+0.07) | 80.40 (+0.02) |
+
+Reading: the FVM shows the effect in a much milder form than the 3D solid (section 4: +5.6 K at 40 cells per side), and the cut-cell variants reduce it by 2 (aperture), 4 to 5 (links) and 20 to 50 (links+strip) times. **The aligned values differ:** `links+strip` adds the half-cell conduction to the rim also on whole edge cells, so its aligned board reads +0.22 / +0.11 K above the program's at 0.5 / 0.25 mm; whether that is nearer to the continuum was **not established** (it needs a finer reference: 10.8). `aperture` and `links` leave the aligned values (and every board whose outline lies on grid lines) bit-identical to the program, which is why they are the candidates for an adoption that moves few numbers.
+
+`scripts/study_cut_cells_fvm.py tee`. (a) The example board cut to the T preset (100 x 80 mm), hottest point in degC; at 2/3 and 1/3 mm no cell is cut (references):
+
+| h_side | cell (mm) | program | aperture | links | links+strip |
+| --: | --: | --: | --: | --: | --: |
+| 10 | 0.667 (ref) | 106.562 | 106.562 | 106.562 | 106.563 |
+| 10 | 0.333 (ref) | 106.529 | 106.529 | 106.529 | 106.530 |
+| 10 | 1.0 | 106.809 | 106.567 | 106.507 | 106.508 |
+| 10 | 0.8 | 106.327 | 106.575 | 106.518 | 106.519 |
+| 10 | 0.5 | 106.498 | 106.639 | 106.615 | 106.615 |
+| 10 | 0.4 | 106.481 | 106.403 | 106.396 | 106.396 |
+| 10 | 0.25 | 106.512 | 106.465 | 106.462 | 106.463 |
+| 100 | 0.667 (ref) / 0.333 (ref) | 97.242 / 97.225 | | | |
+| 100 | 1.0 / 0.8 / 0.5 / 0.4 / 0.25 | 97.432 / 97.016 / 97.206 / 97.150 / 97.214 | 97.217 / 97.234 / 97.322 / 97.099 / 97.176 | 97.175 / 97.215 / 97.318 / 97.097 / 97.174 | 97.240 / 97.265 / 97.349 / 97.123 / 97.190 |
+
+Range over the five cut cells (max minus min): 0.48 K (program), 0.24 (aperture), 0.22 (links) at `h_side` 10; 0.42 (program), 0.22 (links) at 100. (b) The small T, error of the hottest point against the program at 1/12 mm, scatter over the six positions of the neck edge (`a` from 10 to 10.83 mm, step 1/6):
+
+| cell (mm) | program | aperture | links | links+strip |
+| --: | --: | --: | --: | --: |
+| 1 | 1.26 | 0.93 | 1.01 | 1.01 |
+| 0.5 | 0.63 | 0.47 | 0.40 | 0.40 |
+
+The per-position errors are in `out/cutfvm_tee_light.json` and Figure 12.
+
+![results](figures/fig_12_fvm_cut_cells.png)
+
+*Figure 12 (`figures/fig_12_fvm_cut_cells.png`): left, peak error of the round board against the axisymmetric reduction at `h_side` 1000; middle, the hottest point of the example board cut to a T against the cell (black squares: no cell cut); right, the small T, error at 1 mm against the position of the neck edge.*
+
+`scripts/study_cut_cells_fvm.py rect`. Insulated rectangle (right edge moved over one cell, 4 x 4 mm part 2 mm from it), peak of the hot cell minus the closed form at the cell centre: 1 mm, +0.797 (edge on the grid line) to +0.812 (program, half cell) and +0.784 (links); 0.5 mm, +0.203 to +0.205 (program) and +0.197 to +0.203 (links). Every variant within 0.03 K: the cut cell is a dead end here, which is why this test does not discriminate (it checks the closed form and the assembly, not the benefit).
+
+### 10.4 Where it does not help, and what stays unexplained
+
+* **The small T keeps a scatter of 1.0 K at 1 mm and 0.4 K at 0.5 mm** with the best variant, and the cut-cell value at some positions falls **below** the on-grid error (error +1.30 K on the grid line, +0.35 to +0.54 K at a = 10.33 to 10.67 mm), while the program goes above it (+1.75 to +1.96 K). So the invariance is not restored there: the two schemes err in opposite directions. The geometry sampling is not the cause (`sens`: samples 8 / 16 / 64 give scatters of 1.5 / 1.0 / 1.1 K, a limit of the face-to-centroid distance of a quarter cell or a cut of the apertures under 0.1 change nothing to 0.04 K; 8 samples are visibly worse, 16 is enough), and neither is the power of the part (weights are the intersection, grid-aligned part edges). The candidate cause, **not tested**, is the re-entrant corner: the cell holding the corner has an L-shaped board part, which a two-point flux through apertures treats like a straight cut, and the heat converges there (a corner singularity); the proper cure would be a second-order reconstruction of the flux (Johansen and Colella's interpolated gradient of eq. 16), which makes the matrix non-symmetric.
+* **The mean temperature under the part is no better:** on the small T the mean over the footprint at 1 mm errs by +1.65 to +2.88 K (program) and +1.75 to +2.59 K (links) over the six positions (`study_cut_cells_fvm.py sens`, last two columns; the maxima of the error differ from the hottest-point ones because a mean over the footprint is read, the scatter is 1.2 K and 0.8 K).
+* **The edge film at the node.** `links` keeps the program's convention (film on the node, no conduction from the node to the outline). That is why it leaves aligned and rectangular boards untouched; `links+strip` is the physically fuller form but moves them (+0.1 to +0.2 K at `h_side` 2000). Which is nearer the continuum needs the heavy reference of 10.8.
+* **No published case reproduced.** Johansen and Colella's tests are Dirichlet problems on a circle and an annulus (report pages 12 and later, not read); the film boundary of the program is different, so the references above are the closed form and the axisymmetric reduction, not the paper's tables.
+
+### 10.5 Consequences for the other models
+
+* **FDM** (node-centred): the unknowns sit on grid points; the 'cut cell' is the dual cell around a node, and the program's FDM already scales node conductances by a node cover. The same two ingredients (aperture of the dual-cell faces, distance between the centroids of the cut dual cells) apply; its edge-shift scatter on the small T is 2.02 K at 1 mm (`docs/validation.md` 23), larger than the FVM's, so the benefit may be larger but **was not measured** (no prototype written).
+* **3D solid**: already measured on a copy (sections 4 to 6): the same scheme removes the 2 to 12 K dependence at high `h_side`; the layered prototype of this section is the same idea for the layered models.
+* **Lumped and Analytic**: unaffected (they run on the equivalent rectangle of the same area; there is no cut cell).
+* **Vias, laminate nodes, metal blocks on a cut edge**: vias and laminate nodes read `S`, `cover` and the footprint of cells; the prototype replaces only the lateral links and keeps the rest, and its tests ran only boards without vias on a cut edge; **blocks are refused**. A full implementation must decide whether the Kron-reduced via footprint and the laminate sub-gap nodes use the centroids too (INTEGRATION.md).
+* **Transient**: capacities are unchanged (cover times area); the implicit step has no small-cell limit (Berger and Helzel's small-cell problem is the explicit time step: `BIBLIOGRAPHY.md`); the prototype's step response has a time to 63 % within 0.3 % of the program's.
+
+### 10.6 Cost
+
+The prototype's lateral links are vectorised numpy on the cut cells; the geometry costs 0.07 s at 800 000 cells (T board) and 0.2 s at 176 000 cells (128-sided disc), the build of the network 0.02 to 0.06 s more or less than the program's at 8 000 to 32 000 cells; matrix size, symmetry and the direct solve are unchanged. The size of the change in `fvm.py`: one function for the geometry (about 40 lines, sampling only the cut cells), the lateral links of `_assemble` (about 20 lines) and the removal of nothing else. What is not cheap is the consequence: every frozen record of a board with a cut outline moves (the harness boards with an outline were not counted here), `docs/validation.md` 13 and 23 and `docs/theory.md` 1.3 are rewritten, and `tests/test_part_across_outline.py`, `tests/test_outline.py` and the tests that fix an outline temperature are re-measured.
+
+### 10.7 Go / no-go (for the maintainer; the reviewer has not checked it)
+
+* **Benefit**, in the cases measured: 0.2 to 0.5 K (0.3 to 0.5 % of the rise) at the cells in use on boards with an outline off the grid lines, 0.5 to 0.7 % of the rise on a round board with an edge clamped to a chassis (`h_side` 1000 or more, 1 mm); about 0.2 to 0.25 K (0.3 % of the rise) less scatter on the example board cut to a T; nothing at the default `h_side` 10 on a disc and nothing for an insulated edge. It does **not** flatten the small T (a residual of 1.0 K at 1 mm remains).
+* **Cost**: about 60 lines in `fvm.py` plus the FDM variant (not designed in detail) and the 3D solid (a separate item), all numbers of cut outlines move, theory and validation text rewritten, tests re-measured, whole battery and a frozen-numbers refreeze, one new risk (the via footprint and laminate nodes on a cut edge, no reference).
+* **No-go for 2.5.0.** The effect is below 1 % of the rise in the cases that matter, the gain is partial, and the release is already carrying the Gerber import (real boards have outlines that are rarely on the grid, which is an argument for the item, but the measured residual of the program there is 0.3 to 0.6 % of the rise, smaller than the model-form differences of the models, 5 to 10 %).
+* **Go for 2.6.0 as a low-priority item**, only the `links` variant in the FVM (nothing else of the program changes, boards on grid lines and rectangles bit-identical), after the heavy runs of 10.8 confirm that it is not worse anywhere (turned and shifted squares against a finer reference, patterned copper on a cut edge, vias near an outline) and the reviewer has re-run the studies. If the maintainer prefers a documented limit instead (P2), the text is `docs/for-the-project-documents.md`.
+
+### 10.8 What is ready to run (heavy; not run in this phase)
+
+All in `scripts/study_cut_cells_fvm.py --tier heavy` (reference cells down to 1/24 mm). Declared peaks: the small-T reference at 1/24 mm is 720 x 576 cells x 2 layers = 830 000 unknowns, **about 2.5 to 3 GB resident** and 15 to 30 s per solve (the 1/12 mm reference of the light tier peaked at 0.55 GB); the 16-step sweep with two cells and four schemes plus a reference per position is about 16 x 9 solves, **about 10 minutes, one process at a time**. The disc at 0.125 mm is 336 x 336 cells (0.3 GB); the 20 mm square at 0.125 mm is 240 x 240 (0.2 GB); `study_square` at 1/16 mm for a finer continuum proxy of the aligned board is 480 x 480 x 2 (about 0.8 GB). Not written yet and worth running with them: (1) a Dirichlet circle (the Johansen and Colella test problem) to reproduce a convergence rate of the aperture links; (2) a sweep over the 17 boards of the frozen-number harness with `links` against the program to count which records move and by how much; (3) vias at 1 to 3 cells from a cut edge, and patterned copper (a copper edge crossing a cut cell), each against a refined reference; (4) a test of the re-entrant corner with a flux reconstruction.
+
+## 11. What was read and what was not verified
 
 * **No new external source was opened for this investigation.** The question is internal to the program's grid: the reference is the invariance of the continuum problem under a translation and a rotation, the modified Bessel solution of a thin plate with a disc source (used only to check `lib/axisym3d.py`; the formulas are the standard `I0, K0, I1, K1` solution, written from memory and checked numerically by the test to 0.2 %), and the series circuit. Nothing was added to `research/theory/BIBLIOGRAPHY.md`.
 * **Read in full in the repository**: `pcbthermal/solid3d.py` (slab construction, links, edge term), `pcbthermal/geometry.py` (`edge_length_per_cell`, `edge_length_on_board`, `coverage_fraction`), `research/outline/README.md` (4.6), `research/outline/scripts/study_disc_reference.py` (the layered radial reduction, which `solve_layered_disc` repeats with its own constants), `docs/theory.md` as quoted in `CLAUDE.md`. The cut-cell finite-volume scheme (face apertures, centroid distances) is the standard idea of cut-cell methods; no paper was opened for it and none is cited.
 * **Reproduced**: every table above by the script named in its section (outputs in `out/`, git-ignored); tests `tests/test_rotated_square.py` (12 tests: 9 of the study, 3 added by the review).
 * **Not verified**: the original +1.15 K setup; patterned copper, vias and blocks against any reference; the 45 degree residual of the board turn (+0.2 to +0.4 K left with an 8 x 8 footprint, not removed); (the independent square, the T board and the turned part were checked by the review, section 9); whether the 16 x 16 sampling is the right resolution (the cover itself converges as 1/256; the sensitivity to `m` was not swept); the program's FVM and FDM at cells finer than 0.125 mm.
+* **Section 10 (cut cells in the layered FVM), what was read**: Johansen and Colella, LBNL-39908 (the report version of the 1998 paper), pages 1 to 11 in full (R): the partial-face flux with the aperture (eq. 15, 16), the divergence over the volume fraction (eq. 14), the error analysis of a partial cell and the conditioning argument (Figure 2); the multigrid, adaptive refinement and numerical tests (pages 12 to 28) **not read**. Berger and Helzel (2012), the abstract and introduction only (R, hyperbolic explicit schemes: used for the small-cell remark only). Ingram, Causon and Mingham (2003): abstract only (S; the authors are Ingram, Causon and Mingham, not Zhang). Schwartz and others (2006, heat equation in 3D) and Crockett, Colella and Graves (2011): not obtained (N / M). All in `research/theory/BIBLIOGRAPHY.md`. **No published numerical case was reproduced**: the references are an own closed form (cosine series, `lib/sheetmodes.py`), an own axisymmetric reduction (`lib/layered_disc.py`) and the program at a finer cell.
+* **Section 10, reproduced and tested**: every table of section 10 by `scripts/study_cut_cells_fvm.py` (tier light: `rect`, `disc`, `tee`, `square`, `cost`, `sens`; outputs in `out/cutfvm_*_light.json`), measured peak 0.55 GB (the 1/12 mm reference of the small T); figures 9 to 11 by `scripts/make_diagrams.py` and figure 12 by `scripts/make_figures.py`; 11 new tests in `tests/test_fvm_cutcell.py` (fast geometry equals the full sampling, the half-cell edge has centroid a quarter cell inside and aperture one, rectangle matrix equals the program's, an outline on grid lines gives the program's temperatures, energy balance of every variant, shift dependence removed, the closed form against the FVM and its power conservation, the disc, blocks refused, the transient). **Not verified**: heavy references (10.8), the FDM variant, vias, patterned copper and blocks on a cut edge, the re-entrant corner cause, the 17 boards of the frozen-number harness, whether the half-cell conduction of `links+strip` is nearer the continuum; the prototype was not reviewed.
+* **Defect in the investigation's own code (section 10), found and fixed**: the first comparison with the axisymmetric reduction used the centre value and ranked the variants wrongly (see 10.2); the sampling of the geometry over the whole grid was 100 times slower than needed and was replaced by the cut-cell sampling (`cut_geometry_fast`, equal to the full one in a test).
 * **Defect in the investigation's own code, found and fixed**: the first cut-cell copy conducted heat into the cells taken as off the board (cover below 0.01) through the apertures of their faces: it lost 22 % of the power and read 4 K cool on a turned square at the finest cell; the apertures of cells off the board are now zero and a test checks the energy balance.

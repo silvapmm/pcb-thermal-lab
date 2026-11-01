@@ -19,6 +19,14 @@
 
 * **The power of a part that crosses the outline** (`fix/part-across-outline`, after `research/rotated-square-3d` README 9.4): the FVM, the FDM and the 3D solid give a cut cell the power of the part's cover of the whole cell; spread it over the intersection of the part and the board (sample-wise). Example board cut to a T at 1 mm and the default edge coefficient: FVM 109.06 degC, 106.85 at 2/3 mm where no cell is cut, 107.56 with the correction; re-run `docs/validation.md` 13. With it, sample the footprint of a part 8 x 8 in the 3D solid as the FVM does (README 9.3).
 
+## `docs/versions.md`, chapter 'Planned', the entry of the cut cells of the FVM (after the decision; replaces the text 'Cut cells treated by their real shape')
+
+* **Cut cells in the layered FVM** (`feature/fvm-cut-cells`, 2.6.0 if the maintainer agrees; after the investigation `research/rotated-square-3d`, README 10): the lateral link between two cells is the aperture of the shared face over the series resistance of the distances from the face to the centroids of the two board parts (the program's cover scaling is a factor c too small across a cut). Measured on a prototype (light cases): the shift and turn dependence of a 20 mm square at `h_side` 2000 falls from +0.45 / +0.56 / +0.47 K to +0.11 / +0.12 / +0.13 K (0.5 mm), the peak error of a round board at 1 mm and `h_side` 1000 from +0.69 % to +0.22 % of the rise, the scatter of the example board cut to a T from 0.48 to 0.22 K; the small T keeps about 1 K at 1 mm (not understood: the re-entrant corner). Boards with the outline on grid lines and rectangles do not move. The FDM and the 3D solid are separate items; the Lumped and Analytic are unaffected. Evidence and design: `research/rotated-square-3d/INTEGRATION.md`.
+
+## `docs/validation.md` 23, the 'Limit' paragraph (replacement text, once the study is reviewed)
+
+A cut cell still conducts with its cover, so a part over a cut edge reads 0.5 to 0.7 K (about 1 % of the rise) hotter at 1 to 0.5 mm than with the edge on the grid lines. The mechanism is the lateral link: into an edge cell of cover c the program's link is a factor c smaller than that of a straight edge (`research/rotated-square-3d` README 10.1). A prototype with links through the aperture and the centroid distances reduces the spread of the example board cut to a T over five cells from 0.48 to 0.22 K and the error of a round board at 1 mm and `h_side` 1000 from +0.69 % to +0.22 % of the rise, and does not remove the residual of a part over a re-entrant corner (1.0 K of 205 K at 1 mm); it is in the chapter 'Planned' of `versions.md`.
+
 ## `research/ROADMAP.md` (kept on the research side)
 
 A3 closed by this folder once the maintainer decides P1 or P2; the open questions left: a patterned-copper board against an independent reference, and the 45 degree residual of the board turn in the copy (README 9.2); the T board +0.2 K is explained by the part across the outline (README 9.4).

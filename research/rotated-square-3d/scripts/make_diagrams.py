@@ -3,7 +3,8 @@
 """!
 @file make_diagrams.py
 @brief Drawings of the situation of the rotated square: the grid cells that the outline cuts (aligned, shifted by half a cell, turned), the section of an edge cell with the path of the heat, and the edge resistances of the program and of the cut-cell copy.
-@details Figures 01 to 03 of figures/ (the data figures from 04 on are drawn by make_figures.py). No solver is run: the cut cells of figure 01 come from
+@details Figures 09 to 11 (the cut-cell link of the layered FVM, its ratio to the exact value, the links around the re-entrant corner of the small T) are in the
+         same file. Figures 01 to 03 of figures/ (the data figures from 04 on are drawn by make_figures.py). No solver is run: the cut cells of figure 01 come from
          `lib/cutcell.py` (the same sampling the copy uses) and the proportions of figures 02 and 03 are those of the study boards (1 mm cells, 1.6 mm
          board, copper exaggerated). Files: fig_01_cut_cells.png, fig_02_section_of_an_edge_cell.png, fig_03_edge_resistances.png.
          Usage: python research/rotated-square-3d/scripts/make_diagrams.py   (from the repository root).
@@ -17,10 +18,13 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
 sys.path.insert(0, str(HERE.parent / "lib"))
+sys.path.insert(0, str(HERE))
 
 import diagram_kit as dk                                                    # noqa: E402
 import cutcell                                                              # noqa: E402
 import rotsq                                                                # noqa: E402
+import fvm_cutcell                                                          # noqa: E402
+import matplotlib.pyplot as plt                                             # noqa: E402
 from matplotlib.patches import Polygon, Rectangle                          # noqa: E402
 
 OUT = HERE.parent / "figures"
@@ -125,8 +129,124 @@ def fig_resistances():
     dk.save(fig, OUT / "fig_03_edge_resistances.png")
 
 
+def fig_cut_cell_links():
+    """!
+    @brief Figure 09: one cut cell of the layered FVM, the node of the program (cell centre) and of the cut-cell scheme (centroid of the board part), and the cross-section and distance of the link.
+    @return None.
+    """
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4.6))
+    for ax, mode in zip(axs, ("program", "cut")):
+        # Three cells in a row: a whole cell, a cell cut at 0.4 of its width (board on the left, towards the whole cell) and the air beyond the outline
+        c = 0.4
+        for k in range(3):
+            ax.add_patch(Rectangle((k, 0), 1, 1, fill=False, edgecolor="#999999", lw=0.8))
+        ax.add_patch(Rectangle((0, 0), 1, 1, facecolor=dk.COPPER, alpha=0.55))
+        ax.add_patch(Rectangle((1, 0), c, 1, facecolor=dk.COPPER, alpha=0.55))
+        ax.plot([1 + c, 1 + c], [-0.1, 1.1], color=dk.BLUE, lw=2.2)
+        ax.text(1 + c + 0.03, 1.07, "outline", color=dk.BLUE, fontsize=8)
+        ax.plot(0.5, 0.5, "ko", ms=6)
+        ax.text(0.5, 0.6, "node of the\nwhole cell", ha="center", fontsize=7.5)
+        if mode == "program":
+            ax.plot(1.5, 0.5, "ro", ms=7)
+            ax.text(1.5, 0.15, "node at the cell centre,\nconductivity x cover", ha="center", fontsize=7.5, color="#b22222")
+            ax.annotate("", xy=(1.5, 0.5), xytext=(0.5, 0.5), arrowprops=dict(arrowstyle="<->", color="#b22222", lw=1.6))
+            ax.text(1.0, 0.55, "one cell width", ha="center", fontsize=7.5, color="#b22222")
+            ax.text(1.0, -0.3, "cross-section = cover x dy = %.1f dy;  distance = dx\ng = 2c/(1+c) S dy/dx = %.2f (S dy/dx)" % (c, 2 * c / (1 + c)),
+                    ha="center", fontsize=8.5, color="#b22222")
+            ax.set_title("program: the cover scales the conductivity, the distance is a cell", fontsize=9)
+        else:
+            xc = 1 + c / 2
+            ax.plot(xc, 0.5, "go", ms=7)
+            ax.text(xc + 0.02, 0.15, "node at the centroid\nof the board part", ha="center", fontsize=7.5, color="#1b7a1b")
+            ax.annotate("", xy=(xc, 0.5), xytext=(0.5, 0.5), arrowprops=dict(arrowstyle="<->", color="#1b7a1b", lw=1.6))
+            ax.text(0.5 + (xc - 0.5) / 2, 0.55, "d1 + d2", ha="center", fontsize=7.5, color="#1b7a1b")
+            ax.annotate("", xy=(1.0, 0.1), xytext=(1.0, 0.9), arrowprops=dict(arrowstyle="<->", color="#1b7a1b", lw=1.2))
+            ax.text(1.02, 0.12, "aperture = 1", fontsize=7, color="#1b7a1b")
+            ax.text(1.0, -0.3, "cross-section = aperture x dy = 1.0 dy;  distance = (1 + c)/2 dx\ng = 2/(1+c) S dy/dx = %.2f (S dy/dx)" % (2 / (1 + c)),
+                    ha="center", fontsize=8.5, color="#1b7a1b")
+            ax.set_title("cut cell: the aperture is the cross-section, the distance runs between centroids", fontsize=9)
+        ax.set_xlim(-0.1, 3.0)
+        ax.set_ylim(-0.55, 1.3)
+        ax.set_aspect("equal")
+        ax.axis("off")
+    dk.save(fig, OUT / "fig_09_cut_cell_link.png")
+
+
+def fig_link_ratio():
+    """!
+    @brief Figure 10: conductance of the link into a cut edge cell against the cover, program and cut-cell variants, relative to the exact straight-edge value.
+    @details Closed forms for an edge parallel to a grid line (board on the side of the whole neighbour): exact 2/(1+c), program 2c/(1+c), aperture only 1.
+             The heat that crosses the link is small in a dead end (insulated edge) and large when the cut cell is a path (a neck, a source in the cut cell).
+    @return None.
+    """
+    c = np.linspace(0.02, 1.0, 100)
+    exact = 2.0 / (1.0 + c)
+    fig, ax = plt.subplots(figsize=(6.4, 4.2))
+    ax.plot(c, 2 * c / (1 + c) / exact, color="#b22222", lw=2, label="program: harmonic mean of S and c S over a cell width (ratio = c)")
+    ax.plot(c, np.ones_like(c) / exact, color="#ff7f0e", lw=2, label="aperture only, nodes at the cell centres (ratio = (1 + c)/2)")
+    ax.plot(c, np.ones_like(c), color="#1b7a1b", lw=2, ls="--", label="aperture over centroid distances (exact for a straight edge)")
+    ax.set_xlabel("cover c of the cut cell")
+    ax.set_ylabel("link conductance / exact value")
+    ax.set_ylim(0, 1.1)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=7, loc="lower right")
+    ax.set_title("link across the cut: straight edge parallel to a grid line", fontsize=9)
+    dk.save(fig, OUT / "fig_10_link_ratio.png")
+
+
+def fig_tee_links():
+    """!
+    @brief Figure 11: the cells and links around the re-entrant corner of the small T board (neck edge at 10.5 mm, 1 mm cells), program and cut-cell links.
+    @details Cells shaded by cover, dots at the nodes (cell centres in the program, centroids in the cut-cell scheme), the width of every line drawn between
+             two nodes proportional to the lateral conductance of the top layer (numbers of the network of the program and of the prototype; no solve).
+    @return None.
+    """
+    import study_cut_cells_fvm as st
+    from pcbthermal import fvm
+    p = st.small_t(10.5)
+    nx, ny = 30, 24
+    net0 = fvm.Network(p, nx, ny, assemble=False)
+    fvm_cutcell.CutCellNetwork.mode = "links"
+    net1 = fvm_cutcell.CutCellNetwork(p, nx, ny, assemble=False)
+    fig, axs = plt.subplots(1, 2, figsize=(11.5, 5.2))
+    x0, x1, y0, y1 = 6, 15, 7, 16
+    for ax, net, title in ((axs[0], net0, "program: nodes at the cell centres, links scaled by the cover"),
+                           (axs[1], net1, "cut-cell links: nodes at the centroids, links by aperture and distance")):
+        for i in range(y0, y1):
+            for j in range(x0, x1):
+                cv = net.cover[i, j]
+                ax.add_patch(Rectangle((j, i), 1, 1, facecolor=(0.88, 0.64, 0.35, cv) if cv > 0 else "none", edgecolor="#cccccc", lw=0.5))
+        if net is net1:
+            gx, gy = net._lateral_links()
+            xc, yc = net.geo["xc"] / net.dx, net.geo["yc"] / net.dy
+        else:
+            gx = net._harmonic(net.S[:, :, :-1], net.S[:, :, 1:]) * net.dy / net.dx
+            gy = net._harmonic(net.S[:, :-1, :], net.S[:, 1:, :]) * net.dx / net.dy
+            xc, yc = np.tile(np.arange(nx) + 0.5, (ny, 1)), np.tile((np.arange(ny) + 0.5)[:, None], (1, nx))
+        ref = net.S[0].max() * net.dy / net.dx
+        for i in range(y0, y1):
+            for j in range(x0, x1):
+                if j + 1 < nx and gx[0, i, j] > 0:
+                    ax.plot([xc[i, j], xc[i, j + 1]], [yc[i, j], yc[i, j + 1]], color="#444444", lw=4.0 * gx[0, i, j] / ref, solid_capstyle="butt")
+                if i + 1 < ny and gy[0, i, j] > 0:
+                    ax.plot([xc[i, j], xc[i + 1, j]], [yc[i, j], yc[i + 1, j]], color="#444444", lw=4.0 * gy[0, i, j] / ref, solid_capstyle="butt")
+        sel = net.active[y0:y1, x0:x1]
+        ax.plot(xc[y0:y1, x0:x1][sel], yc[y0:y1, x0:x1][sel], "r." if net is net0 else "g.", ms=6)
+        ax.add_patch(Polygon(np.array(p.board.outline) * 1000.0, closed=True, fill=False, edgecolor=dk.BLUE, lw=1.8))
+        ax.add_patch(Rectangle((9, 10), 3, 4, fill=False, edgecolor="#c1440e", lw=1.6, ls="--"))
+        ax.set_xlim(x0, x1)
+        ax.set_ylim(y0, y1)
+        ax.set_aspect("equal")
+        ax.set_title(title, fontsize=9)
+    fig.suptitle("Small T board, neck edge at 10.5 mm: line width = lateral conductance of the top layer (dashed: the part)", fontsize=10)
+    dk.save(fig, OUT / "fig_11_tee_links.png")
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     fig_cut_cells()
     fig_section()
     fig_resistances()
+    fig_cut_cell_links()
+    fig_link_ratio()
+    fig_tee_links()
