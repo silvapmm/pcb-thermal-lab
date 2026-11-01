@@ -6,6 +6,7 @@
 """
 
 import contextlib
+import html
 
 import matplotlib
 import numpy as np
@@ -370,12 +371,23 @@ class ResultsView(QWidget):
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
 
+    def _show_warnings(self, warns):
+        """!
+        @brief Write the notes of the run under the models table, text and symbol in the same theme token.
+        @param warns List of warning strings.
+        """
+        tone = th.colors(self.theme)["alert_note"]
+        self.warnings.setTextFormat(Qt.RichText)
+        self.warnings.setText("<br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
+
     def set_theme(self, theme):
         """!
         @brief Change the theme of all plots.
         @param theme "dark" or "light".
         """
         self.theme = theme
+        if getattr(self, "sim", None) is not None:
+            self._show_warnings(self.sim.warnings)             # The notes take the colour of the new theme
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_theme(theme)
         self.animation.set_theme(theme)
@@ -395,7 +407,7 @@ class ResultsView(QWidget):
         _fill(self.model_table, rows)
         _fit_height(self.model_table)
         warns = sim.warnings
-        self.warnings.setText("<br>".join(f"⚠ {w}" for w in warns))
+        self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
         self.report.setPlainText(sim.report())
         for t in (self.temp, self.grad, self.profile, self.compare):

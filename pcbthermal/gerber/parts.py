@@ -595,6 +595,9 @@ def match_envelope(parts, openings, tol=ENVELOPE_TOLERANCE_MM, mirror_bottom="x"
     return byref, bypad
 
 
+CONVENTION_NOT_CHECKED = "not checked"      # info["convention"] when the files hold nothing to check it with (no placement file, or no bottom parts or openings)
+
+
 def bottom_convention(parts, openings, tol=ENVELOPE_TOLERANCE_MM, offset=(0.0, 0.0), mirror_bottom="x"):
     """!
     @brief Detect whether the placement file writes the X of bottom-side parts negated (a KiCad export option), by trying both and keeping the one that puts more bottom openings inside an envelope.
@@ -1024,7 +1027,7 @@ def build_parts(paste=None, placement=None, components=None, copper=None, pix=PA
     paste = paste or {}
     res = PartsResult()
     info = res.info
-    info.update(convention="as is", bottom_mirror="x", frame=None, counts={s: 0 for s in SOURCES}, warnings=[], x3_vs_placement=None, unknown_refs=[], copper=None)
+    info.update(convention=CONVENTION_NOT_CHECKED, bottom_mirror="x", frame=None, counts={s: 0 for s in SOURCES}, warnings=[], x3_vs_placement=None, unknown_refs=[], copper=None)
     openings = []
     for side in ("top", "bottom"):
         if paste.get(side) is not None:
@@ -1099,6 +1102,15 @@ def build_parts(paste=None, placement=None, components=None, copper=None, pix=PA
         byref_pl, _ = match_envelope(parts_pl, open_plain, tol, mirror)
     else:
         byref_pl = {}
+        # Parts matched by TO.C take their position from the openings, so the convention does not move them; it is still CHECKED from the openings here (or reported as not
+        # checked), because "as is" by default would state something nobody looked at
+        if placement and bottom == "auto":
+            if any(p["side"] == "bottom" for p in placement) and any(o.side == "bottom" for o in openings):
+                conv, n_as, n_neg = bottom_convention(placement, openings, tol, offset)
+                # No bottom opening inside an envelope either way (another frame, unknown packages) or a tie: bottom_convention keeps "as is", but nothing was checked
+                info["convention"] = conv if n_as != n_neg else CONVENTION_NOT_CHECKED
+        elif placement and bottom != "auto":
+            info["convention"] = bottom
     for ref, idx in by_ref.items():
         ops = [openings[i] for i in idx]
         claimed.update(idx)
