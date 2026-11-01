@@ -432,6 +432,136 @@ Another researcher reads Shen and others (2019) in full for `research/lumped-zon
 | Zonal Lumped vias | No published zonal model was read with its equations (Shen 2019 is with `research/lumped-zones-adoption/`, Guenin's equations are images), so the zonal Lumped is validated only against the project's FVM and 3D solid. | Read Shen 2019's equations and one numerical case in the lumped-zones folder and reproduce it; open the Mondragon 2025 paper if it can be had. |
 | KiCad / centroid conventions | Rotation sense, Y sign with the page origin, bottom mirroring of X and of the rotation, and library-to-assembler offsets are undocumented; they must be detection rules. | Make sample `.pos` and CSV files with `kicad-cli pcb export pos` from an own test board (asymmetric parts rotated by 0, 90, 180, 270 degrees on both sides, with and without the drill/place origin and the negate-X option) and write the rules against them; the same board exported to JLCPCB format through the plug-in shows its offsets. |
 
+## 8. Reading pass, batch 1: the sources behind the formulas of the five models
+
+The question: for each source that a formula, a correlation or a check of the five models rests on, what was read (pages, equations), does the program agree with it, and is there a discrepancy (a published number that does not add up, a unit, an assumed layout). The program was read (`convection.py`, `docs/theory.md` sections 1.5, 5, 6, 8, 12) and **not edited**; every discrepancy below is a proposal, with the measured size. The statuses are in `research/theory/BIBLIOGRAPHY.md`, section "Reading pass, batch 1" and the entries marked "Update (research/theory-sources/ 8.x)". The sources of the batch that had been read in full by an earlier folder were not re-read and are listed at the end of that section.
+
+### 8.1 Vias: Shen and others (2019), Gezala and others (2025), Rodero and others (2025), Lee and others (1992)
+
+**Read.** Shen, Wang, Blaabjerg, Zhao, Long: pages 1 to 17 of 20 (the via unit equations 2 to 7 and the printed Table I conductivities; the outer-zone network equations 8 and 9; the thin-pad condition Bi < 0.1 and equations 11 to 13; the circular pad two-port equations 14 to 27 with modified Bessel functions; the heat-transfer boundary r_e correlation 28; the fixed-point loop 29 to 36; Table II of measured top-case temperatures). Gezala and others: the whole paper (9 pages): equations 1 to 16, the outer-zone isotherm counts 12 and 13, validation text. Rodero and others: pages 1 to 14 (equations 1 to 24, Tables I, III, VI, VII). Lee, Lemczyk, Yovanovich: pages 55 to 60 as images (equations 1 to 14, Tables 1 and 2, Figures 9 and 10).
+
+**Reproduced (new, independent scripts).** `scripts/study_via_array_sources.py` part 1 evaluates the three parallel vertical paths (filler, barrel, laminate) with the printed equations and the Table I conductivities (s = 0.2 mm, plating 25 um, 4 layers of 35 um, t = 1.6 mm, a choice of the script where the paper's Figure 4 values are plots):
+
+```
+air    : optimum phi 0.249 mm (paper "about 0.25"); phi = 0.8 mm costs +43.4 % (paper +44 %); pattern II / pattern I 0.8671 (paper 0.866 = sqrt(3)/2)
+solder : optimum phi 0.778 mm (paper "about 0.8");  phi = 0.2 mm costs +22.4 % (paper +23 %);  pattern II / pattern I 0.8668
+references [15], [17], [18] of Shen (air filled): the optimum lowers the resistance by 39.2 / 88.2 / 38.5 % (paper 47 / 89.5 / 46.4 %)
+```
+
+The optimum diameters, the two penalties and the pattern ratio are reproduced within 1 point (the paper's 44 and 23 are rounded and the optimum is read from a plot). The 47 % and 46.4 % against two earlier designs are **not** reproduced (39 and 38.5 %); the third (89.5 %) is (88.2 %). The paper does not give the filler, the thickness or the copper of those references; the difference is a published number that does not add up with the stated parameters.
+
+`scripts/study_lee_lemczyk_vias.py` evaluates equations 1 to 3 and 7 of Lee and others with the Bessel-root series. The paper's printed R_vias is 0.196 K/W at 20 % routing and 0.342 K/W at 40 % (page 60, nine islands, Tables 1 and 2):
+
+```
+routing | printed | N vias per layer, f2 = 1 | N per layer, f2 = 1/4 | N total (the 4/N of equation 7), f2 = 1
+ 20 %   | 0.196   | 0.293 (+50 %)             | 0.172 (-12 %)         | 1.658 (+746 %)
+ 40 %   | 0.342   | 0.548 (+60 %)             | 0.321 (-6 %)          | 3.100 (+806 %)
+ratio 40/20: printed 1.745; 1/4 reading 1.872
+```
+
+**This case is not reproduced.** The paper does not say what area a unit cell of the intermediate pads has nor whether N counts the vias of one layer or of the four; the readings tried are the only two consistent with the text, one is 6 to 12 % from the printed numbers with the quarter cell (an assumption, not a finding) and the other, the literal 4/N with N the island total, is 5.6 to 9.5 times too high. The thick-limit check of equation 3 passes (a disc source in a thick plate gives 0.85 of the half-space constriction 0.27/(k b)), and equation 2 is the tube formula, so the formulas as read are right; what is missing is the layout.
+
+**The program's models on the closest case** (`study_via_array_sources.py` part 2): 12 x 12 open vias of 0.25 mm at 0.45 mm pitch on a 5.6 mm square of four layers of 35 um, 1.6 mm, FR4 0.29 / 0.81 W/mK, plating 25 um, a heater over the whole top, the bottom held by h = 1e6 W/m2K, the quantity the top-to-bottom mean copper temperature per watt. The paper's unit-cell sum is 1.5886 K/W (144 units of (phi + s)^2; the board is 7 % larger than the units).
+
+```
+model     cell 0.2 mm   cell 0.1 mm     difference from 1.5886
+fvm       1.5145        1.5066          -4.7 / -5.2 %
+fdm       1.5242        1.5117          -4.1 / -4.8 %
+solid3d   1.5282        1.5356          -3.8 / -3.3 %
+analytic  1.5712        1.5712          -1.1 %
+lumped    1.6578        1.6578          +4.4 %
+```
+
+All five models are within 5.2 % of the one-dimensional parallel sum, on the board that the sum describes (heat leaves each unit vertically). The unit-cell sum is a lower-resistance bound on the area it covers only if no heat spreads in the copper planes; the program's planes let the heat equalise, which is the 3 to 5 % in the FVM, FDM and 3D solid. The Gezala and Rodero via unit (their equations 1 to 7) is the same formula as Shen's (Rodero cites its reference [6], a fixed vias-and-pads analytical model, most likely this paper); neither paper has a constriction term, which the program's `viaconstriction.py` adds for the reduced models only.
+
+**Observations on the publications** (not defects of the program).
+* Gezala and others: the radial resistance of a via cell is the rule of mixtures printed as a **parallel average** (equation 10, k_e = sum V_i k_i / V_t) while Rodero and others print the **series** form (equation 12, 1/K_e = sum V_i/(V_t K_i)) for the same purpose; the two differ by orders of magnitude for copper and FR4, and the in-plane flow in the layered board is parallel, so the Gezala form is the one that is consistent with a sheet of copper layers in a laminate.
+* Gezala and others: the abstract says "deviation of only 7 %", the text says "maximum relative error of 7 %" and refers to Fig. 9, which is the COMSOL model; the comparison is Figures 10 and 11. No table is printed, so the 7 % could not be re-derived.
+* Rodero and others: equation 21 prints h_c = 0.52 C [(T_s - T_amb)/L]^0.25 with C = 0.56 (vertical), 0.52 (up), 0.26 (down). Read literally the vertical coefficient is 0.29, 5 times smaller than the textbook 1.42; the program's general form gives 5.10 W/m2K for a 0.1 m plate at 20 K, the textbook 5.34, the literal formula 1.10 (`study_plate_asymptotes_sources.py`). The ratio up/down of the paper's Table II (2) is the program's (2.00).
+* Rodero and others: "the experimental power had to be nearly doubled" (page 12) to make the board lose the heat that the model sends only through its faces: the 3 to 8 % errors of Table VII are against a measurement that was adjusted to the model's power.
+* Shen and others: Table II (measured top-case temperatures) and the pad figures are the only measured numbers; the Shen via models are compared with the program only through the unit-cell sum above, and the CFD numbers of the zonal Lumped study (`research/lumped-zones-adoption`) were not reproduced from this paper's data.
+
+**Does the program agree.** Yes within 5 % for the case above. The model of Shen and others of the pad (equations 14 to 27) is the radial fin solution with `I0`, `I1`, `K0`, `K1`, i.e. the same equation (17) that the program's Analytic uses for a layer with a loss coefficient (theory 6, `K0` Green function); the paper's thin-pad condition Bi = h t_eff / k < 0.1 (equation 12, Figure 10: for h = 16 W/m2K the thickest all-FR4 board is 2.2 mm) is the same statement as the layered idealisation (one node through the thickness).
+
+### 8.2 Spreading, flux tubes and the Fourier series: Yovanovich and others (1998), Culham and Yovanovich (1998), Culham, Yovanovich, Lemczyk (2000), Muzychka and others (2004)
+
+**Read.** Yovanovich, Culham, Teertstra (1998): pages 168 to 173 (file pages 1 to 6) as images and text, equations 1 to 39. Culham and Yovanovich (1998): page 462 (file page 3), equations 7 to 10 (new). Culham, Yovanovich, Lemczyk (2000): pages 233 to 235 (equations 1 to 15). Muzychka, Yovanovich, Culham (2004): pages 45 to 50 (equations 1 to 50).
+
+**Reproduced.** `scripts/study_flux_tube_sources.py` evaluates the paper against itself and against the Table 3 of Yovanovich (2003) (page 174, read before):
+
+```
+isoflux flux tube psi = 4 k a Rc: series (eq. 22) vs correlation (eq. 24), eps 0.01 .. 0.9: differences 1e-5 to 1.5e-4; eps -> 0: 32/(3 pi^2) = 1.08076 (the constant of eq. 24)
+ eps 0.5: series 0.40921 (Table 3 isoflux 0.4092) ; eps 0.9: 0.03312
+m = -1/2 (equivalent isothermal flux) series (eq. 21): 0.8594 / 0.5853 / 0.3342 / 0.1262 / 0.0483 at eps 0.1 / 0.3 / 0.5 / 0.7 / 0.8 (Table 3, Roess column: 0.8592 / 0.5853 / 0.3342 / 0.1262 / 0.0483)
+eq. 23 (printed as the correlation of the "equivalent isothermal" series) = the Negus-Yovanovich ISOTHERMAL column of Table 3 (0.3396 at 0.5, 0.1403 at 0.7, 0.0672 at 0.8), not the series of eq. 21: they differ by 1.6 % of the value at 0.5, 11 % at 0.7
+Song and Lee closed form (eqs. 27 to 30) against the series of eq. 22 (Bi = 1e6): +2.5, -0.6, -2.5, -2.2 % at eps 0.1, 0.3, 0.5, 0.7 (the paper says within 10 %)
+Dryden thick layer (eq. 39) against the integral (eq. 34): +0.1 to +0.7 % for t/a 2 to 5 at k1/k2 10, 100, 1000
+Dryden thin layer (eq. 38, printed for 0 < t/a <= 0.10): exact only to first order: -0.0 % at t/a 0.001 but -8 % (k1/k2 2) and -146 % (k1/k2 10) at t/a 0.1
+```
+
+* **A printed range that is not general:** equation 38 is the correct first-order term (the slope matches the integral) but the paper's range "0 < t/a <= 0.10" holds only for modest conductivity ratios; the expansion parameter is (k1/k2)^2 t/a. For k1/k2 = 10 and t/a = 0.1 the formula returns a negative resistance. Nothing in the program uses it; the Seri Lee form (equation 1 of Lee 1998, reproduced in section 3.11) is the closed form that the program's plate check uses.
+* The equivalent-isothermal-flux series (21) goes negative at eps 0.9 (-0.0023): the paper itself says the flux distribution is an isothermal substitute only for eps < 0.6.
+* Song and Lee's constant delta_c = pi + 1/(sqrt(pi) eps) (equation 30) is the lambda of Lee's equation 2 (lambda = pi^(3/2)/sqrt(Ap) + 1/sqrt(As)) in the paper's variables, so the program's plate check (theory 7.5) rests on equations 27 to 30 of this paper through Lee (1998).
+* **Culham, Yovanovich, Lemczyk (2000) prints "typical values of m and n in the range 10-30"** for the truncation of its series, and Culham and Yovanovich (1998) says its simulations used that series (page 462). Section 3.6 found that the paper's 8.28 W/mK for the base coupon lies between the 5-mode (8.50) and 7-mode (8.14) truncations of the converged 7.82; 10 modes per direction (the lower end of the printed range) gives about 8.0, so the printed truncation range is consistent with the 2 to 6 % by which this project's reproductions sit below the paper (the hypothesis of 3.6 is strengthened, not proved: the number of terms of the 1998 run is still not printed).
+* **Side boundary conditions.** The series of Culham and others has a film on each of the four side faces of every layer (equations 5 to 14: X(x) = cos(e x/L1) + (Bi1/e) sin(e x/L1), the roots from a transcendental equation); the program's Analytic uses cosine modes with insulated sides and corrects the edge with its edge coefficient only through the uniform mode (theory 6, limits: "slightly warm on a uniform board"). A series with Robin sides would remove that difference. **Proposal A1 (idea, not measured):** a version of the Analytic with film sides, in the roots of equations 13 and 14, to be measured on the boards where the edge coefficient matters (small boards, h_side 10 W/m2K); no impact figure was measured in this pass.
+* **Orthotropic layers (Muzychka 2004).** The transformation xi = z/gamma, gamma = sqrt(kz/kxy), k_eff = sqrt(kxy kz), t_eff = t/gamma reduces an orthotropic flux channel to an isotropic one (equations 41 to 49), and the composite conductivities are the parallel in-plane sum and the series through-plane sum (equations 39 and 40). The program's layered model has exactly those two (copper sheets in parallel, gaps in series) and FR-4 anisotropy 0.3 / 0.9; the transformation is the independent route to test a thick anisotropic gap, and its numerical figures are plots. **Proposal A2 (idea):** one anisotropic-gap case against equation 50 of the paper with an independent solver; not run.
+
+**Does the program agree.** The formulas that the program uses (Seri Lee's closed form, the Fourier series, the series/parallel conductivities) agree with what the sources print; the two places where the program differs from the source on purpose are the insulated sides and the 300 terms, both documented.
+
+### 8.3 Convection: Yovanovich (1993), Martin, Raithby, Yovanovich (1991), Teertstra and others (2004), Ostrach (TN 2635)
+
+**Read.** Yovanovich (1993, AIAA-93-2750): all 7 pages (pages 5 to 7 new). Martin and others: pages 1 to 6 of 7 (page 6 new). Teertstra, Yovanovich, Culham (2004): pages 1 to 3 (model) and the list of tables and figures. Ostrach TN 2635: page 14.
+
+**Reproduced / compared.** `scripts/study_plate_asymptotes_sources.py`:
+
+```
+Natural, coefficient of Ra^(1/4): Yovanovich eq. 25 vs the laminar Churchill-Chu coefficient 0.670/[1+(0.492/Pr)^(9/16)]^(4/9): -0.29 (Pr 0.01), -0.39 % (Pr 0.71), -0.45 % (Pr 7), -0.49 % (Pr 100)
+Forced, mean, coefficient of Re^(1/2): Yovanovich eq. 26 vs Pohlhausen 0.664 Pr^(1/3): -10.2 % (Pr 0.1), -3.1 % (Pr 0.71), -2.4 % (Pr 1), -0.4 % (Pr 7), +0.3 % (Pr 100)
+Program, vertical 0.1 m at 20 K: Ra 1.659e6, Nu (laminar form, with the +0.68) 19.12 ; Yovanovich eq. 25: 18.37 (-3.9 %)
+Program, 1 m/s over 0.1 m: Nu 46.09 ; Yovanovich eq. 26: 44.65 (-3.1 %)
+```
+
+* The natural interpolation of Yovanovich (1993) is the same construction as the laminar Churchill-Chu form (a Churchill-Usagi blend of the small- and large-Pr asymptotes, m = 9/4) and lands within 0.5 % of its Ra^(1/4) coefficient for every Pr: an independent support for the coefficient 0.670 of equation 8.2. The 3.9 % at Ra = 1.7e6 is the additive 0.68 of the program's laminar form, a leading-edge term that Yovanovich's form does not have (its meaning is in `research/plate-h-level` 3.4).
+* The forced interpolation (26) is a scaling-based approximation with the large-Pr constant 3/2; it is 3.1 % below the Pohlhausen value at air. The paper prints no accuracy. The program's 0.664 Pr^(1/3) is the Pohlhausen value from memory (status M for the source), which the paper's own large-Pr asymptote (error +0.3 % at Pr 100) is consistent with. **No change proposed**; the difference is a statement for `docs/theory.md` 8: "0.664 Pr^(1/3) is Pohlhausen's mean value (M); Yovanovich's general expression, which has no exact status, is 3 % below it at Pr 0.71".
+* **Martin and others (1991), page 904.** Their Summary says that the Elenbaas low-Rayleigh asymptote "will not be observed except under extremely special conditions": with upstream conduction and a finite plenum the heat transfer at low Ra is larger than the fully developed value (equation 28, a blend with n = 1.9). This bears on `checks.check_fin_channels` and on the proposal B of `research/fin-channel` (a channel correction `phi`): the composite form `[(24/Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2)` that the warning uses gives the fully developed limit, which for a finite array is the **lower** bound of the coefficient; a correction built on it would be on the safe (hot) side, and the warning's threshold Ra_b < 90 is therefore conservative. **Proposal C1:** say so in the text of the warning and of proposal B (words, no number: the size of the effect for the finned blocks of the program is not measured here).
+* **Teertstra and others (2004)**: the enclosure model (equation 6, shape factor plus a Churchill-Usagi blend with exponent n) is not in the program; the program's mixed convection is Churchill's cubic blend of natural and forced. The paper is context for a planned enclosure view factor.
+* **Ostrach TN 2635, page 14:** the eight Prandtl numbers (0.01, 0.72, 0.733, 1, 2, 10, 100, 1000), the 0.733 check against Schmidt and Beckmann to three digits. Consistent with the Report 1111 Table I reproduced to 0.02 % in `research/plate-h-level`; the tables of TN 2635 were not compared digit by digit.
+
+### 8.4 Citations corrected, statuses changed
+
+| Source | Was | Now |
+| :-- | :-- | :-- |
+| Shen and others, TPEL | status S (abstract), citation "(2019)" | **R pages 1 to 17**; IEEE TPEL 35 (1) (2020) 882-900 (2019 early access) |
+| Gezala and others (Mondragon2025) | N, then S (search snippets); authors unknown | **R (9 pages)**; IET Conf. Proc. 2025 (9) 97-104, doi 10.1049/icp.2025.2012, authors Gezala, Garrido, Baraia-Etxaburu, Aizpuru |
+| Rodero and others | not in the bibliography | **R pages 1 to 14**; IEEE TPEL, doi 10.1109/TPEL.2025.3626813 (accepted manuscript) |
+| Lee, Lemczyk, Yovanovich | not in the bibliography (a topic mention only) | **R pages 55 to 60**; SEMI-THERM 8 (1992) 55-60; not reproduced |
+| Yovanovich, Culham, Teertstra | S, pages "168-178" in one entry and "168-176" in another | **R pages 168 to 173**; **168-176** (file of 9 pages) |
+| Culham, Yovanovich, Lemczyk (2000) | not in the bibliography | **R pages 233 to 235**; JEP 122 (3) 233-239 |
+| Culham and Yovanovich (1998) | R 460 to 466 | unchanged, page 462 (equations 7 to 10) added |
+| Yovanovich (1993) | R pages 1 to 4 | **R all 7 pages** |
+| Martin, Raithby, Yovanovich | R pages 1 to 5 | **R pages 1 to 6** |
+| Muzychka and others (2004) | abstract | **R pages 45 to 50** (equations 1 to 50) |
+| Teertstra and others (2004) | abstract | **R pages 1 to 3** (model), validation numbers S |
+| Ostrach TN 2635 | S (same as 1111 by title) | **R page 14**, tables not compared |
+| Fish (2017) | R chapter 6 | chapter 7 formulation R (equations 58 to 83, 177 to 182), series S |
+
+### 8.5 What was not read in this pass, and what is left
+
+* Lemczyk and others (1992), pages 413, 418, 419; Muzychka and others (1999, 2003) and Teertstra and others (2006) were not re-read (their earlier statuses stand); the Teertstra review was not re-read; Schulenberg (1984) and Jaffer (2023, 2025) are read by earlier folders and were not opened again.
+* Shen and others pages 18 to 20; Rodero and others pages 15 to 21; Fish chapter 5 and the series solution of chapter 7 (equations 84 to 176); the second half of Yovanovich, Culham, Teertstra (pages 174 to 176); the validation numbers of Teertstra (2004).
+* The Lee, Lemczyk, Yovanovich R_vias and Shen's two reductions (47 and 46.4 %) are published numbers that this pass could **not** reproduce; the cause is the unrecorded layout (Lee) and the unrecorded parameters of the references (Shen). The program was not run on the Lee case (a polyamide HDI island is outside the representable range of a PCB model).
+* No heavy run was made; every script finishes in seconds.
+
+### 8.6 Proposals (none edits the program)
+
+| | Proposal | Evidence | Measured impact |
+| :-- | :-- | :-- | :-- |
+| A1 | An Analytic variant with film side faces (Robin roots, Culham and others eqs. 13, 14) | the series of the source has them; the program's insulated sides are the whole of its difference on a uniform small board (theory 6) | not measured |
+| A2 | One anisotropic-gap case against Muzychka (2004) eq. 50 | the transformation of eqs. 41 to 49 | not run |
+| B1 | `docs/theory.md` 8: state that 0.664 Pr^(1/3) is Pohlhausen's value (M) and that Yovanovich's general expression (a scaling-based interpolation) is 3.1 % below it at Pr 0.71 | 8.3 | none (text) |
+| C1 | `checks.check_fin_channels` and the proposal B of `fin-channel`: say that the Elenbaas low-Ra branch is the fully developed (lower) bound, after Martin and others (1991) page 904 | 8.3 | none (text) |
+| D1 | `docs/theory.md` 12 and the validation text: the via unit of Shen and others / Gezala and others (a 1D parallel sum) agrees with the five models to within 5.2 % on the 12 x 12 board of 8.1; quote it as an independent check of the vertical via conductance of the program | 8.1 | none (text) |
+
 ## What was read and what was not verified
 
 **Read in full or at the pages named (R):** Lienhard, *A Heat Transfer Textbook* 6.00 (book pages 311, 419 to 421 and 435 to 437, plus search of the whole text); ASHRAE preprint OR-05-4-3, page 5 (equations 9 to 14); Jaffer (arXiv 2201.02612, searched; page 5) and Jaffer and Jaffer (arXiv 2401.09469 / `blend.pdf`, searched and the passages quoted read); Milton, *The Theory of Composites*, pages 47 to 50, 116, 195 and 196; Culham and Yovanovich (1998), pages 465 and 466 as images; Lemczyk and others (1992), pages 414 to 417 as images (Tables 1 to 3 digits read at 190 dpi); Muzychka and others (2003), examples and Tables 1 to 4 (text layer); Yovanovich (2003), page 174 (Table 3) and the page of the series; Lee (1998), the article text and its two equation images; Celik and others (2008), pages 4 to 9; Nexperia AN11261 Rev. 5.0, pages 1 to 12; Ucamco Gerber specification 2026.05, contents and pages 25, 26, 112, 113; McCormick and Tamstorf (arXiv 2605.17828), the text around Algorithm 3 and section 8.
@@ -443,3 +573,5 @@ Another researcher reads Shen and others (2019) in full for `research/lumped-zon
 **Not verified, or from memory:** the original Churchill-Chu, Churchill, Hollands, Keller, Dykhne, Bruggeman, Hashin-Shtrikman papers and Torquato's book (not obtained); the 2D Bruggeman equation is derived, not read; Jaffer's p = 2 is a fit to a rough plate; the ambient of Muzychka's case 2 (25 C) is assumed; the plateau of the Culham figure 5 is not explained; the film treatment of the paper's series is not known; the exponent of `ht`'s fifth-root form is called a misprint from a secondary source; JEDEC, IPC, ASTM and ASME standards were not obtained (listed in the bibliography).
 
 **Second pass (section 7), read in part (R):** Lie 2019 section 4.3.2 (book pages 126 to 128); Koch and others, arXiv:1907.12653, section 5.4 and appendix E; Karpinski and others 2010 (abstract, example 2); Dörfler and Bullo, arXiv:1102.2950 (Lemma 2.1, Theorems 3.4, 3.7, 3.9 as stated, no proofs); George 1973 (whole scan, constants of Theorem A.6 unreadable); Li 2013 slides 19 and 20; the SuperLU Users' Guide (sections 1.4.4 and 2.8); the UMFPACK User Guide 6.3.8 (memory statistics); Gilbert, Ng and Peyton 1994 (abstract, introduction); the ODB++ specification 8.1 Update 4 (copyright page, tree, units, the component records, PDF pages 22, 24, 150 to 153; 515 pages, the rest unread); the XNC specification 2021.11 (preface, 2.5, 2.6, 3.2 to 3.5, 4.1); the KiCad 9 manual section on placement files. **Seen through a summary only (S):** Martinsson's notes and the 2025 survey of fast direct solvers (the complexity lines), the SciPy `splu` page, JLCPCB's centroid page, the IPC-2581 consortium page, Guenin 2004 (equations are images), the Mondragon 2025 paper (snippet), IPC-7351 (vendor blogs). **Not obtained (N):** Peaceman 1978 and 1983, Ding 1995, Lipton-Rose-Tarjan 1979, Hoffman-Martin-Rose 1973, the Davis book, Li 2005, the MUMPS guide, IPC-2581, IPC-NC-349 and the Excellon manual, Altium's pick-and-place page. **Reproduced (L):** the printed Peaceman radius for non-square cells and anisotropic conductivity against a finite five-point lattice (`scripts/study_peaceman_nonsquare.py`, 0.09 to 7.7 %, all of it the effect of the finite rectangle) and, added by the review, against the infinite lattice (within 2e-5 in all ten cases; regression test in `tests/test_theory_sources.py`); the exact fill prediction of `splu` on nine program matrices (`scripts/study_fill_prediction.py`, review). **Re-opened by the review** (own download and text extraction): Lie chapter 4 pages 126 to 128 (4.33 to 4.35 and the caution), Koch and others section 5.4 (5.5, 5.6, the validity and "superior" passages), Dörfler and Bullo Lemma 2.1 and Theorems 3.4, 3.7 and 3.9, the SuperLU guide 1.4.4, 1.3.5 and 2.8, the UMFPACK guide (symbolic phase, PDF pages 43 and 53, licence line), Li 2013 slides 19 to 21, George 1973 abstract, the ODB++ component records and notice, the KiCad placement section; the statements of 7.1 to 7.3 match them except where corrected (the program's ordering, the UMFPACK licence, the cells of the program, the scope of the Kron statement, the attribution of the cell-size remark). **Not done:** the Peaceman radius for a 7-point 3D stencil, for heat with a constricted barrel or near an edge; any run of the program; any opening of Shen 2019 (another researcher). The text of the third-party documents is not stored in the repository; the ODB++ specification is confidential and was only read.
+
+**Reading pass, batch 1 (section 8), read (R):** Shen and others pages 1 to 17; Gezala and others (whole paper); Rodero and others pages 1 to 14; Lee, Lemczyk, Yovanovich pages 55 to 60 (images); Yovanovich, Culham, Teertstra pages 168 to 173 (images); Culham and Yovanovich (1998) page 462; Culham, Yovanovich, Lemczyk pages 233 to 235; Muzychka and others (2004) pages 45 to 50; Yovanovich (1993) all 7 pages; Martin and others pages 1 to 6; Teertstra and others (2004) pages 1 to 3; Ostrach TN 2635 page 14; Fish chapter 7 (formulation and limits). **Reproduced:** Shen's optimum diameters, penalties and pattern ratio (within 1 point, two of five printed percentages not reproduced); the flux-tube series against its printed correlations and against Table 3 of Yovanovich (2003); the program's five models against the via unit cell (within 5.2 %). **Not reproduced:** the R_vias of Lee and others (layout not printed), Shen's 47 and 46.4 % reductions, Rodero's equation 21 (a misprint as printed). **Not read:** see 8.5.
