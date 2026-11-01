@@ -277,18 +277,19 @@ class MainWindow(QMainWindow):
         area.setWidget(page)
         return area
 
-    def _dock(self, title, widget, area, scroll=True, footer=None):
+    def _dock(self, title, widget, area, scroll=True, footer=None, label=None):
         """!
         @brief Add a titled dock widget.
-        @param title Dock title.
+        @param title Dock key: the object name under which saved window layouts store the dock (never changes).
         @param widget Content widget.
         @param area Qt dock area.
         @param scroll True to put the widget in a scroll area (panels of fields); False for a list that scrolls by itself.
         @param footer Optional widget kept below the scroll area, always visible (the Run button of the Simulation panel).
+        @param label Title shown in the title bar and the View menu (default: title).
         @return The QDockWidget.
         """
-        d = QDockWidget(title, self)
-        d.setObjectName(title)
+        d = QDockWidget(label or title, self)
+        d.setObjectName(title)                                  # The object name stays the old title: saved window layouts are keyed by it
         if scroll:
             # The panels grew taller with their boxes: a scroll area keeps every field reachable when the dock is short (a clipped panel hid "Position and size")
             area_widget = QScrollArea()
@@ -318,13 +319,17 @@ class MainWindow(QMainWindow):
         """!
         @brief Create the left and right docks.
         """
-        self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea)
+        self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea, label="Board settings")
         self.dock_elements = self._dock("Elements", self.elements, Qt.LeftDockWidgetArea, scroll=False)
         self.splitDockWidget(self.dock_board, self.dock_elements, Qt.Vertical)
-        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea, footer=self.solver_panel.footer)
+        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea, footer=self.solver_panel.footer, label="Simulation settings")
         self.dock_inspector = self._dock("Properties", self.inspector, Qt.RightDockWidgetArea)
         self.splitDockWidget(self.dock_sim, self.dock_inspector, Qt.Vertical)
         # The widths are set in showEvent (_size_docks): before the window is shown resizeDocks has no effect and the docks started about 110 px wide
+
+    STATE_VERSION = 2                       # Version of the saved dock arrangement (restoreState refuses another)
+    DOCK_MIN_LEFT = 300                     # Narrowest usable width in pixels of the Board and Elements docks
+    DOCK_MIN_RIGHT = 340                    # Narrowest usable width in pixels of the Simulation and Properties docks
 
     def _size_docks(self):
         """!
@@ -347,21 +352,49 @@ class MainWindow(QMainWindow):
         @brief Restore the saved dock arrangement, or give the docks their default widths when there is none (or it cannot be read).
         """
         try:
-            restored = bool(self._saved_state) and self.restoreState(self._saved_state)
+            # The version number invalidates the states saved before the minimum widths existed (they may hold collapsed docks)
+            restored = bool(self._saved_state) and self.restoreState(self._saved_state, self.STATE_VERSION)
         except (TypeError, ValueError):                          # A hand-edited settings file can hold text where the state was
             restored = False
         if not restored:
             self._size_docks()
+            self._schedule_dock_minimums()
             return
         # restoreState brings back where the docks are and which are shown, but not always their sizes: those are applied from the saved numbers
         sizes = self.settings.value("dock_sizes")
         try:
             bw, sw, bh, eh, sh, ih = (int(v) for v in sizes)
         except (TypeError, ValueError):
+            self._size_docks()
+            self._schedule_dock_minimums()
             return
-        self.resizeDocks([self.dock_board, self.dock_sim], [bw, sw], Qt.Horizontal)
-        self.resizeDocks([self.dock_board, self.dock_elements], [bh, eh], Qt.Vertical)
-        self.resizeDocks([self.dock_sim, self.dock_inspector], [sh, ih], Qt.Vertical)
+        # Sizes saved from a collapsed or much larger window are stale: below the minimum, or wider than the window can hold
+        if bw < self.DOCK_MIN_LEFT or sw < self.DOCK_MIN_RIGHT or bw + sw > 0.8 * self.width() or min(bh, eh, sh, ih) < 60:
+            self._size_docks()
+        else:
+            self.resizeDocks([self.dock_board, self.dock_sim], [bw, sw], Qt.Horizontal)
+            self.resizeDocks([self.dock_board, self.dock_elements], [bh, eh], Qt.Vertical)
+            self.resizeDocks([self.dock_sim, self.dock_inspector], [sh, ih], Qt.Vertical)
+        self._schedule_dock_minimums()
+
+    def _schedule_dock_minimums(self):
+        """!
+        @brief Check the dock widths now and again shortly after, when the window system has settled the window size.
+
+        @note The window manager may still change the frame after the first show (a window larger than the screen is cut to the
+              visible area), which squeezes the docks after _first_layout has run.
+        """
+        self._ensure_dock_minimums()
+        QTimer.singleShot(250, self._ensure_dock_minimums)
+
+    def _ensure_dock_minimums(self):
+        """!
+        @brief Widen a docked panel that is narrower than its fields need (a floating or hidden dock is left alone).
+        """
+        for dock, side in ((self.dock_board, self.DOCK_MIN_LEFT), (self.dock_elements, self.DOCK_MIN_LEFT),
+                           (self.dock_sim, self.DOCK_MIN_RIGHT), (self.dock_inspector, self.DOCK_MIN_RIGHT)):
+            if dock.isVisible() and not dock.isFloating() and dock.width() < side:
+                self.resizeDocks([dock], [side], Qt.Horizontal)
 
     def showEvent(self, e):
         """!
@@ -410,18 +443,24 @@ class MainWindow(QMainWindow):
         self.a_export_txt = self._act("Export report (TXT)…", self.export_report)
         self.a_export_json = self._act("Export summary (JSON)…", self.export_summary)
         self.a_quit = self._act("Quit", self.close, QKeySequence.Quit)
+        if not self.a_quit.shortcuts():
+            self.a_quit.setShortcut(QKeySequence("Ctrl+Q"))     # Some platform themes (offscreen, minimal Linux) bind no Quit key
 
         self.a_undo = self.doc.stack.createUndoAction(self, "Undo")
         self.a_undo.setShortcut(QKeySequence.Undo)
         self.a_redo = self.doc.stack.createRedoAction(self, "Redo")
-        self.a_redo.setShortcut(QKeySequence.Redo)
+        # Both usual redo keys on every platform (Windows lists Ctrl+Y first, macOS Ctrl+Shift+Z): one action, two keys, no other action has them
+        self.a_redo.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
         self.a_delete = self._act("Delete", lambda: self.doc.delete(self.canvas.selected_elements()), "Del")
+        # Backspace (the key labelled delete on a Mac keyboard) is the second key of the same action, so the menu shows it and the canvas needs no branch
+        self.a_delete.setShortcuts([QKeySequence("Del"), QKeySequence("Backspace")])
         self.a_dup = self._act("Duplicate", lambda: self.canvas.set_selection(
             self.doc.duplicate(self.canvas.selected_elements())), "Ctrl+D")
         self.a_selall = self._act("Select all on layer", self._select_all, QKeySequence.SelectAll)
 
         self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0", tip="Zoom to show the whole board (Ctrl+0)")
         self.a_zin = self._act("Zoom in", lambda: self.canvas.zoom(1.25), QKeySequence.ZoomIn)
+        self.a_zin.setShortcuts([QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")])   # Ctrl+= is the same key without Shift on most keyboards
         self.a_zout = self._act("Zoom out", lambda: self.canvas.zoom(0.8), QKeySequence.ZoomOut)
         self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G); the snap distance is chosen in the tool bar")
         self.a_sgrid = self._act("Solver grid", self._toggle_solver_grid, "Shift+G", True, False,
@@ -478,6 +517,23 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_keys)
         m.addSeparator()
         m.addAction(self.a_about)
+        self._hide_bare_key_hints()
+
+    def _hide_bare_key_hints(self):
+        """!
+        @brief Keep the single-key shortcuts of the View menu (G, Shift+G, T) working but out of the menu text.
+
+        On macOS the native menu prints a key without a modifier as a lone letter next to the entry ("Temperature on board  T"),
+        which reads like a mnemonic or a wrong item. The keys stay on window-level actions that toggle the visible ones; the
+        tool bar tooltips and the keyboard help still name them.
+        """
+        for a in (self.a_grid, self.a_sgrid, self.a_overlay):
+            keys = a.shortcuts()
+            a.setShortcuts([])
+            hidden = QAction(a.text(), self)
+            hidden.setShortcuts(keys)
+            hidden.triggered.connect(a.toggle)
+            self.addAction(hidden)                              # Active in the whole window, in no menu
 
     def _build_toolbar(self):
         """!
@@ -1060,24 +1116,28 @@ class MainWindow(QMainWindow):
         self.solver_panel.checks.recolour()                                 # The links of the warnings take the link colour of the new palette
         self._refresh_icons()
 
-    def show_shortcuts(self):
-        """!
-        @brief Show the keyboard and mouse help.
-        """
-        QMessageBox.information(self, "Keyboard and mouse", """<table cellpadding=3>
+    SHORTCUTS_HTML = """<table cellpadding=3>
 <tr><td><b>S Z H C V O</b></td><td>Select, Zone, Heater, Heatsink (Cooling), Via, board Outline tools</td></tr>
 <tr><td><b>P</b></td><td>Polygon mode (click vertices; double click or Enter finishes)</td></tr>
 <tr><td><b>Wheel / middle drag / Space+drag</b></td><td>Zoom / pan</td></tr>
-<tr><td><b>Ctrl+0</b></td><td>Fit board</td></tr>
+<tr><td><b>Ctrl+0, Ctrl++ (or Ctrl+=), Ctrl+-</b></td><td>Fit board, zoom in, zoom out</td></tr>
 <tr><td><b>Right-click</b></td><td>On a shape: add or delete a vertex, duplicate, delete; on an empty spot: add a heater, zone, heatsink or via there</td></tr>
-<tr><td><b>Del, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
+<tr><td><b>Del or Backspace, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
+<tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
-<tr><td><b>Ctrl+Z / Ctrl+Shift+Z</b></td><td>Undo / redo</td></tr>
-<tr><td><b>F1</b></td><td>User guide</td></tr></table>""")
+<tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
+<tr><td><b>F1</b></td><td>User guide</td></tr>
+<tr><td><b>macOS</b></td><td>Ctrl in this table is the Command key (⌘); Backspace (the key labelled delete) also deletes the selection</td></tr></table>"""
+
+    def show_shortcuts(self):
+        """!
+        @brief Show the keyboard and mouse help (the text is SHORTCUTS_HTML, which tests/test_shortcuts.py checks against the real shortcuts).
+        """
+        QMessageBox.information(self, "Keyboard and mouse", self.SHORTCUTS_HTML)
 
     def show_about(self):
         """!
@@ -1102,7 +1162,7 @@ class MainWindow(QMainWindow):
         if self._confirm_discard():
             compute.shutdown()                         # Nothing keeps running in the background after the window closes
             self.settings.setValue("geometry", self.saveGeometry())
-            self.settings.setValue("window_state", self.saveState())      # Dock positions and visibility
+            self.settings.setValue("window_state", self.saveState(self.STATE_VERSION))      # Dock positions and visibility
             self.settings.setValue("dock_sizes", [self.dock_board.width(), self.dock_sim.width(), self.dock_board.height(),
                                                   self.dock_elements.height(), self.dock_sim.height(), self.dock_inspector.height()])
             e.accept()

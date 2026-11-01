@@ -399,7 +399,8 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     """!
     @brief Cell size that resolves the smallest heater with about four cells across its narrow side, and that the memory guard accepts.
     @details When models are given, a cell that the guard would refuse for one of them (fvm, fdm, solid3d) is replaced by the smallest cell that fits (memory.cell_that_fits),
-             which may be above hi: the memory wins over the resolution, and the caller says so. Only the model keys are checked ("all" or "compare" must be
+             which may be above hi: the memory wins over the resolution, and the caller says so (for a board with imported copper `copper.auto_cell_note(problem, cell)` is
+             the sentence). A board with imported copper (mapping other than 'fill') is capped at copper.COARSE_CELL_MM (1 mm) before the memory is considered. Only the model keys are checked ("all" or "compare" must be
              expanded by the caller).
     @param problem A Problem.
     @param lo Smallest cell size returned from the heaters (mm).
@@ -414,6 +415,8 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     """
     sizes = [min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0 for h in problem.heaters if h.power > 0]
     cell = float(min(max(min(sizes) / 4.0, lo), hi)) if sizes else hi
+    # Imported copper wants a cell of 1 mm or less (the faces read 7 to 10 % too hot at 2 mm): Auto stays there unless the memory forces more
+    cell = copper.auto_cell_cap(problem, cell)
     if models:
         for v in memory.check(problem, tuple(models), cell, fraction=fraction, transient=transient, base=base, refuse="return", quiet=True, laminate_params=laminate_params):
             if v.verdict == "refuse" and v.cell_fit:

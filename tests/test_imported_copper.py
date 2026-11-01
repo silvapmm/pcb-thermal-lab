@@ -722,6 +722,105 @@ def test_warning_for_a_raster_too_coarse_for_the_cell():
     assert not any("pixels per cell" in w for w in copper.model_warnings(p, "lumped", 0.5))
 
 
+def test_coarse_cell_warnings_and_their_thresholds():
+    """!
+    @brief The coarse-cell warning starts above 1 mm (not at 1 mm), the screening wording above 1.5 mm, the numbers are the measured ones, and the 'fill' mapping has neither.
+    @return None.
+    """
+    p = _board([_stripes(120), _solid(120)], "faces", pix=0.1)
+    texts = lambda cell: copper.model_warnings(p, "fvm", cell)                # noqa: E731
+    assert not any("above 1 mm" in w for w in texts(1.0))
+    assert any("above 1 mm" in w for w in texts(1.2))
+    assert not any("screening" in w for w in texts(1.2))
+    assert not any("screening" in w for w in texts(1.5))
+    assert any("screening" in w for w in texts(2.0))
+    w = [w for w in texts(2.0) if "above 1 mm" in w][0]
+    assert "7 to 10 %" in w and "up to 4.3 %" in w and "about half" not in w
+    assert "+2.2 %" in w and "+11.8 %" in w and "bare laminate" in w            # Grid error with drawn full copper and on bare laminate (validation 27.3)
+    assert not any("above 1 mm" in w for w in copper.model_warnings(_board([_stripes(120), _solid(120)], "fill", pix=0.1), "fvm", 2.0))
+
+
+def test_the_grid_error_quoted_for_drawn_full_copper():
+    """!
+    @brief The coarse-cell warning quotes +2.2 % at 2 mm as the program's grid error with drawn FULL copper (24 mm board, 4 mm part, h = 10, 2 layers, against 0.25 mm);
+           the first text of the reopened branch quoted +11.8 % for it, which is the number of the same board with no copper at all.
+    @return None.
+    """
+    from pcbthermal import fvm
+
+    def heater_mean(p, cell):
+        n = int(round(24.0 / cell))
+        theta = fvm.Network(p, n, n).solve_steady()[0]
+        x = (np.arange(n) + 0.5) * cell
+        inside = (x > 10.0) & (x < 14.0)
+        return float(theta[0][inside[:, None] & inside[None, :]].mean())
+
+    p = Problem.new(24.0, 24.0, layers=2, thickness_mm=1.6, copper_um=35, h_top=10.0, h_bottom=10.0, h_side=None).add_heater(1, 1.0, rect=(10, 10, 14, 14))
+    for layer in (1, 2):
+        p.add_zone(layer, rect=(0.0, 0.0, 24.0, 24.0))
+    err = 100.0 * (heater_mean(p, 2.0) / heater_mean(p, 0.25) - 1.0)
+    assert 2.1 < err < 2.25, err                                                   # Measured +2.17 % (study_grid_error_drawn_copper.py)
+
+
+def test_auto_cell_is_capped_at_one_millimetre_with_imported_copper():
+    """!
+    @brief Auto (suggest_cell_mm) never proposes more than 1 mm for imported copper when the memory allows, where the same board drawn would get the cell of its part (3 mm here, capped at 2 mm),
+           and says so (auto_cell_note) when the memory forces a larger cell.
+    @return None.
+    """
+    from pcbthermal import suggest_cell_mm
+
+    p = _board([_solid(240), _solid(240)], "faces", side=24.0, heater=12.0, pix=0.1)
+    plain = Problem.new(24.0, 24.0, layers=2).add_heater(1, 1.0, rect=(6, 6, 18, 18))
+    assert suggest_cell_mm(plain) == pytest.approx(2.0)
+    assert suggest_cell_mm(p) == pytest.approx(1.0)
+    assert suggest_cell_mm(p, models=("fvm",)) == pytest.approx(1.0)
+    assert suggest_cell_mm(Problem.new(24.0, 24.0, layers=2)) == 2.0                  # no copper import, no part: unchanged
+    assert suggest_cell_mm(_board([_solid(240), _solid(240)], "fill", side=24.0, heater=12.0, pix=0.1)) == pytest.approx(2.0)
+    assert copper.auto_cell_note(p, 1.0) == "" and copper.auto_cell_note(plain, 3.0) == ""
+    assert "screening" in copper.auto_cell_note(p, 2.0) and "memory" in copper.auto_cell_note(p, 1.25)
+    assert "screening" not in copper.auto_cell_note(p, 1.25)
+
+
+
+def test_auto_note_is_shown_by_the_command_line_and_the_auto_button(monkeypatch, capsys):
+    """!
+    @brief When the memory forces Auto above 1 mm on imported copper, `--cell-mm auto` prints copper.auto_cell_note and the Auto button of the Simulation panel shows it
+           (the review found the note defined but shown nowhere).
+    @return None.
+    """
+    import argparse
+
+    from pcbthermal import cli
+
+    p = _board([_solid(240), _solid(240)], "faces", side=24.0, heater=12.0, pix=0.1)
+    monkeypatch.setattr(cli, "suggest_cell_mm", lambda *a, **k: 2.0)               # As if the memory limit had enlarged the cell to 2 mm
+    assert cli._cell_arg(argparse.Namespace(cell_mm="auto", model="fvm"), p, 1.0) == 2.0
+    assert "screening estimate" in capsys.readouterr().err
+    plain = Problem.new(24.0, 24.0, layers=2).add_heater(1, 1.0, rect=(6, 6, 18, 18))
+    cli._cell_arg(argparse.Namespace(cell_mm="auto", model="fvm"), plain, 1.0)
+    assert capsys.readouterr().err == ""                                           # No imported copper: no note
+
+
+def test_auto_button_shows_the_imported_copper_note(qtbot, monkeypatch):
+    """!
+    @brief The Auto button of the Simulation panel shows copper.auto_cell_note when the memory pushes an imported board above 1 mm.
+    @param qtbot pytest-qt fixture.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    pytest.importorskip("pytestqt")
+    from pcbthermal.gui import panels
+    from pcbthermal.gui.document import Document
+
+    doc = Document()
+    doc.open_problem(_board([_solid(240), _solid(240)], "faces", side=24.0, heater=12.0, pix=0.1))
+    panel = panels.SolverPanel(doc)
+    qtbot.addWidget(panel)
+    monkeypatch.setattr(panels, "suggest_cell_mm", lambda problem, models=None, **k: 1.25 if models is not None else 1.0)
+    panel._auto_cell()
+    assert "imported copper" in panel.status.text() and "memory limit" in panel.status.text()
+
 # ---------------------------------------------------------------------------------------------------- review: hostile records, misaligned cells, saving, live checks
 def _checker(n, square=6):
     """!
