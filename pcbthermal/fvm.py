@@ -423,7 +423,7 @@ class Network:
         """!
         @brief Estimate of Young's optimum relaxation factor of the red-black SOR from the Rayleigh quotient of the Jacobi matrix.
         @details For the symmetric positive definite K = D - N with a two-colourable graph (the parity of l + i + j) the optimum is 2 / (1 + sqrt(1 - rho^2)), rho the
-                 spectral radius of D^-1 N (Young; Saad 2003, section 4.2.5). rho is bounded from below by the Rayleigh quotient 1 - (m^T K m) / (m^T D m) of the trial
+                 spectral radius of D^-1 N (Young; Saad 2003, section 4.2.5, Theorem 4.16 and eq. 4.47, pp 126-127; the theorem holds for consistently ordered matrices). rho is bounded from below by the Rayleigh quotient 1 - (m^T K m) / (m^T D m) of the trial
                  vector m = D^1/2 1 restricted to the nodes that have a link: one product with K, always a LOWER bound, so the omega that follows is below the optimum (safe side).
                  K is the full matrix that the SOR solves, with the via couplings and the footprints. Nodes without any link (the cells off a board with an outline, pinned to the ambient)
                  are left out of both sums: they are eigenvectors with mu = 0 and would dilute the quotient (omega near 1 on a round board). The result is capped at 1.999 as a guard.
