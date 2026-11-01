@@ -136,3 +136,13 @@ def test_multigrid_factor_is_independent_of_h():
     """!@brief The V(2,1) cycle reduces the residual by about the same factor (below 0.15) from 15 to 127 points per side."""
     factors = [np.mean(mg2d.convergence_factors(n, 6)[-3:]) for n in (15, 31, 63, 127)]
     assert max(factors) < 0.15 and max(factors) - min(factors) < 0.05
+
+
+def test_peaceman_nonsquare_radius_is_exact_on_the_infinite_lattice():
+    """!@brief Lie (2019) eq. 4.34 / Koch et al. (2019) eq. 5.6 equals the infinite five-point lattice radius within 1e-4 (square: 0.19851 dx)."""
+    scripts = Path(__file__).resolve().parents[1] / "scripts"
+    sys.path.insert(0, str(scripts))
+    import study_peaceman_nonsquare as pn  # noqa: E402
+    assert abs(pn.infinite_lattice_r0(1, 1, 1, 1) - 0.19851) < 1e-5
+    for case in ((1, 1, 2, 1), (4, 1, 1, 1), (0.1, 1, 1, 1), (10, 1, 1, 3), (1, 1, 10, 1)):
+        assert abs(pn.infinite_lattice_r0(*case) / pn.peaceman_r0(*case) - 1.0) < 1e-4

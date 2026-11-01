@@ -2,8 +2,8 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
-@brief Pictures of the situations of research/theory-sources (no data, no program): the trace cell of Lemczyk, the coupon of Culham with its series, the duality of Keller and Dykhne, the Foster and Cauer networks, the Gerber region with a hole, the two spreading cases of Muzychka.
-@details Numbers quoted are those printed in the sources (named in each caption) or in the README of this folder. Writes figures/fig_06 to fig_11 (fig_01 to fig_05 are the data figures of make_figures.py).
+@brief Pictures of the situations of research/theory-sources (no data, no program): the trace cell of Lemczyk, the coupon of Culham with its series, the duality of Keller and Dykhne, the Foster and Cauer networks, the Gerber region with a hole, the two spreading cases of Muzychka, the Peaceman well-block on a non-square, anisotropic grid with the via footprint.
+@details Numbers quoted are those printed in the sources (named in each caption) or in the README of this folder. Writes figures/fig_06 to fig_12 (fig_01 to fig_05 and fig_13 are the data figures of make_figures.py).
          Run: .venv/bin/python research/theory-sources/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -202,6 +202,55 @@ def muzychka_cases(path):
     dk.save(fig, path)
 
 
+def peaceman_well(path):
+    """!
+    @brief The Peaceman well-block: a non-square cell with its equivalent radius, the anisotropic stretching of a circular well, and a via footprint of cells on the grid (README 7.1).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(13, 4.4, 1, 3)
+    # (a) isotropic non-square cell: the well sits in the middle of a 2 x 1 cell, the equivalent radius is 0.31387 (infinite lattice)
+    ax = axs[0]
+    ax.set_xlim(-3.2, 3.2)
+    ax.set_ylim(-2.2, 2.4)
+    ax.set_aspect("equal")
+    for i in range(-1, 2):
+        for j in range(-2, 3):
+            ax.add_patch(Rectangle((2 * i - 1, j - 0.5), 2, 1, fill=False, edgecolor="#888", linewidth=0.8))
+    ax.add_patch(Rectangle((-1, -0.5), 2, 1, facecolor=dk.FR4, edgecolor="k", alpha=0.6))
+    t = np.linspace(0, 2 * np.pi, 100)
+    ax.plot(0.31387 * np.cos(t), 0.31387 * np.sin(t), color=dk.HEAT, linewidth=1.6)
+    ax.plot(0, 0, "o", color=dk.HEAT, markersize=3)
+    ax.text(0, -1.05, "dx = 2, dy = 1: r0 = 0.31387\n(circle drawn, unit sink in the centre)", ha="center", fontsize=7)
+    ax.set_title("a. non-square cell, isotropic", fontsize=8)
+    # (b) anisotropy: a circle in the plane is an ellipse after x/sqrt(Kx), y/sqrt(Ky); its equivalent circle has the mean semi-axis
+    ax = axs[1]
+    ax.set_xlim(-3, 7.2)
+    ax.set_ylim(-2.4, 2.6)
+    ax.set_aspect("equal")
+    ax.plot(-1.5 + 1.2 * np.cos(t), 1.2 * np.sin(t), color=dk.HEAT, linewidth=1.6)
+    ax.text(-1.5, -1.7, "physical well, radius r_w", ha="center", fontsize=7)
+    dk.arrow(ax, 0.1, 0, 1.6, 0, label="x/sqrt(Kx), y/sqrt(Ky)", size=7)
+    ax.plot(4.5 + 0.6 * np.cos(t), 1.2 * np.sin(t), color=dk.HEAT, linewidth=1.6)
+    ax.plot(4.5 + 0.9 * np.cos(t), 0.9 * np.sin(t), "--", color=dk.BLUE, linewidth=1.2)
+    ax.text(4.5, -1.7, "ellipse and its equivalent circle\n(mean semi-axis): factor\n2 sqrt(KxKy)/(sqrt(Kx)+sqrt(Ky))", ha="center", fontsize=7)
+    ax.set_title("b. anisotropy by stretching (Kx = 4, Ky = 1: r0 = 0.20924)", fontsize=8)
+    # (c) the program's treatment: footprint of cells, mean potential, well of radius 0.78 r_v, barrel nodes reduced into couplings
+    ax = axs[2]
+    ax.set_xlim(-3.5, 3.5)
+    ax.set_ylim(-3.5, 3.5)
+    ax.set_aspect("equal")
+    for i in range(-3, 3):
+        for j in range(-3, 3):
+            inside = (i + 0.5) ** 2 + (j + 0.5) ** 2 <= 2.3 ** 2
+            ax.add_patch(Rectangle((i, j), 1, 1, facecolor=dk.COPPER if inside else "none", edgecolor="#888", linewidth=0.8, alpha=0.8))
+    ax.plot(1.1 * np.cos(t), 1.1 * np.sin(t), color=dk.HEAT, linewidth=1.6)
+    ax.plot(2.3 * np.cos(t), 2.3 * np.sin(t), ":", color="k", linewidth=1)
+    ax.text(0, -3.3, "footprint of cells (shaded) on one plane;\nits mean potential is the via node;\nwell radius 0.78 r_v; barrel nodes Kron-reduced", ha="center", fontsize=7)
+    ax.set_title("c. the via footprint on the grid", fontsize=8)
+    dk.save(fig, path)
+
+
 def main():
     """!
     @brief Draw every diagram.
@@ -214,6 +263,7 @@ def main():
     foster_cauer(OUT / "fig_09_foster_and_cauer_networks.png")
     gerber_hole(OUT / "fig_10_gerber_spec_regions.png")
     muzychka_cases(OUT / "fig_11_muzychka_cases.png")
+    peaceman_well(OUT / "fig_12_peaceman_well_block.png")
 
 
 if __name__ == "__main__":
