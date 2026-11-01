@@ -165,4 +165,4 @@ Pruning closed 6 of 11 refused outline files, but it also closed a loop on the w
 3. The outline pruning as a proposal in 2.5.0 (if the import window has room) or in 2.6.0.
 4. Whether to ask users and vendors for files (README 10.5 has the list and the priority).
 5. Whether the macro-name tolerance should warn (recommended) or be silent.
-6. The commits of this branch before the review hold a real user and computer name in `INTEGRATION.md` 2.3 and a real path and user name in two test strings (corrected in the review commit); the branch is not pushed. Keep the history as it is (the files are public on GitHub), or ask for a squash before the first push (the policy forbids rewriting only published history).
+6. The commits of this branch before the review held a real user and computer name in `INTEGRATION.md` 2.3 and a real path and user name in two test strings. Those strings were corrected in the review commit and then removed from the history of the branch (a history scrub with the tip tree unchanged) before the first push; the branch had no remote copy.
