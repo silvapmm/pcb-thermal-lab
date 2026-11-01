@@ -743,12 +743,16 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
 
 # ------------------------------------------------------------------------------------------------ warnings
 FILL_NOTE = ("the copper of this board is an import and the models read it as a cell mapping, not as drawn zones: the finite-volume and finite-difference models use flow-based face "
-             "conductances (on windows of real boards with a 4 mm part: within about 3 % of the program's network on the pixels at cells of 0.5 to 1.3 mm, up to 4 % on larger windows, "
-             "and up to 10 % too hot at a 2 mm cell, about half of which is the grid error the program has with drawn copper under a part two cells wide; no measurement on a "
-             "physical board exists)")
+             "conductances (on 24 mm windows of real two-layer boards with a 4 mm part they read within 1.7 % of the program's network on the pixels at a 0.5 mm cell, "
+             "up to 4.3 % too hot at 1 mm and 7 to 10 % too hot at 2 mm; the program's own grid error under a part two cells wide is +2.2 % with drawn full copper and +11.8 % "
+             "on bare laminate at 2 mm, and the imported overshoot lies between the two; no measurement on a physical board exists)")
 COARSE_CELL_MM = 1.0                             # Cell above which the note on the faces adds the coarse-cell warning (README 10 of research/gerber-real-boards, review)
-COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows of real two-layer boards the face conductances read 4 to 10 % too hot at a 2 mm cell for a 4 mm part "
-                       "(about half of it the grid error of a part two cells wide, the rest the copper inside a cell that the faces cannot resolve); use a cell of 1 mm or less")
+SCREENING_CELL_MM = 1.5                          # Cell above which the warning calls the result a screening estimate
+COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows of real two-layer boards the face conductances read up to 4.3 % too hot at a 1 mm cell and 7 to 10 % "
+                       "too hot at a 2 mm cell for a 4 mm part (on the safe side; the program's grid error under a part two cells wide is +0.5 % and +2.2 % at 1 and 2 mm with drawn "
+                       "full copper, +3.7 % and +11.8 % on bare laminate, and the imported overshoot lies between the two; the share of the copper inside a cell was not separated); "
+                       "use a cell of 1 mm or less for the result")
+SCREENING_WARNING = ("imported copper at a cell above 1.5 mm: treat the result as a screening estimate (7 to 10 % too hot at 2 mm in the windows measured), not as a figure to design to")
 REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: it sees only the copper fraction of every cell, and in the study of 24 windows it read 1 to 16 % too "
                          "cool (6 % on average) against the pixel network; use the finite-volume model for the result")
 SOLID3D_WARNING = ("imported copper in the 3D solid: it reads the copper fraction of every cell as an average conductivity, the fill-fraction mapping, which reads thin copper cooler "
@@ -776,6 +780,8 @@ def model_warnings(problem, model, cell_mm=None):
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
         if cell_mm is not None and src.mapping != "fill" and cell_mm > COARSE_CELL_MM + 1e-9:
             out.append(COARSE_CELL_WARNING)
+            if cell_mm > SCREENING_CELL_MM + 1e-9:
+                out.append(SCREENING_WARNING)
         if cell_mm is not None and src.mapping != "fill":
             per_cell = cell_mm * 1e-3 / src.pix
             if per_cell < COARSE_RASTER_PIXELS:
@@ -783,3 +789,31 @@ def model_warnings(problem, model, cell_mm=None):
                            "face conductances cannot resolve the copper (2 to 5 % of the rise in the tests at 4 pixels per cell, under 1 % at 10 or more); use a finer pixel "
                            "(import again) or a coarser cell")
     return out
+
+
+def auto_cell_cap(problem, cell_mm):
+    """!
+    @brief The cell that Auto may propose for a board with imported copper: at most COARSE_CELL_MM.
+    @param problem A Problem.
+    @param cell_mm Cell chosen from the parts (mm).
+    @return float cell in mm (unchanged without imported copper or with the 'fill' mapping, which has its own warning).
+    """
+    src = CopperSource.of(problem)
+    if src is None or src.mapping == "fill":
+        return float(cell_mm)
+    return float(min(cell_mm, COARSE_CELL_MM))
+
+
+def auto_cell_note(problem, cell_mm):
+    """!
+    @brief The sentence to show when Auto had to leave the 1 mm cap of an imported board because of the memory.
+    @param problem A Problem.
+    @param cell_mm Cell that Auto returned (mm).
+    @return str, or "" when there is no imported copper or the cell is within the cap.
+    """
+    src = CopperSource.of(problem)
+    if src is None or src.mapping == "fill" or cell_mm <= COARSE_CELL_MM + 1e-9:
+        return ""
+    return (f"Auto: the board has imported copper, which wants a cell of {num(COARSE_CELL_MM, 1)} mm or less, but the memory limit needs {num(cell_mm, 2)} mm; "
+            "the result is a screening estimate" if cell_mm > SCREENING_CELL_MM else
+            f"Auto: the cell was enlarged to {num(cell_mm, 2)} mm by the memory limit, above the {num(COARSE_CELL_MM, 1)} mm that imported copper wants")
