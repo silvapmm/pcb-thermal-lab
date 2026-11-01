@@ -2,7 +2,46 @@
 
 Nothing in `pcbthermal/` was edited. The proposals were measured on a copy of `pcbthermal/solid3d.py` made in memory by `lib/rotsq.py` (a text replacement of four expressions, refused when the source changes). Numbers are in `README.md`; the maintainer decides.
 
-## What changes in the program, if P1 is adopted
+## Decision asked for 2.5.0: the cut cells of the layered FVM (README 11)
+
+**Recommendation: 2.6.0.** It fits 2.5.0 technically; it is not worth the refreeze and the risk of landing it with the Gerber import. If the maintainer decides for 2.5.0 nevertheless, this is the exact change, the numbers that accept it, and what stays out.
+
+### Why not 2.5.0
+
+* The gain at the defaults is below 1 % of the rise: at `h_side` 10 the dependence on where the outline cuts the grid is 0.1 to 0.7 % of the rise and the cut-cell links do not change it (an exact cover does); at 100 W/m2K it is 0.6 % (links: 0.08 %) and at 2000 W/m2K 5 % (links: 0.6 %), a typed coefficient for a board clamped to a chassis (README 11.2).
+* It moves frozen records: of the 17 harness boards four have an outline; the FVM records of `round_outline` (-0.009 K at 2 mm), `example_cut_to_T` (-0.028 K at 2 mm) and `part_across_outline` (-1.43 K at 2 mm, -1.17 at 1, -0.08 at 0.5, 0.7 % of the rise at 2 mm) move, `t_outline` does not (README 11.6). A `pending/<topic>.json` and a refreeze in the release of the Gerber import.
+* The FDM and the 3D solid keep their own treatment of the same edge, so `docs/validation.md` 13 and 23 change for the FVM only; the FDM (dual cells) was not prototyped.
+* The case that matters for a real outline, vias and partial copper on a cut edge, has no clean verdict: with copper held 1.2 mm inside the outline every scheme spreads 3 to 9 K and `links` sits 0.9 to 3.7 K cool at 1 mm (README 11.5); the cause (the fill of a cut cell is sampled over the cell, the copper edge moves against the grid with the outline) is untested.
+
+### The change (variant `links`, FVM only; `pcbthermal/` untouched here)
+
+1. `pcbthermal/geometry.py`: new `cut_cell_geometry(poly, nx, ny, dx, dy)` returning `cover`, `xc`, `yc`, `ax` (ny, nx-1), `ay` (ny-1, nx) and `cut` by exact clipping (`research/rotated-square-3d/lib/cutcell_exact.py::cut_geometry_exact`, about 70 lines: the cut cells are the cells whose corners are not all on the same side of the outline or that `edge_length_per_cell` marks; area and centroid from `clip_polygon` against the cell box; the aperture of a face is the length with board on both sides from the crossings of the outline with the face line). Today a Python loop over the cut cells (15 ms for 100 cut cells): vectorise it before a board with tens of thousands of cut cells, or use the 16 x 16 sampled `cutcell.cut_geometry_fast` (0.07 s at 800 000 cells; the sweeps of README 11 show the two give the same links to 0.3 K in the worst case, the exact one is cleaner at 45 degrees only for the cover).
+2. `pcbthermal/fvm.py`, `Network.__init__`: after the cover, `self.cut = geometry.cut_cell_geometry(...)` when `b.has_outline()` and the problem has no metal block (a board with a block keeps the program's links; `blocks.py` cuts its layer by `coverage_fraction * cover`, not handled).
+3. `pcbthermal/fvm.py`: one new method `_lateral_links()` returning `(gx, gy)`: the program's harmonic expression `harmonic(S1, S2) * dy / dx` everywhere, replaced **only for a pair in which a cell is cut** by `g = a * L_face / (d1 / Sp1 + d2 / Sp2)` with `a` the aperture (and both cells active), `L_face` = `dy` (x link) or `dx` (y link), `d1`, `d2` the distances from the face to the two centroids along the normal (at least 1e-3 of a cell side), `Sp = S / cover` the physical sheet of each node layer (the prototype shows laminate nodes and via footprints keep their cover scaling); then the imported layers' faces as today. `_assemble` and `solve_sor` call it and drop their two copies of the block (`solve_sor`'s copy was the reason the section-10 prototype ran the SOR on the program's links). Capacities, films, vertical links, vias, laminate nodes are not touched. The matrix stays symmetric positive definite; `factor_reuse`, CG, block SOR and the direct solver are unchanged. Reading the result: the temperature of a cut cell is at the centroid of its board part (the map and `t_max_location` keep the cell centre, up to half a cell).
+4. Restricting the replacement to pairs with a cut cell should make boards without an outline and outlines on the grid lines **bit-identical**; this restriction is a design step that the prototype does not have (it applies the formula everywhere, which equals the program's to rounding, 1e-8 K, and is what the tests of the folder check), so the bit-identity is **not yet measured** and the first test of the implementation.
+5. Not changed: the exact cover is **not** part of this change (it is a separate, smaller item: `Board.cover` by clipping, about 15 lines in `geometry.py`; it fixes the 45 degree artefact of -0.85 K at `h_side` 10 and cuts the turn spread at the default coefficient from 1.5 to 0.35 K at 1 mm, README 11.3; it moves the same records and needs `analysis.py`'s masks, which test the sampled cover against 0.01, to read the network's cover instead); the edge conduction of the strip (`links+strip`, README 11.6 item 5); the FDM and the 3D solid.
+
+### Acceptance tests (numbers)
+
+1. A rectangle without an outline and an outline on the grid lines: fields **bit-identical** to the program (the prototype's test: matrix equal to 1e-9 and temperatures to 1e-8 K; equality to the bit needs item 4 above and is the first test to write).
+2. 20 mm square, 2 W in a 3 mm part, `h_side` 2000, 1 mm cells, the part fixed on a cell centre, the outline moved by k/8 of a cell: spread of the hottest point **at most 0.5 K** (program 2.8 K, `links` 0.34 K, maximum 0.43 K on the three boards of README 11.2); at `h_side` 100 at most 0.2 K (program 0.80 K, `links` 0.11 K); turned 0 to 45 degrees at 2000: at most 0.5 K (program 1.7 K, `links` 0.29 K).
+3. Round board of 40 mm against the axisymmetric reduction of the layered model, 1 mm, `h_side` 1000: peak error **at most +0.3 % of the rise** (program +0.69 %, `links` +0.22 %), rim loss within 0.25 % (program -0.27 %, `links` +0.17 %).
+4. Heat balance of every case 1e-9 or better (measured 1e-13); K symmetric, diagonal positive; the largest link at most 2 times a whole pair (measured 1.33 to 1.79 for covers 1/2 to 1/64).
+5. SOR equals the direct solve to 1e-6 of the maximum on a turned square with vias; sweeps not more than 5 % above the program's (measured 127 to 130 against 130 to 148); CG iterations not more than 20 % above (measured 0 to 15 %).
+6. Transient: the slowest time constant and the capacities unchanged to 1e-4 (measured 6.6e-5, `scripts/study_cutcell_capacity.py`); the implicit step response within 1 % (test of the folder).
+7. Frozen numbers: the pending file lists exactly the FVM records of `round_outline`, `example_cut_to_T` and `part_across_outline` (and their times to 63 %); every other record equal; `make_pending.py` and the refreeze at the release.
+8. The whole battery, `docs/validation.md` 13 and 23 re-run and quoted, `docs/theory.md` 1.3 and the FVM section (with Figures 9, 10 and 15) rewritten, `docs/versions.md`.
+
+### What would change the recommendation
+
+* A study of the fill of a cut cell with the outline (copper edge across a cut cell, laminate nodes at the edge) that shows `links` no worse than the program there, or a fix of the sheet used in the link (`S / cover` for a partly covered cell with fill): README 11.5.
+* The maintainer wanting the edge conduction (`links+strip`) in the same change: it makes the shift spread 0.03 to 0.1 K and lands nearest the fine value at 0.5 mm but moves every board with a typed `h_side` unless the rectangle without an outline gets the same strip; that is a decision about the edge of every board, not about cut cells.
+
+## The earlier proposal for the 3D solid (sections 2 to 6 of the README)
+
+(Only the 3D solid; kept as written.) 
+
+### What changes in the program, if P1 is adopted
 
 Only `pcbthermal/solid3d.py`, only for a board with an outline (`Board.has_outline()`); the rectangular branches (no outline) are untouched and give bit-identical results (README 6).
 
@@ -34,7 +73,7 @@ What changes for the user: results of the 3D solid on a board with an outline th
 
 ## Risks and what to check before adopting
 
-* The scheme is a standard cut-cell finite-volume idea written from scratch; no source was opened for it when it was written (README 11; the reading done for the layered FVM, section 10, is in `research/theory/BIBLIOGRAPHY.md`). Its energy balance is exact (checked on a turned square to 1e-9) and it reproduces an independent axisymmetric reference on a round board, but patterned copper, vias and metal blocks on the outline were only run in the regression (no independent reference).
+* The scheme is a standard cut-cell finite-volume idea written from scratch; no source was opened for it when it was written (README 12; the reading done for the layered FVM, section 10, is in `research/theory/BIBLIOGRAPHY.md`). Its energy balance is exact (checked on a turned square to 1e-9) and it reproduces an independent axisymmetric reference on a round board, but patterned copper, vias and metal blocks on the outline were only run in the regression (no independent reference).
 * The T board at the default coefficient moves by +0.2 K. *Review*: the cause is not the edge term but a part that crosses the outline (P0 below); with the power of the part on the board part of each cell the program and the copy agree on the T.
 * The 45 degree turn keeps +0.5 to +0.7 K at 40 to 80 cells per side; *review*: part of it is the 3D solid's 4 x 4 sampling of the footprint of a part (README 9.3), the rest (+0.44 / +0.18 K at 80 / 160 cells per side against the continuum value, README 9.2) is the board turn and stays with P1.
 * A change of the 3D solid changes the numbers of `docs/validation.md` for the outline cases and of the tests that compare the 3D solid with the other models on an outline; the whole battery has to run.

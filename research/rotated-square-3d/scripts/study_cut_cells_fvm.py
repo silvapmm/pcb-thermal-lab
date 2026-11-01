@@ -40,7 +40,7 @@ from outline_rectangle_study import outlines   # noqa: E402
 from pcbthermal import Problem, fvm            # noqa: E402
 from pcbthermal.examples import example_board  # noqa: E402
 
-SCHEMES = ("program", "aperture", "links", "links+strip")
+SCHEMES = ("program", "program@exact", "links", "links@exact", "links+strip", "links+strip@exact")
 
 
 def rect_board(s_mm, h_side=0.0):

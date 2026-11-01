@@ -37,7 +37,7 @@ import cutcell                    # noqa: E402
 import rotsq                      # noqa: E402
 from pcbthermal import Problem, fvm   # noqa: E402
 
-SCHEMES = ("program", "aperture", "links", "links@floor", "links+strip")
+SCHEMES = ("program", "program@exact", "aperture", "links", "links@exact", "links+strip")
 OUT = os.path.join(os.path.dirname(HERE), "out")
 
 
@@ -116,7 +116,7 @@ def reference(kw, cell):
     @param cell The coarse cell in mm.
     @return (reference, uncertainty): the mean of the program and links at the fine cell, and their difference (K).
     """
-    fine = cell / 8.0
+    fine = cell / 8.0 if cell >= 1.0 else cell / 4.0
     a = fc.tmax(edge_board(**kw), fine, "program")
     b = fc.tmax(edge_board(**kw), fine, "links")
     return 0.5 * (a + b), abs(a - b)

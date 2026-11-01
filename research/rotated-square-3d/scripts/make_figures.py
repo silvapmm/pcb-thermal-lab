@@ -214,6 +214,41 @@ def fig_fvm_cut_cells():
     plt.close(fig)
 
 
+def fig_sweep():
+    """!
+    @brief Figure 16: the error of the hottest point of the layered FVM against the fine-cell value of the same board while the outline of a 20 mm square moves over one cell (left) and turns (right), program against cut-cell links, at three edge coefficients (1 mm cells).
+    @return None.
+    """
+    import json
+    path = HERE.parent / "out" / "cutsweep_square.json"
+    if not path.exists():
+        return
+    d = json.load(open(path))
+    cols = {"program": "#d62728", "program@exact": "#ff7f0e", "aperture": "#9467bd", "links": "#2ca02c", "links@exact": "#1f77b4", "links+strip": "#8c564b"}
+    fig, axs = plt.subplots(2, 3, figsize=(12.5, 6.4))
+    for c, hs in enumerate((10, 100, 2000)):
+        res = d.get(f"square off 0 h {hs}|1")
+        if res is None:
+            continue
+        for s, r in res["res"].items():
+            e = r["shift_values"]
+            axs[0, c].plot([k / len(e) for k in range(len(e))], [v - e[0] for v in e], "o-", ms=3, color=cols[s], label=s)
+            t = r["turn_values"]
+            axs[1, c].plot([5 * k for k in range(len(t))], [v - t[0] for v in t], "o-", ms=3, color=cols[s], label=s)
+        axs[0, c].set_title(f"h_side {hs} W/m2K: outline moved over a cell", fontsize=9)
+        axs[1, c].set_title(f"h_side {hs} W/m2K: outline turned", fontsize=9)
+        axs[0, c].set_xlabel("shift (cells, both axes)")
+        axs[1, c].set_xlabel("turn (degrees)")
+        for r_ in (0, 1):
+            axs[r_, c].set_ylabel("error change (K)")
+            axs[r_, c].grid(alpha=0.3)
+    axs[0, 0].legend(fontsize=7)
+    fig.suptitle("Layered FVM at 1 mm: the part stays on the grid, the 20 mm board moves (the read-out bias of the cell-centred peak is subtracted)", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "fig_16_cut_cell_sweep.png", dpi=105)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     fig_fvm_cut_cells()
@@ -222,3 +257,4 @@ if __name__ == "__main__":
     fig_disc()
     fig_conductance()
     fig_square_reference()
+    fig_sweep()
