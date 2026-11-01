@@ -1,6 +1,6 @@
 # Paper case studies: measured vias and the thick anisotropic laminate
 
-Status: **planned and written, not run; reviewed before the runs (section 9: go to run, with the corrections made there).** This folder holds two studies, their independent references, their tests and their drawings, prepared while the 2.5.0 work was closing; the runs wait for a quiet machine. What exists below as a number was computed by a closed form or a unit test in seconds (marked "closed form" or "test"); no study script has been run, and every verdict in section 3 is written before any result exists.
+Status: **run, waiting for the reviewer (sections 11 to 14 hold the results of the runs; sections 3 to 9 are the plan and the pre-run review, kept as written).** Three studies, their independent references, tests and drawings: S1 measured vias (parts A to D run), S2 thick anisotropic laminate (L1 first failed, then was settled by a convergence study, then the program part was run), S3 the vertical plate with two strip sources of Lee and Yovanovich (1989) against the measurements of Zinnes (1969). Nothing of `pcbthermal/` is edited; the proposals are in `INTEGRATION.md`.
 
 The two studies are the ones of `research/theory-sources/PLAN-PAPER-STUDIES.md` that compare the program with a **measurement** (S1 here, B2 there) and with a **published closed form on a thick anisotropic laminate** (S2 here, A2 there). The numbers S1 and S2 follow the request that opened this folder; the plan numbers them the other way round.
 
@@ -150,15 +150,6 @@ Run order for the executor, from the repository root (nothing has been run), one
 * Equation 50 evaluated by a truncated double series (2000 terms each way, no tail extrapolation). The 0.461 of the half-space test is the finite channel (the published correlation gives 0.4608 there), not truncation; for the smallest source of the study 2000 and 4000 terms differ by under 1e-6 relative (review). The study prints that dependence (L1.0) before L1 is judged.
 * The 3D reference is a finite-volume solver with a uniform pixel in plane: a source of 2 mm is 16 pixels wide, a pixel of 0.125 mm; its refinement is part of L1.
 
-## 8. What was read and what was not verified
-
-* **Read in full (R)**: Soleymani Koohbanani (2016) thesis pages 56 to 64 (text from the extraction; equations 20 to 29 from the page images; Table 9 and Table 10 as printed; Fig. 33 rendered at 2x and 4x and read by pixel centroid, "plot"); Shen and others (2020) section IV text, Table II and Figs. 23 to 25 (images), Table I and the equations 2 to 5, 37 to 42 (text conversion); Muzychka, Yovanovich and Culham (2004) pages 49 and 50 (equations 37 to 58, equations 50 and 51 from the page image).
-* **Read in part (S)**: the rest of the Soleymani thesis (chapter 3 literature review pages 54 to 56 and the numerical-study text of pages 61 and 62 only; the guarded heat-flux-meter chapter and its uncertainty analysis are not read); Shen section II to III (the formulas relied on are those quoted in `research/lumped-zones-adoption` and `research/theory-sources` 8.1).
-* **Read by the review (page images)**: Shen pages 14 to 17 (Figs. 18, 20 and 22 with equations 40 to 42; Table II re-checked), Soleymani pages 59, 60 and 63 (equations 28 and 29, Table 9, Fig. 33) and the text of pages 56 to 62, Muzychka and others page 50 (equations 50 and 51), Yovanovich, Muzychka and Culham (1999) pages 498 and 499 (equations 19 and 20, the deep-channel series and its correlation with the half-space constant 0.47320).
-* **Not obtained or not read**: Shen Fig. 16(b) (not needed); the photograph Fig. 21(b); Fig. 28 of the thesis as an image; the measurements of Soleymani in any form other than the plot.
-* **Reproduced**: nothing yet by a study. Reproduced by tests: equations 28/29 by the unit-cell solver (1e-9); the printed exponential form of equation 51 against the code; the half-space limit of equation 50 within its finite-box reading (0.461 against 0.4732); Table II's ambient (25 degC) from its own numbers.
-* **Not verified**: every verdict of section 3; the program side of S1 and S2 (no program model has been run on these boards beyond the review's trials at coarse cells: the bare two-layer board is accepted by all five models, the patch of sample 1 runs at a 0.625 mm cell); the cost figures of 4.5 are estimates from similar runs of the earlier folders and the unknown counts, not measurements.
-
 ## 9. Review before the runs
 
 Reviewer's pre-run check of the prepared folder (nothing heavy run; closed forms, the unit-cell solver, a coarse trial of the program and the fast tests only). **Go to run, in the order of section 6**, with the corrections below already made in the scripts, tests and this README.
@@ -223,6 +214,182 @@ The error grows with the thickness for the smallest source (0.57 / 1.05 / 2.53 %
 
 L1 took 66 s wall, peak resident memory 1.77 GB (the declared peak was under 1 GB and the cost about 5 min: both were wrong by the measurement, time 4 times shorter and memory 1.8 times higher). The stated cost in 4.5 should be corrected before the convergence run (the convergence step at 460 000 unknowns will exceed the declared 3 GB if memory scales the same way; expect about 6 GB and run it alone).
 
-### 10.5 What waits
+### 10.5 What waited
 
-S2 `--convergence`, S1 C (`--quick` then full), S2 program part and S1 D wait for a quiet machine. The decision on S2 is in the hands of the maintainer: either the convergence run decides whether the reference is at fault, or S2 is closed as "L1 failed at pixel S/16".
+S2 `--convergence`, S1 C, the S2 program part and S1 D waited for a quiet machine; they were run afterwards and their results are sections 11 and 12 (the S2 convergence settled that the reference, not equation 50, was at fault).
+
+## 11. S2 after the convergence study: who was wrong in the failed reference check
+
+Run alone, one job at a time (`study_thick_laminate.py --no-program --convergence`, and a heavy single refinement outside the script). Outputs `out/run_L1b.txt`, `out/run_S2full.txt`.
+
+### 11.1 The failed check was the discretisation of the reference
+
+Section 10.3 left open whether the 3D reference, equation 50 or the transcription was wrong. The reference is a finite-volume solver with a uniform pixel in plane and `n_sub` equal sub-slabs of the laminate. Its error was measured on the smallest source (S = 2 mm on 20 mm, FR-4 0.9 / 0.3, h = 1e6), R' in K/W, equation 50 given in the first line of each block (closed form, 2000 terms):
+
+| t = 1.6 mm, eq. 50 = 380.786 | n_sub 4 | 8 | 16 | 32 | 64 |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| pixel S/6 | 420.546 | 400.243 | 394.220 | 392.604 | 392.192 |
+| pixel S/8 | 415.872 | 396.057 | 390.077 | 388.443 | 388.021 |
+| pixel S/12 | 411.721 | 392.514 | 386.687 | 385.065 | |
+| pixel S/16 | 409.987 | 391.053 | 385.333 | | |
+
+| t = 3.2 mm, eq. 50 = 418.178 | n_sub 4 | 8 | 16 | 32 | 64 |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| pixel S/6 | 522.417 | 459.712 | 438.232 | 431.853 | 430.140 |
+| pixel S/8 | 516.037 | 454.956 | 433.991 | 427.662 | 425.931 |
+| pixel S/12 | 510.431 | 450.738 | 430.402 | 424.236 | |
+| pixel S/16 | 508.168 | 448.979 | 428.923 | | |
+
+Two more runs outside the table (a one-off, alone; 460 000 unknowns, **8.2 GB resident, not the 3 GB declared in 4.5**; swap rose by 1 GB): pixel S/32 with 16 sub-slabs gave 383.851 (t = 1.6 mm, +0.805 % against equation 50) and 427.289 (t = 3.2 mm, +2.179 %); pixel S/16 with 32 sub-slabs gave 383.735 (+0.775 %) and 422.868 (+1.122 %). Both refinements move the answer towards equation 50, never away.
+
+* **Sub-slabs: the error falls as 1/n^2.** At pixel S/8, t = 1.6 mm, the successive differences are 19.82, 5.98, 1.63 and 0.42 K (n = 4 to 64): ratios 3.3, 3.7, 3.9, towards 4. A Richardson step with n = 16 and 32 removes it.
+* **Pixel: slow, about first order** (a flux jump at the source edge in a cell-averaged source): 390.08 -> 385.33 -> 383.85 at S/8, S/16, S/32 (n_sub 16), the slope in 1/pixel falling from 80 to 48 per unit.
+* **Extrapolated reference** (`reference_3d_extrap`: Richardson in n_sub with 16 and 32, then a quadratic in 1/pixels through S/6, S/8, S/12; at most 130 000 unknowns, about 2 GB): 380.166 against 380.786 (-0.16 %) at t = 1.6 mm and 417.846 against 418.178 (-0.08 %) at t = 3.2 mm. The extrapolation is a model of the error (a quadratic in 1/pixels), so it carries its own uncertainty, which the next paragraph measures against equation 50 and not against itself.
+
+![Convergence of the 3D reference](figures/fig_07_reference_convergence.png)
+
+*Figure 07 (`fig_07_reference_convergence.png`). The 3D reference against equation 50 (percent of R') as a function of the number of sub-slabs, for four pixel sizes, with the extrapolated value (dashed). Symlog scale. Computed by `make_figures.py`.*
+
+### 11.2 L1 again, on the 33 combinations
+
+Against equation 50, in percent of R': the single grid S/16 / 16 sub-slabs (section 10.3) was +0.48 to +2.57 % (mean +1.07), 20 of 33 within 1 %; the **extrapolated reference is -1.15 to -0.07 % (mean -0.32), 32 of 33 within 1 %**; the exception is S = 10 mm on 40 mm, t = 0.8 mm (-0.88 % at h = 1e3, **-1.15 %** at h = 1e6), where the coarse pixels S/6 to S/12 leave only 12 to 24 cells across the quarter, so the extrapolation is least reliable. The sign is negative on all 33 (the extrapolated value sits slightly below equation 50; the typical 0.1 to 0.35 % is the extrapolation, the quadratic in 1/pixels slightly overshooting).
+
+**Verdict.** L1 *as written* (the single grid within 1 %, refinement within 0.5 %) **failed**, and the criterion is **changed after the result**: L1' is "the extrapolated reference within 1 % on all 33 combinations". L1' passes on 32 of 33 (worst -1.15 %). The conclusion about who was wrong: **the 3D reference at one pixel and sixteen sub-slabs was not converged (1 to 2.6 % high, the sign of both errors); equation 50 and its transcription (page image, normalisation) are right** (the independent solver reproduces them to 0.07 to 1.15 % at the extrapolated limit, and the published deep-channel correlation to 0.003 % before). The earlier laminate-nodes reference (`research/laminate-nodes`) used similar single grids: its absolute errors (-18.44 to -3.07 %, -34.19 to -9.13 %) were obtained against a resolved reference that was not extrapolated in n_sub either; its sign and ordering agree with section 11.3, its numbers were not re-run here.
+
+### 11.3 The program against the extrapolated reference (L2 to L4)
+
+`study_thick_laminate.py` (default, no `--no-program`), bare and pad boards, 33 combinations each; errors are the program's R' against the extrapolated 3D reference, in percent (negative: the program is too cool). Cost of the whole run about 19 minutes, one process, 3.2 GB resident observed (the declared 3 GB held, within 7 %); the memory guard **refused 12 runs** (the pair (0.1, 16) on the 40 mm board at 0.25 mm: 435 200 unknowns, 10.4 to 11.3 GB estimated, more than the 10.3 GB allowed), printed in the table and left out of the ranges below.
+
+FVM at the 0.25 mm cell, FR-4 (0.9, 0.3), per source S and thickness t, range over the three films (percent):
+
+| S (mm), t (mm) | bare: default (0.4, 4) | bare: (0.2, 8) | bare: (0.1, 16) | pad: default | pad: (0.2, 8) | pad: (0.1, 16) |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 2, 0.8 | -7.9 / -4.1 | -2.2 / -0.8 | 0.0 / 0.6 | -10.6 / -6.1 | -2.7 / -1.1 | 1.7 / 1.9 |
+| 2, 1.6 | -6.7 / -5.6 | -1.6 / -1.2 | 0.5 / 0.6 | -9.3 / -7.8 | -2.2 / -1.7 | 1.7 / 1.7 |
+| 2, 3.2 | -16.6 / -16.3 | -6.3 / -6.1 | -1.5 / -1.4 | -19.8 / -19.3 | -9.0 / -8.8 | -2.5 / -2.4 |
+| 5, 0.8 | -3.7 / -1.1 | -1.6 / -0.1 | -0.8 / 0.2 | -6.0 / -3.6 | -1.8 / -0.5 | 0.4 / 1.2 |
+| 5, 1.6 | -2.5 / -1.5 | -0.7 / -0.2 | 0.0 / 0.2 | -4.9 / -3.9 | -1.1 / -0.6 | 0.9 / 1.1 |
+| 5, 3.2 | -5.9 / -5.5 | -1.8 / -1.7 | -0.3 / -0.3 | -10.1 / -9.8 | -4.1 / -4.0 | -0.9 / -0.8 |
+| 10, 0.8 | -2.0 / -0.3 | -1.0 / 0.0 | -0.6 / 0.1 | -4.0 / -2.0 | -1.7 / -0.4 | -0.5 / 0.5 |
+| 10, 1.6 | -1.2 / -0.3 | -0.4 / 0.0 | refused | -3.1 / -2.1 | -0.9 / -0.4 | refused |
+| 10, 3.2 | -2.5 / -1.7 | -0.7 / -0.4 | refused | -6.3 / -5.3 | -2.5 / -2.1 | refused |
+
+Other FR-4 ratios (S = 5 mm, h = 1e3, default rule): bare (0.3, 0.3) -1.2 / -0.9 / -2.6 and (2.7, 0.3) -5.3 / -4.8 / -11.1 at t = 0.8 / 1.6 / 3.2 mm; pad -2.9 / -2.7 / -6.8 and -7.9 / -7.2 / -13.8.
+
+![The error of the laminate rule](figures/fig_06_laminate_error_map.png)
+
+*Figure 06 (`fig_06_laminate_error_map.png`). R' error of the FVM at 0.25 mm against the extrapolated 3D reference, per source size S and thickness t, for the four option pairs, bare and pad boards (h = 1e3). Computed by `make_figures.py` from `out/study_thick_laminate.json`.*
+
+Verdicts (criteria of section 3):
+
+* **L2 fails.** The default rule (0.4 mm, 4) is within 5 % for t = 1.6 and 3.2 mm, S >= 5 mm, FR-4 (0.9, 0.3) on the bare board at t = 1.6 mm and at S = 10 mm for 3.2 mm, not at S = 5 mm, t = 3.2 mm (-5.9 %, 0.9 point out) and not on the pad board (-10.1 %); within 10 % everywhere fails (bare -16.6 %, pad -19.8 %, S = 2 mm at 3.2 mm). The 0.5 mm cell adds little (bare -14 / -5 / -2 %, pad -18 / -9 / -5 % at t = 3.2 mm for S = 2 / 5 / 10 mm): the error is the laminate rule, not the plan grid. Turning the cutting off (0.4, 1) makes it several times larger (bare up to -52.5 %, pad up to -53.7 %).
+* **L3: no pair satisfies both clauses.** (0.1, 16) brings every row that ran within 3 % (bare -1.5 to +0.6 %, pad -2.5 to +1.9 %), but it needs 3.0 to 3.4 times the node layers of the default (the counts of the rule, 17 against 5 at 1.6 mm; not measured) and the memory guard refuses it on the 40 mm board. (0.2, 8) costs 1.7 to 1.8 times the node layers and brings the worst row from -16.6 to -6.3 % (bare) and from -19.8 to -9.0 % (pad), but does not reach 3 % where the source is small and the board thick. The pair is a decision of the maintainer; the table gives the cost and the benefit of each; the default is within about 4 % (bare) and 6 % (pad) for sources of 5 mm and above on boards up to 1.6 mm (bare -3.7 to -0.3 %, pad -6.0 to -2.0 %; 2 mm sources are 4 to 11 % too cool), the text of the limit is in `docs/validation-rows.md`.
+* **L4**: solid3d at 0.25 mm is **too hot** as the board thickens: bare -1.3 to +20.0 % (S = 2 mm: +0.4 / +5.5 / +20.0 % at t = 0.8 / 1.6 / 3.2 mm), pad +6.9 to +27.4 %; at the 0.5 mm cell on the 40 mm board -0.3 to +2.4 % (bare) and +3.5 to +8.4 % (pad). **Not within 3 %** (not decisive; this is the solid model's own slab discretisation of the laminate, not studied here). Analytic: bare -56 to -1.5 %, pad -86 to -44 % (beyond 15 %; the Analytic spreads a pad's copper uniformly, a known limit). Lumped: bare -52 to +1.3 %, pad -44 to +8.9 %. **FDM** at 0.25 mm: bare -18.7 to -0.4 %, pad -31.4 to -7.3 % (below the FVM on the pad by 10 to 20 points: the FDM reads the part at its nodes on a pad edge, the open item "FDM pad-edge sampling" of the older folders; not decisive here).
+
+Not established: the cost of the rule options in time and memory (counts of node layers only); the temperature-dependent convection (h is a film, constant); a pad of a different size from the source; the effect on boards whose gaps are thinner than 0.8 mm.
+
+## 12. S1 measured vias: parts C and D
+
+### 12.1 Part C, the program on the periodic patch (full run)
+
+Outputs `out/run_C_full.txt`, 6 x 6 cells, foil 35 um on both faces, bottom h = 1e6, nine samples, five models at two or three grids (one process). R_ref is the unit-cell solver with the same flux condition on the face (`layer_mean` of the program). Error of the program against it, percent (finest grid):
+
+| Sample | fvm | fdm | solid3d | analytic | lumped |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| straight 2.5, sample 1 | 1.0 | 1.0 (1.8) | 1.3 | 11.5 | 9.5 |
+| straight 2.5, sample 2 | 0.9 | 0.9 (1.3) | 1.2 | 10.4 | 8.5 |
+| straight 2.5, sample 3 | 0.8 (1.8) | 0.8 | 1.1 | 8.3 | 6.7 |
+| staggered 2.5, sample 4 | 1.2 | 1.3 (2.2) | 1.6 | 13.1 | 8.2 |
+| staggered 2.5, sample 5 | 1.2 | 1.1 (1.6) | 1.4 | 12.0 | 7.4 |
+| staggered 2.5, sample 6 | 1.0 (2.2) | 1.0 (0.7) | 1.3 | 9.7 | 6.0 |
+| straight 1.25, sample 7 | 0.8 | 0.8 | 1.2 | 12.0 | 6.6 |
+| straight 1.0, sample 8 | 0.6 | 0.6 | 1.0 | 9.4 | 5.0 |
+| straight 1.0, sample 9 | 0.5 | 0.5 | 1.0 | 8.2 | 4.1 |
+
+The number in parentheses is the error at the coarsest grid where it differs by more than 0.3 point (the grids are in `out/run_C_full.txt`).
+
+* **C1 passes for fvm, fdm and solid3d**: 0.4 to 2.2 % against the 5 % and 8 % thresholds, the error at the finest grid not larger than at the coarsest by more than the point allowed (it falls: fvm sample 6 from 2.2 to 1.0 % between 0.312 and 0.156 mm; sample 3 from 1.8 to 0.8 %). This is a **good** result for the via rule of `docs/theory.md` 2.6: against an independent axisymmetric solver the footprint-and-well treatment is within about 1 % of the resistance at the pitch / 8 to pitch / 16 cell on all nine samples, with the foil and the flux condition.
+* **C1 for the Analytic is "attention"** (threshold 10 %; it is above 10 % on samples 1, 2, 4, 5 and 7 (10.4 to 13.1 %), below it on 3, 6, 8 and 9, never above twice): the Analytic reads the via array **8 to 13 % too resistive** (too hot), on the safe side. **Lumped 4 to 9.5 %** too resistive (alarm 25 % not reached).
+* **C2 (derived)**: translating the program's values to the test bed by the solver's own ratio of node resistances (`k_translated`) gives, for the usable groups, the measurement inside the range spanned by the samples of the group in all three: straight 2.5 mm (measured 2.50; translated 2.78 / 2.40 / 1.82 for the three diameters), staggered 2.5 mm (measured 4.30; 5.22 / 4.44 / 3.29) and straight 1.0 mm (measured 12.9; 13.23 / 9.61). The straight 1.25 mm group is the one that was found not usable (B2, 10.1 W/mK against a measured 7.0, +44 %). The row means that **the program reproduces equations 28 and 29 of the thesis to the accuracy of the unit-cell solver, and that those equations bracket three of the four plotted measurements**, not that the program was validated against the measurement to 5 %: the thesis does not give which diameter each marker is.
+
+Fig. 28 of the thesis (page 72 of the PDF, read as an image in this pass): the square unit cell has a quarter via at each corner (one via per cell) and the staggered unit cell adds one full via at its centre (two vias per v x v cell), as the patch of part C was built.
+
+![Part C](figures/fig_05_via_models_against_reference.png)
+
+*Figure 05 (`fig_05_via_models_against_reference.png`). Error of every model against the unit-cell solver (same boundary condition) per sample of Table 9, finest grid of the model. Computed by `make_figures.py`.*
+
+### 12.2 Part D, Shen's Table II (report only; D1 fails as expected)
+
+(One process, 34 seconds; `out/run_D.txt`.) The program (fvm, fdm) and the independent reference (`shen_case.unit_cell`) agree with each other within a few percent on the via-resistance contrasts (for example air minus solder, Pattern I, phi 0.2, array side 3.0 mm: reference 0.823, fvm 0.775, fdm 0.775 degC/W; the fvm contrasts are 0.90 to 0.95 of the reference's). The prediction of the contrast of psi_ta through the exact network, as a fraction of the measured contrast (theta_ta = 300 / 370 / 450 degC/W, plot values of Fig. 20):
+
+| Contrast (fvm, predicted / measured, over theta_ta 300 / 370 / 450 and phi) | array 3.0 mm | array 5.0 mm | array 5.6 mm |
+| :-- | :-- | :-- | :-- |
+| air - solder, Pattern I, phi 0.2 to 0.8 | 0.25 to 0.67 | 0.08 to 0.24 | 0.07 to 0.24 |
+| Pattern I - Pattern II, phi 0.2 to 0.4 | 0.61 to 1.73 | 0.17 to 0.26 | 0.16 to 0.29 |
+| Pattern I - Pattern II, phi 0.8 | -0.04 | 0.00 | 0.47 to 0.52 |
+
+**D1 fails** on the whole sweep (the criterion asked for a factor 2 for every theta_ta and every array side: the solder contrast is predicted at 0.07 to 0.67 of the measurement; the sign of every contrast >= 0.4 degC/W is right except the Pattern I - II at phi 0.8, a measured 0.6 against a predicted of -0.04 to 0.00 in the 3.0 and 5.0 mm arrays); the paper's own CFD (Fig. 18, plot) is 2.2 to 6.3 times smaller than the measurement too, so Table II is **not informative at this level**: it is not quoted in `validation.md`, and is not evidence against the via rule (the program equals the reference; both equal the CFD of the paper). The array extent and the heatsink are the unknowns; the study cannot separate them.
+
+## 13. S3 vertical plate with two strip sources (Lee and Yovanovich 1989, Zinnes 1969)
+
+### 13.1 What the paper gives (read from the page images, pp 262 to 266)
+
+Two identical strip sources flush on a thin vertical plate (Fig. 4): height L = 96.52 mm, half thickness t = 1.143 mm (plate 2.286 mm), strip l = 5.08 mm centred at L/4 and 3L/4 (the peaks of Figs. 5 and 6 lie at 0.25 to 0.27 and 0.75 to 0.77 of L), heat flux entering the front face under a strip **q_p = 3875 W/m2** (p 265), k_s 1.032 W/mK for the glass plate with emissivity 0.387 and 28.38 W/mK for the ceramic plate with 0.366, air at 298 K (nu 15.614e-6 m2/s, k 0.0258 W/mK, Pr 0.72), surroundings 298 K. The model solves the half plate (symmetry): "Q_p represents only half of the original total heat generation" (p 264), **so q_p is the flux of one face of the strip**, which settles the open point of the review: each face carries q_p, the whole plate 2 q_p l per strip. Energy check: the average face flux is 3875 x 2 x 5.08 / 96.52 = 408 W/m2 (a mean excess of 45 K needs a total coefficient of 9 W/m2K, which the solver's own solution gives, 9.4 and 9.2; the paper does not print h). The solid side is the one-dimensional conduction along the plate (the Biot number is 0.016 at most, equation 14); the fluid side of the paper is an integral method of Lee (1988) (not obtained); the measurements of Zinnes (thermocouples and an interferometer) are in Figs. 5 and 6 as plots only.
+
+### 13.2 The independent solver and the reproduction of the paper (part R)
+
+`lib/vertical_plate.py` (NumPy and SciPy only): the one-dimensional plate along z with the radiation `eps sigma (T^4 - T_inf^4)` and, as the fluid side, the **boundary layer equations (1) to (3) of the paper solved by a marching finite-difference scheme from the leading edge** (the first version with an inner iteration per station converged to a spurious thin-layer state at 5 to 9 times the Nusselt number and was replaced by lagged coefficients, Patankar-Spalding, with a geometric pre-march from the leading edge), coupled by the paper's iteration (h_i = q / (T_w - T_f)). Tests (4 passed): against the exact similarity solution of the isothermal plate (shooting solver in the test: -theta'(0) = 0.50463 at Pr 0.72, the textbook g(Pr) = 0.5043) the local Nusselt number is within 3.7 % from z = 10 mm, 1.05 % at z = 50 mm and 0.3 % at the top (the error falls like 1/z: it is the first-order marching in the first millimetres, at strip 1, z = 24 mm, the local Nusselt number is 0.9 to 2.0 % high and at strip 2, z = 72 mm, 0.4 to 0.6 %); the solid with a uniform coefficient equals the closed form of the fin pair; the heat balance closes to 1e-4 and the solver imports nothing of the program.
+
+Against the curves of the paper's own model (read from Figs. 5 and 6, **plot**, +-2 K) and Zinnes' thermocouple points (**plot**), rise above ambient in K:
+
+| Plate, emissivity | peak 1 (solver / paper) | peak 2 | valley (z/L 0.5) | left end | heat in / out (W/m) |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| glass, 0 | 92.0 / 91.0 (+1.1 %) | 102.6 / 98.0 (+4.7 %) | 45.4 / 44.0 (+3.1 %) | 19.8 / 20.0 (-1.1 %) | 40.70 / 40.70 |
+| glass, 0.387 | 77.9 / 75.0 (+3.8 %) | 83.1 / 89.0 (-6.7 %) | 30.8 / 29.0 (+6.2 %) | 14.0 / 13.0 (+7.4 %) | 40.70 / 40.69 |
+| ceramic, 0 | 61.2 / 61.5 (-0.5 %) | 65.5 / 65.0 (+0.8 %) | 60.3 / 60.0 (+0.6 %) | 55.8 / 57.0 (-2.2 %) | 40.70 / 40.70 |
+| ceramic, 0.366 | 46.8 / 46.5 (+0.6 %) | 49.6 / 48.0 (+3.4 %) | 45.1 / 44.0 (+2.6 %) | 42.1 / 42.0 (+0.1 %) | 40.70 / 40.70 |
+
+Thermocouples of Zinnes (plot) against the solver: glass at z/L 0.11, 0.26, 0.51, 0.77: 22.6, 79.8, 33.1, 84.4 K measured against 23.6, 77.6, 30.6, 80.6 K; ceramic at 0.09, 0.24, 0.50, 0.75: 36.0, 42.0, 37.8, 42.7 K against 42.9, 46.6, 45.1, 49.6 K (the paper's own curve is also 4 to 8 K above these points on the ceramic).
+
+**R1 is met except the second peak of the glass plate with radiation** (-6.7 %, 5.9 K; the plot reading is +-2 K and the paper's ε = 0 second peak, +4.7 % the other way, makes a reading error alone unlikely); of the 16 values 13 are within 5 %; the other two outside are the glass valley and left end with radiation, +6.2 and +7.4 % (1.8 and 1.0 K, inside the plot reading). The solver therefore **reproduces the paper's own numerical results within the accuracy of the plot, with an independent fluid side**. Heat balance exact.
+
+![The vertical plate](figures/fig_08_vertical_plate_conjugate.png)
+
+*Figure 08 (`fig_08_vertical_plate_conjugate.png`). Wall temperature excess along the plate: the independent solver (lines), the values read from the paper's curves (open circles, plot), Zinnes' thermocouples (triangles, plot) and the strip mean of the program's FVM with computed coefficients (horizontal line: the program has one coefficient per face and the strips are alike). Computed by `make_figures.py`.*
+
+### 13.3 The program on the plate (part P)
+
+The plate is a board 96.52 x 20.32 mm (the problem is two-dimensional: strips across the whole width, sides adiabatic, `h_side` 0) of two layers and 2.286 mm, copper conductivity set to k_s and FR-4 in plane and through to k_s (a homogeneous plate), a heater of q_p l W on each face (the symmetric plate, so the conduction through the plate is solved instead of assumed), vertical, computed h (both natural forms), emissivity as printed, ambient 25 degC. Rises above ambient in K, strip 1 / strip 2 of the conjugate solution and the program's strip means (the program's two strips are alike by symmetry):
+
+| Plate | conjugate solution strip means | program h (computed: convection + radiation) | h implied by the conjugate solution | FVM 0.254 general (mean, max) | against the mean of the two strip means | plate maximum: solution / FVM |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| glass (1.032, 0.387) | 74.93 / 80.23 | 9.18 (6.28 + 2.90) | 9.39 (6.37 + 3.01) | 85.60, 88.45 | +10.3 % (+14.3 % against strip 1, +6.7 % against strip 2) | 83.06 / 88.39 (+6.4 %) |
+| ceramic (28.38, 0.366) | 46.63 / 49.51 | 9.05 (6.30 + 2.75) | 9.15 (6.39 + 2.76) | 47.04, 47.16 | -2.0 % (+0.9 / -5.0 %) | 49.64 / 47.16 (-5.0 %) |
+
+All five models, both cells and both natural forms agree with the FVM within 1.5 points on each plate (glass: fvm 85.49 to 85.60, fdm 85.49 to 85.87, solid3d 85.64 to 85.78, analytic 84.63 to 84.89, lumped 85.34 to 85.66; ceramic 47.0 to 47.4, Lumped the highest), so the model differences are small and **the difference from the conjugate solution is the uniform coefficient**. A diagnostic with the FVM and the uniform coefficient that the conjugate solution itself implies (total heat over the integral of the excess; manual h of 9.39 W/m2K) gives 84.28 K on the glass: **+8.6 % against the mean of the strips even with the same total coefficient**, the correlation (the program's 9.18 against 9.39 W/m2K, -2.2 %) adding +1.4 %. On the ceramic plate (nearly isothermal, the conduction along the plate evens out the temperature) the program is within the plot reading and the paper's measurements (47.0 K against Zinnes' 36 to 43 K, which the paper's own model also overestimates).
+
+Verdict P1: ceramic within 10 % ✓ (-2.0 % on the mean of the strips; each strip -5.0 to +0.9 %); glass within 20 % ✓ (+10.3 % on the mean, +14.3 % on the lower strip, **too hot**, the safe side). Reading: a plate that conducts poorly (k_s 1 W/mK, a peak of 83 K against a plate mean of 44 K) is read by the program with one mean coefficient, which makes the peaks 6 to 14 % too hot; with a good conductor it is within 5 %. The Lumped and the Analytic differ from the FVM by 1.1 points at most; the Lumped's plate maximum (90.6 K) is 2.2 K above the FVM's (88.4 K) at a place other than the strips (not examined). A board with copper planes is the ceramic case (an in-plane conductance of the order of k_s t = 28 W/mK x 2.3 mm or more), so this limit concerns thin, poorly conducting boards with concentrated sources; a proposal and its limit are in `INTEGRATION.md`.
+
+Not established: Zinnes' measurements are plots (the 4 to 8 K scatter on the ceramic is the same as the paper's); the transient or tilted cases of the paper are not studied; the horizontal-plate laws are untouched.
+
+## 14. Summary of the runs
+
+| Study | Result | Verdict |
+| :-- | :-- | :-- |
+| S1 A, B | closed form = solver to 1e-15 to 2e-13; the measured markers bracketed by equations 28/29 for three groups; the 1.25 mm group not usable (+43 %) | B1 passes, B2 three of four |
+| S1 C | fvm, fdm 0.4 to 2.2 %, solid3d 1.0 to 1.6 %, analytic 8.2 to 13.1 %, lumped 4.1 to 9.5 % against the unit-cell solver | C1 passes for fvm, fdm, solid3d; analytic attention (> 10 % on five samples) |
+| S1 D | contrasts of Table II 0.07 to 0.67 of the measured (solder), Pattern I - II 0 to 1.7 | D1 fails as expected; not informative |
+| S2 L1 | single grid 0.5 to 2.6 % high; extrapolated -1.15 to -0.07 % | L1 as written failed; L1' passes 32 of 33 (the reference was the problem, equation 50 is right) |
+| S2 L2 to L4 | default rule -0.3 to -19.8 % (worst S = 2 mm, 3.2 mm), (0.1, 16) within 2.5 % | L2 fails; L3 no pair meets both clauses; the decision is the maintainer's |
+| S3 R | solver within the plot reading of the paper's curves on 13 of 16 values | R1 met except the glass second peak |
+| S3 P | program 2 to 10 % hot on the strips of a poor conductor, within 5 % on a good one | P1 passes |
+
+## 15. What was read and what was not verified
+
+* **Read in full (R)**: Soleymani Koohbanani (2016) thesis pages 56 to 64 (text from the extraction; equations 20 to 29 from the page images; Table 9 and Table 10 as printed; Fig. 33 rendered at 2x and 4x and read by pixel centroid, "plot"); Shen and others (2020) section IV text, Table II and Figs. 23 to 25 (images), Table I and the equations 2 to 5, 37 to 42 (text conversion); Muzychka, Yovanovich and Culham (2004) pages 49 and 50 (equations 37 to 58, equations 50 and 51 from the page image).
+* **Read in part (S)**: the rest of the Soleymani thesis (chapter 3 literature review pages 54 to 56 and the numerical-study text of pages 61 and 62 only; the guarded heat-flux-meter chapter and its uncertainty analysis are not read); Shen section II to III (the formulas relied on are those quoted in `research/lumped-zones-adoption` and `research/theory-sources` 8.1).
+* **Read by the review (page images)**: Shen pages 14 to 17 (Figs. 18, 20 and 22 with equations 40 to 42; Table II re-checked), Soleymani pages 59, 60 and 63 (equations 28 and 29, Table 9, Fig. 33) and the text of pages 56 to 62, Muzychka and others page 50 (equations 50 and 51), Yovanovich, Muzychka and Culham (1999) pages 498 and 499 (equations 19 and 20, the deep-channel series and its correlation with the half-space constant 0.47320).
+* **Not obtained or not read**: Shen Fig. 16(b) (not needed); the photograph Fig. 21(b); Fig. 28 of the thesis as an image; the measurements of Soleymani in any form other than the plot.
+* **Reproduced**: by studies, with an independent solver: equations 28/29 (unit-cell solver, 1e-15 to 2e-13) and the program's models on the same patch (section 12.1); equation 50 of Muzychka and others (2004) by an extrapolated 3D reference (0.07 to 1.15 %, section 11); the numerical curves of Lee and Yovanovich (1989) Figs. 5 and 6 by an independent boundary-layer-plus-plate solver (within the plot reading, section 13.2), the similarity solution of the isothermal plate (0.3 % at the top). By tests: equations 28/29, the exponential form of equation 51, the half-space limit of equation 50 (0.461 against 0.4732), Table II's ambient.
+* **Not verified**: every verdict of section 3; the program side of S1 and S2 (no program model has been run on these boards beyond the review's trials at coarse cells: the bare two-layer board is accepted by all five models, the patch of sample 1 runs at a 0.625 mm cell); the cost figures of 4.5 are estimates from similar runs of the earlier folders and the unknown counts, not measurements.
+

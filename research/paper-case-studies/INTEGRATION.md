@@ -1,37 +1,43 @@
-# What could change in the program or the documents, depending on the results
+# What could change in the program or the documents, with the measured outcomes
 
-Nothing in `pcbthermal/`, `tests/`, `examples/`, `ico/` or the project documents is touched by this folder, and nothing has been run: **the measured impact of every proposal below is unknown until the studies run**. Each row says what the result would have to be (the criteria of README 3) and what follows. A change to the program is measured on a copy first and implemented only after the maintainer decides, on a `fix/` or `feature/` branch off `develop` with the whole battery.
+Nothing in `pcbthermal/`, `tests/`, `examples/`, `ico/` or the project documents is touched by this folder. The studies have run (README sections 10 to 14); each proposal below says what was measured and what it would cost. A change to the program is implemented only after the maintainer decides, on a `fix/` or `feature/` branch with the whole battery; the reviewer has not yet reviewed these results.
 
-## 1. S1, measured vias
+## 1. Proposals that touch the program
 
-| Outcome | Proposal | Branch and cost | Documents |
-| :-- | :-- | :-- | :-- |
-| B1 fails (the solver differs from the closed form) | none: a defect of this folder, fixed with a regression test and the comparison repeated | this branch | none |
-| B2 passes for a group and C1, C2 pass | a first row against a measurement in `docs/validation.md` (a table of the four arrangements: measured with its plot uncertainty, closed form, solver, five models, the boundary-condition ratio), with the limit "isothermal faces cannot be imposed; the translation uses the solver" | `docs/` | `validation.md` (new row), `theory.md` 2.6 (one sentence: checked against a measurement), bibliography status of [SoleymaniKoohbanani] |
-| B2 fails for the straight 1.25 mm group (expected from the arithmetic, README 5) | report the group as not usable and why (Table 9 diameters of sample 7 give 10.02 against a measured 7.0 and the thesis's own curve at about 8); no change | none | the row says "three of four groups" |
-| C1 fails for fvm and fdm on a sparse array (2.5 mm pitch) with the foil condition | the via footprint rule is the first suspect (`docs/theory.md` 2.6: 0.78 r_v target radius, footprint of cells at a cell of pitch/8); a `fix/` proposal only after the grid sweep shows the error does not fall with the grid; a note in the warning about a coarse cell otherwise | `fix/` or `docs/` | `theory.md` 2.6 limits |
-| C1 fails for analytic or lumped | recorded as the known limits of those models (earlier folders: +3 to +5 % and +9 to +11 %); no change | none | `validation.md` row |
-| C2 fails for every usable group with C1 passing | C2 is derived (B2 and C1 combined), so with C1 passing it can only fail where the measurement is far from equation 28/29 already: the thesis's samples (wall, foil, thickness not stated), not the program; a note, not a change | `docs/` | `validation.md` |
-| D1 passes (not expected: the paper's own CFD contrasts are 2.2 to 6.3 times smaller than the measured ones, README 2.2) | Table II rows (the contrasts) in `validation.md` with the sweep stated | `docs/` | `validation.md` |
-| D1 fails or the sweep changes the verdict (expected) | Table II is "not informative at this level"; not quoted; not evidence against the via rule | none | none |
+### 1.1 Laminate sub-gap rule for thin sources on thick boards (S2; decision for the maintainer)
 
-## 2. S2, thick anisotropic laminate
+* **Measured** (README 11.3, FVM at 0.25 mm against the extrapolated 3D reference, 33 combinations, bare and pad boards): the default rule (0.4 mm, 4 sub-gaps) is within about 4 % (bare) and 6 % (pad) for sources of 5 mm and above on boards up to 1.6 mm, and **too cool by 16.6 % (bare) and 19.8 % (pad) for a 2 mm source on a 3.2 mm board** (2 mm sources: 4 to 11 % too cool at 0.8 and 1.6 mm). The cell (0.5 against 0.25 mm) is not the cause.
+* **Options measured**: (0.2, 8) brings the worst rows to -6.3 % (bare) and -9.0 % (pad) at 1.7 to 1.8 times the node layers of the default; (0.1, 16) brings every row that ran within -2.5 to +1.9 % at 3.0 to 3.4 times the node layers, and the memory guard refuses it on the 40 mm board at 0.25 mm (435 200 unknowns, 10.4 to 11.3 GB estimated against 10.3 GB allowed). The cost in seconds and bytes was **not measured** (node-layer counts only).
+* **Proposal**: (a) keep the default and write the limit into `docs/theory.md` 1.4 and `docs/validation.md` 21.2 (error map of README 11.3); (b) if the maintainer wants the error removed for small sources, make `n_max` depend on the source size or the thickness (a rule per cell: the number of sub-gaps under a footprint that is small against the thickness), measured on a copy first; the frozen numbers move for every board with patterned copper and are refrozen in the same branch. No change is recommended on this evidence alone: the options exist in `SolverOptions` and Preferences already, and a user with a thin source on a thick board can choose them.
+* **Not affected**: the Lumped, the Analytic (their errors on these boards are far larger and are the known limits of the models) and the solid model (see 1.3).
 
-| Outcome | Proposal | Branch and cost | Documents |
-| :-- | :-- | :-- | :-- |
-| L1 fails | the 3D reference is not a reference: find whether it is the pixel, the slabs or the equation (the tests of the limits are in the folder); the earlier laminate-nodes numbers are then re-examined | this branch, then `research/laminate-nodes` | the laminate-nodes README, `validation.md` 21.2 |
-| L1 passes, L2 passes | the rule stays; theory 1.4 gets the published check (equation 50 against the reference, to the printed agreement) and the limit text of the thick laminate | `docs/` | `theory.md` 1.4, `validation.md` 21.2, bibliography [Muzychka2004Orthotropic] |
-| L2 fails, L3 passes | change the defaults of `laminate_s_max_mm` / `laminate_n_max` (or make n depend on the thickness): the rule constants in `pcbthermal/laminate.py` (S_MAX 0.4 mm, N_MAX 4) and `SolverOptions`, with the cost (unknowns times n, memory estimate of the guard) measured by the study; it moves every board with patterned copper, so the frozen-numbers file is refrozen in the same branch | `fix/laminate-rule` | `theory.md` 1.4, `models.md`, `versions.md`, `validation.md` 21, the frozen record, `CHANGELOG.md` |
-| L2 fails, L3 fails | only the limit text: the error map of the study (thickness, source size, anisotropy, film) goes into theory 1.4 and the warning for a part on bare laminate | `docs/` | `theory.md` 1.4 |
-| L4: solid3d above 3 % or analytic above 15 % | recorded; a 3D solid defect would be a `fix/` after the reviewer | `fix/` | `validation.md` |
+### 1.2 One mean convection coefficient per face on a poorly conducting plate with concentrated sources (S3; text and a possible warning)
 
-## 3. Impact on the existing documents when nothing fails
+* **Measured** (README 13.3): on the vertical glass plate (k_s 1.03 W/mK, two strips of 3875 W/m2 per face, peak 83 K against a plate mean near 44 K) all five models give the strips 84.6 to 86.0 K against the conjugate solution's 74.9 and 80.2 K: **+10.3 % on the mean of the two strips** and the plate maximum +6.4 %, of which +8.6 points are the uniform coefficient (an FVM run with the total coefficient that the conjugate solution itself implies gives the same excess) and +1.4 the correlation (9.18 against 9.39 W/m2K). On the ceramic plate (28.38 W/mK) the program is within 5 % on each strip (mean of the strips -2.0 %).
+* **Proposal**: a sentence in `docs/theory.md` (heat transfer coefficients) and `docs/validation.md`: the coefficient is one per face and computed from the mean face temperature; for a thin board whose in-plane conductance is below a few 10 W/mK times the thickness and with a concentrated source the peaks are read 6 to 14 % too hot, on the safe side. A warning is not recommended: the effect is on the safe side and a threshold would be a guess on two cases. A local coefficient `h(T_local)` iterated in the FVM would remove it, but it is a feature (non-linear matrix at each Picard step), not a fix, and it would need its own investigation.
+* **Not found wrong**: the correlation itself (laminar and general natural forms differ by 0.1 to 0.2 point on these plates).
 
-`docs/validation.md` gains at most two rows (a measurement; a published closed form on a laminate) and the bibliography statuses of [SoleymaniKoohbanani] and [Muzychka2004Orthotropic] go from "read" to "read and reproduced". The text for them is in `docs/validation-rows.md` (a template; the numbers are to be filled from the printed tables of the runs).
+### 1.3 The 3D solid model on thick laminates (S2 L4; open, not a recommendation)
 
-## 4. Risks
+* **Measured**: solid3d at 0.25 mm is too hot by up to +20.0 % (bare, S = 2 mm, 3.2 mm) and +27.4 % (pad); at 0.5 mm on the 40 mm board -0.3 to +2.4 % (bare) and +3.5 to +8.4 % (pad). Not decisive (L4 is reported only). **Not examined** why: the laminate is a small number of slabs in the solid model, which would explain an error that grows with the thickness (a guess, not tested here). Open for the reviewer or a study on the slabs of `solid3d.py`.
 
-* A study that is not run on a quiet machine: the program's memory guard may refuse a board and the table prints the refusal; none of the runs exceeds 3 GB by the estimate of README 4.5, which is from earlier folders, not measured.
-* A two-layer board with no copper drawn (S2 bare) is accepted by all five models (a trial of the review, README 4.3), so the closed-form anchor holds for the program.
-* A verdict on the test-bed condition rests on the translation by the solver's ratio; a program value near the measurement after it is not proof that the program's condition matches the test bed (the solver puts the effect of the condition at 1.1 to 7.3 %, README 5).
-* The reviewer's pre-run corrections (README 9) changed how S2 reads the temperature (at the face, in the reference and in the program) and how S1 part D turns a via contrast into a psi_ta contrast (the exact network); the outcomes above refer to the corrected scripts.
+### 1.4 The via rule (S1 C): no change
+
+* **Measured**: against an independent axisymmetric unit-cell solver with the same flux condition, the FVM, FDM and 3D solid are within 0.4 to 2.2 % on all nine samples at the cell of pitch / 8 to pitch / 16 (the error does not grow with refinement). The Analytic is 8.2 to 13.1 % too resistive (above its 10 % attention threshold on five of nine samples), the Lumped 4.1 to 9.5 %, both on the safe side. No change; the Analytic figure goes into `docs/validation.md` as measured.
+* The measurement itself (Soleymani's Fig. 33) is bracketed by equations 28 and 29 for three of four groups (README 10.2); the program equals those equations to the accuracy of the solver, so the program is "validated against the measurement" only to the extent that the thesis's closed form is (13 % claimed by the thesis); the straight 1.25 mm group (10.0 against 7.0 W/mK, +43 %) is not usable.
+
+## 2. Text for the project documents (nothing adopted; the template is in `docs/validation-rows.md`)
+
+| Where | What |
+| :-- | :-- |
+| `docs/validation.md` | a row against a measurement (Soleymani, three usable groups) and its limits; a row of equation 50 of Muzychka and others against an extrapolated 3D reference (0.07 to 1.15 %); a row for the vertical plate of Lee and Yovanovich (the independent solver within the plot reading of the paper's curves; the program +10 % on a poor conductor, -2 % on a good one); the laminate error map of README 11.3 |
+| `docs/theory.md` 1.4, 2.6 | the published check of the laminate rule (the limit of 1.1 above); one sentence on the via check (S1 C) |
+| `research/theory/BIBLIOGRAPHY.md` | statuses updated in this folder (README 15) |
+| `docs/versions.md` 'Planned' | nothing is added here; 1.1 and 1.2 are decisions to take first |
+
+## 3. Risks and limits of the evidence
+
+* The extrapolated reference of S2 carries an uncertainty of about 1 % (worst row -1.15 %); the options in 1.1 differ from each other by more than that, the default's error at the worst rows by far more.
+* S3's glass case compares the program with an independent numerical solution of the paper's own equations, not with Zinnes' measurements directly (those are plots with 4 to 8 K scatter on the ceramic); the independent fluid side is first-order and slightly high (0.3 to 3.7 % in the local Nusselt number against the similarity solution).
+* The runs used one machine (16 GB, about 17 GB reported by the memory guard); the resident sizes (8.2 GB for the one-off S/32 reference, about 3 GB for the program part) are measured here.
+* The reviewer's pre-run corrections (README 9) changed how S2 reads the temperature and how S1 part D turns a via contrast into psi_ta; the outcomes refer to the corrected scripts. The S2 criterion L1 was changed after its first result (README 11.2) and says so.
