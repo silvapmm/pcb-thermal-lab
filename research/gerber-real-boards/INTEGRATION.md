@@ -117,3 +117,25 @@ Decisions 1 and 5 of section 6 are answered; 2, 3, 4, 6, 7 and 8 remain with the
 6. `feature/paste-parts`: `TO.C` groups, placement files by name with the sign of the bottom side found from the names, the click (box or hull), proximity as a marked fallback.
 7. `feature/import-dialog`: the GUI (layer table, roles, drill units, outline, vias, paste and placement), preview with the fine-copper cells, tooltips, user guide, stress scenarios.
 8. Later: `feature/x3-components`, then ODB++ and IPC-2581 after their specifications are read.
+
+## 10. Re-import (design; the commands are drawn in `prototypes/import_window/`, the diff and the merge are computed for real there)
+
+The question: the project already holds an import (format 2, `imports`) and the user chooses Import again. The window first asks what to do; nothing is written before the answer, and the whole result is **one undo step** of the document.
+
+**What format 2 stores for this** (all of it is in the record of `project_format.import_record`; the prototype adds the last three lines):
+* `sources`: per file the **name, size, SHA-256 and function** (never the path). The same set is recognised when the names or the hashes match; a changed file keeps its name and changes its hash.
+* `box` (the outline box) and `pix`, to tell a revised board from another board.
+* `parts`, **keyed by designator**: position, side, the chosen shape (box or hull, `shape_user` when the user overrode the suggestion), the polygon of the heat source, power, Tj max, role, use. A part picked by hand has an `H<n>` name.
+* The manual edits are the fields above; nothing else is needed to merge, because the files give the rest again.
+
+**The three commands** (the dialog says which one it suggests: *update* when the board looks the same and parts changed, else *replace*):
+1. **Replace the previous import**: copper, drills and outline come from the new files; a part with the same designator keeps power, Tj max, role, use and a shape the user edited; a part that is not in the new files is listed and **removed only when ticked**, otherwise it stays as an *orphan* (kept, drawn, flagged) so nothing is lost silently.
+2. **Update after a layout revision**: the same merge plus the table the user reads before confirming: *moved* (centre shifted by more than 0.3 mm), *resized* (width or height changed by more than 0.2 mm), *new*, *removed*, and what each part keeps.
+3. **Add files**: only the functions the import lacks are taken (a drill file, the placement, a second paste layer, a missing copper layer); existing data are untouched. Two files that claim a function the import already has are shown with the hashes as a conflict, one combo each: keep the stored file (default) or use the new one.
+4. **Cancel**: nothing changes.
+
+**Results of earlier runs.** They are kept in the project and marked *outdated* (as after any edit); an imported-copper change moves every number, so no result is silently reused. **Undo** restores the previous import, its parts and powers, and the results marked outdated come back as they were.
+**A different board.** When the outline box differs by more than 5 % in a side, or no file name and no hash is shared, the dialog says "this looks like a different board" with the reasons and suggests a new project; replacing is still possible (the user may have renamed the files) but the powers of the unmatched parts become orphans.
+
+**Open questions for the maintainer.** (1) Orphans: keep until the user removes them (the prototype), or remove at once after the one confirmation? (2) The move tolerance (0.3 mm) and the resize tolerance (0.2 mm) are guesses: wanted per user or fixed? (3) Parts matched by position only (no `TO.C`) can swap designators when a layout revision moves two parts across each other: accept, or ask for the pick-and-place designators as the key and warn when the paste has none? (4) Should *add* also offer to re-read the placement file against the paste already imported (parts only), as a fourth command? (5) Do results of earlier runs stay in the file (outdated) or are they dropped on a replace?
+Status: design and prototype only; the diff, the merge and the dialog run on the RP2040 board and on a synthetic board (tests in `prototypes/import_window/tests`).
