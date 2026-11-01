@@ -231,6 +231,19 @@ The reader turns the copper of a Gerber layer into the **coverage** of a pixel g
 
 **Where it is checked**: `tests/test_gerber_reader.py`, `test_gerber_spec.py`, `test_gerber_conformance.py`, `test_gerber_drill_outline.py`, `test_gerber_detect_archive.py`. **Sources**: [UcamcoGerber] (R in part: the passages listed in the table of section 12); the sampling error `s / w` and the memory law are derived and measured in the repository (L).
 
+
+### 1.7 Parts from the files: the envelope rule, the frame and the shape (`pcbthermal/gerber/parts.py`, `components.py`)
+
+A part is the heat source of the model: a polygon on the board and a power. The files give its place (the openings of the solder-paste layer, the X3 component layer) and its name (`TO.C`, the placement file). No equation of heat enters here; this section says what the program assumes when it links the three.
+
+**Envelope rule.** For a part with footprint name `f`, position `c` and angle `theta`, the pad envelope is the rectangle `E(f)` of the pads in the local frame, taken from the name (a table of passives 0402 to 1206, SOIC pins and pitch, SOT-223, pin headers, QFN size). An opening with centre `o` belongs to the part when `R(-theta)(o - c)` lies inside `E(f)` grown by `tau` = 0.3 mm; of several candidates the one with the smallest envelope wins, and one part takes all its openings. A bottom part uses the top footprint turned over: the local x changes sign before the rotation (2026 specification, p. 166). The assumption is that the name determines the pad pattern; it does not for a footprint outside the table (guessed) or for a custom one.
+
+**Frame.** If the placement file is shifted by `d` from the Gerber origin, the score `S(d)` is the number of SMD parts with a known envelope whose openings fall inside the shifted envelope. The offset is the centre of the plateau of the best score on a 0.5 mm grid over +-10 mm, refined on 0.1 mm; it is proposed when it raises `S/N` by 0.1 and by two parts, reaches 0.8 and is at least 0.5 mm long (thresholds measured on four real boards: 36 shifts between 1 and 9.7 mm found within 0.05 mm, no proposal at 20 mm). Below 0.5 of the parts with an opening and no proposal, the files are said not to fit.
+
+**Heat-source shape.** The polygon is a choice, not a measurement: the convex hull of the openings (default), their box, the largest opening, or for an X3 part the first available of Body, Lead2Lead, paste hull, Footprint, Courtyard, pin hull. The power is spread uniformly over it, as for a drawn part (section 1.3); the hull differs from the box by -0.8 to +6.0 % in area on the studied boards.
+
+**Limits.** The rule is geometric, not thermal: a wrong designator gives the right polygon with the wrong power, silently, beyond a placement error of about 1 mm; a part that is not SMD (through-hole, press-fit) dissipates through its leads and has no polygon here. **Where it is checked**: `tests/test_gerber_parts.py`, `tests/test_gerber_components.py`; evidence `research/gerber-real-boards` 9 to 12 (real boards). **Sources**: [UcamcoGerber] (the passages of the component layer and the bottom side, read in part, see section 12); the envelope table and the thresholds are own and measured, with no other source.
+
 ## 2. FVM: cell-centred finite volumes (the reference)
 
 ![The finite-volume cell](images/fig_02_fvm_cell.png)
