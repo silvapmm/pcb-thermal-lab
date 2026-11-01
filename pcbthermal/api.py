@@ -637,7 +637,7 @@ def _run_model(problem, name, o):
     if name == "fdm":
         return fdm.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "solid3d":
-        return solid3d.solve_steady(problem, cell_mm=o.cell_mm)
+        return solid3d.solve_steady(problem, cell_mm=o.cell_mm, memory_fraction=o.memory_fraction)
     if name == "lumped":
         return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=min(max(o.cell_mm, 0.5), 1.0))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
@@ -853,6 +853,13 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
             else:
                 raise memory.MemoryGuardError(v.message)
     guard_warnings = [f"the 3D solid was not run: {v.message}" if v.verdict == "refuse" else v.message for v in verdicts if v.message]
+    # The time simulation of a power profile (profiles.run_fvm / run_fdm at the cell of the run) holds a step factor while the next one is built: about twice a
+    # steady solve (measured 1.7 times the law on the profile example at 0.5 mm). Checked now, before the steady solves; a refusal leaves the steady results and
+    # says why the time simulation was not run (the step responses run on a cell of at least 2 mm and are smaller).
+    profile_verdicts = (memory.check(problem, tuple(m for m in options.models if m in ("fvm", "fdm")), options.cell_mm, fraction=options.memory_fraction,
+                                     factor=memory.PROFILE_FACTOR, refuse="return") if problem.has_profiles() else [])
+    profile_refused = next((v for v in profile_verdicts if v.verdict == "refuse"), None)
+    guard_warnings += [v.message for v in profile_verdicts if v.exceeds_available and v.verdict != "refuse"]
     sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm)
                      + check_model_limits(problem, options.models, options.cell_mm)
                      + check_via_limits(problem, options.models, options.cell_mm) + guard_warnings)
@@ -890,8 +897,11 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
         sim.effective_problem.board.h_mode = "manual"
         sim.effective_problem.board.h_top, sim.effective_problem.board.h_bottom = sim.h_used[ref]
     if problem.has_profiles():
-        _run_profiles(sim, progress, len(options.models) / n)
-    memory.log_peak(verdicts)                                 # Measured peak of the process next to the estimate: the check of the law on other machines
+        if profile_refused is not None:
+            sim.profile_error = f"time simulation not run: {profile_refused.message}"
+        else:
+            _run_profiles(sim, progress, len(options.models) / n)
+    memory.log_peak(verdicts + profile_verdicts)                               # Measured peak of the process next to the estimate: the check of the law on other machines
     if progress:
         progress("Done", 1.0)
     return sim

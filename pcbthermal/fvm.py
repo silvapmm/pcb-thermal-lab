@@ -40,9 +40,9 @@ ORDERING = "MMD_AT_PLUS_A"
 
 log = logging.getLogger(__name__)
 
-# Largest block of the block SOR (unknowns of the merged footprints of vias that touch): the build of its dense inverse takes about 75 n^2 bytes (measured 66 to 75 n^2;
-# 5 000 unknowns are about 1.9 GB, not the 200 MB an earlier comment said), allowed up to a quarter of the memory limit (memory.sor_block_fits). Above it the SOR solves
-# the board with the direct solver instead and says so.
+# Blocks of the block SOR (unknowns of the merged footprints of vias that touch): the build of the dense inverse of a block of n unknowns takes about 75 n^2 bytes
+# (measured 66 to 75 n^2; 5 000 unknowns are about 1.9 GB, not the 200 MB an earlier comment said) and every inverse is kept, so the sum over the blocks is allowed
+# up to a quarter of the memory limit (memory.sor_block_fits). Above it the SOR solves the board with the direct solver instead and says so.
 
 # Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
 # several times with other powers). One entry per thread, released before a new factorisation, so the peak memory is that of one LU, as with spsolve.
@@ -455,9 +455,10 @@ class Network:
         @param criterion "residual" stops when |K theta - Q| / |Q| < tol (reliable);
                          "step" stops when the largest change of one sweep is below tol in kelvin
                          (the rule of the original program, which can stop far from the solution).
-        @param memory_limit Memory limit in bytes of the guard (None: memory.limit_bytes()); a dense block may take a quarter of it.
-        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step); a board with vias whose footprint block would need more than a
-                 quarter of the memory limit (75 n^2 bytes for n unknowns) is solved directly (info["fallback"] = "direct", info["block"] = n).
+        @param memory_limit Memory limit in bytes of the guard (None: memory.limit_bytes()); the dense inverses of the via blocks may take a quarter of it.
+        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step); a board with vias whose footprint blocks would need more than a
+                 quarter of the memory limit (75 n^2 bytes for a block of n unknowns, summed over the blocks, since every inverse is kept) is solved directly
+                 (info["fallback"] = "direct", info["block"] = the largest n, info["block_bytes"] = the sum).
         """
         if self.block_info:
             raise ValueError("SOR does not support metal blocks: use the direct solver or the conjugate gradients")
@@ -495,12 +496,15 @@ class Network:
             idx3 = np.arange(L * ny * nx).reshape(L, ny, nx)
             vblocks = viawell.unknown_blocks(self.via_blocks, idx3, self.n_board)
             biggest = max(len(bk) for bk in vblocks)
-            if not memory.sor_block_fits(biggest, memory.limit_bytes() if memory_limit is None else memory_limit):
-                # The dense inverse of such a block takes too much of the memory limit: use the direct solver and say so
-                log.warning("SOR: a via block of %d unknowns (about %.1f GB for its dense inverse) is too large for the block SOR; the direct solver is used instead",
-                            biggest, memory.sor_block_bytes(biggest) / memory.GB)
+            sizes = [len(bk) for bk in vblocks]
+            if not memory.sor_block_fits(sizes, memory.limit_bytes() if memory_limit is None else memory_limit):
+                # The dense inverses of the blocks (all kept for the iterations) take too much of the memory limit: use the direct solver and say so
+                need = sum(memory.sor_block_bytes(k) for k in sizes)
+                log.warning("SOR: the via blocks (%d, the largest of %d unknowns; about %.1f GB for their dense inverses) are too large for the block SOR; "
+                            "the direct solver is used instead", len(sizes), biggest, need / memory.GB)
                 theta, res = self.solve_steady("direct")
-                return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct", "block": float(biggest)}
+                return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct", "block": float(biggest),
+                                    "block_bytes": float(need)}
             groups = self._sor_block_groups(vblocks)
             skip = np.zeros(L * ny * nx, bool)
             for bk in vblocks:
@@ -552,8 +556,9 @@ class Network:
                  a(i) - b(i) - b(j) - [n links] - a(j) - a(i) has length n + 3, odd for every even n, and no two-colouring of the nodes exists (the default rule gives n = 2 or 4).
                  Every coupling of the network joins two nodes of one plan cell, the same node of two neighbouring cells, or the cells of a via footprint, so the blocks of the plan
                  cells (merged where a via footprint joins them) can be coloured; the blocks of one colour are not coupled to each other and take the exact solution of their
-                 block-diagonal part, relaxed by omega (convergence for 0 < omega < 2, as for the via blocks). Nodes no cell uses are left out. A merged block whose dense work (75 n^2 bytes) is above a quarter of the memory limit
-                 is not factored: the board is solved directly (info["fallback"] = "direct").
+                 block-diagonal part, relaxed by omega (convergence for 0 < omega < 2, as for the via blocks). Nodes no cell uses are left out. A merged block whose dense
+                 bound (75 n^2 bytes) is above a quarter of the memory limit is not factored: the board is solved directly (info["fallback"] = "direct"). The
+                 bound is conservative here: the blocks of one colour are factored by a sparse LU, which takes far less than a dense inverse.
                  Measured on 30 mm boards at 1 mm: 730 / 5200 / 730 sweeps against 719 / 5221 / 775 for the point SOR of the earlier network (research/laminate-nodes, 3.11).
         @param omega Relaxation factor.
         @param tol Stopping tolerance.
@@ -814,8 +819,9 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
             # The user chose SOR: say in the result (not only in the log) that another solver produced it
             r.extras["fallback_direct"] = 1.0
             n_blk = int(info.get("block", 0))
-            r.warnings.append(f"SOR not used: the cells of the vias form a block of {n_blk} unknowns (about {memory.sor_block_bytes(n_blk) / memory.GB:.1f} GB for its dense inverse), "
-                              "too large for the block SOR within the memory limit; the board was solved with the direct solver instead")
+            need = info.get("block_bytes", memory.sor_block_bytes(n_blk))
+            r.warnings.append(f"SOR not used: the cells of the vias form blocks (the largest of {n_blk} unknowns) whose dense inverses need about {need / memory.GB:.1f} GB, "
+                              "too much for the block SOR within the memory limit; the board was solved with the direct solver instead")
         return r
     theta, res = net.solve_steady(method=method)
     return _result_from_theta(net, theta, res)

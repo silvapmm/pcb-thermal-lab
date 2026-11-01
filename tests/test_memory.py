@@ -37,13 +37,17 @@ def test_estimate_matches_measured_points_of_the_ladder():
     assert memory.estimate_bytes("fvm", 2_000_000, 500_000, BASE) > 2.0 * memory.estimate_bytes("fvm", 1_000_000, 250_000, BASE) * 0.99
 
 
-def test_transient_factor_scales_the_peak():
+def test_transient_factor_scales_the_solve_not_the_base():
     """!
-    @brief A time simulation is estimated at TRANSIENT_FACTOR times a steady solve.
+    @brief A time simulation is estimated at TRANSIENT_FACTOR times the part a steady solve allocates; the resident base of the process is counted once.
+    @details Regression of the review: the base was multiplied by the safety and time factors, so a test process holding 1.5 GB saw 4.2 GB of base in a transient.
     @return None.
     """
     s = memory.estimate_bytes("fvm", 500_000, 100_000, BASE)
-    assert memory.estimate_bytes("fvm", 500_000, 100_000, BASE, memory.TRANSIENT_FACTOR) == pytest.approx(s * memory.TRANSIENT_FACTOR)
+    t = memory.estimate_bytes("fvm", 500_000, 100_000, BASE, memory.TRANSIENT_FACTOR)
+    assert t - BASE == pytest.approx((s - BASE) * memory.TRANSIENT_FACTOR)
+    big = memory.estimate_bytes("fvm", 500_000, 100_000, 1.5 * GB, memory.TRANSIENT_FACTOR)
+    assert big - t == pytest.approx(1.5 * GB - BASE)
 
 
 def test_verdict_rules():
@@ -76,11 +80,13 @@ def test_failed_ram_read_falls_back(monkeypatch):
     assert memory.limit_bytes() == memory.FALLBACK_LIMIT
 
 
-def test_ram_is_readable_here():
+def test_ram_is_readable_here(monkeypatch):
     """!
-    @brief The machine's memory and the available memory are positive numbers.
+    @brief The machine's memory (read, without the override of the battery) and the available memory are positive numbers.
+    @param monkeypatch pytest fixture.
     @return None.
     """
+    monkeypatch.delenv(memory.MEMORY_ENV, raising=False)
     assert memory.ram_bytes() > 1e9
     assert memory.available_bytes() is None or memory.available_bytes() > 0
 
@@ -94,6 +100,10 @@ def test_sor_block_rule():
     assert memory.sor_block_fits(5000, 8e9)           # 1.875 <= 2.0
     assert not memory.sor_block_fits(5000, 6e9)
     assert not memory.sor_block_fits(10_000, 16e9)
+    # Every inverse is kept: the rule is on the sum over the blocks (300 blocks of 2 000 unknowns each fit alone and not together)
+    assert memory.sor_block_fits(2000, 9.6e9) and not memory.sor_block_fits([2000] * 300, 9.6e9)
+    import numpy as np
+    assert memory.sor_block_fits(np.int64(5000), 8e9)
 
 
 def test_largest_unknowns_is_the_inverse_of_the_estimate():
@@ -178,7 +188,8 @@ def test_the_3d_ceiling_refuses_whatever_the_memory():
 
 def test_simulate_refuses_a_huge_model_fast_and_allocates_nothing_large(monkeypatch):
     """!
-    @brief api.simulate refuses a 502 mm board at 0.5 mm (computed h) in seconds and the Python allocations stay below 500 MB (counting the unknowns of 1 million plan cells itself takes 0.31 GB; no solver array is made).
+    @brief api.simulate refuses a 502 mm board at 0.5 mm (computed h) in seconds and the Python allocations stay below 200 MB (the refusal comes from the bound
+           of one node per layer and cell; the exact count of 1 million plan cells took 0.31 GB before the bound; no solver array is made).
     @param monkeypatch pytest fixture.
     @return None.
     """
@@ -196,7 +207,104 @@ def test_simulate_refuses_a_huge_model_fast_and_allocates_nothing_large(monkeypa
         simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5))
     peak = tracemalloc.get_traced_memory()[1]
     tracemalloc.stop()
-    assert time.time() - t0 < 60 and peak < 500e6
+    assert time.time() - t0 < 60 and peak < 200e6
+
+
+def test_a_huge_board_is_refused_from_the_lower_bound_without_the_exact_count(monkeypatch):
+    """!
+    @brief A 0.5 m board at 0.05 mm (100 million plan cells) is refused from the bound of one node per copper layer and cell, without the exact count, whose
+           copper sampling alone would take about 30 GB; the cell that fits is found the same way and counted exactly only where the bound fits.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    import tracemalloc
+    from pcbthermal import fvm
+    from pcbthermal.examples import example_profile_board
+    p = example_profile_board()
+    p.board.width = p.board.height = 0.5025
+    counted = []
+    real = fvm.unknowns
+    monkeypatch.setattr(fvm, "unknowns", lambda prob, c=2.0: (counted.append(c), real(prob, c))[1])
+    tracemalloc.start()
+    v = memory.check(p, ("fvm",), 0.05, fraction=0.6, ram=int(16 * GB), available=int(16 * GB), refuse="return")[0]
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert v.verdict == "refuse" and "at least" in v.message and v.cell_fit is not None
+    assert min(counted) >= 0.5 and peak < 200e6                # Only cells whose bound fits were counted exactly
+    fit = memory.check(p, ("fvm",), v.cell_fit, fraction=0.6, ram=int(16 * GB), available=int(16 * GB), refuse="return")[0]
+    assert fit.verdict != "refuse"
+
+
+def test_the_bound_is_never_above_the_exact_count():
+    """!
+    @brief The lower bound of the unknowns (used to refuse without counting) is at most the exact count on boards with laminate nodes, an outline, a block and one layer.
+    @return None.
+    """
+    from pcbthermal.examples import example_board, example_profile_board
+    from pcbthermal.model import reference_problem
+    for p in (reference_problem(layers=1), reference_problem(layers=4), example_board(), example_profile_board()):
+        for model in ("fvm", "fdm", "solid3d"):
+            for c in (2.0, 0.7):
+                assert memory._bound(p, model)(c)[0] <= memory._counter(p, model)(c)[0]
+
+
+def test_size_limit_is_a_window_refused_above_it():
+    """!
+    @brief solid3d.size_limit(n) keeps its meaning of before the guard: accepted up to n whatever the memory, refused above n (study_validation_rows uses 250 000).
+    @return None.
+    """
+    p = reference_problem(layers=4)
+    n = solid3d.unknowns(p, 1.0)[0]
+    with solid3d.size_limit(n - 1):
+        with pytest.raises(memory.MemoryGuardError, match="accepted by this study"):
+            memory.check(p, ("solid3d",), 1.0, fraction=0.95, ram=int(1000 * GB))
+        v = memory.check(p, ("solid3d",), 1.0, fraction=0.95, ram=int(1000 * GB), refuse="return")[0]
+        assert v.cell_fit is not None and solid3d.unknowns(p, v.cell_fit)[0] <= n - 1
+
+
+def test_solid_built_directly_is_guarded(monkeypatch):
+    """!
+    @brief The 3D solid built directly (studies, tests) is checked by its constructor, as it was by check_size before the guard; a ValueError, so the studies that
+           print "-" for a model too large keep working.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setattr(memory, "ram_bytes", lambda: 2 * 10 ** 8)
+    with pytest.raises(ValueError, match="memory|no cell"):
+        solid3d.Solid(reference_problem(), 2.0)
+    with solid3d.size_limit(10 ** 6):
+        assert solid3d.Solid(reference_problem(), 4.0).n > 0
+
+
+def test_a_profile_run_too_large_leaves_the_steady_results(monkeypatch):
+    """!
+    @brief With a power profile the time simulation (about twice a steady solve) is checked too: on a machine where the steady FVM fits and the profile run does not,
+           the steady result is there and profile_error says why the time simulation was not run.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    from pcbthermal import SolverOptions, simulate
+    from pcbthermal.examples import example_profile_board
+    p = example_profile_board()
+    steady = memory.check(p, ("fvm",), 1.0, refuse="return", ram=int(16 * GB), available=int(16 * GB))[0].estimate
+    timed = memory.check(p, ("fvm",), 1.0, factor=memory.PROFILE_FACTOR, refuse="return", ram=int(16 * GB), available=int(16 * GB))[0].estimate
+    ram = int((steady + timed) / 2 / 0.6)                       # Between the two estimates at a fraction of 0.6
+    monkeypatch.setattr(memory, "ram_bytes", lambda: ram)
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0, memory_fraction=0.6))
+    assert "fvm" in sim.results and not sim.profile_results
+    assert sim.profile_error and sim.profile_error.startswith("time simulation not run")
+
+
+def test_the_memory_of_the_machine_can_be_stated(monkeypatch):
+    """!
+    @brief The environment variable MEMORY_ENV replaces the reading (the battery sets 16 GB in conftest); a bad value falls back to the reading.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    monkeypatch.setenv(memory.MEMORY_ENV, "8e9")
+    assert memory.ram_bytes() == 8 * 10 ** 9
+    monkeypatch.setenv(memory.MEMORY_ENV, "lots")
+    assert memory.ram_bytes() > 1e9
 
 
 def test_options_validate_the_fraction():

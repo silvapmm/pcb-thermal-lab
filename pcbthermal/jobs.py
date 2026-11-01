@@ -34,7 +34,9 @@ def job_transient(progress, problem, kwargs):
     """
     kw = dict(kwargs)
     model = kw.pop("model", "fvm")
-    # The animation holds the matrix factor and the frames: checked before anything is allocated (the parent checks too, so the user hears at once)
+    # The animation holds the matrix factor and the frames: checked before anything is allocated. Only here, in the calculation process: the window does not check
+    # an animation before it sends the job (to do in the interface round), so a refusal comes back as the job's error text. The fraction is the default one
+    # (the kwargs carry no SolverOptions).
     if model in ("fvm", "fdm"):
         memory.check(problem, (model,), kw.get("cell_mm", 2.0), transient=True)
     if model == "analytic":

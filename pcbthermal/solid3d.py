@@ -31,7 +31,7 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import viawell
+from . import memory, viawell
 from .fvm import ORDERING
 from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid, zone_fill
 from .results import SteadyResult
@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
 K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a block)
 # The size of a 3D model is no longer a fixed number: pcbthermal/memory.py estimates the peak memory from the unknowns and refuses a run above a share of the
-# installed memory (api.simulate and jobs.py call it before anything is built). Measured on a quiet 16 GB machine (research/memory-guard): the example board
+# installed memory (api.simulate, jobs.py and the constructor of Solid call it before anything is built). Measured on a quiet 16 GB machine (research/memory-guard): the example board
 # (16 slabs) takes 3.5 GB at 247 000 unknowns and 9.9 GB at 512 000; a plain two-layer board (6 slabs) 3.3 GB at 500 000.
 K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is R'' times this)
 
@@ -49,14 +49,14 @@ K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is 
 @contextlib.contextmanager
 def size_limit(max_cells):
     """!
-    @brief Accept 3D models up to a number of unknowns inside a with block whatever the memory estimate (for the offline studies that accept long solves on a large machine).
+    @brief Accept 3D models up to a number of unknowns inside a with block whatever the memory estimate, and refuse them above it (the offline studies).
     @details The memory guard (`memory.check`) would refuse such a model on a small machine; inside the block it does not, up to `max_cells`, and the ceiling of the 3D
              solid is lifted to it. A study that needs a finer 3D grid (the 0.5 mm columns of validation_study.py, the 6-layer board of study_complex_boards.py) runs inside
-             `with solid3d.size_limit(2_000_000):`. Calling `Solid` directly was never checked and still is not; the guard acts in `api.simulate` and `jobs.py`.
-    @param max_cells Largest number of unknowns accepted inside the block, count.
+             `with solid3d.size_limit(2_000_000):`; a study that must stay small (`size_limit(250_000)`) gets a refusal above the number, as before the guard.
+             The guard acts in `api.simulate`, `jobs.py` and the constructor of `Solid`, so a study that builds the 3D solid directly is checked too.
+    @param max_cells Largest number of unknowns accepted inside the block (and refused above it), count.
     @return Context manager (yields nothing).
     """
-    from . import memory
     with memory.accept_unknowns("solid3d", int(max_cells)):
         yield
 
@@ -108,13 +108,19 @@ class Solid:
     @brief The slabs, conductances and sources of the 3D model.
     """
 
-    def __init__(self, problem, cell_mm=2.0, n_diel=4):
+    def __init__(self, problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
         """!
         @param problem A Problem.
         @param cell_mm Target size of the cells in the plan in millimetres (same rule as the FVM).
         @param n_diel Slabs across every dielectric gap.
+        @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()); api.simulate passes the option of the run.
+        @throws memory.MemoryGuardError (a ValueError) If the estimated memory is above the limit, the model is above the 3D ceiling, or it is outside the
+                window of a size_limit block; checked before any array of the size of the model is made.
         """
         problem.validate()
+        # The memory guard here too, not only in api.simulate: the studies and the tests build the 3D solid directly, and before the guard this constructor
+        # refused a model above MAX_CELLS; a study that catches ValueError to print "-" for a model too large keeps working
+        memory.check(problem, ("solid3d",), cell_mm, fraction=memory_fraction, n_diel=n_diel)
         self.problem = problem
         b, m = problem.board, problem.board.materials
         L, W, H = b.layers, b.width, b.height
@@ -359,17 +365,18 @@ class Solid:
         return theta.reshape(self.ns, self.ny, self.nx), res
 
 
-def solve_steady(problem, cell_mm=2.0, n_diel=4):
+def solve_steady(problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
     """!
     @brief Steady-state solution of the 3D model.
     @param problem A Problem.
     @param cell_mm Target size of the cells in the plan in millimetres.
     @param n_diel Slabs across every dielectric gap (4 by default; 8 changes the answer by under 0.6 % even on a heater-sized pad).
+    @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()).
     @return SteadyResult with the temperature of the copper slab of every layer (layout of the FVM), the heat by path and, with metal
             blocks, their temperature and heat as the FVM does.
-    @throws ValueError If the model is too large.
+    @throws memory.MemoryGuardError (a ValueError) If the model is too large for the memory guard.
     """
-    net = Solid(problem, cell_mm, n_diel)
+    net = Solid(problem, cell_mm, n_diel, memory_fraction)
     b = problem.board
     theta_all, res = net.solve()
     L = b.layers

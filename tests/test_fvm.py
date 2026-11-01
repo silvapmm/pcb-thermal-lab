@@ -202,11 +202,18 @@ def _transient_all_factors(net, ambient, t_end, n_out):
     return np.asarray([o.reshape(net.nl, net.ny, net.nx)[:nb] + ambient for o in out])
 
 
-def test_transient_keeps_one_factor_and_same_fields(monkeypatch):
-    # The animation holds one LU factor at a time (not ten) and the frames are bit-identical to the all-factors stepping
+@pytest.mark.parametrize("kind", ["fvm", "fdm"])
+def test_transient_keeps_one_factor_and_same_fields(monkeypatch, kind):
+    """!
+    @brief The animation holds one LU factor at a time (not ten) and the frames are bit-identical to the all-factors stepping, for the FVM and the FDM network.
+    @param monkeypatch pytest fixture.
+    @param kind "fvm" or "fdm".
+    @return None.
+    """
     import scipy.sparse.linalg as spla
+    from pcbthermal import fdm
     p = reference_problem()
-    net = fvm.Network(p, 20, 20)
+    net = fvm.Network(p, 20, 20) if kind == "fvm" else fdm.Network(p, 2.0)
     live, peak, real = [0], [0], spla.splu
 
     class Counted:
@@ -226,7 +233,7 @@ def test_transient_keeps_one_factor_and_same_fields(monkeypatch):
     monkeypatch.setattr(fvm.spla, "splu", lambda *a, **k: Counted(real(*a, **k)))
     r = fvm.transient_from_network(net, p.board.ambient, 600.0, n_out=40, log_times=True)
     monkeypatch.undo()
-    assert peak[0] <= 2          # the new factor is built while the old one is released, never ten at once
+    assert peak[0] == 1          # the old factor is released before the new one is built, never ten at once
     ref = _transient_all_factors(net, p.board.ambient, 600.0, 40)
     assert r.frames.shape == ref.shape
     assert np.array_equal(r.frames, ref)

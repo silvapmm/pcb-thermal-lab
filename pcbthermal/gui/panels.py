@@ -1519,7 +1519,8 @@ class SolverPanel(QWidget):
         if self.cb["solid3d"].isChecked():
             # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
             n3 = solid3d.unknowns(self.doc.problem, c)[0]
-            v3 = memory.check(self.doc.problem, ("solid3d",), c, refuse="return")[0]       # The verdict of the memory guard for this cell
+            # The verdict of the memory guard for this cell, with the base of the calculation process (the solve runs there, not in the window) and the run's fraction
+            v3 = memory.check(self.doc.problem, ("solid3d",), c, fraction=self.doc.options.memory_fraction, base=memory.BASE_DEFAULT, refuse="return")[0]
             if v3.verdict == "refuse":
                 note = f"; above the memory limit: it will not run, use a cell of {v3.cell_fit:.1f} mm or more" if v3.cell_fit else "; above the memory limit: it will not run"
             elif v3.verdict == "slow":
