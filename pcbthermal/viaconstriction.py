@@ -350,10 +350,15 @@ def heater_distance(problem, vs):
         a, c = poly, np.roll(poly, -1, axis=0)
         e = c - a
         len2 = np.maximum((e ** 2).sum(axis=1), 1e-300)
-        for i in np.flatnonzero(~inside):
+        idx = np.flatnonzero(~inside)
+        # Vectorised over the vias in blocks (a loop over the vias took 1.2 s for 8500 vias and 20 parts, and the input checks run it live at every edit);
+        # the same elementwise operations in the same order as the per-via loop, so the distances are bit-identical
+        for s in range(0, idx.size, 4096):
+            i = idx[s:s + 4096]
+            px, py = vs.x[i][:, None], vs.y[i][:, None]
             # Distance to every edge of the polygon (projection clamped to the segment), the smallest one
-            t = np.clip(((vs.x[i] - a[:, 0]) * e[:, 0] + (vs.y[i] - a[:, 1]) * e[:, 1]) / len2, 0.0, 1.0)
-            out[i] = min(out[i], float(np.hypot(vs.x[i] - (a[:, 0] + t * e[:, 0]), vs.y[i] - (a[:, 1] + t * e[:, 1])).min()))
+            t = np.clip(((px - a[:, 0]) * e[:, 0] + (py - a[:, 1]) * e[:, 1]) / len2, 0.0, 1.0)
+            out[i] = np.minimum(out[i], np.hypot(px - (a[:, 0] + t * e[:, 0]), py - (a[:, 1] + t * e[:, 1])).min(axis=1))
     return out
 
 
