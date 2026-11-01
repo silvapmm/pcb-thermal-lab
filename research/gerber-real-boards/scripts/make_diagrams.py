@@ -154,6 +154,54 @@ def laminate_rule_faces(path):
     dk.save(fig, path, "The laminate rule and the face mapping")
 
 
+def x3_component_object(path):
+    """!
+    @brief One component of an X3 component layer: the four outline types, the pins with the key pin, the origin flash, the reference designator, and what rotation and the bottom side do to the same footprint.
+    @param path Output file.
+    @return None.
+    """
+    import math
+    fig, axs = dk.canvas(11, 4.6, 1, 3)
+    # An 8-pin small-outline part at rotation zero: body 3 x 4, leads in two rows of 4 at x = -2.6 and +2.6, pitch 1.27, a courtyard and a footprint contour
+    pins = [(-2.6, 1.905 - 1.27 * k) for k in range(4)] + [(2.6, -1.905 + 1.27 * k) for k in range(4)]
+    body = [(-1.5, -2.0), (1.5, -2.0), (1.5, 2.0), (-1.5, 2.0)]
+    l2l = [(-3.1, -2.0), (3.1, -2.0), (3.1, 2.0), (-3.1, 2.0)]
+    foot = [(-3.4, -2.6), (3.4, -2.6), (3.4, 2.6), (-3.4, 2.6)]
+    court = [(-3.9, -3.1), (3.9, -3.1), (3.9, 3.1), (-3.9, 3.1)]
+
+    def put(pts, rot, bottom):
+        """!@brief Local points to the board: flip x for a bottom part, then rotate counter-clockwise by rot degrees (the rule found on the sample files)."""
+        a = math.radians(rot)
+        c, s = math.cos(a), math.sin(a)
+        return [(c * (-x if bottom else x) - s * y, s * (-x if bottom else x) + c * y) for x, y in pts]
+
+    cases = [("top, CRot 0", 0.0, False), ("top, CRot 90 (counter-clockwise)", 90.0, False), ("bottom, CRot 0 (seen from the top)", 0.0, True)]
+    for ax, (title, rot, bottom) in zip(axs, cases):
+        ax.axis("on")
+        ax.set_aspect("equal")
+        ax.set_xlim(-6.5, 6.5)
+        ax.set_ylim(-5.6, 6.6)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for pts, col, lab, ls in ((court, "#d62728", "Courtyard", "-"), (foot, "#9467bd", "Footprint", "-"), (l2l, "#2ca02c", "Lead2Lead", "-"), (body, "#17becf", "Body", "-")):
+            ax.add_patch(Polygon(put(pts, rot, bottom), closed=True, fill=False, edgecolor=col, linewidth=1.6, linestyle=ls, label=lab))
+        for k, (x, y) in enumerate(pins):
+            (px, py), = put([(x, y)], rot, bottom)
+            ax.plot(px, py, "D" if k == 0 else "o", color="#444444", markersize=7 if k == 0 else 4, zorder=5)
+            if k in (0, 1, 7):
+                ax.annotate(str(k + 1), (px, py), textcoords="offset points", xytext=(5, 5), fontsize=7)
+        ax.plot(0, 0, "x", color="k", markersize=9, zorder=6)
+        ax.text(0.12, -0.5, "U1", fontsize=9, ha="left", va="top", fontweight="bold")
+        ax.set_title(title, fontsize=9)
+        if rot:
+            ax.annotate("", xy=(4.3, 1.8), xytext=(4.3, -1.8), arrowprops=dict(arrowstyle="->", color="#555555", connectionstyle="arc3,rad=-0.5"))
+            ax.text(5.2, 0, "CCW", fontsize=7, color="#555555", rotation=90, va="center")
+    axs[0].legend(fontsize=7, loc="upper left", frameon=True, ncol=2)
+    axs[0].text(-6.2, -5.3, "x: ComponentMain flash (origin, %TO.C,U1 + .CRot, .CFtp, .CVal, .CMnt)\ndiamond: key pin (%TO.P,U1,1), circles: other pins", fontsize=6.5, va="bottom")
+    axs[2].text(-6.2, -5.3, "the footprint is turned over: pin 1 moves to the other side\n(the sample files: local x changes sign, then the rotation)", fontsize=6.5, va="bottom")
+    dk.save(fig, path, "An X3 component object: four outline types, pins, origin, rotation, bottom side (drawn after the specification, rev 2026.05, p. 157, 158, 166)")
+
+
 def main():
     """!
     @brief Draw all the diagrams.
@@ -164,6 +212,7 @@ def main():
     import_chain(OUT / "fig_01_import_chain.png")
     paste_to_footprint(OUT / "fig_02_paste_to_footprint.png")
     fine_copper(OUT / "fig_03_fine_copper_cell.png")
+    x3_component_object(OUT / "fig_20_x3_component_object.png")
 
 
 if __name__ == "__main__":
