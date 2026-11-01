@@ -613,7 +613,7 @@ def _peak_fields(wa, wc, S_a, dx, dy, lam, mode, max_cells):
 
 # ------------------------------------------------------------------------------------------------ the network
 
-def heater_network(net, cov, layer, power, rings, vias=None):
+def heater_network(net, cov, layer, power, rings, vias=None, zone_ok=None):
     """!
     @brief `lumped._heater_network` with the footprint cut into the rest A (node 0) and the core C (node 1) when a group of vias covers only part of it.
     @details Same arguments and keys as the program's function. The returned dict has in addition `source` (unit source vector, the share of A and C by area), `peak` (a `ZonePeak`
@@ -626,6 +626,7 @@ def heater_network(net, cov, layer, power, rings, vias=None):
     @param power Heater power (W).
     @param rings Number of rings outside the footprint.
     @param vias ViaSet of the problem or None for a board without vias.
+    @param zone_ok Ignored: the decision of the program (`lumped.will_be_zoned`, passed by `lumped.solve_steady` since the adoption); this copy decides by its own `OPTIONS`.
     @return dict as `lumped._heater_network`, with theta of shape (L, R) and R = nz + rings used.
     """
     L, ny, nx = net.nl, net.ny, net.nx
@@ -866,14 +867,36 @@ def _advance_zoned(self, states, dt, powers):
     return out
 
 
+def advance_245(self, states, dt, powers):
+    """!
+    @brief `lumped._LumpedAdapter.advance` of release 2.4.5: the whole power of a heater on node 0 of its layer (node A of a zoned system), the control of the profile studies.
+    @details Since the adoption (feature/lumped-zones) the program's adapter splits the source itself, so `_ORIGINAL["advance"]` is no longer the unpatched control.
+    @param self The adapter.
+    @param states List of state vectors.
+    @param dt Time step in s.
+    @param powers Power of every heater during the step (W).
+    @return list of new states.
+    """
+    out = []
+    for i, s in enumerate(self.systems):
+        src = np.zeros(len(s["C"]))
+        src[s["layer"] * s["R"]] = powers[i]
+        out.append(self.steppers[i].advance(states[i], dt, src))
+    return out
+
+
 @contextlib.contextmanager
 def patched(**options):
     """!
     @brief Install the zoned network in `pcbthermal.lumped` for the duration of the context; the program's functions are restored on exit.
+    @details The program's own zone model (adopted on feature/lumped-zones) is switched off inside (`lumped.ZONES`), so that its decision and its 0.5 mm raster (`cell_for`) do
+             not mix with this copy: the raster is the clip of 2.4.5, as in the runs of the README.
     @param options Overrides of `OPTIONS` for the context (for example `zone_macro="cap"`, `zones=False`).
     @return Context manager.
     """
     old = dict(OPTIONS)
+    old_zones = lumped.ZONES
+    lumped.ZONES = False
     OPTIONS.update(options)
     _ORIGINAL.update(network=lumped._heater_network, own_point=lumped._own_point, advance=lumped._LumpedAdapter.advance, step_responses=lumped.step_responses)
     lumped._heater_network = heater_network
@@ -887,6 +910,7 @@ def patched(**options):
         lumped._own_point = _ORIGINAL["own_point"]
         lumped._LumpedAdapter.advance = _ORIGINAL["advance"]
         lumped.step_responses = _ORIGINAL["step_responses"]
+        lumped.ZONES = old_zones
         OPTIONS.clear()
         OPTIONS.update(old)
 

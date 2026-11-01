@@ -15,6 +15,10 @@ The final numbers of the release are then **frozen** in a small committed file, 
 
 *Figure 1 (`figures/fig_01_regression_flow.png`): one harness runs both trees; the diff is classified against the table; the reference solver gives the error of each model; the numbers are frozen once the diff has no alarm.*
 
+![frozen times to 63 %](figures/fig_04_frozen_times.png)
+
+*Figure 4 (`figures/fig_04_frozen_times.png`): the times to 63 % of the step response held by the committed frozen reference (`reference/v2.4.5.json`), one column per board and one marker per model, the first part of each board; drawn by `scripts/make_figures.py --frozen`. The result sets of the diff are not committed, so the figures 2 and 3 of that script (the map of the shifts and the error against the independent solver) are drawn when the harness is run and are not in the folder.*
+
 ### 1.1 The boards
 
 The three example files of the program, one derived example and thirteen small canonical boards (`lib/regress_boards.py`, built with the public builder API that exists in v2.4.4 and in the candidate). The four marked R have an independent reference (square source on cell edges at 2, 1 and 0.5 mm, laminate of one conductivity, insulated sides).

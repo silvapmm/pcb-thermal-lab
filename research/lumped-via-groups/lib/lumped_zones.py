@@ -280,7 +280,7 @@ def micro_peak(layer, th, node, S_layer):
     return i_tot / n * rim_minus_mean(S_layer, r_cell, a)
 
 
-def zoned_network(net, cov, layer, power, rings, vias=None):
+def zoned_network(net, cov, layer, power, rings, vias=None, zone_ok=None):
     """!
     @brief `lumped._heater_network` with the footprint cut into the rest A (node 0) and the core C (node 1) when a group of vias covers only part of it.
     @param net Network (per-cell arrays) of the problem.
@@ -289,6 +289,7 @@ def zoned_network(net, cov, layer, power, rings, vias=None):
     @param power Heater power (W).
     @param rings Number of rings outside the footprint.
     @param vias ViaSet that the program passes since `fix/via-constriction`; ignored (this copy builds its own via couplings from the barrels as point conductances).
+    @param zone_ok Ignored (the zone decision the program passes since `feature/lumped-zones`).
     @return dict as `lumped._heater_network` (theta of shape (L, R + 1)); the program's own network if no zone split applies.
     """
     from pcbthermal import lumped

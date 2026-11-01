@@ -1381,7 +1381,8 @@ class SolverPanel(QWidget):
         tips = {"fvm": "Reference model. Any geometry, full temperature field, exact energy balance. Use it for final answers "
                        "and whenever a warning appears. Cost grows with the number of cells.",
                 "lumped": "Fast network (milliseconds). Handles partial copper, vias, heatsinks and several heaters; "
-                          "within about 4 % in most cases. Weak when a copper edge crosses the heater, at corners and for thin heaters.",
+                          "within about 4 % in most cases. A part over a dense group of vias is split into the core of the vias and the rest of the footprint "
+                          "(the board then runs on a 0.5 mm cell). Weak when a copper edge crosses the heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, heatsinks and "
                             "partial copper. Assumes insulated edges and rectangular heaters; unreliable if a copper edge crosses a heater.",
                 "solid3d": "The board as a real 3D solid (every copper layer and dielectric gap a slab, vias with their copper area, metal blocks as "

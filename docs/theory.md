@@ -16,7 +16,7 @@ Units: SI inside the package (m, s, W, K, W/mK, W/m²K, J/m³K); temperatures in
 | 2 FVM (and the via on the grid) | `fvm.py`, `viawell.py` | `point-via-convergence`, `sor-with-via-couplings`, `young-omega-tiles`, `models-comparison` | 2.1 | 2, 5, 7, 18 |
 | 3 FDM | `fdm.py` | `models-comparison`, `point-via-convergence` | 2.2 | 2, 18 |
 | 4 3D solid | `solid3d.py` | `solid3d-verification` | 2.7 | 3, 16 |
-| 5 Lumped | `lumped.py`, `viaconstriction.py` | `lumped-analytic-vias`, `lumped-via-groups` | 2.3 | 3, 17, 18.1, 21 |
+| 5 Lumped | `lumped.py`, `viaconstriction.py` | `lumped-analytic-vias`, `lumped-via-groups`, `lumped-zones-adoption` | 2.3 | 3, 17, 18.1, 18.2, 21 |
 | 6 Analytic | `analytic.py`, `viaconstriction.py` | `analytic-partial-copper`, `lumped-analytic-vias`, `young-omega-tiles` | 2.4 | 3, 4, 13, 18.1 |
 | 7 metal blocks | `blocks.py`, `checks.py` (used by `fvm.py`, `fdm.py`, `solid3d.py`, `lumped.py`, `analytic.py`) | `block-and-fins`, `fin-channel`, `fin-channel-sources`, `effective-conductivity` | 2.6, 4b, 15 | 12 D, 15, 17, 22, 24 |
 | 8 heat transfer coefficients | `convection.py`, `api.py` (fixed-point loop) | `horizontal-plate-h`, `plate-h-level`, `effective-conductivity` | 5, 18 | 8, 22 |
@@ -404,7 +404,7 @@ with `Δ` the edge length of the cell face. A block hides the board face under i
 
 `lumped.py` reduces the FVM network, per heater, to a few unknowns per layer, using the fact that the temperature field of a heater depends mostly on **distance from its footprint**. A board with an outline is solved on the rectangle of the same area (section 1.3.3).
 
-**Unknowns.** One temperature per layer and ring, `N_L (N_ring + 1)` per heater (ring 0 is the footprint, found with a `4 × 4` sampling of the cells, and gets the whole power), plus one per ring for a metal block layer and, on a one-layer board, one per ring for each of its two laminate nodes (section 1.4).
+**Unknowns.** One temperature per layer and ring, `N_L (N_ring + 1)` per heater (ring 0 is the footprint, found with a `4 × 4` sampling of the cells, and gets the whole power), plus one per ring for a metal block layer and, on a one-layer board, one per ring for each of its two laminate nodes (section 1.4). A footprint that holds a dense group of vias is two nodes per layer instead of one (section 5.2).
 
 **Rings (geometry).** The distance `δ(x, y)` of every cell to the footprint is computed (Euclidean distance transform; 0 inside). Ring 0 is the footprint; ring `k = 1..N_ring` holds the cells with `δ ∈ (E_{k−1}, E_k]`, with geometric edges
 
@@ -449,8 +449,58 @@ The network of a ring becomes a star: the sheet node of each plane, its well, th
 
 *Figure (`images/via_constriction_lumped_well.png`): left, a lone via outside the footprint sits in one ring, and the ring carries its mean temperature at one radius: the angular gradient of the real field is lost; right, the network: one well `R_w` per plane in series with the barrel.*
 
-**Limits.** The rings have no angular resolution: the effect of a lone via depends on its distance and on the number of rings, and an array that straddles the footprint edge is overstated (the part is then too cool) by up to 3.2 times the via effect, about 11 K or a quarter of the rise, and so is an array off the centre or under an elongated footprint (`checks.lumped_via_cool_warning` warns). A copper edge across the footprint, a board corner and a thin heater are the cases where the ring network fails (the input checks warn); round boards and a two-layer board have the via effect 16 to 21 % too small, so the part reads hotter (the safe side), while the opposite sign (effect too large, part too cool, unsafe) happens for dense arrays under a large footprint, up to 33 %; a one-layer board with partial copper has only the two laminate nodes. A zonal Lumped model remains in "Planned".
+**Limits.** The rings have no angular resolution: the effect of a lone via depends on its distance and on the number of rings. For a part over a dense group of vias the footprint is cut into two zones (section 5.2), which removes most of the error of the one-node footprint; what is left, and what the zones do not touch, is: an array that straddles the footprint edge or lies just outside it (the part is read too cool, up to 16 % of its rise with the zones; with the one-node footprint up to 3.2 times the via effect, about 11 K, a quarter of the rise), and an array off the centre or under an elongated footprint (1 to 5 % and 2 to 4 % of the rise with the zones; `checks.lumped_via_cool_warning` warns). A lone via, a row and scattered vias outside every footprint keep the ring network's error (a lone via from 22 % too small to 65 % too large). A copper edge across the footprint, a board corner and a thin heater are the cases where the ring network fails (the input checks warn); round boards and a two-layer board have the via effect 16 to 21 % too small, so the part reads hotter (the safe side); a one-layer board with partial copper has only the two laminate nodes.
 **Where it is checked**: `validation.md` 3 (against the 3D solid), 17 (the metal block), 18.1 (vias), 21 (rings and one-layer boards); `research/lumped-analytic-vias`, `research/lumped-via-groups`, `research/models-comparison`. **Sources**: [CarslawJaeger] (M) (logarithmic potential, `I₀`, `I₁`).
+
+### 5.2 The footprint in two zones (`lumped.py`, `viaconstriction.py`)
+
+![A footprint cut into the rest A and the core C](images/lumped_zones_footprint.png)
+
+*Figure (`images/lumped_zones_footprint.png`): a part over a group of vias. The cells within `0.7071 d_nn` of the vias form the core C, the rest of the footprint is A; the vias reach the planes through the wells of section 5.1 at node C, and the heat of A reaches the barrels through the lateral link A-C.*
+
+With one node for the whole footprint the heat generated far from the vias is assumed to reach them at the mean temperature of the footprint, and a part much larger than its via array reads too cool (the one-node footprint is up to 109 % off in the via effect on dense arrays under a large footprint). When the footprint holds a **group of two or more vias** (single linkage, section 5.1) the cells within `CORE_R d_nn = 0.7071 d_nn` of the vias of the group (`d_nn` the mean nearest-neighbour distance of those vias; `0.7071 = 1/√2` covers a square lattice) are the **core** C, and the rest of the footprint is **A**. A and C are two nodes per layer (`lumped._zone_network`); the rings outside are the program's. The sums of sheet conductance, films, dielectric conductance and capacity of each node are sums over its cells, the barrels of the vias in C reach the planes through the micro wells of eq. (5.6) at node C (the cluster-well term is kept in every node, with its cap of `0.75 λ_l`), and the source of the layer is divided between the two nodes in proportion to the covered area, `Q_A = (1 − f_C) Q`, `Q_C = f_C Q` (`f_C` the coverage-weighted share of the footprint in the core).
+
+![The network with two zones](images/lumped_zones_network.png)
+
+*Figure (`images/lumped_zones_network.png`): the network of two layers with the footprint in two zones: each layer has A, C and the rings; the vertical links (dielectric, barrels with their wells) and the lateral links A-C and A to ring 1.*
+
+**The link between A and C.** For a uniform source over A and a uniform sink over C of equal strength `Q` on a lossless sheet of conductance `S`,
+
+    T_A − T_C = Q (2 φ_AC − φ_AA − φ_CC)/(2 π S),        φ_XY = mean of ln|x − y| over x in X, y in Y        (5.7)
+
+taken on the real shapes of A and C with the potential sums of section 5 (zones of more than 700 cells are aggregated in blocks, `_block_points`, `_mutual_potentials`). For concentric discs this is the Krogh resistance of the annulus plus `1/(8π S)` of the core, so the convergence of the heat on the group is not counted a second time by the cluster well that stays at C (confirmed by the run: leaving the cluster well out of the zone nodes or keeping it differs by 0.2 point of mean error; with several groups under one footprint keeping it is better by 3 to 6 points of the effect, which is why it is kept).
+
+**The link between A and ring 1** is the mean-to-outer-wall resistance of the annulus of inner radius `r_c` and outer radius `a`, with a uniform source and the inner side insulated (`viaconstriction.annulus_out_resistance`), plus the half ring of the program (the Bessel factor of eq. 5.4 is not applied to this link):
+
+    R_{A,1} = [ (I₁ − I₂)/((a² − r_c²)/2) ] / (2 S π (a² − r_c²)),
+    I₁ = a² (a² − r_c²)/4 − (a⁴ − r_c⁴)/8,     I₂ = r_c² [ a²/4 − (r_c²/2) ln(a/r_c) − r_c²/4 ]        (5.8)
+
+with `r_c` and `a` the radii of the discs of the same area as the core and as the footprint; it tends to `1/(8π S)` as `r_c → 0`, the one-node value of eq. (5.3) for a disc.
+
+**The peak.** The hottest point of the source layer is the largest of three candidates (`lumped._ZonePeak`): (i) the hottest point of A, the field of a uniform generation `Q_in + Q_out` over A with a sink `Q_in` on C and `Q_out` far away, with the `K₀(d/λ)` kernel of the layer; (ii) the core mean plus the **rim of the Krogh cell** of one via above the cell mean (`viaconstriction.rim_minus_mean`), per watt taken by the via,
+
+    ΔT_rim = [ b² ln b/(b² − 1) − 1/2 ]/(2π S) − R_K(S, R_c, a),      b = R_c/a        (5.9)
+
+(the micro peak: the temperature at the rim of the cell exceeds its area mean); (iii) when the core is hotter than A, the core mean plus the rim plus the **bump** of the core above its mean (the footprint formula of eq. 5.5 applied to C). The bump is essential: without it the largest error of the via effect over the 36 family boards went from 9.1 to 20.1 %. The one-node footprint (the fallback) carries no micro peak, so that it is the program's code unchanged.
+
+**The decision: zones or one node.** There is no core, or the footprint is one node, when the core covers more than **92 %** of the footprint counted on the Lumped grid **and** on a 0.1 mm grid (`_fine_core_share`; `will_be_zoned` counts on the fine grid alone, before the grid exists): a core of 94 to 99 % of the footprint leaves a handful of cells for A, and the zone network then reads the part up to 14 % hot, so the threshold protects; the fine count does not jump with the raster (without it the inverted-T example board stepped 2.9 K between 1.0 and 0.5 mm). A board with an outline is decided on the rectangle of the same area, the board the model solves (section 1.3.3). The nine vias of the example board are a core of 98 to 100 % of the footprint of U1, so U1 stays one node and the board is unchanged.
+
+![The raster against the core](images/lumped_zones_raster_against_core.png)
+
+*Figure (`images/lumped_zones_raster_against_core.png`): the core of a via array on the Lumped raster at 1.0 and 0.5 mm: a core a few cells across is badly drawn.*
+
+**The raster.** The core must be a handful of cells across, so a board that has a part that will be zoned runs the Lumped model on a **0.5 mm cell** (`lumped.cell_for`; the other boards keep the 0.5 to 1.0 mm clip of the options). The cell is one per board: the other parts of that board move by the raster too. The Analytic keeps its clip.
+
+**Capacities and time.** The capacity of each zone node is the sum of the capacities of its cells (the sum over the nodes of the footprint equals the footprint capacity of the one-node network), and the transient is `C dθ/dt + K θ = s P` with `s` the source vector (the share of A and C by the covered area); the peak is evaluated at every step with the same operator as in steady state. The cells of the core are painted with the temperature of node C in the temperature map; outside the footprint the radial profile is read from A (`lumped._radial`).
+
+![The profile runner with zones](images/lumped_zones_profile_runner.png)
+
+*Figure (`images/lumped_zones_profile_runner.png`): the square-wave run: the wave, the source split between A and C, the zone network and the peak operator; below, what an adapter that puts the whole power on A does, and what the split changes.*
+
+**The profile runner.** The runner of the power profiles (`_LumpedAdapter.advance`) and the step responses used by the decision average-or-resolve (`lumped.step_responses`) apply the power through the same source vector and read the same zone peak; with the whole power put on A the part would read up to 25 % of its rise too hot (measured on 93 boards).
+
+**Limits.** The core radius `0.7071 d_nn`, the 92 % and the 700-point block aggregation are assumed constants. The model reads the part too cool by up to 16 % of its rise for an array across the edge of the footprint and 1 to 5 % for an off-centre cluster and 2 to 4 % for an elongated footprint (steady state and profile), and up to 6.1 % of the rise too cool when the vias conduct nothing (the cut of the footprint lowers the peak by itself); the one board of the 62 simple boards on which the zones are worse than the one-node footprint by more than 5 points of the via effect reads the part 7 % too hot, on the safe side (the 7 x 7 array at 0.6 mm pitch with a 0.2 mm drill, copper-filled, under 8 mm), and in the square-wave run three of the 93 boards read the peak 6 to 13 % of the rise too hot, partly the same steady offset and partly the overshoot of the peak term at the switching edge. Several groups under one footprint are treated as one core (their union). Irregular groups, a guard ring of vias, a block under the part and an L-shaped footprint were not tested; a footprint whose core covers more than 92 % of it, or that holds no group, is the one-node network. Warnings in `checks.py` (`lumped_via_cool_warning` with the bound of the zoned model, a raster coarser than a tenth of the core, a footprint kept as one node).
+**Where it is checked**: `validation.md` 18.2; `tests/test_lumped_zones.py`; `research/lumped-zones-adoption` (README 4, 8, 9 and 10), `research/lumped-via-groups`. **Sources**: the closed forms (5.7) to (5.9) are own derivations checked numerically against the FVM at 0.25 mm and a fine-grid layered solver; Krogh's cell was not opened as a source (section 12); the published case of Shen and others (2020) was read in equations (2) to (5) and its CFD number was not reproduced (`validation.md` 18.2).
 
 ## 6. Analytic: multilayer Fourier series
 
@@ -496,7 +546,7 @@ The Analytic model carries the mean temperature of a tile of its Green-function 
 
 *Figure (`images/via_constriction_analytic_tiles.png`): left, the tiles of the program (2.5 to 5 mm) over a 5 x 5 array of 0.3 mm vias at 1.2 mm pitch under a 6 mm source: one tile holds many vias and the tile mean is read; middle, the tiles of 1 mm with the self-term: the via is read at its wall; right, a tile that straddles a copper or source edge averages two different temperatures, which is why the tile must be small.*
 
-**Limits.** A lone via is the weak case (its effect depends on the distance to the heater and the tile); the tile is limited by the unknowns guard (cell size 0.5 to 1 mm for these two models in the application). The numbers are in `validation.md` 18.1; the formulas are derivations checked numerically against the FVM and an axisymmetric solve (`research/lumped-analytic-vias`, `research/lumped-via-groups`, `research/young-omega-tiles`).
+**Limits.** A lone via is the weak case (its effect depends on the distance to the heater and the tile); the tile is limited by the unknowns guard (the Analytic keeps the clip of the cell to 0.5 to 1 mm, so 2 mm equals 1 mm; the Lumped model uses 0.5 mm when a part will be zoned, section 5.2, and the Analytic has no zones). The numbers are in `validation.md` 18.1; the formulas are derivations checked numerically against the FVM and an axisymmetric solve (`research/lumped-analytic-vias`, `research/lumped-via-groups`, `research/young-omega-tiles`).
 
 ## 7. Metal blocks (FVM, FDM, 3D solid; Lumped and Analytic in steady state)
 

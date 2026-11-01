@@ -26,6 +26,19 @@ from pcbthermal.fvm import Network                                           # n
 SMALL = dict(layers=4, n=5, pitch=1.2, dia=0.3, fill=385.0, side=24.0, src=10.0, power=3.0)
 
 
+@pytest.fixture(autouse=True)
+def program_as_released():
+    """!
+    @brief "The program" of these tests is the one-node network of release 2.4.5: since the adoption (feature/lumped-zones) the program has the zones itself, so its switch
+           `lumped.ZONES` is turned off for every test of this folder and restored after it.
+    @return None (a generator fixture).
+    """
+    saved = lumped.ZONES
+    lumped.ZONES = False
+    yield
+    lumped.ZONES = saved
+
+
 def build(spec, cell_mm=0.5):
     """!
     @brief The Problem of a spec, its network on the Lumped grid, the via set and the footprint coverage of the first heater.
@@ -346,7 +359,7 @@ def test_profile_runner_with_zones_ends_on_the_average_and_follows_the_wave():
     # the unpatched adapter puts all the power on A: hotter than the patched run
     with zref.VARIANTS["Z_none"]():
         saved = lumped._LumpedAdapter.advance
-        lumped._LumpedAdapter.advance = zl._ORIGINAL["advance"]
+        lumped._LumpedAdapter.advance = zl.advance_245         # the program's adapter splits the source itself since the adoption: the 2.4.5 step is the control
         try:
             bad = lumped.run_profile(p, dec, opt, 10, 0.5)
         finally:
