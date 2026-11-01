@@ -3,7 +3,7 @@
 """!
 @file zoned_lumped.py
 @brief PROPOSAL: the Lumped heater network of the program (2.4.5, with the via wells) with the footprint cut into two zones where a group of vias covers part of it; a copy that imports the program and replaces `lumped._heater_network` in memory (the program is never edited).
-@details WRITTEN BUT NOT YET RUN (the machine was busy when the work was prepared): every function here has only been compiled. The first runs are the tests of `tests/test_zoned_lumped.py`.
+@details Run and measured in the README of this folder; the tests are in `tests/test_zoned_lumped.py`.
 
          What it is. `pcbthermal.lumped._heater_network` gives the footprint of a heater one node per layer. When a dense group of vias (the "core") sits under a larger footprint, the
          heat of the rest of the footprint has to travel sideways to the core, in parallel with the vertical paths of that rest, and the one-node footprint cannot show it (the
@@ -213,12 +213,22 @@ def footprint_potentials(cov, dx, dy, mode="stride", max_cells=900):
     nbr_off = ~pad[2:, 1:-1] | ~pad[:-2, 1:-1] | ~pad[1:-1, 2:] | ~pad[1:-1, :-2]
     bnd = (foot & nbr_off).astype(float)
     pos, wb, db = block_points(cov, dx, dy, max_cells)
-    _, bb = _block_weights(bnd, cov, max_cells)
     d = np.hypot(pos[:, None, 0] - pos[None, :, 0], pos[:, None, 1] - pos[None, :, 1])
     d[np.arange(len(pos)), np.arange(len(pos))] = db
     phi = (np.log(d) * wb[None, :]).sum(axis=1) / wb.sum()
     phi_mean = float((phi * wb).sum() / wb.sum())
-    phi_bnd = float((phi * bb).sum() / bb.sum()) if bb.sum() > 0 else phi_mean
+    # the boundary cells keep their own positions (a block centroid lies half a block inside the edge and biased the term by 8 % in the first version):
+    # potential of every boundary cell against the block sources; a source block that holds the cell itself gets the self distance of a cell
+    bidx = np.argwhere(bnd > 0)
+    if len(bidx):
+        bpos = np.column_stack([bidx[:, 1] * dx, bidx[:, 0] * dy])
+        dd = np.hypot(bpos[:, None, 0] - pos[None, :, 0], bpos[:, None, 1] - pos[None, :, 1])
+        # the mean log distance from a point to a block that contains it is about ln(0.447 block side), never below a cell term
+        dd = np.maximum(dd, db[None, :])
+        phi_b = (np.log(dd) * wb[None, :]).sum(axis=1) / wb.sum()
+        phi_bnd = float(phi_b.mean())
+    else:
+        phi_bnd = phi_mean
     return phi_mean, phi_bnd, float(phi.min())
 
 

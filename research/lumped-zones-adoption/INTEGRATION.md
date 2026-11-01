@@ -1,6 +1,33 @@
-# Integration of the zonal Lumped model into the program (design, not yet measured)
+# Integration of the zonal Lumped model into the program (design, with the measured impact)
 
-What would enter `pcbthermal/` if the maintainer adopts the zones after the 2.4.5 release, written against `develop` as it is (2.4.5: micro well per via, cluster well per group with the macro radius capped at 0.75 fin lengths, Kron reduced barrel nodes, `Network.gz_via` for the rings without vias). **Nothing is implemented and nothing has been measured**: the measured impact of each choice is the output of the studies of the README, to be pasted here after the run; the numbers quoted below are the earlier folder's, on the program up to 2.4.4. Adoption goes on a `feature/` branch off `develop` (a new model behaviour, so a minor number) with the reviewer and the whole battery. The prototype that the design follows is `lib/zoned_lumped.py`.
+What would enter `pcbthermal/` if the maintainer adopts the zones after the 2.4.5 release, written against `develop` as it is (2.4.5: micro well per via, cluster well per group with the macro radius capped at 0.75 fin lengths, Kron reduced barrel nodes, `Network.gz_via` for the rings without vias). **Nothing is implemented in the program.** The impact of each choice was measured in this folder (README 0 and 4.1 to 4.6, program 2.4.5) and is summarised in section 0 below; numbers in the later sections that are marked as the earlier folder's are on the program up to 2.4.4. Adoption goes on a `feature/` branch off `develop` (a new model behaviour, so a minor number) with the reviewer and the whole battery. The prototype that the design follows is `lib/zoned_lumped.py`.
+
+## 0. Measured impact and recommendation
+
+Measured on the program of 2.4.5 (README sections 4.1 to 4.6), error of the via effect against the fine-grid layered solver, mean / maximum, percent:
+
+| set | program 2.4.5 | zones (micro well only in the zones, `zone_macro="none"`) | zones with the program's cluster well |
+| :-- | --: | --: | --: |
+| 36 boards (arrays under square sources), 0.5 mm raster | 10.8 / 32.0 (20 within 10 %) | 3.9 / 9.1 (36) | 3.7 / 9.1 (36) |
+| 26 held-out boards, 0.5 mm | 18.3 / 108.3 (12 of 26) | 4.5 / 20.2 (23 of 26) | 4.5 / 20.2 |
+| 36 boards at 1.0 mm (the raster the program uses for any part over 4 mm) | 10.9 / 33.4 | 8.0 / 20.8 | not run |
+| example board: the 9 vias of the file | -3.4 (open), -0.4 (Cu) | the same (no core: the program's network) | the same |
+| example board: 5 x 5 / 7 x 7 array under U1, open barrels | -12.6 / -8.3 | -0.3 / -3.1 | -0.3 / -3.1 |
+| off-centre cluster and elongated footprint (README 4.4 b, c) | 72.9 / 107.0 and 30.2 / 59.0 | 14.1 / 27.3 and 6.9 / 13.4 | the same |
+| array across the footprint edge (4.4 a) | 102.0 / 220.7 | 66.6 / 134.9 (still far) | 66.3 / 133.5 |
+| vias outside the footprint (4.4 d) | 48.2 / 75.7 | equal to the program | equal |
+| step response of a zoned footprint, 0.01 s | +63 to +74 % | +8 to +36 % | equal |
+| dead vias (conduct nothing), maximum against no vias | 0.0 % of the rise | -1.5 to -6.1 % (cooler: unsafe) | the same |
+| run time, example board | 0.02 to 0.06 s | the same | |
+
+**Recommendation.**
+
+1. **Adopt the zones as a `feature/` item, in the minor version after the memory guard (2.5.0 if it fits, otherwise 2.6.0), with the warnings.** On the boards the models are built for (a dense array under a larger footprint) the maximum error drops from 32 to 9 % and from 108 to 20 %, the boards read too cool by more than 5 % go from 15 to 9 on the family, the unsafe tail shrinks, and the cost is nil. The warnings of README 4.3 and 4.4 cover all the boards above 10 % at 0.5 mm and all but one at 1.0 mm.
+2. **The macro switch: `zone_macro="none"`** by the rule written beforehand (the cluster well in the zones does not improve the mean by 1 point; 0.2 point on the sparse boards). There is no measurable double count; if the maintainer prefers the smaller change, `cap` (the program's function used as it is, no edit to `viaconstriction.ring_couplings`) is equally safe: the two differ by 0.3 point on the signed mean. This is a choice of simplicity, not a finding.
+3. **The raster: tie it and warn.** At 1.0 mm the zones are 8.0 / 20.8 %; the tied cell gives 4.8 / 17.2, a cell of 0.5 mm gives 3.9 / 9.1 at no measurable cost. Prefer a Lumped cell of 0.5 mm for any heater that has a core over a tie rule that leaves 4 boards above 10 %; keep the warning "raster coarser than a tenth of the core" either way.
+4. **Do not oversell it:** the zones do not fix an array across or just outside the footprint edge (up to +135 % and +125 % too cool), and dead vias read 1.5 to 6.1 % cool. The warning set must be extended for vias just outside a footprint (a group within a few mm of the footprint edge: not measured here, the rule is proposed) before the release says the Lumped model handles via groups.
+5. **The footprint potentials fix** (blocks instead of the stride): real, but 0.00 K at 1.0 mm and at most 0.31 K at 0.5 mm; a small `fix/` item of its own, not a reason to wait for the zones.
+6. **Before adoption:** a profile (square wave) run with the zones on a board with a core (not tried), a stress scenario in `tests/test_gui_stress.py`, the reviewer, and a re-run of `docs/validation.md`. The regression test of the dead vias would be the check 5 with a 6.5 % limit.
 
 ## 1. The two decisions that the first run settles
 
@@ -88,7 +115,7 @@ From the earlier list, on the 2.4.5 well, plus the ones this design needs:
 * The error on the unsafe side (the part too cool) grows with an elongated footprint, a cluster off the centre and a sparse array, up to 20 %; the warning names them. The correction beyond that (an axisymmetric peak, a numerical cell solve per part) is a project of its own.
 * Cost: two dense matrices of at most 700 x 700 per heater and per network build, and the `K0` of the kernel on the same size; the top-path loop and the power-coefficient loop of `api._solve_with_tc` rebuild the network at each iteration, so the cost multiplies by their iteration counts (3 to 7). Not measured (the earlier folder measured hundredths of a second on the example board and stated that this was not a result of its review); study 3 prints the time of the example board.
 * A Gerber board with 100 or more vias was not run.
-* The prototype was written without being run; the first runs of the tests are the first test of the prototype, and the numbers of the README are only valid after they pass.
+* The prototype has been run (16 tests, six studies); the defects the first run found are in README 5b. It has not been run on a block under the part, an outline, an L-shaped footprint or a profile.
 
 ## 10. Decisions left to the maintainer
 

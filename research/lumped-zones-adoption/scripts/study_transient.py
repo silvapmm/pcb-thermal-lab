@@ -28,7 +28,8 @@ from pcbthermal import fvm, lumped                                           # n
 BOARDS = [("5x5 @ 1.2 in 10 mm", dict(n=5, pitch=1.2, src=10.0, fill=385.0)),
           ("3x3 @ 3.0 in 12 mm", dict(n=3, pitch=3.0, src=12.0, fill=385.0)),
           ("5x5 @ 1.2 in 14 x 7 mm", dict(n=5, pitch=1.2, src=10.0, src_wh=(14.0, 7.0), fill=385.0))]
-TIMES = (0.01, 0.1, 1.0, 10.0)
+TIMES = (0.01, 0.1, 1.0, 10.0, 100.0)
+T_END = 600.0   # s: long enough for the response to reach its steady value (the default of ten board time constants stopped at 63 % of it)
 
 
 def sample(times, z, t):
@@ -63,12 +64,12 @@ def main():
     pc.load_libraries()
     for label, spec in BOARDS:
         p = zref.refs.make_problem(spec)
-        t_f, z_f, r_f = fvm.step_responses(p, cell_mm=0.5)
-        t_p, z_p, r_p = lumped.step_responses(p, cell_mm=0.5)
+        t_f, z_f, r_f = fvm.step_responses(p, cell_mm=0.5, t_end=T_END)
+        t_p, z_p, r_p = lumped.step_responses(p, cell_mm=0.5, t_end=T_END)
         out = {"FVM": (t_f, z_f[0], r_f[0]), "P245": (t_p, z_p[0], r_p[0])}
         for name in ("Z_none", "Z_cap"):
             with zref.VARIANTS[name]():
-                t_z, z_z, r_z = zl.step_responses_zoned(p, cell_mm=0.5)
+                t_z, z_z, r_z = zl.step_responses_zoned(p, cell_mm=0.5, t_end=T_END)
             out[name] = (t_z, z_z[0], r_z[0])
         print(f"\n{label}: steady rise K/W and response (K/W) at the times; error against the FVM in percent\n")
         print("| model | steady | " + " | ".join(f"{t:g} s" for t in TIMES) + " | t63 s |\n| :-- | --: |" + " --: |" * (len(TIMES) + 1))

@@ -77,17 +77,17 @@ def main():
             print(f"| {kind} {size} | {cell:g} | {n} | {100 * (link(st) / link(ex) - 1):+.1f} % / {100 * (link(bl) / link(ex) - 1):+.1f} % | {100 * (peak(st) / peak(ex) - 1):+.1f} % / {100 * (peak(bl) / peak(ex) - 1):+.1f} % | {cf} (exact 0.250, 0.250) |", flush=True)
             rows.append({"kind": kind, "size": size, "cell": cell, "cells": n, "exact": ex, "stride": st, "block": bl})
     # the effect on a board: 4 layers, full copper, a large source, with and without the block decimation
-    print("\nMaximum temperature rise of a 4-layer copper board with a square source (Lumped, 1.0 mm cell), K\n")
-    print("| source mm | stride (program) | block | change |\n| --: | --: | --: | --: |")
-    for src in (20.0, 30.0):
+    print("\nMaximum temperature rise of a 4-layer copper board with a square source (Lumped), K\n")
+    print("| source mm | cell mm | stride (program) | block | change |\n| --: | --: | --: | --: | --: |")
+    for src, cell_b in ((20.0, 1.0), (30.0, 1.0), (20.0, 0.5), (30.0, 0.5)):
         spec = dict(layers=4, n=0, pitch=1.0, dia=0.3, fill=0.0, side=2.0 * src, src=src, power=10.0)
         prob = zref.refs.make_problem(spec)
         prob.vias = []
         res = {}
         for mode in ("stride", "block"):
             with zl.patched(zones=False, footprint=mode):
-                res[mode] = zref.pc.max_rise(prob, "lumped", 1.0)
-        print(f"| {src:g} | {res['stride']:.2f} | {res['block']:.2f} | {res['block'] - res['stride']:+.2f} |")
+                res[mode] = zref.pc.max_rise(prob, "lumped", cell_b)
+        print(f"| {src:g} | {cell_b:g} | {res['stride']:.2f} | {res['block']:.2f} | {res['block'] - res['stride']:+.2f} |")
     print("\nwritten", zref.save_json("footprint_potential.json", rows))
 
 

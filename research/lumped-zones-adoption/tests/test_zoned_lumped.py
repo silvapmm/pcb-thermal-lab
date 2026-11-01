@@ -3,7 +3,7 @@
 """!
 @file test_zoned_lumped.py
 @brief Tests of the zoned Lumped proposal on the 2.4.5 program: the closed forms, the equality with the program when the zones are off, the invariants of the network and the helper rules.
-@details WRITTEN BUT NOT YET RUN (the machine was busy when the work was prepared). Run: `.venv/bin/python -m pytest research/lumped-zones-adoption/tests -q` from the repository root.
+@details The 16 tests pass (about a second). Run: `.venv/bin/python -m pytest research/lumped-zones-adoption/tests -q` from the repository root.
          The tests that build a board use small boards (20 mm, 0.5 to 1 mm cells) and take seconds; none needs the fine-grid references.
 """
 
@@ -52,7 +52,8 @@ def same_network(a, b, tol=1e-10):
     """
     assert a["theta"].shape == b["theta"].shape
     assert np.allclose(a["theta"], b["theta"], rtol=tol, atol=tol)
-    assert a["peak_extra"] == pytest.approx(b["peak_extra"], rel=1e-8, abs=1e-10)
+    # the Bessel factors of the interior relations are a difference of nearly equal numbers for a small footprint: 1e-13 in the loss gives 1e-7 in the peak
+    assert a["peak_extra"] == pytest.approx(b["peak_extra"], rel=1e-5, abs=1e-10)
     assert np.allclose(a["K"], b["K"], rtol=tol, atol=tol)
     assert np.allclose(a["C"], b["C"], rtol=tol)
 
@@ -137,7 +138,8 @@ def test_disc_footprint_closed_form():
     pad = np.zeros((n + 20, n + 20))
     pad[10:-10, 10:-10] = cov
     ex = zl.footprint_potentials_exact(pad, dx, dx)
-    assert (ex[1] - ex[0]) == pytest.approx(0.25, rel=0.03)
+    # the boundary cells lie half a cell inside the disc, so the continuous 1/4 becomes 1/4 - dx / (2 a)
+    assert (ex[1] - ex[0]) == pytest.approx(0.25 - dx / (2 * 3.5e-3), rel=0.01)
     assert (ex[0] - ex[2]) == pytest.approx(0.25, rel=0.03)
 
 

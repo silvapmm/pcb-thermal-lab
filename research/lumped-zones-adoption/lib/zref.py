@@ -3,7 +3,7 @@
 """!
 @file zref.py
 @brief Common ground of the studies of this folder: the boards (re-used from `lumped-via-groups`, `lumped-analytic-vias` and `point-via-convergence`), their fine-grid references (cached), the Lumped variants on the 2.4.5 program and the error tables.
-@details WRITTEN BUT NOT YET RUN. The boards and the independent references are those of the earlier investigation (`research/lumped-via-groups/lib/refs.py`): a square board of full copper
+@details Run (see README). The boards and the independent references are those of the earlier investigation (`research/lumped-via-groups/lib/refs.py`): a square board of full copper
          planes with a square source and an n x n via array (a "spec"), solved by the fine-grid layered solver `sheets2d` at 1/16 mm, which imports nothing of the program. The variants here are
          the program as it is in 2.4.5 (`P245`: micro well plus the cluster well with the macro cap, Kron reduced) and the zoned network of `zoned_lumped.py` on top of it, in the options
          that answer the questions of the README. The via effect `E = T_max(no vias) - T_max(vias)` is the metric, as before; error = 100 (E_model / E_ref - 1) %, positive when the model is
