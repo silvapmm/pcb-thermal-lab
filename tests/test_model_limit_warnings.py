@@ -305,9 +305,12 @@ def test_lumped_cool_warning_is_cheap_with_two_thousand_vias():
     rng = np.random.default_rng(1)
     pts = [(float(a), float(b)) for a, b in rng.uniform(5, 55, (2000, 2))]
     p = _via_part_board(27, 27, 33, 33, pts)
-    t0 = time.perf_counter()
-    check_model_limits(p, ("lumped",), 1.0)
-    assert time.perf_counter() - t0 < 0.3
+    best = 1e9
+    for _ in range(3):                                           # Best of three, robust to a loaded battery
+        t0 = time.perf_counter()
+        check_model_limits(p, ("lumped",), 1.0)
+        best = min(best, time.perf_counter() - t0)
+    assert best < 0.3, best
 
 
 def _outside_percent(problem, cell_mm):
@@ -476,12 +479,17 @@ def test_live_input_check_is_cheap_on_a_large_board():
     import time
     from pcbthermal.checks import check_input
     models = ("fvm", "fdm", "lumped", "analytic", "solid3d")
-    for outline, limit in ((False, 0.8), (True, 1.5)):
+    # Measured without outline: 0.2 s alone, 0.92 s in a loaded battery, 1.46 to 1.8 s with the old code (hence 1.2 s); with outline 0.5 s alone, 2.7 s old
+    for outline, limit in ((False, 1.2), (True, 1.5)):
         p = _many_via_board(8000, outline)
         check_input(p, models, 1.0)                              # Warm the imports and caches
-        t0 = time.perf_counter()
-        check_input(p, models, 1.0)
-        assert time.perf_counter() - t0 < limit, outline
+        # Best of three: a loaded battery inflates one call (0.2 s alone became 0.92 s), the minimum is the cost of the code
+        best = 1e9
+        for _ in range(3):
+            t0 = time.perf_counter()
+            check_input(p, models, 1.0)
+            best = min(best, time.perf_counter() - t0)
+        assert best < limit, (outline, best)
 
 
 def _warnings_with(problem, cell_mm, text):
