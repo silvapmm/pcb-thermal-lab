@@ -676,7 +676,8 @@ class MainWindow(QMainWindow):
     def _update_checks(self):
         """!
         @brief Run the live input checks (validity, limits of the selected models, vias; no solve) and show them in the Simulation panel.
-        @details The same list api.simulate puts at the head of the warnings of a run, so the Results summary repeats these texts and adds only what a run knows.
+        @details The same warnings, in the same order, that api.simulate puts at the head of the warnings of a run: the list shows the one-line form of each, the
+                 Results summary and the tooltip of the item hold the full measured text, and the summary adds only what a run knows.
                  Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:

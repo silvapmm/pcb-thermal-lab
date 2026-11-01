@@ -1177,6 +1177,10 @@ def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
             t0 = time.time()
             win._update_checks()
             assert time.time() - t0 < 1.0
-            live = [str(w) for w in win.solver_panel.checks.warnings]
-            assert live == [str(w) for w in check_input(win.doc.problem, models, max(cell, 0.5))]
+            # The same warnings in the same order as a run starts with; the list shows each one's one-line form, the full text is its tooltip
+            from pcbthermal.checks import line
+            live = list(win.solver_panel.checks.warnings)
+            ref = check_input(win.doc.problem, models, max(cell, 0.5))
+            assert [str(w) for w in live] == [str(w) for w in ref]
+            assert all(len(line(w)) <= len(str(w)) for w in live)
     win.doc.stack.setClean()

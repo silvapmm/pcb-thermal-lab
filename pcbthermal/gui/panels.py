@@ -6,9 +6,11 @@
 """
 
 import numpy as np
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QToolTip
 import html
+import textwrap
 import math
 
 from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
@@ -23,6 +25,7 @@ from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
 from . import theme as th
+from ..checks import line
 from ..numfmt import num
 
 
@@ -1248,7 +1251,8 @@ class WarningList(QTextBrowser):
     """
 
     warning_clicked = Signal(str, int)
-    TIP = "Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about."
+    TIP = ("Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about; hold the mouse on one "
+           "for its full text (the same text is in the Results summary after a run).")
     MAX_HEIGHT = 150                                  # Pixels; more warnings than fit scroll
     MIN_HEIGHT = 40                                   # Pixels; a low window squeezes the list down to about two lines, never below
 
@@ -1284,7 +1288,7 @@ class WarningList(QTextBrowser):
         if len(self.warnings) > 1:
             parts.append(f"<p><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
         for w in self.warnings:
-            text = html.escape(str(w))
+            text = html.escape(line(w))                   # The one-line form; the full measured text is the tooltip of the item (viewportEvent)
             kind, index = getattr(w, "kind", None), getattr(w, "index", None)
             if kind is not None and index is not None:
                 text = f'<a href="{kind}:{index}" style="text-decoration:none">{text}</a>'
@@ -1292,6 +1296,19 @@ class WarningList(QTextBrowser):
         self.setHtml("".join(parts))
         self.setVisible(True)
         self._fit()
+
+    def viewportEvent(self, event):
+        """!
+        @brief Show the full text of the warning under the mouse as a tooltip (the list shows the one-line form).
+        @param event The Qt event.
+        @return bool True when the event was handled.
+        """
+        if event.type() == QEvent.ToolTip and self.warnings and not self.stale:
+            block = self.cursorForPosition(event.pos()).blockNumber() - (1 if len(self.warnings) > 1 else 0)    # Block 0 is the count when there are several
+            if 0 <= block < len(self.warnings):
+                QToolTip.showText(event.globalPos(), "\n".join(textwrap.wrap(str(self.warnings[block]), 90)), self)
+                return True
+        return super().viewportEvent(event)
 
     def recolour(self):
         """!
