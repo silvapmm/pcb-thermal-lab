@@ -721,6 +721,33 @@ def check_fin_channels(problem, result=None):
     return out
 
 
+# Face Rayleigh number below which the vertical-plate correlation leaves its boundary-layer regime (research/plate-h-level README 3.2 and
+# INTEGRATION.md: the pure boundary layer is already 15 % low at Ra 1e3 and the laminar form is not covered by any study below it)
+LOW_RAYLEIGH_LIMIT = 1.0e3
+
+
+def check_low_rayleigh(board, ra_top, ra_bottom):
+    """!
+    @brief Post-run warning for a vertical board whose face Rayleigh number is so low that the boundary-layer regime ends.
+    @details The Rayleigh number is that of the board height and the face-to-air excess temperature at the film temperature
+             (convection.h_natural_vertical); a face about 10 mm high at a 10 K excess has Ra 1e3. Below LOW_RAYLEIGH_LIMIT the layer is not thin
+             compared with the plate, conduction and the edges dominate, and the correlations (both forms of Churchill and Chu) are an extrapolation
+             that no study of the program covers (research/plate-h-level). Horizontal boards are not checked here (their own range warning is in
+             api._solve_computed_h) and neither are boards with typed coefficients or forced-only air.
+    @param board Board with orientation and h_mode.
+    @param ra_top Rayleigh number of the top face (dimensionless).
+    @param ra_bottom Rayleigh number of the bottom face (dimensionless).
+    @return List of warning strings (empty when the Rayleigh number is not low or the board is not vertical in computed mode).
+    """
+    if board.orientation != "vertical" or board.h_mode != "computed":
+        return []
+    ra = min(ra_top, ra_bottom)
+    if ra >= LOW_RAYLEIGH_LIMIT:
+        return []
+    return [f"the face Rayleigh number {num(ra, 2)} of the vertical board is below {num(LOW_RAYLEIGH_LIMIT, 2)}: the boundary-layer regime ends "
+            "(conduction and the edges dominate) and the natural-convection coefficient is an extrapolation of the correlation"]
+
+
 # Cell size (mm) from which the via effect of the FVM and FDM is called uncertain: at 2 mm the via is a fraction of a cell
 VIA_COARSE_CELL_MM = 2.0
 

@@ -667,3 +667,27 @@ def test_overlap_and_cool_part_warnings_keep_their_numbers_in_both_forms():
     cool = [w for w in check_model_limits(e, ("lumped",), 1.0) if "unsafe for a design" in w]
     assert cool, [str(w) for w in check_model_limits(e, ("lumped",), 1.0)]
     assert all("past the footprint" not in line(w) and "unsafe for a design" in line(w) and "a quarter" in line(w) for w in cool)
+
+
+def test_low_rayleigh_warning_fires_below_the_criterion_only_for_vertical_computed_boards():
+    from pcbthermal.checks import LOW_RAYLEIGH_LIMIT, check_low_rayleigh
+    p = Problem.new(12, 12, 2).add_full_copper()
+    p.add_heater(1, 0.02, rect=(4, 4, 8, 8))
+    b = p.board
+    b.h_mode, b.orientation = "computed", "vertical"
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5))
+    low = [w for w in sim.warnings if "Rayleigh number" in w and "boundary-layer regime ends" in w]
+    assert len(low) == 1
+    # A larger board at a larger rise is far above 1e3: silent
+    q = Problem.new(100, 80, 2).add_full_copper()
+    q.add_heater(1, 3.0, rect=(40, 30, 60, 50))
+    q.board.h_mode, q.board.orientation = "computed", "vertical"
+    sim = simulate(q, SolverOptions(models=("fvm",), cell_mm=2.0))
+    assert not [w for w in sim.warnings if "boundary-layer regime ends" in w]
+    # The function itself: the criterion, and no warning for horizontal or typed-h boards
+    b.h_mode = "computed"
+    assert check_low_rayleigh(b, 0.5 * LOW_RAYLEIGH_LIMIT, 2e4) and not check_low_rayleigh(b, 1.01 * LOW_RAYLEIGH_LIMIT, 2e4)
+    b.orientation = "horizontal"
+    assert not check_low_rayleigh(b, 1.0, 1.0)
+    b.orientation, b.h_mode = "vertical", "manual"
+    assert not check_low_rayleigh(b, 1.0, 1.0)

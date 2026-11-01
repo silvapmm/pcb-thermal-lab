@@ -32,7 +32,7 @@ import math
 from . import __version__, analytic, blocks, convection, fdm, fvm, laminate, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
-from .checks import check_fin_channels, check_input, check_lumped_zones, check_thick_plates
+from .checks import check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
 from .numfmt import num
@@ -725,6 +725,7 @@ def _solve_computed_h(problem, name, o):
         # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
         res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
                             "choose the general form")
+    res.warnings += check_low_rayleigh(problem.board, info["top"]["rayleigh"], info["bottom"]["rayleigh"])
     if it == 30 and not done:
         res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")
     return res, ht, hb, it

@@ -191,7 +191,7 @@ class Board:
     emissivity_bottom: float = 0.9              # Emissivity of the bottom face (computed mode)
     air_speed: float = 0.0                      # Air speed along the board in m/s (computed mode; 0 = natural convection)
     orientation: str = "horizontal"             # "horizontal" (layer 1 is the top face and looks up, the last layer looks down) or "vertical" (on its edge); computed mode
-    natural_form: str = "general"               # Natural convection of a vertical board: "general" (Churchill and Chu, full range, default) or "laminar" (same authors, Ra < 1e9); computed mode
+    natural_form: str = "general"               # Natural convection of a vertical board: "general" (Churchill and Chu, full range; default of the class and of old files; new projects get "laminar" from defaults.json) or "laminar" (same authors, Ra < 1e9); computed mode
     h_calibration: float = 1.0                  # Multiplier of the computed convection (fit to a measurement)
     materials: Materials = field(default_factory=Materials)
     dielectrics: Optional[List[Dielectric]] = None   # Advanced stack-up: one per gap (layers - 1); None = simple, equal gaps of `materials`
