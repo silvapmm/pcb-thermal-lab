@@ -5,8 +5,8 @@
 @brief Where does the program's horizontal-plate law leave the published range and the Yovanovich-Jafarpur bounds, and what does that cost on a board?
 
 Question (README 9.1, plan study S0): the face looking up uses 0.54 Ra^(1/4) (0.15 Ra^(1/3) above 1e7) on L = A/P.  Yovanovich and Jafarpur (1993) give
-bounds for a plate with one active face (eq 25 upper 3.545 + 0.571 Ra^(1/4), eq 26 lower 2.257 + 0.382 Ra^(1/4), Ra on sqrt(A), air, p 7 and p 9) and quote the range of the
-Lloyd-Moran 0.54 law, 2.2e4 <= Ra_L <= 8e6 (p 7, second hand).  Part 1 prints the program's h against the two bounds and the Ra on A/P of seven plates; part 2 replaces both
+bounds for a plate with one active face (eq 25 upper 3.545 + 0.571 Ra^(1/4), eq 26 lower 2.257 + 0.382 Ra^(1/4), Ra on sqrt(A), air, p 11; the diffusive limits are eqs 20
+and 21 on p 10) and quote the range of the Lloyd-Moran 0.54 law, eq 17, 2.2e4 <= Ra_L <= 8e6 on L = A/P (p 7, second hand; a mass-transfer correlation, Sc about 2300).  Part 1 prints the program's h against the two bounds and the Ra on A/P of seven plates; part 2 replaces both
 faces in memory by the upper bound (eq 25 up, half the body-gravity function down, G_down = G_up / 2 as accepted on p 9) and runs the FVM at 2 mm on four canonical
 two-layer boards (10 x 10 mm part in the middle, computed h with radiation).  The program is imported and never edited: the replacement lives in the process only.
 

@@ -7,13 +7,14 @@
 Question (README 9.2 and 9.5, plan study S0):
 (1) Table 2 of Yovanovich, Muzychka and Culham (1999, p 5), kRs of a strip on a semi-infinite flux channel, from the sums of eq 24 (iso-flux strip, mu = 0),
     kRs = 1/(pi^3 eps^2) sum_n sin^2(n pi eps)/n^3, and of eq 27 (true isothermal strip), kRs = (1/pi) ln(1/sin(pi eps/2)); the ln is lost in the text layer of the copy
-    and is restored here from the printed values (the two agree to four digits).  Printed: eq 24 at eps 0.02, 0.2, 0.6, 0.8 = 1.1377, 0.4083, 0.0882, 0.0255;
+    but printed on the page (checked on the page image by the review), so the formula is the paper's, not one fitted to the table.  Printed: eq 24 at eps 0.02, 0.2, 0.6, 0.8 = 1.1377, 0.4083, 0.0882, 0.0255;
     eq 27 = 1.1015, 0.3738, 0.0675, 0.0160 at the same four (the README quotes eq 27 at 0.02, 0.2 and 0.8); all nine columns are checked.
 (2) `fvm.Network.sor_omega` on the five-point Dirichlet Laplacian of n x n unknowns, against Saad (2003) eq 4.47, omega = 2 / (1 + sqrt(1 - rho^2)): the program's
     Rayleigh-quotient estimate of rho is a lower bound of the Jacobi spectral radius cos(pi/(n+1)), so its omega must not exceed the optimum; the spectral radius of the SOR
     iteration matrix is computed densely (n = 8) to show where the true minimum lies.
+(3) Added by the review: the cost of the safe side on boards, the program's SOR at its own omega against the best omega of a scan (three 60 x 40 mm boards, 1 mm).
 
-Run (from the repository root):  .venv/bin/python research/theory-sources/scripts/study_strip_table_and_sor_omega.py   (about 1 s)
+Run (from the repository root):  .venv/bin/python research/theory-sources/scripts/study_strip_table_and_sor_omega.py   (about 25 s, part 3; < 0.2 GB)
 """
 import math
 import os
@@ -102,8 +103,50 @@ def sor_check(n=8):
     # Rayleigh quotient of the trial vector of ones, as in the program (all nodes have a link)
     ones = np.ones(k.shape[0])
     rho_prog = 1.0 - float(ones @ (k @ ones)) / float(ones @ k.diagonal())
+    rad_prog, rad_saad = sor_spectral_radius(k, omega_prog), sor_spectral_radius(k, omega_saad)
+    # Asymptotic cost: sweeps to reduce the error by a fixed factor scale as 1 / -ln(radius)
     return dict(omega_prog=omega_prog, omega_saad=omega_saad, omega_scan=float(grid[int(np.argmin(rads))]), rho_prog=rho_prog, rho_exact=rho_exact,
-                rad_prog=sor_spectral_radius(k, omega_prog), rad_saad=sor_spectral_radius(k, omega_saad))
+                rad_prog=rad_prog, rad_saad=rad_saad, sweep_ratio=math.log(rad_saad) / math.log(rad_prog))
+
+
+def sor_on_boards(cell_mm=1.0, scan=tuple(np.round(np.arange(1.80, 1.995, 0.01), 2))):
+    """!
+    @brief Sweeps of the program's SOR at its own omega against the best omega of a scan, on three small boards (added by the review).
+    @details The 8 x 8 Dirichlet Laplacian is the worst case of the trial vector of ones (its first eigenvector is a product of sines, far from flat); a board with
+             face films is close to the Neumann case, where the vector of ones is near the first eigenvector, so the gap should be smaller there.
+    @param cell_mm  FVM cell in mm.
+    @param scan     Values of omega tried.
+    @return list of dict: board, omega_prog, sweeps_prog, omega_best, sweeps_best.
+    """
+    from pcbthermal.model import Problem   # local import: part 2 needs only fvm
+
+    def board(name, full, h):
+        """!
+        @brief One 60 x 40 mm two-layer board with a 10 x 10 mm, 2 W part.
+        @param name  Label.
+        @param full  True for copper over both layers, False for a 20 x 20 mm pad on layer 1 only.
+        @param h     Film coefficient of both faces in W/m2K.
+        @return tuple (name, Problem).
+        """
+        p = Problem.new(60, 40, layers=2, h_top=h, h_bottom=h)
+        if full:
+            p.add_zone(1, rect=(0, 0, 60, 40), fill=1.0)
+            p.add_zone(2, rect=(0, 0, 60, 40), fill=1.0)
+        else:
+            p.add_zone(1, rect=(20, 10, 40, 30), fill=1.0)
+        p.add_heater(1, 2.0, rect=(25, 15, 35, 25))
+        return name, p
+
+    out = []
+    for name, p in (board("full copper, h 10", True, 10.0), board("pad only, h 10", False, 10.0), board("full copper, h 200", True, 200.0)):
+        r = fvm.solve_steady(p, cell_mm=cell_mm, method="sor")
+        best = (r.extras["iterations"], r.extras["omega"])
+        for w in scan:
+            rr = fvm.solve_steady(p, cell_mm=cell_mm, method="sor", sor_omega=float(w))
+            if rr.extras["converged"] and rr.extras["iterations"] < best[0]:
+                best = (rr.extras["iterations"], float(w))
+        out.append(dict(board=name, omega_prog=r.extras["omega"], sweeps_prog=r.extras["iterations"], omega_best=best[1], sweeps_best=best[0]))
+    return out
 
 
 def main():
@@ -116,7 +159,12 @@ def main():
         print(f"  {e:.2f}: {a:.4f} ({pa:.4f}) | {b:.4f} ({pb:.4f})")
     s = sor_check()
     print(f"2. SOR omega on the 8 x 8 Laplacian: program {s['omega_prog']:.4f} (rho {s['rho_prog']:.4f}), Saad 4.47 with the exact rho {s['omega_saad']:.4f} (rho {s['rho_exact']:.4f}), "
-          f"best of a scan {s['omega_scan']:.2f}; SOR radius at the program's omega {s['rad_prog']:.4f}, at Saad's {s['rad_saad']:.4f}")
+          f"best of a scan {s['omega_scan']:.2f}; SOR radius at the program's omega {s['rad_prog']:.4f}, at Saad's {s['rad_saad']:.4f} "
+          f"(asymptotic sweeps {s['sweep_ratio']:.2f} times the optimum's)")
+    print("3. program's SOR on 60 x 40 mm two-layer boards at 1 mm, residual 1e-9: own omega against the best of a scan 1.80 to 1.99 (review)")
+    for b in sor_on_boards():
+        print(f"  {b['board']}: omega {b['omega_prog']:.3f} {b['sweeps_prog']:.0f} sweeps; best {b['omega_best']:.2f} {b['sweeps_best']:.0f} sweeps; "
+              f"ratio {b['sweeps_prog'] / b['sweeps_best']:.2f}")
 
 
 if __name__ == "__main__":

@@ -7,8 +7,11 @@
 Question (README 9.1, plan study S0): (1) `convection.air_properties` against the three rows of Lienhard Table A.6 (book page 755) at 300, 350 and 400 K;
 (2) `convection.h_forced` (laminar 0.664 Re^(1/2) Pr^(1/3) on the flow length) against the composite of Yovanovich and Teertstra (2001), eq 18,
 Nu = (S*^n + (C Re^(1/2) Pr^(1/3))^n)^(1/n), with S* from eq 8 (S*_sqrtA = (1 + sqrt(L/W))^2 / sqrt(pi L/W), rewritten on L with S*_L = sqrt(L/W) S*_sqrtA),
-n from eqs 24 and 25 (1.42 - 0.28 log10(L/W) or 1.42 - 0.45 log10(L/W) after the orientation) and C = 0.742 (eq 17, linearised) or 0.664 (eq 12, the textbook value).
-The paper's equations are transcribed here; the strip form of S* for L/W > 5 is the author's reading of the page (not used by any case below, all have L/W <= 2).
+n from eqs 24 and 25 (flow along the short side W: n = 1.42 - 0.28 log10(W/L), which is above 1.42 since W/L < 1; flow along the long side L: n = 1.42 - 0.45 log10(L/W))
+and C = 0.742 (eq 17, linearised) or 0.664 (eq 12, the textbook value).  All on p 206 to 208 of the paper (PDF pages 2 to 4).
+The paper's equations are transcribed here; eq 9 (L/W > 5) is not implemented (every case below has L/W <= 2).  The fit of n covers Re_L from 1 to 5000 (Table 2, p 208);
+three of the five cases below (Re 6 079, 12 158 and 18 237) are past it, where the composite is its boundary-layer term.
+Corrected by the review: the first version wrote eq 24 with log10(L/W) (sign of the logarithm reversed); no case below used that branch, so no printed number moved.
 
 Run (from the repository root):  .venv/bin/python research/theory-sources/scripts/study_forced_and_air_sources.py   (about 1 s)
 """
@@ -42,6 +45,18 @@ def air_vs_table(rows=LIENHARD_A6):
     return out
 
 
+def yt_exponent(length, width):
+    """!
+    @brief Interpolation parameter n of Yovanovich and Teertstra (2001), eqs 24 and 25, for the flow along `length`.
+    @param length  Flow length in m.
+    @param width   Width across the flow in m.
+    @return float n (dimensionless).
+    """
+    if length >= width:
+        return 1.42 - 0.45 * math.log10(length / width)                         # eq 25: flow along the long side L, log10(L/W)
+    return 1.42 - 0.28 * math.log10(length / width)                             # eq 24: flow along the short side W, log10(W/L) < 0
+
+
 def yt_forced_h(length, width, speed, dt, c, ambient=AMBIENT):
     """!
     @brief Heat transfer coefficient of the Yovanovich-Teertstra (2001) composite, eq 18, for a plate with the flow along `length`.
@@ -57,7 +72,7 @@ def yt_forced_h(length, width, speed, dt, c, ambient=AMBIENT):
     lw = max(length, width) / min(length, width)
     s_sqrt_a = (1 + math.sqrt(lw)) ** 2 / math.sqrt(math.pi * lw)             # eq 8 (L/W <= 5)
     s_l = math.sqrt(length / width) * s_sqrt_a                                  # shape factor on the flow length
-    n = 1.42 - (0.45 if length >= width else 0.28) * math.log10(lw)           # eqs 24 and 25
+    n = yt_exponent(length, width)                                              # eqs 24 and 25
     re = speed * length / p["nu"]
     nu = (s_l ** n + (c * re ** 0.5 * p["pr"] ** (1 / 3)) ** n) ** (1 / n)
     return nu * p["k"] / length

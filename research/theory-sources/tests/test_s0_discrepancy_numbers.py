@@ -51,6 +51,13 @@ def test_forced_against_yovanovich_teertstra():
         assert -0.145 < r["d_742"] < -0.105, r["case"]
 
 
+def test_yovanovich_teertstra_exponent_signs():
+    """!@brief Review: eqs 24 and 25 (p 208) give n = 1.42 for a square, 0.97 for flow along the long side at L/W = 10 and 1.70 along the short side (the paper's range 0.97 to 1.68 of the fitted values); the first version had the logarithm of eq 24 reversed (1.14)."""
+    assert abs(fa.yt_exponent(1.0, 1.0) - 1.42) < 1e-12
+    assert abs(fa.yt_exponent(10.0, 1.0) - 0.97) < 1e-12
+    assert abs(fa.yt_exponent(1.0, 10.0) - 1.70) < 1e-12
+
+
 def test_ti_via_261():
     """!@brief README 9.4: 261.16 C/W against the 261 of TI AN-2020 (+0.06 %); plating outside the drill 232.8."""
     t = vf.ti_via()
@@ -75,3 +82,5 @@ def test_sor_omega_is_below_saad_optimum():
     s = st.sor_check()
     assert s["rho_prog"] < s["rho_exact"] and s["omega_prog"] < s["omega_saad"]
     assert abs(s["omega_saad"] - s["omega_scan"]) < 0.02 and s["rad_saad"] < s["rad_prog"] < 1.0
+    # Review: the price of the safe side on this worst case of the trial vector, quoted in README 9.5 (2.4 times the sweeps of the optimum)
+    assert 2.3 < s["sweep_ratio"] < 2.5
