@@ -27,14 +27,17 @@
 
          **Limits.** The Analytic and the Lumped have no cells for this (the Lumped keeps the two nodes of a one-layer board of the earlier versions and one link per gap; the Analytic the series film);
          a board with a metal block keeps the treatment of the earlier versions (blocks are not combined with the rule); the simple stack-up of three or more layers gives the outer nodes a
-         slab that is not d / 2 of laminate (a separate item). The numbers S_MAX and N_MAX are global constants, not user settings (see parameters()).
+         slab that is not d / 2 of laminate (a separate item). The numbers S_MAX and N_MAX are the defaults; a run can change them through SolverOptions
+         (laminate_s_max_mm, laminate_n_max), which api.simulate and the other entry points apply with using() (see parameters()).
 
          **The legacy one-layer nodes.** Before the rule a one-layer board had LAMINATE_NODES laminate nodes under the copper in every cell: nodes(), extra_layers() and series_bottom_problem()
          below; they are still used by the Lumped, by boards with a metal block and by the Analytic (a series film, because extra nodes made its uniform-sheet estimate of a small pad worse).
 """
 
+import contextlib
 import copy
 import math
+import threading
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -122,14 +125,40 @@ def series_bottom_problem(problem):
 
 
 # ---------------------------------------------------------------------------------------------------------------- the rule
+_ACTIVE = threading.local()      # Per-thread stack of (s_max, n_max) set by using(); empty: the constants S_MAX and N_MAX
+
+
 def parameters():
     """!
     @brief The two numbers of the rule: the longest sub-gap and the most sub-gaps.
-    @return Tuple (s_max in m, n_max): the constants S_MAX and N_MAX.
-    @note They are constants, not Preferences: they are not saved in the project file, so a user setting would make the same project give different numbers on two machines.
-          2.5.0 may add them to SolverOptions, which is saved with the run. The function stays as the single place the call sites (and tests) read them from.
+    @return Tuple (s_max in m, n_max): the values set by the innermost using() block of this thread, otherwise the constants S_MAX and N_MAX (read at call time).
+    @note They are options of the run (SolverOptions.laminate_s_max_mm and laminate_n_max, saved in the project only when not the default), applied by api.simulate and the other
+          entry points through using(), so that the network builders, the unknown counters and the memory guard all see the same numbers. This function stays the single place
+          the call sites (and tests) read them from.
     """
+    stack = getattr(_ACTIVE, "stack", None)
+    if stack:
+        return stack[-1]
     return S_MAX, N_MAX
+
+
+@contextlib.contextmanager
+def using(s_max=None, n_max=None):
+    """!
+    @brief Make parameters() return given numbers inside a with block (this thread only; blocks nest).
+    @param s_max Longest sub-gap in m (None: the current value).
+    @param n_max Most sub-gaps, count (None: the current value).
+    @return Context manager.
+    """
+    cur_s, cur_n = parameters()
+    stack = getattr(_ACTIVE, "stack", None)
+    if stack is None:
+        stack = _ACTIVE.stack = []
+    stack.append((cur_s if s_max is None else float(s_max), cur_n if n_max is None else int(n_max)))
+    try:
+        yield
+    finally:
+        stack.pop()
 
 
 def uses_rule(problem):

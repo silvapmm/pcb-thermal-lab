@@ -1426,6 +1426,14 @@ class SolverPanel(QWidget):
         self.modes.setSingleStep(20)
         self.local = QCheckBox("Local via and heatsink corrections")
         self.hot = _spin(-50, 1000, 100, 1, 5, "°C")
+        self.lam_s = _spin(0.05, 5.0, 0.4, 2, 0.05, "mm")
+        self.lam_n = QSpinBox()
+        self.lam_n.setRange(1, 32)
+        self.lam_n.setValue(4)
+        self.lam_s.setToolTip("Longest sub-gap of the laminate between two copper nodes in mm (0.05 to 5, default 0.40). A gap thicker than this is cut into equal sub-gaps with a node at every "
+                              "boundary, only where copper is absent next to it (FVM and FDM). Smaller: more nodes, closer to a resolved 3D solid, slower and larger.")
+        self.lam_n.setToolTip("Most sub-gaps in one gap of the laminate (1 to 32, default 4). 1 turns the cutting off. The error against a resolved 3D solid falls as 1/n (on an island board "
+                              "-3.9, -2.25 and -1.41 % with 4, 8 and 16); every extra sub-gap adds node layers in the cells with absent copper, which the memory estimate counts.")
         self.solver.setToolTip("How the finite-volume system is solved: sparse direct (exact, default), conjugate gradients, or SOR (to compare; slow).")
         self.rings.setToolTip("Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint). Rings narrower than one cell are merged, so 10 is enough and more change nothing.")
         self.modes.setToolTip("Cosine modes per direction of the analytical series (more modes resolve smaller parts).")
@@ -1437,6 +1445,8 @@ class SolverPanel(QWidget):
         f.addRow("Analytic modes", self.modes)
         f.addRow(self.local)                               # Full width: in the field column its long text made the panel about 350 px wide
         f.addRow("Hotspot limit", self.hot)
+        f.addRow("Laminate sub-gap", self.lam_s)
+        f.addRow("Laminate sub-gaps", self.lam_n)
         lay.addWidget(g)
 
         self.run = QPushButton("Run simulation   (F5)")
@@ -1465,7 +1475,7 @@ class SolverPanel(QWidget):
         fl.addWidget(self.checks)
         lay.addStretch(1)
 
-        for w in (self.cell, self.rings, self.modes, self.hot):
+        for w in (self.cell, self.rings, self.modes, self.hot, self.lam_s, self.lam_n):
             w.valueChanged.connect(self._apply)
         self.solver.currentIndexChanged.connect(self._apply)
         self.local.toggled.connect(self._apply)
@@ -1482,7 +1492,7 @@ class SolverPanel(QWidget):
         @param _ Ignored (extra arguments of the Qt signal).
         """
         on = lambda k: self.cb[k].isChecked()                                  # noqa: E731
-        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.rings, on("lumped"), "the Lumped model"),
+        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.lam_s, on("fvm") or on("fdm"), "the FVM or the FDM"), (self.lam_n, on("fvm") or on("fdm"), "the FVM or the FDM"), (self.rings, on("lumped"), "the Lumped model"),
                                     (self.modes, on("analytic"), "the Analytic model"), (self.local, on("analytic"), "the Analytic model")):
             base = widget.property("base_tip")
             if base is None:                                                      # First time: remember the tooltip the control had
@@ -1505,6 +1515,8 @@ class SolverPanel(QWidget):
         self.modes.setValue(o.analytic_modes)
         self.local.setChecked(o.analytic_local_corrections)
         self.hot.setValue(o.hotspot_c)
+        self.lam_s.setValue(o.laminate_s_max_mm)
+        self.lam_n.setValue(o.laminate_n_max)
         self._updating = False
         self._update_cells()
         self._update_availability()
@@ -1518,7 +1530,7 @@ class SolverPanel(QWidget):
         """
         models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
         return memory.check(self.doc.problem, models, self.cell.value(), fraction=self.doc.options.memory_fraction, base=memory.BASE_DEFAULT, refuse="return",
-                            quiet=True)
+                            quiet=True, laminate_params=self.doc.options.laminate_params())
 
     def _update_cells(self):
         """!
@@ -1555,7 +1567,7 @@ class SolverPanel(QWidget):
         """
         models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
         base = suggest_cell_mm(self.doc.problem)
-        cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction)
+        cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction, laminate_params=self.doc.options.laminate_params())
         self.cell.setValue(cell)
         self.status.setText(f"Auto: the cell was enlarged to {cell:.1f} mm to fit the memory limit." if cell > base + 1e-9 else "")
 
@@ -1576,7 +1588,8 @@ class SolverPanel(QWidget):
         # counts the unknowns, which samples the copper, and runs at every keystroke of the cell field)
         self.doc.set_options(models=models, cell_mm=self.cell.value(), linear_solver=self.solver.currentData(),
                              lumped_rings=self.rings.value(), analytic_modes=self.modes.value(),
-                             analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value())
+                             analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value(),
+                             laminate_s_max_mm=self.lam_s.value(), laminate_n_max=self.lam_n.value())
 
     def set_checks(self, warnings):
         """!

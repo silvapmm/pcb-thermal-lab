@@ -34,6 +34,11 @@ def job_transient(progress, problem, kwargs):
     """
     kw = dict(kwargs)
     model = kw.pop("model", "fvm")
+    lam = kw.pop("laminate", None)                  # (s_max in m, n_max) of the run's options, or None for the defaults
+    if lam is not None:
+        from . import laminate
+        with laminate.using(*lam):                  # The network, the guard and the solve all see the same laminate rule
+            return job_transient(progress, problem, dict(kw, model=model))
     # The animation holds the matrix factor and the frames: checked before anything is allocated. The window checks it too before it sends the job (so the
     # message comes at once); this check covers the other callers, and a refusal here comes back as the job's error text. The fraction is the default one
     # (the Preferences value: the kwargs carry no SolverOptions).
@@ -60,7 +65,8 @@ def job_analyze(progress, problem, options):
     if ref is None:
         raise ValueError("select a model first")
     if ref in ("fvm", "fdm"):
-        memory.check(problem, (ref,), max(options.cell_mm, 2.0), fraction=options.memory_fraction, factor=memory.PROFILE_FACTOR)   # The step responses run on a cell of at least 2 mm
+        memory.check(problem, (ref,), max(options.cell_mm, 2.0), fraction=options.memory_fraction, factor=memory.PROFILE_FACTOR,
+                     laminate_params=options.laminate_params())   # The step responses run on a cell of at least 2 mm
     resp = step_response(problem, ref, options)
     return resp, profiles.decide(problem, resp, options.profile.threshold_c), ref
 

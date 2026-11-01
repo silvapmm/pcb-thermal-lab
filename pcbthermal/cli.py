@@ -25,7 +25,7 @@ import time
 
 import numpy as np
 
-from . import __version__, fvm, memory
+from . import __version__, fvm, laminate, memory
 from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
@@ -80,8 +80,14 @@ def cmd_run(args):
     project = load_project(args.config)
     options = project.options
     options.models = {"all": MODELS, "compare": RUN_MODELS}.get(args.model, (args.model,))
-    options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     options.linear_solver = args.solver
+    if args.laminate_s_max_mm is not None:
+        options.laminate_s_max_mm = args.laminate_s_max_mm
+    if args.laminate_n_max is not None:
+        options.laminate_n_max = args.laminate_n_max
+    options.validate()
+    with laminate.using(*options.laminate_params()):                  # "auto" counts the unknowns of the laminate rule of the run
+        options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     po = options.profile
     if args.steady_power:
         options.steady_power = args.steady_power
@@ -297,6 +303,10 @@ def build_parser():
     r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
                    help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm and solid3d")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
+    r.add_argument("--laminate-s-max-mm", type=float, default=None, metavar="S",
+                   help="longest sub-gap of the laminate between two copper nodes in mm, 0.05 to 5 (FVM and FDM; default 0.4)")
+    r.add_argument("--laminate-n-max", type=int, default=None, metavar="N",
+                   help="most sub-gaps in one gap, 1 to 32 (1 turns the cutting off; default 4; more is slower and closer to a resolved 3D solid)")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
