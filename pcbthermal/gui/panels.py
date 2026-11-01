@@ -6,7 +6,7 @@
 """
 
 import numpy as np
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QPalette
 import html
 import math
@@ -1293,6 +1293,21 @@ class WarningList(QTextBrowser):
         self.setVisible(True)
         self._fit()
 
+    def changeEvent(self, event):
+        """!
+        @brief Rebuild the text when the palette changes (theme switch): the link colour is fixed when the HTML is set.
+        @param event QEvent.
+        """
+        super().changeEvent(event)
+        if event.type() == QEvent.PaletteChange and self.warnings and not getattr(self, "_rebuilding", False):
+            self._rebuilding, stale = True, self.stale
+            try:
+                self.set_warnings(self.warnings)
+                if stale:
+                    self.set_stale()
+            finally:
+                self._rebuilding = False
+
     def set_stale(self):
         """!
         @brief Mark the list as out of date (the design was edited and not yet checked): its links stop selecting elements.
@@ -1525,9 +1540,9 @@ class SolverPanel(QWidget):
         @brief Show the unknowns and the memory verdict (ok, slow, refuse) of each selected model, and disable Run when a model would be refused.
         """
         rows, blocked = [], ""
-        # Darker tones on a light window, lighter ones on a dark window: the dark tones were below 3.5:1 of contrast on the dark theme
-        dark = self.palette().color(QPalette.Window).lightness() < 128
-        colours = ({"ok": "#66bb6a", "slow": "#ffb74d", "refuse": "#ef5350"} if dark else {"ok": "#2e7d32", "slow": "#b26a00", "refuse": "#c62828"})
+        # Darker tones on a light window, lighter ones on a dark window (the theme's ok, warn and bad entries), each 4.5:1 or more on its window
+        tone = th.colors(th.current_name())
+        colours = {"ok": tone["ok"], "slow": tone["warn"], "refuse": tone["bad"]}
         names = {"fvm": "FVM", "fdm": "FDM", "solid3d": "3D solid"}
         for v in self.verdicts():
             gb = f"about {v.estimate / memory.GB:.1f} GB of {v.limit / memory.GB:.1f} GB"

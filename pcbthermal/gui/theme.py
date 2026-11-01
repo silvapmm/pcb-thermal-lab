@@ -13,15 +13,23 @@ from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QProxyS
 THEMES = {
     "dark": {
         "window": "#1e2127", "base": "#15181d", "alt": "#23272e", "text": "#e6e8eb", "muted": "#8b949e", "hint": "#9aa3ad",
-        "accent": "#4c8dff", "on_accent": "#0b0d10", "link": "#6cb0ff", "link_visited": "#b79cf0", "indicator": "#8b949e", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
+        "accent": "#4c8dff", "on_accent": "#ffffff", "link": "#6cb0ff", "link_visited": "#b79cf0", "indicator": "#8b949e", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
         "grid_minor": "#ffffff12", "grid_major": "#ffffff2a", "solver_grid": "#4cc9f040",
         "copper": "#d08a3c", "heater": "#ff5b4f", "heatsink": "#3aa0ff", "via": "#f2c14e",
+        "ok": "#66bb6a", "warn": "#ffb74d", "bad": "#ef5350", "error": "#ef5350",
+        "selection": "#ffffff", "on_element": "#ffffff", "run": "#34d399",
+        "diel_low": "#4a6f5a", "diel_mid": "#6c8f9d", "diel_high": "#9aa7b4",
+        "doc_note": "#3a331c", "doc_note_edge": "#e0a800", "doc_tip": "#1c2d44", "doc_th": "#2a2f37",
     },
     "light": {
-        "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#5f6672", "hint": "#5f6570",
+        "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280", "hint": "#5f6570",
         "accent": "#2563eb", "on_accent": "#ffffff", "link": "#2563eb", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
         "copper": "#c77d2e", "heater": "#e0392d", "heatsink": "#1d78d8", "via": "#c9971c",
+        "ok": "#2e7d32", "warn": "#b26a00", "bad": "#c62828", "error": "#c62828",
+        "selection": "#ffffff", "on_element": "#ffffff", "run": "#34d399",
+        "diel_low": "#4a6f5a", "diel_mid": "#6c8f9d", "diel_high": "#9aa7b4",
+        "doc_note": "#fff7e0", "doc_note_edge": "#e0a800", "doc_tip": "#e8f3ff", "doc_th": "#eef0f3",
     },
 }
 
@@ -128,6 +136,34 @@ def colors(name):
     return THEMES.get(name, THEMES["dark"])
 
 
+def contrast(a, b):
+    """!
+    @brief WCAG contrast ratio of two colours.
+    @param a QColor.
+    @param b QColor.
+    @return float ratio, 1 to 21.
+    """
+    def lum(q):
+        def lin(v):
+            v /= 255.0
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+        return 0.2126 * lin(q.red()) + 0.7152 * lin(q.green()) + 0.0722 * lin(q.blue())
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def readable_on(background, light="#ffffff", dark="#101317"):
+    """!
+    @brief The text colour (light or dark) that reads better on a given fill, for labels drawn on fills that do not follow the theme.
+    @param background QColor of the fill.
+    @param light Colour string used on dark fills.
+    @param dark Colour string used on light fills.
+    @return QColor with the higher contrast against the fill.
+    """
+    a, b = QColor(light), QColor(dark)
+    return a if contrast(a, background) >= contrast(b, background) else b
+
+
 def qcolor(spec, alpha=None):
     """!
     @brief Build a QColor from a #rrggbb or #rrggbbaa string.
@@ -184,6 +220,41 @@ class _ThemeStyle(QProxyStyle):
 
 
 _STYLE = None           # Keeps the Python side of the current style alive
+_CURRENT = "dark"       # Name of the theme last applied: windows made later (dialogs, help pages) read it
+
+
+def current_name():
+    """!
+    @brief Name of the theme applied last (the one the whole application shows now).
+    @return "dark" or "light".
+    """
+    return _CURRENT
+
+
+def document_css(name):
+    """!
+    @brief Style sheet of the HTML documents shown inside the program (user guide, calculator help), from the colour table.
+    @details The HTML files carry their own sheet for a web browser (with a prefers-color-scheme block that Qt's rich text
+             ignores, so the pages stayed white on the dark theme); inside the program that sheet is replaced by this one,
+             which uses only the constructs Qt supports and the same tokens as every other window.
+    @param name "dark" or "light".
+    @return str CSS text.
+    """
+    c = colors(name)
+    return f"""
+  body {{ font-family: "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.5; max-width: 62em; margin: 0 auto; padding: 1em 1.5em 4em; color: {c['text']}; background: {c['base']}; }}
+  h1 {{ border-bottom: 2px solid {c['accent']}; padding-bottom: .2em; }}
+  h2 {{ margin-top: 2em; border-bottom: 1px solid {c['border']}; padding-bottom: .15em; }}
+  h3 {{ margin-top: 1.4em; }}
+  table {{ border-collapse: collapse; margin: .8em 0; }}
+  th, td {{ border: 1px solid {c['border']}; padding: .3em .6em; text-align: left; vertical-align: top; }}
+  th {{ background: {c['doc_th']}; }}
+  code, kbd {{ background: {c['doc_th']}; padding: 0 .3em; border-radius: 3px; font-family: Consolas, Menlo, monospace; }}
+  .note {{ background: {c['doc_note']}; border-left: 4px solid {c['doc_note_edge']}; padding: .4em .8em; margin: .8em 0; }}
+  .tip {{ background: {c['doc_tip']}; border-left: 4px solid {c['accent']}; padding: .4em .8em; margin: .8em 0; }}
+  nav li {{ margin: .1em 0; }}
+  a {{ color: {c['link']}; }}
+"""
 
 
 def apply_theme(app, name):
@@ -193,7 +264,8 @@ def apply_theme(app, name):
     @param name "dark" or "light".
     """
     c = colors(name)
-    global _STYLE
+    global _STYLE, _CURRENT
+    _CURRENT = name if name in THEMES else "dark"
     _STYLE = _ThemeStyle(c["indicator"])
     app.setStyle(_STYLE)
     pal = QPalette()
@@ -241,6 +313,7 @@ def apply_theme(app, name):
         QTableWidget, QTreeWidget {{ border: 1px solid {c['border']}; gridline-color: {c['border']}; }}
         QProgressBar {{ border: 1px solid {c['border']}; border-radius: 4px; text-align: center; height: 14px; }}
         QProgressBar::chunk {{ background: {c['accent']}; border-radius: 3px; }}
+        QLabel[error="true"] {{ color: {c['error']}; }}
         QLabel[hint="true"] {{ font-size: 11px; color: {c['hint']}; }}
     """)
 
@@ -305,7 +378,7 @@ def tool_icon(kind, theme="dark", size=22):
             p.setBrush(qcolor(c["heater"], 150))
             p.setPen(QPen(QColor(c["heater"]), 1.8))
             p.drawRoundedRect(r, 2, 2)
-            p.setPen(QPen(QColor("white"), 1.6))
+            p.setPen(QPen(QColor(c["on_element"]), 1.6))
             p.drawLine(QPointF(s * .36, s * .62), QPointF(s * .5, s * .36))
             p.drawLine(QPointF(s * .5, s * .36), QPointF(s * .64, s * .62))
         elif kind == "heatsink":
@@ -330,7 +403,7 @@ def tool_icon(kind, theme="dark", size=22):
                 p.setBrush(QColor(col))
                 p.drawRoundedRect(QRectF(m, m + k * (s - 2 * m) / 4, s - 2 * m, (s - 2 * m) / 4 + 0.5), 1, 1)
         elif kind == "run":
-            p.setBrush(QColor("#34d399"))
+            p.setBrush(QColor(c["run"]))
             p.setPen(Qt.NoPen)
             p.drawPolygon(QPolygonF([QPointF(s * .30, s * .2), QPointF(s * .30, s * .8), QPointF(s * .80, s * .5)]))
         elif kind == "fit":
