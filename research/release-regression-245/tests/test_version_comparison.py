@@ -114,6 +114,38 @@ def test_pair_table_only_for_its_pair_and_history(tmp_path):
     assert "| b1 | fvm | 100.000 | 110.000 | 110.000 |" in text and "v0.9: cannot run" in text and "note line" in text
     assert "> - later" in text
     files = sorted(p.name for p in tmp_path.glob("fig_*.png"))
-    assert files == ["fig_04_version_shift_v1.0.0_vs_v1.1.0.png"]
+    assert files == ["fig_04_version_hottest_canonical_boards.png", "fig_05_version_shift_v1.0.0_vs_v1.1.0.png"]
     V.build_history([s0, s1, s2], TABLE, log, [], 2.0, tmp_path, [])
     assert sorted(p.name for p in tmp_path.glob("fig_*.png")) == files                       # same name part: same number
+
+
+def test_availability_and_missing_model(tmp_path):
+    """!
+    @brief The availability table counts statuses per version and names what did not run.
+    @param tmp_path pytest temporary folder.
+    @return None.
+    """
+    s0 = rset("1.0.0", [rec("b1", "fvm", 100.0), {**rec("b1", "fdm", 0.0), "status": "not_available", "reason": "model 'fdm' does not exist in this release", "t_max": None},
+                        {**rec("b2", "fvm", 0.0), "status": "not_available", "reason": "AttributeError: no set_outline", "t_max": None}])
+    s0["boards"] = {"b2": {"not_available": "AttributeError: no set_outline"}}
+    s1 = rset("1.1.0", [rec("b1", "fvm", 101.0), rec("b1", "fdm", 90.0), rec("b2", "fvm", 80.0)])
+    t = V.availability_table([s0, s1])
+    assert "| v1.0.0 | 3 | 1 | 2 | 0 | 0 | 1 | fvm |" in t and "| v1.1.0 | 3 | 3 | 0 | 0 | 0 | 2 | fvm, fdm |" in t
+    lines = "\n".join(V.unavailable_lines([s0, s1]))
+    assert "board b2: AttributeError: no set_outline" in lines and "models without a run: fdm" in lines
+
+
+def test_error_against_reference_and_notes():
+    """!
+    @brief The error against the reference is rise / reference - 1 per version, the mean absolute error needs every reference board, and pair notes appear in the chapter.
+    @return None.
+    """
+    refs = {"b1": {"2": 100.0}, "b2": {"2": 50.0}}
+    s0 = rset("1.0.0", [rec("b1", "fvm", 135.0), rec("b2", "fvm", 85.0)])         # rises 110 and 60: +10 % and +20 %
+    s1 = rset("1.1.0", [rec("b1", "fvm", 125.0), rec("b2", "fvm", 75.0)])         # rises 100 and 50: 0 %
+    rows = V.error_rows([s0, s1], refs)
+    assert abs(rows[("b1", "fvm", 2.0)][0] - 0.10) < 1e-12 and abs(rows[("b2", "fvm", 2.0)][1]) < 1e-12
+    assert abs(V.mean_abs_error(rows, 2, 2.0)["fvm"][0] - 15.0) < 1e-9 and V.mean_abs_error(rows, 2, 2.0)["fvm"][1] == 0.0
+    assert V.mean_abs_error(rows, 2, 2.0)["fdm"] == [None, None]
+    text, _, _ = V.build(s0, s1, None, pair_notes={"implemented": ["item A"], "reading": ["moved by item A"]})
+    assert "* item A" in text and "* moved by item A" in text and "Hottest point moved, per model" in text

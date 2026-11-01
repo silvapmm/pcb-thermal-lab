@@ -1,0 +1,108 @@
+{
+ "_comment": "Hand-written notes of each pair of versions, read by make_version_comparison.py (--pair-notes). Every statement of what was implemented is taken from CHANGELOG.md (section of the later version); every number is one that the result sets of this folder print. Where no item explains a shift the line says so.",
+ "v2.0.0->v2.1.0": {
+  "implemented": [
+   "CHANGELOG [2.1.0]: power profiles (square wave) in all three models, with the average-or-resolve decision; computed heat transfer coefficients (natural and forced convection plus radiation per face, Board.h_mode = computed).",
+   "The harness runs every board at constant h and at the average power, so neither item is exercised by it."
+  ],
+  "reading": [
+   "The steady numbers of the three models (FVM, Lumped, Analytic) are bit-identical in 93 of 99 records; the other 6 are Analytic records that move by at most 6e-14 K, which is rounding, not a change of the model.",
+   "Times to 63 %: v2.0.0 has no `api.step_response` (the function the harness uses; the release has the transient/animation code of its own), so its time records are errors in the result set and there is nothing to compare; v2.1.0 is the first version with a step response (it came with the power profiles). Its values for the example board are FVM 10.40 / 2.76 s, Lumped 10.54 / 2.87 s, Analytic 6.88 / 2.63 s (parts U1 / U2).",
+   "Only 11 of the 17 boards can be built by v2.0.0 (the others need the outline, parts with theta or metal blocks, which came later), and only the three models of 2.0.0 exist (no FDM, no 3D solid)."
+  ]
+ },
+ "v2.1.0->v2.2.0": {
+  "implemented": [
+   "CHANGELOG [2.2.0]: power tables and CSV files; the finite-difference model (FDM, steady state only); about 40 % faster direct solves (symmetric sparse ordering); the Analytic transient with vias and sinks (one modal system per heater, 'follows the FVM within 2.5 degC, 10 degC before')."
+  ],
+  "reading": [
+   "FDM: 33 new records (the model did not exist in 2.1.0).",
+   "FVM: 33 records move by at most 4e-10 K at 0.5 mm. That is the symmetric ordering of the direct solve (CHANGELOG, 'about 40 % faster direct solves'): a different order of the same sums, not a change of the model.",
+   "Time to 63 % of the example board, Analytic, part U1: 6.88 s in v2.1.0 and 13.89 s in v2.2.0 (FVM 10.40 s, unchanged), that is from 3.5 s below to 3.5 s above the FVM. The CHANGELOG item 'Analytic transient with vias and sinks' is the one that changes the Analytic step response, but it states its gain for the temperature curve ('within 2.5 degC of the FVM, 10 degC before') and the profile peak, not for this time: the effect on this number is not explained by an item (unexplained).",
+   "The FDM step response was not available in 2.2.0: the release answers an FDM step response with the analytic one (identical numbers), so the harness does not count it as an FDM result."
+  ]
+ },
+ "v2.2.0->v2.3.0": {
+  "implemented": [
+   "CHANGELOG [2.3.0]: the FDM in time (animation, step responses, power profiles); the 3D solid model (new model key `solid3d`); the metal block (a Heatsink with a thickness) in the FVM and FDM; the rename Sink to Heatsink (class, builder, JSON key `heatsinks`; files saved with `sinks` still open)."
+  ],
+  "reading": [
+   "Steady state on the 11 boards that both versions can build: no number moves (0 of 132 FVM, FDM, Lumped and Analytic records). The 3D solid adds 33 records.",
+   "The first 3D solid numbers: on the four reference boards its error against the independent layered solver is -0.09 % (one-layer full), +0.07 % (plate pad), +0.00 % (plate uniform) and +41.5 % (one-layer pad at 2 mm). The one-layer pad is the board for which 2.4.2 later reports 'the 3D solid keeps the laminate (a 20 mm pad read 120 degC against about 74 degC)'.",
+   "FDM step response: 2.2.0 answered an FDM step response with the analytic one (identical numbers; the harness does not count it as an FDM result), and 2.3.0 has the real FDM step response (CHANGELOG item 'The FDM now also does the time-dependent work'): 13 new values, for example example-board part U1 10.90 s (the Analytic gives 13.89 s, the FVM 10.40 s) and part U2 3.10 s.",
+   "The finned block board cannot be built by 2.3.0 (its builder has no fin arguments); the metal block itself is not exercised by the harness in this version."
+  ]
+ },
+ "v2.3.0->v2.4.0": {
+  "implemented": [
+   "CHANGELOG [2.4.0]: advanced stack-up in all models ('the simple stack-up is unchanged'); board outline polygon (FVM, FDM, 3D solid; the Lumped and Analytic run on the rectangle of the same area); top path of a part (heatsink on the package); metal block in the Lumped and Analytic models; via fills; parts with theta; the Power Calculator; calculations in a separate process; many interface items."
+  ],
+  "reading": [
+   "The 11 boards that 2.3.0 can build give bit-identical numbers in 165 of 165 steady records. The times to 63 % move in 6 of 52 values by at most 1e-12 percent (rounding). The harness boards use the simple stack-up and no outline, so the CHANGELOG statement 'the simple stack-up is unchanged' is reproduced.",
+   "90 records appear that 2.3.0 could not run: the boards with an outline, a part with theta or a finned block. They are new coverage, not shifts; they are the first values of those boards and are the base for the next pairs.",
+   "New warning texts appear (analytic edge convection, part outside the board); text only."
+  ]
+ },
+ "v2.4.0->v2.4.1": {
+  "implemented": [
+   "CHANGELOG [2.4.1]: licensing text only (the MIT licence stated consistently) and a note that the results are a design aid."
+  ],
+  "reading": [
+   "255 of 255 steady records, 68 of 68 times to 63 % and all warning texts are bit-identical, as a licence-only release must be."
+  ]
+ },
+ "v2.4.1->v2.4.2": {
+  "implemented": [
+   "CHANGELOG [2.4.2], Fixed: one-layer boards (two laminate nodes in FVM, FDM and Lumped, a series film in the Analytic, the 3D solid keeps the laminate: 'mean error against the 3D solid 3.8 to 1.0 % on nine boards'); boards with an outline (cells off the board no longer a path to the air, the whole edge counted: 'a 60 mm T lost 70 of 240 mm'); side walls of a finned block no longer carry the fin ratio ('the rise of a finned block was 5.5 to 6.4 % too low'); top path on small pads (a root instead of a fixed-point loop that 'stopped 17 to 58 K cold with a false runaway warning'); 3D solid limited to 250 000 unknowns; Lumped rings narrower than a cell merged ('the result no longer grows with the ring count').",
+   "Added: natural convection form option (default `general`, no change), inner copper 0.5 or 1 oz for typical stack-ups, thick-plate warning, Power Calculator design uncertainty, an independent 3D solver in the tests."
+  ],
+  "reading": [
+   "One-layer boards (item 'One-layer boards'): one_layer_pad FVM +5.4 to +6.8 K, FDM +2.7 to +4.4 K, Lumped +5.0 to +5.8 K, Analytic +1.1 K, 3D solid -29.9 to -28.9 K; one_layer_full +0.63 K in FVM, FDM and Lumped (+0.56 K Analytic). Against the independent layered solver the FVM error of one_layer_pad at 2 mm goes from -13.2 % to -3.8 %, the 3D solid from +41.5 % to +0.07 %, and the mean absolute error of the FVM over the four reference boards from 5.83 % to 2.96 % at 2 mm (4.80 % to 2.21 % at 1 mm).",
+   "Boards with an outline (item 'Boards with an outline'): t_outline FVM -4.4 K and 3D solid -4.35 K at every cell (the lost edge length now counted); round_outline FVM -0.10 to -0.12 K; example_cut_to_T FVM -0.16 to -0.37 K, 3D solid -0.16 to -0.36 K.",
+   "Finned block (item 'Side walls of a finned block'): finned_block +5.78 K in FVM, FDM and 3D solid at every cell, +6.03 K Analytic; the CHANGELOG range of 5.5 to 6.4 % of the rise is the size seen here (about 5.8 %).",
+   "Top path (item 'Top path on small pads'): part_top_path in 2.4.1 reads 25.0 degC, the ambient, in all five models (the board is not heated), and in 2.4.2 it reads 69.6 to 75.1 degC (+44.6 to +44.7 K Analytic, +46.4 to +48.8 K FVM and FDM, +49.2 to +49.4 K Lumped, +49.4 to +50.1 K 3D solid). The CHANGELOG describes the old loop as stopping '17 to 58 K cold with a false runaway warning'; on this board it stopped at the ambient.",
+   "Lumped moves on boards no item gives a number for: part_across_outline -9.39 K, hatched_copper -4.95 K, round_outline -4.17 K at 1 and 2 mm, t_outline -4.0 K, finned_block +2.11 K (+5.81 K at 0.5 mm), and 0.004 to 0.044 K on the plain plates and the reference board. The only Lumped item of this version is 'rings narrower than a cell are merged', which is the likely cause of the small shifts; the large ones on outline and hatched boards are not explained by any item (unexplained).",
+   "Times to 63 %: 18 values move (FVM 3, FDM 3, Lumped 10, Analytic 2). finned_block +51 % in FVM and FDM follows the same side-wall item; the others are on one-layer boards (FVM one_layer_pad -3 %, FDM -3.6 %, Analytic one_layer_full +7.1 %) or Lumped boards; their sizes are listed in the table of this chapter and are not separately explained.",
+   "Status: the 4 runs of the 3D solid at 0.5 mm on the example, cut example, profile and reference boards go from ok to skipped. The harness skips a 3D solid above 150 000 unknowns, which it can only count from the version that has the unknown count (the 'limited to 250 000 unknowns, checked before building' item); 2.4.0 and 2.4.1 simply ran them."
+  ]
+ },
+ "v2.4.2->v2.4.3": {
+  "implemented": [
+   "CHANGELOG [2.4.3], Fixed: the 3D solid keeps the copper of a via larger than its cell; zones that meet inside a cell keep the copper of both (union of the points); input check for a heat source with component fields; unknowns shown next to the cell size are the ones the models have; via diameter label is the drill; the top path only on a component; a metal block beyond the board outline is cut at the outline; licence header; interface cleanups."
+  ],
+  "reading": [
+   "No steady number and no time to 63 % of the 17 boards moves (0 of 251 records, 0 of 68 times). The changed situations are absent from the harness boards (no via larger than a cell, no zones that meet inside a cell, no source with component fields, no block across the outline); the CHANGELOG says the same for the example boards ('The example boards do not change'). This pair says nothing about those fixes: they need their own test boards."
+  ]
+ },
+ "v2.4.3->v2.4.4": {
+  "implemented": [
+   "CHANGELOG [2.4.4]: interface leftovers (footer on a low window, decimal comma pasted from the context menu, stale warning clicks) and the close-fin warning after the run on the channel Rayleigh number (text only, 'no temperature changes')."
+  ],
+  "reading": [
+   "No number moves (0 of 251 records, 0 of 68 times). The new close-fin warning text appears on the finned block records (15 of them): text only, as the CHANGELOG says."
+  ]
+ },
+ "v2.4.4->v2.4.5": {
+  "implemented": [
+   "CHANGELOG [2.4.5] and the table `reference/expected_shifts_2.4.5.json` (items I1 to I9; every shifted number of the 113 records is covered by a rule of the table, 0 alarms): I1 part across the board outline (each cut cell gets the share that is both in the part and on the board), I2 board cover sampled 8 x 8, I3 laminate nodes for patterned copper, I4 vias converge with the cell (point via) and block SOR, I5 constriction of the heat on a via in the Lumped and Analytic models, I6 SOR relaxation factor (speed only), I7 warnings only, I8 documents, I9 the Power Calculator row."
+  ],
+  "reading": [
+   "I3 laminate nodes: plate_pad FVM +17.5 K at 2 mm, +11.6 K at 1 mm, +8.9 K at 0.5 mm (rise +5.5, +3.7, +2.8 %); its error against the independent layered solver goes from -7.94 % to -2.92 % (2 mm) and from -5.57 % to -2.12 % (1 mm); one_layer_pad FVM from -3.75 % to -2.01 % (2 mm); mean absolute error of the FVM over the four reference boards 2.96 % to 1.28 % at 2 mm and 2.21 % to 1.01 % at 1 mm. The FDM improves less (plate_pad -23.80 % to -23.43 % at 2 mm; mean 11.52 % to 11.39 % at 2 mm and 6.94 % to 6.64 % at 1 mm).",
+   "I1 and I2 part across the outline: part_across_outline FVM -13.7 K, FDM -21.8 K, 3D solid -14.1 K at 1 mm (-6.3, -9.6, -6.4 % of the rise); the sizes shrink with the cell (FVM -3.7 K at 0.5 mm).",
+   "I5 via constriction in the Lumped and Analytic: Lumped plate_vias +2.3 K and example board +1.97 K at 2 mm (+3.3 % of the rise); Analytic plate_vias -4.57 K at 1 and 2 mm (-3.9 %), plate_lone_via -3.53 K at 0.5 mm, example board +0.45 K at 2 mm. The CHANGELOG says the via effect of both models was overstated by 35 to 60 % before; the sign of the shift of the hottest point depends on the board and the table accepts both signs per board, so this study gives the sizes but not a reason for each sign (unexplained per board). There is no independent reference board with vias among the four, so the improvement of this item is not measured here.",
+   "I4 point via: example board FVM -0.27 K and FDM -0.40 K at 2 mm; at 1 mm FVM 85.81 to 85.23 degC and FDM 84.38 to 85.13 degC (+0.74 K); plate_vias FVM +0.36 K at 1 mm.",
+   "Times to 63 %: 41 values move (FVM 16, FDM 15, Lumped 6, Analytic 4); every one is on a board that an item above reaches (the table checks it).",
+   "Boards no item reaches are bit-identical (reference_board, plate_uniform, finned_block in all five models), as the table requires."
+  ]
+ },
+ "v2.4.5->develop-tip": {
+  "implemented": [
+   "CHANGELOG [Unreleased] (develop, c76479e, still reporting version 2.4.5): the memory guard; the Gerber reader (no interface yet); project format 2 for imported boards; laminate options (`SolverOptions.laminate_s_max_mm`, `laminate_n_max`, defaults unchanged); Lumped zones (a part over a dense group of vias has two nodes for its footprint, with a 0.5 mm raster); Lumped footprint potentials in blocks (large footprints summed in k x k blocks instead of a stride); Lumped via warnings (text only); natural convection form `laminar` as the default of NEW projects only; live input warnings; the one-LU animation; faster Power Calculator (bit-identical); theme and documentation items."
+  ],
+  "reading": [
+   "Only 4 of 251 steady records move, all Lumped: plate_vias -3.90 K at 2 mm and 1 mm and -3.70 K at 0.5 mm (140.3555 to 136.4534 degC at 1 mm and 2 mm; CHANGELOG item 'Lumped model: a part over a dense group of vias has two nodes', `tests/regression/data/pending/lumped-zones.json`), and reference_board +0.27 K at 0.5 mm (89.0933 to 89.3632 degC; item 'Lumped: footprint potentials of large footprints', `pending/lumped-footprint-potentials.json`). The four values of this run equal the pending files to the last digit (difference 0.0), and no other record moves.",
+   "Time to 63 %: Lumped plate_vias +11 % (27.83 to 31.00 s, as the CHANGELOG says); one value of 68.",
+   "Items that do not move any harness number, as expected: the memory guard, the Gerber reader, the project format, the laminate options at their defaults, the warnings, the animation, the default of the natural convection form (new projects only)."
+  ]
+ }
+}
