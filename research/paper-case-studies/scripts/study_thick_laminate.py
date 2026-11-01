@@ -3,7 +3,7 @@
 """!
 @file study_thick_laminate.py
 @brief Study S2 "thick anisotropic laminate": does the laminate sub-gap rule of 2.4.5 (at most 4 sub-gaps of 0.4 mm) carry a thick, anisotropic FR-4 under a small source, judged against the
-       published closed form of Muzychka, Yovanovich and Culham (2004, equation 50) and against an independent resolved 3D solver? Written and checked only; not yet run.
+       published closed form of Muzychka, Yovanovich and Culham (2004, equation 50) and against an independent resolved 3D solver? Run and reviewed (README 11 and 16).
 @details Question: the error of the layered models under a small source on a thick anisotropic laminate (our own 3D reference gave -18.44 % to -3.07 % at 1.6 mm and -34.19 % to -9.13 % at 3.2 mm
          for a 6 mm window, README of research/laminate-nodes); is that error real, and does a finer rule (the new options laminate_s_max_mm, laminate_n_max) remove it?
          Independent references (nothing of the program): (1) the closed form `lib/flux_channel.py` (equation 50 with the orthotropic transformation, read from the page image), valid for a source on
@@ -28,7 +28,7 @@
               then the rule stays and the text of theory 1.4 only gets the published check. The 0.5 mm row shows the plan grid's share of the error.
            L3 if L2 fails and a pair of options brings every row within 3 % with at most 3 times the unknowns of the default: that pair is proposed (a `fix/`, with its cost); if none does, the limit text.
            L4 solid3d within 3 %, analytic within 15 % of R' (reported, not decisive); lumped reported.
-         Declared cost: closed form and the 3D reference of the 33 bare + 33 pad combinations about 10 minutes, under 1 GB (pixel S / 16, 18 slabs, at most 115 000 unknowns); the program part about 15
+         Declared cost (the plan; measured costs in README 10.4, 11 and 16.3: L1 1.8 GB, pixel S/32 8.2 GB, the program part 3.2 GB in one process): closed form and the 3D reference of the 33 bare + 33 pad combinations about 10 minutes, under 1 GB (pixel S / 16, 18 slabs, at most 115 000 unknowns); the program part about 15
          minutes, at most about 3 GB (the pair (0.1, 16) on the 40 mm board at 3.2 mm: 160 x 160 cells x 17 node layers = 435 000 unknowns, about 7 GB per million for the layered models);
          `--convergence` (pixel S / 32 and n_sub = 32) about 5 minutes and at most 3 GB, to be run alone.
          Run (from the repository root): .venv/bin/python research/paper-case-studies/scripts/study_thick_laminate.py [--dry-run] [--convergence] [--no-program]

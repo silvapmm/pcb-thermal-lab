@@ -283,3 +283,33 @@ def test_extrapolated_reference_agrees_with_equation_50():
     rx = S2.reference_3d_extrap(c)
     assert abs(rx / rp - 1.0) < 0.01
     assert abs(S2.reference_3d(c, px_div=6) / rp - 1.0) > abs(rx / rp - 1.0)
+
+
+def test_flux_condition_mean_temperature_is_linear_in_a_homogeneous_cell():
+    """!
+    @brief Review check of the flux path of the unit-cell solver against an exact identity: in a homogeneous cell (every conductivity equal) with an adiabatic wall the mean temperature of a
+           horizontal section is exactly linear in z between the sources, whatever the flux pattern on the top (it is applied on the solid only, not over the hole, so the field is not
+           one-dimensional). The node-to-node resistance between the mid-planes of the two foils is then (t - t_foil) / (k A) under the flux condition too.
+    @return None.
+    """
+    area, k, t, t_foil = math.pi * (1.25e-3) ** 2, 2.0, 1.6e-3, 35e-6
+    for bc in ("isothermal", "flux"):
+        r = AC.unit_cell_k(area, 0.6e-3, 0.56e-3, t, k_fr4_z=k, k_fr4_r=k, k_cu=k, k_fill=k, t_foil=t_foil, bc=bc)
+        assert r["r_nodes"] == pytest.approx((t - t_foil) / (k * area), rel=1e-9)
+    # the face reading under the flux condition is NOT the one-dimensional value (the flux skips the hole): the identity is a test of the mean, not a trivial 1D field
+    r = AC.unit_cell_k(area, 0.6e-3, 0.56e-3, t, k_fr4_z=k, k_fr4_r=k, k_cu=k, k_fill=k, t_foil=t_foil, bc="flux")
+    assert abs(r["k_eff"] / k - 1.0) > 1e-3
+
+
+def test_extrapolation_recovers_the_limit_of_a_synthetic_error_model(monkeypatch):
+    """!
+    @brief Review check of `reference_3d_extrap` without any solve: with a synthetic reference R(px, n) = R0 + b / px + c / px^2 + d / n^2 (the error model the extrapolation assumes) it returns
+           R0 to rounding; with a first-order pixel error of non-integer order (px^-1.65, the order observed between S/8, S/16 and S/32 in README 11.1) it is off by a measured, small amount,
+           which is the size of the extrapolation uncertainty quoted in README 16.2.
+    @return None.
+    """
+    c = {"S": 2.0, "W": 20.0, "t": 1.6, "kxy": 0.9, "kz": 0.3, "h": 1.0e6}
+    monkeypatch.setattr(S2, "reference_3d", lambda c_, pad=False, px=16, ns=16: 380.0 + 60.0 / px + 90.0 / px ** 2 + 2000.0 / ns ** 2)
+    assert S2.reference_3d_extrap(c) == pytest.approx(380.0, rel=1e-12)
+    monkeypatch.setattr(S2, "reference_3d", lambda c_, pad=False, px=16, ns=16: 380.0 + 300.0 / px ** 1.65 + 2000.0 / ns ** 2)
+    assert abs(S2.reference_3d_extrap(c) / 380.0 - 1.0) < 0.005
