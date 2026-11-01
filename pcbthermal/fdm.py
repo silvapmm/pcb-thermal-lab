@@ -19,11 +19,9 @@
 
 import numpy as np
 import scipy.sparse as sp
-import scipy.sparse.linalg as spla
 
 from .geometry import BOARD_SAMPLES, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
 from . import blocks, fvm, laminate, viawell
-from .fvm import ORDERING
 from .results import SteadyResult
 
 
@@ -222,7 +220,7 @@ class Network:
                 fq[L:] = 0.5 * (sq[0] + sq[1]) * ((sq[0] > 0) & (sq[1] > 0))
         couple(idx[:, :, :-1], idx[:, :, 1:], fx * wy[None, :, None] / dx * (on[:, :-1] & on[:, 1:])[None])
         couple(idx[:, :-1, :], idx[:, 1:, :], fy * wx[None, None, :] / dy * (on[:-1, :] & on[1:, :])[None])
-        # Vertical: dielectric over the control area, plus the via barrels at the nearest node
+        # Vertical: dielectric over the control area; the via barrels are mean-potential couplings of a footprint of nodes (viawell.py)
         if L > 1:
             d = b.gap_thicknesses()
             gz = (b.gap_properties()[0][:, None, None] * area[None] / d[:, None, None]).copy() if rule is None else rule.gz
@@ -332,9 +330,9 @@ class Network:
             # Ragged solve: the laminate nodes no node uses are pinned rows; leave them out of the factorisation
             keep = np.flatnonzero(~self.drop.ravel())
             theta = np.zeros(self.K.shape[0])
-            theta[keep] = spla.spsolve(self.K.tocsr()[keep][:, keep].tocsc(), q[keep], permc_spec=ORDERING)
+            theta[keep] = fvm.direct_solve(self.K.tocsr()[keep][:, keep], q[keep])     # (reuses the factorisation inside fvm.factor_reuse())
         else:
-            theta = spla.spsolve(self.K, q, permc_spec=ORDERING)
+            theta = fvm.direct_solve(self.K, q)
         res = float(np.linalg.norm(self.K @ theta - q) / max(np.linalg.norm(q), 1e-300))
         return theta.reshape(self.nl, self.ny, self.nx), res
 

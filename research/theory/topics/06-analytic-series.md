@@ -39,6 +39,10 @@ The board is cut into tiles of size `min(max(lambda / 4, 2.5 mm), 5 mm)`. A tile
 
 the exact solution for the tile-lumped model (a dense system of `N_tiles L` unknowns, small). A **metal block** adds a Schur complement to `C` (topic 11).
 
+## 4.1 Vias: the constriction in the tiles
+
+With vias the tile is `min(1 mm, 0.75 median d_nn)` (at least 0.25 mm, never above the 2.5 to 5 mm tile of boards without vias), so that the sink has the scale of the barrel; a via alone at the scale of a tile is spread bilinearly over the four tiles around it; and the diagonal of `G` gets a self-term that makes the tile read the temperature at the barrel wall instead of the tile mean (for `n <= 1` vias per tile `D = [ln(R_blk / a) - 1/4] / (2 pi S n)`, for `n > 1` `D = ln(R_tile / r_cl) / (2 pi S) + R_K(S, r_c, a) / n`, `R_K` the Krogh-cell resistance of topic 05). The dense system is kept to 4800 unknowns by enlarging the tile. Without vias the model is unchanged. `viaconstriction.py`, `docs/theory.md` 6.1; the Krogh cell is [Krogh1919] (M).
+
 ## 5. Time
 
 Each mode obeys `C a' + A_mn a = q(t)`, `C = diag(c_l)`. With `C^(-1/2) A_mn C^(-1/2) = V Lambda V^T` and `b = V^T C^(1/2) a` the modes decouple, `b' = -Lambda b + g`, and a constant power over a step has the **exact propagator** `b+ = exp(-lambda dt) b + (1 - exp(-lambda dt)) g / lambda`. The transient cannot use the local corrections, so vias and heatsinks are smeared over the board and their conductance is scaled per heater by bisection until the steady maximum equals that of the locally corrected model (a single global factor cooled the distant heater by 18 %).
@@ -63,7 +67,7 @@ Copper that is not uniform near a heater (24 % low with a 20 mm pad, 25 % when a
 
 * Fourier-series solutions and the Green function of the fin equation (K0): [CarslawJaeger].
 * A Fourier-series solution for the insulating layers combined with a lateral finite-volume discretisation of the metal layers, 1.8 to 2.5 % against COMSOL and 4 to 5 % against measurements: [PMC11410250] (text read). Multilayer Fourier models against finite elements, 1 to 4 %: [FourierMultilayerJCU] (a search summary).
-* Static condensation and Kron reduction behind the block's Schur complement: [MFEMStaticCond], [Kron2022].
+* Krogh cell behind the via self-term: [Krogh1919] (M). Static condensation and Kron reduction behind the block's Schur complement: [MFEMStaticCond], [Kron2022].
 * Error tables: [L-validation], [L-block].
 
 *What was read and what was not verified:* the formulas are from `docs/theory.md` section 6 (read in full).

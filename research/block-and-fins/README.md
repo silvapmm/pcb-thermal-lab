@@ -2,6 +2,8 @@
 
 Status: **implemented** in the program (2.3.0 and 2.4.0; see the program's `docs/versions.md` and `docs/validation.md`). Studies: `fin_validation.py`, `block_equivalent_study.py`, `study_finned_block_all_models.py`, `study_why_coefficients_fail.py`, `study_thick_plate_criterion.py`; figures: `make_figures.py`, `make_diagrams.py`. Reviewed (section 7); a defect of the program found in the review is written up in `INTEGRATION.md`.
 
+**Program of 2.4.5 (reproduction pass).** Nothing in this folder moved with 2.4.5. Table 4.3 predates `fix/finned-block-sides` (2.4.2): the programs of 2.4.4 and 2.4.5 both print FVM / FDM / 3D solid / Lumped / Analytic 65.0 / 65.0 / 65.5 / 66.5 / 66.1 K (fins 15 mm, pitch 8), 70.0 / 69.9 / 70.4 / 71.4 / 71.4 K (pitch 12) and 56.6 / 56.5 / 57.0 / 58.0 / 57.2 K (fins 30 mm), Lumped +1.6 to +2.5 % and Analytic +1.1 to +3.6 % of the FVM; the plain plate is unchanged (re-run by the review of the reproduction pass; the side table of 4.3 already gives these FVM values).
+
 ## 1. The questions
 
 1. Is the formula that replaces the fins of a metal block by an area gain and an efficiency right?

@@ -273,6 +273,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     forced = blocks.has_blocks(problem) and not local_corrections           # A block is a local correction: it cannot be smeared over the board
     local_corrections = local_corrections or forced
@@ -682,6 +683,7 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     ms = _ModalSet(problem, cell_mm, n_terms)
     t_end = t_end or 10.0 * ms.tau
@@ -803,6 +805,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     from . import profiles
     return profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic",
@@ -823,6 +826,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     @return TransientResult.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     from .results import TransientResult
     problem = problem.steady_copy("average") if problem.has_profiles() else problem
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)

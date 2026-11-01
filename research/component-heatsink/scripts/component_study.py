@@ -80,6 +80,23 @@ def run(part, pad_mm, theta=None, top=None):
     return out
 
 
+def program_levels(part, pad_mm, theta=None):
+    """!
+    @brief Levels 0 and 1 of a part read from the program itself (FVM at 0.5 mm, computed h), the same route as table E.
+    @details run() uses package_prototype, which is frozen on the network before 2.4.5 (no laminate nodes, ladder=False) and reads 0.1 to 14 K
+             below the program on these boards (the most on the 8 mm pads); the other studies of the folder keep run() as their frozen baseline.
+    @param part Entry of PARTS.
+    @param pad_mm Pad side in mm.
+    @param theta Junction-to-pad resistance to use in K/W (default: the part's own).
+    @return Dict with t0 (hottest board point under the part, degC) and t1 (Tj = t0 + P theta, degC).
+    """
+    p = part_board(part, pad_mm)
+    h = p.heaters[0]
+    h.power, h.theta = part["p"], part["th"] if theta is None else theta
+    row = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5)).heater_rows()[0]
+    return {"t0": row["t_max"], "t1": row["t_junction"]}
+
+
 def main():
     """!
     @brief Print the tables.
@@ -90,7 +107,7 @@ def main():
     print("| :-- | --: | --: | --: | --: | --: | --: | --: | --: |")
     for name, part in PARTS.items():
         for pad in (8.0, 25.0):
-            r = run(part, pad)
+            r = program_levels(part, pad)
             rise = r["t1"] - amb
             print(f"| {name} | {part['p']:g} | {part['th']:g} | {max(pad, part['w'] + 1, part['h'] + 1):g} mm | {r['t0']:.1f} | {r['t1']:.1f} | "
                   f"{part['p'] * part['th']:.1f} | {100 * part['p'] * part['th'] / rise:.0f} % | {part['tjmax']:g}{' (derating end)' if name.startswith('Res') else ''} |", flush=True)
@@ -100,17 +117,18 @@ def main():
     for name, part in PARTS.items():
         if part["thjb"] is None:
             continue
-        a, b = run(part, 25.0), run(part, 25.0, theta=part["thjb"])
+        a, b = program_levels(part, 25.0), program_levels(part, 25.0, theta=part["thjb"])
         print(f"| {name} | {part['th']:g} | {a['t1']:.1f} | {part['thjb']:g} | {b['t1']:.1f} | {b['t1'] - a['t1']:+.1f} K ({100 * (b['t1'] - a['t1']) / (a['t1'] - amb):+.0f} % of the rise) |", flush=True)
     print("\nC. Sensitivity to the theta entered (+-30 %, pad 25 mm)")
     print("| Part | Tj nominal | Tj at -30 % | Tj at +30 % |")
     print("| :-- | --: | --: | --: |")
     for name, part in PARTS.items():
-        n, lo, hi = run(part, 25.0), run(part, 25.0, theta=0.7 * part["th"]), run(part, 25.0, theta=1.3 * part["th"])
+        n, lo, hi = (program_levels(part, 25.0), program_levels(part, 25.0, theta=0.7 * part["th"]),
+                     program_levels(part, 25.0, theta=1.3 * part["th"]))
         print(f"| {name} | {n['t1']:.1f} | {lo['t1']:.1f} ({lo['t1'] - n['t1']:+.1f} K) | {hi['t1']:.1f} ({hi['t1'] - n['t1']:+.1f} K) |", flush=True)
     print("\nD. A top path (level 2): bare mould (theta_JC(top) + convection on the body) and with a 12 K/W clip-on heatsink + 1 K/W paste (pad 25 mm)")
     print("   Level 2 is a junction node joined to the footprint by a uniform conductance; the node column without a top path is the same network")
-    print("   with no path up, so the bare-mould and heatsink columns are compared with it (the level 1 offset is 1.4 to 3.4 K hotter by convention on these pads).")
+    print("   with no path up, so the bare-mould and heatsink columns are compared with it (all the columns of this table are the prototype, frozen before 2.4.5 without the laminate nodes; tables A to C and E are the program).")
     print("| Part | Level 1 Tj (offset) | Junction node, no top path | Bare mould Tj (heat through top) | With heatsink Tj (heat through top) | theta_JC(top) [K/W] |")
     print("| :-- | --: | --: | --: | --: | --: |")
     for name, part in PARTS.items():

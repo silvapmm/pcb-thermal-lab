@@ -114,9 +114,15 @@ def check_problem(problem, cell_mm=1.0):
                     _add(out, "heater", i, f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap on layer "
                                f"{hi.layer + 1}: their power densities add up.")
 
-    for k, v in enumerate(problem.vias):
-        if not (0.0 <= v.x <= W and 0.0 <= v.y <= H):
-            _add(out, "via", k, f"{v.name or f'Via {k + 1}'} is outside the board and is ignored by the solvers.")
+    # A via is judged by its drill disc against the outline (or the box): no board under it = ignored by every model; less than half = mostly off
+    for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
+        name = v.name or f"Via {k + 1}"
+        if share <= 0.0:
+            _add(out, "via", k, f"{name}: via outside the board outline and ignored by every model." if b.has_outline()
+                 else f"{name} is outside the board and is ignored by every model.")
+        elif share < 0.5:
+            _add(out, "via", k, f"{name}: more than half of the via is outside the board{' outline' if b.has_outline() else ''}; "
+                                "the models still count its whole barrel, on the part that is on the board.")
 
     for k, z in enumerate(problem.zones):
         cov = coverage_fraction(z.polygon, nx, ny, dx, dy, 2)
@@ -176,9 +182,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
              tile means and add the constriction of the heat converging on a barrel (viaconstriction.py; research/lumped-analytic-vias,
              research/young-omega-tiles 3; the numbers are the error of the via effect against the FVM at 0.25 mm on the 29 boards of the
              branch fix/via-constriction and 17 more boards of its review, measured on this program). The Analytic copper-spread warning lives in analytic._effective_sheet, where its weights are computed.
-    @note The warning about vias on a coarse cell proposed by research/point-via-convergence is not here: its numbers (3.70 against
-          4.20 K) are those of the point-via treatment, not of the program as it is, whose FVM via effect on the example board is
-          9.02 / 8.86 / 8.84 K at 2 / 1 / 0.5 mm; it belongs with that fix.
+    @note The warnings about vias on a coarse cell and near the board edge (FVM and FDM) are in check_via_limits, which came with the
+          mean-potential via of viawell.py.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run ("fvm", "fdm", "lumped", "analytic", "solid3d").
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.
@@ -217,8 +222,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
                            "up to 10 % on a 3.2 mm laminate or under a window narrower than the laminate is thick, the FDM 2 to 20 %, "
                            "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value.")
 
-    if not problem.vias:
-        return out
+    if not problem.vias or b.layers < 2:
+        return out                                              # A one-layer board has no gap: its vias join nothing and change no model
 
     # --- Vias in the Lumped and Analytic models: both carry area means (a ring, a tile) and add the constriction of the heat converging on a barrel
     # (viaconstriction.py). The numbers are the error of the via effect (drop of the hottest temperature caused by the vias) against the FVM at 0.25 mm
@@ -228,7 +233,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
     # research/young-omega-tiles 3). Lumped: 8 % mean on the first set, 20 % on the second (-21 to +80 %); Analytic: 1.8 % and 2.9 % (-14 to +8 %).
     vx = np.array([v.x for v in problem.vias])
     vy = np.array([v.y for v in problem.vias])
-    on_board = (vx >= 0) & (vx <= W) & (vy >= 0) & (vy <= H)              # A via off the board is ignored (check_problem says so)
+    on_board = np.array([share > 0.0 for share in problem.via_board_shares()])   # A via with no board under it is ignored (check_problem says so)
     if "lumped" in models:
         in_any = np.zeros(len(problem.vias), dtype=bool)
         for k, h in enumerate(problem.heaters):
@@ -238,8 +243,9 @@ def check_model_limits(problem, models, cell_mm=1.0):
             if n_in >= 1:
                 _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
                            "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
-                           "(dense arrays under a part: the part too hot) to 22 % too large (sparse arrays, rows: the part too cool), and up to 80 % too "
-                           "large for an array across the edge of the footprint (8 to 20 % on average over 46 boards); use the FVM for via design.")
+                           "(the part too hot) to 33 % too large (the part too cool: dense arrays that cover a quarter or less of a large footprint, "
+                           "sparse arrays and rows), and up to 80 % too large for an array across the edge of the footprint (8 to 20 % on average "
+                           "over 46 boards, 11 % over 36 more); use the FVM for via design.")
         outside = np.flatnonzero(~in_any & on_board)
         if outside.size:
             # One warning for all of them: a Gerber board can have hundreds of vias away from the parts
@@ -255,7 +261,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
         # a pitch under 0.45 mm was not tested. The program's tile is 2.5 to 5 mm; the rule never reaches it, the guard can. The guard counts the tiles of the
         # heatsinks and blocks too (viaconstriction.heatsink_tiles); this check uses a 5 mm program tile, the solver its own 2.5 to 5 mm one, so the
         # coarsened tile quoted here can differ from the solver's when the guard goes beyond 2.5 mm.
-        vs = viaconstriction.ViaSet(problem)
+        vs = viaconstriction.ViaSet(problem.drop_off_board_vias())     # The Analytic model drops the vias with no board under them (analytic.solve_steady)
         nt = (int(math.ceil(W / 5e-3)), int(math.ceil(H / 5e-3)))
         pl = viaconstriction.plan(problem, vs, (nt[0], nt[1], W / nt[0], H / nt[1]), b.layers)
         t_rule, t_final, d_med = pl["t_rule"], pl["t_final"], viaconstriction.median_nn(vs)
@@ -498,8 +504,8 @@ def check_via_limits(problem, models, cell_mm):
     @return List of warning strings (empty when nothing is doubtful).
     """
     out = []
-    if not problem.vias:
-        return out
+    if not problem.vias or problem.board.layers < 2:
+        return out                                              # A one-layer board has no gap: its vias join nothing and change no model
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)

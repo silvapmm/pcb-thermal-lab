@@ -12,7 +12,7 @@ import os
 import numpy as np
 
 from pcbthermal import Problem, SolverOptions, project, simulate
-from pcbthermal.checks import check_model_limits
+from pcbthermal.checks import check_model_limits, check_via_limits
 
 EXAMPLES = sorted(glob.glob(os.path.join(os.path.dirname(__file__), "..", "examples", "*.pcbt.json")))
 
@@ -145,6 +145,28 @@ def test_via_warnings():
     q.add_via(30, 30)
     w = check_model_limits(q, ("lumped",), 1.0)
     assert len(w) == 1 and "1 via under the footprint" in w[0]
+
+
+def test_via_warnings_silent_on_a_one_layer_board():
+    """!
+    @brief A one-layer board has no gap, so its vias change no model: the Lumped, Analytic, edge and coarse-cell via warnings stay silent there
+           (they fired before, on a via near the edge and on vias outside every part, although the result does not depend on them).
+    @return None.
+    """
+    p = Problem.new(30, 24, 1).add_zone(1, rect=(5, 5, 25, 19))
+    p.add_heater(1, 1.0, rect=(12, 10, 18, 14), name="U")
+    for x, y in ((8.0, 12.0), (15.0, 12.0), (29.9, 12.0)):          # beside the part, under it, at the edge of the board
+        p.add_via(x, y, 0.4)
+    models = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+    assert not [w for w in check_model_limits(p, models, 2.0) if "via" in w.lower()]
+    assert check_via_limits(p, models, 2.0) == []
+    # The same board on two layers does warn (the test is not vacuous)
+    q = Problem.new(30, 24, 2).add_zone(1, rect=(5, 5, 25, 19))
+    q.add_heater(1, 1.0, rect=(12, 10, 18, 14), name="U")
+    for x, y in ((8.0, 12.0), (15.0, 12.0), (29.9, 12.0)):
+        q.add_via(x, y, 0.4)
+    assert [w for w in check_model_limits(q, models, 2.0) if "via" in w.lower()]
+    assert check_via_limits(q, models, 2.0)
 
 
 def test_warnings_do_not_change_results_and_reach_the_simulation(monkeypatch):

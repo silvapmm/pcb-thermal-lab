@@ -127,7 +127,7 @@ The block is always within 1.8 % of the solid in the FVM and FDM and within 0.2 
 ### 4.2.1 Does the outer copper dissipate and spread heat (against a heatsink)?
 
 `python research/solid3d-verification/scripts/copper_dissipation.py [--fem]`. Board 100 × 80 mm, 2 layers, 5 W on a 10 × 10 mm heater on top, copper only on the top layer (a square pad centred on the heater), no vias, `h_top` 10 and `h_bottom` 15 W/m²K.
-Maximum temperature [°C] against the 3D finite-element solid (error on the rise; the 3D FV column is the program's own `solid3d`):
+Maximum temperature [°C] against the 3D finite-element solid (error on the rise; the 3D FV column is the program's own `solid3d`). *These tables are of the program before 2.4.5: with the laminate nodes the FVM and FDM columns moved (heater-sized pad FVM 472.4 -> 508.9, FDM 420.9 -> 434.6 °C; 20 mm pad 266.7 -> 276.0 and 252.1 -> 256.1 °C); the current numbers, printed by the script without `--fem`, are in `docs/validation.md` 3.1. The 3D solid, Lumped and Analytic columns are unchanged.*
 
 | Top copper pad | 3D FEM | FVM | FDM | 3D solid (FV) | Lumped | Analytic |
 | :-- | --: | --: | --: | --: | --: | --: |
@@ -228,6 +228,8 @@ With full copper the 3D solid and the layered models now agree within 1.2 % of t
 | full | 3.2 | 33.84 | -4.4 -> -0.1 % | -4.4 -> -0.1 % | +0.0 -> +0.0 % | -5.9 -> -1.6 % | -4.5 -> -1.3 % |
 | 20 mm pad | 0.8 | 78.56 | -6.1 -> -1.6 % | -10.7 -> -7.6 % | +0.1 -> +0.1 % | -20.3 -> -16.9 % | -36.7 -> -35.9 % |
 | 20 mm pad | 1.6 | 72.12 | -10.0 -> -2.5 % | -13.5 -> -7.4 % | +0.2 -> +0.2 % | -20.3 -> -14.7 % | -30.5 -> -28.8 % |
+
+*Update for the program of 2.4.5 (laminate rule; reproduction pass and its review, numbers not rewritten in the tables above).* Since the laminate rule a one-layer board gets its bottom node from the rule (`fvm.Network._add_ladder`), not from `laminate.nodes`, so the study's "before" switch printed the current program in both columns of the FVM and FDM (-2.0 -> -2.0 %); it now also switches `laminate.uses_rule` off and the "before" columns again reproduce the table. What moved is the "now" side: part 1 (1 mm), full copper FVM / FDM 57.35 / 57.35 -> 57.27 / 57.28 degC (-0.1 -> -0.3 % against the 3D solid), 20 mm pad 79.94 / 76.49 -> 80.81 / 76.78 degC (FVM -3.5 -> -2.0 %, FDM -9.5 -> -9.0 %); part 2, full copper 3.2 mm FVM and FDM -0.1 -> -0.3 %, 20 mm pad 1.6 mm FVM -2.5 -> -1.4 % and FDM -7.4 -> -6.9 % (the other rows, the 3D solid, the Lumped and the Analytic unchanged). The program before the rule (`e9f4df2~1`) prints the table above to the digit. Figure 5 still draws the earlier "now" values (0.2 to 1.1 points apart).
 
 ![Every model against the independent solver on one-layer boards](figures/fig_05_one_layer_against_independent.png)
 

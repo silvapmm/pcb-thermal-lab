@@ -20,7 +20,7 @@ The "tiled conductivity" method of PCB thermal models:
 
 * copper slab with fill `f`: in-plane `k_x = f k_cu + (1 - f) k_ip`; through `k_z = f_eff k_cu + (1 - f_eff) k_th` with `f_eff = min(1, f + a_via)`;
 * dielectric slab: `k_x = k_ip`, `k_z = a_via k_cu + (1 - a_via) k_th`;
-* `a_via = sum A_via / (dx dy)` over the vias whose centre is in the cell: the **real copper area of the barrel**, in parallel in every slab;
+* `a_via = sum A_via w / (dx dy)` over the vias, each spread over a **footprint of cells** by the one rule of the FVM and FDM (`viawell.tuned_footprint`, weights `w` summing to 1, lattice effective radius `0.78 r_via`): the **real copper area of the barrel** (conserved, so an open and a copper-filled via are the same model), in parallel in every slab, clipped at 1 per cell;
 * block slabs: `k = k_metal c` (`c` the block coverage of the cell), pad slab `k = 1 c`; cells with no material get `k = 1e-9 W/mK` and a leak of `1e-9 W/K` to the ambient to keep the matrix regular.
 
 ## 4. Conductances (each pair of neighbouring cells, harmonic mean of the half-cell resistances)
