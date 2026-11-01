@@ -175,3 +175,54 @@ Corrected (each would have spoiled a result or a verdict):
 Checked and found right: Table 9 and the four markers of Fig. 33 (re-read); the wall of 0.02 mm (the 0.04 reading contradicts the 2.5 mm marker, 2.1); equations 28 and 29 (page image); the straight 1.25 mm sample at 10.02 W/mK against 7.0 measured (+43 %; the thesis's curve passes near the marker because it uses the mean diameters of all samples, page 62); equations 50 and 51 (page image) and their normalisation (published correlation to 0.003 %); `ref3d.py` imports only NumPy and SciPy; 33 combinations; the program accepts a bare two-layer board; the thresholds (3, with the reasons).
 
 Left to the run: every verdict; whether the solver's air-core node mean against the program's solid copper node (1 to 2 % on the dense arrays) matters for C1.
+
+## 10. Results, runs A, B and L1
+
+Light steps only, one at a time, on the tree merged with `develop`, while a battery ran elsewhere (swap used 751 MB before and 671 MB after, no growth). Outputs (git-ignored): `out/run_AB.json`, `out/run_L1.json`, `out/run_L1.txt`. Tests: 24 passed. Both `--dry-run` print their plan and solve nothing. The heavy steps (S2 convergence, S1 C, the S2 program part, S1 D) were **not run**: they wait for a quiet machine, with the declared peaks of 4.5 (at most 3 GB for the S2 convergence and the S2 program part, 2 GB for S1 C, 1.5 GB for S1 D).
+
+### 10.1 Part A and criterion B1
+
+The unit-cell solver equals equations 28 and 29 on all nine samples, relative difference 1e-15 to 2e-13 (criterion 1e-6): **B1 passes**. The foil and boundary-condition effects on samples 1 and 8 (t = 0.8, 1.6, 3.2 mm; k_eff / k_closed):
+
+| Sample | foil, isothermal faces | foil, flux condition |
+| :-- | :-- | :-- |
+| 1 (2.5 mm cell) | 1.041 / 1.020 / 1.010 | 0.897 / 0.945 / 0.971 |
+| 8 (1.0 mm cell) | 1.036 / 1.018 / 1.009 | 0.987 / 0.993 / 0.997 |
+
+The flux condition lowers k_eff by 3 to 10 % on the sparse sample 1 and by 0.3 to 1.3 % on the dense sample 8 (the foil with isothermal faces raises it by 1 to 4 %). This agrees with the expectation of section 5.
+
+### 10.2 Part B and criterion B2
+
+| Group | Measured (plot), W/mK | Equations 28/29 over the samples | Distance | B2 (15 %) |
+| :-- | :-- | :-- | :-- | :-- |
+| straight 2.5 mm | 2.50 +-0.2 | 1.795 to 2.752 | 0.0 % | usable |
+| staggered 2.5 mm | 4.30 +-0.2 | 3.259 to 5.174 | 0.0 % | usable |
+| straight 1.25 mm | 7.00 +-0.2 | 10.018 (one sample) | 43.1 % | **not usable** |
+| straight 1.0 mm | 12.90 +-0.2 | 9.483 to 13.078 | 0.0 % | usable |
+
+Three groups are usable, the 1.25 mm group is not, exactly as predicted in section 5 (nothing here explains the 43 %; it stays reported as not usable and does not enter C2).
+
+### 10.3 L1: equation 50 against the 3D reference (33 bare combinations)
+
+Truncation of equation 50 is negligible (2000 to 4000 terms: +0.00005 % and +0.00007 % of R'). Difference of the 3D reference (read at the face, plus the face term) against equation 50, in percent of R':
+
+| Quantity | Value |
+| :-- | :-- |
+| combinations within 1 % | 20 of 33 |
+| combinations above 1 % | 13 of 33 |
+| minimum / mean / maximum | 0.48 / 1.07 / 2.57 % |
+| sign | the reference is above equation 50 in all 33 |
+| worst rows | S = 2 mm on 20 mm, t = 3.2 mm: 2.53, 2.56, 2.57 % (h = 1e1, 1e3, 1e6); S = 5 mm, kxy = 2.7, t = 3.2: 1.67 %; S = 2 mm, t = 1.6: 1.05 to 1.19 % |
+| best rows | S = 10 mm on 40 mm and S = 5 mm, t = 0.8 mm: 0.48 to 1.25 % |
+
+The error grows with the thickness for the smallest source (0.57 / 1.05 / 2.53 % at h = 10 for t = 0.8 / 1.6 / 3.2 mm) and with the conductivity ratio (kxy = 2.7: 0.80 / 0.96 / 1.67 %). Measured against the total resistance the differences are 0.26 to 2.57 %, so the film term does not explain them.
+
+**Verdict: L1 fails** (criterion: 1 % of R' on all 33; the reference was above it in 13). By the rule written before the run, the 3D reference is not accepted as a reference at this resolution and **S2 stops here**: L2 to L4 and the program part are not run. The refinement criterion (pixel S/32, n_sub 32 changing it by less than 0.5 %) was **not** run (it needs `--convergence`, up to 3 GB, alone), so this study cannot yet say whether the gap is the discretisation of the reference (a single sign, growing with the thickness and the smallness of the source, which is what a coarse pixel S/16 under a corner-singular flux would give) or a defect of equation 50 as transcribed. What distinguishes them is already prepared: the limit a = c (R_s = 0), the isotropic case, the half-space limit and the published deep-channel correlation (which equation 50 already reproduces to 0.003 %, section 5). Not established by this run: which side is wrong.
+
+### 10.4 Cost measured
+
+L1 took 66 s wall, peak resident memory 1.77 GB (the declared peak was under 1 GB and the cost about 5 min: both were wrong by the measurement, time 4 times shorter and memory 1.8 times higher). The stated cost in 4.5 should be corrected before the convergence run (the convergence step at 460 000 unknowns will exceed the declared 3 GB if memory scales the same way; expect about 6 GB and run it alone).
+
+### 10.5 What waits
+
+S2 `--convergence`, S1 C (`--quick` then full), S2 program part and S1 D wait for a quiet machine. The decision on S2 is in the hands of the maintainer: either the convergence run decides whether the reference is at fault, or S2 is closed as "L1 failed at pixel S/16".
