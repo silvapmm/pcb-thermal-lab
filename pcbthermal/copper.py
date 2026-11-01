@@ -742,14 +742,15 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
 
 # ------------------------------------------------------------------------------------------------ warnings
 FILL_NOTE = ("the copper of this board is an import and the models read it as a cell mapping, not as drawn zones: the finite-volume and finite-difference models use flow-based face "
-             "conductances (on 24 mm windows of real two-layer boards with a 4 mm part they read within about 3 % of the program's network on the pixels at cells of 0.5 to 1.3 mm, "
-             "up to 4 % too hot at 1 mm and 7 to 10 % too hot at 2 mm, which is of the size of the grid error the program has with drawn full copper under a part two cells wide; "
-             "no measurement on a physical board exists)")
+             "conductances (on 24 mm windows of real two-layer boards with a 4 mm part they read within 1.7 % of the program's network on the pixels at a 0.5 mm cell, "
+             "up to 4.3 % too hot at 1 mm and 7 to 10 % too hot at 2 mm; the program's own grid error under a part two cells wide is +2.2 % with drawn full copper and +11.8 % "
+             "on bare laminate at 2 mm, and the imported overshoot lies between the two; no measurement on a physical board exists)")
 COARSE_CELL_MM = 1.0                             # Cell above which the note on the faces adds the coarse-cell warning (README 10 of research/gerber-real-boards, review)
 SCREENING_CELL_MM = 1.5                          # Cell above which the warning calls the result a screening estimate
-COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows of real two-layer boards the face conductances read up to 4 % too hot at a 1 mm cell and 7 to 10 % too "
-                       "hot at a 2 mm cell for a 4 mm part (on the safe side; with drawn full copper the grid alone reads 3.7 % and 11.8 % too hot at 1 and 2 mm, so the overshoot is "
-                       "mostly the grid error of a part two cells wide, not separated from the copper inside a cell); use a cell of 1 mm or less for the result")
+COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows of real two-layer boards the face conductances read up to 4.3 % too hot at a 1 mm cell and 7 to 10 % "
+                       "too hot at a 2 mm cell for a 4 mm part (on the safe side; the program's grid error under a part two cells wide is +0.5 % and +2.2 % at 1 and 2 mm with drawn "
+                       "full copper, +3.7 % and +11.8 % on bare laminate, and the imported overshoot lies between the two; the share of the copper inside a cell was not separated); "
+                       "use a cell of 1 mm or less for the result")
 SCREENING_WARNING = ("imported copper at a cell above 1.5 mm: treat the result as a screening estimate (7 to 10 % too hot at 2 mm in the windows measured), not as a figure to design to")
 REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: it sees only the copper fraction of every cell, and in the study of 24 windows it read 1 to 16 % too "
                          "cool (6 % on average) against the pixel network; use the finite-volume model for the result")
