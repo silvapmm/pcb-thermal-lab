@@ -155,6 +155,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   gui/                 PySide 6 app: document (undo), canvas (editor, rulers), panels, stackup (cross-section tab), calculator, help (guide, About), tips (tooltips), compute (calculation process), results_view, main_window, theme
 tests/                 pytest suite (about 1040 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
   helpers/layered3d.py independent 3D conduction solver (imports nothing from pcbthermal), the reference of test_layered_vs_3d.py
+  regression/          the frozen-numbers test (`test_frozen_numbers.py`): a live run of the five models on 17 boards (2 mm cell and the times to 63 %, about 20 s) against `data/v<version>.json`, one tolerance policy; `regress_*.py` is the harness (byte-identical copy of `research/release-regression-245/lib/`, checked by `test_harness_copy.py`)
 examples/              example boards (`.pcbt.json`), `csv_profiles/` (documented CSV power-profile example) and `make_screenshots.py`; the studies that used to live here are in `research/` (one folder per investigation, see `research/README.md`)
 docs/                  versions.md (what was implemented in every version, and in its last chapter 'Planned' what we want to implement in the program), models.md (models, features, API), theory.md (every equation and approximation of every model, as implemented: one structure per model, sources cited by key with their reading status, no history and no result tables, which are in `versions.md` and `validation.md` 25; update it with any model change), calculators.md (the auxiliary calculators: formulas, validation, limits, sources), validation.md (every scenario in every model, 3D check, history), research.md (open investigations, empty when nothing is pending), images/
 ico/                   application icon
@@ -193,6 +194,7 @@ python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements
 .venv/bin/python -m pytest -q tests                                  # tests (GUI offscreen)
 .venv/bin/python research/models-comparison/scripts/validation_study.py [--fem]                # every scenario in every model (+ 3D solid)
 .venv/bin/python research/models-comparison/scripts/solver_equivalence.py                      # direct vs CG vs SOR on five boards
+PCBT_FROZEN_CELLS=2,1,0.5 .venv/bin/python -m pytest -q tests/regression                          # release procedure: the frozen numbers at the three cells (about 1 to 2 minutes)
 ```
 
 ## Branches and Versions
@@ -203,6 +205,7 @@ python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements
 - Version policy: semantic versioning. The only definition of the version is `pcbthermal/__version__` (`pcbthermal/__init__.py`); it is shown in the GUI
   (title bar, status bar, About), in `--version`, in reports and in saved projects. A release needs: version bump, `CHANGELOG.md` entry
   (`tests/test_version.py` checks it and the README), README update, tests green, merge to `main`, annotated tag, push.
+- **Frozen numbers** (`tests/regression/`): the test holds the program to the numbers of the last release. At a release, **after the version bump**, run the harness of `research/release-regression-245/` on the previous tag and on the tree (`study_baseline_release.py --tag v<previous>`, `study_run_suite.py --label final`), `study_diff.py ... --strict` (0 alarms; every shift explained by an item of the release, table `expected_shifts_<version>.json`), then `study_freeze_reference.py out/v<previous>.json out/final.json --version <new>` and copy `reference/v<new>.json` to `tests/regression/data/` (the test reads the newest file). A release that changes no number leaves the file as it is and the test must pass; a model change on purpose refreezes in the same commit and says which records moved (`research/release-regression-245/INTEGRATION.md` 2).
 
 ## Git Policy
 
@@ -315,6 +318,8 @@ The review of every research folder is tracked in `research/REVIEW.md` (status, 
 The main session keeps the conversation with the maintainer (in Portuguese), decides nothing that belongs to the maintainer, and reports after each step what was done, the numbers, what was not verified and the open decisions.
 
 ## Decisions Log
+
+- **Frozen numbers are a test of the battery** (`feature/frozen-numbers-test`; adopts `research/release-regression-245`): `tests/regression/` runs the five models on the 17 boards of the harness at 2 mm, plus the times to 63 %, and compares with `data/v2.4.5.json` (251 records, 58 times) under ONE tolerance policy for every record (the reviewer's choice: temperatures 1e-8 K, field checksums 1e-10 relative, heat balance 1e-9 W, counts and status exact, time to 63 % 1e-6 relative; exact equality only with `PCBT_FROZEN_EXACT=1`), because exact equality fails after a library update (8 of 44 bit records, 2.8e-11 K) and a number that a release moved is a guard for the next one. About 20 s in the battery; 2, 1 and 0.5 mm (`PCBT_FROZEN_CELLS=2,1,0.5`, about 70 s) belong to the release procedure. The harness files are copied to the test folder (a test compares them byte for byte with `research/release-regression-245/lib/`); the fixture reloads the libraries after setting a private configuration. The classified diff of each release keeps its table (`expected_shifts_<version>.json`).
 
 - **A via with no board under it is ignored** (`fix/point-via`, reopened; reviewer: GO): a via whose drill disc has no board (centre plus 6 rings of 24 samples, `geometry.discs_board_share`) used to be moved to the nearest board cell by the FVM, FDM and 3D solid; now every model ignores it, also the Lumped and Analytic transients and profiles, and a via outside the box of a rectangular board too (as the warning said). The 3D solid's point fallback is the part of the disc on the board. T preset at 1 mm: FVM / FDM / 3D 106.809 / 105.938 / 107.788 (was 104.884 / 104.908 / 107.788); the example board is unchanged. The remaining 0.98 K FVM to 3D gap on the T is the cut-cell cover (P1), not the vias. Open: the Lumped model heats by 0.80 to 0.89 K when a far via is added (Planned, 2.5.0).
 
