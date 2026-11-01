@@ -24,7 +24,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Memory guard**: the memory of every finite model (FVM, FDM, 3D solid) is estimated from its unknown count before anything is allocated; a run above the **Memory limit** (Preferences, 60 % of the physical memory by default) is refused with the cell that fits, the solver panel shows the verdict and Auto picks a cell that fits.
 - **Gerber reader** (a package, `pcbthermal.gerber`, **no interface yet**): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, with the copper rasterised to a one-byte coverage per pixel; refuses what it cannot draw naming the file and the feature (`docs/models.md` 19, `docs/theory.md` 1.6).
 - **Input checks** that warn when a model is doubtful (heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, ...).
-- **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON that store every parameter.
+- **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON that store every parameter (saved atomically, with a `.bak` copy when a save changes the format; a project with imported boards uses format 2 and needs 2.5.0 or later).
 
 ![Editor](docs/images/editor.png)
 
