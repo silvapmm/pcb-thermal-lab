@@ -84,3 +84,56 @@ def test_a_long_square_wave_ends_at_the_steady_table_value():
     assert res.steady_peak_max == pytest.approx(steady, abs=1e-9)
     assert res.t_heaters[0].max() == pytest.approx(steady, abs=5e-3)    # implicit Euler and a finite on-phase: the curve has not quite reached the end
     assert res.t_heaters[0].max() <= steady + 1e-9
+
+
+def wave_board(bare=True, side=6.0):
+    """!
+    @brief The 6 mm part of the review on a 30 mm board with a 0 to 2 W square wave of period 10 ms.
+    @param bare True: the part sits on bare laminate; False: a full top layer.
+    @param side Side of the part in mm.
+    @return Problem.
+    """
+    p = board(parts=((15.0, 2.0, side),), bare=bare)
+    p.heaters[0].set_profile(SquareWave(p_on=2.0, period=0.01, duty=0.5, p_off=0.0))
+    return p
+
+
+@pytest.mark.parametrize("model", ["fvm", "fdm"])
+def test_the_decision_sees_the_swing_of_the_face(model):
+    # The node alone oscillates 0.36 K (below the 1 K threshold, so "average" and 187.60 degC); the face swings by dP * R_face,max = 3.2 K more, so the part is resolved (189.58 degC)
+    p = wave_board()
+    resp = getattr(profiles, f"step_response_{model}")(p, 2.0)
+    assert resp.face_rth is not None and resp.face_rth[0] > 0.0
+    dec = profiles.decide(p, resp, 1.0)[0]
+    bare = profiles.StepResponse(resp.model, resp.times, resp.z, resp.rth)           # the same response without the face term: the decision of the earlier versions
+    old = profiles.decide(p, bare, 1.0)[0]
+    assert old.regime == "average" and dec.regime == "resolved"
+    assert dec.oscillation == pytest.approx(old.oscillation + 2.0 * resp.face_rth[0], rel=1e-12)
+    assert dec.oscillation > 1.0 > old.oscillation
+
+
+def test_the_resolved_run_of_the_review_example_reaches_the_face_peak():
+    p = wave_board()
+    resp = profiles.step_response_fvm(p, 2.0)
+    dec = profiles.decide(p, resp, 1.0)
+    res = profiles.run_fvm(p, dec, ProfileOptions(threshold_c=1.0), cell_mm=1.0)
+    assert res.resolved and res.peak > res.steady_average_max + 1.0                  # 189.58 against 187.60 degC at the time of writing
+    assert res.peak == pytest.approx(189.58, abs=0.05)
+
+
+@pytest.mark.parametrize("model", ["fvm", "fdm"])
+def test_full_copper_decisions_are_bit_identical(model):
+    p = wave_board(bare=False)
+    resp = getattr(profiles, f"step_response_{model}")(p, 2.0)
+    assert resp.face_rth is None
+    bare = profiles.StepResponse(resp.model, resp.times, resp.z, resp.rth)
+    a, b = profiles.decide(p, resp, 1.0)[0], profiles.decide(p, bare, 1.0)[0]
+    assert a.oscillation == b.oscillation and a.regime == b.regime
+    assert np.array_equal(np.array([a.periodic_peak_rise, a.periodic_valley_rise]), np.array([b.periodic_peak_rise, b.periodic_valley_rise]))
+
+
+def test_a_constant_heater_and_a_table_are_handled():
+    p = board()                                                                      # a constant heater: nothing to swing
+    resp = profiles.step_response_fvm(p, 2.0)
+    d = profiles.decide(p, resp, 1.0)[0]
+    assert d.regime == "constant" and d.oscillation == 0.0

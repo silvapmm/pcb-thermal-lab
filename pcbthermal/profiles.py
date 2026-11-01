@@ -111,6 +111,7 @@ class StepResponse:
     times: np.ndarray                           # Sample times in s (increasing, without t = 0)
     z: np.ndarray                               # Responses (n_heaters, n_times) in degC/W
     rth: np.ndarray                             # Steady-state resistances (n_heaters,) in degC/W
+    face_rth: Optional[np.ndarray] = None       # Largest face term of every heater per watt of its own power (n_heaters,) in K/W (parts over absent copper); None: no part has one
 
     def z_at(self, i, t):
         """!
@@ -171,6 +172,63 @@ class HeaterDecision:
         return 100.0 * self.oscillation / self.average_rise if self.average_rise > 0 else 0.0
 
 
+def _face_blocks(problem, net):
+    """!
+    @brief Face terms of the parts over absent copper (laminate.face_terms), per heater, as small matrices on its footprint.
+    @param problem A Problem.
+    @param net A built network (fvm.Network or fdm.Network) with the laminate rule applied.
+    @return List with one entry per footprint: None, or an array (footprint nodes, heaters) of the peak face term in K per W of every heater; the whole list is None-filled when the
+            network has no laminate rule or no footprint.
+    """
+    out = [None] * len(net.footprints)
+    if getattr(net, "ladder", None) is None or not len(net.footprints):
+        return out
+    area = net.area if hasattr(net, "area") else net.dx * net.dy * net.cover
+    L, plane = problem.board.layers, net.ny * net.nx
+    nh = net.Qw_matrix.shape[1]
+    blocks = [np.zeros((len(idx), nh)) for idx in net.footprints]        # (footprint nodes, heaters) K per W
+    inside = [idx < L * plane for idx in net.footprints]                 # Footprint nodes on the copper layers (the copper layers come first in the unknowns)
+    Qw = net.Qw_matrix.tocsc()
+    for k in range(nh):
+        q = Qw[:, k].toarray().ravel()[:L * plane]                       # Heat per watt of heater k on the copper layers (one column at a time)
+        terms = laminate.face_terms(problem.board, net.fill, q.reshape(L, net.ny, net.nx), area, net.dx)
+        if terms is None:
+            continue
+        peak = terms[0].ravel()
+        for i, idx in enumerate(net.footprints):
+            blocks[i][inside[i], k] = peak[idx[inside[i]]]
+    for i, block in enumerate(blocks):
+        if block.any():
+            out[i] = block
+    return out
+
+
+def face_resistances(problem, cell_mm, model="fvm"):
+    """!
+    @brief Largest face term of every heater per watt of its own power: R_face,max of the heater, the quasi-static swing of the face per watt of swing of its power.
+    @details The decision average-or-resolve adds ``delta_P * R_face,max`` to the oscillation of the node, because the curves of the resolved run carry the face term of the power
+             of every step (see _FVMAdapter._face_setup, which also states the validity of that first-order model: a period shorter than about 10 tau_1 overstates the swing).
+             The decision is deliberately not attenuated by tanh(P / (4 tau_1)): it stays on the conservative side, a resolved run being cheap (windows of one period).
+    @param problem A Problem.
+    @param cell_mm Cell size (FVM) or target spacing (FDM) in millimetres.
+    @param model "fvm" or "fdm".
+    @return Array (n_heaters,) in K/W, or None when no heater has a face term (no part over absent copper, a metal block, no heater).
+    """
+    if not problem.heaters:
+        return None
+    b = problem.board
+    if model == "fdm":
+        net = fdm.Network(problem, cell_mm)
+    else:
+        net = fvm.Network(problem, max(int(round(b.width * 1000.0 / cell_mm)), 2), max(int(round(b.height * 1000.0 / cell_mm)), 2))
+    blocks = _face_blocks(problem, net)
+    r = np.zeros(len(problem.heaters))
+    for i, blk in enumerate(blocks):
+        if blk is not None and i < blk.shape[1]:
+            r[i] = float(blk[:, i].max())                                # Own column: the swing of heater i against its own power
+    return r if r.any() else None
+
+
 def step_response_fvm(problem, cell_mm=2.0):
     """!
     @brief Unit-step responses of every heater computed with the finite-volume model.
@@ -179,7 +237,7 @@ def step_response_fvm(problem, cell_mm=2.0):
     @return StepResponse.
     """
     times, z, rth = fvm.step_responses(problem, cell_mm=cell_mm)
-    return StepResponse("fvm", times, z, rth)
+    return StepResponse("fvm", times, z, rth, face_resistances(problem, cell_mm, "fvm"))
 
 
 def step_response_fdm(problem, cell_mm=2.0):
@@ -190,7 +248,7 @@ def step_response_fdm(problem, cell_mm=2.0):
     @return StepResponse.
     """
     times, z, rth = fdm.step_responses(problem, cell_mm=cell_mm)
-    return StepResponse("fdm", times, z, rth)
+    return StepResponse("fdm", times, z, rth, face_resistances(problem, cell_mm, "fdm"))
 
 
 def _cumulative_response(resp, i, period, sigma, terms):
@@ -312,8 +370,15 @@ def decide(problem, resp, threshold_c):
             pk, vl = once_response(resp, i, w)
         kind = "wave" if w.kind == "square" else "table"
         duty = w.duty if w.kind == "square" else float("nan")
+        osc = max(pk - vl, 0.0)
+        # A part over absent copper is reported at its face: the resolved curve adds the quasi-static face term of the power, so its swing adds to the node's. Without a face term
+        # (full copper, a metal block, the models without it) face_rth is None or zero and the oscillation is the node's, bit for bit
+        face = getattr(resp, "face_rth", None)
+        if face is not None and face[i] > 0.0:
+            low = w.p_off if w.kind == "square" else float(np.min(w.powers))
+            osc += (w.peak() - low) * float(face[i])
         out.append(HeaterDecision(i, h.name or f"Heater {i + 1}", kind, "average" if w.repeat else "resolved", avg, w.peak(),
-                                  w.period, duty, rise, max(pk - vl, 0.0), pk, vl, w.repeat))
+                                  w.period, duty, rise, osc, pk, vl, w.repeat))
         if w.repeat:
             waves.append(i)                                              # A one-shot profile never takes part in the budget
     # Error budget: average the heaters with the smallest oscillations while their sum stays within the threshold
@@ -625,27 +690,7 @@ class _FVMAdapter:
                  over absent copper.
         @param problem A Problem.
         """
-        self._face_loc = [None] * len(self.net.footprints)
-        net = self.net
-        if getattr(net, "ladder", None) is None or not len(net.footprints):
-            return
-        area = net.area if hasattr(net, "area") else net.dx * net.dy * net.cover
-        L, plane = problem.board.layers, net.ny * net.nx
-        nh = net.Qw_matrix.shape[1]
-        blocks = [np.zeros((len(idx), nh)) for idx in net.footprints]        # (footprint nodes, heaters) K per W
-        inside = [idx < L * plane for idx in net.footprints]                 # Footprint nodes on the copper layers (the copper layers come first in the unknowns)
-        Qw = net.Qw_matrix.tocsc()
-        for k in range(nh):
-            q = Qw[:, k].toarray().ravel()[:L * plane]                       # Heat per watt of heater k on the copper layers (one column at a time)
-            terms = laminate.face_terms(problem.board, net.fill, q.reshape(L, net.ny, net.nx), area, net.dx)
-            if terms is None:
-                continue
-            peak = terms[0].ravel()
-            for i, idx in enumerate(net.footprints):
-                blocks[i][inside[i], k] = peak[idx[inside[i]]]
-        for i, block in enumerate(blocks):
-            if block.any():
-                self._face_loc[i] = block
+        self._face_loc = _face_blocks(problem, self.net)
 
     def _hottest(self, x, powers):
         """!
