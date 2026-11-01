@@ -10,6 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 
 DEFAULT_DPI = 200       # the resolution that worked for the scanned papers (230 to 1080 words per page)
+MAX_PIXELS = 40_000_000  # a hostile or odd page (a 200 x 200 inch box) would need GB at 200 dpi: the dpi is lowered
+INFO_PAGES = 3           # pages whose text the confidential check reads (a mark is often on page 2, as in the ODB++ spec)
 HALVES = ((0.0, 0.0, 1.0, 0.55), (0.0, 0.45, 1.0, 1.0))   # top and bottom with 10 % overlap, for RECITATION
 
 
@@ -52,26 +54,29 @@ def render_page(pdf: Path, page_no: int, dpi: int = DEFAULT_DPI, clip: tuple | N
         if not 1 <= page_no <= len(doc):
             raise ValueError(f"page {page_no} is outside {pdf.name} (1 to {len(doc)})")
         page = doc[page_no - 1]
+        r = page.rect
         rect = None
         if clip:
-            r = page.rect
             rect = mu.Rect(r.x0 + clip[0] * r.width, r.y0 + clip[1] * r.height,
                            r.x0 + clip[2] * r.width, r.y0 + clip[3] * r.height)
+        # Lower the resolution of an oversized page instead of allocating an image of several GB.
+        box = rect or r
+        pixels = (box.width * dpi / 72.0) * (box.height * dpi / 72.0)
+        if pixels > MAX_PIXELS:
+            dpi = max(1, int(dpi * (MAX_PIXELS / pixels) ** 0.5))
         return page.get_pixmap(dpi=dpi, clip=rect).tobytes("png")
 
 
 def first_page_info(pdf: Path) -> tuple[str, str]:
     """!
-    @brief Text of the first page and the metadata, for the confidential-file check.
+    @brief Text of the first pages and the metadata, for the confidential-file check.
     @param pdf Path of the PDF.
-    @return tuple[str, str] (first page text, metadata values joined); empty strings if the PDF cannot be read.
+    @return tuple[str, str] (text of the first INFO_PAGES pages, metadata values joined).
+    @throws Exception If the PDF cannot be read (the caller refuses to send a file it could not check).
     """
-    try:
-        with _pymupdf().open(pdf) as doc:
-            meta = " ".join(str(v) for v in (doc.metadata or {}).values() if v)
-            return (doc[0].get_text() if len(doc) else ""), meta
-    except Exception:
-        return "", ""
+    with _pymupdf().open(pdf) as doc:
+        meta = " ".join(str(v) for v in (doc.metadata or {}).values() if v)
+        return "\n".join(doc[i].get_text() for i in range(min(INFO_PAGES, len(doc)))), meta
 
 
 def synthetic_png() -> bytes:

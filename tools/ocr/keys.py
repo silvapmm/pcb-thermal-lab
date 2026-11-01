@@ -26,7 +26,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # (an error text from a server may echo a key that came from somewhere else).
 KEY_PATTERNS = (
     re.compile(r"AIza[0-9A-Za-z_-]{35}"),
-    re.compile(r"\bAQ\.[A-Za-z0-9_-]{30,}"),
+    # The newer AI Studio keys start with "AQ." and may hold more dots further on: dots are part of the class,
+    # otherwise a key whose first segment is shorter than 30 characters would not be matched at all.
+    re.compile(r"\bAQ\.[A-Za-z0-9_.-]{30,}"),
     re.compile(r"(?i)(api[_-]?key|x-goog-api-key)(\s*[=:]\s*)['\"]?[A-Za-z0-9_.-]{16,}"),
 )
 

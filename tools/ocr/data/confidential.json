@@ -1,5 +1,14 @@
 {
-  "name_patterns": ["OdbppSpec", "odb\\+\\+.*spec", "confidential"],
-  "text_markers": ["confidential"],
-  "note": "Files that must never be sent to an online provider. A match on the file name, the PDF metadata or the text of the first page is refused unless --allow-confidential is given."
+  "name_patterns": [
+    "OdbppSpec",
+    "odb\\+\\+.*spec",
+    "confidential"
+  ],
+  "text_markers": [
+    "confidential"
+  ],
+  "note": "Files that must never be sent to an online provider. A match on the SHA-256 of the file (sha256: the ODB++ Design Format Specification 8.1 Update 4, OdbppSpec81U4.pdf, so that a renamed copy is refused too), on the file name or the PDF metadata (name_patterns, case-insensitive regular expressions) or on the text of the first three pages or the metadata (text_markers) is refused unless --allow-confidential is given. A file that cannot be read for the check is refused as well.",
+  "sha256": [
+    "d56e5c5ab83f03e9e68e967668d27f42f2f554f1adda25037ce729b4fd01eb2c"
+  ]
 }

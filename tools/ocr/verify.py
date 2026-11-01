@@ -7,6 +7,9 @@
 @details A transcription counts as READ only after someone has compared it with the page image. The HTML has
 the image (embedded, so the file is self-contained) on the left and the text on the right, with the PDF and
 printed page numbers. Nothing is sent anywhere; the file is written inside the papers folder (git-ignored).
+The transcription is untrusted text (a model's output from a third-party page): it is HTML-escaped, and a
+Content-Security-Policy forbids every script, remote load and form, so that even a missed escape cannot run code
+or fetch anything.
 """
 
 from __future__ import annotations
@@ -25,7 +28,10 @@ def build_html(png: bytes, text: str, title: str) -> str:
     @return str A complete HTML document.
     """
     img = base64.b64encode(png).decode()
-    return ("<!doctype html><html><head><meta charset='utf-8'><title>" + html.escape(title) + "</title>"
+    csp = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+    return ("<!doctype html><html><head><meta charset='utf-8'>"
+            "<meta http-equiv='Content-Security-Policy' content=\"" + csp + "\">"
+            "<title>" + html.escape(title) + "</title>"
             "<style>body{margin:0;font:14px sans-serif}h1{font-size:16px;margin:8px}"
             ".row{display:flex;gap:8px;height:calc(100vh - 40px)}.row>div{flex:1;overflow:auto;border:1px solid #888}"
             "img{width:100%}pre{white-space:pre-wrap;margin:8px;font:13px monospace}</style></head><body>"

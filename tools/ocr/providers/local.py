@@ -27,6 +27,18 @@ from tools.ocr.providers.base import Provider, ProviderError, Result
 DEFAULT_FOLDER = "/Volumes/SSD/PROJETOS/extractpdf"
 
 
+def scrubbed_environment() -> dict[str, str]:
+    """!
+    @brief The environment for the converter process without the API keys of the online providers.
+    @details The converter is a separate program and needs no key; an environment variable is visible to it and to
+             everything it starts, so the variables that the providers declare are removed.
+    @return dict[str, str] A copy of os.environ without those variables.
+    """
+    from tools.ocr.providers import REGISTRY
+    names = {n for cls in REGISTRY.values() for n in cls.key_env}
+    return {k: v for k, v in os.environ.items() if k not in names}
+
+
 class LocalProvider(Provider):
     """!
     @brief Offline provider that runs the local MLX converter on a page image.
@@ -86,7 +98,8 @@ class LocalProvider(Provider):
             doc.save(str(pdf))
             try:
                 r = subprocess.run(self.command(pdf, out, options.get("model") or self.default_model),
-                                   capture_output=True, text=True, timeout=self.timeout, cwd=str(self.folder))
+                                   capture_output=True, text=True, timeout=self.timeout, cwd=str(self.folder),
+                                   env=scrubbed_environment())
             except subprocess.TimeoutExpired as e:
                 raise ProviderError("local converter timed out", retryable=False) from e
             if r.returncode != 0 or not out.is_file():

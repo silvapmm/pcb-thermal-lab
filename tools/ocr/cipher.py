@@ -6,9 +6,12 @@
 
 @details The text of those PDFs comes out of the converter as pairs of base-36 digits, for example `D4D6CTD7`:
 each pair is the code of one character plus 360, so `int("D4", 36) - 360 = 112 = "p"`, and `D4D6CTD7` reads "pres".
-Only printable ASCII (32 to 126) is decoded; a token that does not decode entirely to such characters and mostly
-letters is left as it is, which keeps ordinary upper-case words (`RESOLUTION`) untouched. Symbols of the math
-fonts are not in this cipher and stay as they are. Optional post-processor: `python -m tools.ocr transcribe`
+Only printable ASCII (32 to 126) is decoded. Decoding is done page by page and only on a page that looks ciphered
+(`looks_ciphered`): ordinary text has short upper-case tokens that are valid pairs by accident (`AC` would read
+`fi`, `DC` would read `x`, `ACDC` would read `fix`; 24 such tokens in one TI application note), so a page of normal
+text is left untouched. On a ciphered page a token is decoded when every pair is printable, also when it gives
+digits and punctuation (`B4BKB5` is `(8)`, an equation number). Symbols of the math fonts are not in this cipher
+and stay as they are. Optional post-processor: `python -m tools.ocr transcribe`
 does not use it; call `decode_text` or `python -m tools.ocr decode FILE`.
 """
 
@@ -21,11 +24,14 @@ LIGATURES = {11: "ff", 12: "fi", 13: "fl", 14: "ffi", 15: "ffl"}   # TeX font co
 _TOKEN = re.compile(r"\b(?:[0-9A-Z]{2})+\b")
 
 
-def decode_token(token: str) -> str | None:
+def decode_token(token: str, letters_only: bool = True) -> str | None:
     """!
     @brief Decode one token of base-36 pairs.
-    @param token Even-length string of 0-9A-Z.
-    @return str|None The decoded text, or None if some pair is outside printable ASCII or the result is not mostly letters.
+    @param token        Even-length string of 0-9A-Z.
+    @param letters_only Require the result to be mostly letters (the strict rule used to detect a ciphered page);
+                        False accepts digits and punctuation (used on a page already known to be ciphered).
+    @return str|None The decoded text, or None if some pair is outside printable ASCII (or, with letters_only,
+            the result is not mostly letters).
     """
     if len(token) % 2:
         return None
@@ -39,15 +45,21 @@ def decode_token(token: str) -> str | None:
         else:
             return None
     out = "".join(chars)
+    if not letters_only:
+        return out
     letters = sum(c.isalpha() for c in out)
     # A real cipher word is mostly letters; this rejects accidental matches such as "2024" or "A1B2".
     return out if letters >= max(1, len(out) * 0.5) else None
 
 
-def decode_text(text: str) -> tuple[str, int]:
+_MARKER = re.compile(r"(<!-- page \d+ -->)")
+
+
+def decode_text(text: str, force: bool = False) -> tuple[str, int]:
     """!
-    @brief Decode every cipher token of a text.
-    @param text Text from a converter.
+    @brief Decode the cipher tokens of the ciphered pages of a text.
+    @param text  Text from a converter; split at its `<!-- page N -->` markers (the whole text is one page without them).
+    @param force Decode every page, also one that does not look ciphered.
     @return tuple[str, int] (decoded text, number of tokens decoded).
     """
     count = [0]
@@ -58,13 +70,16 @@ def decode_text(text: str) -> tuple[str, int]:
         @param m The regular-expression match.
         @return str The decoded token or the original.
         """
-        dec = decode_token(m.group(0))
+        dec = decode_token(m.group(0), letters_only=False)
         if dec is None:
             return m.group(0)
         count[0] += 1
         return dec
 
-    return _TOKEN.sub(repl, text), count[0]
+    # The markers stay as they are; each page between them is decoded only when it looks ciphered.
+    parts = _MARKER.split(text)
+    out = [p if (_MARKER.fullmatch(p) or not (force or looks_ciphered(p))) else _TOKEN.sub(repl, p) for p in parts]
+    return "".join(out), count[0]
 
 
 def looks_ciphered(text: str, threshold: float = 0.3) -> bool:

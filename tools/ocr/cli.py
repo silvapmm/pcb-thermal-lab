@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
 
 from tools.ocr import cipher, config, render, suspects, verify
@@ -90,6 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("decode", help="decode the base-36 font cipher in a text file")
     d.add_argument("file")
     d.add_argument("--out")
+    d.add_argument("--force", action="store_true", help="decode every page, also one that does not look ciphered")
     return ap
 
 
@@ -107,6 +109,16 @@ def resolve_pdf(arg: str, papers: Path) -> Path:
     raise FileNotFoundError(f"no PDF '{arg}' (looked in {papers / 'pdf'})")
 
 
+def out_dir(papers: Path, provider: str) -> Path:
+    """!
+    @brief Folder of the per-page outputs of a provider.
+    @param papers   Papers folder.
+    @param provider Provider name.
+    @return Path `papers/<provider>` (the Gemini outputs keep their historic folder `papers/gemini`).
+    """
+    return papers / provider
+
+
 def make_runner(a, papers: Path) -> Runner:
     """!
     @brief Build the runner from the parsed options.
@@ -114,8 +126,7 @@ def make_runner(a, papers: Path) -> Runner:
     @param papers Papers folder.
     @return Runner Ready to run.
     """
-    # Outputs of the Gemini provider keep their historic folder; another provider writes beside it.
-    return Runner(get_provider(a.provider), papers / ("gemini" if a.provider == "gemini" else a.provider),
+    return Runner(get_provider(a.provider), out_dir(papers, a.provider),
                   Ledger(papers / "gemini" / "usage.json"), model=a.model, pause=a.pause,
                   daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi)
 
@@ -164,7 +175,7 @@ def cmd_queue(a, papers: Path) -> int:
     ledger = Ledger(papers / "gemini" / "usage.json")
     done = ledger.done()
     pending = [i for i in parse_queue(qpath.read_text(encoding="utf-8"))
-               if (i.file, i.page) not in done and not (papers / "gemini" / f"{i.file}_p{i.page}.md").is_file()]
+               if (i.file, i.page) not in done and not (out_dir(papers, a.provider) / f"{i.file}_p{i.page}.md").is_file()]
     if a.status:
         for i in pending:
             print(f"{i.file} p{i.page}  {i.why}")
@@ -242,20 +253,34 @@ def cmd_providers(a, papers: Path) -> int:
 
 def cmd_check_key(a, papers: Path) -> int:
     """!
-    @brief The `check-key` command: one tiny request, prints only OK or FAIL.
+    @brief The `check-key` command: one tiny request, no retry, a 60 s timeout; prints OK or FAIL and the time.
+    @details A PDF given with `--pdf` passes the confidential guard like any transcription (its page 1 is sent).
+             On a failure the line says the kind of error (HTTP status), never the key.
     @param a      Parsed arguments.
     @param papers Papers folder.
-    @return int 0 for OK, 1 for FAIL.
+    @return int 0 for OK, 1 for FAIL, 3 when the PDF is confidential.
     """
     prov = get_provider(a.provider)
+    if hasattr(prov, "retries"):
+        prov.retries = 1          # a key check must answer at once: no pauses of 20 + 40 + 80 s on a 429 or 503
+    model = config.models().get(a.provider, {}).get("default") or prov.default_model
+    why, t0 = "", time.time()
     try:
-        png = render.render_page(resolve_pdf(a.pdf, papers), 1, dpi=100) if a.pdf else render.synthetic_png()
-        res = prov.transcribe(png, "Reply with the text you can read, at most 30 words.", {"model": config.models()[a.provider]["default"]})
+        if a.pdf:
+            pdf = resolve_pdf(a.pdf, papers)
+            Runner(prov, papers, None, model=model).check_confidential(pdf)   # raises ConfidentialError
+            png = render.render_page(pdf, 1, dpi=100)
+        else:
+            png = render.synthetic_png()
+        res = prov.transcribe(png, "Reply with the text you can read, at most 30 words.",
+                              {"model": model, "timeout": 60})
         ok = bool(res.text.strip())
+        why = "" if ok else f"empty answer, finish {res.finish_reason}"
     except (ProviderError, KeyError_, RuntimeError) as e:
         log.error("%s", redact(e))
         ok = False
-    print("OK" if ok else "FAIL")
+        why = f"HTTP {e.status}" if getattr(e, "status", 0) else type(e).__name__
+    print(("OK" if ok else "FAIL") + f" ({model}, {time.time() - t0:.1f} s" + (f", {why})" if why else ")"))
     return 0 if ok else 1
 
 
@@ -266,7 +291,7 @@ def cmd_decode(a, papers: Path) -> int:
     @param papers Papers folder.
     @return int Exit code.
     """
-    text, n = cipher.decode_text(Path(a.file).read_text(encoding="utf-8"))
+    text, n = cipher.decode_text(Path(a.file).read_text(encoding="utf-8"), force=a.force)
     out = Path(a.out) if a.out else Path(a.file).with_suffix(".decoded.md")
     out.write_text(text, encoding="utf-8")
     print(f"{n} tokens decoded -> {out}")

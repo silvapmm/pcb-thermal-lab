@@ -86,11 +86,19 @@ def printed_page_number(pdf_text: str) -> int | None:
     @brief Read the printed page number from a PDF page's text.
     @param pdf_text Text layer of the page.
     @return int|None The number of a line that holds only a number (1 to 4 digits, or "Page N"), looked for in the
-            first and last four lines; None when there is none.
+            first and last four lines, else the number at the end of a journal line with "Vol. N" after a separator;
+            None when there is none.
     """
     lines = [ln.strip() for ln in pdf_text.splitlines() if ln.strip()]
     for ln in lines[:4] + lines[-4:]:
         m = re.fullmatch(r"(?:page\s+|-\s*)?(\d{1,4})(?:\s*-)?", ln, re.I)
+        if m:
+            return int(m.group(1))
+    # A journal footer or header with the number at one end after a separator, such as
+    # "JUNE 2003, Vol. 125 / 179" or "180 / Vol. 125, JUNE 2003" (ASME; the slash often comes out as another glyph).
+    for ln in lines[:3] + lines[-3:]:
+        m = re.fullmatch(r".*\bVol\.?\s*\d+.*?\s[/|\u00d5]\s*(\d{1,4})", ln) or \
+            re.fullmatch(r"(\d{1,4})\s*[/|\u00d5]\s.*\bVol\.?\s*\d+.*", ln)
         if m:
             return int(m.group(1))
     return None
@@ -107,6 +115,22 @@ def page_offset(printed: dict[int, int]) -> int | None:
         return None
     mode = statistics.mode(diffs)
     return mode if diffs.count(mode) >= 2 else None
+
+
+def printed_page(pdf_page: int, found: int | None, offset: int | None) -> int | None:
+    """!
+    @brief The printed number of a page, made consistent with the file's offset.
+    @details A number read from the text layer can be a table entry, a chapter number or a contents line (12 of
+             the 765 numbers read on Lienhard2024 disagree with its offset of 14); when the file has an offset, the
+             printed page is `pdf_page - offset`, and the number read is used only when there is no offset.
+    @param pdf_page 1-based PDF page.
+    @param found    Number read on the page, or None.
+    @param offset   Usual pdf - printed difference of the file, or None.
+    @return int|None The printed page number (None before the first printed page or when nothing is known).
+    """
+    if offset is None:
+        return found
+    return pdf_page - offset if pdf_page - offset >= 1 else None
 
 
 def analyse_page(md_text: str | None, pdf_text: str | None, median_words: float) -> list[str]:
@@ -162,7 +186,7 @@ def scan(papers: Path, only: list[str] | None = None) -> dict:
         for p, t in texts.items():
             why = analyse_page(md_pages.get(p), t, med)
             if why:
-                sus.append({"pdf_page": p, "printed_page": printed.get(p), "reasons": why})
+                sus.append({"pdf_page": p, "printed_page": printed_page(p, printed.get(p), off), "reasons": why})
         if sus or (off not in (None, 0)):
             out[pdf.stem] = {"pages": len(texts), "offset": off, "median_words": med, "suspect": sus}
     return out

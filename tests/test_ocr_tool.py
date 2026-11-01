@@ -364,7 +364,24 @@ def test_cipher_decodes_the_base36_pairs():
     assert cipher.decode_token("D4D6CTD7") == "pres"
     assert cipher.decode_token("BTBUCBCCCABTBVCC") == "ABSTRACT"
     assert cipher.decode_token("ADD9DC") == "flux"                   # ligature code 13
-    assert cipher.decode_text("see CP D7CXD1D4D0CT CVCTD3D1CTD8D6CXCR") == ("see a simple geometric", 3)
+    assert cipher.decode_text("see CP D7CXD1D4D0CT CVCTD3D1CTD8D6CXCR", force=True) == ("see a simple geometric", 3)
+
+
+CIPHER_PAGE = ("BYD3D6 CP CRD3D1D4D3D9D2CS D7DDD7D8CTD1 BXD5BA B4BKB5 CXD7 DBD6CXD8D8CTD2 D8D3 D6CTD4D6CTB9 D7CTD2D8 "
+               "D8CWCT D8D3D8CPD0 D8CWCTD6D1CPD0 D6CTD7CXD7D8CPD2CRCT")     # opening of Muzychka2003Part1 p3
+
+
+def test_cipher_decodes_a_ciphered_page_with_its_equation_number():
+    text, n = cipher.decode_text("<!-- page 3 -->\n" + CIPHER_PAGE)
+    assert text.startswith("<!-- page 3 -->\nFor a compound system Eq. (8) is written") and n == 15
+    assert "the total thermal resistance" in text
+
+
+def test_cipher_leaves_acronyms_of_ordinary_pages_alone():
+    # AC would read "fi", DC "x" and ACDC "fix" if every token were decoded (24 such tokens in a TI note).
+    plain = "<!-- page 1 -->\nThe AC and DC supplies of the ACDC stage. " * 5 + "\n<!-- page 2 -->\n" + CIPHER_PAGE
+    text, n = cipher.decode_text(plain)
+    assert text.count("The AC and DC supplies of the ACDC stage.") == 5 and "Eq. (8)" in text and n == 15
 
 
 def test_cipher_leaves_ordinary_words_and_numbers_alone():
@@ -409,3 +426,193 @@ def test_verify_page_embeds_image_and_escapes_text(tmp_path):
     out = verify.write_verify(b"\x89PNGdata", "a < b & $x$", "Paper.pdf - PDF page 2 (printed page 414)", tmp_path / "v" / "p.html")
     h = out.read_text()
     assert "data:image/png;base64," in h and "a &lt; b &amp; $x$" in h and "printed page 414" in h
+
+
+# ---------------------------------------------------------------- review: Gemini errors as the API sends them
+DAILY_429 = json.dumps({"error": {
+    "code": 429, "status": "RESOURCE_EXHAUSTED",
+    "message": ("You exceeded your current quota, please check your plan and billing details. For more information on "
+                "this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, "
+                "head to: https://ai.dev/usage?tab=rate-limit.\n* Quota exceeded for metric: "
+                "generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: "
+                "gemini-3.1-flash-lite\nPlease retry in 41.47s."),
+    "details": [
+        {"@type": "type.googleapis.com/google.rpc.Help",
+         "links": [{"description": "Learn more about Gemini API quotas", "url": "https://ai.google.dev/gemini-api/docs/rate-limits"}]},
+        {"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+         "violations": [{"quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+                         "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+                         "quotaDimensions": {"location": "global", "model": "gemini-3.1-flash-lite"}, "quotaValue": "20"}]},
+        {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "41s"}]}}, indent=2)
+
+
+def test_daily_quota_is_found_in_the_details_of_a_long_body():
+    # The quota id sits after about 900 characters: a body cut at 600 characters made it a per-minute retry.
+    assert DAILY_429.index("PerDay") > 600
+    g = FakeGemini([http_error(429, DAILY_429)])
+    with pytest.raises(ProviderError) as e:
+        g.transcribe(b"png", "p", {})
+    assert e.value.quota_exhausted and not e.value.retryable and len(g.urls) == 1
+    assert "PerDay" in str(e.value) and "Quota exceeded" in str(e.value)
+
+
+def test_per_minute_429_waits_the_delay_the_server_asks_and_logs_each_retry(caplog):
+    body = DAILY_429.replace("PerDay", "PerMinute")
+    waits = []
+    g = FakeGemini([http_error(429, body), OK_RESPONSE])
+    g._sleep = waits.append
+    caplog.set_level(logging.WARNING, logger="tools.ocr")
+    r = g.transcribe(b"png", "p", {})
+    assert r.text == "hello $x$" and waits == [41.0] and r.extra["attempts"] == 2
+    assert any("attempt 1 of 3" in rec.getMessage() for rec in caplog.records)
+
+
+def test_prompt_blocked_and_cut_answers_are_reported(tmp_path):
+    g = FakeGemini([{"promptFeedback": {"blockReason": "OTHER"}}])
+    assert g.transcribe(b"png", "p", {}).finish_reason == "NO_CANDIDATE:OTHER"
+    o = runner(tmp_path, FakeProvider([Result("half a page", "MAX_TOKENS")])).run_page(PDF, 1)
+    assert o.status == "ok" and "may be incomplete" in o.note
+
+
+def test_ledger_counts_the_http_retries_as_requests(tmp_path):
+    g = FakeGemini([http_error(503, "busy"), OK_RESPONSE])
+    runner(tmp_path, g).run_page(PDF, 1)
+    assert json.loads((tmp_path / "usage.json").read_text())[0]["requests"] == 2
+
+
+def test_check_key_makes_one_attempt_and_never_sleeps(monkeypatch, capfd):
+    # The slow check-key: a 503 or 429 used to wait 20 + 40 + 80 s in silence before FAIL.
+    slept = []
+    g = FakeGemini([http_error(503, "busy")] * 4)
+    g._sleep = slept.append
+    monkeypatch.setitem(REGISTRY, "gemini", lambda: g)
+    monkeypatch.setattr(cli.render, "synthetic_png", lambda: b"png")
+    assert cli.main(["--papers", "/nonexistent", "check-key"]) == 1
+    out = capfd.readouterr().out
+    assert out.startswith("FAIL") and "HTTP 503" in out and len(g.urls) == 1 and slept == []
+
+
+# ---------------------------------------------------------------- review: the confidential guard
+def _confidential_data(tmp_path, monkeypatch, sha=()):
+    """!
+    @brief Point the tool at a private confidential.json.
+    @param tmp_path  Folder for the file.
+    @param monkeypatch The pytest monkeypatch fixture.
+    @param sha       SHA-256 values to list.
+    @return None
+    """
+    data = tmp_path / "data"
+    data.mkdir()
+    for name in ("models.json", "prompt.txt"):
+        (data / name).write_bytes((config.DATA / name).read_bytes())
+    cfg = json.loads((config.DATA / "confidential.json").read_text())
+    cfg["sha256"] = list(sha)
+    (data / "confidential.json").write_text(json.dumps(cfg))
+    monkeypatch.setattr(config, "DATA", data)
+
+
+def test_a_renamed_confidential_file_is_refused_by_its_hash(tmp_path, monkeypatch):
+    f = tmp_path / "spec.pdf"
+    f.write_bytes(b"%PDF-1.4 bytes of a confidential file")
+    _confidential_data(tmp_path, monkeypatch, [config.file_sha256(f)])
+    assert "SHA-256" in config.is_confidential(f)
+    p = FakeProvider([Result("x")])
+    with pytest.raises(ConfidentialError):
+        runner(tmp_path, p).run_page(f, 1)
+    assert p.calls == []
+
+
+def test_the_shipped_list_holds_the_odbpp_hash_and_matches_its_title():
+    assert len(json.loads((config.DATA / "confidential.json").read_text())["sha256"]) >= 1
+    assert config.is_confidential(pathlib.Path("renamed.pdf"), "", "ODB++Design Format Specification Siemens")
+    assert config.is_confidential(pathlib.Path("RENAMED-CONFIDENTIAL-copy.pdf"))
+
+
+def test_an_unreadable_pdf_is_not_sent(tmp_path):
+    r = runner(tmp_path, FakeProvider([Result("x")]))
+    r._info = lambda pdf: (_ for _ in ()).throw(RuntimeError("broken xref"))
+    with pytest.raises(ConfidentialError):
+        r.run_page(PDF, 1)
+
+
+def test_check_key_with_a_confidential_pdf_is_refused_before_any_request(tmp_path, monkeypatch, capfd):
+    (tmp_path / "pdf").mkdir()
+    spec = tmp_path / "pdf" / "OdbppSpec81U4.pdf"
+    spec.write_bytes(b"%PDF")
+    g = FakeGemini([OK_RESPONSE])
+    monkeypatch.setitem(REGISTRY, "gemini", lambda: g)
+    monkeypatch.setattr("tools.ocr.pipeline.render.first_page_info", lambda pdf: ("", ""))
+    assert cli.main(["--papers", str(tmp_path), "check-key", "--pdf", "OdbppSpec81U4"]) == 3
+    assert g.urls == [] and "confidential" in capfd.readouterr().err
+
+
+# ---------------------------------------------------------------- review: a second provider through the command line
+class EchoProvider(Provider):
+    """!
+    @brief A trivial second provider (offline) that answers with the size of the image.
+    """
+
+    name = "echo"
+    online = False
+    default_model = "echo-1"
+
+    def transcribe(self, image_bytes, prompt, options):
+        """!
+        @brief Answer with the image size.
+        @param image_bytes Image bytes.
+        @param prompt      Unused.
+        @param options     Options.
+        @return Result The answer.
+        """
+        return Result(f"{len(image_bytes)} bytes", model=options.get("model", ""))
+
+
+def test_a_second_provider_runs_through_the_command_line(tmp_path, monkeypatch, capfd):
+    monkeypatch.setitem(REGISTRY, "echo", EchoProvider)
+    monkeypatch.setattr(cli, "resolve_pdf", lambda arg, papers: PDF)
+    monkeypatch.setattr(cli.render, "page_count", lambda pdf: 2)
+    monkeypatch.setattr("tools.ocr.pipeline.render.render_page", lambda *a, **k: b"12345")
+    assert cli.main(["--papers", str(tmp_path), "transcribe", "Paper", "--pages", "all", "--provider", "echo",
+                     "--pause", "0"]) == 0
+    assert (tmp_path / "echo" / "Paper_p2.md").read_text() == "<!-- page 2 -->\n5 bytes"
+    led = json.loads((tmp_path / "gemini" / "usage.json").read_text())
+    assert [e["provider"] for e in led] == ["echo", "echo"] and led[0]["model"] == "echo-1"
+    monkeypatch.setattr(cli.render, "synthetic_png", lambda: b"png")
+    assert cli.main(["--papers", str(tmp_path), "check-key", "--provider", "echo"]) == 0   # no models.json entry
+    assert "OK (echo-1" in capfd.readouterr().out
+
+
+def test_local_converter_gets_no_api_key_in_its_environment(monkeypatch):
+    from tools.ocr.providers.local import scrubbed_environment
+    monkeypatch.setenv("GEMINI_API_KEY", FAKE_KEY)
+    monkeypatch.setenv("GOOGLE_API_KEY", FAKE_KEY)
+    env = scrubbed_environment()
+    assert "GEMINI_API_KEY" not in env and "GOOGLE_API_KEY" not in env and "PATH" in env
+
+
+# ---------------------------------------------------------------- review: pages, verify and rendering
+def test_printed_page_follows_the_offset_and_journal_footers():
+    assert suspects.printed_page(323, 309, 14) == 309
+    assert suspects.printed_page(10, 314, 14) is None            # a contents line before printed page 1
+    assert suspects.printed_page(132, 0, 14) == 118               # a table entry "0" is not the page number
+    assert suspects.printed_page(5, 7, None) == 7
+    assert suspects.printed_page_number("Body\ntext\nJournal of Electronic Packaging\nJUNE 2003, Vol. 125 \u00d5 179") == 179
+    assert suspects.printed_page_number("Body\ntext\n180 \u00d5 Vol. 125, JUNE 2003\nTransactions of the ASME") == 180
+
+
+def test_verify_page_forbids_scripts_and_remote_content(tmp_path):
+    hostile = "<script>alert(1)</script><img src=x onerror=alert(2)> </pre><iframe src='http://evil'>"
+    h = verify.build_html(b"png", hostile, "t</title><script>x</script>")
+    assert "<script>" not in h and "<iframe" not in h and "<img src=x" not in h
+    assert "default-src 'none'" in h and "img-src data:" in h
+
+
+def test_an_oversized_page_is_rendered_at_a_lower_resolution(tmp_path):
+    mu = pytest.importorskip("pymupdf")
+    from tools.ocr import render
+    doc = mu.open()
+    doc.new_page(width=14400, height=14400)                       # 200 x 200 inch: 1.6e9 pixels at 200 dpi
+    doc.save(str(tmp_path / "big.pdf"))
+    png = render.render_page(tmp_path / "big.pdf", 1)
+    pix = mu.Pixmap(png)
+    assert pix.width * pix.height <= render.MAX_PIXELS

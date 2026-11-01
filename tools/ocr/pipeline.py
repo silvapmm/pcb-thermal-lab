@@ -56,7 +56,7 @@ class Runner:
     def __init__(self, provider: Provider, out_dir: Path, ledger: Ledger, model: str | None = None,
                  prompt: str | None = None, pause: float = 4.0, daily_limit: int | None = None,
                  allow_confidential: bool = False, dpi: int = render.DEFAULT_DPI, sleep=time.sleep,
-                 renderer=render.render_page, info=render.first_page_info):
+                 renderer=None, info=None):
         """!
         @brief Create a runner.
         @param provider           The provider.
@@ -69,8 +69,10 @@ class Runner:
         @param allow_confidential Allow a confidential file to go to an online provider (never by default).
         @param dpi                Rendering resolution.
         @param sleep              Function used to wait (replaced in tests).
-        @param renderer           Function (pdf, page, dpi, clip) -> PNG bytes (replaced in tests).
-        @param info               Function pdf -> (first page text, metadata) for the confidential check.
+        @param renderer           Function (pdf, page, dpi, clip) -> PNG bytes (default render.render_page, looked up
+                                  at call time; replaced in tests).
+        @param info               Function pdf -> (text of the first pages, metadata) for the confidential check
+                                  (default render.first_page_info, looked up at call time).
         @return None
         """
         self.provider, self.out_dir, self.ledger = provider, Path(out_dir), ledger
@@ -80,7 +82,10 @@ class Runner:
         self.prompt = prompt or config.default_prompt()
         self.pause, self.daily_limit, self.dpi = pause, daily_limit, dpi
         self.allow_confidential = allow_confidential
-        self._sleep, self._render, self._info = sleep, renderer, info
+        # Defaults resolved at call time (a default argument would freeze the function when the module is imported).
+        self._sleep = sleep
+        self._render = renderer or (lambda pdf, page, dpi, clip: render.render_page(pdf, page, dpi, clip))
+        self._info = info or (lambda pdf: render.first_page_info(pdf))
         self._requests = 0
 
     # ------------------------------------------------------------------ guards
@@ -93,7 +98,11 @@ class Runner:
         """
         if not self.provider.online or self.allow_confidential:
             return
-        text, meta = self._info(pdf)
+        try:
+            text, meta = self._info(pdf)
+        except Exception as e:  # fail closed: a file that cannot be checked is not sent
+            raise ConfidentialError(f"{pdf.name} could not be read for the confidential check "
+                                    f"({type(e).__name__}) and is not sent to '{self.provider.name}'.") from None
         why = config.is_confidential(pdf, text, meta)
         if why:
             raise ConfidentialError(f"{pdf.name} is treated as confidential ({why}) and is not sent to "
@@ -103,7 +112,7 @@ class Runner:
     # ------------------------------------------------------------------ calls
     def _call(self, png: bytes, model: str) -> Result:
         """!
-        @brief One provider request (counted), with the pause before the next.
+        @brief One provider request (counted with its HTTP retries), with the pause before the next.
         @param png   Image bytes.
         @param model Model name.
         @return Result The provider's result.
@@ -111,8 +120,12 @@ class Runner:
         """
         self._requests += 1
         try:
-            return self.provider.transcribe(png, self.prompt, {"model": model})
-        except ProviderError:
+            res = self.provider.transcribe(png, self.prompt, {"model": model})
+            # The retries inside the provider are requests too (the daily limit counts what was sent).
+            self._requests += max(0, int((res.extra or {}).get("attempts", 1)) - 1)
+            return res
+        except ProviderError as e:
+            self._requests += max(0, e.attempts - 1)
             raise
         except Exception as e:  # a provider that raises something else: wrap it with a redacted message
             raise ProviderError(f"{type(e).__name__}: {e}") from None
@@ -129,7 +142,11 @@ class Runner:
         """
         res = self._call(self._render(pdf, page, self.dpi, None), self.model)
         if not res.recitation:
-            return res.text, self.model, "" if res.text.strip() else f"empty answer (finish {res.finish_reason})"
+            if not res.text.strip():
+                return res.text, self.model, f"empty answer (finish {res.finish_reason})"
+            # Text with another finish reason (MAX_TOKENS, SAFETY, ...) may be cut: keep it, but say so.
+            return res.text, self.model, ("" if res.finish_reason in ("STOP", "") else
+                                          f"finish {res.finish_reason}: the text may be incomplete")
         # Refused by the copyright filter: two half-page crops with the same model.
         log.info("%s p%d: RECITATION, trying half-page crops", pdf.name, page)
         halves = [self._call(self._render(pdf, page, self.dpi, clip), self.model) for clip in render.HALVES]

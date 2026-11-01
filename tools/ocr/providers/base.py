@@ -22,19 +22,23 @@ class ProviderError(Exception):
     @brief A failed provider call. The message is redacted when the exception is built.
     """
 
-    def __init__(self, message: object, status: int = 0, retryable: bool = False, quota_exhausted: bool = False):
+    def __init__(self, message: object, status: int = 0, retryable: bool = False, quota_exhausted: bool = False,
+                 retry_after: float | None = None):
         """!
         @brief Build the error.
         @param message         Text of the error (any key in it is removed).
         @param status          HTTP status, or 0 when not an HTTP error.
         @param retryable       True when waiting and trying again may work (429 per minute, 500, 503, timeout).
         @param quota_exhausted True when the daily quota is gone: stop and try tomorrow.
+        @param retry_after     Pause the server asked for, in s (None when it gave none).
         @return None
         """
         super().__init__(redact(message))
         self.status = status
         self.retryable = retryable
         self.quota_exhausted = quota_exhausted
+        self.retry_after = retry_after
+        self.attempts = 1          # HTTP attempts made before the error was raised (set by the provider)
 
 
 @dataclass

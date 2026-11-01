@@ -5,8 +5,11 @@
 @brief Gemini (Google AI Studio) provider: page image to Markdown through generateContent.
 
 @details The key travels in the `x-goog-api-key` header, never in the URL, so it cannot appear in an error text.
-Retries with a growing pause on HTTP 429 (rate per minute), 500 and 503 and on network errors; an HTTP 429 that
-names a daily quota raises `ProviderError(quota_exhausted=True)` at once. A response with finishReason RECITATION
+Retries with a growing pause on HTTP 429 (rate per minute), 500 and 503 and on network errors, or with the pause the
+server asks for (`RetryInfo.retryDelay`, capped at MAX_SERVER_PAUSE); every retry is logged (status and pause, no
+key), so a slow run is never silent. An HTTP 429 whose `QuotaFailure` names a daily quota (`quotaId` with
+`PerDay`) raises `ProviderError(quota_exhausted=True)` at once: the error body is parsed as JSON in full, because
+the quota id comes after the long message and a cut text loses it. A response with finishReason RECITATION
 (HTTP 200, empty content) is returned as a `Result` with `recitation=True`: the caller decides what to do.
 The HTTP call is one overridable method (`_post`) so that tests run without a network.
 """
@@ -15,6 +18,8 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
+import re
 import time
 import urllib.error
 import urllib.request
@@ -23,6 +28,33 @@ from tools.ocr.keys import load_key
 from tools.ocr.providers.base import Provider, ProviderError, Result
 
 API = "https://generativelanguage.googleapis.com/v1beta"
+MAX_ERROR_BODY = 65536      # bytes of an error body that are read (a 429 body with its details is about 1 to 2 KB)
+MAX_SERVER_PAUSE = 120.0    # s: the longest pause taken from the server's RetryInfo
+
+log = logging.getLogger("tools.ocr")
+
+
+def _quota_details(body: str) -> tuple[list[str], float | None]:
+    """!
+    @brief The quota ids and the retry delay of a Google API error body.
+    @param body Error body (JSON from the API; any other text gives nothing).
+    @return tuple[list[str], float|None] The `quotaId` values of the QuotaFailure details and the RetryInfo delay in s.
+    """
+    try:
+        details = (json.loads(body).get("error") or {}).get("details") or []
+    except (ValueError, AttributeError):
+        return [], None
+    ids, delay = [], None
+    for d in details if isinstance(details, list) else []:
+        if not isinstance(d, dict):
+            continue
+        for v in d.get("violations") or []:
+            if isinstance(v, dict) and v.get("quotaId"):
+                ids.append(str(v["quotaId"]))
+        m = re.fullmatch(r"\s*([\d.]+)s\s*", str(d.get("retryDelay", "")))
+        if m:
+            delay = float(m.group(1))
+    return ids, delay
 
 
 class GeminiProvider(Provider):
@@ -39,13 +71,13 @@ class GeminiProvider(Provider):
         """!
         @brief Create the provider.
         @param key         API key; when None it is looked up (environment, then `.ocr_keys`) at the first call.
-        @param retries     Number of attempts for a retryable error.
+        @param retries     Number of attempts for a retryable error (at least 1).
         @param first_pause Pause before the second attempt, in seconds; doubled after each failure.
         @param sleep       Function used to wait (replaced in tests).
         @return None
         """
         self._key = key
-        self.retries = retries
+        self.retries = max(1, int(retries))
         self.first_pause = first_pause
         self._sleep = sleep
 
@@ -92,14 +124,22 @@ class GeminiProvider(Provider):
         """!
         @brief Turn an HTTP error into a ProviderError with the right flags.
         @param code    HTTP status.
-        @param message Start of the response body.
-        @return ProviderError With `retryable` and `quota_exhausted` set.
+        @param message The response body (whole, up to MAX_ERROR_BODY): JSON details are parsed, the text is searched.
+        @return ProviderError With `retryable`, `quota_exhausted` and `retry_after` (s, or None) set.
         """
-        low = message.lower()
+        ids, delay = _quota_details(message)
+        low = (message + " " + " ".join(ids)).lower()
         daily = code == 429 and ("perday" in low.replace(" ", "") or "per day" in low or "daily" in low)
         retryable = code in (429, 500, 503) and not daily
-        return ProviderError(f"HTTP {code}: {' '.join(message.split())[:300]}", status=code,
-                             retryable=retryable, quota_exhausted=daily)
+        # Show the API's own message, not the JSON around it, and say which quota it was.
+        try:
+            shown = str((json.loads(message).get("error") or {}).get("message", message))
+        except (ValueError, AttributeError):
+            shown = message
+        # The quota id goes first, so that cutting a long message never loses it.
+        quota = (" [quota: " + ", ".join(sorted(set(ids))) + "]") if ids else ""
+        return ProviderError(f"HTTP {code}{quota}: {' '.join(shown.split())[:400]}", status=code,
+                             retryable=retryable, quota_exhausted=daily, retry_after=delay)
 
     def transcribe(self, image_bytes: bytes, prompt: str, options: dict) -> Result:
         """!
@@ -123,21 +163,28 @@ class GeminiProvider(Provider):
                 resp = self._post(url, body, options.get("timeout", 180))
                 break
             except urllib.error.HTTPError as e:
-                err = self._classify(e.code, e.read().decode("utf-8", "replace")[:600])
+                err = self._classify(e.code, e.read(MAX_ERROR_BODY).decode("utf-8", "replace"))
             except (urllib.error.URLError, TimeoutError, OSError) as e:
                 err = ProviderError(f"{type(e).__name__}: {e}", retryable=True)
             if not err.retryable or attempt == self.retries - 1:
+                err.attempts = attempt + 1
                 raise err
-            self._sleep(pause)
+            # The server's own delay when it gives one (a per-minute 429 says how long), else the doubling pause.
+            wait = min(MAX_SERVER_PAUSE, err.retry_after) if err.retry_after else pause
+            log.warning("%s: attempt %d of %d failed (%s); waiting %.0f s", model, attempt + 1, self.retries,
+                        str(err)[:120], wait)
+            self._sleep(wait)
             pause *= 2
         cand = (resp.get("candidates") or [{}])[0]
         parts = (cand.get("content") or {}).get("parts") or []
-        text = "".join(p.get("text", "") for p in parts)
+        # Thought summaries (when a model returns them) are not part of the transcription.
+        text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
         finish = cand.get("finishReason", "")
         if not text and not cand:
-            finish = "NO_CANDIDATE"
+            # No candidate at all: the prompt itself was blocked; keep the reason the API gives.
+            finish = "NO_CANDIDATE:" + str((resp.get("promptFeedback") or {}).get("blockReason", "unknown"))
         return Result(text=text, finish_reason=finish or "STOP", model=model, seconds=round(time.time() - t0, 1),
-                      recitation=(finish == "RECITATION"))
+                      recitation=(finish == "RECITATION"), extra={"attempts": attempt + 1})
 
     def list_models(self) -> list[str]:
         """!
@@ -148,6 +195,6 @@ class GeminiProvider(Provider):
         try:
             data = self._get(f"{API}/models?pageSize=200", 60)
         except urllib.error.HTTPError as e:
-            raise self._classify(e.code, e.read().decode("utf-8", "replace")[:300])
+            raise self._classify(e.code, e.read(MAX_ERROR_BODY).decode("utf-8", "replace"))
         return [m["name"].split("/")[-1] for m in data.get("models", [])
                 if "generateContent" in m.get("supportedGenerationMethods", [])]
