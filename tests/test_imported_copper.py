@@ -720,3 +720,113 @@ def test_warning_for_a_raster_too_coarse_for_the_cell():
     assert any("pixels per cell" in w for w in copper.model_warnings(p, "fvm", 0.5))
     assert not any("pixels per cell" in w for w in copper.model_warnings(p, "fvm", 1.0))
     assert not any("pixels per cell" in w for w in copper.model_warnings(p, "lumped", 0.5))
+
+
+# ---------------------------------------------------------------------------------------------------- review: hostile records, misaligned cells, saving, live checks
+def _checker(n, square=6):
+    """!
+    @brief A checker of copper squares that touch only at their corners (the pattern a partial pixel at a corner bridges).
+    @param n Pixels per side.
+    @param square Side of a square in pixels.
+    @return uint8 array (n, n).
+    """
+    yy, xx = np.mgrid[0:n, 0:n]
+    return np.where(((xx // square) + (yy // square)) % 2 == 0, 255, 0).astype(np.uint8)
+
+
+def test_damaged_masks_are_refused_without_filling_the_memory():
+    """!
+    @brief A project file is hostile input: a zip bomb (a small text that inflates to 200 MB for a mask of 10 x 10 pixels), damaged text, a binary mask whose bytes
+           do not fit its shape, and absurd shapes are refused with a ValueError, and the bomb is never inflated beyond the bytes the shape needs.
+    @return None.
+    """
+    import base64
+    import tracemalloc
+    import zlib
+    bomb = {"kind": "coverage", "shape": [10, 10], "data": base64.b64encode(zlib.compress(bytes(200_000_000), 9)).decode()}
+    copper.clear_cache()
+    tracemalloc.start()
+    with pytest.raises(ValueError):
+        copper.unpack_coverage(bomb)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert peak < 20e6                                                                # (the uncapped inflate took 449 MB here)
+    good = copper.pack_coverage(_stripes(40) > 127, "binary")
+    for bad in ({**good, "shape": [400, 400]},                                        # bits for 1600 pixels declared as 160 000 (padded with zeros before the review)
+                {**good, "data": "!!!not base64"}, {**good, "data": base64.b64encode(b"garbage").decode()},
+                {**good, "shape": [-5, 10]}, {**good, "shape": [10]}, {**good, "shape": [10 ** 6, 10 ** 6]}, {**good, "kind": "rle"}, {"data": good["data"]}):
+        with pytest.raises(ValueError):
+            copper.unpack_coverage(bad)
+
+
+def test_masks_that_do_not_cover_the_board_are_refused_and_said_live():
+    """!
+    @brief Masks whose extent is not the board box (a board resized after the import, a damaged pixel) are refused by the models, and the live check says why instead of
+           failing; an infinite pixel is refused. A board scaled by the equivalent rectangle keeps its masks valid.
+    @return None.
+    """
+    from pcbthermal.checks import check_problem
+    p = _board([_solid(120), _solid(120)], "faces")
+    p.board.width *= 1.05                                                             # 12 mm masks on a 12.6 mm board
+    with pytest.raises(ValueError, match="resized"):
+        fvm.Network(p, 12, 12)
+    warns = check_problem(p, 1.0)
+    assert any("imported copper cannot be used" in w for w in warns)
+    q = _board([_solid(120), _solid(120)], "faces")
+    q.imported.pix_mm = float("inf")
+    with pytest.raises(ValueError):
+        copper.CopperSource.of(q)
+    r = _board([_solid(120), _solid(120)], "faces")
+    t = np.linspace(0, 2 * np.pi, 48, endpoint=False)
+    r.board.outline = np.c_[6 + 6 * np.cos(t), 6 + 6 * np.sin(t)] / 1000.0
+    e, s = r.equivalent_rectangle()
+    assert s < 1.0 and copper.CopperSource.of(e) is not None
+
+
+def test_faces_at_a_cell_that_is_not_a_whole_number_of_pixels():
+    """!
+    @brief A cell is almost never a whole number of raster pixels; averaging the mask onto the grid of the face problems made partial pixels that bridged the corners of a
+           checker (16 to 17 % cool against the pixel network at cells of 0.923 and 1.333 mm before the review). Sampling keeps the error at the level of the aligned cells.
+    @return None.
+    """
+    n = int(WINDOW / PIX)
+    ref = _pixel_reference([_checker(n), _solid(n)])
+    for m in (13, 9):
+        cell = WINDOW / m
+        p = _board([_checker(n), _solid(n)], "faces")
+        th, _ = fvm.Network(p, m, m).solve_steady()
+        assert abs(_pct(_heater_mean(th, cell), ref)) < 6.0, m
+    src = copper.CopperSource.of(_board([_checker(n), _solid(n)], "faces"))
+    assert src.pixels_per_cell(0.5e-3, 0.5e-3) == 6                                   # five pixels per cell round up (Python's round(2.5) gave 4)
+
+
+def test_saving_a_problem_with_copper_and_no_record_keeps_the_copper(tmp_path):
+    """!
+    @brief A problem from ImportedBoard.to_problem saved without an import record used to lose its masks (the native problem JSON has no place for them); it is saved as
+           format 2 with a record of its own and reopens with the same copper.
+    @param tmp_path pytest folder.
+    @return None.
+    """
+    p = _board([_stripes(120), _solid(120)], "faces")
+    path = tmp_path / "bare.pcbt.json"
+    save_project(path, Project(problem=p))
+    back = load_project(path)
+    assert back.problem.imported is not None and back.problem.imported.layers == p.imported.layers
+    assert abs(_solve(back.problem, 1.0) - _solve(p, 1.0)) < 1e-12
+
+
+def test_a_zone_on_an_imported_layer_is_said_to_be_ignored():
+    """!
+    @brief The masks replace the zones of an imported layer, so a zone drawn there is ignored by every model: the live check says so, and nothing is said for a zone on a layer
+           that is not imported.
+    @return None.
+    """
+    from pcbthermal.checks import check_problem
+    p = Problem.new(WINDOW, WINDOW, layers=2, thickness_mm=THICK, copper_um=35, h_top=H_FACE, h_bottom=H_FACE, h_side=None)
+    p.add_heater(1, 1.0, rect=(4, 4, 8, 8))
+    p.imported = copper.imported_from_rasters([_stripes(120)], PIX, "faces")          # only the top layer is imported
+    p.add_zone(1, rect=(0, 0, 6, 6), fill=1.0, name="top plane")
+    p.add_zone(2, rect=(0, 0, 6, 6), fill=1.0, name="bottom plane")
+    warns = check_problem(p, 1.0)
+    assert any("top plane" in w and "ignored" in w for w in warns)
+    assert not any("bottom plane" in w and "ignored" in w for w in warns)

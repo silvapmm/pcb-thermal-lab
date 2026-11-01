@@ -85,9 +85,15 @@ def project_to_dict(project):
     d["view"] = project.view
     d["format"] = FORMAT_1
     d["app_version"] = __version__                  # Version that wrote the file (informational)
-    if not project.imports:
+    imports = list(project.imports)
+    own = getattr(project.problem, "imported", None)
+    if own is not None and any(has_mask(e) for e in own.layers) and not any(r.copper is not None and any(has_mask(e) for e in r.copper.layers) for r in imports):
+        # The problem holds imported copper that no record carries (a problem made by ImportedBoard.to_problem and saved as it is): the native problem JSON has
+        # no place for the masks, so without a record they were dropped and the file reopened as a bare board. Write them in a record of their own
+        imports.append(ImportRecord(name="imported copper", copper=own))
+    if not imports:
         return d
-    out = {"format": FORMAT_2, "app_version": __version__, "project": d, "imports": [r.to_dict() for r in project.imports]}
+    out = {"format": FORMAT_2, "app_version": __version__, "project": d, "imports": [r.to_dict() for r in imports]}
     for key, value in project.extra.items():        # Forward compatibility: what a later 2.x added survives a save by this version
         out.setdefault(key, copy.deepcopy(value))
     return out

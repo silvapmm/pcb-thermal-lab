@@ -80,8 +80,15 @@ def check_problem(problem, cell_mm=1.0):
     out = []
     board_cover = b.cover(nx, ny, dx, dy)               # Ones for a rectangular board
 
-    # --- Copper fill of every layer (union of its zones), used by several checks
-    fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+    # --- Copper fill of every layer (union of its zones, the imported layers from their masks), used by several checks
+    try:
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+        imported_layers = set(copper.CopperSource.of(problem).layers) if copper.has_imported(problem) else set()
+    except ValueError as exc:
+        # Damaged or mismatched imported copper: every run would refuse it, so say why here and check the rest on the drawn zones
+        _add(out, None, None, f"The imported copper cannot be used: {exc}.", "The imported copper cannot be used (see the details).")
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4, source=False)
+        imported_layers = set()
 
     heater_poly = []                                    # Footprint of every heater with an area (None otherwise), for the exact overlap test
     for k, h in enumerate(problem.heaters):
@@ -157,6 +164,10 @@ def check_problem(problem, cell_mm=1.0):
         if polygon_self_intersects(z.polygon):
             _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: the outline crosses itself; the fill follows the even-odd rule, so the crossed part is left empty. "
                        "Redraw the zone without the crossing.", f"{z.name or f'Zone {k + 1}'}: the outline crosses itself.")
+        if z.layer in imported_layers:
+            # copper.override_fill: the masks of an imported layer are the whole copper of that layer, so a zone drawn there changes nothing
+            _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: copper layer {z.layer + 1} is imported, and its masks replace the drawn zones of that layer: "
+                                 "this zone is ignored by every model.", f"{z.name or f'Zone {k + 1}'}: ignored, its layer is imported.")
 
     # --- Metal blocks: they only take heat where they overlap copper of their face
     block_cov = {}

@@ -10,7 +10,10 @@
          Part `ref3d`: 12 mm windows, heater 4.8 mm, cells 0.6 and 1.2 mm, against `lib/ref3d.py` (independent 3D finite volumes, nothing of pcbthermal imported), the setting of README 10.
          Windows: for each board the top copper is drawn at 0.4 mm and the 12 (24) mm window whose central block is nearest to 55 % copper is taken (deterministic).
          Run (repository root): .venv/bin/python research/gerber-real-boards/scripts/study_program_cells.py --part mapping|ref3d [--boards a,b] [--side 12|24]
-         Memory: one reference at a time; 12 mm: about 1 GB, 24 mm pixel network about 2 GB, ref3d about 2 to 3 GB.
+         Memory (measured by the review, peak resident size of the whole run): 12 mm windows 1.9 GB; 24 mm windows 8.4 GB (the pixel network of the four-layer windows at
+         0.125 mm, about 4.6 times the unknowns of a two-layer one; run `--side 24 --boards` with the two-layer boards only on a busy machine); ref3d about 2 to 3 GB.
+         Cells: 0.5, 1 and 2 mm are whole numbers of the 0.1 and 0.125 mm pixels, so this study does not exercise the sampling of a misaligned grid (see the test
+         test_faces_at_a_cell_that_is_not_a_whole_number_of_pixels).
          NOT verified: any measurement on a physical board; heaters other than a square on the top layer; copper thickness other than 35 micrometres; plated holes (left out of both sides).
 """
 

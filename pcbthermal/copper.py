@@ -42,6 +42,8 @@ CACHE_LAYERS = 8                                 # Unpacked masks kept (a copy o
 ZLIB_LEVEL = 6                                   # Deflate level of the packed masks
 MASK_KINDS = ("coverage", "binary")
 COARSE_RASTER_PIXELS = 8.0                       # Pixels per cell below which the face problems are too coarse to resolve the copper (warned)
+MAX_MASK_PIXELS = 400_000_000                    # Most pixels of one mask read from a file (the cap of the rasteriser, gerber.raster.MAX_RASTER_PIXELS)
+EXTENT_TOLERANCE = 0.002                         # Share of the board side (plus one and a half pixels) by which the masks may differ from the board box
 
 
 # ------------------------------------------------------------------------------------------------ packed masks
@@ -69,22 +71,34 @@ def pack_coverage(cov, kind="coverage"):
 def _unpack(data, rows, cols, kind):
     """!
     @brief Unpack a mask (cached on the text, so every copy of a record that shares the string shares the array).
+    @details A project file is hostile input: the shape is checked first (positive, at most MAX_MASK_PIXELS), the text is decoded strictly, and the deflated
+             stream is inflated with a cap of the bytes the shape needs plus one, so a small text that inflates to gigabytes (a zip bomb) is refused after
+             at most that many bytes instead of filling the memory.
     @param data Base64 text of the deflated bytes.
     @param rows Rows of the mask.
     @param cols Columns of the mask.
     @param kind "coverage" or "binary".
     @return uint8 array (rows, cols), read-only.
-    @throws ValueError If the data do not fit the shape.
+    @throws ValueError If the shape is not valid, the text is not base64 or deflate data, or the data do not fit the shape.
     """
-    raw = zlib.decompress(base64.b64decode(data))
+    if kind not in MASK_KINDS:
+        raise ValueError(f"unknown mask kind {kind!r}")
+    if not (rows > 0 and cols > 0 and rows * cols <= MAX_MASK_PIXELS):
+        raise ValueError(f"a mask of {rows} x {cols} pixels is not a valid shape (positive, at most {MAX_MASK_PIXELS} pixels)")
+    need = rows * cols if kind == "coverage" else (rows * cols + 7) // 8
+    try:
+        packed = base64.b64decode(data, validate=True)
+        z = zlib.decompressobj()
+        raw = z.decompress(packed, need + 1)          # Never more than one byte beyond what the shape needs
+    except (ValueError, zlib.error) as exc:           # (binascii.Error is a ValueError)
+        raise ValueError(f"the packed mask is damaged ({exc})") from exc
+    if len(raw) != need or z.unconsumed_tail:
+        raise ValueError(f"a {kind} mask of {rows} x {cols} pixels needs {need} bytes, the data hold "
+                         + (f"{len(raw)}" if len(raw) <= need and not z.unconsumed_tail else f"more than {need}"))
     if kind == "binary":
         a = np.unpackbits(np.frombuffer(raw, np.uint8), count=rows * cols).reshape(rows, cols) * np.uint8(255)
-    elif kind == "coverage":
-        if len(raw) != rows * cols:
-            raise ValueError(f"a coverage mask of {rows} x {cols} pixels needs {rows * cols} bytes, the data hold {len(raw)}")
-        a = np.frombuffer(raw, np.uint8).reshape(rows, cols).copy()
     else:
-        raise ValueError(f"unknown mask kind {kind!r}")
+        a = np.frombuffer(raw, np.uint8).reshape(rows, cols).copy()
     a.setflags(write=False)
     return a
 
@@ -94,8 +108,14 @@ def unpack_coverage(mask):
     @brief The coverage array of a packed mask.
     @param mask Dict written by pack_coverage (after a JSON round trip).
     @return uint8 array (rows, cols) (0 or 255 for a binary mask), read-only and shared.
+    @throws ValueError If the mask is malformed (shape, kind, text) or damaged (see _unpack).
     """
-    return _unpack(mask["data"], int(mask["shape"][0]), int(mask["shape"][1]), mask.get("kind", "coverage"))
+    try:
+        rows, cols = (int(v) for v in mask["shape"])
+        data, kind = str(mask["data"]), str(mask.get("kind", "coverage"))
+    except (KeyError, TypeError, ValueError) as exc:     # A hand-edited record: a message, not a traceback
+        raise ValueError(f"a packed mask needs a shape [rows, cols] and its data ({exc!r})") from exc
+    return _unpack(data, rows, cols, kind)
 
 
 def clear_cache():
@@ -162,6 +182,37 @@ def resample_coverage(raster, pix, width, height, n_rows, n_cols):
     out = ry @ flipped.astype(np.float32)                        # (n_rows, cols)
     out = (rx @ out.T).T                                         # (n_rows, n_cols)
     return np.clip(out / np.float32(255.0), 0.0, 1.0).astype(np.float32, copy=False)
+
+
+def sample_coverage(raster, pix, width, height, n_rows, n_cols):
+    """!
+    @brief Sample a coverage raster at the centres of a regular grid of the board that is at least as fine as the raster (nearest neighbour).
+    @details The face problems need the copper on a grid of n x n pixels per cell, and a cell is almost never a whole number of raster pixels (the cell is the
+             board side over a whole number of cells). Averaging the raster onto that grid (resample_coverage) turns every pixel that a copper edge crosses into a
+             partial coverage, and the two-phase sheet of a partial pixel is the parallel mixture of copper and laminate: a clearance of two or three pixels between
+             two copper areas becomes a bridge of half copper, and the faces read cool (1.4 to 3.9 % of the rise on twelve real windows at cells of 0.92 and 1.09 mm,
+             against 0 to 1.2 % at whole numbers of pixels; 11 to 22 % on a checker and on islands 0.3 mm apart). Sampling keeps every output pixel a pixel of the
+             raster, so the clearances and the tracks keep their topology (a feature moves by at most one output pixel); the copper area of a cell then differs from
+             the exact fraction by about one row of pixels, which is why the cell fill (vertical links, capacity) stays the box average of resample_coverage.
+    @param raster uint8 coverage (rows from the top), 0..255.
+    @param pix Raster pixel (m).
+    @param width Board width (m).
+    @param height Board height (m).
+    @param n_rows Rows of the output grid.
+    @param n_cols Columns of the output grid.
+    @return float32 array (n_rows, n_cols) of the copper fraction 0..1, rows from the bottom; zero where the grid lies beyond the raster.
+    """
+    rows, cols = raster.shape
+    yc = (np.arange(n_rows) + 0.5) * (height / n_rows)                     # Centres of the output pixels, from the bottom
+    xc = (np.arange(n_cols) + 0.5) * (width / n_cols)
+    ri = np.floor((height - yc) / pix).astype(np.int64)                     # Raster rows run from the top edge of the box
+    ci = np.floor(xc / pix).astype(np.int64)
+    okr = (ri >= 0) & (ri < rows)
+    okc = (ci >= 0) & (ci < cols)
+    out = (raster[np.clip(ri, 0, rows - 1)][:, np.clip(ci, 0, cols - 1)] / 255.0).astype(np.float32)
+    out[~okr, :] = 0.0                                                      # A board beyond the raster has no copper there
+    out[:, ~okc] = 0.0
+    return out
 
 
 # ------------------------------------------------------------------------------------------------ local conduction problems
@@ -290,16 +341,20 @@ class CopperSource:
     @details Built from `Problem.imported` (`CopperSource.of`). The FVM and FDM take it as the `faces` argument of their networks.
     """
 
-    def __init__(self, copper, n_layers):
+    def __init__(self, copper, n_layers, width=None, height=None):
         """!
         @param copper model.ImportedCopper.
         @param n_layers Copper layers of the board.
-        @throws ValueError If a layer index is outside the board, appears twice, or the pixel is not positive.
+        @param width Board width in m (None: the extent of the masks is not checked).
+        @param height Board height in m (None: not checked).
+        @throws ValueError If a layer index is outside the board, appears twice, the pixel is not a positive finite number, or a mask does not cover the board box
+                (its rows times the pixel, its columns times the pixel, within one and a half pixels plus EXTENT_TOLERANCE of the side): a board resized after the
+                import, or a damaged record, would otherwise put the copper in the wrong place or leave part of the board bare without a word.
         """
         if copper.mapping not in MAPPINGS:
             raise ValueError(f"unknown copper mapping {copper.mapping!r}; known: {', '.join(MAPPINGS)}")
-        if not copper.pix_mm > 0:
-            raise ValueError("the pixel of the imported copper must be positive")
+        if not (math.isfinite(copper.pix_mm) and copper.pix_mm > 0):
+            raise ValueError("the pixel of the imported copper must be a positive finite number")
         self.mapping = copper.mapping
         self.reduce_sheet = True                                                   # False only to show that the unreduced sheet counts the laminate twice (a test)
         self.pix = copper.pix_mm * 1e-3
@@ -312,6 +367,16 @@ class CopperSource:
                 raise ValueError(f"imported copper layer {e.get('name', '')!r} has index {i}, but the board has {n_layers} copper layers")
             if i in self.entries:
                 raise ValueError(f"two imported masks for copper layer {i + 1}")
+            if width is not None and height is not None:
+                try:
+                    rows, cols = (int(v) for v in e["mask"]["shape"])
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"imported copper layer {e.get('name', '')!r}: the mask has no valid shape ({exc!r})") from exc
+                for side, n_px, what in ((width, cols, "width"), (height, rows, "height")):
+                    tol = 1.5 * self.pix + EXTENT_TOLERANCE * side
+                    if abs(n_px * self.pix - side) > tol:
+                        raise ValueError(f"imported copper layer {e.get('name', '')!r}: its mask covers {n_px * self.pix * 1e3:.3f} mm of the board {what}, the board is "
+                                         f"{side * 1e3:.3f} mm (was the board resized after the import, or the record damaged?); import the copper again")
             self.entries[i] = e
 
     @staticmethod
@@ -324,7 +389,7 @@ class CopperSource:
         c = getattr(problem, "imported", None)
         if c is None or not c.layers:
             return None
-        src = CopperSource(c, problem.board.layers)
+        src = CopperSource(c, problem.board.layers, problem.board.width, problem.board.height)
         return src if src.entries else None
 
     @property
@@ -357,13 +422,15 @@ class CopperSource:
 
     def pixels_per_cell(self, dx, dy):
         """!
-        @brief The even number of pixels per cell side used by the face problems.
+        @brief The even number of pixels per cell side used by the face problems: the raster pixels per cell rounded UP to an even number, so that the grid of
+               the face problems is never coarser than the raster (it is then sampled, see sample_coverage), and at most MAX_PIXELS_PER_CELL (a finer raster is averaged).
+        @details Rounding to the nearest even number (Python rounds 2.5 to 2) gave 4 for five pixels per cell, which averaged a 0.1 mm raster onto 0.125 mm pixels.
         @param dx Cell width in m.
         @param dy Cell height in m.
         @return int, at least 2 and at most MAX_PIXELS_PER_CELL.
         """
         r = 0.5 * (dx + dy) / self.pix
-        return int(min(max(2 * round(r / 2.0), 2), MAX_PIXELS_PER_CELL))
+        return int(min(max(2 * math.ceil(r / 2.0 - 1e-9), 2), MAX_PIXELS_PER_CELL))
 
     def lateral(self, layer, a_full, b_bare, reduction, cover, ny, nx, width, height, nodes=False):
         """!
@@ -387,7 +454,9 @@ class CopperSource:
         """
         dx, dy = width / nx, height / ny
         n = self.pixels_per_cell(dx, dy)
-        cov = resample_coverage(self.raster(layer), self.pix, width, height, ny * n, nx * n)       # (ny n, nx n) float32
+        # A grid at least as fine as the raster samples it (the clearances stay bare); a raster finer than MAX_PIXELS_PER_CELL per cell is averaged down
+        fine_enough = max(dx, dy) / n <= self.pix * (1.0 + 1e-9)
+        cov = (sample_coverage if fine_enough else resample_coverage)(self.raster(layer), self.pix, width, height, ny * n, nx * n)       # (ny n, nx n) float32
         if nodes:
             h = n // 2
             cov = np.pad(cov, ((h, h), (h, h)), mode="symmetric")                  # mirror at the board edge: half control volumes
@@ -673,7 +742,12 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
 
 # ------------------------------------------------------------------------------------------------ warnings
 FILL_NOTE = ("the copper of this board is an import and the models read it as a cell mapping, not as drawn zones: the finite-volume and finite-difference models use flow-based face "
-             "conductances (approximate to a few percent, up to about 8 %, against a pixel-level solution; no measurement on a physical board exists)")
+             "conductances (on windows of real boards with a 4 mm part: within about 3 % of the program's network on the pixels at cells of 0.5 to 1.3 mm, up to 4 % on larger windows, "
+             "and up to 10 % too hot at a 2 mm cell, about half of which is the grid error the program has with drawn copper under a part two cells wide; no measurement on a "
+             "physical board exists)")
+COARSE_CELL_MM = 1.0                             # Cell above which the note on the faces adds the coarse-cell warning (README 10 of research/gerber-real-boards, review)
+COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows of real two-layer boards the face conductances read 4 to 10 % too hot at a 2 mm cell for a 4 mm part "
+                       "(about half of it the grid error of a part two cells wide, the rest the copper inside a cell that the faces cannot resolve); use a cell of 1 mm or less")
 REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: it sees only the copper fraction of every cell, and in the study of 24 windows it read 1 to 16 % too "
                          "cool (6 % on average) against the pixel network; use the finite-volume model for the result")
 SOLID3D_WARNING = ("imported copper in the 3D solid: it reads the copper fraction of every cell as an average conductivity, the fill-fraction mapping, which reads thin copper cooler "
@@ -699,6 +773,8 @@ def model_warnings(problem, model, cell_mm=None):
     else:
         out.append(FILL_NOTE if src.mapping != "fill" else
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
+        if cell_mm is not None and src.mapping != "fill" and cell_mm > COARSE_CELL_MM + 1e-9:
+            out.append(COARSE_CELL_WARNING)
         if cell_mm is not None and src.mapping != "fill":
             per_cell = cell_mm * 1e-3 / src.pix
             if per_cell < COARSE_RASTER_PIXELS:
