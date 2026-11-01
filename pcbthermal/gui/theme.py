@@ -19,7 +19,9 @@ THEMES = {
         "ok": "#66bb6a", "warn": "#ffb74d", "bad": "#ef5350", "error": "#ef5350",
         "selection": "#ffffff", "on_element": "#ffffff", "run": "#34d399",
         "diel_low": "#4a6f5a", "diel_mid": "#6c8f9d", "diel_high": "#9aa7b4",
-        "doc_note": "#3a331c", "doc_note_edge": "#e0a800", "doc_tip": "#1c2d44", "doc_th": "#2a2f37", "doc_border": "#3a414b",
+        "doc_note": "#4d4730", "doc_note_edge": "#e0a800", "doc_tip": "#31465e", "doc_th": "#404750", "doc_border": "#566069",
+        # The HTML pages are a softer grey than the near-black window: a medium-dark page, light-grey text, brighter headings
+        "doc_bg": "#353b43", "doc_text": "#d8dce1", "doc_head": "#f0f2f4", "doc_link": "#9ccbff",
     },
     "light": {
         "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280", "hint": "#5f6570",
@@ -30,6 +32,7 @@ THEMES = {
         "selection": "#ffffff", "on_element": "#ffffff", "run": "#34d399",
         "diel_low": "#4a6f5a", "diel_mid": "#6c8f9d", "diel_high": "#9aa7b4",
         "doc_note": "#fff7e0", "doc_note_edge": "#e0a800", "doc_tip": "#e8f3ff", "doc_th": "#eef0f3", "doc_border": "#c8ccd2",
+        "doc_bg": "#ffffff", "doc_text": "#1f2328", "doc_head": "#1f2328", "doc_link": "#0000ff",
     },
 }
 
@@ -250,7 +253,8 @@ def document_css(name):
     """
     c = colors(name)
     return f"""
-  body {{ font-family: "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.5; max-width: 62em; margin: 0 auto; padding: 1em 1.5em 4em; color: {c['text']}; background: {c['base']}; }}
+  body {{ font-family: "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.5; max-width: 62em; margin: 0 auto; padding: 1em 1.5em 4em; color: {c['doc_text']}; background: {c['doc_bg']}; }}
+  h1, h2, h3 {{ color: {c['doc_head']}; }}
   h1 {{ border-bottom: 2px solid {c['accent']}; padding-bottom: .2em; }}
   h2 {{ margin-top: 2em; border-bottom: 1px solid {c['border']}; padding-bottom: .15em; }}
   h3 {{ margin-top: 1.4em; }}
@@ -261,7 +265,7 @@ def document_css(name):
   .note {{ background: {c['doc_note']}; border-left: 4px solid {c['doc_note_edge']}; padding: .4em .8em; margin: .8em 0; }}
   .tip {{ background: {c['doc_tip']}; border-left: 4px solid {c['accent']}; padding: .4em .8em; margin: .8em 0; }}
   nav li {{ margin: .1em 0; }}
-  a {{ color: {c['link']}; }}
+  a {{ color: {c['doc_link']}; }}
 """
 
 

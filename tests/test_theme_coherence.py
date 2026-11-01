@@ -98,9 +98,16 @@ def test_status_and_document_colours_read_in_both_themes(name):
     for key in ("ok", "warn", "bad", "error"):
         assert _ratio(c[key], c["window"]) >= 3.5, (name, key, "on the window")
         assert _ratio(c[key], c["base"]) >= 3.5, (name, key, "on the base")
-    for key in ("doc_note", "doc_tip", "doc_th"):
-        assert _ratio(c["text"], c[key]) >= 4.5, (name, key)
+    # The HTML pages have their own tokens (the dark page is a softer grey than the window)
+    for key in ("doc_note", "doc_tip", "doc_th", "doc_bg"):
+        assert _ratio(c["doc_text"], c[key]) >= 4.5, (name, key)
+        assert _ratio(c["doc_link"], c[key]) >= 4.5, (name, key, "link")
+    assert _ratio(c["doc_head"], c["doc_bg"]) >= 4.5
     assert _ratio(c["link"], c["base"]) >= 4.5 and _ratio(c["text"], c["base"]) >= 4.5
+    # Borders and code backgrounds are visible against the page
+    assert _ratio(c["doc_border"], c["doc_bg"]) >= 1.3 and _ratio(c["doc_th"], c["doc_bg"]) >= 1.05
+    if name == "dark":
+        assert QColor(c["doc_bg"]).lightness() > QColor(c["base"]).lightness() + 15
 
 
 def test_readable_on_picks_a_label_colour_for_any_fill():
@@ -180,7 +187,7 @@ def test_help_pages_follow_a_live_theme_switch(win):
         assert view.document().defaultStyleSheet() is not None
     # The text colour of the document is the theme's text and the page is not white any more
     css = th.document_css("dark")
-    assert th.colors("dark")["base"] in css and "#ffffff" not in css
+    assert th.colors("dark")["doc_bg"] in css and "#ffffff" not in css
     img = guide.view.viewport().grab().toImage()
     px = QColor(img.pixel(img.width() // 2, 3))
     assert px.lightness() < 100, px.name()
