@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import fdm, fvm, memory, solid3d
+from .. import fdm, fvm, laminate, memory, solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -1428,11 +1428,11 @@ class SolverPanel(QWidget):
         self.hot = _spin(-50, 1000, 100, 1, 5, "°C")
         self.lam_s = _spin(0.05, 5.0, 0.4, 2, 0.05, "mm")
         self.lam_n = QSpinBox()
-        self.lam_n.setRange(1, 32)
+        self.lam_n.setRange(1, 16)
         self.lam_n.setValue(4)
         self.lam_s.setToolTip("Longest sub-gap of the laminate between two copper nodes in mm (0.05 to 5, default 0.40). A gap thicker than this is cut into equal sub-gaps with a node at every "
                               "boundary, only where copper is absent next to it (FVM and FDM). Smaller: more nodes, closer to a resolved 3D solid, slower and larger.")
-        self.lam_n.setToolTip("Most sub-gaps in one gap of the laminate (1 to 32, default 4). 1 turns the cutting off. A gap of thickness d gets min(this, d / sub-gap rounded up) "
+        self.lam_n.setToolTip("Most sub-gaps in one gap of the laminate (1 to 16, default 4). 1 turns the cutting off. A gap of thickness d gets min(this, d / sub-gap rounded up) "
                               "sub-gaps, so with the default 0.40 mm a 1.6 mm two-layer board already has 4 and a larger number changes nothing unless the sub-gap is made smaller "
                               "too (8 needs 0.19 mm or less, 16 needs 0.09 mm or less). The error against a resolved 3D solid falls as 1/n (an island board: -3.9, -2.25 and -1.41 % with 4, 8 and 16 "
                               "sub-gaps); every extra sub-gap adds node layers in the cells with absent copper, which the memory estimate counts.")
@@ -1494,7 +1494,11 @@ class SolverPanel(QWidget):
         @param _ Ignored (extra arguments of the Qt signal).
         """
         on = lambda k: self.cb[k].isChecked()                                  # noqa: E731
-        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.lam_s, on("fvm") or on("fdm"), "the FVM or the FDM"), (self.lam_n, on("fvm") or on("fdm"), "the FVM or the FDM"), (self.rings, on("lumped"), "the Lumped model"),
+        # The laminate rule is not applied to a board with a metal block (laminate.uses_rule), so its two numbers are greyed there too
+        blocked = not laminate.uses_rule(self.doc.problem)
+        lam_on = (on("fvm") or on("fdm")) and not blocked
+        lam_why = "a board with a metal block, where the rule does not apply" if blocked else "the FVM or the FDM"
+        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.lam_s, lam_on, lam_why), (self.lam_n, lam_on, lam_why), (self.rings, on("lumped"), "the Lumped model"),
                                     (self.modes, on("analytic"), "the Analytic model"), (self.local, on("analytic"), "the Analytic model")):
             base = widget.property("base_tip")
             if base is None:                                                      # First time: remember the tooltip the control had

@@ -82,8 +82,8 @@ class SolverOptions:
             raise ValueError(f"memory_fraction must be between {memory.MIN_FRACTION} and {memory.MAX_FRACTION}")
         if not 0.05 <= self.laminate_s_max_mm <= 5.0:
             raise ValueError("laminate_s_max_mm must be between 0.05 and 5")
-        if not isinstance(self.laminate_n_max, int) or isinstance(self.laminate_n_max, bool) or not 1 <= self.laminate_n_max <= 32:
-            raise ValueError("laminate_n_max must be an integer between 1 and 32")
+        if not isinstance(self.laminate_n_max, int) or isinstance(self.laminate_n_max, bool) or not 1 <= self.laminate_n_max <= 16:
+            raise ValueError("laminate_n_max must be an integer between 1 and 16")
         self.profile.validate()
 
     def laminate_params(self):
@@ -119,6 +119,10 @@ class SolverOptions:
         if "models" in known:
             known["models"] = tuple(known["models"])
         known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
+        # A JSON writer may give the count as 8.0: an integer-valued float is the integer (any other float still fails validation)
+        n = known.get("laminate_n_max")
+        if isinstance(n, float) and n.is_integer():
+            known["laminate_n_max"] = int(n)
         o = cls(**known)
         o.validate()
         return o

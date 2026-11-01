@@ -309,7 +309,7 @@ def build_parser():
     r.add_argument("--laminate-s-max-mm", type=float, default=None, metavar="S",
                    help="longest sub-gap of the laminate between two copper nodes in mm, 0.05 to 5 (FVM and FDM; default 0.4)")
     r.add_argument("--laminate-n-max", type=int, default=None, metavar="N",
-                   help="most sub-gaps in one gap, 1 to 32 (1 turns the cutting off; default 4; more is slower and closer to a resolved 3D solid). A gap of "
+                   help="most sub-gaps in one gap, 1 to 16 (1 turns the cutting off; default 4; more is slower and closer to a resolved 3D solid). A gap of "
                         "thickness d gets min(N, ceil(d / S)) sub-gaps: on a 1.6 mm board N above 4 needs a smaller --laminate-s-max-mm too")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")

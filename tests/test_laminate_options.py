@@ -32,7 +32,7 @@ def test_defaults_are_the_constants_and_are_not_saved():
     assert back.laminate_params() == (0.2e-3, 8)
 
 
-@pytest.mark.parametrize("field,value", [("laminate_s_max_mm", 0.0), ("laminate_s_max_mm", 6.0), ("laminate_n_max", 0), ("laminate_n_max", 33), ("laminate_n_max", 2.5)])
+@pytest.mark.parametrize("field,value", [("laminate_s_max_mm", 0.0), ("laminate_s_max_mm", 6.0), ("laminate_n_max", 0), ("laminate_n_max", 17), ("laminate_n_max", 2.5)])
 def test_out_of_range_values_are_refused(field, value):
     o = SolverOptions()
     setattr(o, field, value)
@@ -98,11 +98,11 @@ def test_the_command_line_flags(tmp_path):
 
 
 def test_a_larger_n_max_alone_changes_nothing_on_a_board_of_four_sub_gaps():
-    # The review: a gap gets min(n_max, ceil(d / s_max)) sub-gaps, so on a 1.6 mm two-layer board (d 1.53 mm) the default 0.4 mm already gives 4 and n_max 8 or 32 alone
+    # The review: a gap gets min(n_max, ceil(d / s_max)) sub-gaps, so on a 1.6 mm two-layer board (d 1.53 mm) the default 0.4 mm already gives 4 and n_max 8 or 16 alone
     # builds the same network; the sub-gap has to be made smaller too (the tooltip and the command-line help say so)
     p = window_board()
     base = fvm.unknowns(p, 1.0)[0]
-    with laminate.using(n_max=32):
+    with laminate.using(n_max=16):
         assert fvm.unknowns(p, 1.0)[0] == base
     with laminate.using(0.19e-3, 8):
         assert fvm.unknowns(p, 1.0)[0] > base
@@ -121,3 +121,32 @@ def test_the_power_calculator_and_the_calibration_use_the_laminate_of_the_projec
     m4 = calibrate_convection(p, 160.0, SolverOptions(models=("fvm",), cell_mm=1.0))[0]
     m8 = calibrate_convection(p, 160.0, SolverOptions(models=("fvm",), cell_mm=1.0, laminate_s_max_mm=0.2, laminate_n_max=8))[0]
     assert m8 != m4
+
+
+def test_an_integer_valued_float_is_accepted_and_the_range_ends_at_16():
+    # The review: a JSON writer may store 8.0; the project must still open. 16 is the largest count until the memory law of the extra node layers is refitted
+    assert SolverOptions.from_dict({"laminate_n_max": 8.0}).laminate_n_max == 8
+    assert isinstance(SolverOptions.from_dict({"laminate_n_max": 8.0}).laminate_n_max, int)
+    with pytest.raises(ValueError):
+        SolverOptions.from_dict({"laminate_n_max": 8.5})
+    with pytest.raises(ValueError):
+        SolverOptions(laminate_n_max=17).validate()
+    SolverOptions(laminate_n_max=16).validate()
+
+
+def test_the_laminate_spin_boxes_are_greyed_on_a_board_with_a_metal_block(qtbot, tmp_path):
+    # The rule does not apply to a board with a metal block (laminate.uses_rule), so its two controls are greyed there as well
+    pytest.importorskip("PySide6")
+    from PySide6.QtCore import QSettings
+    from pcbthermal.gui.document import Document
+    from pcbthermal.gui.main_window import MainWindow
+    w = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(w)
+    sp = w.solver_panel
+    sp.cb["fvm"].setChecked(True)
+    sp._update_availability()
+    assert sp.lam_n.isEnabled() and sp.lam_s.isEnabled() and sp.lam_n.maximum() == 16
+    w.doc.problem.add_heatsink(1, 10.0, rect=(8, 8, 22, 22), thickness_mm=2.0)
+    sp._update_availability()
+    assert not sp.lam_n.isEnabled() and not sp.lam_s.isEnabled()
+    assert "metal block" in sp.lam_n.toolTip()
