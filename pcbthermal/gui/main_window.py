@@ -946,11 +946,26 @@ class MainWindow(QMainWindow):
 
     def show_import(self):
         """!
-        @brief Open the Gerber import window; a finished import is loaded as a new unsaved project.
+        @brief Open the Gerber import window; a finished import is loaded as a new unsaved project, or, when the open project already holds an import, applied to it as one undo step
+               (the window asked Replace, Update, Add files or Cancel).
         """
-        dlg = ImportBoardWindow(self)
-        if dlg.exec() == QDialog.Accepted and dlg.problem is not None:
-            self._load_problem(dlg.problem, dlg.session.name)
+        existing = self.doc.project.imports[0] if self.doc.project.imports else None
+        dlg = ImportBoardWindow(self, existing=existing)
+        if dlg.exec() != QDialog.Accepted or dlg.record is None:
+            return
+        if dlg.mode == "new":
+            if self._confirm_discard():
+                dlg.problem.name = dlg.session.name
+                self.doc.open_import(dlg.problem, dlg.record)
+                self._after_load()
+            return
+        old = self.doc.project.imports[0]
+        known = {p.designator for p in old.parts}
+        added = [p for p in dlg.record.parts if p.designator not in known]
+        self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
+                          add=lambda project: dlg.session._add_heaters(project.problem, dlg.record.box_mm, added))
+        self._refresh_layers()
+        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(dlg.changes[:3]) + ("..." if len(dlg.changes) > 3 else ""))
 
     def show_calculator(self):
         """!

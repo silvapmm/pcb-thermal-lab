@@ -15,15 +15,21 @@
          Lengths are in millimetres, the Gerber axes (Y up); rasters run from the top edge downwards, one byte of coverage per pixel.
 """
 
+import copy
 import hashlib
+import json
 import logging
 import re
 from pathlib import Path
 from typing import Callable, List, NamedTuple, Optional
 
+from .. import copper as copper_mod
 from .. import memory
-from ..gerber import GerberArchive, GerberError, LayerFunction, detect_function, estimate_raster_bytes, parse_layer, rasterize, read_drill, read_outline, window_of
-from ..model import Problem, stackup_template
+from ..gerber import (DrillFile, GerberArchive, GerberError, LayerFunction, detect_function, parse_layer, pixel_counts, rasterize, read_drill, read_outline,
+                      window_of)
+from ..gerber import components as comp_mod
+from ..gerber import parts as parts_mod
+from ..model import ImportFile, ImportRecord, Problem, new_problem, stackup_template
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +50,8 @@ UNIQUE = COPPER + (OUTLINE,) + PASTE + (COMPONENT, PLACEMENT)
 PREVIEW_PIXELS = 900                                            # The preview raster is about this many pixels on the long side
 PREVIEW_PIXEL_MIN_MM = 0.1                                      # Finest pixel of the preview
 VIA_MAX_MM = 0.5                                                # Default largest plated hole that is a via
+HASH_WHOLE_BYTES = 64 * 1024 ** 2                               # Archive members up to this size are hashed whole
+HASH_EDGE_BYTES = 1 << 20                                       # Larger members: the first and the last megabyte and the size
 MAX_FILE_BYTES = 1024 ** 3                                      # A file above 1 GB is not a PCB layer (the archive limit, applied to folders too)
 HEAD_BYTES = 8192
 
@@ -192,6 +200,20 @@ class ImportSession:
         self._archive: Optional[GerberArchive] = None
         self._board: Optional[BoardData] = None
         self._board_error = ""
+        self.job = None                                       # Dict of the Gerber job file (.gbrjob) when the set has one
+        self.via_max_mm = VIA_MAX_MM                          # Largest plated hole that is a via (mm)
+        self.pixel_mm = None                                  # Pixel of the copper masks (mm); None: automatic
+        self.offset = (0.0, 0.0)                              # Offset added to the placement file positions (mm), the user's answer to the frame check
+        self.offset_answer = ""                               # "", "accepted" or "rejected"
+        self.record = None                                    # ImportRecord of the last build_problem()
+        self.thickness_mm = None                              # Board thickness of the last build (mm)
+        self._outline = None                                  # gerber.Outline of the profile file, when it could be read
+        self._parts_dirty = True
+        self._res = None                                      # parts.PartsResult of the last build
+        self._parts: List = []                                # ImportPart: heat-source candidates, hand-picked parts and orphans
+        self._listed: List = []                               # ImportPart that are listed only (no opening, not SMD)
+        self._unmatched: List = []                            # Opening that no file names
+        self._owner_cache = None
         self._layer_cache = {}                                # sha256 -> parsed Layer
         self._raster_cache = {}                               # (sha256, window, pixel) -> (coverage, thinnest mm)
 
@@ -214,7 +236,9 @@ class ImportSession:
         @throws ValueError If the source holds no file.
         """
         self.close()
-        self.files, self._board, self._board_error = [], None, ""
+        self.files, self._board, self._board_error, self.job = [], None, "", None
+        self._parts_dirty, self.offset, self.offset_answer = True, (0.0, 0.0), ""
+        self._parts, self._listed, self._unmatched, self._res = [], [], [], None
         if isinstance(source, (list, tuple)):
             paths = [Path(p) for p in source]
             self.source_text = f"{len(paths)} files"
@@ -241,6 +265,8 @@ class ImportSession:
         """
         skip = {".zip", ".png", ".jpg", ".jpeg", ".pdf", ".md", ".json", ".gbrjob", ".kicad_pcb", ".kicad_pro", ".svg", ".html", ".htm", ".rar", ".7z", ".py"}
         for f in paths:
+            if f.suffix.lower() == ".gbrjob" and f.is_file() and f.stat().st_size < 1_000_000:
+                self._read_job(f.read_text(encoding="utf-8", errors="replace"))
             if f.name.startswith(".") or f.suffix.lower() in skip or not f.is_file():
                 continue
             size = f.stat().st_size
@@ -263,12 +289,19 @@ class ImportSession:
         """
         self._archive = GerberArchive(path)
         for name in self._archive.names():
+            if name.lower().endswith(".gbrjob") and self._archive._infos[name].file_size < 1_000_000:
+                self._read_job(self._archive.read_text(name))
             if name.lower().endswith(("/", ".png", ".pdf", ".md", ".json", ".gbrjob", ".kicad_pcb", ".zip", ".jpg", ".svg")):
                 continue
             head = self._archive.read_head(name)
             info = self._archive._infos[name]
             # The hash of an archive member needs the whole member: read it once, bounded by the declared size (the archive reader checks the CRC)
-            digest = _sha256(self._archive.read_text(name).encode("utf-8", "replace")) if info.file_size <= 64 * 1024 ** 2 else _sha256(head.encode("utf-8", "replace"))
+            if info.file_size <= HASH_WHOLE_BYTES:
+                digest = _sha256(self._archive.read_text(name).encode("utf-8", "replace"))
+            else:
+                # A very large member is hashed by its head, its tail and its size (reading it whole only to hash it would hold it in memory twice)
+                tail = self._archive.read_text(name)[-HASH_EDGE_BYTES:]
+                digest = _sha256((head + "\0" + tail + "\0" + str(info.file_size)).encode("utf-8", "replace"))
             self._add_entry(name, info.file_size, digest, head, lambda n=name: self._archive.read_text(n))
 
     def _add_entry(self, name, size, sha, head, reader):
@@ -313,7 +346,7 @@ class ImportSession:
         """
         f = self.files[i]
         f.role, f.use, f.error = role, role != IGNORE, ""
-        self._board = None
+        self._board, self._parts_dirty = None, True
 
     def set_use(self, i: int, use: bool):
         """!
@@ -323,7 +356,7 @@ class ImportSession:
         @return None
         """
         self.files[i].use = bool(use)
-        self._board = None
+        self._board, self._parts_dirty = None, True
 
     def used(self, *roles) -> List[SourceFile]:
         """!
@@ -434,9 +467,11 @@ class ImportSession:
         if self.problems() or not copper:
             return None
         outline_polys, area, boxes = [], None, []
+        self._outline = None
         for f in self.used(OUTLINE):
             try:
                 out = read_outline(f.text(), f.name)
+                self._outline = out
                 outline_polys = [(p.outer, p.holes) for p in out.polygons]
                 area = out.area_mm2
                 boxes.append(out.bbox)
@@ -493,12 +528,13 @@ class ImportSession:
                 return None
         return self._layer_cache[f.sha256]
 
-    def vias(self, max_mm: float = VIA_MAX_MM) -> tuple:
+    def vias(self, max_mm: float = None) -> tuple:
         """!
         @brief The plated holes split into vias (up to `max_mm`) and component holes, and the count of non-plated holes.
-        @param max_mm Largest diameter of a plated hole that is a via (mm).
+        @param max_mm Largest diameter of a plated hole that is a via (mm); None: the session's.
         @return tuple (vias, component holes, non-plated holes) as counts.
         """
+        max_mm = self.via_max_mm if max_mm is None else max_mm
         b = self._board
         if b is None:
             return 0, 0, 0
@@ -506,69 +542,623 @@ class ImportSession:
         n = sum(1 for h in plated if h.diameter <= max_mm)
         return n, len(plated) - n, len(b.holes) - len(plated)
 
-    # ------------------------------------------------------------------------------------------------------------------------------------ hooks of the features not merged yet
+    # ------------------------------------------------------------------------------------------------------------------------------------ job file
+    def _read_job(self, text):
+        """!
+        @brief Read the Gerber job file (`.gbrjob`): the layer count and the board thickness it declares (a damaged file is ignored).
+        @param text Content of the file.
+        @return None
+        """
+        try:
+            d = json.loads(text)
+            spec = d.get("GeneralSpecs", {})
+            self.job = {"layers": int(spec["LayerNumber"]) if "LayerNumber" in spec else None,
+                        "thickness_mm": float(spec["BoardThickness"]) if "BoardThickness" in spec else None}
+        except (ValueError, TypeError, AttributeError, KeyError):
+            self.job = None
+
+    def job_warnings(self) -> List[str]:
+        """!
+        @brief Where the job file and the file list disagree (layer count, board thickness against the typical stack-up).
+        @return list of text lines (empty without a job file or when they agree).
+        """
+        out = []
+        if not self.job:
+            return out
+        n = len(self.layers())
+        if self.job.get("layers") and n and self.job["layers"] != n:
+            out.append(f"The job file says {self.job['layers']} copper layers, the file list has {n}: check the functions in step 1")
+        t = self.job.get("thickness_mm")
+        st = self.stackup()
+        if t and st and abs(st["total_thickness_um"] / 1000.0 - t) > 0.1 * t:
+            out.append(f"The job file says a board thickness of {t:g} mm, the typical stack-up for {n} layers is {st['total_thickness_um'] / 1000.0:g} mm: the job thickness is used")
+        return out
+
+    # ------------------------------------------------------------------------------------------------------------------------------------ parts (step 2)
+    def parts_ready(self) -> bool:
+        """!
+        @brief Whether the parts of the current files have been built.
+        @return bool
+        """
+        return not self._parts_dirty
+
+    def build_parts(self):
+        """!
+        @brief Build the parts from the paste layers, the placement file and the X3 component layers in use, keeping what the user entered for parts that still exist.
+        @details The frame check offset is applied when the user accepted it. A placement or component file the reader refuses is marked in its `error` and left out.
+                 The new parts are merged with the old ones by `parts.merge_parts` (power, edits, a shape the user chose, parts picked by hand by position; a part that left the files
+                 becomes an orphan: kept, not heating).
+        @return None
+        """
+        paste = {}
+        for f in self.used(*PASTE):
+            lay = self._layer(f)
+            if lay is not None:
+                paste["top" if f.role == PASTE[0] else "bottom"] = lay
+        placement, comps = None, []
+        for f in self.used(PLACEMENT):
+            try:
+                placement = parts_mod.parse_placement(f.text(), f.name)
+            except ValueError as exc:
+                f.error = str(exc)
+        for f in self.used(COMPONENT):
+            try:
+                comps += comp_mod.parse_components(f.text(), f.name)
+            except (GerberError, ValueError) as exc:
+                f.error = str(exc)
+        try:
+            res = parts_mod.build_parts(paste, placement, comps or None, shape="hull", offset=self.offset if self.offset_answer == "accepted" else (0.0, 0.0))
+        except GerberError as exc:
+            # A paste layer with a negative image or another refusal: the parts are left empty and the file says why
+            for f in self.used(*PASTE):
+                f.error = str(exc)
+            res = parts_mod.PartsResult()
+            res.info = {"warnings": [str(exc)], "frame": None, "counts": {}}
+        new = res.parts + res.listed
+        old = self._parts + self._listed
+        merged = parts_mod.merge_parts(old, new, res.shapes, openings=res.openings).parts if old else new
+        for p in merged:
+            p.edits.setdefault("use", False)
+        self._res = res
+        self._parts = [p for p in merged if p.polygon_mm and p.from_file.get("heat_source", True) or p.from_file.get("orphan")]
+        self._listed = [p for p in merged if p not in self._parts]
+        self._unmatched = list(res.unmatched)
+        self._owner_cache = None
+        self._parts_dirty = False
+
+    def _ensure_parts(self):
+        """!
+        @brief Build the parts when the files changed since the last build.
+        @return None
+        """
+        if self._parts_dirty:
+            self.build_parts()
+
     def parts(self) -> list:
         """!
-        @brief The parts table: placement file and paste openings matched to heat-source shapes.
-        @details `feature/paste-parts` fills it; until then the list is empty and the Parts step says so.
-        @return list of part dicts (empty now).
+        @brief The parts table: the candidates (a polygon), the parts picked by hand and the orphans, then the parts that are only listed.
+        @return list of model.ImportPart; the user's edits are `edits["use"]`, `edits["tj_max"]`, `edits["role"]` and `power`.
         """
-        return []
+        self._ensure_parts()
+        return self._parts + self._listed
 
-    def copper(self):
+    def part(self, designator: str):
         """!
-        @brief The imported copper of the model (`ImportedCopper`) for the chosen mapping and cell.
-        @details `feature/imported-copper` provides it.
-        @return None now.
+        @brief A part by designator.
+        @param designator Designator.
+        @return ImportPart or None.
         """
+        return next((p for p in self.parts() if p.designator == designator), None)
+
+    def unmatched(self) -> list:
+        """!
+        @brief The paste openings no file names (red in the preview; a click turns one into a part).
+        @return list of parts.Opening.
+        """
+        self._ensure_parts()
+        return self._unmatched
+
+    def openings(self) -> list:
+        """!
+        @brief Every paste opening read.
+        @return list of parts.Opening.
+        """
+        self._ensure_parts()
+        return self._res.openings if self._res else []
+
+    def parts_info(self) -> dict:
+        """!
+        @brief What the build found on the way: the counts by source, the frame check, the bottom convention and its warnings.
+        @return dict (`counts`, `frame`, `warnings`, `convention`, `x3_vs_placement`).
+        """
+        self._ensure_parts()
+        return self._res.info if self._res else {"counts": {}, "frame": None, "warnings": []}
+
+    def is_orphan(self, p) -> bool:
+        """!
+        @brief Whether a part was kept after it left the files.
+        @param p ImportPart.
+        @return bool
+        """
+        return bool(p.from_file.get("orphan"))
+
+    def is_source(self, p) -> bool:
+        """!
+        @brief Whether a part is a heat source now: ticked, with a polygon, not an orphan.
+        @param p ImportPart.
+        @return bool
+        """
+        return bool(p.edits.get("use")) and bool(p.polygon_mm) and not self.is_orphan(p)
+
+    def source_label(self, p) -> str:
+        """!
+        @brief The text of the Source column of the parts table.
+        @param p ImportPart.
+        @return str
+        """
+        if self.is_orphan(p):
+            return "orphan (not in the files)"
+        return {"x3": "X3 component layer", "to.c+placement": "paste TO.C + placement", "placement by position": "paste + placement by position",
+                "paste only": "paste only", "placement only": "placement only"}.get(p.from_file.get("source", ""), p.from_file.get("source", "") or "-")
+
+    def set_part(self, designator: str, power: float = None, tj_max: float = None, role: str = None, use: bool = None):
+        """!
+        @brief Edit a part: its power (W), junction limit (degC), role ("Component" or "Source") or heat-source tick.
+        @details A power above zero ticks the part as a heat source (as the editor does for a heater with a power).
+        @param designator Designator.
+        @param power Power in W, or None.
+        @param tj_max Junction temperature limit in degC (0 = none), or None.
+        @param role "Component" or "Source", or None.
+        @param use True or False to tick, or None.
+        @return None
+        """
+        p = self.part(designator)
+        if p is None:
+            return
+        if power is not None:
+            p.power = float(power)
+            if power > 0 and p.polygon_mm and use is None:
+                p.edits["use"] = True
+        if tj_max is not None:
+            p.edits["tj_max"] = float(tj_max)
+        if role is not None:
+            p.edits["role"] = role
+        if use is not None:
+            p.edits["use"] = bool(use) and bool(p.polygon_mm)
+
+    def _openings_of(self, p) -> list:
+        """!
+        @brief The openings that belong to a part.
+        @param p ImportPart.
+        @return list of Opening (by `TO.C` designator, else by the centre inside the polygon).
+        """
+        return [self.openings()[i] for i in self._owners().get(p.designator, [])]
+
+    def _owners(self) -> dict:
+        """!
+        @brief Map designator -> indices of its openings (cached per build).
+        @return dict
+        """
+        if self._owner_cache is None:
+            out = {}
+            ops = self.openings()
+            hulls = [(p, comp_mod.hull([tuple(q) for q in p.polygon_mm])) for p in self._parts if len(p.polygon_mm) >= 3]
+            names = {p.designator for p in self._parts + self._listed}
+            for i, o in enumerate(ops):
+                owner = o.ref if o.ref and o.ref in names else None
+                if owner is None:
+                    for p, h in hulls:
+                        if p.side == o.side and parts_mod._point_to_hull(h, o.x, o.y) <= 1e-6:
+                            owner = p.designator
+                            break
+                if owner is not None:
+                    out.setdefault(owner, []).append(i)
+            self._owner_cache = out
+        return self._owner_cache
+
+    def owned_indices(self) -> set:
+        """!
+        @brief The indices of the openings that belong to a part (the others are red).
+        @return set of int.
+        """
+        return {i for idx in self._owners().values() for i in idx}
+
+    def owner_of_opening(self, i: int):
+        """!
+        @brief The part an opening belongs to.
+        @param i Index in `openings()`.
+        @return designator or None (the opening is red).
+        """
+        for des, idx in self._owners().items():
+            if i in idx:
+                return des
         return None
 
-    def build_problem(self) -> Problem:
+    def shapes_of(self, p) -> list:
         """!
-        @brief Build the new Problem of the import (a new project in format 2 with the import record).
-        @return Problem
-        @throws ImportNotAvailable Until `feature/imported-copper` is merged.
+        @brief The shapes the user can choose for a part: those its openings give ("hull", "box", "largest").
+        @param p ImportPart.
+        @return list of str (empty when the part has no opening).
         """
-        raise ImportNotAvailable("The imported copper of the model is not part of this version yet, so the project cannot be created from the files.")
+        ops = self._openings_of(p)
+        if not ops:
+            return []
+        return ["hull", "box"] + (["largest"] if len(ops) > 1 else [])
+
+    def set_shape(self, designator: str, kind: str):
+        """!
+        @brief Choose the heat-source shape of a part from its openings (always allowed; the choice is remembered as the user's).
+        @param designator Designator.
+        @param kind "hull", "box" or "largest".
+        @return None
+        """
+        p = self.part(designator)
+        ops = self._openings_of(p) if p else []
+        if not ops:
+            return
+        p.shape = kind
+        p.polygon_mm = [list(map(float, q)) for q in parts_mod.shape_polygon(ops, kind)]
+        p.edits["shape_user"] = kind != "hull"
+        self._owner_cache = None
+
+    def click(self, x: float, y: float, add: bool = False, selected: str = None, side: str = None):
+        """!
+        @brief A click on the preview at a point of the Gerber frame: select the part of an opening, create a heat source from a red opening, or (`add`) add it to the selected part.
+        @details The opening under the click is the largest one within 0.1 mm (`parts.opening_at`); a new part is made by `parts.part_from_openings(..., grouping="hand")` and named H<n>; the
+                 re-import matches it by position.
+        @param x X in mm (Gerber frame).
+        @param y Y in mm.
+        @param add True when the Ctrl key was held: add a red opening to the selected part.
+        @param selected Designator of the selected part, or None.
+        @param side "top" or "bottom": the side shown, or None for both.
+        @return designator of the part now selected, or None when nothing was under the click.
+        """
+        self._ensure_parts()
+        i = parts_mod.opening_at(self.openings(), x, y, side)
+        if i is None:
+            return None
+        owner = self.owner_of_opening(i)
+        if owner is not None:
+            return owner
+        o = self.openings()[i]
+        sel = self.part(selected) if selected else None
+        if add and sel is not None and sel.polygon_mm:
+            ops = self._openings_of(sel) + [o]
+            kind = sel.shape if sel.shape in ("hull", "box", "largest") else "hull"
+            ff = dict(sel.from_file)
+            ff["n_openings"] = len(ops)
+            sel.polygon_mm = [list(map(float, q)) for q in parts_mod.shape_polygon(ops, kind)]
+            sel.from_file = ff
+            self._unmatched = [u for u in self._unmatched if u is not o]
+            self._owner_cache = None
+            return sel.designator
+        n = 1 + sum(1 for q in self.parts() if re.fullmatch(r"H\d+", q.designator))
+        q = parts_mod.part_from_openings(f"H{n}", [o], "hull", "paste only", side=o.side, grouping="hand")
+        q.edits["use"], q.edits["role"] = True, "Source"
+        self._parts.append(q)
+        self._unmatched = [u for u in self._unmatched if u is not o]
+        self._owner_cache = None
+        return q.designator
+
+    def frame_proposal(self) -> Optional[dict]:
+        """!
+        @brief The frame check's answer: an offset of the placement file, or "the files do not fit".
+        @return dict `propose` (offset dx, dy in mm), `misfit`, `given` and `best` shares, or None when there is nothing to say.
+        """
+        fr = self.parts_info().get("frame")
+        if fr and (fr.get("propose") or fr.get("misfit")):
+            return fr
+        return None
+
+    def answer_frame(self, accept: bool):
+        """!
+        @brief The user's answer to the proposed offset: accept it (the parts are built again with the placement moved) or reject it (the file stays as it is).
+        @param accept True to accept.
+        @return None
+        """
+        fr = self.parts_info().get("frame") or {}
+        if accept and fr.get("propose"):
+            self.offset, self.offset_answer = (fr["dx"], fr["dy"]), "accepted"
+            self._parts_dirty = True
+        elif not accept:
+            self.offset, self.offset_answer = (0.0, 0.0), "rejected"
+            self._parts_dirty = True
 
     def heat_sources(self) -> list:
         """!
-        @brief The parts ticked as heat sources.
-        @return list (empty now).
+        @brief The parts that are heat sources (ticked, with a polygon, not orphans).
+        @return list of ImportPart.
         """
-        return [p for p in self.parts() if p.get("use")]
+        return [p for p in self.parts() if self.is_source(p)]
 
-    def memory_verdict(self, cell_mm: Optional[float] = None, pixel_mm: float = 0.05):
+    def parts_warnings(self) -> List[str]:
         """!
-        @brief The memory guard's verdict for the FVM grid of the board and the memory of the rasters of the import.
-        @details The FVM law of `pcbthermal.memory` on a board of the outline box with the layers in use, plus `estimate_raster_bytes` for the copper masks at the mask pixel; the measured
-                 term of the import (`feature/imported-copper`) replaces the raster line when it merges.
+        @brief Warnings of the Parts step: the frame check, the X3 comparison with the placement file, duplicates, parts by position only, files the reader refused.
+        @return list of text lines.
+        """
+        info = self.parts_info()
+        out = list(info.get("warnings", []))
+        fr = info.get("frame")
+        if fr and fr.get("propose") and self.offset_answer != "accepted":
+            out.append(f"The origin of the placement file differs from the Gerber files: moving its parts by {fr['dx']:+.2f}, {fr['dy']:+.2f} mm would put "
+                       f"{fr['best'] * 100:.0f} % of the parts on their openings instead of {fr['given'] * 100:.0f} %")
+        if fr and fr.get("misfit"):
+            out.append("The placement file and the Gerber files do not fit (another origin beyond 10 mm, a rotation, a mirror or a unit): the parts matched by position are not reliable")
+        if self.used(PLACEMENT) and self.used(*PASTE) and self.openings() and not any(o.ref for o in self.openings()) and not self.used(COMPONENT):
+            n = sum(1 for p in self.parts() if p.from_file.get("source") == "placement by position")
+            out.append(f"The paste layer names no parts: {n} parts matched by position (approximate)")
+        x3 = info.get("x3_vs_placement")
+        if x3 and (x3.get("only_x3") or x3.get("only_placement") or x3.get("moved")):
+            out.append(f"The X3 layer and the placement file differ: {len(x3['only_x3'])} parts only in the X3 layer, {len(x3['only_placement'])} only in the placement file, {len(x3['moved'])} moved")
+        return out
+
+    # ------------------------------------------------------------------------------------------------------------------------------------ model (step 3)
+    def thinnest_mm(self) -> Optional[float]:
+        """!
+        @brief The thinnest line of the copper files in use.
+        @return float mm or None.
+        """
+        b = self._board
+        return b.thinnest_mm if b else None
+
+    def auto_pixel(self, cell_mm: Optional[float] = None) -> float:
+        """!
+        @brief The automatic pixel of the masks: `min(m * w / 4, cell / 10)` with the supersampling m = 4 and the thinnest feature w (the rule of `copper.import_copper`).
+        @param cell_mm Cell in mm (None: the session's).
+        @return float mm.
+        """
+        cell = cell_mm or self.cell_mm
+        w = self.thinnest_mm()
+        return min(w, cell / 10.0) if w else cell / 10.0
+
+    def auto_cell(self) -> float:
+        """!
+        @brief The automatic cell: a 50th of the long side of the board, between 0.5 and 1 mm (a larger cell warns on imported copper).
+        @return float mm.
+        """
+        b = self._board
+        if b is None:
+            return 1.0
+        return float(min(max(max(b.width, b.height) / 50.0, 0.5), 1.0))
+
+    def effective_pixel(self) -> float:
+        """!
+        @brief The pixel in use: the user's or the automatic one.
+        @return float mm.
+        """
+        return self.pixel_mm if self.pixel_mm else self.auto_pixel()
+
+    def memory_verdict(self, cell_mm: Optional[float] = None, pixel_mm: Optional[float] = None) -> Optional[dict]:
+        """!
+        @brief The memory guard's verdict for the model grid and for the import of the masks.
+        @details `memory.check` on a board of the outline box (the FVM law) and `memory.check_import` (the masks, the draw and the face construction), both before anything is drawn.
         @param cell_mm Solver cell (mm); None: the session's.
-        @param pixel_mm Pixel of the copper masks (mm).
-        @return tuple (memory.Verdict, raster bytes) or None before the board is read.
+        @param pixel_mm Pixel of the masks (mm); None: the one in use.
+        @return dict `fvm` (memory.Verdict), `import_peak` (bytes or None), `import_error` (text, "" when it fits), `rows`, `cols`; None before the board is read.
         """
         b = self._board
         if b is None:
             return None
         cell = cell_mm if cell_mm else self.cell_mm
+        pix = pixel_mm if pixel_mm else self.effective_pixel()
         prob = Problem.new(b.width, b.height, layers=max(2, len(b.copper)))
         v = memory.check(prob, ["fvm"], cell, base=memory.BASE_DEFAULT, refuse="return", quiet=True)[0]
-        est = estimate_raster_bytes(window_of(b.box), pixel_mm, n_layers=len(b.copper))
-        return v, est.peak_bytes
+        rows, cols = pixel_counts(window_of(b.box), pix)
+        out = {"fvm": v, "import_peak": None, "import_error": "", "rows": rows, "cols": cols, "pixel_mm": pix}
+        try:
+            out["import_peak"] = memory.check_import(rows, cols, len(b.copper), cell, pixel_mm=pix)
+        except memory.MemoryGuardError as exc:
+            out["import_error"] = str(exc)
+        return out
 
     def warnings(self) -> List[str]:
         """!
-        @brief The warnings of the Model step (the import still runs).
-        @details Includes the always-on notes about the Lumped and Analytic models on imported copper and the missing heat source.
+        @brief The warnings of the Model step (the import still runs): the notes the program owes on imported copper (Lumped and Analytic always), a coarse cell or pixel, the job file and the parts.
         @return list of text lines.
         """
         out = []
         if not self.heat_sources():
             out.append("No heat source is defined: the board will have no power until you add one.")
-        out.append("Lumped and Analytic models read imported copper from the cell fill and run about 1 to 16 % cool (6 % on average in the study windows).")
-        out.append("The cell model of imported copper is approximate to a few percent, up to about 8 %; isolated diagonal copper on a coarse grid is the largest known error.")
-        out.append("No physical measurement of an imported board exists yet: the accuracy is against another model of the same physics.")
+        out.append(copper_mod.REDUCED_MODEL_WARNING)
+        if self.mapping == "fill":
+            out.append("imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
+        else:
+            out.append(copper_mod.FILL_NOTE)
+        if self.cell_mm > copper_mod.COARSE_CELL_MM + 1e-9 and self.mapping != "fill":
+            out.append(copper_mod.COARSE_CELL_WARNING)
+        pix = self.effective_pixel()
+        if self.mapping != "fill" and self.cell_mm / pix < copper_mod.COARSE_RASTER_PIXELS:
+            out.append(f"the masks have {self.cell_mm / pix:.1f} pixels per cell ({pix:g} mm pixel, {self.cell_mm:g} mm cell): below about {copper_mod.COARSE_RASTER_PIXELS:g} the face "
+                       "conductances cannot resolve the copper; use a finer pixel or a coarser cell")
+        out += self.job_warnings()
+        out += [w for w in self.parts_warnings() if "do not fit" in w or "origin" in w]
+        if self._board is not None:
+            v, comp, _ = self.vias()
+            if comp:
+                out.append(f"{comp} plated holes above {self.via_max_mm:g} mm are component holes and are not modelled as vias")
         return out
+
+    # ------------------------------------------------------------------------------------------------------------------------------------ building the project
+    def _copper_layers(self):
+        """!
+        @brief The parsed copper layers in stack order.
+        @return list of (SourceFile, Layer).
+        """
+        files = sorted(self.used(*COPPER), key=lambda f: COPPER.index(f.role) if f.role != COPPER_BOTTOM else 99)
+        return [(f, self._layer(f)) for f in files]
+
+    def _drills(self) -> list:
+        """!
+        @brief The drill files in use with the plated holes up to `via_max_mm` (the vias); the larger plated holes are component holes.
+        @return list of gerber.DrillFile.
+        """
+        out = []
+        for f in self.used(PLATED, NONPLATED):
+            try:
+                d = read_drill(f.text(), f.name)
+            except (GerberError, OSError):
+                continue
+            plated = d.plated if d.plated is not None else f.role == PLATED
+            keep = [h for h in d.holes if (h.plated if h.plated is not None else plated) and h.diameter <= self.via_max_mm]
+            out.append(DrillFile(keep, True, d.span, d.tools))
+        return out
+
+    def _component_holes(self, box) -> list:
+        """!
+        @brief The plated holes above the via limit, in board coordinates, for the record (not vias).
+        @param box Board box (x0, y0, x1, y1) in the Gerber frame.
+        @return list of hole dicts with kind "component".
+        """
+        b = self._board
+        return [{"x_mm": float(h.x - box[0]), "y_mm": float(h.y - box[1]), "d_mm": float(h.diameter), "kind": "component"} for h in (b.holes if b else [])
+                if h.plated and h.diameter > self.via_max_mm]
+
+    def import_files(self) -> List[ImportFile]:
+        """!
+        @brief The files in use as records of the project (name, size, hash and function; never the path).
+        @return list of model.ImportFile.
+        """
+        return [ImportFile(f.name, f.size, f.sha256, f.role) for f in self.used()]
+
+    def build_problem(self) -> Problem:
+        """!
+        @brief Build the new project from the files and the choices: rasterise the copper at the pixel, make the Problem (outline, vias, typical stack-up, job thickness, one heater per heat source) and the import record.
+        @details The record (`self.record`) holds the files, the parts with the user's edits, the masks, the plated holes (vias and component holes) and the settings; the window gives
+                 `Project(problem, imports=[record])` to the document.
+        @return Problem
+        @throws ValueError For a panel outline (several boards), no copper, or an import the files cannot make.
+        @throws memory.MemoryGuardError If the masks would not fit in memory.
+        """
+        if not self.complete():
+            raise ValueError("; ".join(self.problems()))
+        cl = self._copper_layers()
+        ib = copper_mod.import_copper([lay for _, lay in cl], self._outline if self.used(OUTLINE) else None, self._drills(), pixel_mm=self.effective_pixel(),
+                                      cell_mm=self.cell_mm, mapping=self.mapping, names=[f.name for f, _ in cl])
+        st = self.stackup()
+        thickness = (self.job or {}).get("thickness_mm") or (st["total_thickness_um"] / 1000.0 if st else 1.6)
+        prob = ib.to_problem(thickness_mm=thickness, name=self.name)
+        nb = new_problem().board                              # the user's defaults for a new board: ambient, heat transfer, plating, materials
+        for k in ("ambient", "h_top", "h_bottom", "h_side", "via_plating", "h_mode", "emissivity_top", "emissivity_bottom", "orientation", "air_speed", "h_calibration", "natural_form",
+                  "materials"):
+            setattr(prob.board, k, copy.deepcopy(getattr(nb, k)))
+        try:
+            prob.board.apply_template()                      # the typical stack-up of the layer count
+        except (ValueError, KeyError):
+            pass
+        if (self.job or {}).get("thickness_mm") and prob.board.dielectrics is None:
+            prob.board.thickness = thickness / 1000.0
+        self._add_heaters(prob, ib.box_mm, self.parts())
+        rec = ib.record(self.name)
+        rec.files = self.import_files()
+        rec.parts = copy.deepcopy(self.parts())
+        rec.holes = rec.holes + self._component_holes(ib.box_mm)
+        rec.warnings = list(ib.warnings) + self.warnings()
+        rec.settings = {"mapping": self.mapping, "cell_mm": self.cell_mm, "pixel_mm": ib.pixel_mm, "via_max_mm": self.via_max_mm, "offset_mm": list(self.offset),
+                        "roles": {f.name: f.role for f in self.used()}}
+        self.record, self.thickness_mm = rec, thickness
+        return prob
+
+    def _add_heaters(self, prob: Problem, box, parts):
+        """!
+        @brief Add one heater per heat source (board coordinates, the layer of its side).
+        @param prob Problem to change.
+        @param box Board box (x0, y0, x1, y1) of the import in the Gerber frame, mm.
+        @param parts List of ImportPart.
+        @return None
+        """
+        for p in parts:
+            if not self.is_source(p):
+                continue
+            poly = [[x - box[0], y - box[1]] for x, y in p.polygon_mm]
+            layer = 1 if p.side != "bottom" else max(prob.board.layers, 1)
+            prob.add_heater(layer, p.power, polygon=poly, name=p.designator, tj_max=float(p.edits.get("tj_max", 0.0)),
+                            role="source" if p.edits.get("role") == "Source" else "component" if p.edits.get("role") == "Component" else "")
+
+    # ------------------------------------------------------------------------------------------------------------------------------------ re-import
+    def part_diff(self, old: ImportRecord) -> list:
+        """!
+        @brief The table of what changed between the parts of a stored import and the parts of the current files (new, removed, moved, resized, rotated, kept).
+        @param old Stored ImportRecord.
+        @return list of dicts ref, change, detail.
+        """
+        return parts_mod.diff_parts(old.parts, self.parts())
+
+    @staticmethod
+    def classify_files(old: ImportRecord, new: ImportRecord) -> list:
+        """!
+        @brief Compare the file sets of a stored import and the new files, per function.
+        @param old Stored import.
+        @param new Record of the new files.
+        @return list of dicts function, status ("identical", "changed", "added", "only stored"), old, new (ImportFile or None).
+        """
+        o = {f.function: f for f in old.files}
+        n = {f.function: f for f in new.files}
+        out = []
+        for fn in ROLES:
+            a, b = o.get(fn), n.get(fn)
+            if a is None and b is None:
+                continue
+            status = "added" if a is None else "only stored" if b is None else "identical" if a.sha256 == b.sha256 else "changed"
+            out.append({"function": fn, "status": status, "old": a, "new": b})
+        return out
+
+    @staticmethod
+    def same_board(old: ImportRecord, new: ImportRecord, tol: float = 0.05) -> tuple:
+        """!
+        @brief Decide whether new files look like the same board as a stored import (outline box within 5 %, a shared file name or hash).
+        @param old Stored import.
+        @param new Record of the new files.
+        @param tol Relative difference of width or height accepted.
+        @return tuple (same bool, reasons list of str).
+        """
+        reasons = []
+        if len(old.box_mm) == 4 and len(new.box_mm) == 4:
+            ow, oh = old.box_mm[2] - old.box_mm[0], old.box_mm[3] - old.box_mm[1]
+            nw, nh = new.box_mm[2] - new.box_mm[0], new.box_mm[3] - new.box_mm[1]
+            if abs(ow - nw) > tol * ow or abs(oh - nh) > tol * oh:
+                reasons.append(f"the outline is {nw:.1f} x {nh:.1f} mm, the stored one {ow:.1f} x {oh:.1f} mm")
+        if old.files and new.files and not ({f.sha256 for f in old.files} & {f.sha256 for f in new.files}):
+            reasons.append("none of the files is byte-identical to a stored one")
+        if not ({f.name for f in old.files} & {f.name for f in new.files}):
+            reasons.append("no file name in common")
+        return not reasons, reasons
+
+    def merge_import(self, mode: str, old: ImportRecord, remove=(), file_choice=None) -> dict:
+        """!
+        @brief Merge the new import (`build_problem` was just run) into the stored record by the chosen command.
+        @details "replace" and "update": copper, drills and outline come from the new files; a part with the same designator keeps its power and edits, a part that left the files is an
+                 orphan (kept, not heating) unless listed in `remove`. "add": the stored copper, outline and settings stay; the functions the store lacks are taken from the new files
+                 (for a function both have, `file_choice[function]` "stored", the default, or "new"), and the parts the added files bring are added to the stored ones.
+        @param mode "replace", "update" or "add".
+        @param old Stored ImportRecord.
+        @param remove Designators the user confirmed to remove.
+        @param file_choice dict function -> "stored" or "new" for conflicts (mode "add").
+        @return dict `record` (ImportRecord), `changes` (text lines), `parts` (the merged ImportPart list), `orphans` (designators).
+        """
+        new = self.record
+        shapes = self._res.shapes if self._res else None
+        if mode == "add":
+            rec = copy.deepcopy(old)
+            files = {f.function: f for f in old.files}
+            changes = []
+            for item in self.classify_files(old, new):
+                fn = item["function"]
+                if item["status"] == "added":
+                    files[fn] = item["new"]
+                    changes.append(f"added {fn}: {item['new'].name}")
+                elif item["status"] == "changed":
+                    take = (file_choice or {}).get(fn, "stored") == "new"
+                    if take:
+                        files[fn] = item["new"]
+                    changes.append(f"conflict on {fn}: " + (f"took the new file {item['new'].name}" if take else f"kept the stored file {item['old'].name}"))
+            rec.files = list(files.values())
+            res = parts_mod.merge_parts(old.parts, new.parts, shapes, remove=remove, openings=self.openings())
+            rec.parts = res.parts
+            return {"record": rec, "changes": changes + res.changes, "parts": res.parts, "orphans": res.orphans}
+        res = parts_mod.merge_parts(old.parts, self.parts(), shapes, remove=remove, openings=self.openings())
+        rec = copy.deepcopy(new)
+        rec.parts = res.parts
+        return {"record": rec, "changes": res.changes, "parts": res.parts, "orphans": res.orphans}
 
 
 __all__ = ["BoardData", "Hole", "ImportNotAvailable", "ImportSession", "LayerInfo", "ROLES", "SourceFile"]
