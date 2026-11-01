@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed
+- **Lumped: footprint potentials of large footprints** (`fix/lumped-footprint-potentials`; `docs/theory.md` 5): the link of the heater footprint to the first ring was 4 to 22 % short on footprints above 900 cells (squares of 20 to 40 mm at a 0.5 mm cell: -4.0, -10.8, -21.6 %) by aliasing of the stride decimation; large footprints are now summed in k x k blocks (within 0.03 % of the all-cell sum on squares, a disc, a rectangle, an L and a ring; the peak term within 0.15 %). Results for footprints of 900 cells or fewer, including the three example boards, are unchanged to the bit. The board maximum at a 0.5 mm cell moves by +1 to +5 K on a 20 W source of 20 to 60 mm on a single copper sheet, and by 0 to +1.1 K at 1 mm. Tests: `tests/test_lumped_footprint.py`. The frozen record `reference_board|lumped|0.5` of `tests/regression/data/v2.4.5.json` moves with it (`t_max` 89.093 to 89.363 degC, `Tj` 79.71 to 79.97 degC) and is refrozen at the 2.5.0 release; the default 2 mm set is unchanged.
+- **Lumped via warnings: the unsafe side** (`fix/lumped-via-warning-limits`; text only, no temperature changes): the 2.4.5 text quoted up to 80 % for an array across the edge of a footprint where up to 221 % of the via effect (the part up to about 11 K, a quarter of its rise, too cool) was measured (`research/lumped-zones-adoption` 8.4). A new warning (`checks.lumped_via_cool_warning`) fires for a part whose via group continues past the footprint edge, stands off its centre (more than 0.1 of the smaller side) or lies under a footprint of side ratio above 1.5; vias farther than twice the array pitch do not count, so scattered vias on a board do not trigger it. The general text now gives up to 14 % of the rise too cool, and the text of the vias outside every part up to 2.3 times the effect (4 K, 9 % of the rise) for an array beside a part.
+
 ## [2.4.5] - 2026-11-01
 
 ### Fixed

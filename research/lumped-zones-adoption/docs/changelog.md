@@ -1,0 +1,8 @@
+# Text for `CHANGELOG.md` (Unreleased), if the zonal Lumped model is adopted
+
+Draft written before any run; the numbers in brackets are placeholders to be replaced by the output of the studies of this folder.
+
+* **Changed**: the Lumped model represents a group of vias under a larger footprint with two nodes per layer for the footprint (the core that the vias cover and the rest), joined by a lateral link in the source layer, so that the heat of the rest of the footprint has its own way down and a way sideways to the core. The via effect of a part with a via array under a larger footprint was up to [60] % too small in the Lumped model; it is now within [x] % on the simple boards. Boards without vias, and parts whose vias form no group in the footprint or cover more than 92 % of it, give the same result as before. The temperature of a Lumped run with a part over a via array changes by [a to b] K.
+* **Changed**: the capacities of the two footprint nodes are the sums of the capacities of their cells, so the step response and the power profiles of the Lumped model follow the same network.
+* **Added**: warnings of the Lumped model for a footprint that is elongated or whose vias are off its centre (the part may be read up to 20 % too cool in the via effect), and for a raster cell coarser than a tenth of the via core; [the Lumped raster follows the core].
+* **Fixed**: the footprint potentials of the Lumped model were decimated by a stride above 900 cells, which made the link to the first ring 4 to 11 % short for footprints of 20 to 30 mm; they are now aggregated in blocks [if the maintainer takes this item with the zones].
