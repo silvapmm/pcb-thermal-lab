@@ -32,7 +32,7 @@ import math
 from . import __version__, analytic, blocks, convection, fdm, fvm, laminate, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
-from .checks import check_fin_channels, check_lumped_zones, check_model_limits, check_problem, check_thick_plates, check_via_limits
+from .checks import check_fin_channels, check_input, check_lumped_zones, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
 from .numfmt import num
@@ -937,9 +937,8 @@ def _simulate(problem, options, progress):
                                      factor=memory.PROFILE_FACTOR, refuse="return") if problem.has_profiles() else [])
     profile_refused = next((v for v in profile_verdicts if v.verdict == "refuse"), None)
     guard_warnings += [v.message for v in profile_verdicts if v.exceeds_available and v.verdict != "refuse"]
-    sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm)
-                     + check_model_limits(problem, options.models, options.cell_mm)
-                     + check_via_limits(problem, options.models, options.cell_mm) + guard_warnings)
+    sim = Simulation(problem=problem, options=options, problem_warnings=check_input(problem, options.models, options.cell_mm)
+                     + guard_warnings)
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)

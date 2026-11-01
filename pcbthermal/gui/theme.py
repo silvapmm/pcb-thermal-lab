@@ -161,6 +161,9 @@ def apply_theme(app, name):
     pal.setColor(QPalette.ToolTipText, QColor(c["text"]))
     pal.setColor(QPalette.Highlight, QColor(c["accent"]))
     pal.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+    # Links (the clickable warnings under Run, the help pages) in the accent: the default #0000ff was unreadable on the dark base
+    pal.setColor(QPalette.Link, QColor(c["accent"]))
+    pal.setColor(QPalette.LinkVisited, QColor(c["accent"]))
     pal.setColor(QPalette.PlaceholderText, QColor(c["muted"]))
     pal.setColor(QPalette.Disabled, QPalette.Text, QColor(c["muted"]))
     pal.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(c["muted"]))
