@@ -35,6 +35,7 @@ import regress_classify as C                                                # no
 
 MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
 MARKERS = {"fvm": "o", "fdm": "s", "lumped": "^", "analytic": "v", "solid3d": "D"}
+FIRST_NUMBER = 4                                                            # first figure number this script may use
 CANONICAL = ("example_board", "plate_uniform", "plate_pad", "plate_vias", "t_outline")          # boards of the summary table
 LINTHRESH_K = 0.01                                                          # below this the symlog axis is linear: shifts under 0.01 K are drawn on a linear stretch
 
@@ -204,7 +205,8 @@ def figure_path(fig_dir, name):
             if m.group(2) == name:
                 return p
             nums.append(int(m.group(1)))
-    return fig_dir / f"fig_{(max(nums) if nums else 0) + 1:02d}_{name}.png"
+    # 02 and 03 belong to make_figures.py (shift map, error against the reference): numbers below FIRST_NUMBER are never given out here
+    return fig_dir / f"fig_{max(max(nums) if nums else 0, FIRST_NUMBER - 1) + 1:02d}_{name}.png"
 
 
 def draw_figure(rows, path, base_label, new_label):
@@ -258,7 +260,7 @@ def status_lines(diff):
     return [f"* {e['board']} / {e['model']} / {e['cell_mm']:g} mm: {e['status_old']} to {e['status_new']}" for e in diff["entries"] if e["status_old"] != e["status_new"]]
 
 
-def build(base, new, table, fig_dir=None, level=1, changelog=None):
+def build(base, new, table, fig_dir=None, level=1, changelog=None, link="../figures/"):
     """!
     @brief Build the chapter text (and the figure when a folder is given).
     @param base Earlier result set.
@@ -267,6 +269,7 @@ def build(base, new, table, fig_dir=None, level=1, changelog=None):
     @param fig_dir Folder for the figure, or None for no figure.
     @param level Heading level of the chapter title (2 when the chapter is a part of a longer document).
     @param changelog Text of the CHANGELOG section of the new version, quoted verbatim when there is no table.
+    @param link Path prefix of the figure in the Markdown link.
     @return tuple (markdown text, rows of the hottest-point table, figure path or None).
     """
     classified = table is not None
@@ -287,7 +290,7 @@ def build(base, new, table, fig_dir=None, level=1, changelog=None):
         md += [f"**Warning: the two sets were run in different environments** ({base.get('environment')} against {new.get('environment')}); the last digits of the bit-identical test are not reliable.", ""]
     md += [f"Environment of the new set: {new.get('environment')}. Cells in the sets: {sorted({float(r['cell_mm']) for r in new.get('records', [])}, reverse=True)} mm.", "",
            f"Records compared: {s['identical_records'] + len(diff['entries'])} (skipped or failed in both: {s['skipped_in_both']}). Bit-identical in every number and in the warnings: {s['identical_records']}. "
-           f"Hottest point moved: {len(rows)}. Alarms (unexplained, must-not-move, out of range): {s['alarms']}.", "",
+           f"Hottest point moved: {len(rows)}." + (f" Alarms (unexplained, must-not-move, out of range): {s['alarms']}." if classified else " Alarms: not applicable, the pair has no table."), "",
            ]
     if classified:
         md += ["| Class of the shifted numbers (all metrics) | Count |", "| :-- | --: |"]
@@ -319,7 +322,7 @@ def build(base, new, table, fig_dir=None, level=1, changelog=None):
     if fig_dir is not None and rows:
         fig = figure_path(fig_dir, f"version_shift_{slug(bl)}_vs_{slug(nl)}")
         draw_figure(rows, fig, bl, nl)
-        md += ["", "## Figure", "", f"![shift of the hottest point](../figures/{fig.name})", "",
+        md += ["", "## Figure", "", f"![shift of the hottest point]({link}{fig.name})", "",
                f"*Figure {fig.name[4:6]} (`figures/{fig.name}`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below {LINTHRESH_K} K.*"]
     if level > 1:
         md = [("#" * (level - 1) + x) if x.startswith("#") else x for x in md]
@@ -369,7 +372,7 @@ def pair_table(table, base, new):
     return None
 
 
-def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, boards=CANONICAL):
+def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, boards=CANONICAL, link="../figures/"):
     """!
     @brief The whole document: summary of the hottest point across all versions, then one chapter per consecutive pair, newest first.
     @param sets Result sets in version order (oldest first).
@@ -380,6 +383,7 @@ def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, bo
     @param fig_dir Folder for the figures or None.
     @param notes List of extra lines placed after the introduction (for example items still missing in the last tree).
     @param boards Boards of the summary table.
+    @param link Path prefix of the figures in the Markdown links.
     @return str.
     """
     labels = [vlabel(x) for x in sets]
@@ -395,7 +399,7 @@ def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, bo
     for a, b in reversed(list(zip(sets[:-1], sets[1:]))):
         unreleased = b.get("tree_state") == "unreleased"
         ch = changelog_section(changelog_text, "Unreleased" if unreleased else b["program"]["version"])
-        text, _rows, _fig = build(a, b, pair_table(table, a, b), fig_dir, level=2, changelog=ch)
+        text, _rows, _fig = build(a, b, pair_table(table, a, b), fig_dir, level=2, changelog=ch, link=link)
         md.append(text)
     return "\n".join(md)
 
@@ -416,6 +420,7 @@ def main(argv=None):
     ap.add_argument("--table", default=str(ROOT / "reference" / "expected_shifts.json"), help="table of expected shifts of the later version")
     ap.add_argument("--out", default=None, help="Markdown output (default out/version_comparison_<base>_vs_<new>.md)")
     ap.add_argument("--fig-dir", default=str(ROOT / "figures"))
+    ap.add_argument("--link", default="../figures/", help="path prefix of the figures in the Markdown (for a file in docs/: ../research/release-regression-245/figures/)")
     ap.add_argument("--no-figure", action="store_true")
     a = ap.parse_args(argv)
     sets = [C.load_set(x) for x in a.sets]
@@ -431,7 +436,7 @@ def main(argv=None):
         out = Path(a.out) if a.out else ROOT / "out" / f"version_comparison_{slug(base['label'])}_vs_{slug(new['label'])}.md"
     else:
         cl = Path(a.changelog).read_text(encoding="utf-8") if Path(a.changelog).exists() else ""
-        text, rows, fig = build_history(sets, table, cl, a.not_run, a.summary_cell, fig_dir, a.note), [], None
+        text, rows, fig = build_history(sets, table, cl, a.not_run, a.summary_cell, fig_dir, a.note, link=a.link), [], None
         out = Path(a.out) if a.out else ROOT / "out" / "version-comparison.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")

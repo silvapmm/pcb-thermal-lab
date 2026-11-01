@@ -114,6 +114,6 @@ def test_pair_table_only_for_its_pair_and_history(tmp_path):
     assert "| b1 | fvm | 100.000 | 110.000 | 110.000 |" in text and "v0.9: cannot run" in text and "note line" in text
     assert "> - later" in text
     files = sorted(p.name for p in tmp_path.glob("fig_*.png"))
-    assert files == ["fig_01_version_shift_v1.0.0_vs_v1.1.0.png"]
+    assert files == ["fig_04_version_shift_v1.0.0_vs_v1.1.0.png"]
     V.build_history([s0, s1, s2], TABLE, log, [], 2.0, tmp_path, [])
     assert sorted(p.name for p in tmp_path.glob("fig_*.png")) == files                       # same name part: same number
