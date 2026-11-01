@@ -19,7 +19,12 @@ from pcbthermal.gerber import detect_file, parse_layer, read_layer
 from pcbthermal.gerber import parts as P
 from pcbthermal.gerber.errors import GerberError
 
-DATA = Path(os.environ.get("PCBT_REAL_BOARDS", "/Volumes/SSD/PROJETOS/pcb-thermal-lab/.claude/worktrees/agent-aa828a7a970c19021/research/gerber-real-boards/data"))
+## Where the git-ignored boards of the research may be (`research/gerber-real-boards/scripts/fetch_boards.py`), as in test_gerber_conformance.py: the first folder that exists is used.
+_CANDIDATES = [os.environ.get("PCBT_REAL_BOARDS", ""), os.environ.get("PCBT_GERBER_DATA", ""),
+               str(Path(__file__).resolve().parents[1] / "research" / "gerber-real-boards" / "data"),
+               "/Volumes/SSD/PROJETOS/pcb-thermal-lab/.claude/worktrees/agent-aa828a7a970c19021/research/gerber-real-boards/data",
+               "/Volumes/SSD/PROJETOS/pcb-thermal-lab/research/gerber-real-boards/data"]
+DATA = next((Path(c) for c in _CANDIDATES if c and Path(c).is_dir()), Path("research/gerber-real-boards/data"))
 
 
 def heat_shape(part, paste_hull=None):
@@ -309,10 +314,13 @@ def test_build_parts_with_an_x3_layer_uses_it_and_notes_the_placement_difference
     lay = paste_with_refs([("R1", 9.5, 0, 0.5, 0.6), ("R1", 10.5, 0, 0.5, 0.6)])
     placement = [dict(ref="R1", value="", package="", x=10.9, y=0, rot=0, side="top"), dict(ref="Q9", value="", package="", x=0, y=0, rot=0, side="top")]
     res = P.build_parts({"top": lay}, placement, comps)
-    by = {p.designator: p for p in res.parts}
+    by = {p.designator: p for p in res.parts + res.listed}
     assert set(by) == {"R1", "J1"} and all(p.from_file["source"] == "x3" for p in by.values())
     assert by["R1"].from_file["shape_source"] == "paste" and by["R1"].shape == "hull" and by["R1"].from_file["value"] == "VR1" and by["R1"].from_file["mount"] == "SMD"
+    # Review: a through-hole part is listed with its offered outline, not a heat-source candidate (INTEGRATION 12 item 4)
+    assert [p.designator for p in res.parts] == ["R1"] and [p.designator for p in res.listed] == ["J1"]
     assert by["J1"].from_file["shape_source"] == "Courtyard" and by["J1"].from_file["mount"] == "TH" and by["J1"].shape == "outline"
+    assert by["J1"].from_file["heat_source"] is False and by["J1"].polygon_mm
     note = res.info["x3_vs_placement"]
     assert note["only_x3"] == ["J1"] and note["only_placement"] == ["Q9"] and note["moved"] == [("R1", 0.9)]
     box = P.build_parts({"top": lay}, None, comps, shape="box")
@@ -375,3 +383,78 @@ def test_stickhub_counts_and_the_bottom_part_frame():
     assert d4.rotation == -90.0 and d4.pins[0].number == "1" and d4.pins[0].y > d4.origin[1]
     comps, paste, copper = read_board(DATA / "stickhub")
     assert xc.link_copper(comps, copper).unknown_refs == ["C38", "J1", "JP1"]
+
+
+# ------------------------------------------------------------------------------------------------------------------------------ review regressions
+def test_review_hostile_component_layers_end_in_a_gerber_error_only():
+    """!@brief Review: 200 mutated component layers (deleted spans, a number of 5000 digits, stray `%` and `*`, `nan`/`inf` characteristics, a step and repeat) end in a list of components or
+    a GerberError, never another exception (a 5000-digit coordinate raised the ValueError of Python's integer limit) and never a hang."""
+    import random
+    import time
+    base = HEAD.format(layer=1, side="Top") + part("R1", 10, 20, -90, [(1, 10, 21), (2, 10, 19)], court=square(10, 20, 3, 2)) + part("U2", 5, 5, 45, [(1, 4, 4), (2, 6, 6)]) + "M02*\n"
+    junk = ["%", "*", "D03", "G03", "X", "Y", "I", "J", "9" * 5000, "-", "%TO.C,*%", "%TD*%", "%TO.CRot,nan*%", "%TO.CRot,1e999*%", "%TO.CHgt,inf*%", "%FSLAX66Y66*%",
+            "%MOIN*%", "G74*", "%SRX1000Y1000I1J1*%", "X99999999999999999999Y1D01*", "\x00"]
+    rng = random.Random(20261101)
+    t0 = time.time()
+    for _ in range(200):
+        t = list(base)
+        for _ in range(rng.randint(1, 20)):
+            pos = rng.randrange(len(t))
+            r = rng.random()
+            if r < 0.3:
+                del t[pos:pos + rng.randint(1, 80)]
+            elif r < 0.7:
+                t[pos:pos] = list(rng.choice(junk))
+            else:
+                t[pos] = chr(rng.randrange(32, 127))
+        try:
+            for c in xc.parse_components("".join(t)):
+                if c.origin:
+                    xc.heat_polygon(c)
+                    assert all(math.isfinite(v) for v in xc.to_board(c, [(1.0, 0.5)])[0])
+        except GerberError:
+            pass
+    assert time.time() - t0 < 20
+
+
+def test_review_format_statement_variants_and_bad_characteristics():
+    """!@brief Review: incremental coordinates are refused (as the main reader does), trailing-zero omission is read as the main reader reads it, a byte order mark is skipped, a `.CRot` of
+    `nan` or `inf` is noted instead of turning the part into nan, and an arc in G74 mode is kept as its chord with a note."""
+    from pcbthermal.gerber.errors import UnsupportedFeatureError
+    body = "%TA.AperFunction,ComponentMain*%\n%ADD10C,0.3*%\n%TD*%\nD10*\n%TO.C,C1*%\n"
+    with pytest.raises(UnsupportedFeatureError, match="incremental"):
+        xc.parse_components("%FSLIX46Y46*%\n%MOMM*%\n" + body + "X1000000Y2000000D03*\nM02*\n")
+    (c,) = xc.parse_components("\ufeff%FSTAX46Y46*%\n%MOMM*%\n" + body + "X1Y2D03*\nM02*\n")       # trailing zeros omitted: "1" is padded to 10 digits (4 + 6), 1000.000000 mm
+    assert c.origin == pytest.approx((1000.0, 2000.0))
+    for bad in ("nan", "inf", "1e999", "abc"):
+        (c,) = xc.parse_components("%FSLAX46Y46*%\n%MOMM*%\n" + body + f"%TO.CRot,{bad}*%\n%TO.CHgt,-1*%\nX1000000Y2000000D03*\nM02*\n")
+        assert c.rotation == 0.0 and c.height_mm is None and any(".CRot" in n for n in c.notes) and any(".CHgt" in n for n in c.notes)
+    g74 = HEAD.format(layer=1, side="Top") + "D10*\n%TO.C,U1*%\nX0Y0D03*\nD11*\nG74*\n" + f"X{mm(-1)}Y{mm(-1)}D02*\nX{mm(1)}Y{mm(-1)}D01*\nG03*\nX{mm(1)}Y{mm(1)}I0J{mm(1)}D01*\nG01*\n"
+    g74 += f"X{mm(-1)}Y{mm(1)}D01*\nX{mm(-1)}Y{mm(-1)}D01*\nM02*\n"
+    (c,) = xc.parse_components(g74)
+    assert xc.polygon_area(c.outlines["Courtyard"][0]) == pytest.approx(4.0) and any("G74" in n for n in c.notes)
+
+
+def test_review_mount_types_other_than_smd_are_listed_with_their_outline_and_fiducial_too():
+    """!@brief Review: a part whose mount type is not SMD (TH, Pressfit, Other, the pre-2024.05 Fiducial, an unknown value) is listed, not a heat-source candidate, with its offered outline,
+    even when it has paste linked by `TO.C` (paste in hole); an SMD part with no outline and no paste is listed with the hull of its pins."""
+    text = HEAD.format(layer=1, side="Top")
+    for k, mnt in enumerate(("TH", "Pressfit", "Other", "Fiducial", "Surface")):
+        text += part(f"X{k}", 10 * k, 0, 0, [(1, 10 * k - 1, 0), (2, 10 * k + 1, 0)], court=square(10 * k, 0, 3, 2)).replace("CMnt,SMD", f"CMnt,{mnt}")
+    text += part("R9", 60, 0, 0, [(1, 59.5, 0), (2, 60.5, 0)])
+    comps = xc.parse_components(text + "M02*\n")
+    lay = paste_with_refs([("X0", -1, 0, 0.5, 0.5), ("X0", 1, 0, 0.5, 0.5)])
+    res = P.build_parts({"top": lay}, None, comps)
+    assert [p.designator for p in res.parts] == ["R9"] and res.parts[0].shape == "hull" and res.parts[0].from_file["shape_source"] == "pins"
+    assert [p.designator for p in res.listed] == ["X0", "X1", "X2", "X3", "X4"]
+    assert all(p.from_file["heat_source"] is False and p.polygon_mm for p in res.listed)
+    assert res.listed[0].from_file["n_openings"] == 2
+
+
+def test_review_x3_note_reads_a_negated_bottom_x_of_the_placement_file():
+    """!@brief Review: the comparison of the X3 layer with a placement file whose bottom X is negated (a KiCad export option) reports the convention and no moved part."""
+    text = HEAD.format(layer=1, side="Bot") + part("C1", 30, -40, 0, [(1, 29.5, -40), (2, 30.5, -40)]) + part("C2", 35, -42, 90, [(1, 35, -41.5), (2, 35, -42.5)]) + "M02*\n"
+    comps = xc.parse_components(text)
+    pl = [dict(ref="C1", value="", package="", x=-30.0, y=-40.0, rot=0, side="bottom"), dict(ref="C2", value="", package="", x=-35.0, y=-42.0, rot=90, side="bottom")]
+    note = P.build_parts({}, pl, comps).info["x3_vs_placement"]
+    assert note["bottom_convention"] == "negated X" and note["moved"] == []

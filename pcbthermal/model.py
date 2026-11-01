@@ -1512,11 +1512,13 @@ class ImportFile:
 class ImportPart:
     """!
     @brief An imported part (heat source) keyed by its designator, with the user's edits.
-    @details `from_file` holds what the files say (value, mount, rotation_deg, height_mm, package, mpn, `source` of the match: "x3", "to.c+placement",
-             "placement by position" or "paste only"); it is rewritten at every import and is never an edit. The user's edits stay in `edits`.
+    @details `from_file` holds what the files say (value, mount, rotation_deg, height_mm, package, mpn, position_mm, n_openings, shape_source, `source` of the match: "x3",
+             "to.c+placement", "placement by position", "paste only" or "placement only"; `grouping` "hand" or "proximity" for a name the files do not give, matched by position
+             in a re-import; `heat_source` False for an X3 part that is not SMD; `orphan` True for a part kept after it left the files); it is rewritten at every import and is never an
+             edit. The user's edits stay in `edits`.
     """
     designator: str = ""                                  # Key used to match the part again in a re-import
-    shape: str = "box"                                    # "box" or "hull"
+    shape: str = "box"                                    # "box", "hull", "largest" (the largest opening) or "outline" (an outline of an X3 component layer)
     polygon_mm: list = field(default_factory=list)        # Heat-source polygon [[x, y], ...] in mm
     power: float = 0.0                                    # Power in W (user edit)
     edits: dict = field(default_factory=dict)             # Other user edits (tj_max, role, use, shape_user, ...)

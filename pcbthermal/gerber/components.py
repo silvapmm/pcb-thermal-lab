@@ -5,7 +5,7 @@
 @brief The Gerber X3 component layer (`%TF.FileFunction,Component,L<p>,Top|Bot*%`) read into `Component` objects, the link of the components to the paste and copper layers by `TO.C` and `TO.P`, and the heat-source shape.
 @details Written from the Ucamco Gerber Layer Format Specification (aperture functions `ComponentMain`, `ComponentOutline,<type>` and `ComponentPin`; object attributes `.C`, `.P`, `.CRot`, `.CVal`,
          `.CMnt`, `.CFtp`, `.CHgt`, ...); port of the research prototype `research/gerber-real-boards/lib/x3_components.py`, independent of the raster reader (`parser.Layer` keeps `.C`, `.N`, `.P` only and
-         ignores the `.Cxxx`). No GUI, standard library only.
+         ignores the `.Cxxx`). No GUI; the coordinate numbers are read by `parser.parse_number` (leading or trailing zeros omitted, as the main reader); any malformed input ends in a `GerberError`.
          One small tokeniser: extended commands between `%`, function blocks ending in `*`; it follows the aperture function, the current aperture, the object attributes (a dictionary that `TO` adds to and
          `TD` removes from, read when each object is created, so the order in the file does not matter), the interpolation mode and the coordinate format. Lengths in mm (the file unit is converted,
          `.CHgt` too); angles in degrees, positive counter-clockwise seen from the top. Not read: aperture blocks and macros (not used by a component layer); step and repeat is counted in `Component.notes`.
@@ -20,7 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
 
-from .errors import GerberError
+from .errors import GerberError, UnsupportedFeatureError
+from .parser import parse_number
 
 ## The outline types of the specification, the ones that come before the paste hull in the heat-source order, and the ones that come after it.
 OUTLINE_BEFORE_PASTE = ("Body", "Lead2Lead")
@@ -105,15 +106,19 @@ def _arc_points(p0, p1, ij, clockwise, step_deg=5.0):
     return pts
 
 
-def _num(token, ndec, scale):
+def _num(token, fmt, scale):
     """!
-    @brief A coordinate integer to mm (leading zeros omitted, the digits after the point given by the format).
-    @param token Text of the integer (sign allowed).
-    @param ndec Digits after the decimal point of the format.
+    @brief A coordinate of the file to mm (the format statement says the digits and which zeros are omitted).
+    @param token Text of the number (sign allowed).
+    @param fmt Tuple (integer digits, decimal digits, "L" or "T") of the format statement.
     @param scale mm per file unit.
     @return float in mm.
+    @throws GerberError If the value is not finite.
     """
-    return int(token) / (10 ** ndec) * scale
+    v = parse_number(token, fmt[0], fmt[1], fmt[2]) * scale
+    if not math.isfinite(v):
+        raise GerberError(f"coordinate {token[:20]!r} is not finite")
+    return v
 
 
 def parse_components(text, name=""):
@@ -126,12 +131,35 @@ def parse_components(text, name=""):
     @param text Content of the file.
     @param name File name for the messages.
     @return list of Component in file order (a reference flashed twice as ComponentMain is two entries: the check is `duplicate_references`).
-    @throws GerberError If the file has no coordinate format statement.
+    @throws GerberError If the file has no coordinate format statement, uses incremental coordinates (`UnsupportedFeatureError`) or is malformed (a number that is not finite or has
+            thousands of digits); never another exception.
     """
-    fm = re.search(r"%FS[LT]?[AI]X(\d)(\d)Y(\d)(\d)\*%", text)
+    try:
+        return _parse_components(text, name)
+    except GerberError:
+        raise
+    except (ValueError, IndexError, KeyError, TypeError, ZeroDivisionError, OverflowError, RecursionError, MemoryError) as exc:
+        # A number of thousands of digits, a malformed field: always the reader's own error, naming the file (as parser.Layer does)
+        raise GerberError(f"{name or 'file'}: malformed component layer ({type(exc).__name__}: {exc})") from exc
+
+
+def _parse_components(text, name):
+    """!
+    @brief The body of `parse_components` (any Python error it raises is turned into a GerberError by the caller).
+    @param text Content of the file.
+    @param name File name for the messages.
+    @return list of Component in file order.
+    @throws GerberError If the file has no coordinate format statement or uses incremental coordinates.
+    """
+    text = text.lstrip("\ufeff")                           # a byte order mark would hide the first extended command
+    fm = re.search(r"%FS([LTD]?)([AI])X(\d)(\d)Y(\d)(\d)\*%", text)
     if not fm:
         raise GerberError(f"{name or 'file'}: no format statement (FS)")
-    ndx, ndy = int(fm.group(2)), int(fm.group(4))
+    if fm.group(2) == "I":
+        raise UnsupportedFeatureError(name, "incremental coordinates (FS with I)")
+    zeros = "T" if fm.group(1) == "T" else "L"               # trailing-zero omission (deprecated) is read as the main reader does
+    fmt_x = (int(fm.group(3)), int(fm.group(4)), zeros)
+    fmt_y = (int(fm.group(5)), int(fm.group(6)), zeros)
     unit = re.search(r"%MO(MM|IN)\*%", text)
     scale = 25.4 if unit and unit.group(1) == "IN" else 1.0
     ff = re.search(r"%TF\.FileFunction,Component,L(\d+),(Top|Bot)\*%", text)
@@ -150,6 +178,7 @@ def parse_components(text, name=""):
     pos = (0.0, 0.0)
     path = None                                             # the polyline being drawn: (reference, list of points)
     sr_seen = False
+    single_quadrant = False                                 # G74 (deprecated): an arc is then replaced by its chord and noted
 
     def record(ref):
         """!
@@ -197,22 +226,23 @@ def parse_components(text, name=""):
         if re.fullmatch(r"G0?([123])", blk):
             mode = "G0" + blk[-1]
             continue
-        if blk == "G75" or blk == "G74" or blk.startswith("M0") or blk in ("G36", "G37"):
-            if blk == "G74" and "C" in attr:
-                record(attr["C"]).notes.append("single-quadrant arcs (G74) not read")
+        if blk in ("G74", "G75"):
+            single_quadrant = blk == "G74"
+            continue
+        if blk.startswith("M0") or blk in ("G36", "G37"):
             continue
         md = re.fullmatch(r"D(\d+)", blk)
         if md and int(md.group(1)) >= 10:
             cur_ap = int(md.group(1))
             path = None                                     # draws with another aperture are another outline (consecutive draws only)
             continue
-        mc = re.fullmatch(r"(?:G0?([123]))?(?:X(-?\d+))?(?:Y(-?\d+))?(?:I(-?\d+))?(?:J(-?\d+))?(?:D0?([123]))?", blk)
+        mc = re.fullmatch(r"(?:G0?([123]))?(?:X([-+]?[\d.]+))?(?:Y([-+]?[\d.]+))?(?:I([-+]?[\d.]+))?(?:J([-+]?[\d.]+))?(?:D0?([123]))?", blk)
         if not mc or not any(mc.groups()):
             continue
         g, xs, ys, i_, j_, d = mc.groups()
         if g:
             mode = "G0" + g
-        newpos = (_num(xs, ndx, scale) if xs is not None else pos[0], _num(ys, ndy, scale) if ys is not None else pos[1])
+        newpos = (_num(xs, fmt_x, scale) if xs is not None else pos[0], _num(ys, fmt_y, scale) if ys is not None else pos[1])
         func = ap_func.get(cur_ap, "")
         if d == "3":
             pos = newpos
@@ -248,8 +278,14 @@ def parse_components(text, name=""):
                 record(attr["C"]).outlines.setdefault(kind, []).append(pts)
             if mode == "G01":
                 path[1].append(newpos)
+            elif single_quadrant:
+                # The sign of I and J is not in the file in G74 mode: the chord is kept and the part says so (no silent wrong arc)
+                path[1].append(newpos)
+                rec = record(attr["C"])
+                if "single-quadrant arc (G74) read as its chord" not in rec.notes:
+                    rec.notes.append("single-quadrant arc (G74) read as its chord")
             else:
-                path[1].extend(_arc_points(pos, newpos, (_num(i_ or "0", ndx, scale), _num(j_ or "0", ndy, scale)), mode == "G02"))
+                path[1].extend(_arc_points(pos, newpos, (_num(i_ or "0", fmt_x, scale), _num(j_ or "0", fmt_y, scale)), mode == "G02"))
         pos = newpos
     return out
 
@@ -287,14 +323,22 @@ def _set_char(rec, key, val, scale):
     v = val.strip()
     if key == "CRot":
         try:
-            rec.rotation = float(v)
+            r = float(v)
         except ValueError:
-            rec.notes.append("bad .CRot " + v)
+            r = math.nan
+        if math.isfinite(r):
+            rec.rotation = r
+        else:                                               # nan or inf would turn every point of the part into nan
+            rec.notes.append("bad .CRot " + v[:40])
     elif key == "CHgt":
         try:
-            rec.height_mm = float(v) * scale
+            h = float(v) * scale
         except ValueError:
-            rec.notes.append("bad .CHgt " + v)
+            h = math.nan
+        if math.isfinite(h) and h >= 0:
+            rec.height_mm = h
+        else:
+            rec.notes.append("bad .CHgt " + v[:40])
     elif key == "CFtp":
         rec.footprint = v
     elif key == "CVal":

@@ -14,6 +14,7 @@ import math
 import os
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from pcbthermal.gerber import parse_layer, read_layer
@@ -21,7 +22,12 @@ from pcbthermal.gerber import parts as P
 from pcbthermal.model import ImportPart
 
 ## The git-ignored boards of the research (placement files, paste layers); the tests that need them skip when the folder is absent.
-DATA = Path(os.environ.get("PCBT_REAL_BOARDS", "/Volumes/SSD/PROJETOS/pcb-thermal-lab/.claude/worktrees/agent-aa828a7a970c19021/research/gerber-real-boards/data"))
+## Where the git-ignored boards of the research may be (`research/gerber-real-boards/scripts/fetch_boards.py`), as in test_gerber_conformance.py: the first folder that exists is used.
+_CANDIDATES = [os.environ.get("PCBT_REAL_BOARDS", ""), os.environ.get("PCBT_GERBER_DATA", ""),
+               str(Path(__file__).resolve().parents[1] / "research" / "gerber-real-boards" / "data"),
+               "/Volumes/SSD/PROJETOS/pcb-thermal-lab/.claude/worktrees/agent-aa828a7a970c19021/research/gerber-real-boards/data",
+               "/Volumes/SSD/PROJETOS/pcb-thermal-lab/research/gerber-real-boards/data"]
+DATA = next((Path(c) for c in _CANDIDATES if c and Path(c).is_dir()), Path("research/gerber-real-boards/data"))
 
 PADS = {
     "C_0402_1005Metric": [(-0.48, 0.0), (0.48, 0.0)],
@@ -365,7 +371,7 @@ def test_no_placement_file_leaves_every_opening_to_the_click():
     res = P.build_parts({"top": lay})
     assert not res.parts and len(res.unmatched) == 2
     i = P.opening_at(res.openings, res.openings[0].x, res.openings[0].y)
-    h = P.part_from_openings("H1", [res.openings[i]])
+    h = P.part_from_openings("H1", [res.openings[i]], grouping="hand")
     assert h.designator == "H1" and h.shape == "hull" and h.from_file["source"] == "paste only" and h.side == "top"
 
 
@@ -401,6 +407,15 @@ def test_merge_keeps_edits_and_power_rewrites_from_file_and_keeps_orphans_off():
     assert by["C2"].from_file["orphan"] is True and by["C2"].power == 0.1 and by["C2"].from_file["value"] == "gone"
     rows = {r["ref"]: r for r in P.diff_parts(old, new)}
     assert rows["C9"]["change"] == "new" and rows["C2"]["change"] == "removed" and "moved" in rows["C1"]["change"]
+
+
+def test_review_a_placement_file_larger_than_the_limit_is_refused(tmp_path, monkeypatch):
+    """!@brief Review: a placement file is read whole into memory, so a file above `MAX_PLACEMENT_BYTES` is refused before it is read."""
+    f = tmp_path / "pos.csv"
+    f.write_text("Ref,PosX,PosY\n" + "R1,1,2\n" * 100)
+    monkeypatch.setattr(P, "MAX_PLACEMENT_BYTES", 200)
+    with pytest.raises(ValueError, match="limit"):
+        P.read_placement(f)
 
 
 def test_sha256_of_a_file(tmp_path):
@@ -485,3 +500,230 @@ def test_real_board_build_parts_by_to_c_and_by_position_and_a_shifted_placement_
     shifted = P.apply_offset(placement, 3.0, -2.0)
     res3 = P.build_parts(layers, shifted, use_refs=False)
     assert res3.info["frame"]["propose"] and (res3.info["frame"]["dx"], res3.info["frame"]["dy"]) == pytest.approx((-3.0, 2.0), abs=0.15)
+
+
+# ------------------------------------------------------------------------------------------------------------------------------ review regressions
+def test_review_placement_files_with_a_byte_order_mark_a_comma_in_a_semicolon_header_and_bad_rows():
+    """!@brief Review: a KiCad report or a CSV that starts with a byte order mark is read; a semicolon header holding a comma ("Pos X (mm, abs)") is found; a row without X or Y, a length
+    or a rotation that is not finite are refused with the line number instead of a part at the origin or an infinite position."""
+    kicad = "\ufeff### Module positions ###\n## Unit = mm, Angle = deg.\n# Ref Val Package PosX PosY Rot Side\nC1 100n C_0402_1005Metric 1.0 2.0 90 bottom\n"
+    (c,) = P.parse_placement(kicad)
+    assert (c["ref"], c["x"], c["y"], c["rot"], c["side"]) == ("C1", 1.0, 2.0, 90.0, "bottom")
+    (u,) = P.parse_placement("Ref;Pos X (mm, abs);Pos Y;Rot;Side\nU1;12,5;3,25;90;B\n")
+    assert (u["x"], u["y"], u["side"]) == (12.5, 3.25, "bottom")
+    for bad, word in (("Ref,Val,Package,PosX,PosY\nC1,100n\n", "line 2"), ("Ref,PosX,PosY\nC1,1e400,2\n", "finite"), ("Ref,PosX,PosY,Rot\nC1,1,2,1e999\n", "finite"),
+                      ("Ref,PosX,PosY\nC1,,2\n", "no X or Y")):
+        with pytest.raises(ValueError, match=word):
+            P.parse_placement(bad, "pos.csv")
+    # Sides written as the tools write them
+    sides = P.parse_placement("Ref,PosX,PosY,Side\nA,1,1,Bottom\nB,1,1,B\nC,1,1,bottom\nD,1,1,BottomLayer\nE,1,1,T\nF,1,1,Top\n")
+    assert [p["side"] for p in sides] == ["bottom"] * 4 + ["top"] * 2
+
+
+def test_review_duplicate_designators_keep_the_first_row_and_warn():
+    """!@brief Review: two rows with one designator made two parts that shared the same openings; the first row is kept and the repetition is warned."""
+    c1 = part("C1", "C_0402_1005Metric", 0.0, 0.0, 0)
+    lay, _ = layer_of([c1])
+    res = P.build_parts({"top": lay}, [c1, dict(c1, x=5.0)])
+    assert [p.designator for p in res.parts] == ["C1"] and res.parts[0].from_file["n_openings"] == 2
+    assert any("duplicate designators" in w and "C1" in w for w in res.info["warnings"])
+
+
+def test_review_a_negative_paste_layer_is_refused_and_clear_objects_cut_the_openings():
+    """!@brief Review: a paste layer with a negative image (IPNEG or `TF.FilePolarity,Negative`) is refused by name instead of being read as positive; clear objects (LPC) in a positive
+    layer cut an opening in file order, with and without `TO.C`."""
+    from pcbthermal.gerber.errors import UnsupportedFeatureError
+    sq = [(0, 0), (2, 0), (2, 2), (0, 2)]
+    text = T_paste([sq])
+    for neg in (text.replace("%LPD*%", "%IPNEG*%\n%LPD*%"), text.replace("%LPD*%", "%TF.FilePolarity,Negative*%\n%LPD*%")):
+        with pytest.raises(UnsupportedFeatureError, match="negative"):
+            P.read_openings(parse_layer(neg), "top")
+    # A 2 x 2 mm pad cut by a clear cross of 0.2 mm into four windows (a window-pane exposed pad)
+    cross = "%LPC*%\n%ADD10R,0.2X2.2*%\n%ADD11R,2.2X0.2*%\nD10*\nX1000000Y1000000D03*\nD11*\nX1000000Y1000000D03*\n"
+    for refs in (None, ["U1"]):
+        lay = parse_layer(T_paste([sq], refs).replace("M02*\n", cross + "M02*\n"))
+        ops = P.read_openings(lay, "top")
+        assert len(ops) == 4 and sum(o.area for o in ops) == pytest.approx(4 * 0.9 * 0.9, rel=0.03)
+
+
+def T_paste(polys, refs=None):
+    """!
+    @brief The text of a top paste layer of polygons (see `paste_text`).
+    @param polys List of polygons.
+    @param refs List of references or None.
+    @return str.
+    """
+    return paste_text(polys, "Top", refs)
+
+
+def test_review_the_pixel_does_not_grow_with_the_board_or_a_stray_object():
+    """!@brief Review: one raster of the whole layer coarsened the pixel above 150 mm (0.1 mm on a 300 mm board, 0.2 mm with an object 600 mm away: up to 42 and 73 % off in the area of a
+    0201 opening); the clusters are drawn apart at 0.05 mm, so a 0.3 x 0.3 mm opening keeps its area within 5 % and its centre within 0.03 mm."""
+    pads = [[(x, y), (x + 0.3, y), (x + 0.3, y + 0.3), (x, y + 0.3)] for x, y in ((5.013, 5.021), (150.037, 100.009), (290.041, 190.033))]
+    stray = [[(595.0, 395.0), (596.0, 395.0), (596.0, 396.0), (595.0, 396.0)]]
+    ops = P.read_openings(parse_layer(T_paste(pads + stray)), "top", by_ref=False)
+    assert len(ops) == 4
+    for x, y in ((5.013, 5.021), (150.037, 100.009), (290.041, 190.033)):
+        o = min(ops, key=lambda q: math.hypot(q.x - x - 0.15, q.y - y - 0.15))
+        assert o.area == pytest.approx(0.09, rel=0.05) and math.hypot(o.x - x - 0.15, o.y - y - 0.15) < 0.03
+
+
+def test_review_frame_check_thresholds_on_shifts_rotation_and_parts_missing():
+    """!@brief Review: the frame check on a synthetic board of 40 two-pad parts: files that agree or are off by up to 0.5 mm are not moved; 1, 3 and 9.7 mm are proposed with the right
+    offset; a shift beyond the search (20 mm) and a file rotated by 90 degrees about the origin are not proposed but said not to fit; half of the parts missing from the file changes
+    nothing; the offset is detected together with a negated bottom X."""
+    parts = [part(f"C{i}", ("C_0402_1005Metric", "C_0603_1608Metric")[i % 2], 3.0 * (i % 8), 4.0 * (i // 8), (0, 90, 180, 270)[i % 4]) for i in range(40)]
+    lay, _ = layer_of(parts)
+    ops = P.read_openings(lay, "top")
+    for s in (0.0, 0.2, 0.5):
+        fc = P.frame_check(P.apply_offset(parts, s, -s), ops)
+        assert not fc["propose"] and not fc["misfit"] and fc["given"] == 1.0
+    for s in (1.0, 3.0, 9.7):
+        fc = P.frame_check(P.apply_offset(parts, s, -0.6 * s), ops)
+        assert fc["propose"] and fc["best"] == 1.0 and (fc["dx"], fc["dy"]) == pytest.approx((-s, 0.6 * s), abs=0.15)
+    for far in (P.apply_offset(parts, 20.0, 0.0), [dict(p, x=-p["y"], y=p["x"], rot=p["rot"] + 90) for p in parts]):
+        fc = P.frame_check(far, ops)
+        assert not fc["propose"] and fc["misfit"]
+        res = P.build_parts({"top": lay}, far)
+        assert any("does not fit" in w for w in res.info["warnings"])
+    assert not P.frame_check(parts[::2], ops)["propose"]
+    fc = P.frame_check(P.apply_offset(parts[::2], 3.0, 2.0), ops)
+    assert fc["propose"] and (fc["dx"], fc["dy"]) == pytest.approx((-3.0, -2.0), abs=0.15)
+    # Bottom parts written with a negated X AND an origin offset: once the offset is given, the convention is detected with it
+    bot = [part(f"B{i}", "C_0402_1005Metric", 30.0 + 3.0 * i, -40.0 - 2.0 * (i % 3), (0, 90)[i % 2], "bottom") for i in range(8)]
+    blay, _ = layer_of(bot, side="bottom", mirror=True)
+    file_rows = [dict(p, x=-(p["x"] - 3.0), y=p["y"] - 2.0) for p in bot]          # KiCad: -(x - origin), y - origin
+    res = P.build_parts({"bottom": blay}, file_rows, offset=(3.0, 2.0))
+    assert res.info["convention"] == "negated X" and len(res.parts) == 8 and not res.unmatched
+
+
+def test_review_bottom_parts_with_an_off_centre_envelope_follow_the_specification():
+    """!@brief Review: the envelope of a bottom part whose pads are off its origin (a 2 x 3 pin header) is mirrored as the X3 specification draws it (p. 166: the local x changes sign, then
+    the counter-clockwise rotation), the same rule as `components.to_board`, at every quarter turn and at 30 degrees; the mirror ("x" or the 180-degree "y") is detected from the openings."""
+    from pcbthermal.gerber import components as xc
+    pkg = "PinHeader_2x03_P2.54mm_Vertical"
+    pins = [(c * 2.54, -r * 2.54) for r in range(3) for c in range(2)]                # KiCad pin positions, Y up
+    for rot in (0.0, 90.0, 180.0, 270.0, 30.0):
+        p = dict(ref="J1", package=pkg, value="", x=10.0, y=20.0, rot=rot, side="bottom")
+        comp = xc.Component("J1", side="bottom", origin=(10.0, 20.0), rotation=rot)
+        board = xc.to_board(comp, pins)
+        env = P.part_envelope_polygon(p)
+        cen = env.mean(axis=0)
+        exp = xc.to_board(comp, [(1.27, -2.54)])[0]                                   # the centre of the pin field
+        assert cen == pytest.approx(exp, abs=1e-9)
+        ok, _ = P._inside_envelope(p, [b[0] for b in board], [b[1] for b in board], 0.0)
+        assert ok.all()
+    # At rotation zero the pin field of the bottom part lies on the -x side, seen from the top (the pin-1 mark of the drawing moves to the right of the body)
+    assert P.part_envelope_polygon(dict(ref="J1", package=pkg, value="", x=0.0, y=0.0, rot=0.0, side="bottom")).mean(axis=0)[0] == pytest.approx(-1.27)
+    # Openings at the pins (paste in hole) drawn by the specification's rule and by the 180-degree variant: the detection picks each
+    hdr = dict(ref="J1", package=pkg, value="", x=10.0, y=20.0, rot=90.0, side="bottom")
+    for mirror in ("x", "y"):
+        rot = P._rotation(90.0, "bottom", mirror)
+        sq = [[(10.0 + q[0] + dx, 20.0 + q[1] + dy) for dx, dy in ((-0.4, -0.4), (0.4, -0.4), (0.4, 0.4), (-0.4, 0.4))] for q in (rot @ np.array(pins).T).T]
+        ops = P.read_openings(parse_layer(paste_text(sq, "Bot")), "bottom")
+        assert P.bottom_mirror([hdr], ops)[0] == mirror
+        res = P.build_parts({"bottom": parse_layer(paste_text(sq, "Bot"))}, [hdr])
+        assert res.info["bottom_mirror"] == mirror and res.parts[0].from_file["n_openings"] == 6
+
+
+def test_review_diff_reports_a_quarter_turn_as_rotated_and_the_same_files_twice_as_kept():
+    """!@brief Review: a part turned by 90 degrees read "kept" (the sorted sides of `resized` do not change); it reads "rotated" from the rotation of the files or, without one, from the
+    box; the same board diffed with itself gives only "kept", and a merge of it keeps every power."""
+    parts = [part("U2", "SOIC-8_3.9x4.9mm_P1.27mm", 10.0, 10.0, 0), part("C1", "C_0603_1608Metric", 20.0, 10.0, 0)]
+    lay, _ = layer_of(parts)
+    a = P.build_parts({"top": lay}, parts).parts
+    b = P.build_parts({"top": lay}, parts).parts
+    assert {r["change"] for r in P.diff_parts(a, b)} == {"kept"}
+    for p in a:
+        p.power = 0.5
+    m = P.merge_parts(a, b)
+    assert all(p.power == 0.5 for p in m.parts) and not m.orphans
+    turned = [dict(parts[0], rot=90), parts[1]]
+    lay2, _ = layer_of(turned)
+    c = P.build_parts({"top": lay2}, turned).parts
+    rows = {r["ref"]: r for r in P.diff_parts(a, c)}
+    assert rows["U2"]["change"] == "rotated" and rows["C1"]["change"] == "kept"
+    for p in a + c:                                                              # no rotation in the files: the box tells
+        p.from_file.pop("rotation_deg", None)
+    assert {r["ref"]: r for r in P.diff_parts(a, c)}["U2"]["change"] == "rotated"
+
+
+@needs_data
+@pytest.mark.skipif(not (DATA / "isastm" / "pos.csv").exists(), reason="isastm not present")
+def test_review_build_parts_on_isastm_detects_the_negated_bottom_x_by_itself():
+    """!@brief Review: `build_parts` itself (not only `match_envelope`) detects isastm's negated bottom X and gives 133 of 134 parts by position when the `TO.C` designators are ignored;
+    the frame check proposes nothing."""
+    folder = DATA / "isastm"
+    placement = P.read_placement(folder / "pos.csv")
+    layers = {"top": read_layer(folder / "pasteF.gbr"), "bottom": read_layer(folder / "pasteB.gbr")}
+    res = P.build_parts(layers, placement, use_refs=False)
+    assert res.info["convention"] == "negated X" and len(res.parts) == 133 and not res.info["frame"]["propose"] and not res.info["frame"]["misfit"]
+
+
+def test_review_parts_without_a_file_name_are_matched_by_position_in_a_re_import():
+    """!@brief Review: the proximity groups are numbered again at every import and a part picked by hand (H<n>) is in no file, so the merge by name gave the power of P1 to another group and
+    made H1 an orphan; they are now matched by position (the new group within 0.3 mm, or the new openings inside the stored polygon)."""
+    a, b = (part(r, "C_0402_1005Metric", x, 0.0, 0) for r, x in (("A", 0.0), ("B", 10.0)))
+    lay, _ = layer_of([a, b])
+    first = P.build_parts({"top": lay}, None, proximity_fallback=True)
+    assert sorted(p.designator for p in first.parts) == ["P1", "P2"]
+    for p in first.parts:
+        p.power = 1.0 if p.polygon_mm[0][0] < 5 else 2.0                       # 1 W on the left group, 2 W on the right one
+    hand = P.part_from_openings("H1", [first.openings[0]], grouping="hand")
+    hand.power = 0.3
+    # Revision: a new part on the far left shifts the numbering of the groups
+    lay2, _ = layer_of([part("Z", "C_0402_1005Metric", -10.0, 0.0, 0), a, b])
+    second = P.build_parts({"top": lay2}, None, proximity_fallback=True)
+    m = P.merge_parts(first.parts + [hand], second.parts, openings=second.openings)
+    left = [p for p in m.parts if p.from_file.get("grouping") == "proximity" and abs(_cx(p) - 0.0) < 1]
+    right = [p for p in m.parts if p.from_file.get("grouping") == "proximity" and abs(_cx(p) - 10.0) < 1]
+    new = [p for p in m.parts if p.from_file.get("grouping") == "proximity" and abs(_cx(p) + 10.0) < 1]
+    assert [p.power for p in left] == [1.0] and [p.power for p in right] == [2.0] and [p.power for p in new] == [0.0]
+    assert len({p.designator for p in m.parts}) == len(m.parts) and not m.orphans
+    h = next(p for p in m.parts if p.designator == "H1")
+    assert h.power == 0.3 and h.from_file["grouping"] == "hand" and h.from_file["n_openings"] == 1
+    # Without the openings, the hand part has nothing to be matched with: an orphan, kept
+    assert P.merge_parts([hand], second.parts).orphans == ["H1"]
+
+
+def _cx(p):
+    """!
+    @brief Centre X of the box of a part polygon.
+    @param p ImportPart.
+    @return float in mm.
+    """
+    xs = [q[0] for q in p.polygon_mm]
+    return (min(xs) + max(xs)) / 2
+
+
+def test_review_the_board_profile_plotted_on_the_paste_layer_is_not_an_opening():
+    """!@brief Review: KiCad can plot the board outline on every layer (aperture function `Profile`, StickHub and Coldfire); it became an "opening" whose hull is the whole board, so a
+    click anywhere selected it. Profile and NonMaterial objects are left out."""
+    pad = [(10.0, 10.0), (11.0, 10.0), (11.0, 11.0), (10.0, 11.0)]
+    frame = "%TA.AperFunction,Profile*%\n%ADD20C,0.1*%\n%TD*%\nD20*\nX0Y0D02*\nX40000000Y0D01*\nX40000000Y30000000D01*\nX0Y30000000D01*\nX0Y0D01*\n"
+    frame += "%TA.AperFunction,NonMaterial*%\n%ADD21C,0.2*%\n%TD*%\nD21*\nX1000000Y1000000D02*\nX5000000Y1000000D01*\n"
+    lay = parse_layer(paste_text([pad]).replace("M02*\n", frame + "M02*\n"))
+    ops = P.read_openings(lay, "top")
+    assert len(ops) == 1 and ops[0].area == pytest.approx(1.0, rel=0.02)
+    assert P.opening_at(ops, 20.0, 15.0) is None and P.opening_at(ops, 10.5, 10.5) == 0
+
+
+@needs_data
+def test_review_x3_samples_have_no_unmatched_opening_once_the_profile_is_left_out():
+    """!@brief Review: on StickHub and Coldfire the only unmatched "openings" were the board profile plotted on the paste layers (11.2 and 183 mm2); with it left out every opening belongs to a part."""
+    import test_gerber_components as TC
+    for folder in (DATA / "stickhub", DATA / "ucamco" / "x3_coldfire", DATA / "ucamco" / "x3_liion"):
+        if not folder.exists():
+            pytest.skip(f"{folder} not present")
+        comps, paste, copper = TC.read_board(folder)
+        assert not P.build_parts(paste, None, comps, copper).unmatched
+
+
+def test_review_diff_tolerances_moved_0_3_mm_and_resized_0_2_mm():
+    """!@brief The tolerances of the update table: a centre shift of 0.25 mm is kept and 0.35 mm is moved; a side grown by 0.15 mm is kept and by 0.25 mm is resized."""
+    def box(ref, x, w):
+        """!@brief A box part. @param ref Designator. @param x Left edge (mm). @param w Width (mm). @return ImportPart."""
+        return ImportPart(ref, "box", [[x, 0.0], [x + w, 0.0], [x + w, 1.0], [x, 1.0]], 0.0, {}, "", "top")
+    old = [box("A", 0.0, 2.0), box("B", 0.0, 2.0), box("C", 0.0, 2.0), box("D", 0.0, 2.0)]
+    new = [box("A", 0.25, 2.0), box("B", 0.35, 2.0), box("C", -0.075, 2.15), box("D", -0.125, 2.25)]
+    assert {r["ref"]: r["change"] for r in P.diff_parts(old, new)} == {"A": "kept", "B": "moved", "C": "kept", "D": "resized"}
