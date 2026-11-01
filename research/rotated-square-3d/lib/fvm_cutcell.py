@@ -146,41 +146,79 @@ class CutCellNetwork(fvm.Network):
             gy = np.where((s1 > 0) & (s2 > 0), ap[None] * dx / r, 0.0)
         return gx, gy
 
+    def _program_links(self):
+        """!
+        @brief The lateral links of the program's own assembly (harmonic mean of the cover-scaled sheets, imported faces), as `fvm.Network._assemble` builds them.
+        @return Tuple (gx, gy): shapes (nl, ny, nx - 1) and (nl, ny - 1, nx).
+        """
+        gx = self._harmonic(self.S[:, :, :-1], self.S[:, :, 1:]) * self.dy / self.dx
+        gy = self._harmonic(self.S[:, :-1, :], self.S[:, 1:, :]) * self.dx / self.dy
+        for layer, (fx, fy) in self._imported_faces().items():
+            on = self.active
+            gx[layer] = fx * (on[:, :-1] & on[:, 1:])
+            gy[layer] = fy * (on[:-1, :] & on[1:, :])
+        return gx, gy
+
+    def _links_for_solvers(self):
+        """!
+        @brief The lateral links of the variant with the imported layers left as the program builds them (the reduced sheet has its own faces).
+        @return Tuple (gx, gy) as `_lateral_links`.
+        """
+        gx, gy = self._lateral_links()
+        if self.geo is not None:
+            gx0, gy0 = self._program_links()
+            for layer in self._imported_faces():
+                gx[layer], gy[layer] = gx0[layer], gy0[layer]
+        return gx, gy
+
     def _assemble(self):
         """!
-        @brief Assemble the matrix as the parent does, with the lateral links of `_lateral_links`.
+        @brief The program's matrix plus the difference between the cut-cell links and the program's links (a development-proof way to swap the links).
+        @details The parent builds K with every other term (vertical links, vias, laminate nodes, films); only the lateral couplings change, so the difference is
+                 added as symmetric couplings (it may be negative). Without an outline the parent's matrix is returned untouched.
         @return scipy.sparse.csr_matrix.
         """
-        from pcbthermal import viawell
+        K = super()._assemble()
+        if self.geo is None:
+            return K
         L, ny, nx = self.nl, self.ny, self.nx
-        nb = self.n_board
         idx = np.arange(L * ny * nx).reshape(L, ny, nx)
+        gx1, gy1 = self._links_for_solvers()
+        gx0, gy0 = self._program_links()
         rows, cols, vals = [], [], []
-
-        def couple(a_idx, b_idx, g):
-            a, bb, gg = a_idx.ravel(), b_idx.ravel(), g.ravel()
-            keep = gg > 0
-            a, bb, gg = a[keep], bb[keep], gg[keep]
+        for a_idx, b_idx, d in ((idx[:, :, :-1], idx[:, :, 1:], gx1 - gx0), (idx[:, :-1, :], idx[:, 1:, :], gy1 - gy0)):
+            a, bb, dd = a_idx.ravel(), b_idx.ravel(), d.ravel()
+            keep = dd != 0
+            a, bb, dd = a[keep], bb[keep], dd[keep]
             rows.extend([a, bb, a, bb])
             cols.extend([a, bb, bb, a])
-            vals.extend([gg, gg, -gg, -gg])
-
-        gx, gy = self._lateral_links()
-        couple(idx[:, :, :-1], idx[:, :, 1:], gx)
-        couple(idx[:, :-1, :], idx[:, 1:, :], gy)
-        if nb > 1:
-            couple(idx[:nb - 1], idx[1:nb], self.gz)
-        for a_layer, b_layer, g in self.extra_links:
-            couple(idx[a_layer], idx[b_layer], g)
-        vr, vc, vv = viawell.matrix_entries(self.via_blocks, idx)
-        rows.extend(vr)
-        cols.extend(vc)
-        vals.extend(vv)
+            vals.extend([dd, dd, -dd, -dd])
         n = L * ny * nx
-        rows.append(np.arange(n))
-        cols.append(np.arange(n))
-        vals.append(self.g_amb.ravel())
-        return sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsr()
+        D = sp.coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n)).tocsr()
+        return (K + D).tocsr()
+
+
+def _patched_sor():
+    """!
+    @brief The parent's `solve_sor` with its own lateral-link block replaced by a call to `_links_for_solvers` (so the point SOR sees the cut-cell links).
+    @details The text of the parent method is edited in memory and refused when the block is not found exactly once (the program changed).
+    @return Function to install as `CutCellNetwork.solve_sor`.
+    @throws RuntimeError If the block of the parent was not found.
+    """
+    import inspect
+    import textwrap
+    text = textwrap.dedent(inspect.getsource(fvm.Network.solve_sor))
+    start = text.index("    gx = self._harmonic(")
+    end = text.index("    gr[:, :, :-1], gl[:, :, 1:] = gx, gx")
+    if text.count("    gx = self._harmonic(") != 1 or start > end:
+        raise RuntimeError("the parent solve_sor changed: update _patched_sor")
+    text = text[:start] + "    gx, gy = self._links_for_solvers()\n" + text[end:]
+    ns = {}
+    exec(compile(text, "<patched solve_sor>", "exec"), vars(fvm), ns)
+    return ns["solve_sor"]
+
+
+CutCellNetwork.solve_sor = _patched_sor()
 
 
 @contextlib.contextmanager
