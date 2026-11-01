@@ -139,3 +139,19 @@ The question: the project already holds an import (format 2, `imports`) and the 
 
 **Open questions for the maintainer.** (1) Orphans: keep until the user removes them (the prototype), or remove at once after the one confirmation? (2) The move tolerance (0.3 mm) and the resize tolerance (0.2 mm) are guesses: wanted per user or fixed? (3) Parts matched by position only (no `TO.C`) can swap designators when a layout revision moves two parts across each other: accept, or ask for the pick-and-place designators as the key and warn when the paste has none? (4) Should *add* also offer to re-read the placement file against the paste already imported (parts only), as a fourth command? (5) Do results of earlier runs stay in the file (outdated) or are they dropped on a replace?
 Status: design and prototype only; the diff, the merge and the dialog run on the RP2040 board and on a synthetic board (tests in `prototypes/import_window/tests`).
+
+
+## 11. The matching rule of the parts, the stepper window and the shape (README 11)
+
+**The matching rule to adopt** (replaces "nearest paste group within 0.8 mm, one group per part" of the prototype):
+1. When the paste file names its parts (`TO.C`), the designator of each opening is the answer (unchanged, README 4.4).
+2. Otherwise, per **opening** (link 0.05 mm, no grouping first): the part whose pad envelope, rotated by the part's angle and grown by **0.3 mm**, contains the opening centre; the **smallest envelope wins**; **one part may take many openings**. The envelope of a part comes from its footprint pad extents (the footprint name when no library is read: 0402 to 1206, SOIC pins and pitch, SOT-223, pin headers, the QFN from the paste). Result on the RP2040 board: 18 to 27 of 30 parts, 129 of 129 openings; cmm2 90 to 99 of 101 (453 correct, 9 wrong, 32 missed of 494), isastm 105 to 130 of 134 (738 / 0 / 34 of 772), oswlight 40 to 43 of 43 (126 / 0 / 80 of 206).
+3. The user can always change an assignment (click an opening, Ctrl+click to add, a part's openings listed); the table says "by designator" or "by position" per part, and warns that the paste file names no part.
+4. Parts with no opening (through-hole headers, connectors) stay as parts without a heat source, listed, not an error.
+Limits to carry into the program: the envelope table must grow (TSOP, USB-C, batteries) or be read from the footprints of the placement file's package column; parts that are in the paste but not in the placement file take no openings (the 9 wrong cmm2 openings were openings of such a part taken by a neighbour: an opening outside every envelope of the placement file, or in the envelope of a part the file does not list, should stay unassigned).
+
+**The window layout (decided): the stepper.** Three numbered steps joined by a line (current in the accent, finished with a check, locked ones muted with a tooltip that says why), Back / Next, Import on step 3, and a secondary *Import now* once step 1 is complete (figure 18); the tab and wizard variants of the prototype are not carried on.
+
+**Re-import (INTEGRATION 10).** Replace, Update and Add files, asked before anything is written, one undo step (figure 19).
+
+**The shape of the heat source.** Suggested: the bounding box of the part's openings, or the hull when it differs from the box by a few per cent; always editable per part; the openings-only shape is not offered as the default (README 4.4 D, 11.5: the hull moves the peak by 0 to 1.3 % on the four parts of figure 17, so the choice is not critical, the single largest opening is).

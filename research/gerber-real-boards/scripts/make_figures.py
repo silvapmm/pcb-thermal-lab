@@ -6,6 +6,8 @@
 @details Figures (numbering continues after the diagrams of make_diagrams.py): fig_04 the error of each copper mapping on the real windows (study_copper_mapping), fig_05 memory against the unknowns
          with the fitted line (study_time_memory), fig_06 the step response of the heater by cell size (study_transient_fine), fig_07 the fine-copper indicator against the error of the cell model with
          the threshold (study_fine_copper_warning). Every number in a figure comes from the printed results; a curve that is only illustrative is not drawn here.
+         fig_14 to fig_16 the 30 parts of the RP2040 board against the prototype's group rule and the envelope rule (lib/component_match.py, lib/component_views.py), fig_17 box or hull as the heat-source shape,
+         fig_18 and fig_19 screenshots of the import window prototype (lib/window_shots.py); these need data/rp2040 (git-ignored; fetch_boards.py) and are skipped with a message without it; fig_18 and fig_19 also need PySide 6 (QT_QPA_PLATFORM=offscreen is set).
          Run (from the repository root): .venv/bin/python research/gerber-real-boards/scripts/make_figures.py   (matplotlib and NumPy only)
 """
 
@@ -330,13 +332,45 @@ def fig_network_split():
     plt.close(fig)
 
 
+def fig_components():
+    """!
+    @brief Figures 14 to 17: the matching of the paste openings to the parts of the RP2040 board (two overviews, three crops) and the box-or-hull sheet.
+    @return None
+    """
+    if not (ROOT / "data" / "rp2040" / "pos.csv").exists():
+        print("skipped: data/rp2040 is missing (run fetch_boards.py)")
+        return
+    sys.path[:0] = [str(ROOT / "lib"), str(ROOT.parents[1])]
+    import component_views as cv
+    cv.setup("rp2040")
+    cv.draw_overviews(FIG / "fig_14_component_match_prototype.png", FIG / "fig_15_component_match_improved.png")
+    cv.draw_crops(FIG / "fig_16_component_match_crops.png")
+    for r in cv.draw_source_shape(FIG / "fig_17_source_shape_box_hull.png"):
+        print("source shape %s: %d openings, paste %.1f, box %.1f, hull %.1f mm2 (%+.1f %%), T box %.1f hull %.1f openings %.1f K" % r)
+
+
+def fig_window():
+    """!
+    @brief Figures 18 and 19: the three steps of the hybrid import window and the three re-import dialogs (screenshots of the prototype, offscreen Qt).
+    @return None
+    """
+    if not (ROOT / "data" / "rp2040" / "pos.csv").exists():
+        print("skipped: data/rp2040 is missing (run fetch_boards.py)")
+        return
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    sys.path[:0] = [str(ROOT / "lib"), str(ROOT.parents[1])]
+    import window_shots as ws
+    ws.draw_window_figures(FIG / "fig_18_import_window_hybrid_steps.png", FIG / "fig_19_import_window_reimport.png")
+
+
 def main():
     """!
     @brief Draw every figure whose results exist.
     @return None.
     """
     FIG.mkdir(parents=True, exist_ok=True)
-    for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links, fig_rule_on, fig_rule_shift, fig_network_split):
+    for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links, fig_rule_on, fig_rule_shift, fig_network_split, fig_components, fig_window):
         f()
 
 

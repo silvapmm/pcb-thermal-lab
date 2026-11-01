@@ -67,7 +67,7 @@ Real open boards with **paste layers and a placement file** (found by a search o
 | `isastm` | Manawyrm/ISASTM, STM32 ISA-over-USB adapter, KiCad 5.1.6 | GPL-3.0 | 4 | copper (F, In1, In2, B), edge cuts, PTH and NPTH drills, **F_Paste and B_Paste with `TO.C` per part**, `all-pos.csv` (KiCad) and `cpl_jlc.csv` (JLCPCB), a Gerber job file (101.65 x 101.65 mm, 1.6 mm), `.xml` | file list, licence and the heads of the paste, position and job files read (R) |
 | `cmm2` | Manawyrm/CMM2-JLC, Colour Maximite 2, revision E | GPL-3.0 | 4 | copper (F, GND, POWER, B), paste, PTH, `all-pos.csv`, `cpl_jlc.csv` | file list and licence (S); size read at fetch |
 | `oswlight` | Open-Smartwatch/open-smartwatch-light | GPL-3.0 | 4 | every KiCad layer as `.gbr`, paste, PTH drill, `both_pos.csv`, BOM | file list and licence (S) |
-| `rp2040` | tommy-gilligan/RP2040-minimal-design, KiCad 7 | BSD-3-Clause | 2 | copper, paste, PTH, `top-pos.csv`; an exposed-pad QFN | file list and licence (S) |
+| `rp2040` | tommy-gilligan/RP2040-minimal-design, KiCad 7 | BSD-3-Clause | 2 | copper, paste, PTH, `top-pos.csv`; an exposed-pad QFN | file list (S); licence file `LICENSE.txt` read in full (R): BSD-3-Clause, Copyright 2020-2022 Raspberry Pi Ltd, 2023 Tommy Gilligan |
 | `co60` | jmdaly/CO60, 60 % keyboard | CC-BY-SA-4.0 | 2 | large two-layer pours, paste (bottom only), `bottom-pos.csv` | file list and licence (S) |
 | `vstcm` | english1234/vstcm, colour vector generator | GPL-2.0 | 2 | copper, empty paste files, `all-pos.csv`, job file | file list and licence (S) |
 | `stickhub` | Ucamco's Gerber X3 sample (KiCad 8.99), a USB hub | not stated | 2 | copper, paste with `TO.C`, **an X3 component layer** (reference, footprint, value, rotation, origin, courtyard, pins), job file (16.6 x 40.1 mm), Gerber-format drill | the heads of the component layer, the paste file and the job file read (R) |
@@ -515,3 +515,91 @@ What it means: (a) **the construction of 10.1 is confirmed** on the mapping alon
 **Corrected in the folder by the review:** the status line, 10.1 (the face term), 10.2 (the metric), 10.4 (the lambda bullet withdrawn), section 8 (what was run), `INTEGRATION.md` (the mapping row of section 1, the default-mapping row of section 8, the scope of section 9 and the decisions); `lib/rule_study.py` (`pixel_network`), `scripts/study_rule_network_split.py`, `make_figures.py` (figure 13), `tests/test_ref3d.py` (the closed form, the tolerance 1 % -> 1e-5), `tests/test_rule_on_faces.py` (the split, the restored constants).
 
 **Verdict: go.** The claim holds where it matters: with the 2.4.5 rule on, the flow-based faces built on the reduced sheet are the better mapping (better than the fill in 21 of 21 real windows against the 3D reference and in 41 of 42 real window-cells on the mapping alone; better than lambda 0.5 in 28 of 42), the naive faces must not be used, and the "today" shift on real two-layer windows is at most 3.3 points (the earlier 7.6 is not reproduced and came from a scratch script that was not kept). Conditions for the adoption: the faces are built after the rule's plan on the node's reduced sheet (not the sheet of 4.1); lambda 0.5 stays the quick mode and is the better choice at coarse cells on diagonal tracks (the design may switch to it when the cell exceeds about ten pixels, to be measured on the implementation); the documents quote the errors as a share of the rise above the board mean as well; the network's own error (1.6 % mean on two layers, 1.2 % on four, up to 3.9 %) is a separate item of the laminate rule (`N_MAX`), for the maintainer.
+
+## 11. The prototype of the import window and the matching of the parts (`lib/component_match.py`, `lib/component_views.py`, `lib/window_shots.py`, figures 14 to 19)
+
+The window of the import (the hybrid layout with the stepper, `prototypes/import_window/`, INTEGRATION 10 for the re-import) was run on the RP2040 board. Its step 2 turns paste openings into heat sources; the first run matched **18 of the 30 parts** of `pos.csv`. This section says why and what a better rule gives. The board is the RP2040 minimal design of Raspberry Pi Ltd and Tommy Gilligan, **BSD-3-Clause** (licence file of the repository read through `gh`, see `research/README.md`; the renders carry its notice). Everything here reads `data/rp2040` (git-ignored; `scripts/fetch_boards.py`); `scripts/make_figures.py` redraws figures 14 to 19, `tests/test_component_figures.py` checks the counts.
+
+### 11.1 The window
+
+![the three steps of the hybrid window](figures/fig_18_import_window_hybrid_steps.png)
+
+*Figure 18: `figures/fig_18_import_window_hybrid_steps.png`, the prototype's three steps on the RP2040 board (light theme, offscreen Qt grab): 1 files and layers, 2 parts (paste openings as heat sources, box or hull shape suggested and editable), 3 model (copper mapping, cell, memory verdict, vias, warnings). Numbered markers joined by a line, Back / Next, Import on step 3: the stepper layout, the layout chosen for the window. The powers on U1, U3 and U2 are typed demo values.*
+
+![the three re-import commands](figures/fig_19_import_window_reimport.png)
+
+*Figure 19: `figures/fig_19_import_window_reimport.png`, the dialog asked when a project already holds an import: Replace, Update (with the table of moved, resized, new and removed parts) and Add files (INTEGRATION 10). The diff and the merge behind it are computed for real; the "previous import" is the same board with edits.*
+
+### 11.2 The 30 parts, condensed
+
+The prototype's rule groups paste openings that are less than 0.6 mm apart and gives each part the nearest group within 0.8 mm of its origin, one group per part. Statuses of the 30 parts:
+
+| Parts | Package | Prototype | Why | Envelope rule |
+| :-- | :-- | :-- | :-- | :-- |
+| C3 to C8, C14 to C16, R1, R2, R5 (11) and C9 | 0402 | matched | one group each (C9 owns the group of six) | all openings found |
+| C1, C2, C17 | 0805 | matched, but **one of two pads** | the second pad is a group of its own | both pads |
+| U3 | RP2040 QFN-56 | matched through the 4-opening exposed pad | the 56-pin group stays unclaimed (shown blue) | 60 openings |
+| J3 | USB micro-B | matched | one group | 11 openings |
+| C10, C11, C13, R3, R4 | 0402 | **not matched** | the 0.6 mm link merges six parts into one group, claimed by C9 | 2 openings each |
+| C12 | 0402 | **not matched** | shares a group with C6 | 2 openings |
+| U1 | SOT-223 | **not matched** | 4 openings, 4 groups; the origin is 2.1 mm from the nearest | 4 openings |
+| U2 | SOIC-8 | **not matched** | 8 openings, 8 groups; origin 2.8 mm from the nearest | 8 openings |
+| Y1 | HC49 crystal | **not matched** | 2 pads 5.6 mm wide, 1.7 mm from the origin | 2 openings |
+| J1, J2, J4 | pin headers | not matched | through-hole: no paste layer at all (74 drilled holes) | none, rightly |
+
+The 18 red groups of figure 14 are 3 (the half pads of the 0805) + 4 (U1) + 8 (U2) + 1 (the QFN pin group) + 2 (Y1).
+
+![the 30 parts against the prototype's groups](figures/fig_14_component_match_prototype.png)
+
+*Figure 14: `figures/fig_14_component_match_prototype.png`, the pad envelope of every part (green: matched by the prototype, orange: not; dashed: through-hole) over the top copper and the 129 paste openings (red); blue boxes are groups no part claimed.*
+
+![the same board with the envelope rule](figures/fig_15_component_match_improved.png)
+
+*Figure 15: `figures/fig_15_component_match_improved.png`, the envelope rule: every opening goes to the part whose pad envelope contains it; 27 parts green, the three pin headers orange, 129 of 129 openings assigned.*
+
+![three crops, prototype and envelope rule](figures/fig_16_component_match_crops.png)
+
+*Figure 16: `figures/fig_16_component_match_crops.png`, the three mechanisms: the QFN with its decoupling parts (the six-part group), the SOIC-8 and the SOT-223 (pads far from the origin, each pad a group), the crystal (two pads either side of the origin). Left the prototype (grey dotted: a claimed group, blue: unclaimed), right the envelope rule; the plus is the part origin.*
+
+### 11.3 Diagnosis
+
+* **No offset, no mirror.** `pos.csv` and the Gerbers share the frame: all 129 openings fall inside the envelope of the right part. (The bottom-side X mirror of section 4.4 does not arise here: no bottom parts.)
+* **No `TO.C` in this paste file** (0 occurrences), so the by-designator rule never applies and only the position rule runs; cmm2, isastm and oswlight carry `TO.C` (97, 131 and 51 lines).
+* **Three mechanisms** account for the 12 misses: through-hole parts (rightly without openings); the 0.6 mm link merging neighbours; parts whose pads are far from the origin or are separate groups (U1, U2, Y1). The structural limits are "one group per part" and "the pick radius is measured from a group box".
+* **The 18 matches are not all complete**: U3 is matched by its exposed pad only, C1, C2 and C17 get one pad of two.
+
+### 11.4 The envelope rule on four boards
+
+Individual openings (link 0.05 mm) go to the part whose rotated pad envelope, grown by 0.3 mm, contains the opening centre; the smallest envelope wins; one part may take many openings. The envelope comes from the footprint **name** (0402 to 1206 pad extents, SOIC pins and pitch, SOT-223, pin headers, QFN size from the paste); no footprint library is read. Truth where the file has it is the `TO.C` attribute, which the rule never uses (`study` code: `component_match.board_counts`, reproduced by `tests/test_component_figures.py`).
+
+| Board | Parts in the placement file | Prototype rule: parts matched | Envelope rule: parts with openings | Openings correct / wrong / missed against `TO.C` |
+| :-- | --: | --: | --: | :-- |
+| RP2040 | 30 | 18 | 27 (the other 3 are through-hole) | 129 of 129 assigned (no `TO.C`) |
+| cmm2 | 101 | 90 (3 with a wrong or mixed designator) | 99 | 453 / 9 / 32 of 494 |
+| isastm | 134 | 105 (5 wrong or mixed) | 130 | 738 / 0 / 34 of 772 |
+| oswlight | 43 | 40 | 43 | 126 / 0 / 80 of 206 |
+
+(The re-run printed these counts with the code of `lib/component_match.py`; the prototype column of cmm2, isastm and oswlight counts the group rule without `TO.C`, as in the first table of this section.) The **9 wrong openings** are all on cmm2: paste openings of J8, a part that is not in `pos.csv`, taken by the TSOP U2. The misses are openings of parts that are not in the placement file (79 on oswlight, 4 on cmm2), through-hole-like parts with an unknown envelope (TS-1187A, USB-C, battery holder), and 20 of the 54 openings of the TSOP-II-54 (the name rule gives too small an envelope; not tuned). Whether the bottom-side X must be mirrored was not tested: switching it changed nothing on cmm2 and isastm (symmetric 0402 and 0603 parts there).
+
+### 11.5 Box or hull as the heat-source shape
+
+![box or hull of the openings](figures/fig_17_source_shape_box_hull.png)
+
+*Figure 17: `figures/fig_17_source_shape_box_hull.png`, four parts of the RP2040 board: the bounding box (red) and the convex hull (green dashed) of the paste openings over the top copper, with the areas and the hot-spot rise of 1 W on a synthetic 30 x 30 mm two-layer board with full copper (program FVM, 0.25 mm cell, source centred; indicative, not the RP2040 board and not a measurement).*
+
+| Part | Openings | Paste (mm2) | Box (mm2) | Hull (mm2) | Rise: box / hull / openings only (K) |
+| :-- | --: | --: | --: | --: | :-- |
+| U1 SOT-223 | 4 | 16.6 | 50.6 | 43.4 (-14.3 %) | 54.5 / 55.2 (+1.3 %) / 54.0 |
+| U2 SOIC-8 | 8 | 7.7 | 39.2 | 39.2 (0.0 %) | 55.4 / 55.4 (0.0 %) / 53.7 |
+| U3 QFN-56 | 60 | 14.9 | 60.8 | 58.0 (-4.7 %) | 53.7 / 54.0 (+0.6 %) / 55.2 |
+| J3 USB micro-B | 11 | 28.3 | 41.0 | 40.3 (-1.6 %) | 55.5 / 55.6 (+0.2 %) / 54.6 |
+
+The hull moves the hottest cell by 0 to 1.3 % on these four (the earlier review's range over all boards is -0.8 to +6.0 %, section 4.4 D); the shape is suggested (box) and editable; no measurement says which is right.
+
+### 11.6 What was not verified
+
+* The envelopes come from footprint names (a few lines of regular expressions), not from KiCad footprints; "the part count found" is not "the right shape of the heat source", and the 20 TSOP openings and the unknown envelopes are misses.
+* The truth is the `TO.C` attribute where it exists; on the RP2040 board there is none, so its 129 of 129 means "assigned inside the envelope of a part", checked by eye on figures 14 to 16, not against an independent list.
+* The mirrored bottom-side X and a rotated-board case were not tested. The hot-spot rises of figure 17 are for a synthetic board, from one program model (FVM).
+* The window screenshots show a prototype: the project is not created (a summary record is written), the powers are typed demo values, and the dark-theme variants and the earlier mock-up of step 2 (invented numbers) were not carried into the repository.
+* The licence of the board was read from the repository's `LICENSE.txt` (status R) and the GitHub licence field; the files themselves are not committed, only the renders.
