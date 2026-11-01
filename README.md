@@ -13,7 +13,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Any board shape**: an outline polygon (presets, vertex table, drawing tool) in the FVM, FDM and 3D solid.
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).
 - **Metal blocks** (heat spreaders with an interface resistance, optional fins) in all five models (the Lumped and Analytic have them in steady state only), plated vias (hollow or filled), heatsinks.
-- **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general (default) and a laminar form (`Board.natural_form`).
+- **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general and a laminar form (`Board.natural_form`; the laminar form is the default of new projects, old files keep the general one, and a low face Rayleigh number is warned).
 - **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically (a part over bare laminate is read at its face); animation of the heat evolution with GIF export.
 
 **Tools**
@@ -23,7 +23,8 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.
 - **Memory guard**: the memory of every finite model (FVM, FDM, 3D solid) is estimated from its unknown count before anything is allocated; a run above the **Memory limit** (Preferences, 60 % of the physical memory by default) is refused with the cell that fits, the solver panel shows the verdict and Auto picks a cell that fits.
 - **Gerber reader** (a package, `pcbthermal.gerber`, **no interface yet**): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, with the copper rasterised to a one-byte coverage per pixel; refuses what it cannot draw naming the file and the feature (`docs/models.md` 19, `docs/theory.md` 1.6).
-- **Input checks** that warn when a model is doubtful (heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, ...).
+- **Input checks**, live under the Run button (one line per warning, the full measured text on hover): heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, the limits of the selected models and the via warnings; what only a run can know (thick plates, close fins, low Rayleigh number, the Lumped zone model) is added to the Results summary.
+- **Laminate options**: the longest sub-gap and the most sub-gaps of the laminate between copper nodes (FVM and FDM; Simulation panel and `run --laminate-s-max-mm`, `--laminate-n-max`).
 - **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON that store every parameter (saved atomically, with a `.bak` copy when a save changes the format; a project with imported boards uses format 2 and needs 2.5.0 or later).
 
 ![Editor](docs/images/editor.png)
@@ -74,7 +75,8 @@ python3 -m venv .venv
 .venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
-.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --memory-fraction 0.5   # limit of this run; exit code 3 if a model is refused
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --memory-fraction 0.5   # limit of this run; exit code 3 if a model is refused (PCBTHERMAL_MEMORY_BYTES states the memory when it is not visible)
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --laminate-s-max-mm 0.2 --laminate-n-max 8 --natural-form laminar
 .venv/bin/python -m pcbthermal --version
 .venv/bin/python -m pytest -q tests
 ```

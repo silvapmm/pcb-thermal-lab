@@ -1051,6 +1051,10 @@ class MainWindow(QMainWindow):
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
 <tr><td><b>Ctrl+Z / Ctrl+Shift+Z</b></td><td>Undo / redo</td></tr>
+<tr><td><b>Ctrl+N / O / S / Shift+S / Q</b></td><td>New board, open, save, save as, quit</td></tr>
+<tr><td><b>Ctrl+A</b></td><td>Select all on the layer</td></tr>
+<tr><td><b>Ctrl+,</b></td><td>Preferences</td></tr>
+<tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F1</b></td><td>User guide</td></tr></table>""")
 
     def show_about(self):
