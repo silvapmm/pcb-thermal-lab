@@ -112,12 +112,55 @@ def fine_copper(path):
     dk.save(fig, path, "Copper finer than the cell: what the cell conductance can only approximate")
 
 
+def laminate_rule_faces(path):
+    """!
+    @brief Cross-section through two copper layers with a bare window in the top one: the heat paths with one node per layer, with the laminate rule's interior nodes, and where a face mapping must not count the laminate twice.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(12, 4.4, 1, 3)
+    titles = ("one node per copper layer\n(before 2.4.5): the laminate under the bare window\nis one link, the sideways flow in it is lost",
+              "the rule of 2.4.5: interior nodes in the gap\nbeside absent copper; the copper node gives up\nthat part of its laminate",
+              "a face mapping on the rule's network:\nthe faces must come from the sheet the node\nkept (grey), not from the whole slab")
+    for k, ax in enumerate(axs):
+        ax.set_xlim(0, 10)
+        ax.set_ylim(0, 6)
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.set_title(titles[k], fontsize=8)
+        ax.add_patch(Rectangle((0, 1.5), 10, 3.0, facecolor="#d8ecd0", edgecolor="none"))                  # the laminate gap (green)
+        for (x0, w) in ((0, 3.6), (6.4, 3.6)):
+            ax.add_patch(Rectangle((x0, 4.5), w, 0.35, facecolor=dk.COPPER, edgecolor="none"))             # top copper with a bare window between
+        ax.add_patch(Rectangle((0, 1.15), 10, 0.35, facecolor=dk.COPPER, edgecolor="none"))               # bottom copper plane
+        ax.text(5, 5.15, "bare window", ha="center", fontsize=7)
+        ax.text(0.1, 0.55, "bottom copper", fontsize=7)
+        ax.text(0.1, 5.15, "top copper", fontsize=7)
+        if k == 0:
+            dk.arrow(ax, 1.8, 4.5, 3.2, 3.0, color=dk.HEAT)
+            dk.arrow(ax, 3.2, 3.0, 4.4, 1.5, color=dk.HEAT)
+            ax.text(5, 3.0, "one link\n(no sideways flow)", ha="center", fontsize=7)
+        elif k == 1:
+            for y in (2.25, 3.0, 3.75):
+                ax.plot([0.4, 9.6], [y, y], color="k", linewidth=0.4, linestyle=":")
+            dk.arrow(ax, 3.4, 4.5, 4.2, 3.75, color=dk.HEAT)
+            dk.arrow(ax, 4.2, 3.75, 5.6, 3.3, color=dk.HEAT)
+            dk.arrow(ax, 5.6, 3.3, 5.2, 2.25, color=dk.HEAT)
+            dk.arrow(ax, 5.2, 2.25, 4.6, 1.5, color=dk.HEAT)
+            ax.text(5, 1.85, "interior nodes (dotted)", ha="center", fontsize=7)
+        else:
+            ax.add_patch(Rectangle((0, 3.7), 10, 0.8, facecolor="#cccccc", edgecolor="none", alpha=0.7))
+            ax.text(5, 4.0, "laminate the copper node gave up\n(now in the interior nodes):\nout of the faces", ha="center", fontsize=7)
+            ax.text(5, 2.6, "naive: faces from the whole slab\n=> this laminate is counted twice", ha="center", fontsize=7, color="#a02020")
+    dk.save(fig, path, "The laminate rule and the face mapping")
+
+
 def main():
     """!
     @brief Draw all the diagrams.
     @return None.
     """
     OUT.mkdir(parents=True, exist_ok=True)
+    laminate_rule_faces(OUT / "fig_12_laminate_rule_faces.png")
     import_chain(OUT / "fig_01_import_chain.png")
     paste_to_footprint(OUT / "fig_02_paste_to_footprint.png")
     fine_copper(OUT / "fig_03_fine_copper_cell.png")
