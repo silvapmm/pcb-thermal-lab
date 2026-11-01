@@ -95,3 +95,29 @@ def test_the_command_line_flags(tmp_path):
     # a value out of range is refused, not ignored
     with pytest.raises(ValueError):
         cli.main(["run", str(path), "--model", "fvm", "--laminate-n-max", "0", "--out", str(tmp_path / "x"), "--no-plots"])
+
+
+def test_a_larger_n_max_alone_changes_nothing_on_a_board_of_four_sub_gaps():
+    # The review: a gap gets min(n_max, ceil(d / s_max)) sub-gaps, so on a 1.6 mm two-layer board (d 1.53 mm) the default 0.4 mm already gives 4 and n_max 8 or 32 alone
+    # builds the same network; the sub-gap has to be made smaller too (the tooltip and the command-line help say so)
+    p = window_board()
+    base = fvm.unknowns(p, 1.0)[0]
+    with laminate.using(n_max=32):
+        assert fvm.unknowns(p, 1.0)[0] == base
+    with laminate.using(0.19e-3, 8):
+        assert fvm.unknowns(p, 1.0)[0] > base
+
+
+def test_the_power_calculator_and_the_calibration_use_the_laminate_of_the_project():
+    # The review: the Power Calculator job and calibrate_convection ran the board with the default laminate rule whatever the project said
+    from pcbthermal import jobs
+    from pcbthermal.api import calibrate_convection
+    p = window_board()
+    progress = lambda *a: None                                                    # noqa: E731
+    a = jobs.job_inverse(progress, p, 0, 60.0, "max", 25.0, 1.0)["power_w"]
+    b = jobs.job_inverse(progress, p, 0, 60.0, "max", 25.0, 1.0, 0.0, False, None, (0.2e-3, 8))["power_w"]
+    assert b != a and b < a                                                       # finer sub-gaps: the part warmer per watt, so less power for the same reading
+    assert laminate.parameters() == (laminate.S_MAX, laminate.N_MAX)
+    m4 = calibrate_convection(p, 160.0, SolverOptions(models=("fvm",), cell_mm=1.0))[0]
+    m8 = calibrate_convection(p, 160.0, SolverOptions(models=("fvm",), cell_mm=1.0, laminate_s_max_mm=0.2, laminate_n_max=8))[0]
+    assert m8 != m4

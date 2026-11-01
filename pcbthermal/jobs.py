@@ -71,7 +71,7 @@ def job_analyze(progress, problem, options):
     return resp, profiles.decide(problem, resp, options.profile.threshold_c), ref
 
 
-def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt=0.0, band=False, uncertainty=None):
+def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt=0.0, band=False, uncertainty=None, laminate_params=None):
     """!
     @brief Power of a part from a measured temperature (inverse.power_from_temperature).
     @param progress Callable progress(message, fraction) (unused).
@@ -84,9 +84,15 @@ def job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm,
     @param psi_jt Datasheet psi_JT in K/W for the point "top".
     @param band True to also compute the uncertainty band (inverse.power_band).
     @param uncertainty Optional dict of uncertainties for the band (see inverse.power_band).
+    @param laminate_params Tuple (s_max in m, n_max) of the project's laminate rule (SolverOptions.laminate_params()), or None for the defaults: the board model run backwards
+                           must be the board of the run.
     @return Dict of inverse.power_from_temperature, or of inverse.power_band with the band.
     """
     from .inverse import power_band, power_from_temperature
+    if laminate_params is not None:
+        from . import laminate
+        with laminate.using(*laminate_params):
+            return job_inverse(progress, problem, index, measured_c, point, ambient_c, cell_mm, psi_jt, band, uncertainty)
     if band:
         return power_band(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm, psi_jt=psi_jt, uncertainty=uncertainty, progress=progress)
     return power_from_temperature(problem, index, measured_c, point=point, ambient_c=ambient_c, cell_mm=cell_mm, psi_jt=psi_jt)

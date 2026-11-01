@@ -57,7 +57,7 @@ class SolverOptions:
     hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
     laminate_s_max_mm: float = 0.4               # Longest sub-gap of the laminate between two copper nodes in mm (FVM and FDM; laminate.py)
-    laminate_n_max: int = 4                      # Most sub-gaps in one gap, count (1 turns the cutting off; the error against a resolved 3D solid falls as 1/n)
+    laminate_n_max: int = 4                      # Most sub-gaps in one gap, count (1 turns the cutting off; the error against a resolved 3D solid falls as 1/n); a gap gets min(n_max, ceil(d / s_max)), so a larger n_max needs a smaller s_max
     # A machine preference (Preferences, solver.memory_fraction), not part of a project: never saved in the project file, and an old file that has the key ignores it
     memory_fraction: float = field(default_factory=memory.default_fraction)   # Share of the physical memory a solve may use; a run above it is refused (memory.py)
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
@@ -742,9 +742,24 @@ def calibrate_convection(problem, measured_c, options=None, model="fvm", heater=
     @return Tuple (multiplier, model temperature with it in degC).
     @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
     """
-    from .analysis import heater_stats
     options = copy.deepcopy(options) if options else SolverOptions()
     options.models = (model,)
+    with laminate.using(*options.laminate_params()):                  # The board of the project: its laminate rule, as in simulate()
+        return _calibrate_convection(problem, measured_c, options, heater)
+
+
+def _calibrate_convection(problem, measured_c, options, heater):
+    """!
+    @brief Body of calibrate_convection(), run with the laminate numbers of the options in force.
+    @param problem A Problem (it is not modified).
+    @param measured_c Measured steady temperature in degC.
+    @param options SolverOptions (a private copy) with the one model to run in models.
+    @param heater Name of the heater whose footprint maximum was measured; None for the board maximum.
+    @return Tuple (multiplier, model temperature with it in degC).
+    @throws ValueError If the measured value is not between the temperatures with multipliers 0.1 and 10.
+    """
+    from .analysis import heater_stats
+    model = options.models[0]
     p = copy.deepcopy(problem)
     p.board.h_mode = "computed"
     steady = p.steady_copy(options.steady_power) if p.has_profiles() else p

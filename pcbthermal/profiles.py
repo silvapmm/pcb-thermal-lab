@@ -615,10 +615,14 @@ class _FVMAdapter:
         """!
         @brief Prepare the face terms of the parts over absent copper (laminate.face_terms), per heater, as small matrices on its footprint.
         @details The steady result reports the temperature of a part at its face: the node temperature plus Q t_cu / (2 k_z A) where the copper under the part is absent. The drop is
-                 over the half layer of laminate between the node and the face, whose diffusion time (t_cu / 2)^2 / alpha is about 2 ms for 35 um of copper, so it follows the
-                 power of the step with no lag at any period a profile resolves: the curve of a heater is the node plus the face term of the power of the step (a quasi-static
-                 offset). The term is linear in the powers, so a (cells of the footprint x heaters) matrix per heater carries it, with the powers of all heaters (the footprints may
-                 overlap). Nothing is done (and the curves are bit for bit those of the node) without the laminate rule or when no part is over absent copper.
+                 over the half layer of laminate between the node and the face (thickness t_cu / 2), and the curve of a heater is the node plus the face term of the power of
+                 the step (a quasi-static offset, no lag). The first time constant of that layer is tau_1 = 4 (t_cu / 2)^2 / (pi^2 alpha): 0.69 ms for 35 um of copper on FR-4,
+                 2.8 ms for 70 um, 11 ms for 140 um. For a square wave of period P a first-order layer keeps a share tanh(P / (4 tau_1)) of the swing (35 um: 1.00 at 10 ms, 0.35 at
+                 1 ms; 140 um: 0.22 at 10 ms), so for a period shorter than about 10 tau_1 the curve overstates the swing of the face: the peak is on the hot side, the minimum on
+                 the cool side; a long phase ends at the steady value. The term is linear in the powers, so a (cells of the footprint x heaters) matrix per heater carries it, with
+                 the powers of all heaters (the footprints may overlap); it is filled one heater at a time, never as a (nodes x heaters) array, which on a board of a million
+                 unknowns with a hundred parts would be 0.8 GB. Nothing is done (and the curves are bit for bit those of the node) without the laminate rule or when no part is
+                 over absent copper.
         @param problem A Problem.
         """
         self._face_loc = [None] * len(self.net.footprints)
@@ -626,19 +630,22 @@ class _FVMAdapter:
         if getattr(net, "ladder", None) is None or not len(net.footprints):
             return
         area = net.area if hasattr(net, "area") else net.dx * net.dy * net.cover
-        n = net.nl * net.ny * net.nx
-        columns = []
-        for k in range(net.Qw_matrix.shape[1]):
-            terms = laminate.face_terms(problem.board, net.fill, net.Qw_matrix[:, k].toarray().reshape(net.nl, net.ny, net.nx)[:problem.board.layers], area, net.dx)
-            col = np.zeros(n)
-            if terms is not None:
-                col[:terms[0].size] = terms[0].ravel()                       # The copper layers come first in the unknowns
-            columns.append(col)
-        face = np.stack(columns, axis=1) if columns else np.zeros((n, 0))     # (nodes, heaters) K per W
-        for i, idx in enumerate(net.footprints):
-            block = face[idx]
+        L, plane = problem.board.layers, net.ny * net.nx
+        nh = net.Qw_matrix.shape[1]
+        blocks = [np.zeros((len(idx), nh)) for idx in net.footprints]        # (footprint nodes, heaters) K per W
+        inside = [idx < L * plane for idx in net.footprints]                 # Footprint nodes on the copper layers (the copper layers come first in the unknowns)
+        Qw = net.Qw_matrix.tocsc()
+        for k in range(nh):
+            q = Qw[:, k].toarray().ravel()[:L * plane]                       # Heat per watt of heater k on the copper layers (one column at a time)
+            terms = laminate.face_terms(problem.board, net.fill, q.reshape(L, net.ny, net.nx), area, net.dx)
+            if terms is None:
+                continue
+            peak = terms[0].ravel()
+            for i, idx in enumerate(net.footprints):
+                blocks[i][inside[i], k] = peak[idx[inside[i]]]
+        for i, block in enumerate(blocks):
             if block.any():
-                self._face_loc[i] = block                                    # (footprint nodes, heaters)
+                self._face_loc[i] = block
 
     def _hottest(self, x, powers):
         """!
