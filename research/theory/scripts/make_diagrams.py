@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44, fig_45 (the diagrams of the rewrite of the theory).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44, fig_45, fig_46 (the diagrams of the rewrite of the theory).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -1279,6 +1279,42 @@ def problem_to_model(path):
     dk.save(fig, path, "The problem and the way to a model")
 
 
+def memory_guard(path):
+    """!
+    @brief Draw the memory guard of section 4.1 of the theory: the chain from the board to the verdict (left) and the law of the estimate against the unknowns for the three models with the limit of a 16 GiB machine at 60 % (right; the coefficients of `pcbthermal/memory.py` CONTINUOUS, no base and no time factor).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(18, 5.8, 1, 2, ratios=[1.0, 1.15])
+    a = axs[0]; a.set_xlim(0, 10); a.set_ylim(0, 10)
+    a.text(5, 9.6, "from the cell to the verdict", ha="center", fontsize=9, fontweight="bold")
+    steps = (("board + cell: plan grid nx ny", "#e8e8e8"),
+             ("cheap lower bound of N (one node per copper layer\nand plan cell): refuse at once if it is over the limit", "#cfe3f5"),
+             ("exact count N (copper sampled), t = N / (nx ny),\nt_eff = min(t, nx ny / t)", "#cfe3f5"),
+             ("estimate = base + safety x factor x k1 t_eff^a N (N/Nref)^(p-1)\nfactor 1 steady, 2 time run or profile", "#fdeeb4"),
+             ("limit = fraction (60 %) x physical memory\nok, slow (above 30 s predicted) or refuse", "#f4b6b6"))
+    for i, (txt, col) in enumerate(steps):
+        y = 7.5 - i * 1.75
+        dk.box(a, 0.3, y, 9.4, 1.15, txt, color=col, size=7.5)
+        if i < len(steps) - 1:
+            dk.arrow(a, 5, y, 5, y - 0.6)
+    a = axs[1]
+    # Coefficients of memory.CONTINUOUS: k1 (bytes at Nref, t_eff = 1), p, a, safety (the figure is drawn without the program)
+    law = {"FVM": (1469.0, 1.24, 0.79, 1.40), "FDM": (1228.0, 1.34, 1.03, 1.24), "3D solid": (1063.0, 1.30, 0.98, 1.30)}
+    n = np.logspace(4.7, 6.4, 200)
+    for (name, (k1, p, e, s)), t, col, ls in ((("FVM", law["FVM"]), 2, dk.BLUE, "-"), (("FVM", law["FVM"]), 6, dk.BLUE, "--"),
+                                              (("FDM", law["FDM"]), 4, "#3a8a3a", "-"), (("3D solid", law["3D solid"]), 6, dk.HEAT, "-")):
+        a.plot(n, s * k1 * t ** e * n * (n / 5e5) ** (p - 1.0) / 1e9, color=col, ls=ls, lw=2, label=f"{name}, t_eff = {t}")
+    lim = 0.6 * 16 * 2 ** 30 / 1e9
+    a.axhline(lim, color="k", ls=":", lw=1.5)
+    a.text(5.5e4, lim * 1.04, f"limit: 60 % of 16 GiB = {lim:.1f} GB", fontsize=8)
+    a.set_xscale("log"); a.set_yscale("log"); a.axis("on"); a.grid(alpha=0.3, which="both")
+    a.set_xlabel("unknowns N"); a.set_ylabel("estimated peak (GB), safety factor included")
+    a.set_title("the law (illustrative of the shape; bytes of the algorithm, fitted on 67 points of one machine):\nthicker graphs and more unknowns cost more than linearly", fontsize=8.5)
+    a.legend(fontsize=7.5, loc="upper left")
+    dk.save(fig, path, "The memory guard")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1301,7 +1337,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 
