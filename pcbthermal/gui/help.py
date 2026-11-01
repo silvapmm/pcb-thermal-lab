@@ -37,6 +37,7 @@ class _PageReloader(QObject):
     def reload(self, *_):
         """!
         @brief Load the page again with the colours of the theme now in use.
+        @param _ Ignored (the palette sent by the Qt signal).
         """
         set_themed_page(self._view, self._path)
 
