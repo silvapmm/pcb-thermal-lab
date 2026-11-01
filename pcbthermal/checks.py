@@ -244,8 +244,9 @@ def check_model_limits(problem, models, cell_mm=1.0):
             if n_in >= 1:
                 _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
                            "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
-                           "(dense arrays under a part: the part too hot) to 22 % too large (sparse arrays, rows: the part too cool), and up to 80 % too "
-                           "large for an array across the edge of the footprint (8 to 20 % on average over 46 boards); use the FVM for via design.")
+                           "(the part too hot) to 33 % too large (the part too cool: dense arrays that cover a quarter or less of a large footprint, "
+                           "sparse arrays and rows), and up to 80 % too large for an array across the edge of the footprint (8 to 20 % on average "
+                           "over 46 boards, 11 % over 36 more); use the FVM for via design.")
         outside = np.flatnonzero(~in_any & on_board)
         if outside.size:
             # One warning for all of them: a Gerber board can have hundreds of vias away from the parts
