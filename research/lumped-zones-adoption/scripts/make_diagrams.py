@@ -3,8 +3,8 @@
 """!
 @file make_diagrams.py
 @brief Drawings of the situation of the adoption study: the footprint cut into the rest A and the core C with the 2.4.5 wells, the network of two layers with the places where the cluster well and the A-C link could count the same heat twice, the strided decimation of the footprint potentials against blocks, and the raster cell against the core.
-@details Figures 01 to 04 of figures/ (the data figures are drawn by make_figures.py). No study is run and nothing is imported from the program: only geometry is drawn.
-         Files: fig_01_footprint_zones_and_wells.png, fig_02_network_two_layers_double_count.png, fig_03_decimation_stride_vs_blocks.png, fig_04_raster_against_core.png.
+@details Figures 01 to 04 and 11 to 13 of figures/ (the data figures are drawn by make_figures.py). No study is run and nothing is imported from the program: only geometry is drawn.
+         Files: fig_01_footprint_zones_and_wells.png, fig_02_network_two_layers_double_count.png, fig_03_decimation_stride_vs_blocks.png, fig_04_raster_against_core.png, fig_11_shen_case_board_and_unit_cell.png, fig_12_profile_runner_with_zones.png, fig_13_3d_check_boards.png.
          Usage: python research/lumped-zones-adoption/scripts/make_diagrams.py   (from the repository root).
 """
 
@@ -185,6 +185,132 @@ def fig_raster(path):
     dk.save(fig, path, "the raster against the core of a 5 x 5 array at 1.2 mm (the warning is below ten cells across)")
 
 
+def fig_shen(path):
+    """!
+    @brief The published case of Shen and others: section of the 5.6 mm board with its vias and the heat paths, the plan with 12 x 12 vias, and the axisymmetric unit cell of the independent solver.
+    @param path Output file.
+    @return None.
+    """
+    fig, (a, b, c) = dk.canvas(15, 5.6, 1, 3, ratios=[1.35, 1.0, 1.0])
+    # --- section (not to scale in the vertical): 4 copper layers, FR-4, vias, flux at the top, isothermal bottom
+    a.set_xlim(0, 12)
+    a.set_ylim(-1.7, 6.2)
+    ys = [4.6, 3.1, 1.6, 0.1]
+    for k, y in enumerate(ys):
+        dk.layer(a, 0.5, y, 11, 0.28, dk.COPPER)
+        if k < 3:
+            dk.layer(a, 0.5, y - 1.22, 11, 1.22, dk.FR4)
+    for x in (2.0, 3.6, 5.2, 6.8, 8.4, 10.0):
+        a.add_patch(Rectangle((x - 0.2, 0.1), 0.4, 4.78, facecolor="white", edgecolor="k", linewidth=0.6))
+        a.add_patch(Rectangle((x - 0.2, 0.1), 0.06, 4.78, facecolor=dk.COPPER, edgecolor="none"))
+        a.add_patch(Rectangle((x + 0.14, 0.1), 0.06, 4.78, facecolor=dk.COPPER, edgecolor="none"))
+    for x in np.linspace(1.0, 11.0, 12):
+        dk.arrow(a, x, 5.75, x, 5.05, color=dk.HEAT, width=1.1)
+    a.text(6.0, 6.05, "1 W, uniform over the 5.6 mm top", fontsize=8, ha="center", color=dk.HEAT)
+    a.plot([0.5, 11.5], [-0.15, -0.15], color=dk.BLUE, lw=3)
+    a.text(6.0, -0.55, "bottom face fixed at the ambient (20 degC)", fontsize=8, ha="center", color=dk.BLUE)
+    a.text(6.0, -1.25, "4 layers of 70 um (2 oz) in 1.6 mm; barrels 0.25 mm drill, 25 um plating, open (air)\nthe vertical flow runs in the barrel and in the FR-4 between the barrels", fontsize=7.5, ha="center")
+    a.text(6.0, 2.35, "section (vertical scale stretched)", fontsize=7, ha="center", style="italic")
+    # --- plan with 12 x 12 vias
+    b.set_xlim(0, 10)
+    b.set_ylim(0, 10)
+    b.set_aspect("equal")
+    b.add_patch(Rectangle((0.5, 0.5), 9.0, 9.0, facecolor="#f4f4f4", edgecolor="k"))
+    for i in range(12):
+        for j in range(12):
+            b.add_patch(Circle((0.5 + 0.375 + 0.75 * i, 0.5 + 0.375 + 0.75 * j), 0.2, facecolor=dk.COPPER, edgecolor="k", linewidth=0.4))
+    b.add_patch(Rectangle((0.5, 0.5), 0.75, 0.75, fill=False, edgecolor=dk.BLUE, linewidth=1.8))
+    b.text(5.0, 9.75, "plan: 5.6 mm board, 12 x 12 vias at 0.45 mm (Fig. 17(c))", fontsize=8, ha="center")
+    b.text(5.0, 0.12, "blue square: one via unit (phi + s)^2 = 0.45 x 0.45 mm", fontsize=7.5, ha="center", color=dk.BLUE)
+    # --- axisymmetric unit cell: r to the right, z downwards
+    c.set_xlim(0, 10)
+    c.set_ylim(-1.3, 11.0)
+    stack = [(0.0, 0.55, True), (0.55, 2.55, False), (2.55, 3.1, True), (3.1, 5.1, False), (5.1, 5.65, True), (5.65, 7.65, False), (7.65, 8.2, True)]
+    top = 9.2
+    for z0, z1, cu in stack:
+        c.add_patch(Rectangle((1.0, top - z1), 8.0, z1 - z0, facecolor=dk.COPPER if cu else dk.FR4, edgecolor="k", linewidth=0.6))
+    c.add_patch(Rectangle((1.0, top - 8.2), 1.0, 8.2, facecolor=dk.AIR, edgecolor="k", linewidth=0.6))
+    c.add_patch(Rectangle((2.0, top - 8.2), 0.45, 8.2, facecolor=dk.COPPER, edgecolor="k", linewidth=0.6))
+    c.text(1.5, top + 0.35, "air", fontsize=7, ha="center")
+    c.text(2.9, top - 8.9, "barrel (25 um)", fontsize=7, ha="left", color="#8a5a00")
+    c.plot([1.0, 1.0], [top - 8.2, top + 0.1], "k-.", lw=0.8)
+    c.text(1.0, top - 8.7, "axis", fontsize=7, ha="center")
+    for x in np.linspace(2.8, 8.8, 6):
+        dk.arrow(c, x, top + 0.9, x, top + 0.2, color=dk.HEAT, width=1.1)
+    c.plot([1.0, 9.0], [top - 8.2, top - 8.2], color=dk.BLUE, lw=3)
+    c.text(5.0, top - 9.0, "isothermal bottom", fontsize=7.5, ha="center", color=dk.BLUE)
+    c.text(5.0, top - 9.7, "(r, z) cell of the disc of equal area,\nside insulated; axisymmetric finite volumes", fontsize=7.5, ha="center")
+    c.text(5.0, top + 1.5, "unit cell of the independent solver", fontsize=8, ha="center")
+    dk.save(fig, path)
+
+
+def fig_profile_runner(path):
+    """!
+    @brief The square-wave run with the zones: the wave, the source split between A and C, the network and the peak operator, and the control in which the program's adapter puts the whole power on A.
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(14, 5.2)
+    ax.set_xlim(0, 14)
+    ax.set_ylim(0, 6.4)
+    # the wave
+    ax.plot([0.4, 0.4, 1.4, 1.4, 2.4, 2.4, 3.4, 3.4], [4.6, 5.8, 5.8, 4.6, 4.6, 5.8, 5.8, 4.6], color="k", lw=1.6)
+    ax.plot([0.4, 3.8], [4.6, 4.6], color="k", lw=0.6)
+    ax.text(2.0, 6.15, "P(t): square wave, p_on = P / duty", fontsize=8, ha="center")
+    dk.arrow(ax, 3.9, 5.2, 4.9, 5.2, width=1.4)
+    dk.box(ax, 5.0, 4.5, 2.4, 1.4, "source split by area\ns = (1 - f_C, f_C)\non the nodes A and C\n(the zone `source` vector)", color="#ffe9b3", size=7.5)
+    dk.arrow(ax, 7.5, 5.2, 8.5, 5.2, width=1.4)
+    dk.box(ax, 8.6, 4.5, 2.8, 1.4, "C dtheta/dt + K theta = P(t) s\nimplicit step per window\n(zone capacities = cell sums)", color="#cfe3f5", size=7.5)
+    dk.arrow(ax, 11.5, 5.2, 12.2, 5.2, width=1.4)
+    dk.box(ax, 12.3, 4.5, 1.5, 1.4, "peak operator\nZonePeak(theta)", color="#d9f0d3", size=7.5)
+    ax.text(7.0, 3.55, "hottest temperature of the footprint at every step; peak, valley and mean of the last window", fontsize=8, ha="center", color="#1a5d1a")
+    # the control
+    ax.plot([0.3, 13.7], [3.1, 3.1], "k:", lw=0.8)
+    ax.text(7.0, 2.8, "what `lumped._LumpedAdapter.advance` does in 2.4.5, and what the patch changes", fontsize=8, ha="center", style="italic")
+    dk.box(ax, 1.0, 0.7, 5.2, 1.5, "program: src[layer * R] = P\nthe whole power enters node 0 = A\n(right for one node; with zones the core C\nreceives nothing: up to 25 % of the rise too hot)", color="#f2c0c0", size=7.5)
+    dk.box(ax, 7.8, 0.7, 5.2, 1.5, "zones: src = P * system[\"source\"]\nA gets 1 - f_C and C gets f_C of the power\n(INTEGRATION.md: `advance` and\n`step_responses` read `source` and `peak`)", color="#cfe9d4", size=7.5)
+    dk.arrow(ax, 6.3, 1.45, 7.7, 1.45, width=1.4, label="patch")
+    dk.save(fig, path)
+
+
+def fig_boards_3d(path):
+    """!
+    @brief The three 16 mm boards of the 3D check (plans) and the way the independent 3D solver draws a barrel on its grid.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(15, 5.0, 1, 4, ratios=[1, 1, 1, 1.1])
+    specs = [("dense: 5 x 5 at 1.2 mm\nunder an 8 x 8 mm part", 5, 1.2, (0.0, 0.0), (8.0, 8.0)),
+             ("sparse: 3 x 3 at 3.0 mm\nunder a 10 x 10 mm part", 3, 3.0, (0.0, 0.0), (10.0, 10.0)),
+             ("off centre: 5 x 5 at 1.2 mm,\n1.5 mm off the centre of a 10 x 6 mm part", 5, 1.2, (1.5, 0.0), (10.0, 6.0))]
+    for ax, (title, n, pitch, off, wh) in zip(axs[:3], specs):
+        ax.set_xlim(0, 16)
+        ax.set_ylim(-2.2, 17.2)
+        ax.set_aspect("equal")
+        ax.add_patch(Rectangle((0, 0), 16, 16, facecolor="#f4f4f4", edgecolor="k"))
+        ax.add_patch(Rectangle((8 - wh[0] / 2, 8 - wh[1] / 2), wh[0], wh[1], facecolor="#ffd9d0", edgecolor="k", linewidth=1.2))
+        h = (n - 1) / 2
+        for i in range(n):
+            for j in range(n):
+                ax.add_patch(Circle((8 + off[0] + (i - h) * pitch, 8 + off[1] + (j - h) * pitch), 0.15, facecolor="#7a4b13", edgecolor="k", linewidth=0.3))
+        ax.text(8, 16.6, title, fontsize=7.5, ha="center", va="bottom")
+        ax.text(8, -0.6, "16 x 16 mm, 4 planes of 35 um", fontsize=7, ha="center", va="top")
+    d = axs[3]
+    d.set_xlim(0, 10)
+    d.set_ylim(0, 10)
+    d.set_aspect("equal")
+    # a barrel of 0.3 mm on the 0.125 mm grid of the solver: 2.4 cells across; the ring and the fill drawn by area share
+    cell = 10.0 / 8.0
+    for i in range(8):
+        for j in range(8):
+            d.add_patch(Rectangle((i * cell, j * cell), cell, cell, fill=False, edgecolor="#999999", linewidth=0.5))
+    d.add_patch(Circle((5.0, 5.0), 10.0 * 0.15 / 1.0, fill=False, edgecolor=dk.COPPER, linewidth=3))
+    d.add_patch(Circle((5.0, 5.0), 10.0 * 0.15 / 1.0 - 0.9, fill=False, edgecolor="k", linewidth=0.6, linestyle="--"))
+    d.text(5, 9.3, "a 0.3 mm barrel on the 0.125 mm grid", fontsize=7.5, ha="center")
+    d.text(5, 0.35, "the gap cells hold the area share of the ring and the fill\n(the planes are whole, as in the program)", fontsize=7, ha="center")
+    dk.save(fig, path)
+
+
 def main():
     """!
     @brief Draw the four figures.
@@ -195,7 +321,10 @@ def main():
     fig_network(OUT / "fig_02_network_two_layers_double_count.png")
     fig_decimation(OUT / "fig_03_decimation_stride_vs_blocks.png")
     fig_raster(OUT / "fig_04_raster_against_core.png")
-    print("wrote 4 figures to", OUT)
+    fig_shen(OUT / "fig_11_shen_case_board_and_unit_cell.png")
+    fig_profile_runner(OUT / "fig_12_profile_runner_with_zones.png")
+    fig_boards_3d(OUT / "fig_13_3d_check_boards.png")
+    print("wrote 7 figures to", OUT)
 
 
 if __name__ == "__main__":
