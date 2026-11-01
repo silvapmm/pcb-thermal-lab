@@ -96,15 +96,18 @@ def rises(pad, thickness_mm, before=False, problem=None, cell_mm=0.5):
     @param cell_mm Cell size in mm.
     @return Dict model -> rise in K.
     """
-    saved_nodes, saved_w = laminate.nodes, lumped.RING_MIN_WIDTH
+    saved_nodes, saved_w, saved_rule = laminate.nodes, lumped.RING_MIN_WIDTH, laminate.uses_rule
     try:
         if before:
             laminate.nodes = lambda board, count=None: None
+            # Since 2.4.5 the laminate rule gives a one-layer board its bottom node (fvm/fdm _add_ladder), not laminate.nodes: switch it off too,
+            # otherwise the "before" columns silently print the current program (found by the review of the reproduction pass)
+            laminate.uses_rule = lambda problem: False
             lumped.RING_MIN_WIDTH = 0.0
         p = iso_board(pad, thickness_mm) if problem is None else problem
         r = simulate(p, SolverOptions(models=MODELS, cell_mm=cell_mm)).results
     finally:
-        laminate.nodes, lumped.RING_MIN_WIDTH = saved_nodes, saved_w
+        laminate.nodes, lumped.RING_MIN_WIDTH, laminate.uses_rule = saved_nodes, saved_w, saved_rule
     return {m: r[m].t_max - p.board.ambient for m in MODELS}
 
 

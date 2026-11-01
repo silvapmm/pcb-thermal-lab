@@ -43,6 +43,31 @@ def board(pad_mm):
     return p
 
 
+def make_network(problem, nx, ny):
+    """!
+    @brief Build the finite-volume network of the prototype, frozen on the network of the versions before 2.4.5 (no laminate nodes of the rule).
+    @param problem Problem from board().
+    @param nx Cells along x.
+    @param ny Cells along y.
+    @return fvm.Network built with ladder=False.
+    """
+    return fvm.Network(problem, nx, ny, ladder=False)
+
+
+def check_frozen(net):
+    """!
+    @brief Fail fast on a network the prototype cannot solve.
+    @details solve() rebuilds the ambient conductance from the faces only; on a network with the laminate nodes of the rule (ladder=True) those nodes lose
+             their path to the ambient, the matrix is singular and spsolve would hang without an error.
+    @param net fvm.Network to check.
+    @return None.
+    @throws RuntimeError If the network has the laminate nodes of the rule.
+    """
+    if getattr(net, "ladder", None) is not None:
+        raise RuntimeError("package_prototype supports only networks built with ladder=False (the versions before 2.4.5): "
+                           "the laminate nodes of the rule have no ambient path in this prototype and the matrix would be singular")
+
+
 def solve(problem, power, theta_pad, model, top=None, cell_mm=0.5):
     """!
     @brief Steady temperatures of the board with the part modelled in one of two ways, with the heat transfer coefficients computed by iteration.
@@ -57,7 +82,8 @@ def solve(problem, power, theta_pad, model, top=None, cell_mm=0.5):
     """
     b = problem.board
     nx, ny = int(round(b.width * 1000 / cell_mm)), int(round(b.height * 1000 / cell_mm))
-    net = fvm.Network(problem, nx, ny)
+    net = make_network(problem, nx, ny)
+    check_frozen(net)
     w = net.Qw[0].ravel()
     n = net.K.shape[0]
     ht, hb = b.h_top, b.h_bottom

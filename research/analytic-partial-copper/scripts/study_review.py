@@ -42,12 +42,15 @@ def fvm_nodes(p, n, cell_mm):
     @param cell_mm Cell size in mm.
     @return Rise in K.
     """
-    keep = laminate.LAMINATE_NODES
+    # Since 2.4.5 the program's FVM applies the laminate rule by itself and ignores LAMINATE_NODES on a one-layer board, so "n nodes" would
+    # silently be the rule; the rule is switched off here so that n means n nodes again (found by the review of the reproduction pass)
+    keep, keep_rule = laminate.LAMINATE_NODES, laminate.uses_rule
+    laminate.uses_rule = lambda problem: False
     try:
         laminate.LAMINATE_NODES = n
         return float(simulate(p, SolverOptions(models=("fvm",), cell_mm=cell_mm)).results["fvm"].t_max - p.board.ambient)
     finally:
-        laminate.LAMINATE_NODES = keep
+        laminate.LAMINATE_NODES, laminate.uses_rule = keep, keep_rule
 
 
 def second_reference(bd, dx_mm=0.25, nsub=8, cell_mm=0.5):
