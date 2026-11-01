@@ -116,3 +116,25 @@ def test_frozen_build_marks_unchanged_records_bit_and_compares_within_the_tolera
     assert F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0 + 1e-12)])               # a bit record is exact
     assert not F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0 + 1e-12)], bit_tol_k=1e-9)
     assert F.compare(f, [rec("plate_pad", "fvm", 2.0, 110.0, unknowns=101)])           # the unknown count is exact
+
+
+def test_first_run_corrections_of_the_table():
+    """!
+    @brief The table entries corrected by the first run of the harness classify the shifts that raised false alarms.
+    @return None.
+    """
+    # the SOR of the plain plate moves inside its stopping tolerance (relaxation factor of 2.4.5), not an alarm
+    cls, rules, _ = C.classify_shift(TABLE, "plate_uniform", "fvm_sor", 2.0, "t_max", 159.0524330838, 159.0524331286, 134.0)
+    assert cls == "expected" and "R6a" in rules
+    # the direct FVM on the same board must still not move at all
+    cls, _, _ = C.classify_shift(TABLE, "plate_uniform", "fvm", 2.0, "t_max", 159.05, 159.06, 134.0)
+    assert cls == "must_not_move"
+    # the FDM hottest point under a part across the outline moves down with the part weights (item I1)
+    cls, rules, _ = C.classify_shift(TABLE, "part_across_outline", "fdm", 2.0, "t_max", 246.76, 230.52, 221.0)
+    assert cls == "expected" and "R1a" in rules
+    # the Analytic mean under a part on an outline board moves a little (read-out on the real outline)
+    cls, rules, _ = C.classify_shift(TABLE, "round_outline", "analytic", 2.0, "part:U:t_mean", 170.73, 170.01, 150.0)
+    assert cls == "expected" and "R1e" in rules
+    # but its hottest point on the same board does not move
+    cls, _, _ = C.classify_shift(TABLE, "round_outline", "analytic", 2.0, "t_max", 175.0, 175.5, 150.0)
+    assert cls == "must_not_move"
