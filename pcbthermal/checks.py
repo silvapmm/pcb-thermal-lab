@@ -14,8 +14,8 @@ import math
 
 import numpy as np
 
-from . import blocks, convection, lumped, viaconstriction, viawell
-from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
+from . import blocks, convection, copper, lumped, viaconstriction, viawell
+from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -80,8 +80,15 @@ def check_problem(problem, cell_mm=1.0):
     out = []
     board_cover = b.cover(nx, ny, dx, dy)               # Ones for a rectangular board
 
-    # --- Copper fill of every layer (union of its zones), used by several checks
-    fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, 4)
+    # --- Copper fill of every layer (union of its zones, the imported layers from their masks), used by several checks
+    try:
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+        imported_layers = set(copper.CopperSource.of(problem).layers) if copper.has_imported(problem) else set()
+    except ValueError as exc:
+        # Damaged or mismatched imported copper: every run would refuse it, so say why here and check the rest on the drawn zones
+        _add(out, None, None, f"The imported copper cannot be used: {exc}.", "The imported copper cannot be used (see the details).")
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4, source=False)
+        imported_layers = set()
 
     heater_poly = []                                    # Footprint of every heater with an area (None otherwise), for the exact overlap test
     for k, h in enumerate(problem.heaters):
@@ -157,6 +164,10 @@ def check_problem(problem, cell_mm=1.0):
         if polygon_self_intersects(z.polygon):
             _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: the outline crosses itself; the fill follows the even-odd rule, so the crossed part is left empty. "
                        "Redraw the zone without the crossing.", f"{z.name or f'Zone {k + 1}'}: the outline crosses itself.")
+        if z.layer in imported_layers:
+            # copper.override_fill: the masks of an imported layer are the whole copper of that layer, so a zone drawn there changes nothing
+            _add(out, "zone", k, f"{z.name or f'Zone {k + 1}'}: copper layer {z.layer + 1} is imported, and its masks replace the drawn zones of that layer: "
+                                 "this zone is ignored by every model.", f"{z.name or f'Zone {k + 1}'}: ignored, its layer is imported.")
 
     # --- Metal blocks: they only take heat where they overlap copper of their face
     block_cov = {}
@@ -404,7 +415,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
     # fill there is compared with 0.5. The mean fill of the whole footprint is not used: a 2 or 4 mm window under a 6 mm part has a mean
     # fill of 0.89 or 0.56 and a window as large as the part a fill of 0, and those are the boards where the FVM was 10 to 23 % low.
     if layered:
-        fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, 4)
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
         any_copper = bool(fill.max() > 0.0)                     # A board with no copper at all has its own warnings and was not measured
         for k, h in enumerate(problem.heaters):
             if not any_copper or polygon_area(h.polygon) <= 0:

@@ -45,9 +45,9 @@ import numpy as np
 
 from scipy.special import k0
 
-from . import blocks, laminate, viaconstriction
+from . import blocks, copper, laminate, viaconstriction
 from .fvm import Network
-from .geometry import coverage_fraction, polygon_area, polygon_centroid, zone_fill
+from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 from .numfmt import num
 
@@ -134,7 +134,7 @@ def _effective_sheet(problem, cell_mm):
     warnings = []
 
     # --- Copper fill field of every layer and its heater-influence weighted average
-    fill_map = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)
+    fill_map = copper.problem_fill(problem, nx, ny, dx, dy, 4)
     h_tot = float(b.h_top + b.h_bottom)
     d_diel = b.gap_thicknesses()                                          # (L-1,) one per gap
     g_diel = b.gap_properties()[0] / d_diel if L > 1 else np.zeros(0)     # Vertical conductance per area of each gap (W/m2K)
@@ -228,7 +228,7 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
             g_link, g_amb.
     """
     b = problem.board
-    fill_t = zone_fill(problem.zones, L, ntx, nty, tw, th, 4)
+    fill_t = copper.problem_fill(problem, ntx, nty, tw, th, 4)
     area_t = np.full((nty, ntx), tw * th)
     out = []
     for ly in blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, ntx, nty, tw, th, n), area_t, fill_t, tw, th):

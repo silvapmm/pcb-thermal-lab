@@ -901,6 +901,9 @@ class Problem:
     vias: List[Via] = field(default_factory=list)
     heatsinks: List[Heatsink] = field(default_factory=list)
     name: str = "board"
+    # The copper of an import (masks as packed text, see copper.py). Not part of the native problem JSON: a project keeps it in its import records
+    # (format 2) and hands it to the problem to run; None for every drawn board, which then takes the zone path unchanged
+    imported: Optional["ImportedCopper"] = None
 
     def total_power(self):
         """!
@@ -934,6 +937,10 @@ class Problem:
             k.polygon = k.polygon * s
         for v in q.vias:
             v.x, v.y = v.x * s, v.y * s
+        if q.imported is not None:
+            # The masks are stretched with the board: the pixel scales like the box (the raster is anchored at the top-left corner of the box)
+            q.imported = copy.copy(q.imported)
+            q.imported.pix_mm = q.imported.pix_mm * s
         for h in q.heaters:
             c = h.polygon.mean(axis=0)
             moved = h.polygon - c + c * s                                   # Same size, scaled centre
@@ -1555,23 +1562,33 @@ class ImportPart:
 @dataclass
 class ImportedCopper:
     """!
-    @brief Placeholder for the output of an import (the packed copper masks); the imported-copper branch fills it.
-    @details Stored by value ("embed" True: each layer carries its packed mask) or by reference ("embed" False: roles only, redrawn from the
-             sources). The program of this version only keeps and writes it back; nothing in the models reads it.
+    @brief The copper of an import: one coverage mask per copper layer at the pixel of the import, kept as packed text.
+    @details Stored by value ("embed" True: each layer carries its packed mask) or by reference ("embed" False: roles only, redrawn from the sources, so the models
+             see no copper until the masks are redrawn). A layer entry is a dict {"name", "role", "index" (0 = top copper layer of the board), "mask", "thickness_um"
+             (optional)}; "mask" is {"kind": "coverage" (one byte per pixel, 0 to 255) or "binary" (bits), "shape": [rows, cols], "data": base64 of the deflated bytes}
+             (copper.pack_coverage / unpack_coverage). The raster covers the board box: its top-left corner is the top-left corner of the box, rows run downwards, columns to the
+             right, and its last row and column may end up to one pixel beyond the box. The masks stay text inside the record, so a copy of the record (an undo snapshot,
+             a deep copy of the problem) shares the strings and costs nothing; the arrays are made when a model needs them (copper.py keeps the last few).
+             `mapping` chooses how the models turn the masks into cell conductances ("faces" the default, flow-based faces on the reduced sheet of the laminate rule;
+             "lambda" the fast lambda 0.5 faces; "fill" the arithmetic copper fraction, which reads 10 to 30 % cool on thin copper).
     """
     pix_mm: float = 0.0                                   # Pixel of the masks in mm
     embed: bool = True                                    # True: masks are inside the layers entries
-    layers: list = field(default_factory=list)            # [{"name": str, "role": str, "mask": packed dict or absent}, ...]
+    layers: list = field(default_factory=list)            # [{"name": str, "role": str, "index": int, "mask": packed dict or absent}, ...]
+    mapping: str = "faces"                                # "faces" (default), "lambda" or "fill"
     extra: dict = field(default_factory=dict)             # Keys written by a later version, kept and written back
 
-    KEYS = ("pix_mm", "embed", "layers")
+    KEYS = ("pix_mm", "embed", "layers", "mapping")
 
     def to_dict(self):
         """!
         @brief Serialise the reference.
-        @return JSON-ready dict.
+        @return JSON-ready dict ("mapping" only when it is not the default, so a file of the first format 2 stays byte-identical).
         """
-        return _with_unknown({"pix_mm": float(self.pix_mm), "embed": bool(self.embed), "layers": copy.deepcopy(self.layers)}, self.extra)
+        out = {"pix_mm": float(self.pix_mm), "embed": bool(self.embed), "layers": copy.deepcopy(self.layers)}
+        if self.mapping != "faces":
+            out["mapping"] = self.mapping
+        return _with_unknown(out, self.extra)
 
     @staticmethod
     def from_dict(d):
@@ -1582,7 +1599,7 @@ class ImportedCopper:
         """
         d = d or {}
         return ImportedCopper(float(d.get("pix_mm", 0.0)), bool(d.get("embed", True)), copy.deepcopy(list(d.get("layers", []))),
-                              _unknown_keys(d, ImportedCopper.KEYS))
+                              str(d.get("mapping", "faces")), _unknown_keys(d, ImportedCopper.KEYS))
 
 
 @dataclass

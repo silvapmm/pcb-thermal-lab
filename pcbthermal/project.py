@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 
 from . import __version__
 from .api import SolverOptions
+from .copper import has_mask
 from .model import ImportRecord, Problem, problem_from_dict, problem_from_legacy, problem_to_dict
 
 PROJECT_SUFFIX = ".pcbt.json"
@@ -54,6 +55,22 @@ class Project:
     imports: list = field(default_factory=list)      # ImportRecord list; non-empty makes the file format 2
     extra: dict = field(default_factory=dict)        # Top-level keys of a format 2 file this version does not know, written back unchanged
 
+    def run_problem(self):
+        """!
+        @brief The Problem to hand to the models: the project's problem with the imported copper of its first import record that holds masks.
+        @details The native problem JSON carries no copper masks (they live in the import records, format 2); `project_from_dict` calls this, so a loaded project's problem
+                 already reads its copper, and a program that edits the records calls it again. The copy is shallow (the elements and the packed masks are shared, nothing is
+                 duplicated); a project without imported copper returns its own problem, and a problem that holds copper but no record keeps it.
+        @return Problem.
+        """
+        for rec in self.imports:
+            c = rec.copper
+            if c is not None and any(has_mask(e) for e in c.layers):
+                q = copy.copy(self.problem)
+                q.imported = c
+                return q
+        return self.problem
+
 
 def project_to_dict(project):
     """!
@@ -68,9 +85,15 @@ def project_to_dict(project):
     d["view"] = project.view
     d["format"] = FORMAT_1
     d["app_version"] = __version__                  # Version that wrote the file (informational)
-    if not project.imports:
+    imports = list(project.imports)
+    own = getattr(project.problem, "imported", None)
+    if own is not None and any(has_mask(e) for e in own.layers) and not any(r.copper is not None and any(has_mask(e) for e in r.copper.layers) for r in imports):
+        # The problem holds imported copper that no record carries (a problem made by ImportedBoard.to_problem and saved as it is): the native problem JSON has
+        # no place for the masks, so without a record they were dropped and the file reopened as a bare board. Write them in a record of their own
+        imports.append(ImportRecord(name="imported copper", copper=own))
+    if not imports:
         return d
-    out = {"format": FORMAT_2, "app_version": __version__, "project": d, "imports": [r.to_dict() for r in project.imports]}
+    out = {"format": FORMAT_2, "app_version": __version__, "project": d, "imports": [r.to_dict() for r in imports]}
     for key, value in project.extra.items():        # Forward compatibility: what a later 2.x added survives a save by this version
         out.setdefault(key, copy.deepcopy(value))
     return out
@@ -123,8 +146,10 @@ def project_from_dict(data, validate=True):
         extra = {k: copy.deepcopy(v) for k, v in data.items() if k not in FORMAT_2_KEYS}
         data = data["project"]
     problem = problem_from_legacy(data) if "pcb_params" in data else problem_from_dict(data, validate)
-    return Project(problem=problem, options=SolverOptions.from_dict(data.get("solver")),
-                   view=dict(data.get("view", {})), imports=imports, extra=extra)
+    project = Project(problem=problem, options=SolverOptions.from_dict(data.get("solver")),
+                      view=dict(data.get("view", {})), imports=imports, extra=extra)
+    project.problem = project.run_problem()          # The masks live in the import records; the models read them from the problem (shares the packed text)
+    return project
 
 
 def load_project(path):

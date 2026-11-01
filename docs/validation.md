@@ -1047,3 +1047,61 @@ The program's default limit is 60 % (10.3 GB of the 17.2 GB), lower than the 12.
 **Transient and animation** (README 14.5): on the 4-layer plain board at 0.5 mm the steady solve peaked at 0.643 GB and the transient at 2.245 GB (3.5 times) while ten LU factors were kept; with one factor it is 1.230 GB (1.9 times, the same 11 frames bit for bit). The program now keeps one factor and the transient factor is 2.0. The case quoted in the changelog for the shipped change (a 111 556-unknown board, 2.60 to 0.65 GB) was reported by the review of the integration and is not in a printed output of the research folder.
 
 **What was not verified.** The reviewer's table of ten cases of the corrected law in the program (the ratio peak / estimate of 0.28 to 0.94) is not recorded in a file that this document could be checked against, so no number of it is quoted; the first runs of the program log the estimate and the measured peak for the check. Also not measured: other machines (Windows, containers), the Analytic's tile memory, the power-profile and FDM transients, and the Gerber importer's memory. A resident peak read on a loaded Mac can be low by 20 % or more with no swap (the memory compressor, a hypothesis).
+
+## 27. Imported copper: the mappings as implemented, against the program's pixel network and an independent 3D solver
+
+Produced by `research/gerber-real-boards/scripts/study_program_cells.py` (`--part mapping --side 12`, `--part mapping --side 24 --boards rp2040,co60,vstcm`, `--part ref3d`), run on the tree of `feature/imported-copper` for this document; the printed tables are copied below. All errors are in **percent of the heater mean rise** (sign: the model minus the reference; a negative number is too cool). Method: for each board the top copper is drawn at 0.4 mm and the window whose central block is nearest to 55 % copper is taken; a 4 mm heater (4.8 mm for the 3D part) at the centre of the top layer (its edges on the grid lines of the 0.5, 1 and 2 mm cells); h = 10 W/m2K on both faces, adiabatic sides, simple stack-up 1.6 mm, copper 35 micrometres, binary pixel-centre masks (pixel 0.1 mm for 12 mm windows, 0.125 mm for 24 mm); plated holes left out of both sides. Variants: `faces` (the default, on the reduced sheet), `lambda` (0.5), `fill` (the arithmetic fill, the old path) and `naive` (faces from the unreduced sheet, `CopperSource.reduce_sheet = False`, the order of construction that the design forbids). Four-layer boards: isastm, cmm2, oswlight; two-layer boards: rp2040, co60, vstcm (stickhub has no 24 mm window of this kind). The boards are the downloaded open boards of `research/gerber-real-boards` 3 (licences there, nothing of them is in this repository).
+
+![The laminate rule and the face mapping](images/imported_copper_mapping.png)
+
+*Figure (`images/imported_copper_mapping.png`, the study of `research/gerber-real-boards` 10 at the cells 0.6 and 1.2 mm, 12 mm windows): the error of each variant on the real and synthetic windows against the 3D reference; to the left of the dashed line the program's network at the pixel against the 3D reference. It is the earlier study's picture, made with its own prototype of the faces; the tables below are the program's own.*
+
+### 27.1 The mapping alone: against the program's own network on the pixels (12 mm windows)
+
+Mean absolute / largest absolute error, per layer count and cell:
+
+| layers, cell | n | faces | lambda | fill | naive |
+| :-- | --: | --: | --: | --: | --: |
+| 2, 0.5 mm | 4 | 0.15 / 0.27 | 0.58 / 1.73 | 4.77 / 7.83 | 4.72 / 6.01 |
+| 2, 1.0 mm | 4 | 0.85 / 1.56 | 0.97 / 1.57 | 5.64 / 8.41 | 4.55 / 5.91 |
+| 2, 2.0 mm | 4 | 2.54 / 3.86 | 1.97 / 3.83 | 6.70 / 9.38 | 3.09 / 4.05 |
+| 4, 0.5 mm | 3 | 0.38 / 0.51 | 0.23 / 0.26 | 4.19 / 5.16 | 0.52 / 0.95 |
+| 4, 1.0 mm | 3 | 0.50 / 0.78 | 0.36 / 0.59 | 4.26 / 5.43 | 0.37 / 0.48 |
+| 4, 2.0 mm | 3 | 1.59 / 2.06 | 1.59 / 1.76 | 3.75 / 4.94 | 0.69 / 1.13 |
+
+The faces are closer than the fill in every window (4 of 4 and 3 of 3 at every cell). The fill reads 4 to 9 % too cool. **The naive order is not the worst on four layers**: there the laminate rule moves little (the copper is nearly everywhere), so counting the laminate twice costs 0.4 to 1.1 points; **on two layers it is as bad as the fill (4.5 to 4.7 % at the cells of 0.5 and 1 mm)**, which is why the order of construction is held by a test (`tests/test_imported_copper.py`, `reduce_sheet = False`). At the 2 mm cell the order matters less on this metric (naive 3.09 / 0.69 against faces 2.54 / 1.59 on two / four layers); see 27.3 for the 2 mm cell.
+
+### 27.2 Against the independent 3D solver (12 mm windows, heater 4.8 mm, cells 0.6 and 1.2 mm)
+
+`lib/ref3d.py` imports nothing of `pcbthermal`. Mean absolute / largest absolute error:
+
+| layers, cell | n | faces | lambda | fill | naive |
+| :-- | --: | --: | --: | --: | --: |
+| 2, 0.6 mm | 4 | 1.36 / 1.55 | 1.01 / 1.22 | 3.79 / 4.16 | 4.31 / 4.87 |
+| 2, 1.2 mm | 4 | 1.21 / 1.67 | 0.95 / 1.80 | 4.99 / 6.45 | 4.07 / 4.74 |
+| 4, 0.6 mm | 3 | 1.54 / 1.92 | 1.41 / 1.62 | 3.29 / 4.53 | 2.31 / 3.13 |
+| 4, 1.2 mm | 3 | 1.19 / 1.33 | 0.84 / 1.22 | 3.23 / 4.50 | 1.98 / 2.62 |
+
+The faces are closer than the fill in every window. They read 1.2 to 1.5 % cool on average against the 3D solver (mean absolute error of the fill: 3.2 to 5.0 %); the mapping against the program's own network (27.1) is 0.2 to 1.6 % at the same cells, so most of the 1.2 to 1.5 % is the difference between the program's layered network and the 3D solid, not the mapping (not separated here by a run).
+
+### 27.3 Larger windows and the 2 mm cell (24 mm windows, heater 4 mm; error of the faces against the pixel network)
+
+| board (layers) | cell 0.5 mm | cell 1.0 mm | cell 2.0 mm |
+| :-- | --: | --: | --: |
+| rp2040 (2) | +1.70 | +4.30 | +7.73 |
+| co60 (2) | +0.35 | +1.87 | +7.20 |
+| vstcm (2) | -0.05 | +1.72 | +9.56 |
+
+Mean absolute (largest) of the three: faces 0.70 (1.70), 2.63 (4.30), 8.16 (9.56); lambda 4.02 (5.67), 5.05 (6.34), 10.97 (15.01); fill 9.50 (10.75), 14.81 (16.65), 14.90 (16.31); naive 10.48 (12.16), 9.28 (10.97), 4.86 (6.55). **The faces read 7.2 to 9.6 % too hot at a 2 mm cell** on 24 mm windows of two-layer boards. Cause (the reviewer's reading, the program's grid error is the part that is measured in section 23): a 4 mm part over a 2 mm cell is two cells wide, and the program's own network has an error of that size with drawn copper under a part two cells wide; the other part is the copper inside a 2 mm cell that two numbers per face cannot resolve (the 0.125 mm pixel of these windows holds 16 pixels per cell). The naive order reads 2.9 to 6.6 % cool at this cell (and 10 % cool at 0.5 mm), which would be because its double-counted laminate lowers the conductance and hides part of the overshoot (the reading is not tested), not because it is more accurate. The program warns above a 1 mm cell (`copper.COARSE_CELL_WARNING`). **Not separated by a run**: how much of the overshoot is the grid error of the part and how much the copper inside the cell (the split "about half" in the warning text is the reviewer's estimate, not a table of this document).
+
+### 27.4 A cell that is not a whole number of pixels
+
+Cells of 0.5, 1 and 2 mm are whole numbers of the pixels above, so the tables do not exercise `sample_coverage`. The review measured (not re-run for this document; the values are those written in the docstring of `copper.sample_coverage` and in `tests/test_imported_copper.py::test_faces_at_a_cell_that_is_not_a_whole_number_of_pixels`): averaging the raster onto the grid of the face problems read the faces 1.4 to 3.9 % of the rise cool on twelve real windows at cells of 0.92 and 1.09 mm, against 0 to 1.2 % at whole numbers of pixels, and 11 to 22 % on a checker and on islands 0.3 mm apart; sampling removes the bridges between copper areas. The test keeps the unaligned and the aligned cases within a stated tolerance of each other.
+
+### 27.5 Time and memory (CO60, 285 x 95 mm, two layers; the reviewer's measurement, not re-run for this document)
+
+Import 10 s and 0.64 GB, network build 7.7 s, solve 32 s, peak 5.5 GB. The import and run terms of `memory.py` (`copper_run_bytes`: the unpacked masks, 1 byte per pixel and layer; the face construction, 40 bytes per source pixel of the largest layer plus 50 MB) are the ones fitted to such runs. **The memory law of the FVM itself ignores the vias** (`memory.estimate`): a board with many plated holes costs more than the estimate says; this is a separate fix (`docs/versions.md` 'Planned'), not part of this branch.
+
+### 27.6 What was not verified
+
+Nothing was compared with a measurement of a physical board. Plated holes are left out of the tables (the primary run isolates the mapping); heaters other than a 4 to 4.8 mm square on the top layer; copper other than 35 micrometres; the transient of an imported board at the program's cells (the earlier study 4.3 ran it at a fine cell only); the 3D solid and the Lumped and Analytic models on imported copper only through the warnings and the tests of `tests/test_imported_copper.py` (the 1 to 16 % of the warning is the earlier study of 24 windows, README 4.5, not re-run here). The 24 mm windows of the four-layer boards need 8.4 GB for the pixel network (the script's header) and were not run.
