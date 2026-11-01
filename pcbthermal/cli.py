@@ -30,7 +30,7 @@ from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .profile_io import read_profile_csv
-from .project import Project, load_project, save_project
+from .project import Project, ProjectFormatError, load_project, save_project
 from .numfmt import num
 
 MODELS = ("fvm", "lumped", "analytic")
@@ -392,6 +392,9 @@ def main(argv=None):
     except memory.MemoryGuardError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return memory.EXIT_CODE
+    except ProjectFormatError as exc:                  # A project file of a format this program does not read: a message, not a traceback
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     except ValueError as exc:
         if "memory fraction" in str(exc):                # An out-of-range --memory-fraction
             print(f"error: {exc}", file=sys.stderr)

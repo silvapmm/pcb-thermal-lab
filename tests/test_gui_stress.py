@@ -1184,3 +1184,60 @@ def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
             assert [str(w) for w in live] == [str(w) for w in ref]
             assert all(len(line(w)) <= len(str(w)) for w in live)
     win.doc.stack.setClean()
+
+
+def test_project_format_2_in_the_application(win, qtbot, tmp_path, popups):
+    """!
+    @brief Project format 2 in the window: a refused (newer or damaged) file leaves the open document as it was and shows its reason, a format 2
+           file opens with its imports, the first save with imports over a format 1 file keeps a .bak and says so, and undo / redo keep the imports.
+    @param win Main window.
+    @param qtbot pytest-qt helper.
+    @param tmp_path pytest folder.
+    @param popups Recorder of the message boxes.
+    @return None.
+    """
+    import json
+    from pcbthermal.model import ImportFile, ImportPart, ImportRecord, ImportedCopper
+    from pcbthermal.project import FORMAT_2, Project, save_project
+    record = ImportRecord(name="brd", files=[ImportFile("top.gtl", 10, "ab" * 32, "copper")], box_mm=[0.0, 0.0, 100.0, 80.0],
+                          parts=[ImportPart("U1", "box", [[1.0, 1.0], [5.0, 1.0], [5.0, 5.0], [1.0, 5.0]], 1.5)],
+                          copper=ImportedCopper(0.05, True, [{"name": "F.Cu", "role": "top", "mask": {"kind": "binary", "data": "eJw="}}]))
+    # A format 1 file opened, then refused files: the open document and its path stay
+    f1 = tmp_path / "board.pcbt.json"
+    save_project(f1, Project(problem=example_board()))
+    win.open_file(str(f1))
+    assert win.doc.path == str(f1) and win.doc.project.imports == []
+    newer = tmp_path / "newer.pcbt.json"
+    newer.write_text(json.dumps({"format": "pcbthermal-project-3", "app_version": "3.1.0", "project": {}}))
+    damaged = tmp_path / "damaged.pcbt.json"
+    damaged.write_text(json.dumps({"format": FORMAT_2, "imports": []}))
+    not_json = tmp_path / "cut.pcbt.json"
+    not_json.write_text('{"format": "pcbthermal-project-2", "proj')
+    for bad, words in ((newer, ("format 3", "3.1.0")), (damaged, ("project",)), (not_json, ("not valid JSON",))):
+        popups.clear()
+        win.open_file(str(bad))
+        assert [(k, t) for k, t, _ in popups] == [("critical", "Cannot open file")]
+        assert all(w in popups[0][2] for w in words), popups[0][2]
+        assert win.doc.path == str(f1)
+    # The first save with imports over the format 1 file: format 2, a .bak of the old bytes, a status-bar line
+    old = f1.read_text()
+    win.doc.edit("import", lambda pr: pr.imports.append(record))
+    assert win.save_file()
+    assert json.loads(f1.read_text())["format"] == FORMAT_2
+    assert (tmp_path / "board.pcbt.json.bak").read_text() == old
+    assert ".bak" in win.statusBar().currentMessage()
+    # A format 2 file opens with its imports; undo and redo of an edit of an imported part keep them
+    win.open_file(str(f1))
+    assert win.doc.project.imports == [record]
+    win.doc.edit("power", lambda pr: setattr(pr.imports[0].parts[0], "power", 3.0))
+    win.doc.edit("ambient", lambda pr: setattr(pr.problem.board, "ambient", 30.0))
+    win.doc.stack.undo()
+    assert win.doc.project.imports[0].parts[0].power == 3.0
+    win.doc.stack.undo()
+    assert win.doc.project.imports == [record]
+    win.doc.stack.redo()
+    win.doc.stack.redo()
+    assert win.doc.project.imports[0].parts[0].power == 3.0 and win.doc.problem.board.ambient == 30.0
+    run(win, qtbot, ("fvm",))                                     # The models run on a format 2 project (the imports are not read by them yet)
+    assert win.save_file() and not (tmp_path / "board.pcbt.json.bak2").exists()   # Already format 2: no new copy
+    win.doc.stack.setClean()
