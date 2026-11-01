@@ -187,6 +187,7 @@ class Layer:
         self.attributes = {}           # X2 file attributes, for example {"FileFunction": ["Copper", "L1", "Top"]}
         self.apertures = {}
         self._boxes = None
+        self.warnings = []             # tolerances used on a file that departs from the specification (text for the import window)
         self.ended = False             # True when the file ends with M02 (or M00); a truncated file is read up to where it stops, and the caller should warn
         text = text.lstrip("\ufeff")   # a UTF-8 byte order mark would turn the first % block into a data block and shift every later one
         try:
@@ -402,7 +403,7 @@ class Layer:
         @param st  Parser state.
         """
         unit = st["unit"]
-        m = re.match(r"ADD(\d+)([A-Za-z_][\w.$]*)(?:,(.*))?", cmd)
+        m = re.match(r"ADD(\d+)([^,\d][^,]*)(?:,(.*))?", cmd)
         if not m:
             raise GerberError(f"{self.name}: bad aperture definition {cmd}")
         num, name, par = int(m.group(1)), m.group(2), m.group(3) or ""
@@ -418,6 +419,9 @@ class Layer:
                 raise GerberError(f"{self.name}: aperture {cmd} lacks its dimensions")
             aper = Aperture(name, [v * unit if (name != "P" or k in (0, 3)) else v for k, v in enumerate(vals)])
         elif name in st["macros"]:
+            if not re.fullmatch(r"[_a-zA-Z$][_a-zA-Z0-9]*", name):
+                # Specification 3.4.5: names are [_a-zA-Z$][_a-zA-Z0-9]*. The name is only a key and the AM and AD texts agree exactly, so the reading cannot be wrong
+                self.warnings.append(f"{self.name}: non-conformant aperture macro name {name!r} (accepted: the AM and AD names are identical)")
             args = [float(v) for v in re.split(r"[xX]", par)] if par else []
             prims = [macro_primitive(code, nums, self.name) for code, nums in st["macros"][name](args, unit)]
             aper = Aperture("M", [], [q for q in prims if q])

@@ -8,13 +8,14 @@
          comment form some CAD tools use (`;T01 Holesize 1. = 12.000000 ... PLATED MILS`), the repeat command `R<n>X..Y..`, routed slots (`G00 .. M15 .. G01 .. M16`, one slot per
          straight segment) and canned slots (`X..Y..G85X..Y..`). Plating comes from the tool comment, the file function (`; #@! TF.FileFunction,Plated,1,4,PTH` or `NonPlated`)
          or `;TYPE=PLATED`; None when the file does not say (the caller falls back on the file name). Refused (`UnsupportedFeatureError`): incremental mode (ICI, G91), routed arcs
-         (G02/G03), pattern commands (M25, M01 patterns), canned circles, origin shifts (G93), a tool used without a diameter, and a file without any unit.
+         (G02/G03), pattern commands (M25, M01 patterns), canned circles, origin shifts (G93 with an offset other than zero; G93X0Y0 is accepted), a tool used without a diameter, and a file without any unit.
 """
 
 import re
 from pathlib import Path
 from typing import List, NamedTuple, Optional
 
+from . import limits
 from .errors import GerberError, UnsupportedFeatureError
 from .parser import MAX_OPERATIONS, Layer, parse_number
 
@@ -112,6 +113,8 @@ def _read_drill(text, name):
     slot_start = None
     cur_g = None                                                              # routing mode: "0" (move), "1" (cut) or None (drill hits)
     last_xy = (0.0, 0.0)
+    has_m48 = re.search(r"(?m)^\s*M48\b", text) is not None
+    seen_m48 = False
 
     def refuse(feature):
         """!@brief Raise the refusal. @param feature Description. @throws UnsupportedFeatureError Always."""
@@ -154,15 +157,25 @@ def _read_drill(text, name):
                 a, b = m.group(1), m.group(2)
                 nint, ndec = (len(a), len(b)) if a.startswith("0") and len(a) + len(b) > 2 else (int(a), int(b))
             continue
-        if up in ("M71", "M72"):                                           # the unit as a code: M71 metric, M72 inch
-            unit = 25.4 if up == "M72" else 1.0
+        um = re.fullmatch(r"M7([12])(?:,\s*(TZ|LZ))?", up)
+        if um:                                                             # the unit as a code: M71 metric, M72 inch; an optional ,TZ / ,LZ names the zeros as in METRIC,TZ
+            unit = 25.4 if um.group(1) == "2" else 1.0
+            if um.group(2):
+                zeros = "L" if um.group(2) == "TZ" else "T"
             continue
-        if up in ("ICI", "ICI,ON") or up.startswith("G91") or up == "G93" or up.startswith("G93X"):
-            refuse("incremental mode or origin shift (ICI, G91, G93)")
+        if up.startswith("G93") and re.fullmatch(r"G93(?:[XY][-+]?[\d.]+){1,2}", up) and all(float(v) == 0.0 for v in re.findall(r"[-+]?[\d.]+", up[3:])):
+            continue                                                       # G93X0Y0 (Xpedition NC drill): the origin set to zero is the identity, so nothing moves
+        if up in ("ICI", "ICI,ON") or up.startswith("G91") or up.startswith("G93"):
+            refuse("incremental mode or an origin shift (ICI, G91, G93 with an offset other than zero)")
         if up in ("M25", "M01") or up.startswith("M02X") or up.startswith("M02Y"):
             refuse("Excellon pattern commands (M25, M01, M02 with offsets)")
         if up.startswith(("G82", "G83", "G84", "G32", "G33")):
             refuse(f"Excellon canned cycle {up[:3]}")
+        if up == "M48":
+            seen_m48 = True
+            continue
+        if line == "%" and has_m48 and not seen_m48:
+            continue                                                       # a stray % line before M48 (PADS, Fritzing) is not the end of a header
         if line == "%" or up.startswith("M95"):
             in_header = False
             continue
@@ -201,6 +214,8 @@ def _read_drill(text, name):
                     unit = 25.4
                 elif re.search(r"\bMM\b|METRIC", text.upper()):
                     unit = 1.0
+                elif not has_m48:                                             # Allegro writes the tool sizes as comments and no header: name the cause
+                    refuse("a drill file without a header (no M48, no unit): Allegro writes the tool sizes as comments; export the drills with a header")
                 else:                                                         # no unit anywhere: guessing would place the holes 25 times wrong
                     refuse("an Excellon file without unit information (no METRIC, INCH, M71 or M72): the unit must be chosen by the user")
             if nint is None:
@@ -257,11 +272,14 @@ def drill_from_gerber(layer):
     return DrillFile(holes, plated, span, {i: ap.p[0] for i, ap in layer.apertures.items() if ap.kind == "C"})
 
 
-def read_drill_file(path):
+def read_drill_file(path, max_bytes=None):
     """!
     @brief Read a drill file from disk.
     @param path File path.
+    @param max_bytes Largest file in bytes (None: the preference `gerber.max_file_mb`); a larger file is refused from its size.
     @return DrillFile.
+    @throws GerberError For a file above the limit or one that cannot be read.
     """
     p = Path(path)
+    limits.check_path(p, max_bytes)
     return read_drill(p.read_text(encoding="utf-8", errors="replace"), p.name)
