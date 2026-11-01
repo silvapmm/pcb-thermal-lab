@@ -31,7 +31,11 @@ from typing import Dict, List, NamedTuple, Optional
 HERE = os.path.dirname(os.path.abspath(__file__))
 HEAD_BYTES = 8192
 DECISIVE = 9
-_X2_ANY = re.compile(r"TF\.GenerationSoftware,\s*([^,*%\r\n]+),\s*([^,*%\r\n]+)(?:,\s*([^*%\r\n]*))?")
+# Review: the first form `,\s*([^,*%\r\n]+)` let `\s*` and the group share the blanks, so a line of 8 kB of blanks after the
+# attribute took 0.26 s (quadratic); the fields are now taken whole and stripped afterwards (linear).
+_X2_ANY = re.compile(r"TF\.GenerationSoftware,([^,*%\r\n]+),([^,*%\r\n]+)(?:,([^*%\r\n]*))?")
+# What may be shown or stored of a captured version or declared generator: printable ASCII, at most this many characters
+PUBLIC_TEXT_MAX = 40
 
 
 class Hit(NamedTuple):
@@ -188,6 +192,35 @@ def detect_set(files: Dict[str, bytes], table: Optional[dict] = None) -> Detecti
     ver = next((h.version for h in ev if h.version), "")
     name = "Unknown program" if best == "unknown" else table["profiles"][best]["name"]
     return Detection(best, name, conf, ver, ev, [c for c in cands if c[0] != best], declared)
+
+
+def public_text(text: str) -> str:
+    """!
+    @brief Reduce a text taken from a file (a version, a declared generator) to what may be shown or stored.
+    @details Review: the matched text of a marker can hold a path, a user and a computer name (Xpedition's `G04 Job` and
+             `G04 User` lines), and any captured field is controlled by whoever wrote the file. Only printable ASCII is kept,
+             characters that a rich-text label would interpret (`<`, `>`, `&`) are dropped, and the result is cut to
+             PUBLIC_TEXT_MAX characters.
+    @param text  Captured text.
+    @return str The text safe to show.
+    """
+    kept = "".join(c for c in text if 32 <= ord(c) < 127 and c not in "<>&\\")
+    return kept.strip()[:PUBLIC_TEXT_MAX]
+
+
+def public_evidence(det: Detection) -> dict:
+    """!
+    @brief The part of a detection that the program may show in the import window or store in a project.
+    @details Never the matched text: only the profile key, the confidence, the marker ids, the number of files per marker and
+             the sanitised version and declared generator (see `public_text`).
+    @param det  Detection of `detect_set`.
+    @return dict Keys profile, confidence, version, declared, markers (sorted list of (marker id, number of files)).
+    """
+    count: Dict[str, set] = {}
+    for h in det.evidence:
+        count.setdefault(h.marker, set()).add(h.file)
+    return {"profile": det.profile, "confidence": det.confidence, "version": public_text(det.version),
+            "declared": public_text(det.declared), "markers": sorted((m, len(f)) for m, f in count.items())}
 
 
 def read_heads(paths: List[str], root: str) -> Dict[str, bytes]:

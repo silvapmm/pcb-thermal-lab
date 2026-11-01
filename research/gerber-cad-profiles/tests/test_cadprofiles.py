@@ -227,3 +227,36 @@ def test_conventions_table():
             re.compile(rule[0])
     for key in prof:
         assert key in conv, "no conventions for " + key
+
+
+def test_review_x2_declaration_is_linear():
+    """!
+    @brief Review: a declared generator followed by 8 kB of blanks took 0.26 s with the first regular expression (quadratic); now it is linear.
+    @return None
+    """
+    import time
+    t0 = time.perf_counter()
+    for head in (b"%FSLAX46Y46*%\nTF.GenerationSoftware," + b" " * 8100,
+                 b"%FSLAX46Y46*%\nTF.GenerationSoftware,a," + b"\t" * 8100,
+                 b"%FSLAX46Y46*%\n%IN1=" + b"a" * 8100):
+        cp.detect_set({"x.gbr": head})
+    assert time.perf_counter() - t0 < 0.05
+
+
+def test_review_public_evidence_never_carries_file_text():
+    """!
+    @brief Review: what may be shown or stored of a detection holds marker ids and sanitised versions, never the path, user or computer of a banner.
+    @return None
+    """
+    head = ("*\nG04 Job   : C:\\secret\\project\\PCB.pcb*\nG04 User  : MYHOST:someone*\nG04 Layer : EtchLayerTop.gdo*\n"
+            "G04 Mentor Graphics Example Gerber Output Definition*\n%FSLAX24Y24*%\n")
+    d = cp.detect_set({"EtchLayerTop.gdo": head.encode()})
+    assert d.profile == "xpedition"
+    pub = cp.public_evidence(d)
+    text = repr(pub)
+    assert "secret" not in text and "someone" not in text and "MYHOST" not in text
+    assert ("g_job", 1) in pub["markers"]
+    # a declared generator is cut and stripped of markup
+    d = cp.detect_set({"x.gbr": b"%TF.GenerationSoftware,Acme <b>Evil</b>,Plot" + b"x" * 200 + b",1*%\n%FSLAX24Y24*%\n"})
+    pub = cp.public_evidence(d)
+    assert "<" not in pub["declared"] and len(pub["declared"]) <= cp.PUBLIC_TEXT_MAX

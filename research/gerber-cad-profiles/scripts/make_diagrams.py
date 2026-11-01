@@ -109,14 +109,14 @@ def bottom_x_sign(path):
     a = axs[1]
     a.add_patch(Rectangle((2.6, 1.4), 1.6, 0.8, facecolor="#d62728", edgecolor="k"))
     a.plot([3.4], [1.8], "k+")
-    a.text(3.4, 2.5, "file: PosX = +3.4\n'as is'\n(cmm2: 10 parts fit,\n0 negated)", ha="center", fontsize=7)
+    a.text(3.4, 2.5, "file: PosX = +3.4\n'as is'\n(cmm2: 10 openings fit,\n0 negated)", ha="center", fontsize=7)
     a.set_title("2  option off: written as is", fontsize=8)
     # panel 3: negated
     a = axs[2]
     a.add_patch(Rectangle((2.6, 1.4), 1.6, 0.8, facecolor="#d62728", edgecolor="k"))
     a.plot([-3.4], [1.8], "b+")
     a.annotate("", xy=(-3.4, 1.8), xytext=(3.4, 1.8), arrowprops=dict(arrowstyle="->", color="b"))
-    a.text(0, -2.2, "file: PosX = -3.4  'negated X'\n(isastm: 0 parts fit as is,\n6 negated)", ha="center", fontsize=7)
+    a.text(0, -2.2, "file: PosX = -3.4  'negated X'\n(isastm: 0 openings fit as is,\n6 negated)", ha="center", fontsize=7)
     a.set_title("3  option on: bottom X negated", fontsize=8)
     dk.save(fig, path, "Bottom-side X in a KiCad placement file: same program, either sign (schematic; counts from study_parts.py)")
 

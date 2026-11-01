@@ -1,5 +1,7 @@
 # CAD profiles: summary for `docs/research.md` (open investigation)
 
+> **Review note.** Adapt this text to `INTEGRATION.md` 7 before adopting it: the user's assignment of a file is final (above X2); the reader tolerances are general, not per profile; no user-file profiles and no outline pruning in 2.5.0; no Zuken profile; evidence shown only as marker ids and a sanitised version.
+
 **Question.** Can the Gerber import recognise which eCAD program wrote the files of a set, preselect a "CAD profile" the user can always change, and what does knowing it change in how the files are read?
 
 **What was done** (`research/gerber-cad-profiles/`). 966 Gerber and drill files of 82 open sample sets (54 development, 28 held-out) of 19 eCAD programs, among them real Siemens Xpedition (8 sets), PADS, Altium Designer and CircuitMaker, EAGLE and Fusion Electronics, Cadence Allegro and OrCAD, KiCad 4 to 9, EasyEDA, DipTrace, Pulsonix, Proteus, LibrePCB; a marker table, a detector with a confidence rule, the program's reader run on every file, adjustments measured, the parts rules run on every paste layer.

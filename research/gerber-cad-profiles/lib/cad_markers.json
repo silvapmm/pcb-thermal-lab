@@ -88,7 +88,7 @@
       {"id": "d_m71", "scope": "drill", "re": "(?s)^M48\\s+M71,TZ\\s+FMAT,2", "w": 5, "status": "R"}
     ]},
     "target3001": {"name": "Target 3001!", "kind": "ecad", "markers": [
-      {"id": "g_in", "scope": "gerber", "re": "%IN\\d+=[A-Za-z]+[^*]*\\*%", "w": 7, "status": "R target3001 (%IN2=CopperbottomL2(X.Bot)*%)"},
+      {"id": "g_in", "scope": "gerber", "re": "%IN\\d+=[A-Za-z][^*]*\\*%", "w": 7, "status": "R target3001 (%IN2=CopperbottomL2(X.Bot)*%)"},
       {"id": "info", "scope": "support", "re": "CAM output for current project", "w": 10, "status": "R .Info file"},
       {"id": "n_ext", "scope": "name", "re": "\\.(PosiTop|PosiBot|PasteTop|PasteBot|StopTop|StopBot|Outline|Info)$", "w": 6, "status": "R"}
     ]},

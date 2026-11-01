@@ -166,6 +166,10 @@ def study_upverter():
         try:
             lay = G.parse_layer(fixed, f)
             bb = lay.bbox()
+            if bb is None:
+                # review: the paste file holds no object at all (`M02` only); the earlier run printed a TypeError of this script here
+                print("| %s | empty layer (no object): read | | |" % f)
+                continue
             side = max(bb[2] - bb[0], bb[3] - bb[1])
             pix = max(0.05, side / 1500.0)
             cov = G.rasterize(lay, G.window_of(bb, 0.0), pix)

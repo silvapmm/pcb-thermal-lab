@@ -100,7 +100,36 @@ def main():
                 "; ".join(list(info.get("warnings", []))[:2])[:100] + (" " + errs[0] if errs else "")))
         except Exception as exc:
             print("| %s | %s | | | %d | | | build_parts failed: %s |" % (label, "+".join(sorted(paste)), len(placement), str(exc)[:90]))
+    bottom_x_sign()
     return 0
+
+
+def bottom_x_sign():
+    """!
+    @brief Review: the bottom-side X sign of the KiCad placement files, judged from the openings alone (references ignored).
+    @details The table above prints `info["convention"]`, which `build_parts` sets only for the parts matched by position; with
+             `TO.C` in every opening (ISASTM, CMM2) it stays at its default "as is" and says nothing about the file. The counts
+             quoted in README 6 and figure 3 are the openings that fall in a part envelope with the X as written and negated,
+             from `bottom_convention` on the bottom parts and the bottom openings.
+    @return None
+    """
+    print("\n| case | bottom parts | bottom openings | fit as written | fit negated | convention |")
+    print("| :-- | --: | --: | --: | --: | :-- |")
+    for label, rel, pl in CASES:
+        if not label.startswith("kicad") or not pl:
+            continue
+        folder = os.path.join(DATA, rel)
+        if not os.path.isdir(folder):
+            continue
+        paste = {k: v for k, v in find_paste(folder).items() if not k.endswith("_error")}
+        placement = []
+        for f in pl:
+            placement += P.read_placement(os.path.join(folder, f))
+        res = P.build_parts(paste=paste, placement=placement, copper=None)
+        openings = list(res.openings)
+        conv, n_as, n_neg = P.bottom_convention(placement, openings)
+        print("| %s | %d | %d | %d | %d | %s |" % (label, sum(p["side"] == "bottom" for p in placement),
+                                                 sum(o.side == "bottom" for o in openings), n_as, n_neg, conv))
 
 
 if __name__ == "__main__":
