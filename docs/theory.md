@@ -289,7 +289,7 @@ Second order in the cell size for smooth fields, first order at features (a via,
 
 ### 2.6 The via on the grid (FVM and FDM; `viawell.py`)
 
-The physics of the via, the constriction and the target radius `r_t` are in section 1.5; this section is how the grid models carry them. The 3D solid uses its own footprint rule (section 4).
+The physics of the via, the constriction and the target radius `r_t` are in section 1.5; this section is how the grid models carry them. The 3D solid uses its own footprint rule (section 4). **Footprint rule:** a via whose drill disc has no board under it (the board tested with the centre plus 6 rings of 24 samples, `geometry.discs_board_share`; the outline, or the box of a rectangular board) is left out of every model, not moved to the nearest board cell; the footprint of a via that is partly on the board is the part of the disc on the board.
 
 **Why the barrel is spread.** A source in one cell of the five-point stencil is a point of the lattice whose potential is that of a hole of radius
 
@@ -359,7 +359,7 @@ Every cell of every slab has one unknown: `n_slabs × nx × ny`, refused above `
 * copper slab with fill `f`: in-plane `k_x = f k_cu + (1 − f) k_ip`; through `k_z = f_eff k_cu + (1 − f_eff) k_th` with `f_eff = min(1, f + a_via)`;
 * dielectric slab: `k_x = k_ip`, `k_z = a_via k_cu + (1 − a_via) k_th`;
 * `a_via = Σ A_via w / (Δx Δy)`, the **real copper area of the barrel** (1.4) spread in parallel in every slab (the lateral effect of the thin barrel wall is neglected), clipped at 1 per cell (a via whose copper-equivalent area exceeds the cell loses the excess);
-* the weights `w` come from `viawell.tuned_footprint`. Having no well, the 3D solid must reach the target radius `r_t` (1.9) exactly: `w` mixes the cell of the centre (share `1 − β`) with the area weights of the disc of radius `r_t` (share `β`), `β` chosen so that the lattice effective radius (2.7) equals `r_t`; the disc is enlarged when even `β = 1` falls short, and the cell of the centre is used alone when `r_t < r_eq` (2.6);
+* the weights `w` come from `viawell.tuned_footprint`. Having no well, the 3D solid must reach the target radius `r_t` (1.9) exactly: `w` mixes the cell of the centre (share `1 − β`) with the area weights of the disc of radius `r_t` (share `β`), `β` chosen so that the lattice effective radius (2.7) equals `r_t`; the disc is enlarged when even `β = 1` falls short, and the cell of the centre is used alone when `r_t < r_eq` (2.6); the point fallback (a disc smaller than a cell) is the part of the disc on the board, and a via with no board under its disc is left out (2.6);
 * block slabs: `k = k_metal · c`, pad slab `k = 1 · c`; cells with no material get `k = 10⁻⁹ W/mK` and a leak of `10⁻⁹ W/K` to the ambient to keep the matrix regular.
 
 **Conductances** (each pair of neighbouring cells, harmonic mean of the half-cell resistances):

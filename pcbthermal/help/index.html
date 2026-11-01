@@ -156,6 +156,7 @@ or draw it with the outline tool (<kbd>O</kbd>, rectangle or polygon mode). Outs
 <li>The temperature maps leave the area outside the outline blank; the heat lost through the edge follows the outline; the convection characteristic length uses the real area and perimeter.</li>
 <li>A part that crosses the outline heats only the part of each cell that is on the board (the power is the same, spread over the board part of the footprint); the mean and minimum temperatures under a part or a zone leave out the area off the board.</li>
 <li>A part drawn off the board still delivers its power to the nearest board cell (with a warning): move it onto the board.</li>
+<li>A <b>via</b> with no board under it (outside the outline, or outside the box of a rectangular board) is <b>ignored</b> by every model, unlike a part, which goes to the nearest cell; a warning says so, and another warns when more than half of the via is off the board.</li>
 <li>Cell sizes should be several times smaller than the narrowest part of the board (a neck of two cells is poorly resolved).</li>
 </ul>
 
