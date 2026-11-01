@@ -104,3 +104,35 @@ def test_stale_saved_layout_is_replaced_by_the_default(qtbot, tmp_path):
     win2 = _window(qtbot, ini2)
     qtbot.waitUntil(lambda: win2.dock_board.width() >= win2.DOCK_MIN_LEFT, timeout=3000)
     _docks_usable(win2)
+
+
+@pytest.mark.parametrize("name", ["dark", "light"])
+def test_warning_symbol_and_text_share_one_colour(qtbot, name):
+    """!
+    @brief In the Run panel list every character of an entry (symbol, bullet, link text) has the colour of the theme's alert token.
+    @param qtbot pytest-qt fixture.
+    @param name Theme name.
+    """
+    from PySide6.QtGui import QColor
+    from pcbthermal.gui import theme as th
+    from pcbthermal.gui.panels import WarningList
+
+    class Warn(str):
+        kind, index = "heater", 0
+
+    th.apply_theme(QApplication.instance(), name)
+    lst = WarningList()
+    qtbot.addWidget(lst)
+    for ws in ([Warn("one")], [Warn("one"), Warn("two")]):
+        lst.set_warnings(ws)
+        seen = set()
+        block = lst.document().begin()
+        while block.isValid():
+            it = block.begin()
+            while not it.atEnd():
+                frag = it.fragment()
+                if frag.text().strip() and "warnings" not in frag.text():
+                    seen.add(frag.charFormat().foreground().color().name())
+                it += 1
+            block = block.next()
+        assert seen == {QColor(th.colors(name)["alert"]).name()}, seen
