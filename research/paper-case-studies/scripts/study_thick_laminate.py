@@ -13,18 +13,24 @@
          program], (2.7, 0.3)} W/mK, base film h in {10, 1e3, 1e6} W/m2K, top face and sides adiabatic. The full sweep is run for the program's FR-4 (0.9, 0.3); the other two ratios at
          S = 5 mm, h = 1e3 only (33 combinations). Two boards per case: "bare" (two copper layers of 35 um with no copper drawn: exactly the geometry of equation 50) and "pad" (copper under the source on
          layer 1 only: the real case, no closed form).
-         Metric: the mean temperature of the source per watt of the whole source, minus the film term 1 / (h W^2) which is the same in every model (energy balance), called R'. Reported: R' of the
-         reference, error of every model in % of R', the closed form against the 3D reference, and the error of the rule as a function of the options.
+         Metric: the mean temperature of the source AT THE FACE per watt of the whole source, minus the film term 1 / (h W^2) which is the same in every model (energy balance), called R'.
+         The face is where equation 50 reads its temperature. The 3D reference injects the heat in the cells of its top copper slab and reads them there (the node of the program's copper
+         layer); on bare laminate the half slab of FR-4 above that node adds q'' t_cu / (2 k_z), 1.0 to 4.6 % of R' for these cases (review), so it is added to the reference (exact for the
+         one-dimensional drop through a slab of 17.5 um under a uniform flux). The program is read with `analysis.heater_stats` (the part's mean temperature as the program reports it: the
+         FVM and FDM add the same face term over absent copper; it also weights the nodes of the FDM correctly). Reported: R' of the reference, error of every model in % of R', the closed
+         form against the 3D reference, and the error of the rule as a function of the options.
          Success and failure criteria (written before any run; README 3):
-           L1 the 3D reference agrees with equation 50 to 1 % of the total resistance for all 33 bare combinations (n_sub = 16, pixel = S / 16), and its own refinement (pixel S / 32 on one case,
-              n_sub = 32 on three) changes it by less than 0.5 %; otherwise it is not a reference and the study stops (a defect of the reference or a transcription error of the equation,
-              told apart by the limit a = c, b = d where R_s = 0 and by the isotropic case).
-           L2 the default rule (0.4 mm, 4) keeps the layered models (fvm, fdm) within 5 % of R' at t = 1.6 and 3.2 mm, S >= 5 mm, FR-4 (0.9, 0.3), and within 10 % everywhere: then the rule stays and the
-              text of theory 1.4 only gets the published check.
+           L1 the 3D reference (with the face term) agrees with equation 50 to 1 % of R' for all 33 bare combinations (n_sub = 16, pixel = S / 16), and its own refinement (pixel S / 32 and
+              n_sub = 32, S = 2 mm, t = 1.6 and 3.2 mm) changes it by less than 0.5 %; otherwise it is not a reference and the study stops (a defect of the reference or a transcription error
+              of the equation, told apart by the limit a = c, b = d where R_s = 0, by the isotropic case and by the published deep-channel correlation of Yovanovich, Muzychka and Culham 1999,
+              equation 20, which the closed form reproduces within the correlation's own 0.3 % (0.003 % for a source of 0.02 to 0.25 of the channel; tests)). R', not the total: at h = 10 the film term is 28 to 62 % of the total and would halve or hide an error.
+           L2 the default rule (0.4 mm, 4) keeps the layered models (fvm, fdm) at the 0.25 mm cell within 5 % of R' at t = 1.6 and 3.2 mm, S >= 5 mm, FR-4 (0.9, 0.3), and within 10 % everywhere:
+              then the rule stays and the text of theory 1.4 only gets the published check. The 0.5 mm row shows the plan grid's share of the error.
            L3 if L2 fails and a pair of options brings every row within 3 % with at most 3 times the unknowns of the default: that pair is proposed (a `fix/`, with its cost); if none does, the limit text.
            L4 solid3d within 3 %, analytic within 15 % of R' (reported, not decisive); lumped reported.
          Declared cost: closed form and the 3D reference of the 33 bare + 33 pad combinations about 10 minutes, under 1 GB (pixel S / 16, 18 slabs, at most 115 000 unknowns); the program part about 15
-         minutes, under 2 GB; `--convergence` (pixel S / 32 and n_sub = 32) about 5 minutes and at most 3 GB, to be run alone.
+         minutes, at most about 3 GB (the pair (0.1, 16) on the 40 mm board at 3.2 mm: 160 x 160 cells x 17 node layers = 435 000 unknowns, about 7 GB per million for the layered models);
+         `--convergence` (pixel S / 32 and n_sub = 32) about 5 minutes and at most 3 GB, to be run alone.
          Run (from the repository root): .venv/bin/python research/paper-case-studies/scripts/study_thick_laminate.py [--dry-run] [--convergence] [--no-program]
 """
 
@@ -81,7 +87,7 @@ def reference_3d(c, pad=False, px_div=16, n_sub=16):
     @param pad True for a copper pad under the source on layer 1 (no closed form), False for the bare board of equation 50.
     @param px_div Pixels per source side (pixel = S / px_div).
     @param n_sub Sub-slabs of the laminate gap.
-    @return float R' in K/W per watt of the whole source (the quarter's rise per watt, divided by 4, minus the film term of the base).
+    @return float R' in K/W per watt of the whole source (the quarter's rise per watt at the face, divided by 4, minus the film term of the base).
     """
     import ref3d
     s, w, t = c["S"] * 1e-3, c["W"] * 1e-3, c["t"] * 1e-3
@@ -94,7 +100,9 @@ def reference_3d(c, pad=False, px_div=16, n_sub=16):
     model = ref3d.build(masks, dx, [T_CU, T_CU], [t - 2 * T_CU], kxy_lam=c["kxy"], kz_lam=c["kz"], n_sub=n_sub, h_top=0.0, h_bottom=c["h"])
     sol = ref3d.solve(model, src, 1.0)
     mean_src, _mx = ref3d.heater_block(sol["top"], dx, 0.0, 0.0, s / 2.0, s / 2.0)
-    return (mean_src - 1.0 / (c["h"] * (w / 2.0) ** 2)) / 4.0           # 1 W in the quarter = 4 W in the board: the same rise, a quarter of the resistance per watt
+    # the face term: ref3d injects and reads at the centre of the top slab; equation 50 reads at the face, half a slab higher (FR-4 on bare laminate, copper under a pad)
+    face = (1.0 / (src.sum() * dx * dx)) * (T_CU / 2.0) / (ref3d.K_CU if pad else c["kz"])
+    return (mean_src + face - 1.0 / (c["h"] * (w / 2.0) ** 2)) / 4.0    # 1 W in the quarter = 4 W in the board: the same rise, a quarter of the resistance per watt
 
 
 def run_program(c, model, cell_mm, s_max=0.4, n_max=4, pad=False):
@@ -106,11 +114,12 @@ def run_program(c, model, cell_mm, s_max=0.4, n_max=4, pad=False):
     @param s_max laminate_s_max_mm.
     @param n_max laminate_n_max.
     @param pad True for the pad board.
-    @return float R' in K/W, the mean rise over the source cells minus the film term; raises if the model refuses the board.
+    @return float R' in K/W, the mean rise of the part as the program reports it (analysis.heater_stats: face terms included, FDM nodes weighted) minus the film term; raises if the model
+            refuses the board.
     """
     from pcbthermal import Problem, SolverOptions, simulate
+    from pcbthermal import analysis
     from pcbthermal.model import Materials
-    import ref3d
     s, w = c["S"], c["W"]
     p = Problem.new(w, w, layers=2, thickness_mm=c["t"], copper_um=T_CU * 1e6, ambient=0.0, h_top=0.0, h_bottom=c["h"], h_side=0.0,
                     materials=Materials(k_copper=385.0, k_fr4_through=c["kz"], k_fr4_inplane=c["kxy"]))
@@ -120,9 +129,8 @@ def run_program(c, model, cell_mm, s_max=0.4, n_max=4, pad=False):
     p.add_heater(1, 4.0, rect=(x0, x0, x1, x1), name="U")
     opts = SolverOptions(models=(model,), cell_mm=cell_mm, laminate_s_max_mm=s_max, laminate_n_max=n_max)
     res = simulate(p, opts).results[model]
-    field = np.asarray(res.T)[0]
-    dx = (w * 1e-3) / field.shape[1]
-    mean_src, _mx = ref3d.heater_block(field, dx, x0 * 1e-3, x0 * 1e-3, x1 * 1e-3, x1 * 1e-3)
+    # the part's mean as the program reports it (an earlier draft read T[0] with cell centres, wrong by half a node for the FDM node field and without the face term)
+    mean_src = analysis.heater_stats(res, p)[0]["t_mean"] - p.board.ambient
     # the mean film rise of the base is 4 W / (h W^2), the same in every model (energy balance); per watt of the board
     return mean_src / 4.0 - 1.0 / (c["h"] * (w * 1e-3) ** 2)
 
@@ -134,15 +142,21 @@ def part_l1(convergence):
     @return list of rows.
     """
     rows = []
-    print("\nL1  equation 50 against the resolved 3D reference (bare laminate, R' = R_total - film term, K/W)")
-    print("  S   W   t    kxy  kz   h      R_s(eq50)  R'(eq50)   R'(3D)    diff % of total")
+    print("\nL1.0  truncation of equation 50 for the smallest source (S = 2 mm on 20 mm), R' against the number of terms of each series")
+    for t, h in ((0.8, 10.0), (3.2, 1.0e6)):
+        c = {"S": 2.0, "W": 20.0, "t": t, "kxy": 0.9, "kz": 0.3, "h": h}
+        vals = [closed_form(c, n)[2] for n in (1000, 2000, 4000)]
+        print(f"  t {t} h {h:7.0e}: " + "  ".join(f"n {n}: {v:.5f}" for n, v in zip((1000, 2000, 4000), vals)) + f"   2000 -> 4000: {(vals[2] / vals[1] - 1) * 100:+.5f} %")
+    print("\nL1  equation 50 against the resolved 3D reference (bare laminate, at the face; R' = R_total - film term, K/W)")
+    print("  S   W   t    kxy  kz   h      R_s(eq50)  R'(eq50)   R'(3D)    diff % of R'   diff % of total")
     for c in combos():
         rs, rt, rp = closed_form(c)
         r3 = reference_3d(c)
         film = 1.0 / (c["h"] * (c["W"] * 1e-3) ** 2)
-        diff = (r3 - rp) / (rp + film) * 100.0
-        rows.append({**c, "rs": rs, "r_eq50": rp, "r_3d": r3, "diff_total_pct": diff})
-        print(f"  {c['S']:3.0f} {c['W']:3.0f} {c['t']:4.1f} {c['kxy']:4.1f} {c['kz']:4.1f} {c['h']:7.0e}  {rs:9.3f}  {rp:9.3f}  {r3:9.3f}   {diff:7.3f}")
+        diff = (r3 - rp) / rp * 100.0
+        diff_total = (r3 - rp) / (rp + film) * 100.0
+        rows.append({**c, "rs": rs, "r_eq50": rp, "r_3d": r3, "diff_rprime_pct": diff, "diff_total_pct": diff_total})
+        print(f"  {c['S']:3.0f} {c['W']:3.0f} {c['t']:4.1f} {c['kxy']:4.1f} {c['kz']:4.1f} {c['h']:7.0e}  {rs:9.3f}  {rp:9.3f}  {r3:9.3f}   {diff:9.3f}      {diff_total:9.3f}")
     if convergence:
         print("\n  refinement (alone: pixel S/32 is 460 000 unknowns, about 3 GB): S = 2, W = 20, kxy 0.9, h = 1e6")
         for t in (1.6, 3.2):
@@ -187,8 +201,9 @@ def plan():
     cs = combos()
     print("study_thick_laminate: DRY RUN (nothing is solved)")
     print(f"  {len(cs)} combinations: sources/boards {SOURCES} mm, t {THICKNESS_MM} mm, (k_xy, k_z) {RATIOS}, h {FILMS}")
-    print("  L1: equation 50 (lib/flux_channel.py, 2000 terms each way) against research/gerber-real-boards/lib/ref3d.py, pixel S/16, 16 sub-slabs; ~115 000 unknowns, < 1 GB, ~10 min")
-    print(f"  L2-L4: fvm at cells {CELLS_MM} (option pairs {OPTIONS} at 0.25 mm), fdm 0.25, solid3d 0.25 (0.5 for the 40 mm board), analytic, lumped; bare and pad boards; ~15 min, < 2 GB")
+    print("  L1: equation 50 (lib/flux_channel.py, 2000 terms each way) against research/gerber-real-boards/lib/ref3d.py plus the face term, pixel S/16, 16 sub-slabs; ~115 000 unknowns, < 1 GB, ~10 min")
+    print(f"  L2-L4: fvm at cells {CELLS_MM} (option pairs {OPTIONS} at 0.25 mm), fdm 0.25, solid3d 0.25 (0.5 for the 40 mm board), analytic, lumped; bare and pad boards; ~15 min, <= 3 GB "
+          "(the pair (0.1, 16) on the 40 mm board, 435 000 unknowns)")
     print("  --convergence: pixel S/32 (460 000 unknowns) and n_sub 32, alone, ~5 min, <= 3 GB")
     print("  outputs: research/paper-case-studies/out/study_thick_laminate.json (git-ignored)")
     print("  expected rise of the first combination from the closed form needs no solve; use --dry-run only to list: " + str(cs[0]))

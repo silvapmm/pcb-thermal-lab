@@ -11,9 +11,9 @@ Nothing in `pcbthermal/`, `tests/`, `examples/`, `ico/` or the project documents
 | B2 fails for the straight 1.25 mm group (expected from the arithmetic, README 5) | report the group as not usable and why (Table 9 diameters of sample 7 give 10.02 against a measured 7.0 and the thesis's own curve at about 8); no change | none | the row says "three of four groups" |
 | C1 fails for fvm and fdm on a sparse array (2.5 mm pitch) with the foil condition | the via footprint rule is the first suspect (`docs/theory.md` 2.6: 0.78 r_v target radius, footprint of cells at a cell of pitch/8); a `fix/` proposal only after the grid sweep shows the error does not fall with the grid; a note in the warning about a coarse cell otherwise | `fix/` or `docs/` | `theory.md` 2.6 limits |
 | C1 fails for analytic or lumped | recorded as the known limits of those models (earlier folders: +3 to +5 % and +9 to +11 %); no change | none | `validation.md` row |
-| C2 fails for every usable group with C1 passing | the plating default (25 um) or the barrel treatment is not the cause; the translation (boundary condition) is: a note, not a change | `docs/` | `validation.md` |
-| D1 passes | Table II rows (the contrasts) in `validation.md` with the sweep stated | `docs/` | `validation.md` |
-| D1 fails or the sweep changes the verdict | Table II is "not informative at this level"; not quoted | none | none |
+| C2 fails for every usable group with C1 passing | C2 is derived (B2 and C1 combined), so with C1 passing it can only fail where the measurement is far from equation 28/29 already: the thesis's samples (wall, foil, thickness not stated), not the program; a note, not a change | `docs/` | `validation.md` |
+| D1 passes (not expected: the paper's own CFD contrasts are 2.2 to 6.3 times smaller than the measured ones, README 2.2) | Table II rows (the contrasts) in `validation.md` with the sweep stated | `docs/` | `validation.md` |
+| D1 fails or the sweep changes the verdict (expected) | Table II is "not informative at this level"; not quoted; not evidence against the via rule | none | none |
 
 ## 2. S2, thick anisotropic laminate
 
@@ -32,5 +32,6 @@ Nothing in `pcbthermal/`, `tests/`, `examples/`, `ico/` or the project documents
 ## 4. Risks
 
 * A study that is not run on a quiet machine: the program's memory guard may refuse a board and the table prints the refusal; none of the runs exceeds 3 GB by the estimate of README 4.5, which is from earlier folders, not measured.
-* The program may refuse a two-layer board with no copper drawn (S2 bare): the pad board is then the only one and the closed-form anchor is lost for the program (it stays for the reference). The study can use a 1 um pad as the bare variant.
-* A verdict on the test-bed condition rests on the translation by the solver's ratio; a program value near the measurement after it is not proof that the program's condition matches the test bed.
+* A two-layer board with no copper drawn (S2 bare) is accepted by all five models (a trial of the review, README 4.3), so the closed-form anchor holds for the program.
+* A verdict on the test-bed condition rests on the translation by the solver's ratio; a program value near the measurement after it is not proof that the program's condition matches the test bed (the solver puts the effect of the condition at 1.1 to 7.3 %, README 5).
+* The reviewer's pre-run corrections (README 9) changed how S2 reads the temperature (at the face, in the reference and in the program) and how S1 part D turns a via contrast into a psi_ta contrast (the exact network); the outcomes above refer to the corrected scripts.

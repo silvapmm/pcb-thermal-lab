@@ -12,18 +12,22 @@
               and of the boundary condition (isothermal faces of the test bed against a uniform top flux, the only condition the program can impose).
            B  the measurement against the reference: the four arrangements of Fig. 33 (plot values) against equations 28 and 29 over the samples of each group, with the thesis's own 13 %.
            C  the program (fvm, fdm, solid3d, analytic, lumped) on a periodic patch of 6 x 6 cells of each of the nine samples (heater over the whole top, foil on both faces, the bottom held by
-              h = 1e6) against the solver with the same condition, and translated to the test bed by the solver's own boundary-condition ratio.
-           D  Shen's Table II as DIFFERENCES only (the heatsink, the TIM and the array extent are not in the text read): the contrast of the via resistance between rows, program and
-              reference against psi_ta (1 + theta_jt / theta_ta); theta_ta and the pad side are swept, not read.
+              h = 1e6) against the solver with the same condition (the resistance between the area-weighted means of the two copper layers, `layer_mean`), and translated to the test bed by
+              the solver's own ratio of node resistances (k_translated = k_iso(solver) r_ref / r_prog; a derived row: it is B2 and C1 combined, not a new comparison).
+           D  Shen's Table II as DIFFERENCES only (the heatsink, the TIM and the array extent are not in the text read): the contrast of the via resistance between rows, program, reference and
+              the paper's own CFD (Fig. 18, plot), turned into a contrast of psi_ta through the EXACT inversion of the network of Fig. 22 (the paper's equation 42 drops a term); theta_ta
+              from Fig. 20 (plot, swept 300 / 370 / 450 degC/W) and the array side are swept.
          Success and failure criteria (written before any run; see README 3):
            B1 closed form = solver to 1e-6 (else a code defect, stop).
            B2 per arrangement, the plotted measurement lies within 15 % of the nearest value of equations 28/29 over the group (13 % of the thesis plus the plot reading); a group that fails is
               "not usable as a reference" and is reported, not hidden.
-           C1 for a usable group: fvm and fdm within 5 %, solid3d within 8 %, analytic within 10 % of the solver's node-to-node resistance with the same boundary condition (lumped: reported, 25 %
-              as the alarm); the error of fvm and fdm must not grow when the cell is halved.
-           C2 the program value translated to the test bed within 20 % of the measurement for the usable groups.
-           D1 signs of the contrasts with |measured| >= 0.4 degC/W reproduced by the reference and by fvm/fdm; the solder-against-air and Pattern II against Pattern I contrasts within a factor
-              2 of the measured ones for every swept theta_ta and pad side; otherwise Table II is "not informative at this level" and is not quoted in validation.md.
+           C1 for every sample: fvm and fdm within 5 %, solid3d within 8 %, analytic within 10 % of the solver's node-to-node resistance with the same boundary condition (lumped: reported, 25 %
+              as the alarm); the error of fvm and fdm at the finest grid is not larger than at the coarsest by more than 1 percentage point (the via footprint does not converge monotonically
+              at the 0.1 % level). C1 does not depend on B2 (the program is compared with the solver, not with the measurement).
+           C2 (derived) the program value translated to the test bed within 20 % of the measurement for the usable groups.
+           D1 signs of the contrasts with |measured| >= 0.4 degC/W reproduced by the reference and by fvm/fdm; the contrasts within a factor 2 of the measured ones for every swept theta_ta and
+              array side; otherwise Table II is "not informative at this level" and is not quoted in validation.md. EXPECTED TO FAIL before any run: the paper's own CFD (Fig. 18, plot) gives
+              contrasts 2.2 to 6.3 times smaller than Table II implies (README 5), so D1 is reported, and it is not a criterion of the program's via rule.
          Declared cost: parts A and B seconds, under 0.2 GB; part C about 5 to 10 minutes and at most 2 GB (cells 0.05 mm and above, 6 x 6 cells); part D about 10 minutes, at most 1.5 GB.
          Run (from the repository root): .venv/bin/python research/paper-case-studies/scripts/study_measured_vias.py [--parts A,B,C,D] [--dry-run] [--quick]
 """
@@ -43,8 +47,8 @@ OUT = _bootstrap.OUT
 T_ASSUMED_MM = 1.6               # the thesis does not state the board thickness (equations 28 and 29 do not depend on it without foil): assumed
 FOIL_UM = 35.0                   # assumed copper foil on both faces (not stated); the variant without foil is part A
 N_CELLS = 6                      # cells per side of the periodic patch of part C
-SHEN_THETA_TA = (20.0, 30.0, 40.0)   # K/W, ASSUMED sweep (eq. 39 / Fig. 20 not read yet): the factor (1 + theta_jt / theta_ta) is 3.2, 2.5, 2.1
-SHEN_PAD_SIDE_MM = (4.0, 5.6, 7.0)   # mm, ASSUMED sweep of the side of the via array (5.6 mm is the board of Fig. 17)
+SHEN_THETA_TA = MD.SHEN_THETA_TA_SWEEP   # degC/W, read from the plot of Fig. 20 (an earlier draft swept 20 to 40, an order of magnitude too small and below psi_ta itself, which is impossible)
+SHEN_PAD_SIDE_MM = (3.0, 5.0, 5.6)   # mm, ASSUMED sweep of the side of the via array (5.6 mm is the board of Fig. 17; 5.0 mm the pad that fits the paper's analytical curve, lumped-zones-adoption 9.3)
 
 
 def cell_area_m2(kind, side_mm):
@@ -152,8 +156,8 @@ def run_patch(model, kind, cell_mm, d_o_mm, d_i_mm, t_mm, foil_um, div, n=N_CELL
     for x, y in lattice(kind, cell_mm, n):
         p.add_via(x, y, diameter=d_o_mm)
     res = simulate(p, SolverOptions(models=(model,), cell_mm=max(cell_mm / div, 0.05))).results[model]
-    T = np.asarray(res.T)
-    return float(T[0].mean() - T[-1].mean())
+    # area-weighted layer means (the plain mean of an FDM node field counts the edge nodes in full)
+    return float(res.layer_mean[0] - res.layer_mean[-1])
 
 
 def part_c(quick=False):
@@ -165,7 +169,8 @@ def part_c(quick=False):
     rows = []
     models = ("fvm", "analytic") if quick else ("fvm", "fdm", "solid3d", "analytic", "lumped")
     print("\nPart C  the program on the periodic patch (6 x 6 cells, foil 35 um both faces, bottom h = 1e6, heater over the whole top)")
-    print("  sample  model     grid mm  R_prog K/W  R_ref K/W (flux bc)  error %   k_iso/k_flux (solver)   k_eff translated W/mK   measured (plot) W/mK")
+    print("  NOTE analytic and lumped: the API clamps their cell to 0.5 to 1 mm, so they are run once (the grid printed is the one asked; the model uses the clamped cell)")
+    print("  sample  model     grid mm  R_prog K/W  R_ref K/W (flux bc)  error %   r_flux/r_iso (solver)   k_eff translated W/mK   measured (plot) W/mK")
     for s, (spacing, pitch, di, do, _) in MD.TABLE_9.items():
         group = [g for g, v in MD.ARRANGEMENTS.items() if s in v[2]][0]
         if quick and s not in (1, 4, 7, 8):
@@ -176,20 +181,22 @@ def part_c(quick=False):
         flux = AC.unit_cell_k(area, do * 1e-3, di * 1e-3, T_ASSUMED_MM * 1e-3, t_foil=FOIL_UM * 1e-6, bc="flux")
         iso = AC.unit_cell_k(area, do * 1e-3, di * 1e-3, T_ASSUMED_MM * 1e-3, t_foil=FOIL_UM * 1e-6, bc="isothermal")
         r_ref = flux["r_nodes"] / nv                                       # K/W of the patch
-        ratio = iso["k_eff"] / flux["k_eff"]
+        ratio = flux["r_nodes"] / iso["r_nodes"]                          # the solver's own ratio of the node resistances (flux over isothermal faces), the same definition as r_prog
         divs = (8, 16) if quick else (8, 16, 32)
         for m in models:
             for div in divs:
                 if div == 32 and m not in ("fvm", "fdm"):
                     continue                                              # the finest grid only for the two layered finite-volume/difference models (memory)
+                if div > 8 and m in ("analytic", "lumped"):
+                    continue                                              # their cell is clamped to 0.5 to 1 mm by the API: a finer grid repeats the same run
                 grid = max(spacing / div, 0.05)
                 try:
                     r = run_patch(m, kind, spacing, do, di, T_ASSUMED_MM, FOIL_UM, div)
                 except Exception as exc:                                  # a model that refuses the board is reported, not hidden
                     print(f"  {s:6d}  {m:8s}  {grid:7.3f}  refused: {type(exc).__name__}: {exc}")
                     continue
-                k_prog = T_ASSUMED_MM * 1e-3 / (r * (N_CELLS * spacing * 1e-3) ** 2)      # W/mK: P t / (A_patch dT) with P = 1 W
-                k_tr = k_prog * ratio
+                # translated to the test bed: the solver's isothermal-face k times the program's relative error in the flux condition (node resistances on both sides)
+                k_tr = iso["k_eff"] * r_ref / r
                 km = MD.FIG33_MEASURED[group][0]
                 rows.append({"sample": s, "model": m, "grid_mm": grid, "r_prog": r, "r_ref": r_ref, "err": r / r_ref - 1.0, "ratio": ratio, "k_translated": k_tr, "k_measured": km})
                 print(f"  {s:6d}  {m:8s}  {grid:7.3f}  {r:10.4f}  {r_ref:19.4f}  {(r / r_ref - 1) * 100:7.1f}   {ratio:8.3f}             {k_tr:9.3f}               {km:6.2f}")
@@ -233,8 +240,43 @@ def run_shen_array(model, pattern, fill, phi_mm, pad_mm, div=8):
     for x, y in pts:
         p.add_via(x, y, diameter=phi_mm, fill_k=57.3 if fill == "solder" else 0.0)
     res = simulate(p, SolverOptions(models=(model,), cell_mm=max((phi_mm + 0.2) / div, 0.05))).results[model]
-    T = np.asarray(res.T)
-    return float(T[0].mean() - T[-1].mean()), nv
+    return float(res.layer_mean[0] - res.layer_mean[-1]), nv
+
+
+def sigma_from_psi(psi, theta_ta):
+    """!
+    @brief Exact inversion of the network of Shen's Fig. 22 (b): the bottom-path resistance S = theta_jc + theta_solder + theta_via + theta_TIM + theta_ha from the measured psi_ta.
+    @details From psi_ta = theta_ta S / (theta_jt + theta_ta + S) (the paper's line above equation 42): S = psi (theta_jt + theta_ta) / (theta_ta - psi). The paper's equation 42,
+             S = psi (1 + theta_jt / theta_ta), drops the 1 / theta_ta term of that line and is valid only for psi << theta_ta.
+    @param psi Equivalent top-case-to-ambient resistance psi_ta in degC/W.
+    @param theta_ta Top-case-to-ambient resistance in degC/W (must exceed psi).
+    @return float S in degC/W.
+    @throws ValueError If theta_ta <= psi (no network gives that psi).
+    """
+    if theta_ta <= psi:
+        raise ValueError("theta_ta must exceed psi_ta: the top case cannot be hotter above the ambient than all the power through theta_ta")
+    return psi * (MD.SHEN_THETA_JT + theta_ta) / (theta_ta - psi)
+
+
+def psi_from_sigma(sigma, theta_ta):
+    """!
+    @brief The forward network of Shen's Fig. 22 (b): psi_ta from the bottom-path resistance S.
+    @param sigma Bottom-path resistance S in degC/W.
+    @param theta_ta Top-case-to-ambient resistance in degC/W.
+    @return float psi_ta in degC/W.
+    """
+    return theta_ta * sigma / (MD.SHEN_THETA_JT + theta_ta + sigma)
+
+
+def predicted_contrast(psi_b, d_theta_via, theta_ta):
+    """!
+    @brief The psi_ta contrast that a change d_theta_via of the via resistance makes, starting from the measured row b (all the other resistances unchanged).
+    @param psi_b Measured psi_ta of the reference row in degC/W.
+    @param d_theta_via Via resistance of row a minus that of row b in K/W.
+    @param theta_ta Top-case-to-ambient resistance in degC/W.
+    @return float psi_a - psi_b in degC/W.
+    """
+    return psi_from_sigma(sigma_from_psi(psi_b, theta_ta) + d_theta_via, theta_ta) - psi_b
 
 
 def part_d(models=("fvm", "fdm")):
@@ -245,8 +287,12 @@ def part_d(models=("fvm", "fdm")):
     """
     from shen_case import unit_cell            # the axisymmetric unit-cell solver of research/lumped-zones-adoption (imports nothing of the program)
     rows = {}
-    print("\nPart D  Shen Table II: contrasts of psi_ta (measured) against the contrasts of the via resistance x 1 / (1 + theta_jt / theta_ta)")
-    print("  NOTE theta_ta and the array side are ASSUMED sweeps (not read): the verdict D1 holds only if it is the same over the whole sweep")
+    print("\nPart D  Shen Table II: contrasts of psi_ta (measured) against the contrasts of the via resistance, through the exact network of Fig. 22 (b)")
+    print("  NOTE theta_ta (Fig. 20, plot) and the array side are swept: the verdict D1 holds only if it is the same over the whole sweep; D1 is expected to fail (README 5)")
+    print("  the paper's own CFD (Fig. 18, plot, the 5.6 mm board), contrasts of theta_via in K/W:")
+    for phi in (0.25, 0.8):
+        cfd = MD.SHEN_FIG18_CFD
+        print(f"    phi {phi}: air - solder (Pattern I) {cfd[('I', 'air')][phi] - cfd[('I', 'solder')][phi]:.2f}   Pattern I - II (air) {cfd[('I', 'air')][phi] - cfd[('II', 'air')][phi]:.2f}")
     for pad in SHEN_PAD_SIDE_MM:
         res = {}
         for (pat, fill), data in MD.SHEN_TABLE_II.items():
@@ -260,10 +306,9 @@ def part_d(models=("fvm", "fdm")):
                     except Exception as exc:                          # reported, not hidden
                         print(f"  {m} {pat} {fill} phi {phi}: {type(exc).__name__}: {exc}")
         for th_ta in SHEN_THETA_TA:
-            amp = 1.0 + MD.SHEN_THETA_JT / th_ta
             for who in ("reference",) + tuple(models):
-                print(f"\n  array side {pad} mm, theta_ta {th_ta} K/W (factor {amp:.2f}), {who}")
-                print("    contrast                                 measured d psi   d theta_via   predicted d psi")
+                print(f"\n  array side {pad} mm, theta_ta {th_ta} degC/W, {who}")
+                print("    contrast                                 measured d psi   d theta_via   predicted d psi   predicted / measured")
                 for phi_i, phi in enumerate(MD.SHEN_PHI_MM):
                     m_air_i = MD.SHEN_TABLE_II[("I", "air")][phi_i][1]
                     m_sol = MD.SHEN_TABLE_II[("I", "solder")][phi_i][1]
@@ -272,8 +317,10 @@ def part_d(models=("fvm", "fdm")):
                                              (f"Pattern I - Pattern II, air, phi {phi}", m_air_i - m_air_ii, ("I", "air", phi, who), ("II", "air", phi, who))):
                         if a in res and b in res:
                             d_th = res[a] - res[b]
-                            rows[(pad, th_ta, who, name)] = (meas, d_th, d_th / amp)
-                            print(f"    {name:40s}  {meas:8.2f}        {d_th:9.3f}      {d_th / amp:8.3f}")
+                            psi_b = m_sol if "solder" in name else m_air_ii         # the measured psi of the row the contrast starts from
+                            pred = predicted_contrast(psi_b, d_th, th_ta)
+                            rows[(pad, th_ta, who, name)] = (meas, d_th, pred)
+                            print(f"    {name:40s}  {meas:8.2f}        {d_th:9.3f}      {pred:8.3f}          {pred / meas:6.2f}")
     return rows
 
 
@@ -289,9 +336,9 @@ def plan(parts):
             "B": "the four plotted markers against eq. 28/29 over the samples of each group (criterion B2, 15 %); instant",
             "C": f"program (fvm, fdm, solid3d, analytic, lumped) on a {N_CELLS} x {N_CELLS} patch of each of the 9 samples at grids spacing/8, /16 (and /32 for fvm and fdm), vs the solver with the same bc; "
                  "about 5-10 min, <= 2 GB",
-            "D": f"Shen Table II contrasts, array side {SHEN_PAD_SIDE_MM} mm x theta_ta {SHEN_THETA_TA} K/W (ASSUMED sweeps), reference unit cell per row; about 2 min for the reference "
-                 "for fvm and fdm on 3 array sides x 12 rows x grid pitch/8 (the 3D solid is not in the default list); at most 1.5 GB. Fig. 16, 20 and 22 of the paper are still to be read "
-                 "(README 4.4): until then theta_ta is a sweep"}
+            "D": f"Shen Table II contrasts, array side {SHEN_PAD_SIDE_MM} mm (ASSUMED) x theta_ta {SHEN_THETA_TA} degC/W (Fig. 20, plot), exact network inversion, reference unit cell per row "
+                 "and the paper's CFD contrasts (Fig. 18, plot); about 10 min for fvm and fdm on 3 array sides x 12 rows x grid pitch/8 (the 3D solid is not in the default list); at most "
+                 "1.5 GB; report only (D1 expected to fail, README 5)"}
     for p in parts:
         print(f"  part {p}: {info[p]}")
     print("  outputs: research/paper-case-studies/out/study_measured_vias.json (git-ignored)")

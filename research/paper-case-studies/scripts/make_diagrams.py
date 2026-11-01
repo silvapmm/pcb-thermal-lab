@@ -134,19 +134,19 @@ def fig_02():
     ax = axs[1]
     ax.set_xlim(0, 12)
     ax.set_ylim(0, 8.5)
-    ax.set_title("(b) the network behind Table II and equation 42", fontsize=9)
+    ax.set_title("(b) the network of Fig. 22 behind Table II", fontsize=9)
     ax.plot([0.5, 0.5], [1.5, 6.5], color="k")
     ax.text(0.2, 4.0, "junction P", rotation=90, va="center", fontsize=7)
     dk.resistor(ax, 0.5, 3.0, 6.5, "theta_jt (44.12)")
-    dk.resistor(ax, 3.0, 5.5, 6.5, "theta_ta (eq. 39)")
+    dk.resistor(ax, 3.0, 5.5, 6.5, "theta_ta (300 to 450)")
     ax.text(5.6, 6.5, "T_amb", fontsize=7, va="center")
     dk.resistor(ax, 0.5, 2.5, 1.5, "theta_jc (2.47)")
     dk.resistor(ax, 2.5, 4.5, 1.5, "theta_via")
-    dk.resistor(ax, 4.5, 6.5, 1.5, "theta_ha + TIM")
+    dk.resistor(ax, 4.5, 6.5, 1.5, "solder, TIM, theta_ha")
     ax.text(6.6, 1.5, "T_amb", fontsize=7, va="center")
     ax.plot([3.0, 3.0], [6.5, 6.5], "ko")
     ax.text(3.0, 7.3, "top case T_t (measured by IR)", ha="center", fontsize=7, color=dk.HEAT)
-    ax.text(6.0, 4.0, "psi_ta = (T_t - T_a) / P\ntheta_via = psi_ta (1 + theta_jt / theta_ta) - (the rest)\nthe rest, theta_ta and the array extent are NOT in the text read:\nonly CONTRASTS between rows are used", fontsize=7, va="center")
+    ax.text(6.0, 4.0, "psi_ta = (T_t - T_a) / P = theta_ta S / (theta_jt + theta_ta + S)\nS = theta_jc + theta_via + (the rest) = psi_ta (theta_jt + theta_ta) / (theta_ta - psi_ta)\n(the paper's eq. 42, psi_ta (1 + theta_jt / theta_ta), drops a term)\ntheta_ta from Fig. 20 (plot); the rest and the array extent are not given:\nonly CONTRASTS between rows are used", fontsize=7, va="center")
     dk.save(fig, OUT / "fig_02_shen_diode_on_vias.png", "Study S1 part D: Shen and others (2020), Table II as differences")
 
 

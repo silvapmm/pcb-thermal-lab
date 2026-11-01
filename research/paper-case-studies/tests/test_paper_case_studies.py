@@ -166,12 +166,18 @@ def test_references_import_nothing_of_the_program():
              HERE.parent / "gerber-real-boards" / "lib" / "ref3d.py", HERE.parent / "lumped-zones-adoption" / "lib" / "shen_case.py"]
     for f in files:
         tree = ast.parse(f.read_text())
-        for node in ast.walk(tree):
+        # shen_case imports the program only inside its board builder (a function body): for it the module level and the body of `unit_cell` (the function used here) are checked;
+        # for the others every import anywhere in the file
+        if f.name == "shen_case.py":
+            scopes = [n for n in tree.body if not isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+            scopes += [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "unit_cell"]
+            assert len(scopes) > 0 and any(isinstance(n, ast.FunctionDef) and n.name == "unit_cell" for n in scopes)
+            nodes = [m for n in scopes for m in ast.walk(n)]
+        else:
+            nodes = list(ast.walk(tree))
+        for node in nodes:
             names = [a.name for a in node.names] if isinstance(node, ast.Import) else ([node.module or ""] if isinstance(node, ast.ImportFrom) else [])
             top = [n for n in names if n.split(".")[0] == "pcbthermal"]
-            # shen_case imports the program only inside its board builder (a function body): the unit-cell solver used here does not call it
-            if f.name == "shen_case.py":
-                continue
             assert not top, f"{f.name} imports the program: {top}"
 
 
@@ -217,3 +223,51 @@ def test_dry_run_prints_the_plan_and_solves_nothing(module):
         code = module.main(["--dry-run"])
     assert code == 0 and "DRY RUN" in buf.getvalue()
     assert ("pcbthermal" in sys.modules) == before
+
+
+@pytest.mark.parametrize("eps", [0.02, 0.1, 0.25, 0.5])
+def test_deep_channel_against_published_correlation(eps):
+    """!
+    @brief Equation 50 for a deep isotropic square channel is equation 19 of Yovanovich, Muzychka and Culham (1999, J. Thermophys. Heat Transfer 13 (4), page 498, read from the page image),
+           whose published correlation (equation 20, page 499) is k sqrt(A_s) R_s = 0.47320 - 0.62075 eps + 0.1198 eps^3 with a maximum error of about 0.3 % for 0 <= eps <= 0.5. This checks
+           the normalisation of R_s (per watt of the whole source) against a published number, not only against the half-space integral.
+    @param eps Relative source size a / c.
+    @return None.
+    """
+    c = 10e-3
+    a = eps * c
+    rs = FC.spreading_resistance(a, a, c, c, 4 * c, 1.0, 1.0, np.inf, n_max=3000)
+    published = 0.47320 - 0.62075 * eps + 0.1198 * eps ** 3
+    assert rs * 1.0 * (2 * a) == pytest.approx(published, rel=0.003)
+
+
+def test_shen_network_inversion_is_exact_and_eq42_is_not():
+    """!
+    @brief The bottom-path resistance from psi_ta (Shen Fig. 22 (b)) inverts the forward network exactly; the paper's equation 42 (psi (1 + theta_jt / theta_ta)) differs from it by the
+           dropped 1 / theta_ta term (several percent at the theta_ta of Fig. 20), and theta_ta below psi has no network (an earlier draft swept 20 to 40 degC/W).
+    @return None.
+    """
+    for th in MD.SHEN_THETA_TA_SWEEP:
+        for rows in MD.SHEN_TABLE_II.values():
+            for _t, psi in rows:
+                sig = S1.sigma_from_psi(psi, th)
+                assert S1.psi_from_sigma(sig, th) == pytest.approx(psi, rel=1e-12)
+                eq42 = psi * (1.0 + MD.SHEN_THETA_JT / th)
+                assert sig > eq42 * 1.03
+    with pytest.raises(ValueError):
+        S1.sigma_from_psi(17.5, 17.0)
+    assert S1.predicted_contrast(15.0, 0.0, 370.0) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_reference_reads_at_the_face_like_equation_50():
+    """!
+    @brief With the source over the whole channel the problem is one-dimensional and R_s = 0: the 3D reference plus its face term must give R' = t / (k_z W^2) exactly (bare laminate), and the
+           reading at the node alone would be short by (t_cu / 2) / (k_z W^2). Tiny grid (4 x 4 pixels, 16 sub-slabs): milliseconds.
+    @return None.
+    """
+    c = {"S": 4.0, "W": 4.0, "t": 1.6, "kxy": 0.9, "kz": 0.3, "h": 1.0e3}
+    r = S2.reference_3d(c, px_div=8, n_sub=16)
+    exact = 1.6e-3 / (0.3 * (4e-3) ** 2)
+    assert r == pytest.approx(exact, rel=1e-9)
+    rs, _rt, rp = S2.closed_form(c, n_max=200)
+    assert abs(rs) < 1e-12 and rp == pytest.approx(exact, rel=1e-12)

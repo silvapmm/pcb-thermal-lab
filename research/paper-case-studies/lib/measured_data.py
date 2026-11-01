@@ -28,6 +28,8 @@ TABLE_9 = {
 }
 
 # Table 10 (page 61), the benchmark of the thesis's own COMSOL unit cell: isothermal top (323 K) and bottom (303 K), sides insulated, FR-4 0.33 W/mK, copper 385 W/mK
+# Table 10 prints "Copper Barrel Thickness 0.04mm" like Table 9; the wall 0.02 mm is DERIVED from the diameters (0.65 - 0.61) / 2. A wall of 0.04 mm would put sample 1 at 5.0 to 5.3 W/mK by
+# equation 28 instead of the measured 2.5 (the 2.5 mm straight marker), so the reading as a difference of diameters is the consistent one. k_air is not printed in Table 10.
 TABLE_10 = {"k_fr4": 0.33, "k_cu": 385.0, "k_air": 0.026, "wall_mm": 0.02, "d_outer_mm": 0.65, "d_inner_mm": 0.61, "t_top_K": 323.0, "t_bottom_K": 303.0}
 K_AIR = 0.026        # W/mK; the thesis's own value is not read (the equations name k_air without a number in the pages read): the textbook value is used and the effect is 3e-4 of k_overall
 
@@ -69,12 +71,26 @@ SHEN_TABLE_II = {                    # (pattern, filler) -> [(T_t degC, psi_ta d
 }
 SHEN_AMBIENT_DERIVED = 25.0          # derived, not printed: (T_t - psi P) is 25.0 +- 0.1 in all twelve cells (see tests), so the ambient of the experiment is 25 degC
 # Package numbers read in the text (page 14 / manuscript): junction-case 2.47 degC/W, junction-top-case 44.12 degC/W (CFD, ANSYS Icepak); the top-case-ambient resistance (eq. 39) and the
-# heatsink, TIM and solder resistances are NOT given as numbers in the text read; Fig. 16(b) (package outline), Fig. 20 (eq. 39 against CFD) and Fig. 22 (the vertical structure) have to
-# be read from the page images before the program can be set up (study part B is conditional on that).
+# heatsink, TIM and solder resistances are NOT given as numbers in the text read.
+# Equation 42 of the paper (manuscript page 16, read from the page image) drops a term: the line above it, 1 / psi_ta = (theta_jt / theta_ta + 1) / S + 1 / theta_ta with
+# S = theta_jc + theta_solder + theta_via + theta_TIM + theta_ha, inverts EXACTLY to S = psi_ta (theta_jt + theta_ta) / (theta_ta - psi_ta); the printed S = psi_ta (1 + theta_jt / theta_ta)
+# holds only for psi_ta << theta_ta. The study uses the exact inversion (study_measured_vias.sigma_from_psi).
+# Fig. 20 (manuscript page 15, READ FROM THE PLOT at 5x): theta_ta of the DPAK top case falls from about 450 to 300 degC/W as the top-case rise goes from 20 to 100 K; at the rises of Table II
+# (40 to 52 K) and an ambient of 25 degC (between the curves of 20 and 40 degC) it is about 360 to 385 degC/W. The sweep 300 / 370 / 450 covers the reading and the curves.
+SHEN_THETA_TA_SWEEP = (300.0, 370.0, 450.0)       # degC/W, "plot" (Fig. 20)
 SHEN_THETA_JC = 2.47
 SHEN_THETA_JT = 44.12
 SHEN_CFD_NO_VIA_K_PER_W = 120.3      # p. 14, Fig. 17(a): 5.6 mm square pad, no via, CFD
 SHEN_CFD_VIA_K_PER_W = 1.86          # p. 14, Fig. 17(b): 0.25 mm unfilled vias, CFD
+# Fig. 18 (manuscript page 14, READ FROM THE PLOT at 5x, +-0.03 K/W): the paper's CFD markers of theta_via at the two diameters of Table II that the figure carries (0.25 and 0.8 mm), for the
+# board of Fig. 17 (5.6 mm, 1.6 mm, four 2 oz layers, 1 W on the top, the bottom at the ambient). research/lumped-zones-adoption (README 9.3 and 10.2) found that these CFD numbers are not
+# reproduced from the stated inputs (an independent unit-cell solver is 21 % below 1.86 K/W); they are used here only for the CONTRASTS between rows, to compare with Table II.
+SHEN_FIG18_CFD = {                   # (pattern, filler) -> {phi mm: theta_via K/W}, "plot"
+    ("I", "air"): {0.25: 1.85, 0.8: 2.70},
+    ("I", "solder"): {0.25: 1.36, 0.8: 1.13},
+    ("II", "air"): {0.25: 1.63, 0.8: 2.38},
+    ("II", "solder"): {0.25: 1.20, 0.8: 0.99},
+}
 
 # Shen Fig. 24 (manuscript page 17): maximum temperatures printed on the IR images of four 2-layer 70 um boards with a rectangular copper pad, natural convection, 0.5 W and 1 W;
 # the numbers are printed on the images ("table"-like, read in full), the camera scale minimum is the ambient (about 26 to 27 degC, read from the scale). The board outline and thickness
