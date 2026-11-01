@@ -25,3 +25,7 @@ examples/csv_profiles/output_*/
 
 # third-party papers kept locally for reading (copyright stays with their owners, never committed)
 papers/
+
+# OCR tool: API keys and the papers library never enter the repository
+.ocr_keys
+*.key

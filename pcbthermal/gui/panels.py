@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import fdm, fvm, laminate, memory, solid3d
+from .. import copper, fdm, fvm, laminate, memory, solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -1285,14 +1285,16 @@ class WarningList(QTextBrowser):
             self.setVisible(False)
             return
         parts = []
+        tone = th.colors(th.current_name())["alert"]      # One token for the text, the link and the symbol of every entry
         if len(self.warnings) > 1:
-            parts.append(f"<p><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
+            parts.append(f"<p style='color:{tone}'><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
         for w in self.warnings:
             text = html.escape(line(w))                   # The one-line form; the full measured text is the tooltip of the item (viewportEvent)
             kind, index = getattr(w, "kind", None), getattr(w, "index", None)
             if kind is not None and index is not None:
-                text = f'<a href="{kind}:{index}" style="text-decoration:none">{text}</a>'
-            parts.append(f"<p>⚠ {text}</p>" if len(self.warnings) == 1 else f"<p style='margin-top:2px'>• {text}</p>")
+                text = f'<a href="{kind}:{index}" style="color:{tone}; text-decoration:none">{text}</a>'
+            parts.append(f"<p style='color:{tone}'>⚠ {text}</p>" if len(self.warnings) == 1
+                         else f"<p style='margin-top:2px; color:{tone}'>• {text}</p>")
         self.setHtml("".join(parts))
         self.setVisible(True)
         self._fit()
@@ -1617,7 +1619,9 @@ class SolverPanel(QWidget):
         base = suggest_cell_mm(self.doc.problem)
         cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction, laminate_params=self.doc.options.laminate_params())
         self.cell.setValue(cell)
-        self.status.setText(f"Auto: the cell was enlarged to {cell:.1f} mm to fit the memory limit." if cell > base + 1e-9 else "")
+        # A board with imported copper has its own sentence (Auto is capped at 1 mm there, and above 1.5 mm the result is a screening estimate)
+        note = copper.auto_cell_note(self.doc.problem, cell)
+        self.status.setText(note or (f"Auto: the cell was enlarged to {num(cell, 2)} mm to fit the memory limit." if cell > base + 1e-9 else ""))
 
     def _apply(self, *_):
         """!

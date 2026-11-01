@@ -591,7 +591,7 @@ def test_warning_links_follow_the_theme(win, qtbot):
     for _ in range(2):
         accent = th.colors(win.theme_name)["link"]
         assert QApplication.instance().palette().color(QPalette.Link).name() == accent
-        assert anchor_colour() == accent
+        assert anchor_colour() == th.colors(win.theme_name)["alert"]   # the entries take the alert token
         lst.set_stale()
         win.toggle_theme()
         assert lst.stale
