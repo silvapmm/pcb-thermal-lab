@@ -1,0 +1,5 @@
+{
+  "name_patterns": ["OdbppSpec", "odb\\+\\+.*spec", "confidential"],
+  "text_markers": ["confidential"],
+  "note": "Files that must never be sent to an online provider. A match on the file name, the PDF metadata or the text of the first page is refused unless --allow-confidential is given."
+}
