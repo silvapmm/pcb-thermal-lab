@@ -288,13 +288,55 @@ def fig_rule_shift():
     plt.close(fig)
 
 
+def fig_network_split():
+    """!
+    @brief Review of README 10 (study_rule_network_split): the error against the 3D reference split into the program's network at the pixel (left column of each panel) and the mapping alone
+           (every variant against that pixel network), real and synthetic windows, two and four layers, at the two cells.
+    @return None.
+    """
+    real = load("rule_on_faces_real.json")
+    syn = load("rule_on_faces_synthetic.json")
+    split = load("rule_network_split.json")
+    if real is None or syn is None or split is None:
+        return
+    pixel = split["pixel"]
+    rows = real["rows"] + syn["rows"]
+    cols = ("network", "today_on", "flow_naive", "flow_on", "lambda_on")
+    labels = ("network at\nthe pixel\n(against 3D)", "fill\nrule on", "faces, old\nsheet, on", "faces, reduced\nsheet, on", "lambda 0.5\nreduced, on")
+    fig, axs = plt.subplots(2, 2, figsize=(10.5, 6.4), sharey=True)
+    for i, cell in enumerate((0.6, 1.2)):
+        for j, kind in enumerate(("real", "synthetic")):
+            ax = axs[i, j]
+            rng = np.random.default_rng(5)
+            for layers, color in ((2, "#d62728"), (4, "#1f77b4")):
+                sel = [r for r in rows if r["kind"] == kind and r["cell"] == cell and r["layers"] == layers]
+                for x, v in enumerate(cols):
+                    if v == "network":
+                        e = [100 * (pixel[r["name"]]["on"] / r["ref_mean"] - 1) for r in sel]
+                    else:
+                        e = [100 * (r["mean"][v] / pixel[r["name"]]["on"] - 1) for r in sel]
+                    ax.plot(x + (layers - 3) * 0.12 + rng.uniform(-0.05, 0.05, len(e)), e, "o", color=color, alpha=0.6, markersize=4, label=f"{layers} layers" if x == 0 else None)
+            ax.axhline(0, color="k", linewidth=0.6)
+            ax.axvline(0.5, color="0.6", linewidth=0.8, linestyle="--")
+            ax.set_xticks(range(len(cols)))
+            ax.set_xticklabels(labels, fontsize=6)
+            ax.set_title(f"{kind} windows, cell {cell} mm", fontsize=8)
+            if j == 0:
+                ax.set_ylabel("error (% of the heater mean rise)")
+            ax.legend(fontsize=6, loc="lower right")
+    fig.suptitle("Left of the dashed line: the program's network on the 0.1 mm pixel against the 3D reference; right: each mapping against that pixel network (the mapping alone)", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_13_network_and_mapping.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Draw every figure whose results exist.
     @return None.
     """
     FIG.mkdir(parents=True, exist_ok=True)
-    for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links, fig_rule_on, fig_rule_shift):
+    for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links, fig_rule_on, fig_rule_shift, fig_network_split):
         f()
 
 

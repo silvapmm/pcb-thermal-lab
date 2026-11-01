@@ -107,6 +107,37 @@ def solve_variant(ib, problem, variant, kind="binary"):
     return net.solve_steady()[0]
 
 
+def pixel_network(ib, problem, rule=True, n_max=None, s_max=None, kind="binary"):
+    """!
+    @brief The program's own layered network on the pixel grid (fill 0 or 1 per pixel), with or without the laminate rule: the limit that any copper mapping on the program's network can reach.
+    @details Added by the review (README 10.5). The difference between a variant and this network is the error of the mapping alone; the difference between this network and the 3D
+             reference is the error of the network (one node per copper layer, at most `n_max` sub-gaps), which no mapping can remove. The pixel fill is handed to `fvm.Network` by replacing
+             `fvm.zone_fill` for the duration of the construction (one zone per pixel would cost minutes of polygon sampling); the program's code is not changed, only called.
+             `n_max` and `s_max` replace the two constants of the rule (`laminate.N_MAX`, `laminate.S_MAX`) for this call only, to measure how the network converges in the sub-gaps.
+    @param ib Imported board (any cell; the pixel is used).
+    @param problem Problem made by boardrun.make_problem (no zones; the heater gives the power).
+    @param rule True: the laminate rule of 2.4.5; False: the network of the earlier versions.
+    @param n_max Optional most sub-gaps of the rule (None: the program's constant).
+    @param s_max Optional longest sub-gap in m (None: the program's constant).
+    @param kind Mask kind.
+    @return Array (node layers, ny, nx) of the rise in K on the pixel grid, rows from the bottom.
+    """
+    from pcbthermal import laminate
+    masks = np.stack([ly[kind].astype(float)[::-1] for ly in ib.layers])
+    ny, nx = masks.shape[1:]
+    saved = fvm.zone_fill, laminate.N_MAX, laminate.S_MAX
+    fvm.zone_fill = lambda *args, **kw: masks.copy()           # the pixel fill instead of the (absent) zones
+    if n_max is not None:
+        laminate.N_MAX = int(n_max)
+    if s_max is not None:
+        laminate.S_MAX = float(s_max)
+    try:
+        net = fvm.Network(problem, nx, ny, ladder=rule)
+    finally:
+        fvm.zone_fill, laminate.N_MAX, laminate.S_MAX = saved    # restore the program's function and constants whatever happens
+    return net.solve_steady()[0]
+
+
 def reference(ib, centre, size_mm, n_sub, kind="binary", holes=False):
     """!
     @brief The independent 3D reference: heater mean and maximum of the top copper slab over the heater block.

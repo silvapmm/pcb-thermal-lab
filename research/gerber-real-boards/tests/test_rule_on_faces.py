@@ -56,3 +56,23 @@ def test_naive_faces_double_count_and_reduced_faces_do_not():
     assert e["flow_on"] < e["flow_naive"] < e["today_on"] + 1.0, e
     assert e["flow_on"] < e["today_on"], e
     assert e["flow_on"] < 5.0, e
+
+
+def test_pixel_network_splits_network_and_mapping():
+    """!
+    @brief Review of README 10 (section 10.5): the program's own network at the pixel is itself cool against the 3D reference (the rule's sub-gaps), the rule makes it less cool, and the faces
+           on the reduced sheet are closer to that pixel network than the fill fraction (the error of the mapping alone).
+    @return None.
+    """
+    ib = synth.synthetic_board("stripes", "2solid", CELL, side=SIDE)
+    p = boardrun.make_problem(ib, CENTRE, HEATER, 1.0, h_face=rs.H_FACE)
+    ref = rs.reference(ib, CENTRE, HEATER, 8)[0]
+    on = boardrun.heater_stats(rs.pixel_network(ib, p, True), ib.pix, CENTRE, HEATER)[0]
+    off = boardrun.heater_stats(rs.pixel_network(ib, p, False), ib.pix, CENTRE, HEATER)[0]
+    assert off < on < ref, (off, on, ref)
+    more = boardrun.heater_stats(rs.pixel_network(ib, p, True, n_max=8, s_max=1.53e-3 / 8 * 1.0001), ib.pix, CENTRE, HEATER)[0]
+    assert on < more < ref, (on, more, ref)                         # more sub-gaps: closer to the 3D reference
+    from pcbthermal import laminate
+    assert laminate.N_MAX == 4 and laminate.S_MAX == 0.4e-3         # the program's constants are restored
+    f = {v: boardrun.heater_stats(rs.solve_variant(ib, p, v), ib.cell, CENTRE, HEATER)[0] for v in ("today_on", "flow_on")}
+    assert abs(f["flow_on"] / on - 1) < abs(f["today_on"] / on - 1), (f, on)
