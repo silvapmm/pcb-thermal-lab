@@ -20,7 +20,7 @@ import numpy as np
 TILE_SUBPIXELS = 2048          # side of a tile in sub-pixels (4 M booleans; the float coordinate grids of a stroke are about 8 times that per array)
 DEFAULT_SUPERSAMPLE = 4
 BYTES_PER_OP = 600             # measured resident bytes per parsed operation (tuple, aperture reference, attribute id), see tests and the report
-WORKING_BYTES_PER_SUBPIXEL = 60  # boolean canvas plus the float64 grids and temporaries of the largest stroke in a tile
+WORKING_BYTES_PER_SUBPIXEL = 90  # boolean canvas plus the float64 grids and temporaries of the largest stroke in a tile (measured: CO60 at 0.05 mm peaks at 433 MB resident, 78 MB of it the interpreter)
 
 
 class Window(NamedTuple):

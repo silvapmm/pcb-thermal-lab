@@ -366,3 +366,18 @@ def test_memory_estimate_grows_with_pixels_and_layers_and_holds_one_byte_per_pix
     assert b.working_bytes == c.working_bytes                                   # the tile makes the working memory independent of the board
     with_ops = G.estimate_raster_bytes(win, 0.1, 1, n_ops=100000)
     assert with_ops.peak_bytes - a.peak_bytes == 100000 * raster.BYTES_PER_OP
+
+
+def test_working_memory_of_the_rasteriser_stays_under_its_estimate():
+    import tracemalloc
+    # A 100 x 80 mm board with a long diagonal, a big pour with a hole and many pads: the traced peak (numpy allocations included) must stay under the working estimate
+    body = gt.line(1, 1, 99, 79) + gt.region([(5, 5), (95, 5), (95, 75), (5, 75)]) + "%LPC*%\n" + gt.region([(20, 20), (60, 20), (60, 50), (20, 50)]) + "%LPD*%\n"
+    pads = "".join(gt.flash(5 + 3 * i, 3 + 5 * j, 11) for i in range(25) for j in range(14))
+    layer = G.parse_layer(gt.header("%ADD10C,0.3*%\n%ADD11R,1.0X1.0*%\n") + body + pads + gt.end(), "mem.gbr")
+    win = G.Window(0, 80, 100, 80)
+    est = G.estimate_raster_bytes(win, 0.1, 1, 4)
+    tracemalloc.start()
+    cov = G.rasterize(layer, win, 0.1, 4)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert cov.sum() > 0 and peak < est.working_bytes + est.held_bytes
