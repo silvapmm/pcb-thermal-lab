@@ -325,6 +325,10 @@ class MainWindow(QMainWindow):
         self.splitDockWidget(self.dock_sim, self.dock_inspector, Qt.Vertical)
         # The widths are set in showEvent (_size_docks): before the window is shown resizeDocks has no effect and the docks started about 110 px wide
 
+    STATE_VERSION = 2                       # Version of the saved dock arrangement (restoreState refuses another)
+    DOCK_MIN_LEFT = 300                     # Narrowest usable width in pixels of the Board and Elements docks
+    DOCK_MIN_RIGHT = 340                    # Narrowest usable width in pixels of the Simulation and Properties docks
+
     def _size_docks(self):
         """!
         @brief Give the side docks a readable width for the window size (first start, or no saved arrangement).
@@ -346,21 +350,49 @@ class MainWindow(QMainWindow):
         @brief Restore the saved dock arrangement, or give the docks their default widths when there is none (or it cannot be read).
         """
         try:
-            restored = bool(self._saved_state) and self.restoreState(self._saved_state)
+            # The version number invalidates the states saved before the minimum widths existed (they may hold collapsed docks)
+            restored = bool(self._saved_state) and self.restoreState(self._saved_state, self.STATE_VERSION)
         except (TypeError, ValueError):                          # A hand-edited settings file can hold text where the state was
             restored = False
         if not restored:
             self._size_docks()
+            self._schedule_dock_minimums()
             return
         # restoreState brings back where the docks are and which are shown, but not always their sizes: those are applied from the saved numbers
         sizes = self.settings.value("dock_sizes")
         try:
             bw, sw, bh, eh, sh, ih = (int(v) for v in sizes)
         except (TypeError, ValueError):
+            self._size_docks()
+            self._schedule_dock_minimums()
             return
-        self.resizeDocks([self.dock_board, self.dock_sim], [bw, sw], Qt.Horizontal)
-        self.resizeDocks([self.dock_board, self.dock_elements], [bh, eh], Qt.Vertical)
-        self.resizeDocks([self.dock_sim, self.dock_inspector], [sh, ih], Qt.Vertical)
+        # Sizes saved from a collapsed or much larger window are stale: below the minimum, or wider than the window can hold
+        if bw < self.DOCK_MIN_LEFT or sw < self.DOCK_MIN_RIGHT or bw + sw > 0.8 * self.width() or min(bh, eh, sh, ih) < 60:
+            self._size_docks()
+        else:
+            self.resizeDocks([self.dock_board, self.dock_sim], [bw, sw], Qt.Horizontal)
+            self.resizeDocks([self.dock_board, self.dock_elements], [bh, eh], Qt.Vertical)
+            self.resizeDocks([self.dock_sim, self.dock_inspector], [sh, ih], Qt.Vertical)
+        self._schedule_dock_minimums()
+
+    def _schedule_dock_minimums(self):
+        """!
+        @brief Check the dock widths now and again shortly after, when the window system has settled the window size.
+
+        @note The window manager may still change the frame after the first show (a window larger than the screen is cut to the
+              visible area), which squeezes the docks after _first_layout has run.
+        """
+        self._ensure_dock_minimums()
+        QTimer.singleShot(250, self._ensure_dock_minimums)
+
+    def _ensure_dock_minimums(self):
+        """!
+        @brief Widen a docked panel that is narrower than its fields need (a floating or hidden dock is left alone).
+        """
+        for dock, side in ((self.dock_board, self.DOCK_MIN_LEFT), (self.dock_elements, self.DOCK_MIN_LEFT),
+                           (self.dock_sim, self.DOCK_MIN_RIGHT), (self.dock_inspector, self.DOCK_MIN_RIGHT)):
+            if dock.isVisible() and not dock.isFloating() and dock.width() < side:
+                self.resizeDocks([dock], [side], Qt.Horizontal)
 
     def showEvent(self, e):
         """!
@@ -475,6 +507,23 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_keys)
         m.addSeparator()
         m.addAction(self.a_about)
+        self._hide_bare_key_hints()
+
+    def _hide_bare_key_hints(self):
+        """!
+        @brief Keep the single-key shortcuts of the View menu (G, Shift+G, T) working but out of the menu text.
+
+        On macOS the native menu prints a key without a modifier as a lone letter next to the entry ("Temperature on board  T"),
+        which reads like a mnemonic or a wrong item. The keys stay on window-level actions that toggle the visible ones; the
+        tool bar tooltips and the keyboard help still name them.
+        """
+        for a in (self.a_grid, self.a_sgrid, self.a_overlay):
+            keys = a.shortcuts()
+            a.setShortcuts([])
+            hidden = QAction(a.text(), self)
+            hidden.setShortcuts(keys)
+            hidden.triggered.connect(a.toggle)
+            self.addAction(hidden)                              # Active in the whole window, in no menu
 
     def _build_toolbar(self):
         """!
@@ -1076,7 +1125,7 @@ class MainWindow(QMainWindow):
         if self._confirm_discard():
             compute.shutdown()                         # Nothing keeps running in the background after the window closes
             self.settings.setValue("geometry", self.saveGeometry())
-            self.settings.setValue("window_state", self.saveState())      # Dock positions and visibility
+            self.settings.setValue("window_state", self.saveState(self.STATE_VERSION))      # Dock positions and visibility
             self.settings.setValue("dock_sizes", [self.dock_board.width(), self.dock_sim.width(), self.dock_board.height(),
                                                   self.dock_elements.height(), self.dock_sim.height(), self.dock_inspector.height()])
             e.accept()
