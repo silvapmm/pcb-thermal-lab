@@ -309,10 +309,42 @@ def test_the_memory_of_the_machine_can_be_stated(monkeypatch):
 
 def test_options_validate_the_fraction():
     """!
-    @brief memory_fraction outside 0.1 to 0.95 is rejected and the field is saved with the options.
+    @brief memory_fraction outside 0.1 to 0.95 is rejected; the field is a machine preference and is not saved with the options.
     @return None.
     """
     from pcbthermal import SolverOptions
     with pytest.raises(ValueError):
         SolverOptions(memory_fraction=0.99).validate()
-    assert SolverOptions.from_dict(SolverOptions(memory_fraction=0.5).to_dict()).memory_fraction == 0.5
+    d = SolverOptions(memory_fraction=0.5).to_dict()
+    assert "memory_fraction" not in d
+    assert SolverOptions.from_dict(d).memory_fraction == memory.default_fraction()
+
+
+def test_an_old_project_with_the_key_loads_and_ignores_it():
+    """!
+    @brief A project file saved before the field became a preference still loads, and its value does not reach the options.
+    @return None.
+    """
+    from pcbthermal import SolverOptions
+    o = SolverOptions.from_dict({"cell_mm": 2.0, "memory_fraction": 0.2})
+    assert o.cell_mm == 2.0 and o.memory_fraction == memory.default_fraction() != 0.2
+
+
+def test_the_fraction_comes_from_the_preferences(monkeypatch):
+    """!
+    @brief The default fraction is solver.memory_fraction of the defaults (the user's file), 0.60 shipped; a bad value falls back; the command-line override wins.
+    @param monkeypatch pytest fixture.
+    @return None.
+    """
+    from pcbthermal import SolverOptions, defaults
+    assert defaults.shipped()["solver"]["memory_fraction"] == 0.6
+    assert memory.default_fraction() == 0.6
+    monkeypatch.setattr(defaults, "load", lambda: {"solver": {"memory_fraction": 0.3}})
+    assert memory.default_fraction() == 0.3 and SolverOptions().memory_fraction == 0.3
+    monkeypatch.setattr(defaults, "load", lambda: {"solver": {"memory_fraction": 7.0}})
+    assert memory.default_fraction() == memory.DEFAULT_FRACTION
+    memory.set_default_fraction(0.2)
+    try:
+        assert memory.default_fraction() == 0.2
+    finally:
+        memory.set_default_fraction(None)

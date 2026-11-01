@@ -232,9 +232,18 @@ def peak_rss_bytes() -> Optional[float]:
 def default_fraction() -> float:
     """!
     @brief Fraction of the physical memory a solve may use when the caller gives none.
+    @details A machine preference, not a property of a project: the process-wide override (command line `--memory-fraction`) wins, then the Preferences value
+             `solver.memory_fraction` (the shipped defaults plus the user's file), then DEFAULT_FRACTION. A value out of range in the user's file is ignored.
     @return Fraction between MIN_FRACTION and MAX_FRACTION.
     """
-    return DEFAULT_FRACTION if _fraction_override is None else _fraction_override
+    if _fraction_override is not None:
+        return _fraction_override
+    try:
+        from . import defaults                                                  # Lazy: the module has no other need of the defaults
+        value = float(defaults.load()["solver"].get("memory_fraction", DEFAULT_FRACTION))
+    except (KeyError, TypeError, ValueError, OSError):
+        return DEFAULT_FRACTION
+    return value if MIN_FRACTION <= value <= MAX_FRACTION else DEFAULT_FRACTION
 
 
 def set_default_fraction(fraction: Optional[float]) -> None:

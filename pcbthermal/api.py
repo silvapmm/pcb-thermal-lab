@@ -56,7 +56,8 @@ class SolverOptions:
     analytic_local_corrections: bool = True      # Treat vias and heatsinks locally (Green's function update)
     hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
-    memory_fraction: float = memory.DEFAULT_FRACTION   # Share of the physical memory a solve may use; a run whose estimated peak is above it is refused (memory.py)
+    # A machine preference (Preferences, solver.memory_fraction), not part of a project: never saved in the project file, and an old file that has the key ignores it
+    memory_fraction: float = field(default_factory=memory.default_fraction)   # Share of the physical memory a solve may use; a run above it is refused (memory.py)
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
 
     def validate(self):
@@ -85,6 +86,7 @@ class SolverOptions:
         @return Dict of the options.
         """
         d = asdict(self)
+        d.pop("memory_fraction", None)                  # The memory limit belongs to the machine, not to the project
         d["models"] = list(self.models)
         d["profile"] = self.profile.to_dict()
         return d
@@ -96,7 +98,7 @@ class SolverOptions:
         @param data Dict as produced by to_dict.
         @return Validated SolverOptions.
         """
-        known = {k: v for k, v in (data or {}).items() if k in cls.__dataclass_fields__}
+        known = {k: v for k, v in (data or {}).items() if k in cls.__dataclass_fields__ and k != "memory_fraction"}   # Old files may hold the key: ignored
         if "models" in known:
             known["models"] = tuple(known["models"])
         known["profile"] = profiles.ProfileOptions.from_dict(known.get("profile"))
