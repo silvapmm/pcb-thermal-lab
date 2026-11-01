@@ -757,3 +757,22 @@ A. Bar-Cohen and W. M. Rohsenow, *Thermally optimum spacing of vertical, natural
 
 ### [Elenbaas1942]
 W. Elenbaas, *Heat dissipation of parallel plates by free convection*, Physica 9 (1) (1942) 1-28 (see [ElenbaasBCR]). **Status N**; the data were read as plot values in Yovanovich, Teertstra, Muzychka (2002) (R). Topics 11, 13.
+
+## 22. Sources of `research/memory-guard/` (the memory of the sparse direct solves)
+
+None of these was opened in the preparation of the folder; the statements that rest on them are hypotheses the measurements test.
+
+### [George1973]
+A. George, *Nested dissection of a regular finite element mesh*, SIAM J. Numer. Anal. 10 (1973) 345-363. Fill-in and operation count of the factor of an n x n grid (O(n^2 log n) and O(n^3)), and by extension of a k x k x k grid (O(k^4) fill, N^(4/3) in the unknowns). **Status M.** Used for the hypothesis of the exponent of the memory law.
+
+### [Davis2006]
+T. A. Davis, *Direct Methods for Sparse Linear Systems*, SIAM, 2006. Orderings (minimum degree, nested dissection), fill, the memory of LU and Cholesky factors. **Status M.**
+
+### [GeorgeLiu1981]
+A. George, J. W. H. Liu, *Computer Solution of Large Sparse Positive Definite Systems*, Prentice-Hall, 1981. Minimum degree and its tie-breaking (why a different numbering of the same matrix changes the ordering and the fill). **Status N.**
+
+### [LiSuperLU2005]
+X. S. Li, *An overview of SuperLU: algorithms, implementation, and user interface*, ACM Trans. Math. Softw. 31 (2005) 302-325, and the SuperLU user guide (author's site). Memory held by the factor and the work arrays, the column orderings behind SciPy's `permc_spec`. **Status N** (the guide is an open copy to fetch).
+
+### [PythonResource]
+Python documentation of `resource.getrusage` and `os.wait4`, and the `getrusage` man pages. The unit of `ru_maxrss` (bytes on macOS, kilobytes on Linux) and that `wait4` returns the usage of one child. **Status M.**
