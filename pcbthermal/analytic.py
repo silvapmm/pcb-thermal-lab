@@ -400,12 +400,16 @@ def _heater_unit_sources(problem, bx, by):
     """!
     @brief Modal projection of every heater for 1 W (the source of a heater is its power times this array).
     @param problem A Problem.
-    @param bx Basis along x (_EdgeBasis; its n is the number of modes).
-    @param by Basis along y.
+    @param bx Basis along x (_EdgeBasis; its n is the number of modes), or the number of cosine modes (the insulated board: the studies that read this function).
+    @param by Basis along y, or the number of cosine modes.
     @return List of arrays (M, N, L), one per heater.
     """
     b = problem.board
     W, H, L = b.width, b.height, b.layers
+    if not isinstance(bx, _EdgeBasis):
+        bx = _EdgeBasis(W, 0.0, bx)
+    if not isinstance(by, _EdgeBasis):
+        by = _EdgeBasis(H, 0.0, by)
     M, N = bx.n, by.n
     ex, ey = bx.weight, by.weight                            # 1 for the constant cosine and 2 for the others; L over the squared norm for the Robin basis
     out = []
