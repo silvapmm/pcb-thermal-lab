@@ -1,0 +1,72 @@
+{
+ "base_version": "2.4.5",
+ "branch": "fix/lumped-footprint-potentials",
+ "evidence": "research/lumped-zones-adoption README 4.5 and 8.5; docs/versions.md Planned item 0",
+ "format": 1,
+ "item": "Lumped footprint potentials in blocks",
+ "records": {
+  "reference_board|lumped|0.5": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 4.440892098500626e-15,
+    "layer_mean[0]": 45.74727551167522,
+    "layer_mean[1]": 44.21576630310516,
+    "part:Heater 1:power_top_w": 0.0,
+    "part:Heater 1:power_w": 5.0,
+    "part:Heater 1:t_max": 79.97387257006108,
+    "part:Heater 1:t_mean": 79.97387257006108,
+    "power_in": 5.0,
+    "t_max": 89.36316645816491,
+    "t_mean": 44.981520907390184,
+    "t_min": 38.07862840167303,
+    "t_sum": 3598521.672591215,
+    "t_sumsq": 167104295.57114813
+   }
+  },
+  "reference_board|lumped|1": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -5.329070518200751e-15,
+    "layer_mean[0]": 45.75051192551933,
+    "layer_mean[1]": 44.22187328850465,
+    "part:Heater 1:power_top_w": 0.0,
+    "part:Heater 1:power_w": 5.0,
+    "part:Heater 1:t_max": 80.37704426835103,
+    "part:Heater 1:t_mean": 80.37704426835103,
+    "power_in": 5.0,
+    "t_max": 89.68893064061999,
+    "t_mean": 44.98619260701199,
+    "t_min": 38.09007602877932,
+    "t_sum": 899723.8521402399,
+    "t_sumsq": 41811742.67108454
+   }
+  },
+  "reference_board|lumped|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -5.329070518200751e-15,
+    "layer_mean[0]": 45.75051192551933,
+    "layer_mean[1]": 44.22187328850465,
+    "part:Heater 1:power_top_w": 0.0,
+    "part:Heater 1:power_w": 5.0,
+    "part:Heater 1:t_max": 80.37704426835103,
+    "part:Heater 1:t_mean": 80.37704426835103,
+    "power_in": 5.0,
+    "t_max": 89.68893064061999,
+    "t_mean": 44.98619260701199,
+    "t_min": 38.09007602877932,
+    "t_sum": 899723.8521402399,
+    "t_sumsq": 41811742.67108454
+   }
+  }
+ },
+ "transients": {
+  "reference_board|lumped": {
+   "class": "moved",
+   "t63": {
+    "Heater 1": 17.938930477938207
+   }
+  }
+ },
+ "why": "Above 900 footprint cells the stride decimation aliased; the potentials are summed in blocks, so the Lumped record of a large footprint at 0.5 mm moves (t_max 89.093 -> 89.363 degC)."
+}
