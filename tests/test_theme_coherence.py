@@ -216,7 +216,7 @@ def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
             block = block.next()
         return None
 
-    assert anchor_colour() == QColor(th.colors("light")["link"]).name()
+    assert anchor_colour() == QColor(th.colors("light")["alert"]).name()      # Entries take the alert token, not the link colour
     verdict_light = win.solver_panel.cells_label.text()
     win.toggle_theme()
     # The text of the label holds the theme's tones: the dark ones differ from the light ones
@@ -225,7 +225,7 @@ def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
     assert th.colors("dark")["ok"] in verdict_dark or th.colors("dark")["warn"] in verdict_dark or th.colors("dark")["bad"] in verdict_dark
     link = QApplication.palette().link().color().name()
     assert link == QColor(th.colors("dark")["link"]).name()
-    assert anchor_colour() == link                       # the list was rebuilt: a link keeps the colour it was read with otherwise
+    assert anchor_colour() == QColor(th.colors("dark")["alert"]).name()                     # the list was rebuilt: a link keeps the colour it was read with otherwise
 
 
 def test_every_window_object_changes_its_palette_on_a_toggle(win):
