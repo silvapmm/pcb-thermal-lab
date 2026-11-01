@@ -348,3 +348,57 @@ def test_the_fraction_comes_from_the_preferences(monkeypatch):
         assert memory.default_fraction() == 0.2
     finally:
         memory.set_default_fraction(None)
+
+
+@pytest.fixture
+def cli_board(tmp_path):
+    """!
+    @brief The example board written to a project file for the command-line tests.
+    @param tmp_path pytest temporary folder.
+    @return Path of the project file as a string.
+    """
+    from pcbthermal import cli
+    path = tmp_path / "board.pcbt.json"
+    cli.main(["example", str(path), "--which", "example"])
+    return str(path)
+
+
+@pytest.mark.parametrize("command", [["run", "--model", "fvm", "--cell-mm", "0.05"], ["transient", "--cell-mm", "0.05"], ["solvers", "--cell-mm", "0.05"],
+                                      ["convergence"]])
+def test_the_commands_exit_with_code_3_on_a_refusal(command, cli_board, tmp_path, monkeypatch, capsys):
+    """!
+    @brief run, transient, solvers and convergence refuse an over-large model before solving: exit code 3 (memory.EXIT_CODE), the message on stderr, nothing written.
+    @param command Command and its arguments (without the file).
+    @param cli_board Project file.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    @param capsys pytest fixture.
+    @return None.
+    """
+    from pcbthermal import cli
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(1.0 * GB))      # A 1 GB machine at the default fraction: every cell of these commands is refused
+    out = tmp_path / "o"
+    code = cli.main([command[0], cli_board, *command[1:], "--out", str(out), "--no-plots"])
+    assert code == memory.EXIT_CODE == 3
+    err = capsys.readouterr().err
+    assert "error:" in err and "GB" in err
+    assert not out.exists()
+    assert memory.default_fraction() == memory.DEFAULT_FRACTION       # The override of the command is gone
+
+
+def test_memory_fraction_option_sets_the_limit(cli_board, tmp_path, monkeypatch, capsys):
+    """!
+    @brief --memory-fraction replaces the preference for the command: a run that fits at 0.6 is refused at 0.1 on a small machine, and a value out of range is a usage error.
+    @param cli_board Project file.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    @param capsys pytest fixture.
+    @return None.
+    """
+    from pcbthermal import cli
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(1.0 * GB))
+    args = ["run", cli_board, "--model", "fvm", "--cell-mm", "2", "--out", str(tmp_path / "o"), "--no-plots"]
+    assert cli.main(args) == 0
+    assert cli.main(args + ["--memory-fraction", "0.12"]) == memory.EXIT_CODE
+    assert cli.main(args + ["--memory-fraction", "2"]) == 2
+    capsys.readouterr()
