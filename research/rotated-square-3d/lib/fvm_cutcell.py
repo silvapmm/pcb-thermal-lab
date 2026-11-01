@@ -40,6 +40,7 @@ if HERE not in sys.path:
 
 from pcbthermal import fvm                                                  # noqa: E402
 import cutcell                                                              # noqa: E402
+import cutcell_exact                                                        # noqa: E402
 
 MODES = ("links", "links+strip", "aperture")
 
@@ -56,6 +57,7 @@ class CutCellNetwork(fvm.Network):
     samples = 16
     d_min = 1e-3
     ap_min = 0.0
+    exact = False
 
     def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True):
         """!
@@ -74,7 +76,8 @@ class CutCellNetwork(fvm.Network):
         b = problem.board
         self.geo = None
         if b.has_outline():
-            self.geo = cutcell.cut_geometry_fast(b.outline, nx, ny, self.dx, self.dy, m=self.samples)
+            geo_fn = cutcell_exact.cut_geometry_exact if self.exact else cutcell.cut_geometry_fast
+            self.geo = geo_fn(b.outline, nx, ny, self.dx, self.dy, m=self.samples)
             if self.mode == "links+strip":
                 self._strip_edge()
         self.K = self._assemble() if assemble else None
@@ -222,24 +225,29 @@ CutCellNetwork.solve_sor = _patched_sor()
 
 
 @contextlib.contextmanager
-def using_cutcell(mode="links", samples=16, d_min=1e-3, ap_min=0.0):
+def using_cutcell(mode="links", samples=16, d_min=1e-3, ap_min=0.0, exact=False):
     """!
     @brief Replace `fvm.Network` by the cut-cell network for the duration of a block.
     @param mode one of MODES (see the module header; "aperture" keeps the nodes at the cell centres).
     @param samples Sampling M x M per cell for the geometry.
     @param d_min Smallest face-to-centroid distance as a fraction of the cell side.
     @param ap_min Apertures below this fraction are zero.
+    @param exact True: the geometry of the cut cells by exact clipping (`cutcell_exact`) and the cover of the whole network exact too (`Board.cover` replaced).
     @return Context manager (yields the network class).
     @throws ValueError If the mode is unknown.
     """
     if mode not in MODES:
         raise ValueError(f"mode must be one of {MODES}")
     CutCellNetwork.mode, CutCellNetwork.samples = mode, samples
-    CutCellNetwork.d_min, CutCellNetwork.ap_min = d_min, ap_min
+    CutCellNetwork.d_min, CutCellNetwork.ap_min, CutCellNetwork.exact = d_min, ap_min, exact
     original = fvm.Network
     fvm.Network = CutCellNetwork
     try:
-        yield CutCellNetwork
+        if exact:
+            with cutcell_exact.using_exact_cover():
+                yield CutCellNetwork
+        else:
+            yield CutCellNetwork
     finally:
         fvm.Network = original
 
@@ -253,10 +261,7 @@ def tmax(problem, cell_mm, scheme="program", **kw):
     @param kw More options for `using_cutcell` (samples, d_min, ap_min).
     @return Hottest temperature in degrees Celsius.
     """
-    if scheme == "program":
-        return float(fvm.solve_steady(problem, cell_mm=cell_mm).t_max)
-    with using_cutcell(scheme, **kw):
-        return float(fvm.solve_steady(problem, cell_mm=cell_mm).t_max)
+    return float(solve(problem, cell_mm, scheme, **kw).t_max)
 
 
 def solve(problem, cell_mm, scheme="program", **kw):
@@ -268,7 +273,14 @@ def solve(problem, cell_mm, scheme="program", **kw):
     @param kw More options for `using_cutcell`.
     @return pcbthermal.results.SteadyResult.
     """
-    if scheme == "program":
+    # A suffix "@exact" asks for the exact cover and geometry ("program@exact" is the program's links with only the exact cover)
+    base, _, flag = scheme.partition("@")
+    if flag == "exact":
+        kw = dict(kw, exact=True)
+    if base == "program":
+        if flag == "exact":
+            with cutcell_exact.using_exact_cover():
+                return fvm.solve_steady(problem, cell_mm=cell_mm)
         return fvm.solve_steady(problem, cell_mm=cell_mm)
-    with using_cutcell(scheme, **kw):
+    with using_cutcell(base, **kw):
         return fvm.solve_steady(problem, cell_mm=cell_mm)

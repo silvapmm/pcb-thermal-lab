@@ -182,3 +182,53 @@ def test_transient_runs_with_the_cut_cell_network():
         t1 = fvm.solve_transient(p, 120.0, n_out=20, cell_mm=1.0)
     assert np.isfinite(t1.frames).all() and t1.frames.min() >= p.board.ambient - 1e-9
     assert abs(t1.time_constant() / t0.time_constant() - 1.0) < 0.01
+
+
+def test_exact_geometry_has_the_polygon_area_and_agrees_with_the_sampled_one():
+    """!
+    @brief The clipped cover sums to the polygon area to rounding, the sampled one to a few parts in 10^4, and apertures and centroids agree with the 16 x 16 sampling to its resolution.
+    @return None.
+    """
+    import cutcell_exact
+    for poly in (np.array(rotsq.turned_square(20.0, 27.0, (15.0, 15.0))) * 1e-3, np.array(rotsq.equal_area_polygon(9.0, (15.0, 15.0), 96)) * 1e-3):
+        a = cutcell.cut_geometry_fast(poly, 30, 30, 1e-3, 1e-3)
+        b = cutcell_exact.cut_geometry_exact(poly, 30, 30, 1e-3, 1e-3)
+        area = abs(0.5 * np.sum(poly[:, 0] * np.roll(poly[:, 1], -1) - np.roll(poly[:, 0], -1) * poly[:, 1]))
+        assert abs(b["cover"].sum() * 1e-6 / area - 1.0) < 1e-12
+        assert abs(a["cover"].sum() * 1e-6 / area - 1.0) < 1e-3
+        assert np.abs(a["cover"] - b["cover"]).max() < 0.02
+        assert np.abs(a["ax"] - b["ax"]).max() < 0.07 and np.abs(a["ay"] - b["ay"]).max() < 0.07
+        big = b["cover"] > 0.05      # a sliver below that is empty for one sampling and a corner for the other: no matter, the program takes it as off the board
+        assert np.abs((a["xc"] - b["xc"])[big]).max() < 0.05e-3 and np.abs((a["yc"] - b["yc"])[big]).max() < 0.05e-3
+
+
+def test_sor_with_cut_cell_links_equals_the_direct_solve():
+    """!
+    @brief The point SOR of the prototype uses the cut-cell links (the patched `solve_sor`) and converges to the direct solution of the same matrix, with vias and a copper edge inside a cut cell.
+    @return None.
+    """
+    p = _square(20.0, 500.0)
+    p.add_via(15.2, 15.3, diameter=0.3)
+    with fc.using_cutcell("links"):
+        net = fvm.Network(p, 30, 30)
+        th_d, _ = net.solve_steady("direct")
+        th_s, res, info = net.solve_sor(tol=1e-11)
+    assert info["converged"] and np.abs(th_s - th_d).max() < 1e-6 * th_d.max()
+    # And the SOR really saw the cut-cell links: the program's network gives another field on the same board
+    th_p, _ = fvm.Network(p, 30, 30).solve_steady("direct")
+    assert np.abs(th_p - th_d).max() > 1e-3
+
+
+def test_cut_cell_matrix_is_symmetric_positive_definite_and_conservative_with_exact_geometry():
+    """!
+    @brief The matrix stays symmetric, its diagonal positive, and the heat balance closes to rounding with the exact geometry on a turned square and a disc.
+    @return None.
+    """
+    for p in (_square(33.0, 800.0), rotsq.disc_board(20.0, 1.5, 800.0, box_mm=30.0)):
+        with fc.using_cutcell("links", exact=True):
+            net = fvm.Network(p, 30, 30)
+            theta, _ = net.solve_steady("direct")
+        K = net.K.tocsr()
+        assert abs(K - K.T).max() < 1e-12 * abs(K).max()
+        assert (K.diagonal() > 0).all()
+        assert abs(sum(net.power_out(theta).values()) / float(net.Q.sum()) - 1.0) < 1e-10

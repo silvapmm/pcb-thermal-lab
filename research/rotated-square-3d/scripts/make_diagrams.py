@@ -242,6 +242,65 @@ def fig_tee_links():
     dk.save(fig, OUT / "fig_11_tee_links.png")
 
 
+def fig_ingredients():
+    """!
+    @brief Figure 15: what the cut-cell links need from one corner cell (cover for the capacity and the films, apertures of the four faces for the links, centroid for the distances), and the section of an edge cell with the paths of the heat.
+    @return None.
+    """
+    fig, axs = plt.subplots(1, 2, figsize=(11.5, 4.9), gridspec_kw={"width_ratios": [1, 1.15]})
+    ax = axs[0]
+    # Plan view: a corner cell of a turned square, board in the lower left, the outline a straight cut across the cell
+    ax.add_patch(Rectangle((0, 0), 1, 1, fill=False, edgecolor="#777777", lw=1.0))
+    tri = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 0.35], [0.45, 1.0], [0.0, 1.0]])
+    ax.add_patch(Polygon(tri, closed=True, facecolor=dk.COPPER, alpha=0.55, edgecolor="none"))
+    ax.plot([1.0, 0.45], [0.35, 1.0], color=dk.BLUE, lw=2.4)
+    ax.text(0.78, 0.8, "outline", color=dk.BLUE, fontsize=8, rotation=-49)
+    cx, cy = tri[:, 0].mean() * 0.93, tri[:, 1].mean() * 0.93
+    ax.plot(cx, cy, "go", ms=8)
+    ax.plot(0.5, 0.5, "ko", ms=4)
+    ax.text(cx - 0.02, cy - 0.12, "node = centroid\nof the board part", color="#1b7a1b", fontsize=7.5, ha="center")
+    ax.text(0.52, 0.56, "cell centre", fontsize=7, ha="left")
+    ax.annotate("", xy=(1.0, 0.02), xytext=(1.0, 0.35), arrowprops=dict(arrowstyle="<->", color="#c1440e", lw=1.4))
+    ax.text(1.03, 0.08, "aperture of the\neast face\na_E = 0.33", fontsize=7.5, color="#c1440e")
+    ax.annotate("", xy=(0.02, 1.0), xytext=(0.45, 1.0), arrowprops=dict(arrowstyle="<->", color="#c1440e", lw=1.4))
+    ax.text(0.1, 1.04, "a_N = 0.45", fontsize=7.5, color="#c1440e")
+    ax.text(-0.05, 0.5, "a_W = 1", fontsize=7.5, color="#c1440e", ha="right")
+    ax.text(0.5, -0.07, "a_S = 1", fontsize=7.5, color="#c1440e", ha="center")
+    ax.text(0.5, -0.30, "cover c = board area / cell area: capacity C = c C0, films to the air c h dx dy,\nsheet S = c S0 (program); links g = a L_face / (d1/S0 + d2/S0)\n(S0 = sheet conductance of a whole cell)", fontsize=7.8, ha="center", va="top")
+    ax.set_xlim(-0.35, 1.45)
+    ax.set_ylim(-0.75, 1.2)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    ax.set_title("plan: a corner cell of the board outline", fontsize=9)
+    ax = axs[1]
+    # Section: top copper, laminate, bottom copper; the board ends at the outline inside the cell; films on the end face and on both faces
+    x_cell0, x_out, x_cell1 = 2.0, 2.45, 3.0
+    ax.add_patch(Rectangle((0, 1.8), x_out, 0.22, facecolor=dk.COPPER, edgecolor="k", lw=0.6))
+    ax.add_patch(Rectangle((0, 0.0), x_out, 0.22, facecolor=dk.COPPER, edgecolor="k", lw=0.6))
+    ax.add_patch(Rectangle((0, 0.22), x_out, 1.58, facecolor="#e4d7a6", edgecolor="k", lw=0.6))
+    ax.plot([x_cell0, x_cell0], [-0.35, 2.45], color="#777777", lw=1.0, ls="--")
+    ax.plot([x_cell1, x_cell1], [-0.35, 2.45], color="#777777", lw=1.0, ls="--")
+    ax.text(x_cell0 + 0.5, 2.55, "edge cell (width dx)", fontsize=7.5, ha="center")
+    ax.plot(x_cell0 + (x_out - x_cell0) / 2, 1.91, "go", ms=7)
+    ax.plot(x_cell0 + (x_out - x_cell0) / 2, 0.11, "go", ms=7)
+    ax.text(0.1, -0.3, "green: node at the centroid\nof the board part of the cell", fontsize=7.2, color="#1b7a1b")
+    dk.arrow(ax, 0.6, 1.91, 2.15, 1.91, color=dk.HEAT)
+    ax.text(0.2, 2.45, "lateral flow through the aperture,\ndistance d1 + d2", fontsize=7.3, color=dk.HEAT)
+    dk.arrow(ax, 1.2, 1.7, 1.2, 0.35, color=dk.HEAT)
+    ax.text(1.25, 1.0, "through the\nlaminate", fontsize=7.2, color=dk.HEAT)
+    dk.arrow(ax, 2.25, 2.04, 2.25, 2.35, color=dk.BLUE)
+    dk.arrow(ax, 2.25, -0.02, 2.25, -0.33, color=dk.BLUE)
+    dk.arrow(ax, x_out, 1.0, x_out + 0.45, 1.0, color=dk.BLUE)
+    ax.text(x_out + 0.05, 1.12, "edge film\nh t L", fontsize=7.2, color=dk.BLUE)
+    ax.text(2.2, -0.62, "section along x through the edge cell: the node lives at the centroid of the board part and the film acts on the node (the program's\nconvention); the variant links+strip also puts half the depth of the strip, c dx dy / (2 L), of conduction in series with the edge film", fontsize=7.2, ha="center", va="top")
+    ax.set_xlim(-0.1, 3.4)
+    ax.set_ylim(-1.0, 2.9)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    ax.set_title("section: the edge cell and the paths of the heat", fontsize=9)
+    dk.save(fig, OUT / "fig_15_cut_cell_ingredients.png")
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     fig_cut_cells()
@@ -250,3 +309,4 @@ if __name__ == "__main__":
     fig_cut_cell_links()
     fig_link_ratio()
     fig_tee_links()
+    fig_ingredients()
