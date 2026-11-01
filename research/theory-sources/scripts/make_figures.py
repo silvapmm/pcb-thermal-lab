@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
-@brief Data figures of research/theory-sources (fig_01 to fig_05), from the libraries of the folder and the program's convection module.
+@brief Data figures of research/theory-sources (fig_01 to fig_05 and fig_13), from the libraries of the folder and the program's convection module.
 @details Figure 1: Hollands horizontal-layer forms (1976, ISO 15099, `ht` code and documentation exponents). Figure 2: horizontal plate h of the program against Raithby and Hollands. Figure 3: effective
 conductivity of the coupon against the number of series modes. Figure 4: Lemczyk Table 1 and Tables 2 and 3 (solver against paper). Figure 5: Zth of the Cauer ladder against its Foster components.
 Run from the repository root: .venv/bin/python research/theory-sources/scripts/make_figures.py
@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "lib"))
 import correlations as cr  # noqa: E402
 import rc_ladder as rl  # noqa: E402
 import study_culham_truncation as sct  # noqa: E402
+import study_fill_prediction as sfp  # noqa: E402
 import study_lemczyk_1992 as slm  # noqa: E402
 import study_natural_convection_sources as snc  # noqa: E402
 
@@ -153,9 +154,53 @@ def fig_foster():
     plt.close(fig)
 
 
+def fig_fill():
+    """!
+    @brief Figure 13: nnz(L) of splu against the symbolic Cholesky count in the elimination order of spilu, for the six distinct matrices of study_fill_prediction.py.
+    @return None.
+    """
+    import scipy.sparse.linalg as spla
+    from pcbthermal import fdm, fvm, solid3d
+    from pcbthermal.model import load_problem
+
+    rows = []
+    for name in ("example_board", "reference_board"):
+        prob = load_problem(os.path.join(ROOT, "examples", name + ".pcbt.json"))
+        b = prob.board
+        nx, ny = int(round(b.width * 1000.0 / 0.5)), int(round(b.height * 1000.0 / 0.5))
+        for label, k in (("FVM 0.5 mm", fvm.Network(prob, nx, ny).K), ("FDM 1 mm", fdm.Network(prob, 1.0).K),
+                         ("3D 2 mm", solid3d.Solid(prob, 2.0).K)):
+            k = k.tocsc()
+            ilu = spla.spilu(k, permc_spec=fvm.ORDERING, drop_tol=1e10, fill_factor=1)
+            predicted = sfp.cholesky_count(k, np.argsort(ilu.perm_c))
+            lu = spla.splu(k, permc_spec=fvm.ORDERING)
+            rows.append((name.split("_")[0] + " " + label, k.shape[0], lu.L.nnz, predicted))
+    fig, axs = plt.subplots(1, 2, figsize=(10, 4))
+    ax = axs[0]
+    for lab, n, real, pred in rows:
+        ax.loglog(real, pred, "o", markersize=7, label=lab)
+    lim = [min(r[2] for r in rows) * 0.7, max(r[2] for r in rows) * 1.4]
+    ax.plot(lim, lim, "k-", linewidth=0.8)
+    ax.set_xlabel("nnz(L) of splu")
+    ax.set_ylabel("symbolic count, spilu ordering")
+    ax.set_title("prediction against the factor (on the line: equal)", fontsize=9)
+    ax.legend(fontsize=6)
+    ax = axs[1]
+    for lab, n, real, pred in rows:
+        ax.loglog(n, real / n, "o", markersize=7, label=lab)
+    ax.set_xlabel("unknowns n")
+    ax.set_ylabel("nnz(L) / n")
+    ax.set_title("fill per unknown of the six matrices", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(os.path.join(OUT, "fig_13_fill_prediction.png"), dpi=105)
+    plt.close(fig)
+    for r in rows:
+        print("%-24s n=%7d  splu=%9d  predicted=%9d" % r)
+
+
 def main():
     """!
-    @brief Draw the five data figures.
+    @brief Draw the data figures.
     @return None.
     """
     os.makedirs(OUT, exist_ok=True)
@@ -164,6 +209,7 @@ def main():
     fig_truncation()
     fig_lemczyk()
     fig_foster()
+    fig_fill()
 
 
 if __name__ == "__main__":
