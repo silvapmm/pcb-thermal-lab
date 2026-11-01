@@ -56,6 +56,54 @@ COEFFS: Dict[str, Coeffs] = {
     "lumped": Coeffs(BASE_DEFAULT, 0.4e3, 1.0, "not measured: arrays of the plan grid only"),
 }
 
+# MEASURED values of the ladder (README 5, out/class_fit.json): classes by t, the nodes per plan cell (unknowns / cells), with the safety factor (largest measured/fitted ratio x 1.1).
+# The base is the baseline child (0.08 GB: Python, NumPy, SciPy; the application with Qt starts higher). The 3D classes are extrapolated beyond 260 000 to 330 000 unknowns.
+MEASURED_BASE = 0.08e9
+MEASURED: Dict[str, Tuple[Coeffs, float]] = {
+    "fvm_t_le_3.5": (Coeffs(MEASURED_BASE, 2409.0, 1.10, "2 layers plain, outline, block; t <= 3.5"), 1.25),
+    "fvm_t_3.5_4.5": (Coeffs(MEASURED_BASE, 4174.0, 1.08, "4 layers plain, vias, 2 layers with laminate nodes; 3.5 < t <= 4.5"), 1.16),
+    "fvm_t_gt_4.5": (Coeffs(MEASURED_BASE, 6441.0, 1.36, "6 layers, 4 layers with laminate nodes, stripes; t > 4.5"), 1.46),
+    "fdm_t_le_4.5": (Coeffs(MEASURED_BASE, 4041.0, 1.12, "FDM plain 4 layers; 3 points only"), 1.11),
+    "fdm_t_gt_4.5": (Coeffs(MEASURED_BASE, 8793.0, 1.41, "FDM with laminate nodes, 4 layers; 4 points only"), 1.16),
+    "solid3d_t_le_6": (Coeffs(MEASURED_BASE, 5609.0, 1.26, "3D solid, 6 slabs"), 1.12),
+    "solid3d_t_6_12": (Coeffs(MEASURED_BASE, 10510.0, 1.28, "3D solid, 10 slabs; 3 points only"), 1.18),
+    "solid3d_t_gt_12": (Coeffs(MEASURED_BASE, 18641.0, 1.23, "3D solid, 16 and 26 slabs"), 1.40),
+}
+
+
+def classify_by_t(model: str, unknowns: float, cells: float) -> str:
+    """!
+    @brief Class of the measured table for a model and a board, from the nodes per plan cell t = unknowns / cells.
+    @param model "fvm", "fdm" or "solid3d".
+    @param unknowns Unknowns the model builds.
+    @param cells Cells of the plan grid (nx * ny; for the FDM the nodes of one layer).
+    @return Key of MEASURED.
+    @throws ValueError If the model has no class.
+    """
+    t = float(unknowns) / max(float(cells), 1.0)
+    if model == "fvm":
+        return "fvm_t_le_3.5" if t <= 3.5 else "fvm_t_3.5_4.5" if t <= 4.5 else "fvm_t_gt_4.5"
+    if model == "fdm":
+        return "fdm_t_le_4.5" if t <= 4.5 else "fdm_t_gt_4.5"
+    if model == "solid3d":
+        return "solid3d_t_le_6" if t <= 6.5 else "solid3d_t_6_12" if t <= 12 else "solid3d_t_gt_12"
+    raise ValueError(f"no class for model {model}")
+
+
+def estimate_measured(model: str, unknowns: float, cells: float, transient: bool = False) -> float:
+    """!
+    @brief Estimated peak of a solve with the measured classes and their safety factor (the estimate the guard would use).
+    @param model "fvm", "fdm" or "solid3d".
+    @param unknowns Unknowns.
+    @param cells Cells of the plan grid.
+    @param transient True for a time simulation (factor TRANSIENT_FACTOR, not measured).
+    @return Bytes.
+    """
+    key = classify_by_t(model, unknowns, cells)
+    c, safety = MEASURED[key]
+    return estimate_bytes(unknowns, key, {key: c}, transient) * safety
+
+
 # Transient: the steady factorisation and the step matrix are both kept (profiles.py calls splu twice), so the factor is about 2 (to be measured)
 TRANSIENT_FACTOR = 2.0
 
@@ -239,16 +287,16 @@ def analytic_bytes(tiles: int, layers: int, modes: int = 300, base: float = BASE
 
 def sor_block_bytes(n: int) -> float:
     """!
-    @brief Memory of the dense inverse of one SOR block (8 bytes per entry) with a working copy of the same size while it is inverted.
+    @brief Memory of the dense inverse of one SOR block (8 bytes per entry) with the copies of the build (dense block, its inverse, the sparse form kept for the iterations, the LAPACK work).
     @param n Unknowns of the block.
-    @return Bytes (16 n^2).
+    @return Bytes (72 n^2: measured 8.2 to 9.3 times the 8 n^2 of the dense inverse, README 9; the first estimate 16 n^2 was 4.5 times too low).
     """
-    return 16.0 * float(n) * float(n)
+    return 72.0 * float(n) * float(n)
 
 
 def sor_block_fits(n: int, limit: float, share: float = 0.25) -> bool:
     """!
-    @brief Whether a SOR block may be inverted dense; it replaces the constant MAX_SOR_BLOCK = 5000 (16 n^2 = 400 MB).
+    @brief Whether a SOR block may be inverted dense; it replaces the constant MAX_SOR_BLOCK = 5000 (72 n^2 = 1.8 GB at 5 000).
     @param n Unknowns of the largest block.
     @param limit Limit in bytes of the memory guard.
     @param share Share of the limit one block may take (the blocks are inverted one after the other; the factors of all stay).

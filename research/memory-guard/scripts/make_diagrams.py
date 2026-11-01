@@ -71,9 +71,9 @@ def fig_section_and_unknowns():
             for yy in (2.9, 2.45, 2.0):
                 ax.plot(x + 0.45, yy, "s", color=dk.HEAT, ms=4)
     ax.text(6.5, 4.15, "top copper: cells 1-7", ha="center", fontsize=8)
-    ax.text(6.5, 0.55, "bottom copper: cells 6-12 (cells 6 and 7 have both)", ha="center", fontsize=8)
-    ax.text(11.65, 3.39, "copper node\n(every cell)", fontsize=7, va="center", ha="right")
-    ax.text(11.65, 2.45, "laminate nodes of the rule\n(only where a copper layer is absent)", fontsize=7, va="center", ha="right", color=dk.HEAT)
+    ax.text(6.5, 0.4, "bottom copper: cells 6-12 (cells 6 and 7 have both)", ha="center", fontsize=8)
+    ax.text(11.5, 3.75, "black dot: copper node (every cell)", fontsize=7, va="center", ha="right")
+    ax.text(11.5, 0.72, "red squares: laminate nodes of the rule (only where a copper layer is absent)", fontsize=7, va="center", ha="right", color=dk.HEAT)
     ax.text(0.5, 4.9, "unknowns = (copper layers x cells) + laminate nodes, so the count shown must come from fvm.unknowns, not from layers x cells", fontsize=8.5)
     dk.save(fig, OUT / "fig_02_board_section_and_unknowns.png")
 

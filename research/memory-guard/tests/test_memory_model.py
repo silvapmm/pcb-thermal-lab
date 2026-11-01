@@ -107,14 +107,14 @@ def test_largest_unknowns_inverts_the_estimate():
 
 def test_cell_that_fits_really_fits():
     """!
-    @brief For a board whose unknowns go as 1 / cell^2, the cell returned fits the limit and a cell 20 % smaller does not (the search grows the cell in steps of 10 %).
+    @brief For a board whose unknowns go as 1 / cell^2, the cell returned fits the limit and a cell 30 % smaller does not (steps of 10 % rounded up to 0.1 mm can overshoot by a third at 0.3 mm).
     @return None.
     """
     count = lambda c: int(4 * (100.0 / c) ** 2)                        # noqa: E731  A 4-layer board of 100 mm
     lim = 4e9
     c = mm.cell_that_fits(count, "layered_laminate_many", lim, 0.1)
     assert c is not None and mm.estimate_bytes(count(c), "layered_laminate_many") <= lim
-    assert mm.estimate_bytes(count(c * 0.8), "layered_laminate_many") > lim
+    assert mm.estimate_bytes(count(c * 0.7), "layered_laminate_many") > lim
 
 
 def test_fit_recovers_known_coefficients():
@@ -159,3 +159,31 @@ def test_analytic_estimate_grows_with_the_square_of_the_tiles():
     a = mm.analytic_bytes(2000, 4, modes=0) - mm.BASE_DEFAULT
     b = mm.analytic_bytes(4000, 4, modes=0) - mm.BASE_DEFAULT
     assert 3.9 < b / a < 4.1
+
+
+# Points measured by the ladder (unknowns, plan cells, peak bytes): the estimate with the safety factor must not fall below any of them
+MEASURED_POINTS = [("fvm", 983200, 160000, 8.62e9), ("fvm", 960000, 160000, 8.41e9), ("fvm", 640000, 160000, 2.85e9), ("fvm", 800000, 160000, 5.37e9), ("fvm", 675200, 160000, 3.02e9),
+                   ("fdm", 509425, 81796, 4.67e9), ("solid3d", 260000, 10000, 5.39e9), ("solid3d", 327184, 20449, 4.73e9), ("solid3d", 400000, 40000, 3.88e9), ("solid3d", 240000, 40000, 1.21e9)]
+
+
+@pytest.mark.parametrize("model,n,cells,peak", MEASURED_POINTS)
+def test_measured_estimate_covers_the_measurement(model, n, cells, peak):
+    """!
+    @brief The estimate of the measured classes with their safety factor is not below the peak measured on the ladder, and not more than 2.2 times above it.
+    @param model Model key.
+    @param n Unknowns of the point.
+    @param cells Plan cells of the point.
+    @param peak Measured peak in bytes.
+    @return None.
+    """
+    est = mm.estimate_measured(model, n, cells)
+    assert peak <= est <= 2.2 * peak
+
+
+def test_sor_block_estimate_is_the_measured_one():
+    """!
+    @brief The dense block inverse takes 72 n^2 bytes (measured 5.5 GB at n = 8 978: 72 n^2 = 5.8 GB), so the old limit of 5 000 unknowns is 1.8 GB and not 200 MB.
+    @return None.
+    """
+    assert mm.sor_block_bytes(8978) == pytest.approx(5.8e9, rel=0.02)
+    assert mm.sor_block_bytes(5000) == pytest.approx(1.8e9, rel=0.01)

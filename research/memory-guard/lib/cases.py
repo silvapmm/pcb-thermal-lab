@@ -5,7 +5,7 @@
 @brief The ladder of boards of the memory study: a board family and a size make a case spec, the spec makes a Problem, and the unknown count of a case is read without solving.
 @details A spec is a plain dict (it travels to the child process as JSON): family, layers, size_mm, cell_mm, model, order. The families cover every class of the memory model:
          plain (copper everywhere), vias (plain with an array of vias), partial (copper on part of each layer, so the laminate nodes of the rule exist), outline (an L-shaped outline),
-         block (a 3 mm aluminium block on the top), viashs (vias and a heatsink coefficient, the Analytic correction case).
+         block (a 3 mm aluminium block on the top), stripes (ten copper stripes per layer, bare laminate spread over the board), viashs (vias and a heatsink coefficient, the Analytic correction case).
 """
 
 import sys
@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 from pcbthermal import fdm, fvm, solid3d      # noqa: E402
 from pcbthermal.model import Problem          # noqa: E402
 
-FAMILIES = ("plain", "vias", "partial", "outline", "block", "viashs")
+FAMILIES = ("plain", "vias", "partial", "outline", "block", "viashs", "stripes")
 MODELS = ("fvm", "fdm", "solid3d", "lumped", "analytic")
 
 
@@ -40,6 +40,13 @@ def build(spec):
         for k in range(1, layers + 1):
             x0, x1 = (0.0, 0.6 * s) if k % 2 else (0.3 * s, s)
             p.add_zone(k, rect=(x0, 0.0, x1, s))
+    elif fam == "stripes":
+        # Ten copper stripes per layer, the stripes of the next layer shifted by half a period: bare laminate everywhere next to copper (the laminate nodes of the rule are spread
+        # over the whole board, as on a densely routed board; the reviewer of fix/laminate-nodes had a board like this, with a longer solve than the half-board family)
+        for k in range(1, layers + 1):
+            for j in range(10):
+                x0 = (j + (0.5 if k % 2 == 0 else 0.0)) * s / 10.0
+                p.add_zone(k, rect=(x0, 0.0, min(s, x0 + 0.5 * s / 10.0), s))
     else:
         p.add_full_copper()
     c, h = 0.5 * s, 0.1 * s

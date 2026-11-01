@@ -1,6 +1,6 @@
 # Memory limit and guard
 
-**Status: prepared and planned; nothing has been run.** The scripts compile (`py_compile`) and are ready; the machine was busy, so the measurements, the figures that need data and the tests are to be run after the 2.4.5 release (section 12 says how, in order). Every number in this document is either quoted from an earlier measurement of the repository (with its source) or marked as provisional; no number was produced by this folder yet.
+**Status: run, waits for the reviewer.** The ladder (150 records), the class fit, the SOR block study and the figures were run on the maintainer's 16 GB Mac (program 2.4.5, `develop` d28142a). Sections 4 to 11 are the results with the numbers the scripts printed; 12 says how to repeat them; 13 answers the questions; 14 says what was read and what was not verified. The numbers of section 2 are quoted from other folders; every other number comes from `out/ladder.jsonl`, `out/class_fit.json` and `out/sor_block.json` (ignored by version control, produced by the scripts).
 
 ## 1. The question
 
@@ -16,13 +16,13 @@ What would answer it:
 
 ### 1.1 Pictures
 
-Drawn by `scripts/make_diagrams.py` (no data; not yet run, the files appear in `figures/` when it is):
+Drawn by `scripts/make_diagrams.py` (no data):
 
 * `figures/fig_01_guard_flow.png`: from the board to the verdict and the four places that use it.
 * `figures/fig_02_board_section_and_unknowns.png`: a section of a two-layer board with copper absent in part of each layer, the copper nodes and the laminate nodes that exist only next to absent copper. It shows why the unknown count is not layers times cells and why the count shown in the panel must come from `fvm.unknowns`.
 * `figures/fig_03_numbering_and_matrix_pattern.png`: the matrix pattern of a three-layer board in the layer-major and in the cell-major numbering.
 
-Drawn by `scripts/make_figures.py` after the ladder is run: `fig_04_memory_against_unknowns.png` (peak memory against unknowns for every series with the fitted law and the 70 % limit of 8, 16 and 64 GB machines) and `fig_05_time_and_cell_major.png` (time and memory of the layer-major and cell-major series).
+Drawn by `scripts/make_figures.py` from the measurements: `fig_04_memory_against_unknowns.png`, `fig_05_time_and_cell_major.png`, `fig_06_bytes_per_unknown_against_t.png` and `fig_07_sor_block_memory.png` (shown in sections 5, 6 and 9).
 
 ## 2. What is already measured (quoted, not reproduced here)
 
@@ -37,7 +37,7 @@ All of these were measured on the maintainer's 16 GB machine by other folders; t
 | layered FVM, laminate rule, 4 layers, 0.25 mm | 681 000 | 66 s | 7.6 GB | same |
 | same 2-layer board, cell-major numbering | 637 000 | 12.7 s | 3.0 GB | reviewer of `fix/laminate-nodes` (4 layers: 50 s; memory not recorded here) |
 
-What the table already suggests, to be tested and not assumed:
+What the table suggested before the ladder was run (superseded: the plain layered FVM is linear only for t = 2, see 5.2):
 
 * The plain layered board is **linear** in the unknowns between 1 and 2 million (2.7 and 5.5 GB: exponent 1.0, 2.7 KB per unknown), not N^(4/3). The 3D solid on the example board is steeper: 3.5 to 9.9 GB for 247 000 to 512 000 unknowns is an exponent of about 1.4, and on the plain 6-slab board about 1.3 (these two exponents are computed here from the table above, nothing else).
 * The memory per unknown is **not constant across classes**: 2.7 KB (plain layered), 6.6 KB (3D plain), 7 KB and 11 KB (laminate rule, 2 and 4 layers, layer-major), 14 to 19 KB (3D example board). A guard with one constant would be wrong by a factor of 7 either way; hence the classes.
@@ -58,113 +58,211 @@ Section 22 of the bibliography lists them with their status; none was opened in 
 
 Nothing of a third party is stored here. The claim "exponent 4/3 in three dimensions" is not used as a fact: the fit decides, and the literature is used to explain the exponents found.
 
-## 4. Study 1: the memory law of each class
+## 4. The ladder: what was run and how
 
-**Question.** For each class of model, how do the peak resident memory and the solve time grow with the unknowns, and what are `base`, `k` and `p` of `peak = base + k N (N / 500 000)^(p - 1)`?
+`scripts/study_memory_ladder.py --run`: square boards of 100 mm at cells from 2 to 0.25 mm, every point in its own subprocess (`lib/measure.py`, peak resident size from the kernel through `os.wait4`; a watchdog kills a child above the cutoff). Series: FVM plain 2, 4 and 6 layers, with vias (4 layers), partial copper 2, 4 and 6 layers, outline, metal block, **stripes** 2 and 4 layers (added after the first pass, see 4.2), cell-major copies of five of them; FDM plain and partial 4 layers; 3D solid plain 2 and 6 layers, vias 4, partial 2, block 2; Lumped plain and partial; Analytic plain, vias plus heatsink 2 and 4 layers; the baseline (a 20 mm board: **0.08 GB**, the interpreter with NumPy and SciPy) and four small boards solved in both numberings in one process. The file `out/ladder.jsonl` holds 150 records, 145 of them measured and 5 stopped by the watchdog.
 
-**Method.** `scripts/study_memory_ladder.py --run`: a ladder of square boards of 100 mm at cells from 2 to 0.25 mm (each point in its own subprocess, `lib/measure.py`; the kernel's peak from `os.wait4`; a watchdog kills a child above the cutoff). The series:
+Passes: (1) `--run --quick`, 52 points, all measured; (2) `--run`, cutoff 10 GB (60 % of 17.2 GB), where the **provisional estimate skipped** the 0.25 mm points of the layered boards (it predicted 6.9 to 12 GB where 2.8 to 8.6 were measured, see 5.3); (3) `--run --est-scale 0.35 --cutoff-gb 8.5`, which runs those points with the watchdog as the only protection; (4) the stripes series, and a rerun of one point with the cutoff at 7.5 GB (4.2). Five points were stopped by the watchdog and are in figure 04 as crosses; their true peak is above the cutoff: 4-layer partial copper cell-major 983 200 unknowns (8.81 GB), 6-layer partial 960 000 (8.63 GB), 3D plain 6 layers 531 674 (8.50 GB), 3D vias 640 000 (9.33 GB), and 4-layer stripes 1 120 000 layer-major (7.51 GB).
 
-| Series | Class (provisional) | Why |
-| :-- | :-- | :-- |
-| FVM plain 2, 4, 6 layers | layered plain | copper everywhere: no laminate nodes, the count is layers times cells |
-| FVM with vias, 4 layers | layered | the via couplings add non-zeros to the matrix |
-| FVM partial copper 2, 4, 6 layers | layered laminate (few / many) | the laminate rule: nodes through the gaps next to absent copper |
-| FVM outline (L shape), FVM metal block | layered | cells off the board pinned; blocks keep the earlier treatment (no laminate rule) |
-| FDM plain and partial, 4 layers | layered | node-centred corners, one more row and column |
-| 3D solid plain 2 and 6 layers, vias 4, partial 2, block 2 | solid3d few / many | 6 slabs against 16 or more |
-| Lumped plain and partial 2 layers | lumped | dense systems per heater; the plan arrays dominate |
-| Analytic plain 2, vias and heatsink 2 and 4 layers | analytic | the dense tile matrices of the local correction |
+### 4.1 Checks of the method (section 12 of the plan, "things to look at first")
 
-Each point records the unknowns counted by the program, the peak resident memory, the time to assemble and to solve and the largest temperature rise. A baseline run (a 20 mm board) measures the base of the interpreter.
+* Baseline peak 0.08 GB: a few hundred MB at most, as expected.
+* Unknown count of the program before the run (`fvm.unknowns`, `fdm.unknowns`, `solid3d.unknowns`) against the count of the assembled network: **96 points checked, 0 differ** (`study_class_fit.py`, last block). The laminate-node count of the rule is therefore the one the solver builds.
+* The sampled resident size against the kernel's high-water mark: on the 99 points of 50 000 unknowns or more the ratio sampled / kernel has median 0.98 and maximum 1.00; it is low (0.24 to 0.8) only for points that last under half a second, which the 0.2 s sampling misses. The kernel value is used everywhere.
+* Safety: see section 11 (the swap file grew once, in the stripes pass).
 
-**Criterion.** A class is accepted when (a) the fit over its points has every measured/fitted ratio within 0.85 to 1.15; (b) leaving the largest point out, the law predicts it within 10 %; (c) the exponent is in 1.0 to 1.7 (the fit is clipped and the clipping reported otherwise). The coefficient put in the program is the fit multiplied by the largest measured/fitted ratio (so the estimate is never below a measurement) and by 1.1 for the machine-to-machine spread; the margin is a decision of the maintainer (section 13).
+### 4.2 Defects of the study's own scripts found by running them
 
-**Not verified (and why it may fail).** Only one machine is available, so the law is not tested on other RAM sizes, operating systems or SciPy builds; the peak of the Analytic model is not a function of the unknowns but of the number of tiles with a via or a heatsink, so it is a separate law (`memory_model.analytic_bytes`, whose factor four is read from `analytic.py`, not measured); the computed-h loop repeats the solve 3 to 6 times without keeping the factors (the peak should not grow, but this is measured only by running with `h_mode = computed` on one point, not planned in the ladder: add it); the transient factor 2 (`profiles.py` calls `splu` twice) is a reading of the code.
+1. `tests/test_memory_model.py::test_cell_that_fits_really_fits` asked that a cell 20 % smaller does not fit; the search grows the cell by 10 % rounded up to 0.1 mm, so it can overshoot by a third at 0.3 mm. The test asks 30 % now (a test defect; `cell_that_fits` is right).
+2. `study_memory_ladder.py` lost the parent's unknown count (`setdefault` kept the child's), so the check of the count could not be made from the file; the record has `unknowns_parent` now, and the check recounts every point in `study_class_fit.py`.
+3. The provisional coefficients were 2 to 3 times too high for the laminate boards (5.3), so the skip rule skipped the points that matter; `--est-scale` was added (the watchdog stays).
+4. The family "partial" (copper on the left 60 % of every layer) does not reproduce the board of the reviewer of `fix/laminate-nodes` (637 000 unknowns, 21 s, 4.5 GB; this family has 675 200 unknowns, 6.7 s, 3.0 GB); a family **stripes** (ten copper stripes per layer, shifted by half a period on alternate layers, bare laminate spread over the whole board) was added to `lib/cases.py` and run for 2 and 4 layers in both numberings. It is not his board either (6).
+5. The first run of the 4-layer stripes point at 0.25 mm (1 120 000 unknowns, layer-major) took 171 s and read a peak of 4.05 GB while the machine swapped: the point is **disturbed** (the resident size falls when pages are swapped out). It was removed from the ladder (kept in `out/disturbed_stripes_4L_025.jsonl`) and rerun alone with the cutoff at 7.5 GB: the watchdog stopped it.
+6. The SOR block study, planned in the plan as a series of the ladder, needed its own script: `study_sor_block.py`. Its first board (0.3 mm vias at 0.4 mm pitch) gave blocks of 8 unknowns because footprints merge only when they share a cell; the vias of the final board are 0.8 mm at 0.8 mm pitch.
+7. `make_diagrams.py`: two labels of figure 02 overlapped the cells; moved.
+8. `memory_model.sor_block_bytes` said 16 n^2 and the program's comment says 8 n^2; measured 72 n^2 (section 9). Corrected in the prototype, with a test.
 
-## 5. Study 2: the cell-major numbering
+## 5. Study 1: the memory law of each class
 
-**Question.** Does numbering the unknowns cell by cell (the layers of a cell next to each other) before `spsolve` save time and memory on the laminate-rule boards, and is the answer the same?
+### 5.1 The first fit and why it was replaced
 
-**Method.** The `fvm.Network` is built as it is, the matrix is permuted symmetrically (`lib/cell_major.py`: `K[keep][:, keep]` with the cell-major order, the dropped nodes left out as the program does) and `spsolve` is called with the same `permc_spec`. The ladder runs the three series `*_cellmajor` next to the layer-major ones; the mode `compare` solves the same small network both ways in one process and prints the largest difference of the temperatures.
+The first fit (`study_memory_ladder.py --fit`) uses the classes of the provisional table: plain, laminate with 2 layers, laminate with 3 or more layers, solid few, solid many. Its measured/fitted ratios run from 0.52 to 1.85 in the plain class and 0.63 to 1.68 in the 3D class, which no margin can cover. The bytes per unknown do not depend on the layer count alone but on the **nodes per plan cell** t = unknowns / cells (the thickness of the graph that is factored): a plain two-layer board has t = 2 and 2.9 KB per unknown at 320 000 unknowns, a plain four-layer board t = 4 and 4.1 KB, a two-layer board with laminate nodes t = 4.2 and 4.5 KB, a six-layer board t = 6 and 7.0 KB at 490 000 and 8.8 KB at 960 000 unknowns. The 4-layer plain and the 2-layer partial boards have the same t and about the same bytes per unknown (figure 06). The program knows t (unknowns and plan cells).
 
-**Criterion.** (a) The largest difference is below 1e-9 K on partial copper 2 and 4 layers, the outline and a plain board (the unit test `tests/test_measure_and_ordering.py` asks it on five small boards). (b) The reviewer's gain is reproduced: 637 000 unknowns, 2 layers, 21.4 s and 4.5 GB become about 12.7 s and 3.0 GB. (c) No class loses: plain boards must not be slower by more than 10 %.
+![Peak memory against the unknowns](figures/fig_04_memory_against_unknowns.png)
 
-**Not verified.** Why the numbering changes the ordering: the minimum-degree ordering breaks ties by the position of the column, and the thin graph has many ties; this is an explanation from [Davis2006]/[GeorgeLiu1981] to be read, not a result. The effect on the FDM and the 3D solid (whose numbering is different) is not planned; the 3D solid orders the slabs, and a cell-major order there is a separate test (add a series if the ladder shows the 3D solid is the limit). The bit-compatibility is "same linear system, same answer to the solver's round-off": with a different ordering the floating-point sums differ, so equality to the last bit is not expected and not claimed.
+*Figure 04 (fig_04_memory_against_unknowns.png): measured peak per series for the FVM, the FDM and the 3D solid; dashed, the class law times its safety factor; red dotted, 70 % of 8, 16 and 64 GB; crosses, points stopped at the cutoff.*
 
-## 6. Study 3: the dense block of the SOR
+![Bytes per unknown against t](figures/fig_06_bytes_per_unknown_against_t.png)
 
-**Question.** What does a dense inverse of a via-footprint block cost, and what limit by memory replaces `MAX_SOR_BLOCK = 5000`?
+*Figure 06 (fig_06_bytes_per_unknown_against_t.png): peak bytes per unknown of the points between 300 000 and 700 000 unknowns against the nodes per plan cell.*
 
-**Method.** `fvm.Network.solve_sor` inverts (`splu` of the block, then dense `solve` of the identity) a block of n unknowns, so the dense inverse takes 8 n^2 bytes plus a working copy: 16 n^2 (`memory_model.sor_block_bytes`). The study measures the peak of a SOR run on a board whose via footprints merge into a block of 2 000, 5 000, 8 000 and 12 000 unknowns (a dense via array with the cells fine enough to put several cells under the array) in its own subprocess; this series is not in the ladder file yet and must be added as `sor_block_*` when the code is used (the case builder `cases.py` has the `vias` family; the block size is set by the array and the cell).
+### 5.2 The classes by t (output of `scripts/study_class_fit.py`)
 
-**Criterion.** The measured peak agrees with `16 n^2` within 25 %; the rule `16 n^2 <= 25 % of the limit` then replaces the constant (400 MB at n = 5 000, 1.6 GB at 10 000 on a 16 GB machine at 70 %: 11.2 GB x 0.25 = 2.8 GB allows n up to 13 000).
+Fit of `peak = 0.08 GB + k N (N / 500 000)^(p - 1)` on the layer-major points with N of at least 100 000 (50 000 for the FDM and the 3D solid); ratios over all points of the class with N of at least 50 000; "largest from others" = the largest point predicted from the others; safety = the largest ratio times 1.1:
 
-**Not verified.** That the SOR with such blocks converges and is useful (that is `research/sor-with-via-couplings`); that the blocks are inverted one after another (read from the code; the factors of all blocks stay, the sum of their sizes counts).
-
-## 7. Study 4: the unknown count the guard uses
-
-**Question.** Is the count the guard reads the count the solver builds?
-
-**Method.** For every point of the ladder the parent counts the unknowns before the run (`fvm.unknowns`, `fdm.unknowns`, `solid3d.unknowns`) and the child counts them from the assembled network; the two must be equal. `fvm.unknowns` counts the laminate nodes of the rule from the zone fill and the cover, which is an independent calculation from the network's own ladder, so the check has teeth.
-
-**Criterion.** Equal on every point (zero tolerance). For the Lumped and the Analytic the count is the plan grid, which is not what they factor; the guard for them uses the tile count (Analytic) and the plan arrays (Lumped), see section 9.
-
-**Not verified.** Boards with blocks and the FDM in the ragged form beyond the ladder's families; boards from a Gerber import (many more cells with partial copper than the ladder's).
-
-## 8. Study 5: the physical memory
-
-**Question.** Does `memory_model.ram_bytes()` give the right number on macOS, Linux and Windows without a new dependency?
-
-**Method.** The order is `os.sysconf` (`SC_PHYS_PAGES` times `SC_PAGE_SIZE`; present on Linux and macOS), `sysctl -n hw.memsize` on macOS, `/proc/meminfo` on Linux, `GlobalMemoryStatusEx` through `ctypes` on Windows; a cgroup limit (v2 `memory.max`, v1 `memory.limit_in_bytes`) lowers it inside a container. `psutil` would give the same and also the **available** memory; it is not adopted because it is a new dependency for one number (licence BSD-3-Clause, to be checked in the README table if it is ever added). The unit test asks a plausible positive value; on the maintainer's machine the value is compared with `sysctl hw.memsize` and with the System Information by hand.
-
-**Not verified.** Windows and the container paths were written from the documentation of the interfaces and have not been run (only macOS is available). The amount of memory **free now** (other programs running) is not read: the guard uses the installed memory and the user's fraction, which is what the maintainer asked for; the free memory would need `vm_stat` / `/proc/meminfo MemAvailable` / the Windows call, and is listed as an option in `INTEGRATION.md`.
-
-## 9. Study 6: the Lumped, the Analytic and the transient
-
-The Lumped solves small dense systems per heater and holds arrays of the plan grid: its memory is expected to be linear in the cells and small. The Analytic holds dense matrices of (tiles x layers)^2 (`analytic.py`: `Gm`, `G`, `C` and the system that is inverted): its memory is quadratic in the tiles that carry a via, a heatsink or a block. The ladder has the series, and the fit of `analytic_bytes` takes the tile count from the child (to be added to `_measure_child.py`: the tile count of `analytic` is internal; the first version of the child records the result and the peak, the tile count is derived from the board: via tiles of 0.25 to 1 mm). The transient (`profiles.py`, steady plus step LU) is measured by one extra point per class with a power profile; the factor 2 of `TRANSIENT_FACTOR` is checked against it.
-
-**Not verified.** The quadratic law for the Analytic, the tile count formula and the transient factor: nothing is measured. These are the least certain parts of the estimator and are listed first in the risks of `INTEGRATION.md`.
-
-## 10. Study 7: the ceiling of the 3D solid
-
-`MAX_CELLS = 250 000` becomes the largest N for which the estimate of the 3D classes is within the limit, with an absolute ceiling (`ABSOLUTE_CEILING_3D = 2 000 000`, a proposal) so that a machine with 256 GB is not asked for a 2 million unknown direct solve whose time is long. The ladder gives the 3D time law; the criterion is a time that the interface can announce ("about X s"); whether to refuse on time as well as memory is a decision (section 13). With the provisional coefficients, a 16 GB machine at 70 % (11.2 GB) allows about 1.3 million unknowns for a plain 6-slab board and about 600 000 for the example board (solving the provisional law for N by hand; the fixed limit today is 250 000); the number is a consequence of the provisional coefficients and is to be replaced by the fit.
-
-## 11. Study 8: the guard in the application
-
-A stress scenario for `tests/test_gui_stress.py` (to be written with the feature, specification in `INTEGRATION.md`): simulated RAMs of 8, 16 and 64 GB (the detector is patched), the 502 mm board of the monkey seed 20261016 refused in under 60 s without allocating more than a few hundred MB, the Auto cell suggestion returns a cell the verdict accepts, and a failed RAM read falls back to the fixed ceiling.
-
-## 12. How to run it later (after the 2.4.5 release; a quiet machine)
-
-All commands from the repository root (the study needs the program's environment, `.venv`):
-
-```sh
-.venv/bin/python -m pytest -q research/memory-guard/tests               # the estimator, the wrapper (one tiny subprocess), the ordering on small boards: seconds
-.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --plan              # list the points with their provisional sizes; builds the problems, solves nothing
-.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --run --quick       # the coarse half: minutes
-.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --run               # the whole ladder, resumable (out/ladder.jsonl); about an hour
-.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --fit               # coefficients, exponents, ratios, ordering check; writes out/fit.json
-.venv/bin/python research/memory-guard/scripts/make_diagrams.py                           # figures 01 to 03
-.venv/bin/python research/memory-guard/scripts/make_figures.py                            # figures 04 and 05 (needs the two files above)
+```
+class              pts     p k B/u@500k  ratio min-max (N>=50k)  largest from others  safety = max x 1.1 series
+fvm_t_le_3.5        10  1.10       2409       0.81 - 1.14                 1.07                1.25      fvm_block_2L,fvm_outline_2L,fvm_plain_2L
+fvm_t_3.5_4.5       12  1.08       4174       0.88 - 1.05                 1.03                1.16      fvm_partial_2L,fvm_plain_4L,fvm_vias_4L
+fvm_t_gt_4.5        23  1.36       6441       0.75 - 1.33                 1.07                1.46      fvm_partial_4L,fvm_partial_6L,fvm_plain_6L,fvm_stripes_2L,fvm_stripes_4L
+fdm_t_le_4.5         3  1.12       4041       0.99 - 1.01                 1.01                1.11      fdm_plain_4L
+fdm_t_gt_4.5         4  1.41       8793       0.89 - 1.06                 1.06                1.16      fdm_partial_4L
+solid3d_t_le_6       6  1.26       5609       0.96 - 1.02                 1.04                1.12      solid3d_partial_2L,solid3d_plain_2L
+solid3d_t_6_12       3  1.28      10510       0.96 - 1.07                 0.96                1.18      solid3d_block_2L
+solid3d_t_gt_12      6  1.23      18641       0.80 - 1.27                 0.71                1.40      solid3d_plain_6L,solid3d_vias_4L
 ```
 
-Safety of the study: a point is skipped when 1.5 times its provisional estimate exceeds the cutoff (60 % of the physical memory, at most 10 GB; `--cutoff-gb` changes it), a child above the cutoff is killed by the watchdog (the machine does not page), a point has a timeout (900 s), a series stops at its first skipped or killed point, and the results are appended so that an interruption loses only the point that was running. Close the other heavy programs first: the peak resident size of a child does not depend on them, the time does.
+Reading of the table (answer to 13.a):
 
-Things to look at first when it runs: (1) that `peak_bytes` of the baseline is a few hundred MB, (2) that the unknown counts of the parent and the child agree (section 7), (3) that `ru_maxrss` and the sampled peak agree within 20 %, (4) the exponent of each class against section 2.
+* **The plain layered FVM is linear only for thin graphs.** The exponent is 1.08 to 1.10 for t up to 4.5 and **1.36 for t above 4.5**; 1.41 for the FDM with laminate nodes; 1.23 to 1.28 for the 3D solid (whose points reach only 240 000 to 400 000 unknowns, so its laws are extrapolated beyond them). The statement of section 2 that the plain layered FVM is linear (2.7 KB per unknown from 1 to 2 million unknowns) is true for t = 2 and not general: a six-layer plain board takes 8.8 KB per unknown at 960 000.
+* Between the last two points of the six-layer plain board (490 776 and 960 000 unknowns) the peak goes from 3.42 to 8.41 GB (local exponent 1.34); of the 4-layer partial board (504 790 and 983 200) from 2.63 to 8.62 GB (1.78). The power law through all the points leaves a spread that the safety factor covers (1.46 for t above 4.5).
+* The FDM with laminate nodes takes 1.7 to 1.8 times the memory of the FVM of the same board at the same cell (4.67 GB at 509 425 unknowns against 2.63 GB at 504 790).
+* Classes with the largest spread: FVM t above 4.5 (ratio 0.75 to 1.33) and 3D t above 12 (0.80 to 1.27; its largest point is predicted from the others with an error of 29 %, with two series and one size range). The FDM classes have 3 and 4 points.
 
-## 13. Doubts and decisions left to the maintainer
+### 5.3 The provisional coefficients of the preparation against the measurements
 
-1. **Margin on the estimate**: the largest measured/fitted ratio times 1.1 (proposed). A tighter margin refuses less and risks the machine; a looser one refuses boards that would run.
-2. **Slow mark**: 35 % of the RAM is a placeholder; it should be set from the time law (say, above 60 s predicted) as well as the memory.
-3. **Installed against available memory**: the guard reads the installed memory (as asked). A busy machine can still page below the limit; reading the free memory would make the verdict depend on what else is running.
-4. **Time as a reason to refuse**: not proposed; only a warning with the predicted time.
-5. **3D absolute ceiling** of 2 million unknowns: a proposal.
-6. **psutil**: not adopted (one number does not justify a dependency).
-7. **Cell-major numbering in the program**: adopt only if the ladder reproduces the gain and the check of section 5 passes; it changes no result beyond the solver's round-off.
+```
+layered_laminate_few     points  13  measured/provisional 0.41 - 0.92  (>1 means the provisional estimate was BELOW the measurement)
+layered_laminate_many    points  13  measured/provisional 0.52 - 0.91  (>1 means the provisional estimate was BELOW the measurement)
+layered_plain            points  26  measured/provisional 0.45 - 2.96  (>1 means the provisional estimate was BELOW the measurement)
+solid3d_few              points   6  measured/provisional 0.65 - 0.89  (>1 means the provisional estimate was BELOW the measurement)
+solid3d_many             points   9  measured/provisional 0.58 - 1.42  (>1 means the provisional estimate was BELOW the measurement)
+```
+
+The provisional classes were **both too high and too low**: for the laminate boards the estimate was 1.1 to 2.4 times the measurement (so the skip rule skipped valid points), but for the class `layered_plain` the measured peak reaches **2.96 times** the estimate (a six-layer board with copper everywhere: 8.4 GB measured against 2.7 KB x 960 000 = 2.6 GB). A guard built on the table of section 2 would have let it through. The measured table of `lib/memory_model.py` (`MEASURED`, `estimate_measured`) is tested: its estimate with the safety factor covers ten measured points and stays within 2.2 times of them.
+
+### 5.4 Time (answer to 13.c)
+
+```
+fvm_t_le_3.5       t(500k) =    1.5 s  q = 1.32   N at 70 % of 16 GB (with safety) =   3076077   predicted solve time there     17 s
+fvm_t_3.5_4.5      t(500k) =    5.4 s  q = 1.31   N at 70 % of 16 GB (with safety) =   2039385   predicted solve time there     34 s
+fvm_t_gt_4.5       t(500k) =    9.2 s  q = 1.50   N at 70 % of 16 GB (with safety) =    937991   predicted solve time there     24 s
+fdm_t_gt_4.5       t(500k) =   11.5 s  q = 1.47   N at 70 % of 16 GB (with safety) =    866902   predicted solve time there     26 s
+solid3d_t_le_6     t(500k) =   11.2 s  q = 1.70   N at 70 % of 16 GB (with safety) =   1363521   predicted solve time there     62 s
+solid3d_t_6_12     t(500k) =   14.8 s  q = 1.52   N at 70 % of 16 GB (with safety) =    786373   predicted solve time there     29 s
+solid3d_t_gt_12    t(500k) =   44.1 s  q = 1.50   N at 70 % of 16 GB (with safety) =    438875   predicted solve time there     36 s
+```
+
+Time laws t = a N^q on the points with N of at least 100 000, q = 1.3 to 1.7; the last column is the solve time predicted at the limit of 70 % of 16 GB (with the safety factor on the memory law), 17 to 62 s. The times are of this machine shared with other work, so lower bounds for a loaded one.
+
+## 6. Study 2: the cell-major numbering (answer to 13.f)
+
+```
+partial  2L cell 0.25 N=  675200  layer  3.02 GB    6.7 s   cell  3.00 GB    6.5 s
+partial  2L cell 0.35 N=  346346  layer  1.54 GB    3.4 s   cell  1.51 GB    2.9 s
+partial  2L cell 0.50 N=  170000  layer  0.76 GB    1.4 s   cell  0.70 GB    1.0 s
+partial  4L cell 0.35 N=  504790  layer  2.63 GB    6.9 s   cell  2.59 GB    6.5 s
+partial  4L cell 0.50 N=  246400  layer  1.18 GB    2.4 s   cell  1.15 GB    2.2 s
+partial  4L cell 0.70 N=  126841  layer  0.60 GB    1.2 s   cell  0.59 GB    1.2 s
+plain    4L cell 0.25 N=  640000  layer  2.85 GB    8.8 s   cell  2.80 GB    7.3 s
+plain    4L cell 0.35 N=  327184  layer  1.33 GB    2.7 s   cell  1.37 GB    2.5 s
+plain    4L cell 0.50 N=  160000  layer  0.64 GB    1.0 s   cell  0.65 GB    0.9 s
+stripes  2L cell 0.25 N=  800000  layer  5.37 GB   15.9 s   cell  5.38 GB   16.6 s
+stripes  2L cell 0.35 N=  408980  layer  1.90 GB    5.8 s   cell  1.94 GB    7.4 s
+stripes  2L cell 0.50 N=  200000  layer  0.89 GB    2.1 s   cell  0.88 GB    1.8 s
+stripes  2L cell 0.70 N=  102245  layer  0.42 GB    0.7 s   cell  0.45 GB    0.8 s
+stripes  4L cell 0.35 N=  572572  layer  5.26 GB   15.0 s   cell  5.29 GB   14.5 s
+stripes  4L cell 0.50 N=  280000  layer  2.00 GB    5.0 s   cell  1.39 GB    6.3 s
+stripes  4L cell 0.70 N=  143143  layer  0.77 GB    2.0 s   cell  0.75 GB    2.0 s
+```
+
+Equality of the answer: the four small boards solved in both numberings in one process (partial 2 and 4 layers, outline, plain 4 layers) differ by at most **1.15e-12 K** (7.6e-14, 1.15e-12, 1.06e-12, 2.2e-13), far below the 1e-9 K criterion; `tests/test_measure_and_ordering.py` asks the same on five boards.
+
+What the numbers say:
+
+* On 2-layer boards (partial, plain, vias, stripes) the gain is **within the noise**: the peak differs by 8 % at most, the time between 0.7 and 1.3 times in either direction (partial copper at 0.5 mm 1.4 s against 1.0 s; stripes at 0.35 mm 5.8 s against 7.4 s).
+* **The reviewer's gain of `fix/laminate-nodes` (21.4 s and 4.5 GB to 12.7 s and 3.0 GB) was not reproduced**: the partial-copper board at 675 200 unknowns takes 6.7 s and 3.02 GB in layer-major order and 6.5 s and 3.00 GB in cell-major; the stripes board at 800 000 takes 15.9 s / 5.37 GB and 16.6 s / 5.38 GB. His board was not available, so it is not known whether its pattern is one where the numbering matters.
+* A gain appears where the layer-major order falls into the steep regime: the 4-layer stripes board at 0.25 mm (1 120 000 unknowns, t = 6.2) takes **35.1 s and 6.86 GB** cell-major, while the layer-major run was stopped by the watchdog above 7.5 GB (the first, disturbed run took 171 s while the machine swapped). At 0.5 mm the same board takes 2.00 GB layer-major and 1.39 GB cell-major, but at 0.35 mm 5.26 and 5.29 GB. On the 4-layer partial board at 0.25 mm both orders went above 8.5 GB (layer-major 8.62 GB measured; cell-major stopped at 8.81 GB), so the numbering did not rescue that board.
+* Nothing is lost on these boards: no point is slower than 1.3 times or takes more than 1.08 times the memory.
+
+So the numbering is **harmless, with a gain that is conditional** (one board at 1.1 million unknowns in this ladder). It does not change the class laws within the margin. Adopting it changes the last digits of every result of the factorised models (not bit-identical), which the frozen reference numbers would have to confirm; not run.
+
+## 7. Study 4: the unknown count
+
+96 points checked (every FVM, FDM and 3D solid point of the ladder, layer-major): zero differences between the count the program makes before the run and the count of the assembled network (4.1). The families are those of `lib/cases.py` (plain, vias, partial, outline, block, stripes); boards from a Gerber import (many cells with partial copper) are not tested.
+
+## 8. Study 5: the physical memory (answer to 13.d)
+
+`memory_model.ram_bytes()` returned 17 179 869 184 bytes on this Mac (equal to `sysctl hw.memsize`). Windows and container paths were not run.
+
+Installed against available, with the numbers of this machine: `vm_stat` at an idle moment after the runs showed 11.0 GB of free pages and 12.6 GB free + inactive + speculative, so about 12 GB are usable at rest out of the 17.2 installed. 70 % of the installed memory is 12.0 GB, that is **all of it**: a run at the limit leaves nothing for the interface (the application with Qt is more than the 0.08 GB baseline child), the operating system or another program. What happened here when work ran beside a large solve: in the stripes pass the swap file of the machine went from 2 to 5 GB (4.9 GB used) while series at 5 to 7 GB ran, next to another researcher's jobs and two Claude sessions (load average 6); the first stripes point at 1.1 million unknowns took 171 s. The installed memory alone is therefore **not a safe basis on a 16 GB machine that is being used**. Options: a lower default (60 % = 10.3 GB), or the minimum of the fraction of the installed memory and the available memory read at the start of the run (`vm_stat`, `MemAvailable`, `GlobalMemoryStatusEx`'s available field; no dependency). The measurements show the problem, they do not choose the option: maintainer decision.
+
+## 9. Study 3: the dense block of the SOR (answer to 13.g)
+
+`scripts/study_sor_block.py`: a 40 mm two-layer board with 625 vias of 0.8 mm at 0.8 mm pitch over 20 mm, so the footprints merge into one block; `fvm.MAX_SOR_BLOCK` raised in the child; peak of the child (kernel value through `/usr/bin/time`) with one iteration of `solve_sor` minus the peak of the network build (printed table):
+
+```
+cell  n_block  peak build  peak sor  diff GB  8 n^2 GB  diff/(8n^2)
+1.00      880        0.08      0.13     0.05      0.01        8.24
+0.80     1352        0.09      0.22     0.13      0.01        9.22
+0.60     2450        0.09      0.54     0.45      0.05        9.34
+0.40     5400        0.12      2.24     2.12      0.23        9.08
+0.35     6728        0.11      3.40     3.28      0.36        9.07
+0.32     7938        0.13      4.43     4.30      0.50        8.54
+0.30     8978        0.14      5.64     5.50      0.64        8.53
+0.28    10554   stopped by the watchdog (8.2 GB)
+0.26    12168   stopped by the watchdog (9.1 GB)
+```
+
+![SOR block memory](figures/fig_07_sor_block_memory.png)
+
+*Figure 07 (fig_07_sor_block_memory.png): measured memory of the block inverse against the block size, with 16 n^2 (the first estimate) and 72 n^2.*
+
+* The cost is **72 n^2 bytes** (8.2 to 9.3 times the 8 n^2 of the dense inverse itself; the build holds the dense block, its inverse, LAPACK's work and the sparse copy that the iterations keep). The first estimate 16 n^2 was 4.5 times too low, and the comment of `fvm.py` ("5 000 unknowns are 200 MB") is wrong: **5 000 unknowns take about 1.8 GB** (2.12 GB measured at n = 5 400). The block size is not a smooth function of the cell (footprints merge at some cells and not at others: 128 unknowns in 25 blocks at 0.5 mm, 880 in one block at 1.0 mm).
+* Rule that replaces `MAX_SOR_BLOCK`: `72 n^2 <= share x limit`. With a share of 25 %: 70 % of 16 GB gives n up to 6 200; 8 GB at 70 % gives 4 400; 64 GB gives 12 500. The constant 5 000 is 1.8 GB, 16 % of the 16 GB limit. The SOR is a comparison solver, so a small share is enough; the share is a decision.
+* Not measured: a block above 9 000 unknowns (the watchdog stopped it), and several blocks together (the sum of the squares is assumed: the colours are inverted one after another and their sparse inverses stay in memory).
+
+## 10. Study 7: the ceiling of the 3D solid (answer to 13.e)
+
+The measured 3D laws with their safety factor give, at 70 % of 16 GB = 11.2 GB (table 5.4): **1.36 million unknowns for a plain 2-layer board (6 slabs), 786 000 for the 10-slab board, 439 000 for 16 to 26 slabs**, against the fixed 250 000 of `solid3d.MAX_CELLS` (5.4, 3.1 and 1.8 times more). These are extrapolations: the largest 3D points measured are 240 000 (6 slabs), 400 000 (10 slabs), 327 184 (16 slabs) and 260 000 (26 slabs), and the two points above them were stopped at the cutoff (531 674 unknowns of 26 slabs at 8.5 GB, 640 000 of 16 slabs at 9.3 GB; the law gives 10.1 GB and 12.6 GB without the safety factor for them, consistent). The documents' values for the example board (3.5 GB at 247 000 and 7.4 GB at 392 000 unknowns, 16 slabs) are within 12 % of the law of the class (3.9 and 6.9 GB), so they are not contradicted.
+
+The absolute ceiling of 2 million unknowns does not bind on a 16 GB machine; with the laws above the memory limit equals it from about 26 GB of installed memory for a 6-slab board (the safety factor included) and about 100 GB for 26 slabs, where the predicted solve time of the 6-slab board at 2 million unknowns is about 120 s (t = 11.2 s x (N / 500 000)^1.70). Keep it, as proposed.
+
+## 11. Load and swap during the runs
+
+The ladder runs one point at a time and the SOR study one child at a time, both with `nice -n 10`; another researcher ran light studies next to me and two Claude sessions were open; the load average read about 6 in the stripes pass. Swap in use at the start: 0.86 GB of 2 GB, unchanged through passes 1 to 3. In the stripes pass the macOS swap file grew to 5 GB (4.9 GB used) and returned to about 1.2 GB when the series ended. The pass ran as one foreground command, so I could not stop it when the monitor reported the growth; afterwards I removed the one disturbed point (4.2, item 5) and reran it with a 7.5 GB cutoff, which stopped it without swap. The maintainer's rule "never let the machine swap" was therefore **broken once**, in that pass. The other points were not affected as far as the data show (their sampled and kernel peaks agree, 4.1), but this is a judgement: the points of that pass are the stripes series, 2 and 4 layers, both orders, and the cell-major 4-layer point at 0.25 mm (35.1 s, 6.86 GB) ran after the swap episode had begun and is the one to repeat on a quiet machine. The SOR block study ran afterwards, nothing else heavy running by me; its two largest points were stopped at 8.2 and 9.1 GB. After everything the swap stood at 1.2 GB.
+
+## 12. How to run it again
+
+All commands from the repository root with the program's environment:
+
+```sh
+.venv/bin/python -m pytest -q research/memory-guard/tests                                              # 38 tests, seconds
+.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --plan                            # the points and the provisional estimates
+.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --run --quick                     # about 10 minutes
+.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --run                             # resumable (out/ladder.jsonl)
+.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --run --est-scale 0.35 --cutoff-gb 7.5   # the fine points the provisional estimate skips
+.venv/bin/python research/memory-guard/scripts/study_memory_ladder.py --fit                             # the first fit and the ordering check
+.venv/bin/python research/memory-guard/scripts/study_class_fit.py                                       # the classes by t, time, cell-major, count check (out/class_fit.json)
+.venv/bin/python research/memory-guard/scripts/study_sor_block.py                                       # the SOR block (out/sor_block.json)
+.venv/bin/python research/memory-guard/scripts/make_diagrams.py && .venv/bin/python research/memory-guard/scripts/make_figures.py
+```
+
+Close the other heavy programs first and watch `sysctl vm.swapusage`; a point above the cutoff is killed by the watchdog, but the machine can still swap below it when other work runs (section 11).
+
+## 13. Answers to the questions and decisions left to the maintainer
+
+(a) **Coefficients and growth law**: section 5.2. Classes by t (nodes per plan cell); k from 2.4 to 18.6 KB per unknown at 500 000 unknowns; exponent 1.08 to 1.10 for t up to 4.5, 1.36 above (FVM), 1.41 (FDM with laminate nodes), 1.23 to 1.28 (3D solid, extrapolated). The plain layered FVM is linear only for thin graphs, not in general.
+
+(b) **Safety margin**: the largest measured/fitted ratio times 1.1 gives 1.11 to 1.46 (FVM 1.25, 1.16, 1.46; FDM 1.11, 1.16; 3D 1.12, 1.18, 1.40). Proposal: the per-class factor of the table (`MEASURED`), never below 1.15. The 1.46 and the 1.40 come from the steep regime and the extrapolation and are the ones to revisit with a second machine.
+
+(c) **The slow mark**: at the memory limit of a 16 GB machine the predicted solve times are 17 to 62 s, so a time rule would hardly fire before the memory refuses; the 35 % of the RAM placeholder is not supported (points near 5.6 GB, 35 % of 16 GB, took 15 to 25 s). Proposal: "slow" when the predicted solve time of the class exceeds 30 s, with the estimate in the message; refusing on time is not proposed. Times scale with the processor; not verified on another machine.
+
+(d) **Installed against available**: section 8: the installed memory alone is not safe on a used 16 GB machine (12 GB usable at rest, limit 12.0 GB). Proposal: limit = fraction x installed, lowered to the available memory at the start of the run, or a default of 60 %. Maintainer decision.
+
+(e) **3D ceiling**: section 10: keep 2 million; at 70 % of 16 GB the 3D solid gets 1.36 million (6 slabs), 786 000 (10 slabs), 439 000 (16 to 26 slabs), extrapolated beyond 240 000 to 400 000.
+
+(f) **Cell-major**: section 6: same answer to 1.2e-12 K; no loss; a gain only on the stripes 4-layer board at 1.1 million unknowns; the reviewer's gain not reproduced. Adopt only if the maintainer wants those boards to run; the classes do not change.
+
+(g) **SOR block**: section 9: 72 n^2, a share-of-limit rule; 5 000 unknowns take 1.8 GB (the comment says 200 MB).
+
+(h) **Cost of the laminate rule at 0.25 mm** (the documents say about 7 GB per million unknowns on refined boards): 4.5 GB per million for the 2-layer partial-copper board (675 200 unknowns, 3.02 GB), 6.7 GB per million for the 2-layer stripes board (800 000, 5.37 GB), **8.8 GB per million for the 4-layer board with laminate nodes** (983 200, 8.62 GB) and for the 6-layer plain board (960 000, 8.41 GB, no laminate node at all). About 7 GB per million is the right order for a board at 0.25 mm with laminate nodes and 2 to 4 layers. The cost follows t, not the rule as such; the rule makes t larger.
+
+Decisions left to the maintainer: the margin (b); the slow mark (c); installed or available memory and the default fraction (d); the cell-major numbering (f); the share of the limit for the SOR block (g); psutil (not adopted: the available memory can be read without it); a second machine to repeat the ladder.
 
 ## 14. What was read and what was not verified
 
-* **Read in full:** the code of `pcbthermal/fvm.py` (Network, `solve_steady`, `solve_sor`, `unknowns`, `MAX_SOR_BLOCK`), `fdm.py` and `solid3d.py` (the count functions, `MAX_CELLS`, `size_limit`, `check_size`), `analytic.py` (the dense local correction), `api.py` (`SolverOptions`, `suggest_cell_mm`, the model dispatch), `gui/panels.py` (the note on slowness), the `solver` section of `data/defaults.json`, `research/solid3d-verification/docs/for-the-project-documents.md` (the table of section 2) and the Planned items of `docs/versions.md` on the memory guard, the laminate nodes and the SOR guard.
-* **Seen as a quoted number only:** the fix/laminate-nodes figures (4.5 GB, 7.6 GB, 12.7 s, 3.0 GB, 50 s) come from the task description and `docs/versions.md`, not from a log re-opened here.
-* **Literature:** none of [George1973], [Davis2006], [LiSuperLU2005], [GeorgeLiu1981] was opened; the statements about the 4/3 exponent and the tie-breaking of the minimum-degree ordering are from memory and are used only as the hypothesis the fit tests. The statement that `ru_maxrss` is in bytes on macOS and kilobytes on Linux and that `wait4` returns the child's own usage is from memory of the documentation; the wrapper test checks the first plausibly (a peak above 50 MB), not exactly.
-* **Not run:** the tests, the ladder, the fit, the figures (the machine was busy). The scripts were compiled only. A defect in them is likely to show up on the first run; the first run is a `--plan` and the tests, in that order.
-* **Not verified at all:** Windows and container paths of the RAM detector; the laws of the Analytic, the Lumped and the transient; behaviour on a machine other than the maintainer's 16 GB Mac; the computed-h loop's effect on the peak; the cell-major gain beyond the reviewer's one number.
+* **Read in full:** the code of `pcbthermal/fvm.py` (`Network`, `solve_steady`, `solve_sor`, `_sor_block_groups`, `unknowns`, `MAX_SOR_BLOCK`), `viawell.unknown_blocks`, `laminate.uses_rule`, and the code of this folder. `fdm.py`, `solid3d.py`, `analytic.py`, `api.py` and `gui/panels.py` were read in the preparation of the folder and not re-read in this run.
+* **Reproduced from earlier measurements (section 2):** the 3D solid on a plain 2-layer board 1.21 GB at 240 000 unknowns (documents: 1.2 GB at 248 000) and the 16-slab board within 12 % of the law through the documents' points; the layered laminate board 4.5 GB per million (documents: 4.5 GB at 637 000); the 7 GB per million only for 4 layers (8.8). **Not reproduced: the reviewer's cell-major numbers (21.4 s and 4.5 GB to 12.7 s and 3.0 GB); the plain layered FVM linear at 2.7 KB per unknown (true only for t = 2).**
+* **Literature:** none of [George1973], [Davis2006], [LiSuperLU2005], [GeorgeLiu1981] was opened in this run; the explanations that the exponent grows with the thickness of the graph and that the minimum-degree ordering depends on the numbering are hypotheses that fit the measurements, status M, not results. The unit of `ru_maxrss` and the child's usage by `wait4` were checked by the measurement (baseline 0.08 GB, kernel value equal to the sampled peak), not by reading the manual.
+* **Not verified:** the transient factor 2 (no time simulation was measured); the computed-h loop's effect on the peak; the quadratic law of the Analytic (with vias and a heatsink it took 0.52 GB at 640 000 unknowns and 4 layers, 0.31 GB at 320 000 with 2 layers: far below every limit, but the number of via tiles was not varied); the Lumped (455 B per unknown at 500 000, 0.32 GB at 675 200: small); Windows and container detection; a machine other than this 16 GB Mac (the coefficients are those of SuperLU in the installed SciPy and the macOS allocator); boards from a Gerber import; 8 or more copper layers; the 3D solid above 400 000 unknowns (extrapolated); any point between 8.6 GB and the 11.2 GB limit; the FDM beyond 509 000 unknowns (3 and 4 points per class); the effect of the application itself (Qt, a second process) on the base; the stripes cell-major point at 0.25 mm (run during the swap episode, section 11). Times are those of a machine shared with other work.

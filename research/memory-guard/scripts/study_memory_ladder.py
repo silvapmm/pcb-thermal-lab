@@ -46,6 +46,9 @@ def series():
     cells_fvm = (2.0, 1.0, 0.7, 0.5, 0.35, 0.25)
     for fam, layers in (("plain", 2), ("plain", 4), ("plain", 6), ("vias", 4), ("partial", 2), ("partial", 4), ("partial", 6), ("outline", 2), ("block", 2)):
         s.append((f"fvm_{fam}_{layers}L", fam, layers, "fvm", "layer", cells_fvm))
+    for order in ("layer", "cell"):
+        for layers in (2, 4):
+            s.append((f"fvm_stripes_{layers}L" + ("_cellmajor" if order == "cell" else ""), "stripes", layers, "fvm", order, cells_fvm))
     for fam, layers in (("partial", 2), ("partial", 4), ("plain", 4)):
         s.append((f"fvm_{fam}_{layers}L_cellmajor", fam, layers, "fvm", "cell", cells_fvm))
     for fam, layers in (("plain", 4), ("partial", 4)):
@@ -130,7 +133,7 @@ def run(args):
                 continue
             n, ns = cases.count(spec)
             kl = "solid3d_many" if model == "solid3d" and ns > 6 else "solid3d_few" if model == "solid3d" else "layered_laminate_many" if layers > 2 else "layered_laminate_few"
-            if name in stopped or mm.estimate_bytes(n, kl) * 1.5 > cutoff:
+            if name in stopped or mm.estimate_bytes(n, kl) * 1.5 * args.est_scale > cutoff:
                 print(f"skip {name} cell {c}: {n} unknowns, provisional estimate {mm.estimate_bytes(n, kl) / 1e9:.1f} GB x 1.5 above the cutoff")
                 stopped.add(name)
                 continue
@@ -160,6 +163,7 @@ def _store(rec, n, ns):
     sp = rec["spec"]
     rec["slabs"] = ns
     rec["cells"] = max(int(round(sp["size_mm"] / sp["cell_mm"])), 2) ** 2
+    rec["unknowns_parent"] = n                          # The count made before the run; "unknowns" is the child's (README 7 compares them)
     rec.setdefault("unknowns", n)
     with open(LADDER, "a") as fh:
         fh.write(json.dumps(rec) + "\n")
@@ -225,6 +229,7 @@ def main():
     ap.add_argument("--fit", action="store_true", help="fit the coefficients from out/ladder.jsonl")
     ap.add_argument("--quick", action="store_true", help="coarse points only (cell >= 0.7 mm, no 3D)")
     ap.add_argument("--cutoff-gb", type=float, default=0.0, help="memory cutoff per point in GB (default 60 %% of the RAM, at most 10)")
+    ap.add_argument("--est-scale", type=float, default=1.0, help="factor on the provisional estimate in the skip rule (the first pass showed the provisional coefficients about 2 to 3 times too high for the layered models; the watchdog at the cutoff stays)")
     ap.add_argument("--timeout", type=float, default=900.0, help="seconds per point")
     a = ap.parse_args()
     if a.plan:
