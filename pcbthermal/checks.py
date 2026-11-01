@@ -174,6 +174,89 @@ def check_problem(problem, cell_mm=1.0):
 LAYERED_MODELS = ("fvm", "fdm", "lumped", "analytic")
 
 
+# Thresholds of the edge rule: centroid offset in units of the smaller footprint side, and the footprint side ratio (research/lumped-zones-adoption 8.4)
+VIA_OFFSET_FRACTION = 0.1
+VIA_SIDE_RATIO = 1.5
+
+
+def _board_via_groups(vx, vy, on_board):
+    """!
+    @brief Group label and nearest-neighbour distance of every via, by the single-linkage rule of the via constriction (vias with no board under them get
+           the label -1 and an infinite distance).
+    @param vx x of the vias in m.
+    @param vy y of the vias in m.
+    @param on_board Boolean array, True for a via with board under it.
+    @return tuple (labels, d_nn): numpy.ndarray of int labels and numpy.ndarray of nearest-neighbour distances in m, one per via.
+    """
+    labels = -np.ones(len(vx), dtype=int)
+    d_nn = np.full(len(vx), np.inf)
+    idx = np.flatnonzero(on_board)
+    if idx.size:
+        pts = np.column_stack([vx[idx], vy[idx]])
+        d_nn[idx] = viaconstriction.nearest_neighbour(pts)
+        labels[idx] = viaconstriction.via_groups(pts, d_nn[idx])
+    return labels, d_nn
+
+
+def lumped_via_cool_warning(polygon, vx, vy, inside, groups, d_nn):
+    """!
+    @brief Text of the warning for a part that the Lumped model can read too cool because of its vias, or None. The rule: a via group of two or more vias,
+           at least one under the footprint, that (i) continues outside the footprint (a via of the group outside the footprint lies within the reach of
+           the array, see the note), or (ii) whose vias in the footprint have their centroid farther than 0.1 of the smaller footprint side from the
+           centroid of the footprint, or (iii) a footprint whose side ratio exceeds 1.5.
+    @param polygon Footprint polygon, sequence of (x, y) in m.
+    @param vx x of all the vias in m.
+    @param vy y of all the vias in m.
+    @param inside Boolean array, True for the vias (with board under them) inside the footprint.
+    @param groups Group label of every via (-1 for none), from _board_via_groups.
+    @param d_nn Nearest-neighbour distance of every via in m, from _board_via_groups.
+    @return str or None.
+    @note The sides are those of the bounding box of the footprint; the thresholds are the zone model's and were not optimised for the program.
+          The reach of (i): a via of the group outside the footprint counts only when it lies within twice the median nearest-neighbour distance of
+          the group's vias in the footprint (the pitch of the array) of one of them, and within the smaller footprint side. The single linkage alone
+          joins any via to its nearest neighbour, however far, so a few vias scattered over a board chained every centred thermal array into a group
+          that "crossed" the edge, and the warning fired on nearly every part of a board with scattered vias (review of fix/lumped-via-warning-limits).
+    """
+    poly = np.asarray(polygon, dtype=float)
+    side_x, side_y = np.ptp(poly[:, 0]), np.ptp(poly[:, 1])
+    small, large = min(side_x, side_y), max(side_x, side_y)
+    if small <= 0.0:
+        return None
+    centroid = np.asarray(polygon_centroid(polygon))
+    elongated = large / small > VIA_SIDE_RATIO
+    fires = False
+    for g in np.unique(groups[inside]):
+        members = groups == g
+        if members.sum() < 2:
+            continue
+        mine = members & inside
+        out_idx = np.flatnonzero(members & ~inside)
+        across = False
+        if out_idx.size:
+            # Distance of every outside member to the nearest member in the footprint (brute force in blocks keeps the memory bounded)
+            reach = min(2.0 * float(np.median(d_nn[mine])), small)
+            xi, yi = vx[mine], vy[mine]
+            for s in range(0, out_idx.size, 2048):
+                j = out_idx[s:s + 2048]
+                d2 = (vx[j, None] - xi[None, :]) ** 2 + (vy[j, None] - yi[None, :]) ** 2
+                if bool((d2.min(axis=1) <= reach * reach * (1.0 + 1e-12)).any()):
+                    across = True
+                    break
+        offset = float(np.hypot(vx[mine].mean() - centroid[0], vy[mine].mean() - centroid[1]))
+        if across or offset > VIA_OFFSET_FRACTION * small or elongated:
+            fires = True
+            break
+    if not fires:
+        return None
+    # The numbers are those of research/lumped-zones-adoption 8.4, reproduced by the review of this branch against a 1/8 mm reference: the via effect of
+    # the 5 x 5 copper array shifted 7 mm under a 12 mm part 220 % too large (3.2 times), 10.8 K = 26 % of the rise in the error of the effect and 10.3 K =
+    # 25 % in the hottest temperature (hence "about 11 K, a quarter"); the symmetry board 6.3 K = 17.5 % of the rise in the hottest temperature
+    return ("the Lumped model can read this part too cool, unsafe for a design: its vias form an array that continues past the edge of the footprint, "
+            "stands off its centre, or lies under an elongated footprint (side ratio above 1.5), where the rings overstate the via effect (measured up to "
+            "3.2 times the reference: the part up to about 11 K, a quarter of its rise, too cool for an array across the edge of a 12 mm footprint; "
+            "6.3 K, 17.5 % of its rise, for a 5 x 5 array 1.5 mm off the centre of a 12 x 8 mm part); use the FVM for via design.")
+
+
 def check_model_limits(problem, models, cell_mm=1.0):
     """!
     @brief Warnings about the documented limits of the selected models on this input (text only; no result depends on them).
@@ -236,6 +319,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
     on_board = np.array([share > 0.0 for share in problem.via_board_shares()])   # A via with no board under it is ignored (check_problem says so)
     if "lumped" in models:
         in_any = np.zeros(len(problem.vias), dtype=bool)
+        groups = d_nn = None                                     # Via groups and nearest neighbours, built once and only when a part has vias under it
         for k, h in enumerate(problem.heaters):
             inside = points_in_polygon(vx, vy, h.polygon) & on_board
             in_any |= inside
@@ -243,9 +327,13 @@ def check_model_limits(problem, models, cell_mm=1.0):
             if n_in >= 1:
                 _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
                            "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
-                           "(the part too hot) to 33 % too large (the part too cool: dense arrays that cover a quarter or less of a large footprint, "
-                           "sparse arrays and rows), and up to 80 % too large for an array across the edge of the footprint (8 to 20 % on average "
-                           "over 46 boards, 11 % over 36 more); use the FVM for via design.")
+                           "(the part too hot) to 33 % too large (the part too cool by up to 14 % of its rise: dense arrays that cover a quarter or less "
+                           "of a large footprint, sparse arrays and rows; 8 to 20 % on average over 46 boards, 11 % over 36 more); use the FVM for via design.")
+                if groups is None:
+                    groups, d_nn = _board_via_groups(vx, vy, on_board)
+                msg = lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
+                if msg:
+                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {msg}")
         outside = np.flatnonzero(~in_any & on_board)
         if outside.size:
             # One warning for all of them: a Gerber board can have hundreds of vias away from the parts
@@ -254,8 +342,9 @@ def check_model_limits(problem, models, cell_mm=1.0):
             _add(out, "via", int(outside[0]), f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside the "
                        "footprint of every part; the Lumped model spreads such a via over a ring around the part: the effect of a lone via was "
                        "measured 22 % too small to 65 % too large depending on the distance and the number of rings (an effect of 0.5 to 3 K), "
-                       "that of a row 6 to 21 % too large, and that of an array just outside the edge or of vias scattered over the board 19 to "
-                       "56 % too large (research/young-omega-tiles 3.8 and the review of fix/via-constriction); use the FVM.")
+                       "that of a row 6 to 21 % too large, that of vias scattered over the board 19 to 56 % too large, and that of an array just "
+                       "outside the edge of a footprint up to 2.3 times the reference (the part up to 4 K, 9 % of its rise, too cool; "
+                       "research/young-omega-tiles 3.8, the review of fix/via-constriction, research/lumped-zones-adoption 8.4); use the FVM.")
     if "analytic" in models and on_board.any() and b.layers > 1:
         # The tile of the correction follows the pitch (1 mm at most, 0.25 mm at least) and is enlarged when the dense system would pass MAX_UNKNOWNS;
         # a pitch under 0.45 mm was not tested. The program's tile is 2.5 to 5 mm; the rule never reaches it, the guard can. The guard counts the tiles of the

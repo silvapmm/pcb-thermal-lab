@@ -338,7 +338,7 @@ def test_via_warnings_carry_the_measured_numbers():
     """
     p = array(3, 3.5)
     w = [str(x) for x in check_model_limits(p, ("lumped",), 1.0)]
-    assert len(w) == 1 and "46 boards" in w[0] and "21 % too small" in w[0] and "33 % too large" in w[0] and "36 more" in w[0] and "80 %" in w[0]
+    assert len(w) == 1 and "46 boards" in w[0] and "21 % too small" in w[0] and "33 % too large" in w[0] and "36 more" in w[0] and "14 % of its rise" in w[0] and "80 %" not in w[0]
     assert check_model_limits(p, ("analytic",), 1.0) == []                       # nine vias at 3.5 mm: inside what was tested
     lone = board()
     lone.add_via(3.0, 3.0, 0.3)
