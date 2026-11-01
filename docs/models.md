@@ -99,6 +99,8 @@ the input checks warn.
 
 A one-layer board has its copper on the top face and the laminate under it. The laminate is a gap down to a bottom node that carries the bottom film, and the FVM and FDM cut it into sub-gaps by the rule of theory §1.4 (sub-gaps of at most 0.4 mm, at most 4, only in the cells where copper is absent next to the gap plus a margin; elsewhere one link). The Lumped model keeps two laminate nodes in every cell; the Analytic model puts the laminate in series with the bottom film. Against an independent 3D solver: full copper within 0.1 % (FVM, FDM), a bare 20 mm pad -2.5 % (FVM, two laminate nodes, the earlier version; -1.80 % with the rule for a 10 mm pad, `validation.md` section 21.2), -7.4 % (FDM), -15 % (Lumped), -29 % (Analytic); the 3D solid +0.2 % (`validation.md` section 21). For a board with little copper on one layer use the FVM or the 3D solid.
 
+**The laminate options.** The two numbers of the rule, the longest sub-gap `S_MAX` (0.05 to 5 mm, default 0.4) and the most sub-gaps `N_MAX` (integer 1 to 16, default 4, 1 turns the cutting off), are options of the run (`SolverOptions.laminate_s_max_mm`, `laminate_n_max`; saved in the project only when not the default; two spin boxes in the solver panel, greyed with a metal block, where the rule is not applied; CLI `run --laminate-s-max-mm` and `--laminate-n-max`; the power calculator and `calibrate` use them, the `transient` command the defaults). A gap gets `min(N_MAX, ceil(d / S_MAX))` sub-gaps, so a larger `N_MAX` alone changes nothing when `S_MAX` already gives `N_MAX` sub-gaps (8 sub-gaps of a 1.6 mm gap need `S_MAX` of 0.19 mm or less, 16 need 0.09 mm or less). More sub-gaps are closer to a resolved 3D solid (`validation.md` 21.2) and cost unknowns and memory.
+
 ### 2.5 Which model for which job
 
 | You want | Use |
@@ -162,6 +164,8 @@ A heater may carry a **square wave** (`SquareWave`: `p_on`, `period`, `duty`, `p
 4. **Results**: peak, minimum, oscillation, temperature of every heater versus time, peak-temperature map, frames of the last window, steady temperatures with the average and with the peak power (the bound).
 5. **Analytic transient with vias and heatsinks**: one modal system per heater with the smeared via (or heatsink) conductance scaled so that its steady response equals the locally corrected steady model (factor 65 above the via
    array of the example, 1 for the distant heater); a single global factor cooled the distant heater by 18 %.
+
+**Parts over absent copper (FVM and FDM).** The curves of a profile show a part at its face (hottest at the face of the part), not only the hottest node: each step adds the quasi-static face term of its power, and the decision adds the swing of that term to the oscillation of the node (theory §10), so a fast square wave that the node alone would average can be resolved. The face is first order and overstates the swing below about ten times the time constant of the half copper layer (0.69, 2.8, 11 ms for 35, 70, 140 µm). The board Tmax of a steady run stays the hottest *node*.
 
 Interfaces: `SolverOptions.profile`, `steady_power` ("average" or "peak"); CLI `run --profile U1=file.csv --duration --cycles --time-s --initial-c --threshold-c --steady-power`; the "Power profile" tab with
 **Import CSV…** / **Export CSV…**; outputs `profile_<model>.csv/.png`, `peak_map_<model>.png`.
