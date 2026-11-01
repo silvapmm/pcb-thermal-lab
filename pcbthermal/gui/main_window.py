@@ -1004,6 +1004,7 @@ class MainWindow(QMainWindow):
         self.results.set_theme(self.theme_name)
         self.profile_page.set_theme(self.theme_name)
         self.stackup_page.set_theme(self.theme_name)
+        self.solver_panel.refresh()                                         # The memory verdicts take the colours of the new theme
         self._refresh_icons()
 
     def show_shortcuts(self):

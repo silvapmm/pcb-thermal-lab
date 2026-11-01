@@ -438,3 +438,82 @@ def test_the_estimate_and_the_measured_peak_are_logged_once_per_run(caplog):
     texts = [r.getMessage() for r in caplog.records]
     assert sum("estimate" in t and "limit" in t for t in texts) == 1
     assert sum("measured peak" in t for t in texts) == 1
+
+
+@pytest.fixture
+def cli_small_part(tmp_path):
+    """!
+    @brief A 200 x 200 mm board with one 2 mm part: the cell from the part (0.5 mm) is far above the memory of a 1 GB machine, so "auto" must enlarge it.
+    @param tmp_path pytest temporary folder.
+    @return Path of the project file as a string.
+    """
+    import json
+    from pcbthermal.model import Problem, problem_to_dict
+    p = Problem.new(200, 200, layers=2)
+    p.add_heater(1, 2.0, rect=(99, 99, 101, 101))
+    path = tmp_path / "small_part.pcbt.json"
+    path.write_text(json.dumps(problem_to_dict(p)))
+    return str(path)
+
+
+@pytest.mark.parametrize("model", ["fvm", "all", "compare"])
+def test_auto_cell_of_the_command_line_fits_every_model_choice(model, cli_small_part, tmp_path, monkeypatch, capsys):
+    """!
+    @brief Regression: `run --cell-mm auto` with the default `--model all` (and `compare`) passed the word "all" to the guard, which skipped it, so the cell from
+           the part was used and the run was refused with exit code 3; the models of the choice are now expanded and the run passes.
+    @param model Value of --model.
+    @param cli_small_part Project file.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    @param capsys pytest fixture.
+    @return None.
+    """
+    from pcbthermal import cli
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(1.0 * GB))
+    code = cli.main(["run", cli_small_part, "--model", model, "--cell-mm", "auto", "--out", str(tmp_path / "o"), "--no-plots"])
+    assert code == 0, capsys.readouterr().err
+    capsys.readouterr()
+
+
+def test_auto_cell_of_the_transient_command_fits_the_time_factor(cli_small_part, tmp_path, monkeypatch, capsys):
+    """!
+    @brief Regression: `transient --cell-mm auto` chose a cell that fits a steady solve and was then refused by the guard of the time simulation (twice the
+           memory); the automatic cell now fits the factor of a time simulation.
+    @param cli_small_part Project file.
+    @param tmp_path pytest temporary folder.
+    @param monkeypatch pytest fixture.
+    @param capsys pytest fixture.
+    @return None.
+    """
+    from pcbthermal import cli
+    from pcbthermal.api import suggest_cell_mm
+    from pcbthermal.model import load_problem
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(1.0 * GB))
+    p = load_problem(cli_small_part)
+    assert suggest_cell_mm(p, models=("fvm",), transient=True) > suggest_cell_mm(p, models=("fvm",))
+    code = cli.main(["transient", cli_small_part, "--cell-mm", "auto", "--t-end", "1", "--steps", "2", "--out", str(tmp_path / "o"), "--no-plots"])
+    assert code == 0, capsys.readouterr().err
+    capsys.readouterr()
+
+
+def test_messages_and_panel_counts_have_no_thousands_separator():
+    """!
+    @brief The counts in the refusal text follow the rule of every number shown by the program: no thousands separator.
+    @return None.
+    """
+    v = memory.check(reference_problem(layers=4), ("fvm",), 0.1, ram=int(1.0 * GB), available=int(1.0 * GB), refuse="return")[0]
+    assert v.verdict == "refuse" and f"{v.unknowns} unknowns" in v.message and "," not in v.message.split(" GB")[0]
+
+
+def test_a_check_that_is_not_a_run_writes_no_log_line(caplog):
+    """!
+    @brief The solver panel and the Auto cell ask the guard at every edit (quiet): only the runs write their estimate to the log.
+    @param caplog pytest fixture.
+    @return None.
+    """
+    import logging
+    with caplog.at_level(logging.INFO, logger=memory.log.name):
+        memory.check(reference_problem(), ("fvm",), 2.0, refuse="return", quiet=True)
+        assert not caplog.records
+        memory.check(reference_problem(), ("fvm",), 2.0, refuse="return")
+        assert len(caplog.records) == 1

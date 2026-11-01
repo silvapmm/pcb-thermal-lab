@@ -18,6 +18,7 @@ import pytest
 pytest.importorskip("pytestqt")
 
 from PySide6.QtCore import QPointF, QSettings, Qt
+from PySide6.QtGui import QPalette
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QMessageBox
 
@@ -998,6 +999,14 @@ def test_the_memory_verdict_in_the_panel_disables_run_and_auto_fits(win, qtbot, 
     win.solver_panel.refresh()
     panel = win.solver_panel
     assert "FVM:" in panel.cells_label.text() and "GB" in panel.cells_label.text() and panel.run.isEnabled() and not panel.blocked
+    import re
+    assert not re.search(r"\d,\d{3}", panel.cells_label.text())          # Counts without a thousands separator (the rule of every number shown)
+    # The colours follow the theme: lighter tones on the dark theme (the dark tones had too little contrast there)
+    dark_now = panel.palette().color(QPalette.Window).lightness() < 128
+    assert ("#66bb6a" if dark_now else "#2e7d32") in panel.cells_label.text()
+    win.toggle_theme()
+    assert ("#2e7d32" if dark_now else "#66bb6a") in panel.cells_label.text()
+    win.toggle_theme()
     # A 4 GB machine at 10 %: nothing but a very coarse cell fits
     monkeypatch.setattr(memory, "ram_bytes", lambda: int(4e9))
     win.doc.options.memory_fraction = 0.10

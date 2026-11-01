@@ -37,21 +37,24 @@ MODELS = ("fvm", "lumped", "analytic")
 RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
 
 
-def _cell_arg(args, problem, default):
+def _cell_arg(args, problem, default, transient=False):
     """!
     @brief Resolve the --cell-mm argument.
     @param args Parsed arguments.
     @param problem The Problem (used by "auto").
     @param default Value used when the argument is absent.
+    @param transient True for a time simulation: "auto" has to fit its larger memory factor (memory.TRANSIENT_FACTOR).
     @return Cell size in millimetres.
     """
     if args.cell_mm is None:
         return default
     if args.cell_mm != "auto":
         return float(args.cell_mm)
-    # The automatic cell also has to fit the memory of the models the command solves
+    # The automatic cell also has to fit the memory of the models the command solves: "all" and "compare" are expanded to their model keys (the guard
+    # ignores keys it does not know, so "all" passed as it is would not be checked), and the base is the resident size of this process, where the solve runs
     chosen = getattr(args, "model", "fvm")
-    return suggest_cell_mm(problem, models=RUN_MODELS if chosen == "compare" else (chosen,))
+    models = {"all": MODELS, "compare": RUN_MODELS}.get(chosen, (chosen,))
+    return suggest_cell_mm(problem, models=models, transient=transient, base=None)
 
 
 def _guard(problem, models, cells, transient=False):
@@ -134,16 +137,16 @@ def cmd_transient(args):
     """
     problem = load_problem(args.config)
     t0 = time.time()
-    _guard(problem, (args.model,), [_cell_arg(args, problem, 2.0)], transient=True)   # The analytic model is not estimated (the guard skips it)
+    cell = _cell_arg(args, problem, 2.0, transient=True)                  # Resolved once: "auto" asks the guard, with the factor of a time simulation
+    _guard(problem, (args.model,), [cell], transient=True)                # The analytic model is not estimated (the guard skips it)
     if args.model == "fdm":
         from . import fdm
-        tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0), theta_scheme=args.theta)
+        tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
     elif args.model == "analytic":
         from . import analytic
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
     else:
-        tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0),
-                                 theta_scheme=args.theta)
+        tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
     print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} degC, "
           f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} degC")
     os.makedirs(args.out, exist_ok=True)

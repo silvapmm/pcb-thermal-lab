@@ -85,7 +85,7 @@ class Verdict:
     exact: bool = True                # False when unknowns and estimate are the lower bound (the exact count was not made because the bound alone was above the limit)
 
 
-_fraction_override: Optional[float] = None       # Fraction forced for the process (None: DEFAULT_FRACTION)
+_fraction_override: Optional[float] = None       # Fraction forced for the process by the command line (None: the Preferences value, see default_fraction)
 _accept_unknowns = {}                            # model -> unknowns accepted whatever the memory estimate (size_limit)
 
 
@@ -249,7 +249,7 @@ def default_fraction() -> float:
 
 def set_default_fraction(fraction: Optional[float]) -> None:
     """!
-    @brief Set the process-wide default fraction (None restores DEFAULT_FRACTION); used by the command line.
+    @brief Set the process-wide override of the fraction (None removes it: the Preferences value, then DEFAULT_FRACTION); used by the command line.
     @param fraction Share of the physical memory, MIN_FRACTION to MAX_FRACTION, or None.
     @return None.
     @throws ValueError If the fraction is out of range.
@@ -501,20 +501,20 @@ def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[in
     @param cell_mm Cell requested, in mm.
     @param why "refuse", "slow", "ceiling" or "window" (above the unknowns accepted by a with block of accept_unknowns).
     @param exact False when n and the estimate come from the lower bound (the exact count was not made because the bound is already above the limit).
-    @return Text.
+    @return Text (counts without a thousands separator, the rule of every number shown by the program).
     """
     label = MODEL_LABELS.get(model, model)
     src = f"{fraction * 100:.0f} % of the {ram / GB:.1f} GB of memory" if ram else "the fixed limit (the memory of the machine could not be read)"
     least = "" if exact else "at least "
     if why == "ceiling":
-        head = f"the {label} model would have {n:,} unknowns, more than the {CEILING_3D:,} that no machine is asked to solve"
+        head = f"the {label} model would have {n} unknowns, more than the {CEILING_3D} that no machine is asked to solve"
     elif why == "window":
-        head = f"the {label} model would have {n:,} unknowns, more than the {_accept_unknowns.get(model, 0):,} accepted by this study (solid3d.size_limit)"
+        head = f"the {label} model would have {n} unknowns, more than the {_accept_unknowns.get(model, 0)} accepted by this study (solid3d.size_limit)"
     elif why == "refuse":
-        head = (f"the {label} model would have {least}{n:,} unknowns and need {least or 'about '}{estimate / GB:.1f} GB at the cell of {cell_mm:g} mm, "
+        head = (f"the {label} model would have {least}{n} unknowns and need {least or 'about '}{estimate / GB:.1f} GB at the cell of {cell_mm:g} mm, "
                 f"more than the {limit / GB:.1f} GB allowed ({src})")
     else:
-        head = f"the {label} model has {n:,} unknowns: about {estimate / GB:.1f} GB of memory and a solve that may take more than {SLOW_SECONDS:.0f} s"
+        head = f"the {label} model has {n} unknowns: about {estimate / GB:.1f} GB of memory and a solve that may take more than {SLOW_SECONDS:.0f} s"
     if why == "slow":
         return head
     return head + (f"; use a cell of {cell_fit:.1f} mm or more" if cell_fit else "; no cell up to 50 mm fits")
@@ -522,7 +522,7 @@ def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[in
 
 def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[float] = None, transient: bool = False,
           factor: Optional[float] = None, refuse: str = "raise", ram: Optional[int] = None, available: Optional[int] = None,
-          base: Optional[float] = None, n_diel: int = 4) -> List[Verdict]:
+          base: Optional[float] = None, n_diel: int = 4, quiet: bool = False) -> List[Verdict]:
     """!
     @brief The entry the callers use: count the unknowns of every selected model that has a law, estimate the peak and give the verdicts, before anything is allocated.
     @details The Lumped and Analytic models are not checked here: their arrays are small (455 bytes per unknown measured for the Lumped) and the Analytic has its own guard of
@@ -541,6 +541,7 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
     @param base Resident bytes the solving process will have (None: this process's own; the window passes BASE_DEFAULT, since the solve runs in the
                 calculation process and not in the window's).
     @param n_diel Slabs across every dielectric gap of the 3D solid (Solid's own argument), count.
+    @param quiet True for a check that is not a run (the solver panel at every edit, the Auto cell): no log lines, so that the log holds the estimates of the runs only.
     @return List of Verdict, one per checked model.
     @throws MemoryGuardError If refuse is "raise" and a model is refused.
     """
@@ -578,9 +579,11 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
         low = avail is not None and est > avail and v != "refuse"
         if low:
             msg = (msg + "; " if msg else "") + f"the estimate of {est / GB:.1f} GB is above the {avail / GB:.1f} GB available now, the machine may swap"
-            log.warning("memory guard: %s", msg)                                # Also in the log: the animation job has no warnings list to carry it
+            if not quiet:
+                log.warning("memory guard: %s", msg)                            # Also in the log: the animation job has no warnings list to carry it
         out.append(Verdict(model, n, est, limit, v, secs, fit, msg, low, exact))
-        log.info("memory guard: %s %d unknowns, estimate %.2f GB, limit %.2f GB, %s", model, n, est / GB, limit / GB, v)
+        if not quiet:
+            log.info("memory guard: %s %d unknowns, estimate %.2f GB, limit %.2f GB, %s", model, n, est / GB, limit / GB, v)
     if refuse == "raise":
         for item in out:
             if item.verdict == "refuse":

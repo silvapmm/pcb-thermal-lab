@@ -7,6 +7,7 @@
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPalette
 import html
 import math
 
@@ -1515,19 +1516,22 @@ class SolverPanel(QWidget):
         @return List of memory.Verdict.
         """
         models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
-        return memory.check(self.doc.problem, models, self.cell.value(), fraction=self.doc.options.memory_fraction, base=memory.BASE_DEFAULT, refuse="return")
+        return memory.check(self.doc.problem, models, self.cell.value(), fraction=self.doc.options.memory_fraction, base=memory.BASE_DEFAULT, refuse="return",
+                            quiet=True)
 
     def _update_cells(self):
         """!
         @brief Show the unknowns and the memory verdict (ok, slow, refuse) of each selected model, and disable Run when a model would be refused.
         """
         rows, blocked = [], ""
-        colours = {"ok": "#2e7d32", "slow": "#b26a00", "refuse": "#c62828"}
+        # Darker tones on a light window, lighter ones on a dark window: the dark tones were below 3.5:1 of contrast on the dark theme
+        dark = self.palette().color(QPalette.Window).lightness() < 128
+        colours = ({"ok": "#66bb6a", "slow": "#ffb74d", "refuse": "#ef5350"} if dark else {"ok": "#2e7d32", "slow": "#b26a00", "refuse": "#c62828"})
         names = {"fvm": "FVM", "fdm": "FDM", "solid3d": "3D solid"}
         for v in self.verdicts():
             gb = f"about {v.estimate / memory.GB:.1f} GB of {v.limit / memory.GB:.1f} GB"
             least = "" if v.exact else "at least "
-            text = f"{names[v.model]}: {least}{v.unknowns:,} unknowns, {gb}"
+            text = f"{names[v.model]}: {least}{v.unknowns} unknowns, {gb}"                  # No thousands separator (the rule of every count shown)
             if v.verdict == "slow":
                 text += "; slow"
             elif v.verdict == "refuse":
@@ -1567,11 +1571,11 @@ class SolverPanel(QWidget):
             self.cb["fvm"].setChecked(True)
             self._updating = False
             models = ("fvm",)
+        # set_options emits state_changed, whose refresh shows the counts, the memory verdicts and the greyed settings: not repeated here (the memory check
+        # counts the unknowns, which samples the copper, and runs at every keystroke of the cell field)
         self.doc.set_options(models=models, cell_mm=self.cell.value(), linear_solver=self.solver.currentData(),
                              lumped_rings=self.rings.value(), analytic_modes=self.modes.value(),
                              analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value())
-        self._update_cells()
-        self._update_availability()
 
     def set_checks(self, warnings):
         """!
