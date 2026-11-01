@@ -156,7 +156,7 @@ def scan(papers: Path, only: list[str] | None = None) -> dict:
         except Exception:
             continue
         texts = {i + 1: doc[i].get_text() for i in range(len(doc))}
-        printed = {p: n for p, t in texts.items() if (n := printed_page_number(t)) is not None}
+        printed = {p: n for p, t in texts.items() if not garbage_text_layer(t) and (n := printed_page_number(t)) is not None}   # a broken layer gives random numbers
         off = page_offset(printed)
         sus = []
         for p, t in texts.items():
