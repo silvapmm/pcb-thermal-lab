@@ -204,3 +204,43 @@ def test_a_split_that_does_not_converge_is_not_called_a_thermal_runaway(monkeypa
     w = sim.results["fvm"].warnings
     assert any("top-path split did not converge" in x for x in w)
     assert not any("runaway" in x for x in w)
+
+
+@pytest.mark.parametrize("model, cell", [("fvm", 1.0), ("fdm", 1.0)])
+def test_the_split_reuses_one_factorisation_and_gives_the_same_temperatures(monkeypatch, model, cell):
+    # Fixed face coefficients: every board solve of the split (and of the power-coefficient loop around it) has the same matrix, so one LU serves them all
+    # (fvm.factor_reuse). The temperatures must be those of a fresh factorisation at every solve (the code without the reuse), and the kept LU is released after the run.
+    import contextlib
+    import numpy as np
+    from pcbthermal import fvm
+    p = mosfet_board(8.0)
+    p.board.h_mode, p.board.h_top, p.board.h_bottom = "manual", 12.0, 9.0
+    p.heaters[0].power_tc = 0.002
+    opts = SolverOptions(models=(model,), cell_mm=cell)
+    n0 = fvm.factorisation_count()
+    reused = simulate(p, opts)
+    assert fvm.factorisation_count() - n0 == 1                                 # One factorisation for all the board solves
+    assert reused.results[model].extras["top_path_solves"] >= 3
+    assert getattr(fvm._REUSE, "slot", None) is None                           # Released at the end of the block
+    monkeypatch.setattr(fvm, "factor_reuse", contextlib.nullcontext)           # The earlier code: a fresh spsolve at every board solve
+    fresh = simulate(p, opts)
+    assert fvm.factorisation_count() - n0 == 1                                 # (no block, no counted factorisation)
+    assert np.max(np.abs(reused.results[model].T - fresh.results[model].T)) <= 1e-9
+    assert reused.heater_rows()[0]["t_junction"] == pytest.approx(fresh.heater_rows()[0]["t_junction"], abs=1e-9)
+
+
+def test_the_reuse_tells_apart_matrices_that_differ_by_a_face_coefficient():
+    # Inside the block a different matrix must be factorised again: computed coefficients change the matrix at every Picard step
+    import numpy as np
+    import scipy.sparse as sp
+    from pcbthermal import fvm
+    a = sp.diags([-1.0, 2.5, -1.0], [-1, 0, 1], shape=(6, 6), format="csr")
+    b = a + sp.diags([0.0, 0.0, 1e-12, 0.0, 0.0, 0.0])
+    rhs = np.arange(1.0, 7.0)
+    n0 = fvm.factorisation_count()
+    with fvm.factor_reuse():
+        xa = fvm.direct_solve(a, rhs)
+        xa2 = fvm.direct_solve(a.copy(), 2.0 * rhs)
+        xb = fvm.direct_solve(b, rhs)
+    assert fvm.factorisation_count() - n0 == 2
+    assert np.allclose(a @ xa, rhs) and np.allclose(a @ xa2, 2.0 * rhs) and np.allclose(b @ xb, rhs)

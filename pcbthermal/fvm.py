@@ -19,7 +19,10 @@ Crank-Nicolson). Because the scheme is a finite-volume balance, the heat leaving
 equals the injected power to solver precision, which the results report.
 """
 
+import contextlib
+import hashlib
 import logging
+import threading
 
 import numpy as np
 import scipy.sparse as sp
@@ -40,6 +43,64 @@ log = logging.getLogger(__name__)
 # Largest block of the block SOR (unknowns of the merged footprints of vias that touch): its dense inverse takes 8 n^2 bytes, so 5 000 unknowns are 200 MB.
 # Above it the SOR solves the board with the direct solver instead (a minimal guard; the memory limit by the estimated size is a separate item).
 MAX_SOR_BLOCK = 5000
+
+# Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
+# several times with other powers). One entry per thread, released before a new factorisation, so the peak memory is that of one LU, as with spsolve.
+_REUSE = threading.local()
+
+
+@contextlib.contextmanager
+def factor_reuse():
+    """!
+    @brief Within this block, a direct solve of a matrix identical to the previous one reuses its LU factorisation instead of factorising again.
+    @details Used by api._solve_with_tc around the top-path split and the power-coefficient loop, which solve the same board with other part powers: with fixed
+             face coefficients every board solve has the same matrix (6 factorisations become 1 for one part with a top path; with computed coefficients the
+             matrix changes at every Picard step and nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
+             released when the outermost block ends, so the peak memory is that of a plain solve. SuperLU's splu + solve gives the same numbers as spsolve
+             with the same column ordering (tests/test_top_path.py checks it to 1e-9 K). Nested blocks share the outer one.
+    @return Context manager (yields nothing).
+    """
+    outer = getattr(_REUSE, "slot", None)
+    if outer is None:
+        _REUSE.slot = {}
+    try:
+        yield
+    finally:
+        if outer is None:
+            _REUSE.slot = None                     # Release the kept factorisation
+
+
+def direct_solve(A, b):
+    """!
+    @brief Sparse direct solve A x = b with the column ordering ORDERING; reuses the previous factorisation of an identical matrix inside factor_reuse().
+    @param A Sparse matrix (any format; converted to CSC).
+    @param b Right-hand side, 1D array.
+    @return numpy.ndarray Solution x.
+    """
+    slot = getattr(_REUSE, "slot", None)
+    if slot is None:
+        return spla.spsolve(A.tocsc(), b, permc_spec=ORDERING)
+    A = A.tocsc()
+    A.sum_duplicates()                             # Canonical form, so that equal matrices give equal bytes
+    # The key is the exact content (structure and values), hashed: two matrices differ by a face coefficient in the computed-h loop
+    digest = hashlib.blake2b(digest_size=20)
+    for arr in (np.asarray(A.shape), A.indptr, A.indices, A.data):
+        digest.update(np.ascontiguousarray(arr).tobytes())
+    key = digest.hexdigest()
+    if slot.get("key") != key:
+        slot.clear()                               # Release the old LU before the new one is made (peak memory of one factorisation)
+        slot["lu"] = spla.splu(A, permc_spec=ORDERING)
+        slot["key"] = key
+        _REUSE.count = getattr(_REUSE, "count", 0) + 1
+    return slot["lu"].solve(np.asarray(b, dtype=float))
+
+
+def factorisation_count():
+    """!
+    @brief Number of LU factorisations made inside factor_reuse() blocks by this thread since the start (for the tests).
+    @return int.
+    """
+    return int(getattr(_REUSE, "count", 0))
 
 
 class Network:
@@ -343,9 +404,9 @@ class Network:
                 # Ragged solve: the laminate nodes that no cell uses (outside the flagged cells) are pinned rows of the matrix; leave them out of the factorisation
                 keep = np.flatnonzero(~self.drop.ravel())
                 theta = np.zeros(self.K.shape[0])
-                theta[keep] = spla.spsolve(self.K.tocsr()[keep][:, keep].tocsc(), q[keep], permc_spec=ORDERING)
+                theta[keep] = direct_solve(self.K.tocsr()[keep][:, keep], q[keep])
             else:
-                theta = spla.spsolve(self.K.tocsc(), q, permc_spec=ORDERING)
+                theta = direct_solve(self.K, q)
         elif method == "cg":
             # Jacobi (diagonal) preconditioner keeps CG cheap and robust for SPD thermal matrices
             dinv = 1.0 / self.K.diagonal()
