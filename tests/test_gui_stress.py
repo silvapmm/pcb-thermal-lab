@@ -1116,6 +1116,11 @@ def test_zoned_lumped_parts_in_the_application(win, qtbot, popups):
     win.doc.edit("Across the edge", lambda proj: [setattr(v, "x", v.x + 5.0e-3) for v in proj.problem.vias])
     run(win, qtbot, ("lumped",))
     assert any("past the edge" in str(w) for w in win.sim.warnings)
+    # A board with an outline: the Lumped model solves the rectangle of the same area, where the decision of the zones is made too
+    win.doc.edit("Outline", lambda proj: setattr(proj.problem.board, "outline", np.array([(0.0, 0.0), (30e-3, 0.0), (30e-3, 30e-3), (12e-3, 30e-3), (0.0, 18e-3)])))
+    run(win, qtbot, ("lumped",))
+    assert np.isfinite(win.sim.results["lumped"].t_max)
+    walk_results(win, qtbot)
     load(win, Problem.new(30.0, 30.0, 2, 1.6, 35.0), "covered")
     win.doc.edit("Covered", lambda proj: zoned(proj, cover=True))
     win.doc.edit("Smaller part", lambda proj: setattr(proj.problem.heaters[0], "polygon", np.array([(10e-3, 10e-3), (20e-3, 10e-3), (20e-3, 20e-3), (10e-3, 20e-3)])))

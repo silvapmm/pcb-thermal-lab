@@ -92,4 +92,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with zref.released():           # "the program" of this study is the one-node network of 2.4.5 (the program has the zones since feature/lumped-zones)
+        main()

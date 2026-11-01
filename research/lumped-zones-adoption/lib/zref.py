@@ -46,17 +46,37 @@ REF_DX_MM = float(os.environ.get("PCBT_REF_DX", "0.125"))
 refs.reference.__defaults__ = (REF_DX_MM / 1.0,)
 OLD_CACHE = os.path.join(RESEARCH, "lumped-via-groups", "out", "refcache")
 
-# The variants. A factory returns a context manager; the program is untouched outside it.
+@contextlib.contextmanager
+def released(inner=None):
+    """!
+    @brief The program as released in 2.4.5 for the length of a context: the zone model that the program adopted (feature/lumped-zones) switched off (`lumped.ZONES`), so that its
+           one-node network and its raster clip are the baseline, optionally with a patch of this folder inside.
+    @param inner Factory of a context manager to enter inside (a `zl.patched(...)`), or None.
+    @return Context manager.
+    """
+    from pcbthermal import lumped
+    saved = lumped.ZONES
+    lumped.ZONES = False
+    try:
+        with (inner() if inner is not None else contextlib.nullcontext()):
+            yield
+    finally:
+        lumped.ZONES = saved
+
+
+# The variants. A factory returns a context manager; the program is untouched outside it. Every variant runs on the released one-node program (`released`): since the adoption
+# the program has the zones itself, and its own decision and 0.5 mm raster must not mix with the copies of this folder. "PROG" is the program as it is now (the adopted zones).
 VARIANTS = {
-    "P245": contextlib.nullcontext,                                                                       # the program as it is
-    "Z_none": lambda: zl.patched(zone_macro="none"),                                                      # zones, micro wells in the zones, no macro term in the zones
-    "Z_cap": lambda: zl.patched(zone_macro="cap"),                                                        # zones with the program's cluster well (macro cap 0.75) in the zones
-    "Z_none_nomp": lambda: zl.patched(zone_macro="none", micro_peak=False),                               # ablation: no micro peak
-    "Z_none_fr": lambda: zl.patched(zone_macro="none", bessel_ring1=True),                                # ablation: Bessel factor on the A-to-ring-1 link
-    "Z_cap_nocb": lambda: zl.patched(zone_macro="cap", core_peak=False),                                  # ablation: no bump of a hot core
-    "Z_fine": lambda: zl.patched(zone_macro="none", share_rule="fine"),                                   # the fallback decided on the share of the footprint counted on a 0.1 mm grid (raster independent)
-    "Z_off": lambda: zl.patched(zones=False),                                                             # the zone code present but switched off: must equal P245
-    "Z_none_stride": lambda: zl.patched(zone_macro="none", decimation="stride"),                          # the research folder's decimation of the integrals
+    "P245": lambda: released(),                                                                           # the program as released in 2.4.5 (one node)
+    "PROG": contextlib.nullcontext,                                                                       # the program as it is (the zones adopted, cap, the 0.5 mm raster through the API)
+    "Z_none": lambda: released(lambda: zl.patched(zone_macro="none")),                                    # zones, micro wells in the zones, no macro term in the zones
+    "Z_cap": lambda: released(lambda: zl.patched(zone_macro="cap")),                                      # zones with the program's cluster well (macro cap 0.75) in the zones
+    "Z_none_nomp": lambda: released(lambda: zl.patched(zone_macro="none", micro_peak=False)),             # ablation: no micro peak
+    "Z_none_fr": lambda: released(lambda: zl.patched(zone_macro="none", bessel_ring1=True)),              # ablation: Bessel factor on the A-to-ring-1 link
+    "Z_cap_nocb": lambda: released(lambda: zl.patched(zone_macro="cap", core_peak=False)),                # ablation: no bump of a hot core
+    "Z_fine": lambda: released(lambda: zl.patched(zone_macro="none", share_rule="fine")),                 # the fallback decided on the share of the footprint counted on a 0.1 mm grid (raster independent)
+    "Z_off": lambda: released(lambda: zl.patched(zones=False)),                                           # the zone code present but switched off: must equal P245
+    "Z_none_stride": lambda: released(lambda: zl.patched(zone_macro="none", decimation="stride")),        # the research folder's decimation of the integrals
 }
 
 

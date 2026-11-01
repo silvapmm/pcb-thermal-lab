@@ -78,7 +78,7 @@ def run_board(spec, period, cell=0.5, rings=10):
         with zref.VARIANTS["Z_none" if name == "Z_unpatched" else name]():
             if name == "Z_unpatched":
                 patched_adv = lumped._LumpedAdapter.advance
-                lumped._LumpedAdapter.advance = zl._ORIGINAL["advance"]
+                lumped._LumpedAdapter.advance = zl.advance_245          # the 2.4.5 step (the program splits the source since the adoption)
             t0 = time.time()
             zl.LAST.clear()
             try:

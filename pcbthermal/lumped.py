@@ -632,7 +632,8 @@ def _zone_network(net, cov, layer, power, rings, vias, core):
     @param rings Number of rings outside the footprint.
     @param vias ViaSet of the problem.
     @param core Boolean mask (ny, nx) of the core cells from _core_mask (a proper part of the footprint).
-    @return Dict as _one_node_network with theta of shape (L, R) (R counts A and C), rho[0] = 0 and rho[1] = 1e-9 (keeps the profile for the map increasing), and the keys
+    @return Dict as _one_node_network with theta of shape (L, R) (R counts A and C), rho[0] = 0 and rho[1] = 1e-9 (kept increasing; the profile outside the footprint
+            leaves C out and starts at A, _radial), and the keys
             source, peak, nz, core, core_across.
     """
     L, ny, nx = net.nl, net.ny, net.nx
@@ -760,7 +761,7 @@ def _zone_network(net, cov, layer, power, rings, vias, core):
             "residual": float(np.linalg.norm(K @ theta - Q) / np.linalg.norm(Q))}
 
 
-def _heater_network(net, cov, layer, power, rings, vias=None):
+def _heater_network(net, cov, layer, power, rings, vias=None, zone_ok=None):
     """!
     @brief Build and solve the network of one heater: the footprint is one node per layer, or two (the rest A and the core C of a dense via group) when the zone model applies.
     @details The zone model applies when (i) the footprint holds a group of two or more vias, (ii) the core they define covers less than all of the footprint and at most
@@ -772,36 +773,47 @@ def _heater_network(net, cov, layer, power, rings, vias=None):
     @param power Heater power (W).
     @param rings Number of rings outside the footprint.
     @param vias ViaSet of the problem (viaconstriction.py) or None for a board without vias.
+    @param zone_ok The fine-grid decision made before the grid existed (will_be_zoned, counted on the fixed ZONE_CELL_MM raster), or None to count the fine share on this
+           grid. solve_steady and the transients pass it: the fine share counted on the user's raster is not raster-free (the footprint of the fine grid is the replicated
+           support of the coarse cells), and at 0.75 mm it chose the zones on boards that will_be_zoned keeps one node, a step of up to 4.5 % of the rise (review).
     @return Dict as _one_node_network; a zoned network has theta of shape (L, R + 1) and the extra keys source (unit source vector), peak (_ZonePeak), nz (2), core (mask),
             core_across (smaller side of the box of the core, in cells).
     """
-    if ZONES and vias is not None and len(vias) >= 2 and net.n_board > 1:
+    if ZONES and zone_ok is not False and vias is not None and len(vias) >= 2 and net.n_board > 1:
         core = _core_mask(net, cov, vias)
         if core is not None:
             n_foot, n_core = int((cov > 0).sum()), int(core.sum())
             # The grid count keeps cells in A (a handful of A cells made the zones read the part 6 to 14 % hot); the fine count is the raster-free one (README 9.7)
-            if n_core < n_foot and n_core <= MAX_CORE * n_foot and _fine_core_share(net, cov, vias) <= MAX_CORE:
+            if n_core < n_foot and n_core <= MAX_CORE * n_foot and (zone_ok or _fine_core_share(net, cov, vias) <= MAX_CORE):
                 return _zone_network(net, cov, layer, power, rings, vias, core)
     return _one_node_network(net, cov, layer, power, rings, vias)
 
 
-def will_be_zoned(problem, heater, cell_mm=ZONE_CELL_MM):
+def will_be_zoned(problem, heater, cell_mm=ZONE_CELL_MM, vias=None):
     """!
     @brief Whether the zone model will split the footprint of a heater, decided before the Lumped grid exists (the count of the fine grid only).
+    @details The count is made on the fine grid of the fixed raster cell_mm, so the decision does not depend on the cell of the run. A board with an outline is decided on its
+             equivalent rectangle, which is the board the Lumped model solves (api._run_model): the via positions scale with the box, and with them the core.
     @param problem A Problem (its vias with no board under them are ignored).
-    @param heater The Heater.
+    @param heater The Heater (one of problem.heaters).
     @param cell_mm Lumped raster on which the footprint and the core are drawn, in mm (ZONE_CELL_MM: the one the zone model uses).
+    @param vias ViaSet of the problem when the caller already has it (solve_steady), or None to build it.
     @return bool: True when the footprint holds a group of two or more vias and the core covers at most MAX_CORE of it on the fine grid.
     """
     if not ZONES or len(problem.vias) < 2 or problem.board.layers < 2:
         return False
+    if problem.board.has_outline():
+        # The Lumped model solves the rectangle of the same area: decide on the heater as it is placed there
+        k = next(i for i, h in enumerate(problem.heaters) if h is heater)
+        problem, _ = problem.equivalent_rectangle()
+        heater, vias = problem.heaters[k], None
     problem = problem.drop_off_board_vias()
     if len(problem.vias) < 2:
         return False
     b = problem.board
     ns = SimpleNamespace(nx=max(int(round(b.width * 1000.0 / cell_mm)), 8), ny=max(int(round(b.height * 1000.0 / cell_mm)), 8))
     ns.dx, ns.dy = b.width / ns.nx, b.height / ns.ny
-    share = _fine_core_share(ns, _footprint_coverage(ns, heater), viaconstriction.ViaSet(problem))
+    share = _fine_core_share(ns, _footprint_coverage(ns, heater), vias if vias is not None else viaconstriction.ViaSet(problem))
     return 0.0 < share <= MAX_CORE
 
 
@@ -871,13 +883,14 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
         if h.power <= 0:
             zone_rows.append((0.0, 0.0))
             continue
-        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, h.power, rings, vias)
+        zone_ok = will_be_zoned(problem, h, vias=vias) if vias is not None else False     # the raster-free decision, the same as cell_for's
+        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, h.power, rings, vias, zone_ok)
         rn["centroid"] = polygon_centroid(h.polygon)
         nets.append((h, rn))
         zone_rows.append((1.0, float(rn["core_across"])) if "core" in rn else (0.0, 0.0))
         for l in range(L):
             # Profile versus distance to the footprint, interpolated at every cell (constant at both ends)
-            prof = np.interp(rn["dist"], rn["rho"], rn["theta"][l])
+            prof = _radial(rn, rn["dist"], rn["theta"][l])
             if "core" in rn:
                 prof[rn["core"]] = rn["theta"][l, 1]             # The map paints the core with node C: the footprint is not one temperature (the zone statistics and the hot spots read the field)
             theta_field[l] += prof
@@ -897,7 +910,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
         ij = (min(max(int(cj[1] // net.dy), 0), ny - 1), min(max(int(cj[0] // net.dx), 0), nx - 1))
         for i, (hi, ri) in enumerate(nets):
             if i != j:
-                theta_j += np.interp(ri["dist"][ij], ri["rho"], ri["theta"][hj.layer])
+                theta_j += _radial(ri, ri["dist"][ij], ri["theta"][hj.layer])
         if theta_j + b.ambient > t_peak or where is None:
             t_peak = max(t_peak, float(theta_j + b.ambient))
             where = (hj.layer, cj[0], cj[1])
@@ -933,7 +946,8 @@ def _unit_networks(problem, rings, cell_mm):
     systems = []
     vias = viaconstriction.ViaSet(problem) if problem.vias else None
     for h in problem.heaters:
-        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, 1.0, rings, vias)
+        zone_ok = will_be_zoned(problem, h, vias=vias) if vias is not None else False     # the raster-free decision, the same as in solve_steady
+        rn = _heater_network(net, _footprint_coverage(net, h), h.layer, 1.0, rings, vias, zone_ok)
         rn["centroid"] = polygon_centroid(h.polygon)
         systems.append(rn)
     return net, systems
@@ -969,6 +983,21 @@ def _unit_source(system):
     src = np.zeros(len(system["C"]))
     src[system["layer"] * system["R"]] = 1.0
     return src
+
+
+def _radial(system, dist, values):
+    """!
+    @brief The radial profile of a heater network at some distances from its footprint: the node values interpolated against the mean distance of the nodes.
+    @details For a zoned footprint the core C (node 1) is left out: it lies inside the footprint, and the profile outside starts at the edge of the footprint, which is A
+             (with C in the list every cell outside, and the other heaters' centroids, interpolated from C instead of A; review of feature/lumped-zones).
+    @param system System dict of the heater (rho, and nz = 2 for a zoned footprint).
+    @param dist Distance(s) to the footprint in m (scalar or array).
+    @param values Node values of one layer (R,).
+    @return Interpolated value(s), same shape as dist.
+    """
+    if system.get("nz") == 2:
+        return np.interp(dist, np.delete(system["rho"], 1), np.delete(values, 1))
+    return np.interp(dist, system["rho"], values)
 
 
 class _Stepper:
@@ -1114,8 +1143,7 @@ class _LumpedAdapter:
             val = _own_point(self.systems[j], states[j])
             for i in range(self.nh):
                 if i != j:
-                    val += np.interp(self.cross[i][j], self.systems[i]["rho"],
-                                     states[i].reshape(self.L, self.systems[i]["R"])[lay])
+                    val += _radial(self.systems[i], self.cross[i][j], states[i].reshape(self.L, self.systems[i]["R"])[lay])
             pts[j] = val + self.ambient
         return float(pts.max()), pts
 
@@ -1129,7 +1157,10 @@ class _LumpedAdapter:
         for i in range(self.nh):
             th = states[i].reshape(self.L, self.systems[i]["R"])
             for l in range(self.L):
-                f[l] += np.interp(self.systems[i]["dist"], self.systems[i]["rho"], th[l])
+                prof = _radial(self.systems[i], self.systems[i]["dist"], th[l])
+                if "core" in self.systems[i]:
+                    prof[self.systems[i]["core"]] = th[l, 1]                 # the core painted with node C, as in the steady map
+                f[l] += prof
         return f + self.ambient
 
     def peak_values(self, states):

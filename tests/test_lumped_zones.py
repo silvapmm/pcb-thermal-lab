@@ -530,3 +530,93 @@ def test_a_footprint_covered_by_400_vias_runs_one_node_without_a_zone_warning():
     assert res.arrays["zoned_heaters"].tolist() == [[0.0, 0.0]]
     assert check_lumped_zones(p, res) == []
     assert lumped.cell_for(p, 2.0) == 1.0
+
+
+# ------------------------------------------------------------------------------------------------ the decision is made once, raster-free (review of feature/lumped-zones)
+
+def test_the_decision_does_not_follow_the_raster_of_the_run():
+    """!
+    @brief The share counted on the fine grid of the user's raster is not raster-free (0.925 at 1.0 mm, 0.916 at 0.75 mm for a 3 x 3 array at 2.35 mm under 8 mm): the
+           run must use the decision of will_be_zoned (counted on the fixed 0.5 mm raster), so a part that will_be_zoned keeps one node is one node at every raster.
+    @details Before the review the 0.75 mm run zoned this part and its hottest rise stepped from +2.6 % to -1.9 % of the FVM's between 1.0 and 0.75 mm.
+    @return None.
+    """
+    from types import SimpleNamespace
+    p = array(3, 2.35, side=24.0, source=8.0)
+    assert not lumped.will_be_zoned(p, p.heaters[0])
+    b = p.board
+    nx = int(round(b.width * 1000.0 / 0.75))
+    ns = SimpleNamespace(nx=nx, ny=nx, dx=b.width / nx, dy=b.height / nx)
+    assert lumped._fine_core_share(ns, lumped._footprint_coverage(ns, p.heaters[0]), viaconstriction.ViaSet(p)) <= lumped.MAX_CORE   # the raster's own count would zone it
+    for cell in (1.0, 0.75, 0.5):
+        assert lumped.solve_steady(p, 10, cell).arrays["zoned_heaters"][0, 0] == 0.0
+        t, z, r = lumped.step_responses(p, 10, cell, stages=2)
+        assert np.isfinite(z).all()
+    assert lumped.cell_for(p, 0.75) == 0.75
+
+
+def test_a_part_predicted_zoned_that_the_raster_keeps_one_node_gets_the_note_after_the_run():
+    """!
+    @brief A 4 x 4 array at 1.7 mm under an 8 mm part: the fine count says zoned (0.82), the 0.5 mm raster counts 0.94 and keeps one node. The run is at 0.5 mm, one node,
+           and the post-run check says that the footprint was kept as one node (the pre-run note announced the split).
+    @return None.
+    """
+    p = array(4, 1.7, side=24.0, source=8.0)
+    assert lumped.will_be_zoned(p, p.heaters[0]) and lumped.cell_for(p, 2.0) == 0.5
+    pre = [str(w) for w in check_model_limits(p, ("lumped",), 2.0)]
+    assert any("splits this footprint into the core of the vias" in w for w in pre)
+    res = simulate(p, SolverOptions(models=("lumped",), cell_mm=2.0)).results["lumped"]
+    assert res.arrays["zoned_heaters"][0, 0] == 0.0
+    post = [str(w) for w in check_lumped_zones(p, res)]
+    assert any("kept as one node" in w for w in post)
+
+
+def test_an_outline_board_is_decided_on_its_equivalent_rectangle():
+    """!
+    @brief The Lumped model solves the rectangle of the same area of a board with an outline, whose via positions are scaled: will_be_zoned decides on that rectangle, so the
+           pre-run warnings, the raster and the network agree.
+    @return None.
+    """
+    p = array(3, 3.0, side=30.0, source=10.0)
+    w = p.board.width
+    p.board.outline = np.array([(0.0, 0.0), (w, 0.0), (w, w), (0.6 * w, w), (0.0, 0.6 * w)])    # a corner cut off: positions scaled by 0.938, the pitch 3.0 -> 2.81 mm
+    eq, s = p.equivalent_rectangle()
+    assert s < 1.0
+    # Counted on the original box the share is 0.948 (one node); on the rectangle the model solves it is 0.837 (zoned)
+    assert lumped.will_be_zoned(eq, eq.heaters[0]) and lumped.will_be_zoned(p, p.heaters[0])
+    res = simulate(p, SolverOptions(models=("lumped",), cell_mm=2.0)).results["lumped"]
+    assert bool(res.arrays["zoned_heaters"][0, 0]) == lumped.will_be_zoned(p, p.heaters[0])
+
+
+def test_the_profile_outside_a_zoned_footprint_starts_at_the_rest_not_at_the_core():
+    """!
+    @brief Outside the footprint the map (and the other heaters' cross-heating) interpolates the radial profile from A, the edge of the footprint, to the rings; the core C is
+           inside and is left out (before the review the interval from the footprint to ring 1 was read from C).
+    @return None.
+    """
+    p = array(3, 2.0, side=24.0, source=12.0)
+    net, cov, rn = _network(p)
+    res = lumped.solve_steady(p, 10, 0.5)
+    out = (cov <= 0) & (rn["dist"] > 0)
+    keep = np.r_[0, 2:rn["R"]]
+    want = np.interp(rn["dist"][out], rn["rho"][keep], rn["theta"][0][keep])
+    assert np.allclose(res.T[0][out] - p.board.ambient, want, rtol=0, atol=1e-12)
+    wrong = np.interp(rn["dist"][out], rn["rho"], rn["theta"][0])
+    assert np.max(np.abs(wrong - want)) > 1e-3                                  # the old reading differs where a cell lies between the footprint and ring 1
+
+
+def test_the_frames_of_a_profile_paint_the_core_like_the_steady_map():
+    """!
+    @brief The frames of the profile runner (the peak map of a run with a power profile) paint the core of a zoned footprint with node C, as the steady map does; at the
+           steady state of a constant power the frame equals the steady field.
+    @return None.
+    """
+    p = array(3, 2.0, side=24.0, source=12.0)
+    ad = lumped._LumpedAdapter(p, 10, 0.5)
+    ad.steppers = [lumped._Stepper(s, 1.0) for s in ad.systems]
+    states = [np.zeros(len(s["C"])) for s in ad.systems]
+    for _ in range(60):
+        states = ad.advance(states, 1.0e4, [p.heaters[0].power])
+    frame = ad.frame(states)
+    steady = lumped.solve_steady(p, 10, 0.5)
+    assert np.allclose(frame, steady.T, rtol=0, atol=1e-6)

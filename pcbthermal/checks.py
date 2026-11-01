@@ -280,7 +280,8 @@ def check_lumped_zones(problem, result):
              of the footprint is read up to 16 % of the rise too cool (measured 1 to 16 % of the rise on a 5 x 5 array across the edge, steady state and profile), a group off
              the centre or under an elongated footprint 1 to 5 % and 2 to 4 % (research/lumped-zones-adoption 8.4, 10.1); a core across fewer than ten raster cells has its via
              effect up to 20 % too small. A part that stays one node (the core fills more than 92 % of the footprint on the fine grid or on the grid) keeps the text of
-             lumped_via_cool_warning, which check_model_limits leaves out for the parts that the fine count says will be zoned.
+             lumped_via_cool_warning, which check_model_limits leaves out for the parts that the fine count says will be zoned: for those (the fine count says zoned, the
+             count on the raster keeps one node) the text comes here, after a note that the footprint was kept as one node.
     @param problem A Problem.
     @param result The SteadyResult of the Lumped model (arrays["zoned_heaters"], one row per heater: zoned flag, cells across the core), or None.
     @return List of warning strings (CheckWarning, tagged with the heater).
@@ -305,6 +306,10 @@ def check_lumped_zones(problem, result):
         zoned = bool(rows[k, 0])
         if not zoned:
             if lumped.will_be_zoned(problem, h):                       # The pre-run check left this part out: the grid count kept it one node
+                # Measured on four such boards (4 x 4 and 5 x 5 arrays whose core fills 82 to 92 % of the footprint on the fine grid, 93 to 94 % on the raster): the one
+                # node at 0.5 mm within +0.1 to +0.9 % of the rise of the FVM at 0.25 mm (review of feature/lumped-zones)
+                _add(out, "heater", k, f"{name}: the core of the vias covers more than {100 * lumped.MAX_CORE:.0f} % of the footprint on the 0.5 mm raster of the Lumped model, "
+                                       "so the footprint was kept as one node (the pre-run note about the split does not apply)")
                 msg = lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
                 if msg:
                     _add(out, "heater", k, f"{name}: {msg}")
@@ -392,14 +397,23 @@ def check_model_limits(problem, models, cell_mm=1.0):
             in_any |= inside
             n_in = int(inside.sum())
             if n_in >= 1:
-                _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
-                           "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
-                           "(the part too hot) to 33 % too large (the part too cool by up to 14 % of its rise: dense arrays that cover a quarter or less "
-                           "of a large footprint, sparse arrays and rows; 8 to 20 % on average over 46 boards, 11 % over 36 more); use the FVM for via design.")
+                zoned = lumped.will_be_zoned(problem, h)
+                if zoned:
+                    # The numbers of the zone model (research/lumped-zones-adoption INTEGRATION 0.1: 36 family and 26 held-out boards against 1/8 mm references)
+                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
+                               "model splits this footprint into the core of the vias and the rest of the footprint (zone model, 0.5 mm raster): its via effect was "
+                               "measured 4.0 to 4.6 % off on average (up to 21 %) and the hottest temperature 1.6 to 2.6 % of the rise off on average (up to 7.6 %) "
+                               "over 62 boards; "
+                               "use the FVM for via design.")
+                else:
+                    _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
+                               "model joins the planes through a well and the barrel of each ring, so its via effect was measured from 21 % too small "
+                               "(the part too hot) to 33 % too large (the part too cool by up to 14 % of its rise: dense arrays that cover a quarter or less "
+                               "of a large footprint, sparse arrays and rows; 8 to 20 % on average over 46 boards, 11 % over 36 more); use the FVM for via design.")
                 if groups is None:
                     groups, d_nn = _board_via_groups(vx, vy, on_board)
                 # A part that the zone model will split gets its text after the run, from the network (check_lumped_zones)
-                msg = None if lumped.will_be_zoned(problem, h) else lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
+                msg = None if zoned else lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
                 if msg:
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {msg}")
         outside = np.flatnonzero(~in_any & on_board)
