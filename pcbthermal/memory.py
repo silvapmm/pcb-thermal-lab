@@ -522,7 +522,8 @@ def _message(model: str, n: int, estimate: float, limit: float, ram: Optional[in
 
 def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[float] = None, transient: bool = False,
           factor: Optional[float] = None, refuse: str = "raise", ram: Optional[int] = None, available: Optional[int] = None,
-          base: Optional[float] = None, n_diel: int = 4, quiet: bool = False) -> List[Verdict]:
+          base: Optional[float] = None, n_diel: int = 4, quiet: bool = False,
+          laminate_params: Optional[Tuple[float, int]] = None) -> List[Verdict]:
     """!
     @brief The entry the callers use: count the unknowns of every selected model that has a law, estimate the peak and give the verdicts, before anything is allocated.
     @details The Lumped and Analytic models are not checked here: their arrays are small (455 bytes per unknown measured for the Lumped) and the Analytic has its own guard of
@@ -542,8 +543,32 @@ def check(problem, models: Sequence[str], cell_mm: float, fraction: Optional[flo
                 calculation process and not in the window's).
     @param n_diel Slabs across every dielectric gap of the 3D solid (Solid's own argument), count.
     @param quiet True for a check that is not a run (the solver panel at every edit, the Auto cell): no log lines, so that the log holds the estimates of the runs only.
+    @param laminate_params Tuple (s_max in m, n_max) of the laminate rule the run will use (SolverOptions.laminate_params()), or None for the values in force: the sub-gaps add
+                           node layers, so they change the unknowns that are counted.
     @return List of Verdict, one per checked model.
     @throws MemoryGuardError If refuse is "raise" and a model is refused.
+    """
+    from . import laminate
+    with laminate.using(*(laminate_params or (None, None))):
+        return _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet)
+
+
+def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, available, base, n_diel, quiet) -> List[Verdict]:
+    """!
+    @brief Body of check(), run with the laminate numbers in force.
+    @param problem A Problem.
+    @param models Model keys of the run.
+    @param cell_mm Cell size in mm.
+    @param fraction Share of the physical memory allowed (None: default).
+    @param transient True for a time simulation or an animation.
+    @param factor Explicit multiplier of the peak (None: from transient).
+    @param refuse "raise" or "return".
+    @param ram Physical memory in bytes (None: read).
+    @param available Memory available now in bytes (None: read).
+    @param base Resident bytes of the solving process (None: this process).
+    @param n_diel Slabs across every dielectric gap of the 3D solid, count.
+    @param quiet True: no log lines.
+    @return List of Verdict.
     """
     f = default_fraction() if fraction is None else fraction
     mult = factor if factor is not None else (TRANSIENT_FACTOR if transient else 1.0)

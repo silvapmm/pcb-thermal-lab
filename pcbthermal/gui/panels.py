@@ -8,14 +8,16 @@
 import numpy as np
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QToolTip
 import html
+import textwrap
 import math
 
 from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication, QTableWidget, QTableWidgetItem, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox,
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import fdm, fvm, memory, solid3d
+from .. import fdm, fvm, laminate, memory, solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -23,6 +25,7 @@ from ..geometry import polygon_area, rounded_rectangle
 from . import tips
 from .document import KINDS
 from . import theme as th
+from ..checks import line
 from ..numfmt import num
 
 
@@ -1248,7 +1251,8 @@ class WarningList(QTextBrowser):
     """
 
     warning_clicked = Signal(str, int)
-    TIP = "Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about."
+    TIP = ("Warnings about the inputs: the calculation still runs. Click a warning to select the element it is about; hold the mouse on one "
+           "for its full text (the same text is in the Results summary after a run).")
     MAX_HEIGHT = 150                                  # Pixels; more warnings than fit scroll
     MIN_HEIGHT = 40                                   # Pixels; a low window squeezes the list down to about two lines, never below
 
@@ -1284,7 +1288,7 @@ class WarningList(QTextBrowser):
         if len(self.warnings) > 1:
             parts.append(f"<p><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
         for w in self.warnings:
-            text = html.escape(str(w))
+            text = html.escape(line(w))                   # The one-line form; the full measured text is the tooltip of the item (viewportEvent)
             kind, index = getattr(w, "kind", None), getattr(w, "index", None)
             if kind is not None and index is not None:
                 text = f'<a href="{kind}:{index}" style="text-decoration:none">{text}</a>'
@@ -1307,6 +1311,28 @@ class WarningList(QTextBrowser):
                     self.set_stale()
             finally:
                 self._rebuilding = False
+
+    def viewportEvent(self, event):
+        """!
+        @brief Show the full text of the warning under the mouse as a tooltip (the list shows the one-line form).
+        @param event The Qt event.
+        @return bool True when the event was handled.
+        """
+        if event.type() == QEvent.ToolTip and self.warnings and not self.stale:
+            block = self.cursorForPosition(event.pos()).blockNumber() - (1 if len(self.warnings) > 1 else 0)    # Block 0 is the count when there are several
+            if 0 <= block < len(self.warnings):
+                QToolTip.showText(event.globalPos(), "\n".join(textwrap.wrap(str(self.warnings[block]), 90)), self)
+                return True
+        return super().viewportEvent(event)
+
+    def recolour(self):
+        """!
+        @brief Draw the same warnings again after a change of theme: Qt gives a link its colour from the palette when the HTML is read, not when it is painted.
+        """
+        stale = self.stale
+        self.set_warnings(self.warnings)
+        if stale:
+            self.set_stale()
 
     def set_stale(self):
         """!
@@ -1441,6 +1467,16 @@ class SolverPanel(QWidget):
         self.modes.setSingleStep(20)
         self.local = QCheckBox("Local via and heatsink corrections")
         self.hot = _spin(-50, 1000, 100, 1, 5, "°C")
+        self.lam_s = _spin(0.05, 5.0, 0.4, 2, 0.05, "mm")
+        self.lam_n = QSpinBox()
+        self.lam_n.setRange(1, 16)
+        self.lam_n.setValue(4)
+        self.lam_s.setToolTip("Longest sub-gap of the laminate between two copper nodes in mm (0.05 to 5, default 0.40). A gap thicker than this is cut into equal sub-gaps with a node at every "
+                              "boundary, only where copper is absent next to it (FVM and FDM). Smaller: more nodes, closer to a resolved 3D solid, slower and larger.")
+        self.lam_n.setToolTip("Most sub-gaps in one gap of the laminate (1 to 16, default 4). 1 turns the cutting off. A gap of thickness d gets min(this, d / sub-gap rounded up) "
+                              "sub-gaps, so with the default 0.40 mm a 1.6 mm two-layer board already has 4 and a larger number changes nothing unless the sub-gap is made smaller "
+                              "too (8 needs 0.19 mm or less, 16 needs 0.09 mm or less). The error against a resolved 3D solid falls as 1/n (an island board: -3.9, -2.25 and -1.41 % with 4, 8 and 16 "
+                              "sub-gaps); every extra sub-gap adds node layers in the cells with absent copper, which the memory estimate counts.")
         self.solver.setToolTip("How the finite-volume system is solved: sparse direct (exact, default), conjugate gradients, or SOR (to compare; slow).")
         self.rings.setToolTip("Number of rings of the thermal network of each heater (thermal resistance steps by distance from the footprint). Rings narrower than one cell are merged, so 10 is enough and more change nothing.")
         self.modes.setToolTip("Cosine modes per direction of the analytical series (more modes resolve smaller parts).")
@@ -1452,6 +1488,8 @@ class SolverPanel(QWidget):
         f.addRow("Analytic modes", self.modes)
         f.addRow(self.local)                               # Full width: in the field column its long text made the panel about 350 px wide
         f.addRow("Hotspot limit", self.hot)
+        f.addRow("Laminate sub-gap", self.lam_s)
+        f.addRow("Laminate sub-gaps", self.lam_n)
         lay.addWidget(g)
 
         self.run = QPushButton("Run simulation   (F5)")
@@ -1480,7 +1518,7 @@ class SolverPanel(QWidget):
         fl.addWidget(self.checks)
         lay.addStretch(1)
 
-        for w in (self.cell, self.rings, self.modes, self.hot):
+        for w in (self.cell, self.rings, self.modes, self.hot, self.lam_s, self.lam_n):
             w.valueChanged.connect(self._apply)
         self.solver.currentIndexChanged.connect(self._apply)
         self.local.toggled.connect(self._apply)
@@ -1497,7 +1535,11 @@ class SolverPanel(QWidget):
         @param _ Ignored (extra arguments of the Qt signal).
         """
         on = lambda k: self.cb[k].isChecked()                                  # noqa: E731
-        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.rings, on("lumped"), "the Lumped model"),
+        # The laminate rule is not applied to a board with a metal block (laminate.uses_rule), so its two numbers are greyed there too
+        blocked = not laminate.uses_rule(self.doc.problem)
+        lam_on = (on("fvm") or on("fdm")) and not blocked
+        lam_why = "a board with a metal block, where the rule does not apply" if blocked else "the FVM or the FDM"
+        for widget, active, why in ((self.solver, on("fvm"), "the FVM"), (self.lam_s, lam_on, lam_why), (self.lam_n, lam_on, lam_why), (self.rings, on("lumped"), "the Lumped model"),
                                     (self.modes, on("analytic"), "the Analytic model"), (self.local, on("analytic"), "the Analytic model")):
             base = widget.property("base_tip")
             if base is None:                                                      # First time: remember the tooltip the control had
@@ -1520,6 +1562,8 @@ class SolverPanel(QWidget):
         self.modes.setValue(o.analytic_modes)
         self.local.setChecked(o.analytic_local_corrections)
         self.hot.setValue(o.hotspot_c)
+        self.lam_s.setValue(o.laminate_s_max_mm)
+        self.lam_n.setValue(o.laminate_n_max)
         self._updating = False
         self._update_cells()
         self._update_availability()
@@ -1533,7 +1577,7 @@ class SolverPanel(QWidget):
         """
         models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
         return memory.check(self.doc.problem, models, self.cell.value(), fraction=self.doc.options.memory_fraction, base=memory.BASE_DEFAULT, refuse="return",
-                            quiet=True)
+                            quiet=True, laminate_params=self.doc.options.laminate_params())
 
     def _update_cells(self):
         """!
@@ -1570,7 +1614,7 @@ class SolverPanel(QWidget):
         """
         models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
         base = suggest_cell_mm(self.doc.problem)
-        cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction)
+        cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction, laminate_params=self.doc.options.laminate_params())
         self.cell.setValue(cell)
         self.status.setText(f"Auto: the cell was enlarged to {cell:.1f} mm to fit the memory limit." if cell > base + 1e-9 else "")
 
@@ -1591,12 +1635,13 @@ class SolverPanel(QWidget):
         # counts the unknowns, which samples the copper, and runs at every keystroke of the cell field)
         self.doc.set_options(models=models, cell_mm=self.cell.value(), linear_solver=self.solver.currentData(),
                              lumped_rings=self.rings.value(), analytic_modes=self.modes.value(),
-                             analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value())
+                             analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value(),
+                             laminate_s_max_mm=self.lam_s.value(), laminate_n_max=self.lam_n.value())
 
     def set_checks(self, warnings):
         """!
         @brief Show the validity checks of the current design under the Run button.
-        @param warnings List of warning strings from checks.check_problem.
+        @param warnings List of warning strings from checks.check_input (validity, model limits, vias).
         """
         self.checks.set_warnings(warnings)
 

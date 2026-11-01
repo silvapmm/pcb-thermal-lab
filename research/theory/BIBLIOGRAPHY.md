@@ -719,7 +719,7 @@ The table lists every source that `docs/theory.md` (section 12) and the docstrin
 | Key | Used for in the theory | Status | Entry |
 | :-- | :-- | :-- | :-- |
 | [Patankar1980] | finite volumes, harmonic mean, theta method | M content, S citation | section 1 |
-| [Peaceman1978] | well radius of a point sink on the lattice (the program's constant is computed) | S | section 1 |
+| [Peaceman1978] | well radius of a point sink on the lattice (the program's constant is computed) | S (paper); Peaceman's radial value `e^(-pi/2)` read second hand in [Ibraguimov2022] Theorem 1 (R), [Lie2019Reservoir] 4.3.2 (R), [Durlofsky2005] eqs 34, 35 (R) | sections 1, 24, batch 2 |
 | [Saad2003] | SOR, Young's optimum, multicolouring, block relaxation | R for the parts used (sections 3.3, 4.1, 4.2, 10.2) | section 16 |
 | [Young1950] | consistent orderings, optimum omega (the original) | N | below |
 | [Young1971] | same, book | N | section 16 |
@@ -727,7 +727,7 @@ The table lists every source that `docs/theory.md` (section 12) and the docstrin
 | [Dietz1965] | the same mathematics in well testing | S equation, M shape factors | section 17 |
 | [IncroperaDeWitt] | fin and sheet equations, correlations, radiation | M content, S citations | section 2 |
 | [CarslawJaeger] | Fourier series, K0 Green function of the fin equation, disc sources (I0, I1) | M content, S citation | section 2 |
-| [CulhamYovanovich1998] | no homogenised conductivity of a laminate; coupon cases | R pages 460 to 466 (scan) | section 12 |
+| [CulhamYovanovich1998] | no homogenised conductivity of a laminate; coupon cases | R pages 460 to 466 (scan; page 462, equations 7 to 10, re-read in batch 1) | section 12, batch 1 |
 | [EC1998Spreading] | Seri Lee plate check, equations 1 and 2, worked example | R (equations and numbers, as images) | section 2 |
 | [Lee1995] | cited by earlier documents for the plate check | N (not located) | section 2 |
 | [Muzychka2003], [Lemczyk1992] | cross of five sources and coupon cases reproduced | R | section 12 |
@@ -735,13 +735,16 @@ The table lists every source that `docs/theory.md` (section 12) and the docstrin
 | [LeFevre1956] | laminar boundary-layer solution `g(Pr)` used to check the laminar form | M | below |
 | [ChurchillBlend] | mixed convection rule `(h_n^3 + h_f^3)^(1/3)` | paper N; S for the rule | section 3 |
 | [ElenbaasBCR], [BarCohenRohsenow1984] | channel composite and `Ra_b` of the close-fin warning | originals N; the forms R as printed in [TeertstraReview] (equations 8, 20, 21, 22) | section 2 and below |
-| [TeertstraReview] | channel correlations as printed | R (equations as images) | section 3 |
+| [TeertstraReview] | channel correlations as printed | R pages 79, 82, 83 (images); the citation is the journal paper J. Electronics Manufacturing 7 (2) (1997) 79-92, not a university report | section 3, batch 2 |
 | [JESD15-3], [JESD51family] | two-resistor model, theta and psi definitions | JESD15-3 R through a mirror; JESD51 documents N | section 4 |
 | [Celik2008] | grid convergence index, procedure and Table 1 | R pages 4 to 9 | section 19 |
 | [Roache] | GCI as used by ASME V&V 20 | M (summaries S) | section 1 |
-| [Lienhard2024] | Churchill and Chu forms, horizontal plate forms | R pages 311, 419 to 421, 435 to 437 | section 19 |
-| [Fish2017] | microspreading of via cells (context of the constriction) | R chapter 6, reproduced; chapters 5 and 7 not read | sections 17 and 18 |
-| [Kron2022], [MFEMStaticCond] | Kron reduction, static condensation | S | section 1 |
+| [Lienhard2024] | Churchill and Chu forms, horizontal plate forms, forced plate (page 311), air and copper properties | R pages 311, 419 to 421, 435 to 437, 755 (Table A.6) and Table A.1 | section 19, batch 2 |
+| [Fish2017] | microspreading of via cells (context of the constriction) | R chapter 6, reproduced; chapter 7 formulation R (equations 58 to 83, 177 to 182), its series S; chapter 5 not read | sections 17, 18, batch 1 |
+| [Kron2022], [MFEMStaticCond] | Kron reduction, static condensation | S; [Kron2022] is S. Chevalier, M. R. Almassalkhi, *Towards optimal Kron-based reduction of networks (Opti-KRON) for the electric power grid*, arXiv 2204.05554; the theory of the reduction is read in [DorflerBullo2013Kron] (R in part), the better citation | sections 1, 24, batch 2 |
+| [George1973] | nested-dissection fill and operations (form of the memory law) | R in part (abstract, Theorems 4.1, 5.2, the closing remark on the cube; the constants of A.6 unreadable), with [LiGolub2013] slides 19, 20 (R) | sections 22, 24 |
+| [Davis2006] | fill of sparse factors | M | section 22 |
+| [LiSuperLU2005] | memory of the SuperLU factor | N for the reading (a copy is held, its text layer is unreadable); the user guide [SuperLUGuide] is R in part and is the citation for the memory statements | sections 22, 24, batch 2 |
 
 ### [Krogh1919]
 A. Krogh, *The number and distribution of capillaries in muscles with calculations of the oxygen pressure head necessary for supplying the tissue*, J. Physiology 52 (1919) 409-415 (citation from memory). The "Krogh cylinder" is the tissue cylinder around a capillary, with a uniform source and an insulated rim: the cell of `docs/theory.md` 1.5. **Status M**: the paper was not opened; the closed form (1.8) of `docs/theory.md` used by the program is the program's own derivation, checked numerically against a finite-difference cell solver and an axisymmetric solve (`research/lumped-analytic-vias`, `research/lumped-via-groups`; status L), and is the same mathematics as the pseudo-steady-state well equation of [Dietz1965]. Topics 05, 06.
@@ -954,7 +957,7 @@ Y. S. Muzychka, M. M. Yovanovich, J. R. Culham, *Influence of geometry and edge 
 A. Soleymani Koohbanani, MSc thesis, Simon Fraser University (2016), *Board-level thermal management systems with application in electronics and power electronics*. The file opens without a password (owner-only protection). **Status R for chapter 3, pages 56 to 63 (file pages 73 to 80)**: a one-dimensional parallel network per unit cell (barrel, air core, FR-4) with isothermal faces, equations 17 to 29 (printed as images: **S for their exact form**), Table 9 (nine round samples of 25.4 mm, square and staggered arrays, pitch 1 to 2.5 mm, outer diameter 0.40 to 0.65 mm, inner 0.36 to 0.61 mm; the column "copper barrel thickness 0.04 mm" is the diameter difference, the wall is 0.02 mm), Table 10 (COMSOL benchmark: FR-4 0.33, copper 385 W/mK), the measurement by a guarded heat flux meter within 13 % of the model (Fig. 33, plot). Used in 9.4.
 
 ### [TI-AN2020] (example read here)
-**Pages 4 and 5 read**: the via resistance example (length 0.165 cm, plating 0.00175 cm, drill radius 6 mil, copper 4 W/cmK: 261 C/W). Reproduced with the plating inside the drill radius (259.4 C/W, the program's rule); status R for those pages (9.4).
+**Pages 4 and 5 read**: the via resistance example (length 0.165 cm, plating 0.00175 cm, drill radius 6 mil, copper 4 W/cmK: 261 C/W). Reproduced with the plating inside the drill radius (261.16 C/W, +0.06 %, the program's `Via.thermal_area`; the 259.4 C/W first written here came from a scratch script and was not reproduced); status R for those pages (9.4).
 
 ### [Ibraguimov2022] (section 5.1 read here)
 **Pages 11 and 12 read**: Theorem 1, Peaceman's radial-flow derivation gives `ln(Delta/R_0) = pi/2`, `R_0 = e^(-pi/2) Delta = 0.2079 Delta`. The program's 0.1985 is the exact infinite-lattice value (9.4).
