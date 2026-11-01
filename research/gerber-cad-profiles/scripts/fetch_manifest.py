@@ -42,6 +42,39 @@ MANIFEST = [
     ("orcad", "cc1310", "sangphanthanh/CP_SmartGarden", "OrCAD/Gerber/", 800),
 ]
 
+# Held-out sets: found after the rules of cad_markers.json were frozen, never read before the first run of study_heldout.py.
+# (truth tool, sample name, repository, folder, size limit in kB); stored in data/heldout/<truth>__<name>/
+HELDOUT = [
+    ("easyeda", "simplefoc", "simplefoc/Arduino-SimpleFOCShield", "Gerber/", 1500),
+    ("easyeda", "dagor", "byDagor/Dagor-Brushless-Controller", "HW/Alpha Programmer 1.0/Gerber/", 1500),
+    ("easyeda", "datenzwerg", "romses/Datenzwerg", "hardware/pcbs/v1.0/", 1500),
+    ("diptrace", "midtbot", "bdring/midTbot_esp32", "PCB/V1/Gerbers/", 1500),
+    ("diptrace", "fdskey", "ClusterM/fdskey", "PCB_gerbers/", 1500),
+    ("xpedition", "irled", "sensics/IR_LED_DRV", "Schematics/PCB production files/Gerber/", 1500),
+    ("xpedition", "swarm", "rose-projects/SwARM", "hardware/SwARM_Schematics/PCB/Output/", 1500),
+    ("xpedition", "banshee", "minet/banshee_router", "ClearFog Gerber/", 1500),
+    ("eagle", "smogbuster", "dshop-gliwice/smogbusters", "pcb/small/CAMOutputs/layout/", 1500),
+    ("eagle", "oscbox", "cmoore42/oscbox", "hardware/EncoderBoard/Gerber/", 1500),
+    ("altium", "electronbot", "peng-zhihui/ElectronBot", "1.Hardware/ServoDrive/Gerber/", 1500),
+    ("altium", "opensimplelidar", "iliasam/OpenSimpleLidar", "PCB/CommonPCB_v1.2/Gerber_files_v1.2/", 1500),
+    ("altium", "kfdtool", "KFDtool/KFDtool", "hw/KFD100/PT101 Front Panel/REV C/out/", 1500),
+    ("kicad", "bparasite", "rbaron/b-parasite", "kicad/gerber/", 1500),
+    ("kicad", "voltlink", "voltlog/VoltLink", "gerbers/", 1500),
+    ("kicad", "librevna", "jankae/LibreVNA", "Hardware/Kicad/Production/", 1500),
+    ("designspark", "crowdclock", "Inclusive-Bytes/CrowdClock", "Hardware/Plots/", 1500),
+    ("circuitmaker", "hydro", "kawasakizx10rr/HydroControllerV5.0", "PCB/PCB/Gerber/", 1500),
+    ("librepcb", "hydrocharger", "ubruhin/hydro-battery-charger", "pcb/output/v4/gerber/", 1500),
+    ("librepcb", "nixie", "coredump-ch/nixie-counter", "output/v2.0/gerber/", 1500),
+    ("pulsonix", "openplc", "leocat3/open-plc", "source/pcb/main_stm32f100/gerber/", 1500),
+    ("pulsonix", "senseha", "ehajo/SenseHaJo", "mkI/Hardware/CAM/", 1500),
+    ("proteus", "lockdown", "Mmessiter/LockDownRadioControl", "Circuits/Transmitter - CADCAM/", 1500),
+    ("proteus", "esr", "latchdevel/C_ESR_METER", "Gerber/", 1500),
+    ("allegro", "parallella", "parallella/parallella-hw", "paracluster/Design Files/", 1500),
+    ("allegro", "beaglebone", "beagleboard/beaglebone-ai", "MFG/", 1500),
+    ("allegro", "pixy2", "charmedlabs/pixy2", "documents/pcb/gerbers/", 1500),
+    ("pads", "psdr", "MichaelRColton/PSDR", "Hardware/Test Boards/MultiTest2 Gerbers/", 1500),
+]
+
 
 def main(argv):
     """!
@@ -51,6 +84,10 @@ def main(argv):
 
     @return int Exit code.
     """
+    if argv[1:2] == ["--heldout"]:
+        for truth, name, repo, prefix, kb in HELDOUT:
+            fetch_repo.cmd_get("heldout", truth + "__" + name, repo, prefix, kb)
+        return 0
     wanted = set(argv[1:])
     for tool, name, repo, prefix, kb in MANIFEST:
         if wanted and tool not in wanted:
