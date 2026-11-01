@@ -223,8 +223,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
                            "up to 10 % on a 3.2 mm laminate or under a window narrower than the laminate is thick, the FDM 2 to 20 %, "
                            "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value.")
 
-    if not problem.vias:
-        return out
+    if not problem.vias or b.layers < 2:
+        return out                                              # A one-layer board has no gap: its vias join nothing and change no model
 
     # --- Vias in the Lumped and Analytic models: both carry area means (a ring, a tile) and add the constriction of the heat converging on a barrel
     # (viaconstriction.py). The numbers are the error of the via effect (drop of the hottest temperature caused by the vias) against the FVM at 0.25 mm
@@ -504,8 +504,8 @@ def check_via_limits(problem, models, cell_mm):
     @return List of warning strings (empty when nothing is doubtful).
     """
     out = []
-    if not problem.vias:
-        return out
+    if not problem.vias or problem.board.layers < 2:
+        return out                                              # A one-layer board has no gap: its vias join nothing and change no model
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)

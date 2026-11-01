@@ -40,8 +40,6 @@ from dataclasses import dataclass, field
 import numpy as np
 from scipy import ndimage
 
-from . import defaults
-
 S_MAX = 0.4e-3              # Longest sub-gap of the laminate between two nodes in m: n = ceil(d / S_MAX), so gaps of 0.4, 0.8, 1.6, 3.2 mm give 1, 2, 4, 4 sub-gaps
 N_MAX = 4                   # Most sub-gaps in one gap (error against the resolved 3D solid falls as 1/n; 4 costs 1.0 to 2.5 times the unknowns, 8 about twice as much again)
 SLIVER_THICKNESSES = 4.0    # A bare feature narrower than this many copper thicknesses carries only a share of the face drop (face_terms)

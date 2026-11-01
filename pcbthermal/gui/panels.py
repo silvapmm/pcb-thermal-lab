@@ -1507,7 +1507,7 @@ class SolverPanel(QWidget):
         """
         b = self.doc.problem.board
         c = self.cell.value()
-        n = fvm.unknowns(self.doc.problem, c)[0]                   # The nodes the model really has: copper layers, laminate nodes of a one-layer board, block layers
+        n = fvm.unknowns(self.doc.problem, c)[0]                   # The nodes the model really has: copper layers, laminate nodes of the rule (only where they are used), block layers
         text = f"{n} unknowns"
         if n > 500_000:
             # The layered models have no hard limit. Direct solver, 16 GB machine: a plain board takes 5.2 s and 2.7 GB at 1 million unknowns, but boards with the laminate

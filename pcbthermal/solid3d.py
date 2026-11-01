@@ -170,8 +170,8 @@ class Solid:
                 # the radius of the uniform sink density of the layered models, centred on the via and on the cells of the board; the cell of the centre
                 # alone when that radius is below the one of a point sink on this grid (a cell coarser than the via). See viawell.tuned_footprint
                 w = viawell.tuned_footprint(v.x, v.y, 0.5 * v.diameter, dx, 0.0, bcov, dy)
-                for (i, j), share in w.items():
-                    via_frac[i, j] += a_via * share / A          # The copper area of the barrel is conserved
+                for (i, j), wk in w.items():
+                    via_frac[i, j] += a_via * wk / A             # The copper area of the barrel is conserved
         if float(via_frac.max(initial=0.0)) > 1.0:
             log.warning("the copper of the vias in one cell is larger than the cell: the excess is clipped; use a finer cell for this model")
         via_frac = np.minimum(via_frac, 1.0)

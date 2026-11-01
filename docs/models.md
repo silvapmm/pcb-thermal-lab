@@ -26,7 +26,7 @@ Four of them are layered models (one node per copper layer); the **3D solid** (s
 | :-- | :-- | :-- | :-- | :-- |
 | Role | reference | comparison | fast estimate | fast estimate, independent check |
 | What it is | board cut into cells, one node per layer and cell, sparse matrices | the same equations on grid **points** (node-centred finite differences) | one small network per heater, built from the real footprint and outline | exact closed-form solution of a uniform multilayer board, with corrections for vias, heatsinks and copper |
-| Time on the example board | 0.13 s (1 mm cells) | 0.12 s | about 10 ms | about 50 ms |
+| Time on the example board | 0.13 s (1 mm cells) | 0.12 s | about 10 ms | about 0.4 s with its nine vias (about 50 ms without vias; the via correction is a dense system) |
 | Output | full field per layer | full field per layer (at nodes) | approximate field | field per layer |
 | Power profiles in time, step animation | yes | yes (same time stepping on the nodes) | profiles yes, animation no | yes (vias calibrated per heater) |
 | Needs a mesh | yes (cell size, Auto) | yes | no | no |
