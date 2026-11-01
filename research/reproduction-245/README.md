@@ -8,16 +8,18 @@ rewritten by this pass; the corrections it made are listed in section 3.
 
 ## 1. Totals
 
-Three testers worked in parallel (A, B, C) and counted in different units, so the totals are given per part and not forced into one number.
+Three testers worked in parallel (A, B, C) and counted in different units, so the totals are given per part and not forced into one number. Parts A2 and A3 ran later the long studies that Part A had left NOT RUN (one job at a time).
 
 | Part | Folders | Counted in | Checked | Unchanged | EXPLAINED | UNEXPLAINED | NOT RUN |
 | :-- | :-- | :-- | --: | --: | --: | --: | --: |
 | A | analytic-partial-copper, bare-spot-under-source, gap-subdivision, lumped-via-groups, lumped-analytic-vias, via-fill | comparison units (rows of the table below) | 36 | 19 | 14 | 0 | 3 |
-| A | the same | table cells (approximate) | about 1850 | about 1620 | about 235 | 0 | 3 scripts and 4 files |
+| A | the same | table cells (approximate) | about 1850 | about 1620 | about 235 | 0 | 3 scripts and 4 files (run in A2 and A3) |
+| A2 | gap-subdivision (the long studies: references of the pad boards, `study_gap_nodes`, `study_gap_grading`, `study_review`, `study_real_boards`) | groups of numbers (tables and files) | 14 | 12 | 2 | 0 | 0 |
+| A3 | lumped-via-groups (`study_zone_sensitivity`, `study_family`, `study_review`, `study_holdout`), lumped-analytic-vias (`study_arrays`) | table groups (about 2400 cells) | 10 | 9 | 1 | 0 | 0 |
 | B | point-via-convergence, sor-with-via-couplings, rotated-square-3d, models-comparison, `docs/validation.md` sections 1, 2, 2.1, 5 | comparison units (about 2500 numbers inside) | 77 | 32 | 40 | 0 | 5 |
 | C | outline, stackup, power-calculator, component-heatsink, block-and-fins, solid3d-verification, effective-conductivity, zone-union, plate-h-level, horizontal-plate-h, fin-channel, fin-channel-sources, theory-sources, via-real-board, laminate-nodes, young-omega-tiles, gerber-models | rows or values | about 430 | about 330 | about 95 | 0 | 5 scripts, about 90 not listed |
 
-In units A and B together: 113 checked, 51 unchanged, 54 explained, 0 UNEXPLAINED, 8 not run. UNEXPLAINED is zero in all three parts: every number that moved was tied to one
+In units A and B together: 113 checked, 51 unchanged, 54 explained, 0 UNEXPLAINED, 8 not run (the 3 of Part A were then run as A2 and A3, so 5 remain, all in Part B). With A2 and A3, 24 more groups: 21 unchanged, 3 explained. UNEXPLAINED is zero in every part: every number that moved was tied to one
 item (by reading `docs/versions.md`, `CHANGELOG.md` and the `INTEGRATION.md` files and, where the item was not obvious, by running the same script on a `git archive` copy of
 the tree before the suspected item). Two cases are explained as to the item but deserve the reviewer's eye (Part B, 3.1): a via whose centre is off the outline cools more than
 before, and the 3D solid on a square board turned 45 degrees is further from the aligned value.
@@ -33,7 +35,7 @@ call the current program directly (FVM, FDM, "program" in the validation rows) a
 ## 3. What this pass changed (commits on this branch)
 
 * Part C and Part B reports (cherry-picked from the tester branches) and this README; the runner `scripts/run_all.py` (one command, writes `out/reproduction.json`, git-ignored).
-* `research/gap-subdivision/baseline/validation_impact.csv` regenerated (only the boards with vias moved: point via). `gap_nodes.csv` and `gap_grading.csv` were not regenerated: they need `out/refs_pads.json` (1.5 to 3 hours).
+* `research/gap-subdivision/baseline/validation_impact.csv` regenerated (only the boards with vias moved: point via). `gap_nodes.csv` and `gap_grading.csv` were not regenerated here: they need `out/refs_pads.json`; Part A2 built it (22 minutes) and regenerated them (`gap_grading.csv` byte-identical; `gap_nodes.csv` and `pads.csv` move only in the reference of `L4-gap0.2-top-pad`, the grid preset, review 5.10).
 * Power Calculator numbers: `docs/calculators.md` 1.1b, 1.1c and table 2.2, `research/power-calculator/README.md` 4.7 and table, `DESIGN_COVERAGE` and the title of figure 6. The example band (drawn board = real board) is unchanged at the ring (2.00 / 1.62 / 2.31 W, default level 1.56 / 2.34) and the top best case moves 1.69 -> 1.68 W (default level 1.60 -> 1.58 W). The drawn boards of the coverage study moved by 0.002 to 0.05 W (point via, laminate rule). **The hatched-copper case leaves the band at the level Drawn by hand** (worst case 1.931 W against a true 2 W; it was 2.012 W); it is inside only at Estimated (2.012 W, 0.012 W from the edge). The missing-vias case is 0.002 W short without the design term and inside from the level Drawn from fabrication files. Cases inside: none 0 of 4 (was 1), cad 1 of 4, hand 1 of 4 (was 2), estimated 2 of 4. Band amplitudes unchanged.
 * `research/component-heatsink` and `research/effective-conductivity`: the patch of the executor (package prototype built without the laminate rule and guarded instead of hanging, with a test; the corrections study passes the natural-convection form).
 * `research/sor-with-via-couplings`: the library builds the network without the laminate nodes (`ladder=False`), as its stencil assumes, and asserts it; `study_real_board.py` now reproduces README 4.1 (60.225 K, 2260 / 2390 / 189 iterations; program 60000 and 20000 sweeps not converged) and `study_block_over.py` runs to the end (example board no-via row 2247 -> 813 sweeps, Young omega; block 2390 and over 2250 unchanged).
@@ -87,19 +89,19 @@ validation rows) are the ones that moved, and each shift below is tied to one it
 | gap-subdivision | baseline/uniform.csv (44 boards), baseline/pads.csv (52 boards) rerun with `rerun_baseline.py --update` | stored values | largest movement 0.0000 % (uniform) and 0.0001 % (pads) for the five models | none (`pads.csv` was already regenerated for 2.4.5) | OK (480 cells) |
 | gap-subdivision | baseline/validation_impact.csv and README 6.1 (22 rows, FVM column and n=2, n=4 columns): example board FVM 60.81, no vias 69.67, project example/profile 60.81 | FVM 60.814 / 63.913 / 60.292 / 54.967; n=4 all 60.857 | 60.225 / 63.293 / 59.720 / 54.384; n=4 all 60.261 (the 3D solid column and the 18 other rows unchanged) | PV | EXPLAINED (6 rows with vias; the README table quotes 60.81 for 3 rows) |
 | gap-subdivision | baseline/real_boards.csv and README 6.2 (three windows of a real board, 2 cell sizes, program fine / z and n = 2, 4, 8) | as printed | identical on the 6 rows (the table is made with the copy of the 2.4.4 network) | none | OK (48 cells) |
-| gap-subdivision | baseline/gap_nodes.csv, baseline/gap_grading.csv, `study_review.py` | stored values | not run | needs `out/refs_pads.json`, the converged references of the pad boards (README: 1.5 to 3 hours the first time); a run without it reached the 25 minute limit | NOT RUN |
+| gap-subdivision | baseline/gap_nodes.csv, baseline/gap_grading.csv, `study_review.py` | stored values | not run | needs `out/refs_pads.json`, the converged references of the pad boards (README: 1.5 to 3 hours the first time); a run without it reached the 25 minute limit | NOT RUN here; run in Part A2 |
 | lumped-via-groups | 4.1 (cluster in a cell, 16 rows x 6 columns) | E_ref 18.35 ... 63.78; L_prog +31.3 ... | identical | none | OK (96 cells) |
 | lumped-via-groups | 3 (cell problem, R_link and closed forms) | as printed | identical | none | OK (about 50 cells) |
 | lumped-via-groups | 8 (example board and three arrays, errors of E, gain, maximum temperatures) | E_ref 13.770 / 18.241 / 21.323 / 22.294 / 21.966 / 22.426 | 13.772 / 18.242 / 21.325 / 22.295 / 21.968 / 22.427 (0.01 %); every error column identical to 0.1 point | none (the E_ref of the 0.25 mm reference moves by 0.002 K) | OK (about 100 cells) |
 | lumped-via-groups | 7 (vias outside the footprint: lone via 15.1 / 31.4 mean / max, row of five 8.0 / 10.9, L_prog 73.4 / 287.8 and 72.1 / 100.6) | as printed | the 32 rows give the same maxima and means | none | OK (10 cells) |
-| lumped-via-groups | 4.2, 5, 6, 12 (family, holdout, zone sensitivity, review) | stored values | not run | `study_family.py` about 15 minutes plus fine-grid references that take about an hour the first time; `study_holdout.py` about 40 minutes; `study_zone_sensitivity.py` references 10 minutes the first time; `study_review.py` reads `out/family.json` and failed at once without it | NOT RUN |
+| lumped-via-groups | 4.2, 5, 6, 12 (family, holdout, zone sensitivity, review) | stored values | not run | `study_family.py` about 15 minutes plus fine-grid references that take about an hour the first time; `study_holdout.py` about 40 minutes; `study_zone_sensitivity.py` references 10 minutes the first time; `study_review.py` reads `out/family.json` and failed at once without it | NOT RUN here; run in Part A3 |
 | lumped-analytic-vias | 3.2 and 3.3 (24 rows of the unit cell: E_ref, closed form without constriction, Lumped program, with Krogh; radius of the barrel) | as printed | identical | none | OK (about 130 cells) |
 | lumped-analytic-vias | 4.1 (unit cell, 120 cases, summary mean / max of the 9 variants) | 4.9 / 22.8, 0.3 / 1.1, 17.0 / 60.6, 1.4 / 4.5, 6.9 / 34.9, 5.0 / 22.0, 1.2 / 5.5, 0.4 / 1.3 | identical | none | OK (20 cells) |
 | lumped-analytic-vias | 5.1 and 5.2 (rings, raster cell, tile, modes) | e.g. 3 x 3 3.5 mm program +23.4 to +28.1; cluster -1.1 to +3.6 | identical | none | OK (about 70 cells) |
 | lumped-analytic-vias | 7 (example board and arrays, FVM / Lumped / Analytic and their patches, gain) except FVM of the 7 x 7 array | as printed (E_ref 9.573 ... 22.295) | identical | none | OK (about 85 cells) |
 | lumped-analytic-vias | 7, FVM column of the 7 x 7 array at a 1 mm cell | -9.8 (open), -5.6 (copper); gain +95.5 | -6.7, -2.3; gain +95.5 % unchanged | PV: the program (not the patch) gives E = 19.234 / 21.042 K at v2.4.4 and at `5e93182~1` (the README values) and 21.051 / 22.236 K now | EXPLAINED (3 cells) |
 | lumped-analytic-vias | 7 text and INTEGRATION 3 (`study_via_fill_rows.py`): copper-fill gain Lumped / Analytic program 6.79 / 6.32 K, patched 4.47 / 4.27 K, FVM_fix 4.20 K | as printed | -6.79 / -6.32 (frozen program), -4.47 / -4.27, -4.20 | none (frozen); the real program now gives -4.48 (Lumped) and -4.27 (Analytic) in the via-fill study | OK (10 cells) |
-| lumped-analytic-vias | 4.4 (arrays under a source, 48 + 6 cases at a 0.1 mm reference) | stored values | not run | killed at the 25 minute limit (the pool uses the fine references) | NOT RUN |
+| lumped-analytic-vias | 4.4 (arrays under a source, 48 + 6 cases at a 0.1 mm reference) | stored values | not run | killed at the 25 minute limit (the pool uses the fine references) | NOT RUN here; run in Part A3 |
 | via-fill | 4.1 (resistance of one via by fill) | 192.4 / 192.1 / 183.7 / 58.8 K/W | identical | none | OK (12 cells) |
 | via-fill | 4.2 (example board, 0.5 mm): Tmax open / epoxy / paste / copper; change vs open | 85.87 / 85.87 / 85.70 / 81.98; -0.01 / -0.18 / -3.89 | 85.18 / 85.17 / 85.00 / 80.99; -0.01 / -0.18 / -4.19 | PV (mean-potential well instead of the nearest-node via) | EXPLAINED (5 cells; 2 deltas unchanged) |
 | via-fill | 4.5 (every model, every fill, two limits): copper fill, no vias and perfect vias rows of FVM, FDM, Lumped, Analytic at 0.5 and 1 mm | copper: -3.89 / -4.09 / -6.79 / -6.32 (0.5), -4.49 / -4.55 / -6.95 / -6.40 (1); no vias: +8.84 / +9.45 / +11.15 / +10.02, +8.86 / +10.20 / +11.85 / +9.91; perfect: -7.13 / -7.54 / -10.86 / -12.20, -8.31 / -8.38 / -12.25 / -12.32 | copper: -4.19 / -4.20 / -4.48 / -4.27 (0.5), -4.14 / -4.15 / -4.65 / -4.18 (1); no vias: +9.54 / +9.56 / +9.25 / +9.50, +9.45 / +9.46 / +9.88 / +9.46; perfect: -9.64 / -9.61 / -12.77 / -12.70, -9.72 / -9.65 / -14.22 / -12.75 | PV for the FVM and FDM, CON for the Lumped and Analytic (the copper-fill gain of the four models now agree within 0.3 K at 0.5 mm; README text "Lumped and Analytic give 40 to 75 % more effect" is no longer true) | EXPLAINED (about 36 cells) |
@@ -125,6 +127,140 @@ analytic-partial-copper: baseline 358, causes 12, candidate 190, rows 85, review
 gap-subdivision: rerun_baseline 147, validation_impact 724, real_boards 68. lumped-via-groups: cluster 9, cell_link 0.3, example board 264, outside 609.
 lumped-analytic-vias: causes 1027, via_fill_rows 71, discretisation 82, real_boards 147, unit_cell 39. via-fill: study_via_fill 21, study_via_model_checks 383.
 
+
+---
+
+## Part A2: the long studies of gap-subdivision
+
+Completes the rows that Part A left as NOT RUN for gap-subdivision (they need `out/refs_pads.json`). Tree under test: the tip of `research/reproduction-245` (`8436db5`) with the program of 2.4.5 (`pcbthermal/` untouched). All runs with `nice -n 15`, one job at a time, `QT_QPA_PLATFORM=offscreen`, `.venv/bin/python`. The README numbers of `research/gap-subdivision` are not rewritten.
+
+### Commands, times and results
+
+| Step | Command (from the repository root) | Time | Result |
+| :-- | :-- | --: | :-- |
+| references | `scripts/study_baseline_pads.py 3` (3 processes; writes `out/refs_pads.json`, 52 references, and `baseline/pads.csv`) | 22 min | exit 0 |
+| 5.1, 5.2, 5.4, 5.5 | `scripts/study_gap_nodes.py` (writes `baseline/gap_nodes.csv`) | 28 min | exit 0 |
+| 5.3 | `scripts/study_gap_grading.py` (writes `baseline/gap_grading.csv`) | 1 min | exit 0 |
+| 10.1 to 10.3 | `scripts/study_review.py` (default: all three checks) | 10 min | exit 0 |
+| 6.2 | `scripts/study_real_boards.py` (writes `baseline/real_boards.csv`; `out/` was empty, the reference was recomputed) | 1 min | exit 0 |
+
+The references took 22 minutes, not the 1.5 to 3 hours of the README (3 processes, quiet disk, `nice` only).
+
+### Why most numbers cannot move
+
+`study_gap_nodes.py`, `study_gap_grading.py`, `study_review.py` (parts 1 and 3) and `study_real_boards.py` do not call the program: they use `lib/gapnodes.py` on the layered copy of `research/bare-spot-under-source/lib/layered.py`, and their "n = 1" is `boards.program_without_rule()`, the network of 2.4.4. They are therefore independent of the laminate rule and the other 2.4.5 items, and must reproduce the README. The only program-dependent numbers are the "FVM" columns of `study_review.py` part 2 (they call the program) and the model columns of `baseline/pads.csv`.
+
+### Differences above the tolerance (0.5 %, none given by the folder)
+
+| folder | README section | README | now | 2.4.5 item | verdict |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| gap-subdivision | 5.1 uniform boards, n = 1 2 4 8 and graded (9 rows) | table | identical to the printed digit (checked line by line) | none | OK |
+| gap-subdivision | 5.2 pad boards, 14 rows x 10 columns | table | all identical to 0.01 point except `4 layers, 0.2 mm gaps, top pad`: the converged reference moved 75.672 -> 75.691 K (+0.025 %), so the totals move by at most 0.03 point (n = 1 tot +0.23 -> +0.20, n = 4 tot eq +0.41 -> +0.38); the z columns are unchanged | none: **the first run had cached this one reference on the fine grid** (75.6718 K reproduced to the last digit with 104 976 unknowns), while the script gives a board of four layers the medium grid (75.6906 K, 58 212 unknowns, identical in two runs and with one BLAS thread; review 5.10) | OK (0.03 point, under 0.5) |
+| gap-subdivision | 5.3 grading, 3 boards x 9 cuts x 5 n | table | identical; `baseline/gap_grading.csv` identical to the committed file (0 differing lines) | none | OK |
+| gap-subdivision | 5.4 the cell (probe 6, three cells) | 1 mm -4.12/-6.84 ... 0.25 mm -5.15/-5.61 | identical (all 18 numbers) | none | OK |
+| gap-subdivision | 5.5 cost | 10 800 / 18 000 / 32 400 unknowns, 1.49 / 2.46 / 4.40 x, 1.44 / 2.33 / 4.11 x | identical (seconds differ: 0.04 / 0.12 / 0.65 -> 0.07 / 0.23 / 1.24 s, a timing on a loaded machine) | none | OK (timing = load) |
+| gap-subdivision | 4 probes (the `computing 1 references` blocks of part C) | printed in the log | identical to the previous run's pattern for pad10-full and pad20-empty; the committed `gap_nodes.csv` differs only in the 24 rows of the L4-gap0.2 board (the reference above) | none | OK |
+| gap-subdivision | 10.1 layered model at n to infinity | -5.93 -3.32 -1.85 -1.02 -0.55 -0.30 -0.17, limit -0.025 % (p 0.94); graded -1.49 -0.49 -0.20 | identical | none | OK |
+| gap-subdivision | 10.2 columns "program 3D solid", "same-cell 4", "same-cell 32", "4-slab part" | +5.07 +1.90 +0.69 +0.43 +3.39 +2.56 (and the others) | identical on the six rows (the 3D solid is not changed by the laminate rule on a two-layer board) | none | OK |
+| gap-subdivision | 10.2 column "FVM" (the program) | -10.53, -4.73, -0.86, +0.32, -10.21, -5.90 | **-1.05, -0.67, -0.15, +0.34, -2.29, -0.83** | laminate nodes of 2.4.5 (`fix/laminate-nodes`, rule n = min(4, ceil(d/0.4 mm)) in the cells with absent copper plus a margin; `research/laminate-nodes` 3.2, 3.4; `docs/versions.md` 2.4.5) | EXPLAINED |
+| gap-subdivision | 10.2 column "FVM, gap alone" (the program against the same-cell solver) | -13.55, -5.94, -1.43, -0.12, -11.51, -7.48 | -4.39, -1.94, -0.72, -0.10, -3.70, -2.49 | same item | EXPLAINED |
+| gap-subdivision | 10.3 second solver on two pad references | pad10-full +0.08 %, pad6-full +0.84 % (limits 100.485 and 137.78 K) | identical | none | OK |
+| gap-subdivision | 6.2 real windows (6 rows), `baseline/real_boards.csv` | table | identical, CSV identical to the committed file | none (the "program" column is the copy of the 2.4.4 network, see above) | OK |
+| gap-subdivision | `baseline/pads.csv` (52 boards, model columns) | the 2.4.5 values written by `rerun_baseline.py --update` | identical in every model column; only the reference columns of the one board above differ | none | OK |
+
+#### The movement of the FVM toward the reference
+
+The expected direction is the one of `research/laminate-nodes`: the program now has the rule that this folder proposed, so its error against the converged reference should fall to about the "bare + margin, n = 4, equal" column of README 5.2. It does:
+
+| board | FVM before (2.4.4, README 5.2/10.2, n = 1 tot) | FVM now | README 5.2 "bare + margin, n = 4 tot eq" |
+| :-- | --: | --: | --: |
+| pad10-empty | -5.90 | -0.83 | -0.88 |
+| pad10-full | -4.73 | -0.67 | -0.71 |
+| pad10-pad | -6.02 | -0.95 | -0.99 |
+| pad20-empty | -1.70 | -0.00 | -0.03 |
+| pad20-full | -0.86 | -0.15 | -0.15 |
+| gap 3.2 full | -10.21 | -2.29 | -2.33 |
+| 4 layers 1.6 mm top pad | -4.63 | -0.69 | -0.73 |
+| 6 layers 0.4 mm, pad on every layer | -1.07 | -0.95 | +0.73 |
+
+Seven of the eight rows agree with the proposal to 0.05 point (the program's rule is the proposed one). The last row does not move toward the proposal: the six-layer board with a pad on every layer sits at -0.95 % now (was -1.07) while the study's n = 4 point is +0.73 %. **Corrected by the review** (the guess of this pass, a difference between the two masks of absent copper, was wrong): the program cuts a gap into n = min(4, ceil(d / 0.4 mm)) sub-gaps (`laminate.S_MAX`), so a gap of 0.4 mm is not cut and the row compares with the n = 1 column (-1.07 %), not with the n = 4 one; with `laminate.uses_rule` switched off the program prints -1.07 % exactly, so the 0.12 point is the rest of the rule (face term, bare cells), not split. Not a defect: the rule was chosen so (`research/laminate-nodes`). Also the FDM and Lumped columns move accordingly in `baseline/pads.csv`, as `README.md` "Update for the program of 2.4.5" already reports.
+
+### Counts
+
+Checked: 14 groups of numbers (the 5.1 table, 5.2, 5.3, 5.4, 5.5, the part C probes, 10.1, 10.2 (two groups), 10.3, 6.2, `pads.csv`, `gap_nodes.csv`, `gap_grading.csv`, `real_boards.csv`).
+Unchanged (OK): 12.
+Explained: 2 (10.2 "FVM" and "FVM, gap alone": the laminate rule of 2.4.5).
+UNEXPLAINED: 0 (the six-layer all-pads row is explained above).
+Not run: 0.
+
+### Regenerated files
+
+`research/gap-subdivision/baseline/gap_nodes.csv` (24 rows of the L4-gap0.2 board changed by up to 0.03 point because the reference was fitted again, 75.6718 -> 75.6906 K) and `baseline/pads.csv` (the reference columns of the same board). `gap_grading.csv` and `real_boards.csv` were regenerated and are byte-identical. `out/` (git-ignored) holds `refs_pads.json` and the text of the runs.
+
+### What could not be verified
+
+* (Answered by the review, 5.10.) The 0.025 % of the L4-gap0.2 reference is the grid preset of the earlier cache (fine instead of medium), and the 6-layer all-pads row is the rule giving one sub-gap to a 0.4 mm gap.
+
+---
+
+## Part A3: the long studies of lumped-via-groups and lumped-analytic-vias
+
+Tree under test: tip of `research/reproduction-245` (detached), program of 2.4.5. All runs with `nice -n 15`, one job at a time, `QT_QPA_PLATFORM=offscreen`, `.venv/bin/python`. Reference files (fine grid, 1/16 mm) were built from scratch in `out/refcache` (git-ignored). Tolerance 0.5 % (no other tolerance in the folders). Nothing in `pcbthermal/`, `tests/`, the project documents or the README numbers was changed.
+
+### What was run
+
+| study | command | result | time |
+| :-- | :-- | :-- | --: |
+| lumped-via-groups `study_zone_sensitivity.py` | no arguments | finished | 19 min |
+| `study_family.py` | `--procs 2 --ref-procs 1` | finished, wrote `out/family.json` | 28 min |
+| `study_review.py` | `--procs 2` | finished | 1 min |
+| `study_holdout.py` | `--procs 2 --ref-procs 1` | finished | 23 min |
+| lumped-analytic-vias `study_arrays.py` | `--procs 2` | finished (it was killed at 25 min in part A) | 14 min |
+| extra, outside the repository (scratchpad, not committed): FVM column of the arrays on the tree of `5e93182~1` and on the tree under test; real 2.4.5 Lumped on the 36 boards (`refs.lumped_E` with a null patch, so `simulate` of the program, against `E_ref` of `out/family.json`) | `fvm_arrays.py`, `now.py` | finished | a few minutes |
+
+### Comparison with the README numbers
+
+| folder | README section | README | now | 2.4.5 item | verdict |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| lumped-via-groups | 6 (layouts, 12 rows x 6 variants; knobs of the zone model, 14 rows x 2; raster 0.5 / 0.75 / 1.0 mm) | as printed | identical, every cell | none (the library freezes the program as of `f2d5c03`; the references are the fine-grid solver of the folder) | OK (about 110 cells) |
+| lumped-via-groups | 4.2 (family: 36 boards x 12 variants, E_ref, best factor, summary mean / max / counts) | `L_prog` 20.9 / 72.2, `L_nn` 13.6 / 62.5, `L_zone_r` 4.4 / 20.1, `L_zone` 3.6 / 9.1, `L_zone_k` 7.6 / 32.0 | identical (all 12 summary rows, all 36 E_ref) | none (frozen) | OK (about 450 cells) |
+| lumped-via-groups | 12.1 (null vias, absolute maximum with vias, second reference FVM_fix, 36 + 36 + 4 rows) | null-via effect +0.0 to +4.2 K (`L_zone_r`), up to 44 %; absolute error `L_prog` 6.8 / 22.1 (30 of 36 cooler), `L_zone` 2.8 / 7.3 (5); FVM_fix within -0.1 to -0.3 % | identical | none | OK (about 300 cells) |
+| lumped-via-groups | 12.4 (decimation of the potential integrals: closed-form ratios 1.254 / 1.166 / 3.024 strided against 0.993 / 0.984 / 0.929 block; program `_footprint_potentials` link ratio 1.000 ... 0.892 for the 30 mm square, 0.960 / 0.948 for the 20 mm square / disc) | as printed | identical (this part calls the real program: `lumped._footprint_potentials`) | none (the decimation of the program at 900 cells is still there in 2.4.5) | OK (24 cells) |
+| lumped-via-groups | 12.2 (26 held-out boards; mean / max / within 10 %: `L_prog` 28.9 / 176.6 (7), `L_nn` 22.6 / 152.9 (11), `L_grp0` 16.0 / 41.4 (9), `L_zone_r` 6.7 / 21.0 (20), `L_zone` 4.5 / 20.2 (23); warning rules 4 + 6 + 3 + 59 and 7 + 3 + 0 + 62) | as printed | identical | none (frozen) | OK (about 350 cells) |
+| lumped-via-groups | 12.3 (36 boards at the 1.0 mm raster: `L_prog` 20.1 / 73.8 (15), `L_nn` 13.2 / 64.2 (22), `L_grp0` 18.3 / 37.2 (7), `L_zone_r` 9.1 / 20.8 (24), `L_zone` 8.0 / 20.8 (27) and the 36 rows) | as printed | identical | none (frozen) | OK (about 190 cells) |
+| lumped-analytic-vias | 4.3 (lone via, row of five: summary E and gain, `L_prog`, `L_ring`/`L_grp0`, `A_prog`, `A_fin`) | 73.4 / 287.8 / 230.5 / 540.8; 15.1 / 31.4; 83.6 / 236.2; 2.3 / 4.0; row 72.1 / 100.6, 34.6 / 50.2, 8.0 / 10.9, 36.3 / 56.8, 0.7 / 1.4 | identical | none (frozen) | OK (about 200 cells, with the 64 per-case rows) |
+| lumped-analytic-vias | 4.4 (48 array cases + 6 pad cases at a 0.1 mm reference: `L_prog`, `L_ring`, `L_grp0`, `L_grp`, `A_prog`, `A_on`, `A_fin`, `FVM_fix`, E and gain, mean / max) | 26.8 / 69.7 ..., 11.0 / 24.1, 9.7 / 33.9, 0.3 / 1.1, pad 8.1 / 17.4 ... | identical, all columns except `FVM` | none | OK (about 700 cells) |
+| lumped-analytic-vias | 4.4, row "FVM, program" (array, 48 cases) | E mean / max 5.3 / 10.2, gain mean / max 10.2 / 23.1 | 6.8 / 10.1 and 9.9 / 17.4 | fix of the point via (`5e93182`): the same FVM column on a `git archive` of `5e93182~1` gives 5.3 / 10.2 / 10.2 / 23.1 (the README) and on the tree under test 6.8 / 10.1 / 9.9 / 17.4 (the table now) | EXPLAINED (24 array boards x 2 fills; the same item as the 7 x 7 array of part A) |
+
+Counts: 10 table groups checked (about 2 400 cells); unchanged 9; explained 1 (the FVM column of the arrays); UNEXPLAINED 0; not run 0.
+
+### What changed in the program and what did not
+
+`lib/` of lumped-via-groups and the `L_*` and `A_*` columns of lumped-analytic-vias freeze the program as of `f2d5c03`, and zones are a proposal, so they reproduce by construction; the only column that calls the real program in these studies is `FVM` (the arrays table) and the decimation of part 4 of `study_review.py` (unchanged). The `FVM` column moved only in the mean of E (5.3 to 6.8 %) and in the maximum of the gain (23.1 to 17.4 %): the point via of 2.4.5 is the reason (the program's FVM now gives the copper-fill 7 x 7 array 21.05 K where it gave 19.23 K); `FVM_fix` (0.6 / 1.2) is the proposal and unchanged, so the 2.4.5 program is in between: it is 5.7 points closer in the maximum of the gain and 1.5 points farther in the mean of E than before; the README sentence "FVM, program 5.3 %" is the 2.4.4 number.
+
+### For the queued zonal Lumped model (`research/lumped-zones-adoption`)
+
+The scripts do not give the 2.4.5 Lumped on the family: `L_prog` of the family table is the program frozen at `f2d5c03` (no point via, no constriction, no micro well). I measured it with a scratch script (`now.py`, outside the repository: `refs.lumped_E` with no patch, so the real program, against the cached fine-grid E_ref of `out/family.json`, 36 boards, error of E in percent):
+
+| variant | raster | mean | max | within 10 % | model cooler (E too large) |
+| :-- | --: | --: | --: | --: | --: |
+| `L_prog` frozen (README, `f2d5c03`) | 0.5 mm | 20.9 | 72.2 | 13 of 36 | 33 of 36 |
+| **2.4.5 Lumped (micro well + macro cap 0.75)** | 0.5 mm | **10.8** | **32.0** | **20 of 36** | 21 of 36 |
+| **2.4.5 Lumped** | 1.0 mm | 10.9 | 33.4 | 19 of 36 | 20 of 36 |
+| `L_nn` (micro well alone, README) | 0.5 mm | 13.6 | 62.5 | 20 of 36 | |
+| `L_grp0` (README) | 0.5 mm | 18.0 | 38.7 | 9 of 36 | 4 |
+| `L_zone_r` (README) | 0.5 mm | 4.4 | 20.1 | 35 of 36 | |
+| `L_zone` (README, after the review) | 0.5 mm | 3.6 | 9.1 | 36 of 36 | 17 of 36 |
+| `L_zone` (README) | 1.0 mm | 8.0 | 20.8 | 27 of 36 | |
+
+Reading: 2.4.5 halves the error of the program on this family (20.9 to 10.8 % mean, 72 to 32 % maximum) and is now about as good as the micro well alone in the mean and much better in the maximum, but it is still three times the zone model's mean at 0.5 mm (3.6 %) and the maximum is on the boards with a small share of the footprint covered by the vias (14 mm source, 5 x 5 at 0.8 mm copper +28.1 %, 5 x 5 at 1.2 mm copper +32.0 %, 7 x 7 +30.9 %); the unsafe side (model cooler than the reference with vias, positive error) is 21 boards of 36. Its raster dependence is small (10.8 to 10.9 %). The numbers of the zone model in the README were measured against the frozen program, not against 2.4.5, so the "gain of the zones" over the program is 10.8 to 3.6 % in the mean (not 20.9 to 3.6 %) and 32 to 9 % in the maximum. I did not re-run `L_zone` against the 2.4.5 network (its library copies the old network); that comparison belongs to the adoption branch. The row-level numbers are in the scratchpad file `now.log`, not committed. (The review ran the same measurement on the tree of `develop` `214d25a` and got the 36 rows and both summaries to the digit, 5.10.)
+
+**Side of the error (review 5.10).** `E = T_max(no vias) - T_max(vias)`, so a positive error is a via effect too large and a part that reads too cool, the unsafe side. In this family the largest errors of the 2.4.5 Lumped are on that side and on dense arrays: 5 x 5 and 7 x 7 arrays at 0.8 to 1.2 mm pitch under a 14 mm part (the vias cover 8 to 25 % of the footprint), +28.1 / +32.0 / +30.9 % copper-filled and +10.6 / +11.4 / +19.3 % open (+29.9 / +33.4 / +32.0 % at the 1 mm raster); the too-small side is -16 to -21 % (open 3 x 3 arrays, the two-layer board). The warning of the program for vias under a footprint says the opposite for dense arrays and stops at +22 %; see 5.10.
+
+### Not verified
+
+- The zone library was not re-run on the 2.4.5 network (see above).
+- No physical measurement; all references are the layered fine-grid solver of the folder.
 
 ---
 
@@ -606,10 +742,48 @@ The numbers of `docs/calculators.md` 1.1b, 1.1c and 2.2, of `research/power-calc
 
 ### 5.8 What was not verified
 
-* The scripts that the pass did not run (Part A "NOT RUN", Part C section 6: about 90 scripts and the long ones); the gerber-models studies beyond `study_models_our_board.py` and `study_import_end_to_end.py` (both re-run: the 4.31 and 4.34 numbers of Part C to the digit); the bisection of the gerber-models and component-heatsink shifts (taken from Part C, not repeated); the timings of the parts.
+* The scripts that the pass did not run (Part A "NOT RUN", since run as Parts A2 and A3 and checked in 5.10; Part C section 6: about 90 scripts and the long ones); the gerber-models studies beyond `study_models_our_board.py` and `study_import_end_to_end.py` (both re-run: the 4.31 and 4.34 numbers of Part C to the digit); the bisection of the gerber-models and component-heatsink shifts (taken from Part C, not repeated); the timings of the parts.
 * `026760f` (top-path speed) was not run: it could move component-heatsink 4.11 and the Power Calculator only if the reuse of the factorisation is not exact.
 * Figure 5 of `solid3d-verification` and figure 17 of `effective-conductivity` draw the earlier "now" values (0.2 to 1.1 points); not redrawn.
 
 ### 5.9 Go / no-go
 
 **Go for 2.4.5 on the research side**, with the documents of 5.7 corrected on `develop` before the release commit (they are release documents and quote numbers the release does not print) and the decision on `docs/calculators.md` (5.6). Nothing found in this review is a defect of the program; the via off the outline is handled on `fix/point-via` and the 3D turned-board shift is a documented limit that needs one sentence. The research folders are consistent with the program after the fixes of 5.2; the frozen columns of 5.3 are labelled and are work for after the release.
+
+**Parts A2 and A3 (5.10): go.** Every number they report was reproduced where the review re-ran it, the two open points of A2 are explained (a grid preset of the earlier cache; the rule leaves a 0.4 mm gap uncut) and nothing is a defect of a study or of the physics. One stale text of the program is found: the Lumped warning for vias under a footprint puts dense arrays on the safe side and stops at +22 %, while the 2.4.5 Lumped is up to +33 % too large (the part too cool) on dense arrays that cover a small part of a large footprint; it is text only (no number of the program moves), for a `fix/` branch with its test, the user guide and the documents listed in 5.10, before or with the release at the maintainer's choice.
+
+### 5.10 Parts A2 and A3 (second review)
+
+On the branch with `develop` `214d25a` merged (`39f20d4`; the program differs from the tree of A3, `8ad6aa5`, by the part across the outline and the point-via cleanups; `lumped.py` only by
+`drop_off_board_vias`). Light runs, `nice -n 10`, one at a time; the caches (`out/refs_pads.json` of gap-subdivision, `out/family.json` and `out/refcache` of lumped-via-groups, all git-ignored)
+were taken from the earlier runs, not rebuilt.
+
+| Check | Command | Result |
+| :-- | :-- | :-- |
+| gap-subdivision 5.3, 6.2 | `study_gap_grading.py`, `study_real_boards.py` (34 s, 40 s) | `baseline/gap_grading.csv` and `real_boards.csv` byte-identical to the committed files |
+| gap-subdivision 10.2 | `study_review.py 2` | the six rows to the digit as A2 reports (3D solid +5.07 / +1.90 / +0.69 / +0.43 / +3.39 / +2.56; FVM -1.05 / -0.67 / -0.15 / +0.34 / -2.29 / -0.83; gap alone -4.39 / -1.94 / -0.72 / -0.10 / -3.70 / -2.49) |
+| attribution of the 10.2 shift | the program's FVM on the same six boards with `laminate.uses_rule` switched off (scratchpad script) | -10.53 / -4.73 / -0.86 / +0.32 / -10.21 / -5.90 %: the README column to the digit, so the shift is the laminate rule and nothing else |
+| the +0.025 % of the `L4-gap0.2-top-pad` reference | `boards.graded_peak` of that board twice, once with one BLAS thread, and once with the fine preset | medium preset 75.6905599586246 K (58 212 unknowns) in both runs, bit-identical; fine preset 75.67183109794092 K (104 976 unknowns), **the committed value to the last digit**. Not a nondeterminism and not the program: the first run had cached this one board on the fine grid while the script gives four layers the medium grid. The README of gap-subdivision keeps the fine value in its tables and now says so (its "Update for the program of 2.4.5"); its limits said "6- and 8-layer" for the medium grid, corrected to four layers or more |
+| the 6-layer all-pads row (-0.95 % against +0.73 %) | `laminate.n_sub` and the same FVM with the rule off | the rule gives a 0.4 mm gap one sub-gap (`S_MAX` = 0.4 mm), so the row reads in the n = 1 column (-1.07 %), which the program prints exactly with the rule off; A2's guess (a difference of the copper masks) was wrong and is corrected in Part A2 |
+| lumped-via-groups 12.1 to 12.4 | `study_review.py --procs 2` | output identical, line by line, to the log of A3 |
+| the 2.4.5 Lumped on the 36 boards | `now.py` of A3, pointed at this tree | the 36 rows and both summaries identical: 10.8 / 32.0 % (20 of 36 within 10 %, 21 cooler) at 0.5 mm, 10.9 / 33.4 % (19, 20 cooler) at 1.0 mm |
+
+Not re-run by the review: `study_baseline_pads.py` (the 52 references), `study_gap_nodes.py`, `study_family.py`, `study_holdout.py`, `study_zone_sensitivity.py` and `study_arrays.py` (17 to 28 minutes
+each; the first four do not call the program or freeze it, and A2 and A3 report them identical); the FVM column of the arrays on `5e93182~1` (taken from A3).
+
+**Finding: the side of the Lumped via warning (a stale text of the program, to be fixed on a `fix/` branch).** The metric is `E = T_max(no vias) - T_max(vias)`; a positive error is a via effect
+too large, so the part reads **too cool** (the unsafe side). On the family of 36 boards the 2.4.5 Lumped is -20.5 to +32.0 % (0.5 mm) and -20.4 to +33.4 % (1 mm); its largest errors are on the unsafe
+side and on **dense** arrays: 5 x 5 at 0.8 and 1.2 mm and 7 x 7 at 1.0 mm under a 14 mm part (the vias cover 8 to 25 % of the footprint), +28.1 / +32.0 / +30.9 % copper-filled, +10.6 / +11.4 / +19.3 % open;
+and the 6-layer 5 x 5 at 1.2 mm copper +14.3 %. The too-small side (-16 to -21 %) is the open 3 x 3 arrays and the two-layer board. The warning of the program says for a part with vias under its footprint
+(`pcbthermal/checks.py` 245-248): *"its via effect was measured from 21 % too small (dense arrays under a part: the part too hot) to 22 % too large (sparse arrays, rows: the part too cool), and up to 80 %
+too large for an array across the edge of the footprint (8 to 20 % on average over 46 boards)"*. Two things are wrong for this family: dense arrays are not on the safe side (the side depends on how much
+of the footprint the vias cover and on the fill, not on the pitch), and the upper bound of the arrays inside a footprint is +33 %, not +22 %. The reference here is the fine-grid layered solver with
+every barrel drawn; the corrected FVM at 0.25 mm, the reference of the 46 boards, agrees with it to 0.1 to 0.3 % (lumped-via-groups 12.1), so the two sets can be read together. The same numbers are
+in `tests/test_via_constriction.py` 341 (it asserts "21 % too small" and "22 % too large"), the user guide `pcbthermal/help/index.html` 302, `docs/models.md` 55 and 142, `docs/validation.md` 18.1 and the
+table of warnings (line 919), and `docs/versions.md` 12. No document says "safe side" for these arrays; the text that does so is the warning itself ("dense arrays ... the part too hot"). A text for the fix
+(the maintainer's choice): *"its via effect was measured from 21 % too small (the part too hot) to 33 % too large (the part too cool: dense arrays that cover a quarter or less of a large footprint,
+sparse arrays and rows), and up to 80 % too large for an array across the edge of the footprint (8 to 20 % on average over 46 boards, 11 % over 36 more); use the FVM for via design"*.
+
+A second wording to read again in the same fix: `docs/validation.md` 18.1 and `docs/versions.md` 12 say "round boards and a two-layer 80 x 60 mm board 16 to 21 % cool in the Lumped model (the safe side)",
+and `docs/theory.md` 431 "round boards and a two-layer board come out cool (the safe side)". Under the convention above "cool" is the unsafe side; if those numbers are a via effect 16 to 21 % too small
+(which the range -21 % of the 17 boards suggests), the text should say "the via effect 16 to 21 % too small (the part too hot, the safe side)". The run behind them was not repeated here.
