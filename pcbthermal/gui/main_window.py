@@ -276,18 +276,19 @@ class MainWindow(QMainWindow):
         area.setWidget(page)
         return area
 
-    def _dock(self, title, widget, area, scroll=True, footer=None):
+    def _dock(self, title, widget, area, scroll=True, footer=None, label=None):
         """!
         @brief Add a titled dock widget.
-        @param title Dock title.
+        @param title Dock key: the object name under which saved window layouts store the dock (never changes).
         @param widget Content widget.
         @param area Qt dock area.
         @param scroll True to put the widget in a scroll area (panels of fields); False for a list that scrolls by itself.
         @param footer Optional widget kept below the scroll area, always visible (the Run button of the Simulation panel).
+        @param label Title shown in the title bar and the View menu (default: title).
         @return The QDockWidget.
         """
-        d = QDockWidget(title, self)
-        d.setObjectName(title)
+        d = QDockWidget(label or title, self)
+        d.setObjectName(title)                                  # The object name stays the old title: saved window layouts are keyed by it
         if scroll:
             # The panels grew taller with their boxes: a scroll area keeps every field reachable when the dock is short (a clipped panel hid "Position and size")
             area_widget = QScrollArea()
@@ -317,10 +318,10 @@ class MainWindow(QMainWindow):
         """!
         @brief Create the left and right docks.
         """
-        self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea)
+        self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea, label="Board settings")
         self.dock_elements = self._dock("Elements", self.elements, Qt.LeftDockWidgetArea, scroll=False)
         self.splitDockWidget(self.dock_board, self.dock_elements, Qt.Vertical)
-        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea, footer=self.solver_panel.footer)
+        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea, footer=self.solver_panel.footer, label="Simulation settings")
         self.dock_inspector = self._dock("Properties", self.inspector, Qt.RightDockWidgetArea)
         self.splitDockWidget(self.dock_sim, self.dock_inspector, Qt.Vertical)
         # The widths are set in showEvent (_size_docks): before the window is shown resizeDocks has no effect and the docks started about 110 px wide
@@ -450,6 +451,8 @@ class MainWindow(QMainWindow):
         # Both usual redo keys on every platform (Windows lists Ctrl+Y first, macOS Ctrl+Shift+Z): one action, two keys, no other action has them
         self.a_redo.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
         self.a_delete = self._act("Delete", lambda: self.doc.delete(self.canvas.selected_elements()), "Del")
+        # Backspace (the key labelled delete on a Mac keyboard) is the second key of the same action, so the menu shows it and the canvas needs no branch
+        self.a_delete.setShortcuts([QKeySequence("Del"), QKeySequence("Backspace")])
         self.a_dup = self._act("Duplicate", lambda: self.canvas.set_selection(
             self.doc.duplicate(self.canvas.selected_elements())), "Ctrl+D")
         self.a_selall = self._act("Select all on layer", self._select_all, QKeySequence.SelectAll)
@@ -1093,7 +1096,7 @@ class MainWindow(QMainWindow):
 <tr><td><b>Wheel / middle drag / Space+drag</b></td><td>Zoom / pan</td></tr>
 <tr><td><b>Ctrl+0, Ctrl++ (or Ctrl+=), Ctrl+-</b></td><td>Fit board, zoom in, zoom out</td></tr>
 <tr><td><b>Right-click</b></td><td>On a shape: add or delete a vertex, duplicate, delete; on an empty spot: add a heater, zone, heatsink or via there</td></tr>
-<tr><td><b>Del, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
+<tr><td><b>Del or Backspace, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>

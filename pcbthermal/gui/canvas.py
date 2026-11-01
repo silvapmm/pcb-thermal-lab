@@ -963,7 +963,7 @@ class BoardView(QGraphicsView):
         @brief Keys of the canvas: Backspace, arrows, Enter, Esc, Space (pan).
         @param e QKeyEvent of the key press.
         @note Del and Ctrl+D are shortcuts of the window actions Delete and Duplicate, which take the key before the canvas sees it, so they are not handled
-              here (tests/test_shortcuts.py checks that the canvas never receives them). Backspace stays: it is the key labelled "delete" on a Mac keyboard and no action has it.
+              here (tests/test_shortcuts.py checks that the canvas never receives them). Backspace (the Mac "delete" key) is the second key of the Delete action too.
         """
         key = e.key()
         if key == Qt.Key_Space and not e.isAutoRepeat():
@@ -974,8 +974,6 @@ class BoardView(QGraphicsView):
             self.scene().clearSelection()
         elif key in (Qt.Key_Return, Qt.Key_Enter) and self._poly_pts:
             self._finish_polygon()
-        elif key == Qt.Key_Backspace:
-            self.doc.delete(self.selected_elements())           # The Mac "delete" key; Del itself is the shortcut of the Delete action
         elif key in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down) and self.selected_elements():
             s = self.snap if self.snap > 0 else 1.0
             dx = {Qt.Key_Left: -s, Qt.Key_Right: s}.get(key, 0.0)

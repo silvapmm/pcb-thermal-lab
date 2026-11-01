@@ -5,6 +5,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed (integration)
+- Delete has a second key, Backspace (the menu and both key tables show it). The side docks are titled "Board settings" and "Simulation settings"; their saved-layout names are unchanged, so saved window layouts still restore.
+
 ### Fixed (interface polish, `fix/ui-polish-colours-docks`)
 - The View menu no longer shows the bare letters `T`, `G` and `Shift+G` as shortcut hints (macOS prints a key without modifier as a lone letter); the keys still work, on hidden window actions.
 - The first layout of the side docks is robust: minimum widths are enforced after the window is shown (and again 250 ms later), saved dock sizes that are collapsed or too wide are replaced by the default, and a window state saved by an older version is refused (state version 2).

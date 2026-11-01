@@ -156,7 +156,7 @@ def _count(problem):
 
 def test_delete_and_duplicate_keys_reach_the_actions_not_the_canvas(win, qtbot):
     # Del and Ctrl+D are window shortcuts: they act once through the action and the canvas never sees them, so the canvas does not handle them (its old
-    # branches were dead code); Backspace, the Mac "delete" key, has no action and is handled by the canvas
+    # branches were dead code); Backspace, the Mac "delete" key, is the second key of the Delete action
     from PySide6.QtCore import QEvent, QObject, Qt
     from PySide6.QtTest import QTest
 
@@ -208,7 +208,7 @@ def test_delete_and_duplicate_keys_reach_the_actions_not_the_canvas(win, qtbot):
     assert _count(win.doc.problem) == n and Qt.Key_Delete not in seen        # Deleted once, by the action
     select_one()
     QTest.keyClick(win.canvas, Qt.Key_Backspace)
-    assert _count(win.doc.problem) == n - 1 and Qt.Key_Backspace in seen     # Deleted by the canvas
+    assert _count(win.doc.problem) == n - 1 and Qt.Key_Backspace not in seen # Deleted once, by the action (Backspace is its second key)
 
 
 def test_the_tables_say_that_ctrl_is_command_on_macos(win):
@@ -216,3 +216,31 @@ def test_the_tables_say_that_ctrl_is_command_on_macos(win):
     guide = _plain(GUIDE.read_text(encoding="utf-8"))
     for table in (shown, guide):
         assert "macOS" in table and "Command key" in table and "Backspace" in table
+
+
+def test_delete_action_has_del_and_backspace_and_the_menu_shows_them(win):
+    keys = [k.toString(QKeySequence.PortableText) for k in win.a_delete.shortcuts()]
+    assert keys == ["Del", "Backspace"]
+    assert win.a_delete in [a for top in win.menuBar().actions() for a in top.menu().actions()]
+    assert "Backspace" in _plain(win.SHORTCUTS_HTML) and "Backspace" in _plain(GUIDE.read_text(encoding="utf-8"))
+
+
+def test_dock_titles_say_settings_but_object_names_and_saved_layouts_are_kept(win, qtbot):
+    from PySide6.QtWidgets import QDockWidget
+
+    assert win.dock_board.windowTitle() == "Board settings" and win.dock_sim.windowTitle() == "Simulation settings"
+    guide = GUIDE.read_text(encoding="utf-8")
+    assert "Board settings dock" in guide and "Simulation settings dock" in guide
+    # The object names are the keys of the saved window layouts: they must stay the old titles
+    assert win.dock_board.objectName() == "Board" and win.dock_sim.objectName() == "Simulation"
+    titles = [a.text() for top in win.menuBar().actions() if top.text().replace("&", "") == "View" for a in top.menu().actions()]
+    assert "Board settings" in titles and "Simulation settings" in titles
+    # A state saved by a program that named the docks "Board" and "Simulation" (the same object names) still restores
+    win.show()
+    qtbot.waitExposed(win)
+    win.dock_sim.hide()                                                     # A visible change that the saved state must bring back
+    state = win.saveState(win.STATE_VERSION)
+    names = {d.objectName() for d in win.findChildren(QDockWidget)}
+    assert {"Board", "Simulation", "Elements", "Properties"} <= names
+    win.dock_sim.show()
+    assert win.restoreState(state, win.STATE_VERSION) and win.dock_sim.isHidden()

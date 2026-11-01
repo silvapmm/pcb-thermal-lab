@@ -69,11 +69,11 @@ parameter means, what each model does and what it can and cannot do. Hover the p
 <h2 id="window">2. The window</h2>
 <table>
 <tr><th>Area</th><th>What it is</th></tr>
-<tr><td>Board dock (left)</td><td>Board size, outline, environment and materials.</td></tr>
+<tr><td>Board settings dock (left)</td><td>Board size, outline, environment and materials.</td></tr>
 <tr><td>Side panels</td><td>Board, Simulation and Properties scroll when the window is short (and sideways when a panel is made narrower than its fields): use the mouse wheel over a panel (or enlarge the window) to reach the last boxes, for example <i>Position and size</i> of the selected element. Drag the edge of a dock to resize it; the program <b>remembers the size and place of the docks</b> for the next start.</td></tr>
 <tr><td>Elements dock (left, below)</td><td>List of all zones, heaters, heatsinks and vias; click to select, right-click for actions.</td></tr>
 <tr><td>Tabs in the middle</td><td><b>Board</b>: the drawing canvas with rulers and a scale bar. <b>Stack-up</b>: the vertical cross-section and the layer table. <b>Power profile</b>: power in time per heater. <b>Results</b>: maps, tables, comparison, animation.</td></tr>
-<tr><td>Simulation dock (right)</td><td>Models to run, cell size, solver settings, and below them, always in sight, Run and Cancel, the progress and the live input warnings (the validity of the design, the <b>limits of the models you selected</b> and the via warnings, checked before any run and again when you change the models or the cell; the Results summary repeats them and adds what only a run can tell): each warning is one line (for example <i>U1: 9 vias under the footprint; the Lumped model is approximate here (-21 to +33 % of the via effect); use the FVM</i>); hold the mouse on it for the full measured text, which is also what the Results summary holds; one line for a single warning, a list for several (click a warning to select the element it is about, on its layer; after an edit the list is checked again a moment later, and until then a click does nothing). In a low window the list shrinks to two lines and scrolls, so that Run and the settings stay in sight.</td></tr>
+<tr><td>Simulation settings dock (right)</td><td>Models to run, cell size, solver settings, and below them, always in sight, Run and Cancel, the progress and the live input warnings (the validity of the design, the <b>limits of the models you selected</b> and the via warnings, checked before any run and again when you change the models or the cell; the Results summary repeats them and adds what only a run can tell): each warning is one line (for example <i>U1: 9 vias under the footprint; the Lumped model is approximate here (-21 to +33 % of the via effect); use the FVM</i>); hold the mouse on it for the full measured text, which is also what the Results summary holds; one line for a single warning, a list for several (click a warning to select the element it is about, on its layer; after an edit the list is checked again a moment later, and until then a click does nothing). In a low window the list shrinks to two lines and scrolls, so that Run and the settings stay in sight.</td></tr>
 <tr><td>Properties dock (right, below)</td><td>All fields of the selected element.</td></tr>
 <tr><td>Tool bar</td><td>Drawing tools, polygon mode, the layer being drawn, snap, fit, grids, temperature overlay and Run.</td></tr>
 </table>
@@ -300,7 +300,7 @@ The power coefficient and the heatsink on the package apply to the steady-state 
 <tr><td><kbd>P</kbd></td><td>Polygon mode: click the vertices, double-click or <kbd>Enter</kbd> to finish, right-click also finishes</td></tr>
 <tr><td>Wheel, middle-drag, <kbd>Space</kbd>+drag</td><td>Zoom, pan</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd>, <kbd>Ctrl</kbd>+<kbd>+</kbd> (or <kbd>Ctrl</kbd>+<kbd>=</kbd>), <kbd>Ctrl</kbd>+<kbd>-</kbd></td><td>Fit the board, zoom in, zoom out</td></tr>
-<tr><td><kbd>Del</kbd>, <kbd>Ctrl</kbd>+<kbd>D</kbd>, arrows</td><td>Delete, duplicate, nudge the selection (it cannot leave the board)</td></tr>
+<tr><td><kbd>Del</kbd> or <kbd>Backspace</kbd>, <kbd>Ctrl</kbd>+<kbd>D</kbd>, arrows</td><td>Delete, duplicate, nudge the selection (it cannot leave the board)</td></tr>
 <tr><td><kbd>Esc</kbd></td><td>Cancel the drawing, clear the selection</td></tr>
 <tr><td><kbd>G</kbd>, <kbd>Shift</kbd>+<kbd>G</kbd>, <kbd>T</kbd></td><td>Grid, solver grid, temperature overlay</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>Light / dark theme</td></tr>
