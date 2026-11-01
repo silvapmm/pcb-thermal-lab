@@ -153,7 +153,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   plots.py             draw_* functions (any Figure) and file wrappers; no pyplot
   cli.py               python -m pcbthermal {run,solvers,transient,convergence,convert,gui,example}
   gui/                 PySide 6 app: document (undo), canvas (editor, rulers), panels, stackup (cross-section tab), calculator, help (guide, About), tips (tooltips), compute (calculation process), results_view, main_window, theme
-tests/                 pytest suite (about 1040 tests; GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
+tests/                 pytest suite (about 1200 tests (1198 passed in the 2.4.5 battery); GUI tests run offscreen; test_docs.py enforces Doxygen docs on every function)
   helpers/layered3d.py independent 3D conduction solver (imports nothing from pcbthermal), the reference of test_layered_vs_3d.py
   regression/          the frozen-numbers test (`test_frozen_numbers.py`): a live run of the five models on 17 boards (2 mm cell and the times to 63 %, about 20 s) against `data/v<version>.json`, one tolerance policy; `regress_*.py` is the harness (byte-identical copy of `research/release-regression-245/lib/`, checked by `test_harness_copy.py`)
 examples/              example boards (`.pcbt.json`), `csv_profiles/` (documented CSV power-profile example) and `make_screenshots.py`; the studies that used to live here are in `research/` (one folder per investigation, see `research/README.md`)
