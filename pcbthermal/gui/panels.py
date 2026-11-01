@@ -1293,6 +1293,15 @@ class WarningList(QTextBrowser):
         self.setVisible(True)
         self._fit()
 
+    def recolour(self):
+        """!
+        @brief Draw the same warnings again after a change of theme: Qt gives a link its colour from the palette when the HTML is read, not when it is painted.
+        """
+        stale = self.stale
+        self.set_warnings(self.warnings)
+        if stale:
+            self.set_stale()
+
     def set_stale(self):
         """!
         @brief Mark the list as out of date (the design was edited and not yet checked): its links stop selecting elements.
@@ -1581,7 +1590,7 @@ class SolverPanel(QWidget):
     def set_checks(self, warnings):
         """!
         @brief Show the validity checks of the current design under the Run button.
-        @param warnings List of warning strings from checks.check_problem.
+        @param warnings List of warning strings from checks.check_input (validity, model limits, vias).
         """
         self.checks.set_warnings(warnings)
 

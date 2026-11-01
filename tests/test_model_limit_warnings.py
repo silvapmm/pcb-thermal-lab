@@ -384,3 +384,93 @@ def test_live_input_check_is_what_a_run_reports():
     assert [str(w) for w in sim.problem_warnings[:len(live)]] == live
     # The warnings depend on the selected models: with the FVM alone the Lumped via text is gone
     assert not any("via under the footprint" in str(w) or "under the footprint; the Lumped" in str(w) for w in check_input(p, ("fvm",), 1.0))
+
+
+def _many_via_board(n_scattered, outline=False):
+    """!
+    @brief A 200 x 150 mm four-layer board with 20 parts, a 5 x 5 array of 0.4 mm pitch under each part (a group the Lumped zone model splits) and scattered vias.
+    @param n_scattered Number of scattered vias.
+    @param outline True to cut the board to an ellipse (some vias and parts then lie off it).
+    @return Problem.
+    """
+    rng = np.random.default_rng(3)
+    p = Problem.new(200, 150, 4)
+    for ly in (1, 2, 3, 4):
+        p.add_zone(ly, rect=(0, 0, 200, 150))
+    for k in range(20):
+        x, y = rng.uniform(10, 180), rng.uniform(10, 130)
+        p.add_heater(1, 1.0, rect=(x, y, x + rng.uniform(2, 12), y + rng.uniform(2, 12)), name=f"U{k}")
+        for i in range(5):
+            for j in range(5):
+                p.add_via(x + 0.5 + i * 0.4, y + 0.5 + j * 0.4, 0.3)
+    for x, y in rng.uniform(1, 149, (n_scattered, 2)):
+        p.add_via(float(x) * 200 / 150, float(y), 0.3)
+    if outline:
+        t = np.linspace(0, 2 * np.pi, 128, endpoint=False)
+        p.board.outline = np.c_[100e-3 + 99e-3 * np.cos(t), 75e-3 + 74e-3 * np.sin(t)]
+    return p
+
+
+def test_live_check_reuses_the_zone_decision_inputs():
+    """!
+    @brief check_model_limits builds the board and the vias of lumped.will_be_zoned once (not per part) and must decide exactly as will_be_zoned does by itself,
+           on a rectangle and on an outline (where the decision is taken on the equivalent rectangle).
+    @return None.
+    """
+    from pcbthermal import lumped
+    for outline in (False, True):
+        p = _many_via_board(300, outline)
+        texts = [str(w) for w in check_model_limits(p, ("lumped",), 1.0)]
+        on_board = np.array(p.via_board_shares()) > 0
+        vx, vy = np.array([v.x for v in p.vias]), np.array([v.y for v in p.vias])
+        from pcbthermal.geometry import points_in_polygon
+        zoned_seen = 0
+        for h in p.heaters:
+            if not (points_in_polygon(vx, vy, h.polygon) & on_board).any():
+                continue
+            zoned = lumped.will_be_zoned(p, h)
+            zoned_seen += zoned
+            split = any(t.startswith(f"{h.name}:") and "splits this footprint" in t for t in texts)
+            assert split == zoned, (outline, h.name)
+        assert zoned_seen > 0
+
+
+def test_heater_distance_is_the_per_via_loop():
+    """!
+    @brief The vectorised distance of every via to the nearest footprint is bit-identical to the per-via loop it replaced (it feeds the Analytic tile plan).
+    @return None.
+    """
+    from pcbthermal import viaconstriction
+    p = _many_via_board(5000)
+    t = np.linspace(0, 2 * np.pi, 90, endpoint=False)
+    p.add_heater(1, 1.0, polygon=np.c_[60 + 8 * np.cos(t), 60 + 5 * np.sin(t)], name="disc")
+    vs = viaconstriction.ViaSet(p)
+    ref = np.full(len(vs), np.inf)
+    for h in p.heaters:
+        poly = np.asarray(h.polygon, dtype=float)
+        inside = viaconstriction.points_in_polygon(vs.x, vs.y, poly)
+        ref[inside] = 0.0
+        a, c = poly, np.roll(poly, -1, axis=0)
+        e = c - a
+        len2 = np.maximum((e ** 2).sum(axis=1), 1e-300)
+        for i in np.flatnonzero(~inside):
+            tt = np.clip(((vs.x[i] - a[:, 0]) * e[:, 0] + (vs.y[i] - a[:, 1]) * e[:, 1]) / len2, 0.0, 1.0)
+            ref[i] = min(ref[i], float(np.hypot(vs.x[i] - (a[:, 0] + tt * e[:, 0]), vs.y[i] - (a[:, 1] + tt * e[:, 1])).min()))
+    assert np.array_equal(viaconstriction.heater_distance(p, vs), ref)
+
+
+def test_live_input_check_is_cheap_on_a_large_board():
+    """!
+    @brief The live list runs in the window's thread after every edit: with 8500 vias, 20 parts and every model it took 1.8 s (2.7 s on an outline) because the
+           Lumped zone decision rebuilt the vias for every part and the Analytic plan measured the distances via by via; now about 0.2 s (0.5 s).
+    @return None.
+    """
+    import time
+    from pcbthermal.checks import check_input
+    models = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+    for outline, limit in ((False, 0.8), (True, 1.5)):
+        p = _many_via_board(8000, outline)
+        check_input(p, models, 1.0)                              # Warm the imports and caches
+        t0 = time.perf_counter()
+        check_input(p, models, 1.0)
+        assert time.perf_counter() - t0 < limit, outline

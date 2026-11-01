@@ -676,7 +676,8 @@ class MainWindow(QMainWindow):
     def _update_checks(self):
         """!
         @brief Run the live input checks (validity, limits of the selected models, vias; no solve) and show them in the Simulation panel.
-        @details The same list api.simulate puts at the head of a run, so the warnings of the run are these ones and nothing is shown twice.
+        @details The same list api.simulate puts at the head of the warnings of a run, so the Results summary repeats these texts and adds only what a run knows.
+                 Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
             self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5)))
@@ -1017,6 +1018,7 @@ class MainWindow(QMainWindow):
         self.profile_page.set_theme(self.theme_name)
         self.stackup_page.set_theme(self.theme_name)
         self.solver_panel.refresh()                                         # The memory verdicts take the colours of the new theme
+        self.solver_panel.checks.recolour()                                 # The links of the warnings take the link colour of the new palette
         self._refresh_icons()
 
     def show_shortcuts(self):

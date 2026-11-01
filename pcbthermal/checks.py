@@ -174,10 +174,11 @@ def check_problem(problem, cell_mm=1.0):
 def check_input(problem, models, cell_mm=1.0):
     """!
     @brief Every warning that can be known before a run: the validity checks, the documented limits of the selected models and the via checks.
-    @details The one list that the application shows live under the Run button (at every edit, after a short pause) and that api.simulate puts at the head
-             of the warnings of a run, so the two are the same text and a run replaces the live list instead of adding to it. Only cheap geometry is used
-             (rasters of the board at the cell, point-in-polygon tests, no solve); the warnings that need a run (thick plates, close fins, the zone model
-             of the Lumped, the models' own notes) stay in the post-run list.
+    @details The one list that the application shows live under the Run button (at every edit and change of the models or the cell, after a short pause)
+             and that api.simulate puts at the head of the warnings of a run, so the Results summary repeats the live texts word for word (the window checks at a
+             cell of at least 0.5 mm, so below that cell the texts that quote cells can differ) and adds after them only what a run knows. Only cheap geometry is
+             used (rasters of the board at the cell, point-in-polygon tests, the tile plan of the Analytic correction, no solve: about 0.2 s for 8500 vias and 20 parts,
+             0.5 s on an outline); the warnings that need a run (thick plates, close fins, the zone model of the Lumped, the models' own notes) are only in the Results.
     @param problem A Problem (assumed structurally valid).
     @param models Iterable of model keys that will run.
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.
@@ -409,12 +410,18 @@ def check_model_limits(problem, models, cell_mm=1.0):
     if "lumped" in models:
         in_any = np.zeros(len(problem.vias), dtype=bool)
         groups = d_nn = None                                     # Via groups and nearest neighbours, built once and only when a part has vias under it
+        zone_board = None                                        # Board and ViaSet of lumped.will_be_zoned, built once (not per part: 0.8 s with 8500 vias and 20 parts, live)
         for k, h in enumerate(problem.heaters):
             inside = points_in_polygon(vx, vy, h.polygon) & on_board
             in_any |= inside
             n_in = int(inside.sum())
             if n_in >= 1:
-                zoned = lumped.will_be_zoned(problem, h)
+                if zone_board is None:
+                    # What will_be_zoned builds by itself for every part: the equivalent rectangle of an outline (the board the Lumped model solves) and the vias on the board
+                    zp = problem.equivalent_rectangle()[0] if b.has_outline() else problem
+                    kept = zp.drop_off_board_vias()
+                    zone_board = (zp, viaconstriction.ViaSet(kept) if len(kept.vias) >= 2 else None)
+                zoned = lumped.will_be_zoned(zone_board[0], zone_board[0].heaters[k], vias=zone_board[1])
                 if zoned:
                     # The numbers of the zone model (research/lumped-zones-adoption INTEGRATION 0.1: 36 family and 26 held-out boards against 1/8 mm references)
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "

@@ -559,3 +559,40 @@ def test_live_checks_show_model_limits_and_follow_the_models(win, qtbot):
     win.doc.set_options(models=("fvm", "lumped"), cell_mm=2.0)
     assert win._check_timer.isActive()
     win.doc.stack.setClean()
+
+
+def test_warning_links_follow_the_theme(win, qtbot):
+    """!
+    @brief The clickable warnings under Run are drawn in the link colour of the palette, which is the accent of each theme (the default #0000ff was unreadable on
+           the dark base), and a change of theme draws them again in the new colour, keeping the list's out-of-date state.
+    """
+    from PySide6.QtGui import QPalette
+    from PySide6.QtWidgets import QApplication
+    from pcbthermal.gui import theme as th
+    win.doc.edit("Part off the board", lambda proj: proj.problem.add_heater(1, 1.0, rect=(98, 10, 102, 14), name="U1"))
+    win._update_checks()
+    lst = win.solver_panel.checks
+    assert lst.warnings
+
+    def anchor_colour():
+        # Colour of the first character of the first link in the document
+        doc = lst.document()
+        block = doc.begin()
+        while block.isValid():
+            it = block.begin()
+            while not it.atEnd():
+                frag = it.fragment()
+                if frag.charFormat().isAnchor():
+                    return frag.charFormat().foreground().color().name()
+                it += 1
+            block = block.next()
+        return None
+
+    for _ in range(2):
+        accent = th.colors(win.theme_name)["accent"]
+        assert QApplication.instance().palette().color(QPalette.Link).name() == accent
+        assert anchor_colour() == accent
+        lst.set_stale()
+        win.toggle_theme()
+        assert lst.stale
+    win.doc.stack.setClean()
