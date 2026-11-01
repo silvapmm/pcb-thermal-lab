@@ -1,0 +1,145 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+"""!
+@file test_shortcuts.py
+@brief Keyboard shortcuts of the main window: no key sequence is bound to two different actions, and the key tables (Keyboard shortcuts box, user guide) name the real keys of the View menu.
+"""
+
+import os
+import re
+from collections import defaultdict
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import pytest
+
+pytest.importorskip("pytestqt")
+
+from PySide6.QtCore import QSettings
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import QWidget
+
+from pcbthermal.gui.document import Document
+from pcbthermal.gui.help import GUIDE
+from pcbthermal.gui.main_window import MainWindow
+
+## Key sequences that two different actions may share on purpose: none. A second key for the SAME action (Redo: Ctrl+Shift+Z and
+#  Ctrl+Y; Zoom in: Ctrl++ and Ctrl+=) is not a clash and needs no entry; add one here, with the reason, only for a real exception.
+ALLOWED_SHARED = {}
+
+
+@pytest.fixture
+def win(qtbot, tmp_path):
+    """!
+    @brief A main window on the offscreen platform.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder for the settings file.
+    @return MainWindow.
+    """
+    w = MainWindow(Document(), QSettings(str(tmp_path / "test.ini"), QSettings.IniFormat))
+    qtbot.addWidget(w)
+    return w
+
+
+def _all_actions(win):
+    """!
+    @brief Every QAction reachable from the window (menus, tool bar, tab actions, docks, canvas and every child widget).
+    @param win The main window.
+    @return list of unique QAction.
+    """
+    seen = {}
+    for a in win.findChildren(QAction):
+        seen[id(a)] = a
+    for w in [win] + win.findChildren(QWidget):
+        for a in w.actions():
+            seen[id(a)] = a
+    for d in win.findChildren(type(win.dock_board)):
+        seen[id(d.toggleViewAction())] = d.toggleViewAction()
+    return list(seen.values())
+
+
+def _bindings(win):
+    """!
+    @brief Map each key sequence (portable text) to the set of action labels that carry it.
+    @param win The main window.
+    @return dict str -> set of str.
+    """
+    by_key = defaultdict(set)
+    for a in _all_actions(win):
+        for k in a.shortcuts():
+            by_key[k.toString(QKeySequence.PortableText)].add(a.text().replace("&", "") or repr(a))
+    return by_key
+
+
+def test_no_key_sequence_on_two_actions(win):
+    # A sequence on two actions makes Qt report an ambiguous shortcut and run neither
+    clashes = {k: sorted(v) for k, v in _bindings(win).items() if len(v) > 1 and k not in ALLOWED_SHARED}
+    assert not clashes, f"shortcut bound to different actions: {clashes}"
+
+
+def test_a_prefix_of_another_sequence_is_not_shadowed(win):
+    # "Ctrl+Shift+T" and "Ctrl+T" are different keys; only a chord prefix (one sequence the start of another) would shadow
+    keys = [k for k in _bindings(win) if "," in k]
+    for k in keys:
+        assert not any(o != k and o.startswith(k + ",") for o in keys)
+
+
+def test_the_same_action_is_not_in_a_menu_twice(win):
+    for top in win.menuBar().actions():
+        items = [a for a in top.menu().actions() if not a.isSeparator()]
+        assert len(items) == len({id(a) for a in items}), top.text()
+        labels = [a.text() for a in items]
+        assert len(labels) == len(set(labels)), (top.text(), labels)
+
+
+def test_every_key_is_listed_once_per_action(win):
+    for a in _all_actions(win):
+        keys = [k.toString() for k in a.shortcuts()]
+        assert len(keys) == len(set(keys)), (a.text(), keys)
+
+
+def _plain(text):
+    """!
+    @brief Strip HTML tags and blanks so that '<kbd>Ctrl</kbd>+<kbd>0</kbd>' reads 'Ctrl+0'.
+    @param text HTML text.
+    @return str.
+    """
+    text = re.sub(r"</t[dh]>|</tr>", " | ", text)             # Cell borders stay word borders
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", text))
+
+
+def _mentions(table, key):
+    """!
+    @brief True when a key table names the key sequence (a bare letter only as a separate word).
+    @param table Text of the table, tags removed.
+    @param key Key sequence, for example 'Ctrl+0' or 'G'.
+    @return bool.
+    """
+    if len(key) == 1:
+        return re.search(rf"(^|[\s,/>]){re.escape(key)}($|[\s,/<|])", table) is not None
+    return key.replace(" ", "") in table.replace(" ", "")
+
+
+def test_the_key_tables_name_the_real_view_keys(win):
+    shown = _plain(win.SHORTCUTS_HTML)
+    guide = _plain(GUIDE.read_text(encoding="utf-8"))
+    view = [a for a in win.menuBar().actions() if a.text() == "&View"][0].menu()
+    missing = []
+    for a in view.actions():
+        for k in a.shortcuts():
+            key = k.toString(QKeySequence.PortableText)
+            for name, table in (("Keyboard shortcuts box", shown), ("user guide", guide)):
+                if not _mentions(table, key):
+                    missing.append((a.text(), key, name))
+    assert not missing, missing
+
+
+def test_the_key_tables_name_the_other_real_keys(win):
+    # Edit, Simulation and Help keys too, and the tool keys
+    shown = _plain(win.SHORTCUTS_HTML)
+    guide = _plain(GUIDE.read_text(encoding="utf-8"))
+    for key in ("Del", "Ctrl+D", "F5", "Ctrl+.", "F1", "Ctrl+Z", "Ctrl+Shift+Z", "Ctrl+Y", "Ctrl+1"):
+        assert _mentions(shown, key) and _mentions(guide, key), key
+    real = _bindings(win)
+    for key in ("Ctrl+Shift+Z", "Ctrl+Y", "Ctrl+Z", "Ctrl+=", "Ctrl++", "Ctrl+-", "Ctrl+Q"):
+        assert key in real, key

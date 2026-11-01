@@ -409,11 +409,14 @@ class MainWindow(QMainWindow):
         self.a_export_txt = self._act("Export report (TXT)…", self.export_report)
         self.a_export_json = self._act("Export summary (JSON)…", self.export_summary)
         self.a_quit = self._act("Quit", self.close, QKeySequence.Quit)
+        if not self.a_quit.shortcuts():
+            self.a_quit.setShortcut(QKeySequence("Ctrl+Q"))     # Some platform themes (offscreen, minimal Linux) bind no Quit key
 
         self.a_undo = self.doc.stack.createUndoAction(self, "Undo")
         self.a_undo.setShortcut(QKeySequence.Undo)
         self.a_redo = self.doc.stack.createRedoAction(self, "Redo")
-        self.a_redo.setShortcut(QKeySequence.Redo)
+        # Both usual redo keys on every platform (Windows lists Ctrl+Y first, macOS Ctrl+Shift+Z): one action, two keys, no other action has them
+        self.a_redo.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
         self.a_delete = self._act("Delete", lambda: self.doc.delete(self.canvas.selected_elements()), "Del")
         self.a_dup = self._act("Duplicate", lambda: self.canvas.set_selection(
             self.doc.duplicate(self.canvas.selected_elements())), "Ctrl+D")
@@ -421,6 +424,7 @@ class MainWindow(QMainWindow):
 
         self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0", tip="Zoom to show the whole board (Ctrl+0)")
         self.a_zin = self._act("Zoom in", lambda: self.canvas.zoom(1.25), QKeySequence.ZoomIn)
+        self.a_zin.setShortcuts([QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")])   # Ctrl+= is the same key without Shift on most keyboards
         self.a_zout = self._act("Zoom out", lambda: self.canvas.zoom(0.8), QKeySequence.ZoomOut)
         self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G); the snap distance is chosen in the tool bar")
         self.a_sgrid = self._act("Solver grid", self._toggle_solver_grid, "Shift+G", True, False,
@@ -1034,24 +1038,27 @@ class MainWindow(QMainWindow):
         self.solver_panel.checks.recolour()                                 # The links of the warnings take the link colour of the new palette
         self._refresh_icons()
 
-    def show_shortcuts(self):
-        """!
-        @brief Show the keyboard and mouse help.
-        """
-        QMessageBox.information(self, "Keyboard and mouse", """<table cellpadding=3>
+    SHORTCUTS_HTML = """<table cellpadding=3>
 <tr><td><b>S Z H C V O</b></td><td>Select, Zone, Heater, Heatsink (Cooling), Via, board Outline tools</td></tr>
 <tr><td><b>P</b></td><td>Polygon mode (click vertices; double click or Enter finishes)</td></tr>
 <tr><td><b>Wheel / middle drag / Space+drag</b></td><td>Zoom / pan</td></tr>
-<tr><td><b>Ctrl+0</b></td><td>Fit board</td></tr>
+<tr><td><b>Ctrl+0, Ctrl++ (or Ctrl+=), Ctrl+-</b></td><td>Fit board, zoom in, zoom out</td></tr>
 <tr><td><b>Right-click</b></td><td>On a shape: add or delete a vertex, duplicate, delete; on an empty spot: add a heater, zone, heatsink or via there</td></tr>
 <tr><td><b>Del, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
+<tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
-<tr><td><b>Ctrl+Z / Ctrl+Shift+Z</b></td><td>Undo / redo</td></tr>
-<tr><td><b>F1</b></td><td>User guide</td></tr></table>""")
+<tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
+<tr><td><b>F1</b></td><td>User guide</td></tr></table>"""
+
+    def show_shortcuts(self):
+        """!
+        @brief Show the keyboard and mouse help (the text is SHORTCUTS_HTML, which tests/test_shortcuts.py checks against the real shortcuts).
+        """
+        QMessageBox.information(self, "Keyboard and mouse", self.SHORTCUTS_HTML)
 
     def show_about(self):
         """!
