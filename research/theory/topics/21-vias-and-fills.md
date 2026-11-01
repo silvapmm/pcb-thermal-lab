@@ -16,7 +16,7 @@ Along the axis `R = L / (k_cu A_eq)` with
 
     A_eq = A_plating + min(k_fill / k_cu, 1) pi r_in^2           (open barrel: k_fill = 0)
 
-and `A_plating = pi [(D/2)^2 - (D/2 - t_plating)^2]`, `r_in = D/2 - t_plating`, `D` the **drill** diameter (`Via.thermal_area`; the tooltip and the docstring of `add_via` call it the finished hole, which would make the resistance 15 to 27 % lower than the model's if a finished-hole number were typed, `research/via-fill/README.md` 7.5). An electroplated copper fill is the whole disc, `pi (D/2)^2`. Inside the layered models the barrel counts only across the dielectric gaps (one open via of the example board: 175.6 K/W over 1.46 mm, not the 192.4 K/W of 1.6 mm). The via is assigned to the cell that contains its centre; in the Analytic model it is a tile conductance `c_via = k_cu A_via / d` (topic 06).
+and `A_plating = pi [(D/2)^2 - (D/2 - t_plating)^2]`, `r_in = D/2 - t_plating`, `D` the **drill** diameter (`Via.thermal_area`; the tooltip and the docstring of `add_via` call it the finished hole, which would make the resistance 15 to 27 % lower than the model's if a finished-hole number were typed, `research/via-fill/README.md` 7.5). An electroplated copper fill is the whole disc, `pi (D/2)^2`. Inside the layered models the barrel counts only across the dielectric gaps (one open via of the example board: 175.6 K/W over 1.46 mm, not the 192.4 K/W of 1.6 mm). In the FVM and FDM the barrel is a **mean-potential coupling** between the plane temperatures averaged over a footprint of cells (topic 02, section 6), not a conductance of the cell that holds the centre; in the Lumped and Analytic models the barrel conductance is in series with a constriction resistance (topics 05 and 06).
 
 ## 3. What the fill does
 
@@ -24,7 +24,7 @@ The usual fabricator "filled via" is an **epoxy resin plug** (IPC-4761 types V t
 
 ## 4. Limits
 
-The barrel is a lumped area, the lateral effect of the wall is neglected, vias are point features (0.5 % against 3D rods on the example board, but the FVM point via does not converge with the cell, topic 02; the FDM puts a via on the nearest node and is 2 to 3 % low at 1 mm; the 3D solid cuts a via larger than its cell to that cell, so a 0.5 mm copper fill keeps 32 % of its area at 0.25 mm, `research/via-fill/README.md` 7.4). The 185 K/W an article gives for an epoxy-filled via is not a model of the fill.
+The barrel is a lumped area, the lateral effect of the wall is neglected, the answer of the point via depended on the cell (the point-via history, `research/via-fill/README.md` 7.3, is why the footprint treatment of topic 02 exists); a via within one cell of a board edge is clipped and warned (`checks.check_via_limits`); the 3D solid clips `a_via` at 1 per cell, so a 0.5 mm copper fill below 0.44 mm cells loses the excess copper. The 185 K/W an article gives for an epoxy-filled via is not a model of the fill.
 
 ## 5. Related topics
 

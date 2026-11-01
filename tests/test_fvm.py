@@ -145,8 +145,9 @@ def test_sor_step_criterion_of_the_original_program_stops_early():
 def _uniform_slab(monkeypatch):
     # One layer, heater over the whole board, insulated edges: the temperature is uniform, so the problem reduces to
     # C * dtheta/dt = P - G * theta with an exact exponential solution. That closed form is the one of a single node: the laminate nodes of a
-    # one-layer board are switched off, since what is tested here is the time integrator
+    # one-layer board (the bottom node of the rule and the two nodes of the earlier versions) are switched off, since what is tested here is the time integrator
     monkeypatch.setattr(laminate, "LAMINATE_NODES", 0)
+    monkeypatch.setattr(laminate, "uses_rule", lambda problem: False)
     p = reference_problem(layers=1, heater_mm=100.0, power=10.0)
     p.board.h_side = None
     return p

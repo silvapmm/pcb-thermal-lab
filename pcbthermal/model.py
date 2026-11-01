@@ -20,7 +20,7 @@ import os
 import numpy as np
 
 from . import defaults
-from .geometry import coverage_fraction, polygon_area, polygon_is_simple
+from .geometry import BOARD_SAMPLES, coverage_fraction, discs_board_share, polygon_area, polygon_is_simple
 
 
 @dataclass
@@ -228,7 +228,7 @@ class Board:
         """
         return self.outline is not None
 
-    def cover(self, nx, ny, dx, dy, samples=4, minimum=0.01):
+    def cover(self, nx, ny, dx, dy, samples=BOARD_SAMPLES, minimum=0.01):
         """!
         @brief Fraction of every grid cell that lies on the board.
         @details All ones for a rectangular board; otherwise the coverage of the outline polygon. Cells with less than `minimum` are taken as off the board.
@@ -236,7 +236,7 @@ class Board:
         @param ny Number of cells along y.
         @param dx Cell width in metres.
         @param dy Cell height in metres.
-        @param samples Sub-samples per cell side.
+        @param samples Sub-samples per cell side (geometry.BOARD_SAMPLES, shared with the part weights and the FDM node cover).
         @param minimum Smallest coverage kept.
         @return Array (ny, nx) with values in [0, 1].
         """
@@ -920,7 +920,7 @@ class Problem:
                  the real board or in the arm of a T is 6 to 18 % too cool in the Lumped and 0 to 16 % in the Analytic (`docs/validation.md` section 13).
         @return Tuple (Problem without outline, s). For a board without outline: (a copy, 1.0).
         """
-        q = copy.deepcopy(self)
+        q = copy.deepcopy(self).drop_off_board_vias()      # A via with no board under it conducts nothing, so it must not land on the scaled box
         b = q.board
         if not b.has_outline():
             return q, 1.0
@@ -941,6 +941,30 @@ class Problem:
             shift = np.maximum(-lo, 0.0) - np.maximum(hi - [b.width, b.height], 0.0)   # Back inside the box
             h.polygon = moved + shift
         return q, s
+
+    def via_board_shares(self):
+        """!
+        @brief Share of the drill disc of every via that lies on the board (the outline when there is one, the box otherwise).
+        @return list of float in [0, 1], one per via; 0 means no board under the via.
+        """
+        b = self.board
+        if not self.vias:
+            return []
+        # One vectorised call: only the discs near an edge of the outline are sampled (geometry.discs_board_share)
+        shares = discs_board_share([v.x for v in self.vias], [v.y for v in self.vias], [0.5 * v.diameter for v in self.vias], b.width, b.height, b.outline)
+        return [float(s) for s in shares]
+
+    def drop_off_board_vias(self):
+        """!
+        @brief Copy of the problem without the vias that have no board under their drill (they conduct nothing in any model).
+        @return Problem: the same object when every via touches the board, a copy otherwise.
+        """
+        keep = [share > 0.0 for share in self.via_board_shares()]
+        if all(keep):
+            return self
+        q = copy.copy(self)
+        q.vias = [v for v, k in zip(self.vias, keep) if k]
+        return q
 
     def has_profiles(self):
         """!

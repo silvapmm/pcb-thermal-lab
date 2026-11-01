@@ -2,6 +2,8 @@
 
 Status: **implemented** in the program in 2.4.0 (see the program's `docs/versions.md` and `docs/validation.md` section 18). Scripts: `scripts/study_via_fill.py` (the study), `scripts/study_via_model_checks.py` (the checks of sections 4.4 to 4.8); figures: `scripts/make_figures.py` and `scripts/make_diagrams.py`. Reviewed (section 7).
 
+**Program of 2.4.5 (reproduction pass, numbers below not rewritten).** The tables are the program up to 2.4.4. The point via (FVM, FDM, 3D solid) and the via constriction (Lumped, Analytic) moved 4.2, 4.5 and 4.6: the example board at 0.5 mm reads 85.18 / 85.17 / 85.00 / 80.99 degC for open / epoxy / paste / copper (copper-fill gain -3.89 -> -4.19 K; the program before the point via prints the old row to the digit); the copper-fill gain of the four layered models now agrees within 0.3 K (-4.19 / -4.20 / -4.48 / -4.27 K at 0.5 mm), so the statement that the Lumped and Analytic give 40 to 75 % more effect no longer holds; on the 3 x 3 board the FVM gain converges with the cell (-4.50 / -4.47 / -4.49 K at 1 / 0.5 / 0.25 mm). The 3D-solid 'perfect vias at 1 mm' value of 4.5 (-7.96 K) was already stale in 2.4.4 (-13.51 K). Every shift and its item: `research/reproduction-245/README.md`, Part A.
+
 ## 1. The question
 
 A fabricator's "filled via" is not a copper-filled via. Does the fill of the barrel change the temperature of a part, and which fills are worth choosing?
@@ -183,3 +185,7 @@ Fabricator pages, not the IPC standard, which was not read (what was read and ho
 * **Limits**: no physical board; the IPC-4761 text and the fill conductivities beyond the three fabricator pages were not read; the 16 W/mK and silver-epoxy ranges are not traced to a source; the Peaceman radius is from memory; the independent reference shares the layered stack, the films and the plane copper with the program, not the via model.
 * **Defects of the program found**: open: the point via does not converge with the cell below 0.5 mm (4.6, `research/ROADMAP.md` A5); the 3D solid clips a via larger than its cell (4.7; `INTEGRATION.md` 2); the tooltip and the docstring of `Via.diameter` say "finished hole" while the model uses the drill (4.8; `INTEGRATION.md` 3); Lumped and Analytic overstate vias (`research/ROADMAP.md` A6).
 * **Text for the project documents**: `docs/for-the-project-documents.md`; the program defects and the corrections proposed are in `INTEGRATION.md`.
+
+## Library update after the point via and the via constriction of the program
+
+`scripts/study_via_model_checks.py` part 1 read the barrel from `Network.gz`; it now reads `gz + gz_via` (the barrel conductance at the cell of the via centre). Re-run: the printed line is unchanged (0.01709 W/K per gap against the closed form 0.01709; 175.6 K/W). Parts 2 and 3 were NOT re-run; they run the program's models, which since `fix/point-via` and `fix/via-constriction` give other numbers for the vias than the ones of this README.

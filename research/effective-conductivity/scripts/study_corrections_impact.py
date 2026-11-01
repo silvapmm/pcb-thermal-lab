@@ -96,8 +96,9 @@ def laminar_patch():
     """
     original = convection.h_natural_vertical
 
-    def patched(t_surface, t_ambient, height):
-        h, ra = original(t_surface, t_ambient, height)
+    def patched(t_surface, t_ambient, height, form="general"):
+        # The program's own `form` argument (since the natural_form option) is accepted and ignored: this copy always applies the laminar form
+        h, ra = original(t_surface, t_ambient, height, form)
         if ra >= 1e9:
             return h, ra
         props = convection.air_properties(0.5 * (t_surface + t_ambient))

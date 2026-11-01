@@ -37,7 +37,9 @@ def exact_step():
     @return str Text lines.
     """
     old = laminate.LAMINATE_NODES
+    old_rule = laminate.uses_rule
     laminate.LAMINATE_NODES = 0              # The closed form is that of one node: the integrator is what is tested (as in tests/test_fvm.py)
+    laminate.uses_rule = lambda problem: False    # Since 2.4.5 the laminate rule gives a one-layer board its bottom node; off here, as tests/test_fvm.py does
     try:
         p = reference_problem(layers=1, heater_mm=100.0, power=10.0)
         p.board.h_side = None                # Insulated edges: the field stays uniform
@@ -61,6 +63,7 @@ def exact_step():
         return "\n".join(out)
     finally:
         laminate.LAMINATE_NODES = old
+        laminate.uses_rule = old_rule
 
 
 def _at(tr, times):

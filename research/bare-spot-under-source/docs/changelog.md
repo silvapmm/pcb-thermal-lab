@@ -1,0 +1,3 @@
+# Changelog entry (when adopted)
+
+Not adopted yet. If P1 is adopted as a fix: "Fixed: the vertical path of a cell without copper in a layer now includes the laminate that replaces the copper, and the maximum under a part on bare laminate includes the half thickness of the top layer; the FVM and FDM peak over a bare window rises by 0.1 to 4 % of the rise on typical 4 and 6 layer stack-ups (4-layer: -3.8 % to -0.6 % of the resolved 3D solid); boards with copper under the part are unchanged." If P2 is adopted as a feature: "Added: laminate nodes in the gaps next to cells without copper (FVM, FDM)."

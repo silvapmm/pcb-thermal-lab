@@ -1507,11 +1507,12 @@ class SolverPanel(QWidget):
         """
         b = self.doc.problem.board
         c = self.cell.value()
-        n = fvm.unknowns(self.doc.problem, c)[0]                   # The nodes the model really has: copper layers, laminate nodes of a one-layer board, block layers
+        n = fvm.unknowns(self.doc.problem, c)[0]                   # The nodes the model really has: copper layers, laminate nodes of the rule (only where they are used), block layers
         text = f"{n} unknowns"
-        if n > 1_000_000:
-            # The layered models have no hard limit; measured with the direct solver on a plain board (quiet 16 GB machine): 1 million unknowns 5.2 s and 2.7 GB, 2 million 12.4 s and 5.5 GB
-            text += " (slow: about 3 GB of memory per million)"
+        if n > 500_000:
+            # The layered models have no hard limit. Direct solver, 16 GB machine: a plain board takes 5.2 s and 2.7 GB at 1 million unknowns, but boards with the laminate
+            # nodes of the rule and many layers take about 7 GB per million (2 layers 637 000 unknowns 21 s and 4.5 GB; 4 layers 681 000 unknowns 66 s and 7.6 GB)
+            text += " (slow: up to 7 GB of memory per million, a minute or more)"
         if self.cb["fdm"].isChecked():
             text += f" (FDM: {fdm.unknowns(self.doc.problem, c)[0]})"       # Its nodes are the corners of the cells, one more row and column
         if self.cb["solid3d"].isChecked():

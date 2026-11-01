@@ -1,0 +1,8 @@
+# Text for `docs/versions.md` (chapter "Planned")
+
+- **Laminate nodes through the gap of the cells that show laminate** (after the investigation `gap-subdivision`, one change with A12's vertical correction and A11's laminate nodes; `feature/laminate-nodes`): for every gap, the cells in which either adjacent layer has copper fill below 1, plus a margin of a gap thickness and one cell, get n = 3 or 4 laminate nodes (graded 2:1); everything else keeps the single link, so boards with copper in every cell are bit-identical. Evidence: `research/gap-subdivision/README.md` 4 and 5 (the FVM reads -4.7 % on a 10 mm pad on a 1.6 mm gap and -10.2 % on 3.2 mm; n = 4 graded leaves -1.5 % and -3.1 % of the gap error alone, -0.2 % and -1.7 % of the total at a 0.5 mm cell; 1.0 to 1.75 times the unknowns on the example boards), `INTEGRATION.md` P2. Needs the heat capacity of the new nodes for the transient, the FDM, and the decision on n.
+- **A note for a heater on a small copper footprint with a thick gap** (`research/gap-subdivision/INTEGRATION.md` P1; `fix/` or `docs/` branch): the FVM reads 3 % or more cool when the copper footprint is smaller than about 8 gap thicknesses (about 12 with no copper on the far side of the gap), about 10 % at 3 to 4.
+
+# Text for `research/ROADMAP.md`
+
+A1 leaves the pool (studied in `gap-subdivision`). Left open from it: the FDM, the transient, vias, blocks and outlines with extra nodes; the other Gerber boards (`study_real_boards.py` runs one board); the Lumped and Analytic pad errors (A2). (The 3D solid's +0.4 to +5.1 % above the converged answer on small pads is explained by the review, README 10.2: the in-plane error of the cell and its four slabs per gap.)

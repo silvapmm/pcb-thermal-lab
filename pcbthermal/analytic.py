@@ -24,13 +24,16 @@ the uniform-board limit P / (h W H); the other modes add the lateral spreading p
 model needs laterally uniform properties, with these refinements:
 
 - Copper fill is averaged per layer with a weight equal to the influence of the heaters
-  (the fin Green function K0(r / lambda), lambda = sqrt(S / h)), so copper near a heater counts
+  (the fin Green function K0(r / lambda_l), lambda_l = sqrt(S_l / g_loss) the layer's own fin length), so copper near a heater counts
   more than copper far away.
 - Vias and heatsinks are local. They are removed from the uniform problem and added back through
   a Green-function (Woodbury) correction: the board is cut into tiles of a few millimetres,
   every tile with a via or a heatsink gets a lumped conductance, and the small dense system
-  (I + G C) y = y0 gives the tile temperatures, where G is the modal response of the uniform
-  board and C holds the local conductances.
+  (I + G_mod C_loc) y = y0 gives the tile temperatures, where G_mod is the modal response of the uniform
+  board between tiles and C_loc holds the local conductances.
+- With vias the tile is min(1 mm, 0.75 of the median nearest-neighbour distance), at least 0.25 mm, the barrel conductance of a via that is alone at the scale of a
+  tile is shared bilinearly among the four tiles around it, and the diagonal of G_mod gets a self-term that makes the tile read the temperature at the wall of the barrel
+  instead of the tile mean (viaconstriction.py). Boards without vias keep the 2.5 to 5 mm tiles and are unchanged.
 - A validity check adds warnings when the copper is far from uniform around the heaters.
 Strongly non-uniform copper is still beyond this model: use the FVM then.
 """
@@ -42,7 +45,7 @@ import numpy as np
 
 from scipy.special import k0
 
-from . import blocks, laminate
+from . import blocks, laminate, viaconstriction
 from .fvm import Network
 from .geometry import coverage_fraction, polygon_area, polygon_centroid, zone_fill
 from .results import SteadyResult
@@ -96,7 +99,7 @@ def _tile_grid(W, H, lam):
     @brief Tile grid used for the local corrections.
     @param W Board width (m).
     @param H Board height (m).
-    @param lam Fin length lambda = sqrt(S / h) (m).
+    @param lam Fin length of the whole stack, lambda = sqrt(sum_l S_l / h_tot) (m).
     @return Tuple (ntx, nty, tw, th): tile counts and tile size in metres.
     """
     target = min(max(lam / 4.0, 2.5e-3), 5e-3)            # Tiles between 2.5 and 5 mm, below lambda / 4
@@ -159,10 +162,24 @@ def _effective_sheet(problem, cell_mm):
                 w += pw * k0(dist / lam_l)                  # Influence of the heater at this distance
             fill[l] = (fill_map[l] * w).sum() / w.sum()
             spread[l] = np.sqrt(((fill_map[l] - fill[l]) ** 2 * w).sum() / w.sum())
+            if l in heater_layers:
+                # Warning trigger only (the sheet above is not changed): the same spread with the fin length of this layer as full
+                # copper. On a thin gap the program's length is about a millimetre, the weights stay under the part and the pad edge is not
+                # seen, so the first spread is silent exactly on the boards that are worst (research/analytic-partial-copper, README 9.4).
+                S_cu = m.k_copper * tc[l] + k_lam[l] * (slab[l] - tc[l])
+                lam_cu = float(np.sqrt(S_cu / max(h_surf + g_adj, 1e-9)))
+                w_cu = np.zeros((ny, nx))
+                for (cx, cy), r0, pw, _ in centres:
+                    dist = np.maximum(np.hypot(xs[None, :] - cx, ys[:, None] - cy), max(r0, 0.5 * dx))
+                    w_cu += pw * k0(dist / lam_cu)
+                f_cu = (fill_map[l] * w_cu).sum() / w_cu.sum()
+                spread[l] = max(spread[l], float(np.sqrt(((fill_map[l] - f_cu) ** 2 * w_cu).sum() / w_cu.sum())))
         if spread.max() > 0.25:
             warnings.append(
-                f"copper coverage varies strongly around the heaters (spread {spread.max():.2f}); "
-                "the uniform-sheet assumption is weak, the FVM result is more reliable")
+                f"copper coverage varies around the heaters (spread {spread.max():.2f}): the Analytic model spreads the copper of each layer "
+                "into one uniform sheet and has no copper edge; on a part over a copper pad or a window it was measured between 76 % too cool "
+                "and 9 % too hot against a resolved 3D solution, and the same board entered as one layer or as two (bare second layer) "
+                "differed by up to 1.8 times. Use the FVM result for this board.")
     S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)                     # (L,)
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
@@ -249,11 +266,14 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @param n_terms Number of cosine modes per direction (300 resolves heaters of a few mm).
     @param local_corrections If True vias and heatsinks are applied locally (Green-function update);
                              if False they are smeared over the board (the older, cruder model).
+    @note With vias the tiles follow the pitch and the vias get the constriction of the heat converging on a barrel (viaconstriction.plan, add_self_terms); the correction
+          needs a dense system of (active tiles x layers)^2 entries, kept to 4800 unknowns.
     @note A metal block is a graph of tiles inside the Green-function correction (see _block_tiles) and needs the local corrections. Steady state only; against the FVM it is
           within 1 % on average and 4.5 % at most (docs/validation.md section 17).
     @return SteadyResult with one field per layer, T of shape (layers, ny, nx).
     """
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     forced = blocks.has_blocks(problem) and not local_corrections           # A block is a local correction: it cannot be smeared over the board
     local_corrections = local_corrections or forced
@@ -304,12 +324,16 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     hidden = {"top": 0.0, "bottom": 0.0}                         # Face heat of the area under the blocks, taken off the face totals
     if local_corrections and (problem.vias or problem.heatsinks):
         ntx, nty, tw, th = _tile_grid(W, H, lam)
+        vs = viaconstriction.ViaSet(problem) if problem.vias and L > 1 else None
+        if vs is not None:
+            # Vias: tile of min(1 mm, 0.75 nearest-neighbour distance) instead of 2.5 to 5 mm, so that the sink has the scale of the barrel (viaconstriction.py)
+            via_plan = viaconstriction.plan(problem, vs, (ntx, nty, tw, th), L)
+            (ntx, nty, tw, th), via_weights = via_plan["grid"], via_plan["weights"]
         c_via = np.zeros((nty, ntx, max(L - 1, 0)))                    # Via conductance of each tile across each gap
-        for v in problem.vias:
-            a = min(max(int(v.x // tw), 0), ntx - 1)
-            bb = min(max(int(v.y // th), 0), nty - 1)
-            if L > 1:
-                c_via[bb, a] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+        for iv, v in enumerate(problem.vias if vs is not None else []):
+            cond = m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d_diel
+            for (row, col), w in via_weights[iv].items():             # A via alone at the scale of a tile is shared by bilinear weights between four tiles
+                c_via[row, col] += w * cond
         g_heatsink = np.zeros((L, nty, ntx))
         for s in problem.heatsinks:
             if s.is_block():
@@ -341,6 +365,9 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                         acc += accx * np.outer(Uy[n], Uy[n])
                     Gm[:, l, :, k] = acc
             G = Gm.reshape(Nt * L, Nt * L)
+            if vs is not None:
+                # The mosaic gives the tile MEAN; the barrel sees its wall: add the response of the tile to its own sink (self-term) to the diagonal
+                G = viaconstriction.add_self_terms(G, active, via_weights, vs, tw, th, S)
             # Local conductance matrix C (W/K): vias couple adjacent layers, heatsinks go to ambient
             C = np.zeros((Nt * L, Nt * L))
             for r, (row, col) in enumerate(active):
@@ -358,7 +385,10 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
                 C[np.ix_(rows_e, rows_e)] += e["B"]
                 C[rows_e, rows_e] -= e["face"]                 # ... and the face under it no longer loses heat to the air
-            y = np.linalg.solve(np.eye(Nt * L) + G @ C, y0.reshape(-1))
+            lhs = G @ C
+            lhs[np.diag_indices_from(lhs)] += 1.0                  # I + G_mod C_loc in place: the identity matrix and the sum are two more matrices of (Nt L)^2 entries
+            y = np.linalg.solve(lhs, y0.reshape(-1))
+            del lhs
             for e in bt:                                       # Heat taken by the exposed surface of every block
                 rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
                 phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
@@ -653,6 +683,7 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     ms = _ModalSet(problem, cell_mm, n_terms)
     t_end = t_end or 10.0 * ms.tau
@@ -774,6 +805,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)
     from . import profiles
     return profiles.run_windows(problem, decisions, options, _AnalyticAdapter(problem, cell_mm, n_terms), "analytic",
@@ -794,6 +826,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     @return TransientResult.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     from .results import TransientResult
     problem = problem.steady_copy("average") if problem.has_profiles() else problem
     problem = laminate.series_bottom_problem(problem)            # One-layer board: the laminate in series with the bottom film (laminate.py)

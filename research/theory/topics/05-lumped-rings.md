@@ -50,22 +50,31 @@ Each heater gives a small dense system `K_h theta = Q_h` (`L R` unknowns, `Q` at
 
 The input checks (`checks.py`) warn before the run. On a board with an outline the model runs on the rectangle of the same area (topic 20). With a metal block it adds one layer of unknowns per ring (topic 11).
 
-## 6. How the program does it
+## 6. The constriction on a via
+
+A ring carries the mean temperature of its cells; a via barrel sees the lower temperature at its wall, because the heat of the whole plane converges on a disc of the barrel's size. The difference is the **constriction resistance**, in series with the barrel conductance `k_cu A_via / d` of each gap. In a ring with `n` vias the plane `l` reaches the barrel through a well `R_w(l) = R_K(S_l, r_c, a) + N_g R_K(S_l, R_macro, r_cl)` (second term for a group of `N_g > 1` vias), with the Krogh-cell resistance
+
+    R_K(S, R, a) = (1 / (2 pi S)) [ b^4 ln b / (b^2 - 1)^2 - b^2 / (2 (b^2 - 1)) - 1/4 ],      b = R / a,      a = e^(-1/4) r_via
+
+(sink disc `a` at the centre of a circular cell `R`, uniform source in the annulus, insulated rim; tends to `(ln b - 3/4) / (2 pi S)`). The barrel nodes are eliminated by Schur complement, leaving couplings between all the planes of the ring (`viaconstriction.py`, `viawell.kron_barrel`). Without vias the network is unchanged bit for bit. Limits: a lone via is 22 % too small to 65 % too large, an array that straddles the footprint edge up to 80 % too large (the rings have no angular resolution), `docs/theory.md` 6.1 and `docs/validation.md` 18. The formulas are own derivations checked numerically (`research/lumped-analytic-vias`, `research/lumped-via-groups`); the Krogh cell is [Krogh1919] (status M: the paper was not opened) and the closed-rim well equation is the same mathematics as [Dietz1965] (S).
+
+## 7. How the program does it
 
 `pcbthermal/lumped.py`, `docs/theory.md` section 5.
 
-## 7. Where it is tested
+## 8. Where it is tested
 
 `docs/validation.md` sections 2, 3, 13; `research/models-comparison/` (figure 9, "where models fail"; figure 6, the rings), `research/outline/` (the rectangle of the same area), `research/block-and-fins/` (the block as a ring layer).
 
-## 8. Related topics
+## 9. Related topics
 
 01, 06 (the other reduced model), 11, 20.
 
-## 9. Sources
+## 10. Sources
 
 * Bessel-function disc solution and the logarithmic potential of a heated region: [CarslawJaeger] (disc sources, I0 and I1).
 * Constriction and spreading resistance of a small source (the same physics seen as a resistance): [Lee1995], [EC1998Spreading], topic 18.
+* Constriction of the heat on a via barrel: [Krogh1919] (M), [Dietz1965] (S), [Fish2017] (microspreading of via cells, chapter 6 read, the case reproduced), [Guenin2004] (S).
 * The ring construction, the corrections and the error table are the project's own work (the program was tuned against the FVM, and the 3D solid is the independent check): [L-validation].
 
 *What was read and what was not verified:* the formulas are from `docs/theory.md` section 5 (read in full) and `lumped.py` of `develop`; the review of this folder re-derived `f_R` and `f_P` from the disc solution (mean-to-boundary and centre-to-mean differences per watt leaving sideways, `Q_lat = -2 pi a S dtheta/dr`, over their no-loss values `1/(8 pi S)`; they behave as `1 - x^2/24` and `1 - x^2/12` as `x -> 0`); no published ring-network method is recorded in the repository.

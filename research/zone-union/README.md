@@ -4,6 +4,8 @@ The question of the maintainer: when the zones of one copper layer meet or overl
 
 Nothing of the program was edited. The program is imported; the prototype was copied as a patch (`lib/zone_union_prototype.patch`, the diff of `fix/zone-union` against `develop`, `pcbthermal/` only) and applied to a **copy** of the package made in `out/variant/` (`lib/variant.py`), where the rule is chosen by an environment variable so that every rule runs on the same code. The program as it is (the old rule) is run unmodified in separate processes and is the "old" column everywhere.
 
+**Since 2.4.5 (the prototype is in the program).** `fix/zone-union` was merged, so `geometry.zone_fill` (rule `max_point`) is the program and `lib/zone_union_prototype.patch` no longer applies (every hunk is already there); it is kept as the record only. `lib/variant.py` now copies the package as it is and replaces `zone_fill` by the dispatch on `ZONE_RULE`; the "old" column of the studies is the copy with `ZONE_RULE=max_cell` (the rule of the program before 2.4.5) and the unmodified program equals `max_point`. The numbers below were measured before the merge; the copy with `max_cell` reproduces the old rule, except that the 26 K FDM difference of 4.1 is now measured against a program whose FDM already has the union, so the "old FDM" column cannot be rechecked against the program itself.
+
 ## Contents
 
 | # | Section | Question |
@@ -273,7 +275,7 @@ A zero-area polygon adds nothing and does not fail. The even-odd rule of `points
 
 ### 8.1 The example boards
 
-`study_program.py`: `examples/example_board`, `profile_board` (4 layers, 4 zones each) and `reference_board` (2 layers, 2 zones), 1.0 and 0.5 mm cells, five models (the 3D solid is refused at 0.5 mm on the 4-layer boards: 512 000 unknowns against the limit of 250 000): the largest change of any peak rise under the per-point union is **0.0000 K**. For example, `example_board` at 1 mm: 60.814 / 59.383 / 59.659 / 59.652 / 60.975 K. The example boards have disjoint zones that fill their cells, as the invariant test says; they cannot show the effect, and the change leaves them untouched.
+`study_program.py`: `examples/example_board`, `profile_board` (4 layers, 4 zones each) and `reference_board` (2 layers, 2 zones), 1.0 and 0.5 mm cells, five models (the 3D solid is refused at 0.5 mm on the 4-layer boards: 512 000 unknowns against the limit of 250 000): the largest change of any peak rise under the per-point union is **0.0000 K**. For example, `example_board` at 1 mm: 60.814 / 59.383 / 59.659 / 59.652 / 60.975 K (program of 2.4.4; on 2.4.5 the point via and the via constriction give 60.234 / 60.126 / 61.628 / 60.102 / 60.975 K, `research/reproduction-245/README.md` Part C; the union still changes nothing on these boards). The example boards have disjoint zones that fill their cells, as the invariant test says; they cannot show the effect, and the change leaves them untouched.
 
 ### 8.2 The Stormduino as polygons (`study_real_board.py`)
 

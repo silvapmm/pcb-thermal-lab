@@ -3,22 +3,22 @@
 """!
 @file variant.py
 @brief Builds, outside the program, a copy of `pcbthermal` in which the way the zones are combined can be chosen (env ZONE_RULE), and puts it first on the import path.
-@details The program is never edited: the copy lives in research/zone-union/out/variant/pcbthermal. It is made from the working tree (develop) by (1) applying lib/zone_union_prototype.patch (the diff of the
-         branch fix/zone-union against develop, restricted to pcbthermal/: the five call sites now call geometry.zone_fill), (2) copying lib/zone_rules.py to pcbthermal/_zone_rules.py and (3) appending
-         to geometry.py a zone_fill that dispatches on os.environ["ZONE_RULE"] (default max_point, the prototype). With ZONE_RULE=max_cell the copy gives the rule of `develop` (checked in study_cases.py
-         against the unmodified program, which is run in a separate process by `develop_peaks`). The rule is read at every call, so one process can sweep all the rules.
+@details The program is never edited: the copy lives in research/zone-union/out/variant/pcbthermal. It is made from the working tree by (1) copying lib/zone_rules.py to pcbthermal/_zone_rules.py and (2) appending
+         to geometry.py a zone_fill that dispatches on os.environ["ZONE_RULE"] (default max_point, the prototype). With ZONE_RULE=max_cell the copy gives the rule of the program BEFORE 2.4.5.
+         Frozen history (2.4.5): `fix/zone-union` was merged, so the program itself now calls `geometry.zone_fill` (rule max_point) at all the call sites and the
+         step "apply lib/zone_union_prototype.patch" was dropped (the patch no longer applies: every hunk is already in the program). The patch file is kept as the record of the
+         prototype. The "old" column of the studies is therefore the variant with max_cell, no longer the unmodified program, and the unmodified program equals max_point. The rule is read at every call, so one process can sweep all the rules.
          Use: `import variant; variant.use()` before importing pcbthermal; `variant.use(False)` keeps the program of the repository as it is.
 """
 
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 from paths import LIB, OUT, REPO
 
-## The patch of the prototype and the rule module that the copy receives.
+## The patch of the prototype, kept as the record only (the program has the change since 2.4.5; it is not applied any more).
 PATCH = LIB / "zone_union_prototype.patch"
 ## Where the copy is built.
 VARIANT = OUT / "variant"
@@ -52,7 +52,7 @@ def build(force=False):
     @brief Make the copy of the program with the choosable rule.
     @param force Rebuild even when it exists.
     @return Path of the folder to put on sys.path.
-    @throws RuntimeError If the patch does not apply.
+    @throws RuntimeError If the program has no geometry.zone_fill.
     """
     target = VARIANT / "pcbthermal"
     if target.exists() and not force:
@@ -62,9 +62,9 @@ def build(force=False):
     VARIANT.mkdir(parents=True)
     # Copy the package without caches (the data and the user guide are needed by the imports)
     shutil.copytree(REPO / "pcbthermal", target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
-    r = subprocess.run(["patch", "-p1", "-s", "-d", str(VARIANT), "-i", str(PATCH)], capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError("the prototype patch does not apply to this tree:\n" + r.stdout + r.stderr)
+    # The program already calls geometry.zone_fill (max_point) everywhere; the dispatch below replaces that one function in the copy
+    if "def zone_fill" not in (target / "geometry.py").read_text():
+        raise RuntimeError("this tree has no geometry.zone_fill: the variant needs the program with fix/zone-union merged")
     shutil.copy(LIB / "zone_rules.py", target / "_zone_rules.py")
     with open(target / "geometry.py", "a") as fh:
         fh.write(DISPATCH)

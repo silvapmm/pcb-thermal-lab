@@ -22,3 +22,6 @@ examples/csv_profiles/output_*/
 # worktrees that the agents create (temporary)
 .claude/worktrees/
 .venv-research/
+
+# third-party papers kept locally for reading (copyright stays with their owners, never committed)
+papers/

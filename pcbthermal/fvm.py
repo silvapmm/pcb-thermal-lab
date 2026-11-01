@@ -19,12 +19,18 @@ Crank-Nicolson). Because the scheme is a finite-volume balance, the heat leaving
 equals the injected power to solver precision, which the results report.
 """
 
+import contextlib
+import hashlib
+import logging
+import threading
+
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
+from scipy.sparse import csgraph
 
-from . import blocks, laminate
-from .geometry import edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
+from . import blocks, laminate, viawell
+from .geometry import part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
 from .results import SteadyResult, TransientResult
 from .numfmt import num
 
@@ -32,13 +38,77 @@ from .numfmt import num
 # the fill and 40 % less time than the default COLAMD (measured on the example board at 1 and 0.5 mm)
 ORDERING = "MMD_AT_PLUS_A"
 
+log = logging.getLogger(__name__)
+
+# Largest block of the block SOR (unknowns of the merged footprints of vias that touch): its dense inverse takes 8 n^2 bytes, so 5 000 unknowns are 200 MB.
+# Above it the SOR solves the board with the direct solver instead (a minimal guard; the memory limit by the estimated size is a separate item).
+MAX_SOR_BLOCK = 5000
+
+# Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
+# several times with other powers). One entry per thread, released before a new factorisation, so the peak memory is that of one LU, as with spsolve.
+_REUSE = threading.local()
+
+
+@contextlib.contextmanager
+def factor_reuse():
+    """!
+    @brief Within this block, a direct solve of a matrix identical to the previous one reuses its LU factorisation instead of factorising again.
+    @details Used by api._solve_with_tc around the top-path split and the power-coefficient loop, which solve the same board with other part powers: with fixed
+             face coefficients every board solve has the same matrix (6 factorisations become 1 for one part with a top path; with computed coefficients the
+             matrix changes at every Picard step and nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
+             released when the outermost block ends, so the peak memory is that of a plain solve. SuperLU's splu + solve gives the same numbers as spsolve
+             with the same column ordering (tests/test_top_path.py checks it to 1e-9 K). Nested blocks share the outer one.
+    @return Context manager (yields nothing).
+    """
+    outer = getattr(_REUSE, "slot", None)
+    if outer is None:
+        _REUSE.slot = {}
+    try:
+        yield
+    finally:
+        if outer is None:
+            _REUSE.slot = None                     # Release the kept factorisation
+
+
+def direct_solve(A, b):
+    """!
+    @brief Sparse direct solve A x = b with the column ordering ORDERING; reuses the previous factorisation of an identical matrix inside factor_reuse().
+    @param A Sparse matrix (any format; converted to CSC).
+    @param b Right-hand side, 1D array.
+    @return numpy.ndarray Solution x.
+    """
+    slot = getattr(_REUSE, "slot", None)
+    if slot is None:
+        return spla.spsolve(A.tocsc(), b, permc_spec=ORDERING)
+    A = A.tocsc()
+    A.sum_duplicates()                             # Canonical form, so that equal matrices give equal bytes
+    # The key is the exact content (structure and values), hashed: two matrices differ by a face coefficient in the computed-h loop
+    digest = hashlib.blake2b(digest_size=20)
+    for arr in (np.asarray(A.shape), A.indptr, A.indices, A.data):
+        digest.update(np.ascontiguousarray(arr).tobytes())
+    key = digest.hexdigest()
+    if slot.get("key") != key:
+        slot.clear()                               # Release the old LU before the new one is made (peak memory of one factorisation)
+        slot["lu"] = spla.splu(A, permc_spec=ORDERING)
+        slot["key"] = key
+        _REUSE.count = getattr(_REUSE, "count", 0) + 1
+    return slot["lu"].solve(np.asarray(b, dtype=float))
+
+
+def factorisation_count():
+    """!
+    @brief Number of LU factorisations made inside factor_reuse() blocks by this thread since the start (for the tests).
+    @return int.
+    """
+    return int(getattr(_REUSE, "count", 0))
+
 
 class Network:
     """!
     @brief Assembled thermal network: conductances, capacities, sources and the sparse matrix.
     """
 
-    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True):
+    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True):
         """!
         @brief Build the network of a problem on an nx x ny grid.
         @param problem A validated Problem.
@@ -47,6 +117,9 @@ class Network:
         @param assemble If False, skip building the sparse matrix (the lumped model only needs the per-cell arrays).
         @param with_blocks If False the metal blocks (heatsinks with a thickness) are left out: the heatsinks only add their coefficient on the
                board face (the lumped and analytic models see them that way).
+        @param ladder True: the laminate nodes of the rule (laminate.py) in the cells with absent copper, and the bottom node of a one-layer board; False: the network of the earlier
+               versions (one node per copper layer, the two laminate nodes of a one-layer board), which the Lumped model reads ring by ring. A problem with a metal block always
+               gets the earlier treatment.
         """
         problem.validate()
         self.problem = problem
@@ -57,6 +130,9 @@ class Network:
         self.extra_links = []                          # (layer a, layer b, conductance array) between non-adjacent layers
         self.block_info = []
         self.laminate_layers = []                      # Indices of the laminate node layers of a one-layer board (laminate.py)
+        use_rule = bool(ladder) and laminate.uses_rule(problem)
+        self.ladder = None                             # laminate.Ladder when the rule was applied
+        self.drop = None                               # Boolean (nl, ny, nx) of the nodes that no cell uses (left out of the direct solve)
         self.dx, self.dy = b.width / nx, b.height / ny
         L, dx, dy = b.layers, self.dx, self.dy
         # Fraction of every cell that is board (all ones for a rectangle); cells off the board carry nothing
@@ -67,7 +143,7 @@ class Network:
         k_lam, rho_cp_lam = b.layer_laminate()   # In-plane conductivity and volumetric heat capacity of the dielectric part of each node
         t_cu = np.asarray(b.copper_thickness)
         # A one-layer board gets laminate nodes under its copper (laminate.py): the copper node keeps the copper and half a gap
-        self.laminate = laminate.nodes(b)
+        self.laminate = None if use_rule else laminate.nodes(b)        # (the rule gives a one-layer board its bottom node in _add_ladder instead)
         if self.laminate is not None:
             slab = np.array([self.laminate.copper_slab])
         if np.any(t_cu >= slab):
@@ -85,14 +161,14 @@ class Network:
 
         # --- Vertical conductance between layer l and l+1 (W/K)
         self.gz = np.zeros((max(L - 1, 0), ny, nx))
+        self.via_blocks, self.gz_via = [], np.zeros_like(self.gz)
         if L > 1:
             d = b.gap_thicknesses()                    # One value per gap (equal in the simple stack-up)
             k_gap = b.gap_properties()[0]
             self.gz[:] = k_gap[:, None, None] * cell[None] / d[:, None, None]    # Dielectric alone
-            for v in problem.vias:
-                i, j = cell_index_of_point(v.x, v.y, nx, ny, dx, dy)
-                # The barrel conducts in parallel with the dielectric, across every gap
-                self.gz[:, i, j] += m.k_copper * v.thermal_area(b.via_plating, m.k_copper) / d
+            # The barrel is not added to gz: every via is a mean-potential coupling of a footprint of cells (viawell.py), appended to the matrix in
+            # _assemble. gz_via keeps the point conductance in the cell of the via centre, which the Lumped model reads ring by ring (gz + gz_via)
+            self.via_blocks, self.gz_via = viawell.build(problem, d, self.S, self.cover, dx, dy, nx, ny, 0.0, self.active)
 
         # --- Conductance to ambient (W/K): top, bottom, heatsinks and edges are kept separate
         self.g_top = np.zeros((L, ny, nx))
@@ -126,11 +202,14 @@ class Network:
             self.g_side[:L, :, -1] += b.h_side * dy * sl
             self.g_side[:L, 0, :] += b.h_side * dx * sl
             self.g_side[:L, -1, :] += b.h_side * dx * sl
+        pin_extra = self._add_ladder(b, cell) if use_rule else None      # After the edge conductance: the new nodes take their share of it from the copper nodes
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
         # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0).
         # The pin is kept apart (g_pin) because it is not a path to the air: the time constant must leave it out
         self.g_pin = np.zeros_like(self.g_amb)
         self.g_pin[:, ~self.active] = 1.0
+        if pin_extra is not None:
+            self.g_pin[L:] = np.maximum(self.g_pin[L:], pin_extra)             # Laminate nodes of the cells that do not use them are pinned too (and dropped from the direct solve)
         self.g_amb = self.g_amb + self.g_pin
 
         # --- Heat sources (W): the requested power is spread exactly over the covered cells.
@@ -140,7 +219,8 @@ class Network:
         L = self.nl                                    # Board layers plus the block layers
         self.Q = np.zeros((L, ny, nx))
         for h in problem.heaters:
-            cov = coverage_fraction(h.polygon, nx, ny, dx, dy, samples=8) * self.active      # A part is only heated on the board
+            # Heated only where it is both on the part and on the board (intersection per sample), scaled to the board cover of the cell
+            cov = part_weights(h.polygon, b.outline, nx, ny, dx, dy, cover=self.cover) * self.active
             if cov.sum() <= 0:
                 # Footprint smaller than the sampling: put all the power in the centroid cell
                 cx, cy = polygon_centroid(h.polygon)
@@ -195,6 +275,37 @@ class Network:
             self.extra_links.append((base + k - 1 if k else 0, base + k, ly["g_link"]))
         self.laminate_layers = list(range(base, base + len(layers)))
         self.nl = base + len(layers)
+
+    def _add_ladder(self, b, cell):
+        """!
+        @brief Apply the rule of laminate.py: interior laminate nodes in the cells with absent copper (plus a margin), the bottom node of a one-layer board, the vertical correction.
+        @details Changes the arrays of the copper nodes (S, C, gz, g_bottom, g_side), appends the new node layers after them and registers their links; boards with copper in every cell
+                 get no new node and keep the arrays of the earlier versions bit for bit (a one-layer board gets its bottom node).
+        @param b The Board.
+        @param cell Board area of every cell (m2), shape (ny, nx).
+        @return Boolean array (new layers, ny, nx) of the new nodes that are pinned (unused or off the board), or None when no layer was added.
+        """
+        plans = laminate.plan_gaps(b, self.fill, self.dx, self.active)
+        edge = self._edge_lengths() if b.h_side else np.zeros((self.ny, self.nx))
+        res = laminate.build(b, self.fill, cell, self.cover, self.active, edge, self.S, self.C, self.gz, self.g_bottom, self.g_side, plans)
+        self.S, self.C, self.gz, self.g_bottom, self.g_side = res.S, res.C, res.gz, res.g_bottom, res.g_side
+        self.ladder, self.drop = res.ladder, res.ladder.drop
+        k = len(res.layers)
+        if not k:
+            return None
+        zeros = np.zeros((k, self.ny, self.nx))
+        self.S = np.concatenate([self.S, np.stack([ly["S"] for ly in res.layers])])
+        self.C = np.concatenate([self.C, np.stack([ly["C"] for ly in res.layers])])
+        self.g_top = np.concatenate([self.g_top, zeros])
+        self.g_heatsink = np.concatenate([self.g_heatsink, zeros])
+        self.g_block = np.concatenate([self.g_block, zeros])
+        self.g_bottom = np.concatenate([self.g_bottom, np.stack([ly["g_bottom"] for ly in res.layers])])
+        self.g_side = np.concatenate([self.g_side, np.stack([ly["g_side"] for ly in res.layers])])
+        self.extra_links = list(res.links)
+        if res.ladder.bottom_layer >= 0:
+            self.laminate_layers = [res.ladder.bottom_layer]          # The bottom face of a one-layer board (the computed coefficients read it)
+        self.nl = b.layers + k
+        return np.stack([ly["pin"] | ~self.active for ly in res.layers])
 
     def _add_blocks(self, layers):
         """!
@@ -263,6 +374,11 @@ class Network:
             couple(idx[:nb - 1], idx[1:nb], self.gz)
         for a_layer, b_layer, g in self.extra_links:           # Contact of a metal block with its board face
             couple(idx[a_layer], idx[b_layer], g)
+        # The mean-potential couplings of the vias (they add to the diagonal and couple the footprint cells of the layers they join)
+        vr, vc, vv = viawell.matrix_entries(self.via_blocks, idx)
+        rows.extend(vr)
+        cols.extend(vc)
+        vals.extend(vv)
         # Conductance to ambient only adds to the diagonal
         n = L * ny * nx
         diag = self.g_amb.ravel()
@@ -284,7 +400,13 @@ class Network:
         """
         q = self.Q.ravel()
         if method == "direct":
-            theta = spla.spsolve(self.K.tocsc(), q, permc_spec=ORDERING)
+            if self.drop is not None and self.drop.any():
+                # Ragged solve: the laminate nodes that no cell uses (outside the flagged cells) are pinned rows of the matrix; leave them out of the factorisation
+                keep = np.flatnonzero(~self.drop.ravel())
+                theta = np.zeros(self.K.shape[0])
+                theta[keep] = direct_solve(self.K.tocsr()[keep][:, keep], q[keep])
+            else:
+                theta = direct_solve(self.K, q)
         elif method == "cg":
             # Jacobi (diagonal) preconditioner keeps CG cheap and robust for SPD thermal matrices
             dinv = 1.0 / self.K.diagonal()
@@ -297,26 +419,54 @@ class Network:
         res = np.linalg.norm(self.K @ theta - q) / max(np.linalg.norm(q), 1e-300)
         return theta.reshape(self.nl, self.ny, self.nx), float(res)
 
+    def sor_omega(self):
+        """!
+        @brief Estimate of Young's optimum relaxation factor of the red-black SOR from the Rayleigh quotient of the Jacobi matrix.
+        @details For the symmetric positive definite K = D - N with a two-colourable graph (the parity of l + i + j) the optimum is 2 / (1 + sqrt(1 - rho^2)), rho the
+                 spectral radius of D^-1 N (Young; Saad 2003, section 4.2.5). rho is bounded from below by the Rayleigh quotient 1 - (m^T K m) / (m^T D m) of the trial
+                 vector m = D^1/2 1 restricted to the nodes that have a link: one product with K, always a LOWER bound, so the omega that follows is below the optimum (safe side).
+                 K is the full matrix that the SOR solves, with the via couplings and the footprints. Nodes without any link (the cells off a board with an outline, pinned to the ambient)
+                 are left out of both sums: they are eigenvectors with mu = 0 and would dilute the quotient (omega near 1 on a round board). The result is capped at 1.999 as a guard.
+                 The old formula 2 / (1 + sin(pi / n)) is the optimum of a plate with fixed edges, and was 2.8 to 19 times slower on boards with insulated edges (research/young-omega-tiles).
+        @return float Relaxation factor in [1, 1.999].
+        """
+        K = self.K.tocsr()
+        d = np.asarray(K.diagonal(), float)
+        # Nodes with at least one off-diagonal entry: the row has more stored entries than the diagonal, or a stored off-diagonal that is not zero
+        off = np.asarray(abs(K).sum(axis=1)).ravel() - np.abs(d)
+        m = (off > 0).astype(float)
+        den = float(m @ d)
+        if den <= 0.0:
+            return 1.0
+        rho = 1.0 - float(m @ (K @ m)) / den
+        rho = min(max(rho, 0.0), 1.0)
+        return float(min(2.0 / (1.0 + np.sqrt(1.0 - rho * rho)), 1.999))
+
     def solve_sor(self, omega=None, tol=1e-9, max_iter=200000, criterion="residual"):
         """!
         @brief Solve K*theta = Q with red-black Successive Over-Relaxation (vectorised with NumPy).
         @details Every sweep updates the "red" nodes (l+i+j even) and then the "black" ones, each colour in one
                  array operation, so the iteration is the classical SOR of the original program but fast.
                  theta_new = (sum_m G_m theta_m + Q) / diag, theta += omega * (theta_new - theta).
-        @param omega Relaxation factor; None picks 2 / (1 + sin(pi / n)) with n the longest grid side.
+                 The cells of the vias are updated as dense blocks after the colours (block SOR).
+        @param omega Relaxation factor; None picks the estimate of Young's optimum of `sor_omega` (below 2, on the safe side).
         @param tol Stopping tolerance.
         @param max_iter Sweep limit.
         @param criterion "residual" stops when |K theta - Q| / |Q| < tol (reliable);
                          "step" stops when the largest change of one sweep is below tol in kelvin
                          (the rule of the original program, which can stop far from the solution).
-        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step).
+        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step); a board with vias whose footprint block is larger than
+                 MAX_SOR_BLOCK unknowns is solved directly (info["fallback"] = "direct").
         """
         if self.block_info:
             raise ValueError("SOR does not support metal blocks: use the direct solver or the conjugate gradients")
         L, ny, nx = self.nl, self.ny, self.nx
-        if omega is None:
-            omega = 2.0 / (1.0 + np.sin(np.pi / max(nx, ny)))
         K, Q = self.K, self.Q
+        if omega is None:
+            omega = self.sor_omega()
+        if self.ladder is not None and self.nl > self.n_board:
+            # Laminate nodes of the rule: the vertical neighbour is no longer layer +- 1 and no point colouring exists, so the plan columns are relaxed as blocks
+            return self._sor_columns(omega, tol, max_iter, criterion)
         diag = K.diagonal().reshape(L, ny, nx)
         # Conductances towards the six neighbours (zero where the neighbour does not exist)
         gl = np.zeros((L, ny, nx)); gr = np.zeros((L, ny, nx))     # x-1, x+1
@@ -336,6 +486,24 @@ class Network:
         l_i, i_i, j_i = np.indices((L, ny, nx))
         colour = (l_i + i_i + j_i) % 2 == 0
         masks = (colour, ~colour)
+        # The vias couple all the cells of a footprint (a dense block of K that the six-neighbour update does not see), so the cells of every via are
+        # solved together: a block SOR. The two colours skip them and, after the colours, each group of blocks that K does not couple takes the exact
+        # solution of its block, relaxed by the same omega (research/sor-with-via-couplings, variant c'; convergence for 0 < omega < 2)
+        groups = []
+        if self.via_blocks:
+            idx3 = np.arange(L * ny * nx).reshape(L, ny, nx)
+            vblocks = viawell.unknown_blocks(self.via_blocks, idx3, self.n_board)
+            if max(len(bk) for bk in vblocks) > MAX_SOR_BLOCK:
+                # The dense inverse of such a block is too large: use the direct solver and say so
+                log.warning("SOR: a via block of %d unknowns is too large for the block SOR; the direct solver is used instead", max(len(bk) for bk in vblocks))
+                theta, res = self.solve_steady("direct")
+                return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct"}
+            groups = self._sor_block_groups(vblocks)
+            skip = np.zeros(L * ny * nx, bool)
+            for bk in vblocks:
+                skip[bk] = True
+            skip = skip.reshape(L, ny, nx)
+            masks = (colour & ~skip, ~colour & ~skip)
         qn = np.linalg.norm(Q)
         theta = np.zeros((L, ny, nx))
         pad = np.zeros((L + 2, ny + 2, nx + 2))
@@ -354,6 +522,14 @@ class Network:
                 delta = np.where(m, new - theta, 0.0)
                 theta = theta + omega * delta
                 step = max(step, float(np.abs(delta).max()))
+            if groups:
+                tf = theta.ravel().copy()
+                qf = Q.ravel()
+                for rows_g, K_g, Binv in groups:
+                    dtheta = omega * (Binv @ (qf[rows_g] - K_g @ tf))
+                    tf[rows_g] += dtheta
+                    step = max(step, float(np.abs(dtheta).max()) / omega)
+                theta = tf.reshape(L, ny, nx)
             last_step = step
             if criterion == "step":
                 if step < tol:
@@ -365,6 +541,106 @@ class Network:
                     break
         res = float(np.linalg.norm(K @ theta.ravel() - Q.ravel()) / max(qn, 1e-300))
         return theta, res, {"iterations": it, "converged": converged, "omega": float(omega), "last_step": last_step}
+
+    def _sor_columns(self, omega, tol, max_iter, criterion):
+        """!
+        @brief Block SOR for a network with laminate nodes: every plan cell is a block of all its nodes (copper, interior, bottom), the blocks are coloured and each colour is solved exactly.
+        @details Why not the point red-black sweep: in a refined cell the two copper nodes are joined by n links and in a single-link cell by one, so the cycle
+                 a(i) - b(i) - b(j) - [n links] - a(j) - a(i) has length n + 3, odd for every even n, and no two-colouring of the nodes exists (the default rule gives n = 2 or 4).
+                 Every coupling of the network joins two nodes of one plan cell, the same node of two neighbouring cells, or the cells of a via footprint, so the blocks of the plan
+                 cells (merged where a via footprint joins them) can be coloured; the blocks of one colour are not coupled to each other and take the exact solution of their
+                 block-diagonal part, relaxed by omega (convergence for 0 < omega < 2, as for the via blocks). Nodes no cell uses are left out. A merged block above MAX_SOR_BLOCK
+                 unknowns is not factored: the board is solved directly (info["fallback"] = "direct").
+                 Measured on 30 mm boards at 1 mm: 730 / 5200 / 730 sweeps against 719 / 5221 / 775 for the point SOR of the earlier network (research/laminate-nodes, 3.11).
+        @param omega Relaxation factor.
+        @param tol Stopping tolerance.
+        @param max_iter Sweep limit.
+        @param criterion "residual" or "step" (see solve_sor).
+        @return Tuple (theta, residual, info) as solve_sor.
+        """
+        L, ny, nx = self.nl, self.ny, self.nx
+        cells = ny * nx
+        K = self.K.tocsr()
+        q = self.Q.ravel()
+        # Blocks: the plan cells, merged where a via footprint joins them (the via couples all the cells of its footprint)
+        links = []
+        for ci, cj, _w, _G in self.via_blocks:
+            c = (ci * nx + cj).astype(int)
+            links.append(np.stack([c[:-1], c[1:]], axis=1))
+        pairs = np.concatenate(links) if links else np.zeros((0, 2), dtype=int)
+        graph = sp.coo_matrix((np.ones(len(pairs)), (pairs[:, 0], pairs[:, 1])), shape=(cells, cells))
+        _, comp = csgraph.connected_components(graph, directed=False)
+        used = ~self.drop.ravel() if self.drop is not None else np.ones(L * cells, bool)
+        node_cell = np.tile(np.arange(cells), L)
+        node_block = comp[node_cell]
+        sizes = np.bincount(node_block[used], minlength=comp.max() + 1)
+        if sizes.max() > MAX_SOR_BLOCK:
+            log.warning("SOR: a block of %d unknowns (a via footprint with its laminate nodes) is too large for the block SOR; the direct solver is used instead", int(sizes.max()))
+            theta, res = self.solve_steady("direct")
+            return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct"}
+        # Colour the blocks greedily so that coupled blocks differ (blocks in raster order on a grid give the usual two colours)
+        coo = K.tocoo()
+        br, bc = node_block[coo.row], node_block[coo.col]
+        off = (br != bc) & used[coo.row] & used[coo.col]
+        nb_blocks = comp.max() + 1
+        neigh = [set() for _ in range(nb_blocks)]
+        for a, c in zip(br[off].tolist(), bc[off].tolist()):
+            neigh[a].add(c)
+        colour = np.zeros(nb_blocks, dtype=int)
+        for k in range(nb_blocks):
+            taken = {int(colour[o]) for o in neigh[k] if o < k}
+            colour[k] = min(c for c in range(len(taken) + 1) if c not in taken)
+        node_colour = colour[node_block]
+        groups = []
+        for c in range(int(colour.max()) + 1):
+            idx = np.flatnonzero(used & (node_colour == c))
+            if idx.size:
+                groups.append((idx, K[idx], spla.splu(K[idx][:, idx].tocsc())))
+        qn = np.linalg.norm(q)
+        x = np.zeros(L * cells)
+        converged, last_step, it = False, np.inf, 0
+        for it in range(1, max_iter + 1):
+            step = 0.0
+            for idx, rows, lu in groups:
+                d = omega * lu.solve(q[idx] - rows @ x)
+                x[idx] += d
+                step = max(step, float(np.abs(d).max()) / omega)
+            last_step = step
+            if criterion == "step":
+                if step < tol:
+                    converged = True
+                    break
+            elif it % 10 == 0 or step < tol:
+                if np.linalg.norm(K @ x - q) / max(qn, 1e-300) < tol:
+                    converged = True
+                    break
+        res = float(np.linalg.norm(K @ x - q) / max(qn, 1e-300))
+        return x.reshape(L, ny, nx), res, {"iterations": it, "converged": converged, "omega": float(omega), "last_step": last_step}
+
+    def _sor_block_groups(self, vblocks):
+        """!
+        @brief Colour the via blocks and invert them, for the block step of the SOR.
+        @details Two blocks are neighbours when K couples a cell of one to a cell of the other (touching footprints); the blocks are coloured greedily so
+                 that the blocks of one colour are mutually uncoupled and can be updated at once (moving neighbours at once with over-relaxation diverges).
+        @param vblocks List of integer arrays of flat unknowns (disjoint).
+        @return List of (rows, K[rows, :], block-diagonal inverse of K[rows, rows]) per colour.
+        """
+        K = self.K.tocsr()
+        owner = np.full(K.shape[0], -1)
+        for k, bk in enumerate(vblocks):
+            owner[bk] = k
+        colour = [0] * len(vblocks)
+        for k, bk in enumerate(vblocks):
+            near = {int(o) for o in owner[K[bk].indices] if 0 <= o < k}
+            used = {colour[o] for o in near}
+            colour[k] = min(c for c in range(len(vblocks) + 1) if c not in used)
+        groups = []
+        for c in sorted(set(colour)):
+            members = [bk for bk, ck in zip(vblocks, colour) if ck == c]
+            rows = np.concatenate(members)
+            inv = [np.linalg.inv(K[bk][:, bk].toarray()) for bk in members]
+            groups.append((rows, K[rows, :], sp.block_diag([sp.csr_matrix(m) for m in inv], format="csr")))
+        return groups
 
     def power_out(self, theta):
         """!
@@ -413,7 +689,23 @@ def _result_from_theta(net, theta, residual, model="fvm"):
         res.arrays["board_mask"] = inside              # The plots leave the cells off the board blank
     attach_laminate_results(res, net, T_all, cover)
     attach_block_results(res, net, T_all, theta)
+    attach_face_terms(res, net, net.dx * net.dy * net.cover, net.dx)
     return res
+
+
+def attach_face_terms(res, net, cell, dx):
+    """!
+    @brief Put the rise between the node and the face of a part over absent copper in a result (laminate.face_terms), for the peak and mean read under the part.
+    @param res SteadyResult of the board.
+    @param net Network built with the laminate rule (nothing is done otherwise).
+    @param cell Board area of every cell or control volume in m2, shape (ny, nx).
+    @param dx Cell size or node spacing in m.
+    """
+    if getattr(net, "ladder", None) is None:
+        return
+    terms = laminate.face_terms(net.problem.board, net.fill, net.Q, cell, dx)
+    if terms is not None:
+        res.arrays["face_peak"], res.arrays["face_mean"] = terms
 
 
 def attach_laminate_results(res, net, T_all, weights):
@@ -467,17 +759,24 @@ def attach_block_results(res, net, T_all, theta):
 
 def unknowns(problem, cell_mm=2.0):
     """!
-    @brief Number of unknowns of the layered finite-volume model of a problem, counted without building it (the same layers as Network).
-    @details The model has one node per copper layer, the laminate nodes of a one-layer board (laminate.py) and one layer per face that carries
-             metal blocks (blocks.py), each of nx x ny cells. The application shows this number next to the cell size; counting only
-             the copper layers hid 3 of 4 unknowns on a one-layer board with a block.
+    @brief Number of unknowns of the layered finite-volume model of a problem, counted without building it (the same nodes as Network, ragged).
+    @details The model has one node per copper layer of nx x ny cells, the bottom node of a one-layer board, the laminate nodes of the rule (laminate.py) **only in the cells that
+             carry them** (the cells with absent copper next to a gap plus a margin: up to 2.5 times the unknowns of a thick two-layer board with a bare bottom, 1.0 times on boards
+             with copper everywhere), and, for a board with a metal block (blocks.py, which keeps the earlier treatment), one layer per face of blocks and the two laminate nodes
+             of a one-layer board. The application shows this number next to the cell size.
     @param problem A Problem.
     @param cell_mm Target size of the cells in millimetres (the grid is round(width / cell) by round(height / cell), at least 2 each).
-    @return Tuple (unknowns, layers, nx, ny) with layers the number of node layers of the model.
+    @return Tuple (unknowns, layers, nx, ny) with layers the number of node layers of the arrays (dense) and unknowns the nodes that are solved (ragged).
     """
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    if laminate.uses_rule(problem):
+        # The laminate nodes of the rule exist only in the flagged cells: count them as the network will (the same fill, cover and plan)
+        dx, dy = b.width / nx, b.height / ny
+        active = b.cover(nx, ny, dx, dy) > 0
+        fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, samples=4)
+        return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active), nx * ny), nx, ny)
     lam = laminate.nodes(b)
     layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))
     return layers * nx * ny, layers, nx, ny
@@ -505,6 +804,11 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
                          "converged": float(info["converged"])})
         if not info["converged"]:
             r.warnings.append(f"SOR did not converge in {info['iterations']} sweeps (residual {num(res)})")
+        if info.get("fallback") == "direct":
+            # The user chose SOR: say in the result (not only in the log) that another solver produced it
+            r.extras["fallback_direct"] = 1.0
+            r.warnings.append(f"SOR not used: the cells of the vias form a block larger than {MAX_SOR_BLOCK} unknowns, too large for the block SOR; "
+                              "the board was solved with the direct solver instead")
         return r
     theta, res = net.solve_steady(method=method)
     return _result_from_theta(net, theta, res)
@@ -663,7 +967,7 @@ def estimate_time_constant(problem, cell_mm=5.0):
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
-    net = Network(problem, nx, ny, assemble=False, with_blocks=False)
+    net = Network(problem, nx, ny, assemble=False, with_blocks=False, ladder=False)       # (the laminate nodes change neither the total capacity nor the total conductance)
     return board_time_constant(net)
 
 

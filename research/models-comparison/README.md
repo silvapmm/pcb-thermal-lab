@@ -2,6 +2,8 @@
 
 Status: **implemented**; the comparison is repeated whenever a model changes. Studies (all in `scripts/`): `validation_study.py`, `accuracy_study.py`, `stress_study.py`, `solver_equivalence.py`, `study_complex_boards.py`, `study_lumped_rings.py`, `study_complex_boards_independent.py`, `study_time_and_coefficients.py`, `study_offgrid_heater.py`; figures: `make_figures.py`, `make_diagrams.py`. Every number of section 4 was re-run on the program at `0ea5f07` (reviewed, see section 7); where it is from somewhere else the text says so.
 
+**Program of 2.4.5 (reproduction pass, numbers below not rewritten).** Sections 4.1 to 4.9 hold the program at `0ea5f07`, before the point via, the via constriction, the laminate rule and the Young omega: the example board at 1 mm now reads FVM / FDM / Lumped / Analytic 85.23 / 85.13 / 86.63 / 85.10 degC (was 85.81 / 84.38 / 84.66 / 84.65), the solver table 306 / 673 / 676 / 779 / 636 sweeps. The current numbers of the five models are in `docs/validation.md` sections 1, 2 and 2.1; every shift and its item: `research/reproduction-245/README.md`, Part B 3.5. `study_time_and_coefficients.py` switches the laminate rule off for the exact check of the integrator since the pass (it prints 4.6 again).
+
 ## 1. The questions
 
 1. How far are the other models (FDM, 3D solid, Lumped, Analytic) from the FVM, the reference, on the example board and on 19 scenarios, and where do they stop being reliable?
