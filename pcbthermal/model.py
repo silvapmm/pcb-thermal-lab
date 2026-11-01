@@ -20,7 +20,7 @@ import os
 import numpy as np
 
 from . import defaults
-from .geometry import BOARD_SAMPLES, coverage_fraction, disc_board_share, polygon_area, polygon_is_simple
+from .geometry import BOARD_SAMPLES, coverage_fraction, discs_board_share, polygon_area, polygon_is_simple
 
 
 @dataclass
@@ -948,7 +948,11 @@ class Problem:
         @return list of float in [0, 1], one per via; 0 means no board under the via.
         """
         b = self.board
-        return [disc_board_share(v.x, v.y, 0.5 * v.diameter, b.width, b.height, b.outline) for v in self.vias]
+        if not self.vias:
+            return []
+        # One vectorised call: only the discs near an edge of the outline are sampled (geometry.discs_board_share)
+        shares = discs_board_share([v.x for v in self.vias], [v.y for v in self.vias], [0.5 * v.diameter for v in self.vias], b.width, b.height, b.outline)
+        return [float(s) for s in shares]
 
     def drop_off_board_vias(self):
         """!

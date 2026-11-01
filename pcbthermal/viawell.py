@@ -190,7 +190,8 @@ def tuned_footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
     @param cover Array (ny, nx) of the board share of each cell (dimensionless).
     @param dy Cell size along y in m (None = dx; see disc_weights).
     @param origin_y Lower y edge of row 0 in m (None = origin scaled by dy / dx).
-    @return dict {(i, j): w} with weights that sum to 1; the cell of the centre alone when no refinement applies; empty when the drill disc has no cell on the board (the via conducts nothing).
+    @return dict {(i, j): w} with weights that sum to 1; the cell of the centre alone when no refinement applies (the board part of the drill disc when
+            that cell is off the board); empty when the drill disc has no cell on the board (the via conducts nothing).
     """
     r_t = TARGET_RATIO * r_via
     ny, nx = cover.shape
@@ -198,8 +199,13 @@ def tuned_footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
     oy = origin * dy / dx if origin_y is None else origin_y
     h = math.sqrt(dx * dy)                     # lattice spacing of the effective radius (see footprint)
     point = {(min(max(int(math.floor((cy - oy) / dy)), 0), ny - 1), min(max(int(math.floor((cx - origin) / dx)), 0), nx - 1)): 1.0}
-    if not restrict_to_board(disc_weights(cx, cy, r_via, dx, origin, dy, oy), cover):
+    on_board = restrict_to_board(disc_weights(cx, cy, r_via, dx, origin, dy, oy), cover)
+    if not on_board:
         return {}                              # No cell of the board under the drill disc: the via conducts nothing
+    if cover[next(iter(point))] <= 0.0:
+        # The centre is off the board but part of the disc is on it: the fallback is the board part of the drill disc, never a cell off the board
+        # (the point cell is off the board and its copper would be lost, while the FVM and FDM keep the via)
+        point = on_board
     if r_t <= POINT_SINK_RADIUS * h:
         return point
     w_pt = disc_weights(cx, cy, 0.0, dx, origin, dy, oy)
@@ -299,11 +305,13 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     @param nx Cells (nodes) along x.
     @param ny Cells (nodes) along y.
     @param origin Lower x edge of cell 0 in m (0 for the FVM, -dx/2 for the FDM nodes); the y edge is origin * dy / dx (-dy/2 for the FDM).
-    @param active Boolean array (ny, nx) of the cells on the board (no longer needed: a via without a board cell under its disc is skipped; kept so the call sites do not change).
+    @param active Boolean array (ny, nx) of the cells on the board. Unused since a via without board under its drill disc is skipped instead of being
+           moved to the nearest active cell; kept so that the call sites of the FVM and FDM (and the research patches that match them by text) do not change.
     @return Tuple (blocks, gz_via): blocks is a list of (rows, cols, w, G) with the cell indices (integer arrays), the weights (sum 1) and the
             layer-to-layer conductances G (L, L) in W/K; gz_via is the array (L-1, ny, nx) with the barrel conductance in the cell of the via centre
             (the point treatment of the earlier versions, kept for the Lumped model, which reads rings of cells). A via whose drill disc has no board
-            cell is left out of both.
+            cell is left out of both, and so is a via whose drill disc is off the board by the geometric test (model.Problem.via_board_shares), the
+            one the warning and the Lumped and Analytic runs use.
     """
     b = problem.board
     k_cu = b.materials.k_copper
@@ -311,7 +319,11 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
     blocks = []
     gz_via = np.zeros((L - 1, ny, nx))
     oy = origin * dy / dx                      # lower y edge of row 0 (-dy/2 for the FDM nodes)
-    for v in problem.vias:
+    for v, share in zip(problem.vias, problem.via_board_shares()):
+        if share <= 0.0:
+            # The drill disc is off the board (the geometric test of checks.check_problem and of the Lumped and Analytic runs): the via conducts nothing,
+            # also when it falls in a cut cell whose board part does not reach it (a cover test alone kept it there, 0.15 to 0.22 K on a small T)
+            continue
         gv = k_cu * v.thermal_area(b.via_plating, k_cu) / d                # barrel conductance of every gap (W/K)
         w, r_eff, r_t = footprint(v.x, v.y, v.diameter / 2.0, dx, origin, cover, dy, oy)
         if not w:
@@ -383,14 +395,16 @@ def edge_via_indices(problem, nx, ny, dx, dy, cover):
     @param dx Cell size in x in m.
     @param dy Cell size in y in m.
     @param cover Board share of every cell, shape (ny, nx) (dimensionless).
-    @return List of via indices (0-based).
+    @return List of via indices (0-based); a via with no board under its drill disc is not listed (it is ignored by every model).
     @note The test is on the cells: the via is near an edge when a cell within one cell of its centre is partly or wholly off the board, or when the
           centre is within one cell of the box edge. The lattice kernel has no image of the edge, so the via effect is too large there (README of
           research/via-real-board, 3.1: +12 to +15 % at 1 mm for a via 0.16 mm from the edge).
     """
     b = problem.board
     out = []
-    for k, v in enumerate(problem.vias):
+    for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
+        if share <= 0.0:
+            continue                            # Off the board: ignored by every model (checks.check_problem says so), so it touches no edge
         near_box = min(v.x, b.width - v.x, v.y, b.height - v.y) < max(dx, dy)
         near_outline = False
         if not near_box and b.has_outline():

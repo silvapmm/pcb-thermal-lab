@@ -126,3 +126,95 @@ def test_example_board_without_outline_is_unchanged_by_the_drop():
     q = copy.deepcopy(p)
     q.add_via(500.0, 500.0, 0.3)                 # far outside the box
     assert len(q.drop_off_board_vias().vias) == len(p.vias)
+
+
+def mid_cell_t(vias):
+    """!
+    @brief The small T with the edge of its stem in the middle of a 1 mm cell (x = 10.5 mm), so the cells along the stem are cut cells.
+    @param vias List of (x_mm, y_mm, diameter_mm).
+    @return Problem.
+    """
+    p = Problem.new(30.0, 24.0, 2, h_side=10.0).add_full_copper()
+    p.add_heater(1, 2.0, rect=(11, 14, 15, 18), name="U")
+    p.set_outline([[0, 12], [10.5, 12], [10.5, 0], [19.5, 0], [19.5, 12], [30, 12], [30, 24], [0, 24]])
+    for x, y, d in vias:
+        p.add_via(x, y, d)
+    return p
+
+
+@pytest.mark.parametrize("name", ["fvm", "fdm", "solid3d", "lumped", "analytic"])
+def test_via_off_the_outline_in_a_cut_cell_is_ignored_by_every_model(name):
+    # The disc (10.1 to 10.4 mm) is off the stem (10.5 mm) but inside a cut cell (10 to 11 mm, half board): the grid models must follow the same
+    # geometric rule as the warning and the Lumped and Analytic runs (a cover test alone kept it: -0.15 K in the FVM, -0.13 K in the 3D solid)
+    off = (10.25, 11.0, 0.3)
+    p = mid_cell_t(BAR + [off])
+    assert p.via_board_shares()[-1] == 0.0
+    o = api.SolverOptions(cell_mm=1.0, models=(name,))
+    a = api.simulate(p, o).results[name]
+    b = api.simulate(mid_cell_t(BAR), o).results[name]
+    assert a.t_max == pytest.approx(b.t_max, abs=1e-9)
+
+
+def test_solid3d_keeps_a_via_whose_centre_is_just_off_the_box():
+    # A via whose centre is 0.1 mm beyond the right edge of a rectangle has a quarter of its disc on the board: the FVM and FDM keep it, and so must the
+    # 3D solid (its old test on the centre dropped it, and a via with its centre exactly on the right edge too)
+    def board(extra):
+        p = Problem.new(30.0, 24.0, 2, h_side=10.0).add_full_copper()
+        p.add_heater(1, 2.0, rect=(11, 14, 15, 18), name="U")
+        for x, y, d in BAR + extra:
+            p.add_via(x, y, d)
+        return p
+    base = solid3d.solve_steady(board([]), cell_mm=1.0).t_max
+    for x in (30.1, 30.0):
+        assert solid3d.solve_steady(board([(x, 20.0, 0.6)]), cell_mm=1.0).t_max < base - 1e-3
+
+
+def test_off_board_via_gets_no_edge_warning():
+    # A via that is ignored does not also get the warning that its effect near the edge is too large
+    p = small_t(BAR + [OFF])
+    w = [str(x) for x in checks.check_via_limits(p, ("fvm",), cell_mm=1.0) if getattr(x, "index", None) == len(p.vias) - 1]
+    assert not w
+    q = Problem.new(30.0, 24.0, 2).add_full_copper()
+    q.add_via(40.0, 6.0, 0.6)
+    assert not [x for x in checks.check_via_limits(q, ("fvm",), cell_mm=1.0) if getattr(x, "index", None) == 0]
+
+
+@pytest.mark.parametrize("name", ["lumped", "analytic"])
+def test_off_board_via_changes_nothing_in_the_reduced_transients(name):
+    # The step responses (power profiles) and the Analytic animation must drop a via outside the box like the steady run (the Lumped read it through its
+    # via constriction: 0.28 K/W on the response of the small board)
+    from pcbthermal import analytic, lumped
+    def board(extra):
+        p = Problem.new(30.0, 24.0, 2, h_side=10.0).add_full_copper()
+        p.add_heater(1, 2.0, rect=(11, 14, 15, 18), name="U")
+        for x, y, d in BAR + extra:
+            p.add_via(x, y, d)
+        return p
+    mod = lumped if name == "lumped" else analytic
+    ra = mod.step_responses(board([(40.0, 6.0, 0.6)]), cell_mm=1.0)
+    rb = mod.step_responses(board([]), cell_mm=1.0)
+    assert np.array_equal(np.asarray(ra[2]), np.asarray(rb[2]))
+
+
+def test_discs_board_share_matches_the_single_disc_sample():
+    # The vectorised share (only the discs near an edge are sampled) equals the plain sample of every disc, on a box, a T and a polygon circle
+    from pcbthermal.geometry import discs_board_share, points_in_polygon
+    import math
+    rng = np.random.default_rng(3)
+    n = 400
+    x, y = rng.uniform(-2e-3, 32e-3, n), rng.uniform(-2e-3, 26e-3, n)
+    r = rng.choice([0.0, 0.1e-3, 0.3e-3, 1.5e-3], n)
+    x[:50], y[:50] = np.round(x[:50] * 1e3) / 1e3, np.round(y[:50] * 1e3) / 1e3        # centres on vertices and edges
+    t = np.array([[0, 12], [10, 12], [10, 0], [20, 0], [20, 12], [30, 12], [30, 24], [0, 24]]) * 1e-3
+    circ = np.array([[15e-3 + 12e-3 * math.cos(a), 12e-3 + 12e-3 * math.sin(a)] for a in np.linspace(0, 2 * math.pi, 65)[:-1]])
+    rad = np.sqrt((np.arange(6) + 0.5) / 6)
+    ang = 2 * math.pi * (np.arange(24) + 0.5) / 24
+    ux = np.concatenate([[0.0], (rad[:, None] * np.cos(ang)).ravel()])
+    uy = np.concatenate([[0.0], (rad[:, None] * np.sin(ang)).ravel()])
+    for outline in (None, t, circ):
+        plain = []
+        for xi, yi, ri in zip(x, y, r):
+            px, py = xi + ri * ux, yi + ri * uy
+            ins = ((px >= 0) & (px <= 30e-3) & (py >= 0) & (py <= 24e-3)) if outline is None else points_in_polygon(px, py, outline)
+            plain.append(ins.mean())
+        assert np.array_equal(discs_board_share(x, y, r, 30e-3, 24e-3, outline), np.array(plain))

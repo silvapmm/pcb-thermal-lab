@@ -119,10 +119,10 @@ def check_problem(problem, cell_mm=1.0):
         name = v.name or f"Via {k + 1}"
         if share <= 0.0:
             _add(out, "via", k, f"{name}: via outside the board outline and ignored by every model." if b.has_outline()
-                 else f"{name} is outside the board and is ignored by the solvers.")
+                 else f"{name} is outside the board and is ignored by every model.")
         elif share < 0.5:
             _add(out, "via", k, f"{name}: more than half of the via is outside the board{' outline' if b.has_outline() else ''}; "
-                                "only the part on the board is used.")
+                                "the models still count its whole barrel, on the part that is on the board.")
 
     for k, z in enumerate(problem.zones):
         cov = coverage_fraction(z.polygon, nx, ny, dx, dy, 2)
@@ -261,7 +261,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
         # a pitch under 0.45 mm was not tested. The program's tile is 2.5 to 5 mm; the rule never reaches it, the guard can. The guard counts the tiles of the
         # heatsinks and blocks too (viaconstriction.heatsink_tiles); this check uses a 5 mm program tile, the solver its own 2.5 to 5 mm one, so the
         # coarsened tile quoted here can differ from the solver's when the guard goes beyond 2.5 mm.
-        vs = viaconstriction.ViaSet(problem)
+        vs = viaconstriction.ViaSet(problem.drop_off_board_vias())     # The Analytic model drops the vias with no board under them (analytic.solve_steady)
         nt = (int(math.ceil(W / 5e-3)), int(math.ceil(H / 5e-3)))
         pl = viaconstriction.plan(problem, vs, (nt[0], nt[1], W / nt[0], H / nt[1]), b.layers)
         t_rule, t_final, d_med = pl["t_rule"], pl["t_final"], viaconstriction.median_nn(vs)
