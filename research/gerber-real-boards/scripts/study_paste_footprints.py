@@ -74,7 +74,18 @@ def groups_and_references(key, roles, box, side="top"):
             hits = {r: sum(1 for lst in per_group if r in lst) for r in refs}
             split = sum(1 for n in hits.values() if n > 1)
             exactly_one = sum(1 for n in hits.values() if n == 1)
-            rep["links"][str(link)] = {"groups": len(g), "groups_with_several_references": merged, "references_in_several_groups": split, "references_in_exactly_one_group": exactly_one}
+            # A part is intact when one group holds all of its pads (its box is covered to 95 %) and no other part's centre: the metric that says the group IS the part
+            intact = 0
+            for r, v in refs.items():
+                bb = v["bbox"]
+                area_r = max((bb[2] - bb[0]) * (bb[3] - bb[1]), 1e-9)
+                for gr, lst in zip(g, per_group):
+                    gb = gr["bbox"]
+                    inter = max(0.0, min(bb[2], gb[2]) - max(bb[0], gb[0])) * max(0.0, min(bb[3], gb[3]) - max(bb[1], gb[1]))
+                    if inter >= 0.95 * area_r and lst == [r]:
+                        intact += 1
+                        break
+            rep["links"][str(link)] = {"groups": len(g), "groups_with_several_references": merged, "references_in_several_groups": split, "references_in_exactly_one_group": exactly_one, "parts_intact": intact}
         else:
             rep["links"][str(link)] = {"groups": len(g)}
         if link == 1.0:
@@ -206,6 +217,50 @@ def x3_check(roles, refs):
             "courtyard_to_paste_box_area_median": float(np.median(ratios)) if ratios else None, "first": [{k: p[k] for k in ("ref", "footprint", "value", "rotation", "origin")} for p in parts[:3]]}
 
 
+def by_reference_check(roles, refs, side, rng):
+    """!
+    @brief Part B2: the groups the file itself names (TO.C) against the placement file, by reference designator, and the click on those groups.
+    @param roles registry.roles dict.
+    @param refs References of the paste file (paste.by_reference) of the side.
+    @param side "top" or "bottom".
+    @param rng numpy random generator.
+    @return dict with the names in both files, the offset found from the names (median dx, dy over the common parts; no sign is assumed: the four sign pairs of X and Y are tried), the distance from the placement origin to the centre and to the bounding box of the group, and the click trials (a random opening pixel of the group must give its own reference when the smallest box containing the click is taken).
+    """
+    if not refs or roles["placement"] is None:
+        return {}
+    parts = {p["ref"]: p for p in pnp.read_placement(roles["placement"]) if p["side"] == side}
+    common = [r for r in refs if r in parts]
+    out = {"references_in_paste": len(refs), "parts_in_placement": len(parts), "in_both": len(common)}
+    if not common:
+        return out
+    gc = np.array([[refs[r]["x"], refs[r]["y"]] for r in common])
+    pc = np.array([[parts[r]["x"], parts[r]["y"]] for r in common])
+    best = None
+    for sx in (1, -1):                                                  # KiCad's position file mirrors X for the parts of the bottom side
+        for sy in (1, -1):
+            sg = np.array([sx, sy])
+            off = np.median(gc - pc * sg, axis=0)
+            d = np.linalg.norm(pc * sg + off - gc, axis=1)
+            if best is None or np.median(d) < best[1]:
+                best = ((sx, sy), float(np.median(d)), off, d)
+    (sx, sy), med, off, d = best
+    inside = sum(1 for r, q in zip(common, pc * np.array([sx, sy]) + off) if contains(refs[r]["bbox"], q[0], q[1], 0.0))
+    out.update(sx=sx, sy=sy, offset_mm=[float(off[0]), float(off[1])], origin_to_group_centre_median_mm=med, origin_to_group_centre_p90_mm=float(np.percentile(d, 90)),
+               origin_to_group_centre_max_mm=float(d.max()), origin_inside_group_box=inside, within_0_5mm=int((d <= 0.5).sum()), within_2mm=int((d <= 2.0).sum()),
+               names_only_in_paste=sorted(set(refs) - set(parts))[:10], names_only_in_placement=len(set(parts) - set(refs)))
+    # Click: a random lit pixel of each group; the answer is the reference whose box contains the click and is the smallest
+    trials = right = 0
+    for r, g in refs.items():
+        ii, jj = np.nonzero(g["mask"])
+        for k in rng.integers(0, len(ii), size=min(5, len(ii))):
+            x, y = g["x_left"] + (jj[k] + 0.5) * g["pix"], g["y_top"] - (ii[k] + 0.5) * g["pix"]
+            cand = [(((v["bbox"][2] - v["bbox"][0]) * (v["bbox"][3] - v["bbox"][1])), q) for q, v in refs.items() if contains(v["bbox"], x, y)]
+            trials += 1
+            right += int(bool(cand) and min(cand)[1] == r)
+    out["click_trials"], out["click_right"] = trials, right
+    return out
+
+
 def main(argv):
     """!
     @brief Run the parts on every board that has a paste file and print the tables.
@@ -230,6 +285,7 @@ def main(argv):
             rec[side]["placement"] = placement_check(roles, groups, side)
             rec[side]["reference_agreement"] = reference_agreement(roles, groups, refs, rec[side]["placement"].get("transform", {}), side)
             rec[side]["click"] = click_test(groups, rng)
+            rec[side]["by_reference"] = by_reference_check(roles, paste.by_reference(roles["paste_top"] if side == "top" else roles["paste_bottom"]), side, rng)
             if side == "top":
                 rec[side]["x3"] = x3_check(roles, refs)
                 rec[side]["footprint_effect"] = footprint_effect(key, roles, groups)

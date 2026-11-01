@@ -20,7 +20,8 @@ def test_uniform_window_all_mappings_agree():
     res = onesheet.run_window(cov, 0.1, cells_mm=(1.0,), heater_mm=2.0, with_reference9=False)
     errs = [v["5"] for m, v in res["errors"][1.0].items() if "diagonal" not in m]       # the diagonal variant adds conduction on purpose
     assert max(errs) - min(errs) < 1.0, errs
-    assert all(abs(e) < 10.0 for e in errs), errs
+    # The common offset is the scenario, not the mapping: the held ring is imposed at the centre of its cells, so the ring sits half a cell inside (16.5 % at 1 mm, 5 % at 0.5 mm, measured); only the differences between mappings mean something
+    assert all(abs(e) < 20.0 for e in errs), errs
 
 
 def test_fine_copper_makes_the_fill_fraction_cool():
@@ -64,23 +65,20 @@ def test_kicad_paste_files_carry_references():
 
 
 @NEEDS_DATA
-def test_placement_registers_on_paste_groups():
-    """!@brief For the first board with a paste file and a placement file, most top parts fall within 2 mm of a group after registration. @return None."""
-    import native_gerber as ng
+def test_placement_origin_is_on_the_named_paste_group():
+    """!@brief Where the paste file names its parts (TO.C), the placement origin of each part is at the centre of its own paste group, with no registration at all (the frames are the same in KiCad output); the registration by the votes of unnamed proximity groups was found unreliable (study_paste_footprints, README 4.4), so it is not what is tested. @return None."""
     import paste
     import pnp
     for key in registry.available():
         r = registry.roles(key)
         if r["paste_top"] is None or r["placement"] is None or r["paste_top"].stat().st_size < 400:
             continue
-        box = ng.layer_bbox(r["outline"] or r["copper"][0])
-        groups = paste.by_proximity(r["paste_top"], box, pix=0.1, link_mm=1.0)
-        parts = [p for p in pnp.read_placement(r["placement"]) if p["side"] == "top"]
-        if len(parts) < 5:
+        refs = paste.by_reference(r["paste_top"])
+        parts = {p["ref"]: p for p in pnp.read_placement(r["placement"]) if p["side"] == "top"}
+        common = [k for k in refs if k in parts]
+        if len(common) < 5:
             continue
-        gc = np.array([[g["x"], g["y"]] for g in groups])
-        pc = np.array([[p["x"], p["y"]] for p in parts])
-        tr = pnp.register(gc, pc, tol_mm=2.0)
-        assert tr["matched"] >= 0.8 * len(parts), (key, tr)
+        d = np.array([np.hypot(refs[k]["x"] - parts[k]["x"], refs[k]["y"] - parts[k]["y"]) for k in common])
+        assert (d <= 0.5).mean() >= 0.9, (key, np.percentile(d, [50, 90, 100]))
         return
-    pytest.skip("no board with both a paste file and a placement file of at least five top parts")
+    pytest.skip("no board with both a paste file with TO.C and a placement file of at least five top parts")

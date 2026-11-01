@@ -137,13 +137,103 @@ def fig_fine():
     fig.savefig(FIG / "fig_07_fine_copper_threshold.png", dpi=105)
 
 
+def fig_paste_window():
+    """!
+    @brief fig_08: a window of the ISASTM top paste layer with the groups of TO.C (one box per part), the groups by proximity (link 1.0 mm, dashed) and the placement origins (crosses); needs the board in data/ and the research environment (the reader), skipped otherwise.
+    @return None.
+    """
+    try:
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import _bootstrap  # noqa: F401
+        import native_gerber as ng
+        import paste
+        import pnp
+        import registry
+        r = registry.roles("isastm")
+    except Exception as exc:                                       # no data or no reader: skip, as for the missing results
+        print(f"skipped fig_08: {exc}")
+        return
+    refs = paste.by_reference(r["paste_top"])
+    box = ng.layer_bbox(r["outline"])
+    groups = paste.by_proximity(r["paste_top"], box, pix=0.05, link_mm=1.0)
+    parts = {q["ref"]: q for q in pnp.read_placement(r["placement"]) if q["side"] == "top"}
+    cx, cy, w = 60.0, -90.0, 22.0                                 # a dense window under the large chips (the paste of the big parts and of their capacitors)
+    fig, ax = plt.subplots(figsize=(8.5, 8.5))
+    layer = ng.Layer(r["paste_top"].read_text(errors="replace"))
+    x0, y1 = cx - w / 2, cy + w / 2
+    cv = ng.Canvas(x0, y1, w, w, 0.05)
+    layer.draw(cv)
+    ax.imshow(cv.mask, extent=(x0, x0 + w, y1 - w, y1), cmap="Greys", alpha=0.55)
+    rng = np.random.default_rng(2)
+    for k, g in refs.items():
+        b = g["bbox"]
+        if b[2] < x0 or b[0] > x0 + w or b[3] < y1 - w or b[1] > y1:
+            continue
+        col = plt.cm.tab20(rng.integers(0, 20))
+        ax.add_patch(plt.Rectangle((b[0], b[1]), b[2] - b[0], b[3] - b[1], fill=False, ec=col, lw=1.6))
+        if k in parts:
+            ax.plot(parts[k]["x"], parts[k]["y"], "+", color=col, ms=9, mew=1.8)
+        if b[2] - b[0] > 1.5:
+            ax.text(b[0], b[3] + 0.1, k, fontsize=7, color=col)
+    for g in groups:
+        b = g["bbox"]
+        if b[2] < x0 or b[0] > x0 + w or b[3] < y1 - w or b[1] > y1:
+            continue
+        ax.add_patch(plt.Rectangle((b[0], b[1]), b[2] - b[0], b[3] - b[1], fill=False, ec="k", lw=1.0, ls="--"))
+    ax.set_xlim(x0, x0 + w)
+    ax.set_ylim(y1 - w, y1)
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+    ax.set_title("ISASTM top paste: boxes by TO.C (colour), proximity 1.0 mm (dashed), placement (+)")
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_08_paste_groups_window.png", dpi=105)
+    plt.close(fig)
+
+
+def fig_project_and_links():
+    """!
+    @brief fig_09: left, the size of the embedded masks of the project file against the pixel (study_project_file); right, the references of TO.C that land in exactly one proximity group against the link distance (study_paste_footprints).
+    @return None.
+    """
+    pf, pp = load("project_file.json"), load("paste_footprints.json")
+    if pf is None or pp is None:
+        return
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4.4))
+    for board in sorted({r["board"] for r in pf}):
+        rows = [r for r in pf if r["board"] == board]
+        ax[0].plot([r["pix"] for r in rows], [r["binary_json_bytes"] / 1e6 for r in rows], "o-", label=board)
+    ax[0].set_xscale("log")
+    ax[0].set_yscale("log")
+    ax[0].invert_xaxis()
+    ax[0].set_xlabel("pixel of the embedded mask (mm)")
+    ax[0].set_ylabel("binary masks, JSON text (MB)")
+    ax[0].axhline(20, color="r", ls=":")
+    ax[0].text(0.1, 21, "criterion 20 MB", color="r", fontsize=8)
+    ax[0].legend(fontsize=7)
+    ax[0].set_title("project file: size of the embedded copper")
+    for board in ("isastm", "cmm2", "oswlight", "stickhub"):
+        g = pp[board]["top"]["groups"]
+        n = g["references_in_file"]
+        links = sorted(g["links"], key=float)
+        ax[1].plot([float(l) for l in links], [100.0 * g["links"][l]["parts_intact"] / n for l in links], "o-", label=f"{board} ({n} parts)")
+    ax[1].axhline(95, color="r", ls=":")
+    ax[1].text(0.32, 96, "criterion 95 %", color="r", fontsize=8)
+    ax[1].set_xlabel("link distance of the proximity groups (mm)")
+    ax[1].set_ylabel("parts whose group is exactly the part (%)")
+    ax[1].legend(fontsize=7)
+    ax[1].set_title("does the proximity group equal the part (TO.C)?")
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_09_project_size_and_links.png", dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Draw every figure whose results exist.
     @return None.
     """
     FIG.mkdir(parents=True, exist_ok=True)
-    for f in (fig_mapping, fig_memory, fig_transient, fig_fine):
+    for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links):
         f()
 
 

@@ -76,7 +76,14 @@ def second_reader_area(path, box, pix):
     """
     try:
         import gerber_geometry as gg
-        geom = gg.load_copper(path)[0]
+        try:
+            geom = gg.load_copper(path)[0]
+        except UnicodeDecodeError:                                     # a comment with a Latin-1 byte (the Ucamco fabrication examples): gerbonara wants UTF-8, so give it a transcoded copy
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                q = Path(tmp) / "copy.gbr"
+                q.write_text(Path(path).read_bytes().decode("latin-1"), encoding="utf-8")
+                geom = gg.load_copper(q)[0]
         x0, y0, x1, y1 = box
         return float(gg.sample_mask(geom, x0, y1, x1 - x0, y1 - y0, pix, aa=2).sum() * pix * pix)
     except Exception:

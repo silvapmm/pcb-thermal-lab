@@ -5,14 +5,14 @@ The entries are in `research/theory/BIBLIOGRAPHY.md`, section 22 (R read, S summ
 | Source | Used for | Status |
 | :-- | :-- | :-- |
 | Ucamco downloads page | the list of specifications and test files | S |
-| Ucamco layer-format test files (21 files) | study of rare primitives | S (member list only; the files are opened by `study_conformance_rare.py`) |
+| Ucamco layer-format test files (11 `.gbr` with their pictures) | study of rare primitives | R (all 11 read by `study_conformance_rare.py`; the picture of `sample_macro` compared by eye) |
 | Ucamco X3 sample StickHub | X3 component layer, paste with `TO.C`, job file | R (the heads of three files) |
-| Ucamco X3 samples Coldfire, Li-ion charger, spec component layer | more X3 files | S (member lists) |
-| Ucamco fabrication examples 1 and 2 (with IPC-2581 `.ipc`) | 4 and 10 copper layers; IPC-2581 | S (member lists) |
-| Gerber specification 2024.05 and 2026.05, the attribute, component-layer, aperture-block and transformation sections | attribute names and semantics, `AB`, `LM`, `LR`, `LS` | N (the text could not be extracted here; to read before adoption) |
-| ISASTM (GPL-3.0) | paste with `TO.C`, KiCad and JLCPCB placement files, job file | R (heads) |
+| Ucamco X3 samples Coldfire, Li-ion charger | more X3 files | R (areas of all 30 files against a second reader; contents not read in detail) |
+| Ucamco fabrication examples 1 and 2 (with IPC-2581 `.ipc`) | 4 and 10 copper layers; IPC-2581 | R for the 32 Gerber and drill files (areas against a second reader); the `.ipc` files not opened (N) |
+| Gerber specification 2026.05 (219 pages; the 2024.05 revision not opened), the component-layer, `.C` and `.Cxxx` sections and the overview of `AB` | component aperture functions, attribute names, block aperture | R for those passages (text layer extracted with PyMuPDF in a scratch environment); the rest of the attribute dictionary, the usage and transformation chapters, the paste file functions N |
+| ISASTM (GPL-3.0) | paste with `TO.C`, KiCad and JLCPCB placement files, job file | R (heads, and the whole of the paste, placement and copper files by the studies) |
 | CMM2-JLC, open-smartwatch-light, RP2040-minimal-design, CO60, vstcm, PiFinder, Vitamins-included | boards, licences | S (file lists) and R (licences by repository metadata) |
-| ODB++ specification (Siemens) | the format of `lib/odb.py` | N (registration needed); layout M |
+| ODB++ specification (Siemens) | the format of `lib/odb.py` | N (registration needed); the layout was M and was checked against three sample archives (R for those files) |
 | mcix/odbpp (MIT), ODBPy (Apache-2.0), odb-pp-parser, OdbDesign (AGPL-3.0, ideas only) | sample archives and parsers | S |
 | IPC-2581 | not read | N |
 | research/gerber-import, research/gerber-models | the base | S (parts quoted; not re-run) |
