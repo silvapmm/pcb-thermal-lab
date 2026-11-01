@@ -29,10 +29,10 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, fdm, fvm, laminate, lumped, memory, profiles, solid3d
+from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
-from .checks import check_fin_channels, check_input, check_lumped_zones, check_thick_plates
+from .checks import check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates
 from .model import Problem
 from .results import SteadyResult
 from .numfmt import num
@@ -625,7 +625,8 @@ def _block_flux_result(sim):
 
 def _part_warnings(sim):
     """!
-    @brief Warnings about the parts after the solves: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients.
+    @brief Warnings after the solves, once per simulation: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients,
+           the plate, channel and Lumped-zone checks and the low face Rayleigh number of a vertical board (checks.check_low_rayleigh).
     @param sim Simulation with its results.
     @return List of strings.
     """
@@ -643,6 +644,12 @@ def _part_warnings(sim):
     out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result)
     # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the Lumped and Analytic
     out += check_fin_channels(sim.problem, sim.reference if "block_T" in sim.reference.arrays else flux_result)
+    if sim.problem.board.h_mode == "computed":
+        # Once per simulation, from the face means of the reference model (the coefficients of its last Picard step, within 0.01 W/m2K), so that the
+        # five models do not repeat it; the bottom face of a one-layer board is its last laminate node, as in _solve_computed_h
+        ref = sim.reference
+        info = convection.board_h(sim.problem.board, ref.layer_mean[0], ref.extras.get("bottom_face_mean", ref.layer_mean[-1]))[2]
+        out += check_low_rayleigh(sim.problem.board, info)
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
     if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):
@@ -965,6 +972,9 @@ def _simulate(problem, options, progress):
             if name in sim.results:
                 sim.results[name].warnings.append(f"the metal block is represented as {how}: within about 5 % of the FVM in the tests (docs/validation.md section 17); "
                                                   "steady state only")
+    for name, r in sim.results.items():
+        # Imported copper (copper.py): the Lumped, Analytic and 3D solid read only the cell fill, the layered models the face conductances; each result says so
+        r.warnings.extend(copper.model_warnings(problem, name, options.cell_mm))
     sim.part_warnings = _part_warnings(sim) if sim.results else []
     if computed:
         ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in options.models))

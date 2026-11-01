@@ -390,7 +390,7 @@ The models need no change for the boards they are made for, beyond the two defec
 
 ## 6. Limits
 
-**What stays open** (nothing blocks the program): which stack or definition the paper's Biot figure uses (its plateau is out of reach of the stated stack, 4.9); the paper's `1.62` mm against the layers' `1.6501` mm; the Bar-Cohen and Rohsenow correlation and the paper of Churchill and Chu, read only through secondary sources; the unread pages of the scans listed in `research/theory/docs/sources-to-obtain.md`.
+**What stays open** (nothing blocks the program): which stack or definition the paper's Biot figure uses (its plateau is out of reach of the stated stack, 4.9); the paper's `1.62` mm against the layers' `1.6501` mm; the Bar-Cohen and Rohsenow correlation and the paper of Churchill and Chu, read only through secondary sources; the unread pages of the scans of the Waterloo archive (marked in `research/theory/BIBLIOGRAPHY.md`).
 
 **Limits of the study**
 

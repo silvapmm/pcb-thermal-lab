@@ -29,7 +29,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy.sparse import csgraph
 
-from . import memory, blocks, laminate, viawell
+from . import copper, memory, blocks, laminate, viawell
 from .geometry import part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
 from .results import SteadyResult, TransientResult
 from .numfmt import num
@@ -53,9 +53,10 @@ _REUSE = threading.local()
 def factor_reuse():
     """!
     @brief Within this block, a direct solve of a matrix identical to the previous one reuses its LU factorisation instead of factorising again.
-    @details Used by api._solve_with_tc around the top-path split and the power-coefficient loop, which solve the same board with other part powers: with fixed
-             face coefficients every board solve has the same matrix (6 factorisations become 1 for one part with a top path; with computed coefficients the
-             matrix changes at every Picard step and nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
+    @details Used by api._solve_with_tc around the top-path split and the power-coefficient loop, and by inverse.power_from_temperature around its runs at
+             other powers, which solve the same board with other part powers: with fixed face coefficients every board solve has the same matrix (6 factorisations
+             become 1 for one part with a top path, 4 become 1 for the Power Calculator; with computed coefficients the matrix changes at every Picard step and
+             nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
              released when the outermost block ends, so the peak memory is that of a plain solve. SuperLU's splu + solve gives the same numbers as spsolve
              with the same column ordering (tests/test_top_path.py checks it to 1e-9 K). Nested blocks share the outer one.
     @return Context manager (yields nothing).
@@ -84,6 +85,9 @@ def direct_solve(A, b):
     A.sum_duplicates()                             # Canonical form, so that equal matrices give equal bytes
     # The key is the exact content (structure and values), hashed: two matrices differ by a face coefficient in the computed-h loop
     digest = hashlib.blake2b(digest_size=20)
+    # (the dtypes go in too, so that the byte stream parses one way only; a 160-bit digest makes an accidental collision of two consecutive matrices
+    # about 2^-160, and a different key only costs a new factorisation, never a wrong reuse)
+    digest.update(f"{A.indptr.dtype.str}{A.indices.dtype.str}{A.data.dtype.str}".encode())
     for arr in (np.asarray(A.shape), A.indptr, A.indices, A.data):
         digest.update(np.ascontiguousarray(arr).tobytes())
     key = digest.hexdigest()
@@ -108,7 +112,7 @@ class Network:
     @brief Assembled thermal network: conductances, capacities, sources and the sparse matrix.
     """
 
-    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True):
+    def __init__(self, problem, nx, ny, assemble=True, with_blocks=True, ladder=True, faces=None):
         """!
         @brief Build the network of a problem on an nx x ny grid.
         @param problem A validated Problem.
@@ -120,6 +124,9 @@ class Network:
         @param ladder True: the laminate nodes of the rule (laminate.py) in the cells with absent copper, and the bottom node of a one-layer board; False: the network of the earlier
                versions (one node per copper layer, the two laminate nodes of a one-layer board), which the Lumped model reads ring by ring. A problem with a metal block always
                gets the earlier treatment.
+        @param faces Imported copper (copper.py): None takes `problem.imported` when it has masks (and nothing changes for a problem without), False ignores it, or a
+               copper.CopperSource. The cell fill of the imported layers comes from the masks; with the "faces" or "lambda" mapping the in-plane couplings of those layers are
+               the face conductances of the reduced sheet (built when the matrix is assembled), with "fill" the program's harmonic mean of the cell values.
         """
         problem.validate()
         self.problem = problem
@@ -150,7 +157,9 @@ class Network:
             raise ValueError("copper thickness must be smaller than thickness / layers")
 
         # --- Copper fill fraction of every layer (union of its zones, hatching via 'fill')
+        self.copper = copper.resolve(faces, problem)                     # The imported copper (masks), or None for a drawn board
         f = zone_fill(problem.zones, L, nx, ny, dx, dy, samples=4)      # Union per sample point, not per cell (geometry.zone_fill)
+        copper.override_fill(f, self.copper, ny, nx, b.width, b.height)  # The imported layers come from their masks
         self.fill = f
 
         # --- Sheet conductance (W/K) and heat capacity (J/K) of every cell
@@ -202,6 +211,12 @@ class Network:
             self.g_side[:L, :, -1] += b.h_side * dy * sl
             self.g_side[:L, 0, :] += b.h_side * dx * sl
             self.g_side[:L, -1, :] += b.h_side * dx * sl
+        # The faces of the imported layers are built on the sheet the copper node keeps after the rule: keep the sheet before it and the two-phase values of a pixel
+        self._lateral = None
+        self._face_context = None
+        if self.copper is not None and self.copper.mapping != "fill" and assemble:
+            # (sheet of the copper nodes before the rule, sheet of a pixel with copper, sheet of a bare pixel), the last two per layer in W/K
+            self._face_context = (self.S[:L].copy(), m.k_copper * t_cu + k_lam * (slab - t_cu), k_lam * slab)
         pin_extra = self._add_ladder(b, cell) if use_rule else None      # After the edge conductance: the new nodes take their share of it from the copper nodes
         self.g_amb = self.g_top + self.g_bottom + self.g_heatsink + self.g_side + self.g_block
         # Cells off the board are isolated: pin them to ambient so the matrix stays regular (they carry no heat: theta = 0).
@@ -332,6 +347,25 @@ class Network:
                                     "g_link": ly["g_link"], "board_layer": ly["board_layer"]})
         self.nl = base + E
 
+    def _imported_faces(self):
+        """!
+        @brief The face conductances of the imported layers, built once on the sheet the copper node keeps after the laminate rule.
+        @details dS = (sheet before the rule - sheet after it) / cover is what the rule moved into the interior laminate nodes of the cell; it is taken off every pixel of the
+                 cell before the faces are computed (copper.py), so the laminate is not counted twice. Without the rule dS is zero.
+        @return dict layer index -> (gx (ny, nx - 1), gy (ny - 1, nx)) in W/K; empty for a drawn board or the "fill" mapping.
+        """
+        if self._lateral is None:
+            self._lateral = {}
+            if self._face_context is not None:
+                s_pre, a_full, b_bare = self._face_context
+                b = self.problem.board
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    for layer in self.copper.layers:
+                        red = np.where(self.cover > 0, np.maximum(s_pre[layer] - self.S[layer], 0.0) / self.cover, 0.0)
+                        self._lateral[layer] = self.copper.lateral(layer, a_full[layer], b_bare[layer], red, self.cover, self.ny, self.nx, b.width, b.height)
+                self._face_context = None                       # The copy of the sheet is not needed again
+        return self._lateral
+
     # ------------------------------------------------------------------ assembly
     @staticmethod
     def _harmonic(a, b):
@@ -368,6 +402,10 @@ class Network:
         # Lateral couplings: face width / distance gives dy/dx (x) and dx/dy (y)
         gx = self._harmonic(self.S[:, :, :-1], self.S[:, :, 1:]) * self.dy / self.dx
         gy = self._harmonic(self.S[:, :-1, :], self.S[:, 1:, :]) * self.dx / self.dy
+        for layer, (fx, fy) in self._imported_faces().items():          # Imported copper: the face conductances of the reduced sheet
+            on = self.active
+            gx[layer] = fx * (on[:, :-1] & on[:, 1:])
+            gy[layer] = fy * (on[:-1, :] & on[1:, :])
         couple(idx[:, :, :-1], idx[:, :, 1:], gx)
         couple(idx[:, :-1, :], idx[:, 1:, :], gy)
         if nb > 1:
@@ -476,6 +514,10 @@ class Network:
         ga = np.zeros((L, ny, nx)); gb = np.zeros((L, ny, nx))     # layer-1, layer+1
         gx = self._harmonic(self.S[:, :, :-1], self.S[:, :, 1:]) * self.dy / self.dx
         gy = self._harmonic(self.S[:, :-1, :], self.S[:, 1:, :]) * self.dx / self.dy
+        for layer, (fx, fy) in self._imported_faces().items():          # Imported copper: the face conductances of the reduced sheet
+            on = self.active
+            gx[layer] = fx * (on[:, :-1] & on[:, 1:])
+            gy[layer] = fy * (on[:-1, :] & on[1:, :])
         gr[:, :, :-1], gl[:, :, 1:] = gx, gx
         gu[:, :-1, :], gd[:, 1:, :] = gy, gy
         if L > 1:
@@ -786,6 +828,7 @@ def unknowns(problem, cell_mm=2.0):
         dx, dy = b.width / nx, b.height / ny
         active = b.cover(nx, ny, dx, dy) > 0
         fill = zone_fill(problem.zones, b.layers, nx, ny, dx, dy, samples=4)
+        copper.override_fill(fill, copper.resolve(None, problem), ny, nx, b.width, b.height)
         return (*laminate.count_unknowns(b, laminate.plan_gaps(b, fill, dx, active), nx * ny), nx, ny)
     lam = laminate.nodes(b)
     layers = b.layers + (lam.count if lam is not None else 0) + len(blocks.block_faces(problem))

@@ -193,7 +193,7 @@ class BoardPanel(QWidget):
         self.natural_form.addItem("General (Churchill and Chu, whole range)", "general")
         self.natural_form.addItem("Laminar (Churchill and Chu, Ra below 1.00E9)", "laminar")
         self.natural_form.setToolTip("Correlation of the natural convection of a vertical board (computed heat transfer, vertical orientation only). General: the "
-                                     "Churchill and Chu form for the whole Rayleigh range (default). Laminar: the same authors' laminar form for Ra below 1.00E9, which "
+                                     "Churchill and Chu form for the whole Rayleigh range (what a project file saved before this option keeps). Laminar: the same authors' laminar form for Ra below 1.00E9 (the default of new projects, the nearer to a numerical plate from Ra 1000 to 30.00E6), which "
                                      "textbooks recommend for laminar flow; it gives a coefficient from +6.5 % (50 mm board, 10 K) to -10 % (200 mm, 80 K) of the general one. "
                                      "Both forms are taken from textbooks and checked numerically, not from the original paper; on the example board the laminar form changes "
                                      "the rise by -0.7 to +0.2 %, inside the 20 to 30 % uncertainty of h. Above Ra 1.00E9 (a board of about 0.5 m) use the general form.")
@@ -1425,7 +1425,8 @@ class SolverPanel(QWidget):
                           "within about 4 % in most cases. A part over a dense group of vias is split into the core of the vias and the rest of the footprint "
                           "(the board then runs on a 0.5 mm cell). Weak when a copper edge crosses the heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, heatsinks and "
-                            "partial copper. Assumes insulated edges and rectangular heaters; unreliable if a copper edge crosses a heater.",
+                            "partial copper. Moves the edge loss to the faces (warned when a part near the edge or a large edge coefficient makes that matter) and assumes "
+                            "rectangular heaters; unreliable if a copper edge crosses a heater.",
                 "solid3d": "The board as a real 3D solid (every copper layer and dielectric gap a slab, vias with their copper area, metal blocks as "
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
