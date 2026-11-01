@@ -170,6 +170,20 @@ The FVM, FDM and 3D solid follow the outline with the cell cover `c_b`. The Lump
 
 **The face value of a part.** A part on an outer layer injects its heat at its node, at mid-thickness of the copper layer. Where the copper is absent, the half layer of laminate between the node and the face adds `Q t_cu/(2 k_th A)` to the peak (scaled by `min(1, (1 − f) Δx/(4 t_cu))` for a bare feature narrower than four copper thicknesses) and the bare share `(1 − f)` of it to the mean (`laminate.face_terms`).
 
+**The limit of the rule: a small part over a thick laminate** (`research/paper-case-studies` 16.3; FVM at 0.25 mm against the closed form of Muzychka, Yovanovich and Culham for a source on a thick orthotropic laminate and an extrapolated independent 3D solver under a copper pad). The cut gap is still a stack of `n` nodes, so a source smaller than the sub-gap `s = d/n` is spread too little and the layered FVM and FDM read it too cool. The error follows the ratio `s / S` of the sub-gap to the smaller side of the part, whatever option pair set `s`:
+
+| `s / S` | bare laminate | copper pad under the part |
+| :-- | :-- | :-- |
+| 0.01 to 0.05 | -2.0 to +0.6 % | -4.0 to +1.9 % |
+| 0.07 to 0.10 | -4.8 to -0.8 % | -8.6 to -1.1 % |
+| 0.15 to 0.20 | -9.3 to -3.6 % | -13.8 to -6.1 % |
+| 0.31 to 0.39 | -20.2 to -11.5 % | -24.0 to -14.2 % |
+| 0.78 | -33 % | -35 % |
+
+With the defaults `s` is 0.4 mm up to a 1.6 mm gap and `d/4` above, so the ratio passes 0.15 for a part narrower than about 2.5 mm on a 1.6 mm board and 5.2 mm on a 3.2 mm board, only where the cells under the part are cut (no plane on the other side). A smaller `s_max` or a larger `n_max` reduces it at a cost: `(0.2 mm, 8)` takes 1.4 to 4.6 times the time and 1.2 to 3 times the memory on the boards measured and still leaves -6 / -9 % in the worst case (2 mm part on 3.2 mm); `(0.1 mm, 16)` takes up to 40 times the time and 14 times the memory. The program warns (`checks.check_small_part_laminate`, text only) when `s > 0.15 S`; a rule that cuts the gap finer only under and around small parts is planned (`docs/versions.md`, chapter 'Planned').
+
+**One coefficient per face.** The computed convection coefficient is one number per face from the mean face temperature. On a thin board of low in-plane conductance with concentrated sources (the glass plate of Lee and Yovanovich, `research/paper-case-studies` 12 and 16.6) this reads the mean temperature of the strips 10.3 % above the conjugate solution (8.6 points from the single coefficient), on the safe side; on the ceramic plate it is 2.0 % below.
+
 **A one-layer board in the other models.**
 * **Lumped**, and FVM/FDM with a **metal block**: two laminate nodes under the copper in every cell (`laminate.LAMINATE_NODES = 2`, gaps `t_lam/2`), one link per gap.
 * **Analytic**: one node, with the laminate in series with the bottom film, `h_bottom → 1/(1/h_bottom + t_lam/k_th)` (`laminate.series_bottom_problem`).
@@ -449,7 +463,7 @@ Every cell of every slab has one unknown: `n_slabs × nx × ny`, counted before 
 with `Δ` the edge length of the cell face. A block hides the board face under it (factor `1 − c`) and loses heat on its exposed face, `h_exp = h_face·r_fin + h_extra` (section 7), and on the side walls of every block slab, `G = (h_face + h_extra) dz L_edge` (no fin ratio; `L_edge` the block outline inside the cell). The heater power goes to the copper slab of its layer with the weights of section 1.3. The system is solved directly; the result has the layout of the FVM (the copper slab of each layer, plus the block fields).
 
 **What it measures**: the error of the layered idealisation on **your** board.
-**Limits**: the barrel is a lumped area; copper is one slab thick; a block contact is perfect over the pad; the cost grows quickly with layers and cells (the fill-in grows with the width of the plan times the slab count, and the guard of section 2.7 limits the estimated memory, not the count); steady state only.
+**Limits**: four slabs per gap are too few for a small part on a thick laminate: against an extrapolated reference the solid reads a 2 mm part on 3.2 mm laminate +20 % (bare) and +27 % (copper pad) hot, +5.5 and +14.7 % on 1.6 mm; with 8 slabs +5.4 and +13.3 %, with 16 +0.4 and +7.9 % (the remainder is the plan cell and, on bare laminate, the face term the solid does not add; `research/paper-case-studies` 16.4). 4 against 8 slabs differ by 5 % at 1.6 mm and 14 % at 3.2 mm under a 2 mm source; the program warns when `d/4` exceeds 0.15 of the smaller side of a part. The barrel is a lumped area; copper is one slab thick; a block contact is perfect over the pad; the cost grows quickly with layers and cells (the fill-in grows with the width of the plan times the slab count, and the guard of section 2.7 limits the estimated memory, not the count); steady state only.
 **Where it is checked**: `validation.md` 3 and 16 (against a finite-element solid and Yovanovich's table, convergence in slabs and cells, timings and memory); `research/solid3d-verification`. **Sources**: the flux-tube table of [Yovanovich2003] and the flux-tube series of [YovanovichCulhamTeertstra1998] (R), the grid convergence procedure of [Celik2008] (R, pages 4 to 9; Table 1 reproduced), [Roache] (M).
 
 ## 5. Lumped: thermal network by rings (LPTN)
