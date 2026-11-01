@@ -18,11 +18,19 @@ What would answer it:
 
 Drawn by `scripts/make_diagrams.py` (no data):
 
-* `figures/fig_01_guard_flow.png`: from the board to the verdict and the four places that use it.
-* `figures/fig_02_board_section_and_unknowns.png`: a section of a two-layer board with copper absent in part of each layer, the copper nodes and the laminate nodes that exist only next to absent copper. It shows why the unknown count is not layers times cells and why the count shown in the panel must come from `fvm.unknowns`.
-* `figures/fig_03_numbering_and_matrix_pattern.png`: the matrix pattern of a three-layer board in the layer-major and in the cell-major numbering.
+![Guard flow](figures/fig_01_guard_flow.png)
 
-Drawn by `scripts/make_figures.py` from the measurements: `fig_04_memory_against_unknowns.png`, `fig_05_time_and_cell_major.png`, `fig_06_bytes_per_unknown_against_t.png` and `fig_07_sor_block_memory.png` (shown in sections 5, 6 and 9).
+*Figure 01 (fig_01_guard_flow.png): from the board to the verdict and the four places that use it.*
+
+![Board section and unknowns](figures/fig_02_board_section_and_unknowns.png)
+
+*Figure 02 (fig_02_board_section_and_unknowns.png): a section of a two-layer board with copper absent in part of each layer, the copper nodes and the laminate nodes that exist only next to absent copper. It shows why the unknown count is not layers times cells and why the count shown in the panel must come from `fvm.unknowns`.*
+
+![Numbering and matrix pattern](figures/fig_03_numbering_and_matrix_pattern.png)
+
+*Figure 03 (fig_03_numbering_and_matrix_pattern.png): the matrix pattern of a three-layer board in the layer-major and in the cell-major numbering.*
+
+Drawn by `scripts/make_figures.py` from the measurements: `fig_04_memory_against_unknowns.png`, `fig_05_time_and_cell_major.png`, `fig_06_bytes_per_unknown_against_t.png` and `fig_07_sor_block_memory.png` (shown in sections 5, 6 and 9; figure 05 below).
 
 ## 2. What is already measured (quoted, not reproduced here)
 
@@ -91,6 +99,10 @@ The first fit (`study_memory_ladder.py --fit`) uses the classes of the provision
 ![Peak memory against the unknowns](figures/fig_04_memory_against_unknowns.png)
 
 *Figure 04 (fig_04_memory_against_unknowns.png): measured peak per series for the FVM, the FDM and the 3D solid; dashed, the class law times its safety factor; red dotted, 70 % of 8, 16 and 64 GB; crosses, points stopped at the cutoff.*
+
+![Time and the cell-major numbering](figures/fig_05_time_and_cell_major.png)
+
+*Figure 05 (fig_05_time_and_cell_major.png): FVM solve time and peak memory against the unknowns, layer-major (solid) and cell-major (dashed) numbering (drawn by `scripts/make_figures.py` from `out/ladder.jsonl`).*
 
 ![Bytes per unknown against t](figures/fig_06_bytes_per_unknown_against_t.png)
 
