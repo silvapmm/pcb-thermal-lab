@@ -129,14 +129,20 @@ def test_spreading_vanishes_when_the_source_fills_the_channel():
 
 def test_half_space_limit_of_a_square_source():
     """!
-    @brief A small square source on a large deep block approaches the half-space constriction: R k s tends to 0.4732 for the mean temperature under a uniform flux (band 0.43 to 0.50; the box is
-           finite, the series are truncated); a factor of 2 or 4 in the normalisation of the equation falls outside (the first reading of this study was 4 times too small).
+    @brief A small square source on a large deep block approaches the half-space constriction. The exact value is computed here independently: for a uniform flux the mean temperature of the source
+           is q / (2 pi k A) times the double integral of 1/r over the square, so R k s = I / (2 pi) with I = 4 int_0^1 int_0^1 (1 - u)(1 - v) / sqrt(u^2 + v^2) du dv (the mean reciprocal distance
+           of a unit square, 2.9732: R k s = 0.4732). The series must lie between 95 % and 100 % of it for a box of 50 a and a depth of 100 a (finite box, truncated series); a factor of 2 or 4 in the
+           normalisation falls outside (the first reading of this study was 4 times too small).
     @return None.
     """
+    from scipy.integrate import dblquad
+    integral, _err = dblquad(lambda v, u: (1 - u) * (1 - v) / math.hypot(u, v), 0, 1, 0, 1)
+    exact = 4.0 * integral / (2.0 * math.pi)
+    assert exact == pytest.approx(0.4732, abs=2e-4)
     a, c, t = 1e-3, 50e-3, 100e-3
     rs = FC.spreading_resistance(a, a, c, c, t, 1.0, 1.0, np.inf, n_max=3000)   # per watt of the whole source (half sizes in the formula)
     psi = rs * 1.0 * (2 * a)                                                     # times k and the side of the source
-    assert 0.43 < psi < 0.50
+    assert 0.95 * exact < psi < exact
 
 
 def test_orthotropic_transformation():

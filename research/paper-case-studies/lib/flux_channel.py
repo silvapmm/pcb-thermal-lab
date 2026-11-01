@@ -4,9 +4,12 @@
 @file flux_channel.py
 @brief The thermal spreading resistance of a rectangular source on an orthotropic rectangular flux channel with a cooled base: equations 48 to 51 of Muzychka, Yovanovich and Culham (2004),
        J. Thermophysics and Heat Transfer 18 (1) 45-51, evaluated by a direct double series. Imports nothing from pcbthermal.
-@details Geometry (Fig. 8, page 49; the half sizes are used, so the system is the quarter of the symmetric problem): channel of plan c x d, thickness t, in-plane conductivity k_xy
-         (x and y), through-plane k_z; a uniform flux over the source a x b at the corner (x in 0..a, y in 0..b), the rest of the top face adiabatic, the sides adiabatic, the bottom
-         face cooled with a film h to a fluid at T_f.
+@details Geometry (Fig. 8, page 49; a, b, c, d are HALF sizes: the channel is 2c x 2d, the source 2a x 2b at its centre; the quarter 0..c, 0..d with the source at the corner 0..a, 0..b carries a
+         quarter of the heat at the same temperatures): thickness t, in-plane conductivity k_xy (x and y), through-plane k_z; a uniform flux over the source, the rest of the top face adiabatic,
+         the sides adiabatic, the bottom face cooled with a film h to a fluid at T_f.
+         R_s is per watt of the WHOLE source (heat 4 a b q). Checked against the half-space value of a square source under a uniform flux, R_s k (2a) = I / (2 pi) = 0.4732 with I the mean
+         reciprocal distance of a unit square, computed independently in the tests by a double integral; the series approach it from below as the channel and the depth grow (0.461 for
+         c = 50 a, t = 100 a). A first reading that took R_s per watt of the quarter was 4 times too small and was found by that test.
          Orthotropic transformation (equations 48, 49, 57, 58): xi = z / gamma, gamma = sqrt(k_z / k_xy), the system becomes isotropic with k_eff = sqrt(k_xy k_z) and t_eff = t / gamma.
          Equation 50 (page 50, read from the page image): R_s = 1 / (2 a^2 c d k_eff) sum_m sin^2(a delta_m) / delta_m^3 phi(delta_m) + 1 / (2 b^2 c d k_eff) sum_n sin^2(b lambda_n) /
          lambda_n^3 phi(lambda_n) + 1 / (a^2 b^2 c d k_eff) sum_m sum_n sin^2(a delta_m) sin^2(b lambda_n) / (delta_m^2 lambda_n^2 beta_mn) phi(beta_mn), delta_m = m pi / c, lambda_n = n pi / d,
