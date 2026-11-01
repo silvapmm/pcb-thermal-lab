@@ -20,7 +20,8 @@ ROOT = os.path.dirname(os.path.dirname(FOLDER))
 OUT = os.path.join(FOLDER, "out")
 
 STUDIES = [("study_invariants", []), ("study_footprint_potential", []), ("study_zones_on_245", ["--procs"]), ("study_raster", ["--procs"]),
-           ("study_edge_and_offcentre", ["--procs"]), ("study_transient", []), ("make_diagrams", []), ("make_figures", [])]
+           ("study_edge_and_offcentre", ["--procs"]), ("study_transient", []),
+           ("study_review", []), ("make_diagrams", []), ("make_figures", [])]   # study_review without --outside keeps the rows of an earlier --outside run
 
 
 def run(cmd, log):

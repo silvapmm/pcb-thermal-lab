@@ -53,7 +53,9 @@ def fig_footprint(path):
     a.text(11.1, 7.15, "rest A", ha="center", fontsize=8, fontweight="bold")
     for x0, x1 in ((3.3, 5.5), (11.7, 9.5)):
         dk.arrow(a, x0, 5.15, x1, 5.15, color=dk.HEAT, width=1.5)
-    a.text(4.4, 4.85, "link A-C (sideways)", fontsize=7, color=dk.HEAT, ha="center")
+    # the label sits under the sideways arrows on a white box, so that the arrows down through the dielectric do not run through the text
+    a.text(4.1, 4.6, "link A-C\n(sideways)", fontsize=7, color=dk.HEAT, ha="center", va="center", bbox=dict(facecolor="white", edgecolor="none", pad=1.0))
+    a.text(10.9, 4.6, "link A-C\n(sideways)", fontsize=7, color=dk.HEAT, ha="center", va="center", bbox=dict(facecolor="white", edgecolor="none", pad=1.0))
     for x in (3.6, 4.6, 10.4, 11.4):
         dk.arrow(a, x, 5.3, x, 4.0, color=dk.BLUE, width=1.3)
     a.text(1.7, 4.2, "straight down\nthrough the\ndielectric of A", fontsize=7, color=dk.BLUE, ha="center")
@@ -138,16 +140,19 @@ def fig_decimation(path):
     kept = cells[::step]
     for ax, title in zip(axs, ("program: every 4th cell in row order (900 of 3600)", "blocks of 2 x 2 cells (900 blocks, centroid and weight)")):
         ax.set_xlim(-1, n + 1)
-        ax.set_ylim(-4, n + 3)
+        ax.set_ylim(-9, n + 3)
         ax.set_aspect("equal")
         ax.add_patch(Rectangle((0, 0), n, n, fill=False, edgecolor="k"))
         ax.text(n / 2, n + 1.2, title, ha="center", fontsize=8.5, fontweight="bold")
     xs, ys = np.array([c[1] for c in kept]) + 0.5, np.array([c[0] for c in kept]) + 0.5
     axs[0].plot(xs, ys, "s", ms=2.3, color=dk.BLUE)
-    axs[0].text(n / 2, -2.8, "every row keeps cells at the same columns: columns of points, empty columns between them;\nthe mean-to-boundary term of the link is 11 % short on this square (earlier folder, against every cell)", fontsize=7, ha="center")
+    # the boundary cells that the stride keeps: the left column and every 4th cell of the top and bottom rows; the right column (59) is never kept
+    kb = [(i, j) for i, j in kept if i in (0, n - 1) or j in (0, n - 1)]
+    axs[0].plot(np.array([c[1] for c in kb]) + 0.5, np.array([c[0] for c in kb]) + 0.5, "o", ms=3.2, mfc="none", mec="#d62728", mew=0.9)
+    axs[0].text(n / 2, -2.5, "every row keeps cells at the same columns: columns of points, empty columns between them;\nred: the boundary cells kept (the right side is never sampled); the link term is 10.8 % short", fontsize=7, ha="center", va="top")
     bx, by = np.meshgrid(np.arange(1, n, 2), np.arange(1, n, 2))
     axs[1].plot(bx.ravel(), by.ravel(), "s", ms=3.6, color=dk.HEAT)
-    axs[1].text(n / 2, -2.8, "every block keeps its centroid, its weight and its own self distance:\nno stripes, the boundary cells are weighted in the blocks that hold them", fontsize=7, ha="center")
+    axs[1].text(n / 2, -2.5, "every block keeps its centroid, its weight and its own self distance:\nno stripes; the boundary cells keep their own positions (link term within 0.0 %)", fontsize=7, ha="center", va="top")
     dk.save(fig, path)
 
 
