@@ -1052,7 +1052,8 @@ class MainWindow(QMainWindow):
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
 <tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
-<tr><td><b>F1</b></td><td>User guide</td></tr></table>"""
+<tr><td><b>F1</b></td><td>User guide</td></tr>
+<tr><td><b>macOS</b></td><td>Ctrl in this table is the Command key (⌘); Backspace (the key labelled delete) also deletes the selection</td></tr></table>"""
 
     def show_shortcuts(self):
         """!

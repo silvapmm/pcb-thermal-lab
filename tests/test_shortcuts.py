@@ -143,3 +143,76 @@ def test_the_key_tables_name_the_other_real_keys(win):
     real = _bindings(win)
     for key in ("Ctrl+Shift+Z", "Ctrl+Y", "Ctrl+Z", "Ctrl+=", "Ctrl++", "Ctrl+-", "Ctrl+Q"):
         assert key in real, key
+
+
+def _count(problem):
+    """!
+    @brief Number of drawn elements of a problem.
+    @param problem The Problem.
+    @return int.
+    """
+    return len(problem.heaters) + len(problem.zones) + len(problem.vias) + len(problem.heatsinks)
+
+
+def test_delete_and_duplicate_keys_reach_the_actions_not_the_canvas(win, qtbot):
+    # Del and Ctrl+D are window shortcuts: they act once through the action and the canvas never sees them, so the canvas does not handle them (its old
+    # branches were dead code); Backspace, the Mac "delete" key, has no action and is handled by the canvas
+    from PySide6.QtCore import QEvent, QObject, Qt
+    from PySide6.QtTest import QTest
+
+    from pcbthermal.examples import example_board
+
+    win.show()
+    win.activateWindow()
+    qtbot.waitExposed(win)
+    win._load_problem(example_board(), "example")
+    qtbot.wait(20)                                                          # Let the scene be rebuilt before items are selected
+    seen = []
+
+    class Spy(QObject):
+        """!
+        @brief Records the key presses delivered to the canvas.
+        """
+
+        def eventFilter(self, obj, event):
+            """!
+            @brief Record a key press of the canvas.
+            @param obj Watched object.
+            @param event Event.
+            @return bool False (the event goes on).
+            """
+            if event.type() == QEvent.KeyPress:
+                seen.append(event.key())
+            return False
+
+    spy = Spy()
+    win.canvas.installEventFilter(spy)
+    win.canvas.setFocus()
+
+    def select_one():
+        """!
+        @brief Select the first selectable item of the canvas.
+        @return None.
+        """
+        win.canvas.scene().clearSelection()
+        [i for i in win.canvas.scene().items() if i.flags() & i.GraphicsItemFlag.ItemIsSelectable][0].setSelected(True)
+        qtbot.wait(5)
+        assert win.canvas.selected_elements()
+
+    n = _count(win.doc.problem)
+    select_one()
+    QTest.keyClick(win.canvas, Qt.Key_D, Qt.ControlModifier)
+    assert _count(win.doc.problem) == n + 1 and Qt.Key_D not in seen         # Duplicated once, by the action
+    select_one()
+    QTest.keyClick(win.canvas, Qt.Key_Delete)
+    assert _count(win.doc.problem) == n and Qt.Key_Delete not in seen        # Deleted once, by the action
+    select_one()
+    QTest.keyClick(win.canvas, Qt.Key_Backspace)
+    assert _count(win.doc.problem) == n - 1 and Qt.Key_Backspace in seen     # Deleted by the canvas
+
+
+def test_the_tables_say_that_ctrl_is_command_on_macos(win):
+    shown = _plain(win.SHORTCUTS_HTML)
+    guide = _plain(GUIDE.read_text(encoding="utf-8"))
+    for table in (shown, guide):
+        assert "macOS" in table and "Command key" in table and "Backspace" in table
