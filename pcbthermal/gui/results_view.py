@@ -113,6 +113,7 @@ class PlotTab(QWidget):
         self._updating = False
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         self.toolbar = NavigationToolbar2QT(self.canvas, self)
 
         self.model = QComboBox()
@@ -180,6 +181,8 @@ class PlotTab(QWidget):
         @param theme "dark" or "light".
         """
         self.theme = theme
+        _paint_figure(self.fig, theme)                  # Also when nothing is drawn yet
+        self.canvas.draw_idle()
         self.redraw()
 
     def set_simulation(self, sim):

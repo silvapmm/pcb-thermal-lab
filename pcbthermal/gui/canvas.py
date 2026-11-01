@@ -92,7 +92,7 @@ class ElementItem(QGraphicsPolygonItem):
                 self.label.setPos(br.center().x(), br.center().y())
             else:
                 self.label.setPos(br.left() + 0.5, br.bottom() - 0.5)     # y points up: bottom() is the top edge
-            self.label.setBrush(QBrush(QColor("white")))
+            self.label.setBrush(QBrush(QColor(th.colors(self.view.theme)["on_element"])))
         self.restyle()
 
     def restyle(self):
@@ -103,7 +103,7 @@ class ElementItem(QGraphicsPolygonItem):
         base = {"zone": c["copper"], "heater": c["heater"], "heatsink": c["heatsink"]}[self.kind]
         alpha = {"zone": 70, "heater": 120, "heatsink": 70}[self.kind]
         self.setBrush(QBrush(th.qcolor(base, alpha)))
-        pen = QPen(QColor("white") if self.isSelected() else QColor(base), 0)
+        pen = QPen(QColor(c["selection"]) if self.isSelected() else QColor(base), 0)
         pen.setCosmetic(True)
         pen.setWidthF(2.2 if self.isSelected() else 1.4)
         if self.kind == "heatsink" and not getattr(self, "is_block", False):
@@ -163,7 +163,7 @@ class ViaItem(QGraphicsEllipseItem):
         @brief Apply the via colours and the selection highlight.
         """
         c = th.colors(self.view.theme)
-        pen = QPen(QColor("white") if self.isSelected() else QColor(c["via"]))
+        pen = QPen(QColor(c["selection"]) if self.isSelected() else QColor(c["via"]))
         pen.setCosmetic(True)
         pen.setWidthF(2.0)
         self.setPen(pen)
@@ -210,8 +210,9 @@ class VertexHandle(QGraphicsRectItem):
         # The handle follows the mouse by itself (mouseMoveEvent) and only reshapes the polygon.
         self.setFlags(QGraphicsItem.ItemIgnoresTransformations | QGraphicsItem.ItemSendsGeometryChanges)
         self.setAcceptedMouseButtons(Qt.LeftButton)
-        self.setBrush(QBrush(QColor("white")))
-        pen = QPen(QColor("#4c8dff"))
+        c = th.colors(view.theme)
+        self.setBrush(QBrush(QColor(c["selection"])))
+        pen = QPen(QColor(c["accent"]))
         pen.setWidthF(1.5)
         self.setPen(pen)
         self.setZValue(20)
@@ -1024,7 +1025,8 @@ class BoardView(QGraphicsView):
         @param cursor Current snapped cursor position.
         """
         self._clear_preview()
-        pen = QPen(QColor("white"))
+        # The text colour: it reads on the canvas of both themes (white was 1.3:1 on the light canvas)
+        pen = QPen(QColor(th.colors(self.theme)["text"]))
         pen.setCosmetic(True)
         pen.setStyle(Qt.DashLine)
         pen.setWidthF(1.5)

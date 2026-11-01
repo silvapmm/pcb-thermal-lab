@@ -589,7 +589,7 @@ def test_warning_links_follow_the_theme(win, qtbot):
         return None
 
     for _ in range(2):
-        accent = th.colors(win.theme_name)["accent"]
+        accent = th.colors(win.theme_name)["link"]
         assert QApplication.instance().palette().color(QPalette.Link).name() == accent
         assert anchor_colour() == accent
         lst.set_stale()

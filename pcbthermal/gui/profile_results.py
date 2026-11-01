@@ -43,6 +43,7 @@ class ProfileResultsTab(QWidget):
         self.info.setWordWrap(True)
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         bar = QHBoxLayout()
         for text, w in (("Model", self.model), ("Show", self.view), ("Layer", self.layer)):
             bar.addWidget(QLabel(text))
@@ -64,6 +65,8 @@ class ProfileResultsTab(QWidget):
         @param theme "dark" or "light".
         """
         self.theme = theme
+        _paint_figure(self.fig, theme)                  # Also when nothing is drawn yet
+        self.canvas.draw_idle()
         self.redraw()
 
     def set_simulation(self, sim):
@@ -107,7 +110,8 @@ class ProfileResultsTab(QWidget):
             if self.sim is not None:
                 msg = self.sim.profile_error or ("Every heater was replaced by its average power: no time simulation was needed."
                                                  if self.sim.decisions else "No heater has a power profile.")
-            self.fig.add_subplot(111).text(0.5, 0.5, msg, ha="center", va="center", wrap=True)
+            with _mpl_theme(self.theme):                  # The message took the default (black) text colour on the dark theme
+                self.fig.add_subplot(111).text(0.5, 0.5, msg, ha="center", va="center", wrap=True)
             self.info.setText("")
         else:
             layer = max(self.layer.currentIndex(), 0)
