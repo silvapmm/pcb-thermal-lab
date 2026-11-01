@@ -271,3 +271,15 @@ def test_reference_reads_at_the_face_like_equation_50():
     assert r == pytest.approx(exact, rel=1e-9)
     rs, _rt, rp = S2.closed_form(c, n_max=200)
     assert abs(rs) < 1e-12 and rp == pytest.approx(exact, rel=1e-12)
+
+
+def test_extrapolated_reference_agrees_with_equation_50():
+    """!
+    @brief The extrapolated 3D reference (Richardson in the sub-slabs, quadratic in 1/pixels) is within 1 % of equation 50 on a cheap case (S = 5 mm on 20 mm, t = 1.6 mm, h = 1e3), where the single grid S/16 was 0.8 % high and S/8 more.
+    @return None.
+    """
+    c = {"S": 5.0, "W": 20.0, "t": 1.6, "kxy": 0.9, "kz": 0.3, "h": 1.0e3}
+    rp = S2.closed_form(c)[2]
+    rx = S2.reference_3d_extrap(c)
+    assert abs(rx / rp - 1.0) < 0.01
+    assert abs(S2.reference_3d(c, px_div=6) / rp - 1.0) > abs(rx / rp - 1.0)

@@ -368,8 +368,14 @@ def main(argv=None):
         result["C"] = part_c(args.quick)
     if "D" in parts:
         result["D"] = {f"{k}": v for k, v in part_d().items()}
-    with open(OUT / "study_measured_vias.json", "w") as f:
-        json.dump(result, f, indent=1, default=str)
+    path = OUT / "study_measured_vias.json"
+    merged = {}
+    if path.exists():                       # keep the parts of earlier runs (the parts are run one at a time, C and D are heavy)
+        with open(path) as f:
+            merged = json.load(f)
+    merged.update(result)
+    with open(path, "w") as f:
+        json.dump(merged, f, indent=1, default=str)
     return 0
 
 
