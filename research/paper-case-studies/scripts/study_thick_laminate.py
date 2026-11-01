@@ -105,6 +105,24 @@ def reference_3d(c, pad=False, px_div=16, n_sub=16):
     return (mean_src + face - 1.0 / (c["h"] * (w / 2.0) ** 2)) / 4.0    # 1 W in the quarter = 4 W in the board: the same rise, a quarter of the resistance per watt
 
 
+def reference_3d_extrap(c, pad=False, pxs=(6, 8, 12), nss=(16, 32)):
+    """!
+    @brief The 3D reference extrapolated to the continuum: Richardson in the number of sub-slabs (error 1/n^2, measured: successive differences fall by 3.3, 3.7, 3.9 for n = 4 to 64), then a quadratic in 1/pixels.
+    @param c One dict of combos().
+    @param pad True for the pad board.
+    @param pxs Three pixel counts per source side (small ones: at most 130 000 unknowns, about 2 GB).
+    @param nss Two numbers of sub-slabs for the Richardson step.
+    @return float R' in K/W (the extrapolated value); the single-grid value at S/16 (reference_3d) was 1.2 to 2.6 % high on the bare cases because of the slow pixel convergence of the flux jump at the source edge.
+    """
+    vals = []
+    for px in pxs:
+        a = reference_3d(c, pad, px, nss[0])
+        b = reference_3d(c, pad, px, nss[1])
+        vals.append(b - (a - b) / ((nss[1] / nss[0]) ** 2 - 1.0))        # error ~ 1/n^2
+    coef = np.polyfit([1.0 / px for px in pxs], vals, 2)
+    return float(coef[2])
+
+
 def run_program(c, model, cell_mm, s_max=0.4, n_max=4, pad=False):
     """!
     @brief The program on the full board (4 W, so that the quarter carries 1 W; R' is per watt of the board): bare laminate (two layers, nothing drawn) or a copper pad on layer 1; the same quantity R'.
@@ -135,10 +153,11 @@ def run_program(c, model, cell_mm, s_max=0.4, n_max=4, pad=False):
     return mean_src / 4.0 - 1.0 / (c["h"] * (w * 1e-3) ** 2)
 
 
-def part_l1(convergence):
+def part_l1(convergence, heavy=False):
     """!
     @brief L1: the 3D reference against equation 50 on the 33 bare combinations (and its own refinement when asked).
-    @param convergence True to add the refinement runs (heavy: alone, at most 3 GB).
+    @param convergence True to add the convergence grid (cheap, about 2 GB).
+    @param heavy True to add the pixel S/32 runs (8 GB resident: alone).
     @return list of rows.
     """
     rows = []
@@ -152,13 +171,29 @@ def part_l1(convergence):
     for c in combos():
         rs, rt, rp = closed_form(c)
         r3 = reference_3d(c)
+        rx = reference_3d_extrap(c)
         film = 1.0 / (c["h"] * (c["W"] * 1e-3) ** 2)
         diff = (r3 - rp) / rp * 100.0
         diff_total = (r3 - rp) / (rp + film) * 100.0
-        rows.append({**c, "rs": rs, "r_eq50": rp, "r_3d": r3, "diff_rprime_pct": diff, "diff_total_pct": diff_total})
-        print(f"  {c['S']:3.0f} {c['W']:3.0f} {c['t']:4.1f} {c['kxy']:4.1f} {c['kz']:4.1f} {c['h']:7.0e}  {rs:9.3f}  {rp:9.3f}  {r3:9.3f}   {diff:9.3f}      {diff_total:9.3f}")
+        diff_x = (rx - rp) / rp * 100.0
+        rows.append({**c, "rs": rs, "r_eq50": rp, "r_3d": r3, "r_3d_extrap": rx, "diff_extrap_pct": diff_x, "diff_rprime_pct": diff, "diff_total_pct": diff_total})
+        print(f"  {c['S']:3.0f} {c['W']:3.0f} {c['t']:4.1f} {c['kxy']:4.1f} {c['kz']:4.1f} {c['h']:7.0e}  {rs:9.3f}  {rp:9.3f}  {r3:9.3f}   {diff:9.3f}      {diff_total:9.3f}   extrapolated {rx:9.3f} {diff_x:+7.3f} %")
     if convergence:
-        print("\n  refinement (alone: pixel S/32 is 460 000 unknowns, about 3 GB): S = 2, W = 20, kxy 0.9, h = 1e6")
+        print("\n  convergence grid of the 3D reference (S = 2, W = 20, kxy 0.9, h = 1e6; at most 130 000 unknowns, about 2 GB): R' per pixels per source side (rows) and sub-slabs (columns)")
+        for t in (1.6, 3.2):
+            c = {"S": 2.0, "W": 20.0, "t": t, "kxy": 0.9, "kz": 0.3, "h": 1.0e6}
+            rp = closed_form(c)[2]
+            print(f"   t = {t} mm, equation 50: {rp:.4f}")
+            for px in (6, 8, 12, 16):
+                cells = []
+                for ns in (4, 8, 16, 32, 64):
+                    if 25 * px * px * (ns + 2) > 130000:
+                        continue
+                    cells.append(f"ns {ns}: {reference_3d(c, px_div=px, n_sub=ns):.3f}")
+                print(f"    pixel S/{px}: " + "  ".join(cells))
+            print(f"    extrapolated (Richardson in n_sub, quadratic in 1/pixels): {reference_3d_extrap(c):.4f}")
+    if heavy:
+        print("\n  heavy refinement (alone: pixel S/32 is 460 000 unknowns, 8 GB resident measured): S = 2, W = 20, kxy 0.9, h = 1e6")
         for t in (1.6, 3.2):
             c = {"S": 2.0, "W": 20.0, "t": t, "kxy": 0.9, "kz": 0.3, "h": 1.0e6}
             base = reference_3d(c)
@@ -179,7 +214,7 @@ def part_programs(use_pad):
     print(f"\nL2-L4  the program against the 3D reference ({kind} board); error in % of R'")
     print("  S   W   t    kxy  h      R'(3D)   model    cell  s_max n_max  R'(prog)   error %")
     for c in combos():
-        ref = reference_3d(c, pad=use_pad)
+        ref = reference_3d_extrap(c, pad=use_pad)       # the extrapolated reference: the single grid S/16 is 1 to 2.6 % high (L1, README 11)
         jobs = [("fvm", cell, s, n) for cell in CELLS_MM for (s, n) in (OPTIONS if cell == 0.25 else OPTIONS[:1])]
         jobs += [("fdm", 0.25, 0.4, 4), ("solid3d", 0.5 if c["W"] > 20 else 0.25, 0.4, 4), ("analytic", 0.5, 0.4, 4), ("lumped", 0.5, 0.4, 4)]
         for model, cell, s, n in jobs:
@@ -217,13 +252,14 @@ def main(argv=None):
     """
     ap = argparse.ArgumentParser(description=__doc__.split("@details")[0])
     ap.add_argument("--dry-run", action="store_true", help="print the plan and the declared cost, solve nothing")
-    ap.add_argument("--convergence", action="store_true", help="add the refinement runs of the 3D reference (heavy, alone)")
+    ap.add_argument("--convergence", action="store_true", help="add the convergence grid of the 3D reference (about 2 GB)")
+    ap.add_argument("--heavy", action="store_true", help="add the pixel S/32 runs (8 GB resident, alone)")
     ap.add_argument("--no-program", action="store_true", help="only L1 (the reference against equation 50)")
     args = ap.parse_args(argv)
     if args.dry_run:
         plan()
         return 0
-    result = {"L1": part_l1(args.convergence)}
+    result = {"L1": part_l1(args.convergence, args.heavy)}
     if not args.no_program:
         result["bare"] = part_programs(False)
         result["pad"] = part_programs(True)
