@@ -7,6 +7,7 @@
 """
 
 import re
+import tokenize
 from pathlib import Path
 
 import pytest
@@ -23,12 +24,47 @@ from pcbthermal.gui.main_window import MainWindow
 
 GUI = Path(th.__file__).parent
 
-# A colour written in the code of a widget is a colour that does not follow a theme switch. Allowed: nothing at the moment; each entry
-# would be (file name, literal, reason).
+# A colour written in the code of a widget is a colour that does not follow a theme switch. Allowed: nothing at the moment (every colour
+# of the GUI is a token of theme.THEMES); an entry would be (file name, literal) with a comment that gives the reason.
 ALLOWED = []
 
-LITERAL = re.compile(r"""#[0-9a-fA-F]{6,8}\b|QColor\(\s*["'][a-z]+["']|Qt\.(red|green|blue|white|black|gray|darkGray|lightGray|yellow|cyan|magenta)\b"""
-                     r"""|["'](white|black|red|green|blue|gray|grey)["']""")
+LITERAL = re.compile(r"""#[0-9a-fA-F]{6,8}\b|#[0-9a-fA-F]{3}\b|QColor\(\s*["'][a-z]+["']|QColor\(\s*\d|QColor\.fromRgb|rgba?\("""
+                     r"""|Qt\.(red|green|blue|white|black|gray|darkGray|lightGray|yellow|cyan|magenta)\b"""
+                     r"""|["'](white|black|red|green|blue|gray|grey|orange|yellow)["']""")
+
+
+def _code_lines(path):
+    """!
+    @brief The code of a Python file line by line with the comments removed (a '#' inside a string, as in "#ffffff", is kept).
+    @param path Path of the file.
+    @return dict line number -> code text of that line without its comment.
+    """
+    text = Path(path).read_text(encoding="utf-8")
+    lines = dict(enumerate(text.splitlines(), 1))
+    with open(path, encoding="utf-8") as fh:
+        for tok in tokenize.generate_tokens(fh.readline):
+            if tok.type == tokenize.COMMENT:
+                row, col = tok.start
+                lines[row] = lines[row][:col]               # cut at the real comment, found by the tokenizer
+    return lines
+
+
+def _literals(folder, skip=("theme.py",)):
+    """!
+    @brief Colour literals written in the code of the GUI files of a folder.
+    @param folder Folder of the GUI modules.
+    @param skip File names left out (the theme table).
+    @return list of "file:line: literal".
+    """
+    bad = []
+    for f in sorted(Path(folder).glob("*.py")):
+        if f.name in skip:
+            continue
+        for n, code in sorted(_code_lines(f).items()):
+            for m in LITERAL.finditer(code):
+                if (f.name, m.group(0)) not in ALLOWED:
+                    bad.append(f"{f.name}:{n}: {m.group(0)}")
+    return bad
 
 
 def _ratio(a, b):
@@ -43,16 +79,16 @@ def _ratio(a, b):
 
 def test_no_colour_literals_in_the_gui_outside_the_theme_table():
     # Comments may name a colour; the code may not
-    bad = []
-    for f in sorted(GUI.glob("*.py")):
-        if f.name == "theme.py":
-            continue
-        for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
-            code = line.split("#")[0] if "#" in line and not LITERAL.search(line.split("#")[0]) else line
-            m = LITERAL.search(code)
-            if m and not any(a == (f.name, m.group(0), r) or a[:2] == (f.name, m.group(0)) for a, r in [(x, 0) for x in ALLOWED]):
-                bad.append(f"{f.name}:{n}: {line.strip()}")
+    bad = _literals(GUI)
     assert not bad, "colour literals outside theme.py (read them from the theme table):\n" + "\n".join(bad)
+
+
+def test_the_literal_check_finds_hex_strings_and_skips_comments(tmp_path):
+    # The first version of the check cut each line at its first '#', so every "#rrggbb" string slipped through
+    (tmp_path / "w.py").write_text('a = QColor("#4c8dff")\nb.setStyleSheet("color: #e5534b;")\nc = QColor("white")\n'
+                                   'd = 1   # white text, #ffffff in a comment\n', encoding="utf-8")
+    bad = _literals(tmp_path)
+    assert [b.split(":")[1] for b in bad] == ["1", "2", "3"], bad
 
 
 @pytest.mark.parametrize("name", ["dark", "light"])
@@ -71,6 +107,9 @@ def test_readable_on_picks_a_label_colour_for_any_fill():
     for fill in ("#4a6f5a", "#6c8f9d", "#9aa7b4", "#d08a3c", "#ffffff", "#000000"):
         pick = th.readable_on(QColor(fill))
         assert th.contrast(pick, QColor(fill)) >= 3.0, fill
+    # White stays wherever it reads (the look of the stack-up bars), the dark text only where white is below 3:1
+    for fill, want in (("#c77d2e", "#ffffff"), ("#2f7d5b", "#ffffff"), ("#6c8f9d", "#ffffff"), ("#9aa7b4", "#101317"), ("#d08a3c", "#101317")):
+        assert th.readable_on(QColor(fill)).name() == want, fill
 
 
 @pytest.fixture
@@ -157,7 +196,20 @@ def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
 
     lst = win.findChildren(WarningList)[0]
     lst.set_warnings([Warn("one"), Warn("two")])
-    before = lst.toHtml()
+
+    def anchor_colour():
+        # Colour of the first link of the list, as Qt stored it when the HTML was read
+        block = lst.document().begin()
+        while block.isValid():
+            it = block.begin()
+            while not it.atEnd():
+                if it.fragment().charFormat().isAnchor():
+                    return it.fragment().charFormat().foreground().color().name()
+                it += 1
+            block = block.next()
+        return None
+
+    assert anchor_colour() == QColor(th.colors("light")["link"]).name()
     verdict_light = win.solver_panel.cells_label.text()
     win.toggle_theme()
     # The text of the label holds the theme's tones: the dark ones differ from the light ones
@@ -166,7 +218,7 @@ def test_the_warning_list_and_the_memory_verdicts_take_the_new_colours(win):
     assert th.colors("dark")["ok"] in verdict_dark or th.colors("dark")["warn"] in verdict_dark or th.colors("dark")["bad"] in verdict_dark
     link = QApplication.palette().link().color().name()
     assert link == QColor(th.colors("dark")["link"]).name()
-    assert lst.toHtml() != before or True    # the document is rebuilt (the link colour is part of its default style)
+    assert anchor_colour() == link                       # the list was rebuilt: a link keeps the colour it was read with otherwise
 
 
 def test_every_window_object_changes_its_palette_on_a_toggle(win):
@@ -177,3 +229,40 @@ def test_every_window_object_changes_its_palette_on_a_toggle(win):
         assert w.palette().window().color().name() != old[n], n
     assert isinstance(win.stackup_page, StackupPage)
     assert win.canvas.theme == "dark"
+
+
+def test_the_light_theme_keeps_its_look():
+    # The maintainer likes the light theme as it was: the fixes are for the dark theme and for real defects only. The links stay Qt's blue
+    # (8.6:1 on white) and the help pages keep the colours of their own light style sheet
+    c = th.colors("light")
+    assert QColor(c["link"]).name() == "#0000ff"
+    page = (Path(th.__file__).parents[1] / "help" / "index.html").read_text(encoding="utf-8")
+    sheet = re.search(r"<style>(.*?)@media", page, re.S).group(1)
+    css = th.document_css("light")
+    for rule in ("body", "h1", "h2", "th, td", "th", "code, kbd", ".note", ".tip"):
+        own = re.search(r"\n\s*" + re.escape(rule) + r" \{([^}]*)\}", sheet).group(1).split()
+        new = re.search(r"\n\s*" + re.escape(rule) + r" \{([^}]*)\}", css).group(1).split()
+        assert own == new, (rule, own, new)
+
+
+def test_the_keyboard_focus_ring_of_an_indicator_is_kept():
+    # The contrast outline must not paint over Fusion's accent ring of a check box or radio button reached with Tab
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QImage, QPainter
+    from PySide6.QtWidgets import QStyle, QStyleFactory, QStyleOptionButton
+    app = QApplication.instance() or QApplication([])
+    for name in ("dark", "light"):
+        th.apply_theme(app, name)
+        for element in (QStyle.PE_IndicatorCheckBox, QStyle.PE_IndicatorRadioButton):
+            pix = []
+            for style in (QStyleFactory.create("Fusion"), app.style()):
+                o = QStyleOptionButton()
+                o.rect, o.palette = QRect(2, 2, 14, 14), app.palette()
+                o.state = QStyle.State_Enabled | QStyle.State_Off | QStyle.State_HasFocus | QStyle.State_KeyboardFocusChange
+                img = QImage(18, 18, QImage.Format_ARGB32)
+                img.fill(app.palette().window().color())
+                p = QPainter(img)
+                style.drawPrimitive(element, o, p, None)
+                p.end()
+                pix.append([img.pixel(x, y) for x in range(18) for y in range(18)])
+            assert pix[0] == pix[1], (name, element)

@@ -158,7 +158,7 @@ class StackupView(QWidget):
             p.setPen(QPen(QColor(c["selection"]) if i == self.selected else QColor(c["border"]), 2.0 if i == self.selected else 1.0))
             p.drawRect(rect)
             # Label inside the bar (when there is room) and the dimension to the right
-            p.setPen(th.readable_on(fill, c["on_element"]))            # white on the dark fills, dark on the light ones (white on the high-k grey was 2.4:1)
+            p.setPen(th.readable_on(fill, c["on_element"]))            # white as before; dark only where white is below 3:1 (high-k grey 2.4:1, dark copper)
             if hp >= 14:
                 text = layer["label"] if layer["kind"] == "copper" else layer["material"]
                 p.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignVCenter | Qt.AlignLeft, p.fontMetrics().elidedText(text, Qt.ElideRight, int(bar_w) - 10))

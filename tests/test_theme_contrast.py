@@ -91,3 +91,13 @@ def test_text_of_the_primary_button_and_the_muted_text(themed):
     assert _ratio(QColor(c["muted"]), QColor(c["alt"])) >= 3.9
     assert _ratio(QColor(c["muted"]), QColor(c["border"])) >= 3.0      # disabled primary button
     assert _ratio(QColor(c["indicator"]), QColor(c["window"])) >= 3.0
+
+
+@pytest.mark.parametrize("role", [QPalette.WindowText, QPalette.Text, QPalette.ButtonText])
+def test_disabled_text_is_dimmed(themed, role):
+    # A disabled label (a field the chosen point does not use, the empty Properties note) must look disabled: Fusion's default kept the
+    # disabled window text as dark as the enabled one, so the contrast rows above passed while the dimming was missing
+    _, pal = themed
+    normal, disabled = pal.color(QPalette.Normal, role), pal.color(QPalette.Disabled, role)
+    assert _ratio(disabled, pal.color(QPalette.Normal, QPalette.Window)) < _ratio(normal, pal.color(QPalette.Normal, QPalette.Window)) - 1.0, \
+        f"disabled {role} is not dimmed ({disabled.name()} against {normal.name()})"

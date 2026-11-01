@@ -19,17 +19,17 @@ THEMES = {
         "ok": "#66bb6a", "warn": "#ffb74d", "bad": "#ef5350", "error": "#ef5350",
         "selection": "#ffffff", "on_element": "#ffffff", "run": "#34d399",
         "diel_low": "#4a6f5a", "diel_mid": "#6c8f9d", "diel_high": "#9aa7b4",
-        "doc_note": "#3a331c", "doc_note_edge": "#e0a800", "doc_tip": "#1c2d44", "doc_th": "#2a2f37",
+        "doc_note": "#3a331c", "doc_note_edge": "#e0a800", "doc_tip": "#1c2d44", "doc_th": "#2a2f37", "doc_border": "#3a414b",
     },
     "light": {
         "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280", "hint": "#5f6570",
-        "accent": "#2563eb", "on_accent": "#ffffff", "link": "#2563eb", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
+        "accent": "#2563eb", "on_accent": "#ffffff", "link": "#0000ff", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
         "copper": "#c77d2e", "heater": "#e0392d", "heatsink": "#1d78d8", "via": "#c9971c",
         "ok": "#2e7d32", "warn": "#b26a00", "bad": "#c62828", "error": "#c62828",
         "selection": "#ffffff", "on_element": "#ffffff", "run": "#34d399",
         "diel_low": "#4a6f5a", "diel_mid": "#6c8f9d", "diel_high": "#9aa7b4",
-        "doc_note": "#fff7e0", "doc_note_edge": "#e0a800", "doc_tip": "#e8f3ff", "doc_th": "#eef0f3",
+        "doc_note": "#fff7e0", "doc_note_edge": "#e0a800", "doc_tip": "#e8f3ff", "doc_th": "#eef0f3", "doc_border": "#c8ccd2",
     },
 }
 
@@ -152,15 +152,21 @@ def contrast(a, b):
     return (hi + 0.05) / (lo + 0.05)
 
 
-def readable_on(background, light="#ffffff", dark="#101317"):
+def readable_on(background, light="#ffffff", dark="#101317", minimum=3.0):
     """!
-    @brief The text colour (light or dark) that reads better on a given fill, for labels drawn on fills that do not follow the theme.
+    @brief The text colour for a label drawn on a fill: the light colour as before, the darker one only where the light one does not read.
+    @details The labels of the stack-up bars were always white; the maintainer likes that look, so white is kept wherever it reaches
+             the minimum (3:1, the WCAG level for the short bold labels) and only the fills where it falls below (the high-k grey,
+             2.4:1, and the dark theme's copper, 2.8:1) get the colour with the higher contrast.
     @param background QColor of the fill.
-    @param light Colour string used on dark fills.
-    @param dark Colour string used on light fills.
-    @return QColor with the higher contrast against the fill.
+    @param light Colour string preferred (the look of the program).
+    @param dark Colour string used where the preferred one is below the minimum.
+    @param minimum Contrast ratio (1 to 21) the preferred colour must reach.
+    @return QColor of the label.
     """
     a, b = QColor(light), QColor(dark)
+    if contrast(a, background) >= minimum:
+        return a
     return a if contrast(a, background) >= contrast(b, background) else b
 
 
@@ -204,6 +210,8 @@ class _ThemeStyle(QProxyStyle):
         super().drawPrimitive(element, option, painter, widget)
         if element not in (QStyle.PE_IndicatorRadioButton, QStyle.PE_IndicatorCheckBox):
             return
+        if (option.state & QStyle.State_HasFocus) and (option.state & QStyle.State_KeyboardFocusChange):
+            return                                              # Fusion's accent focus ring (keyboard focus) reads already; the grey would hide it
         col = QColor(self._outline)
         if not (option.state & QStyle.State_Enabled):
             col.setAlpha(110)                                   # a disabled control stays visible but quieter
@@ -247,7 +255,7 @@ def document_css(name):
   h2 {{ margin-top: 2em; border-bottom: 1px solid {c['border']}; padding-bottom: .15em; }}
   h3 {{ margin-top: 1.4em; }}
   table {{ border-collapse: collapse; margin: .8em 0; }}
-  th, td {{ border: 1px solid {c['border']}; padding: .3em .6em; text-align: left; vertical-align: top; }}
+  th, td {{ border: 1px solid {c['doc_border']}; padding: .3em .6em; text-align: left; vertical-align: top; }}
   th {{ background: {c['doc_th']}; }}
   code, kbd {{ background: {c['doc_th']}; padding: 0 .3em; border-radius: 3px; font-family: Consolas, Menlo, monospace; }}
   .note {{ background: {c['doc_note']}; border-left: 4px solid {c['doc_note_edge']}; padding: .4em .8em; margin: .8em 0; }}
@@ -266,8 +274,9 @@ def apply_theme(app, name):
     c = colors(name)
     global _STYLE, _CURRENT
     _CURRENT = name if name in THEMES else "dark"
-    _STYLE = _ThemeStyle(c["indicator"])
-    app.setStyle(_STYLE)
+    style = _ThemeStyle(c["indicator"])
+    app.setStyle(style)                     # The application owns the new style and deletes the old one
+    _STYLE = style                          # Only now drop the Python reference to the old style, which the application no longer uses
     pal = QPalette()
     pal.setColor(QPalette.Window, QColor(c["window"]))
     pal.setColor(QPalette.WindowText, QColor(c["text"]))
