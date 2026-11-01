@@ -7,7 +7,8 @@
 @details Every layer is a thin sheet with lateral conductance S_l [W/K] (copper fill and FR-4
 in-plane share), coupled to its neighbours through the dielectric conductance per unit area
 g = (k_fr4_through / d) + smeared vias, and to ambient through h_top (layer 1) and h_bottom
-(last layer). With insulated edges the steady rise theta_l(x, y) of layer l obeys
+(last layer), plus the edge loss moved to the faces (h_side x perimeter x layer thickness / plan area added to h_l: Muzychka,
+Yovanovich and Culham 2003, AIAA 2003-4188, eq. 29). With insulated edges the steady rise theta_l(x, y) of layer l obeys
 
     S_l * laplacian(theta_l) - h_l * theta_l - g * (2*theta_l - theta_{l-1} - theta_{l+1}) = -q_l
 
@@ -135,7 +136,11 @@ def _effective_sheet(problem, cell_mm):
 
     # --- Copper fill field of every layer and its heater-influence weighted average
     fill_map = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)
-    h_tot = float(b.h_top + b.h_bottom)
+    # Edge loss transferred to the faces (Muzychka, Yovanovich and Culham 2003, AIAA 2003-4188, eq. 29: h_eff A_b = h A_b + h_e A_e): the
+    # cosine series has insulated edges, so the heat that the real edge convects is spread over the area of each layer as an extra
+    # surface coefficient h_side * perimeter * slab_l / (W H) (W/m2K), the edge area of each layer node over its plan area. Zero without h_side.
+    h_edge = (b.h_side or 0.0) * 2.0 * (W + H) * slab / (W * H)
+    h_tot = float(b.h_top + b.h_bottom + h_edge.sum())
     d_diel = b.gap_thicknesses()                                          # (L-1,) one per gap
     g_diel = b.gap_properties()[0] / d_diel if L > 1 else np.zeros(0)     # Vertical conductance per area of each gap (W/m2K)
     fill_mean = fill_map.mean(axis=(1, 2))
@@ -152,7 +157,7 @@ def _effective_sheet(problem, cell_mm):
         for l in range(L):
             if l in heater_layers:
                 g_adj = sum(g_diel[g] for g in (l - 1, l) if 0 <= g < L - 1)       # Conductance to the neighbouring layers
-                h_surf = (b.h_top if l == 0 else 0.0) + (b.h_bottom if l == L - 1 else 0.0)
+                h_surf = (b.h_top if l == 0 else 0.0) + (b.h_bottom if l == L - 1 else 0.0) + h_edge[l]
                 lam_l = float(np.sqrt(S_mean[l] / max(h_surf + g_adj, 1e-9)))
             else:
                 lam_l = lam
@@ -183,7 +188,7 @@ def _effective_sheet(problem, cell_mm):
     S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)                     # (L,)
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
-            "h_tot": h_tot, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam, "rho_cp_lam": rho_cp_lam}
+            "h_tot": h_tot, "h_edge": h_edge, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam, "rho_cp_lam": rho_cp_lam}
 
 
 def _heater_unit_sources(problem, M, N):
@@ -289,6 +294,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     h_l = np.zeros(L)
     h_l[0] += b.h_top
     h_l[L - 1] += b.h_bottom
+    h_l += sh["h_edge"]                                       # Edge loss moved to the faces (see _effective_sheet)
     g = g_diel.copy()                                         # (L-1,) per gap
     if not local_corrections:
         for s in problem.heatsinks:
@@ -416,12 +422,19 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * a_mn[0, 0, 0]) - hidden["top"],
              "bottom": float(b.h_bottom * W * H * a_mn[0, 0, L - 1]) - hidden["bottom"],
              "heatsinks": float(heatsink_extraction if local_corrections else
-                            sum(h_l[k] * W * H * a_mn[0, 0, k] for k in range(L))
+                            sum((h_l[k] - sh["h_edge"][k]) * W * H * a_mn[0, 0, k] for k in range(L))
                             - b.h_top * W * H * a_mn[0, 0, 0] - b.h_bottom * W * H * a_mn[0, 0, L - 1])}
-    edge_ratio = (b.h_side or 0.0) * 2 * (W + H) * b.total_thickness() / max(h_tot * W * H, 1e-30)
-    if edge_ratio > 0.05:
-        warnings.append(f"edge convection is about {edge_ratio * 100:.0f} % of the face convection but the "
-                        "analytic model assumes insulated edges")
+    if b.h_side:
+        # The edge loss moved to the faces is reported apart, under the same key as the FVM, so the heat balance closes
+        p_out["sides"] = float(sum(sh["h_edge"][k] * W * H * a_mn[0, 0, k] for k in range(L)))
+    # Ratio of the edge loss to the face loss. The transfer treats the edge as if it were at the plate mean temperature; the real edge is cooler,
+    # so the model reads cool by roughly 3 to 6 % of the rise at a ratio of 0.3 and up to 16 % at 1.5 (research/theory-sources, measured against
+    # the FVM and an independent 3D solver).
+    edge_ratio = float(sh["h_edge"].sum()) / max(float(b.h_top + b.h_bottom), 1e-30)
+    if edge_ratio > 0.3:
+        warnings.append(f"edge convection is about {edge_ratio * 100:.0f} % of the face convection: the analytic model moves it to the faces "
+                        "(a uniform extra coefficient), but the real edge is cooler than the board mean, so the rise reads low "
+                        "(about 3 to 6 % at this ratio, more above). Use the FVM result for a thick board or a large edge coefficient.")
     return SteadyResult(
         model="analytic", ambient=b.ambient, power_in=power, t_max=float(T.max()),
         t_min=float(T.min()), t_mean=float(T.mean()), layer_mean=[float(T[k].mean()) for k in range(L)],
@@ -449,6 +462,7 @@ def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
     h_l = np.zeros(L)
     h_l[0] += b.h_top
     h_l[L - 1] += b.h_bottom
+    h_l += sh["h_edge"]                                       # Edge loss moved to the faces (see _effective_sheet)
     for s in problem.heatsinks:
         h_l[s.layer] += heatsink_scale * s.h_extra * polygon_area(s.polygon) / (W * H)
     g = sh["g_diel"].copy()
