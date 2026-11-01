@@ -625,7 +625,8 @@ def _block_flux_result(sim):
 
 def _part_warnings(sim):
     """!
-    @brief Warnings about the parts after the solves: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients.
+    @brief Warnings after the solves, once per simulation: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients,
+           the plate, channel and Lumped-zone checks and the low face Rayleigh number of a vertical board (checks.check_low_rayleigh).
     @param sim Simulation with its results.
     @return List of strings.
     """
@@ -643,6 +644,12 @@ def _part_warnings(sim):
     out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result)
     # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the Lumped and Analytic
     out += check_fin_channels(sim.problem, sim.reference if "block_T" in sim.reference.arrays else flux_result)
+    if sim.problem.board.h_mode == "computed":
+        # Once per simulation, from the face means of the reference model (the coefficients of its last Picard step, within 0.01 W/m2K), so that the
+        # five models do not repeat it; the bottom face of a one-layer board is its last laminate node, as in _solve_computed_h
+        ref = sim.reference
+        info = convection.board_h(sim.problem.board, ref.layer_mean[0], ref.extras.get("bottom_face_mean", ref.layer_mean[-1]))[2]
+        out += check_low_rayleigh(sim.problem.board, info)
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
     if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):
@@ -725,7 +732,6 @@ def _solve_computed_h(problem, name, o):
         # The laminar form of Churchill and Chu is meant for Ra below 1e9 (a board of about 0.5 m or more); the general form covers the whole range
         res.warnings.append(f"the Rayleigh number {num(info['top']['rayleigh'], 2)} is above 1.00E9, outside the laminar form of the vertical-plate correlation: "
                             "choose the general form")
-    res.warnings += check_low_rayleigh(problem.board, info["top"]["rayleigh"], info["bottom"]["rayleigh"])
     if it == 30 and not done:
         res.warnings.append("the computed heat transfer coefficients did not settle in 30 iterations")
     return res, ht, hb, it

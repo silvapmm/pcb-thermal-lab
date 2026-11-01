@@ -193,7 +193,7 @@ class BoardPanel(QWidget):
         self.natural_form.addItem("General (Churchill and Chu, whole range)", "general")
         self.natural_form.addItem("Laminar (Churchill and Chu, Ra below 1.00E9)", "laminar")
         self.natural_form.setToolTip("Correlation of the natural convection of a vertical board (computed heat transfer, vertical orientation only). General: the "
-                                     "Churchill and Chu form for the whole Rayleigh range (the default of old files). Laminar: the same authors' laminar form for Ra below 1.00E9 (the default of new projects), which "
+                                     "Churchill and Chu form for the whole Rayleigh range (what a project file saved before this option keeps). Laminar: the same authors' laminar form for Ra below 1.00E9 (the default of new projects, the nearer to a numerical plate from Ra 1000 to 30.00E6), which "
                                      "textbooks recommend for laminar flow; it gives a coefficient from +6.5 % (50 mm board, 10 K) to -10 % (200 mm, 80 K) of the general one. "
                                      "Both forms are taken from textbooks and checked numerically, not from the original paper; on the example board the laminar form changes "
                                      "the rise by -0.7 to +0.2 %, inside the 20 to 30 % uncertainty of h. Above Ra 1.00E9 (a board of about 0.5 m) use the general form.")

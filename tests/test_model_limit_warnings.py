@@ -669,25 +669,39 @@ def test_overlap_and_cool_part_warnings_keep_their_numbers_in_both_forms():
     assert all("past the footprint" not in line(w) and "unsafe for a design" in line(w) and "a quarter" in line(w) for w in cool)
 
 
-def test_low_rayleigh_warning_fires_below_the_criterion_only_for_vertical_computed_boards():
+def test_low_rayleigh_warning_fires_once_below_the_criterion_only_for_vertical_computed_boards():
     from pcbthermal.checks import LOW_RAYLEIGH_LIMIT, check_low_rayleigh
     p = Problem.new(12, 12, 2).add_full_copper()
     p.add_heater(1, 0.02, rect=(4, 4, 8, 8))
     b = p.board
     b.h_mode, b.orientation = "computed", "vertical"
-    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=0.5))
-    low = [w for w in sim.warnings if "Rayleigh number" in w and "boundary-layer regime ends" in w]
-    assert len(low) == 1
+    # Ra about 7e2 on a 12 mm face: one warning for the simulation, not one per model (five models were five copies), in the Results summary list
+    sim = simulate(p, SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=1.0))
+    low = [w for w in sim.warnings if "Rayleigh number" in w and "thin boundary layer" in w]
+    assert len(low) == 1 and low[0] in sim.part_warnings, sim.warnings
+    assert "12 mm high" in low[0] and "below 1000" in low[0] and "convection multiplier" in low[0]
+    # The same board horizontal or with typed coefficients: no such warning
+    for orientation, mode in (("horizontal", "computed"), ("vertical", "manual")):
+        b.orientation, b.h_mode = orientation, mode
+        sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
+        assert not [w for w in sim.warnings if "thin boundary layer" in w], (orientation, mode)
+    # Forced air that dominates the natural convection: the low natural Ra does not matter
+    b.orientation, b.h_mode, b.air_speed = "vertical", "computed", 2.0
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
+    assert not [w for w in sim.warnings if "thin boundary layer" in w]
+    b.air_speed = 0.0
     # A larger board at a larger rise is far above 1e3: silent
     q = Problem.new(100, 80, 2).add_full_copper()
     q.add_heater(1, 3.0, rect=(40, 30, 60, 50))
     q.board.h_mode, q.board.orientation = "computed", "vertical"
     sim = simulate(q, SolverOptions(models=("fvm",), cell_mm=2.0))
-    assert not [w for w in sim.warnings if "boundary-layer regime ends" in w]
-    # The function itself: the criterion, and no warning for horizontal or typed-h boards
-    b.h_mode = "computed"
-    assert check_low_rayleigh(b, 0.5 * LOW_RAYLEIGH_LIMIT, 2e4) and not check_low_rayleigh(b, 1.01 * LOW_RAYLEIGH_LIMIT, 2e4)
+    assert not [w for w in sim.warnings if "thin boundary layer" in w]
+    # The function itself: the criterion on the smaller face Ra, faces dominated by forced air left out
+    def info(ra_top, ra_bottom, forced=0.0):
+        return {"top": {"rayleigh": ra_top, "natural": 3.0, "forced": forced}, "bottom": {"rayleigh": ra_bottom, "natural": 3.0, "forced": forced}}
+    assert check_low_rayleigh(b, info(2e4, 0.5 * LOW_RAYLEIGH_LIMIT)) and not check_low_rayleigh(b, info(2e4, 1.01 * LOW_RAYLEIGH_LIMIT))
+    assert not check_low_rayleigh(b, info(1.0, 1.0, forced=5.0))
     b.orientation = "horizontal"
-    assert not check_low_rayleigh(b, 1.0, 1.0)
+    assert not check_low_rayleigh(b, info(1.0, 1.0))
     b.orientation, b.h_mode = "vertical", "manual"
-    assert not check_low_rayleigh(b, 1.0, 1.0)
+    assert not check_low_rayleigh(b, info(1.0, 1.0))
