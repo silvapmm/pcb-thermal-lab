@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.4.5-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-1198%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.4.5-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-1233%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
