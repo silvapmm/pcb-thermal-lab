@@ -14,7 +14,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).
 - **Metal blocks** (heat spreaders with an interface resistance, optional fins) in all five models (the Lumped and Analytic have them in steady state only), plated vias (hollow or filled), heatsinks.
 - **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general (default) and a laminar form (`Board.natural_form`).
-- **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically; animation of the heat evolution with GIF export.
+- **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically (a part over bare laminate is read at its face); animation of the heat evolution with GIF export.
 
 **Tools**
 - **Power Calculator** (with a *Board description* level that adds the doubt about how the board is drawn to the best / nominal / worst band): the power of a part from a temperature measured on the board ring, under the part, in the junction or on the top of the package (by the drawn board, or from a datasheet ψ/θ parameter); validated against datasheets (`docs/calculators.md`).
