@@ -6,7 +6,7 @@ Units: SI inside the package (m, s, W, K, W/mK, W/m²K, J/m³K); temperatures in
 
 ![The map of the document](images/fig_38_document_map.png)
 
-*Figure 38 (`images/fig_38_document_map.png`): the board of the Problem is idealised in layers (section 1.2) for the FVM, FDM, Lumped and Analytic models; the 3D solid builds real slabs from the same board. Underneath, the pieces that the models share (metal blocks, vias, the heat transfer coefficients and their loop, parts, profiles, the checks). Schematic, no numbers.*
+*Figure 38 (`images/fig_38_document_map.png`): the board of the Problem is idealised in layers (section 1.2) for the FVM, FDM, Lumped and Analytic models; the 3D solid builds real slabs from the same board. Underneath, the pieces that the models share (metal blocks, vias (section 1.5), the heat transfer coefficients and their loop, parts, profiles) and the verification (section 11). Schematic, no numbers.*
 
 **Where each part lives in the code, and where it is checked**
 
