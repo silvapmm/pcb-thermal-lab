@@ -1285,14 +1285,16 @@ class WarningList(QTextBrowser):
             self.setVisible(False)
             return
         parts = []
+        tone = th.colors(th.current_name())["alert"]      # One token for the text, the link and the symbol of every entry
         if len(self.warnings) > 1:
-            parts.append(f"<p><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
+            parts.append(f"<p style='color:{tone}'><b>⚠ {len(self.warnings)} warnings</b> (click one to select its element)</p>")
         for w in self.warnings:
             text = html.escape(line(w))                   # The one-line form; the full measured text is the tooltip of the item (viewportEvent)
             kind, index = getattr(w, "kind", None), getattr(w, "index", None)
             if kind is not None and index is not None:
-                text = f'<a href="{kind}:{index}" style="text-decoration:none">{text}</a>'
-            parts.append(f"<p>⚠ {text}</p>" if len(self.warnings) == 1 else f"<p style='margin-top:2px'>• {text}</p>")
+                text = f'<a href="{kind}:{index}" style="color:{tone}; text-decoration:none">{text}</a>'
+            parts.append(f"<p style='color:{tone}'>⚠ {text}</p>" if len(self.warnings) == 1
+                         else f"<p style='margin-top:2px; color:{tone}'>• {text}</p>")
         self.setHtml("".join(parts))
         self.setVisible(True)
         self._fit()
