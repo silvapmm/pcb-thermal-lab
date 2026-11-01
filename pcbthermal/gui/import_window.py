@@ -325,17 +325,35 @@ class Step1Page(QWidget):
         f = QFormLayout(g)
         self.layers_label = QLabel("")
         self.layers_label.setWordWrap(True)
+        self.layers_label.setTextFormat(Qt.PlainText)                       # File names and file text are never read as rich text
         self.layers_label.setToolTip("Number of copper layers (the copper files in use) and the typical stack-up of the program for that count, not a fabricator table. "
                                      "The files do not carry the dielectrics; edit them in the Stack-up tab after the import.")
         f.addRow("Copper layers", self.layers_label)
         self.outline_label = QLabel("")
         self.outline_label.setWordWrap(True)
+        self.outline_label.setTextFormat(Qt.PlainText)
         self.outline_label.setToolTip("Size and area of the board outline (the profile layer). Without an outline the box of the copper is used.")
         f.addRow("Outline", self.outline_label)
         self.drill_label = QLabel("")
         self.drill_label.setWordWrap(True)
+        self.drill_label.setTextFormat(Qt.PlainText)
         self.drill_label.setToolTip("Plated holes up to 0.5 mm are vias and are imported; larger plated holes are component holes (a lead is not modelled); non-plated holes are ignored.")
         f.addRow("Drills", self.drill_label)
+        # Hook for the CAD-tool profiles (feature/cad-profiles): "Detected tool: ..." with a [change...] list. Hidden until profiles exist; nothing reads it yet
+        self.tool_row = QWidget()
+        tl = QHBoxLayout(self.tool_row)
+        tl.setContentsMargins(0, 0, 0, 0)
+        self.tool_label = QLabel("Detected tool: -")
+        self.tool_label.setTextFormat(Qt.PlainText)
+        self.tool_label.setToolTip("The CAD tool that wrote the files, found from their headers; it sets the conventions of the placement file. Not available yet.")
+        self.tool_pick = QComboBox()
+        self.tool_pick.setToolTip("Change the detected CAD tool.")
+        self.tool_pick.setEnabled(False)
+        tl.addWidget(self.tool_label)
+        tl.addWidget(self.tool_pick)
+        tl.addStretch(1)
+        self.tool_row.setVisible(False)
+        f.addRow(self.tool_row)
         left.addWidget(g)
         lay.addLayout(left, 11)
         right = QVBoxLayout()
@@ -413,6 +431,8 @@ class Step1Page(QWidget):
             for col in (1, 2, 4):
                 item = t.item(i, col)
                 item.setForeground(QColor(c["bad"] if clash or (f.use and f.error) else c["text"] if f.use else c["muted"]))
+            if f.use and f.detected.confidence == "low" and f.detected.kind != "unknown" and not (clash or f.error):
+                t.item(i, 4).setForeground(QColor(c["alert"]))              # A role guessed from the name alone: check it
             t.item(i, 0).setCheckState(Qt.Checked if f.use else Qt.Unchecked)
             cb = t.cellWidget(i, 3)
             if cb.currentText() != f.role:
@@ -715,13 +735,13 @@ class Step2Page(QWidget):
         fr = sx.frame_proposal()
         self.frame_box.setVisible(bool(fr))
         if fr:
-            self.frame_text.setText(f"<span style='color:{c['warn']}'>" + html.escape(
+            self.frame_text.setText(f"<span style='color:{c['alert']}'>" + html.escape(
                 (f"The positions of the placement file differ from the Gerber files by {fr['dx']:+.2f}, {fr['dy']:+.2f} mm: with this offset {fr['best'] * 100:.0f} % of the SMD parts sit on their openings "
                  f"instead of {fr['given'] * 100:.0f} %." if fr.get("propose") else
                  "The placement file and the Gerber files do not fit (another origin beyond 10 mm, a rotation, a mirror or a unit): the parts matched by position are not reliable.")) + "</span>")
             self.accept_btn.setVisible(bool(fr.get("propose")))
             self.accept_btn.setEnabled(sx.offset_answer != "accepted")
-        self.warn.setText("<br>".join(f"<span style='color:{c['warn']}'>{html.escape(w)}</span>" for w in sx.parts_warnings()))
+        self.warn.setText("<br>".join(f"<span style='color:{c['alert']}'>{html.escape(w)}</span>" for w in sx.parts_warnings()))
         if self.selected is not None and sx.part(self.selected) is None:
             self.selected = None
         self._sync_selection()
@@ -950,6 +970,11 @@ class Step3Page(QWidget):
         f.addRow("Cell size", row)
         self.mem = QLabel("")
         self.mem.setWordWrap(True)
+        self.note = QLabel("")
+        self.note.setWordWrap(True)
+        self.note.setTextFormat(Qt.PlainText)
+        th.hint(self.note)
+        f.addRow(self.note)
         self.mem.setToolTip("Memory verdict of the memory guard before anything is drawn: the unknowns of the model grid and the masks of the import, against the limit of Preferences.")
         f.addRow(self.mem)
         left.addWidget(g)
@@ -957,12 +982,14 @@ class Step3Page(QWidget):
         f = QFormLayout(g)
         self.layers_label = QLabel("")
         self.layers_label.setWordWrap(True)
+        self.layers_label.setTextFormat(Qt.PlainText)
         self.layers_label.setToolTip("The copper layers come from the functions of the files (step 1: the file list is the only place to change them).")
         f.addRow("Copper layers", self.layers_label)
         self.via_max = _spin(0.1, 5, self.session.via_max_mm, 2, "mm", "Largest diameter of a plated hole that is a via. Larger plated holes are component holes: a lead is not modelled.")
         self.via_max.valueChanged.connect(self._via)
         f.addRow("Vias up to", self.via_max)
         self.vias = QLabel("")
+        self.vias.setTextFormat(Qt.PlainText)
         th.hint(self.vias)
         f.addRow(self.vias)
         self.newname = QLineEdit()
@@ -1048,6 +1075,7 @@ class Step3Page(QWidget):
         """
         self.session.cell_mm = self.session.auto_cell()
         self.refresh()
+        self.note.setText(self.session.auto_note)                           # the memory limit made Auto leave the 1 mm cap of imported copper
 
     _loading = False
 
@@ -1347,7 +1375,7 @@ class Stepper(QWidget):
         if ev.type() == QEvent.ToolTip:
             i = self.at(ev.pos().toPointF())
             if i >= 0:
-                QToolTip.showText(ev.globalPos(), self.states()[i][1], self)
+                QToolTip.showText(ev.globalPos(), "<p>" + html.escape(self.states()[i][1]) + "</p>", self)   # file names in the text are escaped
             else:
                 QToolTip.hideText()
             return True
@@ -1396,6 +1424,7 @@ class ImportBoardWindow(QDialog):
         lay.addWidget(self.stack, 1)
         row = QHBoxLayout()
         self.status = QLabel("")
+        self.status.setTextFormat(Qt.PlainText)                             # it lists file names
         th.hint(self.status)
         row.addWidget(self.status, 1)
         self.help_btn, self.close_btn = QPushButton("Help"), QPushButton("Close")

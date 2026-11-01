@@ -659,3 +659,101 @@ def test_the_bottom_side_board_matches_its_parts_by_position(qtbot):
     assert len(parts) == 193 and sx.parts_info()["counts"]["placement by position"] == 191
     assert any(p.side == "bottom" for p in parts)                  # the whole board is assembled on the bottom side
     assert any("names no parts" in w for w in sx.parts_warnings())
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------- reader tolerances in the window
+def test_a_kicad_position_file_name_is_a_placement_file(tmp_path):
+    d = make_board(tmp_path / "fab", placement=False)
+    (d / "VNA-top-pos.csv").write_text('Ref,Val,Package,PosX,PosY,Rot,Side\n"U1","reg","SOT-223",12.0,15.0,0,top\n"Q1","fet","SOT-23",25.0,12.0,0,top\n')
+    sx = ImportSession()
+    sx.set_files(d)
+    f = next(f for f in sx.files if f.name == "VNA-top-pos.csv")
+    assert f.role == ims.PLACEMENT and f.use
+    sx.load()
+    assert {p.designator for p in sx.parts()} >= {"U1", "Q1"}
+
+
+def test_numbered_copper_files_are_ordered_over_the_whole_set(tmp_path):
+    d = tmp_path / "fab"
+    d.mkdir()
+    for k in range(1, 5):
+        (d / f"Layer{k}.gdo").write_text("%FSLAX46Y46*%\n%MOMM*%\n%ADD10C,0.25*%\nD10*\nX1000000Y1000000D02*\nX9000000Y1000000D01*\nM02*\n")
+    sx = ImportSession()
+    sx.set_files(d)
+    roles = {f.name: f.role for f in sx.files}
+    assert roles == {"Layer1.gdo": ims.COPPER_TOP, "Layer2.gdo": "Inner copper 1", "Layer3.gdo": "Inner copper 2", "Layer4.gdo": ims.COPPER_BOTTOM}
+    assert all(f.detected.confidence == "low" for f in sx.files)                      # a guess from the names: the window shows it
+    assert any("guessed from the file name alone" in n for n in sx.notes())
+
+
+def test_low_confidence_roles_are_shown_in_the_alert_colour(qtbot, tmp_path):
+    d = make_board(tmp_path / "fab")
+    (d / "extra-F_Cu.gbr").write_text((d / "F.gbr").read_text().replace("%TF.FileFunction,Copper,L1,Top*%\n", ""))   # no X2: only the name says it
+    (d / "F.gbr").unlink()
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(d))
+    row = [f.name for f in w.session.files].index("extra-F_Cu.gbr")
+    assert w.page1.table.item(row, 4).text() == "file name, low confidence: check"
+    assert w.page1.table.item(row, 4).foreground().color().name() == QColor(th.colors(th.current_name())["alert"]).name()
+    assert w.page1.table.item([f.name for f in w.session.files].index("B.gbr"), 4).text() == "Gerber X2 attribute"
+
+
+def test_a_file_above_the_size_limit_is_listed_with_the_error_and_not_skipped(tmp_path, monkeypatch):
+    from pcbthermal.gerber import limits
+    d = make_board(tmp_path / "fab")
+    monkeypatch.setattr(limits, "max_file_bytes", lambda: 400)
+    sx = ImportSession()
+    sx.set_files(d)
+    big = [f for f in sx.files if f.size > 400]
+    assert big and all("above the limit of" in f.limit_error and "Preferences, Gerber import" in f.limit_error for f in big)
+    sx.load()
+    assert any("above the limit" in p for p in sx.problems()) or not any(f.role in ims.COPPER for f in big)
+    assert all(f.error == f.limit_error for f in big)                                 # the error survives the reload
+
+
+def test_a_zip_member_above_the_limit_refuses_the_whole_archive(tmp_path, monkeypatch):
+    from pcbthermal.gerber import limits
+    z = make_zip(make_board(tmp_path / "fab"), tmp_path / "set.zip")
+    monkeypatch.setattr(limits, "max_file_bytes", lambda: 400)
+    with pytest.raises(Exception, match="declares|limit"):
+        ImportSession().set_files(z)
+
+
+def test_the_readers_tolerance_warnings_and_the_import_warnings_are_notes(tmp_path):
+    d = make_board(tmp_path / "fab", drills=False)
+    sx = ImportSession()
+    sx.set_files(d)
+    sx.load()
+    top = next(f for f in sx.files if f.name == "F.gbr")
+    sx._layer(top).warnings.append("aperture macro name matched case-insensitively")      # what the reader records
+    sx._layer(top)
+    assert any("F.gbr: aperture macro name" in n for n in sx.notes())
+    sx.build_problem()
+    assert any("No drill file" in n for n in sx.notes()) and all(w in sx.notes() or w in sx.record.warnings for w in sx.record.warnings[:1])
+
+
+def test_file_names_are_never_read_as_rich_text(qtbot, tmp_path):
+    d = make_board(tmp_path / "fab")
+    (d / "a<b>x.gbr").write_text((d / "F.gbr").read_text())                         # a second top copper file with markup in its name
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(d))
+    assert "a<b>x.gbr" in w.status.text() and w.status.textFormat() == Qt.PlainText
+    assert "a&lt;b&gt;x.gbr" in w.page1.problem.text() and "a<b>x.gbr" not in w.page1.problem.text()
+    assert w.page1.layers_label.textFormat() == Qt.PlainText and w.page1.tool_row.isHidden()      # the CAD-tool hook exists and is hidden
+
+
+def test_auto_cell_uses_the_program_rule_and_says_why_it_left_the_cap(window, qtbot, monkeypatch):
+    window.go(2)
+    pg, sx = window.page3, window.session
+    assert 0.25 <= sx.auto_cell() <= 1.0 and sx.auto_note == ""
+    import pcbthermal.api as api
+    monkeypatch.setattr(api, "suggest_cell_mm", lambda *a, **k: 2.0)                  # the memory limit forced a coarse cell
+    autos = [b for b in pg.findChildren(type(window.help_btn)) if b.text() == "Auto"]
+    autos[-1].click()
+    assert sx.cell_mm == 2.0 and "screening estimate" in pg.note.text() or "enlarged" in pg.note.text()

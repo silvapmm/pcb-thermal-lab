@@ -25,7 +25,7 @@ from typing import Callable, List, NamedTuple, Optional
 
 from .. import copper as copper_mod
 from .. import memory
-from ..gerber import (DrillFile, GerberArchive, GerberError, LayerFunction, detect_function, parse_layer, pixel_counts, rasterize, read_drill, read_outline,
+from ..gerber import (DrillFile, GerberArchive, GerberError, LayerFunction, detect_set, limits, parse_layer, pixel_counts, rasterize, read_drill, read_outline,
                       window_of)
 from ..gerber import components as comp_mod
 from ..gerber import parts as parts_mod
@@ -52,7 +52,6 @@ PREVIEW_PIXEL_MIN_MM = 0.1                                      # Finest pixel o
 VIA_MAX_MM = 0.5                                                # Default largest plated hole that is a via
 HASH_WHOLE_BYTES = 64 * 1024 ** 2                               # Archive members up to this size are hashed whole
 HASH_EDGE_BYTES = 1 << 20                                       # Larger members: the first and the last megabyte and the size
-MAX_FILE_BYTES = 1024 ** 3                                      # A file above 1 GB is not a PCB layer (the archive limit, applied to folders too)
 HEAD_BYTES = 8192
 
 
@@ -110,12 +109,17 @@ class SourceFile:
         self.name, self.size, self.sha256, self.detected, self.role, self.how, self.reader = name, size, sha256, detected, role, how, reader
         self.use = role in USED_BY_DEFAULT
         self.error = ""                                       # Why the reader could not use it ("" when it could or was not tried)
+        self.limit_error = ""                                 # Set when the file is above the size limit: it stays listed with this message and is never read
+        self.warnings = []                                    # Tolerances the reader used on this file (Layer.warnings), text
 
     def text(self) -> str:
         """!
         @brief The text of the file.
         @return str
+        @throws GerberError If the file is above the size limit (it is listed, never read).
         """
+        if self.limit_error:
+            raise GerberError(self.limit_error)
         return self.reader()
 
 
@@ -154,6 +158,8 @@ def _how(fn: LayerFunction) -> str:
     """
     if fn.kind == "unknown":
         return "unknown: choose the function"
+    if fn.confidence == "low":
+        return "file name, low confidence: check"                  # A guess from the name alone: the window shows it in the alert colour
     return {"x2": "Gerber X2 attribute", "excellon": "Excellon header", "name": "file name"}.get(fn.source, fn.source)
 
 
@@ -205,6 +211,7 @@ class ImportSession:
         self.pixel_mm = None                                  # Pixel of the copper masks (mm); None: automatic
         self.offset = (0.0, 0.0)                              # Offset added to the placement file positions (mm), the user's answer to the frame check
         self.offset_answer = ""                               # "", "accepted" or "rejected"
+        self.auto_note = ""                                   # The sentence of the last auto_cell() when the cell left the imported-copper cap
         self.record = None                                    # ImportRecord of the last build_problem()
         self.thickness_mm = None                              # Board thickness of the last build (mm)
         self._outline = None                                  # gerber.Outline of the profile file, when it could be read
@@ -236,7 +243,7 @@ class ImportSession:
         @throws ValueError If the source holds no file.
         """
         self.close()
-        self.files, self._board, self._board_error, self.job = [], None, "", None
+        self.files, self._board, self._board_error, self.job, self._pending = [], None, "", None, []
         self._parts_dirty, self.offset, self.offset_answer = True, (0.0, 0.0), ""
         self._parts, self._listed, self._unmatched, self._res = [], [], [], None
         if isinstance(source, (list, tuple)):
@@ -253,9 +260,26 @@ class ImportSession:
                 self._add_archive(p)
             else:
                 raise ValueError(f"{p.name} is neither a folder nor a ZIP archive")
+        self._detect_all()
         if not self.files:
             raise ValueError("no fabrication file found")
         self._assign_inner_numbers()
+
+    def _detect_all(self):
+        """!
+        @brief Detect the function of the whole set at once (`detect_set` orders copper layers that are only numbered, Layer1 to Layer4) and make the file entries.
+        @return None
+        """
+        found = detect_set([(e[0], e[3]) for e in self._pending])
+        for name, size, sha, head, reader, limit_error in self._pending:
+            fn = found[name]
+            role, how = role_of(fn), _how(fn)
+            if fn.kind == "unknown" and Path(name).suffix.lower() in (".csv", ".pos", ".txt", ".xy") and _looks_like_placement(head):
+                role, how = PLACEMENT, "columns of a placement table"
+            f = SourceFile(name, size, sha, fn, role, how, reader)
+            f.limit_error = f.error = limit_error
+            self.files.append(f)
+        self._pending = []
 
     def _add_paths(self, paths):
         """!
@@ -265,20 +289,28 @@ class ImportSession:
         """
         skip = {".zip", ".png", ".jpg", ".jpeg", ".pdf", ".md", ".json", ".gbrjob", ".kicad_pcb", ".kicad_pro", ".svg", ".html", ".htm", ".rar", ".7z", ".py"}
         for f in paths:
-            if f.suffix.lower() == ".gbrjob" and f.is_file() and f.stat().st_size < 1_000_000:
-                self._read_job(f.read_text(encoding="utf-8", errors="replace"))
+            if f.suffix.lower() == ".gbrjob" and f.is_file():
+                try:
+                    self._read_job(limits.read_text(f, 1_000_000))
+                except (GerberError, OSError):
+                    self.job = None
             if f.name.startswith(".") or f.suffix.lower() in skip or not f.is_file():
                 continue
             size = f.stat().st_size
-            if size > MAX_FILE_BYTES:
-                continue
+            limit = limits.max_file_bytes()
             with open(f, "rb") as fh:
                 head = fh.read(HEAD_BYTES)
             sha = hashlib.sha256()
-            with open(f, "rb") as fh:                          # Hashed in blocks: a layer can be tens of megabytes
-                for block in iter(lambda: fh.read(1 << 20), b""):
-                    sha.update(block)
-            self._add_entry(f.name, size, sha.hexdigest(), head.decode("utf-8", "replace"), lambda p=f: p.read_text(encoding="utf-8", errors="replace"))
+            if size > limit:
+                # Listed, never read: the message says where the limit is set (a file above the limit is not skipped silently)
+                sha.update(head + str(size).encode())
+                err = f"above the limit of {limit / limits.MB:.0f} MB (Preferences, Gerber import)"
+            else:
+                err = ""
+                with open(f, "rb") as fh:                      # Hashed in blocks: a layer can be tens of megabytes
+                    for block in iter(lambda: fh.read(1 << 20), b""):
+                        sha.update(block)
+            self._pending.append((f.name, size, sha.hexdigest(), head.decode("utf-8", "replace"), lambda p=f: limits.read_text(p), err))
 
     def _add_archive(self, path):
         """!
@@ -290,7 +322,10 @@ class ImportSession:
         self._archive = GerberArchive(path)
         for name in self._archive.names():
             if name.lower().endswith(".gbrjob") and self._archive._infos[name].file_size < 1_000_000:
-                self._read_job(self._archive.read_text(name))
+                try:
+                    self._read_job(self._archive.read_text(name))
+                except GerberError:
+                    self.job = None
             if name.lower().endswith(("/", ".png", ".pdf", ".md", ".json", ".gbrjob", ".kicad_pcb", ".zip", ".jpg", ".svg")):
                 continue
             head = self._archive.read_head(name)
@@ -302,24 +337,7 @@ class ImportSession:
                 # A very large member is hashed by its head, its tail and its size (reading it whole only to hash it would hold it in memory twice)
                 tail = self._archive.read_text(name)[-HASH_EDGE_BYTES:]
                 digest = _sha256((head + "\0" + tail + "\0" + str(info.file_size)).encode("utf-8", "replace"))
-            self._add_entry(name, info.file_size, digest, head, lambda n=name: self._archive.read_text(n))
-
-    def _add_entry(self, name, size, sha, head, reader):
-        """!
-        @brief Detect the function of one file and add it.
-        @param name File name.
-        @param size Size in bytes.
-        @param sha SHA-256 hex digest.
-        @param head First kilobytes of the text.
-        @param reader Function that returns the whole text.
-        @return None
-        """
-        fn = detect_function(name, head)
-        role = role_of(fn)
-        how = _how(fn)
-        if fn.kind == "unknown" and Path(name).suffix.lower() in (".csv", ".pos", ".txt", ".xy") and _looks_like_placement(head):
-            role, how = PLACEMENT, "columns of a placement table"
-        self.files.append(SourceFile(name, size, sha, fn, role, how, reader))
+            self._pending.append((name, info.file_size, digest, head, lambda n=name: self._archive.read_text(n), ""))
 
     def _assign_inner_numbers(self):
         """!
@@ -345,7 +363,7 @@ class ImportSession:
         @return None
         """
         f = self.files[i]
-        f.role, f.use, f.error = role, role != IGNORE, ""
+        f.role, f.use, f.error = role, role != IGNORE, f.limit_error
         self._board, self._parts_dirty = None, True
 
     def set_use(self, i: int, use: bool):
@@ -407,6 +425,15 @@ class ImportSession:
         n = len(self.used(*COPPER))
         if n > 1 and not (self.used(COPPER_TOP) and self.used(COPPER_BOTTOM)):
             out.append("The set lacks the top or the bottom copper layer")
+        for f in self.used():
+            out += [f"{f.name}: {w}" for w in f.warnings]                  # tolerances the reader applied (a macro name, a deprecated command)
+            if f.error and f.limit_error and f.role not in COPPER + PASTE:
+                continue
+        if self.record is not None:
+            out += [w for w in self.record.warnings if w not in out]       # warnings of the last import (no outline, slots, unplated holes, sample spacing)
+        low = [f.name for f in self.used() if f.detected.confidence == "low" and f.detected.kind != "unknown" and f.role == role_of(f.detected)]
+        if low:
+            out.append("The function of " + ", ".join(low) + " was guessed from the file name alone: check it in the list")
         return out
 
     def complete(self) -> bool:
@@ -459,7 +486,7 @@ class ImportSession:
         """
         self._board, self._board_error = None, ""
         for f in self.files:
-            f.error = ""
+            f.error = f.limit_error
         copper = [(f, self._layer(f)) for f in sorted(self.used(*COPPER), key=lambda f: COPPER.index(f.role) if f.role != COPPER_BOTTOM else 99)]
         # Several used files may fail: all are marked before the problems list is read
         for f in self.used(*PASTE):
@@ -526,6 +553,7 @@ class ImportSession:
             except (GerberError, OSError) as exc:
                 f.error = str(exc)
                 return None
+        f.warnings = list(getattr(self._layer_cache[f.sha256], "warnings", []))
         return self._layer_cache[f.sha256]
 
     def vias(self, max_mm: float = None) -> tuple:
@@ -913,13 +941,25 @@ class ImportSession:
 
     def auto_cell(self) -> float:
         """!
-        @brief The automatic cell: a 50th of the long side of the board, between 0.5 and 1 mm (a larger cell warns on imported copper).
+        @brief The automatic cell, by the program's rule (`api.suggest_cell_mm`): the smallest heat source resolved by about four cells, imported copper capped at 1 mm, enlarged by the memory guard when it must.
+        @details The note for the user (`copper.auto_cell_note`) is kept in `auto_note` (empty when the cell is within the cap).
         @return float mm.
         """
+        from ..api import suggest_cell_mm
+        import numpy as np
         b = self._board
+        self.auto_note = ""
         if b is None:
             return 1.0
-        return float(min(max(max(b.width, b.height) / 50.0, 0.5), 1.0))
+        prob = Problem.new(b.width, b.height, layers=max(2, len(b.copper)))
+        # A one-pixel mask per layer makes the board "imported" for the rule (the cap and its note) without drawing anything
+        prob.imported = copper_mod.imported_from_rasters([np.zeros((1, 1), np.uint8)] * max(1, len(b.copper)), max(b.width, b.height), self.mapping)
+        box = b.box
+        for p in self.heat_sources():
+            prob.add_heater(1, p.power, polygon=[[x - box[0], y - box[1]] for x, y in p.polygon_mm], name=p.designator)
+        cell = float(suggest_cell_mm(prob, models=("fvm",)))
+        self.auto_note = copper_mod.auto_cell_note(prob, cell)
+        return cell
 
     def effective_pixel(self) -> float:
         """!
