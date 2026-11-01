@@ -7,6 +7,7 @@
 
 import numpy as np
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPalette
 import html
 import math
 
@@ -14,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import fdm, fvm, solid3d
+from .. import fdm, fvm, memory, solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -1387,8 +1388,9 @@ class SolverPanel(QWidget):
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
                            "than the heater, a copper edge across a footprint). "
-                           f"Limited to {solid3d.MAX_CELLS} unknowns (shown below the cell size; about 15 s and 3.5 GB of memory "
-                           "per solve on the example board at the limit, measured on one machine): a larger model is not run and the other models still answer.",
+                           "Limited by the memory guard (the unknowns are shown below the cell size; about 15 s and 3.5 GB of memory "
+                           "per solve on the example board at 250 000 unknowns, measured on one machine): a model whose estimated memory is above the limit is not run "
+                           "and the other models still answer.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
         for k, c in self.cb.items():
@@ -1401,12 +1403,17 @@ class SolverPanel(QWidget):
         f = QFormLayout(g)
         self.cell = _spin(0.1, 20, 1.0, 2, 0.25, "mm")
         self.auto_cell = QPushButton("Auto")
-        self.auto_cell.clicked.connect(lambda: self.cell.setValue(suggest_cell_mm(self.doc.problem)))
+        self.auto_cell.clicked.connect(self._auto_cell)
         cell_row = QHBoxLayout()
         cell_row.addWidget(self.cell, 1)
         cell_row.addWidget(self.auto_cell)
         self.cells_label = QLabel()
         self.cells_label.setWordWrap(True)                 # With the 3D solid selected the count and its note are long
+        self.cells_label.setTextFormat(Qt.RichText)        # The verdict of each model is coloured
+        self.cells_label.setToolTip("Unknowns of each selected model and the memory the solve is estimated to need, against the limit (Preferences, memory limit). "
+                                    "Green: fits. Amber: slow (tens of seconds or more). Red: above the limit, it will not run; use the cell shown.")
+        self._running = False                              # True while a calculation runs
+        self.blocked = ""                                  # Why Run is disabled (a model above the memory limit), "" when it is not
         self.solver = QComboBox()
         self.solver.addItem("Sparse direct (exact)", "direct")
         self.solver.addItem("Conjugate gradients", "cg")
@@ -1501,31 +1508,55 @@ class SolverPanel(QWidget):
         self._update_cells()
         self._update_availability()
 
+    def verdicts(self):
+        """!
+        @brief The memory verdicts of the selected models that the guard estimates (FVM, FDM, 3D solid) at the current cell.
+        @details The estimate starts from the cheap lower bound of the unknowns; the exact count (which samples the copper) is made only when the bound fits. The base
+                 is that of the calculation process, where the solve runs.
+        @return List of memory.Verdict.
+        """
+        models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
+        return memory.check(self.doc.problem, models, self.cell.value(), fraction=self.doc.options.memory_fraction, base=memory.BASE_DEFAULT, refuse="return",
+                            quiet=True)
+
     def _update_cells(self):
         """!
-        @brief Show the number of FVM cells of the current setting.
+        @brief Show the unknowns and the memory verdict (ok, slow, refuse) of each selected model, and disable Run when a model would be refused.
         """
-        b = self.doc.problem.board
-        c = self.cell.value()
-        n = fvm.unknowns(self.doc.problem, c)[0]                   # The nodes the model really has: copper layers, laminate nodes of the rule (only where they are used), block layers
-        text = f"{n} unknowns"
-        if n > 500_000:
-            # The layered models have no hard limit. Direct solver, 16 GB machine: a plain board takes 5.2 s and 2.7 GB at 1 million unknowns, but boards with the laminate
-            # nodes of the rule and many layers take about 7 GB per million (2 layers 637 000 unknowns 21 s and 4.5 GB; 4 layers 681 000 unknowns 66 s and 7.6 GB)
-            text += " (slow: up to 7 GB of memory per million, a minute or more)"
-        if self.cb["fdm"].isChecked():
-            text += f" (FDM: {fdm.unknowns(self.doc.problem, c)[0]})"       # Its nodes are the corners of the cells, one more row and column
-        if self.cb["solid3d"].isChecked():
-            # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
-            n3 = solid3d.unknowns(self.doc.problem, c)[0]
-            if n3 > solid3d.MAX_CELLS:
-                note = f"; above {solid3d.MAX_CELLS}: it will not run, use a larger cell"
-            elif n3 > solid3d.MAX_CELLS // 2:
-                note = "; slow: tens of seconds and several GB of memory"
-            else:
-                note = ""
-            text += f" (3D solid: {n3}{note})"
-        self.cells_label.setText(text)
+        rows, blocked = [], ""
+        # Darker tones on a light window, lighter ones on a dark window: the dark tones were below 3.5:1 of contrast on the dark theme
+        dark = self.palette().color(QPalette.Window).lightness() < 128
+        colours = ({"ok": "#66bb6a", "slow": "#ffb74d", "refuse": "#ef5350"} if dark else {"ok": "#2e7d32", "slow": "#b26a00", "refuse": "#c62828"})
+        names = {"fvm": "FVM", "fdm": "FDM", "solid3d": "3D solid"}
+        for v in self.verdicts():
+            gb = f"about {v.estimate / memory.GB:.1f} GB of {v.limit / memory.GB:.1f} GB"
+            least = "" if v.exact else "at least "
+            text = f"{names[v.model]}: {least}{v.unknowns} unknowns, {gb}"                  # No thousands separator (the rule of every count shown)
+            if v.verdict == "slow":
+                text += "; slow"
+            elif v.verdict == "refuse":
+                text += (f"; above the memory limit, it will not run: use a cell of {v.cell_fit:.1f} mm or more" if v.cell_fit
+                         else "; above the memory limit, it will not run")
+            elif v.exceeds_available:
+                text += "; more than the memory available now"
+            rows.append(f'<span style="color:{colours[v.verdict]}">{html.escape(text)}</span>')
+            # The 3D solid is only skipped when other models run next to it; any other refusal stops the run (api.simulate)
+            if v.verdict == "refuse" and (v.model != "solid3d" or len(self.doc.options.models) == 1):
+                blocked = blocked or v.message
+        self.cells_label.setText("<br>".join(rows))
+        self.blocked = blocked
+        self.run.setEnabled(not blocked and not self._running)
+        self.run.setToolTip(f"Cannot run: {blocked}" if blocked else "Solve the selected models (F5).")
+
+    def _auto_cell(self):
+        """!
+        @brief Set the cell from the heaters, enlarged to the smallest cell the memory guard accepts for the selected models, and say so.
+        """
+        models = tuple(k for k in ("fvm", "fdm", "solid3d") if self.cb[k].isChecked())
+        base = suggest_cell_mm(self.doc.problem)
+        cell = suggest_cell_mm(self.doc.problem, models=models, fraction=self.doc.options.memory_fraction)
+        self.cell.setValue(cell)
+        self.status.setText(f"Auto: the cell was enlarged to {cell:.1f} mm to fit the memory limit." if cell > base + 1e-9 else "")
 
     def _apply(self, *_):
         """!
@@ -1540,11 +1571,11 @@ class SolverPanel(QWidget):
             self.cb["fvm"].setChecked(True)
             self._updating = False
             models = ("fvm",)
+        # set_options emits state_changed, whose refresh shows the counts, the memory verdicts and the greyed settings: not repeated here (the memory check
+        # counts the unknowns, which samples the copper, and runs at every keystroke of the cell field)
         self.doc.set_options(models=models, cell_mm=self.cell.value(), linear_solver=self.solver.currentData(),
                              lumped_rings=self.rings.value(), analytic_modes=self.modes.value(),
                              analytic_local_corrections=self.local.isChecked(), hotspot_c=self.hot.value())
-        self._update_cells()
-        self._update_availability()
 
     def set_checks(self, warnings):
         """!
@@ -1559,8 +1590,9 @@ class SolverPanel(QWidget):
         @param running True while running.
         @param text Status text.
         """
-        self.run.setEnabled(not running)
+        self._running = running
         self.cancel.setVisible(running)
+        self.run.setEnabled(not running and not self.blocked)
         self.status.setText(text)
         if not running:
             self.progress.setValue(0)

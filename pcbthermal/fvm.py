@@ -29,7 +29,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy.sparse import csgraph
 
-from . import blocks, laminate, viawell
+from . import memory, blocks, laminate, viawell
 from .geometry import part_weights, edge_length_on_board, nearest_active_cell, coverage_fraction, cell_index_of_point, polygon_centroid, zone_fill
 from .results import SteadyResult, TransientResult
 from .numfmt import num
@@ -40,9 +40,9 @@ ORDERING = "MMD_AT_PLUS_A"
 
 log = logging.getLogger(__name__)
 
-# Largest block of the block SOR (unknowns of the merged footprints of vias that touch): its dense inverse takes 8 n^2 bytes, so 5 000 unknowns are 200 MB.
-# Above it the SOR solves the board with the direct solver instead (a minimal guard; the memory limit by the estimated size is a separate item).
-MAX_SOR_BLOCK = 5000
+# Blocks of the block SOR (unknowns of the merged footprints of vias that touch): the build of the dense inverse of a block of n unknowns takes about 75 n^2 bytes
+# (measured 66 to 75 n^2; 5 000 unknowns are about 1.9 GB, not the 200 MB an earlier comment said) and every inverse is kept, so the sum over the blocks is allowed
+# up to a quarter of the memory limit (memory.sor_block_fits). Above it the SOR solves the board with the direct solver instead and says so.
 
 # Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
 # several times with other powers). One entry per thread, released before a new factorisation, so the peak memory is that of one LU, as with spsolve.
@@ -442,7 +442,7 @@ class Network:
         rho = min(max(rho, 0.0), 1.0)
         return float(min(2.0 / (1.0 + np.sqrt(1.0 - rho * rho)), 1.999))
 
-    def solve_sor(self, omega=None, tol=1e-9, max_iter=200000, criterion="residual"):
+    def solve_sor(self, omega=None, tol=1e-9, max_iter=200000, criterion="residual", memory_limit=None):
         """!
         @brief Solve K*theta = Q with red-black Successive Over-Relaxation (vectorised with NumPy).
         @details Every sweep updates the "red" nodes (l+i+j even) and then the "black" ones, each colour in one
@@ -455,8 +455,10 @@ class Network:
         @param criterion "residual" stops when |K theta - Q| / |Q| < tol (reliable);
                          "step" stops when the largest change of one sweep is below tol in kelvin
                          (the rule of the original program, which can stop far from the solution).
-        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step); a board with vias whose footprint block is larger than
-                 MAX_SOR_BLOCK unknowns is solved directly (info["fallback"] = "direct").
+        @param memory_limit Memory limit in bytes of the guard (None: memory.limit_bytes()); the dense inverses of the via blocks may take a quarter of it.
+        @return Tuple (theta, residual, info) with info = dict(iterations, converged, omega, last_step); a board with vias whose footprint blocks would need more than a
+                 quarter of the memory limit (75 n^2 bytes for a block of n unknowns, summed over the blocks, since every inverse is kept) is solved directly
+                 (info["fallback"] = "direct", info["block"] = the largest n, info["block_bytes"] = the sum).
         """
         if self.block_info:
             raise ValueError("SOR does not support metal blocks: use the direct solver or the conjugate gradients")
@@ -466,7 +468,7 @@ class Network:
             omega = self.sor_omega()
         if self.ladder is not None and self.nl > self.n_board:
             # Laminate nodes of the rule: the vertical neighbour is no longer layer +- 1 and no point colouring exists, so the plan columns are relaxed as blocks
-            return self._sor_columns(omega, tol, max_iter, criterion)
+            return self._sor_columns(omega, tol, max_iter, criterion, memory_limit)
         diag = K.diagonal().reshape(L, ny, nx)
         # Conductances towards the six neighbours (zero where the neighbour does not exist)
         gl = np.zeros((L, ny, nx)); gr = np.zeros((L, ny, nx))     # x-1, x+1
@@ -493,11 +495,16 @@ class Network:
         if self.via_blocks:
             idx3 = np.arange(L * ny * nx).reshape(L, ny, nx)
             vblocks = viawell.unknown_blocks(self.via_blocks, idx3, self.n_board)
-            if max(len(bk) for bk in vblocks) > MAX_SOR_BLOCK:
-                # The dense inverse of such a block is too large: use the direct solver and say so
-                log.warning("SOR: a via block of %d unknowns is too large for the block SOR; the direct solver is used instead", max(len(bk) for bk in vblocks))
+            biggest = max(len(bk) for bk in vblocks)
+            sizes = [len(bk) for bk in vblocks]
+            if not memory.sor_block_fits(sizes, memory.limit_bytes() if memory_limit is None else memory_limit):
+                # The dense inverses of the blocks (all kept for the iterations) take too much of the memory limit: use the direct solver and say so
+                need = sum(memory.sor_block_bytes(k) for k in sizes)
+                log.warning("SOR: the via blocks (%d, the largest of %d unknowns; about %.1f GB for their dense inverses) are too large for the block SOR; "
+                            "the direct solver is used instead", len(sizes), biggest, need / memory.GB)
                 theta, res = self.solve_steady("direct")
-                return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct"}
+                return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct", "block": float(biggest),
+                                    "block_bytes": float(need)}
             groups = self._sor_block_groups(vblocks)
             skip = np.zeros(L * ny * nx, bool)
             for bk in vblocks:
@@ -542,20 +549,22 @@ class Network:
         res = float(np.linalg.norm(K @ theta.ravel() - Q.ravel()) / max(qn, 1e-300))
         return theta, res, {"iterations": it, "converged": converged, "omega": float(omega), "last_step": last_step}
 
-    def _sor_columns(self, omega, tol, max_iter, criterion):
+    def _sor_columns(self, omega, tol, max_iter, criterion, memory_limit=None):
         """!
         @brief Block SOR for a network with laminate nodes: every plan cell is a block of all its nodes (copper, interior, bottom), the blocks are coloured and each colour is solved exactly.
         @details Why not the point red-black sweep: in a refined cell the two copper nodes are joined by n links and in a single-link cell by one, so the cycle
                  a(i) - b(i) - b(j) - [n links] - a(j) - a(i) has length n + 3, odd for every even n, and no two-colouring of the nodes exists (the default rule gives n = 2 or 4).
                  Every coupling of the network joins two nodes of one plan cell, the same node of two neighbouring cells, or the cells of a via footprint, so the blocks of the plan
                  cells (merged where a via footprint joins them) can be coloured; the blocks of one colour are not coupled to each other and take the exact solution of their
-                 block-diagonal part, relaxed by omega (convergence for 0 < omega < 2, as for the via blocks). Nodes no cell uses are left out. A merged block above MAX_SOR_BLOCK
-                 unknowns is not factored: the board is solved directly (info["fallback"] = "direct").
+                 block-diagonal part, relaxed by omega (convergence for 0 < omega < 2, as for the via blocks). Nodes no cell uses are left out. A merged block whose dense
+                 bound (75 n^2 bytes) is above a quarter of the memory limit is not factored: the board is solved directly (info["fallback"] = "direct"). The
+                 bound is conservative here: the blocks of one colour are factored by a sparse LU, which takes far less than a dense inverse.
                  Measured on 30 mm boards at 1 mm: 730 / 5200 / 730 sweeps against 719 / 5221 / 775 for the point SOR of the earlier network (research/laminate-nodes, 3.11).
         @param omega Relaxation factor.
         @param tol Stopping tolerance.
         @param max_iter Sweep limit.
         @param criterion "residual" or "step" (see solve_sor).
+        @param memory_limit Memory limit in bytes (None: memory.limit_bytes()).
         @return Tuple (theta, residual, info) as solve_sor.
         """
         L, ny, nx = self.nl, self.ny, self.nx
@@ -574,10 +583,11 @@ class Network:
         node_cell = np.tile(np.arange(cells), L)
         node_block = comp[node_cell]
         sizes = np.bincount(node_block[used], minlength=comp.max() + 1)
-        if sizes.max() > MAX_SOR_BLOCK:
-            log.warning("SOR: a block of %d unknowns (a via footprint with its laminate nodes) is too large for the block SOR; the direct solver is used instead", int(sizes.max()))
+        if not memory.sor_block_fits(int(sizes.max()), memory.limit_bytes() if memory_limit is None else memory_limit):
+            log.warning("SOR: a block of %d unknowns (a via footprint with its laminate nodes; about %.1f GB) is too large for the block SOR; the direct solver is used instead",
+                        int(sizes.max()), memory.sor_block_bytes(int(sizes.max())) / memory.GB)
             theta, res = self.solve_steady("direct")
-            return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct"}
+            return theta, res, {"iterations": 0, "converged": True, "omega": float(omega), "last_step": 0.0, "fallback": "direct", "block": float(sizes.max())}
         # Colour the blocks greedily so that coupled blocks differ (blocks in raster order on a grid give the usual two colours)
         coo = K.tocoo()
         br, bc = node_block[coo.row], node_block[coo.col]
@@ -782,7 +792,7 @@ def unknowns(problem, cell_mm=2.0):
     return layers * nx * ny, layers, nx, ny
 
 
-def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=1e-9, sor_criterion="residual"):
+def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=1e-9, sor_criterion="residual", memory_limit=None):
     """!
     @brief Steady-state FVM solution of a problem.
     @param problem A Problem.
@@ -791,6 +801,7 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
     @param sor_omega Relaxation factor for "sor" (None = automatic).
     @param sor_tol Tolerance for "sor".
     @param sor_criterion "residual" or "step" (see Network.solve_sor).
+    @param memory_limit Memory limit in bytes for the SOR block guard (None: memory.limit_bytes()).
     @return SteadyResult (for "sor" the extras hold iterations, omega and converged).
     """
     b = problem.board
@@ -798,7 +809,7 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
     net = Network(problem, nx, ny)
     if method == "sor":
-        theta, res, info = net.solve_sor(omega=sor_omega, tol=sor_tol, criterion=sor_criterion)
+        theta, res, info = net.solve_sor(omega=sor_omega, tol=sor_tol, criterion=sor_criterion, memory_limit=memory_limit)
         r = _result_from_theta(net, theta, res)
         r.extras.update({"iterations": float(info["iterations"]), "omega": info["omega"],
                          "converged": float(info["converged"])})
@@ -807,8 +818,10 @@ def solve_steady(problem, cell_mm=2.0, method="direct", sor_omega=None, sor_tol=
         if info.get("fallback") == "direct":
             # The user chose SOR: say in the result (not only in the log) that another solver produced it
             r.extras["fallback_direct"] = 1.0
-            r.warnings.append(f"SOR not used: the cells of the vias form a block larger than {MAX_SOR_BLOCK} unknowns, too large for the block SOR; "
-                              "the board was solved with the direct solver instead")
+            n_blk = int(info.get("block", 0))
+            need = info.get("block_bytes", memory.sor_block_bytes(n_blk))
+            r.warnings.append(f"SOR not used: the cells of the vias form blocks (the largest of {n_blk} unknowns) whose dense inverses need about {need / memory.GB:.1f} GB, "
+                              "too much for the block SOR within the memory limit; the board was solved with the direct solver instead")
         return r
     theta, res = net.solve_steady(method=method)
     return _result_from_theta(net, theta, res)
@@ -874,15 +887,17 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
     q = net.Q.ravel()
     x = np.zeros(N)                                         # Rise above ambient, starts at zero
     frames = {0: x.reshape(net.nl, ny, nx)[:nb] + ambient}
-    cache = {}
+    # Only the factor of the current step size is kept: the steps of a stage are equal and a stage never comes back, so an old factor is dead
+    # weight (ten factors were held before; the peak memory of an animation fell from about 3.5 to 1.9 times a steady solve).
+    current_key, lu, B = None, None, None
     kept = set(keep.tolist())
     for k, dt in enumerate(dts, start=1):
         key = round(float(dt), 12)
-        if key not in cache:
+        if key != current_key:
+            lu = B = None                                   # Free the old factor before the new one is built
             A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
             B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
-            cache[key] = (spla.splu(A, permc_spec=ORDERING), B)
-        lu, B = cache[key]
+            lu, current_key = spla.splu(A, permc_spec=ORDERING), key
         x = lu.solve(B @ x + q)
         if k in kept:
             frames[k] = x.reshape(net.nl, ny, nx)[:nb] + ambient

@@ -173,3 +173,67 @@ def test_transient_matches_exact_exponential_and_has_the_right_order(monkeypatch
     stored = C * (tr.t_mean[-1] - p.board.ambient)
     lost = np.trapezoid(G * (tr.t_mean - p.board.ambient), tr.times)
     assert stored + lost == pytest.approx(P * tr.times[-1], rel=2e-3)
+
+
+def _transient_all_factors(net, ambient, t_end, n_out):
+    """!
+    @brief Reference of the transient with the time stepping of the program that keeps every factor (the code before the one-factor change).
+    @param net The network.
+    @param ambient Ambient temperature in degC.
+    @param t_end Final time in s.
+    @param n_out Output frames.
+    @return Array of the frames (nt, layers, ny, nx) in degC.
+    """
+    import scipy.sparse as sp
+    import scipy.sparse.linalg as spla
+    stages = 10
+    per_stage = max(int(np.ceil(n_out / stages)), 1)
+    dt0 = t_end / (per_stage * (2 ** stages - 1))
+    dts = np.concatenate([np.full(per_stage, dt0 * 2.0 ** j) for j in range(stages)])
+    cache, x, out = {}, np.zeros(net.nl * net.ny * net.nx), [np.zeros(net.nl * net.ny * net.nx)]
+    for dt in dts:
+        key = round(float(dt), 12)
+        if key not in cache:
+            cache[key] = (spla.splu((sp.diags(net.C.ravel() / dt) + net.K).tocsc(), permc_spec=fvm.ORDERING), sp.diags(net.C.ravel() / dt).tocsr())
+        lu, B = cache[key]
+        x = lu.solve(B @ x + net.Q.ravel())
+        out.append(x)
+    nb = getattr(net, "n_board", net.nl)
+    return np.asarray([o.reshape(net.nl, net.ny, net.nx)[:nb] + ambient for o in out])
+
+
+@pytest.mark.parametrize("kind", ["fvm", "fdm"])
+def test_transient_keeps_one_factor_and_same_fields(monkeypatch, kind):
+    """!
+    @brief The animation holds one LU factor at a time (not ten) and the frames are bit-identical to the all-factors stepping, for the FVM and the FDM network.
+    @param monkeypatch pytest fixture.
+    @param kind "fvm" or "fdm".
+    @return None.
+    """
+    import scipy.sparse.linalg as spla
+    from pcbthermal import fdm
+    p = reference_problem()
+    net = fvm.Network(p, 20, 20) if kind == "fvm" else fdm.Network(p, 2.0)
+    live, peak, real = [0], [0], spla.splu
+
+    class Counted:
+        """! @brief Wrapper that counts the factors alive at once. @param lu The factor. @return None. """
+        def __init__(self, lu):
+            self.lu = lu
+            live[0] += 1
+            peak[0] = max(peak[0], live[0])
+
+        def solve(self, b):
+            """! @brief Solve with the factor. @param b Right-hand side. @return Solution. """
+            return self.lu.solve(b)
+
+        def __del__(self):
+            live[0] -= 1
+
+    monkeypatch.setattr(fvm.spla, "splu", lambda *a, **k: Counted(real(*a, **k)))
+    r = fvm.transient_from_network(net, p.board.ambient, 600.0, n_out=40, log_times=True)
+    monkeypatch.undo()
+    assert peak[0] == 1          # the old factor is released before the new one is built, never ten at once
+    ref = _transient_all_factors(net, p.board.ambient, 600.0, 40)
+    assert r.frames.shape == ref.shape
+    assert np.array_equal(r.frames, ref)

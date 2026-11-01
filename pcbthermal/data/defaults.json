@@ -350,6 +350,7 @@
     "linear_solver": "direct",
     "lumped_rings": 10,
     "analytic_modes": 300,
-    "hotspot_c": 100.0
+    "hotspot_c": 100.0,
+    "memory_fraction": 0.6
   }
 }

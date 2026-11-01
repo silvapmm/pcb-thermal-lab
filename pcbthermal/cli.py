@@ -12,6 +12,8 @@ Commands
 - convert     legacy editor JSON -> native JSON
 - gui         open the graphical application
 - example     write the reference board as a native JSON file
+
+Exit codes: 0 done, 2 usage error (argparse), 3 a run refused by the memory guard (the message names the cell that fits; `--memory-fraction` changes the limit).
 """
 
 import argparse
@@ -23,7 +25,7 @@ import time
 
 import numpy as np
 
-from . import __version__, fvm
+from . import __version__, fvm, memory
 from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
@@ -35,17 +37,38 @@ MODELS = ("fvm", "lumped", "analytic")
 RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
 
 
-def _cell_arg(args, problem, default):
+def _cell_arg(args, problem, default, transient=False):
     """!
     @brief Resolve the --cell-mm argument.
     @param args Parsed arguments.
     @param problem The Problem (used by "auto").
     @param default Value used when the argument is absent.
+    @param transient True for a time simulation: "auto" has to fit its larger memory factor (memory.TRANSIENT_FACTOR).
     @return Cell size in millimetres.
     """
     if args.cell_mm is None:
         return default
-    return suggest_cell_mm(problem) if args.cell_mm == "auto" else float(args.cell_mm)
+    if args.cell_mm != "auto":
+        return float(args.cell_mm)
+    # The automatic cell also has to fit the memory of the models the command solves: "all" and "compare" are expanded to their model keys (the guard
+    # ignores keys it does not know, so "all" passed as it is would not be checked), and the base is the resident size of this process, where the solve runs
+    chosen = getattr(args, "model", "fvm")
+    models = {"all": MODELS, "compare": RUN_MODELS}.get(chosen, (chosen,))
+    return suggest_cell_mm(problem, models=models, transient=transient, base=None)
+
+
+def _guard(problem, models, cells, transient=False):
+    """!
+    @brief Ask the memory guard about every cell a command will try, before anything is allocated.
+    @param problem The Problem.
+    @param models Model keys that will be solved (the guard estimates fvm, fdm and solid3d).
+    @param cells Cell sizes in mm that the command will use.
+    @param transient True for a time simulation (a larger factor).
+    @return None.
+    @throws memory.MemoryGuardError If a model is above the memory limit.
+    """
+    for c in cells:
+        memory.check(problem, models, c, transient=transient)
 
 
 def cmd_run(args):
@@ -114,15 +137,16 @@ def cmd_transient(args):
     """
     problem = load_problem(args.config)
     t0 = time.time()
+    cell = _cell_arg(args, problem, 2.0, transient=True)                  # Resolved once: "auto" asks the guard, with the factor of a time simulation
+    _guard(problem, (args.model,), [cell], transient=True)                # The analytic model is not estimated (the guard skips it)
     if args.model == "fdm":
         from . import fdm
-        tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0), theta_scheme=args.theta)
+        tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
     elif args.model == "analytic":
         from . import analytic
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
     else:
-        tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0),
-                                 theta_scheme=args.theta)
+        tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
     print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} degC, "
           f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} degC")
     os.makedirs(args.out, exist_ok=True)
@@ -166,8 +190,10 @@ def cmd_convergence(args):
     """
     problem = load_problem(args.config)
     rows = []
+    cells = (10, 5, 2.5, 2, 1, 0.5)
+    _guard(problem, ("fvm",), cells)                    # The whole study is checked first: no half-finished table when the last cell is too fine
     print(f"{'cell mm':>8s} {'cells':>8s} {'Tmax':>9s} {'time s':>7s}")
-    for c in (10, 5, 2.5, 2, 1, 0.5):
+    for c in cells:
         t0 = time.time()
         r = fvm.solve_steady(problem, cell_mm=c)
         dt = time.time() - t0
@@ -188,6 +214,7 @@ def cmd_solvers(args):
     """
     project = load_project(args.config)
     cell = _cell_arg(args, project.problem, project.options.cell_mm)
+    _guard(project.problem, ("fvm",), [cell])
     cases = [("direct (sparse LU)", dict(method="direct")),
              ("cg (Jacobi)", dict(method="cg")),
              ("SOR, residual 1e-9, omega auto", dict(method="sor")),
@@ -261,6 +288,9 @@ def build_parser():
         sp.add_argument("--out", default="output", help="output directory (default: output)")
         sp.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto' (default: from the project, 1)")
         sp.add_argument("--no-plots", action="store_true", help="skip figure generation")
+        sp.add_argument("--memory-fraction", type=float, default=None, metavar="F",
+                        help=f"share of the physical memory a solve may use, {memory.MIN_FRACTION} to {memory.MAX_FRACTION} (default: the Preferences value, "
+                             f"{memory.DEFAULT_FRACTION}); a larger model is refused with exit code {memory.EXIT_CODE}")
 
     r = sub.add_parser("run", help="solve steady state")
     common(r)
@@ -305,6 +335,7 @@ def build_parser():
     k.add_argument("--heater", default=None, help="heater whose footprint maximum was measured (default: board maximum)")
     k.add_argument("--model", choices=MODELS, default="fvm")
     k.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto'")
+    k.add_argument("--memory-fraction", type=float, default=None, metavar="F", help="share of the physical memory a solve may use (see run)")
     k.set_defaults(func=cmd_calibrate)
 
     c = sub.add_parser("convergence", help="FVM grid refinement study")
@@ -340,7 +371,20 @@ def main(argv=None):
     @return Process exit code.
     """
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    try:
+        # The fraction is a process-wide override for the command (it replaces the Preferences value); restored afterwards so that a caller (tests) is not left changed
+        memory.set_default_fraction(getattr(args, "memory_fraction", None))
+        return args.func(args)
+    except memory.MemoryGuardError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return memory.EXIT_CODE
+    except ValueError as exc:
+        if "memory fraction" in str(exc):                # An out-of-range --memory-fraction
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        raise
+    finally:
+        memory.set_default_fraction(None)
 
 
 if __name__ == "__main__":

@@ -262,7 +262,7 @@ one product with the full `K`, vias and footprints included. Being a lower bound
 * *Vias*: the cells of a footprint are coupled by the dense via blocks of `K`. After the two colours each group of via blocks that `K` does not couple (greedy colouring [Saad2003]) takes the exact solution of its block, `θ_B += ω K_BB⁻¹ (Q_B − K_B θ)`.
 * *Laminate columns* (section 1.4): every plan cell is a block of all its nodes, the blocks (merged where a via footprint joins them) are coloured and each colour is solved exactly.
 
-The point and the block SOR of a symmetric positive definite matrix converge for every `0 < ω < 2` ([Saad2003] Theorem 4.10 states the point case; the block case is the same argument for a block splitting). A block larger than 5 000 unknowns (`fvm.MAX_SOR_BLOCK`, 200 MB dense) is not inverted: the board is solved with the direct solver and the result says so.
+The point and the block SOR of a symmetric positive definite matrix converge for every `0 < ω < 2` ([Saad2003] Theorem 4.10 states the point case; the block case is the same argument for a block splitting). The dense inverse of a block costs about `75 n²` bytes (`memory.sor_block_bytes`: the dense block, its inverse, LAPACK's copy and the sparse form the iterations keep; 5 000 unknowns take about 1.9 GB, not the 200 MB the old comment said). The sum of `75 n²` over **all** the blocks must be at most 25 % of the memory limit of section 2.7 (`memory.sor_block_fits`; the inverses of all the blocks stay alive for the iterations); otherwise the board is solved with the direct solver and the result says so.
 
 ### 2.4 Time: the theta method
 
@@ -320,6 +320,27 @@ The barrel nodes are eliminated (Kron reduction [Kron2022] (S)), which leaves co
 **Limits.** The lattice kernel has no image of a board edge, so a via within one cell of the edge is clipped (`checks.check_via_limits`); from a 2 mm cell the via is a fraction of a cell and the answer depends on where its centre falls in it (a warning).
 **Where it is checked**: `validation.md` 2.1, 5, 7 and 18 (convergence with the cell, the copper-fill gain of the 3 × 3 board); `research/point-via-convergence`, `research/sor-with-via-couplings`, `research/models-comparison`; `tests/test_sor_omega.py`.
 
+### 2.7 The memory guard (`memory.py`)
+
+![The memory guard](images/fig_46_memory_guard.png)
+
+*Figure 46 (`images/fig_46_memory_guard.png`): left, the chain from the cell to the verdict; right, the law of the estimate against the unknowns for the FVM (`t_eff` = 2 and 6), the FDM (4) and the 3D solid (6), with the coefficients of `memory.CONTINUOUS`, the safety factor included and the base left out, against 60 % of 16 GiB. Illustrative of the shape: the bytes were measured on one machine.*
+
+A sparse direct factorisation needs memory that grows faster than the number of unknowns, and the number is set by the cell the user chooses. The guard estimates the peak memory of a solve **before anything is allocated** from the unknown count that the models already provide (`fvm.unknowns`, `fdm.unknowns`, `solid3d.unknowns`) and refuses a run above a limit.
+
+**The law** (one per model, continuous in the thickness of the graph):
+
+    peak = base + safety · factor · k₁ · t_eff^a · N · (N / N_ref)^(p − 1),      t = N / (n_x n_y),   t_eff = min(t, n_x n_y / t)        (2.8)
+
+with `N` the unknowns, `N_ref = 500 000`, `t` the nodes per plan cell (the thickness of the graph that is factored) and `t_eff` its smaller side, because a board that is very thick in layers is also thin in plan (the smallest separator of the graph is then a horizontal plane, the nested-dissection argument of [George1973] (M), supported by two measured points only). The coefficients (`memory.CONTINUOUS`, bytes at `N_ref` and `t_eff` = 1) are, with the exponents of `N` and of `t_eff` and the safety factor: FVM `k₁` = 1469, `p` = 1.24, `a` = 0.79, safety 1.40; FDM 1228, 1.34, 1.03, 1.24; 3D solid 1063, 1.30, 0.98, 1.30. The safety factor is the largest measured/fitted ratio of the ladder rounded up, so the estimate does not fall below the measurement on the points that were measured. `base` is the resident size of the process when the check is made (not multiplied: it is measured); `factor` is 1 for a steady solve and 2.0 for a time simulation, an animation or a profile run (`memory.TRANSIENT_FACTOR`, `PROFILE_FACTOR`: the transient keeps one factor of the matrix plus the previous stage while the next is built, measured 1.9 after the program was changed to keep one LU factor instead of ten; the profile factor is not measured). The Lumped and the Analytic models are not estimated here (455 bytes per unknown for the Lumped; the Analytic has its own 4 800-unknown guard, section 6.1).
+
+**Cheap lower bound first.** The exact unknown count of the layered models samples the copper of every plan cell (about 300 bytes per plan cell, tens of GB for a 0.5 m board at 0.05 mm), so the guard first takes a lower bound (one node per copper layer and plan cell; the 3D count is already exact and cheap). The estimate grows with `N` at fixed plan cells, so a bound above the limit refuses the run without the exact count, and the message says "at least". Only a bound that fits is counted exactly.
+
+**Verdicts.** The limit is a fraction of the physical memory (read without a dependency: `sysconf`, `sysctl hw.memsize`, `/proc/meminfo`, `GlobalMemoryStatusEx`; the cgroup limit of a container lowers it; the variable `PCBTHERMAL_MEMORY_BYTES` replaces the reading). The default fraction is 0.60 (10 to 95 % allowed), a **machine preference** (`solver.memory_fraction` in Preferences, command line `--memory-fraction`), not a property of a project: it is not saved in the project file and an old file's value is ignored. The verdict is *refuse* above the limit, *slow* when the predicted solve time is above 30 s (a time law per class, measured on a shared machine, so a lower bound), otherwise *ok*. The 3D solid is also refused above an absolute ceiling of 2 million unknowns (it binds only from about 26 GB of memory). A refusal names the cell that fits (grown in steps of 10 %, rounded up to 0.1 mm, up to 50 mm). When the estimate is above the memory **available** now (`vm_stat`, `MemAvailable`, `ullAvailPhys`) the result is a warning, not a refusal: the same project would otherwise run or not depending on the moment. `solid3d.size_limit(n)` (offline studies) is a window: a model is accepted up to `n` unknowns whatever the estimate and refused above it.
+
+**Limits.** The coefficients were fitted on 67 points (layer-major numbering) of one 16 GB machine; the extrapolation beyond the largest measured points (240 000 to 400 000 unknowns for the 3D solid) is trusted to about ±20 %; Windows and containers were not measured; the memory compressor of macOS can make a resident peak read 20 % low on a loaded machine. The program logs the estimate and the measured peak after each run, so another machine can check the law. The count of unknowns by an exact symbolic factorisation (the number of non-zeros of the factor), which would replace the fitted safety factor, is an item of the chapter "Planned" of `versions.md`.
+**Where it is checked**: `validation.md` 26 (the memory ladder and the accuracy of the law); `research/memory-guard` (README 5, 9, 10, 14); `tests/test_memory.py`. **Sources**: [George1973] (M), [Davis2006] (M), [LiSuperLU2005] (N), none opened: they only motivate the form of the law, which is fitted and tested on the measurements.
+
 ## 3. FDM: node-centred finite differences (the comparison)
 
 ![FVM and FDM layouts](images/fig_03_fdm_nodes.png)
@@ -352,7 +373,7 @@ The transient machinery of the FVM is reused unchanged (`fvm.transient_from_netw
 * a copper slab of thickness `t_cu,l` for each layer, and `n_diel = 4` equal slabs of `d/4` in each dielectric gap (a one-layer board has no gap: its laminate is cut into four FR-4 slabs under the copper, so it spreads heat and the bottom face loses heat through it);
 * for a block under (or over) the board a **pad slab** (the interface: thickness `R''·1 W/mK` and conductivity 1 W/mK, so its resistance per area is exactly `R''`) followed by `n = round(thickness/1 mm)` metal slabs (1 to 6).
 
-Every cell of every slab has one unknown: `n_slabs × nx × ny`, refused above `MAX_CELLS = 250 000` and counted before the model is built (`solid3d.unknowns`, `check_size`).
+Every cell of every slab has one unknown: `n_slabs × nx × ny`, counted before the model is built (`solid3d.unknowns`) and checked by the memory guard of section 2.7 (a memory estimate against the limit, and an absolute ceiling of 2 million unknowns; the old fixed limit of 250 000 is gone). The class `Solid` checks its own count in its constructor, so the guard also covers a direct use of the model.
 
 **Cell materials** (volume averages on the structured grid, the tiled-conductivity method of PCB thermal models):
 
@@ -372,7 +393,7 @@ Every cell of every slab has one unknown: `n_slabs × nx × ny`, refused above `
 with `Δ` the edge length of the cell face. A block hides the board face under it (factor `1 − c`) and loses heat on its exposed face, `h_exp = h_face·r_fin + h_extra` (section 7), and on the side walls of every block slab, `G = (h_face + h_extra) dz L_edge` (no fin ratio; `L_edge` the block outline inside the cell). The heater power goes to the copper slab of its layer with the weights of section 1.3. The system is solved directly; the result has the layout of the FVM (the copper slab of each layer, plus the block fields).
 
 **What it measures**: the error of the layered idealisation on **your** board.
-**Limits**: the barrel is a lumped area; copper is one slab thick; a block contact is perfect over the pad; the cost grows quickly with layers and cells (the fill-in grows with the width of the plan times the slab count, and the limit is a count of unknowns, not of memory; a memory guard is an item of the chapter "Planned" of `versions.md`); steady state only.
+**Limits**: the barrel is a lumped area; copper is one slab thick; a block contact is perfect over the pad; the cost grows quickly with layers and cells (the fill-in grows with the width of the plan times the slab count, and the guard of section 2.7 limits the estimated memory, not the count); steady state only.
 **Where it is checked**: `validation.md` 3 and 16 (against a finite-element solid and Yovanovich's table, convergence in slabs and cells, timings and memory); `research/solid3d-verification`. **Sources**: the flux-tube table of [Yovanovich2003], the grid convergence procedure of [Celik2008], [Roache] (M).
 
 ## 5. Lumped: thermal network by rings (LPTN)
@@ -697,6 +718,9 @@ The reading status: **R** read in full or in the pages that matter; **S** seen a
 | [TeertstraReview] | P. Teertstra, J. R. Culham, M. M. Yovanovich, *Comprehensive review of natural and mixed convection heat transfer models for circuit board arrays*, Univ. of Waterloo report | R (equations as images) | 7.4 (equations 8, 20, 21, 22) |
 | [JESD15-3] | JEDEC JESD15-3, *Two-resistor compact thermal model guideline* (2008) | R (through a mirror) | 9 |
 | [JESD51family] | JEDEC JESD51 family (θJA, θJB, θJC, ψ definitions) | N | 9 |
+| [George1973] | A. George, *Nested dissection of a regular finite element mesh*, SIAM J. Numer. Anal. 10 (1973) 345-363 | M | 2.7 (the exponent and the thin-in-plan board; a hypothesis the measurements test) |
+| [Davis2006] | T. A. Davis, *Direct Methods for Sparse Linear Systems*, SIAM, 2006 | M | 2.7 (fill of sparse factors) |
+| [LiSuperLU2005] | X. S. Li, *An overview of SuperLU*, ACM Trans. Math. Softw. 31 (2005) 302-325 | N | 2.7 (the memory of the factor) |
 | [Celik2008] | I. B. Celik, U. Ghia, P. J. Roache, C. J. Freitas, J. Fluids Engineering 130 (7) (2008) 078001 | R (pages 4 to 9; Table 1 reproduced) | 4 (grid convergence index) |
 | [Roache] | P. J. Roache, verification and validation in computational science and engineering | M (summaries S) | 4 (cite [Celik2008] for the procedure) |
 | [Fish2017] | M. C. Fish, PhD dissertation, University of Maryland (2017) | R chapter 6 (reproduced; chapters 5 and 7 not read) | 1.5 (microspreading of via cells) |

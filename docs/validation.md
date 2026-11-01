@@ -808,7 +808,7 @@ The rule (`pcbthermal/laminate.py`, `docs/theory.md` 1.4): a gap of thickness `d
 | 2 layers, 0.25 mm | 256 000 to 637 000 | 0.9 to 21.4 s | 0.69 to 4.5 GB |
 | 4 layers, 0.25 mm | 512 000 to 681 000 | 6.8 to 66 s | 2.3 to 7.6 GB |
 
-About 7 GB per million unknowns. An ordering by cell (all the nodes of a cell together) would give 12.7 s and 3.0 GB for the 2-layer board at 0.25 mm; it is Planned for 2.5.0 with the memory guard (`docs/versions.md`).
+About 7 GB per million unknowns. An ordering by cell (all the nodes of a cell together) would give 12.7 s and 3.0 GB for the 2-layer board at 0.25 mm; it stays Planned (`docs/versions.md`, chapter 'Planned'); the memory guard of 2.5.0 (section 26) does not change the numbering.
 
 **The part peak and the profile curves.** The steady peak of a part on bare laminate includes the face term; the curves of a power profile, step responses and animations are the node maxima, without it (the term is linear in the power). The difference is 1.6 K for a 1 W 6 mm part and 14.6 K for a 1 W 2 x 2 mm part on bare laminate (documented limit; Planned).
 
@@ -941,7 +941,7 @@ When `docs/theory.md` was rewritten to describe the models as implemented (state
 | Relaxation factor (2.3) | the factor of a plate with fixed edges, `2/(1 + sin(pi/n_max))`, needed 2.8 to 19 times more sweeps than the estimate of Young's optimum; the example board needs 676 sweeps at 1 mm (2244 with the old factor) and 364 at 2 mm (1145); a board of 1 x 1 cell, where the old factor diverged, converges; without the mask of the linked nodes the quotient collapsed to `ω` 1.009 on a round board; the estimate is 1.1 to 2 times the sweeps of the true optimum on boards with uneven losses or partial copper; the step criterion of the removed program can stop 3 to 16 K from the solution | section 5; `research/young-omega-tiles`; carried over |
 | Via on the grid (2.6) | the worst error of the via effect against a fine-grid layered reference is 0.7 % at 1 mm, 0.5 % at 0.5 mm and 0.4 % from 0.25 mm (12 unit-cell cases), where the point via was 7, 10 and 20 % off; the copper-fill gain of the 3 x 3 via board is -4.50, -4.47 and -4.49 K (FVM) and -4.42, -4.51 and -4.49 K (FDM) at 1, 0.5 and 0.25 mm against -4.51 K resolved (-4.78 to -3.34 K from 1 to 0.0625 mm with the point via); a via within one cell of the edge is 12 to 15 % too large at a 1 mm cell; the target radius 0.78 r_v gives the via effect within 1 % on a four-plane 1.6 mm board and -2.1 to +3.9 % over 2 to 6 planes and drills of 0.2 to 1 mm | 2.1 and 18; `research/point-via-convergence` 3.2 and 3.3 |
 | FDM (3) | the FDM and the FVM agree to about 0.1 % without vias; with the via array they differ by less than 1 % from 1 mm down | sections 2 and 2.1 |
-| 3D solid (4) | the limit was 2e6 unknowns (a run could go on for hours) and is 250 000; 158 000 unknowns take 2.0 s and 0.75 GB on a plain two-layer board and 7.2 s and 2.15 GB on the example board of 16 slabs, 247 000 take 15.3 s and 3.5 GB and 512 000 take 57.7 s and 9.9 GB resident (a quiet 16 GB machine, they depend on the machine, the board and the computed-h loop); 4 slabs per gap is within 1 % of 8 even on a heater-sized pad, where the finite-volume and finite-element solids bracket the limit about +-4 %; a 0.3 mm copper fill below 0.27 mm cells loses copper by the clip of `a_via` at 1 (an item of "Planned" in `versions.md`) | section 16; `research/solid3d-verification` |
+| 3D solid (4) | the limit was 2e6 unknowns (a run could go on for hours), then 250 000, and is now the memory guard of section 26 (an estimated-memory limit with an absolute ceiling of 2 million unknowns); 158 000 unknowns take 2.0 s and 0.75 GB on a plain two-layer board and 7.2 s and 2.15 GB on the example board of 16 slabs, 247 000 take 15.3 s and 3.5 GB and 512 000 take 57.7 s and 9.9 GB resident (a quiet 16 GB machine, they depend on the machine, the board and the computed-h loop); 4 slabs per gap is within 1 % of 8 even on a heater-sized pad, where the finite-volume and finite-element solids bracket the limit about +-4 %; a 0.3 mm copper fill below 0.27 mm cells loses copper by the clip of `a_via` at 1 (an item of "Planned" in `versions.md`) | section 16; `research/solid3d-verification` |
 | Lumped rings (5) | before rings narrower than a cell were merged the result grew with the ring count, +3 to +13 % with 40 rings; the Lumped model is 27 % low when a copper edge crosses the footprint, -8.7 % at board corners and +9.5 % for thin heaters | sections 21 and 3 |
 | Outline (6) | the bounding box of the outline (`s = 1`) is 6 to 10 % cool on a circle and a box larger than it is 10 to 20 % cool; the box of the same area is within 0.2 to 3 % away from the edge and 10 to 18 % cool near the edge or in a T arm | section 13 |
 | Analytic (6) | 24 % low with a 20 mm pad and 25 % when an edge crosses the footprint; 0.3 to 1 % warm on a uniform board from the default edge coefficient; a single global factor for the vias in the transient cooled the distant heater by 18 % (design history, `versions.md` 2.1.0) | sections 3, 4 and 7; carried over |
@@ -952,3 +952,49 @@ When `docs/theory.md` was rewritten to describe the models as implemented (state
 | Natural convection (8) | the laminar form differs from the general form by +7 % to -25 % between `Ra` 1e4 and 1e9 and moves the maximum of a vertical board by -0.7 to +0.2 % of the rise; it matches the laminar boundary-layer solution within 0.21 % | section 22 |
 | Parts (9) | a junction node joined by a uniform conductance would be 1.3 to 3.4 K lower on the chips of the component study and 0.2 K on a 0603 resistor; a fixed-point loop for the top path stopped at 33 degC on an 8 mm pad under a 3.3 mm MOSFET where the operating point is 90.9 degC; the split takes 3 board solves (6 on a clipped small pad, 6 to 7 with computed coefficients, up to about 20 near the clip), and for random boards of 2 to 4 parts a median of 8 to 9 solves, 90 % within 25, at most 57; with the power coefficient the 8 mm MOSFET with 0.5 %/K takes 10 passes and 70 solves | sections 9 and 19 |
 
+## 26. The memory guard: the law and how well it predicts
+
+`pcbthermal/memory.py` (theory 2.7). Every number of this section is quoted from `research/memory-guard/README.md` (the ladder, run with the program 2.4.5 on one 16 GB Mac, 17.2 GB of 10^9 bytes; each point in its own subprocess, peak resident size from the kernel) and its review (14); they were not re-run for this document. The folder's scripts (`scripts/study_memory_ladder.py`, `study_class_fit.py`, `study_review.py`, `study_sor_block.py`) repeat them.
+
+**The law** (theory (2.8)), fitted on the layer-major points of the ladder with N of at least 50 000 (README 14.2):
+
+| Model | Points | `k1` (bytes at N = 500 000, `t_eff` = 1) | `p` | `a` | Measured / law on the ladder | Safety factor |
+| :-- | --: | --: | --: | --: | --: | --: |
+| FVM | 45 | 1469 | 1.24 | 0.79 | 0.73 to 1.27 | 1.40 |
+| FDM | 7 | 1228 | 1.34 | 1.03 | 0.87 to 1.12 | 1.24 |
+| 3D solid | 15 | 1063 | 1.30 | 0.98 | 0.84 to 1.18 | 1.30 |
+
+The first proposal of the study, eight classes by `t` with their own law, was replaced after the review found it flat in `t` beyond its last edge: against six points measured at 8 and 12 copper layers (outside both fits) it was below the measurement with its safety factor in four of six (measured / estimate up to 1.41), where the continuous law predicts the six within 0.91 to 1.15 (README 14.2):
+
+| Board | Unknowns | Measured | Class table x safety | Measured / estimate | Continuous law | Measured / law |
+| :-- | --: | --: | --: | --: | --: | --: |
+| FVM, 12 layers, 1.0 mm | 120 000 | 1.12 GB | 0.79 GB | 1.41 | 0.97 GB | 1.15 |
+| FVM, 8 layers, 0.7 mm | 163 592 | 1.17 GB | 1.15 GB | 1.02 | 1.03 GB | 1.14 |
+| FVM, 12 layers, 0.7 mm | 245 388 | 2.28 GB | 1.90 GB | 1.20 | 2.25 GB | 1.01 |
+| 3D solid, 12 layers, 3.0 mm | 60 984 | 0.70 GB | 1.09 GB | 0.64 | 0.71 GB | 0.99 |
+| 3D solid, 8 layers, 2.0 mm | 90 000 | 1.92 GB | 1.70 GB | 1.14 | 1.98 GB | 0.97 |
+| 3D solid, 12 layers, 2.5 mm | 89 600 | 1.45 GB | 1.69 GB | 0.86 | 1.59 GB | 0.91 |
+
+(The "law" columns are without the safety factor.) The ladder's peak per unknown grows with the thickness of the graph: a plain 2-layer board takes 2.9 KB per unknown at 320 000 unknowns, a 4-layer board 4.1 KB, a 6-layer board 7.0 KB at 490 000 and 8.8 KB at 960 000 (README 5.1).
+
+**The memory ladder: what fits** (README 14.3, 14.4; largest unknown count whose estimate with the safety factor stays within the limit, continuous law):
+
+| Board | 11.2 GB (0.7 x 16e9) | 12.0 GB (0.7 x 17.2e9) | Largest point measured |
+| :-- | --: | --: | --: |
+| 3D solid, 6 slabs | 1 105 000 | 1 167 000 | 240 000 (ladder), 500 000 (documents) |
+| 3D solid, 10 slabs | 752 000 | 795 000 | 400 000 |
+| 3D solid, 16 slabs | 528 000 | 558 000 | 327 184 |
+| 3D solid, 26 slabs | 366 000 | 387 000 | 260 000 |
+| FVM, t = 2 | 2 178 000 | 2 308 000 | 1 975 000 (documents) |
+| FVM, t = 6 | 1 082 000 | 1 147 000 | 960 000 |
+| FVM, t = 12 | 696 000 | 738 000 | 245 388 (review) |
+
+The program's default limit is 60 % (10.3 GB of the 17.2 GB), lower than the 12.0 GB of this table. The 3D ceilings are extrapolations of 1.5 to 2.3 times the largest measured points, trusted to about 20 % (README 14.4).
+
+**Time** (README 5.4; laws `t = a N^q` on points with N of at least 100 000, on a machine shared with other work, so lower bounds): FVM 1.5 s at 500 000 unknowns, `q` 1.32 (t up to 3.5), 5.4 s and 1.31 (3.5 to 4.5), 9.2 s and 1.50 (above 4.5); FDM 11.5 s and 1.47; 3D solid 11.2 s and 1.70 (t up to 6.5 in the program, 6 in the study), 14.8 s and 1.52, 44.1 s and 1.50. Only the "slow" mark (above 30 s) uses them.
+
+**The block SOR** (README 9, 14.1, 14.6): the dense inverse of one block costs 66 to 75 n^2 bytes (two points re-run by the review: 74.1 and 74.7 n^2); 5 000 unknowns take about 1.9 GB, not the 200 MB (8 n^2) of the old comment. The guard uses 75 n^2 summed over all the blocks, at most 25 % of the limit.
+
+**Transient and animation** (README 14.5): on the 4-layer plain board at 0.5 mm the steady solve peaked at 0.643 GB and the transient at 2.245 GB (3.5 times) while ten LU factors were kept; with one factor it is 1.230 GB (1.9 times, the same 11 frames bit for bit). The program now keeps one factor and the transient factor is 2.0. The case quoted in the changelog for the shipped change (a 111 556-unknown board, 2.60 to 0.65 GB) was reported by the review of the integration and is not in a printed output of the research folder.
+
+**What was not verified.** The reviewer's table of ten cases of the corrected law in the program (the ratio peak / estimate of 0.28 to 0.94) is not recorded in a file that this document could be checked against, so no number of it is quoted; the first runs of the program log the estimate and the measured peak for the check. Also not measured: other machines (Windows, containers), the Analytic's tile memory, the power-profile and FDM transients, and the Gerber importer's memory. A resident peak read on a loaded Mac can be low by 20 % or more with no swap (the memory compressor, a hypothesis).

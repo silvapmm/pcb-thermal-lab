@@ -19,7 +19,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
                                QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
 
-from .. import defaults
+from .. import defaults, memory
 from .. import model
 from ..numfmt import eng, num
 from . import theme as th
@@ -77,7 +77,7 @@ LABELS = {
     "design_vias_pct": "Design: vias (± %)", "design_scale_cad": "Multiplier, fabrication files", "design_scale_hand": "Multiplier, drawn by hand",
     "design_scale_estimated": "Multiplier, estimated",
     "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "Lumped rings", "analytic_modes": "Analytic modes",
-    "hotspot_c": "Hotspot limit (°C)",
+    "hotspot_c": "Hotspot limit (°C)", "memory_fraction": "Memory limit (fraction of the physical memory)",
 }
 # Column titles with units for the library tables (the JSON key is in the tooltip of the column title)
 COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_per_m3k": "ρ·cp (J/m³K)", "thickness_mm": "Thickness (mm)",
@@ -117,6 +117,10 @@ TIPS = {
     "design_scale_estimated": "Multiplier of the design amplitudes for an estimated board (normally 1).",
     "models": "Models selected in a new project.", "cell_mm": "Cell size in mm.", "linear_solver": "Solver of the FVM linear system.",
     "lumped_rings": "Rings of the Lumped model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Temperature limit for hotspot detection in °C.",
+    "memory_fraction": "Share of the physical memory a solve may use (0.10 to 0.95, shipped 0.60). A FVM, FDM or 3D run whose estimated peak memory is above it is refused before "
+                       "anything is allocated, with the cell that fits. This is a setting of this machine, not of the project: it is not saved in project files. The estimate has a "
+                       "safety margin but can be wrong by tens of percent; a run above the memory available now only warns. Environment variable PCBTHERMAL_MEMORY_BYTES states the memory "
+                       "when it cannot be read (containers).",
 }
 
 
@@ -328,7 +332,7 @@ class PreferencesDialog(QDialog):
             else:
                 wdg = QDoubleSpinBox()
                 # Amplitudes of the design uncertainty and the copper uncertainty stay below 100 %, so a thickness never reaches 0
-                wdg.setRange(*((0.0, 99.0) if section == "calculator" and key in ("copper_uncertainty_pct", "design_coverage_pct", "design_weight_pct", "design_planes_pct", "design_vias_pct") else (0.0, 1.0) if key.startswith("design_scale_") else (-1e9, 1e9)))
+                wdg.setRange(*((0.0, 99.0) if section == "calculator" and key in ("copper_uncertainty_pct", "design_coverage_pct", "design_weight_pct", "design_planes_pct", "design_vias_pct") else (0.0, 1.0) if key.startswith("design_scale_") else (memory.MIN_FRACTION, memory.MAX_FRACTION) if key == "memory_fraction" else (-1e9, 1e9)))
                 # Three decimals for small numbers (a via diameter, an emissivity, a multiplier), one for the large ones: "100,0000 mm" was hard to read.
                 # The choice follows the shipped value, not the user's (a user value of 10 W must not take the decimals away from the heater power),
                 # and grows to show a saved value in full (a spin box rounds its value to its decimals, and a reset would write the rounded number)
@@ -339,7 +343,11 @@ class PreferencesDialog(QDialog):
                 wdg.setDecimals(places)
                 wdg.setValue(float(val))
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, float(v)))
-            wdg.setToolTip(f"{TIPS.get(key, key)}\nJSON key: {key}")
+            tip = f"{TIPS.get(key, key)}\nJSON key: {key}"
+            if key == "memory_fraction":
+                ram = memory.ram_bytes()
+                tip += f"\nMemory detected: {ram / memory.GB:.1f} GB (limit now {memory.limit_bytes(float(val), ram) / memory.GB:.1f} GB)." if ram else "\nThe memory of this machine could not be read: a fixed limit is used."
+            wdg.setToolTip(tip)
             self.widgets[(section, key)] = wdg
             f.addRow(LABELS.get(key, key), wdg)
         return w
