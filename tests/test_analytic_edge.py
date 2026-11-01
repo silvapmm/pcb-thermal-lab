@@ -2,12 +2,13 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_analytic_edge.py
-@brief The Analytic model moves the heat lost through the board edge to the faces (Muzychka, Yovanovich and Culham 2003, AIAA 2003-4188, eq. 29).
+@brief The Analytic model moves the heat lost through the board edge to the faces (Muzychka, Culham and Yovanovich 2003, AIAA 2003-4188, eq. 29).
 
 @details Checks: (1) a closed form, the one-layer board under a heater that covers it is uniform and its rise is P / (h_faces A + h_side perimeter t), insulated or edge-cooled;
          (2) the heat balance, top + bottom + heatsinks + sides = power, with vias and a heatsink; (3) the three uniform two-layer boards of the review
          (40 x 30, 60 x 40 and 100 x 80 mm) against the FVM, where the Analytic used to read +0.8 to +7.8 % warm; (4) no edge coefficient (None or 0) leaves the
-         result unchanged, and the modal matrix of the transient carries the same extra coefficient; (5) the warning appears only when the edge loss is large.
+         result unchanged, and the modal matrix of the transient carries the same extra coefficient; (5) the warning appears only when the edge loss is put in the wrong place,
+         with the sense of the error; (6) a board with an outline uses the perimeter of the real outline.
 """
 
 import numpy as np
@@ -134,9 +135,44 @@ def test_transient_modal_matrix_carries_the_edge_coefficient():
     assert A0[0, 0].sum() == pytest.approx(20.0, rel=1e-12)
 
 
-def test_warning_only_when_the_edge_loss_is_large():
-    """Typical edge coefficient on a 1.6 mm board: silent (ratio under 0.3); a large coefficient on a thick board: warned, with the correction named."""
+def test_warning_only_when_the_edge_loss_is_misplaced():
+    """Typical edge coefficient on a small 1.6 mm board: silent (the edge is near the mean temperature); a large coefficient on a thick board: warned,
+    and the warning gives the sense of the error, low with the part at the centre, high with the part in a corner (both checked against the FVM)."""
     quiet = analytic.solve_steady(_plate(40, 30, 10, 10.0), cell_mm=1.0)
     assert not any("edge convection" in w for w in quiet.warnings)
-    loud = analytic.solve_steady(_plate(40, 30, 10, 200.0, thickness=3.2), cell_mm=1.0)
-    assert any("edge convection" in w and "moves it to the faces" in w for w in loud.warnings)
+    for pos, sense in (("centre", "low"), ("corner", "high")):
+        p = _plate(100, 80, 10, 50.0, thickness=3.2)
+        if pos == "corner":
+            p.heaters[0].polygon = p.heaters[0].polygon - p.heaters[0].polygon.min(axis=0)       # the part moved to the corner (0, 0)
+        loud = analytic.solve_steady(p, cell_mm=1.0)
+        assert any("edge convection" in w and f"reads {sense}" in w for w in loud.warnings), pos
+        err = _rise(p, "analytic") / _rise(p, "fvm") - 1.0
+        assert (err < -0.02) if sense == "low" else (err > 0.05)
+
+
+def _t_board(h_side):
+    """!
+    @brief The T of the frozen-number boards (80 x 60 mm box, 2 layers of full copper, a 10 mm part of 4 W in the stem).
+    @param h_side Edge coefficient in W/m2K (None = insulated).
+    @return Problem.
+    """
+    p = Problem.new(width_mm=80, height_mm=60, layers=2, thickness_mm=1.6, copper_um=35.0, ambient=T_AMB, h_top=10.0, h_bottom=15.0, h_side=h_side)
+    p.set_outline([[0, 60], [0, 40], [30, 40], [30, 0], [50, 0], [50, 40], [80, 40], [80, 60]])
+    for layer in (1, 2):
+        p.add_zone(layer, rect=(0, 0, 80, 60))
+    p.add_heater(1, 4.0, rect=(35, 10, 45, 20))
+    return p
+
+
+def test_outline_uses_the_perimeter_of_the_real_edge():
+    """On a board with an outline the Analytic runs on the rectangle of the same area, but the edge that loses heat is the real one:
+    280 mm for the T against 198 mm for the rectangle. The heat through the edge then agrees with the FVM on the real shape (it was 28 % short)."""
+    eq, _ = _t_board(10.0).equivalent_rectangle()
+    assert eq.board.edge_perimeter == pytest.approx(0.280, rel=1e-12)
+    sim = simulate(_t_board(10.0), SolverOptions(cell_mm=1.0, models=("fvm", "analytic")))
+    side_a = sim.results["analytic"].power_out["sides"]
+    side_f = sim.results["fvm"].power_out["sides"]
+    assert side_a == pytest.approx(side_f, rel=0.05)
+    # the perimeter is not a saved field: a board without outline uses its box
+    q = Problem.new(width_mm=40, height_mm=30, layers=2, thickness_mm=1.6, copper_um=35.0, h_side=10.0)
+    assert getattr(q.equivalent_rectangle()[0].board, "edge_perimeter", None) is None

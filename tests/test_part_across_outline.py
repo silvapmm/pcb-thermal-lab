@@ -140,10 +140,11 @@ def test_turned_small_part_keeps_its_area_in_the_3d_solid():
 
 def test_lumped_and_analytic_on_the_equivalent_rectangle_are_unchanged():
     # They run on the rectangle of the same area and do not use the part weights: values of develop before the change (small T, 1 mm).
-    # The Analytic value was 237.28294907393308 until the edge loss was moved to the faces (fix/analytic-edge-transfer); with an insulated edge it is still that.
+    # The Analytic value was 237.28294907393308 until the edge loss of the real outline (perimeter kept by equivalent_rectangle) was moved to the faces
+    # (fix/analytic-edge-transfer); with an insulated edge it is still that.
     o = api.SolverOptions(cell_mm=1.0)
     assert api._run_model(small_t(), "lumped", o).t_max == pytest.approx(217.73005348656147, abs=1e-9)
-    assert api._run_model(small_t(), "analytic", o).t_max == pytest.approx(218.98582470588696, abs=1e-9)
+    assert api._run_model(small_t(), "analytic", o).t_max == pytest.approx(215.23288255291624, abs=1e-9)
     insulated = small_t()
     insulated.board.h_side = None
     assert api._run_model(insulated, "analytic", o).t_max == pytest.approx(237.28294907393308, abs=1e-9)

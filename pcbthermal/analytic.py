@@ -8,7 +8,8 @@
 in-plane share), coupled to its neighbours through the dielectric conductance per unit area
 g = (k_fr4_through / d) + smeared vias, and to ambient through h_top (layer 1) and h_bottom
 (last layer), plus the edge loss moved to the faces (h_side x perimeter x layer thickness / plan area added to h_l: Muzychka,
-Yovanovich and Culham 2003, AIAA 2003-4188, eq. 29). With insulated edges the steady rise theta_l(x, y) of layer l obeys
+Culham and Yovanovich 2003, AIAA 2003-4188, eq. 29; on a board with an outline the perimeter of the real outline). With
+insulated edges (the edge loss being part of h_l) the steady rise theta_l(x, y) of layer l obeys
 
     S_l * laplacian(theta_l) - h_l * theta_l - g * (2*theta_l - theta_{l-1} - theta_{l+1}) = -q_l
 
@@ -136,10 +137,13 @@ def _effective_sheet(problem, cell_mm):
 
     # --- Copper fill field of every layer and its heater-influence weighted average
     fill_map = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)
-    # Edge loss transferred to the faces (Muzychka, Yovanovich and Culham 2003, AIAA 2003-4188, eq. 29: h_eff A_b = h A_b + h_e A_e): the
+    # Edge loss transferred to the faces (Muzychka, Culham and Yovanovich 2003, AIAA 2003-4188, eq. 29: h_eff A_b = h A_b + h_e A_e): the
     # cosine series has insulated edges, so the heat that the real edge convects is spread over the area of each layer as an extra
-    # surface coefficient h_side * perimeter * slab_l / (W H) (W/m2K), the edge area of each layer node over its plan area. Zero without h_side.
-    h_edge = (b.h_side or 0.0) * 2.0 * (W + H) * slab / (W * H)
+    # surface coefficient h_side * perimeter * slab_l / (W H) (W/m2K), the edge area of each layer node over its plan area (the same split by
+    # layer as the edge conductance of the FVM). Zero without h_side. On a board with an outline the model runs on the rectangle of the same
+    # area, so the perimeter is that of the real outline (Problem.equivalent_rectangle keeps it), not the shorter one of the rectangle.
+    perimeter = getattr(b, "edge_perimeter", None) or 2.0 * (W + H)
+    h_edge = (b.h_side or 0.0) * perimeter * slab / (W * H)
     h_tot = float(b.h_top + b.h_bottom + h_edge.sum())
     d_diel = b.gap_thicknesses()                                          # (L-1,) one per gap
     g_diel = b.gap_properties()[0] / d_diel if L > 1 else np.zeros(0)     # Vertical conductance per area of each gap (W/m2K)
@@ -427,14 +431,25 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     if b.h_side:
         # The edge loss moved to the faces is reported apart, under the same key as the FVM, so the heat balance closes
         p_out["sides"] = float(sum(sh["h_edge"][k] * W * H * a_mn[0, 0, k] for k in range(L)))
-    # Ratio of the edge loss to the face loss. The transfer treats the edge as if it were at the plate mean temperature; the real edge is cooler,
-    # so the model reads cool by roughly 3 to 6 % of the rise at a ratio of 0.3 and up to 16 % at 1.5 (research/theory-sources, measured against
-    # the FVM and an independent 3D solver).
-    edge_ratio = float(sh["h_edge"].sum()) / max(float(b.h_top + b.h_bottom), 1e-30)
-    if edge_ratio > 0.3:
-        warnings.append(f"edge convection is about {edge_ratio * 100:.0f} % of the face convection: the analytic model moves it to the faces "
-                        "(a uniform extra coefficient), but the real edge is cooler than the board mean, so the rise reads low "
-                        "(about 3 to 6 % at this ratio, more above). Use the FVM result for a thick board or a large edge coefficient.")
+    # The transfer removes the edge heat as if the edge were at the mean temperature of its layer (the condition of eq. 29). The share of the power
+    # that it puts in the wrong place is h_edge_l W H (mean rise of the edge cells - mean rise of the layer), summed over the layers, over the power:
+    # negative when the parts are far from the edge (the edge is cooler, too much heat is taken: the rise reads low), positive when a part is near
+    # the edge (too little: the rise reads high). Against the FVM on 90 uniform boards (30 x 20 to 100 x 80 mm, 2 to 6 layers, 0.8 to 3.2 mm,
+    # h_side 10 to 200 W/m2K, a part at the centre or in a corner; research/models-comparison/scripts/study_analytic_edge_transfer.py) the error of
+    # the hottest temperature has the sign of this share whenever it is above 0.5 %, and is at most 3.5 % of the rise while the share is below 1 %,
+    # the threshold (at 0.5 % five of the thirteen frozen boards with an edge coefficient warned with errors of 0.3 to 1.5 %).
+    misplaced = 0.0
+    if b.h_side and power > 0:
+        rim = [np.concatenate([x[0], x[-1], x[1:-1, 0], x[1:-1, -1]]).mean() - x.mean() for x in theta]
+        misplaced = float(sum(sh["h_edge"][k] * W * H * rim[k] for k in range(L))) / power
+    if abs(misplaced) > 0.01:
+        side = "warmer" if misplaced > 0 else "cooler"
+        sense = "high" if misplaced > 0 else "low"
+        warnings.append(f"edge convection: the analytic model moves the edge loss to the faces as if the edge were at the mean board temperature, but here "
+                        f"the edge is {side} than the mean, so about {abs(misplaced) * 100:.1f} % of the power leaves at the wrong place and the hottest "
+                        f"temperature reads {sense} (against the FVM, between half and six times this share, in percent of the rise: up to 14 % low with the parts "
+                        "away from the edge and 37 % high with a part at the edge, for edge coefficients up to 200 W/m2K). Use the FVM result for this board "
+                        "(itself up to about 17 % low on a thick board with a large edge coefficient: then the 3D solid).")
     return SteadyResult(
         model="analytic", ambient=b.ambient, power_in=power, t_max=float(T.max()),
         t_min=float(T.min()), t_mean=float(T.mean()), layer_mean=[float(T[k].mean()) for k in range(L)],

@@ -918,6 +918,7 @@ class Problem:
                  Measured against the FVM on the real shape: the area-equivalent box is within 0.4 to 2.9 % of the temperature rise on an
                  ellipse or a T with parts away from the edge, against 6 to 10 % too low with the bounding box on the ellipse; a part near the edge of
                  the real board or in the arm of a T is 6 to 18 % too cool in the Lumped and 0 to 16 % in the Analytic (`docs/validation.md` section 13).
+                 The copy carries `board.edge_perimeter`, the perimeter of the real outline in m, for the edge loss of the Analytic model.
         @return Tuple (Problem without outline, s). For a board without outline: (a copy, 1.0).
         """
         q = copy.deepcopy(self).drop_off_board_vias()      # A via with no board under it conducts nothing, so it must not land on the scaled box
@@ -926,6 +927,11 @@ class Problem:
             return q, 1.0
         # The outline lies inside the box, so s <= 1 (the new box is never larger than the old one)
         s = math.sqrt(min(polygon_area(b.outline) / (b.width * b.height), 1.0))
+        # The perimeter of the real outline (m), kept on the copy (not a saved field) so that the Analytic moves the edge loss of the real edge
+        # to the faces: the rectangle of the same area has a shorter perimeter (a T of 80 x 60 mm: 280 mm against 198 mm), which made it lose
+        # about 30 % less heat through the edge than the FVM on the real shape.
+        o = np.asarray(b.outline, dtype=float)
+        b.edge_perimeter = float(np.hypot(*(np.roll(o, -1, axis=0) - o).T).sum())
         b.outline = None
         b.width, b.height = b.width * s, b.height * s
         for z in q.zones:
