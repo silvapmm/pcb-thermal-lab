@@ -615,7 +615,7 @@ def check_thick_plates(problem, rows, result=None):
 def fin_channel_fraction(ra_b):
     """!
     @brief Fraction of the isolated-plate coefficient that a vertical fin channel keeps, phi = [1 + (14.16 / Ra_b^(3/4))^2]^(-1/2).
-    @details It follows from the composite of Bar-Cohen and Rohsenow (1984), Nu_b = [(24 / Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2), divided by the
+    @details It follows from the composite of Bar-Cohen and Rohsenow (1984), read as printed in equation 21 (p 83) of Teertstra, Culham and Yovanovich, J. Electronics Manufacturing 7 (2) (1997) 79-92, Nu_b = [(24 / Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2), divided by the
              isolated-plate term 0.59 Ra_b^(1/4); 14.16 = 24 x 0.59. It is used only to word the warning, never to change a result.
     @param ra_b Channel Rayleigh number (dimensionless, positive).
     @return Number between 0 and 1.
@@ -678,7 +678,7 @@ def check_fin_channels(problem, result=None):
              conservative choice; for a block cut at the board outline it is still the side of the drawn polygon), theta the mean excess of the block over the
              ambient air from the solved result (weighted by the covered fraction of the block), the air at ambient + theta / 2 and
              beta = 1 / T_film. It warns when Ra_b < FIN_CHANNEL_RA_LIMIT (90): the channel keeps less than 90 % of the coefficient of an isolated plate
-             (Bar-Cohen and Rohsenow 1984, research/fin-channel). Of the 667 cases of the 1080-case study grid whose channel costs 10 % or more of the
+             (Bar-Cohen and Rohsenow 1984, read as printed in equation 21, p 83, of Teertstra, Culham and Yovanovich, J. Electronics Manufacturing 7 (2) (1997) 79-92; research/fin-channel). The review takes beta = 1 / T_0 (the inlet air): the Ra_b here is about 5 % lower at a 30 K excess, a 4 % shift of the threshold; the low-Ra branch of a finite array is the lower bound of the coefficient (Martin, Raithby and Yovanovich 1991, p 904), so the warning errs on the safe side (research/theory-sources 9.3). Of the 667 cases of the 1080-case study grid whose channel costs 10 % or more of the
              finned-face conductance, the threshold missed 1 (the old rule, a gap below 4 mm, missed 367). The text gives the fraction phi and the loss of
              the finned face; nothing is added to the results. Forced air (air speed above zero) gets through narrow channels and is not checked. Without
              block temperatures in the result (Lumped, Analytic) the check says nothing: api runs an auxiliary FVM, as for the thick-plate check, so the
