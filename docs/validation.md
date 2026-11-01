@@ -288,34 +288,34 @@ Air properties agree with textbook values within 1 to 3 %; the three models agre
 
 ## 9. Parts: the junction temperature
 
-`python research/component-heatsink/scripts/component_study.py`, `research/component-heatsink/scripts/block_contact_study.py` (power coefficient) and `tests/test_component.py`. Five parts of the datasheets read (`docs/models.md` section 6) on a 60 × 60 mm, 2-layer board with a copper pad under the part on both faces (vias under footprints of 3 mm and more), computed natural convection, FVM at 0.5 mm. Level 0 is the plain source (the hottest board point under the part); level 1 adds θ. The table and the next three bullets are printed by `component_study.py` on the program of 2.4.5 (re-run for the final review of 2.4.5; the laminate nodes and the mean-potential via moved them by 0.1 to 0.2 K).
+`python research/component-heatsink/scripts/component_study.py`, `research/component-heatsink/scripts/block_contact_study.py` (power coefficient) and `tests/test_component.py`. Five parts of the datasheets read (`docs/models.md` section 6) on a 60 × 60 mm, 2-layer board with a copper pad under the part on both faces (vias under footprints of 3 mm and more), computed natural convection, FVM at 0.5 mm. Level 0 is the plain source (the hottest board point under the part); level 1 adds θ. The table and the next three bullets are printed by `component_study.py` on the program of 2.4.5 (levels 0 and 1 read from `simulate`, the same route as the `ψJB` bullet). An earlier version of this section quoted levels 0 and 1 of `package_prototype.py`, which is frozen on the network before 2.4.5 (no laminate nodes): those numbers were 0.1 to 1.8 K low on the 25 mm pads and 1.0 to 14.0 K low on the 8 mm pads, and that was the 1.4 and 0.8 K gap to the `ψJB` table that the section called unexplained. The laminate nodes moved the program towards the 3D solid on these boards (board under the part, 3D solid against the FVM of 2.4.5 and before it: MOSFET 8 mm 249.7 against 241.2 and 227.2 °C, LDO 25 mm 87.1 against 86.1 and 84.7 °C).
 
 | Part | P [W] | θ [K/W] | Pad | Board under part | Tj | P·θ | Share of the rise |
 | :-- | --: | --: | --: | --: | --: | --: | --: |
-| MOSFET CSD17308Q3 | 2 | 4.5 | 8 mm | 227.2 °C | 236.2 °C | 9.0 K | 4 % |
-| MOSFET CSD17308Q3 | 2 | 4.5 | 25 mm | 98.5 °C | 107.5 °C | 9.0 K | 11 % |
-| LDO TPS7A47 | 1.5 | 1.7 | 8 mm | 176.5 °C | 179.0 °C | 2.5 K | 2 % |
-| LDO TPS7A47 | 1.5 | 1.7 | 25 mm | 84.6 °C | 87.2 °C | 2.5 K | 4 % |
-| Buck LMR36510 | 0.8 | 4.3 | 8 mm | 109.7 °C | 113.1 °C | 3.4 K | 4 % |
-| Buck LMR36510 | 0.8 | 4.3 | 25 mm | 59.2 °C | 62.6 °C | 3.4 K | 9 % |
-| Schottky SS12 (SMA) | 0.5 | 20 | 8 mm | 85.6 °C | 95.6 °C | 10.0 K | 14 % |
-| Schottky SS12 (SMA) | 0.5 | 20 | 25 mm | 50.9 °C | 60.9 °C | 10.0 K | 28 % |
-| Resistor 0603 | 0.1 | 1000 (derived) | 8 mm | 38.9 °C | 138.9 °C | 100 K | 88 % |
-| Resistor 0603 | 0.1 | 1000 (derived) | 25 mm | 31.6 °C | 131.6 °C | 100 K | 94 % |
+| MOSFET CSD17308Q3 | 2 | 4.5 | 8 mm | 241.2 °C | 250.2 °C | 9.0 K | 4 % |
+| MOSFET CSD17308Q3 | 2 | 4.5 | 25 mm | 100.3 °C | 109.3 °C | 9.0 K | 11 % |
+| LDO TPS7A47 | 1.5 | 1.7 | 8 mm | 187.2 °C | 189.7 °C | 2.5 K | 2 % |
+| LDO TPS7A47 | 1.5 | 1.7 | 25 mm | 86.1 °C | 88.6 °C | 2.5 K | 4 % |
+| Buck LMR36510 | 0.8 | 4.3 | 8 mm | 115.5 °C | 118.9 °C | 3.4 K | 4 % |
+| Buck LMR36510 | 0.8 | 4.3 | 25 mm | 60.0 °C | 63.4 °C | 3.4 K | 9 % |
+| Schottky SS12 (SMA) | 0.5 | 20 | 8 mm | 90.3 °C | 100.3 °C | 10.0 K | 13 % |
+| Schottky SS12 (SMA) | 0.5 | 20 | 25 mm | 51.4 °C | 61.4 °C | 10.0 K | 27 % |
+| Resistor 0603 | 0.1 | 1000 (derived) | 8 mm | 39.8 °C | 139.8 °C | 100 K | 87 % |
+| Resistor 0603 | 0.1 | 1000 (derived) | 25 mm | 31.7 °C | 131.7 °C | 100 K | 94 % |
 
 * **Sensitivity** (pad 25 mm): θ ±30 % moves `Tj` by ±0.8 K (LDO), ±1.0 K (buck), ±2.7 K (MOSFET), ±3.0 K (diode) and ±30 K (resistor, where the derived number is the whole answer).
-* **The number chosen matters more than its accuracy**: `θJB` instead of `θJC(bot)` gives 102.5 against 87.2 °C (LDO) and 70.1 against 62.6 °C (buck).
-* **`ψJB` route** (`Tj = T_ring + ψJB·P`, ring 0.5 to 1.5 mm outside the body, pad 25 mm): LDO 95.1 °C and buck 65.8 °C against 88.6 and 63.4 °C with `θJC(bot)`; with `θJB` as θ 103.9 and 70.8 °C (table E of the study; its `θJC(bot)` column is 1.4 and 0.8 K above the level 1 values of the table above, which the study does not explain: an open question for `research/component-heatsink`; before 2.4.5 the two agreed within 0.1 K).
+* **The number chosen matters more than its accuracy**: `θJB` instead of `θJC(bot)` gives 103.9 against 88.6 °C (LDO) and 70.8 against 63.4 °C (buck).
+* **`ψJB` route** (`Tj = T_ring + ψJB·P`, ring 0.5 to 1.5 mm outside the body, pad 25 mm): LDO 95.1 °C and buck 65.8 °C against 88.6 and 63.4 °C with `θJC(bot)`; with `θJB` as θ 103.9 and 70.8 °C (table E of the study, the same as the level 1 values above). The `ψJB` route reads the board in a ring outside the body, where there is no source, so it never carries the face value of a part on bare laminate (`theory.md` section 9); on these boards the copper pad covers the footprint and the face value is zero in both routes.
 * **Datasheet check** (CSD17308Q3, 1 W on its own board of 1 in² of 2 oz copper, computed natural convection): `RθJA` 46.7 K/W (47.5 on the program of 2.4.5, `calculator_validation.py`, `docs/calculators.md` 2.1) against the datasheet's typical 46 and maximum 58; on a minimum pad of 5 mm (assumed size) 164 against the maximum 165 K/W.
 * **Power temperature coefficient** against the closed form `ΔT = P0 R/(1 − tc P0 R)` on a linear board (the FVM, Lumped and Analytic models, `tests/test_component.py`): agreement to 0.05 K; for the MOSFET 2 W at 25 °C (107.6 °C without feedback; these numbers are of the program before 2.4.5 and were not repeated) the junction reaches 138.6, 165.8 and 210 °C for 0.33, 0.5 and 0.67 %/K, with the power rising to 2.75, 3.41 and 4.48 W; a coefficient of 3 %/K has no stable point and the program says so.
-* **Top path** (`python research/component-heatsink/scripts/top_path_study.py`, `tests/test_component.py`; θJC(top) of the part, 0.5 K·cm²/W paste, 12 K/W clip-on heatsink, pad 25 mm): the heatsink takes 41 to 51 % of the heat and lowers `Tj` of the chips by 15 to 38 K. Against the junction-node prototype of `research/component-heatsink/scripts/package_prototype.py` (uniform conductance under the footprint) the program was 0.4 to 0.8 K higher and the top share differed by one point. The `Tj program` columns of the two tables below are those of 2.4.5 (`research/reproduction-245` section 4: the laminate nodes raised them by 0.2 to 0.5 K on the 25 mm pad and 0.6 to 1.2 K on the 8 mm pad, and the program still equals the exact root); the top shares, the solve counts, the old-loop column and the node prototype are those of the program before 2.4.5 (the prototype is built without the laminate nodes and was not repeated), so the gap to the prototype is now 0.6 to 1.4 K.
+* **Top path** (`python research/component-heatsink/scripts/top_path_study.py`, `tests/test_component.py`; θJC(top) of the part, 0.5 K·cm²/W paste, 12 K/W clip-on heatsink, pad 25 mm): the heatsink takes 41 to 51 % of the heat and lowers `Tj` of the chips by 15 to 38 K. Against the junction-node prototype of `research/component-heatsink/scripts/package_prototype.py` (uniform conductance under the footprint) the program was 0.4 to 0.8 K higher and the top share differed by one point. The `Tj without top path` and `Tj program` columns of the two tables below are those of 2.4.5 (`research/reproduction-245` section 4: the laminate nodes raised them by 0.2 to 0.5 K on the 25 mm pad and 0.6 to 1.2 K on the 8 mm pad, and the program still equals the exact root); the top shares, the solve counts, the old-loop column and the node prototype are those of the program before 2.4.5 (the prototype is built without the laminate nodes and was not repeated), so the gap to the prototype is now 0.6 to 1.4 K.
 
 | Part | Tj without top path | Tj program | Top share | Tj node prototype | Top share |
 | :-- | --: | --: | --: | --: | --: |
-| MOSFET CSD17308Q3 | 107.5 | 70.3 | 48 % | 69.0 | 47 % |
-| LDO TPS7A47 | 87.2 | 57.0 | 51 % | 55.8 | 50 % |
-| Buck LMR36510 | 62.6 | 48.0 | 41 % | 47.1 | 40 % |
-| Schottky SS12 (SMA) | 60.9 | 43.9 | 49 % | 43.3 | 48 % |
+| MOSFET CSD17308Q3 | 109.3 | 70.3 | 48 % | 69.0 | 47 % |
+| LDO TPS7A47 | 88.6 | 57.0 | 51 % | 55.8 | 50 % |
+| Buck LMR36510 | 63.4 | 48.0 | 41 % | 47.1 | 40 % |
+| Schottky SS12 (SMA) | 61.4 | 43.9 | 49 % | 43.3 | 48 % |
 
   Small pads (8 mm, board 60 mm, computed `h`, FVM at 0.5 mm; `research/component-heatsink/scripts/study_top_path_convergence.py`, `tests/test_top_path.py`): the board under the part resists more than the top path (ratio `R_b/(R_top + θ)` 1.3 to 2.4), where the former fixed-point loop failed (it stopped after 80 iterations 17 to 58 K below the operating point, with a "thermal runaway" warning). The split is now the root of its scalar equation (`theory.md` section 9); the exact root is the one found by Brent's method with the program's own board solve, and the node prototype is independent:
 

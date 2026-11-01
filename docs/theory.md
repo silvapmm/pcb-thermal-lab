@@ -596,6 +596,8 @@ A **part** is a heater with a junction-to-pad resistance `Θ_part`. In the worst
     margin = Tj,max − Tj          power limit P_lim = (Tj,max − T_amb)/R = P (Tj,max − T_amb)/(Tj − T_amb)
     ψJB estimate:  Tj = T_ring + ψJB P,   T_ring = mean board temperature in the ring 0.5 to 1.5 mm outside the outline (bounding box) of the footprint
 
+`T_ring` is a board temperature away from the source: it does not include the face value of a part (section 1.4, `laminate.face_terms`), which (9.1) includes through `T_max` when the copper under the part is absent; `ψJB` is measured by JEDEC on the board beside the package, so the ring estimate is meant without it.
+
 **Power that depends on temperature**: `P(Tj) = P₀ [1 + α (Tj − 25 °C)]`. The program iterates `P_{k+1} = P₀[1 + α(Tj(P_k) − 25)]` around the board solve until the powers change by less than 10⁻⁵ (relative). For a linear board (constant `R`, ambient 25 °C) the fixed point is
 
     ΔT = P₀ R/(1 − α P₀ R)                                                                                        (9.2)
