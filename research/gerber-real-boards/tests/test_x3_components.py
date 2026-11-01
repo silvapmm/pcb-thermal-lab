@@ -171,6 +171,50 @@ def test_heat_shape_preference_and_fallbacks():
     assert xc.heat_shape(ps[1])[1] == "pins"
 
 
+def test_attributes_are_a_dictionary_read_at_the_object():
+    """!@brief Review regression: the characteristics may come before `.C` (attribute order is free, page 165 to 167), pins are attached by the reference of `.P` even after a `TD`
+    (page 158 asks only `.P` on a pin), and a writer that puts the outlines in a second pass with `.C` repeated gives one part, not a duplicate."""
+    t = HEAD.format(layer=1, side="Top")
+    # R1: characteristics first, then .C; pins after a TD with .P only
+    t += f"D10*\n%TO.CRot,90*%\n%TO.CMnt,SMD*%\n%TO.C,R1*%\nX{mm(1)}Y{mm(2)}D03*\n%TD*%\n"
+    # R2: an ordinary part
+    t += part("R2", 10, 0, 0, [(1, 9.5, 0), (2, 10.5, 0)])
+    # The pins of R1 come late, named by .P only
+    t += f"D12*\n%TO.P,R1,1,A*%\nX{mm(1)}Y{mm(1.5)}D03*\nD13*\n%TO.P,R1,2,K*%\nX{mm(1)}Y{mm(2.5)}D03*\n%TD*%\n"
+    # Second pass: the courtyard of R1 with .C repeated
+    sq = square(1, 2, 1, 2)
+    t += f"D11*\n%TO.C,R1*%\nX{mm(sq[0][0])}Y{mm(sq[0][1])}D02*\n" + "".join(f"X{mm(x)}Y{mm(y)}D01*\n" for x, y in sq[1:]) + "%TD*%\nM02*\n"
+    ps = xc.parse(t)
+    assert [p.ref for p in ps] == ["R1", "R2"] and not xc.duplicate_references(ps)
+    r1, r2 = ps
+    assert r1.rotation == 90.0 and r1.mount == "SMD" and r1.origin == pytest.approx((1, 2))
+    assert [(q.number, q.name) for q in r1.pins] == [("1", "A"), ("2", "K")] and r1.pins[0].key
+    assert [q.number for q in r2.pins] == ["1", "2"]
+    assert xc.polygon_area(r1.outlines["Courtyard"][0]) == pytest.approx(2.0)
+
+
+def test_two_outline_types_drawn_without_a_move_are_two_loops():
+    """!@brief Review regression: a change of aperture ends an outline (page 157: draws connect only when consecutive), so a body drawn right after the courtyard is not appended to it."""
+    t = HEAD.format(layer=1, side="Top") + f"D10*\n%TO.C,U1*%\nX0Y0D03*\nD11*\nX{mm(-2)}Y{mm(-2)}D02*\n"
+    t += "".join(f"X{mm(x)}Y{mm(y)}D01*\n" for x, y in [(2, -2), (2, 2), (-2, 2), (-2, -2)])
+    t += "D14*\n" + "".join(f"X{mm(x)}Y{mm(y)}D01*\n" for x, y in [(-1, -2), (-1, 2), (-2, 2), (-2, -2)]) + "M02*\n"
+    (c,) = xc.parse(t)
+    assert xc.polygon_area(c.outlines["Courtyard"][0]) == pytest.approx(16.0)
+    assert xc.polygon_area(c.outlines["Body"][0]) == pytest.approx(4.0)
+
+
+def test_bottom_rule_matches_the_drawing_of_the_specification():
+    """!@brief Page 166 drawing (SOIC-8 at 0 degrees): on the bottom the pin-1 mark is on the right, seen from the top; at 10 degrees both sides turn counter-clockwise."""
+    pin1 = [(-2.7, 1.9)]                                    # pin 1 upper left of a top part at rotation zero
+    top = xc.Component("U", side="top", origin=(0.0, 0.0), rotation=0.0)
+    bot = xc.Component("U", side="bottom", origin=(0.0, 0.0), rotation=0.0)
+    assert xc.to_board(top, pin1)[0][0] < 0 < xc.to_board(bot, pin1)[0][0]
+    for side in ("top", "bottom"):
+        c = xc.Component("U", side=side, origin=(0.0, 0.0), rotation=10.0)
+        (x, y), = xc.to_board(c, [(3.0, 0.0) if side == "top" else (-3.0, 0.0)])
+        assert y > 0 and x > 0                              # the right end of the part goes up: counter-clockwise seen from the top
+
+
 def test_no_format_statement_is_an_error():
     """!@brief A file with no FS statement is refused."""
     with pytest.raises(ValueError):

@@ -21,7 +21,7 @@ OUTLINE_TYPES = ("Body", "Lead2Lead", "Footprint", "Courtyard")
 
 @dataclass
 class Pin:
-    """!@brief A pin of a component: number, optional net name, position in mm (board frame) and whether it is the key pin (the diamond aperture of the specification)."""
+    """!@brief A pin of a component: number, optional pin function (third field of `.P`, page 164), position in mm (board frame) and whether it is the key pin (the diamond aperture of the specification)."""
     number: str
     name: str
     x: float
@@ -100,9 +100,13 @@ def _num(token, ndec, scale):
 def parse(text, name=""):
     """!
     @brief Read the components of an X3 component layer.
+    @details The object attributes are kept as the specification defines them (a dictionary that `TO` adds to and `TD` removes from; page 165 to 167): they are read when an object is
+             created, so their order in the file does not matter. The characteristics (`.Cxxx`) are taken from the `ComponentMain` flash, an outline draw belongs to the part named by its `.C`,
+             and a pin flash to the part named by the first field of its `.P` (page 164; `.C` is not required on a pin). A second `ComponentMain` flash with a reference that already has an origin is a
+             duplicate and becomes a second entry; outlines and pins of a reference that has no `ComponentMain` (yet) create the entry, so a writer that groups the objects by kind is read the same.
     @param text Content of the file.
     @param name File name for the messages (unused otherwise).
-    @return list of Component in file order (a part with the same reference twice is two entries: the check is `duplicate_references`).
+    @return list of Component in file order (a reference flashed twice as ComponentMain is two entries: the check is `duplicate_references`).
     @throws ValueError If the file has no coordinate format statement.
     """
     fm = re.search(r"%FS[LT]?[AI]X(\d)(\d)Y(\d)(\d)\*%", text)
@@ -120,14 +124,27 @@ def parse(text, name=""):
     ap_shape = {}                                           # aperture number -> the %ADD text
     cur_func = ""
     cur_ap = None
-    attr = {}                                               # active TO attributes
-    comps = {}                                              # key = id of the record, to keep file order
+    attr = {}                                               # the object attribute dictionary: name without the dot -> value text
     out = []
-    rec = None
+    latest = {}                                             # reference -> its latest Component (the one outlines and pins are added to)
     mode = "G01"
     pos = (0.0, 0.0)
-    path = None                                             # the polyline being drawn (outline type, list of points)
-    pending_pin = None
+    path = None                                             # the polyline being drawn: (reference, outline type, list of points)
+    sr_seen = False
+
+    def record(ref):
+        """!
+        @brief The entry of a reference, created when it does not exist yet.
+        @param ref Reference text.
+        @return Component.
+        """
+        if ref not in latest:
+            latest[ref] = Component(ref=ref, side=side, layer=layer_no)
+            out.append(latest[ref])
+            if sr_seen:
+                latest[ref].notes.append("step and repeat not read")
+        return latest[ref]
+
     for ext, blk in toks:
         if ext:
             for cmd in [c.strip() for c in ext.split("*") if c.strip()]:
@@ -135,38 +152,24 @@ def parse(text, name=""):
                     cur_func = cmd[len("TA.AperFunction,"):]
                 elif cmd.startswith("TD"):
                     key = cmd[2:].lstrip(".")
-                    if cmd == "TD" or key == "":
+                    if key == "":
                         cur_func = ""
                         attr = {}
-                        pending_pin = None
                     elif key == "AperFunction":
                         cur_func = ""
                     else:
                         attr.pop(key, None)
-                        if key == "P":
-                            pending_pin = None
                 elif cmd.startswith("ADD"):
                     m = re.match(r"ADD(\d+)(.*)", cmd)
                     ap_func[int(m.group(1))] = cur_func
                     ap_shape[int(m.group(1))] = m.group(2)
                 elif cmd.startswith("TO."):
                     key, _, val = cmd[3:].partition(",")
-                    if key == "C":
-                        # A new reference starts a new part; the .Cxxx attributes that follow belong to it
-                        rec = Component(ref=val.strip(), side=side, layer=layer_no)
-                        out.append(rec)
-                        attr = {"C": val.strip()}
-                    elif key == "P":
-                        f = [v.strip() for v in val.split(",")]
-                        # .P,<refdes>,<pin number>[,<pin name>]: the reference is the first field (page 164)
-                        pending_pin = (f[1] if len(f) > 1 else "", f[2] if len(f) > 2 else "")
-                    elif key.startswith("C") and rec is not None:
-                        _set_char(rec, key, val, scale)
-                    elif key == "N":
-                        attr["N"] = val
+                    attr[key] = val.strip()
                 elif cmd.startswith("SR") and cmd != "SR":
-                    if rec is not None:
-                        rec.notes.append("step and repeat not read")
+                    sr_seen = True
+                    for r in out:
+                        r.notes.append("step and repeat not read")
             continue
         blk = blk.strip()
         if not blk or blk.startswith("G04"):
@@ -175,12 +178,13 @@ def parse(text, name=""):
             mode = "G0" + blk[-1]
             continue
         if blk == "G75" or blk == "G74" or blk.startswith("M0") or blk in ("G36", "G37"):
-            if blk == "G74" and rec is not None:
-                rec.notes.append("single-quadrant arcs (G74) not read")
+            if blk == "G74" and "C" in attr:
+                record(attr["C"]).notes.append("single-quadrant arcs (G74) not read")
             continue
         md = re.fullmatch(r"D(\d+)", blk)
         if md and int(md.group(1)) >= 10:
             cur_ap = int(md.group(1))
+            path = None                                     # draws with another aperture are another outline (page 157: consecutive draws only)
             continue
         mc = re.fullmatch(r"(?:G0?([123]))?(?:X(-?\d+))?(?:Y(-?\d+))?(?:I(-?\d+))?(?:J(-?\d+))?(?:D0?([123]))?", blk)
         if not mc or not any(mc.groups()):
@@ -192,24 +196,36 @@ def parse(text, name=""):
         func = ap_func.get(cur_ap, "")
         if d == "3":
             pos = newpos
-            if rec is None:
-                continue
-            if func.startswith("ComponentMain") and rec.origin is None:
+            path = None
+            if func.startswith("ComponentMain") and "C" in attr:
+                rec = record(attr["C"])
+                if rec.origin is not None:
+                    # A second ComponentMain with the same reference: a duplicate, kept as its own entry (page 167: the reference should be unique)
+                    rec = Component(ref=attr["C"], side=side, layer=layer_no)
+                    out.append(rec)
+                    latest[attr["C"]] = rec
                 rec.origin = pos
-            elif func.startswith("ComponentPin") and pending_pin is not None:
+                for k, v in attr.items():
+                    if k.startswith("C") and k != "C":
+                        _set_char(rec, k, v, scale)
+            elif func.startswith("ComponentPin") and "P" in attr:
+                # .P,<refdes>,<number>[,<function>]: the part is named by the first field (page 164)
+                f = [v.strip() for v in attr["P"].split(",")]
+                rec = record(f[0])
                 shape = ap_shape.get(cur_ap, "")
-                rec.pins.append(Pin(pending_pin[0], pending_pin[1], pos[0], pos[1], key=shape.startswith("P,")))
+                rec.pins.append(Pin(f[1] if len(f) > 1 else "", f[2] if len(f) > 2 else "", pos[0], pos[1], key=shape.startswith("P,")))
             continue
         if d == "2":
             pos = newpos
             path = None
             continue
-        # D01 (or a repeated D01 with only coordinates): a segment of the current outline
-        if func.startswith("ComponentOutline,") and rec is not None:
+        # D01 (or a repeated D01 with only coordinates): a segment of the outline of the part named by .C
+        if func.startswith("ComponentOutline,") and "C" in attr:
             kind = func.split(",", 1)[1].strip()
-            if path is None:
-                path = (kind, [pos])
-                rec.outlines.setdefault(kind, []).append(path[1])
+            if path is None or path[0] != attr["C"]:
+                pts = [pos]
+                path = (attr["C"], pts)
+                record(attr["C"]).outlines.setdefault(kind, []).append(pts)
             if mode == "G01":
                 path[1].append(newpos)
             else:
@@ -251,6 +267,7 @@ def _set_char(rec, key, val, scale):
         rec.mpn = v
     elif key == "CLbN":
         rec.library = v
+    # .CPgD, .CLbD and .CSup are read but not kept (no use in the thermal model)
 
 
 def duplicate_references(parts):
@@ -267,7 +284,7 @@ def duplicate_references(parts):
 
 def to_board(part, local):
     """!
-    @brief Local footprint coordinates to board coordinates: rotation zero as in IPC-7351B, positive rotation counter-clockwise seen from the top (page 166), and a bottom part is the top footprint turned over, which on the files means the local x changes sign before the rotation (the reading "flipped along the X axis" as y -> -y fails on every footprint tested, study_x3_components.py).
+    @brief Local footprint coordinates to board coordinates: rotation zero as in IPC-7351B, positive rotation counter-clockwise seen from the top (page 166), and a bottom part is the top footprint turned over, the local x changes sign before the rotation: the drawing on page 166 (0 degrees bottom: the pin-1 mark moves from the left to the right) and the sample files (7 of 7 footprint pairs; y -> -y fails on all of them, study_x3_components.py).
     @param part Component (origin, rotation, side).
     @param local List of (x, y) of the footprint at rotation zero as drawn for a top part.
     @return list of (x, y) in mm.
@@ -278,7 +295,7 @@ def to_board(part, local):
     out = []
     for x, y in local:
         if part.side == "bottom":
-            x = -x                                          # the board is turned over: the local x changes sign (checked on 8 footprints of three boards, 8 of 8)
+            x = -x                                          # the board is turned over: the local x changes sign (the drawing of page 166, and 7 of 7 top/bottom footprint pairs of three boards)
         out.append((ox + c * x - s * y, oy + s * x + c * y))
     return out
 

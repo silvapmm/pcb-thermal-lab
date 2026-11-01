@@ -7,7 +7,7 @@
          with the fitted line (study_time_memory), fig_06 the step response of the heater by cell size (study_transient_fine), fig_07 the fine-copper indicator against the error of the cell model with
          the threshold (study_fine_copper_warning). Every number in a figure comes from the printed results; a curve that is only illustrative is not drawn here.
          fig_14 to fig_16 the 30 parts of the RP2040 board against the prototype's group rule and the envelope rule (lib/component_match.py, lib/component_views.py), fig_17 box or hull as the heat-source shape,
-         fig_18 and fig_19 screenshots of the import window prototype (lib/window_shots.py); these need data/rp2040 (git-ignored; fetch_boards.py) and are skipped with a message without it; fig_21 the X3 sample (needs data/stickhub and out/x3_components.json from study_x3_components.py); fig_18 and fig_19 also need PySide 6 (QT_QPA_PLATFORM=offscreen is set).
+         fig_18 and fig_19 screenshots of the import window prototype (lib/window_shots.py); these need data/rp2040 (git-ignored; fetch_boards.py) and are skipped with a message without it; fig_21 statistics of the X3 samples (needs out/x3_components.json from study_x3_components.py; no board geometry); fig_18 and fig_19 also need PySide 6 (QT_QPA_PLATFORM=offscreen is set).
          Run (from the repository root): .venv/bin/python research/gerber-real-boards/scripts/make_figures.py   (matplotlib and NumPy only)
 """
 
@@ -366,54 +366,16 @@ def fig_window():
 
 def fig_x3_real():
     """!
-    @brief The components of a real X3 sample (StickHub, KiCad 8.99, Ucamco): courtyards, pins, the key pins and the paste of each part; a zoom with the references; and the links of the three samples (from out/x3_components.json).
+    @brief Statistics of the three Ucamco X3 samples (from out/x3_components.json only; no geometry of a third-party board is drawn, review: the StickHub design is CC BY-NC-SA 4.0):
+           the area of the courtyard over the paste box in the frame of the part, and the parts that have a paste group with the same reference.
     @return None.
     """
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import _bootstrap  # noqa: F401, PLC0415
-    import paste                                                  # noqa: PLC0415
-    import x3_components as xc                                    # noqa: PLC0415
-    from matplotlib.patches import Polygon, Rectangle             # noqa: PLC0415
-    comp, pst = ROOT / "data" / "stickhub" / "compF.gbr", ROOT / "data" / "stickhub" / "pasteF.gbr"
     res = load("x3_components.json")
-    if not comp.exists() or res is None:
-        print("skipped: fig_21 needs data/stickhub and out/x3_components.json")
+    if res is None or "courtyard_over_paste_box_part_frame_all" not in res.get("stickhub", {}).get("top", {}):
+        print("skipped: fig_21 needs out/x3_components.json from study_x3_components.py")
         return
-    parts = xc.parse(comp.read_text(errors="replace"))
-    groups = paste.by_reference(pst)
-    fig, axs = plt.subplots(1, 3, figsize=(14, 4.8), gridspec_kw={"width_ratios": [1.0, 1.1, 0.8]})
-
-    def draw(ax, label_refs):
-        """!@brief Draw courtyards, paste boxes, pins and (optionally) the references on one axes."""
-        for p in parts:
-            cy = p.outlines.get("Courtyard")
-            if cy:
-                ax.add_patch(Polygon(max(cy, key=xc.polygon_area), closed=True, fill=False, edgecolor="#d62728", linewidth=0.9))
-            g = groups.get(p.ref)
-            if g:
-                b = g["bbox"]
-                ax.add_patch(Rectangle((b[0], b[1]), b[2] - b[0], b[3] - b[1], facecolor="#f0a030", alpha=0.55, edgecolor="none"))
-            for q in p.pins:
-                ax.plot(q.x, q.y, "D" if q.key else ".", color="#333333", markersize=4 if q.key else 2)
-            ax.plot(*p.origin, "x", color="k", markersize=3)
-            if label_refs:
-                ax.text(p.origin[0], p.origin[1], p.ref, fontsize=6, ha="center", va="center", color="#1f3f9f", clip_on=True)
-        ax.set_aspect("equal")
-
-    draw(axs[0], False)
-    xs = [p.origin[0] for p in parts]
-    ys = [p.origin[1] for p in parts]
-    axs[0].set_xlim(min(xs) - 5, max(xs) + 5)
-    axs[0].set_ylim(min(ys) - 5, max(ys) + 5)
-    axs[0].set_title("StickHub, top: 35 parts\n(red courtyard, orange paste, diamond key pin)", fontsize=8)
-    # Zoom on the densest corner of the board: the cluster of small parts (the part nearest to the 25 % quantile of x and of y)
-    cx, cy = float(np.percentile(xs, 25)), float(np.percentile(ys, 85))
-    draw(axs[1], True)
-    axs[1].set_xlim(cx - 4.5, cx + 4.5)
-    axs[1].set_ylim(cy - 5, cy + 5)
-    axs[1].set_title("zoom on the small parts (reference at the origin x)", fontsize=8)
-    # Links of the three samples
-    names, linked, th, mixed = [], [], [], []
+    fig, axs = plt.subplots(1, 2, figsize=(11, 4.4), gridspec_kw={"width_ratios": [1.1, 1.0]})
+    names, linked, th, ratios = [], [], [], []
     for b, sides in res.items():
         for sd in ("top", "bottom"):
             r = sides.get(sd)
@@ -421,14 +383,23 @@ def fig_x3_real():
                 names.append(f"{b}\n{sd}")
                 linked.append(r["x3_in_paste"])
                 th.append(r["x3_without_paste"])
+                ratios.append(r["courtyard_over_paste_box_part_frame_all"])
+    allr = [v for rr in ratios for v in rr]
+    axs[0].hist(allr, bins=np.arange(0.9, 2.5, 0.05), color="#d62728", alpha=0.75)
+    med = float(np.median(allr))
+    axs[0].axvline(med, color="k", linestyle="--", linewidth=1)
+    axs[0].text(med + 0.02, axs[0].get_ylim()[1] * 0.9, f"median {med:.2f}", fontsize=8)
+    axs[0].set_xlabel("courtyard area / paste box area (box in the frame of the part)")
+    axs[0].set_ylabel("parts")
+    axs[0].set_title(f"The courtyard is larger than the land pattern\n({len(allr)} parts with a courtyard and paste, three samples)", fontsize=8)
     xx = np.arange(len(names))
-    axs[2].bar(xx, linked, color="#4c9f50", label="part has paste with the same TO.C")
-    axs[2].bar(xx, th, bottom=linked, color="#bbbbbb", label="no paste (through-hole, other)")
-    axs[2].set_xticks(xx)
-    axs[2].set_xticklabels(names, fontsize=7)
-    axs[2].set_ylabel("components in the X3 layer")
-    axs[2].legend(fontsize=7, loc="upper right")
-    axs[2].set_title("X3 parts and their paste, three Ucamco samples\n(no paste TO.C is missing from the X3 layer)", fontsize=8)
+    axs[1].bar(xx, linked, color="#4c9f50", label="part has paste with the same TO.C")
+    axs[1].bar(xx, th, bottom=linked, color="#bbbbbb", label="no paste (through-hole, other)")
+    axs[1].set_xticks(xx)
+    axs[1].set_xticklabels(names, fontsize=7)
+    axs[1].set_ylabel("components in the X3 layer")
+    axs[1].legend(fontsize=7, loc="upper left")
+    axs[1].set_title("X3 parts and their paste, three Ucamco samples\n(no paste TO.C is missing from the X3 layer)", fontsize=8)
     fig.tight_layout()
     fig.savefig(FIG / "fig_21_x3_real_components.png", dpi=105)
     plt.close(fig)

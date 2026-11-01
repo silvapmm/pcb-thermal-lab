@@ -10,10 +10,10 @@
          B. The rotation rule of the specification (page 166: positive counter-clockwise seen from the top, a bottom part is the top part flipped along the X axis): for every footprint used by two or more parts,
             the pins of each part are brought back to the footprint frame under the rule and under the other sign / flip choices; the rule is right when the footprint frames agree (spread below 5 micrometres).
          C. Links: the references of the paste file (`TO.C`) and of the copper files (`TO.P`, first field) against the component layer; the paste box against the courtyard and the pin hull
-            (area ratios); the offset of `ComponentMain` from the centre of the paste group; the pin positions of the component layer against the copper pads with the same `TO.P` (reference and pin).
+            (area ratios; the courtyard also against the paste box in the frame of the part, which does not grow with a 45-degree rotation); the offset of `ComponentMain` from the centre of the paste group; the pin positions of the component layer against the copper pads with the same `TO.P` (reference and pin).
          D. The heat shape per part (`heat_shape`): which source it comes from on these files.
          Output: out/x3_components.json and the printed tables (the data of README 12). NOT verified: a file with Body or Lead2Lead outlines or `.CHgt` (none of the samples has them), Altium, Cadence or Eagle output.
-         Run (from the repository root): .venv-research/bin/python research/gerber-real-boards/scripts/study_x3_components.py   (about 30 s, under 400 MB)
+         Run (from the repository root): .venv-research/bin/python research/gerber-real-boards/scripts/study_x3_components.py   (about 2 s, 130 MB)
 """
 
 import _bootstrap  # noqa: F401  (puts the import paths in order)
@@ -221,7 +221,7 @@ def main():
             row["paste_not_in_x3"] = sorted(set(groups) - set(refs))
             noPaste = [p for p in parts if p.ref not in groups]
             row["without_paste_mount"] = {m: sum(1 for p in noPaste if p.mount == m) for m in sorted({p.mount for p in noPaste})}
-            ratio_c, ratio_h, off, off_pin, in_box = [], [], [], [], 0
+            ratio_c, ratio_cl, ratio_h, off, off_pin, in_box = [], [], [], [], [], 0
             for p in parts:
                 g = groups.get(p.ref)
                 if g is None or p.origin is None:
@@ -231,6 +231,11 @@ def main():
                 cy = p.outlines.get("Courtyard")
                 if cy and box_area > 0:
                     ratio_c.append(xc.polygon_area(max(cy, key=xc.polygon_area)) / box_area)
+                    # The same ratio with the paste box taken in the frame of the part (review: the board-axis box of a part turned 45 degrees is twice too large, StickHub bottom read 0.74)
+                    iy, ix = np.nonzero(g["mask"])
+                    px = g["pix"]
+                    loc = np.array(xc.to_local(p, list(zip(g["x_left"] + (ix + 0.5) * px, g["y_top"] - (iy + 0.5) * px))))
+                    ratio_cl.append(xc.polygon_area(max(cy, key=xc.polygon_area)) / ((np.ptp(loc[:, 0]) + px) * (np.ptp(loc[:, 1]) + px)))
                 h = xc.hull(p.pin_points())
                 if box_area > 0 and xc.polygon_area(h) > 1e-6:
                     ratio_h.append(xc.polygon_area(h) / box_area)
@@ -241,7 +246,8 @@ def main():
                 if bx[0] - 0.05 <= p.origin[0] <= bx[2] + 0.05 and bx[1] - 0.05 <= p.origin[1] <= bx[3] + 0.05:
                     in_box += 1
             med = lambda v: (statistics.median(v) if v else None)  # noqa: E731
-            row.update(courtyard_over_paste_box=med(ratio_c), pinhull_over_paste_box=med(ratio_h), origin_to_paste_centre_median=med(off),
+            row.update(courtyard_over_paste_box=med(ratio_c), courtyard_over_paste_box_part_frame=med(ratio_cl),
+                       courtyard_over_paste_box_part_frame_range=(min(ratio_cl), max(ratio_cl)) if ratio_cl else None, courtyard_over_paste_box_part_frame_all=ratio_cl, pinhull_over_paste_box=med(ratio_h), origin_to_paste_centre_median=med(off),
                        origin_to_paste_centre_max=max(off) if off else None, pin_centroid_to_paste_centre_median=med(off_pin), origin_inside_paste_box=in_box)
             # copper links: TO.P (reference, pin) of the copper file against the pins of the component layer
             cl = program_layer(cf) if cf.exists() else None
