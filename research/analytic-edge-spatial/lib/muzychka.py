@@ -5,8 +5,8 @@
 @brief The thermal spreading resistance of a rectangular flux channel with edge cooling, equation 21 of Muzychka, Culham and Yovanovich (AIAA 2003-4188, Part II), and the fin limit of the same problem.
 
 @details The channel is 2c x 2d x t, with a heat source of 2a x 2b at the centre of the top face (the rest of the top face adiabatic), a film h on the bottom face and
-         film coefficients h_ex, h_ey on the edges x = c and y = d (planes of symmetry x = 0, y = 0). Equation 21 (read as an image of p. 4 of the paper; the page was
-         also OCR'd by a model, which is untrusted, and every symbol was checked against the independent finite-volume solution in tests/test_analytic_edge.py):
+         film coefficients h_ex, h_ey on the edges x = c and y = d (planes of symmetry x = 0, y = 0). Equation 21 (read from the text layer of p. 4 of the paper, an OCR made by a model, not seen as an image; re-derived from eq. 13 to 20 by the review;
+         the text layer is untrusted, and every symbol was checked against the independent finite-volume solution in tests/test_analytic_edge.py):
 
              R_t = c d / (k a^2 b^2) sum_m sum_n sin^2(dx_m a/c) sin^2(dy_n b/d) phi_mn / (dx_m dy_n beta_mn [sin(2 dx_m)/2 + dx_m][sin(2 dy_n)/2 + dy_n])
 

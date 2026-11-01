@@ -5,7 +5,7 @@
 @brief Figures with data of research/analytic-edge-spatial: the eigenfunctions of the convective edge, temperature profiles through a corner part, the error of each treatment over the 135 boards, the step response.
 
 @details fig_03 the first modes (cosine against Robin) and the wavenumbers; fig_04 the profile of the top layer through the part of a 100 x 80 mm board (FVM, faces, Robin,
-         strips); fig_05 the errors of the 135 boards of study_edge_variants.py (read from out/edge_variants.txt: run the study first); fig_06 the step response of a board.
+         strips); fig_05 the errors of the 135 boards of study_edge_variants.py (read from out/edge_variants.txt: run the study first); fig_06 the step response of a board; fig_07 (review) faces and Robin on the boards outside the study (read from out/review_checks.txt).
          Run from the repository root: .venv/bin/python research/analytic-edge-spatial/scripts/make_figures.py  (about 1 minute after the study)
 """
 
@@ -131,6 +131,40 @@ def fig_06():
     plt.close(fig)
 
 
+def fig_07():
+    """!
+    @brief Review: faces against Robin on the boards outside the study (advanced stack-ups, partial copper on one side, one layer), by edge share (reads out/review_checks.txt).
+    @return None.
+    """
+    path = os.path.join(ROOT, "out", "review_checks.txt")
+    if not os.path.exists(path):
+        print("fig_07 skipped: run study_review_checks.py --part 3 first")
+        return
+    rows = [l.strip().split("|") for l in open(path) if l.strip()]
+    groups = {}
+    for r in rows:
+        key = ("advanced stack-up, full copper" if r[0].startswith("advanced") and "partial" not in r[0] and "0.2" not in r[0]
+               else "one layer" if r[0] == "1 L" else "partial copper on some layers")
+        groups.setdefault(key, []).append((float(r[5]), float(r[6]), float(r[7]), r[2]))
+    fig, axs = plt.subplots(1, 2, figsize=(12, 4.3), sharey=True)
+    for ax, col, title in ((axs[0], 1, "faces (the program now)"), (axs[1], 2, "Robin, one common edge parameter")):
+        for (name, pts), colour in zip(sorted(groups.items()), ("tab:blue", "tab:red", "tab:green")):
+            for share, *err, pos in pts:
+                ax.plot(share, err[col - 1], "o" if pos == "corner" else "s", color=colour, markersize=5, alpha=0.8)
+            ax.plot([], [], "o", color=colour, label=name)
+        ax.plot([], [], "ko", label="part in a corner")
+        ax.plot([], [], "ks", label="part at the centre")
+        ax.axhline(0, color="k", linewidth=0.6)
+        ax.set_xlabel("edge share sum(h_edge) / h_tot")
+        ax.set_title(title, fontsize=9)
+    axs[0].set_ylabel("error of the hottest rise against FVM 0.5 mm (%)")
+    axs[1].legend(fontsize=7)
+    fig.suptitle("Review: 54 boards outside the study (60 x 40 mm, h_side 10, 50, 200 W/m2K)", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(os.path.join(FIG, "fig_07_review_unequal_layers.png"), dpi=105)
+    plt.close(fig)
+
+
 def main():
     """!
     @brief Draw all the data figures.
@@ -141,6 +175,7 @@ def main():
     fig_04()
     fig_05()
     fig_06()
+    fig_07()
     return 0
 
 

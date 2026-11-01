@@ -193,3 +193,40 @@ def test_step_response_ends_at_the_steady_resistance():
         assert rth == pytest.approx(steady, rel=1e-6)
         assert z[-1] == pytest.approx(rth, rel=1e-3)
         assert 0.0 < t63 < times[-1]
+
+
+@pytest.mark.parametrize("beta", [1e-30, 1e-15, 1e-10, 1e-7, 1e-3, 1.0, 1e3, 1e8, 1e14])
+def test_basis_roots_any_beta(beta):
+    """!
+    @brief Regression (review): the roots are found for every edge parameter, they solve the eigen-equations and they are ordered, one per interval.
+    @details The prototype's brentq on d tan d failed below beta Lh of about 1e-9 times the highest root and above about 1e12 (no sign change at the ends of
+             the bracket in floating point); a guard of the program needs the same behaviour.
+    @param beta Edge parameter in 1/m.
+    @return None.
+    """
+    L = 0.06
+    b = Basis(L, beta, 600)
+    d = b.lam * L / 2
+    assert np.all(np.diff(d) > 0)
+    k = np.arange(600) // 2
+    lo = np.where(b.kind == 0, k * np.pi, k * np.pi + 0.5 * np.pi)
+    assert np.all(d >= lo - 1e-12) and np.all(d <= lo + 0.5 * np.pi + 1e-12)
+    bl = beta * L / 2
+    res = np.where(b.kind == 0, d * np.sin(d) - bl * np.cos(d), d * np.cos(d) + bl * np.sin(d))
+    assert np.abs(res).max() <= 1e-9 * max(1.0, bl) * d.max()
+
+
+def test_small_beta_is_continuous_with_the_cosine():
+    """!
+    @brief Regression (review): a vanishing edge coefficient tends to the insulated board linearly (no jump at the switch to the cosine basis).
+    @return None.
+    """
+    p0 = uniform(h_side=None, x0=0.0, y0=0.0)
+    t0 = ae.solve(p0, 1.0, n_terms=120, edge="robin")["t_max"]
+    d = []
+    for hs in (1e-3, 1e-5, 1e-7, 1e-9):
+        p = uniform(h_side=hs, x0=0.0, y0=0.0)
+        d.append(t0 - ae.solve(p, 1.0, n_terms=120, edge="robin")["t_max"])
+    assert all(x >= 0.0 for x in d)
+    assert d[0] / d[1] == pytest.approx(100.0, rel=0.02)
+    assert d[3] < 1e-8
