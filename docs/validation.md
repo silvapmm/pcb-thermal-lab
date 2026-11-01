@@ -30,26 +30,26 @@ Every model closes the energy balance below 2e-12 (heat out equals power in: FVM
 
 | Scenario | FVM [°C] | FDM | 3D solid | Lumped | Analytic | Input check |
 | :-- | --: | --: | --: | --: | --: | :-: |
-| reference board (centred 20 mm heater) | 90.13 | 90.13 (+0.0 %) | 90.27 (+0.2 %) | 89.69 (-0.7 %) | 90.35 (+0.3 %) | - |
-| example board (full) | 85.23 | 85.13 (-0.2 %) | 85.98 (+1.2 %) | 86.63 (+2.3 %) | 85.10 (-0.2 %) | - |
-| example, no heatsink | 88.30 | 88.19 (-0.2 %) | 89.08 (+1.2 %) | 89.52 (+1.9 %) | 88.19 (-0.2 %) | - |
-| example, no vias | 94.68 | 94.59 (-0.1 %) | 94.91 (+0.3 %) | 96.51 (+2.6 %) | 94.56 (-0.2 %) | - |
-| example, top copper over the full board | 84.72 | 84.67 (-0.1 %) | 85.42 (+1.2 %) | 86.10 (+2.3 %) | 85.06 (+0.6 %) | - |
-| example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (-0.0 %) | 96.88 (+0.3 %) | 98.34 (+2.3 %) | 97.15 (+0.7 %) | - |
-| example, only heater U1 | 79.39 | 79.27 (-0.2 %) | 80.12 (+1.3 %) | 79.79 (+0.7 %) | 79.14 (-0.5 %) | - |
-| example, only U1, uniform | 90.30 | 90.27 (-0.1 %) | 90.51 (+0.3 %) | 91.10 (+1.2 %) | 90.62 (+0.5 %) | - |
-| reference board, heater in the corner | 109.40 | 109.39 (-0.0 %) | 109.54 (+0.2 %) | 102.09 (-8.7 %) | 110.42 (+1.2 %) | - |
-| reference board, small 5 mm heater | 103.06 | 103.06 (+0.0 %) | 103.73 (+0.9 %) | 102.87 (-0.2 %) | 103.44 (+0.5 %) | - |
-| reference board, 8 layers | 65.70 | 65.70 (+0.0 %) | 65.72 (+0.1 %) | 66.16 (+1.1 %) | 66.11 (+1.0 %) | - |
-| heater 5 mm inside the top-copper edge | 94.48 | 94.05 (-0.6 %) | 94.78 (+0.4 %) | 91.45 (-4.4 %) | 93.83 (-0.9 %) | warns |
-| heater straddling the top-copper edge | 146.64 | 142.45 (-3.4 %) | 149.27 (+2.2 %) | 111.52 (-28.9 %) | 114.54 (-26.4 %) | warns |
-| no copper on the heater layer | 152.36 | 152.35 (-0.0 %) | 153.19 (+0.7 %) | 150.12 (-1.8 %) | 150.44 (-1.5 %) | warns |
-| 30 x 30 mm copper island around the heater | 92.44 | 91.98 (-0.7 %) | 92.78 (+0.5 %) | 91.71 (-1.1 %) | 89.49 (-4.4 %) | warns |
-| hatched copper (fill 0.5) on the top layer | 106.17 | 106.17 (+0.0 %) | 106.23 (+0.1 %) | 105.79 (-0.5 %) | 106.00 (-0.2 %) | warns |
-| heater on the bottom layer | 88.37 | 88.37 (+0.0 %) | 88.58 (+0.3 %) | 88.02 (-0.6 %) | 88.65 (+0.4 %) | - |
-| long thin heater, 40 x 4 mm | 67.84 | 67.84 (+0.0 %) | 67.92 (+0.2 %) | 71.91 (+9.5 %) | 68.12 (+0.7 %) | - |
-| heater in the corner (10 mm from two edges) | 105.34 | 104.92 (-0.5 %) | 105.54 (+0.3 %) | 98.51 (-8.5 %) | 106.06 (+0.9 %) | - |
-| two heaters 60 mm apart (4 W + 2 W) | 100.41 | 100.33 (-0.1 %) | 100.62 (+0.3 %) | 99.10 (-1.7 %) | 101.07 (+0.9 %) | - |
+| reference board (centred 20 mm heater) | 90.13 | 90.13 (+0.0 %) | 90.27 (+0.2 %) | 89.69 (-0.7 %) | 89.74 (-0.6 %) | - |
+| example board (full) | 85.23 | 85.13 (-0.2 %) | 85.98 (+1.2 %) | 86.63 (+2.3 %) | 84.41 (-1.4 %) | - |
+| example, no heatsink | 88.30 | 88.19 (-0.2 %) | 89.08 (+1.2 %) | 89.52 (+1.9 %) | 87.37 (-1.5 %) | - |
+| example, no vias | 94.68 | 94.59 (-0.1 %) | 94.91 (+0.3 %) | 96.51 (+2.6 %) | 93.85 (-1.2 %) | - |
+| example, top copper over the full board | 84.72 | 84.67 (-0.1 %) | 85.42 (+1.2 %) | 86.10 (+2.3 %) | 84.37 (-0.6 %) | - |
+| example, uniform (no heatsink, no vias, full copper) | 96.68 | 96.66 (-0.0 %) | 96.88 (+0.3 %) | 98.34 (+2.3 %) | 96.33 (-0.5 %) | - |
+| example, only heater U1 | 79.39 | 79.27 (-0.2 %) | 80.12 (+1.3 %) | 79.79 (+0.7 %) | 78.62 (-1.4 %) | - |
+| example, only U1, uniform | 90.30 | 90.27 (-0.1 %) | 90.51 (+0.3 %) | 91.10 (+1.2 %) | 90.01 (-0.5 %) | - |
+| reference board, heater in the corner | 109.40 | 109.39 (-0.0 %) | 109.54 (+0.2 %) | 102.09 (-8.7 %) | 109.48 (+0.1 %) | - |
+| reference board, small 5 mm heater | 103.06 | 103.06 (+0.0 %) | 103.73 (+0.9 %) | 102.87 (-0.2 %) | 103.06 (-0.0 %) | - |
+| reference board, 8 layers | 65.70 | 65.70 (+0.0 %) | 65.72 (+0.1 %) | 66.16 (+1.1 %) | 65.59 (-0.3 %) | - |
+| heater 5 mm inside the top-copper edge | 94.48 | 94.05 (-0.6 %) | 94.78 (+0.4 %) | 91.45 (-4.4 %) | 93.19 (-1.9 %) | warns |
+| heater straddling the top-copper edge | 146.64 | 142.45 (-3.4 %) | 149.27 (+2.2 %) | 111.52 (-28.9 %) | 113.82 (-27.0 %) | warns |
+| no copper on the heater layer | 152.36 | 152.35 (-0.0 %) | 153.19 (+0.7 %) | 150.12 (-1.8 %) | 149.78 (-2.0 %) | warns |
+| 30 x 30 mm copper island around the heater | 92.44 | 91.98 (-0.7 %) | 92.78 (+0.5 %) | 91.71 (-1.1 %) | 88.90 (-5.2 %) | warns |
+| hatched copper (fill 0.5) on the top layer | 106.17 | 106.17 (+0.0 %) | 106.23 (+0.1 %) | 105.79 (-0.5 %) | 105.39 (-1.0 %) | warns |
+| heater on the bottom layer | 88.37 | 88.37 (+0.0 %) | 88.58 (+0.3 %) | 88.02 (-0.6 %) | 88.06 (-0.5 %) | - |
+| long thin heater, 40 x 4 mm | 67.84 | 67.84 (+0.0 %) | 67.92 (+0.2 %) | 71.91 (+9.5 %) | 67.53 (-0.7 %) | - |
+| heater in the corner (10 mm from two edges) | 105.34 | 104.92 (-0.5 %) | 105.54 (+0.3 %) | 98.51 (-8.5 %) | 105.31 (-0.0 %) | - |
+| two heaters 60 mm apart (4 W + 2 W) | 100.41 | 100.33 (-0.1 %) | 100.62 (+0.3 %) | 99.10 (-1.7 %) | 100.16 (-0.3 %) | - |
 
 **The reading of the part in this table** (laminate nodes, section 21.2). The FVM column is the maximum of the board field. A part on an outer layer injects its heat at the copper node, at mid-thickness of the copper, so where its cell has no copper the face of the part is hotter than the node by the half layer of laminate, `Q t_cu/(2 k_z A)`; the program reports this face value as the temperature of the part, and the 3D solid reports the centre of its top slab. The three readings, all at 1 mm and in °C:
 
@@ -115,14 +115,14 @@ a heatsink as an extra coefficient on the bottom facets inside its polygon; **a 
 the mesh), through the whole thickness, with mesh lines refined around every rod. It does not use the "one node per copper layer" idea of the four models, so it measures the error of that idea. Element size 1 mm in the board plane
 (halving it moved the 4-layer full-copper case by 0.06 °C; 2 elements instead of 4 across the gaps by 0.02 °C).
 
-Maximum temperature of the top face [°C] and error of every model on the rise (FVM and FDM at 0.5 mm; Lumped and Analytic with their default settings). The finite-element column was not re-run (it does not depend on the program); the FVM, FDM, Lumped and Analytic columns are those of the program of 2.4.5 (laminate nodes, mean-potential via, via constriction), re-run for the final review of 2.4.5 against these finite-element values, and the 3D solid (FV) column is the earlier 0.5 mm run except the example board, whose 0.5 mm value is that of section 2.1 (the footprint rule of the vias):
+Maximum temperature of the top face [°C] and error of every model on the rise (FVM and FDM at 0.5 mm; Lumped and Analytic with their default settings). The finite-element column was not re-run (it does not depend on the program; the Analytic column was re-run after `fix/analytic-edge-transfer` on the printed 3D FEM temperatures, so its errors carry the rounding of those one-decimal references, and its edge loss now cools the boards by 0.1 to 0.7 K, section 4.1); the FVM, FDM, Lumped and Analytic columns are those of the program of 2.4.5 (laminate nodes, mean-potential via, via constriction), re-run for the final review of 2.4.5 against these finite-element values, and the 3D solid (FV) column is the earlier 0.5 mm run except the example board, whose 0.5 mm value is that of section 2.1 (the footprint rule of the vias):
 
 | Board | 3D FEM [°C] | FVM | FDM | 3D solid (FV) | Lumped | Analytic |
 | :-- | --: | --: | --: | --: | --: | --: |
-| 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 90.3 (−0.5 %) | 90.5 (−0.1 %) | 91.1 (+0.7 %) | 90.6 (−0.0 %) |
-| 2 layers, 40 mm top pad | 112.2 | 111.8 (−0.4 %) | 111.4 (−0.9 %) | 112.4 (+0.2 %) | 112.1 (−0.1 %) | 106.8 (−6.2 %) |
-| 2 layers, 20 mm top pad | 136.2 | 136.4 (+0.1 %) | 133.5 (−2.4 %) | 138.0 (+1.6 %) | 131.1 (−4.6 %) | 109.6 (−23.9 %) |
-| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.2 (−0.7 %) | 85.1 (−0.8 %) | 85.4 (−0.3 %) | 86.6 (+1.7 %) | 85.1 (−0.8 %) |
+| 4 layers, full copper | 90.6 | 90.3 (−0.4 %) | 90.3 (−0.5 %) | 90.5 (−0.1 %) | 91.1 (+0.7 %) | 90.0 (−0.9 %) |
+| 2 layers, 40 mm top pad | 112.2 | 111.8 (−0.4 %) | 111.4 (−0.9 %) | 112.4 (+0.2 %) | 112.1 (−0.1 %) | 106.1 (−7.0 %) |
+| 2 layers, 20 mm top pad | 136.2 | 136.4 (+0.1 %) | 133.5 (−2.4 %) | 138.0 (+1.6 %) | 131.1 (−4.6 %) | 108.9 (−24.6 %) |
+| example board (partial copper, 9 vias, bottom heatsink) | 85.6 | 85.2 (−0.7 %) | 85.1 (−0.8 %) | 85.4 (−0.3 %) | 86.6 (+1.7 %) | 84.4 (−2.0 %) |
 
 **Metal block** (a heatsink with a thickness; `research/solid3d-verification/scripts/fem3d_validation.py` models it as a gap-pad slab of conductivity 1 W/mK and thickness `R''` plus the block slab below the board, with its side faces losing heat too; the table is printed by `research/solid3d-verification/scripts/study_block_against_fem.py`, no script printed it before this folder. Board: 100 × 80 mm, 2 layers, 5 W, full top copper, 10 × 10 mm heater at the centre, 30 × 30 mm copper pad on the bottom, block 60 × 60 mm unless stated, aluminium 204 W/mK; FVM, FDM and the 3D solid (FV) at 1 mm; error on the rise):
 
@@ -460,26 +460,26 @@ Board of the study: the example board, 100 × 80 mm, two parts (5 W and 1.5 W) m
 
 | Outline | Parts | Area ratio | FVM Tmax | bounding box | same area (used) | 1.1 × box |
 | :-- | :-- | --: | --: | --: | --: | --: |
-| ellipse | example | 0.783 | 90.8 | -9.3 / -9.3 | -1.8 / +0.5 | -16.2 / -15.0 |
-| ellipse | centre | 0.783 | 114.3 | -7.4 / -5.8 | +0.9 / +2.9 | -9.9 / -11.5 |
-| ellipse | off-centre | 0.783 | 104.4 | -10.4 / -8.7 | -2.0 / -0.6 | -15.7 / -13.8 |
-| ellipse | near the edge | 0.783 | 119.7 | -16.4 / -14.0 | -10.1 / -5.7 | -21.2 / -19.2 |
-| L | near the edge | 0.750 | 115.6 | -12.7 / -10.1 | -6.0 / +0.3 | -17.7 / -15.6 |
-| T | example | 0.667 | 107.6 | -27.7 / -27.7 | -16.3 / -14.4 | -33.3 / -32.3 |
-| T | centre | 0.667 | 123.4 | -15.9 / -14.5 | -1.7 / -0.4 | -18.2 / -19.7 |
-| chamfer | example | 0.964 | 86.4 | -2.9 / -2.9 | -2.8 / -1.8 | -10.3 / -9.1 |
-| chamfer | centre | 0.964 | 110.1 | -2.9 / -1.2 | -3.4 / +0.4 | -5.5 / -7.2 |
-| chamfer | off-centre | 0.964 | 99.1 | -3.9 / -2.1 | -4.8 / -0.8 | -9.6 / -7.6 |
-| chamfer | near the edge | 0.964 | 112.6 | -9.6 / -7.0 | -9.7 / -5.7 | -14.8 / -12.7 |
-| rounded | example | 0.984 | 86.1 | -2.3 / -2.3 | -3.0 / -2.0 | -9.8 / -8.5 |
-| rounded | centre | 0.984 | 109.8 | -2.5 / -0.8 | -5.5 / -0.3 | -5.2 / -6.8 |
-| rounded | off-centre | 0.984 | 98.6 | -3.3 / -1.6 | -5.0 / -0.9 | -9.1 / -7.1 |
-| rounded | near the edge | 0.984 | 112.0 | -9.1 / -6.4 | -10.3 / -5.8 | -14.2 / -12.1 |
+| ellipse | example | 0.783 | 90.1 | -5.4 / -8.8 | +1.8 / -0.6 | -12.6 / -12.4 |
+| ellipse | centre | 0.783 | 114.3 | -7.3 / -6.6 | +0.9 / +1.9 | -9.9 / -12.1 |
+| ellipse | off-centre | 0.783 | 104.5 | -10.4 / -9.7 | -1.9 / -1.5 | -15.8 / -14.6 |
+| ellipse | near the edge | 0.783 | 120.0 | -16.7 / -15.1 | -10.4 / -7.0 | -21.5 / -20.2 |
+| L | near the edge | 0.750 | 116.0 | -13.0 / -11.4 | -6.3 / -1.5 | -18.0 / -16.7 |
+| T | example | 0.667 | 106.8 | -24.7 / -27.4 | -10.7 / -15.2 | -30.4 / -30.3 |
+| T | centre | 0.667 | 123.5 | -16.0 / -15.4 | -1.8 / -2.2 | -18.4 / -20.4 |
+| chamfer | example | 0.964 | 85.9 | +1.3 / -2.4 | +1.2 / -1.3 | -6.5 / -6.3 |
+| chamfer | centre | 0.964 | 110.1 | -2.8 / -2.0 | -3.4 / -0.5 | -5.5 / -7.9 |
+| chamfer | off-centre | 0.964 | 99.1 | -3.9 / -3.2 | -4.8 / -1.8 | -9.7 / -8.4 |
+| chamfer | near the edge | 0.964 | 112.9 | -10.0 / -8.3 | -10.0 / -7.0 | -15.1 / -13.7 |
+| rounded | example | 0.984 | 85.5 | +1.9 / -1.8 | +1.0 / -1.2 | -5.9 / -5.7 |
+| rounded | centre | 0.984 | 109.8 | -2.5 / -1.7 | -5.4 / -1.1 | -5.2 / -7.5 |
+| rounded | off-centre | 0.984 | 98.7 | -3.4 / -2.6 | -5.0 / -1.9 | -9.1 / -7.9 |
+| rounded | near the edge | 0.984 | 112.4 | -9.4 / -7.7 | -10.7 / -7.1 | -14.6 / -13.2 |
 
-* Enlarging the box (the idea of growing outwards) is the worst choice in 29 of the 30 model-and-layout cells (5 to 33 % too cool: more area means more convection); the exception is the Lumped model on the rounded board with the parts at the centre. Shrinking to the same area is the best on average (mean absolute error, Lumped / Analytic: bounding box 9.1 / 7.6 %, same area 5.6 / 2.8 %, 1.1 × box 14.0 / 13.2 %). Its error is mostly on the cool side, not always: up to +2.9 % (ellipse, parts at the centre).
-* For a strongly cut shape (ellipse, L, T; area ratio below 0.8) the bounding box ignores 22 to 33 % of the board and is 6 to 28 % cool; the same-area rectangle brings parts away from the edge to within 0.4 to 2.9 %.
+* Enlarging the box (the idea of growing outwards) is the worst choice in 29 of the 30 model-and-layout cells (5 to 30 % too cool: more area means more convection); the exception is the Lumped model on the rounded board with the parts at the centre. Shrinking to the same area is the best on average (mean absolute error, Lumped / Analytic: bounding box 8.6 / 8.3 %, same area 5.0 / 3.5 %, 1.1 × box 13.2 / 13.2 %). Its error is mostly on the cool side, not always: up to +1.9 % (ellipse, parts at the centre); the Analytic numbers are those after the edge loss was moved to the faces (section 4.1), which moved the T and ellipse rows by up to 4 points, and the reference column holds the FVM as it is now.
+* For a strongly cut shape (ellipse, L, T; area ratio below 0.8) the bounding box ignores 22 to 33 % of the board and is 6 to 28 % cool; the same-area rectangle brings parts away from the edge to within 0.6 to 2.2 %.
 * Edge of the outline: the FVM reference used to drop part of the edge loss in two ways, a side lying exactly on a grid line (a T of 60 mm counted 170 of 240 mm of perimeter) and the slivers of board that a slanted or curved side leaves in cells taken as off the board (2 to 6 % of the perimeter of a disc, an ellipse or a turned square, at every cell size in the program's own sweep; the outline folder's `study_edge_on_grid_lines.py` measures 0.7 to 3.3 % on four shapes, so the upper end of the range comes from a wider sweep that was not repeated there). With both corrected (`geometry.edge_length_per_cell`, `geometry.edge_length_on_board`) the L row moves (reference 115.8 to 115.6 °C, errors -6.2 / +0.1 to -6.0 / +0.3) and the ellipse rows move by at most 0.1 point; the T, chamfer and rounded rows do not change. The T centre and chamfer centre entries were also refreshed to what the study prints now (they were left over from before the Lumped ring correction, not from this change). Checks against independent references (`tests/test_outline.py`): the edge length counted by the FVM and the FDM equals the perimeter of the polygon within 0.1 % for a rectangle, an L, a T and its mirror image, squares turned by 3 to 45 degrees, a disc and an ellipse; the round board of 80 mm with an edge film of 100 W/m²K (the radial solution of `research/outline/scripts/study_disc_reference.py`, 2000 rings) had an FVM time constant of 85.23 s against 84.51 s in closed form and a board mean rise 0.64 % high, now 84.52 s and 0.02 % (the FDM, never affected, 0.03 %); a 40 mm square turned by 3 degrees (edge film 100 W/m²K, 1 mm cells) read 0.98 K hotter than the same square on the grid (rise about 62 K), now 0.09 K.
-* Where it fails: a part near the edge of the real board or in the arm of a T has less board to spread into than the scaled rectangle gives it: Lumped 6 to 16 % cool, Analytic 0 to 14 %. For nearly rectangular outlines (chamfer, rounded: area ratio above 0.95) the three boxes differ by a few percent either way and the same-area box is not better than the bounding box (Lumped 3 to 5.5 % cool away from the edge). Scaling about the area centroid of the outline instead of the box centre gave no consistent gain (tried, not kept).
+* Where it fails: a part near the edge of the real board or in the arm of a T has less board to spread into than the scaled rectangle gives it: Lumped 6 to 11 % cool, Analytic 1.5 to 15 % cool. For nearly rectangular outlines (chamfer, rounded: area ratio above 0.95) the three boxes differ by a few percent either way and the same-area box is not better than the bounding box (Lumped 3 to 5.5 % cool away from the edge). Scaling about the area centroid of the outline instead of the box centre gave no consistent gain (tried, not kept).
 * Independent check (`research/outline/scripts/study_disc_reference.py`): on a round board 80 mm across with a centred round part, a radial solution of the same layered model puts the FVM 0.52 % low on the maximum rise at 1 mm (0.16 % at 0.5 mm) and the 3D solid within 0.11 %, and the Lumped and Analytic models on the same-area square at +2.2 % and +0.5 %.
 * A part that crosses the outline heats only the board part of each cell. Before 2.4.5 a cut cell got the power density of the whole cell: the reference of the T | example row was 109.1 °C at 1 mm against 106.9 at 2/3 mm, where no cell is cut, and an edge-shift sweep on a small T was up to +16 K off (section 23).
 * Not covered: parts in the cut region (they are off the board), holes, outlines with more than one lobe, and the time simulation (not available for these two models on an outline).
