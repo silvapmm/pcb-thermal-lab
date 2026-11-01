@@ -79,7 +79,8 @@ def test_a_shift_with_no_rule_is_unexplained_and_a_known_item_without_size_is_to
     d = C.diff_sets(a, b, TABLE)
     by = {(e["board"], e["model"]): {m["name"]: m["class"] for m in e["metrics"]} for e in d["entries"]}
     assert by[("unknown_board", "lumped")]["t_max"] == "unexplained"
-    assert by[("plate_vias", "solid3d")]["t_max"] == "to_be_explained"
+    # the 3D solid with vias has a measured bound of 0.3 K (first run); 0.5 K is a rule that is covered but outside its range
+    assert by[("plate_vias", "solid3d")]["t_max"] == "expected_out_of_range"
 
 
 def test_a_change_of_warnings_alone_is_not_a_shift():
