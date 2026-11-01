@@ -14,6 +14,8 @@
 
 Everything is measured on copies in memory. What changes if it is adopted and the risks are in `INTEGRATION.md`; the text for the project documents is in `docs/`.
 
+**Program of 2.4.5 (reproduction pass).** The columns that this folder calls the program (`FVM` with the point via, `L_prog`, `A_prog`) are the program up to `f2d5c03`, frozen in `lib/`, so they reproduce by construction; the program of 2.4.5 has the mean-potential via and the constriction built in. Measured on it: the 7 x 7 array FVM at 1 mm -9.8 / -5.6 % -> -6.7 / -2.3 % (open / copper), the copper-fill gain of the example board Lumped / Analytic -4.48 / -4.27 K (frozen program -6.79 / -6.32 K). A column of the released program next to the frozen one is not in the tables. Details: `research/reproduction-245/README.md`, Part A.
+
 ## 1. Situation and method
 
 ![A via in section and the constriction](figures/fig_01_via_section_and_constriction.png)

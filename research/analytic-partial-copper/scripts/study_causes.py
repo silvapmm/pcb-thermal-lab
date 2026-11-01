@@ -47,15 +47,19 @@ def structure_fvm(bd, p):
     @param p The Problem.
     @return Rise in K.
     """
-    if bd.layers > 1:
-        return P.program_rise(bd, "fvm", 0.5, p)
-    keep = laminate.LAMINATE_NODES
+    # Since 2.4.5 the program's FVM applies the laminate rule (sub-gaps where copper is absent, the bottom node of a one-layer board) by itself; the
+    # structure of the Analytic has none of it, so the rule is switched off here. Without this line a one-layer board counted its laminate twice (series
+    # film plus the rule's node: 157.3 instead of 122.6 K on the 6 mm pad) and a two-layer board got sub-gaps (found by the review of the reproduction pass).
+    keep, keep_rule = laminate.LAMINATE_NODES, laminate.uses_rule
+    laminate.uses_rule = lambda problem: False
     try:
+        if bd.layers > 1:
+            return P.program_rise(bd, "fvm", 0.5, p)
         ps = laminate.series_bottom_problem(p)
         laminate.LAMINATE_NODES = 0
         return float(simulate(ps, SolverOptions(models=("fvm",), cell_mm=0.5)).results["fvm"].t_max - p.board.ambient)
     finally:
-        laminate.LAMINATE_NODES = keep
+        laminate.LAMINATE_NODES, laminate.uses_rule = keep, keep_rule
 
 
 def one_board(bd, ref):

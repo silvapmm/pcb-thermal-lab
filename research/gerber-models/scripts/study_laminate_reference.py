@@ -236,6 +236,10 @@ def nodes_sweep():
     @return None.
     """
     from pcbthermal import laminate
+    # Since 2.4.5 the FVM applies the laminate rule and ignores LAMINATE_NODES on a one-layer board; switched off for this sweep so that the count
+    # means what it says (found by the review of the reproduction pass; the sweep was not re-run after this change)
+    keep_rule = laminate.uses_rule
+    laminate.uses_rule = lambda problem: False
     masks, meta = windows.load()
     for bname in ("storm", "pcad"):
         i = [k for k, mm in enumerate(meta) if mm[0] == bname][0]
@@ -254,6 +258,7 @@ def nodes_sweep():
             out.append(f"{count} nodes: fine {100 * (pf / t3 - 1):+.1f} %, 0.8 mm fill vs 3D {100 * (pfill / t3 - 1):+.1f} %, vs own fine {100 * (pfill / pf - 1):+.1f} %")
         laminate.LAMINATE_NODES = 2
         print(" | ".join(out), flush=True)
+    laminate.uses_rule = keep_rule
 
 
 if __name__ == "__main__":
