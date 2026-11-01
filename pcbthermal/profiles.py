@@ -23,6 +23,11 @@ threshold in degC. Several heaters share an error budget: heaters are sorted by 
 first, while the sum of their oscillations stays within the threshold, so the neglected oscillation anywhere on the
 board is at most the threshold.
 
+For a part over absent copper (FVM and FDM, laminate.face_terms) the oscillation also carries the swing of the face, delta_P * R_face,max
+(StepResponse.face_rth, face_resistances): the resolved curves add the quasi-static face term of the power of each step, so the decision must
+see it. It is a first-order model (valid when the period is above about 10 tau_1 of the half copper layer, see _FVMAdapter._face_setup) and
+is not attenuated: the decision stays conservative. Without a face term the decision is the node's, bit for bit.
+
 The resolved heaters are then simulated together with the averaged ones in one time-stepping run (the response is
 linear). The power of a step is the exact mean of the wave over that step, so edges need not coincide with step
 boundaries and no energy is lost.
@@ -38,7 +43,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy.interpolate import PchipInterpolator
 
-from . import fdm, fvm
+from . import fdm, fvm, laminate
 from .fvm import ORDERING
 from .numfmt import num
 
@@ -111,6 +116,7 @@ class StepResponse:
     times: np.ndarray                           # Sample times in s (increasing, without t = 0)
     z: np.ndarray                               # Responses (n_heaters, n_times) in degC/W
     rth: np.ndarray                             # Steady-state resistances (n_heaters,) in degC/W
+    face_rth: Optional[np.ndarray] = None       # Largest face term of every heater per watt of its own power (n_heaters,) in K/W (parts over absent copper); None: no part has one
 
     def z_at(self, i, t):
         """!
@@ -171,6 +177,63 @@ class HeaterDecision:
         return 100.0 * self.oscillation / self.average_rise if self.average_rise > 0 else 0.0
 
 
+def _face_blocks(problem, net):
+    """!
+    @brief Face terms of the parts over absent copper (laminate.face_terms), per heater, as small matrices on its footprint.
+    @param problem A Problem.
+    @param net A built network (fvm.Network or fdm.Network) with the laminate rule applied.
+    @return List with one entry per footprint: None, or an array (footprint nodes, heaters) of the peak face term in K per W of every heater; the whole list is None-filled when the
+            network has no laminate rule or no footprint.
+    """
+    out = [None] * len(net.footprints)
+    if getattr(net, "ladder", None) is None or not len(net.footprints):
+        return out
+    area = net.area if hasattr(net, "area") else net.dx * net.dy * net.cover
+    L, plane = problem.board.layers, net.ny * net.nx
+    nh = net.Qw_matrix.shape[1]
+    blocks = [np.zeros((len(idx), nh)) for idx in net.footprints]        # (footprint nodes, heaters) K per W
+    inside = [idx < L * plane for idx in net.footprints]                 # Footprint nodes on the copper layers (the copper layers come first in the unknowns)
+    Qw = net.Qw_matrix.tocsc()
+    for k in range(nh):
+        q = Qw[:, k].toarray().ravel()[:L * plane]                       # Heat per watt of heater k on the copper layers (one column at a time)
+        terms = laminate.face_terms(problem.board, net.fill, q.reshape(L, net.ny, net.nx), area, net.dx)
+        if terms is None:
+            continue
+        peak = terms[0].ravel()
+        for i, idx in enumerate(net.footprints):
+            blocks[i][inside[i], k] = peak[idx[inside[i]]]
+    for i, block in enumerate(blocks):
+        if block.any():
+            out[i] = block
+    return out
+
+
+def face_resistances(problem, cell_mm, model="fvm"):
+    """!
+    @brief Largest face term of every heater per watt of its own power: R_face,max of the heater, the quasi-static swing of the face per watt of swing of its power.
+    @details The decision average-or-resolve adds ``delta_P * R_face,max`` to the oscillation of the node, because the curves of the resolved run carry the face term of the power
+             of every step (see _FVMAdapter._face_setup, which also states the validity of that first-order model: a period shorter than about 10 tau_1 overstates the swing).
+             The decision is deliberately not attenuated by tanh(P / (4 tau_1)): it stays on the conservative side, a resolved run being cheap (windows of one period).
+    @param problem A Problem.
+    @param cell_mm Cell size (FVM) or target spacing (FDM) in millimetres.
+    @param model "fvm" or "fdm".
+    @return Array (n_heaters,) in K/W, or None when no heater has a face term (no part over absent copper, a metal block, no heater).
+    """
+    if not problem.heaters:
+        return None
+    b = problem.board
+    if model == "fdm":
+        net = fdm.Network(problem, cell_mm)
+    else:
+        net = fvm.Network(problem, max(int(round(b.width * 1000.0 / cell_mm)), 2), max(int(round(b.height * 1000.0 / cell_mm)), 2))
+    blocks = _face_blocks(problem, net)
+    r = np.zeros(len(problem.heaters))
+    for i, blk in enumerate(blocks):
+        if blk is not None and i < blk.shape[1]:
+            r[i] = float(blk[:, i].max())                                # Own column: the swing of heater i against its own power
+    return r if r.any() else None
+
+
 def step_response_fvm(problem, cell_mm=2.0):
     """!
     @brief Unit-step responses of every heater computed with the finite-volume model.
@@ -179,7 +242,7 @@ def step_response_fvm(problem, cell_mm=2.0):
     @return StepResponse.
     """
     times, z, rth = fvm.step_responses(problem, cell_mm=cell_mm)
-    return StepResponse("fvm", times, z, rth)
+    return StepResponse("fvm", times, z, rth, face_resistances(problem, cell_mm, "fvm"))
 
 
 def step_response_fdm(problem, cell_mm=2.0):
@@ -190,7 +253,7 @@ def step_response_fdm(problem, cell_mm=2.0):
     @return StepResponse.
     """
     times, z, rth = fdm.step_responses(problem, cell_mm=cell_mm)
-    return StepResponse("fdm", times, z, rth)
+    return StepResponse("fdm", times, z, rth, face_resistances(problem, cell_mm, "fdm"))
 
 
 def _cumulative_response(resp, i, period, sigma, terms):
@@ -312,8 +375,15 @@ def decide(problem, resp, threshold_c):
             pk, vl = once_response(resp, i, w)
         kind = "wave" if w.kind == "square" else "table"
         duty = w.duty if w.kind == "square" else float("nan")
+        osc = max(pk - vl, 0.0)
+        # A part over absent copper is reported at its face: the resolved curve adds the quasi-static face term of the power, so its swing adds to the node's. Without a face term
+        # (full copper, a metal block, the models without it) face_rth is None or zero and the oscillation is the node's, bit for bit
+        face = getattr(resp, "face_rth", None)
+        if face is not None and face[i] > 0.0:
+            low = w.p_off if w.kind == "square" else float(np.min(w.powers))
+            osc += (w.peak() - low) * float(face[i])
         out.append(HeaterDecision(i, h.name or f"Heater {i + 1}", kind, "average" if w.repeat else "resolved", avg, w.peak(),
-                                  w.period, duty, rise, max(pk - vl, 0.0), pk, vl, w.repeat))
+                                  w.period, duty, rise, osc, pk, vl, w.repeat))
         if w.repeat:
             waves.append(i)                                              # A one-shot profile never takes part in the budget
     # Error budget: average the heaters with the smallest oscillations while their sum stays within the threshold
@@ -352,7 +422,7 @@ class ProfileResult:
     converged: bool = False
     seconds: float = 0.0                        # Computing time
     initial_c: float = 0.0                      # Start temperature (degC); for "average" the mean field maximum
-    steady_average_max: float = 0.0             # Steady maximum with every heater at its average power (degC)
+    steady_average_max: float = 0.0             # Steady maximum with every heater at its average power (degC), a part at its face (the steady Tmax of the board is the hottest node)
     steady_peak_max: float = 0.0                # Steady maximum with every heater at its on-state power (degC)
     peak_location: Optional[tuple] = None       # (layer, x_m, y_m) of the hottest cell of the peak map
     warnings: List[str] = field(default_factory=list)
@@ -603,10 +673,45 @@ class _FVMAdapter:
         p_init = np.array([h.initial_power() for h in problem.heaters])      # Start state: average, or first power of a one-shot
         self.th_init = self.th_avg if np.allclose(p_init, self.p_avg) else steady.solve(self.net.Qw_matrix @ p_init)
         th_peak = steady.solve(self.net.Qw_matrix @ np.array([h.peak_power() for h in problem.heaters]))
-        self.steady_average_max = float(self.th_avg.max() + self.ambient)
-        self.steady_peak_max = float(th_peak.max() + self.ambient)
         self.shape = (self.net.nl, self.net.ny, self.net.nx)
         self.nb = getattr(self.net, "n_board", self.net.nl)                 # Board layers (the blocks come after them)
+        self._face_setup(problem)
+        self._powers = self.p_avg                                          # Power of the step just advanced (observe reads it for the face terms)
+        # The steady maxima are what the curves approach: the same observation as observe(), with the powers of the steady state
+        self.steady_average_max = self._hottest(self.th_avg, self.p_avg)[0]
+        self.steady_peak_max = self._hottest(th_peak, np.array([h.peak_power() for h in problem.heaters]))[0]
+
+    def _face_setup(self, problem):
+        """!
+        @brief Prepare the face terms of the parts over absent copper (laminate.face_terms), per heater, as small matrices on its footprint.
+        @details The steady result reports the temperature of a part at its face: the node temperature plus Q t_cu / (2 k_z A) where the copper under the part is absent. The drop is
+                 over the half layer of laminate between the node and the face (thickness t_cu / 2), and the curve of a heater is the node plus the face term of the power of
+                 the step (a quasi-static offset, no lag). The first time constant of that layer is tau_1 = 4 (t_cu / 2)^2 / (pi^2 alpha): 0.69 ms for 35 um of copper on FR-4,
+                 2.8 ms for 70 um, 11 ms for 140 um. For a square wave of period P a first-order layer keeps a share tanh(P / (4 tau_1)) of the swing (35 um: 1.00 at 10 ms, 0.35 at
+                 1 ms; 140 um: 0.22 at 10 ms), so for a period shorter than about 10 tau_1 the curve overstates the swing of the face: the peak is on the hot side, the minimum on
+                 the cool side; a long phase ends at the steady value. The term is linear in the powers, so a (cells of the footprint x heaters) matrix per heater carries it, with
+                 the powers of all heaters (the footprints may overlap); it is filled one heater at a time, never as a (nodes x heaters) array, which on a board of a million
+                 unknowns with a hundred parts would be 0.8 GB. Nothing is done (and the curves are bit for bit those of the node) without the laminate rule or when no part is
+                 over absent copper.
+        @param problem A Problem.
+        """
+        self._face_loc = _face_blocks(problem, self.net)
+
+    def _hottest(self, x, powers):
+        """!
+        @brief Hottest temperature of the board and under every heater, parts at their face.
+        @param x State (rise above ambient, flat).
+        @param powers Power of every heater in W, for the face terms.
+        @return Tuple (hottest degC, array of per-heater hottest degC): the node values plus the face terms of the powers; the hottest of the board is the larger of the node maximum
+                and the hottest part face.
+        """
+        under = np.empty(len(self.net.footprints))
+        for i, idx in enumerate(self.net.footprints):
+            loc = self._face_loc[i]
+            under[i] = (x[idx].max() if loc is None else (x[idx] + loc @ powers).max())
+        under = under + self.ambient
+        hottest = float(x.max() + self.ambient)
+        return (max(hottest, float(under.max())) if len(under) else hottest), under
 
     def prepare(self, dt):
         """!
@@ -638,15 +743,16 @@ class _FVMAdapter:
         @param powers Power of every heater during the step (W).
         @return New state.
         """
+        self._powers = powers
         return self.lu.solve(self.B @ x + self.net.Qw_matrix @ powers)
 
     def observe(self, x):
         """!
-        @brief Hottest temperature of the board and under every heater.
+        @brief Hottest temperature of the board and under every heater, a part at its face (the node plus the drop over the laminate where its copper is absent, see _face_setup).
         @param x State.
         @return Tuple (hottest degC, array of per-heater hottest degC).
         """
-        return float(x.max() + self.ambient), np.array([x[idx].max() for idx in self.net.footprints]) + self.ambient
+        return self._hottest(x, self._powers)
 
     def frame(self, x):
         """!

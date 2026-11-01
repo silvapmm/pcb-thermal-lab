@@ -112,6 +112,7 @@ class AnimationTab(QWidget):
 
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        _paint_figure(self.fig, theme)                  # Before the first result the empty figure was white on the dark theme
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 6, 6, 6)
         lay.addLayout(top)
@@ -138,6 +139,8 @@ class AnimationTab(QWidget):
         @param theme "dark" or "light".
         """
         self.theme = theme
+        _paint_figure(self.fig, theme)                  # Also when nothing is drawn yet (the early return of the redraw)
+        self.canvas.draw_idle()
         self._redraw()
 
     def suggest_duration(self, seconds):

@@ -53,9 +53,10 @@ _REUSE = threading.local()
 def factor_reuse():
     """!
     @brief Within this block, a direct solve of a matrix identical to the previous one reuses its LU factorisation instead of factorising again.
-    @details Used by api._solve_with_tc around the top-path split and the power-coefficient loop, which solve the same board with other part powers: with fixed
-             face coefficients every board solve has the same matrix (6 factorisations become 1 for one part with a top path; with computed coefficients the
-             matrix changes at every Picard step and nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
+    @details Used by api._solve_with_tc around the top-path split and the power-coefficient loop, and by inverse.power_from_temperature around its runs at
+             other powers, which solve the same board with other part powers: with fixed face coefficients every board solve has the same matrix (6 factorisations
+             become 1 for one part with a top path, 4 become 1 for the Power Calculator; with computed coefficients the matrix changes at every Picard step and
+             nothing is reused). One factorisation is kept at a time (the old one is released before a new one is made), and it is
              released when the outermost block ends, so the peak memory is that of a plain solve. SuperLU's splu + solve gives the same numbers as spsolve
              with the same column ordering (tests/test_top_path.py checks it to 1e-9 K). Nested blocks share the outer one.
     @return Context manager (yields nothing).
@@ -84,6 +85,9 @@ def direct_solve(A, b):
     A.sum_duplicates()                             # Canonical form, so that equal matrices give equal bytes
     # The key is the exact content (structure and values), hashed: two matrices differ by a face coefficient in the computed-h loop
     digest = hashlib.blake2b(digest_size=20)
+    # (the dtypes go in too, so that the byte stream parses one way only; a 160-bit digest makes an accidental collision of two consecutive matrices
+    # about 2^-160, and a different key only costs a new factorisation, never a wrong reuse)
+    digest.update(f"{A.indptr.dtype.str}{A.indices.dtype.str}{A.data.dtype.str}".encode())
     for arr in (np.asarray(A.shape), A.indptr, A.indices, A.data):
         digest.update(np.ascontiguousarray(arr).tobytes())
     key = digest.hexdigest()
@@ -423,7 +427,7 @@ class Network:
         """!
         @brief Estimate of Young's optimum relaxation factor of the red-black SOR from the Rayleigh quotient of the Jacobi matrix.
         @details For the symmetric positive definite K = D - N with a two-colourable graph (the parity of l + i + j) the optimum is 2 / (1 + sqrt(1 - rho^2)), rho the
-                 spectral radius of D^-1 N (Young; Saad 2003, section 4.2.5). rho is bounded from below by the Rayleigh quotient 1 - (m^T K m) / (m^T D m) of the trial
+                 spectral radius of D^-1 N (Young; Saad 2003, section 4.2.5, Theorem 4.16 and eq. 4.47, pp 126-127; the theorem holds for consistently ordered matrices). rho is bounded from below by the Rayleigh quotient 1 - (m^T K m) / (m^T D m) of the trial
                  vector m = D^1/2 1 restricted to the nodes that have a link: one product with K, always a LOWER bound, so the omega that follows is below the optimum (safe side).
                  K is the full matrix that the SOR solves, with the via couplings and the footprints. Nodes without any link (the cells off a board with an outline, pinned to the ambient)
                  are left out of both sums: they are eigenvectors with mu = 0 and would dilute the quotient (omega near 1 on a round board). The result is capped at 1.999 as a guard.

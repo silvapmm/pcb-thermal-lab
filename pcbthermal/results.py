@@ -32,7 +32,7 @@ class SteadyResult:
     model: str                                   # "fvm", "lumped" or "analytic"
     ambient: float                               # Ambient temperature (degC)
     power_in: float                              # Total injected power (W)
-    t_max: float                                 # Maximum temperature (degC)
+    t_max: float                                 # Hottest node of the board (degC): the copper node of a part, not its face; the face value over bare laminate is in analysis.heater_stats (t_max of a part)
     t_min: float                                 # Minimum temperature (degC)
     t_mean: float                                # Area-weighted mean temperature (degC)
     layer_mean: List[float]                      # Mean temperature of every layer (degC)

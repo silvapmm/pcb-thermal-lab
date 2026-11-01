@@ -1089,6 +1089,47 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
     assert "warnings" not in box.toPlainText()
 
 
+def test_zoned_lumped_parts_in_the_application(win, qtbot, popups):
+    """The zone model of the Lumped network in the window: a 5 x 5 array under a larger part (zones, the 0.5 mm raster whatever the cell), a square-wave profile on it, a second part
+    that stays one node, a footprint covered by 400 vias (core above 92 %, the fallback, no zone warning), an array across the edge (post-run warning) and a board with an outline."""
+    def zoned(proj, cover=False):
+        pr = proj.problem
+        for layer in (1, 2):
+            pr.add_zone(layer, rect=(0, 0, 30, 30))
+        pr.add_heater(1, 2.0, rect=(9, 9, 21, 21), name="U1")
+        n, pitch = (20, 0.5) if cover else (5, 1.5)
+        for i in range(n):
+            for j in range(n):
+                pr.add_via(15 + (i - (n - 1) / 2) * pitch, 15 + (j - (n - 1) / 2) * pitch, 0.3)
+    load(win, Problem.new(30.0, 30.0, 2, 1.6, 35.0), "zoned")
+    win.doc.edit("Zoned", zoned)
+    run(win, qtbot, ("fvm", "lumped"))
+    res = win.sim.results["lumped"]
+    assert res.arrays["zoned_heaters"][0, 0] == 1.0 and res.dx == pytest.approx(0.5e-3, rel=0.03)    # Cell 2 mm asked, 0.5 mm used
+    walk_results(win, qtbot)
+    win.doc.problem.heaters[0].set_profile(SquareWave(4.0, 1.0, 0.5))
+    win.doc.edit("Second part", lambda proj: proj.problem.add_heater(1, 0.5, rect=(1, 1, 4, 4), name="U2"))
+    win.doc.changed.emit()
+    run(win, qtbot, ("lumped",))
+    assert win.sim.profile_results["lumped"] is not None and not win.sim.profile_error
+    walk_results(win, qtbot)
+    win.doc.edit("Across the edge", lambda proj: [setattr(v, "x", v.x + 5.0e-3) for v in proj.problem.vias])
+    run(win, qtbot, ("lumped",))
+    assert any("past the edge" in str(w) for w in win.sim.warnings)
+    # A board with an outline: the Lumped model solves the rectangle of the same area, where the decision of the zones is made too
+    win.doc.edit("Outline", lambda proj: setattr(proj.problem.board, "outline", np.array([(0.0, 0.0), (30e-3, 0.0), (30e-3, 30e-3), (12e-3, 30e-3), (0.0, 18e-3)])))
+    run(win, qtbot, ("lumped",))
+    assert np.isfinite(win.sim.results["lumped"].t_max)
+    walk_results(win, qtbot)
+    load(win, Problem.new(30.0, 30.0, 2, 1.6, 35.0), "covered")
+    win.doc.edit("Covered", lambda proj: zoned(proj, cover=True))
+    win.doc.edit("Smaller part", lambda proj: setattr(proj.problem.heaters[0], "polygon", np.array([(10e-3, 10e-3), (20e-3, 10e-3), (20e-3, 20e-3), (10e-3, 20e-3)])))
+    run(win, qtbot, ("lumped",), expect_ok=False)
+    assert win.sim is not None, popups
+    assert win.sim.results["lumped"].arrays["zoned_heaters"][0, 0] == 0.0
+    assert not any("core of the vias" in str(w) for w in win.sim.warnings)
+
+
 def test_preferences_every_section_in_both_themes(win, qtbot, tmp_path, monkeypatch):
     """Open Preferences from the window, visit every section by the list and by the keyboard in both themes at a small size, edit a table cell and a field, save, reset and close."""
     from PySide6.QtWidgets import QApplication
@@ -1112,3 +1153,91 @@ def test_preferences_every_section_in_both_themes(win, qtbot, tmp_path, monkeypa
         d.save()
         d.reset()
         d.close()
+
+
+def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
+    """The live checks (validity, model limits, vias) on a board of 1500 scattered vias and several parts, after every change of the models and the cell: each call stays
+    under a second, and the list under Run is checks.check_input, the head of the warnings of a run."""
+    import time
+    from pcbthermal.checks import check_input
+    rng = np.random.default_rng(7)
+
+    def build(proj):
+        pr = proj.problem
+        for layer in (1, 2):
+            pr.add_zone(layer, rect=(0, 0, 100, 80))
+        pr.add_heater(1, 2.0, rect=(20, 20, 30, 30), name="U1")
+        pr.add_heater(1, 1.0, rect=(60, 40, 63, 43), name="U2")
+        for x, y in rng.uniform(1, 79, (1500, 2)):
+            pr.add_via(float(x) + 10.0, float(y), 0.3)
+    win.doc.edit("Vias", build)
+    for models in (("fvm",), ("fvm", "lumped", "analytic"), ("fvm", "fdm", "lumped", "analytic", "solid3d")):
+        for cell in (2.0, 1.0):
+            win.doc.set_options(models=models, cell_mm=cell)
+            t0 = time.time()
+            win._update_checks()
+            assert time.time() - t0 < 1.0
+            # The same warnings in the same order as a run starts with; the list shows each one's one-line form, the full text is its tooltip
+            from pcbthermal.checks import line
+            live = list(win.solver_panel.checks.warnings)
+            ref = check_input(win.doc.problem, models, max(cell, 0.5))
+            assert [str(w) for w in live] == [str(w) for w in ref]
+            assert all(len(line(w)) <= len(str(w)) for w in live)
+    win.doc.stack.setClean()
+
+
+def test_project_format_2_in_the_application(win, qtbot, tmp_path, popups):
+    """!
+    @brief Project format 2 in the window: a refused (newer or damaged) file leaves the open document as it was and shows its reason, a format 2
+           file opens with its imports, the first save with imports over a format 1 file keeps a .bak and says so, and undo / redo keep the imports.
+    @param win Main window.
+    @param qtbot pytest-qt helper.
+    @param tmp_path pytest folder.
+    @param popups Recorder of the message boxes.
+    @return None.
+    """
+    import json
+    from pcbthermal.model import ImportFile, ImportPart, ImportRecord, ImportedCopper
+    from pcbthermal.project import FORMAT_2, Project, save_project
+    record = ImportRecord(name="brd", files=[ImportFile("top.gtl", 10, "ab" * 32, "copper")], box_mm=[0.0, 0.0, 100.0, 80.0],
+                          parts=[ImportPart("U1", "box", [[1.0, 1.0], [5.0, 1.0], [5.0, 5.0], [1.0, 5.0]], 1.5)],
+                          copper=ImportedCopper(0.05, True, [{"name": "F.Cu", "role": "top", "mask": {"kind": "binary", "data": "eJw="}}]))
+    # A format 1 file opened, then refused files: the open document and its path stay
+    f1 = tmp_path / "board.pcbt.json"
+    save_project(f1, Project(problem=example_board()))
+    win.open_file(str(f1))
+    assert win.doc.path == str(f1) and win.doc.project.imports == []
+    newer = tmp_path / "newer.pcbt.json"
+    newer.write_text(json.dumps({"format": "pcbthermal-project-3", "app_version": "3.1.0", "project": {}}))
+    damaged = tmp_path / "damaged.pcbt.json"
+    damaged.write_text(json.dumps({"format": FORMAT_2, "imports": []}))
+    not_json = tmp_path / "cut.pcbt.json"
+    not_json.write_text('{"format": "pcbthermal-project-2", "proj')
+    for bad, words in ((newer, ("format 3", "3.1.0")), (damaged, ("project",)), (not_json, ("not valid JSON",))):
+        popups.clear()
+        win.open_file(str(bad))
+        assert [(k, t) for k, t, _ in popups] == [("critical", "Cannot open file")]
+        assert all(w in popups[0][2] for w in words), popups[0][2]
+        assert win.doc.path == str(f1)
+    # The first save with imports over the format 1 file: format 2, a .bak of the old bytes, a status-bar line
+    old = f1.read_text()
+    win.doc.edit("import", lambda pr: pr.imports.append(record))
+    assert win.save_file()
+    assert json.loads(f1.read_text())["format"] == FORMAT_2
+    assert (tmp_path / "board.pcbt.json.bak").read_text() == old
+    assert ".bak" in win.statusBar().currentMessage()
+    # A format 2 file opens with its imports; undo and redo of an edit of an imported part keep them
+    win.open_file(str(f1))
+    assert win.doc.project.imports == [record]
+    win.doc.edit("power", lambda pr: setattr(pr.imports[0].parts[0], "power", 3.0))
+    win.doc.edit("ambient", lambda pr: setattr(pr.problem.board, "ambient", 30.0))
+    win.doc.stack.undo()
+    assert win.doc.project.imports[0].parts[0].power == 3.0
+    win.doc.stack.undo()
+    assert win.doc.project.imports == [record]
+    win.doc.stack.redo()
+    win.doc.stack.redo()
+    assert win.doc.project.imports[0].parts[0].power == 3.0 and win.doc.problem.board.ambient == 30.0
+    run(win, qtbot, ("fvm",))                                     # The models run on a format 2 project (the imports are not read by them yet)
+    assert win.save_file() and not (tmp_path / "board.pcbt.json.bak2").exists()   # Already format 2: no new copy
+    win.doc.stack.setClean()

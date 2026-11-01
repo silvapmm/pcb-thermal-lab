@@ -409,7 +409,7 @@ def draw_transient(fig, tr):
 @_with_engineering_ticks
 def draw_profile_series(fig, result, problem, limit_c=None):
     """!
-    @brief Temperature of the last window versus time: the hottest point of the board and under every heater.
+    @brief Temperature of the last window versus time: the hottest point of the board and under every heater, a part at its face (the node plus the drop over the laminate where its copper is absent).
     @param fig Target Figure (cleared first).
     @param result A ProfileResult with a time simulation.
     @param problem The Problem (heater names).
@@ -418,7 +418,7 @@ def draw_profile_series(fig, result, problem, limit_c=None):
     fig.clear()
     ax = fig.add_subplot(111)
     t = result.times - result.times[0]
-    ax.plot(t, result.t_max, color="#888888", lw=4.0, alpha=0.5, zorder=1, label="hottest point of the board")
+    ax.plot(t, result.t_max, color="#888888", lw=4.0, alpha=0.5, zorder=1, label="hottest of the board (nodes and part faces)")
     for j, h in enumerate(problem.heaters):
         if h.profile is not None or len(problem.heaters) > 1:
             ax.plot(t, result.t_heaters[j], lw=1.0, label=h.name or f"Heater {j + 1}")
