@@ -11,7 +11,7 @@ where needed, the Problem that produced it.
 import numpy as np
 from scipy import ndimage
 
-from .geometry import BOARD_SAMPLES, coverage_fraction, part_weights, points_in_polygon
+from .geometry import BOARD_SAMPLES, coverage_fraction, part_weights, points_in_polygon, polygon_centroid
 
 
 def _require_field(result):
@@ -116,6 +116,14 @@ def _footprint_stats(result, polygon, layer, outline=None, face=False):
         cov = part_weights(polygon, outline, nx, ny, result.dx, result.dy, samples=BOARD_SAMPLES if outline is not None else 4)
     if on_board is not None:
         cov = cov * on_board
+    if cov.sum() <= 0 and result.grid != "nodes":
+        # A part smaller than a cell can fall between the 4 x 4 samples of every cell it touches (zero cover): read the cell of its centroid when that cell is
+        # on the board, instead of a NaN statistic (the models normalise the weights of the part, so no power is lost there)
+        c = polygon_centroid(polygon)
+        ci, cj = int(c[1] // result.dy), int(c[0] // result.dx)
+        if 0 <= ci < ny and 0 <= cj < nx and (on_board is None or on_board[ci, cj] > 0):
+            cov = np.zeros((ny, nx))
+            cov[ci, cj] = 1.0
     if cov.sum() <= 0:
         return float("nan"), float("nan"), float("nan")
     li = min(layer, result.T.shape[0] - 1)

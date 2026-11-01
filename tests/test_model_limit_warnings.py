@@ -364,7 +364,7 @@ def test_genuine_overlap_with_the_edge_still_warns():
     q = Problem.new(30, 20, 2)
     q.add_zone(1, rect=(0, 0, 30, 20))
     q.add_heater(1, 1.0, rect=(31.0, 5.0, 33.0, 7.0))
-    assert _outside_percent(q, 1.0) == 100
+    assert len(_warnings_with(q, 1.0, "whole footprint is outside the board")) == 1       # Its own text: nothing of the part is on the board
 
 
 def test_live_input_check_is_what_a_run_reports():
@@ -381,7 +381,14 @@ def test_live_input_check_is_what_a_run_reports():
     assert any("sits on bare laminate" in w for w in live)
     assert any("under the footprint; the Lumped" in w for w in live)
     sim = simulate(p, SolverOptions(models=models, cell_mm=1.0))
+    # Same warnings in the same order; the live list shows the one-line form of each and the full measured text is the tooltip and the run's text
     assert [str(w) for w in sim.problem_warnings[:len(live)]] == live
+    from pcbthermal.checks import line
+    shorts = [line(w) for w in check_input(p, models, 1.0)]
+    assert all(len(sh) < 170 and len(sh) <= len(full) for sh, full in zip(shorts, live))
+    assert any(sh != full for sh, full in zip(shorts, live))                 # At least the via and bare-laminate texts have a shorter form
+    via_line = next(sh for sh in shorts if "under the footprint" in sh)
+    assert "use the FVM" in via_line and "-21 to +33 %" in via_line and "measured" not in via_line
     # The warnings depend on the selected models: with the FVM alone the Lumped via text is gone
     assert not any("via under the footprint" in str(w) or "under the footprint; the Lumped" in str(w) for w in check_input(p, ("fvm",), 1.0))
 
@@ -474,3 +481,126 @@ def test_live_input_check_is_cheap_on_a_large_board():
         t0 = time.perf_counter()
         check_input(p, models, 1.0)
         assert time.perf_counter() - t0 < limit, outline
+
+
+def _warnings_with(problem, cell_mm, text):
+    """!
+    @brief The warnings of check_problem that contain a text.
+    @param problem The Problem.
+    @param cell_mm Cell size in mm.
+    @param text Text to look for.
+    @return list The matching warnings.
+    """
+    from pcbthermal.checks import check_problem
+    return [w for w in check_problem(problem, cell_mm) if text in w]
+
+
+def test_neighbouring_parts_apart_do_not_overlap_and_real_overlaps_do():
+    """!
+    @brief Two parts 0.3 mm apart used to be reported as overlapping (4 of 10 positions for 1 to 3 mm parts at a 1 mm cell; their 4 x 4 covers met in one
+           cell); the overlap is the exact area of the intersection now, and a genuine overlap warns with its exact share of the smaller part.
+    @return None.
+    """
+    seen = 0
+    for size in (1.0, 2.0, 3.0):
+        for cell in (1.0, 1.7, 2.5):
+            for ox in np.linspace(5.0, 5.9, 10):
+                p = Problem.new(30, 20, 2)
+                p.add_zone(1, rect=(0, 0, 30, 20))
+                p.add_heater(1, 1.0, rect=(ox, 8.0, ox + size, 8.0 + size))
+                p.add_heater(1, 1.0, rect=(ox + size + 0.3, 8.0, ox + 2 * size + 0.3, 8.0 + size))
+                assert not _warnings_with(p, cell, "overlap on layer"), (size, cell, ox)
+                seen += 1
+    assert seen == 90
+    q = Problem.new(30, 20, 2)
+    q.add_zone(1, rect=(0, 0, 30, 20))
+    q.add_heater(1, 1.0, rect=(5.0, 8.0, 7.0, 10.0))
+    q.add_heater(1, 1.0, rect=(6.0, 8.0, 8.0, 10.0))                    # Half of each over the other
+    from pcbthermal.checks import check_problem, line
+    got = [w for w in check_problem(q, 1.0) if "overlap on layer" in w]
+    assert len(got) == 1 and "50 % of the smaller" in line(got[0])
+    r = Problem.new(30, 20, 2)
+    r.add_zone(1, rect=(0, 0, 30, 20))
+    r.add_heater(1, 1.0, rect=(5.0, 8.0, 7.0, 10.0))
+    r.add_heater(1, 1.0, rect=(7.0, 8.0, 9.0, 10.0))                    # Edges that touch
+    assert not _warnings_with(r, 1.0, "overlap on layer")
+    r.add_heater(1, 1.0, rect=(5.1, 8.1, 5.9, 8.9))                     # A small part wholly inside the first one: 100 % of the smaller
+    assert any("100 % of the smaller" in line(w) for w in _warnings_with(r, 1.0, "overlap on layer"))
+
+
+def test_polygon_overlap_area_against_closed_forms():
+    """!
+    @brief The Sutherland-Hodgman overlap area against closed forms: rectangles, a triangle cut by a square, a concave L against a square, and disjoint shapes.
+    @return None.
+    """
+    from pcbthermal.geometry import polygon_overlap_area
+    sq = lambda x0, y0, x1, y1: np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], dtype=float)
+    assert abs(polygon_overlap_area(sq(0, 0, 2, 2), sq(1, 1, 3, 3)) - 1.0) < 1e-12
+    assert polygon_overlap_area(sq(0, 0, 1, 1), sq(1, 0, 2, 1)) == 0.0
+    assert polygon_overlap_area(sq(0, 0, 1, 1), sq(2, 2, 3, 3)) == 0.0
+    tri = np.array([[0, 0], [2, 0], [0, 2]], dtype=float)                 # Area 2; the square [0,1]x[0,1] lies wholly under its hypotenuse
+    assert abs(polygon_overlap_area(tri, sq(0, 0, 1, 1)) - 1.0) < 1e-12
+    assert abs(polygon_overlap_area(tri, sq(0, 0, 2, 2)) - 2.0) < 1e-12
+    assert polygon_overlap_area(sq(1, 1, 2, 2), tri) < 1e-12              # Only touches the hypotenuse at (1, 1)
+    ell = np.array([[0, 0], [3, 0], [3, 1], [1, 1], [1, 3], [0, 3]], dtype=float)       # Concave L of area 5
+    assert abs(polygon_overlap_area(ell, sq(0.5, 0.5, 2.5, 2.5)) - 1.75) < 1e-9
+    other_l = np.array([[0.5, 0.5], [3.5, 0.5], [3.5, 1.5], [1.5, 1.5], [1.5, 3.5], [0.5, 3.5]], dtype=float)   # Two concave polygons: lattice
+    assert abs(polygon_overlap_area(ell, other_l) - 2.25) < 0.1             # 1.25 + 0.25 + 0.75 by hand
+
+
+def test_small_zone_and_block_inside_the_board_are_not_reported_outside():
+    """!
+    @brief A small zone (2 x 2 samples per cell) and a 3 mm block on a 2.5 mm cell used to read as partly outside the board at some positions; the shares come
+           from the geometry now, an outline is respected by the zone check, and a genuine overhang still warns.
+    @return None.
+    """
+    for cell in (1.0, 2.0, 2.5, 3.0):
+        for ox in np.linspace(5.0, 7.4, 10):
+            p = Problem.new(30, 20, 2)
+            p.add_zone(1, rect=(0, 0, 30, 20))
+            p.add_zone(1, rect=(ox, 7.7, ox + 1.0, 8.7), fill=0.5)
+            p.add_heatsink(1, 10.0, rect=(ox, 12.0, ox + 3.0, 15.0), thickness_mm=2.0)
+            assert not _warnings_with(p, cell, "of the zone is outside"), (cell, ox)
+            assert not _warnings_with(p, cell, "part of the metal block is outside"), (cell, ox)
+    half = Problem.new(30, 20, 2)
+    half.add_zone(1, rect=(0, 0, 30, 20))
+    half.add_zone(1, rect=(29.0, 5.0, 33.0, 7.0))                          # 25 % on the board
+    half.add_heatsink(1, 10.0, rect=(28.0, 10.0, 32.0, 14.0), thickness_mm=2.0)   # 50 % on the board
+    assert len(_warnings_with(half, 1.0, "of the zone is outside")) == 1
+    assert len(_warnings_with(half, 1.0, "part of the metal block is outside")) == 1
+    # The outline is respected: a zone in the cut-away corner of an L-shaped board is outside it
+    ell = Problem.new(30, 20, 2)
+    ell.board.outline = np.array([[0, 0], [30, 0], [30, 10], [15, 10], [15, 20], [0, 20]], dtype=float) * 1e-3
+    ell.add_zone(1, rect=(0, 0, 15, 20))
+    ell.add_zone(1, rect=(20.0, 14.0, 24.0, 18.0))
+    assert len(_warnings_with(ell, 1.0, "of the zone is outside")) == 1
+    inner = Problem.new(30, 20, 2)
+    inner.board.outline = ell.board.outline
+    inner.add_zone(1, rect=(1.0, 1.0, 3.0, 3.0))
+    assert not _warnings_with(inner, 1.0, "of the zone is outside")
+
+
+def test_part_fully_outside_has_a_text_that_does_not_contradict_itself():
+    """!
+    @brief At 100 % outside the warning no longer says that the power is applied to the part that is inside (nothing is).
+    @return None.
+    """
+    q = Problem.new(30, 20, 2)
+    q.add_zone(1, rect=(0, 0, 30, 20))
+    q.add_heater(1, 1.0, rect=(31.0, 5.0, 33.0, 7.0))
+    got = _warnings_with(q, 1.0, "outside the board")
+    assert len(got) == 1 and "part that is inside" not in got[0] and "heats nothing" in got[0]
+
+
+def test_statistics_of_a_very_small_part_are_not_nan():
+    """!
+    @brief A part smaller than the 4 x 4 samples of a cell (here 0.2 mm on a 2 mm cell, between the sample points) used to give NaN statistics; it reads its cell.
+    @return None.
+    """
+    p = Problem.new(30, 20, 2)
+    p.add_zone(1, rect=(0, 0, 30, 20))
+    p.add_heater(1, 0.5, rect=(10.05, 10.05, 10.25, 10.25))             # Between the sample points of its cell
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
+    from pcbthermal.analysis import heater_stats
+    row = heater_stats(sim.results["fvm"], p)[0]
+    assert all(np.isfinite(row[k]) for k in ("t_mean", "t_max")), row

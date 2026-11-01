@@ -340,6 +340,91 @@ def part_board_share(poly, width, height, outline=None):
     return float((in_part & on_board).sum() / in_part.sum())
 
 
+def _is_convex(poly):
+    """!
+    @brief Whether a polygon is convex (all turns of its boundary have the same sign; collinear vertices are allowed).
+    @param poly Polygon vertices (n, 2) in metres.
+    @return bool True for a convex polygon.
+    """
+    p = np.asarray(poly, dtype=float)
+    d1 = np.roll(p, -1, axis=0) - p
+    d2 = np.roll(d1, -1, axis=0)
+    cross = d1[:, 0] * d2[:, 1] - d1[:, 1] * d2[:, 0]
+    scale = 1e-12 * max(float(np.abs(d1).max()) ** 2, 1e-30)      # Tolerance relative to the size, so a collinear vertex is not a turn
+    return bool(np.all(cross >= -scale) or np.all(cross <= scale))
+
+
+def clip_polygon(subject, clip):
+    """!
+    @brief Clip a polygon to a convex polygon (Sutherland-Hodgman, one edge of the clip polygon at a time).
+    @details Exact for any subject polygon when the clip polygon is convex (a concave subject may leave zero-width bridges, which have no area).
+    @param subject Polygon to clip, vertices (n, 2) in metres.
+    @param clip Convex clip polygon, vertices (m, 2) in metres, either orientation.
+    @return numpy.ndarray Vertices (k, 2) of the clipped polygon in metres (k = 0 when nothing is left).
+    """
+    c = np.asarray(clip, dtype=float)
+    if polygon_area_signed(c) < 0:
+        c = c[::-1]                                            # Counter-clockwise: the inside is on the left of every edge
+    pts = [tuple(v) for v in np.asarray(subject, dtype=float)]
+    for k in range(len(c)):
+        a, b = c[k], c[(k + 1) % len(c)]
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        if not pts:
+            break
+
+        def side(q):
+            return ex * (q[1] - a[1]) - ey * (q[0] - a[0])      # Positive on the left (inside)
+
+        res = []
+        prev = pts[-1]
+        for cur in pts:
+            s_cur, s_prev = side(cur), side(prev)
+            if (s_cur >= 0) != (s_prev >= 0):
+                t = s_prev / (s_prev - s_cur)
+                res.append((prev[0] + t * (cur[0] - prev[0]), prev[1] + t * (cur[1] - prev[1])))
+            if s_cur >= 0:
+                res.append(cur)
+            prev = cur
+        pts = res
+    return np.array(pts, dtype=float).reshape(-1, 2)
+
+
+def polygon_area_signed(poly):
+    """!
+    @brief Signed area of a polygon (positive for counter-clockwise vertices).
+    @param poly Polygon vertices (n, 2) in metres.
+    @return float Signed area in m2.
+    """
+    p = np.asarray(poly, dtype=float)
+    return 0.5 * float(np.dot(p[:, 0], np.roll(p[:, 1], -1)) - np.dot(p[:, 1], np.roll(p[:, 0], -1)))
+
+
+def polygon_overlap_area(a, b):
+    """!
+    @brief Area shared by two polygons, from the geometry and not from a cell raster.
+    @details Exact (Sutherland-Hodgman) when at least one polygon is convex, which covers every rectangle and every part footprint drawn as a convex shape.
+             Two concave polygons are measured with a PART_SHARE_SAMPLES x PART_SHARE_SAMPLES lattice laid on the intersection of their bounding boxes.
+    @param a First polygon vertices (n, 2) in metres.
+    @param b Second polygon vertices (m, 2) in metres.
+    @return float Overlap area in m2 (0 when they are apart or only touch).
+    """
+    pa, pb = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    x0, x1 = max(pa[:, 0].min(), pb[:, 0].min()), min(pa[:, 0].max(), pb[:, 0].max())
+    y0, y1 = max(pa[:, 1].min(), pb[:, 1].min()), min(pa[:, 1].max(), pb[:, 1].max())
+    if x1 <= x0 or y1 <= y0:
+        return 0.0
+    if _is_convex(pb):
+        clipped = clip_polygon(pa, pb)
+    elif _is_convex(pa):
+        clipped = clip_polygon(pb, pa)
+    else:
+        n = PART_SHARE_SAMPLES
+        gx, gy = np.meshgrid(x0 + (np.arange(n) + 0.5) / n * (x1 - x0), y0 + (np.arange(n) + 0.5) / n * (y1 - y0))
+        both = points_in_polygon(gx.ravel(), gy.ravel(), pa) & points_in_polygon(gx.ravel(), gy.ravel(), pb)
+        return float(both.sum() / n / n * (x1 - x0) * (y1 - y0))
+    return abs(polygon_area_signed(clipped)) if len(clipped) >= 3 else 0.0
+
+
 def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
     """!
     @brief Copper fill of every layer: the union of its zones, taken at every sub-sample point and then averaged over the cell.
