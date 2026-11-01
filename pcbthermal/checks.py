@@ -13,6 +13,7 @@ of every warning says what is wrong and what to do.
 import math
 
 import numpy as np
+from scipy import ndimage
 
 from . import blocks, convection, copper, laminate, lumped, viaconstriction, viawell
 from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, polygon_area, polygon_centroid, polygon_self_intersects
@@ -535,21 +536,49 @@ def check_model_limits(problem, models, cell_mm=1.0):
     return out
 
 
-SMALL_PART_RATIO = 0.15       # A sub-layer of laminate thicker than this times the smaller side of a part reads it too cool (research/paper-case-studies 16.3)
+SMALL_PART_RATIO = 0.15       # Bare laminate under the part: a sub-layer thicker than this times the side of the part reads it too cool by more than about 4 % (research/paper-case-studies 16.3; review)
+SMALL_PART_RATIO_PAD = 0.10   # A copper pad of the part's size under it: the error of the layered rule is larger at the same ratio and passes about 4 % near 0.1 (review, FVM 0.25 mm in air)
 SOLID3D_SLABS = 4             # Slabs per dielectric gap of the 3D solid as the API builds it (solid3d.solve_steady, n_diel)
+
+
+def _spread_side(fill_layer, foot, side, dx, dist=None):
+    """!
+    @brief The side of the region through which the heat of a part enters the laminate: the part itself on bare laminate, or the part grown by the copper around it.
+    @details The heat of a part over a copper pad or plane first spreads in that copper, so the length that the sub-layer must resolve is the copper around the part, not the
+             part (review: a 2 mm part on a 3 mm or 4 mm pad reads the same error as a 3 mm or 4 mm part on its own pad; under a full plane the error is 0.02 %). The copper
+             cells are those of fill 0.5 or more on the layer of the part; r is the smallest distance from a cell of the footprint to a cell without copper, less 1.5 cells so
+             that a coarse raster does not grow a pad that has the size of the part (the error of the rounding falls on the side of a warning).
+    @param fill_layer Copper fill (ny, nx) of the layer of the part.
+    @param foot Boolean (ny, nx) of the cells of the footprint (mostly covered).
+    @param side Smaller side of the part in m.
+    @param dx Cell size of the raster in m.
+    @param dist Distance transform of the copper cells of the layer (computed when None; the caller keeps one per layer).
+    @return float Side in m (at least side).
+    """
+    cu = fill_layer >= 0.5
+    if not cu.any() or not (foot & cu).any():
+        return side
+    if cu.all():
+        return math.inf                                          # A plane over the whole board: nothing limits the spread
+    dist = ndimage.distance_transform_edt(cu) if dist is None else dist   # Cells from every copper cell to the nearest cell without copper
+    r = max(0.0, float(dist[foot & cu].min()) - 1.5) * dx
+    return side + 2.0 * r
 
 
 def small_part_ratios(problem, models, cell_mm=1.0):
     """!
-    @brief For every part that sits on a laminate sub-layer thick against its smaller side: the ratio of the sub-layer to the side, for the layered FVM/FDM rule and for the 3D solid.
+    @brief For every part that sits on a laminate sub-layer thick against its size: the ratio of the sub-layer to the side through which the heat enters the laminate, for the layered FVM/FDM rule and for the 3D solid.
     @details The sub-layer of the FVM and FDM is s = d / n with n = min(laminate_n_max, ceil(d / laminate_s_max_mm)) (laminate.n_for_gap, the options in force) and counts only when the rule
              cuts the gap under the part: some cell of the footprint is flagged by laminate.flag_cells (copper absent next to the gap, plus its margin; the raster is that of the check,
              so the margin can differ from the run's by a cell) and the board has no metal block (which keeps the earlier treatment). The sub-layer of the 3D solid is d / 4 (SOLID3D_SLABS) and
-             is always present. d is the gap on each side of the layer of the part; the larger ratio is kept. The smaller side is the smaller extent of the bounding box of the footprint.
+             is always present. d is the gap on each side of the layer of the part; the larger ratio is kept. The side is the smaller extent of the bounding box of the footprint, grown by
+             the copper around the part on its layer (_spread_side): a part over a plane is silent. The limit is SMALL_PART_RATIO on bare laminate (the centre of the footprint without copper,
+             as in the bare-laminate warning) and, for the layered rule over copper, SMALL_PART_RATIO_PAD; the 3D solid uses SMALL_PART_RATIO in both cases (4 against 16 slabs: +3.5 % bare,
+             +4.1 % pad at 0.15, +2.5 % pad at 0.10).
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.
-    @return List of tuples (heater index, model group "layered" or "solid3d", sub-layer in m, smaller side in m, ratio) for the ratios above SMALL_PART_RATIO.
+    @return List of tuples (heater index, model group "layered" or "solid3d", sub-layer in m, side in m, ratio, limit) for the ratios above their limit.
     """
     models = set(models)
     layered = bool(models & {"fvm", "fdm"}) and laminate.uses_rule(problem)
@@ -567,7 +596,9 @@ def small_part_ratios(problem, models, cell_mm=1.0):
     nx = max(int(round(W * 1000.0 / cell_mm)), 8)
     ny = max(int(round(H * 1000.0 / cell_mm)), 8)
     dx, dy = W / nx, H / ny
+    low = min(SMALL_PART_RATIO, SMALL_PART_RATIO_PAD)
     fill = None                                                  # Copper fill of every layer, built only when a part passes the cheap ratio test
+    flagged_of, dist_of = {}, {}                                 # Per gap and per layer: computed once for all the parts (a Gerber board has hundreds)
     found = []
     for k, h in enumerate(problem.heaters):
         poly = np.asarray(h.polygon, dtype=float)
@@ -578,29 +609,48 @@ def small_part_ratios(problem, models, cell_mm=1.0):
             continue
         # The gaps next to the layer of the part (a one-layer board: its laminate)
         near = [g for g in gaps if L == 1 or g[0] in (h.layer - 1, h.layer)]
-        for model, on in (("layered", layered), ("solid3d", solid)):
-            if not on:
-                continue
+        subs = {"layered": [(g, d, laminate.n_for_gap(d, s_max, n_max)) for g, d in near] if layered else [],
+                "solid3d": [(g, d, SOLID3D_SLABS) for g, d in near] if solid else []}
+        # Cheap test first: the side only grows with the copper and the lowest limit is `low`, so a part below it for every gap needs no raster
+        if not any(d / n > low * side * (1.0 + 1e-9) for v in subs.values() for _, d, n in v):
+            continue
+        if fill is None:
+            fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+        cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 4)
+        foot = cov > 0
+        if not foot.any():
+            continue                                             # Off the board: check_problem says so
+        c = np.asarray(polygon_centroid(h.polygon))
+        core = coverage_fraction(c + 0.5 * (poly - c), nx, ny, dx, dy, 4) > 0
+        if not core.any():
+            core = foot
+        over_copper = float(fill[h.layer][core].min()) >= 0.5   # The same test as the bare-laminate warning
+        mostly = cov >= 0.5
+        eff = side
+        if over_copper:
+            cu = fill[h.layer] >= 0.5
+            if h.layer not in dist_of and cu.any() and not cu.all():
+                dist_of[h.layer] = ndimage.distance_transform_edt(cu)
+            eff = _spread_side(fill[h.layer], mostly if mostly.any() else foot, side, dx, dist_of.get(h.layer))
+        for model in ("layered", "solid3d"):
+            limit = SMALL_PART_RATIO_PAD if (model == "layered" and over_copper) else SMALL_PART_RATIO
             best = None
-            for g, d in near:
-                n = laminate.n_for_gap(d, s_max, n_max) if model == "layered" else SOLID3D_SLABS
+            for g, d, n in subs[model]:
                 sub = d / n
-                if sub <= SMALL_PART_RATIO * side * (1.0 + 1e-9):
+                if sub <= limit * eff * (1.0 + 1e-9):
                     continue
                 if model == "layered":
                     if n < 2:
                         continue
-                    if fill is None:
-                        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
-                    fb = None if L == 1 else fill[g + 1]
-                    flagged = laminate.flag_cells(fill[g], fb, d, dx, np.ones((ny, nx), dtype=bool))
-                    foot = coverage_fraction(h.polygon, nx, ny, dx, dy, 4) > 0
-                    if not (flagged & foot).any():
+                    if g not in flagged_of:
+                        fb = None if L == 1 else fill[g + 1]
+                        flagged_of[g] = laminate.flag_cells(fill[g], fb, d, dx, np.ones((ny, nx), dtype=bool))
+                    if not (flagged_of[g] & foot).any():
                         continue                                  # The gap stays one link under this part: the rule does not apply
                 if best is None or sub > best[0]:
                     best = (sub, d)
             if best is not None:
-                found.append((k, model, best[0], side, best[0] / side))
+                found.append((k, model, best[0], eff, best[0] / eff, limit))
     return found
 
 
@@ -608,10 +658,13 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
     """!
     @brief Warnings for a small part over a thick insulating layer: the layered FVM/FDM laminate rule and the 3D solid with four slabs read it too cool or too hot (text only).
     @details Measured against an extrapolated 3D reference and, on bare laminate, the closed form of Muzychka, Yovanovich and Culham (research/paper-case-studies 11.3, 16.3, 16.4;
-             FVM at 0.25 mm). Layered rule, error against the ratio of the sub-gap s = d / n to the smaller side of the part (always too cool, only where the gap is cut under the part):
-             0.15 to 0.2: -4 to -9 % bare, -6 to -14 % with a copper pad; 0.3 to 0.4: -12 to -20 % bare, -14 to -24 % pad. With the default rule it fires for parts under about 2.5 mm on a
-             1.6 mm board and 5.2 mm on a 3.2 mm board. A smaller laminate_s_max_mm or a larger laminate_n_max reduces it ((0.2, 8): 1.4 to 4.6 times the time and 1.2 to 3 times the memory).
-             The 3D solid cuts every gap into four slabs and reads a 2 mm part up to +20 % (bare) and +27 % (pad) hot on 3.2 mm (+5.5 and +14.7 % on 1.6 mm); the test is d / 4 against the same
+             FVM at 0.25 mm). Layered rule, error against the ratio of the sub-gap s = d / n to the side of the part (always too cool, only where the gap is cut under the part):
+             0.15 to 0.2: -4 to -9 % bare, -6 to -14 % with a copper pad; 0.3 to 0.4: -12 to -20 % bare, -14 to -24 % pad; the review measured the part's rise in air
+             (20 mm two-layer board, h 10 / 15 W/m2K, against the FVM extrapolated in its sub-gaps): bare -3.4 % at 0.14, -4.1 to -4.3 % at 0.16, pad -4.3 to -4.8 % at 0.08 to 0.09,
+             -5.4 % at 0.10 and -6.3 to -7.4 % at 0.12 to 0.14, so the limit over copper is 0.10. A pad larger than the part counts by its own size; a plane under the part is silent.
+             With the default rule it fires on bare laminate for parts under about 2.5 mm on a 1.6 mm board and 5.2 mm on a 3.2 mm board, over a pad of the part's size under 3.8 and 7.8 mm.
+             A smaller laminate_s_max_mm or a larger laminate_n_max reduces it ((0.2, 8): 1.4 to 4.6 times the time and 1.2 to 3 times the memory).
+             The 3D solid cuts every gap into four slabs and reads a 2 mm part up to +20 % (bare) and +27 % (pad) hot on 3.2 mm (+5.5 and +14.7 % on 1.6 mm); the test is d / 4 against
              0.15 of the side. No result depends on it.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
@@ -619,21 +672,23 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
     @return List of warnings (CheckWarning, tagged with the heater), at most one per part and model group.
     """
     out = []
-    for k, model, sub, side, ratio in small_part_ratios(problem, models, cell_mm):
+    for k, model, sub, side, ratio, limit in small_part_ratios(problem, models, cell_mm):
         h = problem.heaters[k]
         name = h.name or f"Heater {k + 1}"
+        size = f"{num(side * 1e3, 2)} mm" if math.isfinite(side) else "large"
         if model == "layered":
             s_max, n_max = laminate.parameters()
-            _add(out, "heater", k, f"{name}: the part is small ({num(side * 1e3, 2)} mm) against the sub-layer of laminate under it ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
-                       f"above {SMALL_PART_RATIO}); the layered FVM and FDM read it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
-                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4. A smaller laminate_s_max_mm (now "
-                       f"{num(s_max * 1e3, 2)} mm) or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8); "
-                       "the 3D solid reads it better with 16 slabs per gap, not with its default.",
-                 f"{name}: small part over a thick laminate; the FVM and FDM read it too cool (ratio {ratio:.2f}, 4 to 24 % or more); "
-                 "reduce laminate_s_max_mm or use the 3D solid.")
+            over = "over a copper pad" if limit == SMALL_PART_RATIO_PAD else "on bare laminate"
+            _add(out, "heater", k, f"{name}: the part is small ({size}, {over}) against the sub-layer of laminate under it ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
+                       f"above {limit:.2f}); the layered FVM and FDM read it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
+                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller laminate_s_max_mm (now "
+                       f"{num(s_max * 1e3, 2)} mm) or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
+                       "The 3D solid, with its four slabs per insulating layer, reads such a part too hot instead, so it is not the answer here.",
+                 f"{name}: small part over a thick laminate; the FVM and FDM read it too cool (ratio {ratio:.2f}, about 4 to 24 %); "
+                 "reduce laminate_s_max_mm.")
         else:
-            _add(out, "heater", k, f"{name}: the part is small ({num(side * 1e3, 2)} mm) against the slabs of the 3D solid ({num(sub * 1e3, 2)} mm, four per insulating layer, ratio {ratio:.2f} "
-                       f"above {SMALL_PART_RATIO}); the solid reads it too hot: measured up to +20 % bare and +27 % over a pad on 3.2 mm laminate under a 2 mm part at 0.25 mm "
+            _add(out, "heater", k, f"{name}: the part is small ({size}) against the slabs of the 3D solid ({num(sub * 1e3, 2)} mm, four per insulating layer, ratio {ratio:.2f} "
+                       f"above {limit:.2f}); the solid reads it too hot: measured up to +20 % bare and +27 % over a pad on 3.2 mm laminate under a 2 mm part at 0.25 mm "
                        "(+5 and +15 % on 1.6 mm; 8 slabs: +5 and +13 %; 16 slabs: +0.4 and +8 %). The slabs of the API are fixed at four per layer.",
                  f"{name}: small part on a thick laminate; the 3D solid (four slabs per layer) reads it too hot, up to +20 to +27 %.")
     return out

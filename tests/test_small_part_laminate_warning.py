@@ -11,21 +11,25 @@ import time
 import numpy as np
 
 from pcbthermal import Problem, SolverOptions, laminate, simulate
-from pcbthermal.checks import SMALL_PART_RATIO, check_input, check_small_part_laminate
+from pcbthermal.analysis import heater_stats
+from pcbthermal.checks import SMALL_PART_RATIO, SMALL_PART_RATIO_PAD, check_input, check_small_part_laminate, small_part_ratios
 
 
-def board(part_mm, thickness_mm=1.6, plane=False, pad_mm=0.0):
+def board(part_mm, thickness_mm=1.6, plane=False, pad_mm=0.0, top_plane=False):
     """!
     @brief A 40 mm two-layer board with a centred square part on top.
     @param part_mm Side of the part in mm.
     @param thickness_mm Board thickness in mm.
     @param plane True: full copper on the bottom layer and on the top (the gap is not cut).
     @param pad_mm Side of a copper pad under the part on the top layer in mm (0: bare laminate).
+    @param top_plane True: full copper on the top layer only (the gap is cut, the heat spreads in the plane).
     @return Problem.
     """
     p = Problem.new(40, 40, 2, thickness_mm=thickness_mm)
     if plane:
         p.add_full_copper()
+    elif top_plane:
+        p.add_full_copper(layers=[1])
     elif pad_mm > 0:
         p.add_zone(1, rect=(20 - pad_mm / 2, 20 - pad_mm / 2, 20 + pad_mm / 2, 20 + pad_mm / 2))
     a, b = 20 - part_mm / 2, 20 + part_mm / 2
@@ -74,25 +78,54 @@ def test_silent_where_the_gap_is_not_cut():
     assert len(check_small_part_laminate(board(2.0, 3.2, pad_mm=4.0), ("fvm",))) == 1
 
 
-def test_solid3d_warning_uses_four_slabs():
+def test_pad_limit_and_spread_of_the_copper():
     """!
-    @brief The 3D solid warns when d / 4 exceeds 0.15 of the side, with or without cut copper, and a layered-only run does not mention it.
+    @brief Over a copper pad of the part's size the layered limit is SMALL_PART_RATIO_PAD (the review measured -5 to -7 % at 0.12 to 0.14, silent before); a pad larger than the part counts
+           by its own size, and a plane on the layer of the part is silent although the gap is cut (the review measured 0.02 %).
     @return None.
     """
-    p = board(2.0, 1.6, plane=True)
+    d = float(board(2.0).board.gap_thicknesses()[0])
+    s = d / laminate.n_for_gap(d)
+    edge_mm = s / SMALL_PART_RATIO_PAD * 1e3
+    for side, expect in ((edge_mm * 0.97, True), (edge_mm * 1.03, False)):
+        w = check_small_part_laminate(board(side, pad_mm=side), ("fvm",), 0.25)
+        assert bool(w) == expect, side
+        if w:
+            assert "over a copper pad" in w[0]
+    assert check_small_part_laminate(board(2.7, pad_mm=2.7), ("fvm",), 0.5)          # ratio 0.14: -5 to -7 % measured, warned now
+    assert not check_small_part_laminate(board(2.7), ("fvm",), 0.5)                  # bare at 0.14: -3.4 %, silent
+    r_pad = small_part_ratios(board(2.0, pad_mm=2.0), ("fvm",), 0.25)[0][4]
+    r_big = small_part_ratios(board(2.0, pad_mm=4.0), ("fvm",), 0.25)[0][4]
+    assert r_big < 0.6 * r_pad                                                         # the larger pad spreads the heat: a smaller ratio
+    assert check_small_part_laminate(board(2.0, pad_mm=16.0), ("fvm", "solid3d"), 0.5) == []
+    assert check_small_part_laminate(board(2.0, top_plane=True), ("fvm", "fdm", "solid3d"), 1.0) == []
+
+
+def test_solid3d_warning_uses_four_slabs():
+    """!
+    @brief The 3D solid warns when d / 4 exceeds 0.15 of the side on bare laminate, also where the layered rule would not cut (a 0.8 mm board), and is silent under copper planes
+           (4 against 16 slabs: 0.03 %, review).
+    @return None.
+    """
+    p = board(2.0, 1.6)
     w = check_small_part_laminate(p, ("solid3d",))
     assert len(w) == 1 and "3D solid" in w[0]
     d = float(p.board.gap_thicknesses()[0])
     edge_mm = d / 4 / SMALL_PART_RATIO * 1e3
-    assert not check_small_part_laminate(board(edge_mm * 1.001, 1.6, plane=True), ("solid3d",))
-    assert check_small_part_laminate(board(edge_mm * 0.999, 1.6, plane=True), ("solid3d",))
+    assert not check_small_part_laminate(board(edge_mm * 1.001, 1.6), ("solid3d",))
+    assert check_small_part_laminate(board(edge_mm * 0.999, 1.6), ("solid3d",))
+    assert check_small_part_laminate(board(2.0, 1.6, plane=True), ("solid3d",)) == []
     both = check_small_part_laminate(board(2.0, 3.2), ("fvm", "solid3d"))
     assert len(both) == 2
 
 
+# Values of the FVM on board(2.0, 3.2) at 1 mm computed on develop (ec227ab) before this branch: the warning must not move them
+FROZEN_FVM_SMALL_BARE = (439.5514011355619, 454.13473446889503)      # (t_max, mean of the part with its face term) in degC
+
+
 def test_wired_into_the_live_check_and_no_result_moves():
     """!
-    @brief check_input carries the warning, the live check stays fast, and the temperatures of a run do not depend on it.
+    @brief check_input carries the warning, the live check stays fast, and the temperatures of a run are those of the program before the warning existed.
     @return None.
     """
     p = board(2.0, 3.2)
@@ -100,7 +133,8 @@ def test_wired_into_the_live_check_and_no_result_moves():
     t0 = time.perf_counter()
     check_input(p, ("fvm", "fdm", "solid3d"), 1.0)
     assert time.perf_counter() - t0 < 0.8
-    r1 = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
-    with laminate.using(0.4e-3, 4):
-        r2 = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0)).results["fvm"]
-    assert np.array_equal(r1.T, r2.T)
+    r = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
+    assert any("sub-layer" in w for w in r.warnings)                                 # the run reports it ...
+    res = r.results["fvm"]
+    t_max, t_part = FROZEN_FVM_SMALL_BARE
+    assert abs(res.t_max - t_max) < 1e-8 and abs(heater_stats(res, p)[0]["t_mean"] - t_part) < 1e-8   # ... and the numbers are those of develop
