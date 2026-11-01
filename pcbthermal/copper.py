@@ -30,6 +30,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
 from .geometry import zone_fill
+from .numfmt import num
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ WINDOW_BATCH_PIXELS = 50_000                    # Pixels of the local problems s
 CACHE_LAYERS = 8                                 # Unpacked masks kept (a copy of a Problem shares the packed text, so the arrays are made once)
 ZLIB_LEVEL = 6                                   # Deflate level of the packed masks
 MASK_KINDS = ("coverage", "binary")
+COARSE_RASTER_PIXELS = 8.0                       # Pixels per cell below which the face problems are too coarse to resolve the copper (warned)
 
 
 # ------------------------------------------------------------------------------------------------ packed masks
@@ -667,11 +669,12 @@ SOLID3D_WARNING = ("imported copper in the 3D solid: it reads the copper fractio
                    "than the flow-based faces of the layered models (see the finite-volume model for the reference)")
 
 
-def model_warnings(problem, model):
+def model_warnings(problem, model, cell_mm=None):
     """!
     @brief The warnings that a model owes when the board carries imported copper.
     @param problem A Problem.
     @param model "fvm", "fdm", "lumped", "analytic" or "solid3d".
+    @param cell_mm Cell of the run in mm (None: the pixel-per-cell check is left out).
     @return list of str (empty without imported copper).
     """
     src = CopperSource.of(problem)
@@ -685,4 +688,10 @@ def model_warnings(problem, model):
     else:
         out.append(FILL_NOTE if src.mapping != "fill" else
                    "imported copper with the 'fill' mapping: the arithmetic copper fraction of every cell reads 10 to 30 % too cool on thin copper; choose 'faces' for a result")
+        if cell_mm is not None and src.mapping != "fill":
+            per_cell = cell_mm * 1e-3 / src.pix
+            if per_cell < COARSE_RASTER_PIXELS:
+                out.append(f"the masks have {num(per_cell, 1)} pixels per cell ({num(src.pix * 1e3, 2)} mm pixel, {num(cell_mm, 2)} mm cell): below about {COARSE_RASTER_PIXELS:g} the "
+                           "face conductances cannot resolve the copper (2 to 5 % of the rise in the tests at 4 pixels per cell, under 1 % at 10 or more); use a finer pixel "
+                           "(import again) or a coarser cell")
     return out

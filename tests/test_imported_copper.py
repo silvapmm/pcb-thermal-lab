@@ -576,3 +576,123 @@ def test_real_windows_mapping_alone(real_windows, capsys):
     assert faces.mean() < 1.0 and faces.max() < 3.0                                   # README 10.5: 0.2 to 0.7 % mean, worst 2.65 %
     assert 1.2 < fill.mean() < 4.0                                                    # README 10.5: 1.7 to 3.2 %
     assert (faces < fill).sum() >= len(rows) - 2                                      # README 10.5: 41 of 42
+
+
+def test_real_windows_at_the_program_cells(real_windows, capsys):
+    """!
+    @brief The mapping alone at cells of 1 and 2 mm (10 and 20 pixels per cell, heater 4 mm with its edges on the cell lines): the faces stay within a few percent of the
+           program's pixel network, the fill fraction is 3 to 9 % cool. Cells of 0.5 mm need a 0.05 mm pixel (study_program_cells.py: 0.2 to 0.3 % on four layers).
+    @param real_windows Fixture with the windows.
+    @param capsys pytest fixture.
+    @return None.
+    """
+    faces, fill = [], []
+    rows = []
+    for key in ("isastm", "rp2040", "co60", "stickhub"):
+        if key not in real_windows:
+            continue
+        rasters = real_windows[key]
+        ref = _solve(_board(rasters, "fill", heater=4.0), PIX, heater=4.0)
+        for cell in (1.0, 2.0):
+            f = _pct(_solve(_board(rasters, "faces", heater=4.0), cell, heater=4.0), ref)
+            d = _pct(_solve(_board(rasters, "fill", heater=4.0), cell, heater=4.0), ref)
+            faces.append(abs(f))
+            fill.append(abs(d))
+            rows.append((key, cell, f, d))
+    with capsys.disabled():
+        print("\nreal windows at the program's cells (heater 4 mm; faces / fill, percent):  " + "; ".join(f"{k} {c:g} mm {f:+.2f}/{d:+.2f}" for k, c, f, d in rows))
+    assert np.mean(faces) < 2.5 and max(faces) < 4.5
+    assert np.mean(fill) > 3.0 and sum(a < b for a, b in zip(faces, fill)) >= len(faces) - 1      # (README 10.5: 41 of 42)
+
+
+def test_real_windows_against_the_3d_reference(real_windows, capsys):
+    """!
+    @brief Against the independent 3D solver (README 10 setting: 12 mm windows, heater 4.8 mm, cells 0.6 and 1.2 mm, the laminate rule on): the faces reproduce the numbers of README 10.2
+           (mean error 1.2 to 1.6 %, the fill fraction 3 to 5 %), and on two layers the faces built on the unreduced sheet are clearly worse.
+    @param real_windows Fixture with the windows.
+    @param capsys pytest fixture.
+    @return None.
+    """
+    import ref3d
+    rows = []
+    for key in ("rp2040", "vstcm", "isastm"):
+        if key not in real_windows:
+            continue
+        rasters = real_windows[key]
+        L = len(rasters)
+        gap = (THICK * 1e-3 - L * 35e-6) / (L - 1)
+        masks = [(r > 127)[::-1] for r in rasters]
+        m = ref3d.build(masks, PIX * 1e-3, 35e-6, [gap] * (L - 1), n_sub=8 if L == 2 else 3, h_top=H_FACE, h_bottom=H_FACE)
+        c = WINDOW / 2
+        xs = (np.arange(masks[0].shape[1]) + 0.5) * PIX
+        hm = (xs[None, :] > c - 2.4) & (xs[None, :] < c + 2.4) & (xs[:, None] > c - 2.4) & (xs[:, None] < c + 2.4)
+        ref = float(ref3d.solve(m, hm, 1.0)["top"][hm].mean())
+        for cell in (0.6, 1.2):
+            p = _board(rasters, "faces")
+            src = copper.CopperSource.of(p)
+            src.reduce_sheet = False
+            rows.append((key, L, cell, _pct(_solve(p, cell), ref), _pct(_solve(_board(rasters, "fill"), cell), ref), _pct(_solve(p, cell, faces=src), ref)))
+    with capsys.disabled():
+        print("\nreal windows against the 3D reference (percent of the heater mean rise; faces / fill / naive faces):")
+        for r in rows:
+            print(f"  {r[0]:8s} L{r[1]} cell {r[2]}: faces {r[3]:+.2f}  fill {r[4]:+.2f}  naive {r[5]:+.2f}")
+    f = np.abs([r[3] for r in rows])
+    d = np.abs([r[4] for r in rows])
+    assert f.mean() < 2.0 and f.max() < 3.0                                           # README 10.2: 1.2 to 1.6 % mean, 3.5 % worst
+    assert d.mean() > 2.5 and (f < d).all()                                           # README 10.2: 2.8 to 4.8 %
+    two = [r for r in rows if r[1] == 2]
+    assert all(abs(r[5]) > abs(r[3]) + 1.0 for r in two)                              # the laminate counted twice: README 10.2, 4.2 against 3.6 % on two layers
+
+
+def test_fdm_on_a_real_window(real_windows):
+    """!
+    @brief The FDM with imported copper agrees with the FVM on a real window within 3 % and its fill mapping is as cool as the FVM's.
+    @param real_windows Fixture with the windows.
+    @return None.
+    """
+    rasters = real_windows["isastm"]
+    out = {}
+    for mapping in ("faces", "fill"):
+        p = _board(rasters, mapping)
+        r = fdm.solve_steady(p, cell_mm=0.6)
+        x = np.arange(r.T.shape[2]) * 0.6
+        m = (x[None, :] > 3.6 - 1e-9) & (x[None, :] < 8.4 + 1e-9) & (x[:, None] > 3.6 - 1e-9) & (x[:, None] < 8.4 + 1e-9)
+        out[mapping] = float((r.T[0] - p.board.ambient)[m].mean())
+    ref = _solve(_board(rasters, "faces"), 0.6)
+    assert abs(_pct(out["faces"], ref)) < 3.0
+    assert out["fill"] < out["faces"]
+
+
+def test_faces_are_the_research_prototype():
+    """!
+    @brief The faces of the program equal the flow-based faces and the lambda faces of the research prototype (research/gerber-models/lib/conduction.py) on random sheets, to 1e-10.
+    @return None.
+    """
+    lib = ROOT / "research" / "gerber-models" / "lib"
+    if not (lib / "conduction.py").exists():
+        pytest.skip("the research prototype is not in this tree")
+    sys.path.insert(0, str(lib))
+    try:
+        import conduction as cd
+    finally:
+        sys.path.remove(str(lib))
+    rng = np.random.default_rng(1)
+    for ny, nx, n in ((5, 7, 6), (9, 4, 10), (3, 12, 4)):
+        s = np.where(rng.random((ny * n, nx * n)) > 0.5, 0.0137, 0.0014)
+        gx, gy = cd.dual_faces(s, n, 0)
+        hx, hy = copper.face_conductances(s, n, "faces")
+        assert np.allclose(gx, hx, rtol=1e-10, atol=0) and np.allclose(gy, hy, rtol=1e-10, atol=0)
+        lx, ly = cd.faces_from_cells(*cd.map_lambda(cd.cell_blocks(s, n), 0.5))
+        mx, my = copper.face_conductances(s, n, "lambda")
+        assert np.allclose(lx, mx, rtol=1e-10, atol=0) and np.allclose(ly, my, rtol=1e-10, atol=0)
+
+
+def test_warning_for_a_raster_too_coarse_for_the_cell():
+    """!
+    @brief Fewer than eight pixels per cell cannot resolve the copper in the face problems: the run says so (0.1 mm pixel, 0.5 mm cell), and says nothing at ten.
+    @return None.
+    """
+    p = _board([_stripes(120), _solid(120)], "faces")
+    assert any("pixels per cell" in w for w in copper.model_warnings(p, "fvm", 0.5))
+    assert not any("pixels per cell" in w for w in copper.model_warnings(p, "fvm", 1.0))
+    assert not any("pixels per cell" in w for w in copper.model_warnings(p, "lumped", 0.5))

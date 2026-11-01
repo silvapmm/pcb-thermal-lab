@@ -974,7 +974,7 @@ def _simulate(problem, options, progress):
                                                   "steady state only")
     for name, r in sim.results.items():
         # Imported copper (copper.py): the Lumped, Analytic and 3D solid read only the cell fill, the layered models the face conductances; each result says so
-        r.warnings.extend(copper.model_warnings(problem, name))
+        r.warnings.extend(copper.model_warnings(problem, name, options.cell_mm))
     sim.part_warnings = _part_warnings(sim) if sim.results else []
     if computed:
         ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in options.models))
