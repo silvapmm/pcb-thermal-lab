@@ -24,6 +24,16 @@ def test_uniform_window_all_mappings_agree():
     assert all(abs(e) < 20.0 for e in errs), errs
 
 
+def test_uniform_36mm_window_offset_is_small_and_common():
+    """!@brief The review's regression of README 4.1: on a solid 36 mm window (the size of the study windows) the held-ring offset is +2.5 % at 1 mm and +0.8 % at 0.5 mm against the pixel reference (21.49 K), the same for every mapping; the 16.5 % of the first block belonged to the 12 mm unit-test board. @return None."""
+    res = onesheet.run_window(np.ones((360, 360)), 0.1, cells_mm=(0.5, 1.0), with_reference9=False)
+    assert abs(res["ref5"] - 21.49) < 0.01, res["ref5"]
+    for cell, expected in ((0.5, 0.83), (1.0, 2.47)):
+        errs = [v["5"] for m, v in res["errors"][cell].items()]
+        assert max(errs) - min(errs) < 0.01, errs                     # nothing to map on solid copper: every mapping is the same network
+        assert abs(errs[0] - expected) < 0.05, (cell, errs[0])
+
+
 def test_fine_copper_makes_the_fill_fraction_cool():
     """!@brief Stripes across the heat flow: the arithmetic fill gives a cooler heater than the pixel reference (the known bias of README 4.4 of gerber-models). @return None."""
     cov = np.zeros((120, 120))

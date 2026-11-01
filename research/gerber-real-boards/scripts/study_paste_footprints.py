@@ -57,16 +57,17 @@ def groups_and_references(key, roles, box, side="top"):
     @param roles registry.roles dict.
     @param box Board box.
     @param side "top" or "bottom".
-    @return tuple (report dict, groups by proximity at link 1.0, references dict from TO.C).
+    @return tuple (report dict, groups by proximity at link 1.0, references dict from TO.C, dict link -> groups at every link distance).
     """
     path = roles["paste_top"] if side == "top" else roles["paste_bottom"]
     if path is None or path.stat().st_size < 400:
-        return {"side": side, "empty": True}, [], {}
+        return {"side": side, "empty": True}, [], {}, {}
     refs = paste.by_reference(path)
     rep = {"side": side, "empty": False, "references_in_file": len(refs), "links": {}}
-    keep = []
+    keep, every = [], {}
     for link in LINKS:
         g = paste.by_proximity(path, box, pix=0.05, link_mm=link)
+        every[link] = g                                                   # kept for the registration at every link (Part B: the answer moves with the link distance)
         merged = split = 0
         if refs:
             per_group = [[r for r, v in refs.items() if contains(gr["bbox"], v["x"], v["y"], 0.05)] for gr in g]
@@ -90,7 +91,37 @@ def groups_and_references(key, roles, box, side="top"):
             rep["links"][str(link)] = {"groups": len(g)}
         if link == 1.0:
             keep = g
-    return rep, keep, refs
+    return rep, keep, refs, every
+
+
+def registration_by_link(roles, every, side="top"):
+    """!
+    @brief The data-driven registration (`pnp.register`) on the proximity groups of every link distance, against the identity frame.
+    @details Added by the review: the README quoted registration offsets and "within 1 mm" shares at the 0.6 mm link while the script printed only the 1.0 mm link. A registration must not move with the
+             link distance; this table shows whether it does, and how many placement origins lie within 1 mm of a group centre with the identity frame (no registration).
+    @param roles registry.roles dict.
+    @param every Dict link (mm) -> groups by proximity.
+    @param side "top" or "bottom".
+    @return dict link -> dict(dx, dy, sx, sy, within_1mm_registered, within_1mm_identity, parts); empty when there is no placement file or no part on the side.
+    """
+    if roles["placement"] is None:
+        return {}
+    parts = [p for p in pnp.read_placement(roles["placement"]) if p["side"] == side]
+    if not parts:
+        return {}
+    pc = np.array([[p["x"], p["y"]] for p in parts])
+    out = {}
+    for link, groups in every.items():
+        if not groups:
+            continue
+        gc = np.array([[g["x"], g["y"]] for g in groups])
+        tr = pnp.register(gc, pc, tol_mm=2.0)
+        q = pc * np.array([tr["sx"], tr["sy"]]) + np.array([tr["dx"], tr["dy"]])
+        d_reg = np.linalg.norm(q[:, None, :] - gc[None, :, :], axis=2).min(axis=1)
+        d_id = np.linalg.norm(pc[:, None, :] - gc[None, :, :], axis=2).min(axis=1)
+        out[str(link)] = {"dx": tr["dx"], "dy": tr["dy"], "sx": tr["sx"], "sy": tr["sy"], "parts": len(parts),
+                          "within_1mm_registered": int((d_reg <= 1.0).sum()), "within_1mm_identity": int((d_id <= 1.0).sum())}
+    return out
 
 
 def placement_check(roles, groups, side="top"):
@@ -278,11 +309,15 @@ def main(argv):
         box = ng.layer_bbox(roles["outline"]) if roles["outline"] else ng.layer_bbox(roles["copper"][0])
         rec = {}
         for side in ("top", "bottom"):
-            rep, groups, refs = groups_and_references(key, roles, box, side)
+            rep, groups, refs, every = groups_and_references(key, roles, box, side)
             rec[side] = {"groups": rep}
             if rep.get("empty"):
                 continue
             rec[side]["placement"] = placement_check(roles, groups, side)
+            rec[side]["registration_by_link"] = registration_by_link(roles, every, side)
+            for link, v in rec[side]["registration_by_link"].items():
+                print(f"{key} {side} link {link} mm: registered offset ({v['dx']:+.3f}, {v['dy']:+.3f}) mm, signs ({v['sx']:+d}, {v['sy']:+d}); within 1 mm of a group "
+                      f"{v['within_1mm_registered']} of {v['parts']} registered, {v['within_1mm_identity']} with the identity frame", flush=True)
             rec[side]["reference_agreement"] = reference_agreement(roles, groups, refs, rec[side]["placement"].get("transform", {}), side)
             rec[side]["click"] = click_test(groups, rng)
             rec[side]["by_reference"] = by_reference_check(roles, paste.by_reference(roles["paste_top"] if side == "top" else roles["paste_bottom"]), side, rng)

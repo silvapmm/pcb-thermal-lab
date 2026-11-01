@@ -150,3 +150,17 @@ def test_rare_feature_counts():
     assert c["SR (step and repeat)"] == 1 and c["X2 file attribute (TF)"] == 1
     s = rf.summarise({"a": c, "b": rf.count("")})
     assert s["AB (aperture block)"][0] == 1
+
+
+def test_line_thinner_than_the_sample_spacing_is_lost_or_inflated():
+    """!@brief The review's regression of README 4.6 (the silent area of `Two_square_boxes.gbr`): a 0.01 mm line drawn at a 0.05 mm pixel falls between the samples (area 0 at supersampling 2) or lands on one (area 0.0125 mm per mm of line at supersampling 4, +25 %), depending on the alignment; at a sample spacing no larger than the line the area is right. The importer must take its pixel from the thinnest feature or warn. @return None."""
+    import native_gerber as ng
+    text = "%FSLAX46Y46*%\n%MOMM*%\n%ADD10C,0.010000*%\nD10*\nX0Y0D02*\nX10000000Y0D01*\nM02*\n"   # a 10 mm line, 0.01 mm wide, along y = 0
+    layer = ng.Layer(text)
+    area = {}
+    for pix, ss in ((0.05, 2), (0.05, 4), (0.01, 2)):
+        cov = ng.render_coverage(layer, -0.505, 0.505, 11.01, 1.01, pix, ss)
+        area[(pix, ss)] = float(cov.sum() * pix * pix)
+    assert area[(0.05, 2)] < 0.01                          # lost: no sample on the line
+    assert abs(area[(0.05, 4)] - 0.125) < 0.01             # inflated: one sample row of 0.0125 mm counts the whole sub-pixel
+    assert abs(area[(0.01, 2)] - 0.100) < 0.005            # resolved: 10 mm x 0.01 mm
