@@ -91,7 +91,7 @@ TIPS = {
     "h_side": "Heat transfer coefficient of the edges (W/m²K).", "via_plating_um": "Copper plating of the via barrel in µm.",
     "h_mode": "How the face coefficients are found: typed, or computed from convection and radiation.", "emissivity_top": "Emissivity of the top face (0 to 1).",
     "emissivity_bottom": "Emissivity of the bottom face (0 to 1).", "orientation": "Mounting of the board for the computed coefficients.",
-    "natural_form": "Correlation of natural convection for a vertical board: general (Churchill and Chu, whole range) or laminar (same authors, Ra below 1.00E9); changes the rise by under 1 % on the example.",
+    "natural_form": "Correlation of natural convection for a vertical board: general (Churchill and Chu, whole range) or laminar (same authors, Ra below 1.00E9, the default of new projects); changes the rise by under 1 % on the example.",
     "air_speed": "Air speed along the board in m/s (computed mode).", "h_calibration": "Multiplier of the computed convection.",
     "heater_power_w": "Power of a new heater in W.", "heater_kind": "What a new heater is: a pure heat source (power only) or a component (junction, package, top path).", "heater_size_mm": "Side of a heater dropped from the right-click menu, in mm.",
     "zone_fill": "Copper fill (0 to 1) of a new zone.", "zone_size_mm": "Side of a zone dropped from the right-click menu, in mm.",

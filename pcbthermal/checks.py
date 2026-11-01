@@ -721,6 +721,40 @@ def check_fin_channels(problem, result=None):
     return out
 
 
+# Face Rayleigh number below which the natural-convection coefficient of a vertical board is called uncertain (research/plate-h-level INTEGRATION.md 2,
+# "Warnings"): a face about 10 mm high at a 10 K excess. The 2D numerical plate of that study covers Ra 1e4 to 3e7 only; below 1e3 the boundary layer is not
+# thin compared with the plate (the pure boundary-layer value is 15 % below the laminar form at 1e3, README 4) and the two forms of Churchill and Chu
+# differ by up to 4 to 6 % (+4.3 % at 1e3, -5.8 % at 10); the air drawn in at the sides of a small 3D board is not in either form
+LOW_RAYLEIGH_LIMIT = 1.0e3
+
+
+def check_low_rayleigh(board, info):
+    """!
+    @brief Post-run warning for a vertical board whose face Rayleigh number is so low that the coefficient of natural convection is uncertain.
+    @details The Rayleigh number is that of the board height and the mean face-to-air excess at the film temperature (convection.h_natural_vertical,
+             as returned by convection.board_h); a face about 10 mm high at a 10 K excess has Ra 1e3. Below LOW_RAYLEIGH_LIMIT no study of the program checks
+             the coefficient (research/plate-h-level: the numerical plate starts at 1e4), the layer is not thin compared with the face, and the plate
+             correlation does not count the air drawn in at the sides; the two forms of Churchill and Chu agree to 4 to 6 % there, so the warning is about
+             the correlation itself, not about the choice of form. A face where forced convection is at least the natural one is not counted (the natural
+             term hardly enters the blend of convection.board_h). Horizontal boards are not checked here (their range warning, Ra 1e4 to 1e11 on the top
+             face, is in api._solve_computed_h; research/plate-h-level did not study them) and neither are boards with typed coefficients.
+             Called once per simulation, from the reference model (api._part_warnings), so that five models do not give five copies.
+    @param board Board with orientation, h_mode and height (m).
+    @param info Dict of convection.board_h: per face "top" / "bottom" the "rayleigh" number (dimensionless) and the "natural" and "forced" coefficients (W/m2K).
+    @return List of warning strings (empty when the Rayleigh number is not low or the board is not vertical in computed mode).
+    """
+    if board.orientation != "vertical" or board.h_mode != "computed":
+        return []
+    # Faces where natural convection is the larger part of the convection
+    ras = [info[f]["rayleigh"] for f in ("top", "bottom") if info[f]["natural"] > info[f]["forced"]]
+    if not ras or min(ras) >= LOW_RAYLEIGH_LIMIT:
+        return []
+    return [f"the face Rayleigh number {num(min(ras), 2)} of the vertical board ({num(board.height * 1000.0, 3)} mm high) is below {num(LOW_RAYLEIGH_LIMIT, 2)}: "
+            "the face is too small or too little heated for a thin boundary layer, and the natural-convection coefficient is not checked there "
+            "(the plate correlation does not count the air drawn in at the sides; the general and laminar forms differ by 4 to 6 %); treat the "
+            "convection as uncertain and, where it matters, fit it to a measurement (convection multiplier) or type the coefficients"]
+
+
 # Cell size (mm) from which the via effect of the FVM and FDM is called uncertain: at 2 mm the via is a fraction of a cell
 VIA_COARSE_CELL_MM = 2.0
 
