@@ -134,12 +134,12 @@ def test_via_warnings():
     p.add_via(10, 10)
     p.add_via(50, 10)
     w = check_model_limits(p, ("lumped",), 1.0)
-    # The two far vias (nearest neighbour 40 mm) link every via into one group by the single-linkage rule, so the group spans the footprint edge
-    # and the too-cool rule fires as well: three warnings
-    assert len(w) == 3
+    # The two far vias (nearest neighbour 40 mm) join the pair under the part into one group by the single linkage, but they lie far beyond the
+    # reach of the pair, so the too-cool rule does not fire (the centred pair is the general text's case): two warnings
+    assert len(w) == 2
     assert w[0].kind == "heater" and w[0].index == 0 and "2 vias under the footprint" in w[0]
-    assert w[1].kind == "heater" and "too cool, unsafe" in w[1]
-    assert w[2].kind == "via" and w[2].index == 2 and "and 1 more vias" in w[2] and "outside the footprint" in w[2]
+    assert w[1].kind == "via" and w[1].index == 2 and "and 1 more vias" in w[1] and "outside the footprint" in w[1]
+    assert "2.3 times the reference" in w[1] and "9 % of its rise" in w[1]          # The bound of an array beside a part (zones-adoption 8.4)
     for cell in (0.5, 1.0, 2.0, 4.0):
         assert check_model_limits(p, ("fvm", "fdm"), cell) == []
     q = Problem.new(60, 60, 2)
@@ -240,19 +240,21 @@ def test_lumped_cool_warning_fires_across_the_edge_and_off_centre():
            the percent of the rise; a centred square array, a board without vias and a one-layer board do not.
     @return None.
     """
-    edge = _via_part_board(27, 27, 33, 33, _grid(33, 30, 5, 1.5))             # Group half inside, half outside the footprint
+    edge = _via_part_board(27, 27, 33, 33, _grid(33.5, 30, 5, 1.5))           # Group across the edge (columns at 30.5 to 36.5 mm; none on the edge)
     w = _cool_warnings(edge)
-    assert len(w) == 1 and "10.8 K" in w[0] and "26 % of its rise" in w[0] and "use the FVM" in w[0]
+    assert len(w) == 1 and "about 11 K, a quarter of its rise" in w[0] and "3.2 times" in w[0] and "use the FVM" in w[0]
     off = _via_part_board(24, 26, 36, 34, _grid(31.5, 30, 5, 1.0))             # 5 x 5 array 1.5 mm off the centre of a 12 x 8 mm part
-    assert len(_cool_warnings(off)) == 1 and "17.5 % of the rise" in _cool_warnings(off)[0]
+    assert len(_cool_warnings(off)) == 1 and "17.5 % of its rise" in _cool_warnings(off)[0]
+    wider = _via_part_board(27, 27, 33, 33, _grid(30, 30, 7, 1.4))            # Centred, square, wider than the part (none on the edge): condition (i) alone
+    assert len(_cool_warnings(wider)) == 1
     elongated = _via_part_board(22, 27, 38, 33, _grid(30, 30, 3, 1.0))        # Centred array, side ratio 2.7
     assert len(_cool_warnings(elongated)) == 1
     centred = _via_part_board(27, 27, 33, 33, _grid(30, 30, 3, 1.0))
     assert _cool_warnings(centred) == []
     assert any("under the footprint" in str(x) for x in check_model_limits(centred, ("lumped",), 1.0))   # The general text still applies
     assert _cool_warnings(_via_part_board(27, 27, 33, 33, [])) == []
-    assert check_model_limits(_via_part_board(27, 27, 33, 33, _grid(33, 30, 5, 1.5), layers=1), ("lumped",), 1.0) == []
-    assert check_model_limits(edge, ("fvm", "fdm", "analytic"), 1.0) == [] or not _cool_warnings_other(edge)
+    assert check_model_limits(_via_part_board(27, 27, 33, 33, _grid(33.5, 30, 5, 1.5), layers=1), ("lumped",), 1.0) == []
+    assert not _cool_warnings_other(edge)                                     # The rule belongs to the Lumped model only
 
 
 def _cool_warnings_other(p):
@@ -262,6 +264,29 @@ def _cool_warnings_other(p):
     @return list of str.
     """
     return [str(w) for w in check_model_limits(p, ("fvm", "fdm", "analytic"), 1.0) if "too cool, unsafe" in str(w)]
+
+
+def test_lumped_cool_warning_ignores_scattered_vias_far_from_a_centred_array():
+    """!
+    @brief Vias scattered over the board chain a centred thermal array into one single-linkage group with them; the rule must not read that group as
+           an array across the footprint edge. Before the review the rule fired on 4 of 4 centred arrays with 20 scattered vias 2 mm or more from every
+           footprint (10 seeds); an array that really continues past the edge, and a scattered via next to an array via, still fire.
+    @return None.
+    """
+    rng = np.random.default_rng(7)
+    p = _via_part_board(26, 26, 34, 34, _grid(30, 30, 3, 2.0))               # Centred 3 x 3 array under an 8 mm part
+    while len(p.vias) < 9 + 30:
+        x, y = rng.uniform(2, 58, 2)
+        if max(abs(x - 30), abs(y - 30)) > 6.0:                                # 2 mm or more outside the footprint
+            p.add_via(float(x), float(y), 0.3)
+    assert _cool_warnings(p) == []
+    assert any("outside the footprint" in str(x) for x in check_model_limits(p, ("lumped",), 1.0))   # The aggregated outside text still applies
+    p.add_via(35.0, 30.0, 0.3)                                                 # 1 mm outside the edge, one pitch from the array's outer via (32, 30)
+    assert len(_cool_warnings(p)) == 1
+    across = _via_part_board(26, 26, 34, 34, _grid(34, 30, 3, 2.0))           # The array itself across the edge, with the same scattered vias
+    for v in p.vias[9:-1]:
+        across.add_via(v.x * 1e3, v.y * 1e3, 0.3)
+    assert len(_cool_warnings(across)) == 1
 
 
 def test_lumped_cool_warning_is_cheap_with_two_thousand_vias():
