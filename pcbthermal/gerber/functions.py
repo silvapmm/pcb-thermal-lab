@@ -93,7 +93,7 @@ def _from_x2(head):
 _KICAD = re.compile(r"[-_.](f|b|in(\d+))[._](cu|mask|paste|silks|silkscreen|fab|crtyd|courtyard|adhes|adhesive)$")
 _KICAD_KIND = {"cu": "copper", "mask": "soldermask", "paste": "paste", "silks": "silkscreen", "silkscreen": "silkscreen"}
 # Drawings of the drill (KiCad "-drl_map", Altium "Drill Drawing", EasyEDA "DrillDrawingLayer", "drill guide"): Gerber pictures, not drill files
-_DRILL_DRAWING = re.compile(r"drl[-_ ]?map|drill[-_ ]?(map|drawing|guide|chart)|drilldrawing|drillmap|drillguide")
+_DRILL_DRAWING = re.compile(r"drl[-_ ]?map|drill[-_ ]?(map|drawing|guide|chart|dwg)|drilldrawing|drillmap|drillguide")
 
 
 def _from_name(name):
@@ -190,8 +190,9 @@ def detect_function(name, head=""):
             by_name = _from_name(base)
             return LayerFunction("drill", None, None, plated if plated is not None else by_name.plated, "excellon")
     by_name = _from_name(base)
-    if head and by_name.kind == "drill" and _gerber_head(head):
-        # A Gerber file (Xpedition DRILL.gdo) is a drawing of the holes, never an Excellon drill file: it has no X2 drill function (that case returned above)
+    if head and by_name.kind == "drill" and _gerber_head(head) and not re.search(r"D0?3\s*\*", head):
+        # A Gerber file that draws strokes and flashes nothing (Xpedition DRILL.gdo, crosses at the holes) is a drawing of the holes, never an Excellon drill file; one that flashes
+        # is a Gerber drill layer (the holes are the flashes) and keeps the kind. An X2 drill function returned above.
         return LayerFunction("other", None, None, None, "name")
     return by_name
 

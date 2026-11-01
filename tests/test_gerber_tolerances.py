@@ -125,8 +125,11 @@ def test_numbered_copper_names_are_ordered_over_the_set():
 
 def test_a_gerber_head_is_never_a_drill_file():
     """!@brief DRILL.gdo of Xpedition is a Gerber drawing of the holes: "other", not a drill file; an Excellon head or an X2 drill function is unchanged."""
-    gerber_head = "%FSLAX24Y24*%\n%MOIN*%\n%ADD10C,0.02*%\nD10*\nX1Y1D03*\nM02*\n"
+    gerber_head = "%FSLAX24Y24*%\n%MOIN*%\n%ADD10C,0.02*%\nD10*\nX1Y1D02*\nX2Y1D01*\nM02*\n"          # strokes only: a drawing of the holes
     assert G.detect_function("DRILL.gdo", gerber_head).kind == "other"
+    flashed = gerber_head.replace("X1Y1D02*\nX2Y1D01*", "X1Y1D03*\nX2Y1D03*")                              # flashes: a Gerber drill layer keeps its kind
+    assert G.detect_function("DRILL.gdo", flashed).kind == "drill"
+    assert G.detect_function("board-DRILL-DWG.gbr", "").kind == "other"
     assert G.detect_function("DRILL.gdo", "").kind == "drill"                    # the name alone still says drill (low confidence)
     assert G.detect_function("board.drl", "M48\nMETRIC\n").kind == "drill"
     f = G.detect_function("DRILL.gdo", "%TF.FileFunction,Plated,1,4,PTH*%\n" + gerber_head)
