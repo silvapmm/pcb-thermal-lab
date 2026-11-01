@@ -14,7 +14,6 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QTabWidget,
                                QTextBrowser, QVBoxLayout, QWidget)
 
@@ -22,6 +21,7 @@ from .. import defaults
 from ..inverse import power_from_theta
 from .compute import ProcessWorker
 from . import theme as th
+from .help import set_themed_page
 
 HELP_FILE = Path(__file__).resolve().parents[1] / "help" / "calculator.html"
 DESIGN = (("None (numbers only)", "none", "No design uncertainty: the band covers only the doubt about numbers (copper thickness, heat transfer, θ, ψJT, reading). It does not cover a wrongly drawn board."),
@@ -82,7 +82,7 @@ class CalculatorHelp(QDialog):
         self.view = QTextBrowser()
         self.view.setOpenExternalLinks(True)
         self.view.setToolTip("How the calculator works, what each field means, the uncertainty band, the validation and the limits.")
-        self.view.setSource(QUrl.fromLocalFile(str(HELP_FILE)))
+        set_themed_page(self.view, HELP_FILE)
         lay.addWidget(self.view, 1)
         box = QDialogButtonBox(QDialogButtonBox.Close)
         box.rejected.connect(self.reject)
