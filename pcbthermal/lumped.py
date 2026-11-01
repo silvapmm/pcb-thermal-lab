@@ -188,9 +188,11 @@ def ring_edges(rho_max, dx, dy, rings, min_width=None):
     return edges
 
 
-def _heater_network(net, cov, layer, power, rings, vias=None):
+def _one_node_network(net, cov, layer, power, rings, vias=None):
     """!
-    @brief Build and solve the offset-contour network of one heater.
+    @brief Build and solve the offset-contour network of one heater with the footprint as ONE node per layer (the network of every release up to 2.4.5).
+    @note This is the body of the former _heater_network moved unchanged: the heaters that the zone model does not split run exactly these lines
+          (bit-identical results, INTEGRATION 11.2 of research/lumped-zones-adoption).
     @param net Network (per-cell arrays) of the problem.
     @param cov Footprint coverage of the heater, array (ny, nx).
     @param layer 0-based heater layer.
@@ -343,6 +345,20 @@ def _heater_network(net, cov, layer, power, rings, vias=None):
                     "heatsinks": float((g_heatsink * th).sum()), "sides": float((g_side * th).sum())}
                    | ({"blocks": float((g_block * th).sum())} if net.block_info else {}),
             "residual": float(np.linalg.norm(K @ theta - Q) / np.linalg.norm(Q))}
+
+
+def _heater_network(net, cov, layer, power, rings, vias=None):
+    """!
+    @brief Build and solve the offset-contour network of one heater.
+    @param net Network (per-cell arrays) of the problem.
+    @param cov Footprint coverage of the heater, array (ny, nx).
+    @param layer 0-based heater layer.
+    @param power Heater power (W).
+    @param rings Number of rings outside the footprint.
+    @param vias ViaSet of the problem (viaconstriction.py) or None for a board without vias.
+    @return Dict as _one_node_network.
+    """
+    return _one_node_network(net, cov, layer, power, rings, vias)
 
 
 def _footprint_coverage(net, heater):
