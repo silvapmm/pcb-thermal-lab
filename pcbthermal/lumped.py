@@ -54,7 +54,7 @@ from . import blocks
 from .geometry import coverage_fraction, polygon_centroid
 from .results import SteadyResult
 
-_MAX_POTENTIAL_CELLS = 900          # Footprint cells used (evenly decimated) for the potential integrals
+_MAX_POTENTIAL_CELLS = 900          # Footprint cells above which the potential integrals aggregate the cells in blocks
 
 
 def _footprint_potentials(cov, dx, dy):
@@ -79,18 +79,57 @@ def _footprint_potentials(cov, dx, dy):
             if 0 <= a < ny and 0 <= b < nx and cov[a, b] == 0:      # Exchange boundary only; board edges are adiabatic
                 boundary[k] = True
                 break
-    # Decimate evenly when the footprint is large, keeping weights consistent
-    step = max(int(np.ceil(len(idx) / _MAX_POTENTIAL_CELLS)), 1)
-    src = idx[::step]
-    sw = w[::step]
-    pos = np.column_stack([src[:, 1] * dx, src[:, 0] * dy])
-    # phi_i for every (decimated) cell against the decimated sources
+    if len(idx) > _MAX_POTENTIAL_CELLS:
+        return _footprint_potentials_blocks(cov, idx, w, boundary, dx, dy)
+    # Up to the limit every footprint cell is a source (no decimation: the numbers are the exact sums)
+    pos = np.column_stack([idx[:, 1] * dx, idx[:, 0] * dy])
     d = np.hypot(pos[:, None, 0] - pos[None, :, 0], pos[:, None, 1] - pos[None, :, 1])
-    np.fill_diagonal(d, 0.447 * np.sqrt(dx * dy) * (step ** 0.5))     # Mean log distance inside a cell
-    phi = (np.log(d) * sw[None, :]).sum(axis=1) / sw.sum()
-    bnd = boundary[::step]
-    phi_mean = float((phi * sw).sum() / sw.sum())
-    phi_bnd = float(phi[bnd].mean()) if bnd.any() else phi_mean
+    np.fill_diagonal(d, 0.447 * np.sqrt(dx * dy))     # Mean log distance inside a cell
+    phi = (np.log(d) * w[None, :]).sum(axis=1) / w.sum()
+    phi_mean = float((phi * w).sum() / w.sum())
+    phi_bnd = float(phi[boundary].mean()) if boundary.any() else phi_mean
+    return phi_mean, phi_bnd, float(phi.min())
+
+
+def _footprint_potentials_blocks(cov, idx, w, boundary, dx, dy):
+    """!
+    @brief Footprint potentials of a large footprint: the cells are aggregated in k x k blocks instead of keeping every step-th cell.
+    @details Keeping every step-th cell in row order aliases when the footprint width is a multiple of the step (the same columns
+             are always kept and the last one is never read: the mean-to-boundary term came out 4 % short on a 20 mm square and
+             11 % on a 30 mm one at 0.5 mm). A block takes the weighted centroid of its cells, the sum of their weights and the
+             self distance 0.447 sqrt(area of its cells); k is the smallest integer that leaves at most _MAX_POTENTIAL_CELLS blocks.
+             The boundary cells keep their own positions (a block centroid lies half a block inside the edge) and are read against
+             the block sources, with the distance never below the self distance of the block.
+    @param cov Array (ny, nx) of footprint coverage in [0, 1].
+    @param idx Array (n, 2) of the (row, column) indices of the footprint cells.
+    @param w Coverage of those cells, array (n,).
+    @param boundary Boolean array (n,), True for the cells on the exchange boundary.
+    @param dx Cell width in metres.
+    @param dy Cell height in metres.
+    @return Tuple (phi_mean, phi_boundary, phi_min) as _footprint_potentials.
+    """
+    ny, nx = cov.shape
+    k = max(int(np.ceil(np.sqrt(len(idx) / _MAX_POTENTIAL_CELLS))), 1)
+    # Block of every cell, and the sums of weight, weight * x, weight * y and cell count per block
+    key = (idx[:, 0] // k) * ((nx + k - 1) // k) + idx[:, 1] // k
+    uniq, inv = np.unique(key, return_inverse=True)
+    wb = np.bincount(inv, weights=w)
+    xb = np.bincount(inv, weights=w * idx[:, 1]) / wb
+    yb = np.bincount(inv, weights=w * idx[:, 0]) / wb
+    nb = np.bincount(inv).astype(float)
+    pos = np.column_stack([xb * dx, yb * dy])
+    db = 0.447 * np.sqrt(nb * dx * dy)
+    d = np.hypot(pos[:, None, 0] - pos[None, :, 0], pos[:, None, 1] - pos[None, :, 1])
+    d[np.arange(len(pos)), np.arange(len(pos))] = db
+    phi = (np.log(d) * wb[None, :]).sum(axis=1) / wb.sum()
+    phi_mean = float((phi * wb).sum() / wb.sum())
+    if boundary.any():
+        bpos = np.column_stack([idx[boundary, 1] * dx, idx[boundary, 0] * dy])
+        dd = np.hypot(bpos[:, None, 0] - pos[None, :, 0], bpos[:, None, 1] - pos[None, :, 1])
+        dd = np.maximum(dd, db[None, :])
+        phi_bnd = float(((np.log(dd) * wb[None, :]).sum(axis=1) / wb.sum()).mean())
+    else:
+        phi_bnd = phi_mean
     return phi_mean, phi_bnd, float(phi.min())
 
 
