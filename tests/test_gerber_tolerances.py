@@ -10,8 +10,10 @@
 """
 
 import io
+import math
 import os
 import random
+import time
 import zipfile
 from pathlib import Path
 
@@ -48,9 +50,26 @@ def test_m71_and_m72_with_a_zero_suffix():
     """!@brief M71,TZ and M72,LZ give the unit and the zeros as METRIC,TZ does; the bare codes still work."""
     assert holes("M48\nM71\nT1C0.8\n%\nT1\nX1.0Y2.0\nM30\n") == [(1.0, 2.0)]
     assert holes("M48\nM72,LZ\nT1C0.03\n%\nT1\nX1.0Y2.0\nM30\n") == [(25.4, 50.8)]
-    # As METRIC,TZ: TZ keeps the trailing zeros (leading omitted), so "X1" of a 3.3 file is 0.001; LZ keeps the leading ones (trailing omitted), so "X1" is padded to 1.000 x 100
-    assert holes("M48\nM71,TZ\nT1C0.8\n%\nT1\nX1Y2\nM30\n") == [(0.001, 0.002)]
-    assert holes("M48\nM71,LZ\nT1C0.8\n%\nT1\nX1Y2\nM30\n") == [(100.0, 200.0)]
+    assert holes("M48\nM71,TZ\nT1C0.8\n%\nT1\nX-33.975Y29.575\nM30\n") == [(-33.975, 29.575)]          # Upverter: decimal points, the suffix does not matter
+
+
+def test_m71_with_a_zero_suffix_refuses_coordinates_that_would_depend_on_it():
+    """!
+    @brief Review: the ,TZ / ,LZ suffix is not in the Excellon or XNC specifications, so a coordinate without a decimal point, whose value would depend on reading it as
+           METRIC,TZ, is refused (a wrong guess moves every hole by a power of ten); the zeros of a METRIC,TZ header win over the suffix.
+    @return None.
+    """
+    for suffix in ("TZ", "LZ"):
+        with pytest.raises(G.UnsupportedFeatureError, match="decimal point"):
+            G.read_drill(f"M48\nM71,{suffix}\nT1C0.8\n%\nT1\nX1Y2\nM30\n", "t.drl")
+    assert holes("M48\nMETRIC,TZ\nT1C0.8\n%\nM71,LZ\nT1\nX1Y2\nM30\n") == [(0.001, 0.002)]        # the header's TZ: X1 of a 3.3 file is 0.001
+
+
+def test_a_file_of_blank_lines_is_read_in_linear_time():
+    """!@brief Review: the search for M48 used (?m)^\\s*, quadratic over blank lines (80 kB took 4.5 s); 400 kB of blank lines must take well under a second."""
+    t0 = time.perf_counter()
+    assert G.read_drill(" \n" * 200_000, "blank.drl").holes == []
+    assert time.perf_counter() - t0 < 1.0
 
 
 def test_a_stray_percent_line_before_m48_is_skipped_by_the_detector_and_the_reader():
@@ -86,6 +105,12 @@ def test_hyphenated_and_dotted_macro_names_are_accepted_with_a_warning_when_they
         lay = G.parse_layer(macro_file(name, name), "t.gbr")
         assert len(lay.flashes()) == 1 and any("non-conformant" in w and name in w for w in lay.warnings)
     assert G.parse_layer(macro_file("Disc", "Disc"), "t.gbr").warnings == []
+    # review: one warning per name, however many apertures use it, and the name is cut to 40 printable characters without markup (it is text from the file)
+    many = "%FSLAX24Y24*%\n%MOMM*%\n%AMa-b*\n1,1,1.0,0,0*%\n" + "".join(f"%ADD{10 + i}a-b*%\n" for i in range(50)) + "D10*\nX1Y1D03*\nM02*\n"
+    assert len(G.parse_layer(many, "t.gbr").warnings) == 1
+    long = "<b>" + "x" * 500
+    w = G.parse_layer(macro_file(long, long), "t.gbr").warnings
+    assert len(w) == 1 and "<" not in w[0] and len(w[0]) < 140
     with pytest.raises(G.UnsupportedFeatureError, match="non-standard"):
         G.parse_layer(macro_file("Rect-W1", "Rect-W2"), "t.gbr")
 
@@ -100,6 +125,9 @@ def test_image_mirror_is_still_refused_with_its_message():
 @pytest.mark.parametrize("name,kind", [
     ("Top Solder.gbr", "soldermask"), ("Bottom_SM.gbr", "soldermask"), ("board_top_asb.gbr", "other"), ("board_bottom_ast.gbr", "other"), ("Assembly_Top.art", "other"),
     ("board-fab-top.gbr", "other"), ("top.gbr", "copper"),
+    # review: the files the research found proposed as copper that the first version left as copper, and the ambiguous "solder" alone
+    ("PAST_TOP.art", "paste"), ("PAST_BOT.art", "paste"), ("Resist-B.fph", "soldermask"), ("Symbol-B.fph", "other"), ("power-art.asb", "other"), ("power-art.ast", "other"),
+    ("power-art.fab", "other"), ("solder.gbr", "unknown"), ("SOLDER_BOT.art", "soldermask"), ("top-sm.pho", "soldermask"),
 ])
 def test_masks_and_assembly_drawings_with_a_side_word_are_not_copper(name, kind):
     """!
@@ -109,6 +137,21 @@ def test_masks_and_assembly_drawings_with_a_side_word_are_not_copper(name, kind)
     @return None.
     """
     assert G.detect_function(name).kind == kind
+
+
+def test_a_file_whose_content_is_not_gerber_is_never_copper_by_its_name():
+    """!
+    @brief Review: copper is a Gerber file, so a name with a side word and a head that is not Gerber (a KiCad placement file "VNA-top-pos.csv", a log "B_A_.log", a
+           board file) is unknown, which also lets the import window see the placement table; with a Gerber head, or with no head, the name rule is unchanged.
+    @return None.
+    """
+    pos = "Ref,Val,Package,PosX,PosY,Rot,Side\nR1,1k,R_0603,10,20,0,top\n"
+    assert G.detect_function("VNA-top-pos.csv", pos).kind == "unknown"
+    assert G.detect_function("B_A_.log", "Proteus log\nstarted\n").kind == "unknown"
+    assert G.detect_function("VNA-top-pos.csv").kind == "copper"                         # the name alone: low confidence, as before
+    gerber = "G04 Allegro*\n%FSLAX25Y25*%\n%MOIN*%\n%ADD10C,0.01*%\nD10*\nX1Y1D03*\nM02*\n"
+    assert G.detect_function("TOP.art", gerber).kind == "copper"
+    assert G.detect_function("TOP.art", "G04 a comment only*\n").kind == "copper"
 
 
 def test_numbered_copper_names_are_ordered_over_the_set():
@@ -209,11 +252,30 @@ def test_changing_the_preference_changes_the_refusal(tmp_path, monkeypatch):
         limits.check_path(f)
     monkeypatch.setattr(defaults, "load", lambda: {"gerber": {"max_file_mb": 4096}})
     limits.check_path(f)
-    for bad in (1, 5000, "abc", None):
+    for bad in (1, 5000, "abc", None, float("nan"), math.inf, -math.inf, -256, 0, True, [256], {"mb": 1}):
         monkeypatch.setattr(defaults, "load", lambda bad=bad: {"gerber": {"max_file_mb": bad}})
         assert limits.max_file_bytes() == 256 * limits.MB
     monkeypatch.undo()
     assert defaults.shipped()["gerber"]["max_file_mb"] == 256
+
+
+def test_the_readers_never_take_more_than_the_limit_even_when_the_size_is_not_known(tmp_path, monkeypatch):
+    """!
+    @brief Review: a pipe, a device or a file that grows reports a size of 0, so the size check alone would let read_text take everything; the read itself is bounded
+           (limit + 1 bytes), and the text is the one Path.read_text gives (CR LF and CR become LF).
+    @return None.
+    """
+    f = tmp_path / "grows.gbr"
+    f.write_bytes(b"%FSLAX24Y24*%\r\n%MOMM*%\r\n" + b"G04 x*\r\n" * 1000 + b"M02*\r\n")
+    assert limits.read_text(f) == f.read_text(encoding="utf-8", errors="replace")
+    assert G.read_layer(f).ended
+    monkeypatch.setattr(limits.os.path, "getsize", lambda p: 0)                     # the system does not know the size
+    with pytest.raises(G.GerberError, match="above the limit"):
+        limits.read_text(f, max_bytes=1000)
+    with pytest.raises(G.GerberError, match="above the limit"):
+        G.read_layer(f, max_bytes=1000)
+    with pytest.raises(G.GerberError, match="above the limit"):
+        G.read_drill_file(f, max_bytes=1000)
 
 
 def test_a_zip_member_follows_the_limit(monkeypatch):
@@ -269,6 +331,8 @@ def test_the_convention_of_parts_matched_by_to_c_is_checked_from_the_openings():
     top = paste_with_refs("Top", [("T1", 1.0, 1.0)])
     one = [dict(ref="T1", package="R_0603_1608Metric", x=1.0, y=1.0, rot=0, side="top", value="")]
     assert P.build_parts({"top": top}, one).info["convention"] == "not checked"      # no bottom part: nothing to check it with
+    far = [dict(p, x=p["x"] + 50.0) for p in plc]                                    # review: no bottom opening inside an envelope either way: nothing was checked
+    assert P.build_parts({"bottom": lay}, far).info["convention"] == "not checked"
 
 
 # ---------------------------------------------------------------------------------------------------------------------------- hostile input

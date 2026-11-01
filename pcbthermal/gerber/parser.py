@@ -421,7 +421,11 @@ class Layer:
         elif name in st["macros"]:
             if not re.fullmatch(r"[_a-zA-Z$][_a-zA-Z0-9]*", name):
                 # Specification 3.4.5: names are [_a-zA-Z$][_a-zA-Z0-9]*. The name is only a key and the AM and AD texts agree exactly, so the reading cannot be wrong
-                self.warnings.append(f"{self.name}: non-conformant aperture macro name {name!r} (accepted: the AM and AD names are identical)")
+                # One warning per name (a file defines many apertures from one macro), and the name cut to 40 printable characters: it is text from the file, shown in the window
+                shown = "".join(ch for ch in name if ch.isprintable() and ch not in "<>&")[:40]
+                text = f"{self.name}: non-conformant aperture macro name {shown!r} (accepted: the AM and AD names are identical)"
+                if text not in self.warnings:
+                    self.warnings.append(text)
             args = [float(v) for v in re.split(r"[xX]", par)] if par else []
             prims = [macro_primitive(code, nums, self.name) for code, nums in st["macros"][name](args, unit)]
             aper = Aperture("M", [], [q for q in prims if q])

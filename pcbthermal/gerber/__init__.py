@@ -61,5 +61,4 @@ def read_layer(path, max_bytes=None):
     @throws GerberError For a malformed file or one above the size limit.
     """
     p = Path(path)
-    limits.check_path(p, max_bytes)
-    return Layer(p.read_text(encoding="utf-8", errors="replace"), p.name)       # UTF-8 whatever the locale; a Latin-1 byte in a comment becomes U+FFFD
+    return Layer(limits.read_text(p, max_bytes), p.name)       # UTF-8 whatever the locale; a Latin-1 byte in a comment becomes U+FFFD

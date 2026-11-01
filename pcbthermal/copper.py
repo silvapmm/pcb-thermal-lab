@@ -675,7 +675,8 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
         raise ValueError("an import needs at least one copper layer")
     if mapping not in MAPPINGS:
         raise ValueError(f"unknown copper mapping {mapping!r}; known: {', '.join(MAPPINGS)}")
-    warnings = []
+    # The tolerances the reader used on a layer (a non-conformant macro name) go into the record of the import, so that the window and the saved project show them
+    warnings = [w for lay in layers for w in getattr(lay, "warnings", [])]
     boxes = [lay.bbox() for lay in layers if lay.bbox() is not None]
     if outline is not None:
         if len(outline.polygons) != 1:

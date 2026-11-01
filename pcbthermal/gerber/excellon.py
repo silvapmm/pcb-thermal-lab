@@ -113,8 +113,11 @@ def _read_drill(text, name):
     slot_start = None
     cur_g = None                                                              # routing mode: "0" (move), "1" (cut) or None (drill hits)
     last_xy = (0.0, 0.0)
-    has_m48 = re.search(r"(?m)^\s*M48\b", text) is not None
+    # [ \t]* and not \s*: with (?m)^ a \s* runs across the following blank lines at every line start, which is quadratic in a file of blank lines (review: 80 kB took 4.5 s)
+    has_m48 = re.search(r"(?m)^[ \t]*M48\b", text) is not None
     seen_m48 = False
+    zeros_from_suffix = False                                                 # the zeros named only by a ",TZ"/",LZ" after M71/M72 (not a standard form)
+    zeros_from_header = False                                                 # the zeros named by METRIC,TZ / INCH,LZ (the standard form, which wins)
 
     def refuse(feature):
         """!@brief Raise the refusal. @param feature Description. @throws UnsupportedFeatureError Always."""
@@ -152,6 +155,8 @@ def _read_drill(text, name):
             unit = 25.4 if up.startswith("INCH") else 1.0
             # Excellon names the zeros that are KEPT (LZ = leading zeros kept, trailing omitted; TZ = trailing zeros kept, leading omitted): the opposite of the Gerber FS wording
             zeros = "L" if "TZ" in up else "T" if "LZ" in up else zeros
+            if "TZ" in up or "LZ" in up:
+                zeros_from_header, zeros_from_suffix = True, False
             m = re.search(r"(0+)\.(0+)", line) or re.search(r"(\d)[.:](\d)", line)   # "000.000" or "3.3"
             if m:
                 a, b = m.group(1), m.group(2)
@@ -160,8 +165,9 @@ def _read_drill(text, name):
         um = re.fullmatch(r"M7([12])(?:,\s*(TZ|LZ))?", up)
         if um:                                                             # the unit as a code: M71 metric, M72 inch; an optional ,TZ / ,LZ names the zeros as in METRIC,TZ
             unit = 25.4 if um.group(1) == "2" else 1.0
-            if um.group(2):
+            if um.group(2) and not zeros_from_header:
                 zeros = "L" if um.group(2) == "TZ" else "T"
+                zeros_from_suffix = True
             continue
         if up.startswith("G93") and re.fullmatch(r"G93(?:[XY][-+]?[\d.]+){1,2}", up) and all(float(v) == 0.0 for v in re.findall(r"[-+]?[\d.]+", up[3:])):
             continue                                                       # G93X0Y0 (Xpedition NC drill): the origin set to zero is the identity, so nothing moves
@@ -220,6 +226,10 @@ def _read_drill(text, name):
                     refuse("an Excellon file without unit information (no METRIC, INCH, M71 or M72): the unit must be chosen by the user")
             if nint is None:
                 nint, ndec = (2, 4) if unit == 25.4 else (3, 3)
+            if zeros_from_suffix and re.search(r"[XY][-+]?\d+(?![\d.])", line):
+                # M71,TZ is not in the Excellon or XNC specifications: it is read as METRIC,TZ only for the unit and for coordinates with a decimal point (Upverter writes them);
+                # a coordinate without one would depend on that reading of the suffix, and a wrong guess moves every hole by a power of ten
+                refuse("coordinates without a decimal point after M71/M72 with a ,TZ or ,LZ suffix (the zero convention of that form is not specified)")
             slot = re.match(r"(X[-+]?[\d.]+)?(Y[-+]?[\d.]+)?G85(X[-+]?[\d.]+)?(Y[-+]?[\d.]+)?$", line)
             if slot:                                                          # canned slot "X..Y..G85X..Y..": from the first point to the second
                 def coord(word, prev):
@@ -281,5 +291,4 @@ def read_drill_file(path, max_bytes=None):
     @throws GerberError For a file above the limit or one that cannot be read.
     """
     p = Path(path)
-    limits.check_path(p, max_bytes)
-    return read_drill(p.read_text(encoding="utf-8", errors="replace"), p.name)
+    return read_drill(limits.read_text(p, max_bytes), p.name)

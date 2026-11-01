@@ -56,6 +56,8 @@ _EXT = {
     "gtp": ("paste", "top", None), "gbp": ("paste", "bottom", None), "crc": ("paste", "top", None), "crs": ("paste", "bottom", None),
     "gko": ("outline", None, None), "gm1": ("outline", None, None), "gml": ("outline", None, None), "dim": ("outline", None, None), "oln": ("outline", None, None),
     "drl": ("drill", None, None), "xln": ("drill", None, None), "exc": ("drill", None, None), "drd": ("drill", None, None), "txt": ("drill", None, None),
+    # pcb-rnd assembly and fabrication drawings (review: `power-art.asb` was read as inner copper because the project name holds "power")
+    "asb": ("other", "bottom", None), "ast": ("other", "top", None), "fab": ("other", None, None),
 }
 
 
@@ -149,9 +151,10 @@ def _from_name(name):
             break
     if side is None:
         side = "bottom" if ("bottom" in parts or "bot" in parts) else "top" if "top" in parts else None
-    if re.search(r"\bpaste\b|\bsolderpaste\b|\bsmdpaste\b", joined) or "paste" in tokens:
+    if re.search(r"\bpaste\b|\bsolderpaste\b|\bsmdpaste\b", joined) or "paste" in tokens or "past" in tokens:      # "PAST_TOP" (Allegro film name)
         return LayerFunction("paste", side, None, None, "name")
-    if "mask" in joined or any(t in tokens for t in ("soldermask", "smask", "solder", "sm")):
+    # "solder" and "sm" alone are ambiguous (EAGLE's solder side is the bottom copper); with a side word ("SOLDER_TOP", "bot-sm") they name the mask. "resist" is the solder resist
+    if "mask" in joined or any(t in tokens for t in ("soldermask", "smask", "resist")) or (side is not None and any(t in tokens for t in ("solder", "sm"))):
         return LayerFunction("soldermask", side, None, None, "name")
     if re.search(r"silk|legend|overlay", joined) or "ss" in tokens:
         return LayerFunction("silkscreen", side, None, None, "name")
@@ -160,7 +163,7 @@ def _from_name(name):
     if re.search(r"drill|drl|pth|npth|ncdrill|excellon", joined):
         plated = False if "npth" in joined or "nonplated" in joined else True if "pth" in joined else None
         return LayerFunction("drill", None, None, plated, "name")
-    if re.search(r"assem|assy|fab|adhes|glue|courtyard|crtyd|user|dwg|drawing|comment|doc|note", joined) or any(t in tokens for t in ("asb", "ast", "asm", "assembly")):
+    if re.search(r"assem|assy|fab|adhes|glue|courtyard|crtyd|user|dwg|drawing|comment|doc|note", joined) or any(t in tokens for t in ("asb", "ast", "asm", "assembly", "symbol")):
         return LayerFunction("other", side, None, None, "name")
     inner = re.search(r"\b(?:in|inner|l|layer|mid|int)[-_ ]?(\d+)\b|in(\d+)[-_ ]?cu", joined + " " + stem)
     if inner and ("cu" in tokens or "copper" in parts or "inner" in parts or "layer" in parts or re.search(r"in\d+", stem)) and side is None:
@@ -190,11 +193,24 @@ def detect_function(name, head=""):
             by_name = _from_name(base)
             return LayerFunction("drill", None, None, plated if plated is not None else by_name.plated, "excellon")
     by_name = _from_name(base)
+    if head and by_name.kind == "copper" and not _looks_gerber(head):
+        # Copper is always a Gerber file: a name such as "VNA-top-pos.csv" or "B_A_.log" with a side word is not copper when its content is not Gerber (review: a KiCad
+        # placement file was proposed as top copper, which also hid it from the placement detection of the import)
+        return UNKNOWN
     if head and by_name.kind == "drill" and _gerber_head(head) and not re.search(r"D0?3\s*\*", head):
         # A Gerber file that draws strokes and flashes nothing (Xpedition DRILL.gdo, crosses at the holes) is a drawing of the holes, never an Excellon drill file; one that flashes
         # is a Gerber drill layer (the holes are the flashes) and keeps the kind. An X2 drill function returned above.
         return LayerFunction("other", None, None, None, "name")
     return by_name
+
+
+def _looks_gerber(head):
+    """!
+    @brief Whether the head of a file looks like Gerber at all (a format, unit, aperture or comment command, or a D code), loosely, for the copper content rule.
+    @param head First kilobytes of the file.
+    @return bool True when any Gerber command is found.
+    """
+    return bool(re.search(r"%FS|%MO|%AD|%TF|G04|D0?[123]\*", head))
 
 
 def _gerber_head(head):

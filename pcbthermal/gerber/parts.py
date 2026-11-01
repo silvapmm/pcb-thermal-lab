@@ -1106,7 +1106,9 @@ def build_parts(paste=None, placement=None, components=None, copper=None, pix=PA
         # checked), because "as is" by default would state something nobody looked at
         if placement and bottom == "auto":
             if any(p["side"] == "bottom" for p in placement) and any(o.side == "bottom" for o in openings):
-                info["convention"] = bottom_convention(placement, openings, tol, offset)[0]
+                conv, n_as, n_neg = bottom_convention(placement, openings, tol, offset)
+                # No bottom opening inside an envelope either way (another frame, unknown packages) or a tie: bottom_convention keeps "as is", but nothing was checked
+                info["convention"] = conv if n_as != n_neg else CONVENTION_NOT_CHECKED
         elif placement and bottom != "auto":
             info["convention"] = bottom
     for ref, idx in by_ref.items():
