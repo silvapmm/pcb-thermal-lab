@@ -211,16 +211,18 @@ class Document(QObject):
         """!
         @brief Save the project.
         @param path Target path (default: the current path).
+        @return str or None: the backup copy of the old file that the save made (the format of the file changed), else None.
         @throws ValueError If no path is known.
         """
         path = path or self.path
         if not path:
             raise ValueError("no file name")
-        save_project(path, self.project)
+        backup = save_project(path, self.project)
         self.path = path
         self.problem.name = os.path.basename(path).replace(".pcbt.json", "").replace(".json", "")
         self.stack.setClean()
         self.state_changed.emit()
+        return backup
 
     # ------------------------------------------------------------------ elements (mm on screen)
     def _items(self, kind):

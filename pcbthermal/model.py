@@ -1313,16 +1313,15 @@ def problem_from_legacy(json_config):
 
 def load_problem(path):
     """!
-    @brief Load a problem from a JSON file in either the native or the legacy format.
+    @brief Load a problem from a JSON file in the native, project (format 1 or 2) or legacy format.
     @param path Path of the JSON file.
     @return A validated Problem.
+    @throws pcbthermal.project.ProjectFormatError For a project file of a format this program does not know, or a file that is not JSON.
     """
-    with open(path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
-    # The legacy editor format is recognised by its pcb_params key
-    if "pcb_params" in data:
-        return problem_from_legacy(data)
-    return problem_from_dict(data)
+    # A project file (format 2 nests the problem under "project") goes through the project reader, which also refuses newer formats and
+    # damaged JSON; imported here because project.py imports this module
+    from .project import load_project
+    return load_project(path).problem
 
 
 def reference_problem(power=5.0, layers=2, heater_mm=20.0, full_copper=True):
@@ -1453,6 +1452,171 @@ def new_problem(width_mm=None, height_mm=None, layers=None, name="untitled"):
     b.natural_form = nb.get("natural_form", "general")
     b.materials = Materials(**d["materials"])
     return p
+
+
+# ---------------------------------------------------------------------------------------------- imports (project format 2)
+def _unknown_keys(d, known):
+    """!
+    @brief The keys of a stored dict that this version does not read, deep-copied, so that they are written back unchanged.
+    @param d Stored dict.
+    @param known Names this version reads.
+    @return dict.
+    """
+    return {k: copy.deepcopy(v) for k, v in d.items() if k not in known}
+
+
+def _with_unknown(out, extra):
+    """!
+    @brief Add the kept unknown keys to a serialised dict (a key this version writes itself always wins).
+    @param out Serialised dict.
+    @param extra Kept unknown keys.
+    @return dict, the same `out`.
+    """
+    for k, v in extra.items():
+        out.setdefault(k, copy.deepcopy(v))
+    return out
+
+
+@dataclass
+class ImportFile:
+    """!
+    @brief One imported source file, identified by content (never by the path on the user's disk).
+    """
+    name: str = ""                 # File name without folders
+    size: int = 0                  # Size in bytes
+    sha256: str = ""               # Hex digest, to recognise the same file again
+    function: str = ""             # What the import uses it for ("copper", "drill", "outline", "paste", "placement", ...)
+    extra: dict = field(default_factory=dict)             # Keys written by a later version, kept and written back
+
+    KEYS = ("name", "size", "sha256", "function")
+
+    def to_dict(self):
+        """!
+        @brief Serialise the entry.
+        @return JSON-ready dict.
+        """
+        return _with_unknown({"name": self.name, "size": int(self.size), "sha256": self.sha256, "function": self.function}, self.extra)
+
+    @staticmethod
+    def from_dict(d):
+        """!
+        @brief Read an entry.
+        @param d Dict written by to_dict.
+        @return ImportFile.
+        """
+        return ImportFile(str(d.get("name", "")), int(d.get("size", 0)), str(d.get("sha256", "")), str(d.get("function", "")),
+                          _unknown_keys(d, ImportFile.KEYS))
+
+
+@dataclass
+class ImportPart:
+    """!
+    @brief An imported part (heat source) keyed by its designator, with the user's edits.
+    """
+    designator: str = ""                                  # Key used to match the part again in a re-import
+    shape: str = "box"                                    # "box" or "hull"
+    polygon_mm: list = field(default_factory=list)        # Heat-source polygon [[x, y], ...] in mm
+    power: float = 0.0                                    # Power in W (user edit)
+    edits: dict = field(default_factory=dict)             # Other user edits (tj_max, role, use, shape_user, ...)
+    footprint: str = ""                                   # Footprint name from the placement file, when known
+    side: str = ""                                        # "top" or "bottom", when known
+    extra: dict = field(default_factory=dict)             # Keys written by a later version, kept and written back
+
+    KEYS = ("designator", "shape", "polygon_mm", "power", "edits", "footprint", "side")
+
+    def to_dict(self):
+        """!
+        @brief Serialise the part.
+        @return JSON-ready dict.
+        """
+        return _with_unknown({"designator": self.designator, "shape": self.shape, "polygon_mm": [list(map(float, p)) for p in self.polygon_mm],
+                              "power": float(self.power), "edits": copy.deepcopy(self.edits), "footprint": self.footprint, "side": self.side},
+                             self.extra)
+
+    @staticmethod
+    def from_dict(d):
+        """!
+        @brief Read a part.
+        @param d Dict written by to_dict.
+        @return ImportPart.
+        """
+        return ImportPart(str(d.get("designator", "")), str(d.get("shape", "box")), [list(map(float, p)) for p in d.get("polygon_mm", [])],
+                          float(d.get("power", 0.0)), copy.deepcopy(dict(d.get("edits", {}))), str(d.get("footprint", "")),
+                          str(d.get("side", "")), _unknown_keys(d, ImportPart.KEYS))
+
+
+@dataclass
+class ImportedCopper:
+    """!
+    @brief Placeholder for the output of an import (the packed copper masks); the imported-copper branch fills it.
+    @details Stored by value ("embed" True: each layer carries its packed mask) or by reference ("embed" False: roles only, redrawn from the
+             sources). The program of this version only keeps and writes it back; nothing in the models reads it.
+    """
+    pix_mm: float = 0.0                                   # Pixel of the masks in mm
+    embed: bool = True                                    # True: masks are inside the layers entries
+    layers: list = field(default_factory=list)            # [{"name": str, "role": str, "mask": packed dict or absent}, ...]
+    extra: dict = field(default_factory=dict)             # Keys written by a later version, kept and written back
+
+    KEYS = ("pix_mm", "embed", "layers")
+
+    def to_dict(self):
+        """!
+        @brief Serialise the reference.
+        @return JSON-ready dict.
+        """
+        return _with_unknown({"pix_mm": float(self.pix_mm), "embed": bool(self.embed), "layers": copy.deepcopy(self.layers)}, self.extra)
+
+    @staticmethod
+    def from_dict(d):
+        """!
+        @brief Read the reference.
+        @param d Dict written by to_dict (or None).
+        @return ImportedCopper.
+        """
+        d = d or {}
+        return ImportedCopper(float(d.get("pix_mm", 0.0)), bool(d.get("embed", True)), copy.deepcopy(list(d.get("layers", []))),
+                              _unknown_keys(d, ImportedCopper.KEYS))
+
+
+@dataclass
+class ImportRecord:
+    """!
+    @brief What a project remembers about one imported board (project format 2, key "imports").
+    """
+    name: str = ""                                                    # Name of the imported board
+    files: List[ImportFile] = field(default_factory=list)             # Source files by name, size, hash and function
+    box_mm: list = field(default_factory=list)                        # Outline box [x0, y0, x1, y1] in mm, file coordinates
+    parts: List[ImportPart] = field(default_factory=list)             # Heat sources keyed by designator
+    copper: Optional[ImportedCopper] = None                           # Output of the import (filled by the imported-copper step)
+    settings: dict = field(default_factory=dict)                      # Layer roles and order, drill units, outline choice, ...
+    warnings: list = field(default_factory=list)                      # Warnings of the import (text)
+    holes: list = field(default_factory=list)                         # Plated holes [{"x_mm", "y_mm", "d_mm", "kind": "via" or "component"}, ...]
+    extra: dict = field(default_factory=dict)                         # Keys written by a later version, kept and written back
+
+    KEYS = ("name", "files", "box_mm", "parts", "copper", "settings", "warnings", "holes")
+
+    def to_dict(self):
+        """!
+        @brief Serialise the record.
+        @return JSON-ready dict.
+        """
+        return _with_unknown({"name": self.name, "files": [f.to_dict() for f in self.files], "box_mm": [float(v) for v in self.box_mm],
+                              "parts": [p.to_dict() for p in self.parts], "copper": None if self.copper is None else self.copper.to_dict(),
+                              "settings": copy.deepcopy(self.settings), "warnings": list(self.warnings), "holes": copy.deepcopy(self.holes)},
+                             self.extra)
+
+    @staticmethod
+    def from_dict(d):
+        """!
+        @brief Read a record.
+        @param d Dict written by to_dict.
+        @return ImportRecord.
+        """
+        return ImportRecord(str(d.get("name", "")), [ImportFile.from_dict(f) for f in d.get("files", [])], [float(v) for v in d.get("box_mm", [])],
+                            [ImportPart.from_dict(p) for p in d.get("parts", [])],
+                            None if d.get("copper") is None else ImportedCopper.from_dict(d["copper"]),
+                            copy.deepcopy(dict(d.get("settings", {}))), list(d.get("warnings", [])), copy.deepcopy(list(d.get("holes", []))),
+                            _unknown_keys(d, ImportRecord.KEYS))
 
 
 reload_libraries()
