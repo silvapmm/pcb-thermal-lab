@@ -927,3 +927,59 @@ M. C. Fish, PhD dissertation (2017), chapter 7, pages 114 to 138 of the printed 
 
 ### Sources of the batch that were already recorded and were not re-read
 [Culham2007], [Jaffer2023] (R in `research/plate-h-level`), [JafferJaffer2025] (R for the statements quoted), [Ostrach1953] (R in full), [Schulenberg1984KfK] (R in `research/horizontal-plate-h`), [Lemczyk1992] (pages 414 to 417 R; pages 413, 418 and 419 not read in this pass), [Muzychka2003] and [YovanovichMuzychkaCulham1999] (R as recorded), [MuzychkaMultilayered1999] (as recorded; not re-read), [TeertstraReview] (equations 8, 20, 21, 22 R as recorded; not re-read), [Teertstra2006Enclosure] (journal version of [Teertstra2004Enclosure], not opened), [Yovanovich2003] (Table 3 R).
+
+## Reading pass, batch 2 (`research/theory-sources/` section 9)
+
+The whole folder of local copies (110 PDFs, outside the repository) was checked: every file opened, its text layer extracted (86 have one, 24 are scans read as page images where a page mattered), its identity checked against its first page, and the sources behind the five models read where batch 1 had not. The full table (every file, status, verdict) is kept with the copies, outside the repository; the findings and the statuses are here and in `research/theory-sources/` section 9. Statuses as of this pass; nothing below was read from a converted text.
+
+### [YovanovichJafarpur1993] (new)
+M. M. Yovanovich, K. Jafarpur, *Bounds on laminar natural convection from isothermal disks and finite plates of arbitrary shape for all orientations and Prandtl numbers* (Waterloo MHTL, 1993; text layer, 18 pages). **Status R for pages 1 to 15**: equation 1 (`Nu_sqrtA = Nu_inf + F(Pr) G_sqrtA Ra_sqrtA^(1/4)`), 2 (`F(Pr) = 0.670/[1 + (0.5/Pr)^(9/16)]^(4/9)`), 20 and 21 (diffusive limits 3.545 and 2.257), **25 (upper bound in air, `3.545 + 0.571 Ra^(1/4)` on sqrt(A))**, 26 (lower bound, `2.257 + 0.382 Ra^(1/4)`), 27 and 28 (all Pr); page 7: Lloyd and Moran's `Nu_L = 0.54 Ra_L^(1/4)` with its range **2.2e4 to 8e6** on `L = A/P` (mass transfer, second hand); page 8: Goldstein and Lau, face down, `C Ra^(1/5)`, C 0.44 to 0.527; page 9: the body-gravity function of a face looking down taken as half that of a face looking up. Used in `research/theory-sources/` 9.1.
+
+### [YovanovichTeertstra2001] (new)
+M. M. Yovanovich, P. Teertstra, *Laminar forced convection modeling of isothermal rectangular plates*, J. Thermophysics Heat Transfer 15 (2) (2001), 7 pages (text layer). **Status R for pages 1 to 7**: the shape factor equations 7 to 11 (`S*_sqrtA = (1 + sqrt(L/W))^2 / sqrt(pi L/W)`), equation 12 (the Pohlhausen form with C = 0.664, 0.677 for large Pr after Kays and Crawford), equation 17 (their linearised C = 0.742), equation 18 (`[(S*_L)^n + (0.742 Re^(1/2) Pr^(1/3))^n]^(1/n)`), equations 24 and 25 (n from the aspect ratio), validity Pr > 0.5 and Re below 5000 (a fit to CFD). Used in 9.1.
+
+### [Schulenberg1984KfK] (pages read here)
+**Pages 5 (abstract), 30 and 31 (equations 87 to 95, file pages 37 and 38, as an image) and 39 and 40 (nomenclature) read.** Equations 92 to 95 are the **local** Nusselt numbers at the stagnation point below a heated strip or disc (Nu and Ra on the half width or radius R; blend exponent n = 3 from air data of Aihara and others and of Faw and Dullforce). As `research/horizontal-plate-h` found, they are not plate means; a comparison of this pass that used them as means was withdrawn (9.1).
+
+### [TeertstraReview] (citation corrected, pages read here)
+The file is the journal paper: P. Teertstra, J. R. Culham, M. M. Yovanovich, *Comprehensive review of natural and mixed convection heat transfer models for circuit board arrays*, **Journal of Electronics Manufacturing 7 (2) (June 1997) 79-92** (World Scientific), not a university report. **Pages 79, 82 and 83 read as images**: equations 10 to 22, among them equation 12 (Ra_b/24 at r_T = 1), 13 (the channel Rayleigh number with `(1 + r_T)(T_1 - T_0)`), 20 (Churchill's composite), **21 (Bar-Cohen and Rohsenow, `[(C/Ra_b)^2 + (0.59 Ra_b^(1/4))^(-2)]^(-1/2)`, C = 24 symmetric, 12 with one adiabatic wall)** and 22 (Raithby and Hollands, exponent 1.9, C = 0.62); properties at the film temperature, beta = 1/T_0. Equation 21 is the one `checks.fin_channel_fraction` uses (9.3).
+
+### [YovanovichMuzychkaCulham1999] (Table 2 reproduced here)
+**Pages 3 to 5 read (equations 14 to 28, Tables 1 to 3).** Table 2 (the strip on a semi-infinite flux channel, `psi = k R_s`) reproduced to all four printed digits by a direct sum of equation 24 (1.1377, 0.4083, 0.0882, 0.0255 at eps 0.02, 0.2, 0.6, 0.8) and by equation 27 (1.1015, 0.3738, 0.0160). Status R, case reproduced.
+
+### [Muzychka2006EdgeCooling] (new key for the local copy of Muzychka and others 2006)
+Y. S. Muzychka, M. M. Yovanovich, J. R. Culham, *Influence of geometry and edge cooling on thermal spreading resistance*, J. Thermophysics Heat Transfer 20 (2) (2006) 247-255. **Status S** (nomenclature, equation 35, the captions of Figures 16 to 19, the summary): edge cooling matters only for large edge Biot numbers `h_e b / k`, large source aspect ratios or thick channels, and can be transferred to the bottom face. Used in 9.2.
+
+### [SoleymaniKoohbanani] (read here)
+A. Soleymani Koohbanani, MSc thesis, Simon Fraser University (2016), *Board-level thermal management systems with application in electronics and power electronics*. The file opens without a password (owner-only protection). **Status R for chapter 3, pages 56 to 63 (file pages 73 to 80)**: a one-dimensional parallel network per unit cell (barrel, air core, FR-4) with isothermal faces, equations 17 to 29 (printed as images: **S for their exact form**), Table 9 (nine round samples of 25.4 mm, square and staggered arrays, pitch 1 to 2.5 mm, outer diameter 0.40 to 0.65 mm, inner 0.36 to 0.61 mm; the column "copper barrel thickness 0.04 mm" is the diameter difference, the wall is 0.02 mm), Table 10 (COMSOL benchmark: FR-4 0.33, copper 385 W/mK), the measurement by a guarded heat flux meter within 13 % of the model (Fig. 33, plot). Used in 9.4.
+
+### [TI-AN2020] (example read here)
+**Pages 4 and 5 read**: the via resistance example (length 0.165 cm, plating 0.00175 cm, drill radius 6 mil, copper 4 W/cmK: 261 C/W). Reproduced with the plating inside the drill radius (259.4 C/W, the program's rule); status R for those pages (9.4).
+
+### [Ibraguimov2022] (section 5.1 read here)
+**Pages 11 and 12 read**: Theorem 1, Peaceman's radial-flow derivation gives `ln(Delta/R_0) = pi/2`, `R_0 = e^(-pi/2) Delta = 0.2079 Delta`. The program's 0.1985 is the exact infinite-lattice value (9.4).
+
+### [Durlofsky2005] (page read here)
+**Page 21 read**: equations 34 and 35, the well index and Peaceman's anisotropic radius `r_0 = 0.28 sqrt(...)/(...)` (second hand), the same form as in [Koch2019Well] (9.4).
+
+### [Saad2003] (re-checked)
+Pages 126 and 127 re-opened: Theorem 4.16 (equation 4.46, consistently ordered matrices) and `omega_opt = 2/(1 + sqrt(1 - rho(B)^2))` (equation 4.47), the program's formula (9.5).
+
+### [GreinerHormann1998] (now R in part)
+**Pages 1 and 7 read**: the sentence that only Weiler's and Vatti's algorithms handle the general case in reasonable time is on page 1; degeneracies are handled by perturbing a vertex (page 7). The program unites zones per sample point, without clipping, so the paper concerns the planned exact union only.
+
+### [StackupTables] (Bittele page read here)
+Bittele, standard multilayer stack-up, 2 pages, **R**: 2 layers 1 oz copper (0.0014 in) on a 0.057 in core; 4 layers two 2116 prepregs of 0.0091 in, a 0.037 in core and 1 oz inner copper; 6 layers 2116 + 3313 prepreg 0.0081 in and 0.013 in cores; finished 0.062 in +- 10 %.
+
+### [Lienhard2024] (pages added)
+Table A.6 (book page 755, air at 300, 350, 400 K) and the pure-copper row of Table A.1 (rho 8954, cp 384, k 398 W/mK at 20 C) read and compared with the program's properties (9.1, 9.6). The file opens without a password in PyMuPDF.
+
+### Citations and identities corrected in this pass
+* [Kron2022]: the authors are S. Chevalier and M. R. Almassalkhi (*Towards optimal Kron-based reduction of networks (Opti-KRON) for the electric power grid*, arXiv 2204.05554); status S (abstract).
+* [LiSuperLU2005]: a copy is held (LBNL report, UNT digital library) but its text layer is unreadable; status **N for the reading, copy held** (to be read as page images or from the eScholarship copy).
+* [McCorquodale2001]: the local file under that name is **another paper** (Schwartz, Barad, Colella, Ligocki, the 3D embedded-boundary method, the same as the eScholarship copy 0fp606kk); McCorquodale, Colella and Johansen (2001) is **not obtained** (N).
+* The local copy named after George is Mori, Taniguchi, Kimoto (Okayama, 1981), not [George1973]; the [George1973] reading recorded above was made on another copy and stands.
+* Four Waterloo scans were identified on their title pages: Lee and Yovanovich, *Linearization of natural convection from a vertical plate with arbitrary heat-flux distributions*, ASME HTD-178 (1991) (not a forced-convection paper of 1992); Lee, Culham, Yovanovich, *The effect of common design parameters on the thermal performance of microelectronic equipment*, **Part I** (natural convection), ASME HTD-171 (1991); Culham, Teertstra, Yovanovich, *Thermal wake effects in printed circuit boards*, J. Electronics Manufacturing 9 (2) (**1999**) 99-106; Culham, Yovanovich, Seri Lee, *Thermal modeling of isothermal cuboids and rectangular heat sinks cooled by natural convection*, IEEE Trans. CPMT-A 18 (3) (1995) 559.
+
+### Statuses of the rest of the folder
+Summary or skim only (S): the enclosure and channel papers of the Waterloo group (Teertstra 1995 analytical, Teertstra 2006, the duct paper [FinChannelSources2], [Culham2007]), [AvelarGanzarolli2003], [CulhamTeertstraYovanovich2000], [MuzychkaMultilayered1999], the cuboid and elliptic-disk papers of Yovanovich and Jafarpur, [IIETAIntegral], the near-well papers ([Gjerde2019], [Ligero2003], [OPMFlow2019], the two later Ibraguimov papers), the solver surveys ([FastDirect2025], the Davis slides, [EymardGallouetHerbin], [Khouider], [SaadEig2011], [LiptonRoseTarjan1979] from the abstract), the embedded-boundary papers (Johansen and Colella, Calhoun and LeVeque, Crockett and others, Helzel and others, Schwartz and others, the fourth-order paper, Ingram and others), the datasheet and package notes ([NISTIR7648], [TI-SPRA953B], [ROHM-64AN113E], [ROHM-65AN114E], [TI-SLUAAT8], [Infineon-AN2012-03]), [IsolaPrepreg], [ArXiv2307.08354]. Identified only (title page): the Waterloo scans not named above (Negus 1986 and 1989, Teertstra 1995 on packaging density, Yovanovich 1976, 1979, 1987, 1995 (image method), 2000, Culham and Yovanovich 1987, META 1991, Lee and Yovanovich 1989 and 1991, Lee, Yovanovich and Jafarpur 1991), the Johansen report, EBChombo, the Gerber 2016 and 2024 revisions, the Gerber job format, the TI one-page sheet, the two AIAA 2003 papers of Muzychka (garbled text layers). Earlier statuses of the other files stand.
