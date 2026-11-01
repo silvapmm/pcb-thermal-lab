@@ -31,9 +31,9 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import memory, viawell
+from . import copper, memory, viawell
 from .fvm import ORDERING
-from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid, zone_fill
+from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
 from .results import SteadyResult
 
 log = logging.getLogger(__name__)
@@ -142,7 +142,7 @@ class Solid:
         self.area_b = Ab
 
         # --- Copper fill of every layer and the plated area of the vias in every cell
-        fill = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
         via_frac = np.zeros((ny, nx))
         for v, share in zip(problem.vias, problem.via_board_shares()):
             if share > 0.0:                    # The geometric test of the warning and of every model: a via with no board under its drill adds nothing
