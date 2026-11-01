@@ -18,6 +18,7 @@ import pytest
 pytest.importorskip("pytestqt")
 
 from PySide6.QtCore import QPointF, QSettings, Qt
+from PySide6.QtGui import QPalette
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QMessageBox
 
@@ -982,10 +983,51 @@ def test_a_3d_model_too_large_is_refused_in_the_application(win, qtbot, popups):
     assert set(win.sim.results) == {"lumped"} and any("3D solid was not run" in w for w in win.sim.warnings)
     run(win, qtbot, ("solid3d",), cell=2.0, expect_ok=False)            # Alone: the job fails with the message, it does not wait
     assert time.time() - t0 < 120 and not win.worker.isRunning()
-    assert any(k == "critical" and "use a cell of" in t for k, _, t in popups)
+    # The window now refuses before it starts the process (a warning box); the job itself would also fail with the same text (critical)
+    assert any(k in ("warning", "critical") and "use a cell of" in t for k, _, t in popups)
     win.doc.set_options(models=("solid3d",), cell_mm=20.0)
     win.solver_panel.refresh()
-    assert "will not run" not in win.solver_panel.cells_label.text() and solid3d.unknowns(win.doc.problem, 20.0)[0] <= solid3d.MAX_CELLS
+    assert "will not run" not in win.solver_panel.cells_label.text()
+
+
+def test_the_memory_verdict_in_the_panel_disables_run_and_auto_fits(win, qtbot, popups, monkeypatch):
+    """The panel shows the memory verdict of each selected model; a refused FVM cell disables Run (with the reason as its tooltip) and F5 only shows the message; Auto
+    gives a cell the guard accepts and says so; the animation is refused in the window; a low memory limit set in the options (a machine preference) is restored."""
+    from pcbthermal import memory
+    load(win, example_board())
+    win.doc.set_options(models=("fvm", "lumped"), cell_mm=1.0)
+    win.solver_panel.refresh()
+    panel = win.solver_panel
+    assert "FVM:" in panel.cells_label.text() and "GB" in panel.cells_label.text() and panel.run.isEnabled() and not panel.blocked
+    import re
+    assert not re.search(r"\d,\d{3}", panel.cells_label.text())          # Counts without a thousands separator (the rule of every number shown)
+    # The colours follow the theme: lighter tones on the dark theme (the dark tones had too little contrast there)
+    dark_now = panel.palette().color(QPalette.Window).lightness() < 128
+    assert ("#66bb6a" if dark_now else "#2e7d32") in panel.cells_label.text()
+    win.toggle_theme()
+    assert ("#2e7d32" if dark_now else "#66bb6a") in panel.cells_label.text()
+    win.toggle_theme()
+    # A 4 GB machine at 10 %: nothing but a very coarse cell fits
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(4e9))
+    win.doc.options.memory_fraction = 0.10
+    panel.cell.setValue(0.1)
+    assert "will not run" in panel.cells_label.text() and not panel.run.isEnabled()
+    assert "Cannot run" in panel.run.toolTip() and panel.blocked
+    before = len(popups)
+    win.run_simulation()                                                   # F5 and the menu reach the same check
+    assert len(popups) == before + 1 and popups[-1][0] == "warning" and win.worker is None
+    # Auto: heater-based cell enlarged to what fits, and the run is allowed again
+    panel.auto_cell.click()
+    assert not panel.blocked and panel.run.isEnabled() and panel.cell.value() > 0.1
+    # The animation request is checked in the window (cell of at least 1 mm); a tiny limit refuses it with the message in the tab
+    monkeypatch.setattr(memory, "ram_bytes", lambda: int(0.3e9))
+    win.compute_animation({"t_end": 10.0, "n_out": 5, "theta_scheme": 1.0, "model": "fvm", "log_times": False})
+    assert "Failed" in win.results.animation.status.text() and "GB" in win.results.animation.status.text()
+    assert getattr(win, "_anim_worker", None) is None or not win._anim_worker.isRunning()
+    monkeypatch.undo()
+    win.doc.options.memory_fraction = memory.default_fraction()
+    win.solver_panel.refresh()
+    assert not panel.blocked and panel.run.isEnabled()
 
 
 def test_inner_copper_choice_in_the_application(win, qtbot):

@@ -39,6 +39,11 @@ import zoned_lumped as zl                                                    # n
 
 OUT = os.path.join(FOLDER, "out")
 refs.CACHE = os.path.join(OUT, "refcache")                                   # the references of this folder
+# The references of the earlier run were made at 1/16 mm (4.0 GB peak for a 30 mm board, above the 3 GB budget of the runs of this branch); the default is now 1/8 mm
+# (about 1 GB), which the review of the earlier run found to move two boards by -0.13 and -0.41 % of the via effect. `PCBT_REF_DX` (mm) overrides it. The cache key holds
+# the spec only, so a cache must not mix the two cells: the folder `out/refcache` of this run is built at 1/8 mm throughout.
+REF_DX_MM = float(os.environ.get("PCBT_REF_DX", "0.125"))
+refs.reference.__defaults__ = (REF_DX_MM / 1.0,)
 OLD_CACHE = os.path.join(RESEARCH, "lumped-via-groups", "out", "refcache")
 
 # The variants. A factory returns a context manager; the program is untouched outside it.
@@ -49,6 +54,7 @@ VARIANTS = {
     "Z_none_nomp": lambda: zl.patched(zone_macro="none", micro_peak=False),                               # ablation: no micro peak
     "Z_none_fr": lambda: zl.patched(zone_macro="none", bessel_ring1=True),                                # ablation: Bessel factor on the A-to-ring-1 link
     "Z_cap_nocb": lambda: zl.patched(zone_macro="cap", core_peak=False),                                  # ablation: no bump of a hot core
+    "Z_fine": lambda: zl.patched(zone_macro="none", share_rule="fine"),                                   # the fallback decided on the share of the footprint counted on a 0.1 mm grid (raster independent)
     "Z_off": lambda: zl.patched(zones=False),                                                             # the zone code present but switched off: must equal P245
     "Z_none_stride": lambda: zl.patched(zone_macro="none", decimation="stride"),                          # the research folder's decimation of the integrals
 }
