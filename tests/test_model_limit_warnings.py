@@ -134,9 +134,12 @@ def test_via_warnings():
     p.add_via(10, 10)
     p.add_via(50, 10)
     w = check_model_limits(p, ("lumped",), 1.0)
-    assert len(w) == 2
+    # The two far vias (nearest neighbour 40 mm) link every via into one group by the single-linkage rule, so the group spans the footprint edge
+    # and the too-cool rule fires as well: three warnings
+    assert len(w) == 3
     assert w[0].kind == "heater" and w[0].index == 0 and "2 vias under the footprint" in w[0]
-    assert w[1].kind == "via" and w[1].index == 2 and "and 1 more vias" in w[1] and "outside the footprint" in w[1]
+    assert w[1].kind == "heater" and "too cool, unsafe" in w[1]
+    assert w[2].kind == "via" and w[2].index == 2 and "and 1 more vias" in w[2] and "outside the footprint" in w[2]
     for cell in (0.5, 1.0, 2.0, 4.0):
         assert check_model_limits(p, ("fvm", "fdm"), cell) == []
     q = Problem.new(60, 60, 2)
@@ -188,3 +191,88 @@ def test_warnings_do_not_change_results_and_reach_the_simulation(monkeypatch):
     assert not any("bare laminate" in w for w in quiet.problem_warnings)
     for m in opts.models:
         assert np.array_equal(sim.results[m].T, quiet.results[m].T), m
+
+
+def _via_part_board(x0, y0, x1, y1, vias, layers=2):
+    """!
+    @brief A 60 x 60 mm board with full copper, one part and the given vias.
+    @param x0 Left edge of the part in mm.
+    @param y0 Bottom edge of the part in mm.
+    @param x1 Right edge of the part in mm.
+    @param y1 Top edge of the part in mm.
+    @param vias List of (x, y) positions in mm.
+    @param layers Number of copper layers.
+    @return Problem.
+    """
+    p = Problem.new(60, 60, layers)
+    p.add_full_copper()
+    p.add_heater(1, 2.0, rect=(x0, y0, x1, y1), name="U")
+    for x, y in vias:
+        p.add_via(x, y, 0.3)
+    return p
+
+
+def _grid(cx, cy, n, pitch):
+    """!
+    @brief An n x n array of via positions centred on a point.
+    @param cx Centre x in mm.
+    @param cy Centre y in mm.
+    @param n Vias per side.
+    @param pitch Pitch in mm.
+    @return list of (x, y) in mm.
+    """
+    h = (n - 1) / 2
+    return [(cx + (i - h) * pitch, cy + (j - h) * pitch) for i in range(n) for j in range(n)]
+
+
+def _cool_warnings(p):
+    """!
+    @brief The warnings of the Lumped model that carry the too-cool rule.
+    @param p Problem.
+    @return list of str.
+    """
+    return [str(w) for w in check_model_limits(p, ("lumped",), 1.0) if "too cool, unsafe" in str(w)]
+
+
+def test_lumped_cool_warning_fires_across_the_edge_and_off_centre():
+    """!
+    @brief An array across the edge of the footprint, an array off its centre and an elongated footprint get the too-cool warning with the kelvin and
+           the percent of the rise; a centred square array, a board without vias and a one-layer board do not.
+    @return None.
+    """
+    edge = _via_part_board(27, 27, 33, 33, _grid(33, 30, 5, 1.5))             # Group half inside, half outside the footprint
+    w = _cool_warnings(edge)
+    assert len(w) == 1 and "10.8 K" in w[0] and "26 % of its rise" in w[0] and "use the FVM" in w[0]
+    off = _via_part_board(24, 26, 36, 34, _grid(31.5, 30, 5, 1.0))             # 5 x 5 array 1.5 mm off the centre of a 12 x 8 mm part
+    assert len(_cool_warnings(off)) == 1 and "17.5 % of the rise" in _cool_warnings(off)[0]
+    elongated = _via_part_board(22, 27, 38, 33, _grid(30, 30, 3, 1.0))        # Centred array, side ratio 2.7
+    assert len(_cool_warnings(elongated)) == 1
+    centred = _via_part_board(27, 27, 33, 33, _grid(30, 30, 3, 1.0))
+    assert _cool_warnings(centred) == []
+    assert any("under the footprint" in str(x) for x in check_model_limits(centred, ("lumped",), 1.0))   # The general text still applies
+    assert _cool_warnings(_via_part_board(27, 27, 33, 33, [])) == []
+    assert check_model_limits(_via_part_board(27, 27, 33, 33, _grid(33, 30, 5, 1.5), layers=1), ("lumped",), 1.0) == []
+    assert check_model_limits(edge, ("fvm", "fdm", "analytic"), 1.0) == [] or not _cool_warnings_other(edge)
+
+
+def _cool_warnings_other(p):
+    """!
+    @brief The too-cool rule text among the warnings of the models other than the Lumped (must be none).
+    @param p Problem.
+    @return list of str.
+    """
+    return [str(w) for w in check_model_limits(p, ("fvm", "fdm", "analytic"), 1.0) if "too cool, unsafe" in str(w)]
+
+
+def test_lumped_cool_warning_is_cheap_with_two_thousand_vias():
+    """!
+    @brief The live check stays fast with 2000 vias under and around a part.
+    @return None.
+    """
+    import time
+    rng = np.random.default_rng(1)
+    pts = [(float(a), float(b)) for a, b in rng.uniform(5, 55, (2000, 2))]
+    p = _via_part_board(27, 27, 33, 33, pts)
+    t0 = time.perf_counter()
+    check_model_limits(p, ("lumped",), 1.0)
+    assert time.perf_counter() - t0 < 0.3
