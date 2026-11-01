@@ -52,7 +52,7 @@ def fig_section(path):
             dk.arrow(a, x0, y + 0.55, x1, y + 0.55, color=dk.HEAT, width=1.1)
     a.text(6.5, 6.4, "barrel (drill radius $r_v$)", ha="center", fontsize=8)
     a.text(3.4, 6.35, "heat spreads sideways in each plane,\nfalling as $\\ln(r/r_v)/(2\\pi S)$ towards the barrel", ha="center", fontsize=7.5, color=dk.HEAT)
-    a.text(6.5, -0.45, "and goes down the barrel: $G_v = k_{Cu} A / d$ per gap", ha="center", fontsize=8)
+    a.text(6.5, -0.45, "and goes down the barrel: $G_{via} = k_{Cu} A_{via} / d$ per gap", ha="center", fontsize=8)
     for y in (4.9, 3.2, 1.5):
         dk.arrow(a, 6.5, y + 0.55, 6.5, y - 0.35, color=dk.BLUE, width=1.3)
     # top view: sheet around the via, rings of equal temperature
@@ -110,8 +110,8 @@ def fig_peaceman(path):
     fig, (a, b) = plt.subplots(1, 2, figsize=(12.5, 4.4))
     r = np.logspace(-1.0, 1.3, 200)
     dx = 1.0
-    for rv, lab, col in ((0.4, "via larger than the equivalent radius ($r_v > r_{eq}$)", dk.BLUE), (0.1, "via smaller ($r_v < r_{eq}$)", dk.HEAT)):
-        a.plot(r, np.log(r / rv) / (2 * np.pi), color=col, label=f"continuum, hole $r_v = {rv}\\,\\Delta x$: {lab}", linewidth=1.4)
+    for rv, lab, col in ((0.4, "via larger than the equivalent radius ($r_t > r_{eq}$)", dk.BLUE), (0.1, "via smaller ($r_t < r_{eq}$)", dk.HEAT)):
+        a.plot(r, np.log(r / rv) / (2 * np.pi), color=col, label=f"continuum, hole $r_t = {rv}\\,\\Delta x$: {lab}", linewidth=1.4)
     xs = np.arange(1, 21)
     pot = lattice.a_of(xs, 0) / 4
     a.plot(xs, pot, "ko", markersize=3.5, label="five-point stencil, sink at the node (nodes along an axis)")
@@ -120,7 +120,7 @@ def fig_peaceman(path):
     a.set_xscale("log")
     a.set_xlabel("distance from the sink / $\\Delta x$")
     a.set_ylabel("temperature above the reference point, in units of $q/S$")
-    a.set_title("a unit sink in a sheet: nodes of the stencil (reference: the sink node) and holes of the continuum (reference: their rim)", fontsize=8)
+    a.set_title("a unit sink in a sheet: nodes of the stencil (reference: the sink node)\nand holes of the continuum (reference: their rim)", fontsize=8)
     a.legend(fontsize=6.5, loc="upper left")
     a.set_ylim(-0.4, 0.6)
     # panel b: the resistance bookkeeping as a chain
@@ -130,12 +130,12 @@ def fig_peaceman(path):
     dk.box(b, 0.2, 4.4, 2.2, 1.0, "far field\n$T_\\infty$", dk.AIR)
     dk.resistor(b, 2.6, 5.6, 4.9, "$\\ln(r/r_{eq})/(2\\pi S)$ (the grid has it)")
     dk.box(b, 5.7, 4.4, 2.0, 1.0, "node of the\nvia cell", "#cfe3f5")
-    dk.resistor(b, 7.8, 10.0, 4.9, "well: $\\ln(r_{eq}/r_v)/(2\\pi S)$")
-    b.text(5.0, 3.6, "$r_{eq} > r_v$: add the well in series (Peaceman): the node reaches the barrel\nthrough $G_c = 2\\pi S/\\ln(r_{eq}/r_v)$", ha="center", fontsize=8)
+    dk.resistor(b, 7.8, 9.6, 4.9, "well: $\\ln(r_{eq}/r_t)/(2\\pi S)$")
+    b.text(5.0, 3.6, "$r_{eq} > r_t$: add the well in series (Peaceman): the node reaches the barrel\nthrough $G_c = 2\\pi S/\\ln(r_{eq}/r_t)$", ha="center", fontsize=8)
     dk.box(b, 0.2, 1.7, 2.2, 1.0, "far field\n$T_\\infty$", dk.AIR)
     dk.resistor(b, 2.6, 5.6, 2.2, "$\\ln(r/r_{eq})/(2\\pi S)$ (too much)")
     dk.box(b, 5.7, 1.7, 2.0, 1.0, "node = barrel\n(needs less)", "#f6d0d0")
-    b.text(5.0, 0.7, "$r_{eq} < r_v$ (fine cells): the point is too constricted by\n$\\ln(r_v/r_{eq})/(2\\pi S)$: a negative well, so spread the barrel instead", ha="center", fontsize=8)
+    b.text(5.0, 0.7, "$r_{eq} < r_t$ (fine cells): the point is too constricted by\n$\\ln(r_t/r_{eq})/(2\\pi S)$: a negative well, so spread the barrel instead", ha="center", fontsize=8)
     dk.save(fig, path)
 
 
@@ -189,9 +189,9 @@ def fig_network(path):
         dk.box(a, 9.3, y, 1.0, 0.6, f"barrel {k + 1}", dk.COPPER)
     for y in (4.6, 2.9):
         dk.resistor(a, 9.3, 10.3, y - 0.55 - 0.0, "", size=6)
-    a.text(9.8, 3.95, "$G_v$", fontsize=7)
-    a.text(9.8, 2.2, "$G_v$", fontsize=7)
-    a.text(6.0, 0.35, "$\\bar T_k = \\sum_a w_a T_{k,a}$: the flux of plane $k$ into the barrel is spread over its cells by the weights $w_a$", ha="center", fontsize=8)
+    a.text(10.4, 4.05, "$G_{via}$", fontsize=7)
+    a.text(10.4, 2.35, "$G_{via}$", fontsize=7)
+    a.text(6.0, 0.35, "$\\bar T_l = \\sum_a w_a T_{l,a}$: the flux of plane $l$ into the barrel is spread over its cells by the weights $w_a$", ha="center", fontsize=8)
     b.set_xlim(0, 8)
     b.set_ylim(0, 6)
     b.text(4.0, 5.4, "eliminate the barrel nodes (Kron reduction)", ha="center", fontsize=9, fontweight="bold")
