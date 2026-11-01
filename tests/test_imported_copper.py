@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 from pcbthermal import api, copper, fdm, fvm, gerber, memory
-from pcbthermal.model import ImportedCopper, Problem
+from pcbthermal.model import ImportRecord, ImportedCopper, Problem
 from pcbthermal.project import Project, load_project, save_project
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -182,6 +182,22 @@ def test_copy_of_a_problem_shares_the_packed_masks_and_is_cheap():
     assert copper.unpack_coverage(q.imported.layers[0]["mask"]) is first            # the arrays are made once for all the copies
 
 
+def test_undo_snapshot_of_a_project_with_masks_is_cheap():
+    """!
+    @brief The undo snapshot of the document (project_to_dict and a deep copy) of a project with four 4-million-pixel masks shares the packed text and costs milliseconds.
+    @return None.
+    """
+    from pcbthermal.project import project_to_dict
+    rasters = [_stripes(2000, 40, 11), _solid(2000), _stripes(2000, 25, 7), _solid(2000)]
+    p = _board(rasters, "faces", side=200.0, heater=10.0, pix=0.1)
+    proj = Project(problem=p, imports=[ImportRecord(name="big", box_mm=[0, 0, 200, 200], copper=p.imported)])
+    t0 = time.perf_counter()
+    snap = copy.deepcopy(project_to_dict(proj))
+    dt = time.perf_counter() - t0
+    assert dt < 0.1
+    assert snap["imports"][0]["copper"]["layers"][0]["mask"]["data"] is proj.imports[0].copper.layers[0]["mask"]["data"]
+
+
 def test_project_round_trip_with_masks(tmp_path):
     """!
     @brief A project with an imported board saves as format 2 with its masks, loads back with the same copper, and gives the same temperatures.
@@ -189,7 +205,7 @@ def test_project_round_trip_with_masks(tmp_path):
     @return None.
     """
     p = _board([_stripes(120), _solid(120)], "faces")
-    rec = p.board and __import__("pcbthermal.model", fromlist=["ImportRecord"]).ImportRecord(name="stripes", box_mm=[0, 0, 12, 12], copper=p.imported)
+    rec = ImportRecord(name="stripes", box_mm=[0, 0, 12, 12], copper=p.imported)
     path = tmp_path / "board.pcbt.json"
     save_project(path, Project(problem=p, imports=[rec]))
     d = json.loads(path.read_text())
@@ -197,9 +213,10 @@ def test_project_round_trip_with_masks(tmp_path):
     back = load_project(path)
     c = back.imports[0].copper
     assert c.layers == p.imported.layers and c.pix_mm == p.imported.pix_mm and c.mapping == "faces"
+    assert d["project"].get("imported") is None and "imported" not in json.dumps(d["project"])      # the problem JSON carries no masks; the record does
     q = back.problem
-    q.imported = c
-    assert abs(_solve(q, 0.6) - _solve(p, 0.6)) < 1e-12
+    assert q.imported is c and abs(_solve(q, 0.6) - _solve(p, 0.6)) < 1e-12           # loading hands the masks of the record to the problem
+    assert Project(problem=p).run_problem() is p                                      # no record: the problem itself
     p.imported.mapping = "lambda"
     assert ImportedCopper.from_dict(p.imported.to_dict()).mapping == "lambda"
     # A record written before the mapping field existed reads as the default
@@ -436,6 +453,13 @@ def test_import_copper_from_gerber_text():
     assert p.board.layers == 2 and p.imported is ib.copper and len(ib.copper.layers) == 2
     rec = ib.record("synthetic")
     assert rec.copper is ib.copper and rec.box_mm == list(ib.box_mm)
+    # The default pixel gives at least ten pixels per cell, so the run's own coarse-raster warning stays silent (thin 0.127 mm tracks at cells of 0.5, 1 and 2 mm)
+    thin_top, thin_edge = _gerber_stripes(6.0, 6.0, 1.0, 0.127)
+    thin = [gerber.parse_layer(thin_top, "t.gtl")]
+    for cell in (0.5, 1.0, 2.0):
+        auto = copper.import_copper(thin, gerber.read_outline(thin_edge, "e.gm1"), cell_mm=cell)
+        assert cell / auto.pixel_mm >= 10.0 - 1e-9 and auto.pixel_mm <= 0.127 + 1e-9
+        assert not any("pixels per cell" in w for w in copper.model_warnings(auto.to_problem(), "fvm", cell))
     # The guard: a machine with 0.2 GB cannot draw 12 x 12 mm at 1 micrometre; the message names the pixel that fits
     with pytest.raises(memory.MemoryGuardError) as e:
         copper.import_copper(layers, outline, pixel_mm=0.001, cell_mm=1.0, ram=int(0.5e9), base=0.1e9)

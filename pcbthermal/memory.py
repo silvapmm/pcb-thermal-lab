@@ -462,7 +462,8 @@ def copper_run_bytes(problem) -> float:
     c = getattr(problem, "imported", None)
     if c is None:
         return 0.0
-    shapes = [tuple(e["mask"]["shape"]) for e in c.layers if e.get("mask")]
+    from .copper import has_mask
+    shapes = [tuple(e["mask"]["shape"]) for e in c.layers if has_mask(e)]
     if not shapes:
         return 0.0
     pixels = [r * q for r, q in shapes]

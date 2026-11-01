@@ -106,6 +106,16 @@ def clear_cache():
     _unpack.cache_clear()
 
 
+def has_mask(entry):
+    """!
+    @brief Whether a layer entry of an ImportedCopper holds a packed mask the models can read (a placeholder or a reference-only layer does not).
+    @param entry Dict of the layer.
+    @return bool.
+    """
+    m = entry.get("mask") if isinstance(entry, dict) else None
+    return isinstance(m, dict) and "data" in m and "shape" in m
+
+
 # ------------------------------------------------------------------------------------------------ resampling
 def _average_matrix(n_src, src_origin, src_pix, n_out, out_pix):
     """!
@@ -294,10 +304,10 @@ class CopperSource:
         self.reduce_sheet = True                                                   # False only to show that the unreduced sheet counts the laminate twice (a test)
         self.pix = copper.pix_mm * 1e-3
         self.entries = {}
-        for e in copper.layers:
-            if not e.get("mask"):
-                continue                                                           # a reference-only layer (embed False): no copper to give
-            i = int(e["index"])
+        for k, e in enumerate(copper.layers):
+            if not has_mask(e):
+                continue                                                           # a reference-only layer (embed False) or a placeholder: no copper to give
+            i = int(e.get("index", k))                                             # (an entry without an index is the k-th copper layer, top first)
             if not 0 <= i < n_layers:
                 raise ValueError(f"imported copper layer {e.get('name', '')!r} has index {i}, but the board has {n_layers} copper layers")
             if i in self.entries:
@@ -576,7 +586,7 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
     @param layers List of gerber.Layer, the copper layers from the top layer down.
     @param outline gerber.Outline of the board, or None to use the box of the copper.
     @param drills Iterable of gerber.DrillFile; plated, round holes become vias (a slot, an unplated or unknown-plating hole is left out and said in the warnings).
-    @param pixel_mm Pixel of the masks in mm (None: the sample-spacing rule of `gerber.suggest_pixel_mm`, and at most a quarter of the cell).
+    @param pixel_mm Pixel of the masks in mm (None: a quarter of the thinnest feature times the supersampling, and at most a tenth of the cell).
     @param cell_mm Cell of the thermal grid the board is meant for, in mm (only to choose the pixel and to size the memory estimate).
     @param supersample Sub-pixels per pixel side of the coverage.
     @param mapping "faces" (default), "lambda" or "fill".
@@ -613,8 +623,9 @@ def import_copper(layers, outline=None, drills=(), pixel_mm=None, cell_mm=2.0, s
         raise ValueError("the board box has no area")
     if pixel_mm is None:
         thin = [t for t in (lay.thinnest_feature_mm() for lay in layers) if t]
-        sug = gerber.suggest_pixel_mm(min(thin), supersample) if thin else None
-        pixel_mm = min(sug, cell_mm / 4.0) if sug else cell_mm / 10.0
+        # A quarter of the thinnest feature per sample spacing rule (supersample * thinnest / 4), and at most a tenth of the cell: the faces need about ten pixels per cell
+        # (COARSE_RASTER_PIXELS), the pixel the studies used; the memory guard proposes a coarser pixel when this one does not fit
+        pixel_mm = min(supersample * min(thin) / 4.0, cell_mm / 10.0) if thin else cell_mm / 10.0
     window = gerber.Window(x0, y1, width, height)
     rows, cols = gerber.pixel_counts(window, pixel_mm)
     memory.check_import(rows, cols, len(layers), cell_mm, fraction=fraction, ram=ram, base=base, pixel_mm=pixel_mm)

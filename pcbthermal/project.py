@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 
 from . import __version__
 from .api import SolverOptions
+from .copper import has_mask
 from .model import ImportRecord, Problem, problem_from_dict, problem_from_legacy, problem_to_dict
 
 PROJECT_SUFFIX = ".pcbt.json"
@@ -53,6 +54,22 @@ class Project:
     view: dict = field(default_factory=dict)         # Viewer state: background image, zoom, ...
     imports: list = field(default_factory=list)      # ImportRecord list; non-empty makes the file format 2
     extra: dict = field(default_factory=dict)        # Top-level keys of a format 2 file this version does not know, written back unchanged
+
+    def run_problem(self):
+        """!
+        @brief The Problem to hand to the models: the project's problem with the imported copper of its first import record that holds masks.
+        @details The native problem JSON carries no copper masks (they live in the import records, format 2); `project_from_dict` calls this, so a loaded project's problem
+                 already reads its copper, and a program that edits the records calls it again. The copy is shallow (the elements and the packed masks are shared, nothing is
+                 duplicated); a project without imported copper returns its own problem, and a problem that holds copper but no record keeps it.
+        @return Problem.
+        """
+        for rec in self.imports:
+            c = rec.copper
+            if c is not None and any(has_mask(e) for e in c.layers):
+                q = copy.copy(self.problem)
+                q.imported = c
+                return q
+        return self.problem
 
 
 def project_to_dict(project):
@@ -123,8 +140,10 @@ def project_from_dict(data, validate=True):
         extra = {k: copy.deepcopy(v) for k, v in data.items() if k not in FORMAT_2_KEYS}
         data = data["project"]
     problem = problem_from_legacy(data) if "pcb_params" in data else problem_from_dict(data, validate)
-    return Project(problem=problem, options=SolverOptions.from_dict(data.get("solver")),
-                   view=dict(data.get("view", {})), imports=imports, extra=extra)
+    project = Project(problem=problem, options=SolverOptions.from_dict(data.get("solver")),
+                      view=dict(data.get("view", {})), imports=imports, extra=extra)
+    project.problem = project.run_problem()          # The masks live in the import records; the models read them from the problem (shares the packed text)
+    return project
 
 
 def load_project(path):
