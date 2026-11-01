@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44 (the diagrams of the rewrite of the theory).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44, fig_45 (the diagrams of the rewrite of the theory).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -1059,7 +1059,7 @@ def document_map(path):
     dk.arrow(ax, 4.0, 6.9, 4.0, 6.3); dk.arrow(ax, 11.1, 6.9, 11.1, 6.3)
     ax.text(11.1, 4.6, "same grid and sources as the FVM", fontsize=7.5, ha="center", va="top")
     ax.text(9.6, 3.6, "a layered model against\nthe 3D solid: the error of the\nidealisation (section 11)", fontsize=7.5, va="center")
-    shared = (("7. metal blocks\n(plate, fins)", 0.3), ("2.6, 5.1, 6.1 vias\n(well, constriction)", 2.7), ("8. h per face\n(Picard loop)", 5.1), ("9. parts\n(junction, top path)", 7.5), ("10. profiles\n(time)", 9.9), ("11. checks\n(ladder)", 12.3))
+    shared = (("7. metal blocks\n(plate, fins)", 0.3), ("1.5 vias\n(2.6 well, 5.1, 6.1 constriction)", 2.7), ("8. h per face\n(Picard loop)", 5.1), ("9. parts\n(junction, top path)", 7.5), ("10. profiles\n(time)", 9.9), ("11. verification\n(the ladder)", 12.3))
     ax.text(0.3, 2.3, "pieces that every model (or most) uses (yellow) or that run around the solvers (red)", fontsize=8.5, fontweight="bold")
     for txt, x in shared:
         dk.box(ax, x, 0.5, 2.2, 1.4, txt, "#f4b6b6" if "9." in txt or "8." in txt or "10." in txt else "#fff2b3", size=7.5)
@@ -1220,6 +1220,65 @@ def laminate_nodes(path):
     dk.save(fig, path, "The laminate nodes: the cut gap, the cells that are cut, the one-layer board (theory section 1.4)")
 
 
+def problem_to_model(path):
+    """!
+    @brief Draw the problem the program solves and the way to a model: a section of a board with a part, copper planes, a via, the laminate and the air on both faces (heat paths in red), the shape of the temperature along the board (closed form of a 1D fin, illustrative), and the chain from the problem to the temperature map.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(19, 5.6, 1, 3, ratios=[1.35, 0.9, 1.0])
+    a = axs[0]; a.set_xlim(0, 14); a.set_ylim(0, 10)
+    a.text(7, 9.5, "a board in section: where the heat goes (illustrative proportions)", ha="center", fontsize=9, fontweight="bold")
+    # Laminate with three copper planes (top, inner, bottom) and a via barrel through them
+    dk.layer(a, 1.0, 3.0, 12, 3.0, dk.FR4)
+    dk.layer(a, 1.0, 6.0, 12, 0.3, CU); dk.layer(a, 1.0, 4.5, 12, 0.2, CU); dk.layer(a, 1.0, 2.7, 12, 0.3, CU)
+    dk.layer(a, 5.6, 2.7, 0.5, 3.6, CU)
+    a.text(6.2, 3.4, "via", ha="left", fontsize=7.5)
+    # The part: a package on the top copper with its power
+    dk.layer(a, 3.4, 6.3, 3.0, 0.9, "#f4b6b6", "part: P (W)", size=8)
+    dk.arrow(a, 4.9, 8.6, 4.9, 7.25, color="k"); a.text(5.2, 8.3, "power P", fontsize=7.5)
+    # Heat paths: spread in the plane, down the via, convection and radiation to the air on both faces
+    for x in (9.6, 11.0, 12.4):
+        dk.arrow(a, x, 6.4, x, 7.8, color=dk.HEAT)
+    a.text(11.0, 8.2, "convection + radiation\nfrom the top face", ha="center", fontsize=7.5, color=dk.HEAT)
+    for x in (2.6, 4.5, 8.6, 11.0):
+        dk.arrow(a, x, 2.6, x, 1.4, color=dk.HEAT)
+    a.text(7.0, 0.7, "the same from the bottom face; the edges lose a little", ha="center", fontsize=7.5, color=dk.HEAT)
+    # Sideways spreading drawn inside the top copper plane (it is the copper that carries it, not the air)
+    dk.arrow(a, 6.5, 6.15, 8.3, 6.15, color=dk.HEAT, width=1.6); a.text(6.6, 6.55, "spreads sideways in the copper", fontsize=7.5, color=dk.HEAT)
+    dk.arrow(a, 5.85, 6.0, 5.85, 3.0, color=dk.HEAT, width=1.3)
+    a.text(6.2, 3.8, "down the via", ha="left", fontsize=7.5, color=dk.HEAT)
+    a.text(1.2, 5.2, "laminate: hundreds of times\nless conductive than copper", fontsize=7.5)
+    a.text(1.2, 6.6, "thin copper planes", fontsize=7.5, color=CU)
+    # Middle: the shape of the rise along the top plane, closed form of an infinite 1D fin heated over |x| < a
+    a = axs[1]
+    x = np.linspace(-40.0, 40.0, 801)
+    half = 3.0
+    for lam, col, lab in ((5.0, dk.HEAT, "little copper: spreading length 5 mm"), (20.0, dk.BLUE, "planes of copper: spreading length 20 mm")):
+        inside = 1.0 - np.exp(-half / lam) * np.cosh(x / lam)
+        outside = np.sinh(half / lam) * np.exp(-np.abs(x) / lam)
+        a.plot(x, np.where(np.abs(x) <= half, inside, outside), color=col, lw=2, label=lab)
+    a.axvspan(-half, half, color="#f4b6b6", alpha=0.6, lw=0)
+    a.text(0, 0.015, "part", ha="center", fontsize=8); a.set_ylim(0, 0.6)
+    a.axis("on"); a.grid(alpha=0.3)
+    a.set_xlabel("distance from the part (mm)"); a.set_ylabel("temperature rise / (q'' / h)")
+    a.set_title("the rise along the board (1D fin, closed form, illustrative):\nsteep under the part, slow far away; more copper, lower peak", fontsize=8.5)
+    a.legend(fontsize=7.5, loc="upper right")
+    a = axs[2]; a.set_xlim(0, 10); a.set_ylim(0, 10)
+    a.text(5, 9.5, "from the problem to a result", ha="center", fontsize=9, fontweight="bold")
+    steps = (("the board: layers, copper, parts, vias,\nblocks, h per face (the Problem)", "#e8e8e8"),
+             ("idealise: one node per copper layer, the gap a\nresistance (or real slabs for the 3D solid)", "#cfe3f5"),
+             ("discretise: cells (FVM, FDM), rings (Lumped),\ncosine modes (Analytic)", "#daedd0"),
+             ("solve the heat balance (matrix, network or series);\nh and the part split re-solved in loops around it", "#fdeeb4"),
+             ("results: temperature map, hottest points,\njunctions, in steady state or in time", "#f4b6b6"))
+    for i, (txt, col) in enumerate(steps):
+        y = 7.6 - i * 1.8
+        dk.box(a, 0.4, y, 9.2, 1.2, txt, color=col, size=8)
+        if i < len(steps) - 1:
+            dk.arrow(a, 5, y, 5, y - 0.6)
+    dk.save(fig, path, "The problem and the way to a model")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1242,7 +1301,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 

@@ -1,7 +1,7 @@
 # Research (open investigations)
 
 This file collects investigations that are **not implemented yet**: what was read, what was simulated, what is still open. It is used until the work is implemented;
-then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/versions.md` (chapter 'Planned'), the scripts stay in `examples/`, and this file goes back to the empty template below.
+then the findings are folded into `docs/models.md`, `docs/validation.md` and `docs/versions.md` (chapter 'Planned'), the scripts stay in `research/<topic>/`, and this file goes back to the empty template below.
 Values marked *assumed* are not from a datasheet. Everything is reproducible with the scripts named in each section. A copy of these notes, with the studies, their results and the figures, is in `research/component-heatsink/` (README, NOTES.md).
 
 ## Open now: the Component element (junction node, heatsink scenarios, Foster chain)
@@ -17,9 +17,9 @@ What stays here is the **top path** of the study, behind the top path now implem
 
 | Part | Tj without top path | Bare mould (heat through the top) | With a 12 K/W clip-on heatsink (heat through the top) | θJC(top) |
 | :-- | --: | --: | --: | --: |
-| MOSFET CSD17308Q3 | 107.6 °C | 104.6 °C (0.6 %) | 67.4 °C (49 %) | 30 K/W (assumed) |
-| LDO TPS7A47 | 87.3 °C | 83.2 °C (1.4 %) | 55.5 °C (51 %) | 27 |
-| Buck LMR36510 | 62.8 °C | 60.6 °C (1.3 %) | 46.9 °C (41 %) | 54 |
+| MOSFET CSD17308Q3 | 107.5 °C | 104.5 °C (0.6 %) | 67.4 °C (49 %) | 30 K/W (assumed) |
+| LDO TPS7A47 | 87.2 °C | 83.2 °C (1.4 %) | 55.4 °C (51 %) | 27 |
+| Buck LMR36510 | 62.6 °C | 60.5 °C (1.3 %) | 46.9 °C (41 %) | 54 |
 | Schottky SS12 | 60.9 °C | 59.1 °C (1.1 %) | 42.9 °C (49 %) | 60 K/W (assumed) |
 
 A bare mould carries about 1 % of the heat (0.4 to 0.8 K against the same junction node without a top path; the 2 to 4 K written before compared the node with the worst-case offset); a heatsink takes 41 to 51 % and lowers `Tj` by 14 to 38 K (16 to 40 K against the offset), which the single resistance cannot see: this is the case that justifies the junction node.
