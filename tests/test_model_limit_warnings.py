@@ -10,6 +10,7 @@ import glob
 import os
 
 import numpy as np
+import pytest
 
 from pcbthermal import Problem, SolverOptions, project, simulate
 from pcbthermal.checks import check_model_limits, check_via_limits
@@ -600,7 +601,61 @@ def test_statistics_of_a_very_small_part_are_not_nan():
     p = Problem.new(30, 20, 2)
     p.add_zone(1, rect=(0, 0, 30, 20))
     p.add_heater(1, 0.5, rect=(10.05, 10.05, 10.25, 10.25))             # Between the sample points of its cell
-    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=2.0))
+    sim = simulate(p, SolverOptions(models=("fvm", "fdm"), cell_mm=2.0))
     from pcbthermal.analysis import heater_stats
-    row = heater_stats(sim.results["fvm"], p)[0]
-    assert all(np.isfinite(row[k]) for k in ("t_mean", "t_max")), row
+    for model in ("fvm", "fdm"):                                         # A cell field and a node field (the part falls between the nodes too)
+        res = sim.results[model]
+        row = heater_stats(res, p)[0]
+        assert all(np.isfinite(row[k]) for k in ("t_mean", "t_max")), (model, row)
+        if model == "fvm":
+            assert row["t_max"] == pytest.approx(float(res.T.max()), abs=1e-9)    # The only source, in the cell of its centroid: the hottest cell
+        else:
+            # The FDM shares the cell's power among its four nodes; the part reads the node nearest to its centroid, one of them (not always the hottest)
+            assert float(res.T[0, 5:7, 5:7].min()) - 1e-9 <= row["t_max"] <= float(res.T.max()) + 1e-9
+
+
+def test_overlap_of_self_crossing_and_rotated_polygons_follows_the_even_odd_fill():
+    """!
+    @brief A pentagram turns the same way at every vertex; it used to be taken as convex and to give the whole square at its centre, which the even-odd fill
+           of the program leaves empty. Rotated rectangles are exact against the closed form of two squares turned by 45 degrees.
+    @return None.
+    """
+    from pcbthermal.geometry import _is_convex, polygon_overlap_area
+    ang = np.arange(5) * 4 * np.pi / 5
+    star = np.c_[np.cos(ang), np.sin(ang)] * 2.0
+    sq = np.array([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]])
+    assert not _is_convex(star)
+    # Even-odd: the centre pentagon (inradius 2 cos 72 deg = 0.618) is empty and holds most of the square; only its corners reach into the arms
+    assert polygon_overlap_area(sq, star) < 0.05
+    assert polygon_overlap_area(star, sq) < 0.05
+    diamond = np.array([[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]])    # |x| + |y| <= 1: a square of side sqrt(2) turned by 45 deg, area 2
+    big = 2.0 * sq                                                       # Area 4; the diamond is wholly inside
+    assert polygon_overlap_area(diamond, big) == pytest.approx(2.0, abs=1e-12)
+    # The square [-0.5, 0.5]^2 against the diamond |x| + |y| <= 1: the square lies wholly inside the diamond
+    assert polygon_overlap_area(sq, diamond) == pytest.approx(1.0, abs=1e-12)
+    assert polygon_overlap_area(sq[::-1], diamond[::-1]) == pytest.approx(1.0, abs=1e-12)     # Clockwise vertices give the same area
+
+
+def test_overlap_and_cool_part_warnings_keep_their_numbers_in_both_forms():
+    """!
+    @brief The overlap share is in the full text (Results summary) as well as in the one-line form; the one-line form of the Lumped cool-part warning
+           names no single trigger (it fires for an array past the edge, an off-centre array and an elongated footprint) and keeps the unsafe size.
+    @return None.
+    """
+    from pcbthermal.checks import check_problem, check_model_limits, line
+    q = Problem.new(30, 20, 2)
+    q.add_zone(1, rect=(0, 0, 30, 20))
+    q.add_heater(1, 1.0, rect=(5.0, 8.0, 7.0, 10.0))
+    q.add_heater(1, 1.0, rect=(6.0, 8.0, 8.0, 10.0))
+    got = [w for w in check_problem(q, 1.0) if "overlap on layer" in w]
+    assert len(got) == 1 and "50 % of the smaller" in got[0] and "50 % of the smaller" in line(got[0])
+    e = Problem.new(40, 30, 2)
+    e.add_zone(1, rect=(0, 0, 40, 30))
+    e.add_zone(2, rect=(0, 0, 40, 30))
+    e.add_heater(1, 2.0, rect=(10.0, 10.0, 16.0, 12.0))                  # Elongated footprint (side ratio 3) filled by a centred array: not zoned
+    for x in np.arange(10.25, 16.0, 0.5):                                # (the core covers the footprint), so the warning is a live one
+        for y in np.arange(10.25, 12.0, 0.5):
+            e.add_via(x, y, 0.2)
+    cool = [w for w in check_model_limits(e, ("lumped",), 1.0) if "unsafe for a design" in w]
+    assert cool, [str(w) for w in check_model_limits(e, ("lumped",), 1.0)]
+    assert all("past the footprint" not in line(w) and "unsafe for a design" in line(w) and "a quarter" in line(w) for w in cool)

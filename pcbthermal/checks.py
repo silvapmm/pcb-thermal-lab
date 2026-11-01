@@ -134,7 +134,7 @@ def check_problem(problem, cell_mm=1.0):
                 small = min(polygon_area(hi.polygon), polygon_area(hj.polygon))
                 if overlap > 0.05 * small:
                     _add(out, "heater", i, f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap on layer "
-                               f"{hi.layer + 1}: their power densities add up.", f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap "
+                               f"{hi.layer + 1} ({100 * overlap / small:.0f} % of the smaller footprint): their power densities add up.", f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap "
                                f"({100 * overlap / small:.0f} % of the smaller).")
 
     # A via is judged by its drill disc against the outline (or the box): no board under it = ignored by every model; less than half = mostly off
@@ -422,7 +422,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
                            "solution there: the FVM (which cuts the laminate there into sub-gaps) 0 to 3 % on 4- and 6-layer stack-ups and 0.8 to 1.6 mm two-layer boards, "
                            "up to 10 % on a 3.2 mm laminate or under a window narrower than the laminate is thick, the FDM 2 to 20 %, "
                            "the Lumped (-43 to +7 %) and the Analytic (-4 to -63 %) not systematically; use the 3D solid for the final value.",
-                     f"{h.name or f'Heater {k + 1}'}: the part sits on bare laminate (fill {f_core:.2f}); the layered models read low; use the 3D solid.")
+                     f"{h.name or f'Heater {k + 1}'}: the part sits on bare laminate (fill {f_core:.2f}); the layered models read low (the FVM up to 10 %); "
+                     "use the 3D solid.")
 
     if not problem.vias or b.layers < 2:
         return out                                              # A one-layer board has no gap: its vias join nothing and change no model
@@ -473,7 +474,9 @@ def check_model_limits(problem, models, cell_mm=1.0):
                 msg = None if zoned else lumped_via_cool_warning(h.polygon, vx, vy, inside, groups, d_nn)
                 if msg:
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {msg}",
-                         f"{h.name or f'Heater {k + 1}'}: vias continue past the footprint; the Lumped part may run too cool; use the FVM.")
+                         # The rule has three triggers (array past the edge, off centre, elongated footprint): the short form names none of them alone
+                         f"{h.name or f'Heater {k + 1}'}: the Lumped model can read this part too cool, unsafe for a design (up to about 11 K, a quarter "
+                         "of its rise); use the FVM.")
         outside = np.flatnonzero(~in_any & on_board)
         if outside.size:
             # One warning for all of them: a Gerber board can have hundreds of vias away from the parts
@@ -486,7 +489,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
                        "outside the edge of a footprint up to 2.3 times the reference (the part up to 4 K, 9 % of its rise, too cool; "
                        "research/young-omega-tiles 3.8, the review of fix/via-constriction, research/lumped-zones-adoption 8.4); use the FVM.",
                  f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside every footprint; the Lumped model is approximate here "
-                 "(effect 22 % too small to 65 % too large); use the FVM.")
+                 "(effect 22 % too small to 65 % too large, an array just beside a part up to 2.3 times); use the FVM.")
     if "analytic" in models and on_board.any() and b.layers > 1:
         # The tile of the correction follows the pitch (1 mm at most, 0.25 mm at least) and is enlarged when the dense system would pass MAX_UNKNOWNS;
         # a pitch under 0.45 mm was not tested. The program's tile is 2.5 to 5 mm; the rule never reaches it, the guard can. The guard counts the tiles of the
@@ -503,7 +506,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
                                   f"the tiles of the heatsinks and metal blocks; {len(vs)} vias); the via effect is less accurate (measured 14 % too small to 3 % "
                                   "too large at tiles of 1.6 to 2.4 mm: 500 and 2000 scattered vias, a heatsink or a block over most of the board; "
                                   "not tested for 400 or more vias at a pitch under 1 mm).",
-                 f"Analytic model: via tile coarsened to {num(t_final * 1e3, 2)} mm; the via effect is less accurate.")
+                 f"Analytic model: via tile coarsened to {num(t_final * 1e3, 2)} mm; the via effect is less accurate (14 % too small to 3 % too large).")
         if d_med < 0.45e-3:
             _add(out, None, None, f"Analytic model: the median via pitch is {num(d_med * 1e3, 2)} mm, below the 0.45 mm tested; the tile is cut to 0.25 mm at least and the "
                                   "via effect is unverified.", f"Analytic model: median via pitch {num(d_med * 1e3, 2)} mm, below the 0.45 mm tested.")
@@ -511,7 +514,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
             # Peak memory measured by the review: 0.15 GB of the program plus about four dense matrices of n^2 doubles (0.9 GB and 3 s at 4800 unknowns)
             _add(out, None, None, f"Analytic model: the via correction solves a dense system of {n_unknown} unknowns (about {0.15 + 0.75 * (n_unknown / 4800.0) ** 2:.1f} GB "
                                   "and a few seconds; 0.9 GB and 3 s were measured at 4800 unknowns).",
-                 f"Analytic model: the via correction solves {n_unknown} unknowns (a few seconds, up to about 1 GB).")
+                 f"Analytic model: the via correction solves {n_unknown} unknowns (about {0.15 + 0.75 * (n_unknown / 4800.0) ** 2:.1f} GB and a few seconds).")
         if len(vs) <= 2:
             _add(out, None, None, "Analytic model: one or two vias beside or under a part were measured up to 16 % too small in the via effect "
                                   "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale); use the FVM for the value.",
