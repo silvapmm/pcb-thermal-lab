@@ -61,3 +61,28 @@ def test_lee_lemczyk_unit_pieces():
     assert abs(r - 37.40) < 0.05
     rb = lly.r_pad_via(386.0, 55e-6, 500e-6, 1e-9, 17.5e-6)
     assert 0.7 < rb / (0.2701 / (386.0 * 17.5e-6)) < 1.0
+
+
+def test_shen_reductions_are_those_of_the_pattern_ii_optimum():
+    """!@brief Review: Shen and others page 7 print 47, 89.5 and 46.4 % for the optimum against the designs of their references [15], [17], [18]; the staggered (pattern II) optimum gives them within 0.4 point, the square one does not (39, 88, 38.5 %)."""
+    out = va.part1()
+    for key, paper in (("ref0.0003", 47.0), ("ref0.0002", 89.5), ("ref0.00033", 46.4)):
+        assert abs(out[key + "_II"] - paper) < 0.5
+    assert out["ref0.0003"] < 40.0 and out["ref0.00033"] < 40.0
+
+
+def test_via_board_reference_counts_the_barrel_over_the_gaps():
+    """!@brief Review: on the 12 x 12 board the barrel joins the full planes, so its length is the 1.46 mm of the gaps; the 1D reference is 1.4497 K/W, 8.7 % below the paper's unit sum, and the closed-form plane constriction brings it to 1.50 to 1.52 K/W."""
+    r_gaps = va.series_of_gaps(5.6, 0.45, 0.25, 12)
+    assert abs(r_gaps - 1.4497) < 5e-4
+    assert abs(va.unit_resistance(0.25e-3, 0.2e-3, va.K_AIR) / 144 / r_gaps - 1 - 0.0958) < 2e-3
+    top, bottom = va.plane_constriction(0.45, 0.25, 0.125e-3)
+    assert 1.49 < r_gaps + top + bottom < 1.51
+
+
+def test_lee_lemczyk_drawn_cell_and_ratio():
+    """!@brief Review: Table 2 counts the vias of one layer (0 % routing: about the 8660 um2 hexagonal cell of 100 um pitch); equation 7 scales as 1/N, so its ratio 314/168 = 1.869 cannot give the printed 1.745."""
+    assert abs(5.9e-3 ** 2 / 3973 / (np.sqrt(3.0) / 2.0 * 1e-8) - 1) < 0.02
+    a = lly.island_resistance(*lly.ISLANDS[0.40][:2], "N per layer", 0.5)
+    b = lly.island_resistance(*lly.ISLANDS[0.20][:2], "N per layer", 0.5)
+    assert abs(a / b - 1.87) < 0.01 and abs(0.342 / 0.196 - 1.745) < 1e-3

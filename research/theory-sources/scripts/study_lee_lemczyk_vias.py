@@ -6,7 +6,8 @@
 @details Equations 1 (die attach pad or fourth via pad: a ring source on one face, adiabatic rim, isothermal other face), 2 (the barrel, one-dimensional), 3 (intermediate pad: ring source,
          isothermal rim, adiabatic back face) and 7 (the island, four via layers) are evaluated with the Bessel-root series. The paper prints, on its page 60, the resistance of the via network
          0.196 K/W at 20 % routing and 0.342 K/W at 40 % routing for nine islands (Tables 1 and 2). The paper does not say which cell area a unit cell has nor what N counts, so two readings
-         are run; the script prints both and says how far each is from the printed numbers. Nothing is fitted. Run: .venv/bin/python research/theory-sources/scripts/study_lee_lemczyk_vias.py
+         are run; the script prints both and says how far each is from the printed numbers. Nothing is fitted. The review added the cells that the paper draws (Figures 4, 6 and 7)
+         and the ratio test: equation 7 scales as 1/N at fixed cells, so no cell area reproduces both printed numbers. Run: .venv/bin/python research/theory-sources/scripts/study_lee_lemczyk_vias.py
          (from the repository root; under a second).
 """
 
@@ -97,6 +98,20 @@ def main():
         print(f"{routing * 100:3.0f} %   | {printed:.3f}   | {a:.3f} ({100 * (a / printed - 1):+.0f} %) | {b:.3f} ({100 * (b / printed - 1):+.0f} %) | {c:.3f} ({100 * (c / printed - 1):+.0f} %)")
     ratio = island_resistance(*ISLANDS[0.40][:2], "N per layer", 0.25) / island_resistance(*ISLANDS[0.20][:2], "N per layer", 0.25)
     print(f"ratio of the 40 and 20 percent routing: printed {0.342 / 0.196:.3f}, N per layer with f2 = 1/4 {ratio:.3f}")
+    # Review: the cells are drawn on page 58 (Figures 6 and 7): the die-attach and fourth pads use the hexagonal cell of the staggered layer of pitch
+    # P = 100 um (area sqrt(3)/2 P^2; Figure 4 gives 100 um along the row and on the diagonal), the intermediate pads a rectangle P/2 wide and one row
+    # (sqrt(3)/2 P) high, i.e. half of it. Table 2 counts the vias of ONE layer (0 % routing: 3973 vias on 5.9 x 5.9 mm, 8762 um2 per via, the
+    # hexagonal cell), so the N of equation 7, "N vias in total" over the four via layers, is four times the table count and 4/N is one over it.
+    hex_cell = np.sqrt(3.0) / 2.0 * 100e-6 ** 2
+    print(f"review: 0 % routing, 5.9 x 5.9 mm with 3973 vias: {5.9e-3 ** 2 / 3973 * 1e12:.0f} um2 per via (hexagonal cell of 100 um pitch {hex_cell * 1e12:.0f} um2)")
+    c1, c2 = np.sqrt(hex_cell / np.pi), np.sqrt(hex_cell / 2.0 / np.pi)
+    col = r_pad_edge(K_GOLD, c1, T_LAYER, A_IN, B_OUT) + r_pad_edge(K_CU, c1, T_LAYER, A_IN, B_OUT) + 6 * r_pad_via(K_CU, c2, T_LAYER, A_IN, B_OUT) \
+        + 4 * r_barrel(K_CU, T_LAYER, A_IN, B_OUT)
+    for routing, (side, n, printed) in ISLANDS.items():
+        r = col / n / 9.0
+        print(f"review: drawn cells (hexagon, half-hexagon rectangle), {routing * 100:.0f} %: {r:.3f} K/W against {printed:.3f} ({100 * (r / printed - 1):+.0f} %)")
+    print(f"review: any reading of equation 7 with the same cells at both routings scales as 1/N: ratio {314 / 168:.3f} against the printed {0.342 / 0.196:.3f}; "
+          "the printed pair holds a term that equation 7 does not have")
 
 
 if __name__ == "__main__":
