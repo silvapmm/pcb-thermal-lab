@@ -32,12 +32,20 @@ approximation is made. For every layer and ring the real geometry is aggregated:
   the group as one disc whose radius is capped at 0.75 fin lengths); the barrel nodes are eliminated and the rings get couplings between all their planes
   (viaconstriction.py, docs/theory.md section 6.1). Without vias the network is the one described above, bit for bit.
 
+- zones: when a dense group of vias covers part of a larger footprint, the footprint has two nodes per layer instead of one (the rest A and the core C of the vias,
+  _zone_network): the heat of the rest has to travel sideways to the core, in parallel with its own vertical paths, which one node cannot show (the via effect came out up to
+  60 % too small). The link A-C is the logarithmic-potential resistance of the real shapes, the source is split by area, the hottest point is the largest of the hottest point of
+  A, the core plus the rim of the cell of one via, and the core with the bump of a hotter core. A footprint whose core fills more than 92 % of it (on the grid or on a 0.1 mm
+  grid), has no group of vias, or sits on a one-layer board keeps the one-node network, line for line (_one_node_network). The raster of a board with a zoned part is 0.5 mm
+  (cell_for). Docs: docs/theory.md 5, research/lumped-zones-adoption.
+
 Each heater gives a small dense linear system, solved exactly. Because the problem is linear, the
 temperature at any point is the sum of the rises caused by every heater (mutual heating comes from
 interpolating the radial profile of one heater at the distance of the other). The peak inside a
 footprint adds (phi_mean - phi_min) Q_lateral / (2 pi S), also from the logarithmic potential.
 """
 
+import logging
 import math
 import time
 from types import SimpleNamespace
@@ -54,6 +62,8 @@ RING_MIN_WIDTH = 1.0        # Minimum width of a ring in cells: thinner rings ar
 from . import blocks
 from .geometry import cell_index_of_point, coverage_fraction, polygon_centroid
 from .results import SteadyResult
+
+log = logging.getLogger(__name__)
 
 _MAX_POTENTIAL_CELLS = 900          # Footprint cells above which the potential integrals aggregate the cells in blocks
 
@@ -805,8 +815,12 @@ def cell_for(problem, cell_mm):
     @return float cell in mm.
     """
     clipped = min(max(cell_mm, 0.5), 1.0)
-    if ZONES and len(problem.vias) >= 2 and problem.board.layers >= 2 and any(will_be_zoned(problem, h) for h in problem.heaters):
-        return ZONE_CELL_MM
+    if ZONES and len(problem.vias) >= 2 and problem.board.layers >= 2:
+        for k, h in enumerate(problem.heaters):
+            if will_be_zoned(problem, h):
+                log.info("Lumped raster %.2f mm instead of %.2f mm: %s has a dense group of vias under its footprint (zone model); the raster is one per board",
+                         ZONE_CELL_MM, clipped, h.name or f"heater {k + 1}")
+                return ZONE_CELL_MM
     return clipped
 
 

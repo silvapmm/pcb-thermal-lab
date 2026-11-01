@@ -32,7 +32,7 @@ import math
 from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
-from .checks import check_fin_channels, check_model_limits, check_problem, check_thick_plates, check_via_limits
+from .checks import check_fin_channels, check_lumped_zones, check_model_limits, check_problem, check_thick_plates, check_via_limits
 from .model import Problem
 from .results import SteadyResult
 from .numfmt import num
@@ -615,6 +615,7 @@ def _part_warnings(sim):
         if h.is_component() and h.theta > 0 and row["power_board_w"] * h.theta > max(row["t_max"] - sim.reference.ambient, 0.0) > 0:
             out.append(f"{row['name']}: theta x P = {row['power_board_w'] * h.theta:.1f} K is larger than the board's own rise under the part "
                        f"({row['t_max'] - sim.reference.ambient:.1f} K): check that theta is a junction-to-pad number (theta_JC(bot), theta_J-L) and not theta_JA")
+    out += check_lumped_zones(sim.problem, sim.results.get("lumped"))
     flux_result = _block_flux_result(sim)
     out += check_thick_plates(sim.problem, sim.heater_rows(), flux_result)
     # The block temperature of the reference model itself when it has one (FVM, FDM, 3D solid); the auxiliary FVM only for the Lumped and Analytic
@@ -652,7 +653,7 @@ def _run_model(problem, name, o):
     if name == "solid3d":
         return solid3d.solve_steady(problem, cell_mm=o.cell_mm, memory_fraction=o.memory_fraction)
     if name == "lumped":
-        return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=min(max(o.cell_mm, 0.5), 1.0))
+        return lumped.solve_steady(problem, rings=o.lumped_rings, cell_mm=lumped.cell_for(problem, o.cell_mm))
     return analytic.solve_steady(problem, cell_mm=min(max(o.cell_mm, 0.5), 1.0), n_terms=o.analytic_modes,
                                  local_corrections=o.analytic_local_corrections)
 
@@ -769,7 +770,7 @@ def step_response(problem, model, options):
     if model == "fdm":
         return profiles.step_response_fdm(problem, cell_mm=max(options.cell_mm, 2.0))
     if model == "lumped":
-        t, z, r = lumped.step_responses(problem, rings=options.lumped_rings, cell_mm=min(max(options.cell_mm, 0.5), 1.0))
+        t, z, r = lumped.step_responses(problem, rings=options.lumped_rings, cell_mm=lumped.cell_for(problem, options.cell_mm))
     else:
         t, z, r = analytic.step_responses(problem, cell_mm=min(max(options.cell_mm, 0.5), 1.0), n_terms=options.analytic_modes)
     return profiles.StepResponse(model, t, z, r)
@@ -815,7 +816,7 @@ def _run_profiles(sim, progress, start):
                 sim.profile_results[name] = profiles.run_fdm(p, sim.decisions, o.profile, o.cell_mm)
             elif name == "lumped":
                 sim.profile_results[name] = lumped.run_profile(p, sim.decisions, o.profile, o.lumped_rings,
-                                                               min(max(o.cell_mm, 0.5), 1.0))
+                                                               lumped.cell_for(p, o.cell_mm))
             else:
                 sim.profile_results[name] = analytic.run_profile(p, sim.decisions, o.profile,
                                                                  min(max(o.cell_mm, 0.5), 1.0), o.analytic_modes)

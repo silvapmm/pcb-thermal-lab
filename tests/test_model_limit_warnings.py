@@ -227,11 +227,17 @@ def _grid(cx, cy, n, pitch):
 
 def _cool_warnings(p):
     """!
-    @brief The warnings of the Lumped model that carry the too-cool rule.
+    @brief The warnings of the Lumped model that carry the too-cool rule of the one-node network (the zone model off: with it a part that will be split gets its text
+           after the run, tests/test_lumped_zones.py).
     @param p Problem.
     @return list of str.
     """
-    return [str(w) for w in check_model_limits(p, ("lumped",), 1.0) if "too cool, unsafe" in str(w)]
+    from pcbthermal import lumped
+    lumped.ZONES = False
+    try:
+        return [str(w) for w in check_model_limits(p, ("lumped",), 1.0) if "too cool, unsafe" in str(w)]
+    finally:
+        lumped.ZONES = True
 
 
 def test_lumped_cool_warning_fires_across_the_edge_and_off_centre():

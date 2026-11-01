@@ -276,11 +276,11 @@ def test_mirror_symmetry_of_a_zoned_part():
     for v in p.vias:
         v.x += shift
     for h in p.heaters:
-        h.polygon = [(x + shift, y) for x, y in h.polygon]
+        h.polygon = np.array([(x + shift, y) for x, y in h.polygon])
     for v in m.vias:
         v.x = w - (v.x + shift)
     for h in m.heaters:
-        h.polygon = [(w - (x + shift), y) for x, y in h.polygon]
+        h.polygon = np.array([(w - (x + shift), y) for x, y in h.polygon])
     a, b = lumped.solve_steady(p, 10, 0.5), lumped.solve_steady(m, 10, 0.5)
     assert a.arrays["zoned_heaters"][0, 0] == 1.0
     assert a.t_max == pytest.approx(b.t_max, abs=1e-6)
@@ -419,3 +419,114 @@ def _with_powers(p, powers):
         h.profile = None
         h.power = w
     return q
+
+
+# ------------------------------------------------------------------------------------------------ the raster and the warnings
+
+from pcbthermal.checks import check_lumped_zones, check_model_limits      # noqa: E402
+
+
+def test_cell_for_gives_half_a_millimetre_only_to_a_board_with_a_zoned_part():
+    """!
+    @brief A zoned heater moves the Lumped raster to 0.5 mm whatever the requested cell; a core that fills the footprint (the example board's nine vias), no vias and one via keep the clip of 0.5 to 1.0 mm.
+    @return None.
+    """
+    z = array(3, 2.0, side=24.0, source=12.0)
+    assert lumped.cell_for(z, 2.0) == 0.5 and lumped.cell_for(z, 1.0) == 0.5
+    full = array(3, 3.5)                                                      # nine vias, the core fills the part: one node
+    assert lumped.cell_for(full, 2.0) == 1.0 and lumped.cell_for(full, 0.75) == 0.75 and lumped.cell_for(full, 0.2) == 0.5
+    none = array(3, 3.5)
+    none.vias = []
+    assert lumped.cell_for(none, 3.0) == 1.0
+    lone = array(3, 3.5)
+    lone.vias = lone.vias[:1]
+    assert lumped.cell_for(lone, 3.0) == 1.0
+
+
+def test_the_run_uses_the_zone_raster_in_steady_state_and_in_the_step_response():
+    """!
+    @brief simulate() runs the Lumped model of a zoned board at 0.5 mm even when the options ask for 2 mm; a board with a core that fills the footprint stays at 1.0 mm.
+    @return None.
+    """
+    z = array(3, 2.0, side=24.0, source=12.0)
+    res = simulate(z, SolverOptions(models=("lumped",), cell_mm=2.0)).results["lumped"]
+    assert res.dx == pytest.approx(0.5e-3, rel=1e-6) and res.arrays["zoned_heaters"][0, 0] == 1.0
+    full = array(3, 3.5)
+    res = simulate(full, SolverOptions(models=("lumped",), cell_mm=2.0)).results["lumped"]
+    assert res.dx == pytest.approx(1.0e-3, rel=0.03) and res.arrays["zoned_heaters"][0, 0] == 0.0
+
+
+def _rect(p, x0, y0, x1, y1):
+    """!
+    @brief Give the first heater of a problem a rectangular footprint.
+    @param p A Problem.
+    @param x0 Left in mm.
+    @param y0 Bottom in mm.
+    @param x1 Right in mm.
+    @param y1 Top in mm.
+    @return None.
+    """
+    p.heaters[0].polygon = np.array([(x0 * 1e-3, y0 * 1e-3), (x1 * 1e-3, y0 * 1e-3), (x1 * 1e-3, y1 * 1e-3), (x0 * 1e-3, y1 * 1e-3)])
+
+
+def _zone_texts(p):
+    """!
+    @brief The post-run zone warnings of the first heater after a Lumped run at 0.5 mm.
+    @param p A Problem.
+    @return List of str.
+    """
+    res = lumped.solve_steady(p, 10, 0.5)
+    return [str(w) for w in check_lumped_zones(p, res)]
+
+
+def test_zone_warnings_name_the_edge_the_offset_the_elongation_and_the_raster():
+    """!
+    @brief The post-run texts of a zoned part: array across the edge of the footprint (up to 16 % of the rise), off centre, elongated, and a core under ten cells across.
+    @return None.
+    """
+    across = array(5, 1.5, side=24.0, source=12.0)
+    for v in across.vias:
+        v.x += 5.0e-3                                                         # the array continues past the footprint edge
+    texts = _zone_texts(across)
+    assert len(texts) == 1 and "past the edge" in texts[0] and "16 %" in texts[0]
+    off = array(3, 2.0, side=24.0, source=12.0)
+    for v in off.vias:
+        v.x += 3.0e-3
+    texts = _zone_texts(off)
+    assert len(texts) == 1 and "off the centre" in texts[0] and "1 to 5 %" in texts[0]
+    elong = array(3, 2.0, side=30.0, source=12.0)
+    _rect(elong, 7.0, 11.0, 23.0, 19.0)                                       # 16 x 8 mm, side ratio 2
+    texts = _zone_texts(elong)
+    assert len(texts) == 1 and "elongated" in texts[0]
+    fine = array(3, 0.8, side=24.0, source=12.0)                              # core 2.7 mm: 5 raster cells across at 0.5 mm
+    texts = _zone_texts(fine)
+    assert len(texts) == 1 and "raster cells across" in texts[0] and "20 % too small" in texts[0]
+    assert _zone_texts(array(3, 2.0, side=24.0, source=12.0)) == []           # centred, square, resolved: no zone warning
+
+
+def test_the_zoned_part_has_no_pre_run_cool_warning_and_the_one_node_part_keeps_it():
+    """!
+    @brief check_model_limits leaves the group-past-the-edge text out for a part the zone model will split and keeps it for a part that stays one node.
+    @return None.
+    """
+    off = array(3, 2.0, side=24.0, source=12.0)
+    for v in off.vias:
+        v.x += 3.0e-3
+    assert not any("too cool, unsafe" in str(w) for w in check_model_limits(off, ("lumped",), 0.5))
+    one_node = array(3, 3.5)                                                  # the core fills the footprint
+    _rect(one_node, 5.0, 6.9, 16.0, 14.1)                                     # 11 x 7.2 mm, side ratio 1.53, all nine vias inside
+    assert any("too cool, unsafe" in str(w) for w in check_model_limits(one_node, ("lumped",), 0.5))
+    assert _zone_texts(one_node) == []                                        # not predicted zoned: the pre-run text stands, nothing is added
+
+
+def test_a_footprint_covered_by_400_vias_runs_one_node_without_a_zone_warning():
+    """!
+    @brief A core above 92 % of the footprint (400 vias under a 10 mm part) is the one-node network and raises no zone warning.
+    @return None.
+    """
+    p = array(20, 0.5, side=24.0, source=10.0)
+    assert len(p.vias) == 400
+    res = lumped.solve_steady(p, 10, 0.5)
+    assert res.arrays["zoned_heaters"].tolist() == [[0.0, 0.0]]
+    assert check_lumped_zones(p, res) == []
+    assert lumped.cell_for(p, 2.0) == 1.0

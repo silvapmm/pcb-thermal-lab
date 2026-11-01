@@ -1089,6 +1089,42 @@ def test_warning_list_under_run_with_many_warnings(win, qtbot):
     assert "warnings" not in box.toPlainText()
 
 
+def test_zoned_lumped_parts_in_the_application(win, qtbot, popups):
+    """The zone model of the Lumped network in the window: a 5 x 5 array under a larger part (zones, the 0.5 mm raster whatever the cell), a square-wave profile on it, a second part
+    that stays one node, a footprint covered by 400 vias (core above 92 %, the fallback, no zone warning), an array across the edge (post-run warning) and a board with an outline."""
+    def zoned(proj, cover=False):
+        pr = proj.problem
+        for layer in (1, 2):
+            pr.add_zone(layer, rect=(0, 0, 30, 30))
+        pr.add_heater(1, 2.0, rect=(9, 9, 21, 21), name="U1")
+        n, pitch = (20, 0.5) if cover else (5, 1.5)
+        for i in range(n):
+            for j in range(n):
+                pr.add_via(15 + (i - (n - 1) / 2) * pitch, 15 + (j - (n - 1) / 2) * pitch, 0.3)
+    load(win, Problem.new(30.0, 30.0, 2, 1.6, 35.0), "zoned")
+    win.doc.edit("Zoned", zoned)
+    run(win, qtbot, ("fvm", "lumped"))
+    res = win.sim.results["lumped"]
+    assert res.arrays["zoned_heaters"][0, 0] == 1.0 and res.dx == pytest.approx(0.5e-3, rel=0.03)    # Cell 2 mm asked, 0.5 mm used
+    walk_results(win, qtbot)
+    win.doc.problem.heaters[0].set_profile(SquareWave(4.0, 1.0, 0.5))
+    win.doc.edit("Second part", lambda proj: proj.problem.add_heater(1, 0.5, rect=(1, 1, 4, 4), name="U2"))
+    win.doc.changed.emit()
+    run(win, qtbot, ("lumped",))
+    assert win.sim.profile_results["lumped"] is not None and not win.sim.profile_error
+    walk_results(win, qtbot)
+    win.doc.edit("Across the edge", lambda proj: [setattr(v, "x", v.x + 5.0e-3) for v in proj.problem.vias])
+    run(win, qtbot, ("lumped",))
+    assert any("past the edge" in str(w) for w in win.sim.warnings)
+    load(win, Problem.new(30.0, 30.0, 2, 1.6, 35.0), "covered")
+    win.doc.edit("Covered", lambda proj: zoned(proj, cover=True))
+    win.doc.edit("Smaller part", lambda proj: setattr(proj.problem.heaters[0], "polygon", np.array([(10e-3, 10e-3), (20e-3, 10e-3), (20e-3, 20e-3), (10e-3, 20e-3)])))
+    run(win, qtbot, ("lumped",), expect_ok=False)
+    assert win.sim is not None, popups
+    assert win.sim.results["lumped"].arrays["zoned_heaters"][0, 0] == 0.0
+    assert not any("core of the vias" in str(w) for w in win.sim.warnings)
+
+
 def test_preferences_every_section_in_both_themes(win, qtbot, tmp_path, monkeypatch):
     """Open Preferences from the window, visit every section by the list and by the keyboard in both themes at a small size, edit a table cell and a field, save, reset and close."""
     from PySide6.QtWidgets import QApplication
