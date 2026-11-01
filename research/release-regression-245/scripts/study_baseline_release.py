@@ -6,7 +6,7 @@
 @details Usage, from the repository root:
 
          .venv/bin/python research/release-regression-245/scripts/study_baseline_release.py                 # tag v2.4.4 -> out/v2.4.4.json
-         .venv/bin/python research/release-regression-245/scripts/study_baseline_release.py --tag v2.4.4 --dest /path/outside/the/repo --quick
+         .venv/bin/python research/release-regression-245/scripts/study_baseline_release.py --tag v2.4.4 --dest /path/outside/the/repo -- --quick    # after --: arguments of study_run_suite.py
 
          Only the `pcbthermal` package is extracted (`git archive <tag> pcbthermal`; its data files are inside it). The scratch folder defaults to a new temporary folder, is refused
          if it lies inside the repository, and is kept (the run can be repeated with `--reuse-dest`). The child process gets the extracted tree as `--program-root`, so the working

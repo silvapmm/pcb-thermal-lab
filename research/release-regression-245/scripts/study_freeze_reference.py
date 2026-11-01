@@ -51,7 +51,9 @@ def main(argv=None):
         return 2
     table = json.loads(Path(a.table).read_text(encoding="utf-8"))
     diff = C.diff_sets(base, final, table)
-    alarms = diff["summary"]["alarms"]
+    sor = C.diff_sets(base, final, table, key="sor")
+    trans = C.classify_transients(C.transient_diff(base, final), table)
+    alarms = diff["summary"]["alarms"] + sor["summary"]["alarms"] + sum(1 for r in trans if r["class"] in C.ALARMS)   # the SOR and the times to 63 % count too (review)
     bad = [c for c in C.internal_checks(final) if not c["ok"]]
     if (alarms or bad) and not a.allow_alarms:
         print(f"refused: {alarms} alarm(s) and {len(bad)} failed check(s) in the comparison with {base['label']}; run study_diff.py and explain them first")

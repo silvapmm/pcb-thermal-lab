@@ -139,3 +139,89 @@ def test_first_run_corrections_of_the_table():
     # but its hottest point on the same board does not move
     cls, _, _ = C.classify_shift(TABLE, "round_outline", "analytic", 2.0, "t_max", 175.0, 175.5, 150.0)
     assert cls == "must_not_move"
+
+
+def test_a_shift_outside_its_bound_is_an_alarm():
+    """!
+    @brief Review: a covered shift outside its bound (size or direction) counts as an alarm, so `--strict` and the freeze refuse it.
+    @return None.
+    """
+    assert "expected_out_of_range" in C.ALARMS
+    a = rset("a", [rec("example_board", "fvm", 2.0, 85.34)])
+    b = rset("b", [rec("example_board", "fvm", 2.0, 85.34 + 5.0)])               # +5 K: inside the general 45 % of the rise, far above the reviewed 0.8 K
+    d = C.diff_sets(a, b, TABLE)
+    assert [m["class"] for m in d["entries"][0]["metrics"] if m["name"] == "t_max"] == ["expected_out_of_range"]
+    assert d["summary"]["alarms"] > 0
+
+
+def test_each_bound_applies_only_to_its_unit():
+    """!
+    @brief Review: a bound in K is not compared with a field checksum or a count, `rel` bounds counts and `abs_w` the heat balance.
+    @return None.
+    """
+    rule = {"id": "X", "direction": "any", "abs_k": [0, 1.0], "rel": [0, 0.5], "abs_w": [0, 1e-9]}
+    assert C.in_range(rule, 5000.0, 1e6, 50.0, "field")                          # a checksum moves by thousands when a temperature moves by 1 K
+    assert not C.in_range(rule, 2.0, 80.0, 50.0, "temperature")
+    assert C.in_range(rule, 2.0, 8000, 50.0, "count")                             # 2 of 8000 is inside 0.5
+    assert not C.in_range(rule, 5000, 8000, 50.0, "count")
+    assert not C.in_range(rule, 0.5, 5.0, 50.0, "balance")                      # half a watt of power lost is never round-off
+    assert C.in_range(rule, 1e-13, 5.0, 50.0, "balance")
+
+
+def test_per_cell_limits_replace_the_general_bound():
+    """!
+    @brief Review: a limit for "board|model|cell" wins over "board|model", which wins over "board", which wins over the rule's own bound in K.
+    @return None.
+    """
+    rule = {"id": "X", "direction": "down", "abs_k": [0, 30], "limits": {"b|fdm|1": {"abs_k": [0, 28]}, "b|fdm": {"abs_k": [0, 7]}, "b": {"abs_k": [0, 2]}}}
+    assert C.in_range(rule, -21.8, 252.0, 227.0, "temperature", "b", "fdm", 1.0)
+    assert not C.in_range(rule, -21.8, 252.0, 227.0, "temperature", "b", "fdm", 0.5)      # "b|fdm": 7 K
+    assert not C.in_range(rule, -3.0, 232.0, 207.0, "temperature", "b", "fvm", 2.0)       # "b": 2 K
+    assert C.in_range(rule, -3.0, 232.0, 207.0, "temperature", "c", "fvm", 2.0)           # no limit: the rule's 30 K
+    assert not C.in_range(rule, +1.0, 232.0, 207.0, "temperature", "b", "fdm", 1.0)       # direction
+
+
+def test_the_table_has_a_measured_limit_for_every_bounded_scope():
+    """!
+    @brief Review: every quantified or derived rule carries limits for each board, model and cell of its scope (written by study_tighten_table.py), and the FDM hot spot of
+           the part across the outline is bounded per cell, not by the general 30 K.
+    @return None.
+    """
+    for r in TABLE["rules"]:
+        if r["status"] == "to be explained":
+            continue
+        assert r.get("limits"), r["id"]
+        for b in r["boards"]:
+            for m in r["models"]:
+                for c in (2.0, 1.0, 0.5):
+                    assert C.limit_key(b, m, c) in r["limits"], (r["id"], b, m, c)
+    R1a = {r["id"]: r for r in TABLE["rules"]}["R1a"]
+    assert R1a["limits"]["part_across_outline|fdm|1"]["abs_k"][1] < 30 and R1a["limits"]["part_across_outline|fdm|0.5"]["abs_k"][1] < 10
+    for e in TABLE["transients"]["may_move"]:
+        assert "rel_change" in e and e.get("limits"), e["id"]
+
+
+def test_a_bounded_time_to_63_percent_is_expected_inside_and_an_alarm_outside():
+    """!
+    @brief Review: the times to 63 % of the may_move entries are bounded per board and model.
+    @return None.
+    """
+    table = {"transients": {"must_not_move": [], "may_move": [{"id": "T", "boards": ["b"], "models": ["fvm"], "rel_change": [0, 0.01], "limits": {"b|fvm": [0, 0.05]}}]}}
+    rows = [{"board": "b", "model": "fvm", "part": "U", "old": 10.0, "new": 10.4, "change": 0.04, "identical": False},
+            {"board": "b", "model": "fvm", "part": "V", "old": 10.0, "new": 11.0, "change": 0.10, "identical": False}]
+    out = C.classify_transients(rows, table)
+    assert [r["class"] for r in out] == ["expected", "expected_out_of_range"]
+
+
+def test_bit_tolerance_on_the_heat_balance_is_not_relative_to_round_off():
+    """!
+    @brief Review: with PCBT_FROZEN_BIT_TOL a balance error of 1e-14 W that becomes 1e-13 W after a library update is not a difference (it was: the tolerance was relative to
+           the round-off itself).
+    @return None.
+    """
+    a = rset("v2.4.4", [rec("plate_uniform", "fvm", 2.0, 80.0, balance_error=-4.4e-14)], "2.4.4")
+    f = F.build(a, a, "2.4.5")
+    run = [rec("plate_uniform", "fvm", 2.0, 80.0 + 3e-11, balance_error=-1.15e-13)]
+    assert F.compare(f, run)                                                   # exact by default
+    assert not F.compare(f, run, bit_tol_k=1e-9)
+    assert F.compare(f, [rec("plate_uniform", "fvm", 2.0, 80.0, balance_error=1e-3)], bit_tol_k=1e-9)

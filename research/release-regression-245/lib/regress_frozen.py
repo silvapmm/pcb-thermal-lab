@@ -15,7 +15,9 @@
          the frozen value is compared for exact equality. Every other record is `moved` and is compared within `tolerance_k` (temperatures), 1e-7 relative (the field checksums and
          the heat split) and exactly (the unknown counts). `compare` returns the list of differences; the pytest module `tests/test_frozen_numbers.py` asserts it is empty.
 @note Exact equality assumes the same platform family and library builds as the machine that froze the numbers (the sparse direct solver is deterministic on one machine but a
-      BLAS build can change the last digit elsewhere). The environment variable `PCBT_FROZEN_BIT_TOL` (absolute, in K) relaxes the `bit` records when a different machine is used;
+      BLAS build can change the last digit elsewhere). Measured by the review on the same machine: one thread against the default gives the same bits; NumPy 2.3.5 and
+      SciPy 1.16.3 against 2.5.4 and 1.18.1 move 8 of 44 bit records of the 2 mm set by at most 2.8e-11 K (field 7e-13 relative), so exact equality fails after a library
+      update and `PCBT_FROZEN_BIT_TOL=1e-9` passes. The environment variable `PCBT_FROZEN_BIT_TOL` (absolute, in K) relaxes the `bit` records when a different machine is used;
       the file records the environment it was made on.
 """
 
@@ -110,7 +112,9 @@ def _differs(name, expected, got, cls, tol_k, bit_tol_k):
     if cls == "bit":
         if bit_tol_k == 0.0:
             return got != expected
-        scale = abs(expected) if group in ("field", "balance") else 1.0
+        # field checksums: relative to their size; the heat balance: relative to max(|value|, 1 W), because the balance error is round-off (1e-13 W) and a tolerance
+        # relative to itself would be 1e-22 W (review: NumPy 2.3.5 / SciPy 1.16.3 against 2.5.4 / 1.18.1 failed 8 bit records on balance_error alone with 1e-9)
+        scale = abs(expected) if group == "field" else (max(abs(expected), 1.0) if group == "balance" else 1.0)
         return abs(got - expected) > bit_tol_k * scale
     if group in ("field", "balance"):
         return abs(got - expected) > REL_TOL * max(abs(expected), 1.0)

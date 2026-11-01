@@ -10,12 +10,19 @@
          A shift gets one class:
          * `expected`: a rule of the table matches (board, model, cell, metric), its direction and its size (absolute, in K, or relative to the rise of the old run) are inside the
            documented range;
-         * `expected_out_of_range`: a rule matches but the shift is outside the range that the study gave (the item is the cause, the size needs a look);
+         * `expected_out_of_range`: a rule matches but the shift is outside the range that the study gave (the item is the cause, the size or the direction is not the one that
+           was reviewed): an alarm, because a defect on a board that a release item reaches shows exactly so (review of the first run);
          * `to_be_explained`: only rules that say "to be explained" match (the item is a plausible cause and its size is not known);
          * `unexplained`: no rule matches;
          * `must_not_move`: the shift is inside the scope of a `must_not_move` entry (the board and model that no item of the release may change); this class is always an alarm
            and wins over every rule.
          A change of warning texts alone is recorded as `warnings_only` and is not a shift. The solve time is information, never a shift.
+
+         Units of the bounds (each bound is applied only to the group it is written for, so that a bound in K is never compared with a checksum or a count):
+         `abs_k` (K) and `rel_rise` (fraction of the rise of the old hottest point) bound the temperatures; `rel` (fraction of the old value) bounds the unknown counts; `abs_w` (W)
+         bounds the heat balance (power in, balance error, heat split); the field checksums (`t_sum`, `t_sumsq`) are never bounded (they only show that something moved, the
+         temperatures say how much). A rule may carry `limits`: per board (`"board"`), per board and model (`"board|model"`) or per board, model and cell
+         (`"board|model|cell"`, the most exact key wins) bounds that replace the rule's bounds there, measured on the reviewed run with a margin (the general bound is the hypothesis of the documents, the limit is what the reviewed candidate printed).
 """
 
 import fnmatch
@@ -23,7 +30,7 @@ import json
 from pathlib import Path
 
 CLASSES = ("expected", "expected_out_of_range", "to_be_explained", "unexplained", "must_not_move")
-ALARMS = ("unexplained", "must_not_move")
+ALARMS = ("unexplained", "must_not_move", "expected_out_of_range")
 GROUPS = ("temperature", "field", "count", "balance", "status")
 
 
@@ -125,31 +132,88 @@ def scope_matches(scope, board, model, cell, metric):
     return _in(board, scope.get("boards", "*")) and _in(model, scope.get("models", "*")) and _in(cell, scope.get("cells", "*"))
 
 
-def in_range(rule, delta, old, rise):
+BOUND_KEYS = ("abs_k", "rel_rise", "rel", "abs_w")
+
+
+def limit_key(board, model, cell):
+    """!
+    @brief Key of a per-cell limit.
+    @param board Board name.
+    @param model Model key.
+    @param cell Cell size in mm.
+    @return str "board|model|cell".
+    """
+    return f"{board}|{model}|{float(cell):g}"
+
+
+def bounds_of(rule, board=None, model=None, cell=None):
+    """!
+    @brief The size bounds of a rule for one board, model and cell: the rule's own bounds, replaced by its `limits` entry for "board|model|cell", else "board|model", else "board".
+    @param rule Rule dict.
+    @param board Board name (None: the rule's own bounds).
+    @param model Model key (None: the rule's own bounds).
+    @param cell Cell size in mm (None: no per-cell limit).
+    @return dict with some of the keys abs_k, rel_rise, rel, abs_w, each a [low, high] pair, and "signs" ({metric: +1 or -1}, the way each temperature moved on the
+            reviewed run) when the limit has them.
+    """
+    b = {k: rule[k] for k in BOUND_KEYS if k in rule}
+    lim = {k: v for k, v in (rule.get("limits") or {}).items()}
+    extra = None
+    for k in ([limit_key(board, model, cell)] if cell is not None else []) + [f"{board}|{model}", board]:
+        if k in lim:
+            extra = lim[k]
+            break
+    if extra:
+        b = {k: v for k, v in b.items() if k not in ("abs_k", "rel_rise") or not ({"abs_k", "rel_rise"} & set(extra))}   # a limit in K replaces the rule's bound in K
+        b.update(extra)
+    return b
+
+
+SIGN_FLOOR_K = 0.05             # a measured sign is enforced only on shifts larger than this (smaller ones may be round-off of another library)
+
+
+def in_range(rule, delta, old, rise, group="temperature", board=None, model=None, cell=None, metric=None):
     """!
     @brief Check a shift against the direction and size bounds of a rule.
-    @param rule Rule dict (direction "up", "down" or "any"; abs_k and rel_rise as [low, high] bounds on the size; rel as the bound on a count).
+    @param rule Rule dict (direction "up", "down" or "any"; abs_k and rel_rise as [low, high] bounds on the size of a temperature shift; rel on a count; abs_w on the balance;
+                optional per-board `limits`).
     @param delta New minus old.
     @param old Old value.
     @param rise Rise of the old maximum temperature over the ambient in K (None when unknown).
+    @param group Group of the metric (metric_group): a bound is applied only to the group of its unit.
+    @param board Board name (selects the `limits` of the rule).
+    @param model Model key (selects the `limits` of the rule).
+    @param cell Cell size in mm (selects the per-cell `limits`).
+    @param metric Metric name (selects the measured sign of the `limits`).
     @return bool.
     """
+    b = bounds_of(rule, board, model, cell)
     d = rule.get("direction", "any")
-    if d == "up" and delta < 0:
-        return False
-    if d == "down" and delta > 0:
-        return False
-    size = abs(delta)
-    lo_hi = rule.get("abs_k")
-    if lo_hi is not None and not (lo_hi[0] <= size <= lo_hi[1]):
-        return False
-    lo_hi = rule.get("rel_rise")
-    if lo_hi is not None and rise:
-        if not (lo_hi[0] <= size / rise <= lo_hi[1]):
+    if group in ("temperature", "count"):
+        if d == "up" and delta < 0:
             return False
-    lo_hi = rule.get("rel")
-    if lo_hi is not None and old:
-        if not (lo_hi[0] <= size / abs(old) <= lo_hi[1]):
+        if d == "down" and delta > 0:
+            return False
+    size = abs(delta)
+    sign = (b.get("signs") or {}).get(metric)
+    if group == "temperature" and sign and size > SIGN_FLOOR_K and (delta > 0) != (sign > 0):
+        return False                                                            # the reviewed run moved this number the other way
+    if group == "temperature":
+        lo_hi = b.get("abs_k")
+        if lo_hi is not None and not (lo_hi[0] <= size <= lo_hi[1]):
+            return False
+        lo_hi = b.get("rel_rise")
+        if lo_hi is not None and rise:
+            if not (lo_hi[0] <= size / rise <= lo_hi[1]):
+                return False
+    elif group == "count":
+        lo_hi = b.get("rel")
+        if lo_hi is not None and old:
+            if not (lo_hi[0] <= size / abs(old) <= lo_hi[1]):
+                return False
+    elif group == "balance":
+        lo_hi = b.get("abs_w")
+        if lo_hi is not None and not (lo_hi[0] <= size <= lo_hi[1]):
             return False
     return True
 
@@ -175,7 +239,7 @@ def classify_shift(table, board, model, cell, metric, old, new, rise):
     if not found:
         return "unexplained", [], ""
     quantified = [r for r in found if r.get("status") != "to be explained"]
-    ok = [r for r in quantified if in_range(r, delta, old, rise)]
+    ok = [r for r in quantified if in_range(r, delta, old, rise, metric_group(metric), board, model, cell, metric)]
     if ok:
         return "expected", [r["id"] for r in ok], "; ".join(r.get("note", "") for r in ok if r.get("note"))
     explained_later = [r for r in found if r.get("status") == "to be explained"]
@@ -262,7 +326,9 @@ def classify_transients(rows, table):
     @brief Class of every change of a time to 63 %, from the `transients` part of the table.
     @param rows Output of transient_diff.
     @param table The expected-shifts table (keys must_not_move and may_move, each a list of dicts with id, boards, models, note).
-    @return The same rows with `class` ("identical", "must_not_move", "to_be_explained" or "unexplained") and `rules`.
+    @return The same rows with `class` ("identical", "must_not_move", "expected", "expected_out_of_range", "to_be_explained" or "unexplained") and `rules`. A may_move entry
+            with `rel_change` [low, high] (fraction of the old time; optional `limits` per "board|model" or board, and `direction`) gives `expected` inside it and
+            `expected_out_of_range` outside; without it the change is `to_be_explained`.
     """
     t = table.get("transients", {})
     for r in rows:
@@ -276,8 +342,26 @@ def classify_transients(rows, table):
         if hit:
             r["class"], r["rules"] = "must_not_move", hit
             continue
-        hit = [e["id"] for e in t.get("may_move", []) if scope_matches(e, r["board"], r["model"], 0.0, "t63")]
-        r["class"], r["rules"] = ("to_be_explained", hit) if hit else ("unexplained", [])
+        hit = [e for e in t.get("may_move", []) if scope_matches(e, r["board"], r["model"], 0.0, "t63")]
+        if not hit:
+            r["class"], r["rules"] = "unexplained", []
+            continue
+        bounded = [e for e in hit if "rel_change" in e or e.get("limits")]
+        ok = []
+        for e in bounded:
+            lim = (e.get("limits") or {})
+            lo, hi = lim.get(f"{r['board']}|{r['model']}", lim.get(r["board"], e.get("rel_change", [0.0, float("inf")])))
+            d = e.get("direction", "any")
+            if (d == "up" and r["change"] < 0) or (d == "down" and r["change"] > 0):
+                continue
+            if lo <= abs(r["change"]) <= hi:
+                ok.append(e["id"])
+        if ok:
+            r["class"], r["rules"] = "expected", ok
+        elif bounded:
+            r["class"], r["rules"] = "expected_out_of_range", [e["id"] for e in bounded]
+        else:
+            r["class"], r["rules"] = "to_be_explained", [e["id"] for e in hit]
     return rows
 
 
@@ -335,7 +419,7 @@ def markdown(diff, base_label, new_label, max_rows=400):
     @return str.
     """
     s = diff["summary"]
-    lines = [f"## {new_label} against {base_label}", "", f"Records identical in every number: {s['identical_records']}; skipped or failed in both: {s['skipped_in_both']}; alarms (unexplained or must-not-move): **{s['alarms']}**.", "",
+    lines = [f"## {new_label} against {base_label}", "", f"Records identical in every number: {s['identical_records']}; skipped or failed in both: {s['skipped_in_both']}; alarms (unexplained, must-not-move or out of range): **{s['alarms']}**.", "",
              "| Class | Shifted numbers |", "| :-- | --: |"]
     for c in CLASSES + ("warnings_only",):
         lines.append(f"| {c} | {s['counts'].get(c, 0)} |")

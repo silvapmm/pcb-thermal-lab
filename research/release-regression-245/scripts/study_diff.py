@@ -65,7 +65,11 @@ def main(argv=None):
     stem = f"diff_{base['label']}_vs_{new['label']}"
     (out_dir / f"{stem}.json").write_text(json.dumps({"diff": diff, "sor": sor, "transients": trans, "checks": checks}, indent=1), encoding="utf-8")
 
-    md = [f"# {new['label']} ({new['program']['version']}) against {base['label']} ({base['program']['version']})", "",
+    md = [f"# {new['label']} ({new['program']['version']}) against {base['label']} ({base['program']['version']})", ""]
+    if base.get("environment") != new.get("environment"):
+        # 'identical' and must_not_move are exact float equality: another NumPy or SciPy moves the last digits (review: 79 false alarms with NumPy 2.3.5 / SciPy 1.16.3)
+        md += [f"**Warning: the two sets were run in different environments** ({base.get('environment')} against {new.get('environment')}); run both in the same one.", ""]
+    md += [
           C.markdown(diff, base["label"], new["label"]),
           "## The SOR runs (2 mm)", "", C.sor_table(base, new), f"Shifts of the SOR temperatures: {sor['summary']['counts']}", "",
           "## Time to 63 % of the steady resistance (first part)", "",
@@ -97,7 +101,7 @@ def main(argv=None):
     text = "\n".join(md)
     (out_dir / f"{stem}.md").write_text(text, encoding="utf-8")
     print(text)
-    alarms = diff["summary"]["alarms"] + sor["summary"]["alarms"] + sum(1 for r in trans if r["class"] in ("unexplained", "must_not_move"))
+    alarms = diff["summary"]["alarms"] + sor["summary"]["alarms"] + sum(1 for r in trans if r["class"] in C.ALARMS)
     print(f"\nalarms: {alarms}; failed checks: {bad_checks}; written to {out_dir / (stem + '.md')}")
     return 1 if (a.strict and (alarms or bad_checks)) else 0
 
