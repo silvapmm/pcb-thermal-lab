@@ -134,9 +134,11 @@ All runs are one at a time (a 16 GB machine); the program's memory guard refuses
 | `lib/axisym_cell.py` | equations 28 and 29; the axisymmetric unit-cell solver (isothermal faces or flux, foils) |
 | `lib/flux_channel.py` | equations 48 to 51: the spreading resistance of a rectangular source on an orthotropic channel |
 | `scripts/study_measured_vias.py` | S1 (parts A to D; `--parts`, `--dry-run`, `--quick`) |
-| `scripts/study_thick_laminate.py` | S2 (`--dry-run`, `--convergence`, `--no-program`) |
-| `scripts/make_diagrams.py`, `scripts/make_figures.py` | figures 01 to 03 (diagrams), 04 (data, closed form) and 05 and 06 (results, drawn from `out/*.json` after the runs: the average of the models against the solver per sample, and the error of each option pair of the laminate rule) |
-| `tests/test_paper_case_studies.py` | the fast tests above |
+| `lib/vertical_plate.py` | S3: the independent conjugate solver of Lee and Yovanovich (boundary layer marching, one-dimensional plate, radiation) |
+| `scripts/study_thick_laminate.py` | S2 (`--dry-run`, `--convergence`, `--heavy`, `--no-program`); the extrapolated reference `reference_3d_extrap` |
+| `scripts/study_vertical_plate.py` | S3 (`--dry-run`, `--no-program`) |
+| `scripts/make_diagrams.py`, `scripts/make_figures.py` | figures 01 to 03 (diagrams), 04 (data, closed form), 05 and 06 (results from `out/*.json`: the models against the solver per sample, the error of each option pair of the laminate rule), 07 (convergence of the 3D reference) and 08 (the vertical plate) |
+| `tests/test_paper_case_studies.py`, `tests/test_vertical_plate.py` | the fast tests above (29 pass) and the tests of the plate solver (4 pass) |
 
 Run order for the executor, from the repository root (nothing has been run), one at a time: (1) `pytest -q research/paper-case-studies/tests`; (2) both `--dry-run`; (3) `study_measured_vias.py --parts A,B` (seconds); (4) `study_thick_laminate.py --no-program` (L1, about 5 min, under 1 GB: decides whether S2 continues); (5) `study_thick_laminate.py --no-program --convergence` alone (at most 3 GB; it repeats L1, then the refinement); (6) `study_measured_vias.py --parts C --quick` (a smoke run), then `--parts C` (5 to 10 min, at most 2 GB); (7) `study_thick_laminate.py` (L1 again plus the program, about 20 min, at most about 3 GB), only if L1 passed; (8) `study_measured_vias.py --parts D` (report only, about 10 min, at most 1.5 GB), last and optional; (9) `make_figures.py`. Note that each run of `study_thick_laminate.py` rewrites `out/study_thick_laminate.json`; keep the outputs of (5) and (7) by renaming before the next run, or run (7) with `--convergence` once.
 
