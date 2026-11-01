@@ -150,7 +150,6 @@ The next version is 2.5.0 (any feature gives a minor number; only fixes would gi
 
 ### Left over by the memory guard (2.5.0 and after)
 
-* **False "outside the board" warning for a small part** (`checks.py`, the heater check near line 90): a part smaller than about two cells is reported as partly outside the board (28 % in a case) although it is inside, because the share is tested on the sampled cell cover. Fix: test the polygon against the outline, or sample at the part's own size. Text only.
 * **Command line: `--log-level` or `-v`**, and the measured peak memory of the run in the Results summary: today the estimate and the measured peak are only logged (`memory.log_peak`), and the command line shows no log by default.
 * **Auto cell and a 3D solid that would be skipped** (undecided): when the 3D solid is selected next to other models and would be refused, Auto widens the cell for all of them; it could keep the cell of the other models and say that the 3D solid is skipped.
 * **Debounce of the panel verdict** (undecided, 150 ms): the solver panel recounts the unknowns at every edit; the cheap lower bound makes it fast for the refused case, an exact count of a large board is not.
