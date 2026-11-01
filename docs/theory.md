@@ -655,7 +655,7 @@ A heater may carry a repeating profile (`SquareWave`, `TableProfile`) or a one-s
 | Linear solvers | direct, CG and SOR on five boards | agree to 2·10⁻⁸ K (5) |
 | Time stepping | exact RC solution of a uniform board | Euler first order, Crank-Nicolson second order (7) |
 | Stack-up | exact series circuit of a uniform board with three different gaps | 10⁻⁶ K on every layer (12) |
-| Layered idealisation | the 3D solid and an independent finite-element solid | 0.4 to 2.2 % (FVM) (3) |
+| Layered idealisation | the 3D solid and an independent finite-element solid | 0.1 to 0.7 % (FVM; up to 2.9 % on a one-sided pad no larger than the heater) (3) |
 | Layered models | the independent 3D solver of the tests on a Cu / FR-4 / Cu coupon | FVM, 3D solid and Analytic within 0.2 %, FDM within 1.2 % (22) |
 | 3D solid | Yovanovich's Table 3 (isoflux source on a flux tube) | +0.7 to +0.8 % at `ε` 0.2 and 0.3, 2 % at `ε` 0.1 where the source has three cells (16; `research/solid3d-verification`) |
 | 3D solid | finite-element solid, convergence in slabs and cells | 0.2 % on three boards, ±4 % on a heater-sized pad (16) |

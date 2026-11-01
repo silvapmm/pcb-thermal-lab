@@ -127,7 +127,7 @@ The block is always within 1.8 % of the solid in the FVM and FDM and within 0.2 
 ### 4.2.1 Does the outer copper dissipate and spread heat (against a heatsink)?
 
 `python research/solid3d-verification/scripts/copper_dissipation.py [--fem]`. Board 100 × 80 mm, 2 layers, 5 W on a 10 × 10 mm heater on top, copper only on the top layer (a square pad centred on the heater), no vias, `h_top` 10 and `h_bottom` 15 W/m²K.
-Maximum temperature [°C] against the 3D finite-element solid (error on the rise; the 3D FV column is the program's own `solid3d`):
+Maximum temperature [°C] against the 3D finite-element solid (error on the rise; the 3D FV column is the program's own `solid3d`). *These tables are of the program before 2.4.5: with the laminate nodes the FVM and FDM columns moved (heater-sized pad FVM 472.4 -> 508.9, FDM 420.9 -> 434.6 °C; 20 mm pad 266.7 -> 276.0 and 252.1 -> 256.1 °C); the current numbers, printed by the script without `--fem`, are in `docs/validation.md` 3.1. The 3D solid, Lumped and Analytic columns are unchanged.*
 
 | Top copper pad | 3D FEM | FVM | FDM | 3D solid (FV) | Lumped | Analytic |
 | :-- | --: | --: | --: | --: | --: | --: |

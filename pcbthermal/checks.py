@@ -182,9 +182,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
              tile means and add the constriction of the heat converging on a barrel (viaconstriction.py; research/lumped-analytic-vias,
              research/young-omega-tiles 3; the numbers are the error of the via effect against the FVM at 0.25 mm on the 29 boards of the
              branch fix/via-constriction and 17 more boards of its review, measured on this program). The Analytic copper-spread warning lives in analytic._effective_sheet, where its weights are computed.
-    @note The warning about vias on a coarse cell proposed by research/point-via-convergence is not here: its numbers (3.70 against
-          4.20 K) are those of the point-via treatment, not of the program as it is, whose FVM via effect on the example board is
-          9.02 / 8.86 / 8.84 K at 2 / 1 / 0.5 mm; it belongs with that fix.
+    @note The warnings about vias on a coarse cell and near the board edge (FVM and FDM) are in check_via_limits, which came with the
+          mean-potential via of viawell.py.
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run ("fvm", "fdm", "lumped", "analytic", "solid3d").
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.

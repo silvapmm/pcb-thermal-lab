@@ -140,7 +140,7 @@ pcbthermal/            Physics core (no GUI imports) - see docs/models.md
   lumped.py            ring network per heater, superposed
   viaconstriction.py   constriction of the heat converging on a via barrel for the Lumped (a well per plane and ring, groups) and the Analytic (tiles of at most 1 mm, bilinear spread, self-term, 4800-unknown guard); no vias, no effect
   analytic.py          multilayer cosine series + local via/heatsink corrections
-  checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, ...)
+  checks.py            input validity warnings (heater outside the board, no copper, copper edge across a heater, a via with no board under it, ...) and the warnings after the run (model limits, vias near the edge or on a coarse cell, thick plates, close fins)
   convection.py        computed h: air properties, natural/forced convection, radiation, board_h (Picard loop is in api.py)
   profile_io.py        power profiles as CSV files (read/write)
   numfmt.py            number to text for the screen, plots and reports: plain decimal for 0.01 <= |x| < 10000, engineering notation (exponent a multiple of three, two decimals) outside; JSON and CSV files keep the float text
