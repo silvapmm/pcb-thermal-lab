@@ -17,6 +17,9 @@ import numpy as np
 from .errors import GerberError, UnsupportedFeatureError
 
 _TOKEN = re.compile(r"\s*(?:(\d+\.?\d*|\.\d+)|\$(\d+)|([-+*/()xX]))")
+MAX_EXPRESSION_CHARS = 1000    # longest macro expression accepted (real macros hold a few dozen characters)
+MAX_NESTING = 50               # deepest nesting of parentheses and unary signs (the recursive parser must not reach Python's recursion limit)
+MAX_OUTLINE_VERTICES = 5000    # the specification's limit for the outline primitive (4)
 
 
 def evaluate(expr, variables):
@@ -25,8 +28,10 @@ def evaluate(expr, variables):
     @param expr      Expression text ($n variables, numbers, + - x X * /, parentheses, unary signs).
     @param variables Dict variable number -> value (an undefined variable is zero).
     @return float Value of the expression.
-    @throws GerberError If the expression contains anything else.
+    @throws GerberError If the expression contains anything else, is nested deeper than MAX_NESTING or gives a value that is not finite.
     """
+    if len(expr) > MAX_EXPRESSION_CHARS:
+        raise GerberError(f"macro expression of {len(expr)} characters (limit {MAX_EXPRESSION_CHARS})")
     tokens, pos, text = [], 0, expr.strip()
     while pos < len(text):
         m = _TOKEN.match(text, pos)
@@ -41,7 +46,7 @@ def evaluate(expr, variables):
         pos = m.end()
         while pos < len(text) and text[pos] in " \t":
             pos += 1
-    state = {"i": 0}
+    state = {"i": 0, "depth": 0}
 
     def peek():
         """!@brief Next token without consuming it. @return Token or None."""
@@ -57,18 +62,22 @@ def evaluate(expr, variables):
         t = peek()
         if t is None:
             raise GerberError(f"unsupported macro expression {expr!r}")
-        if t == "-":
+        if t in ("-", "+", "("):
+            # Every unary sign and parenthesis is one level of recursion: a hostile file must get an error, not a RecursionError
+            state["depth"] += 1
+            if state["depth"] > MAX_NESTING:
+                raise GerberError(f"macro expression nested deeper than {MAX_NESTING} levels")
             take()
-            return -factor()
-        if t == "+":
-            take()
-            return factor()
-        if t == "(":
-            take()
-            v = add()
-            if peek() != ")":
-                raise GerberError(f"unbalanced parentheses in macro expression {expr!r}")
-            take()
+            if t == "-":
+                v = -factor()
+            elif t == "+":
+                v = factor()
+            else:
+                v = add()
+                if peek() != ")":
+                    raise GerberError(f"unbalanced parentheses in macro expression {expr!r}")
+                take()
+            state["depth"] -= 1
             return v
         if isinstance(t, float):
             return take()
@@ -95,6 +104,8 @@ def evaluate(expr, variables):
     value = add()
     if peek() is not None:
         raise GerberError(f"unsupported macro expression {expr!r}")
+    if not math.isfinite(value):                                     # a number of hundreds of digits overflows to inf; inf - inf is nan
+        raise GerberError(f"macro expression {expr!r} has no finite value")
     return value
 
 
@@ -227,10 +238,20 @@ def macro_primitive(code, args, file=""):
     @param file File name, for the refusal message.
     @return Dict {"exposure", "radius", "inside"}, or None for a comment.
     @throws UnsupportedFeatureError For the moire primitive (6) and unknown codes.
+    @throws GerberError For a primitive whose parameters are not finite, an outline with fewer than 3 or more than MAX_OUTLINE_VERTICES vertices or fewer
+            coordinates than it announces, a polygon with a vertex count outside 3 to 12, or an exposure other than 0 or 1.
     """
     if code == 0:
         return None
+    if code not in (1, 4, 5, 7, 20, 21, 22):
+        raise UnsupportedFeatureError(file, f"aperture macro primitive {code}" + (" (moire)" if code == 6 else ""))
+    where = f"{file}: " if file else ""
+    if not all(math.isfinite(a) for a in args):
+        raise GerberError(f"{where}aperture macro primitive {code} has a parameter that is not finite")
+    given = len(args)
     args = list(args) + [0.0] * 8                                    # a missing optional parameter (centre, rotation) is zero
+    if code != 7 and args[0] not in (0.0, 1.0):
+        raise GerberError(f"{where}aperture macro primitive {code} has the exposure {args[0]:g} (0 or 1)")
     exp = bool(int(args[0])) if code != 7 else True
     if code == 1:                                                    # circle: exposure, diameter, cx, cy, [rotation]
         d, cx, cy, rot = args[1], args[2], args[3], args[4]
@@ -258,11 +279,17 @@ def macro_primitive(code, args, file=""):
         return {"exposure": exp, "radius": math.hypot(gx, gy) + math.hypot(half_w, half_h), "inside": inside}
     if code == 4:                                                    # outline: exposure, n, x0, y0, x1, y1, ..., xn, yn, rotation
         n = int(args[1])
+        # The specification: n >= 3 subsequent vertices, at most 5000; every coordinate must be written (a missing one is not a zero, the file is broken)
+        if args[1] != n or not 3 <= n <= MAX_OUTLINE_VERTICES or given < 2 + 2 * (n + 1):
+            raise GerberError(f"{where}aperture macro outline with {args[1]:g} vertices and {given} parameters (3 to {MAX_OUTLINE_VERTICES} vertices, 2n + 4 coordinates)")
+        args = args + [0.0]                                          # the rotation may be left out
         pts = [(args[2 + 2 * i], args[3 + 2 * i]) for i in range(n + 1)]
         rot = args[2 + 2 * (n + 1)]
         return {"exposure": exp, "radius": max(math.hypot(x, y) for x, y in pts), "inside": lambda u, v: in_polygon(*rotate_points(u, v, rot), pts)}
     if code == 5:                                                    # polygon: exposure, vertices, cx, cy, diameter, rotation
         n, cx, cy, d, rot = int(args[1]), args[2], args[3], args[4], args[5]
+        if args[1] != n or not 3 <= n <= 12:                         # 3 to 12 vertices (a zero would divide by zero when drawn)
+            raise GerberError(f"{where}aperture macro polygon with {args[1]:g} vertices (3 to 12)")
         a = math.radians(rot)
         cx, cy = cx * math.cos(a) - cy * math.sin(a), cx * math.sin(a) + cy * math.cos(a)
         return {"exposure": exp, "radius": math.hypot(cx, cy) + d / 2, "inside": lambda u, v: regular_polygon(u - cx, v - cy, d / 2, n, rot)}
@@ -290,8 +317,9 @@ def scale_macro(code, nums, unit):
     """
     n = list(nums)
     length_idx = {1: (1, 2, 3), 20: (1, 2, 3, 4, 5), 21: (1, 2, 3, 4), 22: (1, 2, 3, 4), 5: (2, 3, 4), 7: (0, 1, 2, 3, 4)}.get(code, ())
-    if code == 4 and len(n) > 1:
-        length_idx = tuple(range(2, 2 + 2 * (int(n[1]) + 1)))
+    if code == 4 and len(n) > 1 and math.isfinite(n[1]):
+        # Only the coordinates that are written: a hostile vertex count (1e18) must not build a huge index range; macro_primitive refuses it afterwards
+        length_idx = range(2, min(len(n), 2 + 2 * (int(max(n[1], 0)) + 1)))
     for k in length_idx:
         if k < len(n):
             n[k] *= unit

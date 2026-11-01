@@ -11,9 +11,13 @@
          kept apart: net (TO.N), component reference (TO.C) and pin (TO.P) are three separate fields of every operation (the research rewrote TO.C into the net, which is
          safe only for a paste file; a copper file carries both).
          Refused with an `UnsupportedFeatureError` that names the file and the feature (the geometry would change if they were ignored): aperture blocks (AB), mirrored, rotated
-         or scaled apertures (LM, LR, LS), the macro moire (6) and unknown primitives, non-standard aperture shapes, an image offset, mirror, scale or rotation (OF, MI, SF, IR),
-         an axis select that swaps the axes (AS), and incremental coordinates (FS with I, G91). Deviation kept on purpose: G37 resets the interpolation mode to G01
-         (the specification keeps it modal; the Ucamco test file example_level_holes needs the reset). Silently ignored: what does not draw (G54, IN, LN, M01, other attributes).
+         or scaled apertures (LM, LR, LS; the identity LMN, LR0, LS1 is accepted), the macro moire (6) and unknown primitives, non-standard aperture shapes, an image offset, mirror, scale or rotation (OF, MI, SF, IR),
+         an axis select that swaps the axes (AS), incremental coordinates (FS with I, G91), and a draw or arc with an aperture other than the solid circle or the
+         (deprecated) solid rectangle, which the specification does not allow. Deviation kept on purpose: G37 resets the interpolation mode to G01 (the specification
+         keeps it modal; the old Ucamco example example_level_holes needs the reset). Silently ignored: what does not draw (G54, IN, LN, M01, other attributes).
+         Limits for hostile files (a `GerberError`, never a hang or a raw traceback): at most MAX_OPERATIONS operations per layer (a step and repeat is checked before it
+         is copied), macro expressions of bounded length and nesting, finite sizes, polygon vertex counts of 3 to 12; any other malformed value (a number such as
+         `1.2.3`, a missing parameter) is reported as a `GerberError` naming the file. A file without M02 (truncated) is read up to where it stops and `Layer.ended` is False.
 """
 
 import math
@@ -26,6 +30,7 @@ from .errors import GerberError, UnsupportedFeatureError
 from .macros import Aperture, evaluate, macro_primitive, scale_macro
 
 ARC_TOLERANCE = 0.005          # mm, largest chord error when an arc is cut into straight pieces
+MAX_OPERATIONS = 2_000_000     # drawing operations of one layer (raster.BYTES_PER_OP each with its margin, 1.2 GB); real layers of 1.5 MB hold 30 000, a step and repeat must not multiply a few bytes into a hang
 
 
 class ObjectAttrs(NamedTuple):
@@ -61,9 +66,8 @@ def split_blocks(text):
     """!
     @brief Split a Gerber file into its blocks: extended commands (between % signs) and ordinary data blocks (ended by *).
     @param text File content.
-    @return list Tuples (kind, text) with kind "ext" or "data".
+    @return generator Tuples (kind, text) with kind "ext" or "data", one at a time (a list of every block of a 100 MB file would cost more than the file).
     """
-    out = []
     text = attributes_as_commands(text)
     # Some writers leave the star off a lone G code line ("G75"); without it the block would swallow the next command
     text = re.sub(r"(?m)^(G\d{1,2})[ \t]*$", r"\1*", text)
@@ -76,15 +80,14 @@ def split_blocks(text):
             end = text.find("%", pos + 1)
             if end < 0:
                 break
-            out.append(("ext", text[pos + 1:end]))
+            yield "ext", text[pos + 1:end]
             pos = end + 1
         else:
             end = text.find("*", pos)
             if end < 0:
                 break
-            out.append(("data", text[pos:end].strip()))
+            yield "data", text[pos:end].strip()
             pos = end + 1
-    return out
 
 
 def parse_number(s, nint, ndec, zeros):
@@ -184,7 +187,15 @@ class Layer:
         self.attributes = {}           # X2 file attributes, for example {"FileFunction": ["Copper", "L1", "Top"]}
         self.apertures = {}
         self._boxes = None
-        self._parse(text)
+        self.ended = False             # True when the file ends with M02 (or M00); a truncated file is read up to where it stops, and the caller should warn
+        text = text.lstrip("\ufeff")   # a UTF-8 byte order mark would turn the first % block into a data block and shift every later one
+        try:
+            self._parse(text)
+        except GerberError:
+            raise
+        except (ValueError, IndexError, KeyError, TypeError, ZeroDivisionError, OverflowError, RecursionError, MemoryError) as exc:
+            # A malformed number, a missing parameter or a hostile value deep in the file: always the reader's own error, naming the file
+            raise GerberError(f"{name or 'file'}: malformed Gerber data ({type(exc).__name__}: {exc})") from exc
 
     # ----------------------------------------------------------------------------------------------------------------------------
     # Parsing
@@ -257,9 +268,10 @@ class Layer:
                             raise GerberError(f"{self.name}: aperture D{d} is used before it is defined")
                     else:
                         op = d
-                elif letter == "M" and int(float(val)) == 2:
+                elif letter == "M" and int(float(val)) in (0, 2):              # M00 (program stop, historical) has the same effect as M02
                     op = "end"
             if op == "end":
+                self.ended = True
                 break
             nx2 = x if nx_ is None else nx_
             ny2 = y if ny_ is None else ny_
@@ -291,6 +303,9 @@ class Layer:
                 else:
                     if ap is None:
                         raise GerberError(f"{self.name}: a line is drawn before any aperture is selected")
+                    if ap.kind not in ("C", "R"):
+                        # The specification allows draws and arcs only with the solid circle (and, deprecated, the solid rectangle)
+                        self._refuse(f"a draw or arc with a non-circular aperture ({ap.kind}, not allowed by the specification)")
                     px, py = x, y
                     for qx, qy in pts:
                         self._add(("stroke", dark, (ap, px, py, qx, qy)))
@@ -298,8 +313,9 @@ class Layer:
                 x, y = nx2, ny2
             elif op == 3:                                                     # flash
                 x, y = nx2, ny2
-                if ap is not None:
-                    self._add(("flash", dark, (ap, x, y)))
+                if ap is None:
+                    raise GerberError(f"{self.name}: a flash is made before any aperture is selected")
+                self._add(("flash", dark, (ap, x, y)))
             else:
                 x, y = nx2, ny2
         if in_region and contour:
@@ -342,7 +358,7 @@ class Layer:
             elif cmd.startswith("TA.AperFunction"):                          # aperture attribute: applies to the apertures defined after it
                 self._aper_func = cmd[len("TA.AperFunction,"):].strip()
             elif cmd.startswith("TD"):                                       # delete attributes: all, or one family
-                what = cmd[3:] if cmd.startswith("TD.") else ""
+                what = cmd[2:].lstrip(".") if cmd != "TD" else ""                 # "TD" deletes all; "TD.N" one standard attribute; "TDMyAttr" a user attribute (kept: ignored)
                 if what in ("", "N"):
                     self._net = None
                 if what in ("", "C"):
@@ -360,9 +376,14 @@ class Layer:
                     st["sr"] = None
                 m = re.match(r"SR(?:X(\d+))?(?:Y(\d+))?(?:I([-\d.]+))?(?:J([-\d.]+))?", cmd)
                 if m and m.group(1) and (int(m.group(1)) > 1 or int(m.group(2) or 1) > 1):
-                    st["sr"] = (int(m.group(1)), int(m.group(2) or 1), float(m.group(3) or 0) * unit, float(m.group(4) or 0) * unit, len(self.ops))
+                    nx, ny = int(m.group(1)), int(m.group(2) or 1)
+                    if nx * ny > MAX_OPERATIONS:
+                        raise GerberError(f"{self.name}: step and repeat of {nx} x {ny} copies (limit {MAX_OPERATIONS} operations)")
+                    st["sr"] = (nx, ny, float(m.group(3) or 0) * unit, float(m.group(4) or 0) * unit, len(self.ops))
             elif cmd.startswith("AS") and cmd[2:6] != "AXBY":
                 self._refuse(f"{cmd} (axis select that swaps the axes, deprecated)")
+            elif cmd in ("LMN", "LR0", "LS1") or re.fullmatch(r"LR[-+]?0*\.?0*|LS0*1\.?0*", cmd):
+                continue                                                     # the identity transformation (no mirror, rotation 0, scale 1): nothing changes
             elif cmd.startswith(("AB", "LM", "LR", "LS")):
                 self._refuse(f"{cmd[:2]} (aperture blocks and transformed apertures)")
             elif cmd.startswith("OF") and any(abs(float(v)) > 0 for v in re.findall(r"[-\d.]+", cmd[2:])):
@@ -387,6 +408,10 @@ class Layer:
         num, name, par = int(m.group(1)), m.group(2), m.group(3) or ""
         if name in ("C", "R", "O", "P"):
             vals = [float(v) for v in re.split(r"[xX]", par)] if par else []
+            if not all(math.isfinite(v) and (v >= 0 or (name == "P" and k == 2)) for k, v in enumerate(vals)):
+                raise GerberError(f"{self.name}: aperture {cmd} has a size that is negative or not finite")
+            if name == "P" and len(vals) >= 2 and not (vals[1] == int(vals[1]) and 3 <= vals[1] <= 12):
+                raise GerberError(f"{self.name}: polygon aperture {cmd} needs 3 to 12 vertices")
             if name == "P" and len(vals) < 2:
                 raise GerberError(f"{self.name}: polygon aperture needs a diameter and a number of vertices")
             if (name == "C" and not vals) or (name in ("R", "O") and len(vals) < 2):
@@ -450,6 +475,8 @@ class Layer:
         nx, ny, dx, dy, start = sr
         block = self.ops[start:]
         block_attrs = self.attr_ids[start:]
+        if len(self.ops) + len(block) * (nx * ny - 1) > MAX_OPERATIONS:
+            raise GerberError(f"{self.name}: the step and repeat makes {len(block) * nx * ny} operations (limit {MAX_OPERATIONS})")
         for i in range(nx):
             for j in range(ny):
                 if i == 0 and j == 0:
@@ -470,6 +497,8 @@ class Layer:
         @brief Append an operation together with the object attributes that are active now.
         @param op Tuple (kind, dark, args).
         """
+        if len(self.ops) >= MAX_OPERATIONS:
+            raise GerberError(f"{self.name}: more than {MAX_OPERATIONS} drawing operations in one layer")
         self.ops.append(op)
         key = ObjectAttrs(self._net, self._ref, self._pin)
         aid = self._attr_index.get(key)

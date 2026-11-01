@@ -12,6 +12,8 @@
          - what is it: `detect_function(name, head)` / `detect_file(path)` -> `LayerFunction`; `order_copper_layers`.
          - archives: `GerberArchive(path)` / `inspect_archive(path)` (zip-slip guard, 2 GB declared limit, headers only for the detection).
          A construct that would change the geometry if ignored raises `UnsupportedFeatureError` (file and feature named); see parser.py for the list.
+         Hostile or broken input always ends in a `GerberError` (never a hang or a raw traceback): `parser.MAX_OPERATIONS` per layer, `excellon.MAX_HOLES`,
+         bounded macro expressions, finite sizes, and `raster.MAX_RASTER_PIXELS` per rasterised window (the window is chosen from the outline, not from a stray object).
          The reader is the port of the research prototype `research/gerber-import/lib/native_gerber.py`; the design is in `research/gerber-real-boards/INTEGRATION.md`.
 """
 
@@ -55,4 +57,4 @@ def read_layer(path):
     @throws GerberError For a malformed file.
     """
     p = Path(path)
-    return Layer(p.read_text(errors="replace"), p.name)
+    return Layer(p.read_text(encoding="utf-8", errors="replace"), p.name)       # UTF-8 whatever the locale; a Latin-1 byte in a comment becomes U+FFFD

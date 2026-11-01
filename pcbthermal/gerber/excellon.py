@@ -16,7 +16,9 @@ from pathlib import Path
 from typing import List, NamedTuple, Optional
 
 from .errors import GerberError, UnsupportedFeatureError
-from .parser import Layer, parse_number
+from .parser import MAX_OPERATIONS, Layer, parse_number
+
+MAX_HOLES = MAX_OPERATIONS     # holes and slots of one drill file (a repeat command R<n> must not multiply a line into a hang)
 
 
 class Hole(NamedTuple):
@@ -80,7 +82,24 @@ def read_drill(text, name=""):
     @param name File name, for the messages.
     @return DrillFile (holes in mm, file plating, layer span, tool diameters).
     @throws UnsupportedFeatureError For the constructs listed in the module description.
-    @throws GerberError For a file that cannot be understood.
+    @throws GerberError For a file that cannot be understood (also a malformed number or more than MAX_HOLES holes).
+    """
+    text = text.lstrip("\ufeff")                                               # a byte order mark would hide the first line (METRIC or M48)
+    try:
+        return _read_drill(text, name)
+    except GerberError:
+        raise
+    except (ValueError, IndexError, KeyError, TypeError, ZeroDivisionError, OverflowError, MemoryError) as exc:
+        # A malformed number or a hostile value: the reader's own error, naming the file, never a raw traceback
+        raise GerberError(f"{name or 'file'}: malformed drill data ({type(exc).__name__}: {exc})") from exc
+
+
+def _read_drill(text, name):
+    """!
+    @brief The body of read_drill (its errors are wrapped by the caller).
+    @param text File content.
+    @param name File name, for the messages.
+    @return DrillFile.
     """
     if is_gerber_text(text):
         return drill_from_gerber(Layer(text, name))
@@ -157,6 +176,8 @@ def read_drill(text, name=""):
         rep = re.match(r"R(\d+)(?:X([-+]?[\d.]+))?(?:Y([-+]?[\d.]+))?$", line)
         if rep and holes and nint is not None:                              # repeat the last hole n more times with an offset (Allegro, Excellon "R" command)
             n = int(rep.group(1))
+            if len(holes) + n > MAX_HOLES:
+                raise GerberError(f"{name}: the repeat {line} makes more than {MAX_HOLES} holes")
             ddx = parse_number(rep.group(2), nint, ndec, zeros) * unit if rep.group(2) else 0.0
             ddy = parse_number(rep.group(3), nint, ndec, zeros) * unit if rep.group(3) else 0.0
             h = holes[-1]
@@ -210,6 +231,8 @@ def read_drill(text, name=""):
                 slot_start = (x, y)                                           # the route continues from here (modal G01 coordinates)
             else:
                 holes.append(Hole(x, y, diameter(tool), plating(tool)))
+            if len(holes) > MAX_HOLES:
+                raise GerberError(f"{name}: more than {MAX_HOLES} holes")
     sizes = {t: diameter(t) for t in set(raw) | set(mm_sizes)}
     return DrillFile(holes, file_plated, (first, last) if first else None, sizes)
 
@@ -241,4 +264,4 @@ def read_drill_file(path):
     @return DrillFile.
     """
     p = Path(path)
-    return read_drill(p.read_text(errors="replace"), p.name)
+    return read_drill(p.read_text(encoding="utf-8", errors="replace"), p.name)

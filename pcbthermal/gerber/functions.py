@@ -79,6 +79,14 @@ def _from_x2(head):
     return LayerFunction("other", side, None, None, "x2")
 
 
+# KiCad's layer suffix (the last part of the name: "<project>-F_Cu", "-In2_Cu", "-B.SilkS", "-Edge_Cuts"): read exactly, so that a project name such as
+# "bottle", "gasmask" or "edge-sensor" cannot decide the side or the kind
+_KICAD = re.compile(r"[-_.](f|b|in(\d+))[._](cu|mask|paste|silks|silkscreen|fab|crtyd|courtyard|adhes|adhesive)$")
+_KICAD_KIND = {"cu": "copper", "mask": "soldermask", "paste": "paste", "silks": "silkscreen", "silkscreen": "silkscreen"}
+# Drawings of the drill (KiCad "-drl_map", Altium "Drill Drawing", EasyEDA "DrillDrawingLayer", "drill guide"): Gerber pictures, not drill files
+_DRILL_DRAWING = re.compile(r"drl[-_ ]?map|drill[-_ ]?(map|drawing|guide|chart)|drilldrawing|drillmap|drillguide")
+
+
 def _from_name(name):
     """!
     @brief The function guessed from the file name.
@@ -89,6 +97,17 @@ def _from_name(name):
     stem, _, ext = low.rpartition(".")
     if not stem:
         stem, ext = low, ""
+    if _DRILL_DRAWING.search(stem):
+        return LayerFunction("other", None, None, None, "name")
+    k = _KICAD.search(stem)
+    if k:                                                                # KiCad's own suffix beats the extension (KiCad may write Protel extensions too)
+        side = "top" if k.group(1) == "f" else "bottom" if k.group(1) == "b" else "inner"
+        kind = _KICAD_KIND.get(k.group(3), "other")
+        if kind != "copper" and side == "inner":
+            return UNKNOWN
+        return LayerFunction(kind, side, int(k.group(2)) if k.group(2) else None, None, "name")
+    if re.search(r"[-_.]edge[._]cuts$", stem):
+        return LayerFunction("outline", None, None, None, "name")
     # The extension of the Protel/Altium/EAGLE families decides first (.GTP is top paste, whatever the stem says)
     if ext in _EXT:
         kind, side, _ = _EXT[ext]
@@ -109,13 +128,18 @@ def _from_name(name):
         parts += re.findall(r"top|bottom|bot|inner|copper|layer|paste|mask|silk\w*|legend|overlay|outline|profile|edge|cuts|drill|drl|pth|npth|cu|[a-z]+|\d+", t)
     joined = " ".join(parts)
     # Which side? an isolated "f"/"b" is the KiCad prefix (F_Cu, B_Paste), "top"/"bottom"/"bot" the generic words
+    # Whole words decide first ("b"/"f" are the KiCad prefixes, "top"/"bottom"/"bot" the generic words); a glued part ("bottomlayer") only when no word decides,
+    # and the last word that names a side wins, because a project name comes first ("bottle-top" is top)
     side = None
-    if "bottom" in parts or "bot" in parts or "b" in tokens:
-        side = "bottom"
-    elif "back" in tokens:
-        side = "bottom"
-    elif "top" in parts or "f" in tokens or "front" in tokens:
-        side = "top"
+    for t in reversed(tokens):
+        if t in ("bottom", "bot", "b", "back"):
+            side = "bottom"
+            break
+        if t in ("top", "f", "front"):
+            side = "top"
+            break
+    if side is None:
+        side = "bottom" if ("bottom" in parts or "bot" in parts) else "top" if "top" in parts else None
     if re.search(r"\bpaste\b|\bsolderpaste\b|\bsmdpaste\b", joined) or "paste" in tokens:
         return LayerFunction("paste", side, None, None, "name")
     if "mask" in joined or "soldermask" in tokens or "smask" in tokens:
@@ -147,7 +171,7 @@ def detect_function(name, head=""):
     @return LayerFunction.
     """
     base = Path(str(name).replace("\\", "/")).name
-    head = head[:HEAD_BYTES]
+    head = head[:HEAD_BYTES].lstrip("\ufeff")                              # a byte order mark would hide the M48 of an Excellon header
     if head:
         x2 = _from_x2(head)
         if x2 is not None:

@@ -7,19 +7,24 @@
          coverage of its pixel, so the area of a feature thinner than a pixel is kept. The window is cut into tiles of at most TILE_SUBPIXELS sub-pixels per side, and for
          every tile only the operations whose box meets it are drawn, so the working memory is a constant (a few hundred MB at most) whatever the board and the pixel;
          the only memory that grows with the board is the result, one byte per pixel and layer. The caller draws one layer at a time and keeps the bytes.
-         The sample spacing (pixel / supersample) must be finer than the thinnest feature: a line thinner than the spacing is lost or inflated by up to 25 % depending on
-         where the samples fall (measured in research/gerber-real-boards README 4.6); `check_sample_spacing` returns the warning and `suggest_pixel_mm` proposes the pixel.
+         The sample spacing s (pixel / supersample) must be finer than the thinnest feature: a straight band of width w is sampled by floor(w/s) or ceil(w/s) rows of
+         samples, so its area is off by up to s/w depending on where the samples fall (a line thinner than s is lost or inflated by s/w - 1; 50 % at s = w/2, the
+         suggested pixel, 25 % for a feature twice as wide); the error has no bias over positions, which is why whole layers agree with an exact vector area within
+         0.2 %. `check_sample_spacing` returns the warning and `suggest_pixel_mm` proposes the pixel.
 """
 
 import math
+import numbers
 from typing import NamedTuple
 
 import numpy as np
 
+from .errors import GerberError
 
 TILE_SUBPIXELS = 2048          # side of a tile in sub-pixels (4 M booleans; the float coordinate grids of a stroke are about 8 times that per array)
 DEFAULT_SUPERSAMPLE = 4
-BYTES_PER_OP = 600             # measured resident bytes per parsed operation (tuple, aperture reference, attribute id), see tests and the report
+BYTES_PER_OP = 600             # resident bytes per parsed operation with a margin of two: the parse of 300 000 ops peaks at about 200 (flash), 290 (stroke), 290 (small region) B/op, the file text not counted
+MAX_RASTER_PIXELS = 400_000_000  # pixels of one layer's coverage (400 MB): a 500 x 500 mm window at 0.025 mm; a flash at 1e9 mm must not make the window enormous
 WORKING_BYTES_PER_SUBPIXEL = 90  # boolean canvas plus the float64 grids and temporaries of the largest stroke in a tile (measured: CO60 at 0.05 mm peaks at 433 MB resident, 78 MB of it the interpreter)
 
 
@@ -45,7 +50,10 @@ def pixel_counts(window, pixel_mm):
     @param window   Window (mm).
     @param pixel_mm Pixel size (mm).
     @return tuple (rows, columns), each at least 1.
+    @throws GerberError If the window or the pixel is not finite or the pixel is not positive.
     """
+    if not (all(math.isfinite(v) for v in window) and math.isfinite(pixel_mm) and pixel_mm > 0 and window.width >= 0 and window.height >= 0):
+        raise GerberError(f"raster window {tuple(window)} at a pixel of {pixel_mm} mm is not a finite window with a positive pixel")
     return max(int(math.ceil(window.height / pixel_mm - 1e-9)), 1), max(int(math.ceil(window.width / pixel_mm - 1e-9)), 1)
 
 
@@ -70,7 +78,9 @@ def estimate_raster_bytes(window, pixel_mm, n_layers=1, supersample=DEFAULT_SUPE
 
 def suggest_pixel_mm(thinnest_mm, supersample=DEFAULT_SUPERSAMPLE):
     """!
-    @brief The coarsest pixel whose sample spacing is half the thinnest feature (the area of a line is then kept within about 25 % even in the worst alignment).
+    @brief The coarsest pixel whose sample spacing is half the thinnest feature (every feature is then sampled by at least two rows of samples).
+    @details The worst alignment still misses up to half of the area of the thinnest feature (s/w = 50 %; 25 % for a feature twice as wide); a pixel of
+             supersample x thinnest / 4 would bound the thinnest feature at 25 % for four times the pixels. Over many features the error has no bias.
     @param thinnest_mm Thinnest feature (mm), from `Layer.thinnest_feature_mm`.
     @param supersample Sub-pixels per pixel side.
     @return float Pixel size (mm), or None when the layer has no feature with a width.
@@ -82,7 +92,9 @@ def suggest_pixel_mm(thinnest_mm, supersample=DEFAULT_SUPERSAMPLE):
 
 def check_sample_spacing(layer, pixel_mm, supersample=DEFAULT_SUPERSAMPLE):
     """!
-    @brief Warn when the thinnest feature of the layer is not wider than the sample spacing.
+    @brief Warn when the thinnest feature of the layer is narrower than two sample spacings (the rule of `suggest_pixel_mm`).
+    @details Below two spacings a feature can be sampled by a single row, so its area can be off by nearly 100 % (an earlier version warned only below one
+             spacing, which left features of 1 to 2 spacings, up to 98 % off, without a warning).
     @param layer       Parsed Layer.
     @param pixel_mm    Pixel size (mm).
     @param supersample Sub-pixels per pixel side.
@@ -92,10 +104,12 @@ def check_sample_spacing(layer, pixel_mm, supersample=DEFAULT_SUPERSAMPLE):
     if thin is None:
         return None
     spacing = pixel_mm / supersample
-    if thin > spacing:
+    if thin >= 2 * spacing * (1 - 1e-9):
         return None
-    return (f"{layer.name or 'layer'}: the thinnest feature is {thin:.4g} mm, not wider than the sample spacing {spacing:.4g} mm "
-            f"(pixel {pixel_mm:.4g} mm / {supersample}); its area is lost or inflated by up to 25 % depending on where the samples fall; "
+    rows = "lost or drawn as one row of samples" if thin < spacing else "drawn as one or two rows of samples"
+    return (f"{layer.name or 'layer'}: the thinnest feature is {thin:.4g} mm, narrower than two sample spacings of {spacing:.4g} mm "
+            f"(pixel {pixel_mm:.4g} mm / {supersample}); depending on where the samples fall, a line of that width is {rows}, "
+            f"{spacing / max(thin, 1e-12):.3g} times its width each; "
             f"use a pixel of {suggest_pixel_mm(thin, supersample):.4g} mm or finer")
 
 
@@ -187,11 +201,12 @@ class Canvas:
             t = np.clip(((X - x0) * dx + (Y - y0) * dy) / L2, 0.0, 1.0) if L2 > 0 else np.zeros_like(X)
             inside = (X - (x0 + t * dx)) ** 2 + (Y - (y0 + t * dy)) ** 2 <= r * r
         else:
-            # Convex hull of the aperture at both ends: sample the segment densely and take the union of the apertures
-            n = max(int(math.hypot(x1 - x0, y1 - y0) / (self.pix * 0.5)) + 1, 2)
-            inside = np.zeros(X.shape, bool)
-            for s in np.linspace(0.0, 1.0, n):
-                inside |= ap.inside(X - (x0 + s * (x1 - x0)), Y - (y0 + s * (y1 - y0)))
+            # Solid rectangle (the only other aperture the parser lets draw): the swept area is the convex hull of the rectangle at both ends, an exact polygon
+            # (an earlier version took the union of flashes every half sub-pixel, which cost the cube of the length on a diagonal: minutes for a 20 mm line)
+            hw, hh = ap.p[0] / 2, ap.p[1] / 2
+            corners = [(x + sx * hw, y + sy * hh) for x, y in ((x0, y0), (x1, y1)) for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+            self.polygon(convex_hull(corners), dark)
+            return
         self._apply(w[:2], inside, dark)
 
     def polygon(self, pts, dark):
@@ -234,6 +249,31 @@ class Canvas:
         self._apply((rows, cols), inside, dark)
 
 
+def convex_hull(points):
+    """!
+    @brief Convex hull of a few points (Andrew's monotone chain), counter-clockwise.
+    @param points List of (x, y).
+    @return numpy.ndarray Array (n, 2) of the hull vertices.
+    """
+    pts = sorted(set(points))
+    if len(pts) < 3:
+        return np.array(pts, float)
+
+    def cross(o, a, b):
+        """!@brief Z of the cross product (a - o) x (b - o). @param o Origin. @param a First point. @param b Second point. @return float."""
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lower, upper = [], []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return np.array(lower[:-1] + upper[:-1], float)
+
+
 def draw_ops(layer, canvas, indices):
     """!
     @brief Draw selected operations of a layer on a canvas, in file order.
@@ -252,7 +292,7 @@ def draw_ops(layer, canvas, indices):
             canvas.polygon(a, dark)
 
 
-def rasterize(layer, window, pixel_mm, supersample=DEFAULT_SUPERSAMPLE, nets=None):
+def rasterize(layer, window, pixel_mm, supersample=DEFAULT_SUPERSAMPLE, nets=None, max_pixels=MAX_RASTER_PIXELS):
     """!
     @brief Copper coverage of a layer on a window: one byte per pixel, 0 (no copper) to 255 (full pixel).
     @details Drawn tile by tile at the sub-pixel pixel_mm / supersample (pixel centres sampled), then every supersample x supersample block is averaged. The window is
@@ -263,9 +303,16 @@ def rasterize(layer, window, pixel_mm, supersample=DEFAULT_SUPERSAMPLE, nets=Non
     @param pixel_mm   Pixel size (mm).
     @param supersample Sub-pixels per pixel side (1 gives the binary pixel-centre mask scaled to 0 or 255).
     @param nets       Optional collection of net names (TO.N): only the dark objects of those nets are drawn, clear objects always (an approximation).
+    @param max_pixels Largest number of pixels accepted (the result is one byte per pixel); the window must be chosen from the board outline, not from a stray object.
     @return numpy.ndarray uint8 array (rows, columns).
+    @throws GerberError If the window is not finite, the supersampling is not a positive integer or the window has more than max_pixels pixels.
     """
     rows, cols = pixel_counts(window, pixel_mm)
+    if not (isinstance(supersample, numbers.Integral) and supersample >= 1):
+        raise GerberError(f"supersampling {supersample!r} is not a positive integer")
+    if rows * cols > max_pixels:
+        raise GerberError(f"the raster window of {cols} x {rows} pixels ({window.width:.6g} x {window.height:.6g} mm at {pixel_mm} mm) is larger than the limit of "
+                          f"{max_pixels} pixels: choose the window from the board outline or a coarser pixel")
     out = np.zeros((rows, cols), np.uint8)
     if not layer.ops:
         return out

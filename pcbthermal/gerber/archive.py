@@ -6,11 +6,13 @@
 @details A fabrication set usually travels as one ZIP file that comes from someone else, so the reader treats it as hostile. The members are never extracted to disk (a name
          such as `../../x` or `/etc/passwd` could not escape anything, and is still refused as a zip-slip attempt); they are read into memory one at a time, with a limit on the
          bytes actually read (the sizes declared in the headers can lie). Refused with an `UnsafeArchiveError`: an absolute or drive-lettered name, a `..` component, a NUL character, more than
-         MAX_MEMBERS members, a declared total of uncompressed bytes above MAX_UNCOMPRESSED_BYTES (2 GB), a member above MAX_MEMBER_BYTES, an encrypted member, and a
-         compression ratio above MAX_RATIO (a zip bomb). Detection reads only the first HEAD_BYTES of each member.
+         MAX_MEMBERS members, a declared total of uncompressed bytes above MAX_UNCOMPRESSED_BYTES (2 GB), a member above MAX_MEMBER_BYTES, an encrypted member, a
+         compression ratio above MAX_RATIO (a zip bomb) and two members with the same name. Names that differ only in case, symbolic-link members (read as their
+         stored text) and nested archives (listed as unknown files, never opened) are harmless because nothing is written to disk. Detection reads only the first HEAD_BYTES of each member.
 """
 
 import io
+import struct
 import zipfile
 import zlib
 from pathlib import PurePosixPath
@@ -23,6 +25,8 @@ MAX_UNCOMPRESSED_BYTES = 2 * 1024 ** 3        # declared total, the limit stated
 MAX_MEMBER_BYTES = 1024 ** 3                  # one Gerber file above 1 GB is not a PCB layer
 MAX_MEMBERS = 5000
 MAX_RATIO = 1000.0                            # uncompressed over compressed bytes of one member
+# What the zipfile module raises on a damaged or hostile file besides BadZipFile (a negative seek from a lying header, an undecodable name, an unknown version)
+_ZIP_ERRORS = (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError, ValueError, UnicodeDecodeError, struct.error, OverflowError, OSError)
 
 
 class ArchiveMember(NamedTuple):
@@ -57,8 +61,21 @@ class GerberArchive:
         """
         try:
             self._zf = zipfile.ZipFile(io.BytesIO(source) if isinstance(source, (bytes, bytearray)) else source)
-        except zipfile.BadZipFile as exc:
-            raise UnsafeArchiveError(f"not a valid ZIP file: {exc}") from exc
+        except (FileNotFoundError, PermissionError, IsADirectoryError):
+            raise                                               # the path itself is wrong: the usual error of the operating system
+        except _ZIP_ERRORS as exc:
+            raise UnsafeArchiveError(f"not a valid ZIP file: {type(exc).__name__}: {exc}") from exc
+        try:
+            self._validate()
+        except BaseException:
+            self._zf.close()                                    # a refused archive does not keep its file open
+            raise
+
+    def _validate(self):
+        """!
+        @brief Check every member name and size against the limits.
+        @throws UnsafeArchiveError For an unsafe or oversized archive.
+        """
         for i in self._zf.infolist():
             check_member_name(i.filename)                       # also the directory entries: a name that tries to leave the folder is refused whatever it is
         infos = [i for i in self._zf.infolist() if not i.is_dir()]
@@ -68,6 +85,8 @@ class GerberArchive:
         self._infos = {}
         for info in infos:
             norm = check_member_name(info.filename)
+            if norm in self._infos:                             # two members of one name: which one is "the" file is ambiguous (and one would be hidden)
+                raise UnsafeArchiveError(f"the archive holds two members named {norm!r}")
             if info.flag_bits & 0x1:
                 raise UnsafeArchiveError(f"encrypted member {norm!r}")
             if info.file_size > MAX_MEMBER_BYTES:
@@ -116,7 +135,7 @@ class GerberArchive:
         try:
             with self._zf.open(self._infos[name]) as fh:
                 return fh.read(n).decode("utf-8", "replace")
-        except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as exc:
+        except _ZIP_ERRORS as exc:
             raise UnsafeArchiveError(f"member {name!r} cannot be read: {exc}") from exc
 
     def read_text(self, name):
@@ -130,7 +149,7 @@ class GerberArchive:
         try:
             with self._zf.open(info) as fh:
                 data = fh.read(info.file_size + 1)
-        except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as exc:
+        except _ZIP_ERRORS as exc:
             # The library checks the CRC and the sizes itself: a header that lies about the size ends here
             raise UnsafeArchiveError(f"member {name!r} cannot be read (it holds more or other bytes than it declares?): {exc}") from exc
         if len(data) > info.file_size:

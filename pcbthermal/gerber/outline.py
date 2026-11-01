@@ -68,10 +68,20 @@ def chain_segments(segments, tol_mm, name=""):
     @return list of arrays (n, 2), one per closed loop (the first vertex is not repeated).
     @throws OutlineError If a joint does not connect exactly two segments.
     """
+    # A segment not longer than the tolerance would put both of its ends in one joint, which would then count four ends and look like a branch (a CAD tool
+    # that writes a spline as many tiny pieces, the last chord of a short arc): such segments are contracted, their two ends become one joint and they leave the chain
+    short = np.hypot(segments[:, 2] - segments[:, 0], segments[:, 3] - segments[:, 1]) <= tol_mm
+    tiny = segments[short]
+    segments = segments[~short]
+    if len(segments) == 0:
+        return []
     m = len(segments)
     ends = np.vstack([segments[:, 0:2], segments[:, 2:4]])             # row k: start of segment k; row m + k: its end
-    tree = cKDTree(ends)
-    parent = list(range(2 * m))
+    nt = len(tiny)
+    # The ends of the contracted segments take part in the joints (rows 2m ...), so that a chain of tiny pieces joins the two long segments it connects
+    allpts = np.vstack([ends, tiny[:, 0:2], tiny[:, 2:4]]) if nt else ends
+    tree = cKDTree(allpts)
+    parent = list(range(len(allpts)))
 
     def find(a):
         """!@brief Union-find root with path halving. @param a Node. @return Root."""
@@ -81,6 +91,10 @@ def chain_segments(segments, tol_mm, name=""):
         return a
     for i, j in tree.query_pairs(tol_mm):
         ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+    for k in range(nt):                                                 # the two ends of a contracted segment are one joint
+        ri, rj = find(2 * m + k), find(2 * m + nt + k)
         if ri != rj:
             parent[ri] = rj
     node = np.array([find(i) for i in range(2 * m)])
