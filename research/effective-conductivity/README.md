@@ -270,12 +270,14 @@ On 2 mm cells the source edges fall a quarter of a cell off and the rounding giv
 
 | board | general form (program) | laminar form | change of the rise |
 | :-- | --: | --: | --: |
-| example board, powers x0.5 | 57.16 C | 56.98 C | -0.18 K (-0.6 %) |
-| example board, powers x1 | 86.72 C | 86.50 C | -0.22 K (-0.4 %) |
-| example board, powers x2 | 142.74 C | 142.56 C | -0.18 K (-0.1 %) |
+| example board, powers x0.5 | 56.87 C | 56.69 C | -0.18 K (-0.6 %) |
+| example board, powers x1 | 86.14 C | 85.92 C | -0.22 K (-0.4 %) |
+| example board, powers x2 | 141.57 C | 141.39 C | -0.18 K (-0.2 %) |
 | 2-layer board 100 x 60 mm, 3 W | 89.42 C | 88.99 C | -0.43 K (-0.7 %) |
 | 2-layer board 100 x 120 mm, 3 W | 84.61 C | 84.58 C | -0.03 K (-0.1 %) |
 | 2-layer board 100 x 200 mm, 3 W | 84.33 C | 84.47 C | +0.14 K (+0.2 %) |
+
+*Re-run on 2.4.5 (the script's `patched` function now accepts the `form` argument): the general-form column of the example board moved from 57.16, 86.72, 142.74 C to 56.87, 86.14, 141.57 C (-0.3 to -1.2 K); the laminar column moved by the same amount and the changes of the rise are the same (-0.18, -0.22, -0.18 K; the last percentage -0.1 % became -0.2 %). The three bare 2-layer boards, section A and section C are unchanged. The example-board shift is probably a 2.4.5 item (laminate rule on the partial copper of that board); it was not isolated by a run, so it is not confirmed.*
 
 The effect on the maximum temperature is **-0.7 to +0.2 % of the rise** (-0.43 to +0.14 K): radiation and the other terms of `h` dilute the 5 to 10 % that the correlations differ by. **No change is warranted by the numbers.**
 
@@ -371,6 +373,7 @@ The independent solver checks the first. `lib/layered3d.py` now takes a conducti
 * With full copper the copper carries the heat sideways and the laminate hardly matters: the 3D solid agrees with the independent solver to 0.0 % and the old 3D solid was within 0.2 % as well, so **full copper does not test the correction**; the 20 mm pad does: +0.2 % now, +40 % before.
 * Before the correction the FVM (one node, both films on it) was 0.9 to 4.4 % low with full copper, growing with the thickness, and 10 % low with the pad: the bottom film acted on the copper node itself, so the laminate between the copper and the bottom face was missing. The program now gives a one-layer board two laminate nodes under the copper (FVM, FDM and Lumped) and puts the laminate in series with the bottom film in the Analytic (`pcbthermal/laminate.py`, `docs/validation.md` section 21): the FVM is now within 0.1 % with full copper and 2.5 % low with the pad. The FDM, Lumped and Analytic stay 7.4, 14.7 and 28.8 % low on the pad (bare pads on one-layer boards in Lumped and Analytic and the pad-edge sampling of the FDM are open in `docs/versions.md` "Planned"; the same numbers are in `research/solid3d-verification/README.md` 4.4, part 2, from its copy of the solver).
 * *An earlier version of this table had a column "FVM, laminate in series under the bottom film (candidate)" (`INTEGRATION.md` 5: -0.1 to -1.1 % with full copper, -7.6 % with the pad, measured on the program before the laminate nodes). Re-run on the corrected program it typed the laminate a second time (+0.8 to +2.7 % with full copper); it was replaced by the FVM before the correction (the review).*
+* *Update for the program of 2.4.5 (laminate rule; reproduction pass and its review, table not rewritten).* The "now" columns moved: FVM 33.71 / 33.69 / 33.75 K with full copper (-0.0 / -0.0 / -0.3 %) and 71.09 K with the pad (-2.5 -> -1.4 %); FDM the same with full copper and 67.14 K with the pad (-7.4 -> -6.9 %); the 3D solid, Lumped and Analytic columns are unchanged. The "FVM before (one node)" column had silently become the current FVM on 2.4.5 (switching `LAMINATE_NODES` off no longer removes the bottom node of a one-layer board, which the rule now builds); the script also switches `laminate.uses_rule` off since this review and prints the column above again (33.41, 33.05, 32.36, 64.92 K).
 * *An earlier figure in `docs/validation.md` section 20 (the 3D solid within 0.8 %, the FVM 2.8 % low) came from a quick check with copper of 400 W/mK in the independent solver and the edge loss of a new board in the program; it is replaced by this table.*
 
 ![The one-layer board against the independent solver](figures/fig_17_one_layer_independent.png)

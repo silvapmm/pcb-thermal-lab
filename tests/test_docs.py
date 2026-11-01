@@ -102,5 +102,5 @@ def test_theory_document_covers_every_model_and_formula_family():
                     "## 8. Heat transfer coefficients", "## 9. Parts", "## 10. Power profiles", "## 11. Verification summary"):
         assert heading in text, f"docs/theory.md lost the section '{heading}'"
     # The key equations are stated
-    for formula in ("G_x = (2 S₁ S₂", "(C/Δt + ϑK)", "(I + G C) y = y₀", "A_mn a_mn = q_mn", "ΔT = P₀ R/(1 − α P₀ R)", "Nu = 0.54 Ra"):
+    for formula in ("G_x = (2 S₁ S₂", "(C/Δt + ϑK)", "(I + G_mod C_loc) y = y₀", "A_mn a_mn = q_mn", "ΔT = P₀ R/(1 − α P₀ R)", "Nu = 0.54 Ra"):
         assert formula in text or formula.replace("S₁ S₂", "S₁ S₂") in text, f"docs/theory.md lost the equation {formula}"

@@ -67,7 +67,7 @@ def novia_net(problem, cell_mm):
     p = bd.without_vias(problem)
     nx = max(int(round(p.board.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(p.board.height * 1000.0 / cell_mm)), 2)
-    return fvm.Network(p, nx, ny)
+    return fvm.Network(p, nx, ny, ladder=False)           # the network of the versions before the laminate nodes, like lib/boards.py net_for
 
 
 def part1(save):

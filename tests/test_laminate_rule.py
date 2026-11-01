@@ -189,6 +189,7 @@ def test_block_sor_solves_the_refined_columns():
     cases.append(withvias)
     for p in cases:
         net = fvm.Network(p, 30, 30)
+        assert net.ladder is not None and net.nl > net.n_board            # The laminate nodes exist, so the column blocks are what is tested
         d = net.solve_steady("direct")[0]
         s, res, info = net.solve_sor(tol=1e-10)
         assert info["converged"] and info.get("fallback") is None and res < 1e-9, info

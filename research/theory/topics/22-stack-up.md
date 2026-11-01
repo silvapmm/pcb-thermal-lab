@@ -4,6 +4,10 @@
 
 *Figure 4 of `research/stackup` (`research/stackup/figures/fig_04_stackup_schematic.png`): the simple mode (equal gaps), the advanced mode (copper per layer, material and thickness per gap; each node is the copper plus half of each adjacent gap) and the vertical chain as a series of half gaps.*
 
+![Advanced stack-up](../figures/fig_39_stackup_slabs.png)
+
+*Figure 39 (`figures/fig_39_stackup_slabs.png`): left, three copper layers and two gaps of different thickness (illustrative): the node of a layer represents its copper plus half of each adjacent gap, so the slabs add up to the board thickness; middle, the network the nodes make, with `g_j = k_th,j / d_j` per gap; right, a gap made of several sheets: in series through the gap, side by side along it (`combine_sheets`).*
+
 Also `research/stackup/figures/fig_05_stackup_to_scale.png` (the 4-layer stack-up in true proportions and what each number is worth). Investigation: `research/stackup/README.md`. **Status: implemented** (`Board.dielectrics`, `data/stackups.json`).
 
 ## 1. What it is

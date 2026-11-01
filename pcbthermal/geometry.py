@@ -305,6 +305,77 @@ def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
     return out
 
 
+def disc_board_share(x, y, r, width, height, outline=None):
+    """!
+    @brief Share of a disc (a drill) that lies on the board, from a fixed sample of the disc.
+    @details The sample is the centre plus 6 rings of 24 points at the mid-radii of equal-area annuli, so the share is an area fraction that does not
+             depend on any grid. The board is the box (0..width, 0..height) or, with an outline, the outline polygon. It is 0.0 only when no sample
+             point (centre included) is on the board, which is the rule "the via has no board under it". One disc of discs_board_share.
+    @param x Centre x in m.
+    @param y Centre y in m.
+    @param r Radius in m (0 = a point).
+    @param width Board width in m (the box used when there is no outline).
+    @param height Board height in m.
+    @param outline Outline polygon (n, 2) in m, or None for the rectangle.
+    @return float in [0, 1].
+    """
+    return float(discs_board_share([x], [y], [r], width, height, outline)[0])
+
+
+def discs_board_share(x, y, r, width, height, outline=None):
+    """!
+    @brief Share of each of many discs (the drills of the vias) that lies on the board; the sample of disc_board_share, vectorised.
+    @details With an outline, a disc whose centre is farther than its radius from every edge is wholly on one side, so its share is that of its centre
+             (1 or 0, which the sample would give too); only the discs near an edge are sampled. This keeps the live input check fast on a board with
+             thousands of vias and a long outline (2000 vias, 400 vertices: 6.9 s with one polygon test per disc).
+    @param x Array-like of centre x in m.
+    @param y Array-like of centre y in m.
+    @param r Array-like of radii in m (0 = a point).
+    @param width Board width in m (the box used when there is no outline).
+    @param height Board height in m.
+    @param outline Outline polygon (n, 2) in m, or None for the rectangle.
+    @return numpy.ndarray of float in [0, 1], one per disc.
+    """
+    x, y, r = (np.asarray(a, dtype=float).ravel() for a in (x, y, r))
+    out = np.zeros(x.size)
+    if x.size == 0:
+        return out
+    n_ring, n_ang = 6, 24
+    # Mid-radius of the k-th of n equal-area annuli: r sqrt((k + 1/2) / n), as a fraction of r
+    rad = np.sqrt((np.arange(n_ring) + 0.5) / n_ring)
+    ang = 2.0 * math.pi * (np.arange(n_ang) + 0.5) / n_ang
+    ux = np.concatenate([[0.0], (rad[:, None] * np.cos(ang)[None, :]).ravel()])     # unit sample, the centre first
+    uy = np.concatenate([[0.0], (rad[:, None] * np.sin(ang)[None, :]).ravel()])
+
+    def share(sel):
+        # Sample the selected discs and count the points on the board (the centre is one more sample, so a disc of zero radius is decided by its
+        # centre and a centre on the board is never share 0)
+        px = x[sel, None] + r[sel, None] * ux[None, :]
+        py = y[sel, None] + r[sel, None] * uy[None, :]
+        if outline is None:
+            inside = (px >= 0.0) & (px <= width) & (py >= 0.0) & (py <= height)
+        else:
+            inside = points_in_polygon(px, py, outline)
+        return inside.mean(axis=1)
+
+    if outline is None:
+        return share(np.arange(x.size))
+    poly = np.asarray(outline, dtype=float)
+    a, b = poly, np.roll(poly, -1, axis=0)
+    dmin = np.full(x.size, np.inf)
+    for (ax, ay), (bx, by) in zip(a, b):
+        # Distance of every centre to this edge (the segment from a to b)
+        ex, ey = bx - ax, by - ay
+        ll = ex * ex + ey * ey
+        t = np.clip(((x - ax) * ex + (y - ay) * ey) / ll, 0.0, 1.0) if ll > 0 else np.zeros_like(x)
+        dmin = np.minimum(dmin, np.hypot(x - ax - t * ex, y - ay - t * ey))
+    near = dmin <= r
+    out[~near] = points_in_polygon(x[~near], y[~near], poly).astype(float)
+    if near.any():
+        out[near] = share(np.flatnonzero(near))
+    return out
+
+
 def cell_index_of_point(x, y, nx, ny, dx, dy):
     """!
     @brief Index of the grid cell that contains a point (clipped to the board).

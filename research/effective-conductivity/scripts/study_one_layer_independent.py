@@ -90,12 +90,15 @@ def program_before(thickness_mm, pad=False):
     @param pad True for a 20 x 20 mm copper pad at the centre, False for full copper.
     @return float Rise in K.
     """
-    saved = laminate.LAMINATE_NODES
+    saved, saved_rule = laminate.LAMINATE_NODES, laminate.uses_rule
     laminate.LAMINATE_NODES = 0                                    # nodes() returns None: the one-node board of the program before 0ea5f07
+    # Since 2.4.5 the laminate rule gives a one-layer board its bottom node in the FVM (not through nodes()): switch it off too, otherwise this
+    # column silently equals the current FVM (found by the review of the reproduction pass)
+    laminate.uses_rule = lambda problem: False
     try:
         return program(thickness_mm, "fvm", pad)
     finally:
-        laminate.LAMINATE_NODES = saved
+        laminate.LAMINATE_NODES, laminate.uses_rule = saved, saved_rule
 
 
 def main():

@@ -54,6 +54,7 @@ def stencil_parts(net):
     if L > 1:
         gzz = np.zeros((L - 1, ny, nx))
         gzz[:net.n_board - 1] = net.gz
+        assert getattr(net, "ladder", None) is None, "sorvia.py needs the network without the laminate nodes: build it with fvm.Network(..., ladder=False)"
         for a, _b, g in net.extra_links:
             gzz[a] += g                                                         # the program assumes (a, a + 1)
         gb[:-1], ga[1:] = gzz, gzz

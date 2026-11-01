@@ -37,8 +37,11 @@ def net_for(problem, cell_mm, treatment="mw_disc"):
     """
     nx = max(int(round(problem.board.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(problem.board.height * 1000.0 / cell_mm)), 2)
+    # ladder=False: the network of the versions before the laminate nodes (2.4.5). The stencil of lib/sorvia.py assumes that every vertical link joins consecutive
+    # layers, which the sub-gap nodes of the laminate rule break; the study is about the point SOR with the via couplings, and the program's own block SOR for
+    # the laminate nodes is not what it measures.
     with pp.patched(treatment, eta=ETA):
-        return fvm.Network(problem, nx, ny)
+        return fvm.Network(problem, nx, ny, ladder=False)
 
 
 def without_vias(problem):

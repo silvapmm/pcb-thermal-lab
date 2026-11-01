@@ -101,6 +101,25 @@ E. The psi_JB route of the program (Tj = mean board temperature in the ring 0.5 
 | LDO TPS7A47 (QFN-20 5x5) | 11.9 | 75.9 | 93.7 | 87.4 | 102.7 |
 | Buck LMR36510 (HSOIC-8) | 13.8 | 54.0 | 65.1 | 62.8 | 70.2 |
 
+#### Update for the program of 2.4.5
+
+The tables above were measured at commit `1674d52` and are kept with their old values. At that commit the script read levels 0 and 1 from the frozen prototype network (before the laminate nodes of 2.4.5); since 2.4.5 `program_levels()` reads them from the program (`simulate` and `heater_rows`), and only the level 2 columns of table D (and `run()`, the base of the other studies) are the prototype, frozen on the network before 2.4.5. Printed by the script on the program of 2.4.5 (levels 0 and 1, 8 and 25 mm pads; Tj max as above):
+
+| Part | Pad | Level 0 [degC] | Level 1 Tj [degC] | Level 2 (prototype): node, no top path / bare mould / heatsink [degC] |
+| :-- | --: | --: | --: | :-- |
+| MOSFET CSD17308Q3 | 8 mm | 241.2 | 250.2 | not run |
+| MOSFET CSD17308Q3 | 25 mm | 100.3 | 109.3 | 105.0 / 104.5 / 67.4 |
+| LDO TPS7A47 | 8 mm | 187.2 | 189.7 | not run |
+| LDO TPS7A47 | 25 mm | 86.1 | 88.6 | 84.0 / 83.2 / 55.4 |
+| Buck LMR36510 | 8 mm | 115.5 | 118.9 | not run |
+| Buck LMR36510 | 25 mm | 60.0 | 63.4 | 61.0 / 60.5 / 46.9 |
+| Schottky SS12 | 8 mm | 90.3 | 100.3 | not run |
+| Schottky SS12 | 25 mm | 51.4 | 61.4 | 59.5 / 59.1 / 42.9 |
+| Resistor 0603 | 8 mm | 39.8 | 139.8 | not run |
+| Resistor 0603 | 25 mm | 31.7 | 131.7 | not run |
+
+Table B (pad 25 mm, `theta_JB` as theta): LDO 103.9 (+15.3 K, +24 %), buck 70.8 (+7.4 K, +19 %). Table C (+-30 %): MOSFET +-2.7 K, LDO +-0.8 K, buck +-1.0 K, diode +-3.0 K, resistor +-30.0 K. Table E: LDO T_ring 77.3, psi_JB route 95.1, theta_JC(bot) 88.6; buck T_ring 54.8, 65.8 and 63.4 degC. Tables A and E now agree (the 1.4 and 0.8 K gap between them was a study artefact, not a defect of the program). The laminate rule moved the program towards the 3D solid on these boards (MOSFET, 8 mm pad, board under the part: 3D solid 249.65, FVM of 2.4.5 241.20, FVM before 227.23 degC).
+
 ![Parts with and without a top path](figures/fig_01_parts_with_and_without_top_path.png)
 
 *Figure 1: `figures/fig_01_parts_with_and_without_top_path.png`.*
@@ -348,6 +367,8 @@ So "about 3 K" (`docs/theory.md` 9, `docs/validation.md` 9) is the MOSFET and th
 ### 4.11 Does the program's top-path loop converge? (`study_top_path_convergence.py`, measured in this review; corrected in the program since)
 
 **Corrected.** The table below is what the review measured on the old loop (a plain fixed-point iteration). The program now solves the root of each part (`api._top_path_split`, branch `fix/top-path-convergence`), and the script re-run on the corrected program prints, on every row, a program junction equal to the exact root (MOSFET 8 mm 90.9 against 90.9 °C, LDO 8 mm 69.8 against 69.8, Buck 8 mm 59.4 against 59.4, Schottky 8 mm 50.1 against 50.1; the 25 mm rows unchanged at 69.8, 56.7, 47.8 and 43.7), settled on all eight, with the "Loop iterations" column reading 1 (the split is solved by the root finder, not iterated). The text of this section from here on describes the old loop.
+
+**Re-run on 2.4.5 (reproduction pass).** The prototype column is the network of the versions before 2.4.5 (`package_prototype.make_network` builds `fvm.Network(..., ladder=False)`; `check_frozen` raises a RuntimeError on a network with the laminate nodes of the rule, because the prototype rebuilds the ambient conductance from the faces only and `spsolve` hung on the singular matrix). The program equals the exact root on all 8 rows (difference +0.0 K, settled, loop iterations 1; script run time 5.5 minutes). The program junction moved from the values above by the laminate rule of 2.4.5: MOSFET 8 / 25 mm 90.9 -> 92.1 / 69.8 -> 70.3 degC, LDO 69.8 -> 70.6 / 56.7 -> 57.0, Buck 59.4 -> 60.2 / 47.8 -> 48.0, Schottky 50.1 -> 50.7 / 43.7 -> 43.9 (+0.6 to +1.2 K on the 8 mm pads, +0.2 to +0.5 K on the 25 mm pads; the laminate rule: the program just before it, `e9f4df2~1`, prints the values above to 0.1 K, `research/reproduction-245/README.md` Part C section 5; that bisection was run by the tester, not repeated by the review); the node prototype column is unchanged (90.7, 69.0, 69.5, 55.8, 59.2, 47.1, 49.9, 43.3) because it is frozen, so the gap program minus prototype grew by the same amount. A prototype on the laminate network (full fix) is left for after the release. `tests/test_package_prototype.py` checks the guard and the frozen prototype against the program on a full-copper board (61.81 against 61.83 degC).
 
 The loop of `api._solve_with_tc` repeats `P_b <- P − p_top(T_max(P_b))`. With `T_max − T_amb ≈ R_b P_b` (R_b the board's resistance under the part) and `p_top = (T_max − T_amb + P θ)/(R_top + θ)` (`analysis.part_split`), the map has the slope `−R_b/(R_top + θ)`: it converges only when the board under the part is a better path than the top (ratio below 1), slowly near 1, and oscillates with a growing amplitude above 1. The exact operating point is the root of `P_b − P + p_top(P_b) = 0` (monotone), found by Brent's method with the program's own board solve:
 

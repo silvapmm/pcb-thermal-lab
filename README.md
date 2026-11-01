@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.4.4-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-751%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.4.5-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-1198%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -44,11 +44,11 @@ Every equation, discretisation and approximation of every model is in [`docs/the
 
 | Model | Advantage | Apply it to | Error on the rise vs a 3D solid | Time (example board) |
 | :-- | :-- | :-- | :-- | :-- |
-| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.4 to 2.2 % | 0.13 s (1 mm) |
-| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state, animation, power profiles) | 0.5 to 4 % | 0.12 s |
+| **FVM** (finite volumes) | reference, any geometry, full field, transient and animation | final answers, any board with a warning, via arrays, heat-up behaviour | 0.1 to 0.7 % (up to 3 % on a one-sided pad no larger than the heater) | 0.13 s (1 mm) |
+| **FDM** (finite differences) | the same equations on grid points, independent check of the FVM | comparing discretisations (steady state, animation, power profiles) | 0.4 to 2.4 % | 0.12 s |
 | **3D solid** (finite volumes in 3D) | real slabs for every copper layer and gap, vias with their copper area, metal blocks; no "one node per layer" assumption | checking the layered models on your own board (small pads, copper edges, thick blocks); steady state only | 0 to 1.6 % | 0.1 to 10 s |
-| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.5 % | about 10 ms |
-| **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | 0 to 1.5 % on uniform boards and with vias, 24 % with a small copper pad | about 50 ms |
+| **Lumped** (thermal network) | fastest, built from the real footprint and outline, several heaters heat each other | design exploration, parameter sweeps, ranking layouts | 0.1 to 4.6 % | about 10 ms |
+| **Analytic** (cosine series) | exact on uniform boards, independent of the FVM, shows the physics | quick estimates with solid planes, checking the FVM, teaching | 0 to 1.5 % on uniform boards and with vias, 24 % with a small copper pad | about 50 ms without vias, a few tenths of a second with vias |
 
 The lumped network and the analytic series need a rectangular board: on a board with an outline they run on the rectangle of the same area (the Results summary says so with a warning); every model reads the advanced stack-up.
 
@@ -105,6 +105,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.4.5** (2026-11-01): fixes only: vias converge with the cell in the FVM and FDM and are coupled in the SOR, the Lumped and Analytic models carry the constriction of the heat on a via, laminate nodes for patterned copper, a part across the board outline is weighted by its intersection, one factorisation for the top-path split, the SOR relaxation factor, and warnings of the limits of the models. Details in [`CHANGELOG.md`](CHANGELOG.md).
 - **2.4.4** (2026-10-29): the Simulation footer stays in sight on a low window, a decimal comma pasted from the right-click menu is read as a point, and the warning for plate fins that are too close is now a check after the run on the channel Rayleigh number, with a text that follows the orientation of the board; no result changes.
 - **2.4.3** (2026-10-29): corrections found by the investigations: a metal block is cut at the board outline, zones that meet inside a cell keep the copper of both, the top path exists only on a component, the 3D solid keeps the copper of a large via, the unknowns shown are the ones the models have, the via field is the drill diameter, plus an input warning for a source with component fields and small interface cleanups.
 - **2.4.2** (2026-10-29): a reviewed interface (wider panels, Preferences as a list of sections, the decimal point everywhere, engineering notation for very small and very large numbers, a list of the input warnings), the Power Calculator with the uncertainty of the board description, an inner copper choice of 1 oz, corrections for one-layer boards, board outlines, the top path and finned blocks, measured run times and shorter documents.

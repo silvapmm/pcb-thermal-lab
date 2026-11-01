@@ -28,11 +28,11 @@ so the power is **exact** whatever the grid (the weights sum to 1); if the footp
 
 ## 2.1 A part across the board outline
 
-On a board with an outline the weight of a cell is the share of its board samples that lie in the footprint times the board cover the model uses for the cell, `c_i = (n_pb / n_b) c_b` (FVM and 3D solid; the FDM uses the plain intersection `n_pb / 64`); the product of the part cover and the board cover and the plain intersection are wrong when the part edge and the outline cut the same cell, or when the cover is sampled more coarsely than the part. The text and the numbers are in `docs/theory.md` 1.3 and `docs/validation.md` section 23.
+On a board with an outline the weight of a cell is the share of its board samples that lie in the footprint times the board cover the model uses for the cell, `c_i = (n_pb / n_b) c_b` (FVM, FDM and 3D solid; the board cover is sampled on the same 8 x 8 lattice as the part, `geometry.BOARD_SAMPLES`, so `c_b = n_b / 64` and the weight equals the plain intersection `n_pb / 64`); the product of the part cover and the board cover and the plain intersection are wrong when the part edge and the outline cut the same cell, or when the cover is sampled more coarsely than the part (the program sampled it 4 x 4 before the 8 x 8 cover). The text and the numbers are in `docs/theory.md` 1.3 and `docs/validation.md` section 23.
 
 ![A cell cut by the outline and by a part](../figures/fig_34_part_cut_cell.png)
 
-*Figure 34 (`figures/fig_34_part_cut_cell.png`): a cell cut by the board outline (solid line) and by the edge of a part (dashed); left, the 8 x 8 samples coloured by what they lie in; right, the 4 x 4 samples that give the board cover of the model.*
+*Figure 34 (`figures/fig_34_part_cut_cell.png`): a cell cut by the board outline (solid line) and by the edge of a part (dashed); left, the 8 x 8 samples coloured by what they lie in; right, the same 8 x 8 samples counted as board only, which give the board cover of the model (the older 4 x 4 cover is named in the picture).*
 
 ![Weight and density by three rules](../figures/fig_35_part_weight_rules.png)
 

@@ -2,6 +2,8 @@
 
 Status: **implemented** in the program (see the program's `docs/versions.md` and `docs/validation.md`). Studies: `scripts/outline_rectangle_study.py`, `scripts/study_outline_time_constant.py`, `scripts/study_disc_reference.py`, `scripts/study_edge_on_grid_lines.py`; figures: `scripts/make_figures.py`, `scripts/make_diagrams.py`. Reviewed (section 7); numbers re-run after the edge fix of the program (4.6).
 
+**Program of 2.4.5 (reproduction pass, numbers below not rewritten).** 4.2: the T example reads 104.9 degC (was 109.1: part across the outline -1.5 K, point via -2.7 K, of which about 1.8 K is the extra effect of the two vias whose centre is off the outline, a behaviour being corrected on `fix/point-via`), so its same-area errors are -11.4 / -12.0 % (were -17.8 / -16.0 %); ellipse, chamfer and rounded examples -0.5 to -0.7 K (point via); the rows near the edge +0.3 to +0.4 K (laminate rule). 4.6: the old-rule slice losses are smaller with the cover sampled 8 x 8; the counted edge and the temperatures are unchanged. Details: `research/reproduction-245/README.md`, Part C.
+
 ## 1. The question
 
 The finite volumes, the finite differences and the 3D solid handle any board outline (cells outside it are pinned to ambient). The Lumped model (rings) and the Analytic model (cosine series) are built on a rectangle. What is the best rectangle to run them on when the board has an outline?

@@ -345,7 +345,7 @@ The Stormduino drawn as polygons (the windows and the fine reference of `zone-un
 
 * The boards are square, one source, centred, 30 mm unless swept; pads are squares centred under the source; copper 35 um (17.5 to 105 in the sweeps), laminate 0.3 / 0.9 W/mK (0.1 to 1 and 0.01 to 3 in the probes), h 2 to 500; no vias, no metal block, no component, no outline, no time dependence (the transient of the new nodes was not measured).
 * The node copy is the FVM; the FDM has the same layers but its node-centred pad edge has its own floor (-10 % with a bare bottom at every gap) and was not run with sub-gaps. The Lumped and Analytic have no through-thickness nodes and were not changed; their pad errors are not the gap's.
-* The reference of the 6- and 8-layer pad boards uses the medium grid (fitted limit within 0.04 % of the exact series on uniform boards of 2, 4 and 8 layers; not tested on a pad board of 8 layers against another solver). The reference spread (finest grid against the fitted limit) is 0.04 to 0.95 % on the fine rows (largest on the 6 mm pads, 2 and 9 mm sources, where the fitted exponent is 0.5); a second solver puts the 6 mm pad 0.84 % above the graded reference (section 10.3), so the rows with an exponent near 0.5 carry about 1 % of reference uncertainty (the FVM on pad6-full is -10.5 to -11.3 %).
+* The reference of the pad boards of four layers or more uses the medium grid (`study_baseline_pads.py`; this sentence said 6 and 8 layers) (fitted limit within 0.04 % of the exact series on uniform boards of 2, 4 and 8 layers; not tested on a pad board of 8 layers against another solver). The reference spread (finest grid against the fitted limit) is 0.04 to 0.95 % on the fine rows (largest on the 6 mm pads, 2 and 9 mm sources, where the fitted exponent is 0.5); a second solver puts the 6 mm pad 0.84 % above the graded reference (section 10.3), so the rows with an exponent near 0.5 carry about 1 % of reference uncertainty (the FVM on pad6-full is -10.5 to -11.3 %).
 * The same-cell reference is the solver `resolved3d.py` with 32 sub-slabs (converged to 0.01 % in the slab count) and at the model's cell: the split `e_total = e_z + e_xy` is an identity of the two references, not a physical decomposition (the 3D solver at 0.5 mm also has the staircase of the pad edge on the grid).
 * The real-board part uses three windows of one board, one stack-up and a fine reference with 2 sub-slabs per gap (the earlier folders found 1 to 2 % above converged for this reference).
 * The Analytic and Lumped results on pad boards are those of the program as it is; this folder does not explain them (A2).
@@ -452,3 +452,21 @@ The program now has the rule that this folder proposed (laminate nodes where cop
 the FVM error against the reference changes from -4.7 % to -0.7 % (10 mm pad, full bottom), -10.5 % to -1.1 % (6 mm), -2.3 % to -0.4 % (14 mm), -0.9 % to -0.15 % (20 mm), -0.3 % to -0.15 % (26 mm),
 -10.2 % to -2.3 % (gap 3.2 mm); largest movement of a peak: FVM 10.6 %, FDM 6.9 % of the rise. The other baseline files (`gap_grading.csv`, `gap_nodes.csv`, `real_boards.csv`,
 `validation_impact.csv`) were not regenerated and hold the program of 2.4.4. The shape test now allows the 20 and 26 mm pads to be equal (0.15 % each).
+
+Later, in the reproduction pass of 2.4.5 (`research/reproduction-245`, parts A and A2, checked by its review): `validation_impact.csv` was regenerated (the boards with vias moved with the point via),
+`gap_nodes.csv`, `gap_grading.csv` and `real_boards.csv` were re-run; the last two are byte-identical (they use the copy of the 2.4.4 network, not the program). Two things moved:
+
+* **Section 10.2, the program's FVM column** (it calls the program): -10.53 / -4.73 / -0.86 / +0.32 / -10.21 / -5.90 % became -1.05 / -0.67 / -0.15 / +0.34 / -2.29 / -0.83 % (pad6-full, pad10-full,
+  pad20-full, gap0.1-full, gap3.2-full, pad10-empty), and "gap alone" -13.55 / -5.94 / -1.43 / -0.12 / -11.51 / -7.48 became -4.39 / -1.94 / -0.72 / -0.10 / -3.70 / -2.49 % (against the same-cell
+  solver with 32 slabs, which now measures the program's sub-gaps too, so it is no longer the gap of one node alone). With `laminate.uses_rule` switched off the program prints the
+  old column to the digit. The 3D solid and the same-cell columns did not move.
+* **The reference of `L4-gap0.2-top-pad`** in `baseline/pads.csv` and `gap_nodes.csv`: 75.6718 -> 75.6906 K (+0.025 %; the totals of that row move by at most 0.03 point, n = 1 tot +0.23 -> +0.20,
+  n = 4 tot eq +0.41 -> +0.38). Not a change of the program and not a nondeterminism: the earlier value is the **fine** grid (104 976 unknowns on the finest scale, 75.67183109794092 K reproduced
+  to the last digit), whereas the script gives a board of four layers the **medium** grid (58 212 unknowns, 75.6905599586246 K, identical in two runs and with one BLAS thread). The cached entry of
+  the first run was made on the fine grid; the difference is the size of the fine-against-medium check of section 2.2. The README tables keep the fine value.
+
+Read against section 5.2: the program's rule cuts a gap into n = ceil(d / 0.4 mm) sub-gaps (at most 4), so a gap of 0.4 mm or less is **not** cut. The row "6 layers, 0.4 mm, a pad on every layer" is
+therefore to be read in the n = 1 column (-1.07 %), not in the n = 4 column (+0.73 %): the program gives -0.95 % (-1.07 % with the rule off; the 0.12 point is the rest of the rule, the face term
+and the column of bare cells, not split). The same holds for "gap 0.4" and "gap 0.1" (the program +0.34 % on gap0.1-full against +0.32 % with the rule off). On the seven rows with gaps of 1.6 mm
+or more the program is within 0.05 point of the "bare + margin, n = 4 tot eq" column (pad10-empty -0.83 / -0.88, pad10-full -0.67 / -0.71, pad10-pad -0.95 / -0.99, pad20-empty -0.00 / -0.03,
+pad20-full -0.15 / -0.15, gap3.2-full -2.29 / -2.33, 4 layers 1.6 mm -0.69 / -0.73).

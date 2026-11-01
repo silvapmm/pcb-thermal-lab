@@ -6,7 +6,7 @@
 
 ![Thick-plate correction](../figures/fig_33_thick_plate_correction.png)
 
-*Figure 33 (`figures/fig_33_thick_plate_correction.png`): the through-thickness correction `q'' t / (2 k)` against the thickness of the plate for copper (385 W/mK), aluminium (204), carbon steel (54) and FR-4 (0.3 through the thickness), for the flux of U1 of the example board (4 W over 100 mm2, 40 kW/m2), with the limit of the thick-plate check, 5 % (`checks.THICK_PLATE_LIMIT`) of the 60.87 K rise: 3.04 K. The thickness at the limit is 58.6 mm for copper, 31 mm for aluminium, 8.2 mm for steel and 0.046 mm for FR-4; the 35 um copper layer is 3 orders of magnitude below the limit. The rise here is that of the hottest point of the board (FVM, 0.5 mm), a stand-in for the rise of the heater that the check uses. Computed by `scripts/make_figures.py`.*
+*Figure 33 (`figures/fig_33_thick_plate_correction.png`): the through-thickness correction `q'' t / (2 k)` against the thickness of the plate for copper (385 W/mK), aluminium (204), carbon steel (54) and FR-4 (0.3 through the thickness), for the flux of U1 of the example board (4 W over 100 mm2, 40 kW/m2), with the limit of the thick-plate check, 5 % (`checks.THICK_PLATE_LIMIT`) of the 60.17 K rise: 3.01 K. The thickness at the limit is 57.9 mm for copper, 30.7 mm for aluminium, 8.12 mm for steel and 0.0451 mm for FR-4; the 35 um copper layer is 3 orders of magnitude below the limit. The rise here is that of the hottest point of the board (FVM, 0.5 mm), a stand-in for the rise of the heater that the check uses. Computed by `scripts/make_figures.py`.*
 
 **Status: in program** (`pcbthermal/checks.py`, `docs/models.md` section 3).
 
