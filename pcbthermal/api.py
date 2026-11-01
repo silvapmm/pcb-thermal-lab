@@ -29,7 +29,7 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, fdm, fvm, laminate, lumped, memory, profiles, solid3d
+from . import __version__, analytic, blocks, convection, copper, fdm, fvm, laminate, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from .checks import check_fin_channels, check_input, check_low_rayleigh, check_lumped_zones, check_thick_plates
@@ -972,6 +972,9 @@ def _simulate(problem, options, progress):
             if name in sim.results:
                 sim.results[name].warnings.append(f"the metal block is represented as {how}: within about 5 % of the FVM in the tests (docs/validation.md section 17); "
                                                   "steady state only")
+    for name, r in sim.results.items():
+        # Imported copper (copper.py): the Lumped, Analytic and 3D solid read only the cell fill, the layered models the face conductances; each result says so
+        r.warnings.extend(copper.model_warnings(problem, name, options.cell_mm))
     sim.part_warnings = _part_warnings(sim) if sim.results else []
     if computed:
         ref = next((m for m in MODEL_NAMES + COMPARISON_MODELS if m in options.models))

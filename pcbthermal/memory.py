@@ -442,6 +442,87 @@ def accept_unknowns(model: str, max_unknowns: int):
         CEILING_3D = old_ceiling
 
 
+# Imported copper (copper.py). Measured on the implementation (scripts/study_import_memory.py of research/gerber-real-boards is the prototype's; the numbers below are those of
+# the program: see docs/versions.md). Bytes per pixel of one mask.
+IMPORT_DRAW_BYTES_PER_PIXEL = 3.0     # import: the layer being drawn, its outline mask, the copy made by the packing (the other layers are packed text)
+IMPORT_OUTLINE_BYTES = 250.0e6        # import: the strips of the point-in-polygon test of a non-rectangular outline (measured on a 285 x 95 mm board: about 0.2 GB)
+IMPORT_HELD_BYTES_PER_PIXEL = 1.0     # run: an unpacked mask kept by the cache (one byte per pixel and layer)
+FACES_BYTES_PER_PIXEL = 40.0          # run: the face construction of the largest layer, per source pixel (measured 26 to 38: the float32 sheet, the resampling, the windows)
+FACES_FIXED_BYTES = 50.0e6            # run: the local conduction problems of one batch of windows (WINDOW_BATCH_PIXELS pixels)
+
+
+def copper_run_bytes(problem) -> float:
+    """!
+    @brief Memory that the imported copper of a problem adds to a run, besides the unknowns of the network: the unpacked masks held and the working set of the face construction.
+    @details The masks are 1 byte per pixel and layer (kept unpacked by `copper.py`, at most its cache); the faces are built one layer at a time, 4 bytes per pixel of the
+             float32 sheet and about as much again for the resampling, then released; the local problems of a batch of windows have a fixed size. Zero for a drawn board.
+    @param problem A Problem.
+    @return Bytes (0.0 without imported copper).
+    """
+    c = getattr(problem, "imported", None)
+    if c is None:
+        return 0.0
+    from .copper import has_mask
+    shapes = [tuple(e["mask"]["shape"]) for e in c.layers if has_mask(e)]
+    if not shapes:
+        return 0.0
+    pixels = [r * q for r, q in shapes]
+    held = IMPORT_HELD_BYTES_PER_PIXEL * sum(pixels)
+    work = FACES_BYTES_PER_PIXEL * max(pixels) + (FACES_FIXED_BYTES if c.mapping != "fill" else 0.0)
+    return float(held + work)
+
+
+def import_draw_bytes(rows: int, cols: int, n_layers: int) -> float:
+    """!
+    @brief Estimated peak of drawing and packing the masks of an import (one layer at a time; the packed text of the other layers stays).
+    @param rows Raster rows, count.
+    @param cols Raster columns, count.
+    @param n_layers Copper layers, count.
+    @return Bytes, without the resident size of the process.
+    """
+    from .gerber import raster
+    px = float(rows) * float(cols)
+    side = min(raster.TILE_SUBPIXELS, max(rows, cols) * raster.DEFAULT_SUPERSAMPLE)
+    working = side * min(raster.TILE_SUBPIXELS, min(rows, cols) * raster.DEFAULT_SUPERSAMPLE) * raster.WORKING_BYTES_PER_SUBPIXEL      # the rasteriser's tile
+    return IMPORT_DRAW_BYTES_PER_PIXEL * px + working + IMPORT_OUTLINE_BYTES + (n_layers - 1) * px / 8.0     # (a packed layer is below 1/8 of its pixels in bytes on the boards measured)
+
+
+def check_import(rows: int, cols: int, n_layers: int, cell_mm: float, fraction: Optional[float] = None, ram: Optional[int] = None, base: Optional[float] = None,
+                 pixel_mm: Optional[float] = None) -> float:
+    """!
+    @brief Refuse an import whose masks would not fit in memory, BEFORE anything is drawn, and name the pixel that fits.
+    @details Two peaks must fit: the draw and pack of one layer, and the run that follows (the unpacked masks and the face construction). Both are about proportional to
+             the number of pixels, so the pixel that fits is the pixel times the square root of the ratio of the estimate to the room.
+    @param rows Raster rows, count.
+    @param cols Raster columns, count.
+    @param n_layers Copper layers, count.
+    @param cell_mm Cell of the thermal grid in mm (for the message).
+    @param fraction Share of the physical memory allowed (None: default_fraction()).
+    @param ram Physical memory in bytes (None: read it).
+    @param base Resident bytes of the process (None: read it).
+    @param pixel_mm Pixel of the raster in mm (for the message).
+    @return Estimated peak in bytes (the larger of the two).
+    @throws MemoryGuardError If it does not fit.
+    """
+    f = default_fraction() if fraction is None else fraction
+    r = ram if ram is not None else ram_bytes()
+    limit = limit_bytes(f, r)
+    b = resident_bytes() if base is None else float(base)
+    px = float(rows) * float(cols)
+    draw = import_draw_bytes(rows, cols, n_layers)
+    run = IMPORT_HELD_BYTES_PER_PIXEL * px * n_layers + FACES_BYTES_PER_PIXEL * px + FACES_FIXED_BYTES
+    peak = b + max(draw, run)
+    if peak > limit:
+        room = max(limit - b - FACES_FIXED_BYTES, 1.0)
+        need = max(draw, run - FACES_FIXED_BYTES)
+        fit = (pixel_mm or 0.0) * math.sqrt(need / room)
+        where = f" ({cols} x {rows} pixels of {pixel_mm:g} mm, {n_layers} layers)" if pixel_mm else f" ({cols} x {rows} pixels, {n_layers} layers)"
+        src = f"{f * 100:.0f} % of the {r / GB:.1f} GB of memory" if r else "the fixed limit (the memory of the machine could not be read)"
+        raise MemoryGuardError(f"the import{where} would need about {peak / GB:.1f} GB, more than the {limit / GB:.1f} GB allowed ({src})"
+                               + (f"; use a pixel of {math.ceil(fit * 1000.0) / 1000.0:g} mm or more" if fit > 0 else ""))
+    return peak
+
+
 def _counter(problem, model: str, n_diel: int = 4) -> Callable[[float], Tuple[int, int]]:
     """!
     @brief Function cell_mm -> (unknowns, plan cells) of a model, from the model's own counter.
@@ -575,7 +656,7 @@ def _check(problem, models, cell_mm, fraction, transient, factor, refuse, ram, a
     r = ram if ram is not None else ram_bytes()
     limit = limit_bytes(f, r)
     avail = available if available is not None else available_bytes()
-    base = resident_bytes() if base is None else float(base)
+    base = (resident_bytes() if base is None else float(base)) + copper_run_bytes(problem)       # The imported masks and the face construction are held beside the unknowns
     out: List[Verdict] = []
     for model in models:
         if model not in CONTINUOUS:

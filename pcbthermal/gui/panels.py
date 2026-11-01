@@ -1425,7 +1425,8 @@ class SolverPanel(QWidget):
                           "within about 4 % in most cases. A part over a dense group of vias is split into the core of the vias and the rest of the footprint "
                           "(the board then runs on a 0.5 mm cell). Weak when a copper edge crosses the heater, at corners and for thin heaters.",
                 "analytic": "Closed-form series (instant). Exact on uniform boards, within a few percent with vias, heatsinks and "
-                            "partial copper. Assumes insulated edges and rectangular heaters; unreliable if a copper edge crosses a heater.",
+                            "partial copper. Moves the edge loss to the faces (warned when a part near the edge or a large edge coefficient makes that matter) and assumes "
+                            "rectangular heaters; unreliable if a copper edge crosses a heater.",
                 "solid3d": "The board as a real 3D solid (every copper layer and dielectric gap a slab, vias with their copper area, metal blocks as "
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "

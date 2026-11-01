@@ -10,6 +10,8 @@
          - drills: `read_drill(text, name)` / `read_drill_file(path)` -> `DrillFile` of `Hole` (plated or not, slots).
          - outline: `read_outline(text, name)` / `outline_from_layer(layer)` -> `Outline` of polygons with holes, or `OutlineError`.
          - what is it: `detect_function(name, head)` / `detect_file(path)` -> `LayerFunction`; `order_copper_layers`.
+         - parts: `components.py` (the X3 component layer, `parse_components`, `link_paste`, `link_copper`, `heat_polygon`) and `parts.py` (paste openings, placement files, the envelope
+           matching rule, `build_parts` -> `PartsResult` of `ImportPart`); imported as submodules (`parts` needs the project model).
          - archives: `GerberArchive(path)` / `inspect_archive(path)` (zip-slip guard, 2 GB declared limit, headers only for the detection).
          A construct that would change the geometry if ignored raises `UnsupportedFeatureError` (file and feature named); see parser.py for the list.
          Hostile or broken input always ends in a `GerberError` (never a hang or a raw traceback): `parser.MAX_OPERATIONS` per layer, `excellon.MAX_HOLES`,
