@@ -38,7 +38,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy.interpolate import PchipInterpolator
 
-from . import fdm, fvm
+from . import fdm, fvm, laminate
 from .fvm import ORDERING
 from .numfmt import num
 
@@ -603,10 +603,58 @@ class _FVMAdapter:
         p_init = np.array([h.initial_power() for h in problem.heaters])      # Start state: average, or first power of a one-shot
         self.th_init = self.th_avg if np.allclose(p_init, self.p_avg) else steady.solve(self.net.Qw_matrix @ p_init)
         th_peak = steady.solve(self.net.Qw_matrix @ np.array([h.peak_power() for h in problem.heaters]))
-        self.steady_average_max = float(self.th_avg.max() + self.ambient)
-        self.steady_peak_max = float(th_peak.max() + self.ambient)
         self.shape = (self.net.nl, self.net.ny, self.net.nx)
         self.nb = getattr(self.net, "n_board", self.net.nl)                 # Board layers (the blocks come after them)
+        self._face_setup(problem)
+        self._powers = self.p_avg                                          # Power of the step just advanced (observe reads it for the face terms)
+        # The steady maxima are what the curves approach: the same observation as observe(), with the powers of the steady state
+        self.steady_average_max = self._hottest(self.th_avg, self.p_avg)[0]
+        self.steady_peak_max = self._hottest(th_peak, np.array([h.peak_power() for h in problem.heaters]))[0]
+
+    def _face_setup(self, problem):
+        """!
+        @brief Prepare the face terms of the parts over absent copper (laminate.face_terms), per heater, as small matrices on its footprint.
+        @details The steady result reports the temperature of a part at its face: the node temperature plus Q t_cu / (2 k_z A) where the copper under the part is absent. The drop is
+                 over the half layer of laminate between the node and the face, whose diffusion time (t_cu / 2)^2 / alpha is about 2 ms for 35 um of copper, so it follows the
+                 power of the step with no lag at any period a profile resolves: the curve of a heater is the node plus the face term of the power of the step (a quasi-static
+                 offset). The term is linear in the powers, so a (cells of the footprint x heaters) matrix per heater carries it, with the powers of all heaters (the footprints may
+                 overlap). Nothing is done (and the curves are bit for bit those of the node) without the laminate rule or when no part is over absent copper.
+        @param problem A Problem.
+        """
+        self._face_loc = [None] * len(self.net.footprints)
+        net = self.net
+        if getattr(net, "ladder", None) is None or not len(net.footprints):
+            return
+        area = net.area if hasattr(net, "area") else net.dx * net.dy * net.cover
+        n = net.nl * net.ny * net.nx
+        columns = []
+        for k in range(net.Qw_matrix.shape[1]):
+            terms = laminate.face_terms(problem.board, net.fill, net.Qw_matrix[:, k].toarray().reshape(net.nl, net.ny, net.nx)[:problem.board.layers], area, net.dx)
+            col = np.zeros(n)
+            if terms is not None:
+                col[:terms[0].size] = terms[0].ravel()                       # The copper layers come first in the unknowns
+            columns.append(col)
+        face = np.stack(columns, axis=1) if columns else np.zeros((n, 0))     # (nodes, heaters) K per W
+        for i, idx in enumerate(net.footprints):
+            block = face[idx]
+            if block.any():
+                self._face_loc[i] = block                                    # (footprint nodes, heaters)
+
+    def _hottest(self, x, powers):
+        """!
+        @brief Hottest temperature of the board and under every heater, parts at their face.
+        @param x State (rise above ambient, flat).
+        @param powers Power of every heater in W, for the face terms.
+        @return Tuple (hottest degC, array of per-heater hottest degC): the node values plus the face terms of the powers; the hottest of the board is the larger of the node maximum
+                and the hottest part face.
+        """
+        under = np.empty(len(self.net.footprints))
+        for i, idx in enumerate(self.net.footprints):
+            loc = self._face_loc[i]
+            under[i] = (x[idx].max() if loc is None else (x[idx] + loc @ powers).max())
+        under = under + self.ambient
+        hottest = float(x.max() + self.ambient)
+        return (max(hottest, float(under.max())) if len(under) else hottest), under
 
     def prepare(self, dt):
         """!
@@ -638,15 +686,16 @@ class _FVMAdapter:
         @param powers Power of every heater during the step (W).
         @return New state.
         """
+        self._powers = powers
         return self.lu.solve(self.B @ x + self.net.Qw_matrix @ powers)
 
     def observe(self, x):
         """!
-        @brief Hottest temperature of the board and under every heater.
+        @brief Hottest temperature of the board and under every heater, a part at its face (the node plus the drop over the laminate where its copper is absent, see _face_setup).
         @param x State.
         @return Tuple (hottest degC, array of per-heater hottest degC).
         """
-        return float(x.max() + self.ambient), np.array([x[idx].max() for idx in self.net.footprints]) + self.ambient
+        return self._hottest(x, self._powers)
 
     def frame(self, x):
         """!
