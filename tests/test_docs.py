@@ -4,7 +4,7 @@
 @file test_docs.py
 @brief Documentation gate: every module, class, function and method must be documented in Doxygen style.
 
-@details Rules enforced on the `pcbthermal` package, on `examples/` and on `research/<topic>/scripts/`:
+@details Rules enforced on the `pcbthermal` package, on `examples/`, on `tools/` and on `research/<topic>/scripts/`:
 - a module docstring with @file and @brief,
 - a class docstring with @brief,
 - a function or method docstring with @brief (constructors may list only their parameters),
@@ -20,6 +20,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCES = sorted(list((ROOT / "pcbthermal").rglob("*.py")) + list((ROOT / "examples").glob("*.py"))
+                 + list((ROOT / "tools").rglob("*.py"))      # tools/ (the OCR tool) follows the same Doxygen rule
                  + [f for f in (ROOT / "research").glob("*/scripts/*.py") if f.parent.parent.name != "gerbers"])      # research/<topic>/scripts (the Gerber research is kept by its own session)
 
 
