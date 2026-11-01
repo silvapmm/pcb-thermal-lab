@@ -323,6 +323,7 @@ def solve_steady(problem, rings=10, cell_mm=1.0):
     @return SteadyResult with an approximate temperature field T of shape (layers, ny, nx).
     """
     blocks.require_rectangle(problem)                            # With an outline simulate() solves the rectangle of the same area
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     problem.validate()
     b = problem.board
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
@@ -464,6 +465,7 @@ def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_st
     @return Tuple (times, z, rth) as in fvm.step_responses.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     net, systems = _unit_networks(problem, rings, cell_mm)
     if t_end is None:
         t_end = 10.0 * board_time_constant(net)
@@ -608,4 +610,5 @@ def run_profile(problem, decisions, options, rings=10, cell_mm=1.0, progress=Non
     @throws ProfileError If the run is too expensive for options.max_steps.
     """
     blocks.require_no_blocks(problem)                            # These models have no metal blocks
+    problem = problem.drop_off_board_vias()                      # A via with no board under its drill conducts nothing (as in the grid models)
     return profiles.run_windows(problem, decisions, options, _LumpedAdapter(problem, rings, cell_mm), "lumped", progress)
