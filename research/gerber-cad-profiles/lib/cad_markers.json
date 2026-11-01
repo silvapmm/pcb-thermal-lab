@@ -1,0 +1,124 @@
+{
+  "_comment": "Markers that identify the program that wrote a file. scope: gerber, drill, support (any other text file of the set), name (file name), odb (ODB++ misc/info). weight 9 or more = the file names its generator in so many words (decisive); 4 to 8 = a quirk or a convention that points to the tool; 1 to 3 = shared by several tools. status: R = seen in a real file of the study (sets named), D = a documented statement (the source named), M = memory only, not seen.",
+  "profiles": {
+    "kicad": {"name": "KiCad", "kind": "ecad", "markers": [
+      {"id": "g_x2", "scope": "gerber", "re": "TF\\.GenerationSoftware,\\s*KiCad,\\s*Pcbnew,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R kicad5 to 9 sets"},
+      {"id": "g_old", "scope": "gerber", "re": "Created by KiCad \\(PCBNEW ([^)]*)\\)", "w": 10, "version": 1, "status": "R kicad-older (4.0.6)"},
+      {"id": "d_hdr", "scope": "drill", "re": "DRILL file \\{KiCad ?\\(?([^})]*)", "w": 10, "version": 1, "status": "R every KiCad drill"},
+      {"id": "d_x2", "scope": "drill", "re": "(?i)#@! TF\\.GenerationSoftware,\\s*KiCad,\\s*Pcbnew,\\s*([^\\r\\n]+)", "w": 10, "version": 1, "status": "R kicad 5.99 to 9"},
+      {"id": "odb", "scope": "odb", "re": "SAVE_APP=KiCad EDA ([\\d.]+)", "w": 10, "version": 1, "status": "R realboards-odb flat_hierarchy (9.0.3)"},
+      {"id": "odb_src", "scope": "odb", "re": "ODB_SOURCE=KiCad EDA", "w": 10, "status": "R realboards-odb"},
+      {"id": "pos_hdr", "scope": "support", "re": "### Footprint positions - created on", "w": 10, "status": "M the maintainer's note; no .pos text file in the sets"},
+      {"id": "pos_csv", "scope": "support", "re": "^Ref,Val,Package,PosX,PosY,Rot,Side", "w": 6, "status": "R realboards pos.csv"},
+      {"id": "g_aper", "scope": "gerber", "re": "G04 APERTURE (BEGIN |END )?LIST\\*", "w": 3, "status": "R kicad 5.99 and later"},
+      {"id": "n_cu", "scope": "name", "re": "-(F|B|In\\d+)[._](Cu)\\.[a-z]+$", "w": 3, "status": "R kicad-older, wc2"},
+      {"id": "n_edge", "scope": "name", "re": "-Edge[._]Cuts\\.[a-z]+$", "w": 3, "status": "R"}
+    ]},
+    "altium": {"name": "Altium Designer", "kind": "ecad", "markers": [
+      {"id": "g_x2", "scope": "gerber", "re": "TF\\.GenerationSoftware,\\s*Altium Limited,\\s*Altium Designer,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R altium-x2 (24.5.2, 22.x)"},
+      {"id": "g_phys", "scope": "gerber", "re": "G04 Layer_Physical_Order=\\d+", "w": 9, "status": "R altium (LimeSDR, 2017)"},
+      {"id": "g_color", "scope": "gerber", "re": "G04 Layer_Color=\\d+", "w": 9, "status": "R altium"},
+      {"id": "g_ampar", "scope": "gerber", "re": "G04:AMPARAMS\\|DCode=", "w": 10, "status": "R altium *.APR_LIB"},
+      {"id": "d_color", "scope": "drill", "re": "(?m)^;Layer_Color=\\d+", "w": 9, "status": "R altium NC Drill"},
+      {"id": "d_ff", "scope": "drill", "re": "(?m)^;FILE_FORMAT=\\d:\\d", "w": 3, "status": "R altium, pcad, easyeda (shared)"},
+      {"id": "extrep", "scope": "support", "re": "Gerber File Extension Report For:", "w": 10, "status": "R altium .EXTREP"},
+      {"id": "drr", "scope": "support", "re": "NCDrill File Report For:", "w": 10, "status": "R altium .DRR"},
+      {"id": "n_prot", "scope": "name", "re": "\\.(GTL|GBL|GTO|GBO|GTS|GBS|GTP|GBP|GKO|GM\\d+|GML|G\\d+|GP\\d+|GD\\d+|GG\\d+)$", "w": 1, "status": "R (Protel names, shared by many)"}
+    ]},
+    "circuitmaker": {"name": "Altium CircuitMaker", "kind": "ecad", "parent": "altium", "markers": [
+      {"id": "g_x2", "scope": "gerber", "re": "TF\\.GenerationSoftware,\\s*Altium Limited,\\s*CircuitMaker,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R circuitmaker/yaduino (2.2.1)"}
+    ]},
+    "eagle": {"name": "Autodesk EAGLE / Fusion Electronics", "kind": "ecad", "markers": [
+      {"id": "g_cmt", "scope": "gerber", "re": "G04 EAGLE Gerber (RS-274X|X2) export", "w": 10, "status": "R eagle, eagle-newer, eagle-x2, fusion360"},
+      {"id": "g_x2", "scope": "gerber", "re": "TF\\.GenerationSoftware,\\s*Autodesk,\\s*EAGLE,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R eagle-newer (9.0.0), eagle-x2 (9.1.3)"},
+      {"id": "d_x2", "scope": "drill", "re": ";GenerationSoftware,\\s*Autodesk,\\s*EAGLE,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R drills.xln"},
+      {"id": "job", "scope": "support", "re": "\"Application\":\\s*\"Fusion Electronics\"", "w": 10, "status": "R fusion360/gerber_job.gbrjob (9.7.0)"},
+      {"id": "n_ext", "scope": "name", "re": "\\.(cmp|sol|plc|pls|stc|sts|crc|crs|dim|drd|xln)$", "w": 3, "status": "M EAGLE CAM defaults (not seen in a file name of the sets except .xln)"}
+    ]},
+    "allegro": {"name": "Cadence Allegro / OrCAD PCB Editor", "kind": "ecad", "markers": [
+      {"id": "g_origin", "scope": "gerber", "re": "G04 File Origin:\\s+Cadence Allegro ([^*\\r\\n]+)", "w": 10, "version": 1, "status": "R allegro (17.2), orcad (17.4)"},
+      {"id": "g_ident", "scope": "gerber", "re": "G04 =+ begin FILE IDENTIFICATION RECORD", "w": 9, "status": "R allegro, orcad"},
+      {"id": "d_lead", "scope": "drill", "re": "(?m)^;LEADER: \\d+\\s*\\n;HEADER:", "w": 9, "status": "R allegro, allegro-2 .drl/.rou"},
+      {"id": "d_hole", "scope": "drill", "re": "(?m)^;T\\d+ Holesize \\d+\\.\\s*=", "w": 9, "status": "R allegro NC drill"},
+      {"id": "art_param", "scope": "support", "re": "DEVICE-TYPE\\s+GERBER_RS274X", "w": 8, "status": "R allegro art_param.txt"},
+      {"id": "ipc_job", "scope": "support", "re": "(?m)^P\\s+JOB\\s+.*\\.brd", "w": 6, "status": "R allegro IPC-D-356"},
+      {"id": "n_art", "scope": "name", "re": "\\.art$", "w": 4, "status": "R allegro, orcad"}
+    ]},
+    "xpedition": {"name": "Siemens Xpedition / Mentor Expedition PCB", "kind": "ecad", "markers": [
+      {"id": "g_mentor", "scope": "gerber", "re": "G04 Mentor Graphics Example Gerber Output Definition", "w": 10, "status": "R siemens-2, xpedition (all .gdo written by the Gerber output definition)"},
+      {"id": "g_job", "scope": "gerber", "re": "G04 Job\\s+:[^\\n]*\\n\\s*G04 User\\s+:[^\\n]*\\n\\s*G04 Layer\\s+:", "w": 9, "status": "R siemens, siemens-2, xpedition"},
+      {"id": "d_ver", "scope": "drill", "re": "(?m)^; Version\\s*:\\s*LOCAL\\s*\\n; Job\\s*:", "w": 9, "status": "R .ncd files"},
+      {"id": "d_fmt", "scope": "drill", "re": "(?m)^; Format\\s*:\\s*\\d\\.\\d / (Absolute|Incremental) / (Inch|MM) / (Leading|Trailing)", "w": 10, "status": "R .ncd files"},
+      {"id": "gpf", "scope": "support", "re": "\\.CREATOR \"Xpedition Layout Gerber Output\"", "w": 10, "status": "R GerberPlot.gpf / PlotSetup.gpf"},
+      {"id": "gerbtool", "scope": "support", "re": "\\{Program\\s+Expedition GerbTool", "w": 10, "status": "R siemens-2 PCB.dsn"},
+      {"id": "g_icas", "scope": "gerber", "re": "(?m)^%ICAS\\*%", "w": 4, "status": "R"},
+      {"id": "n_gdo", "scope": "name", "re": "\\.(gdo|ncd)$", "w": 4, "status": "R"}
+    ]},
+    "pads": {"name": "PADS (Mentor / Siemens) Layout", "kind": "ecad", "markers": [
+      {"id": "g_cmt", "scope": "gerber", "re": "G04 PADS ([\\d.]+) Build Number: (\\d+) generated Gerber", "w": 10, "version": 1, "status": "R pads (9.2)"},
+      {"id": "g_pc", "scope": "gerber", "re": "G04 PC Version=", "w": 5, "status": "R pads"},
+      {"id": "n_pho", "scope": "name", "re": "\\.pho$", "w": 4, "status": "R pads; M for other PADS versions"}
+    ]},
+    "zuken": {"name": "Zuken CR-8000 / CR-5000 (from the emulation only)", "kind": "ecad", "markers": [
+      {"id": "g_g54", "scope": "gerber", "re": "G54D\\d+\\*.*G55D03\\*", "w": 6, "status": "D gerbonara zuken-emulated script zukenka_gerber.py (an emulation of CR-8000 files by the gerbonara author, not a real file)"},
+      {"id": "g_m00", "scope": "gerber", "re": "X0Y0D02\\*M00\\*\\s*$", "w": 4, "status": "D same script"},
+      {"id": "d_list", "scope": "support", "re": "\\*{5}\\s+DRILL LIST\\s+\\*{5}", "w": 6, "status": "D same emulation (.fdl)"},
+      {"id": "d_fdr", "scope": "drill", "re": "(?s)^M48\\s+(INCH|METRIC),(LZ|TZ)\\s+ICI,OFF\\s+VER,1\\s+FMAT,2\\s+DETECT,ON\\s+ATC,ON", "w": 6, "status": "D same emulation (.fdr)"},
+      {"id": "n_fph", "scope": "name", "re": "\\.(fph|fdr|fdl)$", "w": 6, "status": "D same emulation"}
+    ]},
+    "diptrace": {"name": "DipTrace", "kind": "ecad", "markers": [
+      {"id": "g_cmt", "scope": "gerber", "re": "G04 DipTrace ([\\d.]+)\\*", "w": 10, "version": 1, "status": "R diptrace (2.4.0.1)"}
+    ]},
+    "easyeda": {"name": "EasyEDA / JLCEDA (Standard)", "kind": "ecad", "markers": [
+      {"id": "g_ver", "scope": "gerber", "re": "G04 EasyEDA v([\\d.]+)", "w": 10, "version": 1, "status": "R easyeda-gerbonara (6.4.19.4)"},
+      {"id": "g_gen", "scope": "gerber", "re": "G04 Gerber Generator version", "w": 8, "status": "R"},
+      {"id": "d_ver", "scope": "drill", "re": "(?m)^;EasyEDA v([\\d.]+)", "w": 10, "version": 1, "status": "R"}
+    ]},
+    "fritzing": {"name": "Fritzing", "kind": "ecad", "markers": [
+      {"id": "g_seq", "scope": "gerber", "re": "(?s)\\A\\s*%MOIN\\*%\\s*%OFA0B0\\*%\\s*%FSLAX\\d\\dY\\d\\d\\*%\\s*%IPPOS\\*%", "w": 6, "status": "R fritzing (no banner: a header sequence)"}
+    ]},
+    "geda": {"name": "gEDA PCB", "kind": "ecad", "markers": [
+      {"id": "g_cre", "scope": "gerber", "re": "G04 Creator: pcb (\\d+) \\*", "w": 10, "version": 1, "status": "R geda (20140316)"}
+    ]},
+    "pcbrnd": {"name": "pcb-rnd", "kind": "ecad", "markers": [
+      {"id": "g_cre", "scope": "gerber", "re": "G04 Creator: pcb-rnd ([\\d.]+) \\*", "w": 10, "version": 1, "status": "R pcb-rnd (2.3.2)"}
+    ]},
+    "upverter": {"name": "Upverter", "kind": "ecad", "markers": [
+      {"id": "g_mac", "scope": "gerber", "re": "%AM(Rect|RR)-[WH]\\d+", "w": 8, "status": "R upverter (macro names with the size in the name)"},
+      {"id": "d_m71", "scope": "drill", "re": "(?s)^M48\\s+M71,TZ\\s+FMAT,2", "w": 5, "status": "R"}
+    ]},
+    "target3001": {"name": "Target 3001!", "kind": "ecad", "markers": [
+      {"id": "g_in", "scope": "gerber", "re": "%IN\\d+=[A-Za-z]+[^*]*\\*%", "w": 7, "status": "R target3001 (%IN2=CopperbottomL2(X.Bot)*%)"},
+      {"id": "info", "scope": "support", "re": "CAM output for current project", "w": 10, "status": "R .Info file"},
+      {"id": "n_ext", "scope": "name", "re": "\\.(PosiTop|PosiBot|PasteTop|PasteBot|StopTop|StopBot|Outline|Info)$", "w": 6, "status": "R"}
+    ]},
+    "pcad": {"name": "P-CAD", "kind": "ecad", "markers": [
+      {"id": "g_src", "scope": "gerber", "re": "G04\\s+Source:\\s+P-CAD (\\d+) PCB, Version ([\\d.]+)", "w": 10, "version": 1, "status": "R pcad (2006, 19.02.958)"}
+    ]},
+    "pulsonix": {"name": "Pulsonix", "kind": "ecad", "markers": [
+      {"id": "g_cmt", "scope": "gerber", "re": "G04 GENERATED BY PULSONIX ([\\d.]+) GERBER\\.DLL", "w": 10, "version": 1, "status": "R pulsonix (12.5)"},
+      {"id": "g_x2", "scope": "gerber", "re": "TF\\.GenerationSoftware,\\s*Pulsonix,\\s*Pulsonix,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R"},
+      {"id": "d_fmat", "scope": "drill", "re": "(?s)^M48\\s+FMAT,1\\s+(INCH|METRIC)", "w": 4, "status": "R"}
+    ]},
+    "proteus": {"name": "Labcenter Proteus", "kind": "ecad", "markers": [
+      {"id": "g_cmt", "scope": "gerber", "re": "G04 PROTEUS GERBER X2 FILE", "w": 10, "status": "R proteus/breath"},
+      {"id": "g_x2", "scope": "gerber", "re": "TF\\.GenerationSoftware,\\s*Labcenter,\\s*Proteus,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R (8.15)"},
+      {"id": "readme", "scope": "support", "re": "LABCENTER PROTEUS TOOL INFORMATION FILE", "w": 10, "status": "R READ-ME.TXT"},
+      {"id": "n_cadcam", "scope": "name", "re": " - CADCAM [A-Za-z0-9 -]+\\.(GBR|IPC|TXT)$", "w": 8, "status": "R"}
+    ]},
+    "designspark": {"name": "DesignSpark PCB", "kind": "ecad", "markers": [
+      {"id": "g_cmt", "scope": "gerber", "re": "G04 DesignSpark PCB Gerber Version ([\\d.]+) Build (\\d+)", "w": 10, "version": 1, "status": "R picovdp (10.0)"}
+    ]},
+    "librepcb": {"name": "LibrePCB", "kind": "ecad", "markers": [
+      {"id": "g_x2", "scope": "gerber", "re": "TF\\.GenerationSoftware,\\s*LibrePCB,\\s*LibrePCB,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R desklift (0.1.0)"},
+      {"id": "g_hdr", "scope": "gerber", "re": "G04 --- HEADER BEGIN --- \\*", "w": 8, "status": "R"},
+      {"id": "d_gen", "scope": "drill", "re": "(?m)^;Generated by LibrePCB ([\\d.]+)", "w": 10, "version": 1, "status": "R"}
+    ]},
+    "cam350": {"name": "CAM350 / BluePrint (a CAM tool: the file was re-exported)", "kind": "cam", "markers": [
+      {"id": "g_cmt", "scope": "gerber", "re": "G04 CAM350 V([\\d.]+)", "w": 10, "version": 1, "status": "R orcad/cc1310 (the files claim OrCAD in the folder name, the banner is CAM350)"}
+    ]},
+    "ucamx": {"name": "Ucamco UcamX (a CAM tool)", "kind": "cam", "markers": [
+      {"id": "g_x2", "scope": "gerber", "re": "TF\\.GenerationSoftware,\\s*Ucamco,\\s*UcamX,\\s*([^*%\\r\\n]+)", "w": 10, "version": 1, "status": "R Ucamco sample files; Gerber spec 2026.05 example"}
+    ]}
+  }
+}
