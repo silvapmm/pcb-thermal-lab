@@ -101,6 +101,25 @@ E. The psi_JB route of the program (Tj = mean board temperature in the ring 0.5 
 | LDO TPS7A47 (QFN-20 5x5) | 11.9 | 75.9 | 93.7 | 87.4 | 102.7 |
 | Buck LMR36510 (HSOIC-8) | 13.8 | 54.0 | 65.1 | 62.8 | 70.2 |
 
+#### Update for the program of 2.4.5
+
+The tables above were measured at commit `1674d52` and are kept with their old values. At that commit the script read levels 0 and 1 from the frozen prototype network (before the laminate nodes of 2.4.5); since 2.4.5 `program_levels()` reads them from the program (`simulate` and `heater_rows`), and only the level 2 columns of table D (and `run()`, the base of the other studies) are the prototype, frozen on the network before 2.4.5. Printed by the script on the program of 2.4.5 (levels 0 and 1, 8 and 25 mm pads; Tj max as above):
+
+| Part | Pad | Level 0 [degC] | Level 1 Tj [degC] | Level 2 (prototype): node, no top path / bare mould / heatsink [degC] |
+| :-- | --: | --: | --: | :-- |
+| MOSFET CSD17308Q3 | 8 mm | 241.2 | 250.2 | not run |
+| MOSFET CSD17308Q3 | 25 mm | 100.3 | 109.3 | 105.0 / 104.5 / 67.4 |
+| LDO TPS7A47 | 8 mm | 187.2 | 189.7 | not run |
+| LDO TPS7A47 | 25 mm | 86.1 | 88.6 | 84.0 / 83.2 / 55.4 |
+| Buck LMR36510 | 8 mm | 115.5 | 118.9 | not run |
+| Buck LMR36510 | 25 mm | 60.0 | 63.4 | 61.0 / 60.5 / 46.9 |
+| Schottky SS12 | 8 mm | 90.3 | 100.3 | not run |
+| Schottky SS12 | 25 mm | 51.4 | 61.4 | 59.5 / 59.1 / 42.9 |
+| Resistor 0603 | 8 mm | 39.8 | 139.8 | not run |
+| Resistor 0603 | 25 mm | 31.7 | 131.7 | not run |
+
+Table B (pad 25 mm, `theta_JB` as theta): LDO 103.9 (+15.3 K, +24 %), buck 70.8 (+7.4 K, +19 %). Table C (+-30 %): MOSFET +-2.7 K, LDO +-0.8 K, buck +-1.0 K, diode +-3.0 K, resistor +-30.0 K. Table E: LDO T_ring 77.3, psi_JB route 95.1, theta_JC(bot) 88.6; buck T_ring 54.8, 65.8 and 63.4 degC. Tables A and E now agree (the 1.4 and 0.8 K gap between them was a study artefact, not a defect of the program). The laminate rule moved the program towards the 3D solid on these boards (MOSFET, 8 mm pad, board under the part: 3D solid 249.65, FVM of 2.4.5 241.20, FVM before 227.23 degC).
+
 ![Parts with and without a top path](figures/fig_01_parts_with_and_without_top_path.png)
 
 *Figure 1: `figures/fig_01_parts_with_and_without_top_path.png`.*
