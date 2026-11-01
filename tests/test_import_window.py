@@ -626,3 +626,36 @@ def test_the_file_menu_opens_the_window_and_loads_nothing_when_closed(qtbot, tmp
     win.a_import.trigger()
     assert len(opened) == 1 and not win.doc.problem.heaters
     assert QPoint is not None
+
+
+@pytest.mark.skipif(not REAL or not os.path.isdir(os.path.join(REAL, "isastm")), reason="PCBT_REAL_BOARDS does not point to the real boards")
+def test_the_four_layer_board_with_two_placement_files_and_a_job_file(qtbot):
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.confirm = lambda *a: True
+    w.notify = lambda title, text: pytest.fail(f"{title}: {text}")
+    w.open_path(os.path.join(REAL, "isastm"))
+    sx = w.session
+    assert not sx.complete() and any("Two files claim 'Placement" in p for p in sx.problems())      # two placement files: the user chooses
+    assert not w.next_btn.isEnabled()
+    row = [f.name for f in sx.files].index("cpl_jlc.csv")
+    w.page1.table.item(row, 0).setCheckState(Qt.Unchecked)
+    qtbot.waitUntil(sx.complete, timeout=60000)
+    assert sx.job == {"layers": 4, "thickness_mm": 1.6} and sx.job_warnings() == [] and len(sx.layers()) == 4
+    w.go(1)
+    assert len(sx.parts()) == 134 and sx.unmatched() == [] and sx.parts_info()["counts"]["to.c+placement"] == 134
+    sx.set_part(sx.parts()[0].designator, power=1.0)
+    w.go(2)
+    assert w.do_import() is True and w.problem.board.layers == 4 and len(w.problem.heaters) == 1
+
+
+@pytest.mark.skipif(not REAL or not os.path.isdir(os.path.join(REAL, "co60")), reason="PCBT_REAL_BOARDS does not point to the real boards")
+def test_the_bottom_side_board_matches_its_parts_by_position(qtbot):
+    sx = ImportSession()
+    sx.set_files(os.path.join(REAL, "co60"))
+    assert sx.complete() and sx.load() is not None
+    parts = sx.parts()
+    assert len(parts) == 193 and sx.parts_info()["counts"]["placement by position"] == 191
+    assert any(p.side == "bottom" for p in parts)                  # the whole board is assembled on the bottom side
+    assert any("names no parts" in w for w in sx.parts_warnings())

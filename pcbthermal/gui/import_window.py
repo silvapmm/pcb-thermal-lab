@@ -13,9 +13,10 @@
 """
 
 import html
+import threading
 
 import numpy as np
-from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QEventLoop, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QRadioButton, QSizePolicy, QStackedWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget)
@@ -1418,6 +1419,43 @@ class ImportBoardWindow(QDialog):
         self._reload_timer.timeout.connect(self.reload)
         self.update_nav()
 
+    def _in_thread(self, fn):
+        """!
+        @brief Run a slow call of the session (reading the copper, building the parts, rasterising the import) off the GUI thread, keeping the window repainting; the window is disabled meanwhile.
+        @details The caller waits for the result as for a normal call (a local event loop), so the rest of the code stays sequential. An exception of the call is raised in the caller.
+        @param fn Function without arguments.
+        @return what fn returns.
+        """
+        box = {}
+
+        def work():
+            """!
+            @brief Thread body: call fn and keep its result or its exception.
+            @return None
+            """
+            try:
+                box["value"] = fn()
+            except BaseException as exc:                      # handed back to the caller's thread
+                box["error"] = exc
+
+        t = threading.Thread(target=work, daemon=True)
+        loop, tick = QEventLoop(self), QTimer(self)
+        tick.setInterval(20)
+        tick.timeout.connect(lambda: None if t.is_alive() else loop.quit())
+        self.setEnabled(False)
+        t.start()
+        tick.start()
+        try:
+            if t.is_alive():
+                loop.exec()
+        finally:
+            tick.stop()
+            t.join()
+            self.setEnabled(True)
+        if "error" in box:
+            raise box["error"]
+        return box.get("value")
+
     # -- reading
     def open_path(self, source):
         """!
@@ -1428,7 +1466,7 @@ class ImportBoardWindow(QDialog):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             self.session.set_files(source)
-            self.session.load()
+            self._in_thread(self.session.load)
         except (OSError, ValueError, GerberError) as exc:
             self.notify("Cannot read the files", str(exc))
         finally:
@@ -1449,7 +1487,7 @@ class ImportBoardWindow(QDialog):
         """
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            self.session.load()
+            self._in_thread(self.session.load)
         finally:
             QApplication.restoreOverrideCursor()
         self.refresh()
@@ -1471,6 +1509,7 @@ class ImportBoardWindow(QDialog):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             if i == 1:
+                self._in_thread(self.session.parts)               # built on first use (about 0.7 s on a 130-part board)
                 self.page2.refresh()
             elif i == 2:
                 if self.session.cell_mm == 1.0 and not getattr(self, "_cell_set", False):
@@ -1562,7 +1601,7 @@ class ImportBoardWindow(QDialog):
             return False
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            prob = sx.build_problem()
+            prob = self._in_thread(sx.build_problem)
         except (ValueError, MemoryGuardError, GerberError) as exc:
             self.notify("Cannot import", str(exc))
             return False
