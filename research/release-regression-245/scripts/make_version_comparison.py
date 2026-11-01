@@ -35,6 +35,7 @@ import regress_classify as C                                                # no
 
 MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
 MARKERS = {"fvm": "o", "fdm": "s", "lumped": "^", "analytic": "v", "solid3d": "D"}
+CANONICAL = ("example_board", "plate_uniform", "plate_pad", "plate_vias", "t_outline")          # boards of the summary table
 LINTHRESH_K = 0.01                                                          # below this the symlog axis is linear: shifts under 0.01 K are drawn on a linear stretch
 
 
@@ -237,31 +238,67 @@ def draw_figure(rows, path, base_label, new_label):
     plt.close(fig)
 
 
-def build(base, new, table, fig_dir=None):
+def changelog_section(text, version):
+    """!
+    @brief The section of one version in CHANGELOG.md, verbatim.
+    @param text Content of CHANGELOG.md.
+    @param version Version text such as "2.4.5" or "Unreleased".
+    @return str (empty when the section is not found).
+    """
+    m = re.search(r"^## \[" + re.escape(version) + r"\].*?(?=^## \[|\Z)", text, re.S | re.M)
+    return m.group(0).strip() if m else ""
+
+
+def status_lines(diff):
+    """!
+    @brief Records whose status (ok, skipped, error) differs between the two sets.
+    @param diff Output of diff_sets.
+    @return list of str.
+    """
+    return [f"* {e['board']} / {e['model']} / {e['cell_mm']:g} mm: {e['status_old']} to {e['status_new']}" for e in diff["entries"] if e["status_old"] != e["status_new"]]
+
+
+def build(base, new, table, fig_dir=None, level=1, changelog=None):
     """!
     @brief Build the chapter text (and the figure when a folder is given).
     @param base Earlier result set.
     @param new Result set under test.
-    @param table The expected-shifts table of the new release.
+    @param table The expected-shifts table of the new release, or None when the pair has no table (then no shift is classified and the CHANGELOG section is quoted instead).
     @param fig_dir Folder for the figure, or None for no figure.
+    @param level Heading level of the chapter title (2 when the chapter is a part of a longer document).
+    @param changelog Text of the CHANGELOG section of the new version, quoted verbatim when there is no table.
     @return tuple (markdown text, rows of the hottest-point table, figure path or None).
     """
+    classified = table is not None
+    if not classified:
+        table = {"items": [], "rules": [], "must_not_move": [], "transients": {}}
     titles, rule_item = item_titles(table)
     diff = C.diff_sets(base, new, table)
     trans = C.classify_transients(C.transient_diff(base, new), table)
     rows = fill_rise(hottest_rows(diff, titles, rule_item), base)
+    if not classified:
+        for r in rows:
+            r["class"], r["items"] = "not classified", "no table of expected shifts for this pair; see the CHANGELOG section below"
     ident = identical_records(base, new, diff)
     s = diff["summary"]
-    bl, nl = base["label"], new["label"]
-    md = [f"# Results of {nl} (program {new['program']['version']}) against {bl} (program {base['program']['version']})", ""]
+    bl, nl = vlabel(base), vlabel(new)
+    md = [f"# Results of {nl} against {bl}", ""]
     if base.get("environment") != new.get("environment"):
         md += [f"**Warning: the two sets were run in different environments** ({base.get('environment')} against {new.get('environment')}); the last digits of the bit-identical test are not reliable.", ""]
     md += [f"Environment of the new set: {new.get('environment')}. Cells in the sets: {sorted({float(r['cell_mm']) for r in new.get('records', [])}, reverse=True)} mm.", "",
            f"Records compared: {s['identical_records'] + len(diff['entries'])} (skipped or failed in both: {s['skipped_in_both']}). Bit-identical in every number and in the warnings: {s['identical_records']}. "
            f"Hottest point moved: {len(rows)}. Alarms (unexplained, must-not-move, out of range): {s['alarms']}.", "",
-           "| Class of the shifted numbers (all metrics) | Count |", "| :-- | --: |"]
-    md += [f"| {c} | {s['counts'].get(c, 0)} |" for c in C.CLASSES + ("warnings_only",)]
-    md += ["", "## Items of the release", "", "| Item | What |", "| :-- | :-- |"] + [f"| {i} | {t} |" for i, t in titles.items()]
+           ]
+    if classified:
+        md += ["| Class of the shifted numbers (all metrics) | Count |", "| :-- | --: |"]
+        md += [f"| {c} | {s['counts'].get(c, 0)} |" for c in C.CLASSES + ("warnings_only",)]
+        md += ["", "## Items of the release", "", "| Item | What |", "| :-- | :-- |"] + [f"| {i} | {t} |" for i, t in titles.items()]
+    else:
+        md += ["No table of expected shifts exists for this pair, so no shift is classified here and none is explained by a cause of mine. What the maintainers recorded for the later version (CHANGELOG, verbatim):", "",
+               "\n".join("> " + ln for ln in changelog.splitlines()) if changelog else "(no CHANGELOG section found)"]
+    st = status_lines(diff)
+    if st:
+        md += ["", "## Records whose status changed (could run in one version and not in the other)", ""] + st
     md += ["", "## Hottest point, every record that moved", "",
            "The shift in percent is relative to the rise of the old hottest point over the ambient of the record. The item is the one the table of expected shifts links to the shift.", "", hottest_table(rows)]
     other = [e for e in diff["entries"] if e["metrics"] and not any(m["name"] == "t_max" for m in e["metrics"])]
@@ -284,7 +321,83 @@ def build(base, new, table, fig_dir=None):
         draw_figure(rows, fig, bl, nl)
         md += ["", "## Figure", "", f"![shift of the hottest point](../figures/{fig.name})", "",
                f"*Figure {fig.name[4:6]} (`figures/{fig.name}`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below {LINTHRESH_K} K.*"]
+    if level > 1:
+        md = [("#" * (level - 1) + x) if x.startswith("#") else x for x in md]
     return "\n".join(md) + "\n", rows, fig
+
+
+def vlabel(result_set):
+    """!
+    @brief Short name of a result set in the tables: the program version, or the label for the unreleased tree.
+    @param result_set A result set.
+    @return str.
+    """
+    return result_set["label"] if result_set.get("tree_state") == "unreleased" else "v" + result_set["program"]["version"]
+
+
+def summary_table(sets, boards, cell):
+    """!
+    @brief Hottest point of some boards in every version, per model.
+    @param sets Result sets in version order.
+    @param boards Board names.
+    @param cell Cell size in mm.
+    @return str (Markdown); a record that did not run shows its status instead of a number.
+    """
+    head = "| Board | Model | " + " | ".join(vlabel(x) for x in sets) + " |"
+    lines = [head, "| :-- | :-- | " + " | ".join("--:" for _ in sets) + " |"]
+    idx = [C.index(x) for x in sets]
+    for b in boards:
+        for m in MODELS:
+            cells = []
+            for ix in idx:
+                r = ix.get((b, m, float(cell), "direct"))
+                cells.append("not in set" if r is None else (f"{r['t_max']:.3f}" if r["status"] == "ok" and r.get("t_max") is not None else r["status"]))
+            lines.append(f"| {b} | {m} | " + " | ".join(cells) + " |")
+    return "\n".join(lines) + "\n"
+
+
+def pair_table(table, base, new):
+    """!
+    @brief The expected-shifts table when it was written for exactly this pair of program versions, else None.
+    @param table The table (dict) or None.
+    @param base Earlier result set.
+    @param new Later result set.
+    @return dict or None.
+    """
+    if table and table.get("baseline", "").lstrip("v") == base["program"]["version"] and str(table.get("target")) == new["program"]["version"] and new.get("tree_state") != "unreleased":
+        return table
+    return None
+
+
+def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, boards=CANONICAL):
+    """!
+    @brief The whole document: summary of the hottest point across all versions, then one chapter per consecutive pair, newest first.
+    @param sets Result sets in version order (oldest first).
+    @param table Table of expected shifts of one release (used for the pair it was written for) or None.
+    @param changelog_text Text of CHANGELOG.md.
+    @param not_run List of strings "version: reason" for versions the harness could not run.
+    @param cell Cell size for the summary table in mm.
+    @param fig_dir Folder for the figures or None.
+    @param notes List of extra lines placed after the introduction (for example items still missing in the last tree).
+    @param boards Boards of the summary table.
+    @return str.
+    """
+    labels = [vlabel(x) for x in sets]
+    md = ["# Results across program versions", "",
+          "Every number comes from result sets of the regression harness (`research/release-regression-245`): the same 17 boards, five models, direct solver, run on each tag extracted with `git archive`; "
+          "nothing is estimated. A shift is explained only when the table of expected shifts of that release links it to an item; otherwise the CHANGELOG section of the later version is quoted and the shift is left unclassified.", ""]
+    md += [f"Versions compared (oldest first): {', '.join(labels)}.", ""]
+    if not_run:
+        md += ["## Versions the harness could not run", ""] + [f"* {x}" for x in not_run] + [""]
+    md += notes + [""] if notes else []
+    md += [f"## Hottest point of canonical boards across versions (cell {cell:g} mm, degC)", "",
+           summary_table(sets, boards, cell)]
+    for a, b in reversed(list(zip(sets[:-1], sets[1:]))):
+        unreleased = b.get("tree_state") == "unreleased"
+        ch = changelog_section(changelog_text, "Unreleased" if unreleased else b["program"]["version"])
+        text, _rows, _fig = build(a, b, pair_table(table, a, b), fig_dir, level=2, changelog=ch)
+        md.append(text)
+    return "\n".join(md)
 
 
 def main(argv=None):
@@ -294,20 +407,35 @@ def main(argv=None):
     @return int exit code (0).
     """
     ap = argparse.ArgumentParser(description=__doc__.split("@details")[0])
-    ap.add_argument("base", help="result set of the earlier version (out/v2.4.4.json)")
-    ap.add_argument("new", help="result set of the later version (out/v2.4.5.json)")
+    ap.add_argument("sets", nargs="+", help="result sets, oldest first (two for one pair; more for a chain of consecutive pairs with a summary)")
+    ap.add_argument("--changelog", default=str(ROOT.parents[1] / "CHANGELOG.md"), help="CHANGELOG.md, quoted for the pairs that have no table")
+    ap.add_argument("--not-run", action="append", default=[], help="'version: reason' for a version the harness could not run (chain mode, repeatable)")
+    ap.add_argument("--note", action="append", default=[], help="extra line for the introduction (chain mode, repeatable)")
+    ap.add_argument("--summary-cell", type=float, default=1.0, help="cell size of the summary table in mm")
+    ap.add_argument("--unreleased-last", action="store_true", help="the last set is the current tree (unreleased): its pair gets no table")
     ap.add_argument("--table", default=str(ROOT / "reference" / "expected_shifts.json"), help="table of expected shifts of the later version")
     ap.add_argument("--out", default=None, help="Markdown output (default out/version_comparison_<base>_vs_<new>.md)")
     ap.add_argument("--fig-dir", default=str(ROOT / "figures"))
     ap.add_argument("--no-figure", action="store_true")
     a = ap.parse_args(argv)
-    base, new = C.load_set(a.base), C.load_set(a.new)
+    sets = [C.load_set(x) for x in a.sets]
+    if len(sets) < 2:
+        ap.error("give at least two result sets")
+    if a.unreleased_last:
+        sets[-1]["tree_state"] = "unreleased"
     table = json.loads(Path(a.table).read_text(encoding="utf-8"))
-    text, rows, fig = build(base, new, table, None if a.no_figure else a.fig_dir)
-    out = Path(a.out) if a.out else ROOT / "out" / f"version_comparison_{slug(base['label'])}_vs_{slug(new['label'])}.md"
+    fig_dir = None if a.no_figure else a.fig_dir
+    if len(sets) == 2 and not a.unreleased_last:
+        base, new = sets
+        text, rows, fig = build(base, new, table, fig_dir)
+        out = Path(a.out) if a.out else ROOT / "out" / f"version_comparison_{slug(base['label'])}_vs_{slug(new['label'])}.md"
+    else:
+        cl = Path(a.changelog).read_text(encoding="utf-8") if Path(a.changelog).exists() else ""
+        text, rows, fig = build_history(sets, table, cl, a.not_run, a.summary_cell, fig_dir, a.note), [], None
+        out = Path(a.out) if a.out else ROOT / "out" / "version-comparison.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
-    print(f"written {out} ({len(rows)} rows)" + (f" and {fig}" if fig else ""))
+    print(f"written {out} ({len(text.splitlines())} lines)")
     return 0
 
 
