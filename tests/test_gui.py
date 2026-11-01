@@ -533,3 +533,29 @@ def test_model_table_shows_five_models_without_a_scroll_bar(qtbot):
     _fill(t, rows * 4)
     _fit_height(t)
     assert t.height() < t.horizontalHeader().height() + 20 * t.verticalHeader().defaultSectionSize()
+
+
+def test_live_checks_show_model_limits_and_follow_the_models(win, qtbot):
+    """!
+    @brief The list under Run holds the limits of the selected models (a part on bare laminate, vias in the Lumped model) before any run, and changes when the models change.
+    """
+    def build(proj):
+        pr = proj.problem
+        pr.add_zone(1, rect=(0, 0, 100, 80))
+        pr.add_zone(2, rect=(0, 0, 100, 80))
+        pr.add_heater(1, 1.0, rect=(40, 30, 50, 40), name="U1")
+        pr.add_via(45.0, 35.0)
+    win.doc.edit("Build", build)
+    win.doc.set_options(models=("fvm", "lumped"))
+    win._update_checks()
+    texts = [str(w) for w in win.solver_panel.checks.warnings]
+    assert any("Lumped" in t and "via" in t for t in texts)
+    win.doc.set_options(models=("fvm",))
+    win._update_checks()
+    assert not any("Lumped" in str(w) for w in win.solver_panel.checks.warnings)
+    # A change of the models or the cell schedules the check by itself (no edit of the design)
+    win._check_timer.stop()
+    win._checks_key = None
+    win.doc.set_options(models=("fvm", "lumped"), cell_mm=2.0)
+    assert win._check_timer.isActive()
+    win.doc.stack.setClean()

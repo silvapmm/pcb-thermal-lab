@@ -1153,3 +1153,30 @@ def test_preferences_every_section_in_both_themes(win, qtbot, tmp_path, monkeypa
         d.save()
         d.reset()
         d.close()
+
+
+def test_live_checks_stress_many_vias_and_option_changes(win, qtbot):
+    """The live checks (validity, model limits, vias) on a board of 1500 scattered vias and several parts, after every change of the models and the cell: each call stays
+    under a second, and the list under Run is checks.check_input, the head of the warnings of a run."""
+    import time
+    from pcbthermal.checks import check_input
+    rng = np.random.default_rng(7)
+
+    def build(proj):
+        pr = proj.problem
+        for layer in (1, 2):
+            pr.add_zone(layer, rect=(0, 0, 100, 80))
+        pr.add_heater(1, 2.0, rect=(20, 20, 30, 30), name="U1")
+        pr.add_heater(1, 1.0, rect=(60, 40, 63, 43), name="U2")
+        for x, y in rng.uniform(1, 79, (1500, 2)):
+            pr.add_via(float(x) + 10.0, float(y), 0.3)
+    win.doc.edit("Vias", build)
+    for models in (("fvm",), ("fvm", "lumped", "analytic"), ("fvm", "fdm", "lumped", "analytic", "solid3d")):
+        for cell in (2.0, 1.0):
+            win.doc.set_options(models=models, cell_mm=cell)
+            t0 = time.time()
+            win._update_checks()
+            assert time.time() - t0 < 1.0
+            live = [str(w) for w in win.solver_panel.checks.warnings]
+            assert live == [str(w) for w in check_input(win.doc.problem, models, max(cell, 0.5))]
+    win.doc.stack.setClean()

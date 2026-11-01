@@ -273,6 +273,73 @@ def part_weights(poly, outline, nx, ny, dx, dy, samples=BOARD_SAMPLES, cover=Non
     return out
 
 
+def _clip_to_box(poly, width, height):
+    """!
+    @brief Clip a polygon to the rectangle [0, width] x [0, height] (Sutherland-Hodgman, one box edge at a time).
+    @param poly Polygon vertices (n, 2) in metres.
+    @param width Box width in metres.
+    @param height Box height in metres.
+    @return numpy.ndarray Vertices (m, 2) of the clipped polygon in metres (m = 0 when nothing is left).
+    """
+    pts = [tuple(v) for v in np.asarray(poly, dtype=float)]
+    # Each box edge as (axis, limit, keep_greater): the kept side is the inside half-plane
+    for axis, limit, keep_greater in ((0, 0.0, True), (0, width, False), (1, 0.0, True), (1, height, False)):
+        if not pts:
+            break
+
+        def inside(q):
+            return q[axis] >= limit if keep_greater else q[axis] <= limit
+
+        res = []
+        prev = pts[-1]
+        for cur in pts:
+            if inside(cur) != inside(prev):
+                # The edge crosses the limit: add the crossing point
+                t = (limit - prev[axis]) / (cur[axis] - prev[axis])
+                res.append((prev[0] + t * (cur[0] - prev[0]), prev[1] + t * (cur[1] - prev[1])))
+            if inside(cur):
+                res.append(cur)
+            prev = cur
+        pts = res
+    return np.array(pts, dtype=float).reshape(-1, 2)
+
+
+# Points per side of the lattice laid on the bounding box of a part to find its share inside an outline (the part's own size, not the cell's)
+PART_SHARE_SAMPLES = 96
+
+
+def part_board_share(poly, width, height, outline=None):
+    """!
+    @brief Share of a part polygon that lies on the board, from the geometry and not from the cell raster.
+    @details A rectangular board (no outline) is the exact clip of the polygon to the box. With an outline the lattice is laid on the
+             bounding box of the part itself (PART_SHARE_SAMPLES points per side), so a part smaller than a cell is judged as finely as a large one;
+             the 4 x 4 lattice of the cell cover read a 1 mm part on a 2.5 mm cell as 22 % outside the board although it was inside.
+    @param poly Part polygon vertices (n, 2) in metres.
+    @param width Board width in metres.
+    @param height Board height in metres.
+    @param outline Board outline vertices (n, 2) in metres, or None for the rectangle.
+    @return float Share in [0, 1] (1 for a polygon of zero area).
+    """
+    p = np.asarray(poly, dtype=float)
+    area = polygon_area(p)
+    if area <= 0:
+        return 1.0
+    clipped = _clip_to_box(p, width, height)
+    share_box = polygon_area(clipped) / area if len(clipped) >= 3 else 0.0
+    if outline is None:
+        return float(min(share_box, 1.0))
+    if share_box <= 0.0:
+        return 0.0
+    # The outline is a general polygon: count lattice points of the part that fall inside it
+    n = PART_SHARE_SAMPLES
+    gx, gy = np.meshgrid(p[:, 0].min() + (np.arange(n) + 0.5) / n * np.ptp(p[:, 0]), p[:, 1].min() + (np.arange(n) + 0.5) / n * np.ptp(p[:, 1]))
+    in_part = points_in_polygon(gx.ravel(), gy.ravel(), p)
+    if not in_part.any():
+        return float(min(share_box, 1.0))
+    on_board = points_in_polygon(gx.ravel(), gy.ravel(), np.asarray(outline, dtype=float))
+    return float((in_part & on_board).sum() / in_part.sum())
+
+
 def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
     """!
     @brief Copper fill of every layer: the union of its zones, taken at every sub-sample point and then averaged over the cell.

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBo
 from .. import __version__
 from .. import defaults
 from .. import fvm, memory
-from ..checks import check_problem
+from ..checks import check_input
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
@@ -242,6 +242,8 @@ class MainWindow(QMainWindow):
         self._check_timer.timeout.connect(self._update_checks)
         self.doc.changed.connect(self._on_doc_changed)
         self.doc.state_changed.connect(self._update_title)
+        self._checks_key = None                               # (models, cell) the live checks were last scheduled for
+        self.doc.state_changed.connect(self._on_options_changed)
         self.doc.state_changed.connect(lambda: self.canvas.__setattr__("solver_cell", self.doc.options.cell_mm))
 
         th.apply_theme(QApplication.instance(), self.theme_name)
@@ -662,12 +664,22 @@ class MainWindow(QMainWindow):
         self.tool_actions["select"].setChecked(True)
         self.canvas.set_tool("select")
 
+    def _on_options_changed(self):
+        """!
+        @brief Schedule the live checks again when the selected models or the cell changed (the limits of the models and the via checks depend on them).
+        """
+        key = (tuple(self.doc.options.models), self.doc.options.cell_mm)
+        if key != self._checks_key:
+            self._checks_key = key
+            self._check_timer.start()
+
     def _update_checks(self):
         """!
-        @brief Run the input validity checks and show them in the Simulation panel.
+        @brief Run the live input checks (validity, limits of the selected models, vias; no solve) and show them in the Simulation panel.
+        @details The same list api.simulate puts at the head of a run, so the warnings of the run are these ones and nothing is shown twice.
         """
         try:
-            self.solver_panel.set_checks(check_problem(self.doc.problem, max(self.doc.options.cell_mm, 0.5)))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5)))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 

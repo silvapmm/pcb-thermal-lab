@@ -178,7 +178,7 @@ def test_warnings_do_not_change_results_and_reach_the_simulation(monkeypatch):
     @param monkeypatch pytest fixture used to switch the check off.
     @return None.
     """
-    from pcbthermal import api
+    from pcbthermal import checks
     p = window_board(6)
     p.add_via(15, 15)
     opts = SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=1.0)
@@ -186,7 +186,7 @@ def test_warnings_do_not_change_results_and_reach_the_simulation(monkeypatch):
     assert any("bare laminate" in w for w in sim.problem_warnings)
     assert any("via under the footprint" in w for w in sim.problem_warnings)
     assert not any("bare laminate" in w for w in simulate(pad_board(10.0, 1.6), opts).problem_warnings)
-    monkeypatch.setattr(api, "check_model_limits", lambda *a, **k: [])
+    monkeypatch.setattr(checks, "check_model_limits", lambda *a, **k: [])
     quiet = simulate(p, opts)
     assert not any("bare laminate" in w for w in quiet.problem_warnings)
     for m in opts.models:
@@ -307,3 +307,80 @@ def test_lumped_cool_warning_is_cheap_with_two_thousand_vias():
     t0 = time.perf_counter()
     check_model_limits(p, ("lumped",), 1.0)
     assert time.perf_counter() - t0 < 0.3
+
+
+def _outside_percent(problem, cell_mm):
+    """!
+    @brief Percentage written in the "outside the board" warning of check_problem for the first heater (0 when there is no such warning).
+    @param problem The Problem.
+    @param cell_mm Cell size in mm.
+    @return int Percent of the footprint reported outside, 0 when silent.
+    """
+    import re
+    from pcbthermal.checks import check_problem
+    for w in check_problem(problem, cell_mm):
+        m = re.search(r"(\d+) % of the footprint is outside the board", w)
+        if m:
+            return int(m.group(1))
+    return 0
+
+
+def test_small_part_inside_the_board_is_not_reported_outside():
+    """!
+    @brief A part under about two cells wide, wholly on the board, used to read 6 to 22 % outside (4 x 4 samples per cell); the share now comes from the
+           geometry, for every size, offset and cell, with and without an outline.
+    @return None.
+    """
+    from pcbthermal.geometry import part_board_share
+    seen = 0
+    for size in (1.0, 2.0, 3.0):
+        for cell in (1.0, 1.7, 2.0, 2.5, 3.0, 4.0):
+            for ox in np.linspace(5.0, 5.9, 7):
+                p = Problem.new(30, 20, 2)
+                p.add_zone(1, rect=(0, 0, 30, 20))
+                p.add_heater(1, 1.0, rect=(ox, 7.7, ox + size, 7.7 + size))
+                assert _outside_percent(p, cell) == 0, (size, cell, ox)
+                seen += 1
+    assert seen == 126
+    # The share itself: exact for a rectangle on the box, 1 for a part wholly inside an outline
+    sq = np.array([[1, 1], [3, 1], [3, 3], [1, 3]]) * 1e-3
+    assert part_board_share(sq, 30e-3, 20e-3) == 1.0
+    assert part_board_share(sq - 2e-3, 30e-3, 20e-3) == 0.25                    # A 2 mm square with its corner 1 mm beyond the corner of the board
+    outline = np.array([[0, 0], [30, 0], [30, 20], [0, 20]]) * 1e-3
+    assert part_board_share(sq, 30e-3, 20e-3, outline) == 1.0
+    assert abs(part_board_share(sq - 2e-3, 30e-3, 20e-3, outline) - 0.25) < 0.01
+
+
+def test_genuine_overlap_with_the_edge_still_warns():
+    """!
+    @brief A part half outside the board is reported as 50 % outside, also when it is smaller than a cell, and a part wholly beyond the edge as 100 %.
+    @return None.
+    """
+    p = Problem.new(30, 20, 2)
+    p.add_zone(1, rect=(0, 0, 30, 20))
+    p.add_heater(1, 1.0, rect=(29.0, 5.0, 31.0, 7.0))
+    assert _outside_percent(p, 3.0) == 50
+    assert _outside_percent(p, 1.0) == 50
+    q = Problem.new(30, 20, 2)
+    q.add_zone(1, rect=(0, 0, 30, 20))
+    q.add_heater(1, 1.0, rect=(31.0, 5.0, 33.0, 7.0))
+    assert _outside_percent(q, 1.0) == 100
+
+
+def test_live_input_check_is_what_a_run_reports():
+    """!
+    @brief checks.check_input (the live list of the application) holds the validity, model-limit and via warnings, and the run starts its warnings with the same
+           texts, so the post-run list replaces the live one instead of adding to it.
+    @return None.
+    """
+    from pcbthermal.checks import check_input
+    p = window_board(6)                                          # Part on bare laminate: a model-limit warning
+    p.add_via(15, 15)
+    models = ("fvm", "lumped")
+    live = [str(w) for w in check_input(p, models, 1.0)]
+    assert any("sits on bare laminate" in w for w in live)
+    assert any("under the footprint; the Lumped" in w for w in live)
+    sim = simulate(p, SolverOptions(models=models, cell_mm=1.0))
+    assert [str(w) for w in sim.problem_warnings[:len(live)]] == live
+    # The warnings depend on the selected models: with the FVM alone the Lumped via text is gone
+    assert not any("via under the footprint" in str(w) or "under the footprint; the Lumped" in str(w) for w in check_input(p, ("fvm",), 1.0))

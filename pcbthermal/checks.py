@@ -15,7 +15,7 @@ import math
 import numpy as np
 
 from . import blocks, convection, lumped, viaconstriction, viawell
-from .geometry import BOARD_SAMPLES, coverage_fraction, part_weights, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
+from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_area, polygon_centroid, polygon_self_intersects, zone_fill
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -86,8 +86,9 @@ def check_problem(problem, cell_mm=1.0):
             continue
         cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 4)
         heater_cov.append(cov)
-        # Area of the part on the board: the part and the outline tested on the same samples (the product of the two covers is wrong on a cell cut by both)
-        inside = float((part_weights(h.polygon, b.outline, nx, ny, dx, dy, BOARD_SAMPLES if b.has_outline() else 4) * (board_cover > 0)).sum() * dx * dy) / area
+        # Share of the part on the board from the geometry itself (exact clip to the box; a lattice on the part for an outline), not from the cell
+        # raster: the 4 x 4 samples per cell read a part under about two cells as partly outside although it was inside
+        inside = part_board_share(h.polygon, W, H, b.outline if b.has_outline() else None)
         if inside < 0.98:
             _add(out, "heater", k, f"{name}: {100 * (1 - inside):.0f} % of the footprint is outside the board; its full power "
                        "is applied to the part that is inside.")
@@ -168,6 +169,22 @@ def check_problem(problem, cell_mm=1.0):
     if problem.total_power() <= 0:
         _add(out, None, None, "The total heater power is zero: the board stays at ambient temperature.")
     return out
+
+
+def check_input(problem, models, cell_mm=1.0):
+    """!
+    @brief Every warning that can be known before a run: the validity checks, the documented limits of the selected models and the via checks.
+    @details The one list that the application shows live under the Run button (at every edit, after a short pause) and that api.simulate puts at the head
+             of the warnings of a run, so the two are the same text and a run replaces the live list instead of adding to it. Only cheap geometry is used
+             (rasters of the board at the cell, point-in-polygon tests, no solve); the warnings that need a run (thick plates, close fins, the zone model
+             of the Lumped, the models' own notes) stay in the post-run list.
+    @param problem A Problem (assumed structurally valid).
+    @param models Iterable of model keys that will run.
+    @param cell_mm Cell size (mm) of the raster used for the geometric tests.
+    @return List of warning strings (CheckWarning, tagged with the element) in the order validity, model limits, vias.
+    """
+    models = tuple(models)
+    return check_problem(problem, cell_mm) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
 
 
 # Models whose layered idealisation has no vertical path through a bare cell of a gap (research/bare-spot-under-source, INTEGRATION P3)
