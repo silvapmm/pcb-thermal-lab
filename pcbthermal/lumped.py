@@ -943,6 +943,20 @@ def _own_point(system, theta):
     return float(t0 + max(lat, 0.0) * system["peak_coef"])
 
 
+def _unit_source(system):
+    """!
+    @brief Source vector of a heater network for 1 W: the whole power on the node of the footprint, or split between A and C for a zoned footprint.
+    @details Putting the whole power of a zoned heater on node A drove the part 5 to 17 % hot at the end of a constant-power run (second review of research/lumped-zones-adoption, 10.1).
+    @param system System dict of the heater (see _heater_network).
+    @return numpy.ndarray (layers * nodes,) in W per W.
+    """
+    if "source" in system:
+        return system["source"]
+    src = np.zeros(len(system["C"]))
+    src[system["layer"] * system["R"]] = 1.0
+    return src
+
+
 class _Stepper:
     """!
     @brief Dense implicit time stepper of one small network with cached factorisations per step size.
@@ -996,8 +1010,7 @@ def step_responses(problem, rings=10, cell_mm=1.0, t_end=None, ratio=3.0, per_st
     rth = np.array([_own_point(s, s["theta"].ravel()) for s in systems])
     for system in systems:
         n = len(system["C"])
-        src = np.zeros(n)
-        src[system["layer"] * system["R"]] = 1.0
+        src = _unit_source(system)
         stepper, x, t, row, tt = _Stepper(system, theta_scheme), np.zeros(n), 0.0, [], []
         for j in range(stages):
             dt = dt0 * ratio ** j
@@ -1072,9 +1085,7 @@ class _LumpedAdapter:
         """
         out = []
         for i, s in enumerate(self.systems):
-            src = np.zeros(len(s["C"]))
-            src[s["layer"] * s["R"]] = powers[i]
-            out.append(self.steppers[i].advance(states[i], dt, src))
+            out.append(self.steppers[i].advance(states[i], dt, powers[i] * _unit_source(s)))
         return out
 
     def observe(self, states):

@@ -303,3 +303,119 @@ def test_the_map_paints_the_core_with_its_own_node():
     mean_painted = float((layer0 * cov).sum() / cov.sum())
     assert mean_painted == pytest.approx((a_part * rn["theta"][0, 0] + c_part * rn["theta"][0, 1]) / (a_part + c_part), rel=1e-12)
     assert res.arrays["zoned_heaters"].tolist() == [[1.0, float(rn["core_across"])]]
+
+
+# ------------------------------------------------------------------------------------------------ the transient and the profile runner
+
+from pcbthermal import fvm, profiles                                  # noqa: E402
+from pcbthermal.model import SquareWave, TableProfile                 # noqa: E402
+
+
+def _constant_power_end(p, n_steps=60, dt=1.0e4):
+    """!
+    @brief Run the Lumped adapter at constant power (implicit Euler, long steps, from the ambient) and return the end rise and the steady rise of the hottest point.
+    @param p A Problem with one heater.
+    @param n_steps Number of steps.
+    @param dt Step in s (long: the end state is the steady state).
+    @return Tuple (rise at the end of the run, steady rise) in K.
+    """
+    ad = lumped._LumpedAdapter(p, 10, 0.5)
+    ad.steppers = [lumped._Stepper(s, 1.0) for s in ad.systems]
+    states = [np.zeros(len(s["C"])) for s in ad.systems]
+    for _ in range(n_steps):
+        states = ad.advance(states, dt, [h.power for h in p.heaters])
+    end = ad.observe(states)[0] - p.board.ambient
+    s0 = ad.systems[0]
+    return end, lumped._own_point(s0, s0["theta"].ravel() * p.heaters[0].power)
+
+
+@pytest.mark.parametrize("spec", ZONED)
+def test_a_constant_power_through_the_adapter_ends_on_the_steady_peak(spec):
+    """!
+    @brief The profile adapter splits the source between A and C: a constant power ends on the steady peak to 1e-9 (relative); the whole power on A would end 5 to 17 % hot.
+    @param spec (vias a side, pitch, board side, source side) of the board.
+    @return None.
+    """
+    n, pitch, side, src = spec
+    p = array(n, pitch, side=side, source=src)
+    end, steady = _constant_power_end(p)
+    assert end == pytest.approx(steady, rel=1e-9)
+    # The control: the program's old source (the whole power on node A) fails the same test by a wide margin
+    original = lumped._unit_source
+    lumped._unit_source = lambda s: np.eye(len(s["C"]))[s["layer"] * s["R"]]
+    try:
+        hot, steady2 = _constant_power_end(p)
+    finally:
+        lumped._unit_source = original
+    assert hot > 1.03 * steady2
+
+
+def test_the_step_response_of_a_zoned_part_ends_on_the_steady_rise():
+    """!
+    @brief lumped.step_responses uses the split source and the zone peak: the last value of the unit step response is the steady rise per watt, and the first values are below it.
+    @return None.
+    """
+    p = array(3, 2.0, side=24.0, source=12.0)
+    t, z, rth = lumped.step_responses(p, 10, 0.5)
+    assert z[0, -1] == pytest.approx(rth[0], rel=5e-3)
+    assert z[0, 0] < 0.2 * rth[0] and np.all(np.diff(z[0]) > -1e-9)
+
+
+@pytest.mark.parametrize("spec", ZONED)
+def test_a_square_wave_with_zones_agrees_with_the_fvm(spec):
+    """!
+    @brief A 1 s square wave: the peak and the valley of the zoned Lumped model are within 8 % of the FVM's average steady rise (the unpatched source gives 9 to 17 % on the research boards).
+    @param spec (vias a side, pitch, board side, source side) of the board.
+    @return None.
+    """
+    n, pitch, side, src = spec
+    p = array(n, pitch, side=side, source=src)
+    h = p.heaters[0]
+    h.profile = SquareWave(p_on=h.power / 0.5, period=1.0, duty=0.5, p_off=0.0)
+    opt = profiles.ProfileOptions(threshold_c=0.0, duration="stable", stable_c=0.05, theta=0.5)
+    t, z, r = fvm.step_responses(p, cell_mm=0.5)
+    dec = profiles.decide(p, profiles.StepResponse("fvm", t, z, r), 0.0)
+    ref = profiles.run_fvm(p, dec, opt, 0.5)
+    got = lumped.run_profile(p, dec, opt, 10, 0.5)
+    avg = ref.steady_average_max - p.board.ambient
+    assert abs(np.max(got.t_max) - np.max(ref.t_max)) / avg < 0.08
+    assert abs(np.min(got.t_max) - np.min(ref.t_max)) / avg < 0.08
+
+
+def test_table_and_one_shot_profiles_and_two_parts_with_one_zoned_run():
+    """!
+    @brief A table profile, a one-shot profile and a board with two parts of which one is zoned run through the adapter and end consistently (steady value at the end of a held power).
+    @return None.
+    """
+    p = array(3, 2.0, side=40.0, source=12.0)
+    p.add_heater(1, 1.0, rect=(30.0, 30.0, 34.0, 34.0))                       # a second part away from the vias: one node
+    p.heaters[0].profile = TableProfile([0, 2, 5, 9, 20], [6, 1, 3, 0], True)
+    p.heaters[1].profile = TableProfile([0, 0.5, 20], [0.0, 2.0], False)      # one-shot: the last power is held
+    opt = profiles.ProfileOptions(threshold_c=0.0, duration="stable", stable_c=0.05, theta=0.5)
+    t, z, r = fvm.step_responses(p, cell_mm=1.0)
+    dec = profiles.decide(p, profiles.StepResponse("fvm", t, z, r), 0.0)
+    res = lumped.run_profile(p, dec, opt, 10, 0.5)
+    assert np.all(np.isfinite(res.t_max)) and np.max(res.t_max) > p.board.ambient
+    ad = lumped._LumpedAdapter(p, 10, 0.5)
+    assert [s["nz"] if "nz" in s else 1 for s in ad.systems] == [2, 1]
+    ad.steppers = [lumped._Stepper(s, 1.0) for s in ad.systems]
+    states = [np.zeros(len(s["C"])) for s in ad.systems]
+    for _ in range(60):
+        states = ad.advance(states, 1.0e4, [2.0, 1.0])
+    steady = lumped.solve_steady(_with_powers(p, [2.0, 1.0]), 10, 0.5)
+    assert ad.observe(states)[0] == pytest.approx(steady.t_max, abs=1e-6)
+
+
+def _with_powers(p, powers):
+    """!
+    @brief A copy of a problem with constant heater powers (no profiles).
+    @param p A Problem.
+    @param powers Power of every heater in W.
+    @return Problem.
+    """
+    import copy
+    q = copy.deepcopy(p)
+    for h, w in zip(q.heaters, powers):
+        h.profile = None
+        h.power = w
+    return q
