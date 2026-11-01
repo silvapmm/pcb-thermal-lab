@@ -1512,6 +1512,8 @@ class ImportFile:
 class ImportPart:
     """!
     @brief An imported part (heat source) keyed by its designator, with the user's edits.
+    @details `from_file` holds what the files say (value, mount, rotation_deg, height_mm, package, mpn, `source` of the match: "x3", "to.c+placement",
+             "placement by position" or "paste only"); it is rewritten at every import and is never an edit. The user's edits stay in `edits`.
     """
     designator: str = ""                                  # Key used to match the part again in a re-import
     shape: str = "box"                                    # "box" or "hull"
@@ -1520,18 +1522,21 @@ class ImportPart:
     edits: dict = field(default_factory=dict)             # Other user edits (tj_max, role, use, shape_user, ...)
     footprint: str = ""                                   # Footprint name from the placement file, when known
     side: str = ""                                        # "top" or "bottom", when known
+    from_file: dict = field(default_factory=dict)         # What the files say about the part (value, mount, rotation_deg, height_mm, package, mpn, source, ...); rewritten at every import, never merged with `edits`
     extra: dict = field(default_factory=dict)             # Keys written by a later version, kept and written back
 
-    KEYS = ("designator", "shape", "polygon_mm", "power", "edits", "footprint", "side")
+    KEYS = ("designator", "shape", "polygon_mm", "power", "edits", "footprint", "side", "from_file")
 
     def to_dict(self):
         """!
         @brief Serialise the part.
         @return JSON-ready dict.
         """
-        return _with_unknown({"designator": self.designator, "shape": self.shape, "polygon_mm": [list(map(float, p)) for p in self.polygon_mm],
-                              "power": float(self.power), "edits": copy.deepcopy(self.edits), "footprint": self.footprint, "side": self.side},
-                             self.extra)
+        out = {"designator": self.designator, "shape": self.shape, "polygon_mm": [list(map(float, p)) for p in self.polygon_mm],
+               "power": float(self.power), "edits": copy.deepcopy(self.edits), "footprint": self.footprint, "side": self.side}
+        if self.from_file:                                # Written only when not empty: a format-2 file without file data stays byte-identical
+            out["from_file"] = copy.deepcopy(self.from_file)
+        return _with_unknown(out, self.extra)
 
     @staticmethod
     def from_dict(d):
@@ -1542,7 +1547,7 @@ class ImportPart:
         """
         return ImportPart(str(d.get("designator", "")), str(d.get("shape", "box")), [list(map(float, p)) for p in d.get("polygon_mm", [])],
                           float(d.get("power", 0.0)), copy.deepcopy(dict(d.get("edits", {}))), str(d.get("footprint", "")),
-                          str(d.get("side", "")), _unknown_keys(d, ImportPart.KEYS))
+                          str(d.get("side", "")), copy.deepcopy(dict(d.get("from_file", {}))), _unknown_keys(d, ImportPart.KEYS))
 
 
 @dataclass
