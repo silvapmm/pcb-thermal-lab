@@ -163,15 +163,15 @@ class Solid:
         # --- Copper fill of every layer and the plated area of the vias in every cell
         fill = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
         via_frac = np.zeros((ny, nx))
-        for v in problem.vias:
-            if 0.0 <= v.x < W and 0.0 <= v.y < H:
+        for v, share in zip(problem.vias, problem.via_board_shares()):
+            if share > 0.0:                    # The geometric test of the warning and of every model: a via with no board under its drill adds nothing
                 a_via = v.thermal_area(b.via_plating, b.materials.k_copper)
                 # One footprint rule for every via (an open and a filled via are the same model): the weights whose lattice effective radius is 0.78 r_via,
                 # the radius of the uniform sink density of the layered models, centred on the via and on the cells of the board; the cell of the centre
                 # alone when that radius is below the one of a point sink on this grid (a cell coarser than the via). See viawell.tuned_footprint
                 w = viawell.tuned_footprint(v.x, v.y, 0.5 * v.diameter, dx, 0.0, bcov, dy)
-                for (i, j), share in w.items():
-                    via_frac[i, j] += a_via * share / A          # The copper area of the barrel is conserved
+                for (i, j), wk in w.items():
+                    via_frac[i, j] += a_via * wk / A             # The copper area of the barrel is conserved
         if float(via_frac.max(initial=0.0)) > 1.0:
             log.warning("the copper of the vias in one cell is larger than the cell: the excess is clipped; use a finer cell for this model")
         via_frac = np.minimum(via_frac, 1.0)
