@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QAbstractSpinBox, QApplication
                                QHBoxLayout, QLabel, QLineEdit, QMenu, QProgressBar, QPushButton, QSpinBox,
                                QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import fdm, fvm, solid3d
+from .. import fdm, fvm, memory, solid3d
 from .. import defaults
 from ..api import suggest_cell_mm
 from ..model import DIELECTRICS, HEATSINKS, INTERFACES, METALS, PACKAGE_THETA, VIA_FILLS
@@ -1387,8 +1387,9 @@ class SolverPanel(QWidget):
                            "slabs): the only model that does not use one node per copper layer. Steady state only; slower and larger than the FVM, "
                            "within about 1 % of the FVM on ordinary boards; it differs where the layered idea is weakest (a copper pad hardly larger "
                            "than the heater, a copper edge across a footprint). "
-                           f"Limited to {solid3d.MAX_CELLS} unknowns (shown below the cell size; about 15 s and 3.5 GB of memory "
-                           "per solve on the example board at the limit, measured on one machine): a larger model is not run and the other models still answer.",
+                           "Limited by the memory guard (the unknowns are shown below the cell size; about 15 s and 3.5 GB of memory "
+                           "per solve on the example board at 250 000 unknowns, measured on one machine): a model whose estimated memory is above the limit is not run "
+                           "and the other models still answer.",
                 "fdm": "Node-centred finite differences of the same model, to compare discretisations: steady state, animation and power "
                        "profiles. Agrees with the FVM within about 1 %; the FVM is smoother with the grid and is preferred."}
         for k, c in self.cb.items():
@@ -1518,9 +1519,10 @@ class SolverPanel(QWidget):
         if self.cb["solid3d"].isChecked():
             # The exact count of the 3D model (its slabs: copper, gaps, the laminate of a one-layer board, the blocks) and whether it will run
             n3 = solid3d.unknowns(self.doc.problem, c)[0]
-            if n3 > solid3d.MAX_CELLS:
-                note = f"; above {solid3d.MAX_CELLS}: it will not run, use a larger cell"
-            elif n3 > solid3d.MAX_CELLS // 2:
+            v3 = memory.check(self.doc.problem, ("solid3d",), c, refuse="return")[0]       # The verdict of the memory guard for this cell
+            if v3.verdict == "refuse":
+                note = f"; above the memory limit: it will not run, use a cell of {v3.cell_fit:.1f} mm or more" if v3.cell_fit else "; above the memory limit: it will not run"
+            elif v3.verdict == "slow":
                 note = "; slow: tens of seconds and several GB of memory"
             else:
                 note = ""

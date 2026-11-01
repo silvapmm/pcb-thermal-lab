@@ -985,7 +985,7 @@ def test_a_3d_model_too_large_is_refused_in_the_application(win, qtbot, popups):
     assert any(k == "critical" and "use a cell of" in t for k, _, t in popups)
     win.doc.set_options(models=("solid3d",), cell_mm=20.0)
     win.solver_panel.refresh()
-    assert "will not run" not in win.solver_panel.cells_label.text() and solid3d.unknowns(win.doc.problem, 20.0)[0] <= solid3d.MAX_CELLS
+    assert "will not run" not in win.solver_panel.cells_label.text()
 
 
 def test_inner_copper_choice_in_the_application(win, qtbot):

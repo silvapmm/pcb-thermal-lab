@@ -9,7 +9,7 @@
          Everything passed in and out is pickled, so arguments must be plain data (Problem, SolverOptions, dicts).
 """
 
-from . import analytic, fdm, fvm, profiles
+from . import analytic, fdm, fvm, memory, profiles
 from .api import TIME_MODELS, simulate, step_response
 
 
@@ -34,6 +34,9 @@ def job_transient(progress, problem, kwargs):
     """
     kw = dict(kwargs)
     model = kw.pop("model", "fvm")
+    # The animation holds the matrix factor and the frames: checked before anything is allocated (the parent checks too, so the user hears at once)
+    if model in ("fvm", "fdm"):
+        memory.check(problem, (model,), kw.get("cell_mm", 2.0), transient=True)
     if model == "analytic":
         # The closed-form model needs neither a scheme nor a step; it takes the frames and the spacing
         kw.pop("theta_scheme", None)
@@ -55,6 +58,8 @@ def job_analyze(progress, problem, options):
     ref = next((m for m in TIME_MODELS if m in options.models), None)
     if ref is None:
         raise ValueError("select a model first")
+    if ref in ("fvm", "fdm"):
+        memory.check(problem, (ref,), max(options.cell_mm, 2.0), fraction=options.memory_fraction, factor=memory.PROFILE_FACTOR)   # The step responses run on a cell of at least 2 mm
     resp = step_response(problem, ref, options)
     return resp, profiles.decide(problem, resp, options.profile.threshold_c), ref
 

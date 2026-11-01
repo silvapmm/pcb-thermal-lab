@@ -189,18 +189,17 @@ def test_sor_sweeps_with_vias_are_not_more_than_without():
 
 def test_sor_falls_back_to_the_direct_solver_when_a_block_is_too_large(monkeypatch):
     """!
-    @brief Above MAX_SOR_BLOCK unknowns in one via block the SOR solves directly and says so in its info.
+    @brief When the dense inverse of a via block (75 n^2 bytes) is above a quarter of the memory limit the SOR solves directly and says so in its info.
     @param monkeypatch pytest fixture.
     @return None.
     """
     net = fvm.Network(small_board([(5.0, 5.0, 0.8)]), 20, 20)
     direct, _ = net.solve_steady()
-    monkeypatch.setattr(fvm, "MAX_SOR_BLOCK", 3)
-    theta, res, info = net.solve_sor()
+    theta, res, info = net.solve_sor(memory_limit=1000.0)           # A 1 kB limit: no block fits
     assert info.get("fallback") == "direct"
     assert float(np.abs(theta - direct).max()) < 1e-9
     # The result the user sees says that the SOR was not used (it was only in the log)
-    r = fvm.solve_steady(small_board([(5.0, 5.0, 0.8)]), cell_mm=0.5, method="sor")
+    r = fvm.solve_steady(small_board([(5.0, 5.0, 0.8)]), cell_mm=0.5, method="sor", memory_limit=1000.0)
     assert r.extras.get("fallback_direct") == 1.0
     assert any("SOR not used" in w for w in r.warnings)
 

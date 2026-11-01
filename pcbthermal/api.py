@@ -29,7 +29,7 @@ from typing import Callable, Dict, Optional, Tuple
 import copy
 import math
 
-from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, profiles, solid3d
+from . import __version__, analytic, blocks, convection, fdm, fvm, lumped, memory, profiles, solid3d
 from .analysis import block_stats, part_split, heater_stats, hotspots, zone_stats
 from . import defaults
 from .checks import check_fin_channels, check_model_limits, check_problem, check_thick_plates, check_via_limits
@@ -56,6 +56,7 @@ class SolverOptions:
     analytic_local_corrections: bool = True      # Treat vias and heatsinks locally (Green's function update)
     hotspot_c: float = 100.0                     # Temperature limit used for hotspot detection (degC)
     steady_power: str = "average"                # Power of heaters with a profile in the steady models: "average" or "peak"
+    memory_fraction: float = memory.DEFAULT_FRACTION   # Share of the physical memory a solve may use; a run whose estimated peak is above it is refused (memory.py)
     profile: profiles.ProfileOptions = field(default_factory=profiles.ProfileOptions)   # Time-simulation settings
 
     def validate(self):
@@ -74,6 +75,8 @@ class SolverOptions:
             raise ValueError("lumped_rings must be >= 3 and analytic_modes >= 20")
         if self.steady_power not in ("average", "peak"):
             raise ValueError("steady_power must be 'average' or 'peak'")
+        if not memory.MIN_FRACTION <= self.memory_fraction <= memory.MAX_FRACTION:
+            raise ValueError(f"memory_fraction must be between {memory.MIN_FRACTION} and {memory.MAX_FRACTION}")
         self.profile.validate()
 
     def to_dict(self):
@@ -630,7 +633,7 @@ def _run_model(problem, name, o):
                             "difference, more for parts near the edge or in a narrow arm; the FVM, FDM and 3D solid use the real shape")
         return res
     if name == "fvm":
-        return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver)
+        return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver, memory_limit=memory.limit_bytes(o.memory_fraction))
     if name == "fdm":
         return fdm.solve_steady(problem, cell_mm=o.cell_mm)
     if name == "solid3d":
@@ -839,13 +842,26 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
     options = options or SolverOptions()
     options.validate()
     problem.validate()
+    # The memory guard: before any array of the size of a model is made. A refused 3D solid next to other models is skipped with a warning (the others still
+    # answer); any other refusal raises MemoryGuardError with the cell that fits.
+    verdicts = memory.check(problem, options.models, options.cell_mm, fraction=options.memory_fraction, refuse="return")
+    skipped = set()
+    for v in verdicts:
+        if v.verdict == "refuse":
+            if v.model == "solid3d" and len(options.models) > 1:
+                skipped.add(v.model)
+            else:
+                raise memory.MemoryGuardError(v.message)
+    guard_warnings = [f"the 3D solid was not run: {v.message}" if v.verdict == "refuse" else v.message for v in verdicts if v.message]
     sim = Simulation(problem=problem, options=options, problem_warnings=check_problem(problem, options.cell_mm)
                      + check_model_limits(problem, options.models, options.cell_mm)
-                     + check_via_limits(problem, options.models, options.cell_mm))
+                     + check_via_limits(problem, options.models, options.cell_mm) + guard_warnings)
     steady_problem = problem.steady_copy(options.steady_power) if problem.has_profiles() else problem
     computed = problem.board.h_mode == "computed"
     n = len(options.models) + (1 if problem.has_profiles() else 0)
     for k, name in enumerate(options.models):
+        if name in skipped:
+            continue                                      # Refused by the memory guard (warning already in the list)
         if progress:
             progress(f"Solving {name}", k / n)
         t0 = time.time()
@@ -875,6 +891,7 @@ def simulate(problem, options=None, progress: Optional[Callable[[str, float], No
         sim.effective_problem.board.h_top, sim.effective_problem.board.h_bottom = sim.h_used[ref]
     if problem.has_profiles():
         _run_profiles(sim, progress, len(options.models) / n)
+    memory.log_peak(verdicts)                                 # Measured peak of the process next to the estimate: the check of the law on other machines
     if progress:
         progress("Done", 1.0)
     return sim
