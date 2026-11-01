@@ -722,6 +722,43 @@ def test_warning_for_a_raster_too_coarse_for_the_cell():
     assert not any("pixels per cell" in w for w in copper.model_warnings(p, "lumped", 0.5))
 
 
+def test_coarse_cell_warnings_and_their_thresholds():
+    """!
+    @brief The coarse-cell warning starts above 1 mm (not at 1 mm), the screening wording above 1.5 mm, the numbers are the measured ones, and the 'fill' mapping has neither.
+    @return None.
+    """
+    p = _board([_stripes(120), _solid(120)], "faces", pix=0.1)
+    texts = lambda cell: copper.model_warnings(p, "fvm", cell)                # noqa: E731
+    assert not any("above 1 mm" in w for w in texts(1.0))
+    assert any("above 1 mm" in w for w in texts(1.2))
+    assert not any("screening" in w for w in texts(1.2))
+    assert not any("screening" in w for w in texts(1.5))
+    assert any("screening" in w for w in texts(2.0))
+    w = [w for w in texts(2.0) if "above 1 mm" in w][0]
+    assert "7 to 10 %" in w and "up to 4 %" in w and "about half" not in w
+    assert not any("above 1 mm" in w for w in copper.model_warnings(_board([_stripes(120), _solid(120)], "fill", pix=0.1), "fvm", 2.0))
+
+
+def test_auto_cell_is_capped_at_one_millimetre_with_imported_copper():
+    """!
+    @brief Auto (suggest_cell_mm) never proposes more than 1 mm for imported copper when the memory allows, where the same board drawn would get the cell of its part (3 mm here, capped at 2 mm),
+           and says so (auto_cell_note) when the memory forces a larger cell.
+    @return None.
+    """
+    from pcbthermal import suggest_cell_mm
+
+    p = _board([_solid(240), _solid(240)], "faces", side=24.0, heater=12.0, pix=0.1)
+    plain = Problem.new(24.0, 24.0, layers=2).add_heater(1, 1.0, rect=(6, 6, 18, 18))
+    assert suggest_cell_mm(plain) == pytest.approx(2.0)
+    assert suggest_cell_mm(p) == pytest.approx(1.0)
+    assert suggest_cell_mm(p, models=("fvm",)) == pytest.approx(1.0)
+    assert suggest_cell_mm(Problem.new(24.0, 24.0, layers=2)) == 2.0                  # no copper import, no part: unchanged
+    assert suggest_cell_mm(_board([_solid(240), _solid(240)], "fill", side=24.0, heater=12.0, pix=0.1)) == pytest.approx(2.0)
+    assert copper.auto_cell_note(p, 1.0) == "" and copper.auto_cell_note(plain, 3.0) == ""
+    assert "screening" in copper.auto_cell_note(p, 2.0) and "memory" in copper.auto_cell_note(p, 1.25)
+    assert "screening" not in copper.auto_cell_note(p, 1.25)
+
+
 # ---------------------------------------------------------------------------------------------------- review: hostile records, misaligned cells, saving, live checks
 def _checker(n, square=6):
     """!
