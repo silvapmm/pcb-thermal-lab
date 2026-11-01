@@ -44,7 +44,7 @@ The Gerber specification (revision 2026.05, section "`.GenerationSoftware`", pag
 
 `%TF.GenerationSoftware,<vendor>,<application>[,<version>]*%`
 
-"if present, it must be in the header", and since revision 2018 the version field is mandatory when the attribute is written (spec change list, read). The XNC specification (2021, section 5 "standard comments", read) says the same attributes are written in Excellon files as comments that start with `#@!`, so that old readers ignore them. In practice (section 3.3) the attribute is **written by KiCad, Altium (Designer 18 to 24 and CircuitMaker), EAGLE from 9.0, Pulsonix, Proteus, LibrePCB and Ucamco's UcamX** (the same `TF.GenerationSoftware,KiCad,Pcbnew,...` also in the drill files as `; #@! TF.GenerationSoftware,Kicad,Pcbnew,...`, note the lower-case `Kicad`). The other tools say who they are in free comments (`G04 ...`) or in the drill header, or not at all.
+"if present, it must be in the header", and the version field was made mandatory in revision 2023.08 (revision history of the specification, read). The XNC specification (2021, section 4 "Attributes", read) says the same attributes are written in Excellon files as comments that start with `#@!`, so that old readers ignore them. In practice (section 3.3) the attribute is **written by KiCad, Altium (Designer 18 to 24 and CircuitMaker), EAGLE from 9.0, Pulsonix, Proteus, LibrePCB and Ucamco's UcamX** (the same `TF.GenerationSoftware,KiCad,Pcbnew,...` also in the drill files as `; #@! TF.GenerationSoftware,Kicad,Pcbnew,...`, note the lower-case `Kicad`). The other tools say who they are in free comments (`G04 ...`) or in the drill header, or not at all.
 
 ### 2.2 Table tool to markers
 
@@ -76,7 +76,7 @@ Status of the evidence: **R** = seen in a real file of the study (the set is nam
 | Ucamco UcamX (a CAM tool) | X2 | `%TF.GenerationSoftware,Ucamco,UcamX,2017.04*%` | D (the specification's own example, page 149) and R (the Ucamco sample sets) |
 | Horizon EDA, Sprint-Layout, Ultiboard, Zuken CR-5000, CADSTAR, Siemens PADS Professional, Xpedition Enterprise newer outputs, Cadence Allegro X and OrCAD X, JLCEDA Pro, CircuitStudio | **not obtained**; no marker is known | | N |
 
-### 2.3 The confidence rule (implemented in `lib/cadprofiles.py`, 34 tests in `tests/`)
+### 2.3 The confidence rule (implemented in `lib/cadprofiles.py`, 35 tests in `tests/`)
 
 A set is judged from the names and the first 8 kB of each file; I/O is the caller's. A marker of weight 9 or more is **decisive**.
 
@@ -316,14 +316,14 @@ python3 -I research/gerber-cad-profiles/scripts/study_conventions.py            
 .venv-research/bin/python research/gerber-cad-profiles/scripts/study_adjustments.py     # 5
 .venv-research/bin/python research/gerber-cad-profiles/scripts/study_parts.py           # 6 (needs the worktree of feature/paste-parts, PCBT_PARTS_TREE)
 .venv/bin/python research/gerber-cad-profiles/scripts/make_diagrams.py                  # figures
-.venv-research/bin/python -m pytest -q research/gerber-cad-profiles/tests              # 34 tests, 0.4 s
+.venv-research/bin/python -m pytest -q research/gerber-cad-profiles/tests              # 35 tests, 0.4 s
 ```
 
 (`fetch_samples.py` as committed downloads file by file and is rate limited by the host; the data of this study were taken from a sparse clone of the repository `gitlab.com/gerbolyze/gerbonara`, `tests/resources`, copied by tool name; the folder names are those of `FOLDERS` in the script, with `eagle_files` stored as `eagle`.)
 
 ## 10. What was read and what was not verified
 
-**Read in full**: the Gerber specification revision 2026.05, the section on `.GenerationSoftware` (page 149) and the revision-history lines that mention it (local copy of the maintainer; nothing of it stored here); the XNC specification, the section on attributes as standard comments; the README, LICENSE and the three scripts of the gerbonara folder `zuken-emulated`; the banners and headers of every file of every sample set (printed by `peek.py`, `peek_drills.py`, `peek_odb.py`); the `misc/info` of the KiCad ODB++ archive.
+**Read in full**: the Gerber specification revision 2026.05, the section on `.GenerationSoftware` (page 149) and the revision-history lines that mention it (local copy of the maintainer; nothing of it stored here); the XNC specification, section 4 on attributes as standard comments; the README, LICENSE and the three scripts of the gerbonara folder `zuken-emulated`; the banners and headers of every file of every sample set (printed by `peek.py`, `peek_drills.py`, `peek_odb.py`); the `misc/info` of the KiCad ODB++ archive.
 
 **Read from a summary or a search listing**: the names `... - CADCAM Mechanical 1.GBR` of Proteus outlines (a code-search listing, not a downloaded set); the repositories' licences are the GitHub API field (`spdx_id`), not the files.
 

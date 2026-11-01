@@ -197,6 +197,19 @@ def test_real_xpedition_set():
     assert d.profile == "xpedition" and d.confidence == "high"
 
 
+def test_hostile_head():
+    """!
+    @brief A huge line, with or without line ends, costs nothing: only the first kilobytes are looked at and no pattern backtracks.
+    @return None
+    """
+    import time
+    t0 = time.time()
+    assert cp.detect_set({"x.gbr": (b"G04 " * 300000) + b"%FSLAX24Y24*%"}).profile == "unknown"
+    assert cp.detect_set({"x.gbr": b"%" + b"A" * 1000000}).profile == "unknown"
+    assert cp.detect_set({"x.gbr": b"\r" * 1000000}).profile == "unknown"
+    assert time.time() - t0 < 1.0
+
+
 def test_conventions_table():
     """!
     @brief The conventions file covers every profile of the marker table, nothing else (plus "generic"), and its layer-name regexes compile.
