@@ -189,8 +189,8 @@ def _from_profile(base, rules, generic):
     low = base.lower()
     for rx, kind, side in rules:
         if rx.search(low):
-            if side is None and kind in ("copper", "paste", "soldermask", "silkscreen"):
-                side = generic.side
+            if side is None and (kind in ("copper", "paste", "soldermask", "silkscreen") or kind == generic.kind):
+                side = generic.side                                      # the side the generic reading found (pcb-rnd `.asb` is a bottom drawing)
             index = generic.index if side == "inner" and generic.side == "inner" else None
             plated = generic.plated if kind == "drill" and generic.kind == "drill" else None
             return LayerFunction(kind, side, index, plated, "name")
@@ -219,7 +219,12 @@ def detect_function(name, head="", profile=None):
     by_name = _from_name(base)
     rules = rules_for(profile)
     if rules:
-        by_name = _from_profile(base, rules, by_name) or by_name
+        guess = _from_profile(base, rules, by_name)
+        if guess is not None and guess.kind == "drill" and by_name.kind != "drill" and head and not _looks_excellon(head) and not _gerber_head(head):
+            # a profile's drill extension (Altium `.txt`) on a text that is neither Excellon nor Gerber (Altium's "Status Report.Txt") is not a drill file: the
+            # generic reading stands (review)
+            guess = None
+        by_name = guess or by_name
     if head and by_name.kind == "copper" and not _looks_gerber(head):
         # Copper is always a Gerber file: a name such as "VNA-top-pos.csv" or "B_A_.log" with a side word is not copper when its content is not Gerber (review: a KiCad
         # placement file was proposed as top copper, which also hid it from the placement detection of the import)
@@ -238,6 +243,15 @@ def _looks_gerber(head):
     @return bool True when any Gerber command is found.
     """
     return bool(re.search(r"%FS|%MO|%AD|%TF|G04|D0?[123]\*", head))
+
+
+def _looks_excellon(head):
+    """!
+    @brief Whether the head of a file looks like Excellon at all (a header, a tool, a coordinate or a format line), loosely, for the profile's drill rule.
+    @param head First kilobytes of the file.
+    @return bool True when any Excellon statement starts a line.
+    """
+    return bool(re.search(r"(?m)^[ \t]*(?:M48|M71|M72|T\d|X-?[\d.]+|Y-?[\d.]+|INCH|METRIC|FMAT|%[ \t]*$)", head))
 
 
 def _gerber_head(head):
@@ -275,15 +289,17 @@ def order_copper_layers(items):
     return sorted(items, key=lambda it: (rank.get(it[1].side, 1), it[1].index or 0, it[0]))
 
 
-_NUMBERED = re.compile(r"(?:^|[-_. ])(?:layer|lyr|l)[-_ ]?(\d+)$")
+# "Layer3", "lyr10", "L04", also with a short word after the number ("lyr1_GAF", the Allegro film of an outer layer in another format)
+_NUMBERED = re.compile(r"(?:^|[-_. ])(?:layer|lyr|l)[-_ ]?(\d+)(?:[-_][a-z]{1,12})?$")
 
 
 def detect_set(items, profile=None):
     """!
     @brief Detect the function of every file of a set, then resolve what one file cannot tell: the copper layers that are only numbered.
     @details A name such as `Layer1.gdo` ... `Layer4.gdo` says the order but not the side, so alone every one reads as an inner layer. In a set whose copper has no
-             file-stated or named top and bottom, and that has at least two such numbered files, the lowest number is the top, the highest the bottom and the others are inner layers
-             in order (the stack counted from the top); these stay "low" confidence (source "name"), for the user to confirm.
+             file-stated or named top and bottom, and whose copper files are all numbered, 1 to N without a gap (N at least 2), the lowest number is the top, the highest the
+             bottom and the others are inner layers in order (the stack counted from the top); otherwise nothing is assumed. These stay "low" confidence (source "name"),
+             for the user to confirm.
     @param items List of (name, head) pairs (head may be empty).
     @param profile Key of the CAD profile for the name rules (None: generic).
     @return dict name -> LayerFunction.
@@ -299,6 +315,10 @@ def detect_set(items, profile=None):
         if m and out[n].source == "name":
             numbered[n] = int(m.group(1))
     if len(numbered) < 2 or len(set(numbered.values())) < len(numbered):
+        return out
+    # Review: the numbers must be the whole stack 1..N and every copper file of the set must be one of them. Otherwise the lowest and highest numbers are not the outer
+    # layers (Allegro MinnowMax: `lyr2.art` ... `lyr9.art` beside `lyr1_GAF.art` and `lyr10_GAF.art` made GND2 the top and GND9 the bottom); then nothing is assumed
+    if sorted(numbered.values()) != list(range(1, len(numbered) + 1)) or len(numbered) != len(copper):
         return out
     order = sorted(numbered, key=numbered.get)
     for rank, n in enumerate(order):

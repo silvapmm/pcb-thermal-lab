@@ -16,7 +16,7 @@ import time
 import pytest
 
 from pcbthermal.gerber import profiles as pr
-from pcbthermal.gerber.functions import detect_function, detect_set
+from pcbthermal.gerber.functions import LayerFunction, detect_function, detect_set
 from pcbthermal.model import ImportRecord
 
 # (profile, version fragment, file name, head): the banner lines of real files, with the private text anonymised
@@ -401,6 +401,102 @@ def test_import_record_stores_the_profile_and_stays_compatible():
     assert kept["future"] == {"a": 1} and kept["cad_profile"]["key"] == "kicad"
 
 
+def test_review_names_alone_are_never_above_low():
+    """!
+    @brief Review: markers in the names only give "low" whatever their weights (KiCad "-F_Cu" plus "-Edge_Cuts" reached 6, a Target 3001 extension 6 and the
+           Proteus "CADCAM" name 8, so the branch said "medium" and applied the profile from names); the profile naming the most files is the one suggested.
+    @return None
+    """
+    for files in ({"b-F_Cu.gbr": GERBER, "b-B_Cu.gbr": GERBER, "b-Edge_Cuts.gbr": GERBER},
+                  {"b.Top": GERBER, "b.Bot": GERBER, "b.PasteTop": GERBER},
+                  {"b - CADCAM Top Copper.GBR": GERBER}):
+        d = pr.detect_profile({n: h.encode() for n, h in files.items()})
+        assert d.confidence == "low", (files, d.profile, d.confidence)
+        assert pr.choose(d).key == "unknown"
+    # an EAGLE set without its banner (old CAM job): eight EAGLE extensions and one .ncd; EAGLE is suggested, not Xpedition (fresh public set, review)
+    eagle = {"b." + e: GERBER.encode() for e in ("cmp", "sol", "plc", "pls", "stc", "sts", "crc", "crs")}
+    eagle["b.ncd"] = b"M48\nINCH\n"
+    d = pr.detect_profile(eagle)
+    assert d.profile == "eagle" and d.confidence == "low"
+    # a content marker with names still reaches "medium"
+    d = pr.detect_profile({"board.gtl": b"%MOIN*%\n%OFA0B0*%\n%FSLAX24Y24*%\n%IPPOS*%\n"})
+    assert d.confidence == "medium"
+
+
+def test_review_cam_reexport_beside_an_ecad_program_is_flagged():
+    """!
+    @brief Review: KiCad drill files beside Gerber files re-exported by CAM350 (a public set) are KiCad, but the line says that files were re-exported and asks for a check.
+    @return None
+    """
+    d = pr.detect_profile({"b.drl": CASES[2][3].encode(), "b-F_Cu.gbr": CASES[-2][3].encode()})
+    assert d.profile == "kicad" and d.confidence == "high"
+    assert pr.needs_check(d) and "re-exported by CAM350" in pr.summary(d)
+    assert pr.public_evidence(d)["check"] is True
+    d = one("top.gbr", CASES[-2][3])
+    assert pr.summary(d) == "Re-exported by CAM350 / BluePrint 10.0.1 (a CAM tool): the design program is not known (generic rules)"
+
+
+def test_review_allegro_sides_checked_against_the_film_headers():
+    """!
+    @brief Review: the Allegro film names whose side the branch lost or got wrong, checked against the layer subclasses written in the films (`G04 Layer: ETCH/TOP`).
+    @details `l1_primary.art` and `l4_secondary.art` were inner copper (the outer layers); `_spc`/`_sps`, `smc`/`sms`, `tslk`/`bslk` had no side; `LAYn.art` and
+             `SIGNALn.art` were unknown.
+    @return None
+    """
+    for name, kind, side in (("l1_primary.art", "copper", "top"), ("l4_secondary.art", "copper", "bottom"), ("l2_gnd.art", "copper", "inner"),
+                             ("MinnowMax_spc.art", "paste", "top"), ("MinnowMax_sps.art", "paste", "bottom"),
+                             ("MinnowMax_smc_GAF.art", "soldermask", "top"), ("MinnowMax_sms_GAF.art", "soldermask", "bottom"),
+                             ("MinnowMax_tslk_GAF.art", "silkscreen", "top"), ("MinnowMax_bslk.art", "silkscreen", "bottom"),
+                             ("LAY10.art", "copper", "inner"), ("SIGNAL2.art", "copper", "inner"),
+                             ("mask_prm.art", "soldermask", "top"), ("paste_sec.art", "paste", "bottom"), ("silk_sec.art", "silkscreen", "bottom")):
+        f = detect_function(name, GERBER, "allegro")
+        assert (f.kind, f.side) == (kind, side), (name, f)
+
+
+def test_review_numbered_copper_must_be_the_whole_stack():
+    """!
+    @brief Review: the set rule orders numbered copper only when the numbers are 1..N and cover every copper file; a short word after the number is allowed.
+    @details The Allegro MinnowMax set has `lyr2.art` ... `lyr9.art` beside `lyr1_GAF.art` and `lyr10_GAF.art`: the branch made GND2 the top and GND9 the bottom.
+    @return None
+    """
+    items = [("MinnowMax_lyr%d.art" % i, GERBER) for i in range(2, 10)]
+    out = detect_set(items, "allegro")
+    assert all(f.side == "inner" for f in out.values())                                  # 2..9 is not a whole stack: nothing is assumed
+    out = detect_set(items + [("MinnowMax_lyr1_GAF.art", GERBER), ("MinnowMax_lyr10_GAF.art", GERBER)], "allegro")
+    assert out["MinnowMax_lyr1_GAF.art"].side == "top" and out["MinnowMax_lyr10_GAF.art"].side == "bottom"
+    assert out["MinnowMax_lyr2.art"].side == "inner" and out["MinnowMax_lyr9.art"].side == "inner"
+    # an unnumbered copper file beside numbered ones: nothing is assumed either
+    out = detect_set([("Layer1.gdo", GERBER), ("Layer2.gdo", GERBER), ("Plane.gdo", GERBER)])
+    assert out["Layer1.gdo"].side == "inner"
+
+
+def test_review_profile_drill_rule_needs_a_drill_like_head():
+    """!
+    @brief Review: Altium's `.txt` drill extension does not turn Altium's "Status Report.Txt" into a drill file; an Excellon body without M48 still reads as drill.
+    @return None
+    """
+    assert detect_function("Status Report.Txt", "Altium Designer\nDesign Rule Verification Report\nDate: today\n", "altium").kind != "drill"
+    assert detect_function("board-RoundHoles.TXT", "T01C0.0300\nX012500Y022500\nM30\n", "altium").kind == "drill"
+    # a pcb-rnd assembly drawing keeps the side the generic rules read
+    assert detect_function("power-art.asb", GERBER, "pcbrnd") == LayerFunction("other", "bottom", None, None, "name")
+
+
+def test_review_record_key_is_checked_and_new_keys_are_kept():
+    """!
+    @brief Review: a key with markup or of another shape is dropped (it may be shown in the window), keys a later version adds inside the record are kept.
+    @return None
+    """
+    assert ImportRecord.from_dict({"name": "b", "cad_profile": {"key": "<b>x</b>", "source": "user", "table": 1}}).cad_profile is None
+    assert ImportRecord.from_dict({"name": "b", "cad_profile": {"key": "a" * 65, "source": "user", "table": 1}}).cad_profile is None
+    d = {"key": "kicad", "source": "user", "table": 3, "confirmed": True}
+    rec = ImportRecord.from_dict({"name": "b", "cad_profile": d})
+    assert rec.cad_profile == d and rec.to_dict()["cad_profile"] == d
+    # detection takes any key type and a table that is not the shipped one
+    from pathlib import Path
+    assert pr.detect_profile({Path("x.gbr"): CASES[0][3].encode()}).profile == "kicad"
+    assert pr.needs_check(pr.detect_profile({}), pr.load_table()) is True
+
+
 # --- the research samples (skipped unless PCBT_GERBER_SAMPLES points at research/gerber-cad-profiles/data) ----------------------------------------------------------------
 
 SAMPLES = os.environ.get("PCBT_GERBER_SAMPLES", "")
@@ -455,7 +551,8 @@ def test_research_samples_development_and_heldout():
             claimed += d.profile not in ("unknown", "declared")
             if d.profile not in ("unknown", "declared"):
                 wrong.append((root, d.profile))
-        elif d.profile != truth:
+        elif d.profile != truth or pr.choose(d).key != truth:
+            # recognised AND applied (a "low" result names the tool but does not apply it)
             wrong.append((root, d.profile, d.confidence))
     assert not wrong, wrong
     assert len(DEV_SETS) == 54 and claimed == 0
@@ -465,6 +562,7 @@ def test_research_samples_development_and_heldout():
         sets = sorted(os.listdir(base))
         for s in sets:
             truth = s.split("__")[0]
-            if pr.detect_profile(_collect(os.path.join(base, s))).profile != truth:
+            d = pr.detect_profile(_collect(os.path.join(base, s)))
+            if d.profile != truth or d.confidence != "high":
                 miss.append(s)
         assert not miss and len(sets) == 28, (miss, len(sets))

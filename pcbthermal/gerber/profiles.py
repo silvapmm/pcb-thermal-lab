@@ -12,11 +12,15 @@
          - a marker of weight 9 or more is decisive (the file names its generator, or carries a quirk only that tool writes);
          - "high": a profile has decisive markers and no other eCAD profile does (a variant, e.g. CircuitMaker, wins over its parent, Altium);
          - "mixed": two eCAD profiles have decisive markers (files from several programs in one set): the one with more decisive files is proposed, to be confirmed;
-         - "medium": no decisive marker but the weights add up to 5 or more (a quirk, a header sequence, a naming convention): "probably";
-         - "low": only names of weight 1 to 4 (the Protel extensions are shared by a dozen programs): the profile is NOT applied;
+         - "medium": no decisive marker, at least one marker in the content of a file (a quirk, a header sequence) and the weights, names included, add up to 5 or
+           more: "probably";
+         - "low": markers in the names only, whatever their weights (the Protel extensions are shared by a dozen programs, and a KiCad or Target 3001 naming is easy
+           to imitate): the profile is NOT applied; the profile that names the most files is suggested;
          - "declared": nothing matches but an X2 `TF.GenerationSoftware` names a vendor and an application (profile "declared", generic rules);
          - "unknown": nothing at all (profile "unknown", generic rules).
-         A CAM tool (kind "cam": CAM350, UcamX) never overrides an eCAD profile and is reported as the program that re-exported the set (the design program is then unknown).
+         A CAM tool (kind "cam": CAM350, UcamX) never overrides an eCAD profile and is reported as the program that re-exported the set (the design program is then unknown);
+         when both an eCAD program and a CAM tool have decisive files (a KiCad drill file beside Gerber files re-exported by CAM350), the eCAD program is proposed and
+         the line says that files were re-exported, flagged for a check.
 
          Safety: at most 8 kB of a file is looked at; every pattern of the table is bounded, so the worst case is linear in the head (a hostile head of blanks or of a
          repeated prefix costs milliseconds); the text matched in a file is NEVER kept or shown (the banners of some tools hold a path, a user and a computer name): only
@@ -287,25 +291,31 @@ def detect_profile(files: Mapping[str, object], table: Optional[dict] = None) ->
     @return ProfileResult With the profile key, the confidence, the public version, the evidence (marker ids only), the other candidates and the declared generator.
     """
     table = table or load_table()
-    names = sorted(str(n) for n in files)[:MAX_FILES]
+    # the keys are converted to text once (a Path key must not make the lookup fail), in name order, capped
+    members = sorted(((str(n), raw) for n, raw in files.items()), key=lambda t: t[0])[:MAX_FILES]
     hits: List[Hit] = []
     heads: List[Tuple[str, str]] = []
-    for n in names:
-        raw = files[n]
+    for n, raw in members:
         heads.append((n, normalise(raw)))
         hits += _scan_file(table, n, raw)
     # score per profile: the best weight of every marker id, summed; decisive files counted apart
     score: Dict[str, int] = {}
+    content: Dict[str, int] = {}       # the part of the score that comes from the content of the files (not from the names)
+    hit_files: Dict[str, set] = {}     # files with any hit, per profile (ranks a guess from names: eight EAGLE extensions beat one .ncd)
     dec_files: Dict[str, set] = {}
     seen: Dict[tuple, int] = {}
+    name_ids = {(k, m["id"]) for k, prof in table["profiles"].items() for m in prof["markers"] if m["scope"] == "name"}
     for h in hits:
         k = (h.profile, h.marker)
         if h.weight > seen.get(k, 0):
             seen[k] = h.weight
+        hit_files.setdefault(h.profile, set()).add(h.file)
         if h.weight >= DECISIVE:
             dec_files.setdefault(h.profile, set()).add(h.file)
-    for (p, _), w in seen.items():
+    for (p, mid), w in seen.items():
         score[p] = score.get(p, 0) + w
+        if (p, mid) not in name_ids:
+            content[p] = content.get(p, 0) + w
     declared = _declared_generator(heads)
     kinds = {k: v["kind"] for k, v in table["profiles"].items()}
     ecad_dec = [p for p in dec_files if kinds[p] == "ecad"]
@@ -320,9 +330,15 @@ def detect_profile(files: Mapping[str, object], table: Optional[dict] = None) ->
     elif cam_dec:
         best = max(sorted(cam_dec), key=lambda p: (len(dec_files[p]), score[p]))
         conf = "high"
-    elif score:
-        best = max(sorted(score), key=lambda p: score[p])
+    elif content:
+        # a quirk or a header sequence in the content: "probably" when the weights add up; the names only add to it. A profile with content hits beats one with names only
+        best = max(sorted(content), key=lambda p: (score[p], len(hit_files[p])))
         conf = "medium" if score[best] >= 5 else "low"
+    elif score:
+        # names alone are never more than "low" (review: KiCad's "-F_Cu" plus "-Edge_Cuts", Target 3001's extensions and Proteus' "CADCAM" names reached "medium"
+        # and would have applied the profile from the names alone); the profile that names more files is suggested
+        best = max(sorted(score), key=lambda p: (len(hit_files[p]), score[p]))
+        conf = "low"
     elif declared:
         best, conf = "declared", "declared"
     else:
@@ -332,16 +348,30 @@ def detect_profile(files: Mapping[str, object], table: Optional[dict] = None) ->
     return ProfileResult(best, conf, ver, ev, [c for c in cands if c[0] != best], declared)
 
 
-def needs_check(result: ProfileResult) -> bool:
+def _cam_reexports(result: ProfileResult, table: dict) -> List[str]:
+    """!
+    @brief The CAM tools with decisive files among the other candidates of a detection (files of the set that a CAM tool re-exported).
+    @param result Detection.
+    @param table  The table.
+    @return list Profile keys of those CAM tools.
+    """
+    profs = table["profiles"]
+    return [c[0] for c in result.candidates if c[2] > 0 and profs.get(c[0], {}).get("kind") == "cam"]
+
+
+def needs_check(result: ProfileResult, table: Optional[dict] = None) -> bool:
     """!
     @brief Whether the line of the import window must be shown as a warning (the detection is not a plain "high").
-    @details Medium, low, mixed and declared results, and every CAM tool (the design program is not known), are flagged; so is "unknown".
+    @details Medium, low, mixed and declared results, and every CAM tool (the design program is not known), are flagged; so is "unknown", and so is a high
+             eCAD result when a CAM tool re-exported some of the files.
     @param result Detection.
+    @param table  The table (default: the shipped one).
     @return bool True when the user should check the profile.
     """
+    table = table or load_table()
     if result.confidence != "high":
         return True
-    return load_table()["profiles"][result.profile]["kind"] == "cam"
+    return table["profiles"].get(result.profile, {}).get("kind") == "cam" or bool(_cam_reexports(result, table))
 
 
 def summary(result: ProfileResult, table: Optional[dict] = None) -> str:
@@ -355,15 +385,18 @@ def summary(result: ProfileResult, table: Optional[dict] = None) -> str:
     """
     table = table or load_table()
     name = profile_name(result.profile, table)
-    ver = (" " + result.version) if result.version else ""
-    kind = table["profiles"][result.profile]["kind"]
+    ver = (" " + public_text(result.version)) if result.version else ""
+    kind = table["profiles"].get(result.profile, {}).get("kind", "generic")
     if result.confidence == "unknown":
         return "Program not recognised: generic rules"
     if result.confidence == "declared":
-        return "Declared by the files: %s (no profile, generic rules)" % (result.declared or "unknown program")
+        return "Declared by the files: %s (no profile, generic rules)" % (public_text(result.declared) or "unknown program")
     if kind == "cam":
-        return "Re-exported by %s%s: the design program is not known (generic rules)" % (name, ver)
+        return "Re-exported by %s%s (a CAM tool): the design program is not known (generic rules)" % (name, ver)
     if result.confidence == "high":
+        cams = _cam_reexports(result, table)
+        if cams:
+            return "Detected: %s%s; some files re-exported by %s (check)" % (name, ver, ", ".join(profile_name(c, table) for c in cams))
         return "Detected: %s%s (high confidence)" % (name, ver)
     if result.confidence == "mixed":
         others = ", ".join(profile_name(c[0], table) for c in result.candidates if c[2] > 0)
@@ -408,7 +441,7 @@ def public_evidence(result: ProfileResult, table: Optional[dict] = None) -> dict
         count.setdefault(h.marker, set()).add(h.file)
     return {"profile": result.profile, "name": profile_name(result.profile, table), "confidence": result.confidence, "version": public_text(result.version),
             "declared": public_text(result.declared), "markers": sorted((m, len(f)) for m, f in count.items()), "line": summary(result, table),
-            "check": needs_check(result)}
+            "check": needs_check(result, table)}
 
 
 def rules_for(key: Optional[str], table: Optional[dict] = None) -> Tuple[tuple, ...]:

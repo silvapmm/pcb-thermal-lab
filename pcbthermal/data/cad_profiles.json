@@ -464,12 +464,12 @@
      null
     ],
     [
-     "spt\\.art$|(paste|_sp[cs]).*(top|prm)",
+     "spt\\.art$|_spc(_|\\.)|(paste|_sp[cs]).*(top|prm)",
      "paste",
      "top"
     ],
     [
-     "spb\\.art$|(paste|_sp[cs]).*(bot|sec)",
+     "spb\\.art$|_sps(_|\\.)|(paste|_sp[cs]).*(bot|sec)",
      "paste",
      "bottom"
     ],
@@ -479,12 +479,12 @@
      null
     ],
     [
-     "smt\\.art$|(mask|solder_).*(top|prm)",
+     "smt\\.art$|(^|_)smc(_|\\.)|(mask|solder_).*(top|prm)",
      "soldermask",
      "top"
     ],
     [
-     "smb\\.art$|(mask|solder_).*(bot|sec)",
+     "smb\\.art$|(^|_)sms(_|\\.)|(mask|solder_).*(bot|sec)",
      "soldermask",
      "bottom"
     ],
@@ -494,12 +494,12 @@
      null
     ],
     [
-     "sst\\.art$|(silk|slk).*(top|prm)",
+     "sst\\.art$|(^|_)tslk(_|\\.)|(silk|slk).*(top|prm)",
      "silkscreen",
      "top"
     ],
     [
-     "ssb\\.art$|(silk|slk).*(bot|sec)",
+     "ssb\\.art$|(^|_)bslk(_|\\.)|(silk|slk).*(bot|sec)",
      "silkscreen",
      "bottom"
     ],
@@ -514,17 +514,17 @@
      null
     ],
     [
-     "^top\\.art",
+     "^top\\.art|^l\\d{1,2}_(primary|top)(_|\\.)",
      "copper",
      "top"
     ],
     [
-     "^(bot|bottom)\\.art",
+     "^(bot|bottom)\\.art|^l\\d{1,2}_(secondary|bottom|bot)(_|\\.)",
      "copper",
      "bottom"
     ],
     [
-     "gnd|pwr|lyr\\d|layer_\\d|^l\\d_|^l\\d\\.",
+     "gnd|pwr|lyr\\d|layer_\\d|^l\\d_|^l\\d\\.|^lay\\d{1,2}(_|\\.)|^signal\\d",
      "copper",
      "inner"
     ]
@@ -1200,7 +1200,7 @@
    ]
   },
   "cam350": {
-   "name": "CAM350 / BluePrint (a CAM tool: the set was re-exported)",
+   "name": "CAM350 / BluePrint",
    "kind": "cam",
    "markers": [
     {
@@ -1214,7 +1214,7 @@
    ]
   },
   "ucamx": {
-   "name": "Ucamco UcamX (a CAM tool)",
+   "name": "Ucamco UcamX",
    "kind": "cam",
    "markers": [
     {

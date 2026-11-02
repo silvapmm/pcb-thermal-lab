@@ -15,6 +15,7 @@ from typing import List, Optional
 import copy
 import json
 import math
+import re
 import os
 
 import numpy as np
@@ -1611,17 +1612,21 @@ class ImportedCopper:
 def _profile_record(d):
     """!
     @brief Read the CAD profile record of an import, tolerating anything a hand-edited or newer file holds.
+    @details The key must look like a key of the table (lower-case letters, digits, `_`, `-`, `.`, at most 64), because it may be shown in the import window; other
+             keys of the dict (written by a later version) are kept and written back.
     @param d Value of the key "cad_profile" (a dict with "key", "source" and "table", or None).
-    @return dict with the three keys, or None when absent or malformed.
+    @return dict with the three keys (and any others the file held), or None when absent or malformed.
     """
-    if not isinstance(d, dict) or not isinstance(d.get("key"), str):
+    if not isinstance(d, dict) or not isinstance(d.get("key"), str) or not re.fullmatch(r"[a-z0-9_.-]{1,64}", d["key"]):
         return None
     source = d.get("source") if d.get("source") in ("detected", "user") else "detected"
     try:
         table = int(d.get("table", 0))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         table = 0
-    return {"key": d["key"][:64], "source": source, "table": table}
+    out = {"key": d["key"], "source": source, "table": table}
+    out.update({k: copy.deepcopy(v) for k, v in d.items() if isinstance(k, str) and k not in out})
+    return out
 
 
 @dataclass
