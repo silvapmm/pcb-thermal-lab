@@ -387,6 +387,27 @@ Removing the point that ran while the machine swapped and repeating it with a lo
 
 The seven figures are legible and quote only numbers of this README. Two will be out of date when the design is decided: figure 01 says "limit = fraction x RAM (70 %)" and "per class", figure 04 draws the class laws and "70 % of 16 GB" at 11.2 GB (the program's 70 % is 12.0 GB); redraw them with the adopted law and limit. The literature statuses are honest: none of [George1973], [Davis2006], [GeorgeLiu1981], [LiSuperLU2005] was opened, and the README says the explanations of the exponents are hypotheses; the t_eff argument of R1 rests on [George1973] as well (M). [PythonResource] is now read for macOS (the man page); Linux not read.
 
+### 14.12 The vias in the memory law (`fix/memory-law-vias`)
+
+**Question**: the law of `memory.CONTINUOUS` was fitted on boards without vias; the reviewer of `feature/imported-copper` measured 5.5 GB at 541 500 unknowns on CO60 (769 holes) against 4.1 GB estimated (ratio 1.34). **Method**: `scripts/study_via_law.py` (one child process per case, kernel peak, `lib/cases.py` families `viagrid` and `co60`; the boards of `research/gerber-real-boards/data` through `PCBT_REAL_BOARDS`, never copied), FVM and FDM, peak resident memory of a fresh process, one run at a time.
+
+| board (FVM) | cell (mm) | unknowns | peak without vias (GB) | peak with vias (GB) | measured / estimate before | after |
+| :-- | --: | --: | --: | --: | --: | --: |
+| CO60, copper full | 0.5 | 218 122 | 0.61 | 0.76 | 1.02 | 0.76 |
+| CO60, copper full | 0.7 | 110 976 | 0.34 | 0.39 | 1.03 | 0.80 |
+| CO60, copper in stripes | 1.0 | 135 375 | 0.54 | 0.60 | 0.72 | 0.53 |
+| CO60, copper in stripes | 0.7 | 277 440 | 1.18 | 1.48 | 0.79 | 0.57 |
+| CO60, copper in stripes | 0.5 | 545 305 | 2.42 | 3.96 | 0.94 | 0.68 |
+| plate 150 mm, 4 layers, 400 vias in 30 mm | 0.5 | 360 000 | 1.51 | 2.60 | 1.21 | 0.89 |
+| plate 150 mm, 4 layers, 100 vias in 45 mm | 0.5 | 360 000 | 1.51 | 3.40 | 1.58 | 1.34 |
+| plate 150 mm, 4 layers, 400 vias in 90 mm | 0.5 | 360 000 | 1.51 | 6.38 | 2.96 | 2.19 |
+
+The FDM rows (CO60 full copper 0.5 and 0.7 mm, striped 0.7 and 1.0 mm) behave like the FVM: 1.24, 1.25, 0.70 and 0.71 of the estimate before, 0.93, 0.99, 0.51 and 0.52 after. The CO60 striped FDM at 0.5 mm and the whole of the transient and 3D solid were not run (free memory below the 12 GB the heavy run asked for at the time).
+
+**Result 1, the term**: a board with vias needs up to 1.64 times the memory of the same board without them (CO60 striped, 0.5 mm) and the gain grows with the finer cell and the thicker graph; one via costs nothing. The factor `1 + 0.40 (1 - exp(-F/500))` (`F` the footprint cells) puts the estimate at or above every measured point of the scattered layouts (CO60 and the arrays of 25 to 100 vias) with 1.0 to 2.0 times; it multiplies the allocated part, not the base, leaves the lower bound a lower bound, and is 1 without vias (bit-identical estimates, test). **Result 2, the limit**: on 44 regular arrays at 0.5 mm (a 150 mm plate, 2 and 4 layers, 100 to 1 600 vias of 0.3 mm in squares of 12 to 90 mm) 14 are above the law without the term and 8 above it with it (largest 3.2 times: 2 layers, 1 600 vias in 60 mm, 2.56 GB and 17.6 s against 0.56 GB and 0.7 s without vias; 4 layers, 400 vias in 90 mm, 6.38 GB and 235 s). The number of vias, the cells of the footprints and their squares do not predict it (a 400-via array in 12 mm costs nothing, one in 30 mm 1.1 GB more); none at 1 and 0.7 mm and none in CO60. **Result 3, the cause and the cure** (measured on copies of the call, not in the program): `nnz(L + U)` is the same (93.4 against 94.9 million on the 4-layer plate), the time and the workspace are not; `splu` with `diag_pivot_thresh=0.0` and `SymmetricMode` gives 4.3 s and 2.6 GB against 17.7 s and 4.3 GB there, 3.7 s and 1.5 GB against 224 s and 7.8 GB on the worst plate, 7.9 s and 2.39 GB against 29 s and 3.95 GB on CO60 striped at 0.5 mm, temperatures equal to 3e-15 relative; the factorisation row permutation equals the column one in both runs, so the search, not the pivots, is the cost (not studied further). Proposal in `docs/versions.md` 'Planned'.
+
+**Not verified**: the reviewer's 5.5 GB (imported copper with the face construction) was not reproduced, the 3.96 GB here is the solve of the same plan with plain zones; the footprint count is a mean over six positions of the centre, not the footprints of the real positions; the transient factor with vias, the 3D solid and the SOR were not measured; one machine (16 GB, macOS), the load average was 3 to 4 during the runs.
+
 ## 15. What was read and what was not verified
 
 * **Read in full:** the code of `pcbthermal/fvm.py` (`Network`, `solve_steady`, `solve_sor`, `_sor_block_groups`, `unknowns`, `MAX_SOR_BLOCK`), `viawell.unknown_blocks`, `laminate.uses_rule`, and the code of this folder. `fdm.py`, `solid3d.py`, `analytic.py`, `api.py` and `gui/panels.py` were read in the preparation of the folder and not re-read in this run.
