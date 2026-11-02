@@ -138,3 +138,37 @@ def test_wired_into_the_live_check_and_no_result_moves():
     res = r.results["fvm"]
     t_max, t_part = FROZEN_FVM_SMALL_BARE
     assert abs(res.t_max - t_max) < 1e-8 and abs(heater_stats(res, p)[0]["t_mean"] - t_part) < 1e-8   # ... and the numbers are those of develop
+
+
+def many_parts(n, size_mm=1.0):
+    """!
+    @brief A 200 x 150 mm bare two-layer board with n small parts on a grid.
+    @param n Number of parts.
+    @param size_mm Side of every part in mm.
+    @return Problem.
+    """
+    p = Problem.new(200, 150, 2)
+    for i in range(n):
+        x, y = 5 + 9 * (i % 20), 5 + 9 * (i // 20)
+        s = size_mm + 0.002 * i                                         # Distinct sizes: the worst (smallest) first
+        p.add_heater(1, 0.1, rect=(x, y, x + s, y + s), name=f"R{i + 1}")
+    return p
+
+
+def test_aggregation_of_many_parts():
+    """!
+    @brief One, three, four and 300 parts: up to three keep one warning each, more give one message with the count, the five worst (smallest first) and the limit; the live check stays fast.
+    @return None.
+    """
+    for n, count in ((1, 1), (3, 3), (4, 1), (300, 1)):
+        w = check_small_part_laminate(many_parts(n), ("fvm",))
+        assert len(w) == count, n
+    w = check_small_part_laminate(many_parts(4), ("fvm",))[0]
+    assert w.kind is None and "4 parts" in w and "R1 (" in w and "R5" not in w and w.short and "4 small parts" in w.short
+    w = check_small_part_laminate(many_parts(300), ("fvm", "solid3d"))
+    assert [x for x in w if "300 parts" in x] and len(w) == 2
+    first = [x for x in w if "layered" in x or "FVM" in x][0]
+    assert "R1 (" in first and "R5 (" in first and "R6 (" not in first and "0.15" in first
+    t0 = time.perf_counter()
+    check_small_part_laminate(many_parts(300), ("fvm", "fdm", "solid3d"), 1.0)         # (check_input also runs the pairwise overlap test of 300 parts, 1.9 s, not this check)
+    assert time.perf_counter() - t0 < 0.8

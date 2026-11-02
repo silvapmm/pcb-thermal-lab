@@ -538,6 +538,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
 
 SMALL_PART_RATIO = 0.15       # Bare laminate under the part: a sub-layer thicker than this times the side of the part reads it too cool by more than about 4 % (research/paper-case-studies 16.3; review)
 SMALL_PART_RATIO_PAD = 0.10   # A copper pad of the part's size under it: the error of the layered rule is larger at the same ratio and passes about 4 % near 0.1 (review, FVM 0.25 mm in air)
+SMALL_PART_AGGREGATE = 3      # More parts than this in one group give one aggregated message
 SOLID3D_SLABS = 4             # Slabs per dielectric gap of the 3D solid as the API builds it (solid3d.solve_steady, n_diel)
 
 
@@ -669,10 +670,30 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
     @param problem A Problem (structurally valid).
     @param models Iterable of model keys that will run.
     @param cell_mm Cell size (mm) of the raster used for the geometric tests.
-    @return List of warnings (CheckWarning, tagged with the heater), at most one per part and model group.
+    @return List of warnings (CheckWarning, tagged with the heater): one per part and model group, or one for the whole group (kind None, the five worst named) when more than SMALL_PART_AGGREGATE parts qualify.
     """
     out = []
-    for k, model, sub, side, ratio, limit in small_part_ratios(problem, models, cell_mm):
+    found = small_part_ratios(problem, models, cell_mm)
+    # More than SMALL_PART_AGGREGATE parts of one group (a Gerber board can have hundreds over pads): one message for the group, worst first
+    for model in ("layered", "solid3d"):
+        group = [f for f in found if f[1] == model]
+        if len(group) <= SMALL_PART_AGGREGATE:
+            continue
+        group.sort(key=lambda f: -f[4])
+        worst = ", ".join(f"{problem.heaters[f[0]].name or f'Heater {f[0] + 1}'} ({f[4]:.2f})" for f in group[:5])
+        limit = min(f[5] for f in group)
+        if model == "layered":
+            s_max, n_max = laminate.parameters()
+            what = (f"the layered FVM and FDM read them too cool (4 to 24 % of the thermal resistance, more over a pad); a smaller laminate_s_max_mm (now {num(s_max * 1e3, 2)} mm) "
+                    f"or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
+            short_what = "the FVM and FDM read them too cool (4 to 24 %); reduce laminate_s_max_mm"
+        else:
+            what = "the 3D solid, with four slabs per insulating layer, reads them too hot (up to +20 % bare and +27 % over a pad on 3.2 mm laminate)"
+            short_what = "the 3D solid reads them too hot (up to +27 %)"
+        _add(out, None, None, f"{len(group)} parts are small against the sub-layer of laminate under them (ratio above {limit:.2f}; the worst, with their ratios: {worst}); {what}.",
+             f"{len(group)} small parts over a thick laminate (worst: {worst}); {short_what}.")
+    found = [f for f in found if sum(1 for g in found if g[1] == f[1]) <= SMALL_PART_AGGREGATE]
+    for k, model, sub, side, ratio, limit in found:
         h = problem.heaters[k]
         name = h.name or f"Heater {k + 1}"
         size = f"{num(side * 1e3, 2)} mm" if math.isfinite(side) else "large"
