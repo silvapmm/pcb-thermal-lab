@@ -388,6 +388,9 @@ class Board:
                 raise ValueError("the board outline must be a simple polygon with a positive area")
         if self.h_top < 0 or self.h_bottom < 0:
             raise ValueError("heat transfer coefficients must be >= 0")
+        # The edge coefficient too: a negative one made the edge a heat source in the grid models and a NaN or an infinite one gave a NaN field; None is insulated
+        if self.h_side is not None and (not math.isfinite(self.h_side) or self.h_side < 0):
+            raise ValueError("the edge heat transfer coefficient must be a finite number >= 0 (or None for insulated edges)")
         if self.h_mode not in ("manual", "computed"):
             raise ValueError("h_mode must be 'manual' or 'computed'")
         if self.orientation not in ("horizontal", "vertical"):

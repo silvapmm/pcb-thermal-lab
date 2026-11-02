@@ -280,12 +280,14 @@ def test_no_edge_loss_is_the_insulated_cosine_series(h_side):
 
 
 def test_insulated_numbers_are_those_of_the_cosine_code():
-    """Values stored before the Robin basis (develop, insulated edge, 1 mm): the example-like T board of test_part_across_outline and a 4-layer board with vias."""
+    """A value stored from the cosine code before the Robin basis (develop, insulated edge, 1 mm): a 4-layer board with vias and a heatsink (the review found that this
+    test stored no value; the number below is printed by develop and by this branch alike, and the T board is pinned in test_part_across_outline)."""
     p = _plate(60, 40, 8, None, layers=4)
     p.add_via_array((26, 16, 34, 24), 4, 4, diameter=0.3)
     p.add_heatsink(4, 200.0, rect=(10, 10, 20, 20))
     r = analytic.solve_steady(p, cell_mm=1.0)
-    assert np.isfinite(r.t_max)
+    assert r.t_max == pytest.approx(71.02539703239057, abs=1e-9)
+    assert r.power_out["heatsinks"] == pytest.approx(0.5137099714589006, abs=1e-12)
     assert sum(r.power_out.values()) == pytest.approx(r.power_in, rel=1e-6)
 
 
@@ -401,6 +403,18 @@ def test_not_a_number_edge_coefficient_is_refused():
     p = _plate(40, 30, 10, float("nan"))
     with pytest.raises(ValueError):
         analytic.solve_steady(p, cell_mm=1.0)
+
+
+@pytest.mark.parametrize("h_side", [float("nan"), float("inf"), -1.0])
+@pytest.mark.parametrize("model", ["fvm", "analytic"])
+def test_bad_edge_coefficient_is_refused_by_the_board(h_side, model):
+    """Board.validate refuses a NaN, infinite or negative edge coefficient for every model (the review found that the FVM ran a negative one, the edge acting as
+    a heat source, 170.33 degC against 169.41 for the insulated board at 1 mm, and that only the Analytic refused it, from inside its basis)."""
+    p = _plate(40, 30, 10, h_side, pos="corner")
+    with pytest.raises(ValueError, match="edge heat transfer coefficient"):
+        p.validate()
+    with pytest.raises(ValueError):
+        simulate(p, SolverOptions(cell_mm=2.0, models=(model,)))
 
 
 # ------------------------------------------------------------------------------------------------ the published formula

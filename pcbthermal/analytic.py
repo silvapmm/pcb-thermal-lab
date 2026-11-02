@@ -477,7 +477,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @brief Analytic steady-state solution of the multilayer fin problem.
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid used for the fields and the maxima.
-    @param n_terms Number of cosine modes per direction (300 resolves heaters of a few mm).
+    @param n_terms Number of modes per direction (300 resolves heaters of a few mm; cosines, or the eigenfunctions of the convective edge).
     @param local_corrections If True vias and heatsinks are applied locally (Green-function update);
                              if False they are smeared over the board (the older, cruder model).
     @note With vias the tiles follow the pitch and the vias get the constriction of the heat converging on a barrel (viaconstriction.plan, add_self_terms); the correction
@@ -607,7 +607,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
                 phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
                 block_power += float((e["g_amb"] * phi).sum())
-                # The face under the block does not lose heat to the air; the a_00 mode below counts the whole face, so this part is taken off it
+                # The face under the block does not lose heat to the air; the plan mean below counts the whole face, so this part is taken off it
                 hidden["top" if e["side"] == 0 else "bottom"] += float((e["face"] * y[rows_e]).sum())
             f = -(C @ y).reshape(Nt, L)                       # Heat injected into every tile and layer (W)
             heatsink_extraction = float(sum(g_heatsink[l, row, col] * y[r * L + l]
@@ -692,7 +692,7 @@ def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, heatsink_scale=1.0
              (smeared) vias and heatsinks, as the steady model does when local corrections are off.
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @param via_scale Factor applied to the smeared via conductance (see _calibrated_dynamics).
     @param heatsink_scale Factor applied to the smeared heatsink coefficient (see _calibrated_dynamics).
     @return Dict with the sheet data and lam (M, N, L), back (M, N, L, L), V, G (heaters, M, N, L), U (heaters, M, N, L),
@@ -735,7 +735,7 @@ def _smeared_steady_max(problem, sh, A, n_terms):
     @param problem A Problem (heater powers are used).
     @param sh Dict from _effective_sheet.
     @param A Matrix from _modal_matrix.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @return Maximum rise above ambient in kelvin.
     """
     W, H, L = sh["W"], sh["H"], sh["L"]
@@ -758,7 +758,7 @@ def _calibrated_dynamics(problem, cell_mm, n_terms):
              the example board follows the FVM within a few degC at every time (without it by up to 10 degC).
     @param problem A Problem (heater powers are the ones used for the calibration).
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @return Dict from _modal_dynamics with the extra keys local_max (degC, None if there are no vias or heatsinks) and scaled
             ("vias", "heatsinks" or None).
     """
@@ -820,7 +820,7 @@ class _ModalSet:
         """!
         @param problem A Problem.
         @param cell_mm Cell size (mm) of the sampling grid.
-        @param n_terms Cosine modes per direction.
+        @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
         """
         nh = len(problem.heaters)
         self.nh = nh
@@ -894,7 +894,7 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @details Z_i(t) = sum over modes of U g (1 - exp(-lambda t)) / lambda, in the system that serves heater i.
     @param problem A Problem with at least one heater.
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @param t_end Last time in seconds (default: ten board time constants).
     @param n_times Number of logarithmically spaced times.
     @return Tuple (times, z, rth) as in fvm.step_responses.
@@ -926,7 +926,7 @@ class _AnalyticAdapter:
         """!
         @param problem A Problem (heater powers equal the averages).
         @param cell_mm Cell size (mm) of the sampling grid.
-        @param n_terms Cosine modes per direction.
+        @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
         """
         self.ms = ms = _ModalSet(problem, cell_mm, n_terms)
         d = ms.d0
@@ -1016,7 +1016,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     @param decisions Decisions from profiles.decide().
     @param options ProfileOptions.
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @param progress Optional callback progress(message, fraction).
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
@@ -1038,7 +1038,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     @param t_end Final time in seconds.
     @param n_out Number of output frames after t = 0.
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @param log_times True for logarithmically spaced times (resolves fast and slow parts), False for linear.
     @return TransientResult.
     """
