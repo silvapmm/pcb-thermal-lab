@@ -435,6 +435,41 @@ def polygon_overlap_area(a, b):
     return abs(polygon_area_signed(clipped)) if len(clipped) >= 3 else 0.0
 
 
+def bbox_overlap_pairs(polys):
+    """!
+    @brief Index pairs of polygons whose bounding boxes overlap with a positive area, found by a sweep instead of testing every pair.
+    @details The pairs are exactly those for which polygon_overlap_area does not stop at its own bounding-box test (it returns 0 when the boxes only
+             touch or are apart), so running the exact overlap on these pairs alone gives the same results as running it on all pairs. The sweep sorts
+             the boxes by their left edge and, for each one, looks only at the boxes that start before its right edge and tests the y range with NumPy:
+             near-linear for parts spread over a board (about n log n plus the number of candidate pairs), quadratic only if every box overlaps in x.
+    @param polys Sequence of polygons, each None (skipped) or an array-like (n, 2) of vertices in metres.
+    @return List of (i, j) with i < j in increasing order (the order of the double loop over i and j).
+    """
+    idx = [k for k, p in enumerate(polys) if p is not None]
+    if len(idx) < 2:
+        return []
+    pts = [np.asarray(polys[k], dtype=float) for k in idx]
+    boxes = np.array([[p[:, 0].min(), p[:, 0].max(), p[:, 1].min(), p[:, 1].max()] for p in pts], dtype=float)
+    ids = np.array(idx)
+    order = np.argsort(boxes[:, 0], kind="stable")
+    xmin, xmax, ymin, ymax = (boxes[order, c] for c in range(4))
+    ids = ids[order]
+    pairs = []
+    for a in range(len(order)):
+        # Boxes sorted after a that start strictly before the right edge of a overlap it in x (those starting at or after it only touch)
+        hi = int(np.searchsorted(xmin, xmax[a], side="left"))
+        if hi <= a + 1:
+            continue
+        sl = slice(a + 1, hi)
+        # Strict overlaps in x (the sorted partner starts at or after a, so only its right edge must pass the left edge of a) and in y
+        ok = (xmax[sl] > xmin[a]) & (ymin[sl] < ymax[a]) & (ymax[sl] > ymin[a])
+        for b in np.nonzero(ok)[0]:
+            i, j = int(ids[a]), int(ids[a + 1 + b])
+            pairs.append((i, j) if i < j else (j, i))
+    pairs.sort()
+    return pairs
+
+
 def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
     """!
     @brief Copper fill of every layer: the union of its zones, taken at every sub-sample point and then averaged over the cell.

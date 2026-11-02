@@ -15,7 +15,7 @@ import math
 import numpy as np
 
 from . import blocks, convection, copper, lumped, viaconstriction, viawell
-from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, polygon_area, polygon_centroid, polygon_self_intersects
+from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, bbox_overlap_pairs, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -131,18 +131,20 @@ def check_problem(problem, cell_mm=1.0):
                            "Lumped and Analytic models are unreliable here, use the FVM.",
                      f"{name}: a copper edge crosses its footprint (fill {f_mean:.2f}); use the FVM.")
 
-    for i in range(len(problem.heaters)):
-        for j in range(i + 1, len(problem.heaters)):
-            hi, hj = problem.heaters[i], problem.heaters[j]
-            if hi.layer == hj.layer and heater_poly[i] is not None and heater_poly[j] is not None:
-                # Exact area of the intersection of the two footprints: the 4 x 4 cover of each cell made neighbours 0.3 mm apart "overlap" when
-                # both covers touched the same cell
-                overlap = polygon_overlap_area(hi.polygon, hj.polygon)
-                small = min(polygon_area(hi.polygon), polygon_area(hj.polygon))
-                if overlap > 0.05 * small:
-                    _add(out, "heater", i, f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap on layer "
-                               f"{hi.layer + 1} ({100 * overlap / small:.0f} % of the smaller footprint): their power densities add up.", f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap "
-                               f"({100 * overlap / small:.0f} % of the smaller).")
+    # Only the pairs whose bounding boxes overlap can overlap (polygon_overlap_area returns 0 for the others at once), found by a sweep so that
+    # a board with hundreds of parts does not pay for every pair; the pairs come in the order of the double loop, so the warnings keep their order
+    areas = [polygon_area(h.polygon) if p is not None else 0.0 for h, p in zip(problem.heaters, heater_poly)]
+    for i, j in bbox_overlap_pairs(heater_poly):
+        hi, hj = problem.heaters[i], problem.heaters[j]
+        if hi.layer == hj.layer:
+            # Exact area of the intersection of the two footprints: the 4 x 4 cover of each cell made neighbours 0.3 mm apart "overlap" when
+            # both covers touched the same cell
+            overlap = polygon_overlap_area(hi.polygon, hj.polygon)
+            small = min(areas[i], areas[j])
+            if overlap > 0.05 * small:
+                _add(out, "heater", i, f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap on layer "
+                           f"{hi.layer + 1} ({100 * overlap / small:.0f} % of the smaller footprint): their power densities add up.", f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap "
+                           f"({100 * overlap / small:.0f} % of the smaller).")
 
     # A via is judged by its drill disc against the outline (or the box): no board under it = ignored by every model; less than half = mostly off
     for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
@@ -199,10 +201,9 @@ def check_problem(problem, cell_mm=1.0):
         face = 0 if (s.layer == 0 or b.layers == 1) else 1
         block_cov.setdefault(face, []).append((name, s.polygon))
     for face, items in block_cov.items():
-        for i in range(len(items)):
-            for j in range(i + 1, len(items)):
-                if polygon_overlap_area(items[i][1], items[j][1]) > 1e-10:      # Exact; 1e-10 m2 is 0.0001 mm2 (touching blocks do not overlap)
-                    _add(out, None, None, f"{items[i][0]} and {items[j][0]} overlap: in the overlap only the later one is used.")
+        for i, j in bbox_overlap_pairs([np.asarray(it[1], dtype=float) for it in items]):
+            if polygon_overlap_area(items[i][1], items[j][1]) > 1e-10:      # Exact; 1e-10 m2 is 0.0001 mm2 (touching blocks do not overlap)
+                _add(out, None, None, f"{items[i][0]} and {items[j][0]} overlap: in the overlap only the later one is used.")
 
     if problem.total_power() <= 0:
         _add(out, None, None, "The total heater power is zero: the board stays at ambient temperature.")
@@ -461,8 +462,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
                     # What will_be_zoned builds by itself for every part: the equivalent rectangle of an outline (the board the Lumped model solves) and the vias on the board
                     zp = problem.equivalent_rectangle()[0] if b.has_outline() else problem
                     kept = zp.drop_off_board_vias()
-                    zone_board = (zp, viaconstriction.ViaSet(kept) if len(kept.vias) >= 2 else None)
-                zoned = lumped.will_be_zoned(zone_board[0], zone_board[0].heaters[k], vias=zone_board[1])
+                    zone_board = (kept, viaconstriction.ViaSet(kept) if len(kept.vias) >= 2 else None)
+                zoned = lumped.will_be_zoned(zone_board[0], zone_board[0].heaters[k], vias=zone_board[1], prepared=True)
                 if zoned:
                     # The numbers of the zone model (research/lumped-zones-adoption INTEGRATION 0.1: 36 family and 26 held-out boards against 1/8 mm references)
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
