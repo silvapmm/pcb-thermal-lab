@@ -181,6 +181,11 @@ What was checked in the in-app help (`pcbthermal/help/index.html`, `calculator.h
 | Theme (light/dark, softer dark guide) | 14 | action tip | features | fixed (not in the guide) |
 | Keyboard list (dialog and guide) | 14 | no control | no | fixed (file keys, Ctrl+A, Ctrl+, and Ctrl+Shift+T were missing) |
 | Gerber reader (library only) | not described | drill tip | features says no interface | fixed (a drill tip and a calculator sentence suggested a working import) |
+| Mirror image of a board edge in the via well (FVM; warning for the FDM, the 3D solid, a 2 mm cell) | 15 (Via warnings, glossary) | no control | no | ok (guide and test words in the user-guide merge) |
+| Via with copper over part of its footprint (live warning) | 15 (glossary) | list tooltip | no | ok |
+| Analytic time simulation with a heatsink (warning in the Results summary, animation and CLI) | 15 (glossary), 11 | no control | no | ok |
+| Exposed-pad heat source and the shape study (`validation.md` 29) | 13 (import), walkthrough picture | step 2 combo | features | ok |
+| Anthropic and OpenRouter OCR providers, assemble, map (developer tool, `tools/ocr/`) | not user-visible | no | no | ok (folder README) |
 | About box | no | no | no | ok (no new data) |
 | Power Calculator speed | not user-visible | no | no | not documented on purpose |
 
