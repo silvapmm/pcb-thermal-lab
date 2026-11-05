@@ -441,7 +441,9 @@ def bbox_overlap_pairs(polys):
     @details The pairs are exactly those for which polygon_overlap_area does not stop at its own bounding-box test (it returns 0 when the boxes only
              touch or are apart), so running the exact overlap on these pairs alone gives the same results as running it on all pairs. The sweep sorts
              the boxes by their left edge and, for each one, looks only at the boxes that start before its right edge and tests the y range with NumPy:
-             near-linear for parts spread over a board (about n log n plus the number of candidate pairs), quadratic only if every box overlaps in x.
+             near-linear for parts spread over a board (about n log n plus the number of candidate pairs), quadratic only if every box overlaps in x
+             (and then in vectorised comparisons: 1000 parts in one column take about 10 ms). A box with no width or no height, or with a NaN
+             coordinate, is left out: its box test in polygon_overlap_area fails (or its exact overlap is NaN), so it never gives a warning.
     @param polys Sequence of polygons, each None (skipped) or an array-like (n, 2) of vertices in metres.
     @return List of (i, j) with i < j in increasing order (the order of the double loop over i and j).
     """
@@ -450,7 +452,14 @@ def bbox_overlap_pairs(polys):
         return []
     pts = [np.asarray(polys[k], dtype=float) for k in idx]
     boxes = np.array([[p[:, 0].min(), p[:, 0].max(), p[:, 1].min(), p[:, 1].max()] for p in pts], dtype=float)
-    ids = np.array(idx)
+    # A box with no width or no height (a point, a segment along an axis) overlaps nothing with a positive area: the box test of polygon_overlap_area
+    # takes min(right) - max(left), which is at most the width of each box. The sweep below tests only the edges of the partner, so such a box would
+    # pass when it lies inside another one; it is dropped here (as a box with a NaN coordinate, for which the exact overlap is NaN and never warns)
+    keep = (boxes[:, 1] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 2])
+    boxes = boxes[keep]
+    ids = np.array(idx)[keep]
+    if len(ids) < 2:
+        return []
     order = np.argsort(boxes[:, 0], kind="stable")
     xmin, xmax, ymin, ymax = (boxes[order, c] for c in range(4))
     ids = ids[order]

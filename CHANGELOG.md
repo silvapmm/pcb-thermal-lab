@@ -6,7 +6,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ## [Unreleased]
 
 ### Fixed (live check speed, `fix/live-check-speed`)
-- The live input check no longer tests every pair of parts and of metal blocks for overlap: a bounding-box sweep (`geometry.bbox_overlap_pairs`) selects the pairs that can overlap and the exact overlap runs on those only, and the zone-model test of each part no longer scans every via again (`lumped.will_be_zoned(..., prepared=True)`). 300 small parts: 0.77 s to 0.05 s; 1000: 9.6 s to 0.26 s; 500 parts with 8000 vias: 2.4 s to 0.75 s. The warnings are identical (same texts, order and tags).
+- The live input check no longer tests every pair of parts and of metal blocks for overlap: a bounding-box sweep (`geometry.bbox_overlap_pairs`) selects the pairs that can overlap and the exact overlap runs on those only, and the zone-model test of each part no longer scans every via again (`lumped.will_be_zoned(..., prepared=True)`), and the distance of the vias to the parts (`viaconstriction.heater_distance`, also used by the Analytic and Lumped runs, bit-identical) skips the vias that a part's bounding box cannot bring closer. 300 small parts: 0.77 s to 0.05 s; 1000: 9.6 s to 0.26 s; 500 parts with 8000 vias: 2.4 s to about 0.45 s. The warnings are identical (same texts, order and tags; checked by the review on 562 random and real imported boards against the previous code).
 
 ### Changed (integration)
 - `Board.validate` refuses an edge coefficient `h_side` above 1e5 W/m2K (the Preferences range ends at 500; at 1e300 the edge heat of the Analytic model was absurd); the message names the limit.

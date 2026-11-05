@@ -345,12 +345,21 @@ def heater_distance(problem, vs):
     out = np.full(len(vs), np.inf)
     for h in problem.heaters:
         poly = np.asarray(h.polygon, dtype=float)
-        inside = points_in_polygon(vs.x, vs.y, poly)
-        out[inside] = 0.0
+        # Only the vias that this footprint can bring closer are measured: the distance to the bounding box of the footprint is a lower bound of the
+        # distance to the footprint, so a via whose bound is not below its distance so far keeps it (min() would not change it). Exact, and with
+        # hundreds of parts most vias are skipped after the first parts (500 parts and 8000 vias: 0.30 s to 0.05 s in the live check). The bound is
+        # lowered by a relative 1e-9 and 1 pm so that the rounding of the projection below (a + t e can land an ulp outside the box) never skips a via
+        bx = np.maximum(np.maximum(poly[:, 0].min() - vs.x, vs.x - poly[:, 0].max()), 0.0)
+        by = np.maximum(np.maximum(poly[:, 1].min() - vs.y, vs.y - poly[:, 1].max()), 0.0)
+        cand = np.flatnonzero(np.hypot(bx, by) * (1.0 - 1e-9) - 1e-12 < out)
+        if cand.size == 0:
+            continue
+        inside = points_in_polygon(vs.x[cand], vs.y[cand], poly)
+        out[cand[inside]] = 0.0
         a, c = poly, np.roll(poly, -1, axis=0)
         e = c - a
         len2 = np.maximum((e ** 2).sum(axis=1), 1e-300)
-        idx = np.flatnonzero(~inside)
+        idx = cand[~inside]
         # Vectorised over the vias in blocks (a loop over the vias took 1.2 s for 8500 vias and 20 parts, and the input checks run it live at every edit);
         # the same elementwise operations in the same order as the per-via loop, so the distances are bit-identical
         for s in range(0, idx.size, 4096):
