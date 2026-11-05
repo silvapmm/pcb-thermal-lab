@@ -9,7 +9,7 @@
          solver (README of horizontal-plate-h, section 5, strip, both faces hot: Ra 1e3 up 1.412 down 2.296; Ra 1e4 up 2.075 down 3.501; reproduced here only as printed) show
          what can be concluded. Checks per case: heat leaving the plate against heat reaching the cold walls (energy balance), and the resolution (the base grid and a finer one).
          Output: out/plate_mac.json and a printed table.
-Usage: .venv/bin/python research/convection-laws/scripts/study_plate_mac.py [--quick|--both|--isolated]   (about an hour in one process; --quick: Ra 1e3 only, base grid; --both and --isolated split the sweep in two processes, the second writes out/plate_mac_isolated.json)
+Usage: .venv/bin/python research/convection-laws/scripts/study_plate_mac.py [--quick|--both|--isolated]   (about an hour in one process; --quick: Ra 1e3 only, base grid; --both, --isolated and --big split the sweep in processes that write out/plate_mac.json, plate_mac_isolated.json and plate_mac_big.json)
 """
 
 import json
@@ -83,8 +83,15 @@ def main():
     if "--isolated" in sys.argv:                                    # the four isolated-face cases alone, in a second process, to a file of their own
         cases = [c for c in cases if c[3] != "both"]
         out_name = "plate_mac_isolated.json"
+    elif "--big" in sys.argv:                                       # the cases of the large box alone, to a file of their own
+        cases = [c for c in cases if c[1] > 1.0]
+        out_name = "plate_mac_big.json"
     elif "--both" in sys.argv:                                      # the cases with both faces hot alone
         cases = [c for c in cases if c[3] == "both"]
+    for a in sys.argv:                                              # --ra=1e4: only the cases of one Ra (the output file is named after it)
+        if a.startswith("--ra="):
+            cases = [c for c in cases if abs(c[0] / float(a[5:]) - 1.0) < 1e-9]
+            out_name = out_name.replace(".json", "_" + a[5:] + ".json")
     rows = []
     print("Ra     s  fine  faces  nx x ny   Nu_up   Nu_down  balance  conv   umax   steps  seconds")
     os.makedirs(OUT, exist_ok=True)

@@ -42,11 +42,11 @@ def load(name):
 
 def plate_rows():
     """!
-    @brief The rows of the strip sweep from out/plate_mac.json and out/plate_mac_isolated.json, without repeats (same faces, Ra, box scale and resolution).
+    @brief The rows of the strip sweep from every out/plate_mac*.json, without repeats (same faces, Ra, box scale and resolution).
     @return list of dict.
     """
     seen, rows = set(), []
-    for name in ("plate_mac.json", "plate_mac_isolated.json"):
+    for name in sorted(f for f in os.listdir(OUT) if f.startswith("plate_mac") and f.endswith(".json")) if OUT.exists() else []:
         for r in load(name) or []:
             key = (r.get("faces", "both"), r["ra"], r["s"], r["fine"])
             if key not in seen:
@@ -125,7 +125,7 @@ def fig06():
     if not rows:
         return
     ra = np.logspace(2.3, 4.2, 100)
-    fig, axs = plt.subplots(1, 2, figsize=(10.5, 4))
+    fig, axs = plt.subplots(1, 2, figsize=(11, 5.6))
     for ax, face in zip(axs, ("up", "down")):
         for s, mk in ((1.0, "o"), (2.0, "s")):
             sel = [r for r in rows if r["s"] == s and r["fine"] == 1.0 and r.get("faces", "both") == "both"]
@@ -133,20 +133,20 @@ def fig06():
         iso = [r for r in rows if r.get("faces") == face and r["s"] == 1.0 and r["fine"] == 1.0]
         ax.loglog([r["ra"] for r in iso], [r["nu_" + face] for r in iso], "v", color="m", label="cold box s = 1, this face alone")
         gl = np.logspace(np.log10(40), np.log10(8e3), 20)
-        ax.loglog(gl, (0.621 if face == "up" else 0.524) * gl ** 0.2, "k--", lw=1, label=f"Goldstein-Lau numerical strip {'0.621' if face == 'up' else '0.524'} Ra^1/5 (40 < Ra < 8e3, YJ p. 8)")
+        ax.loglog(gl, (0.621 if face == "up" else 0.524) * gl ** 0.2, "k--", lw=1, label=f"Goldstein-Lau strip, YJ p. 8")
         if face == "up":
             ax.loglog(ra, laws.C.program_up(ra), label="program 0.54 Ra^1/4")
             ax.loglog(ra, laws.C.raithby_hollands_up(ra), label="Raithby-Hollands")
-            ax.loglog([1e3, 1e4], [1.412, 2.075], "k^", label="open-domain solver (horizontal-plate-h, printed)")
+            ax.loglog([1e3, 1e4], [1.412, 2.075], "k^", label="open-domain solver (earlier folder)")
         else:
             ax.loglog(ra, laws.C.program_down(ra), label="program 0.27 Ra^1/4")
             ax.loglog(ra, laws.goldstein_lau_down(ra), label="0.475 Ra^1/5")
-            ax.loglog([1e3, 1e4], [2.296, 3.501], "k^", label="open-domain solver (horizontal-plate-h, printed)")
-        ax.set_title(f"face {face} of a strip, both faces hot (L = A/P = half width)")
+            ax.loglog([1e3, 1e4], [2.296, 3.501], "k^", label="open-domain solver (earlier folder)")
+        ax.set_title(f"face {face} of a strip (L = A/P = half width)", fontsize=9)
         ax.set_xlabel("Ra")
         ax.set_ylabel("Nu")
         ax.grid(alpha=0.3, which="both")
-        ax.legend(fontsize=6.5)
+        ax.legend(fontsize=6.5, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2)
     fig.tight_layout()
     fig.savefig(FIG / "fig_06_strip_in_a_cold_box_against_the_laws.png", dpi=105)
     plt.close(fig)

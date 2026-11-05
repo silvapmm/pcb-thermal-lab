@@ -27,11 +27,11 @@ def load(name):
 
 def plate_rows():
     """!
-    @brief The rows of the strip sweep from out/plate_mac.json and out/plate_mac_isolated.json, without repeats (same faces, Ra, box scale and resolution).
+    @brief The rows of the strip sweep from every out/plate_mac*.json, without repeats (same faces, Ra, box scale and resolution).
     @return list of dict.
     """
     seen, rows = set(), []
-    for name in ("plate_mac.json", "plate_mac_isolated.json"):
+    for name in sorted(f for f in os.listdir(OUT) if f.startswith("plate_mac") and f.endswith(".json")) if os.path.isdir(OUT) else []:
         for r in load(name) or []:
             key = (r.get("faces", "both"), r["ra"], r["s"], r["fine"])
             if key not in seen:

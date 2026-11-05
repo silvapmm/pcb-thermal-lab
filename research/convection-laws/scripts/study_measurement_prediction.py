@@ -128,6 +128,29 @@ def isolated_face(power, level, up, eps=0.07, c_back=1.0, w=0.100, h=0.080):
     return {"rise": dt, "h_conv": hc, "h_rad": hr}
 
 
+def both_faces(power, level, factor_up=1.0, eps=0.9, w=0.100, h=0.080):
+    """!
+    @brief Uniform plate with BOTH faces open to the air (a film heater under a thin board of full copper): the rise from P = A dT [h_up + h_down + 2 h_rad], the program's functions, no board solver.
+    @param power Electrical power in W.
+    @param level Key of laws.PAIRS.
+    @param factor_up Multiplier on the convection of the face up (0.6 = the coupling of the faces that the 2D plate of README section 5 suggests; a hypothesis, not a result).
+    @param eps Emissivity of both faces.
+    @param w Plate width in m.
+    @param h Plate height in m.
+    @return Rise in K.
+    """
+    from pcbthermal import convection
+    area, length = w * h, w * h / (2 * (w + h))
+    dt = 20.0
+    with laws.C.use_horizontal(*laws.PAIRS[level]):
+        for _ in range(60):
+            hu, _ = convection.h_natural_horizontal(22.0 + dt, 22.0, length, True)
+            hd, _ = convection.h_natural_horizontal(22.0 + dt, 22.0, length, False)
+            hr = convection.h_radiation(22.0 + dt, 22.0, eps)
+            dt = power / (area * (factor_up * hu + hd + 2 * hr))
+    return dt
+
+
 def main():
     """!
     @brief Run the parts and print them.
@@ -148,6 +171,12 @@ def main():
                 row = {lv: isolated_face(4.0, lv, True, eps=eps, c_back=c)["rise"] / isolated_face(4.0, lv, False, eps=eps, c_back=c)["rise"] for lv in ("program", "RH+GL", "RH+FI", "Jaffer")}
                 res[f"c{c}|eps{eps}"] = row
                 print(f"c {c:3.1f} eps {eps:4.2f}: " + "  ".join(f"{k} {v:.3f}" for k, v in row.items()), flush=True)
+        print("\nuniform plate with both faces open (emissivity 0.9, film heater under a thin full-copper board): rise in K")
+        for pw in (3.0, 6.0, 12.0):
+            row = {lv: both_faces(pw, lv) for lv in ("program", "RH+GL", "RH+FI", "Jaffer")}
+            row["program, up x0.6"] = both_faces(pw, "program", 0.6)
+            res[f"both|{pw}"] = row
+            print(f"P {pw:5.1f} W: " + "  ".join(f"{k} {v:6.2f}" for k, v in row.items()) + f"   (up x0.6)/program {row['program, up x0.6'] / row['program']:.3f}", flush=True)
         os.makedirs(OUT, exist_ok=True)
         with open(os.path.join(OUT, "measurement_faces.json"), "w") as fh:
             json.dump(res, fh, indent=1)

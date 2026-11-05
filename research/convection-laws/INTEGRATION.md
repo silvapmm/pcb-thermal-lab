@@ -25,7 +25,7 @@ Change of the hottest rise against the program (with radiation / convection only
 | RH up, Fujii-Imura strip down | -0.3 % | +1.5 % | +0.76 % | -0.2 % | +3.9 % | +2.16 % |
 | Jaffer (C) | -0.7 % | +0.7 % | +0.28 % | -0.7 % | +2.7 % | +1.18 % |
 
-(the same boards at half and double power move the extremes by 0.3 points.) In kelvin: 0.1 to 1 K on the boards of 60 to 80 K rise and up to 2 K on the 300 K plate. The vertical board does not change.
+(at double and half power the RH + GL extremes are -0.5 / +1.2 % and -1.5 / +0.9 %.) In kelvin: 0.1 to 1 K on the boards of 60 to 80 K rise and up to 2.4 K on the 300 K plate with a pad. The vertical board does not change.
 Frozen numbers: every record of a horizontal board with computed h moves by the percentages above (FVM, FDM, 3D solid, Lumped, Analytic in the same direction): a pending file
 (`tests/regression/data/pending/<topic>.json`) as in the rules of the regression test.
 
