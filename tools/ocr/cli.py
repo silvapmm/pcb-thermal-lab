@@ -79,6 +79,13 @@ def build_parser() -> argparse.ArgumentParser:
     common(q)
     s = sub.add_parser("suspects", help="find suspect pages and the printed/PDF page offset")
     s.add_argument("--only", help="comma-separated file stems")
+    asm_p = sub.add_parser("assemble", help="assemble the per-page outputs of PDFs into papers/md-final/<stem>.md")
+    asm_p.add_argument("stems", nargs="+", help="PDF stems in papers/pdf")
+    asm_p.add_argument("--order", default="claude,openrouter,gemini",
+                       help="priority of the model sources, comma-separated (default claude,openrouter,gemini)")
+    asm_p.add_argument("--root", help="repository root for the used-by search (default: parent of the papers folder)")
+    map_p = sub.add_parser("map", help="write papers/notes/OCR_MAP.md and ocr_map.json (what is done and needed; offline)")
+    map_p.add_argument("--root", help="repository root for the documents and the program (default: parent of the papers folder)")
     v = sub.add_parser("verify", help="write an HTML page with the page image beside its transcription")
     v.add_argument("pdf")
     v.add_argument("--page", type=int, required=True)
@@ -286,6 +293,7 @@ def cmd_check_key(a, papers: Path) -> int:
             png = render.synthetic_png()
         res = prov.transcribe(png, "Reply with the text you can read, at most 30 words.",
                               {"model": model, "timeout": 60})
+        model = res.model or model        # OpenRouter's "auto" says which model answered
         ok = bool(res.text.strip())
         why = "" if ok else f"empty answer, finish {res.finish_reason}"
     except (ProviderError, KeyError_, RuntimeError) as e:
@@ -310,7 +318,46 @@ def cmd_decode(a, papers: Path) -> int:
     return 0
 
 
-COMMANDS = {"transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
+def cmd_assemble(a, papers: Path) -> int:
+    """!
+    @brief The `assemble` command: one final Markdown per PDF in `papers/md-final/`.
+    @param a      Parsed arguments (`stems`, `--root`).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    import fitz  # PyMuPDF, only needed here
+    from . import assemble as asm, suspects as su
+    root = Path(a.root) if a.root else papers.parent
+    out = papers / "md-final"
+    out.mkdir(exist_ok=True)
+    for stem in a.stems:
+        doc = fitz.open(str(resolve_pdf(stem, papers)))
+        texts = [doc[i].get_text() for i in range(len(doc))]
+        found = {i + 1: su.printed_page_number(t) for i, t in enumerate(texts)}
+        off = su.page_offset({k: v for k, v in found.items() if v})
+        printed = {p: su.printed_page(p, found[p], off) for p in found}
+        digital = sum(len(t) for t in texts[:8]) / max(1, min(8, len(texts))) > 600
+        (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(doc), {i + 1: t for i, t in enumerate(texts)}, printed, digital, tuple(a.order.split(","))),
+                                        encoding="utf-8")
+        print(f"{stem}: {out / (stem + '.md')}")
+    return 0
+
+
+def cmd_map(a, papers: Path) -> int:
+    """!
+    @brief The `map` command: the map of what is converted and what the theory still needs (offline, no provider).
+    @param a      Parsed arguments (`--root`).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    from . import papermap
+    root = Path(a.root) if a.root else papers.parent
+    md, js = papermap.write_map(papers, root)
+    print(f"{md}\n{js}")
+    return 0
+
+
+COMMANDS = {"map": cmd_map, "assemble": cmd_assemble, "transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
             "providers": cmd_providers, "check-key": cmd_check_key, "decode": cmd_decode}
 
 
