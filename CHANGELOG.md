@@ -6,6 +6,7 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ## [Unreleased]
 
 ### Changed (integration)
+- `Board.validate` refuses an edge coefficient `h_side` above 1e5 W/m2K (the Preferences range ends at 500; at 1e300 the edge heat of the Analytic model was absurd); the message names the limit.
 - Delete has a second key, Backspace (the menu and both key tables show it). The side docks are titled "Board settings" and "Simulation settings"; their saved-layout names are unchanged, so saved window layouts still restore.
 
 ### Fixed (interface polish, `fix/ui-polish-colours-docks`)

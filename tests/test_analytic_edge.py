@@ -383,10 +383,10 @@ def test_outline_uses_the_perimeter_of_the_real_edge():
     assert getattr(q.equivalent_rectangle()[0].board, "edge_perimeter", None) is None
 
 
-@pytest.mark.parametrize("h_side,balance", [(1e-9, 1e-6), (1e-3, 1e-6), (1e4, 1e-6), (1e6, 1e-2), (1e12, None)])
+@pytest.mark.parametrize("h_side,balance", [(1e-9, 1e-6), (1e-3, 1e-6), (1e4, 1e-6), (1e5, 1e-3)])
 def test_extreme_edge_coefficients_run_and_balance(h_side, balance):
     """A tiny or a huge edge coefficient does not stop the model: finite field, the temperature between ambient and the insulated board, and the heat balance closed
-    (to 1e-6 up to 1e4 W/m2K; at the absurd 1e6 the edge temperature is of the size of the truncation error of the series and the closure is 0.2 %; not checked at 1e12)."""
+    (to 1e-6 up to 1e4 W/m2K, to 1e-3 at 1e5, the largest value `Board.validate` accepts; larger ones are refused, see below)."""
     p = _plate(40, 30, 10, h_side, pos="corner")
     r = analytic.solve_steady(p, cell_mm=1.0)
     assert np.all(np.isfinite(r.T))
@@ -396,6 +396,13 @@ def test_extreme_edge_coefficients_run_and_balance(h_side, balance):
     assert T_AMB < r.t_max <= insulated + 1e-9
     if h_side <= 1e-3:
         assert r.t_max == pytest.approx(insulated, rel=1e-4)
+
+
+@pytest.mark.parametrize("h_side", [1e6, 1e12])
+def test_huge_edge_coefficient_is_refused(h_side):
+    """An edge coefficient above 1e5 W/m2K is refused (maintainer decision), where the truncation error of the series made the closure poor."""
+    with pytest.raises(ValueError, match="must not exceed"):
+        analytic.solve_steady(_plate(40, 30, 10, h_side), cell_mm=1.0)
 
 
 def test_not_a_number_edge_coefficient_is_refused():

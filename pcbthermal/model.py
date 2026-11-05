@@ -172,6 +172,10 @@ def stackup_template(layers, path=None, inner_oz=0.5):
     return out
 
 
+# Largest edge heat transfer coefficient accepted by Board.validate (W/m2K)
+H_SIDE_MAX = 1e5
+
+
 @dataclass
 class Board:
     """!
@@ -392,6 +396,9 @@ class Board:
         # The edge coefficient too: a negative one made the edge a heat source in the grid models and a NaN or an infinite one gave a NaN field; None is insulated
         if self.h_side is not None and (not math.isfinite(self.h_side) or self.h_side < 0):
             raise ValueError("the edge heat transfer coefficient must be a finite number >= 0 (or None for insulated edges)")
+        # Upper limit (maintainer): the Preferences range ends at 500 and a value like 1e300 made the edge heat of the Analytic absurd
+        if self.h_side is not None and self.h_side > H_SIDE_MAX:
+            raise ValueError(f"the edge heat transfer coefficient must not exceed {H_SIDE_MAX:g} W/m2K")
         if self.h_mode not in ("manual", "computed"):
             raise ValueError("h_mode must be 'manual' or 'computed'")
         if self.orientation not in ("horizontal", "vertical"):
