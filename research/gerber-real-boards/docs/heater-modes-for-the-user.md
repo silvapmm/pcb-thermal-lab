@@ -108,7 +108,7 @@ What is already in `develop`: `feature/exposed-pad-heater` folded the study into
 >
 > Which polygon carries the power of a part imported from the paste layer (theory 1.8, models 19.2). Program FVM at 0.5 mm on the imported copper (faces mapping), typical stack-up, h = 10 W/m2K on both faces and the edge, 1 W on the top layer; the RP2040 minimal design run whole (52 x 51 mm, two layers), ISASTM and CMM2 (four layers) as 40 mm windows around the part. The read-out is the hottest face point under the heater, as the program reports it (Tj = T_max + θP); at 1 W it is the part-to-board resistance in K/W. Shapes: (a) the convex hull of the openings, (b) their box, (c) the pad envelope from the footprint name (the matching rule's rectangle, margin 0), (d) the largest opening, (d') the hull of the openings of at least half the area of the largest (the exposed pad or tab; the program's `exposed` on the five exposed-pad parts), (d'') the exposed pad as a square of the size in the footprint name, (e) every opening a heater with the power by paste area. Evidence: `research/gerber-real-boards/docs/heater-shape-opinion.md` (`study_heater_shape.py`) and `docs/heater-modes-for-the-user.md` (`study_heater_margin.py`).
 >
-> `![Heat-source shapes of five parts of the RP2040 minimal design](images/heater_shapes_rp2040.png)` (link as written in `docs/validation.md`; the image is in `docs/images/`)
+> [image: Heat-source shapes of five parts of the RP2040 minimal design, file images/heater_shapes_rp2040.png of `docs/`, inserted as a Markdown image]
 >
 > *Figure (`images/heater_shapes_rp2040.png`): five RP2040 parts with the shapes, filled, over the top copper (tan) and the paste openings (grey); the hottest point in K/W and the change against the hull (RP2040 minimal design, BSD-3-Clause, Raspberry Pi Ltd and Tommy Gilligan).*
 >
@@ -152,7 +152,7 @@ What is already in `develop`: `feature/exposed-pad-heater` folded the study into
 >
 > A margin makes the part read cooler (the exception, U15's hull, reaches a hotter cell and was not investigated further); the hull + 0.3 mm is within 0.8 to 1.6 points of the envelope on the SOT-223, and the exposed pad + 0.1 to 0.5 mm reaches the pad of the footprint name.
 >
-> `![A margin around the heat-source polygon](images/heater_shape_margin.png)` (link as written in `docs/validation.md`; the image is in `docs/images/`)
+> [image: A margin around the heat-source polygon, file images/heater_shape_margin.png of `docs/`, inserted as a Markdown image]
 >
 > *Figure (`images/heater_shape_margin.png`, from `research/gerber-real-boards/figures/fig_24_heater_margin.png`): the RP2040 SOT-223 and QFN-56 with the hull, the hull + 0.3 mm, the envelope, the exposed pad, the exposed pad + 0.3 mm and the pad from the name; right, the hottest point against the margin for the five parts (RP2040 minimal design, BSD-3-Clause, Raspberry Pi Ltd and Tommy Gilligan; the other boards as numbers only).*
 >
