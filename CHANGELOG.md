@@ -3,6 +3,11 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
+## [Unreleased]
+
+### Fixed
+- **A project file with a value of the wrong type** (text where a number is expected, a list that is not a list of pairs, a missing key, NaN) no longer ends in a Python traceback on the command line. The loader checks the types at the boundary (`pcbthermal/fileschema.py`) and raises one `ProjectFormatError` whose message names the key path and what was expected, for example `zones[2].polygon_mm[0]: expected a pair of numbers, got a string`; the command line prints it and exits with code 2, and the window shows it in the "Cannot open file" box. Valid files load exactly as before (also a board with insulated edges, `h_side` null, which a first version of the check refused); a file that is not UTF-8, nested thousands of levels deep or holding an integer of hundreds of digits gives the same message instead of a traceback. Test `tests/test_project_file_fuzz.py` (every value of the example projects and of a format 2 project replaced by text, list, object, null, negative, huge, NaN).
+
 ## [2.5.0] - 2026-11-05
 
 ### 2.5.0 summary
