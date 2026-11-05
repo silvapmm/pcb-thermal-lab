@@ -17,6 +17,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 - **Imported copper**: the copper of each layer from the files replaces the zones of that layer in every model; the FVM and FDM read it through flow-based face conductances on the laminate-reduced sheet. The editor draws it (View - Imported copper) and names the parts (View - Element names).
 - **Parts from the paste layers, the placement file and X3 component layers**: heat-source polygons per part, the exposed pad or tab when the paste has one (QFN, DFN, SOT-223, DPAK), the hull of the openings otherwise; frame check of the placement file, bottom side, a shape you choose is kept by a re-import.
 
+**Fixed: warning texts**
+- The Lumped warning for vias outside every footprint no longer quotes internal branch and study names; it says the evidence in plain words (29 boards and 17 more against the FVM at 0.25 mm, a sample, not a bound). Text only; a test scans the warnings of a board with vias, a heatsink and imported copper for such names.
+
 **New: memory, speed and the models**
 - **Memory guard**: the peak memory of the FVM, FDM and 3D solid is estimated from the unknown count before anything is allocated and a run above the limit (Preferences, 60 % of the physical memory by default) is refused with the cell that fits; command line exit code 3.
 - **Symmetric LU**: the direct solver runs SuperLU in its symmetric mode with a checked fallback; boards with dense via arrays solve 8 to 60 times faster with 3 to 5 times less memory, temperatures unchanged (1e-11 K). The Power Calculator reuses one factorisation (about 3.8 times faster, same results).

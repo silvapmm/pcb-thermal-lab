@@ -340,6 +340,8 @@ The goal is release 2.5.0 from `develop` only. Everything planned for it is merg
 
 ## Decisions Log
 
+- **Plain warning texts** (`fix/warning-texts-plain`, text only): the long Lumped via warning quoted internal branch and study names; it now states the evidence (29 boards and 17 more against the FVM at 0.25 mm, a sample, not a bound) and points to `docs/theory.md` 5; `tests/test_warning_texts_plain.py` fails if any warning of the checks or of a run names `research/`, `fix/` or `feature/`. Comments and docstrings may keep such names.
+
 - **Warning text for imported copper in the Lumped and Analytic** (`fix/imported-copper-warning-text`, text only, no number moves; from the final reviewer): the warning said 1 to 16 % too cool (6 % on average), which is the study of 24 mm windows; on the whole RP2040 board with 1 W in one part the two models read 27 to 42 % (Lumped) and 17 to 35 % (Analytic) too cool at 0.25 mm (U1, U3) and 22 to 75 % over all 27 heat sources at 0.5 mm, against the FVM (`docs/validation.md` 27.7, `research/gerber-real-boards/scripts/study_whole_board_reduced_models.py`). The 26 % of the research README is the earlier rectangle board. The text now says 'a sample, not a bound', quotes both cases, and says the FVM, FDM and 3D solid read the copper and these two do not.
 
 - **CAD tool line colour held by tests** (`fix/cad-line-colour`, reviewer's item): the code already used the alert token for every detection with `needs_check` (any confidence but high, CAM tools, re-exports) and the low-names rule, and the text colour only for a plain high one; no code change, a test per confidence level in both themes now keeps it (the user's choice does not clear the alert: the line follows the detection).
