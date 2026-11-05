@@ -467,6 +467,10 @@ class MainWindow(QMainWindow):
                                  "Show the cells of the FVM mesh (Shift+G); their size is the cell size of the Simulation panel")
         self.a_overlay = self._act("Temperature on board", self._toggle_overlay, "T", True, False,
                                    "Paint the last result over the board (T)")
+        self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
+                                    "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
+        self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
+                                  "Write the name of every heater (the designator of an imported part) on the board; on an imported board a name that does not fit the part appears when you zoom in")
         self.a_bg = self._act("Background image…", self.set_background)
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
@@ -501,7 +505,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
-        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, None,
+        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_imported, self.a_labels, None,
                   self.a_bg, self.a_theme):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
