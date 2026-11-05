@@ -689,6 +689,7 @@ def test_anthropic_request_shape_usage_and_key_not_in_url():
     assert b["model"] == "claude-haiku-5-5" and b["max_tokens"] >= 4096
     assert b["messages"][0]["content"][0]["source"]["media_type"] == "image/png"
     assert ANT_KEY not in g.urls[0] and "key" not in g.urls[0]
+    assert "temperature" not in b      # the current models answer HTTP 400 to it
 
 
 def test_anthropic_429_waits_for_retry_after_and_overloaded_529_retries():

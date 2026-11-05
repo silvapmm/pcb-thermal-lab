@@ -119,15 +119,16 @@ class AnthropicProvider(Provider):
         @brief Transcribe one page image with a Claude model.
         @param image_bytes PNG bytes.
         @param prompt      Instruction text.
-        @param options     "model" (default `default_model`), "temperature" (0.0), "timeout" (180 s),
-                           "max_tokens" (8192).
+        @param options     "model" (default `default_model`), "timeout" (180 s), "max_tokens" (8192),
+                           "temperature" (not sent unless given: the current models refuse it).
         @return Result Text and stop reason; `split=True` for max_tokens, `recitation=True` for a refusal;
                 `extra` holds "attempts" and "usage".
         @throws ProviderError After the retries, or at once for a spent balance or a non-retryable error.
         """
         model = options.get("model") or self.default_model
-        body = json.dumps({"model": model, "max_tokens": int(options.get("max_tokens", DEFAULT_MAX_TOKENS)),
-                           "temperature": options.get("temperature", 0.0),
+        # `temperature` is sent only when asked for: the current models refuse it (HTTP 400 "deprecated").
+        extra = {"temperature": options["temperature"]} if "temperature" in options else {}
+        body = json.dumps({"model": model, "max_tokens": int(options.get("max_tokens", DEFAULT_MAX_TOKENS)), **extra,
                            "messages": [{"role": "user", "content": [
                                {"type": "image", "source": {"type": "base64", "media_type": "image/png",
                                                             "data": base64.b64encode(image_bytes).decode()}},
