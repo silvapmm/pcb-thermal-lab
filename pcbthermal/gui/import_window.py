@@ -129,8 +129,39 @@ class Preview(QWidget):
         @return tuple (scale, ox, oy).
         """
         b = self.session.board()
-        s = min((self.width() - 20) / b.width, (self.height() - 20) / b.height) * self.zoom
-        return s, (self.width() - b.width * s) / 2 + self.pan.x(), (self.height() - b.height * s) / 2 + self.pan.y()
+        strip = self._legend_height()                                # The drill legend has a strip of its own under the board, so it never covers it when the whole board is shown
+        s = min((self.width() - 20) / b.width, (self.height() - 20 - strip) / b.height) * self.zoom
+        return s, (self.width() - b.width * s) / 2 + self.pan.x(), (self.height() - strip - b.height * s) / 2 + self.pan.y()
+
+    def _legend_rows(self):
+        """!
+        @brief The drill legend as rows of entries that fit the width of the preview (the entries run left to right and wrap).
+        @return list of rows; a row is a list of (kind, text, width_px). Empty when the legend is off or the board has no holes.
+        """
+        if self.mode != "parts" or not self.show_layers.get("holes") or self.session.board() is None:
+            return []
+        classes = self.hole_classes()
+        f = QFont(self.font())
+        f.setPixelSize(11)
+        fm = QFontMetricsF(f)
+        items = [(k, f"{d:.2f} mm {k} x{n}") for k, d, n in classes[:8]] + ([("", f"+ {len(classes) - 8} more")] if len(classes) > 8 else [])
+        rows, row, used = [], [], 0.0
+        for kind, text in items:
+            w = fm.horizontalAdvance(text) + 24
+            if row and used + w > self.width() - 16:
+                rows.append(row)
+                row, used = [], 0.0
+            row.append((kind, text, w))
+            used += w
+        return rows + ([row] if row else [])
+
+    def _legend_height(self) -> int:
+        """!
+        @brief Height (pixels) of the strip under the board that the legend takes (0 without a legend).
+        @return int
+        """
+        rows = self._legend_rows()
+        return 17 * len(rows) + 8 + 14 if rows else 0
 
     def to_px(self, x: float, y: float) -> QPointF:
         """!
@@ -330,36 +361,29 @@ class Preview(QWidget):
 
     def _paint_legend(self, p, c):
         """!
-        @brief The drill legend in the top-right corner: a ring in the colour of the class, the diameter, the kind and the count.
+        @brief The drill legend in a strip above the zoom text, under the board: a ring in the colour of the class, the diameter, the kind and the count, in rows that wrap with the width.
         @param p QPainter.
         @param c Colour table of the theme.
         @return None
         """
-        classes = self.hole_classes()
-        if not classes:
+        rows = self._legend_rows()
+        if not rows:
             return
-        lines = [(k, f"{d:.2f} mm  {k}  x{n}") for k, d, n in classes[:7]] + ([("", f"+ {len(classes) - 7} more classes")] if len(classes) > 7 else [])
         f = QFont(self.font())
         f.setPixelSize(11)
         p.setFont(f)
-        fm = QFontMetricsF(f)
-        w = max(fm.horizontalAdvance(t) for _, t in lines) + 30
-        h = 17 * len(lines) + 8
-        box = QRectF(self.width() - w - 8, 8, w, h)
-        bg = QColor(c["canvas"])
-        bg.setAlpha(215)
-        p.setPen(QPen(QColor(c["muted"]), 1))
-        p.setBrush(bg)
-        p.drawRect(box)
-        for i, (kind, text) in enumerate(lines):
-            y = box.top() + 4 + 17 * i + 8.5
-            if kind:
-                tone = "muted" if kind == "non-plated" else "via" if kind == "via" else "warn"
-                p.setPen(QPen(QColor(c[tone]), 1.4))
-                p.setBrush(Qt.NoBrush)
-                p.drawEllipse(QPointF(box.left() + 11, y), 4, 4)
-            p.setPen(QColor(c["text"]))
-            p.drawText(QPointF(box.left() + 22, y + 4), text)
+        top = self.height() - 22 - (17 * len(rows) + 8) + 8
+        for r, row in enumerate(rows):
+            x, y = 8.0, top + 17 * r + 8.5
+            for kind, text, w in row:
+                if kind:
+                    tone = "muted" if kind == "non-plated" else "via" if kind == "via" else "warn"
+                    p.setPen(QPen(QColor(c[tone]), 1.4))
+                    p.setBrush(Qt.NoBrush)
+                    p.drawEllipse(QPointF(x + 4, y), 4, 4)
+                p.setPen(QColor(c["text"]))
+                p.drawText(QPointF(x + 12, y + 4), text)
+                x += w
 
     def _paint_labels(self, p, c):
         """!
@@ -994,7 +1018,7 @@ class Step2Page(QWidget):
             pos = p.from_file.get("position_mm") or ([sum(q[0] for q in p.polygon_mm) / len(p.polygon_mm), sum(q[1] for q in p.polygon_mm) / len(p.polygon_mm)] if has else None)
             nop = len(sx._openings_of(p))
             vals = {1: p.designator, 2: (p.footprint or p.from_file.get("package", "")), 3: sx.source_label(p), 4: str(nop or p.from_file.get("n_openings", 0)), 5: size,
-                    6: f"{pos[0]:.1f}, {pos[1]:.1f}" if pos else "-"}
+                    6: f"{pos[0]:.0f}, {pos[1]:.0f}" if pos else "-"}
             if p.from_file.get("heat_source") is False:
                 vals[3] += f" ({p.from_file.get('mount', 'not SMD')})"
             for col, text in vals.items():
@@ -1002,6 +1026,8 @@ class Step2Page(QWidget):
                 item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
                 if not has or orphan:
                     item.setForeground(QColor(c["muted"]))
+                if col == 6 and pos:                                 # The column shows whole millimetres to stay narrow; the tooltip has the exact position
+                    item.setToolTip(f"Centre of the part: x {pos[0]:.2f} mm, y {pos[1]:.2f} mm (Gerber frame)")
                 if col in (2, 3):                                    # These two columns share the spare width and may be cut: the full text is in the tooltip
                     item.setToolTip(_plain_tip(sx.source_explanation(p) if col == 3 else text))      # the package name comes from the files
                 t.setItem(k, col, item)
@@ -1018,6 +1044,7 @@ class Step2Page(QWidget):
             t.setCellWidget(k, 8, tj)
             cb = QComboBox()
             cb.addItems(["Component", "Source"])
+            cb.setFixedWidth(int(cb.fontMetrics().horizontalAdvance("Component")) + 36)    # The text and the arrow, in the font of the platform; the combo's own size hint is 40 px wider
             cb.setCurrentText(p.edits.get("role", "Component"))
             cb.setToolTip("Component: a package with a junction (theta, Tj limit, optional heatsink on top). Source: only a heated area on the board.")
             cb.currentTextChanged.connect(lambda v, d=p.designator: self._set(d, role=v))

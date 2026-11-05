@@ -363,3 +363,59 @@ def test_the_power_and_tj_boxes_are_as_wide_as_their_values(qtbot, tmp_path):
     for col in (7, 8):
         sp = t.cellWidget(0, col)
         assert sp.width() >= sp.minimumSizeHint().width()                      # a fixed 76 px cut 1000.000 W with the 13 px macOS font
+
+
+def test_the_canvas_names_are_above_the_vias_and_follow_their_part(qtbot, imported_doc):
+    view = BoardView(imported_doc, "dark")
+    qtbot.addWidget(view)
+    heaters = [it for it in view.scene().items() if getattr(it, "kind", "") == "heater" and it.label is not None]
+    assert heaters
+    for it in heaters:
+        assert it.label.parentItem() is None and it.label.scene() is view.scene() and it.label.zValue() > 4      # the vias are at 4
+        assert it.label.acceptedMouseButtons() == Qt.NoButton and it.zValue() < 4                              # hit-testing of the heater is unchanged
+    it = heaters[0]
+    before = it.label.scenePos()
+    it.setPos(it.pos() + QPointF(1.0, 2.0))
+    assert (it.label.scenePos() - before - QPointF(1.0, 2.0)).manhattanLength() < 1e-6
+
+
+@pytest.mark.parametrize("size", [(1480, 900), (1100, 800), (800, 600)])
+def test_the_hole_legend_never_covers_the_whole_board(qtbot, tmp_path, size):
+    w = _step2(qtbot, tmp_path, size[0])
+    w.resize(*size)
+    pv = w.page2.preview
+    qtbot.wait(50)
+    rows = pv._legend_rows()
+    assert rows
+    b = w.session.board()
+    bottom = pv.to_px(b.box[0], b.box[1]).y()                                  # the bottom edge of the board in pixels
+    legend_top = pv.height() - 22 - 17 * len(rows)
+    print(f"{size}: preview {pv.width()} x {pv.height()}, {len(rows)} legend rows, board bottom {bottom:.0f}, legend top {legend_top}")
+    assert bottom <= legend_top and pv.to_px(b.box[0], b.box[3]).y() >= 0
+    pv.show_layers["holes"] = False
+    assert pv._legend_height() == 0
+
+
+@pytest.mark.parametrize("pixels", [13, 17])
+def test_the_table_keeps_width_for_package_and_source(qtbot, tmp_path, pixels):
+    from PySide6.QtGui import QFont
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance()
+    old, sheet = app.font(), app.styleSheet()
+    app.setStyleSheet("")                                         # the theme's style sheet would override the font of the test
+    f = QFont(old)
+    f.setPixelSize(pixels)
+    app.setFont(f)
+    try:
+        w = _step2(qtbot, tmp_path, 1100)
+        qtbot.wait(100)
+        t = w.page2.table
+        hh = t.horizontalHeader()
+        widths = [hh.sectionSize(c) for c in range(t.columnCount())]
+        print(f"font {pixels} px, 1100 px window: viewport {t.viewport().width()}, sections {widths}, scroll {t.horizontalScrollBar().maximum()}")
+        if pixels == 13:
+            assert t.horizontalScrollBar().maximum() == 0
+            assert widths[2] >= 75 and widths[3] >= 75                             # the freed width goes to Package and Source (58 px before; with a 17 px font the table still scrolls at 1100 px)
+    finally:
+        app.setFont(old)
+        app.setStyleSheet(sheet)

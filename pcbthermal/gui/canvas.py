@@ -115,6 +115,20 @@ class ElementItem(QGraphicsPolygonItem):
             self.label.setBrush(QBrush(QColor(th.colors(self.view.theme)["on_element"])))
         self.restyle()
 
+    def lift_label(self):
+        """!
+        @brief Make the name a top-level item above the vias (z 6): as a child it would stay inside the z of its element (3) and the vias (4) would cover it.
+        @details The label takes no mouse button, so the hit-testing of the elements is unchanged; it follows the element when it moves (`itemChange`).
+        """
+        if self.label is None or self.label.parentItem() is None:
+            return
+        self._label_base = QPointF(self.label.pos())            # The element sits at the origin when the scene is built
+        self.label.setParentItem(None)
+        self.label.setZValue(6)
+        self.label.setOpacity(self.opacity())
+        self.label.setAcceptedMouseButtons(Qt.NoButton)
+        self.label.setPos(self._label_base + self.pos())
+
     def restyle(self):
         """!
         @brief Apply the fill and outline of the element kind and its selection state.
@@ -142,6 +156,8 @@ class ElementItem(QGraphicsPolygonItem):
             return _clamped_position(self, value)
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.restyle()
+        if change == QGraphicsItem.ItemPositionHasChanged and getattr(self, "_label_base", None) is not None and self.label.parentItem() is None:
+            self.label.setPos(self._label_base + self.pos())
         return super().itemChange(change, value)
 
     def paint(self, painter, option, widget=None):
@@ -407,6 +423,7 @@ class BoardView(QGraphicsView):
                         it.setOpacity(0.22)
                         it.setFlags(it.flags() & ~(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable))
                     sc.addItem(it)
+                    it.lift_label()
                     if (kind, i) in selected and el.layer == active:
                         it.setSelected(True)
             for i, v in enumerate(pr.vias):
