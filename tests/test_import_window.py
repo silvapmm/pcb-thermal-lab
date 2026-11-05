@@ -1116,3 +1116,24 @@ def test_zero_unmatched_openings_are_not_written_in_red(window):
     window.go(1)
     c = th.colors(th.current_name())
     assert "match no part" in window.page2.info.text() and c["bad"] not in window.page2.info.text()
+
+
+@pytest.mark.parametrize("theme_name", ["light", "dark"])
+@pytest.mark.parametrize("confidence, expect_alert", [("high", False), ("mixed", True), ("medium", True), ("low", True), ("declared", True), ("unknown", True)])
+def test_the_tool_line_colour_follows_the_confidence(qtbot, tmp_path, theme_name, confidence, expect_alert):
+    from pcbthermal.gerber.profiles import ProfileResult
+    d = make_board(tmp_path / "fab", placement=False)
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(d))
+    sx, pg = w.session, w.page1
+    # a profile of kind "ecad" with a given confidence; only the alert (medium, mixed, low, declared, unknown) or the text colour (high) may come out
+    sx.profile_result = ProfileResult("kicad" if confidence not in ("declared", "unknown") else confidence, confidence, "", [], [], "")
+    c = th.colors(theme_name)
+    pg._refresh_tool(c)
+    style = pg.tool_label.styleSheet()
+    assert (c["alert"] in style) is expect_alert
+    assert (c["text"] in style) is (not expect_alert)
+    assert sx.profile_line()[1] is expect_alert                     # the session and the label agree: needs_check or the low-name rule
