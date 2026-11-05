@@ -13,6 +13,7 @@ they count as "gemini" and one request). The queue is the Markdown table `| # | 
 from __future__ import annotations
 
 import datetime
+import fcntl
 import json
 import os
 import re
@@ -22,7 +23,7 @@ from pathlib import Path
 
 class Ledger:
     """!
-    @brief Append-only record of page attempts, saved atomically after each entry.
+    @brief Append-only record of page attempts, saved atomically after each entry under an exclusive file lock.
     """
 
     def __init__(self, path: Path):
@@ -41,11 +42,20 @@ class Ledger:
         @return dict The stored entry.
         """
         entry.setdefault("date", str(datetime.date.today()))
-        self.entries.append(entry)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.entries, indent=1))
-        os.replace(tmp, self.path)
+        # Exclusive lock on a sidecar file: another provider process may append at the same time, and the file is
+        # re-read inside the lock so that its entries are never dropped by a stale in-memory copy.
+        with open(self.path.with_name(self.path.name + ".lock"), "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                current = json.loads(self.path.read_text()) if self.path.is_file() else []
+                current.append(entry)
+                tmp = self.path.with_name(f"{self.path.name}.{os.getpid()}.tmp")
+                tmp.write_text(json.dumps(current, indent=1))
+                os.replace(tmp, self.path)
+                self.entries = current
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
         return entry
 
     def requests_today(self, provider: str, today: str | None = None) -> int:

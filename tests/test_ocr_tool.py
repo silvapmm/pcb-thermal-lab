@@ -1007,3 +1007,38 @@ def test_compare_pages_digits_equations_similarity():
     r = ocr_compare.compare_pages("a $x$ 12 b", "a $x$ 12 b")
     assert r["agree"] and r["digits_equal"]
     assert not ocr_compare.compare_pages("a 12", "a 13")["agree"]
+
+
+def _ledger_worker(path: str, tag: str, n: int) -> None:
+    """!
+    @brief Append `n` entries to a ledger from a separate process (helper of the concurrency test).
+    @param path Ledger file.
+    @param tag  Provider name written in the entries.
+    @param n    Number of entries.
+    @return None
+    """
+    from tools.ocr.ledger import Ledger
+    led = Ledger(pathlib.Path(path))  # opened once: its in-memory copy goes stale while the other process writes
+    for i in range(n):
+        led.add(provider=tag, file="X", page=i, ok=True)
+
+
+def test_ledger_concurrent_appends_keep_every_entry(tmp_path):
+    """!
+    @brief Two processes appending to one ledger lose no entry (lock plus re-read inside the lock).
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    import json
+    import multiprocessing as mp
+    path = tmp_path / "usage.json"
+    ctx = mp.get_context("spawn")
+    procs = [ctx.Process(target=_ledger_worker, args=(str(path), tag, 40)) for tag in ("a", "b")]
+    for pr in procs:
+        pr.start()
+    for pr in procs:
+        pr.join(60)
+        assert pr.exitcode == 0
+    rows = json.loads(path.read_text())
+    assert len(rows) == 80 and sum(r["provider"] == "a" for r in rows) == 40
+    assert not list(tmp_path.glob("*.tmp"))
