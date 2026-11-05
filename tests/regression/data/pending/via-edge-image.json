@@ -1,0 +1,100 @@
+{
+ "base_version": "2.4.5",
+ "branch": "feature/via-edge-image",
+ "evidence": "tests/test_via_edge_image.py and docs/validation.md (via near an edge); against the same board at 0.25 mm (via effect 9.673 K) the effect at 2 mm goes from 9.4485 K (-2.31 %) to 9.4588 K (-2.21 %)",
+ "format": 1,
+ "item": "Mirror image of a straight board edge in the via well",
+ "records": {
+  "example_cut_to_T|fvm|0.5": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 1.9323532672966723e-12,
+    "layer_mean[0]": 58.872447641442115,
+    "layer_mean[1]": 58.258120205592704,
+    "layer_mean[2]": 57.552514418847736,
+    "layer_mean[3]": 56.76098848748873,
+    "part:U1:power_top_w": 0.0,
+    "part:U1:power_w": 4.0,
+    "part:U1:t_junction": 118.43024932928307,
+    "part:U1:t_max": 94.43024932928307,
+    "part:U1:t_mean": 88.89524589386949,
+    "part:U2:power_top_w": 0.0,
+    "part:U2:power_w": 1.5,
+    "part:U2:t_junction": 100.04469267346633,
+    "part:U2:t_max": 82.04469267346633,
+    "part:U2:t_mean": 78.64267388488878,
+    "power_in": 5.5,
+    "t_max": 94.43024932928307,
+    "t_mean": 57.86101768834282,
+    "t_min": 47.675281126464185,
+    "t_sum": 6327317.331364209,
+    "t_sumsq": 342664216.4834964,
+    "unknowns": 140672
+   }
+  },
+  "example_cut_to_T|fvm|1": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": -1.213413208295771e-12,
+    "layer_mean[0]": 58.868798869837,
+    "layer_mean[1]": 58.25624176350909,
+    "layer_mean[2]": 57.55120479854062,
+    "layer_mean[3]": 56.75991695836089,
+    "part:U1:power_top_w": 0.0,
+    "part:U1:power_w": 4.0,
+    "part:U1:t_junction": 118.50083025426187,
+    "part:U1:t_max": 94.50083025426187,
+    "part:U1:t_mean": 89.05439183342973,
+    "part:U2:power_top_w": 0.0,
+    "part:U2:power_w": 1.5,
+    "part:U2:t_junction": 100.0957954183123,
+    "part:U2:t_max": 82.0957954183123,
+    "part:U2:t_mean": 78.91718958394284,
+    "power_in": 5.500000000000001,
+    "t_max": 94.50083025426187,
+    "t_mean": 57.8590405975619,
+    "t_min": 47.74122526583507,
+    "t_sum": 1581782.2938971927,
+    "t_sumsq": 85664133.9192644,
+    "unknowns": 35332
+   }
+  },
+  "example_cut_to_T|fvm|2": {
+   "class": "moved",
+   "metrics": {
+    "balance_error": 1.824802935020257e-14,
+    "layer_mean[0]": 58.87610437861106,
+    "layer_mean[1]": 58.25897375595094,
+    "layer_mean[2]": 57.55226515890679,
+    "layer_mean[3]": 56.760375278186146,
+    "part:U1:power_top_w": 0.0,
+    "part:U1:power_w": 4.0,
+    "part:U1:t_junction": 118.44416900273869,
+    "part:U1:t_max": 94.44416900273869,
+    "part:U1:t_mean": 88.91742605372481,
+    "part:U2:power_top_w": 0.0,
+    "part:U2:power_w": 1.5,
+    "part:U2:t_junction": 99.62269756475965,
+    "part:U2:t_max": 81.62269756475965,
+    "part:U2:t_mean": 78.68183339979367,
+    "power_in": 5.500000000000001,
+    "t_max": 94.44416900273869,
+    "t_mean": 57.861929642913736,
+    "t_min": 47.867938225660495,
+    "t_sum": 398265.00684285664,
+    "t_sumsq": 21661412.772207275,
+    "unknowns": 8960
+   }
+  }
+ },
+ "transients": {
+  "example_cut_to_T|fvm": {
+   "class": "moved",
+   "t63": {
+    "U1": 15.994519053889656,
+    "U2": 4.358865742840529
+   }
+  }
+ },
+ "why": "Vias of the inverted T within six cells of the straight arm side (x = 27 mm) get the image of the edge in their wells (c = ln D_lat - ln D_true; the lattice image of a via 4.5 to 11.5 mm from the wall is slightly too far, so the via effect rose and the part got cooler): 3 vias at 2 mm, 1 at 1 mm, none at 0.5 mm, so the maximum moves -0.0103 K at 2 mm, -0.0001 K at 1 mm and 0 at 0.5 mm; the other four boards with vias are bit-identical."
+}
