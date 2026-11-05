@@ -998,3 +998,34 @@ Equations 28 and 29 reproduced by the axisymmetric unit-cell solver (1e-15 to 2e
 
 ### [ShenWang2019Vias] (Table II compared here)
 Table II differences compared with the program, the independent unit cell and the exact network of Fig. 22: the predicted contrasts of psi_ta are 0.07 to 0.67 of the measured ones for air minus solder; the paper's own CFD (Fig. 18, plot) is 2.2 to 6.3 times smaller than the measurement too. Status R for Table II and Figs. 18, 20, 22; no reproduction of the measured contrasts (heatsink and array extent not in the text).
+
+## OCR verification pass (`research/theory-sources/docs/models-evidence-and-gaps.md` section 1)
+
+The Gemini transcriptions of 191 pages (31 files, outside the repository) were screened against the PDF text layers and 44 pages were compared with their page images by the reviewer. A status R below is given only for the pages compared with the image; the transcriptions themselves are not a reading (10 of the 44 pages carry a material error, listed in the document named above).
+
+### [Lienhard2024] (pages compared with the images)
+PDF pages 323, 325, 433, 434, 435, 449, 450, 451 and 769 (book pages 309, 311, 419, 420, 421, 435, 436, 437 and 755) **R**: equations 6.65 to 6.68 and 6.71, Example 6.5 (reproduced by the program's forced law: 21.39 against 21.4 W/m2K), equations 8.11 to 8.13b, **Example 8.1 uses the laminar form 8.13a** (reproduced by the program's laminar form: 4.233 against 4.22 W/m2K; the general form gives 4.86), the horizontal and inclined plates (8.35 to 8.39: Raithby-Hollands with `L* = A/P` and the thick-layer correction for 1 < Ra < 1e7, Fujii-Imura 0.58 Ra^(1/5) for 1e6 to 1e11, Kadambi-Drake for discs, the inclined-plate rule, the Clausing-Berton reference temperature), Table A.6 (air; the program's properties within -1.4 to +1.3 % for k and alpha and -0.2 to -0.9 % for nu between 250 and 400 K). **The book does not print the program's horizontal laws 0.54 / 0.15 / 0.27.** The transcription of PDF p 433 is degenerate (equation 8.13a lost).
+
+### [YovanovichJafarpur1993] (figures compared)
+Pages 11, 13, 14 R as images: equation 25 prints `0.571`, the legends of Figs. 3 to 6 print `0.570` (an inconsistency of the report, not of a transcription). The cuboid report (pages 11 to 13 and 16): figures only, captions R.
+
+### [Muzychka2003Part1] (new key; pages compared)
+Y. S. Muzychka, J. R. Culham, M. M. Yovanovich, *Thermal spreading resistances in rectangular flux channels, Part I: geometric equivalences*, 36th AIAA Thermophysics Conference, AIAA 2003-4187 (2003). Pages 2 to 6 **R** as images: equations 1 to 30 (compound disk, compound and isotropic flux channel, the geometric equivalence of equations 19 and 20, `a_e = sqrt(A_s/pi)`, `b_e = sqrt(A_b/pi)`) and the result on page 6: **the equivalent flux tube is within +-10 % of the rectangular channel for most combinations with tau < 1, better as Bi grows and tau falls**. Equation 25 carries two misprints of the paper (`eps_s` for `eps_b`, the double index m). Used for the equal-area rectangle of the reduced models on an outline.
+
+### [Muzychka2003Part2] (pages compared)
+Pages 3, 4 and 5 **R** as images (equations 6 to 31; the earlier status was the text layer of p 4 and the image of p 5). Equation 18 has `beta_mn t tanh(beta_mn t)` in its denominator (the transcription drops the `t`).
+
+### [Muzychka2004Orthotropic] (pages compared)
+Pages 5 and 6 (journal pages 49 and 50) **R** as images: equations 37 to 56 (39 and 40 the series and parallel sums used in theory 1.2; 46 reads `h_e b / k_r`).
+
+### [MuzychkaMultilayered1999] (page compared; subject corrected)
+Pages 4 and 5 R as images: equations 27 to 41. **The paper is on the contact conductance of coated surfaces** (single and double coated layers, a correction `C_L`, data of Marotta), not on the spreading in a board; it is not a source of the Analytic model. Status S for the rest.
+
+### [CulhamFourier2000] (tables compared)
+Pages 5 and 6 (journal pages 237 and 238) R as images: Tables 1 to 5 and equation 59; the row 10 / 10 / 500 / 500 of Table 2 prints 32.1 and 28.5 C with a difference of 6.0 % (the two numbers give -11.2 %), as recorded earlier.
+
+### [CulhamYovanovich1998], [TeertstraReview], [SoleymaniKoohbanani], [LeeYovanovich1989Discrete], [Lemczyk1992], [Yovanovich2003], [Yovanovich1995ImageMethod] (pages compared)
+Culham and Yovanovich (1998) page 463 (coupon, Table 1) R; Teertstra review page 83 (equations 20 to 22 and the rule on the properties) R; Soleymani thesis pages 59 to 61 (equations 27 to 29, Tables 9 and 10) R; Lee and Yovanovich (1989) page 265 (all inputs; the scan has a pen stroke through the line of `q_p`, which stays legible) R; Lemczyk (1992) page 416 (Tables 1 to 3) R; Yovanovich (2003) pages 174 and 175 (Tables 3 to 7, equations 29 to 41; Table 3, mu = 0, reproduced by the Bessel series to the printed digits) R; Yovanovich (1995) pages 27 and 28 (equations 4 to 21, Table 1; `G_s(0)` = 0.2394 reproduced) R (the earlier status was a transcription not compared).
+
+### [Saad2003] (page of the list)
+PDF page 454 is the multigrid Fig. 13.4, not the SOR page; the SOR statements stand on pages 126 and 127 (PDF 146, 147) as recorded.
