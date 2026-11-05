@@ -167,7 +167,7 @@ def stackup_template(layers, path=None, inner_oz=0.5):
     # The dielectrics are kept as they are (what fabricators do: they pick another build, they do not thin the dielectrics in proportion),
     # so the board grows by the extra copper
     out["total_thickness_um"] = out["total_thickness_um"] + added
-    out["name"] = f"{out['name']} - derived: {inner_oz:g} oz ({inner_um:g} um) inner copper, dielectrics of the template, board {out['total_thickness_um'] / 1000:.3f} mm (not a fabricator table)"
+    out["name"] = f"{out['name']} - derived: {inner_oz:g} oz ({inner_um:g} um) inner copper, dielectrics of the template, board {out['total_thickness_um'] / 1000:.3f} mm (typical values, check your fabricator's stack-up)"
     out["derived"] = True
     return out
 

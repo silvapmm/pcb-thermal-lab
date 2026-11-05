@@ -11,12 +11,12 @@
       {
         "name": "Epoxy resin",
         "k_w_per_mk": 0.3,
-        "note": "Non-conductive epoxy plug, the usual 'filled via' of a fabricator (IPC-4761 types V to VII, often capped with plated copper). It conducts about as little as FR-4: no thermal gain. JLCPCB: about 0.3 W/mK."
+        "note": "Non-conductive epoxy plug, the usual 'filled via' of a fabricator (IPC-4761 types V to VII, often capped with plated copper). It conducts about as little as FR-4: no thermal gain. Typical value: about 0.3 W/mK."
       },
       {
         "name": "Conductive paste",
         "k_w_per_mk": 8.0,
-        "note": "Copper or silver loaded epoxy. JLCPCB quotes 8 W/mK; other sources 3 to 16. About +5 % on a 0.3 mm via."
+        "note": "Copper or silver loaded epoxy. Datasheets quote 3 to 16 W/mK (8 is a common value). About +5 % on a 0.3 mm via."
       },
       {
         "name": "Copper",

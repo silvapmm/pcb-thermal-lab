@@ -607,7 +607,7 @@ class Step1Page(QWidget):
         self.layers_label = QLabel("")
         self.layers_label.setWordWrap(True)
         self.layers_label.setTextFormat(Qt.PlainText)                       # File names and file text are never read as rich text
-        self.layers_label.setToolTip("Number of copper layers (the copper files in use) and the typical stack-up of the program for that count, not a fabricator table. "
+        self.layers_label.setToolTip("Number of copper layers (the copper files in use) and the typical stack-up of the program for that count: typical values, check your fabricator's stack-up. "
                                      "The files do not carry the dielectrics; edit them in the Stack-up tab after the import.")
         f.addRow("Copper layers", self.layers_label)
         self.outline_label = QLabel("")

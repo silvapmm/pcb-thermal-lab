@@ -57,6 +57,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ### Fixed (dark toolbar icons)
 - The navigation toolbar of the result plots drew pure white icons in the dark theme; they are now painted with the `text` token of the theme and recoloured on a theme switch (`tests/test_toolbar_icons.py`).
 
+### Changed (summary spacing and neutral stack-up text, `fix/summary-spacing-stackup-text`; no number moves)
+
+- The warnings of the Results summary and of the text table are separated by a blank line. The tooltips, the stack-up template names, the user guide and the default libraries no longer name any PCB manufacturer: they say "typical values, check your fabricator's stack-up". `tests/test_no_fabricator_names.py` keeps the names out.
+
 ### Changed (Preferences order, `fix/preferences-solver-gerber-order`; interface only, no key or file format moves)
 
 The Solver settings (models, cell, solver, memory limit) and the Gerber import limit are now sections of their own in the list of Preferences (`Solver`, `Gerber import`), each with a header line saying that it is a machine preference not saved in projects, instead of boxes at the bottom of the long `Defaults for new projects` page.

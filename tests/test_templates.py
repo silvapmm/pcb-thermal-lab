@@ -43,7 +43,7 @@ def test_apply_template_advanced_simple_and_a_user_file(tmp_path):
     b = p.board
     b.make_advanced()
     t = b.apply_template()
-    assert b.is_advanced() and len(b.dielectrics) == 3 and "JLC" in t["name"]
+    assert b.is_advanced() and len(b.dielectrics) == 3 and "typical" in t["name"]
     assert b.copper_thickness == pytest.approx([35e-6, 15.2e-6, 15.2e-6, 35e-6])
     assert b.dielectrics[1].thickness == pytest.approx(1065e-6) and b.total_thickness() == pytest.approx(1586.2e-6)
     p.validate()
