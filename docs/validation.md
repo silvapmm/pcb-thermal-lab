@@ -1217,3 +1217,59 @@ Over the 23 positions the largest error at 1 mm is -5.7 to +11.9 % now (the firs
 Narrow boards (an outline cut at x = W of the same 10 mm board, the via at y = 6 mm, both side walls within six cells at 1 mm, only the nearest imaged): W = 3, 4, 5, 6 and 8 mm with the via in the middle and 0.3 and 0.5 mm off it: -1.4 to +0.5 % at 1 mm (no image -0.6 to +0.5 %) and -0.8 to -0.3 % at 0.5 mm; the second wall is worth at most about 1 point at these widths.
 
 **Not verified.** No physical board; one board and one via (a published case of a via near an edge does not exist in the papers held); several vias near the edge are tested for finiteness, symmetry and the balance, not against a resolved reference; a narrow board with a wall on each side has only the nearest wall per axis (28.1: within 1.5 %); the FDM and the 3D solid are not changed.
+
+## 29. The heat-source shape of an imported part
+
+Which polygon carries the power of a part imported from the paste layer (theory 1.8, models 19.2). Program FVM at 0.5 mm on the imported copper (faces mapping), typical stack-up, h = 10 W/m2K on both faces and the edge, 1 W on the top layer; the RP2040 minimal design run whole (52 x 51 mm, two layers), ISASTM and CMM2 (four layers) as 40 mm windows around the part. The read-out is the hottest face point under the heater, as the program reports it (Tj = T_max + θP); at 1 W it is the part-to-board resistance in K/W. Shapes: (a) the convex hull of the openings, (b) their box, (c) the pad envelope from the footprint name (the matching rule's rectangle, margin 0), (d) the largest opening, (d') the hull of the openings of at least half the area of the largest (the exposed pad or tab; the program's `exposed` on the five exposed-pad parts), (d'') the exposed pad as a square of the size in the footprint name, (e) every opening a heater with the power by paste area. Evidence: `research/gerber-real-boards/docs/heater-shape-opinion.md` (`study_heater_shape.py`) and `docs/heater-modes-for-the-user.md` (`study_heater_margin.py`).
+
+![Heat-source shapes of five parts of the RP2040 minimal design](images/heater_shapes_rp2040.png)
+
+*Figure (`images/heater_shapes_rp2040.png`): five RP2040 parts with the shapes, filled, over the top copper (tan) and the paste openings (grey); the hottest point in K/W and the change against the hull (RP2040 minimal design, BSD-3-Clause, Raspberry Pi Ltd and Tommy Gilligan).*
+
+### 29.1 Eleven parts of three boards (change of the hottest point against the hull)
+
+| Part | Package | Hull (K/W) | Box | Envelope | Largest | Exposed pad (d') | Pad from the name (d'') | Openings by area | Program default |
+| :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: | :-- |
+| RP2040 U3 | QFN-56, pad in 4 windows | 46.4 | -1.4 % | -1.4 % | +65.5 % | +37.4 % | +26.2 % | -2.5 % | exposed |
+| RP2040 U1 | SOT-223 (NCP1117) | 58.7 | -3.9 % | -3.9 % | +44.3 % | +44.3 % | - | +2.4 % | exposed (tab) |
+| ISASTM U5 | SOT-223 (AMS1117) | 43.9 | -3.1 % | -3.7 % | +18.8 % | +18.8 % | - | +4.9 % | exposed (tab) |
+| ISASTM U15 | QFN-24, EP 2.6 mm in 4 windows | 55.0 | +9.0 % | +3.0 % | +48.1 % | +12.7 % | +12.0 % | -1.9 % | exposed |
+| CMM2 U4 | QFN-28, EP 3.35 mm in 9 windows | 47.2 | -2.0 % | -6.1 % | +36.6 % | +13.1 % | +11.3 % | +2.9 % | exposed |
+| RP2040 U2 | SOIC-8 | 109.3 | 0.0 % | -0.5 % | +299.3 % | (no pad) | - | -3.1 % | hull |
+| RP2040 Y1 | HC49 crystal | 56.6 | 0.0 % | 0.0 % | +63.2 % | (no pad) | - | +8.1 % | hull |
+| RP2040 R2 | 0402 | 245.9 | -0.3 % | -0.3 % | +55.9 % | (no pad) | - | -6.0 % | hull |
+| RP2040 C1 | 0805 | 98.7 | -0.3 % | -0.3 % | +22.3 % | (no pad) | - | +9.3 % | hull |
+| RP2040 J3 | USB micro-B | 94.0 | -2.0 % | -2.4 % | +82.7 % | (no pad) | - | -1.1 % | hull |
+| ISASTM U14 | SOT-23-6 | 81.3 | 0.0 % | -5.0 % | +227.6 % | (no pad) | - | +7.1 % | hull |
+
+For parts without an exposed pad the hull, the box, the envelope and the openings by area agree within -6.1 to +9.3 %, about the rest of the model error at 0.5 mm (section 27), so the hull is the default. For the exposed-pad and tab parts the heat on the pad reads +12.7 to +44.3 % hotter than the hull (+6 to +26 K per watt), beyond the model error and on the safe side; the paste windows are inset in the copper pad, so the exposed pad from the paste reads 0.6 to 8.2 % hotter than the pad of the footprint name (conservative). The largest opening alone is wrong whenever the part has several similar pads (+22 to +299 %) and equals the exposed pad for a single tab. The +9.0 % of the box on U15 is the face term of its corners on bare laminate. The percentages include the board mean rise (18 K on the RP2040, 29 K in the windows).
+
+### 29.2 A published case: the JEDEC 2s2p board
+
+The JESD51-7 2s2p board of `docs/calculators.md` 2.1 (TPS7A47, RθJA 32.5 K/W, θJC(bot) 1.7 K/W, 3 x 3 vias assumed), cell 1 mm, computed h, 1 W: the heater on the 3.15 mm exposed pad gives **31.9 K/W** (-1.8 %), on the 5 mm body 40.0 K/W (+23 %; 37.7 without the face term), on the body with the leads (5.8 mm) 45.1 K/W (+39 %; 42.0). The lead traces of the JEDEC board are not drawn, so the body rows overstate what a real board does under the leads; with the heater on the pad the program reproduces the datasheet.
+
+### 29.3 The rule on eight boards
+
+The exposed-pad rule (`parts.dominant_group`; constants `EXPOSED_MIN_AREA` 0.5, `EXPOSED_MIN_PASTE` 0.25, `EXPOSED_MAX_HULL` 0.75, `EXPOSED_MIN_FILL` 0.5, `EXPOSED_MAX_GAP` 0.5) was checked on every part with a polygon of eight open boards (RP2040, ISASTM, CMM2, oswlight, co60, StickHub X3, Ucamco X3 coldfire and li-ion; 875 parts): 14 parts are taken, all exposed pads or tabs (QFN, SOT-223, DPAK, D2PAK, exposed-pad TSSOP: group fill 0.70 to 1.00, gap at most 0.25 of the side of the largest opening, group hull at most 0.62 of the part), and no other part is; the nearest miss is a micro-USB with three mounting pads (fill 0.59, gap 0.66). The first rule (hull limit 0.5, no fill or gap test) missed the four DPAK (0.60) and the D2PAK (0.62), on the unsafe side, and took seven JST SH connectors and four tactile switches (fill 0.34 / 0.39, gap 1.9 to 3.0 sides). The thinnest margin is the RP2040 QFN-56, paste share 0.32 against 0.25. Not among the parts: SOT-89, power SO-8, LGA with a thermal pad. Held by `tests/test_exposed_pad.py`.
+
+### 29.4 A margin around the shape
+
+The hull and the exposed pad of the five exposed-pad parts grown by 0.2, 0.3, 0.5 and 1.0 mm (Minkowski sum with a disc), same runs as 29.1:
+
+| Part | Hull + 0.2 / 0.3 / 0.5 / 1.0 mm (vs hull) | Envelope (vs hull) | Exposed pad + 0.2 / 0.3 / 0.5 / 1.0 mm (vs the exposed pad) | Pad from the name (vs the exposed pad) |
+| :-- | :-- | --: | :-- | --: |
+| RP2040 U1, SOT-223 | -1.8 / -3.1 / -5.0 / -9.8 % | -3.9 % | -5.1 / -8.3 / -12.9 / -21.8 % | - |
+| ISASTM U5, SOT-223 | -1.4 / -2.1 / -3.2 / -5.3 % | -3.7 % | -2.7 / -4.1 / -6.8 / -11.6 % | - |
+| RP2040 U3, QFN-56 | -2.2 / -2.9 / -4.5 / -6.1 % | -1.4 % | -2.1 / -2.8 / -9.1 / -13.4 % | -8.2 % |
+| ISASTM U15, QFN-24 | +5.3 / +5.3 / +4.7 / -1.6 % | +3.0 % | 0.0 / +0.7 / -4.3 / -10.2 % | -0.6 % |
+| CMM2 U4, QFN-28 | -0.6 / -1.3 / -3.3 / -7.9 % | -6.1 % | -2.2 / -3.3 / -5.5 / -11.9 % | -1.6 % |
+
+A margin makes the part read cooler (the exception, U15's hull, reaches a hotter cell and was not investigated further); the hull + 0.3 mm is within 0.8 to 1.6 points of the envelope on the SOT-223, and the exposed pad + 0.1 to 0.5 mm reaches the pad of the footprint name. A margin is not a safety margin: on the exposed pad it reads 0 to -8 % up to 0.3 mm, up to -13 % at 0.5 mm and -10 to -22 % at 1 mm; on the hull (envelope + margin) -1 to -10 %, except the QFN-24 of the ISASTM (+5 %, cause not investigated). On the SOT-223 the hull and the envelope read 16 to 34 % below the tab, and the tab is the surface to which the datasheet theta_JC is defined. The default margin of the program is 0 and there is no margin feature in this release; the modes and the margin are planned (`versions.md`, Planned, 'Heater modes for the user'). The "largest opening" shape is left as it is for now (it is right only for a single tab).
+
+![A margin around the heat-source polygon](images/heater_shape_margin.png)
+
+*Figure (`images/heater_shape_margin.png`, from `research/gerber-real-boards/figures/fig_24_heater_margin.png`): the RP2040 SOT-223 and QFN-56 with the hull, the hull + 0.3 mm, the envelope, the exposed pad, the exposed pad + 0.3 mm and the pad from the name; right, the hottest point against the margin for the five parts (RP2040 minimal design, BSD-3-Clause, Raspberry Pi Ltd and Tommy Gilligan; the other boards as numbers only).*
+
+### 29.5 What was not verified
+
+No physical board; the comparison is between shapes in the program's own FVM plus one datasheet case. The heat that leaves through the leads of an exposed-pad package is not modelled (all of it on the pad: the worst case). The exposed-pad size of the RP2040 (3.2 mm) is from memory; eleven parts of three KiCad boards for the shape table, eight boards (KiCad and the Ucamco X3 samples) for the rule.
