@@ -15,6 +15,7 @@ from typing import List, Optional
 import copy
 import json
 import math
+import re
 import os
 
 import numpy as np
@@ -169,6 +170,10 @@ def stackup_template(layers, path=None, inner_oz=0.5):
     out["name"] = f"{out['name']} - derived: {inner_oz:g} oz ({inner_um:g} um) inner copper, dielectrics of the template, board {out['total_thickness_um'] / 1000:.3f} mm (not a fabricator table)"
     out["derived"] = True
     return out
+
+
+# Largest edge heat transfer coefficient accepted by Board.validate (W/m2K)
+H_SIDE_MAX = 1e5
 
 
 @dataclass
@@ -388,6 +393,12 @@ class Board:
                 raise ValueError("the board outline must be a simple polygon with a positive area")
         if self.h_top < 0 or self.h_bottom < 0:
             raise ValueError("heat transfer coefficients must be >= 0")
+        # The edge coefficient too: a negative one made the edge a heat source in the grid models and a NaN or an infinite one gave a NaN field; None is insulated
+        if self.h_side is not None and (not math.isfinite(self.h_side) or self.h_side < 0):
+            raise ValueError("the edge heat transfer coefficient must be a finite number >= 0 (or None for insulated edges)")
+        # Upper limit (maintainer): the Preferences range ends at 500 and a value like 1e300 made the edge heat of the Analytic absurd
+        if self.h_side is not None and self.h_side > H_SIDE_MAX:
+            raise ValueError(f"the edge heat transfer coefficient must not exceed {H_SIDE_MAX:g} W/m2K")
         if self.h_mode not in ("manual", "computed"):
             raise ValueError("h_mode must be 'manual' or 'computed'")
         if self.orientation not in ("horizontal", "vertical"):
@@ -901,6 +912,9 @@ class Problem:
     vias: List[Via] = field(default_factory=list)
     heatsinks: List[Heatsink] = field(default_factory=list)
     name: str = "board"
+    # The copper of an import (masks as packed text, see copper.py). Not part of the native problem JSON: a project keeps it in its import records
+    # (format 2) and hands it to the problem to run; None for every drawn board, which then takes the zone path unchanged
+    imported: Optional["ImportedCopper"] = None
 
     def total_power(self):
         """!
@@ -915,9 +929,10 @@ class Problem:
         @details The box is scaled by s = sqrt(outline area / box area) in both directions, which keeps the aspect ratio and the board
                  area, and every position is scaled by the same s: heater centres, via positions, zone and heatsink polygons. The heaters keep
                  their size (so their power density is unchanged) and are pushed back inside the new box if needed. The outline is dropped.
-                 Measured against the FVM on the real shape: the area-equivalent box is within 0.4 to 2.9 % of the temperature rise on an
+                 Measured against the FVM on the real shape: the area-equivalent box is within 0.6 to 2.2 % of the temperature rise on an
                  ellipse or a T with parts away from the edge, against 6 to 10 % too low with the bounding box on the ellipse; a part near the edge of
-                 the real board or in the arm of a T is 6 to 18 % too cool in the Lumped and 0 to 16 % in the Analytic (`docs/validation.md` section 13).
+                 the real board or in the arm of a T is 6 to 11 % too cool in the Lumped and 1.5 to 15 % in the Analytic (`docs/validation.md` section 13).
+                 The copy carries `board.edge_perimeter`, the perimeter of the real outline in m, for the edge loss of the Analytic model.
         @return Tuple (Problem without outline, s). For a board without outline: (a copy, 1.0).
         """
         q = copy.deepcopy(self).drop_off_board_vias()      # A via with no board under it conducts nothing, so it must not land on the scaled box
@@ -926,6 +941,11 @@ class Problem:
             return q, 1.0
         # The outline lies inside the box, so s <= 1 (the new box is never larger than the old one)
         s = math.sqrt(min(polygon_area(b.outline) / (b.width * b.height), 1.0))
+        # The perimeter of the real outline (m), kept on the copy (not a saved field) so that the Analytic moves the edge loss of the real edge
+        # to the faces: the rectangle of the same area has a shorter perimeter (a T of 80 x 60 mm: 280 mm against 198 mm), which made it lose
+        # about 30 % less heat through the edge than the FVM on the real shape.
+        o = np.asarray(b.outline, dtype=float)
+        b.edge_perimeter = float(np.hypot(*(np.roll(o, -1, axis=0) - o).T).sum())
         b.outline = None
         b.width, b.height = b.width * s, b.height * s
         for z in q.zones:
@@ -934,6 +954,10 @@ class Problem:
             k.polygon = k.polygon * s
         for v in q.vias:
             v.x, v.y = v.x * s, v.y * s
+        if q.imported is not None:
+            # The masks are stretched with the board: the pixel scales like the box (the raster is anchored at the top-left corner of the box)
+            q.imported = copy.copy(q.imported)
+            q.imported.pix_mm = q.imported.pix_mm * s
         for h in q.heaters:
             c = h.polygon.mean(axis=0)
             moved = h.polygon - c + c * s                                   # Same size, scaled centre
@@ -1512,26 +1536,33 @@ class ImportFile:
 class ImportPart:
     """!
     @brief An imported part (heat source) keyed by its designator, with the user's edits.
+    @details `from_file` holds what the files say (value, mount, rotation_deg, height_mm, package, mpn, position_mm, n_openings, shape_source, `source` of the match: "x3",
+             "to.c+placement", "placement by position", "paste only" or "placement only"; `grouping` "hand" or "proximity" for a name the files do not give, matched by position
+             in a re-import; `heat_source` False for an X3 part that is not SMD; `orphan` True for a part kept after it left the files); it is rewritten at every import and is never an
+             edit. The user's edits stay in `edits`.
     """
     designator: str = ""                                  # Key used to match the part again in a re-import
-    shape: str = "box"                                    # "box" or "hull"
+    shape: str = "box"                                    # "box", "hull", "largest" (the largest opening) or "outline" (an outline of an X3 component layer)
     polygon_mm: list = field(default_factory=list)        # Heat-source polygon [[x, y], ...] in mm
     power: float = 0.0                                    # Power in W (user edit)
     edits: dict = field(default_factory=dict)             # Other user edits (tj_max, role, use, shape_user, ...)
     footprint: str = ""                                   # Footprint name from the placement file, when known
     side: str = ""                                        # "top" or "bottom", when known
+    from_file: dict = field(default_factory=dict)         # What the files say about the part (value, mount, rotation_deg, height_mm, package, mpn, source, ...); rewritten at every import, never merged with `edits`
     extra: dict = field(default_factory=dict)             # Keys written by a later version, kept and written back
 
-    KEYS = ("designator", "shape", "polygon_mm", "power", "edits", "footprint", "side")
+    KEYS = ("designator", "shape", "polygon_mm", "power", "edits", "footprint", "side", "from_file")
 
     def to_dict(self):
         """!
         @brief Serialise the part.
         @return JSON-ready dict.
         """
-        return _with_unknown({"designator": self.designator, "shape": self.shape, "polygon_mm": [list(map(float, p)) for p in self.polygon_mm],
-                              "power": float(self.power), "edits": copy.deepcopy(self.edits), "footprint": self.footprint, "side": self.side},
-                             self.extra)
+        out = {"designator": self.designator, "shape": self.shape, "polygon_mm": [list(map(float, p)) for p in self.polygon_mm],
+               "power": float(self.power), "edits": copy.deepcopy(self.edits), "footprint": self.footprint, "side": self.side}
+        if self.from_file:                                # Written only when not empty: a format-2 file without file data stays byte-identical
+            out["from_file"] = copy.deepcopy(self.from_file)
+        return _with_unknown(out, self.extra)
 
     @staticmethod
     def from_dict(d):
@@ -1542,29 +1573,39 @@ class ImportPart:
         """
         return ImportPart(str(d.get("designator", "")), str(d.get("shape", "box")), [list(map(float, p)) for p in d.get("polygon_mm", [])],
                           float(d.get("power", 0.0)), copy.deepcopy(dict(d.get("edits", {}))), str(d.get("footprint", "")),
-                          str(d.get("side", "")), _unknown_keys(d, ImportPart.KEYS))
+                          str(d.get("side", "")), copy.deepcopy(dict(d.get("from_file", {}))), _unknown_keys(d, ImportPart.KEYS))
 
 
 @dataclass
 class ImportedCopper:
     """!
-    @brief Placeholder for the output of an import (the packed copper masks); the imported-copper branch fills it.
-    @details Stored by value ("embed" True: each layer carries its packed mask) or by reference ("embed" False: roles only, redrawn from the
-             sources). The program of this version only keeps and writes it back; nothing in the models reads it.
+    @brief The copper of an import: one coverage mask per copper layer at the pixel of the import, kept as packed text.
+    @details Stored by value ("embed" True: each layer carries its packed mask) or by reference ("embed" False: roles only, redrawn from the sources, so the models
+             see no copper until the masks are redrawn). A layer entry is a dict {"name", "role", "index" (0 = top copper layer of the board), "mask", "thickness_um"
+             (optional)}; "mask" is {"kind": "coverage" (one byte per pixel, 0 to 255) or "binary" (bits), "shape": [rows, cols], "data": base64 of the deflated bytes}
+             (copper.pack_coverage / unpack_coverage). The raster covers the board box: its top-left corner is the top-left corner of the box, rows run downwards, columns to the
+             right, and its last row and column may end up to one pixel beyond the box. The masks stay text inside the record, so a copy of the record (an undo snapshot,
+             a deep copy of the problem) shares the strings and costs nothing; the arrays are made when a model needs them (copper.py keeps the last few).
+             `mapping` chooses how the models turn the masks into cell conductances ("faces" the default, flow-based faces on the reduced sheet of the laminate rule;
+             "lambda" the fast lambda 0.5 faces; "fill" the arithmetic copper fraction, which reads 10 to 30 % cool on thin copper).
     """
     pix_mm: float = 0.0                                   # Pixel of the masks in mm
     embed: bool = True                                    # True: masks are inside the layers entries
-    layers: list = field(default_factory=list)            # [{"name": str, "role": str, "mask": packed dict or absent}, ...]
+    layers: list = field(default_factory=list)            # [{"name": str, "role": str, "index": int, "mask": packed dict or absent}, ...]
+    mapping: str = "faces"                                # "faces" (default), "lambda" or "fill"
     extra: dict = field(default_factory=dict)             # Keys written by a later version, kept and written back
 
-    KEYS = ("pix_mm", "embed", "layers")
+    KEYS = ("pix_mm", "embed", "layers", "mapping")
 
     def to_dict(self):
         """!
         @brief Serialise the reference.
-        @return JSON-ready dict.
+        @return JSON-ready dict ("mapping" only when it is not the default, so a file of the first format 2 stays byte-identical).
         """
-        return _with_unknown({"pix_mm": float(self.pix_mm), "embed": bool(self.embed), "layers": copy.deepcopy(self.layers)}, self.extra)
+        out = {"pix_mm": float(self.pix_mm), "embed": bool(self.embed), "layers": copy.deepcopy(self.layers)}
+        if self.mapping != "faces":
+            out["mapping"] = self.mapping
+        return _with_unknown(out, self.extra)
 
     @staticmethod
     def from_dict(d):
@@ -1575,7 +1616,27 @@ class ImportedCopper:
         """
         d = d or {}
         return ImportedCopper(float(d.get("pix_mm", 0.0)), bool(d.get("embed", True)), copy.deepcopy(list(d.get("layers", []))),
-                              _unknown_keys(d, ImportedCopper.KEYS))
+                              str(d.get("mapping", "faces")), _unknown_keys(d, ImportedCopper.KEYS))
+
+
+def _profile_record(d):
+    """!
+    @brief Read the CAD profile record of an import, tolerating anything a hand-edited or newer file holds.
+    @details The key must look like a key of the table (lower-case letters, digits, `_`, `-`, `.`, at most 64), because it may be shown in the import window; other
+             keys of the dict (written by a later version) are kept and written back.
+    @param d Value of the key "cad_profile" (a dict with "key", "source" and "table", or None).
+    @return dict with the three keys (and any others the file held), or None when absent or malformed.
+    """
+    if not isinstance(d, dict) or not isinstance(d.get("key"), str) or not re.fullmatch(r"[a-z0-9_.-]{1,64}", d["key"]):
+        return None
+    source = d.get("source") if d.get("source") in ("detected", "user") else "detected"
+    try:
+        table = int(d.get("table", 0))
+    except (TypeError, ValueError, OverflowError):
+        table = 0
+    out = {"key": d["key"], "source": source, "table": table}
+    out.update({k: copy.deepcopy(v) for k, v in d.items() if isinstance(k, str) and k not in out})
+    return out
 
 
 @dataclass
@@ -1591,9 +1652,10 @@ class ImportRecord:
     settings: dict = field(default_factory=dict)                      # Layer roles and order, drill units, outline choice, ...
     warnings: list = field(default_factory=list)                      # Warnings of the import (text)
     holes: list = field(default_factory=list)                         # Plated holes [{"x_mm", "y_mm", "d_mm", "kind": "via" or "component"}, ...]
+    cad_profile: Optional[dict] = None                                # CAD profile of the name rules: {"key", "source": "detected" or "user", "table": version}; None = none recorded
     extra: dict = field(default_factory=dict)                         # Keys written by a later version, kept and written back
 
-    KEYS = ("name", "files", "box_mm", "parts", "copper", "settings", "warnings", "holes")
+    KEYS = ("name", "files", "box_mm", "parts", "copper", "settings", "warnings", "holes", "cad_profile")
 
     def to_dict(self):
         """!
@@ -1602,7 +1664,9 @@ class ImportRecord:
         """
         return _with_unknown({"name": self.name, "files": [f.to_dict() for f in self.files], "box_mm": [float(v) for v in self.box_mm],
                               "parts": [p.to_dict() for p in self.parts], "copper": None if self.copper is None else self.copper.to_dict(),
-                              "settings": copy.deepcopy(self.settings), "warnings": list(self.warnings), "holes": copy.deepcopy(self.holes)},
+                              "settings": copy.deepcopy(self.settings), "warnings": list(self.warnings), "holes": copy.deepcopy(self.holes),
+                              # written only when present, so a project without a profile stays byte-identical to the first format 2 files
+                              **({} if self.cad_profile is None else {"cad_profile": copy.deepcopy(self.cad_profile)})},
                              self.extra)
 
     @staticmethod
@@ -1616,7 +1680,7 @@ class ImportRecord:
                             [ImportPart.from_dict(p) for p in d.get("parts", [])],
                             None if d.get("copper") is None else ImportedCopper.from_dict(d["copper"]),
                             copy.deepcopy(dict(d.get("settings", {}))), list(d.get("warnings", [])), copy.deepcopy(list(d.get("holes", []))),
-                            _unknown_keys(d, ImportRecord.KEYS))
+                            _profile_record(d.get("cad_profile")), _unknown_keys(d, ImportRecord.KEYS))
 
 
 reload_libraries()

@@ -25,7 +25,7 @@ import time
 
 import numpy as np
 
-from . import __version__, fvm, laminate, memory
+from . import __version__, copper, fvm, laminate, memory
 from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
@@ -54,7 +54,11 @@ def _cell_arg(args, problem, default, transient=False):
     # ignores keys it does not know, so "all" passed as it is would not be checked), and the base is the resident size of this process, where the solve runs
     chosen = getattr(args, "model", "fvm")
     models = {"all": MODELS, "compare": RUN_MODELS}.get(chosen, (chosen,))
-    return suggest_cell_mm(problem, models=models, transient=transient, base=None)
+    cell = suggest_cell_mm(problem, models=models, transient=transient, base=None)
+    note = copper.auto_cell_note(problem, cell)          # Imported copper wants 1 mm or less: say so when the memory forced a larger cell
+    if note:
+        print(note, file=sys.stderr)
+    return cell
 
 
 def _guard(problem, models, cells, transient=False):

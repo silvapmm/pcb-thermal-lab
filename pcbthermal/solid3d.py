@@ -31,9 +31,9 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import memory, viawell
+from . import copper, memory, viawell
 from .fvm import ORDERING
-from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid, zone_fill
+from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
 from .results import SteadyResult
 
 log = logging.getLogger(__name__)
@@ -142,7 +142,7 @@ class Solid:
         self.area_b = Ab
 
         # --- Copper fill of every layer and the plated area of the vias in every cell
-        fill = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
         via_frac = np.zeros((ny, nx))
         for v, share in zip(problem.vias, problem.via_board_shares()):
             if share > 0.0:                    # The geometric test of the warning and of every model: a via with no board under its drill adds nothing
@@ -370,7 +370,7 @@ def solve_steady(problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
     @brief Steady-state solution of the 3D model.
     @param problem A Problem.
     @param cell_mm Target size of the cells in the plan in millimetres.
-    @param n_diel Slabs across every dielectric gap (4 by default; 8 changes the answer by under 0.6 % even on a heater-sized pad).
+    @param n_diel Slabs across every dielectric gap (4 by default; not enough for a part whose side is under 6.7 times the slab d / 4: under a 2 mm source 4 against 8 slabs differ 5 % at 1.6 mm and 14 % at 3.2 mm, and the solid reads it up to +20 % bare / +27 % pad hot with 4, +5.4 / +13.3 % with 8, +0.4 / +7.9 % with 16; checks.check_small_part_laminate warns).
     @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()).
     @return SteadyResult with the temperature of the copper slab of every layer (layout of the FVM), the heat by path and, with metal
             blocks, their temperature and heat as the FVM does.
