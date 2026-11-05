@@ -6,13 +6,17 @@ Everything here is a proposal measured on copies (`lib/`); `pcbthermal/` is unto
 
 | item | proposal | for 2.5.0? | reason and risk |
 | :-- | :-- | :-- | :-- |
-| A | per-layer edge in the steady model | **No, 2.6.0** | gain on unequal layers with a strong edge (8.64 -> 4.07 % worst, mean 1.51 -> 0.90 %; 2.3), no gain on uniform layers; needs the Woodbury step restructured (LU kept, `solve_steady` split in two). Frozen cost is small (3 of 10 records move by under 0.01 K, 2.5), so the frozen file is NOT a reason to hurry: the pending file is regenerated in 2.6.0 as cheaply. |
-| B | local modal transient (with the calibration of the steady point) | **No, 2.6.0** | removes -67 .. +113 % errors of the time to 63 % with a heatsink (3.2), but it is a new ~250-line module with a dense eigenproblem per part, no profile adapter yet, 10 boards of evidence; four frozen t63 records would move (3.3). A hurried version in a release battery is the larger risk. |
-| B0 | **text-only warning in 2.5.0** | **Yes** | when the Analytic transient or profile is asked on a board with a heatsink: "the Analytic transient smears heatsinks over the board; the time to 63 % was measured from -67 % to +113 % of the FVM; use the FVM or Lumped for the time response (Lumped: -12 to +8 % with the heatsink under the part)". No number moves, no frozen record. |
+| A | per-layer edge in the steady model | **No, 2.6.0** (review: go) | gain on unequal layers with a strong edge (8.64 -> 4.07 % worst, mean 1.51 -> 0.90 %; 2.3), no gain on uniform layers; what is left is the FVM's laminate rule, always cold (README 6.1: within 0.25 % of the FVM with one laminate link); needs the Woodbury step restructured (LU kept, `solve_steady` split in two). Frozen cost is small (3 of 10 records move by under 0.01 K, 2.5), so the frozen file is NOT a reason to hurry: the pending file is regenerated in 2.6.0 as cheaply. |
+| B | local modal transient, **calibration factor on the via couplings only** (review, README 6.3) | **No, 2.6.0** (review: go with that calibration) | removes -66 .. +84 % errors of the time to 63 % with a heatsink against the converged FVM (+175 % with 300 W/m2K on 2 layers; README 6.2, 6.3) to -9.0 .. +0.6 % (one factor on the whole tile matrix, the first proposal: up to +32 %), but it is a new ~250-line module with a dense eigenproblem per part, no profile adapter yet, 10 boards of evidence; four frozen t63 records would move (3.3). A hurried version in a release battery is the larger risk. |
+| B0 | **text-only warning in 2.5.0** | **Yes** | when the Analytic transient or profile is asked on a board with a heatsink: "the Analytic transient smears heatsinks over the board; the time to 63 % was measured from -66 % to +84 % of the FVM (up to +175 % with a strong heatsink and vias); use the FVM for the time response (the Lumped is close only when the heatsink is under the part)". Review: the first text quoted -67 / +113 % against the FVM at 1 mm, which is not converged on the 4 L board (README 6.2), and "Lumped -12 to +8 %", which is -2.5 to +13 % with both models at 0.5 mm (README 4). No number moves, no frozen record. **Merged into `develop` (`fix/analytic-transient-warning`) with the -67 % / +113 % text** (`analytic.py`, the user guide, `docs/validation.md`): the review recommends reopening that branch to quote the converged range and the worst case found (-66 % to +175 %). |
 | C | Lumped transient | no change | its error comes from the steady ring averaging (4), not from a calibration |
 
 Why 2.5.0 does not need A or B for the frozen records: whatever is frozen at 2.5.0 is replaced at the 2.6.0 refreeze through the pending-file mechanism; a second shift costs one
 `make_pending.py` run (A: 3 Analytic steady records of the harness; B: 4 Analytic times to 63 %: example_board, profile_board, plate_vias, plate_lone_via).
+
+**Recommendation of the review, per decision** (README 6.5): (A) adopt in 2.6.0 as written; tell the user in the release notes that partial copper with a strong edge then
+reads a few per cent cold, never hot. (B) adopt in 2.6.0 with the factor on the vias only (2.2 below); not the one-factor version. (B0) yes for 2.5.0, with the corrected
+numbers above. (C) no change.
 
 ## 1. A: per-layer edge, exact changes in `analytic.py`
 
@@ -56,7 +60,8 @@ unequal layers. Options: (i) leave and document; (ii) after the local system of 
 * 2 L top 0.2 / bottom full, h_side 200, corner part: hottest rise within 0.3 % of the finite-difference solution of the same sheets (`research/analytic-edge-spatial` `sheet_fd`
   or a copy in the test helper), and the program's present common beta off by more than 5 % (the regression the test must keep failing for the old code);
 * heat balance `top + bottom + sides` within 1e-3 of the power with unequal layers, vias and a heatsink;
-* the 54-board study (`scripts/study_perlayer_edge.py --part 2`): max error <= 4.5 % and mean <= 1.0 %, per-layer not worse than the program by more than 0.1 point on any board;
+* the 48 boards of two or more layers of the study (`scripts/study_perlayer_edge.py --part 2`; the 6 one-layer rows keep the program's one-layer error, -7.3 %, and are left
+  out, review README 6.4): max error <= 4.5 % and mean <= 1.0 %, per-layer not worse than the program by more than 0.1 point on any board;
 * GMRES product count <= 12 on every board of the study.
 
 ## 2. B: local modal transient
@@ -70,8 +75,10 @@ steady solve: factor it out of `solve_steady` as `_local_conductances(problem, s
 ### 2.2 `_ModalSet`
 
 * `_calibrated_dynamics` is replaced by: uniform dynamics with `via_scale = heatsink_scale = 0` (the board without them), plus, when the problem has vias or heatsinks, a
-  `LocalSystem` with `K = 16` (module constant `LOCAL_MODES`, 24 optional), calibrated with one factor `s` on `C` so that the steady rise at the heater's own point equals that of
-  `solve_steady` for the same part alone (the present `local_max` target, taken at the point, not at the maximum).
+  `LocalSystem` with `K = 16` (module constant `LOCAL_MODES`, 24 optional), calibrated with one factor `s` **on the via couplings of `C` only** (the heatsink and block
+  conductances enter as built) so that the steady rise at the heater's own point equals that of `solve_steady` for the same part alone (the present `local_max` target, taken at
+  the point, not at the maximum). Review (README 6.3): a factor on the whole of `C` makes the vias too strong and the heatsink too weak when both are present (t63 +5 to +32 %);
+  on the vias only, -9.0 to +0.6 %. No vias: no factor (s = 1). The bisection must check that the target is inside its bracket and warn otherwise (the prototype raises).
 * The response is the coupled block (eigenvalues `lam_k`, source `g_k`, output row `u_k`) plus the uniform modes outside `K x K`. Represent both as flat mode lists
   (`lam`, `G (nh, n)`, `U (nh, n)`), so that `step_responses`, `drive`, `steady` and `points_temperature` keep their form; the coupled block adds `back` for the field
   (`field` needs the block's `Cap^-1/2 V` and `D`; the 2D evaluation is a sum over block modes of `phi_m(x) phi_n(y) a_mn`).
@@ -89,16 +96,18 @@ unchanged (-37 %), 4 L +113 % -> +72 %. Not good enough to be called a fix; it i
 
 * no vias, no heatsinks: `step_responses` bit-identical to the present code;
 * steady plateau: `rth` equals the point value of `solve_steady` within 1 % for the 10 boards of `scripts/study_transient_both.py`;
-* time to 63 % against the FVM at 1 mm: within 10 % on the nine boards other than the 4 L one (measured 0.1 to 8.7 %), and in the 4 L case no worse than the present +113 %;
+* time to 63 % against the FVM at 0.5 mm (converged, README 6.2): within 3 % on the nine boards other than the 4 L one (measured -2.0 to +0.5 % with the factor on the vias),
+  within 10 % on the 4 L one (-8.1 %);
+* `vias + sink under`: |t63 error| < 2 % (measured -0.1 %); the one-factor calibration fails it (+8.5 %), and so does the present code (+45 %);
 * `sink under`: |t63 error| < 3 % (measured -0.4 %), and the present code fails the test (-36.7 %);
 * `sink beside`: steady plateau within 1 % of the steady solve (present code: 19.53 against 23.92 K/W);
-* profile: square wave of period t63/2 and 2 t63, peak and swing of the local system within 4 % of the FVM on the 9 boards;
+* profile: square wave of period t63/2 and 2 t63, peak and swing of the local system within 4 % of the FVM on the 10 boards (measured 3.6 % at most with the factor on the vias);
 * K 16 versus K 24: t63 within 2 points on every board.
 
 ### 2.5 Frozen records that would move
 
-Analytic times to 63 % of `example_board` and `profile_board` (identical, 9 vias and a heatsink; program +18.0 % of the FVM at 2 mm -> local +3.8 %, change -12.0 % against the
-program), `plate_vias` (+1.3 %), `plate_lone_via` (+1.1 %) (README 3.3); the Analytic steady records, the other three models and the boards without vias or heatsinks do not move. The
+Analytic times to 63 % of `example_board` and `profile_board` (identical, 9 vias and a heatsink; program +18.0 % of the FVM at 2 mm -> local +3.8 % with one factor, change
+-12.0 % against the program; with the factor on the vias (review) -4.0 % of the FVM at 2 mm, -2.6 % at 0.5 mm, change -18.6 %), `plate_vias` (+1.3 %), `plate_lone_via` (+1.1 %) (README 3.3); the Analytic steady records, the other three models and the boards without vias or heatsinks do not move. The
 `profile_board` run of the Analytic would move in its power-profile output if the harness records it (not checked). Pending file `analytic-transient.json` at the 2.6.0 refreeze.
 
 ## 3. C: Lumped

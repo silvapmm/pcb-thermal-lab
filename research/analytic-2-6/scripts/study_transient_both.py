@@ -9,6 +9,7 @@
          of lib/calib_variants.py. Printed: steady resistance, time to 63 %, the largest difference of the whole curve (in percent of the steady resistance) and
          the error of the time to 63 % against the FVM.
          Run from the repository root: .venv/bin/python research/analytic-2-6/scripts/study_transient_both.py [--variants program,two,two_max]
+         [--local 16,24] [--cell 1.0] [--calibrate-on all|vias]  (the review's run: --variants program --local 16 --cell 0.5 --calibrate-on vias)
 """
 
 import argparse
@@ -90,6 +91,7 @@ def main(argv=None):
     ap.add_argument("--variants", default="program,two,two_max")
     ap.add_argument("--local", default="16,24", help="K of the local modal prototype (empty: none)")
     ap.add_argument("--cell", type=float, default=1.0)
+    ap.add_argument("--calibrate-on", default="all", choices=("all", "vias"), help="factor of the local system on the whole tile matrix or on the vias only (review)")
     args = ap.parse_args(argv)
     variants = args.variants.split(",")
     print(f"{'board':24s} {'model':16s} {'R K/W':>7s} {'t63 s':>8s} {'t63 err %':>9s} {'curve max %':>11s}   square wave peak/swing error % at T = t63/2 and 2 t63")
@@ -102,8 +104,8 @@ def main(argv=None):
         rows = [("lumped", None)] + [("analytic", v) for v in variants] + [("local", int(k)) for k in args.local.split(",") if k]
         for model, v in rows:
             if model == "local":
-                ti, zi, ri, _ = LM.step_local(p, args.cell, 300, v)
-                label = f"local K{v}"
+                ti, zi, ri, _ = LM.step_local(p, args.cell, 300, v, calibrate_on=args.calibrate_on)
+                label = f"local K{v}" + ("" if args.calibrate_on == "all" else " vias")
             else:
                 if v:
                     cv.install(v)

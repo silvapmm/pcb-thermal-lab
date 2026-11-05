@@ -32,5 +32,10 @@ for label,L,adv,fills,hs in (("2L 1/0.2",2,False,(1,0.2),200.0),("2L .2/1",2,Fal
     ti,zi,ri=B.step(p,"analytic",1.0)
     print(f"{label}: FVM R {r[0]:.3f} t63 {ref:.1f} | program R {ri[0]:.3f} t63 {B.t63(ti,zi[:1],ri[:1])[0]:.1f} curve {curve_err(t,z[0],r[0],ti,zi[0],ri[0]):.1f}%",end="")
     for K in (16,):
-        tl,zl,rl,s=LM.step_local(p,1.0,300,K,edge=True,target_solver=tgt)
+        try:
+            tl,zl,rl,s=LM.step_local(p,1.0,300,K,edge=True,target_solver=tgt)
+        except RuntimeError as exc:
+            # The review added a bracket check to the bisection: no factor in 0.05 to 20 matches the target (before, the bisection returned an end silently)
+            print(f" | edge-block K{K}: {exc}",flush=True)
+            continue
         print(f" | edge-block K{K} s={s:.2f} R {rl[0]:.3f} t63 {B.t63(tl,zl,rl)[0]:.1f} curve {curve_err(t,z[0],r[0],tl,zl[0],rl[0]):.1f}%",flush=True)

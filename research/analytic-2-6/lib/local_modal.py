@@ -13,9 +13,13 @@
          with P[(r, l), (m, n, l)] = Ux[m, r] Uy[n, r] the average of the eigenfunctions over tile r (as in solve_steady). With a = D c the matrix is symmetric,
          Cap^(-1/2) [A + (D P^T C P D)/(W H)] Cap^(-1/2) = V diag(lam) V^T, and the step response of the point T is
          z(t) = sum_k (u_k g_k / lam_k)(1 - exp(-lam_k t)). Modes with m or n >= K keep the uniform diagonal system of the program (vias and heatsinks removed).
-         The truncation loses the within-tile structure (the constriction of the barrel, the sink edge), so one factor s on C is bisected until the steady
+         The truncation loses the within-tile structure (the constriction of the barrel, the sink edge), so one factor s is bisected until the steady
          temperature at the heater's hottest point equals that of analytic.solve_steady (the locally corrected model, the reference of the program's own calibration).
-         Prototype for the study: step responses only, no blocks, no edge coefficient.
+         `calibrate_on="all"` (the first proposal) puts s on the whole of C, vias and heatsinks together; `calibrate_on="vias"` (added by the review, README 6.3)
+         puts it on the via couplings only and keeps the heatsink conductances h_extra x area as they are: the steady model's vias carry the constriction of the
+         barrel (so their modal share must be lowered, s 0.6 to 0.8) while a heatsink has none (s 1.00 when it is alone), and one common factor made the sink too
+         weak and the vias too strong when both are present (time to 63 % +5 to +32 % against the FVM at 0.5 mm; -9 to +0.3 % with the factor on the vias).
+         Prototype for the study: step responses only, no blocks; the edge coefficient is the program's common Robin basis.
 """
 
 import math
@@ -30,14 +34,15 @@ from pcbthermal import analytic, viaconstriction   # noqa: E402
 from pcbthermal.geometry import coverage_fraction   # noqa: E402
 
 
-def local_matrix(problem, sh, bx, by):
+def local_matrix(problem, sh, bx, by, split=False):
     """!
     @brief The tile conductance matrix C and the tile projections of the steady model (same construction as analytic.solve_steady, without blocks).
     @param problem A Problem.
     @param sh Dict from analytic._effective_sheet.
     @param bx Basis along x.
     @param by Basis along y.
-    @return Tuple (C (Nt L, Nt L), PX (M, Nt), PY (N, Nt), tw, th, Nt).
+    @param split True to return the via part and the heatsink part of C separately (C = C_via + C_sink on the same tiles).
+    @return Tuple (C (Nt L, Nt L), PX (M, Nt), PY (N, Nt), Nt); with split, (C_via, C_sink, PX, PY, Nt).
     """
     b, m, W, H, L = sh["b"], sh["m"], sh["W"], sh["H"], sh["L"]
     ntx, nty, tw, th = analytic._tile_grid(W, H, sh["lam"])
@@ -56,21 +61,26 @@ def local_matrix(problem, sh, bx, by):
     active = np.argwhere((c_via.sum(axis=2) > 0) | (g_sink.sum(axis=0) > 0))
     Nt = len(active)
     if Nt == 0:
-        return np.zeros((0, 0)), np.zeros((bx.n, 0)), np.zeros((by.n, 0)), 0
+        z = np.zeros((0, 0))
+        return (z, z, np.zeros((bx.n, 0)), np.zeros((by.n, 0)), 0) if split else (z, np.zeros((bx.n, 0)), np.zeros((by.n, 0)), 0)
     PX = np.stack([bx.project(c * tw, (c + 1) * tw) for _, c in active], axis=1) / tw
     PY = np.stack([by.project(r * th, (r + 1) * th) for r, _ in active], axis=1) / th
-    C = np.zeros((Nt * L, Nt * L))
+    Cv = np.zeros((Nt * L, Nt * L))
+    Cs = np.zeros((Nt * L, Nt * L))
     for r, (row, col) in enumerate(active):
         for l in range(L - 1):
             cv = c_via[row, col, l]
             i1, i2 = r * L + l, r * L + l + 1
-            C[i1, i1] += cv
-            C[i2, i2] += cv
-            C[i1, i2] -= cv
-            C[i2, i1] -= cv
+            Cv[i1, i1] += cv
+            Cv[i2, i2] += cv
+            Cv[i1, i2] -= cv
+            Cv[i2, i1] -= cv
         for l in range(L):
-            C[r * L + l, r * L + l] += g_sink[l, row, col]
-    return C, PX, PY, Nt
+            Cs[r * L + l, r * L + l] += g_sink[l, row, col]
+    if split:
+        return Cv, Cs, PX, PY, Nt
+    # Same sum as before the split (vias first, then the sinks on the diagonal), so the default result is unchanged bit for bit
+    return Cv + Cs, PX, PY, Nt
 
 
 class Reduced:
@@ -78,13 +88,14 @@ class Reduced:
     @brief The coupled modal system of one heater and its step response.
     """
 
-    def __init__(self, problem, cell_mm=1.0, n_terms=300, K=24, edge=False):
+    def __init__(self, problem, cell_mm=1.0, n_terms=300, K=24, edge=False, calibrate_on="all"):
         """!
         @param problem A Problem with ONE heater (unit power is used).
         @param cell_mm Cell in mm.
         @param n_terms Modes per direction of the uniform system.
         @param K Modes per direction of the coupled block.
         @param edge True to add the per-layer edge mismatch S_l (beta_l - beta0) (closed integral of phi phi') to the coupled block (see the module description).
+        @param calibrate_on "all" (the factor s scales the whole of C) or "vias" (s scales the via couplings only; the heatsink conductances stay as built).
         """
         self.K = K
         d0 = analytic._modal_dynamics(problem, cell_mm, n_terms, via_scale=0.0, heatsink_scale=0.0)   # the board without vias and heatsinks
@@ -93,8 +104,13 @@ class Reduced:
         L, W, H = sh["L"], sh["W"], sh["H"]
         bx, by = d0["bases"]
         self.L = L
-        C, PX, PY, Nt = local_matrix(problem, analytic._effective_sheet(problem, cell_mm), bx, by)   # the sheet again: d0['lam'] is the array of decay rates
+        if calibrate_on not in ("all", "vias"):
+            raise ValueError(f"calibrate_on must be 'all' or 'vias', not {calibrate_on!r}")
+        Cv, Cs, PX, PY, Nt = local_matrix(problem, analytic._effective_sheet(problem, cell_mm), bx, by, split=True)   # the sheet again: d0['lam'] is the array of decay rates
+        C = Cv + Cs
         self.C = C
+        # The part of C that the factor s scales and the part that stays fixed (calibrate_on "vias": the heatsinks are exact tile conductances, no constriction)
+        self.C_scaled, self.C_fixed = (C, None) if calibrate_on == "all" else (Cv, Cs)
         ex, ey = bx.weight[:K], by.weight[:K]
         D = np.sqrt(np.outer(ex, ey))                                           # (K, K)
         # P D: (Nt L, K K L); index of a mode-layer: ((m K + n) L + l)
@@ -152,7 +168,10 @@ class Reduced:
         for i in range(K * K):
             M[i * L:(i + 1) * L, i * L:(i + 1) * L] = Ablk[i]
         if self.C.size:
-            M += s * (self.PD.T @ self.C @ self.PD) / (self.W * self.H)
+            if self.C_fixed is None:
+                M += s * (self.PD.T @ self.C @ self.PD) / (self.W * self.H)
+            else:
+                M += (self.PD.T @ (s * self.C_scaled + self.C_fixed) @ self.PD) / (self.W * self.H)
         if self.E is not None:
             M += s * self.E
         ci = np.tile(1.0 / np.sqrt(self.c_l), K * K)
@@ -179,7 +198,15 @@ class Reduced:
         @param target Steady rise per watt in K/W.
         @return float The factor.
         """
+        if self.C_fixed is not None and not self.C_scaled.any():
+            # Factor on the vias of a board without vias: nothing to scale, the heatsinks enter as built
+            self.s = 1.0
+            return self.s
         lo, hi = math.log(0.05), math.log(20.0)
+        # The bisection assumes the target lies between the two ends; a target outside them would silently return an end (the defect of the program's
+        # one-sided calibration, README 3.1), so it is refused here
+        if not (self.steady_point(math.exp(hi)) <= target <= self.steady_point(math.exp(lo))):
+            raise RuntimeError("calibration target outside the bracket of the factor (0.05 to 20)")
         for _ in range(30):
             mid = 0.5 * (lo + hi)
             if self.steady_point(math.exp(mid)) > target:
@@ -209,7 +236,7 @@ class Reduced:
         return z, float(np.sum(coef / lam) + np.sum(rest_c / rest_l))
 
 
-def step_local(problem, cell_mm=1.0, n_terms=300, K=24, times=None, calibrate=True, edge=False, target_solver=None):
+def step_local(problem, cell_mm=1.0, n_terms=300, K=24, times=None, calibrate=True, edge=False, target_solver=None, calibrate_on="all"):
     """!
     @brief Unit-step response of the single heater of a problem with the local modal system.
     @param problem A Problem with one heater.
@@ -220,12 +247,13 @@ def step_local(problem, cell_mm=1.0, n_terms=300, K=24, times=None, calibrate=Tr
     @param calibrate True to match the steady point value of the steady solution with one factor on C (and on the edge matrix).
     @param edge True to add the per-layer edge mismatch to the coupled block.
     @param target_solver Function (problem) -> (T field (L, ny, nx) in degC) giving the steady field to match (default analytic.solve_steady).
+    @param calibrate_on "all" (one factor on the whole of C, the first proposal) or "vias" (the factor on the via couplings only, the review's correction).
     @return Tuple (times, z (1, nt), rth (1,), factor).
     """
     if not (problem.vias or problem.heatsinks) and not edge:
         t, z, rth = analytic.step_responses(problem, cell_mm, n_terms)          # nothing local: the program's uniform system
         return t, z, rth, 1.0
-    r = Reduced(problem, cell_mm, n_terms, K, edge)
+    r = Reduced(problem, cell_mm, n_terms, K, edge, calibrate_on)
     s = 1.0
     r.s = 1.0
     if calibrate:

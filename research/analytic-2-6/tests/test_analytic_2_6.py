@@ -97,3 +97,46 @@ def test_local_modal_time_to_63_beats_the_smeared_calibration():
     assert abs(B.t63(ti, zi[:1], ri[:1])[0] / ref - 1.0) > 0.3
     tl, zl, rl, _ = LM.step_local(p, K=16)
     assert abs(B.t63(tl, zl, rl)[0] / ref - 1.0) < 0.03
+
+
+def test_factor_on_the_vias_only_fixes_vias_with_a_heatsink():
+    """!
+    @brief Review (README 6.3): vias and a heatsink under the part. One factor on the whole tile matrix leaves t63 about 9 % slow against the FVM at 0.5 mm;
+           the factor on the via couplings alone (heatsink conductances as built) is within 2 %, and both end at the steady solve.
+    @return None.
+    """
+    p = B.with_sink(B.with_vias(B.plain()))
+    t, z, r = B.step(p, "fvm", 0.5)
+    ref = B.t63(t, z[:1], r[:1])[0]
+    ta, za, ra, sa = LM.step_local(p, K=16, calibrate_on="all")
+    tv, zv, rv, sv = LM.step_local(p, K=16, calibrate_on="vias")
+    assert B.t63(ta, za, ra)[0] / ref - 1.0 > 0.05
+    assert abs(B.t63(tv, zv, rv)[0] / ref - 1.0) < 0.02
+    assert sv < sa < 1.0
+    assert abs(rv[0] / ra[0] - 1.0) < 1e-3
+
+
+def test_factor_on_the_vias_only_keeps_a_board_without_vias():
+    """!
+    @brief A heatsink alone: the factor on the vias has nothing to scale and gives the same response as the factor on the whole matrix (s = 1 against 1.00).
+    @return None.
+    """
+    p = B.with_sink(B.plain())
+    ta, za, ra, sa = LM.step_local(p, K=16, calibrate_on="all")
+    tv, zv, rv, sv = LM.step_local(p, K=16, calibrate_on="vias")
+    assert sv == 1.0 and abs(sa - 1.0) < 0.01
+    assert abs(B.t63(tv, zv, rv)[0] / B.t63(ta, za, ra)[0] - 1.0) < 0.01
+
+
+def test_calibration_refuses_a_target_outside_the_bracket():
+    """!
+    @brief Review: the bisection of the factor is bracketed; a target no factor in 0.05 to 20 can reach raises instead of returning an end silently.
+    @return None.
+    """
+    p = B.with_sink(B.with_vias(B.plain()))
+    r = LM.Reduced(p, 1.0, 300, 8)
+    try:
+        r.calibrate(1e-6)
+    except RuntimeError:
+        return
+    raise AssertionError("an unreachable target was accepted")

@@ -13,11 +13,14 @@ Yovanovich 2003, Part II (see the bibliography).
 ## docs/theory.md, Analytic transient: local vias and heatsinks
 
 The transient keeps the tile conductances of the steady model in the modal equations on the lowest `K x K` modes (`K = 16`): `(A + D P^T s C P D / W H) c = lam Cap c`, with `a = D c`,
-`D_mn = sqrt(e_m e_n)` the weights of the series, `P` the tile averages of the eigenfunctions, `C` the tile conductance matrix of the steady model and `s` one factor chosen so that the
-steady rise at the part's hottest point equals that of the steady solve. Modes above `K` stay the uniform diagonal system. The smeared calibration it replaces read the time to 63 %
-from -67 % to +113 % of the FVM on boards with a heatsink; the local system 0.1 to 9 % (nine of ten boards of the study).
+`D_mn = sqrt(e_m e_n)` the weights of the series, `P` the tile averages of the eigenfunctions, `C = C_via + C_sink` the tile conductance matrix of the steady model, and the
+via part scaled by one factor `s` (`s C_via + C_sink`) chosen so that the steady rise at the part's hottest point equals that of the steady solve: the factor stands for the
+constriction of the barrel, which the steady model has and the coupled block cannot hold; the heatsink conductances need none. Modes above `K` stay the uniform diagonal system.
+The smeared calibration it replaces read the time to 63 % from -66 % to +84 % of the FVM at 0.5 mm on boards with a heatsink (+175 % with a 300 W/m2K heatsink and vias on
+two layers); the local system -9.0 to +0.6 % on twelve boards (eleven within 4 %).
 
 ## docs/validation.md, rows to add
 
-Time to 63 % of the unit step against the FVM at 1 mm, 10 boards (`research/analytic-2-6/README.md` 3.2); per-layer edge on 48 boards (2.3); the limits (the 4 L board with a heatsink:
-the layer-node capacity, +45 % against 1 mm and +23 % against 0.5 mm; the Lumped with a heatsink away from the part: -37 to -42 %).
+Time to 63 % of the unit step against the FVM at 0.5 mm, 12 boards (`research/analytic-2-6/README.md` 6.3); per-layer edge on 48 boards (2.3) and what it leaves (the laminate
+sub-gaps of the FVM, always cold, 6.1); the limits (the 4 L board with vias and a 300 W/m2K heatsink: -8 to -9 %, on the fast side; the Lumped with a heatsink away from the
+part: -30 to -42 %).

@@ -2,9 +2,11 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_figures.py
-@brief Figures with data of the analytic-2-6 investigation: fig_02 per-layer edge error on 48 boards, fig_04 time to 63 % error per board and model, fig_05 step responses.
+@brief Figures with data of the analytic-2-6 investigation: fig_02 per-layer edge error on 48 boards, fig_04 time to 63 % error per board and model, fig_05 step responses,
+       fig_06 (review) the two calibrations of the local transient against the converged FVM, fig_07 (review) the per-layer edge against the FVM with and without the laminate sub-gaps.
 
-@details Needs out/perlayer_54.txt (study_perlayer_edge.py --part 2) and out/transient_both.txt (study_transient_both.py); fig_05 computes its curves.
+@details Needs out/perlayer_54.txt (study_perlayer_edge.py --part 2), out/transient_both.txt (study_transient_both.py) and out/review.txt (study_review.py);
+         fig_05 computes its curves.
          Run from the repository root: .venv/bin/python research/analytic-2-6/scripts/make_figures.py
 """
 
@@ -101,7 +103,9 @@ def fig_05():
         ti, zi, ri = B.step(p, model, 1.0)
         ax.semilogx(ti, zi[0], st, label=lab)
     ti, zi, ri, _ = LM.step_local(p, K=24)
-    ax.semilogx(ti, zi[0], "-", label="local modal K24")
+    ax.semilogx(ti, zi[0], "-", label="local modal K24, one factor on all of C")
+    ti, zi, ri, _ = LM.step_local(p, K=16, calibrate_on="vias")
+    ax.semilogx(ti, zi[0], "-.", label="local modal K16, factor on the vias only (review)")
     ax.set_xlim(0.5, 600)
     ax.set_xlabel("time (s)")
     ax.set_ylabel("unit-step response of the part (K/W)")
@@ -111,8 +115,74 @@ def fig_05():
     plt.close(fig)
 
 
+def parse_review():
+    """!
+    @brief Read parts 1 and 4 of out/review.txt.
+    @return Tuple (rows of part 1: (label, [program n4, program n1, per-layer n4, per-layer n1]), dict board -> [program, all, vias] t63 errors in percent).
+    """
+    p1, p4, part = [], {}, 0
+    for line in open(os.path.join(OUT, "review.txt")):
+        if re.match(r"^\d\.", line):
+            part = int(line[0])
+            continue
+        if part == 1:
+            m = re.match(r"\s+(.+?)\s*: FVM.*program\s+([+-][\d.]+) /\s+([+-][\d.]+) \| per-layer\s+([+-][\d.]+) /\s+([+-][\d.]+)", line)
+            if m:
+                p1.append((m.group(1).strip(), [float(m.group(k)) for k in range(2, 6)]))
+        elif part == 4:
+            m = re.match(r"\s+(.+?)\s+FVM .*program\s+([+-][\d.]+) %.*all .*?\(\s*([+-][\d.]+) %.*vias .*?\(\s*([+-][\d.]+) %", line)
+            if m:
+                p4[m.group(1).strip()] = [float(m.group(k)) for k in range(2, 5)]
+    return p1, p4
+
+
+def fig_06():
+    """!
+    @brief Review: time to 63 % against the FVM at 0.5 mm, the program, the local system with one factor on all of C, and with the factor on the vias only.
+    @return None.
+    """
+    _, d = parse_review()
+    boards = list(d)
+    x = np.arange(len(boards))
+    fig, ax = plt.subplots(figsize=(11, 4.3))
+    for i, lab in enumerate(("Analytic, program", "local K16, one factor on all of C", "local K16, factor on the vias only")):
+        vals = np.array([d[b][i] for b in boards])
+        ax.bar(x + (i - 1) * 0.27, np.clip(vals, -70, 120), 0.27, label=lab)
+    ax.axhline(0, color="k", lw=0.6)
+    ax.set_xticks(x)
+    ax.set_xticklabels(boards, rotation=30, ha="right", fontsize=8)
+    ax.set_ylabel("time to 63 %, error against the FVM at 0.5 mm (%)")
+    ax.set_ylim(-70, 120)
+    ax.text(x[-2] - 0.27, 112, f"{d[boards[-2]][0]:+.0f} %", ha="center", fontsize=7)
+    ax.legend(fontsize=8)
+    fig.savefig(os.path.join(FIG, "fig_06_calibration_on_vias.png"), dpi=105, bbox_inches="tight")
+    plt.close(fig)
+
+
+def fig_07():
+    """!
+    @brief Review: hottest-rise error of the program and of the per-layer edge against the FVM with the laminate rule (n 4) and with one laminate link (n 1).
+    @return None.
+    """
+    rows, _ = parse_review()
+    x = np.arange(len(rows))
+    fig, ax = plt.subplots(figsize=(10, 4.2))
+    labs = ("program, FVM n 4", "program, FVM n 1", "per-layer, FVM n 4", "per-layer, FVM n 1")
+    for i, lab in enumerate(labs):
+        ax.bar(x + (i - 1.5) * 0.2, [r[1][i] for r in rows], 0.2, label=lab)
+    ax.axhline(0, color="k", lw=0.6)
+    ax.set_xticks(x)
+    ax.set_xticklabels([r[0] for r in rows], rotation=25, ha="right", fontsize=8)
+    ax.set_ylabel("hottest rise, % of the FVM at 0.5 mm")
+    ax.legend(fontsize=8)
+    fig.savefig(os.path.join(FIG, "fig_07_perlayer_laminate.png"), dpi=105, bbox_inches="tight")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     os.makedirs(FIG, exist_ok=True)
     fig_02()
     fig_04()
     fig_05()
+    fig_06()
+    fig_07()
