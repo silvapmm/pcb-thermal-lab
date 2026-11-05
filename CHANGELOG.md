@@ -50,6 +50,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 ### Tests (CAD tool line colour, `fix/cad-line-colour`; no code change)
 - A test per confidence level (high, mixed, medium, low, declared, unknown) in both themes holds that the CAD tool line of the Gerber import window uses the alert colour for every detection that needs a check and the text colour only for a plain high one.
 
+### Changed (screenshots, `docs/screenshots-250`; documents only)
+- Every screenshot of `docs/images` regenerated on the 2.5.0 tree; new pictures of the Gerber import window (steps 1 to 3, the re-import dialog), of the imported RP2040 board in the editor and in the results (light and dark), of the live warnings under Run and of the Solver and Gerber boxes of Preferences, in the README and in the user guide (`examples/make_screenshots.py --import <folder>`).
+
 ### Changed (import heater shapes, `fix/import-heater-shapes`; no number moves)
 - Import window, step 2: the radio **Largest opening only** is removed (on a part with several equal pads it put all the heat on one pad); the shapes are exposed pad or tab, convex hull and bounding box. A project or saved choice that used it takes the proposed shape at the next re-import, with a line in the re-import report; power, tick and role are kept. A selected part is drawn even when it is not ticked, with a thicker dashed outline when its heat source is the pad or the box; the pads of a part stay its own whatever the shape (no red '?' on the unused pad: with 'largest' the polygon of a part found by position was one pad, so its other pads turned red for good); the shape note is shorter. A part picked by hand that stored 'largest' takes the proposal too, and the line says how many of its openings were found.
 
