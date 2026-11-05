@@ -194,3 +194,11 @@ def dominant_group(openings):
 * The exposed-pad size of the RP2040 (3.2 mm) is from memory, not from its datasheet; the other two come from the footprint names.
 * Eleven parts on three boards (all KiCad); the rule was not tried on DPAK, SOT-89, power SO-8 or LGA parts, nor on Altium or other exports (inset windows and paste reductions differ).
 * The contact sheets of every part (light theme, one panel per shape with its numbers) were drawn locally by `make_figures.py --only-heater-shapes --sheets <folder>`; only the RP2040 figure is committed, because ISASTM and CMM2 are GPL-3.0.
+
+## 8. Update after the review
+
+The review of the implementation changed the constants of section 6: the hull of the dominant group must be at most 0.75 of the hull of the part (`EXPOSED_MAX_HULL`, was 0.5) and, to keep the looser bound safe, the group must fill at least 0.5 of its own hull (`EXPOSED_MIN_FILL`) with gaps of at most 0.5 of the side of the largest opening (`EXPOSED_MAX_GAP`); the other two stay (0.5 of the largest opening, 0.25 of the paste). The maintainer accepted the set (0.5 / 0.25 / 0.75 / 0.5 / 0.5).
+
+With the first rule (hull at most 0.5) four DPAK and a D2PAK of the open boards were missed, which is the unsafe side. The new rule was run on 875 parts of eight open boards: 14 parts are taken as exposed (3 SOT-223, 4 QFN, 4 DPAK, 1 D2PAK, 2 TSSOP with an exposed pad); no connector, button, crystal, LED or passive is taken. The tightest margin is the micro-USB connector U5 of the oswlight board, whose gap is 0.66 against the limit of 0.5.
+
+Still not verified: SOT-89, power SO-8 and LGA with a thermal pad were not tried, and no physical board was measured. The package outline is not kept for the psi_JB ring and the top-path interface area (a future change, limit stated in `CLAUDE.md`).
