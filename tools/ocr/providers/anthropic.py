@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.request
@@ -33,6 +34,11 @@ MAX_ERROR_BODY = 65536      # bytes of an error body that are read
 MAX_SERVER_PAUSE = 120.0    # s: the longest pause taken from the retry-after header
 DEFAULT_MAX_TOKENS = 8192   # a dense page of equations is well below this; a cut answer is split in two halves
 QUOTA_WORDS = ("credit balance", "usage limit", "spend limit", "spending limit", "billing")
+
+# A Claude model sometimes answers a page of a published article in prose instead of transcribing it ("I can't
+# transcribe this page ... Here is a summary"), with stop_reason end_turn. That is a refusal, not a transcription.
+REFUSAL_TEXT = re.compile(r"\b(I can(?:'|\u2019)?t|I cannot|I am unable|I'm unable|I won't|I will not)\b[^.]{0,120}"
+                          r"\b(transcrib|reproduc)|\bHere is a summary\b", re.I)
 
 log = logging.getLogger("tools.ocr")
 
@@ -144,6 +150,11 @@ class AnthropicProvider(Provider):
                 err = self._classify(e.code, e.read(MAX_ERROR_BODY).decode("utf-8", "replace"), hdr)
             except (urllib.error.URLError, TimeoutError, OSError) as e:
                 err = ProviderError(f"{type(e).__name__}: {e}", retryable=True)
+            if err.status == 400 and "content filtering" in str(err).lower():
+                # "Output blocked by content filtering policy": the copyright-like block of the API. It is a
+                # refusal of this page, so it takes the RECITATION path (half-page crops, then another model).
+                return Result(text="", finish_reason="content_filter", model=model, recitation=True,
+                              seconds=round(time.time() - t0, 1), extra={"attempts": attempt + 1})
             if not err.retryable or attempt == self.retries - 1:
                 err.attempts = attempt + 1
                 raise err
@@ -157,7 +168,7 @@ class AnthropicProvider(Provider):
         stop = str(resp.get("stop_reason") or "")
         usage = resp.get("usage") or {}
         return Result(text=text, finish_reason=stop or "end_turn", model=model, seconds=round(time.time() - t0, 1),
-                      recitation=(stop == "refusal"), split=(stop == "max_tokens"),
+                      recitation=(stop == "refusal" or bool(REFUSAL_TEXT.search(text[:600]))), split=(stop == "max_tokens"),
                       extra={"attempts": attempt + 1,
                              "usage": {"input_tokens": int(usage.get("input_tokens") or 0),
                                        "output_tokens": int(usage.get("output_tokens") or 0)}})

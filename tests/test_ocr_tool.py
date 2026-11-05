@@ -752,3 +752,18 @@ def test_anthropic_tokens_reach_the_ledger_and_max_tokens_is_asked_in_halves(tmp
 def test_anthropic_is_registered_with_its_key_variable_and_models():
     assert REGISTRY["anthropic"].key_env == ("ANTHROPIC_API_KEY",)
     assert config.models()["anthropic"]["default"] == "claude-sonnet-5-5"
+
+
+def test_anthropic_prose_refusal_and_content_filter_take_the_recitation_path(tmp_path):
+    # "I can't transcribe ... here is a summary" (end_turn) and HTTP 400 "content filtering policy" are refusals of the page.
+    prose = {"content": [{"type": "text", "text": "I can't transcribe this page in full, because it is text from a published article. Here is a summary of the page."}], "stop_reason": "end_turn", "usage": {}}
+    half = {"content": [{"type": "text", "text": "half $x$"}], "stop_reason": "end_turn", "usage": {}}
+    assert FakeAnthropic([prose]).transcribe(b"png", "p", {}).recitation
+    assert not FakeAnthropic([ANT_OK]).transcribe(b"png", "p", {}).recitation
+    def blocked():
+        return ant_error(400, "invalid_request_error", "Output blocked by content filtering policy")
+    r = FakeAnthropic([blocked()]).transcribe(b"png", "p", {})
+    assert r.recitation and r.text == "" and r.finish_reason == "content_filter"
+    for first in (prose, blocked()):
+        o = runner(tmp_path, FakeAnthropic([first, half, half])).run_page(PDF, 1, force=True)
+        assert o.status == "ok" and "half-page crops" in o.text
