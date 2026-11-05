@@ -431,15 +431,20 @@ class BoardView(QGraphicsView):
         imp = self.doc.problem.imported
         self._copper_item = None
         if imp is None or not self.show_imported_copper or imp.pix_mm <= 0:
+            if imp is None:
+                self._copper_cache = {}                       # A project without imported copper: nothing cached is of use any more
             return
+        # The token of a mask is its layer and its packed text (length and hash; the hash of a str is computed once and kept by Python, so this is cheap on every rebuild)
+        tokens = {(int(e.get("index", -1)), len(d), hash(d)) for e in imp.layers if copper.has_mask(e) for d in (str(e["mask"].get("data", "")),)}
+        # Keep only the pixmaps of the masks of the open problem in the current theme: a new import, a re-import, another project or a theme change drops the old ones
+        # (without this every import added up to 16 MB per layer visited to the cache for the life of the window)
+        self._copper_cache = {k: v for k, v in self._copper_cache.items() if k[3] == self.theme and k[:3] in tokens}
         entry = next((e for e in imp.layers if int(e.get("index", -1)) == self.layer and copper.has_mask(e)), None)
         if entry is None:
             return
         data = str(entry["mask"].get("data", ""))
         key = (self.layer, len(data), hash(data), self.theme)
         if key not in self._copper_cache:
-            # Keep only the entries of this problem's masks and theme: a new import or a theme change drops the old pixmaps
-            self._copper_cache = {k: v for k, v in self._copper_cache.items() if k[3] == self.theme and k[:3] != key[:3]}
             try:
                 red, f = reduced_coverage(copper.unpack_coverage(entry["mask"]))
             except ValueError:                                # A damaged mask: the canvas shows no copper rather than failing
@@ -451,6 +456,9 @@ class BoardView(QGraphicsView):
             self._copper_cache[key] = (QPixmap.fromImage(img), imp.pix_mm * f)    # fromImage copies, so rgba may go
         pm, mm = self._copper_cache[key]
         item = QGraphicsPixmapItem(pm)
+        # Smooth (bilinear) sampling: seen whole, a displayed pixel covers several pixels of the pixmap and the nearest-pixel default would drop or alias the thin tracks;
+        # measured on the 10.8 Mpx board, the frame costs the same (about 10 ms whole, 2 to 3 ms zoomed in, offscreen)
+        item.setTransformationMode(Qt.SmoothTransformation)
         item.setTransform(QTransform().scale(mm, -mm))            # Rows go downwards, the scene upwards
         item.setPos(0.0, self.doc.problem.board.height * 1000.0)
         item.setOpacity(0.55)
@@ -469,7 +477,7 @@ class BoardView(QGraphicsView):
 
     def set_show_labels(self, on):
         """!
-        @brief Show or hide the names of the heaters (View - Element names).
+        @brief Show or hide the names of the elements: zones, heatsinks and heaters (View - Element names).
         @param on True to show.
         """
         self.show_labels = bool(on)
@@ -477,23 +485,25 @@ class BoardView(QGraphicsView):
 
     def _fit_labels(self):
         """!
-        @brief In a project with imported parts hide the name of a heater that is wider than the heater on the screen or that would overlap a name already shown (27 names on a board seen
-               whole would be a smear); zooming in shows them. Larger heaters are named first.
-        @details Drawn boards are left alone: their labels always show. The selected heater keeps its name.
+        @brief In a project with imported parts centre the name of each heater on it and hide a name that is wider than the heater on the screen or that would overlap a name already
+               shown (27 names on a board seen whole would be a smear); zooming in shows them. Larger heaters are named first.
+        @details Drawn boards are left alone: their labels always show, from the centre to the right as before. The selected heater keeps its name. The size of a heater is that of its
+                 polygon: `boundingRect()` of the item adds the width of its cosmetic pen in scene millimetres (1.4 to 2.2 mm), which let a name wider than a small part show.
         """
         if self.doc.problem.imported is None:
             return
         scale = abs(self.transform().m11())
         heaters = [it for it in self.scene().items() if isinstance(it, ElementItem) and it.kind == "heater" and it.label is not None]
-        heaters.sort(key=lambda it: (not it.isSelected(), -it.boundingRect().width() * it.boundingRect().height()))
+        heaters.sort(key=lambda it: (not it.isSelected(), -it.polygon().boundingRect().width() * it.polygon().boundingRect().height()))
         taken = []
         for it in heaters:
             lab = it.label
             fm = QFontMetrics(lab.font())
             w, h = fm.horizontalAdvance(lab.text()) + 4, fm.height()
-            pt = self.mapFromScene(lab.scenePos())                # The label ignores the view's scale: its rectangle is in pixels from this point
-            r = QRectF(pt.x(), pt.y(), w, h)
-            show = it.isSelected() or (it.boundingRect().width() * scale >= w and not any(r.intersects(t) for t in taken))
+            lab.setTransform(QTransform.fromTranslate(-w / 2.0 + 2.0, -h / 2.0))    # In pixels (the label ignores the view's scale): centred on the heater
+            pt = self.mapFromScene(lab.scenePos())                # The centre of the heater on the screen
+            r = QRectF(pt.x() - w / 2.0, pt.y() - h / 2.0, w, h)
+            show = it.isSelected() or (it.polygon().boundingRect().width() * scale >= w and not any(r.intersects(t) for t in taken))
             lab.setVisible(show)
             if show:
                 taken.append(r)
@@ -581,6 +591,7 @@ class BoardView(QGraphicsView):
         self.scene().blockSignals(False)
         self._external = False
         self._update_handles()
+        self._fit_labels()
 
     def _on_scene_selection(self):
         """!
@@ -589,6 +600,7 @@ class BoardView(QGraphicsView):
         if self._rebuilding or self._external:
             return
         self._update_handles()
+        self._fit_labels()                                     # A selected heater shows its name even when it does not fit
         self.selection_changed.emit(self.selected_elements())
 
     # ------------------------------------------------------------------ vertex handles

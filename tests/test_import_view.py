@@ -286,3 +286,80 @@ def test_the_rp2040_step_two_warning_and_table(qtbot):
     pv.resize(900, 700)
     des = [p.designator for p in sx.parts() if p.polygon_mm and p.side == "top"]
     assert len(des) >= 20 and pv.hole_classes()
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------- found by the review
+def test_the_copper_cache_keeps_only_the_masks_of_the_open_problem(qtbot, tmp_path, imported_doc):
+    view = BoardView(imported_doc, "dark")
+    qtbot.addWidget(view)
+    view.set_layer(1)
+    view.set_layer(0)
+    assert len(view._copper_cache) == 2
+    # A second import into the same document (as File - Import does): the pixmaps of the first board go, they used to stay for the life of the window
+    w = _imported(qtbot, tmp_path / "second", powers=("U1",))
+    imported_doc.open_import(w.problem, w.record)
+    tokens = {(int(e["index"]), len(str(e["mask"]["data"])), hash(str(e["mask"]["data"]))) for e in imported_doc.problem.imported.layers if copper.has_mask(e)}
+    assert view._copper_item is not None and all(k[:3] in tokens for k in view._copper_cache)
+    from pcbthermal.examples import example_board
+    imported_doc.open_problem(example_board(), "example")                       # a drawn board: nothing cached is kept
+    assert view._copper_item is None and view._copper_cache == {}
+
+
+def test_the_copper_pixmap_is_sampled_smoothly(qtbot, imported_doc):
+    view = BoardView(imported_doc, "dark")
+    qtbot.addWidget(view)
+    assert view._copper_item.transformationMode() == Qt.SmoothTransformation    # nearest-pixel sampling drops thin tracks when the board is seen whole
+
+
+def test_a_shown_part_name_fits_its_part_and_a_selected_one_always_shows(qtbot, imported_doc):
+    view = BoardView(imported_doc, "dark")
+    qtbot.addWidget(view)
+    view.resize(700, 500)
+    view.show()
+    view.fit()
+    heaters = [it for it in view.scene().items() if getattr(it, "kind", "") == "heater" and it.label is not None]
+    seen = 0
+    for z in (1.0, 2.0, 2.0, 2.0, 2.0, 2.0):
+        view.zoom(z)
+        s = abs(view.transform().m11())
+        for it in heaters:
+            if it.label.isVisible() and not it.isSelected():
+                seen += 1
+                # the polygon, not boundingRect(), which adds the cosmetic pen in scene millimetres and let names wider than a small part show
+                assert it.polygon().boundingRect().width() * s >= it.label.boundingRect().width() + 4 - 1e-6
+                # and the name is centred on its part
+                c = view.mapFromScene(it.polygon().boundingRect().center())
+                r = it.label.deviceTransform(view.viewportTransform()).map(it.label.boundingRect().center())     # the label is drawn in pixels
+                assert abs(c.x() - r.x()) <= 3 and abs(c.y() - r.y()) <= 3
+    assert seen > 0
+    view.fit()
+    view.zoom(1 / 4000.0)
+    assert not any(it.label.isVisible() for it in heaters)
+    heaters[0].setSelected(True)                                               # a click: the selected part names itself at once, not at the next zoom
+    assert heaters[0].label.isVisible()
+    view.set_selection([("heater", heaters[1].index)])                         # a selection from the element list
+    assert heaters[1].label.isVisible() and not heaters[0].label.isVisible()
+
+
+def test_text_from_the_files_is_never_rich_text_in_the_tooltips(qtbot, tmp_path):
+    from pcbthermal.gui.import_window import _plain_tip
+    from PySide6.QtGui import QTextDocument
+    tip = _plain_tip("<b>U1</b>\nPackage: <img src='x'>")
+    doc = QTextDocument()
+    doc.setHtml(tip)
+    assert doc.toPlainText() == "<b>U1</b>\nPackage: <img src='x'>"
+    w = _step2(qtbot, tmp_path)
+    sx, pg = w.session, w.page2
+    q = next(p for p in sx.parts() if p.polygon_mm)
+    q.footprint = "<b>EVIL</b>"
+    pg.refresh()
+    row = next(r for r in range(pg.table.rowCount()) if pg.table.item(r, 1).text() == q.designator)
+    assert "&lt;b&gt;EVIL" in pg.table.item(row, 2).toolTip() and pg.table.item(row, 2).text() == "<b>EVIL</b>"
+
+
+def test_the_power_and_tj_boxes_are_as_wide_as_their_values(qtbot, tmp_path):
+    w = _step2(qtbot, tmp_path)
+    t = w.page2.table
+    for col in (7, 8):
+        sp = t.cellWidget(0, col)
+        assert sp.width() >= sp.minimumSizeHint().width()                      # a fixed 76 px cut 1000.000 W with the 13 px macOS font

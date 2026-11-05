@@ -47,6 +47,16 @@ def _plain_box(parent, icon, title, text, buttons):
     return box.exec()
 
 
+def _plain_tip(text):
+    """!
+    @brief A tooltip that shows text from the files as it is: Qt reads a tooltip that looks like markup as rich text, so a designator or a package name such as `<b>` or
+           `<img src=...>` would be rendered; the text is escaped and its line breaks kept.
+    @param text Plain text (may hold line breaks).
+    @return str rich-text tooltip that displays exactly `text`.
+    """
+    return "<p style='white-space:pre'>" + html.escape(str(text)) + "</p>"
+
+
 class _Cancelled(Exception):
     """!@brief The window was closed while a slow call ran off the GUI thread: the caller stops and the window closes when the call has ended."""
 STEP_SUBTITLES = ["Choose the folder, ZIP or files, check the function of every file and the stack-up.",
@@ -435,7 +445,7 @@ class Preview(QWidget):
             self.update()
         text = self.hover_text(x, y)
         if text:
-            QToolTip.showText(ev.globalPosition().toPoint(), text, self)
+            QToolTip.showText(ev.globalPosition().toPoint(), _plain_tip(text), self)     # designators and packages come from the files: never rich text
         else:
             QToolTip.hideText()
 
@@ -993,17 +1003,17 @@ class Step2Page(QWidget):
                 if not has or orphan:
                     item.setForeground(QColor(c["muted"]))
                 if col in (2, 3):                                    # These two columns share the spare width and may be cut: the full text is in the tooltip
-                    item.setToolTip(sx.source_explanation(p) if col == 3 else text)
+                    item.setToolTip(_plain_tip(sx.source_explanation(p) if col == 3 else text))      # the package name comes from the files
                 t.setItem(k, col, item)
             sp = _spin(0, 1000, p.power, 3, "W", "Power the part dissipates, in W. Worst case: all of it enters the board. From the datasheet or the Power Calculator.")
             sp.setSuffix("")                                         # The unit is in the header, so the column can be narrow
-            sp.setFixedWidth(76)
+            sp.setFixedWidth(sp.minimumSizeHint().width())          # As narrow as the widest value (1000.000) in the font of the platform: a fixed 76 px cut it with the 13 px macOS font
             sp.setEnabled(has and not orphan)
             sp.valueChanged.connect(lambda v, d=p.designator: self._set(d, power=v))
             t.setCellWidget(k, 7, sp)
             tj = _spin(0, 300, float(p.edits.get("tj_max", 0.0)), 0, "°C", "Highest junction temperature of the datasheet (0: none). The result reports the margin.")
             tj.setSuffix("")
-            tj.setFixedWidth(60)
+            tj.setFixedWidth(tj.minimumSizeHint().width())
             tj.valueChanged.connect(lambda v, d=p.designator: self._set(d, tj_max=v))
             t.setCellWidget(k, 8, tj)
             cb = QComboBox()

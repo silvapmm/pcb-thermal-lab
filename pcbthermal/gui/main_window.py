@@ -470,7 +470,7 @@ class MainWindow(QMainWindow):
         self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
                                     "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
         self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
-                                  "Write the name of every heater (the designator of an imported part) on the board; on an imported board a name that does not fit the part appears when you zoom in")
+                                  "Write the names of the zones, heatsinks and heaters of the active layer on the board (the designator for an imported part); on an imported board a part name that does not fit the part appears when you zoom in")
         self.a_bg = self._act("Background image…", self.set_background)
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
