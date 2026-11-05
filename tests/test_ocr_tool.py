@@ -1042,3 +1042,93 @@ def test_ledger_concurrent_appends_keep_every_entry(tmp_path):
     rows = json.loads(path.read_text())
     assert len(rows) == 80 and sum(r["provider"] == "a" for r in rows) == 40
     assert not list(tmp_path.glob("*.tmp"))
+
+
+# ---------------------------------------------------------------- whole-page mode and the reading-status sidecar
+def test_whole_page_mode_makes_one_request_and_no_crops(tmp_path):
+    """!
+    @brief `whole_page` never crops or falls back: a refusal fails after one request, a cut page is kept with a note, the budget is passed.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    p = FakeProvider([Result("", "RECITATION", recitation=True)])
+    o = runner(tmp_path, p, whole_page=True, max_tokens=16000).run_page(PDF, 2)
+    assert o.status == "failed" and len(p.calls) == 1 and "whole-page" in o.note
+    p2 = FakeProvider([Result("long table", "max_tokens", split=True)])
+    o2 = runner(tmp_path / "b", p2, whole_page=True).run_page(PDF, 3)
+    assert o2.status == "ok" and "cut at the token limit" in o2.note and len(p2.calls) == 1
+
+
+def _status_papers(tmp_path):
+    """!
+    @brief A papers folder with one three-page paper, a Claude page each, and a reviewed md-final.
+    @param tmp_path pytest temporary folder.
+    @return Path The papers folder.
+    """
+    ocr = tmp_path / "ocr" / "anthropic"
+    ocr.mkdir(parents=True)
+    for n in (1, 2, 3):
+        (ocr / f"X_p{n}.md").write_text(f"<!-- page {n} -->\nmachine text of page {n} with enough words", encoding="utf-8")
+    (tmp_path / "md-final").mkdir()
+    (tmp_path / "md-final" / "X.md").write_text(
+        "---\nreading_status: {verified_image: \"1\", corrected_then_verified: \"2\", verified_text_layer: \"\", other_pages: machine}   # x\n---\n\n"
+        "<!-- page 1 | printed ? | verified (image) -->\n\nmachine text of page 1 with enough words\n\n"
+        "<!-- page 2 | printed ? | corrected and verified (image) -->\n\nREVIEWED text of page 2\n\n<!-- reviewed: fixed a fraction -->\n\n"
+        "<!-- page 3 | printed ? -->\n\nmachine text of page 3 with enough words\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_status_seed_keeps_the_reviewed_page_through_assemble(tmp_path):
+    """!
+    @brief `status seed` reads the hand-written status; `assemble` then keeps the corrected text and writes the status per page.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import assemble, status
+    papers = _status_papers(tmp_path)
+    added = status.seed(papers)
+    assert added["verified"] == 1 and added["corrected"] == 1
+    assert (papers / "ocr" / "corrected" / "X_p2.md").is_file()
+    out = assemble.assemble(papers, "X", papers, 3, None, {}, True)
+    assert "REVIEWED text of page 2" in out and "machine text of page 2" not in out and "<!-- reviewed: fixed a fraction -->" in out
+    assert "<!-- page 1 | printed ? | verified (image) -->" in out and "<!-- page 2 | printed ? | corrected and verified (image) -->" in out
+    assert "<!-- page 3 | printed ? -->" in out
+    assert 'reading_status: {verified: "1", corrected: "2", machine: "3"}' in out
+    assert out == assemble.assemble(papers, "X", papers, 3, None, {}, True)        # deterministic
+    assert status.seed(papers) == {"verified": 0, "corrected": 0, "machine": 0}      # never replaces an entry
+
+
+def test_verified_state_is_lost_when_the_provider_page_changes(tmp_path):
+    """!
+    @brief A verified page whose provider text changed since the check is reported as machine, a corrected page is not touched.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import assemble, status
+    papers = _status_papers(tmp_path)
+    status.seed(papers)
+    (papers / "ocr" / "anthropic" / "X_p1.md").write_text("<!-- page 1 -->\nanother transcription of page 1", encoding="utf-8")
+    (papers / "ocr" / "anthropic" / "X_p2.md").write_text("<!-- page 2 -->\nanother transcription of page 2", encoding="utf-8")
+    out = assemble.assemble(papers, "X", papers, 3, None, {}, True)
+    assert "<!-- page 1 | printed ? -->" in out and "another transcription of page 1" in out
+    assert "REVIEWED text of page 2" in out and "another transcription of page 2" not in out
+
+
+def test_status_set_command_and_errors(tmp_path):
+    """!
+    @brief `status set` records a state (a corrected page keeps the md-final chunk), refuses a bad state and a page with nothing to keep.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import status
+    papers = _status_papers(tmp_path)
+    status.set_status(papers, "X", {3}, "corrected", "reviewer", "fixed eq 3")
+    assert "machine text of page 3" in (papers / "ocr" / "corrected" / "X_p3.md").read_text(encoding="utf-8")
+    assert status.load(papers)["X"]["3"]["note"] == "fixed eq 3"
+    with pytest.raises(ValueError):
+        status.set_status(papers, "X", {1}, "great")
+    with pytest.raises(ValueError):
+        status.set_status(papers, "X", {9}, "corrected")
+    from tools.ocr.cli import main
+    assert main(["--papers", str(papers), "status", "set", "X", "1", "verified", "--note", "image"]) == 0
+    assert status.load(papers)["X"]["1"]["state"] == "verified" and status.load(papers)["X"]["1"].get("src_sha")

@@ -753,8 +753,10 @@ COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows o
                        "full copper, +3.7 % and +11.8 % on bare laminate, and the imported overshoot lies between the two; the share of the copper inside a cell was not separated); "
                        "use a cell of 1 mm or less for the result")
 SCREENING_WARNING = ("imported copper at a cell above 1.5 mm: treat the result as a screening estimate (7 to 10 % too hot at 2 mm in the windows measured), not as a figure to design to")
-REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: it sees only the copper fraction of every cell, and in the study of 24 windows it read 1 to 16 % too "
-                         "cool (6 % on average) against the pixel network; use the finite-volume model for the result")
+REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these models do not read the imported copper (only the copper fraction of every cell, as zones; the FVM, FDM and 3D "
+                         "solid do read it) and they read too cool every time it was measured; the figures are a sample, not a bound: 1 to 16 % (6 % on average) on 24 windows of 24 mm "
+                         "with a 6 mm part at a 1 mm cell, against the pixel network, and 27 to 42 % (Lumped) and 17 to 35 % (Analytic) on the whole RP2040 board with 1 W in one of its "
+                         "two largest parts, U1 and U3 (the QFN-56) at a 0.25 mm cell, against the FVM, up to 75 % for small passives at 0.5 mm; use the finite-volume model for the result")
 SOLID3D_WARNING = ("imported copper in the 3D solid: it reads the copper fraction of every cell as an average conductivity, the fill-fraction mapping, which reads thin copper cooler "
                    "than the flow-based faces of the layered models (see the finite-volume model for the reference)")
 

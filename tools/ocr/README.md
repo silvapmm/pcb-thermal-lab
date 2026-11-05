@@ -16,11 +16,33 @@ $PY -W ignore -m tools.ocr suspects                        # suspect pages + pri
 $PY -W ignore -m tools.ocr verify Lemczyk1992 --page 1     # HTML with the page image beside the transcription
 $PY -W ignore -m tools.ocr decode FILE.md [--force]        # base-36 font cipher post-processor (ciphered pages only)
 $PY -W ignore -m tools.ocr assemble Yovanovich2003    # one final Markdown in papers/md-final/<stem>.md (header, contents, cleaned and joined pages)
+$PY -W ignore -m tools.ocr status show [STEM]           # reading status per page (papers/ocr/reading_status.json)
+$PY -W ignore -m tools.ocr status set STEM 3,5-6 verified|corrected|machine --note "eqs 3-5 match the image"   # the reviewer's record
+$PY -W ignore -m tools.ocr status seed                  # once: fill the file from the headers/markers of md-final and OCR_TO_VERIFY.md
+$PY -W ignore -m tools.ocr transcribe STEM --pages 3 --provider anthropic --whole-page --max-tokens 16000 --subdir whole   # one request per page, no crops
 $PY -W ignore -m tools.ocr map                          # offline, no provider: papers/notes/OCR_MAP.md + ocr_map.json (what is done, what the theory still needs, tokens to finish)
 ```
 
 Page numbers are PDF pages, 1-based (the `<!-- page N -->` markers use the same number). Exit codes: 0 ok, 1 failure,
 2 stopped by the daily quota or `--daily-limit` (the rest stays pending for tomorrow), 3 refused (confidential file, key problem).
+
+## Reading status of the pages (never overwritten)
+
+`papers/ocr/reading_status.json` is `{stem: {page: {state, by, note, src_sha}}}`, `state` being `verified` (compared with the
+image or the text layer, nothing to change), `corrected` (the reviewer changed the text) or `machine` (default, not compared).
+`status set ... corrected` keeps the page text in `papers/ocr/corrected/<stem>_p<N>.md` (taken from `md-final` when the file
+does not exist); `assemble` uses that file before any provider, does not clean or join it, and writes the state in the
+header (`reading_status: {verified, corrected, machine}`, page ranges) and in the marker
+(`<!-- page N | printed M | verified (image) -->`, `| corrected and verified (image)`, `| verified (text layer)`). A `verified`
+page whose provider text changed since the check (`src_sha`) is written as `machine`. `status seed` fills the file once
+from the hand-written headers and markers of `md-final` and from the `R` pages of `OCR_TO_VERIFY.md` (those only where the
+page in use is a Gemini page, since that first pass compared Gemini pages) and never replaces an entry. A corrected page
+that began with a word glued to the previous page by the old hyphen join is kept as the reviewer left it.
+
+`--whole-page` sends one request per page (no half-page crops, no fallback model; a page cut at the token limit is kept
+with a note), `--max-tokens` raises the output budget (Claude default 8192) and `--subdir` writes the pages into a
+subfolder of the provider's output folder, so that a page already reviewed is not replaced. Claude refuses some pages
+at random (a prose refusal or a content filter): the same page may pass on another attempt.
 
 ## The papers folder
 
