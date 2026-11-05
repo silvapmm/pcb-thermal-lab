@@ -80,13 +80,16 @@ class Runner:
         self.model = model or cfg.get("default") or provider.default_model
         self.fallbacks = [m for m in cfg.get("fallbacks", []) if m != self.model]
         self.prompt = prompt or config.default_prompt()
-        self.pause, self.daily_limit, self.dpi = pause, daily_limit, dpi
+        # A provider with a free daily cap (OpenRouter) carries its limit in data/models.json; --daily-limit overrides it.
+        self.pause, self.dpi = pause, dpi
+        self.daily_limit = daily_limit if daily_limit is not None else cfg.get("daily_limit")
         self.allow_confidential = allow_confidential
         # Defaults resolved at call time (a default argument would freeze the function when the module is imported).
         self._sleep = sleep
         self._render = renderer or (lambda pdf, page, dpi, clip: render.render_page(pdf, page, dpi, clip))
         self._info = info or (lambda pdf: render.first_page_info(pdf))
         self._requests = 0
+        self._tokens = [0, 0]      # input and output tokens reported by the provider in this run
 
     # ------------------------------------------------------------------ guards
     def check_confidential(self, pdf: Path) -> None:
@@ -123,6 +126,9 @@ class Runner:
             res = self.provider.transcribe(png, self.prompt, {"model": model})
             # The retries inside the provider are requests too (the daily limit counts what was sent).
             self._requests += max(0, int((res.extra or {}).get("attempts", 1)) - 1)
+            usage = (res.extra or {}).get("usage") or {}
+            self._tokens[0] += int(usage.get("input_tokens") or 0)
+            self._tokens[1] += int(usage.get("output_tokens") or 0)
             return res
         except ProviderError as e:
             self._requests += max(0, e.attempts - 1)
@@ -141,22 +147,23 @@ class Runner:
         @throws ProviderError For a quota or a hard failure.
         """
         res = self._call(self._render(pdf, page, self.dpi, None), self.model)
-        if not res.recitation:
+        if not (res.recitation or res.split):
+            used = res.model or self.model       # a provider that walks a chain of models says which one answered
             if not res.text.strip():
-                return res.text, self.model, f"empty answer (finish {res.finish_reason})"
+                return res.text, used, f"empty answer (finish {res.finish_reason})"
             # Text with another finish reason (MAX_TOKENS, SAFETY, ...) may be cut: keep it, but say so.
-            return res.text, self.model, ("" if res.finish_reason in ("STOP", "") else
+            return res.text, used, ("" if res.finish_reason in ("STOP", "", "end_turn", "stop_sequence", "stop") else
                                           f"finish {res.finish_reason}: the text may be incomplete")
-        # Refused by the copyright filter: two half-page crops with the same model.
-        log.info("%s p%d: RECITATION, trying half-page crops", pdf.name, page)
+        # Refused by the copyright filter (or cut at the token limit): two half-page crops with the same model.
+        log.info("%s p%d: %s, trying half-page crops", pdf.name, page, res.finish_reason or "RECITATION")
         halves = [self._call(self._render(pdf, page, self.dpi, clip), self.model) for clip in render.HALVES]
-        if not any(h.recitation or not h.text.strip() for h in halves):
-            return ("<!-- half-page crops (RECITATION on the full page) -->\n" + "\n\n".join(h.text for h in halves),
+        if not any(h.recitation or h.split or not h.text.strip() for h in halves):
+            return (f"<!-- half-page crops ({res.finish_reason or 'RECITATION'} on the full page) -->\n" + "\n\n".join(h.text for h in halves),
                     self.model, "half-page crops")
         for alt in self.fallbacks:
             log.info("%s p%d: crops refused, trying %s", pdf.name, page, alt)
             res = self._call(self._render(pdf, page, self.dpi, None), alt)
-            if not res.recitation and res.text.strip():
+            if not (res.recitation or res.split) and res.text.strip():
                 return res.text, alt, f"fallback model {alt}"
         return "", self.model, "RECITATION on the full page, the crops and every fallback model"
 
@@ -176,7 +183,7 @@ class Runner:
         self.check_confidential(pdf)
         if self.daily_limit is not None and self.ledger.requests_today(self.provider.name) >= self.daily_limit:
             return Outcome(stem, page, "limit", note=f"daily limit of {self.daily_limit} requests reached")
-        before, t0 = self._requests, time.time()
+        before, t0, tok0 = self._requests, time.time(), list(self._tokens)
         status, text, note, model = "failed", "", "", self.model
         try:
             text, model, note = self._transcribe(pdf, page)
@@ -188,10 +195,14 @@ class Runner:
                 status, note = "quota", "daily quota exhausted: " + note
         if status == "ok":
             self.out_dir.mkdir(parents=True, exist_ok=True)
-            out.write_text(f"<!-- page {page} -->\n{text}", encoding="utf-8")
+            # The model that answered is recorded in the page file when the provider can change it (OpenRouter).
+            tag = f"<!-- model: {self.provider.name}:{model} -->\n" if getattr(self.provider, "header_model", False) else ""
+            out.write_text(f"<!-- page {page} -->\n{tag}{text}", encoding="utf-8")
         self.ledger.add(provider=self.provider.name, model=model, file=stem, page=page, ok=status == "ok",
                         seconds=round(time.time() - t0, 1), words=len(text.split()) if status == "ok" else 0,
-                        requests=self._requests - before, note=note[:300])
+                        requests=self._requests - before, note=note[:300],
+                        **({"input_tokens": self._tokens[0] - tok0[0], "output_tokens": self._tokens[1] - tok0[1]}
+                           if self._tokens != tok0 else {}))
         return Outcome(stem, page, status, out if status == "ok" else None, text, note)
 
     def run_pages(self, pdf: Path, pages: list[int], force: bool = False, max_failures: int = 3) -> list[Outcome]:

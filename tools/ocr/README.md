@@ -15,6 +15,8 @@ $PY -W ignore -m tools.ocr queue --status                  # what is pending, re
 $PY -W ignore -m tools.ocr suspects                        # suspect pages + printed/PDF page numbers
 $PY -W ignore -m tools.ocr verify Lemczyk1992 --page 1     # HTML with the page image beside the transcription
 $PY -W ignore -m tools.ocr decode FILE.md [--force]        # base-36 font cipher post-processor (ciphered pages only)
+$PY -W ignore -m tools.ocr assemble Yovanovich2003    # one final Markdown in papers/md-final/<stem>.md (header, contents, cleaned and joined pages)
+$PY -W ignore -m tools.ocr map                          # offline, no provider: papers/notes/OCR_MAP.md + ocr_map.json (what is done, what the theory still needs, tokens to finish)
 ```
 
 Page numbers are PDF pages, 1-based (the `<!-- page N -->` markers use the same number). Exit codes: 0 ok, 1 failure,
@@ -30,7 +32,7 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 ## What it does
 
 * **Providers** (`providers/`): `transcribe(image_bytes, prompt, options) -> Result`. `gemini` (online; default model
-  `gemini-3.1-flash-lite`; models and fallbacks in `data/models.json`), `local` (offline; the maintainer's `extractpdf`
+  `gemini-3.1-flash-lite`; models and fallbacks in `data/models.json`), `anthropic` (online; Claude through the Messages API, default model `claude-sonnet-5-5`, fallback `claude-opus-5-5`, `--model claude-haiku-5-5` for bulk pages; use `--provider anthropic` on `transcribe`, `queue` and `check-key`; outputs in `ocr/anthropic/`), `local` (offline; the maintainer's `extractpdf`
   MLX converter with the model `ovis`, a stub that was not run by the tests: set `PCBT_EXTRACTPDF` and
   `PCBT_EXTRACTPDF_PYTHON`). A new provider is a class in `providers/` registered in `providers/__init__.py`.
 * **Retry and quota**: HTTP 429 (per minute), 500 and 503 and network errors are retried (4 attempts) with the pause the
@@ -42,8 +44,34 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
   20 + 40 + 80 s of pauses on a 503 or 429 was why an earlier key check seemed to take more than two minutes; the measured
   check takes about 1.5 s). An answer with text but a finish reason other than STOP (`MAX_TOKENS`, ...) is kept with the note
   "the text may be incomplete"; a blocked prompt is reported as `NO_CANDIDATE:<blockReason>`.
+* **Anthropic provider**: the page is a base64 PNG image block plus the same prompt; headers `x-api-key` and
+  `anthropic-version`, never the URL. 429 waits the `retry-after` header, 500/502/503/529 (overloaded) and network
+  errors back off (20, 40, 80 s); an error that names the credit balance, a usage limit or a spend limit stops the run at
+  once (exit 2, the page stays pending); 401/403 are not retried. `stop_reason` `max_tokens` (8192) is asked again as two
+  half-page crops, `refusal` takes the RECITATION path (crops, then the fallback model). The response `usage` is kept
+  in the ledger as `input_tokens` and `output_tokens` per page (`Ledger.tokens_today`); no price is stored (the field is
+  `unverified` in `data/models.json`: read the current price list before estimating a cost).
+* **OpenRouter provider** (`--provider openrouter`, key `OPENROUTER_API_KEY` or the line `openrouter=KEY` in `.ocr_keys`;
+  outputs in `ocr/openrouter/`, every page file carries `<!-- model: openrouter:<id> -->`): the OpenAI-compatible chat
+  API with `Authorization: Bearer` (never in the URL) and the page as an `image_url` data URL. The default model `auto`
+  is resolved by one `GET /models`: ids ending in `:free`, with image input and zero prices, classifiers (`safety`,
+  `guard`) left out, ranked (`dots`/OCR models, Qwen-VL, Gemma, Pixtral, Llama vision, ...) then by context; the best
+  four are a chain tried in order when a model fails for a reason of its own (404, no image input, upstream 429, 5xx),
+  within 3 requests per page. The free plan (about 20 requests per minute, 50 per day without credits) is respected
+  client side: 3.2 s between requests, and the runner stops cleanly (exit 2, pages stay pending) at `daily_limit` 45 of
+  `data/models.json` (counted in the ledger as provider `openrouter`) or at an error that names the daily limit or the
+  credits. `Retry-After` is honoured. Priority of the sources in `assemble` and `map`: Claude, then OpenRouter, then
+  Gemini, then the text layer (`assemble --order claude,openrouter,gemini` changes it); the header of the assembled
+  file lists `disagrees_with_claude` (digits, equation count, word similarity, `compare.py`): Claude wins.
 * **RECITATION**: a page refused by the copyright filter (empty answer with `finishReason` RECITATION) is retried as two
   half-page crops (top and bottom, 10 % overlap), then once with each fallback model. The output says which was used.
+* **Assemble** (`assemble.py`, command `assemble <stem>...`): one Markdown file per PDF in `papers/md-final/`, deterministic from the
+  per-page outputs. The page text is Claude's, else Gemini's, else `[missing]`; lines that repeat at the top or bottom of three
+  or more pages and lone page numbers are removed; a word hyphenated across a page break and a sentence cut by a break are
+  joined; every page keeps the marker `<!-- page N | printed M -->`; the YAML header holds the citation (from `notes/INDEX.md`),
+  page counts, the pages of each provider, the files that cite the paper and `reading_status: machine`; a table of
+  contents is built from the headings. Not done by the tool (it needs a reader): renumbering equations as in the paper,
+  the reference list as a numbered list, figure descriptions and the section "Equations used by the program".
 * **Resume**: a page whose output file exists is skipped unless `--force`. `--out FILE` also writes the pages of the run joined.
 * **Ledger** (`usage.json`): one entry per attempt (date, provider, model, file, page, ok, seconds, words, requests, note).
   `--daily-limit N` stops after N requests today.
@@ -68,12 +96,12 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 
 ## The key
 
-Looked up in this order: the environment variable the provider declares (`GEMINI_API_KEY`, then `GOOGLE_API_KEY`), then the
+Looked up in this order: the environment variable the provider declares (Gemini: `GEMINI_API_KEY`, then `GOOGLE_API_KEY`; Anthropic: `ANTHROPIC_API_KEY`; OpenRouter: `OPENROUTER_API_KEY`), then the
 file `.ocr_keys` in the project root (also in the main checkout when the tool runs from a worktree, found with
 `git rev-parse --git-common-dir`). Format: one `provider=KEY` per line, `#` for comments. The file must be mode 600; a file
 that group or others can read is refused with a message that does not contain the key. `.ocr_keys` and `*.key` are in
 `.gitignore` (on branches older than this tool add `.ocr_keys` to `.git/info/exclude` too, which holds for every branch), and
-`tests/test_no_secrets.py` fails if a key-like string is tracked (`AIza...`, `AQ.` keys with or without further dots,
+`tests/test_no_secrets.py` fails if a key-like string is tracked (`AIza...`, `AQ.` keys with or without further dots, `sk-ant-` followed by 20 or more characters of any family (`sk-ant-api03-`, `sk-ant-usr-`),
 `api_key = "..."`). `PCBT_SCAN_KEY_VALUES=1` also searches the tracked files for the exact values of `.ocr_keys` (opt-in, so
 that routine test runs never read the key; the values never reach a message). The local converter is started without the
 key variables in its environment.
@@ -84,7 +112,7 @@ redacts every record. If a key was ever pasted in a chat or a file, create a new
 
 ## Privacy
 
-Pages sent to Gemini leave this machine and go to Google. On the free tier Google may use the content to improve its
+Pages sent to Gemini leave this machine and go to Google; pages sent with `--provider anthropic` go to Anthropic (the maintainer decided online OCR is acceptable for open papers; check Anthropic's current retention and training terms for the key's plan before sending anything else). On the free tier Google may use the content to improve its
 products. By the maintainer's decision this is accepted for open papers, and **never** for the confidential ODB++
 specification or any file marked confidential: the tool refuses a file whose SHA-256 is listed in `data/confidential.json`
 (a renamed copy of the ODB++ specification is refused although its name and its first page carry no mark: its word
@@ -100,3 +128,12 @@ lower resolution (at most 40 million pixels); there is no time limit on a page, 
 
 `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/test_ocr_tool.py tests/test_no_secrets.py` (no network, no PDF:
 fake providers, a scripted HTTP layer). `tests/test_docs.py` and `tests/test_license_header.py` cover `tools/`.
+
+* **Map** (`papermap.py`, command `map [--root DIR]`): offline and read-only (no provider, no key, no network). For every PDF in
+  `papers/pdf` it writes the pages, born-digital or scan, the kind, whether an exact arXiv text exists, the pages done by Claude,
+  by Gemini and by the local conversion only, the text-layer quality of every page (clean, formula-heavy by the density of equals
+  signs and mathematical glyphs, garbage or empty) and the **essential pages**: those that the documents (`docs/theory.md`,
+  `models.md`, `validation.md`, `calculators.md`, the bibliography) and the program quote by key with a page, table or equation
+  number, plus the reviewer's list `OCR_TO_VERIFY.md`. Tiers: E1 essential and not verified against the image, E2 verified, O not
+  cited; the tokens to finish use 7.5k per page. The page detection is a heuristic (printed pages shifted by the file's offset),
+  stated as such in the output.
