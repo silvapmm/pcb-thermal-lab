@@ -1,0 +1,49 @@
+# Integration: the via on a plane with copper over part of its footprint
+
+Design for entering the program; nothing here is implemented (a research branch does not edit `pcbthermal/`). Evidence: `README.md` of this folder (section numbers below refer to it). Two proposals, in the order recommended.
+
+## 1. Proposal A: the live warning (text only; for 2.5.0)
+
+*What.* A new check in `pcbthermal/checks.py`, run with the other input checks (live under Run, repeated in the Results summary), prototype in `lib/warnrule.py`:
+
+* For every via with board under its drill disc, take the footprint the FVM would use at the cell of the run (`viawell.footprint`), and for each copper layer the sheet conductance per unit board `S / cover` of the cells with at least 5 % of the largest footprint weight; the via is "partial" in that layer when the smallest value is below 0.5 times the largest (`MIN_SHARE = 0.05`, `RATIO = 0.5`).
+* One aggregated line (with the full text in the tooltip, as the other model-limit warnings): "N vias have copper over only part of their footprint (a copper edge, a track end or a clearance within about one cell): the via effect may be misread, either too weak or too strong, and the FVM can show a local dip in the temperature. Refine the cell or draw a pad around the via." The wording says either direction (README 2, 3: the program reads low on a copper edge or a track, high for a via just off a copper edge).
+* Applies to the FVM, FDM and the 3D solid only where it concerns them; the Lumped and Analytic have no footprint (the model-limit check for them already exists).
+
+*Measured (README 6).* Fires on every copper-edge, track and bare case and on the documented board at every cell; silent on the island, antipad cases, the array with clearances (0 partial pairs) and on **all five frozen boards with vias at 2, 1 and 0.5 mm (0 false alarms)**; of 44 cases with a via effect above 1 K: 19 fired-and-wrong, 4 fired-and-right, 4 silent-and-wrong (the island and the edge past the via, other causes), 17 silent-and-right.
+
+*Acceptance tests (new `tests/test_via_partial_copper_warning.py`).* (1) The documented 30 x 30 mm board (`copper_edge_board`) warns at 1, 0.5, 0.25 and 0.125 mm; (2) `example_board`, `plate_vias`, `plate_lone_via` at 2, 1, 0.5 mm do not; (3) an antipad of 0.8 mm around each via of a 3 x 3 array at 0.25 mm does not; (4) a track ending at a via warns at 0.25 mm. No temperature changes, so no frozen-number shift and no pending file; `tests/test_maximum_principle.py` keeps its strict expected failure.
+
+*Cost and risk.* One footprint per via per check (the run already builds them; with 8500 vias the live check must stay under its 0.2 s budget: measure it, the footprint search is the expensive part and can be reused from the network). Risk: a warning on the Gerber import that fires on most real boards (vias end on pads, planes have clearances): it would be informative, but its rate on the real windows is not known (not run, README 8); the rule must be run on the RP2040, ISASTM and CMM2 windows before the threshold is frozen, and if it fires on more than about a third of the vias the text should say "N of M vias" and be demoted from the live list to the Results summary.
+
+## 2. Proposal B: sheet-weighted weights per layer (variant a; after 2.5.0)
+
+*What changes in `pcbthermal/viawell.py`* (three touching points):
+
+1. `footprint(...)` gains an optional per-layer factor `rel` (array `S[l] / cover`, shape (ny, nx)) and returns the weights of one layer: the geometric weight times `rel`, renormalised, enlarged until the lattice effective radius of the weighted distribution reaches `TARGET_RATIO r_via` (the doubling-and-bisection search of `lib/viavariants._layer_weights`). With `rel` constant over the geometric footprint the program's weights come back unchanged, so a via on uniform copper is built by the existing code path and **is bit-identical**.
+2. `build(...)` returns, per via, weights per layer: `(rows, cols, W, G)` with `W` of shape (L, n) over the union of the cells; the well uses the weighted mean of S over each layer's weights instead of the cell with the largest weight; `kron_barrel` is unchanged.
+3. `matrix_entries(...)` writes `G[l, m] u u^T` with `u = e_l (x) W[l] - e_m (x) W[m]` (one array per layer instead of one for both); `unknown_blocks` and the callers in `fvm.py` (`for ci, cj, _w, _G in self.via_blocks`) and `fdm.py` read the union of the cells.
+
+*Composition with `feature/via-edge-image`.* That branch (read from `git diff develop...feature/via-edge-image -- pcbthermal/viawell.py`, not run) moves the doubling-and-bisection search into `enlarged_footprint(..., need)` and adds the image term `c` to the well. The per-layer weights compose with it as follows: `enlarged_footprint` takes the same `rel` factor (the search is the same, only `make(radius)` multiplies by it); the image term `c` is computed per layer from that layer's weights (it depends on the footprint, which now differs by layer; for a uniform footprint the layers are equal and the number is unchanged). The merge is mechanical but two of the three touching points sit in the same functions, so the two fixes are done one after the other, edge image first (`CLAUDE.md`: branches that share a file are done in series), and the pending shift file of the edge image is re-measured on top.
+
+*Measured impact (README 5).* Documented board: cold spot -7.94 / -14.43 K (0.5 / 0.25 mm) to 0.00; via effect 7.31 / 7.67 K to 12.69 / 12.50 K (cell-independent within 0.35 K from 1 to 0.125 mm). Copper edge through the via (10 mm board): error of the via effect against the 3D solid from -37 % to +5 % (0.25 mm); track 0.4 mm -58 % to -36 %; track 1.0 mm -49 % to -20 %. Frozen regression boards (5 with vias): **0.0000 K shift on every record** at 2, 1 and 0.5 mm (FVM and FDM): no pending file. Full copper (3 x 3 array, lone via, copper-fill gain): identical. Imported boards: **unknown, must be run before the decision**: the shift is the via effect of every partial via, tens of percent of that via's cooling, either sign.
+
+*Known weaknesses to state in the theory (2.2) and keep as a limit:* positive off-diagonal entries stay (8 on the edge board at 0.25 mm, 292 at 0.125 mm), so no structural guarantee of the maximum principle; a part that heats a bare cell next to the via reads too weak (-84 % at 0.25 mm in the `bare` case, where the program's -34 % was a coincidence of the grid); a via 0.3 mm beside the edge on bare laminate is read worse at 0.5 mm and coarser (6.6 to 8.3 K against 1.07 K).
+
+*Acceptance tests.* `tests/test_maximum_principle.py::test_no_cold_spot_where_the_copper_ends_inside_a_footprint` loses its `xfail` and passes at 0.5 and 0.25 mm (cold spot >= -1e-9 of the maximum rise); new test: documented board via effect between 12.0 and 13.0 K at 0.5, 0.25 and 0.125 mm; bit-identity of `example_board` at 1 mm; the 17 frozen records unchanged; positive semidefinite dense blocks (`lib` test `test_dense_blocks_are_positive_semidefinite_with_zero_row_sums` moves to `tests/`); `tests/test_point_via.py` unchanged. Docs: `docs/theory.md` 2.2 (the limit text changes to the measured one) and 2.6, `docs/validation.md`, the user guide one sentence.
+
+## 3. Proposal C: the star coupling (variant c; later, as one model change)
+
+The barrel as one node per layer joined to every cell by `g_a = c w_a` (weights as in B), the barrel nodes eliminated by the Schur complement; `c` per layer from the calibration of `lib/viavariants.star_scale` so that a lone via on uniform copper keeps the resistance `ln(R / r_t) / (2 pi S)`. Every off-diagonal entry of K is then non-positive (0 positive entries on every board tested, README 5.1): K is an M-matrix, the maximum principle and the no-cold-spot property hold by construction and `docs/theory.md` 2.2's limit disappears, also on full copper where the program has 16 (example board, 1 mm) to 3104 (10 x 10 array, 0.25 mm) positive entries. It is the better model of a via next to a bare cell (`bare` case within 2 to 16 % at three of four cells against -84 to -93 % for B) but it moves every board with vias (frozen: up to -0.73 K, 0.66 % of the rise, `plate_vias` FDM 0.5 mm; the full-copper convergence and copper-fill gain are kept to 0.02 K) and costs 0.15 to 0.3 ms per layer and via (cache the calibration by footprint shape: about 10 s for 8500 vias otherwise). It needs: re-validation of the point-via convergence, the array and the unit cells of `research/point-via-convergence`, the real windows with holes of `research/gerber-real-boards`, and a pending shift file. Do it once, together with the edge image if the maintainer wants a single treatment of the via; do not do B and C in turn.
+
+## 4. Recommendation
+
+1. **2.5.0:** Proposal A (the warning). It moves no number and rests on 0 false alarms on the frozen boards; run it on the imported windows first. Update the Planned item and `theory.md` 2.2 in the same branch to drop "exaggerates the via effect 2.5 to 4 times" (the research does not support it: the 3D reference of that figure was not converged, README 2).
+2. **After 2.5.0:** `fix/via-partial-copper` with B, once `feature/via-edge-image` is merged and the real-window comparison (with and without B on the 12 windows with holes) has been run; or C instead of B if the maintainer prefers one model change.
+3. **If the maintainer wants the number fix in 2.5.0:** B only, after the edge image, with the real-window comparison as a condition and a pending shift file for the imported boards (none for the frozen ones).
+
+## 5. Decisions for the maintainer
+
+* A in 2.5.0: yes or no; the demotion rule if it fires on most imported vias.
+* B or C, and when.
+* Whether the Planned item and `theory.md` 2.2 are corrected now (documents; not done here).

@@ -7,7 +7,7 @@
          heater of 2 W on the top layer. The via sits at the centre of the board in the plan (`C` mm). The cases:
          * `edge`    the top copper ends through the via (x <= C + delta), the heater beside it; the bottom is a full plane. (The case of tests/test_maximum_principle.py,
                      on a smaller board.)
-         * `track`   a 3 x 3 mm heater pad, a track of width w and length l to the via, no other top copper; the bottom is a full plane.
+         * `track`   a 2 x 2 mm heater pad, a track of width w and length l to the via, no other top copper; the bottom is a full plane.
          * `island`  the heater sits on a square pad (side s) around the via, no other top copper; the bottom is a full plane.
          * `antipad` full planes on both layers, the bottom plane has a square clearance (side a) centred on the via (the via touches only the top plane).
          * `antipad_land` the same with a round (square here) land of side s_land at the bottom end of the via, isolated from the plane.
@@ -58,7 +58,7 @@ def frame(p, layer, hole, cx=C, cy=C):
 
 def edge(delta=0.0, power=0.5, d=0.3, h=50.0, with_via=True):
     """!
-    @brief The top copper ends at x = C + delta; the heater (3 x 3 mm) beside the edge; full bottom plane.
+    @brief The top copper ends at x = C + delta; the heater (2 x 2 mm) beside the edge; full bottom plane.
     @param delta Edge position relative to the via centre in mm (0 = through the centre).
     @param power Heater power in W.
     @param d Drill diameter in mm.
@@ -78,7 +78,7 @@ def edge(delta=0.0, power=0.5, d=0.3, h=50.0, with_via=True):
 
 def track(width=0.4, length=2.0, power=0.5, d=0.3, h=50.0, with_via=True):
     """!
-    @brief A heater pad, a thin track to the via, no other top copper; full bottom plane.
+    @brief A 2 x 2 mm heater pad, a thin track to the via, no other top copper; full bottom plane.
     @param width Track width in mm.
     @param length Track length in mm (from the pad edge to the via centre).
     @param power Heater power in W.
@@ -123,7 +123,7 @@ def antipad(hole=1.0, land=0.0, power=0.5, d=0.3, h=50.0, with_via=True):
     @brief Full top plane with the heater, bottom plane with a square clearance around the via (the via is not connected to the bottom plane).
     @param hole Side of the clearance in mm.
     @param land Side of an isolated square land at the bottom end of the via in mm (0 = none).
-    @param power Heater power in W (3 x 3 mm heater beside the via, centre 2 mm away).
+    @param power Heater power in W (2 x 2 mm heater beside the via, centre 2 mm away).
     @param d Drill diameter in mm.
     @param h Face coefficient in W/m2K.
     @param with_via False leaves the via out.
