@@ -38,6 +38,11 @@ from .numfmt import num
 # the fill and 40 % less time than the default COLAMD (measured on the example board at 1 and 0.5 mm)
 ORDERING = "MMD_AT_PLUS_A"
 
+# Relative residual of the probe solve that a symmetric-mode factorisation must meet; above it the default (non-symmetric) factorisation is used
+SYMMETRIC_LU_TOLERANCE = 1e-8
+# Set to False (tests, studies) to force SuperLU's default non-symmetric mode everywhere
+SYMMETRIC_LU = True
+
 log = logging.getLogger(__name__)
 
 # Blocks of the block SOR (unknowns of the merged footprints of vias that touch): the build of the dense inverse of a block of n unknowns takes about 75 n^2 bytes
@@ -47,6 +52,36 @@ log = logging.getLogger(__name__)
 # Reuse of the last LU factorisation for a repeated matrix, only inside a factor_reuse() block (the top-path split solves the same board
 # several times with other powers). One entry per thread, released before a new factorisation, so the peak memory is that of one LU, as with spsolve.
 _REUSE = threading.local()
+
+
+def lu_factor(A):
+    """!
+    @brief Sparse LU factorisation of a thermal matrix, in SuperLU's symmetric mode when the matrix allows it.
+    @details The conductance matrices of the FVM, FDM and transient steps are symmetric and positive definite, so the diagonal is a good pivot:
+             `diag_pivot_thresh=0` with `SymmetricMode` keeps the symmetric ordering (no row exchanges), which gives the same fill with far less work and
+             workspace. The mode is used only after a cheap check (positive diagonal, symmetric values) and is kept only if a probe solve has a relative
+             residual below SYMMETRIC_LU_TOLERANCE; if the check fails, the factorisation raises, or the residual is worse, the default mode is used
+             instead (never a silent wrong answer).
+    @param A Square sparse matrix in W/K, any format.
+    @return scipy.sparse.linalg.SuperLU object with a solve(b) method.
+    """
+    A = A.tocsc()
+    if SYMMETRIC_LU and A.shape[0] > 0:
+        try:
+            scale = float(abs(A).max())
+            # Symmetry to rounding (the assembly builds both triangles from the same couplings) and a positive diagonal
+            if A.diagonal().min() > 0.0 and abs(A - A.T).max() <= 1e-12 * scale:
+                lu = spla.splu(A, permc_spec=ORDERING, diag_pivot_thresh=0.0, options={"SymmetricMode": True})
+                # The probe is a ramp, so that the residual tests the whole factor and not one eigenvector
+                x0 = 1.0 + np.arange(A.shape[0], dtype=float) / A.shape[0]
+                b0 = A @ x0
+                rel = float(np.linalg.norm(A @ lu.solve(b0) - b0)) / max(float(np.linalg.norm(b0)), 1e-300)
+                if np.isfinite(rel) and rel <= SYMMETRIC_LU_TOLERANCE:
+                    return lu
+                log.warning("Symmetric LU residual %.2e too large; using the default factorisation", rel)
+        except (RuntimeError, ValueError, MemoryError) as exc:
+            log.warning("Symmetric LU failed (%s); using the default factorisation", exc)
+    return spla.splu(A, permc_spec=ORDERING)
 
 
 @contextlib.contextmanager
@@ -80,7 +115,7 @@ def direct_solve(A, b):
     """
     slot = getattr(_REUSE, "slot", None)
     if slot is None:
-        return spla.spsolve(A.tocsc(), b, permc_spec=ORDERING)
+        return lu_factor(A).solve(np.asarray(b, dtype=float))
     A = A.tocsc()
     A.sum_duplicates()                             # Canonical form, so that equal matrices give equal bytes
     # The key is the exact content (structure and values), hashed: two matrices differ by a face coefficient in the computed-h loop
@@ -93,7 +128,7 @@ def direct_solve(A, b):
     key = digest.hexdigest()
     if slot.get("key") != key:
         slot.clear()                               # Release the old LU before the new one is made (peak memory of one factorisation)
-        slot["lu"] = spla.splu(A, permc_spec=ORDERING)
+        slot["lu"] = lu_factor(A)
         slot["key"] = key
         _REUSE.count = getattr(_REUSE, "count", 0) + 1
     return slot["lu"].solve(np.asarray(b, dtype=float))
@@ -940,7 +975,7 @@ def transient_from_network(net, ambient, t_end, n_out=40, substeps=4, theta_sche
             lu = B = None                                   # Free the old factor before the new one is built
             A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
             B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
-            lu, current_key = spla.splu(A, permc_spec=ORDERING), key
+            lu, current_key = lu_factor(A), key
         x = lu.solve(B @ x + q)
         if k in kept:
             frames[k] = x.reshape(net.nl, ny, nx)[:nb] + ambient
@@ -993,7 +1028,7 @@ def step_responses_from_network(net, t_end=None, ratio=3.0, per_stage=4, stages=
     if t_end is None:
         t_end = 10.0 * board_time_constant(net)
     Q = net.Qw_matrix.toarray()                                   # (cells, heaters), unit power each
-    rth = (spla.splu(net.K.tocsc(), permc_spec=ORDERING).solve(Q)).max(axis=0)
+    rth = (lu_factor(net.K).solve(Q)).max(axis=0)
     # Step sizes: per_stage steps of dt0 * ratio^j for j = 0..stages-1, scaled so that they sum to t_end
     geometric = per_stage * (ratio ** stages - 1.0) / (ratio - 1.0)
     dt0 = t_end / geometric
@@ -1004,7 +1039,7 @@ def step_responses_from_network(net, t_end=None, ratio=3.0, per_stage=4, stages=
         dt = dt0 * ratio ** j
         A = (sp.diags(Cd / dt) + theta_scheme * net.K).tocsc()
         B = (sp.diags(Cd / dt) - (1.0 - theta_scheme) * net.K).tocsr()
-        lu = spla.splu(A, permc_spec=ORDERING)
+        lu = lu_factor(A)
         for _ in range(per_stage):
             x = lu.solve((B @ x) + Q)
             t += dt
