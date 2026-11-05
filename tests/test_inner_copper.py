@@ -74,8 +74,8 @@ def test_one_oz_variant_keeps_the_dielectrics():
         assert v["total_thickness_um"] == pytest.approx(base["total_thickness_um"] + (35 - 15.2) * (n - 2))
         assert v["total_thickness_um"] == pytest.approx(total, abs=0.05)
         assert sum(v["copper_um"]) + sum(_gap_um(d) for d in v["dielectrics"]) == pytest.approx(v["total_thickness_um"])    # The layers add up
-        assert v["derived"] and "not a fabricator" in v["name"] and "dielectric_scale" not in v
-    assert "JLC04161H" in stackup_template(4)["name"] and "derived" in stackup_template(4, inner_oz=1)["name"]
+        assert v["derived"] and "check your fabricator" in v["name"] and "dielectric_scale" not in v
+    assert "typical" in stackup_template(4)["name"] and "derived" in stackup_template(4, inner_oz=1)["name"]
     # Fewer than three layers have no inner copper, and an unlisted count (5) is derived the same way
     assert stackup_template(2, inner_oz=1) == stackup_template(2)
     assert stackup_template(5, inner_oz=1)["copper_um"] == [35] * 5

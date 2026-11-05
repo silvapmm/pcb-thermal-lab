@@ -257,7 +257,7 @@ class Simulation:
                          f"{r['r_theta_k_per_w']:8.3f} {r['power_in_w']:7.3f} {num(r['energy_balance'], sign=True):>9} "
                          f"{r['error_vs_reference'] * 100:+8.1f}% {r['seconds']:7.2f}")
         for w in self.warnings:
-            lines.append(f"WARNING: {w}")
+            lines += ["", f"WARNING: {w}"]                                   # A blank line before each warning keeps the list readable (as the Summary tab and the Markdown report)
         return "\n".join(lines) + "\n"
 
     def report(self):

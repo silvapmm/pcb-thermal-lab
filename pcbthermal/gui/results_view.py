@@ -421,7 +421,8 @@ class ResultsView(QWidget):
         """
         tone = th.colors(self.theme)["alert_note"]
         self.warnings.setTextFormat(Qt.RichText)
-        self.warnings.setText("<br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
+        # Two line breaks = one blank line between warnings, so that a long list is easy to read
+        self.warnings.setText("<br><br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
 
     def set_theme(self, theme):
         """!
