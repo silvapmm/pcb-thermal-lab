@@ -1291,7 +1291,7 @@ def memory_guard(path):
     steps = (("board + cell: plan grid nx ny", "#e8e8e8"),
              ("cheap lower bound of N (one node per copper layer\nand plan cell): refuse at once if it is over the limit", "#cfe3f5"),
              ("exact count N (copper sampled), t = N / (nx ny),\nt_eff = min(t, nx ny / t)", "#cfe3f5"),
-             ("estimate = base + safety x factor x via x k1 t_eff^a N (N/Nref)^(p-1)\nfactor 1 steady, 2 time run or profile; via = 1 + 0.40 (1 - exp(-F/500))\nfor the FVM and FDM with vias (F: cells of the via footprints)", "#fdeeb4"),
+             ("estimate = base + safety x factor x via x k1 t_eff^a N (N/Nref)^(p-1)\nfactor 1 steady, 2 time run or profile; via = 1 + 0.10 (1 - exp(-F/500))\nfor the FVM and FDM with vias (F: cells of the via footprints)", "#fdeeb4"),
              ("limit = fraction (60 %) x physical memory\nok, slow (above 30 s predicted) or refuse", "#f4b6b6"))
     for i, (txt, col) in enumerate(steps):
         y = 7.5 - i * 1.75
@@ -1305,9 +1305,9 @@ def memory_guard(path):
     for (name, (k1, p, e, s)), t, col, ls in ((("FVM", law["FVM"]), 2, dk.BLUE, "-"), (("FVM", law["FVM"]), 6, dk.BLUE, "--"),
                                               (("FDM", law["FDM"]), 4, "#3a8a3a", "-"), (("3D solid", law["3D solid"]), 6, dk.HEAT, "-")):
         a.plot(n, s * k1 * t ** e * n * (n / 5e5) ** (p - 1.0) / 1e9, color=col, ls=ls, lw=2, label=f"{name}, t_eff = {t}")
-    # The via term of the FVM and FDM saturates at 1 + VIA_GAIN = 1.40 (memory.VIA_GAIN): the board with thousands of via footprint cells
+    # The via term of the FVM and FDM saturates at 1 + VIA_GAIN = 1.10 (memory.VIA_GAIN): the board with thousands of via footprint cells
     k1, p, e, sf = law["FVM"]
-    a.plot(n, 1.40 * sf * k1 * 6 ** e * n * (n / 5e5) ** (p - 1.0) / 1e9, color=dk.BLUE, ls="-.", lw=1.5, label="FVM, t_eff = 6, with vias (x 1.40)")
+    a.plot(n, 1.10 * sf * k1 * 6 ** e * n * (n / 5e5) ** (p - 1.0) / 1e9, color=dk.BLUE, ls="-.", lw=1.5, label="FVM, t_eff = 6, with vias (x 1.10)")
     lim = 0.6 * 16 * 2 ** 30 / 1e9
     a.axhline(lim, color="k", ls=":", lw=1.5)
     a.text(5.5e4, lim * 1.04, f"limit: 60 % of 16 GiB = {lim:.1f} GB", fontsize=8)

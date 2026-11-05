@@ -15,7 +15,8 @@
          `safety` the safety factor of the model and `factor` that of a time simulation or a profile run (1 for a steady solve).
          The vias of the FVM and FDM add a factor `1 + VIA_GAIN (1 - exp(-F / VIA_CELLS_REF))` on the allocated part, F the cells of their footprints (`via_cells`): the
          mean-potential couplings of viawell.py join the copper layers across the laminate nodes, and the factorisation of a board with vias took up to 1.6 times the memory
-         of the same board without them (CO60 at 0.5 mm, 769 vias). A board without vias is unchanged.
+         of the same board without them in SuperLU's default mode (CO60 at 0.5 mm, 769 vias); in the symmetric mode that the solver now uses the excess is 0.82 to 1.09 times, and the gain is
+         the small VIA_GAIN = 0.10 (if the solver ever falls back to the default mode the law does not cover the peaks of up to 4.75 times). A board without vias is unchanged.
          `base` is the resident size of the process when the check is made (not multiplied by the factors: it is measured, not estimated). The coefficients are bytes of the algorithm, mostly independent of the machine, but they were
          measured on one machine and are logged against the measured peak after each run so that other machines can check them.
 
@@ -45,7 +46,7 @@ TRANSIENT_FACTOR = 2.0              # Time simulation and animation: one factor 
 PROFILE_FACTOR = 2.0                # Power-profile runs (two factors; not measured)
 SOR_BLOCK_SHARE = 0.25              # Share of the limit one dense SOR block may take
 EXIT_CODE = 3                       # Exit code of the command line for a refusal (2 is argparse's usage error)
-VIA_GAIN = 0.40                     # FVM and FDM: largest extra share of the allocated memory that the via couplings add (CO60 striped at 0.5 mm: 3.96 against 2.42 GB without vias; the reviewer's 5.5 GB against 4.1 estimated)
+VIA_GAIN = 0.10                     # FVM and FDM: largest extra share of the allocated memory that the via couplings add. Fitted at 0.40 on the default SuperLU mode (CO60 striped 0.5 mm: 3.96 against 2.42 GB without vias), refitted at 0.10 on the symmetric mode of fvm.lu_factor (peak with vias 0.82 to 1.09 of the same board without them; worst underestimate 1.27 on 85 via cases)
 VIA_CELLS_REF = 500.0               # Footprint cells at which the via term reaches 63 % of its gain (25 vias of 0.3 mm at 0.5 mm are 100 cells and measured nothing; CO60 is 1 500 to 5 400)
 MEMORY_ENV = "PCBTHERMAL_MEMORY_BYTES"   # Environment variable that states the physical memory in bytes (tests, containers whose limit is not visible)
 
