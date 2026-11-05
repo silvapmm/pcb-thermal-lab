@@ -138,7 +138,7 @@ def test_the_key_tables_name_the_other_real_keys(win):
     # Edit, Simulation and Help keys too, and the tool keys
     shown = _plain(win.SHORTCUTS_HTML)
     guide = _plain(GUIDE.read_text(encoding="utf-8"))
-    for key in ("Del", "Ctrl+D", "F5", "Ctrl+.", "F1", "Ctrl+Z", "Ctrl+Shift+Z", "Ctrl+Y", "Ctrl+1"):
+    for key in ("Del", "Ctrl+D", "F5", "Ctrl+.", "F1", "Ctrl+Z", "Ctrl+Shift+Z", "Ctrl+Y", "Ctrl+1", "Ctrl+A", "Ctrl+,"):
         assert _mentions(shown, key) and _mentions(guide, key), key
     real = _bindings(win)
     for key in ("Ctrl+Shift+Z", "Ctrl+Y", "Ctrl+Z", "Ctrl+=", "Ctrl++", "Ctrl+-", "Ctrl+Q"):

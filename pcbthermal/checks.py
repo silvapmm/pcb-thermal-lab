@@ -66,11 +66,12 @@ def _add(out, kind, index, text, short=None):
     out.append(w)
 
 
-def check_problem(problem, cell_mm=1.0):
+def check_problem(problem, cell_mm=1.0, models=None):
     """!
     @brief List the validity warnings of a problem.
     @param problem A Problem (assumed structurally valid, see Problem.validate).
     @param cell_mm Cell size (mm) of the raster used for the geometric checks and the FVM mesh.
+    @param models  Model keys that will run, or None (every model): the warning about a copper edge across a footprint concerns only the Lumped and Analytic models.
     @return List of warning strings (empty when nothing is doubtful).
     """
     b = problem.board
@@ -127,7 +128,9 @@ def check_problem(problem, cell_mm=1.0):
             if f_mean < 0.02:
                 _add(out, "heater", k, f"{name}: there is no copper under it on layer {h.layer + 1}; the heat can only spread "
                            "through the FR-4 and the part will run very hot.", f"{name}: no copper under it on layer {h.layer + 1}; it will run very hot.")
-            elif f_mean < 0.98:
+            elif f_mean < 0.98 and h.layer not in imported_layers and (models is None or {"lumped", "analytic"} & set(models)):
+                # Only the reduced models are unreliable here, and an imported layer has its own, stronger warning (the gaps between the pins of a QFN
+                # already read as an edge): so no message on an FVM-only run or on imported copper
                 _add(out, "heater", k, f"{name}: a copper edge or hatching crosses its footprint (copper fill {f_mean:.2f}); the "
                            "Lumped and Analytic models are unreliable here, use the FVM.",
                      f"{name}: a copper edge crosses its footprint (fill {f_mean:.2f}); use the FVM.")
@@ -226,7 +229,7 @@ def check_input(problem, models, cell_mm=1.0):
     @return List of warning strings (CheckWarning, tagged with the element) in the order validity, model limits, vias.
     """
     models = tuple(models)
-    return (check_problem(problem, cell_mm) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
+    return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
             + check_via_partial_copper(problem, models, cell_mm))
 
 
@@ -686,9 +689,9 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
         limit = min(f[5] for f in group)
         if model == "layered":
             s_max, n_max = laminate.parameters()
-            what = (f"the layered FVM and FDM read them too cool (4 to 24 % of the thermal resistance, more over a pad); a smaller laminate_s_max_mm (now {num(s_max * 1e3, 2)} mm) "
-                    f"or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
-            short_what = "the FVM and FDM read them too cool (4 to 24 %); reduce laminate_s_max_mm"
+            what = (f"the layered FVM and FDM read them too cool (4 to 24 % of the thermal resistance, more over a pad); a smaller 'Laminate sub-gap' (--laminate-s-max-mm, now {num(s_max * 1e3, 2)} mm) "
+                    f"or a larger 'Laminate sub-gaps' (--laminate-n-max, now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
+            short_what = "the FVM and FDM read them too cool (4 to 24 %); reduce the Laminate sub-gap"
         else:
             what = "the 3D solid, with four slabs per insulating layer, reads them too hot (up to +20 % bare and +27 % over a pad on 3.2 mm laminate)"
             short_what = "the 3D solid reads them too hot (up to +27 %)"
@@ -704,11 +707,11 @@ def check_small_part_laminate(problem, models, cell_mm=1.0):
             over = "over a copper pad" if limit == SMALL_PART_RATIO_PAD else "on bare laminate"
             _add(out, "heater", k, f"{name}: the part is small ({size}, {over}) against the sub-layer of laminate under it ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
                        f"above {limit:.2f}); the layered FVM and FDM read it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
-                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller laminate_s_max_mm (now "
-                       f"{num(s_max * 1e3, 2)} mm) or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
+                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller 'Laminate sub-gap' (--laminate-s-max-mm, now "
+                       f"{num(s_max * 1e3, 2)} mm) or a larger 'Laminate sub-gaps' (--laminate-n-max, now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
                        "The 3D solid, with its four slabs per insulating layer, reads such a part too hot instead, so it is not the answer here.",
                  f"{name}: small part over a thick laminate; the FVM and FDM read it too cool (ratio {ratio:.2f}, about 4 to 24 %); "
-                 "reduce laminate_s_max_mm.")
+                 "reduce the Laminate sub-gap.")
         else:
             _add(out, "heater", k, f"{name}: the part is small ({size}) against the slabs of the 3D solid ({num(sub * 1e3, 2)} mm, four per insulating layer, ratio {ratio:.2f} "
                        f"above {limit:.2f}); the solid reads it too hot: measured up to +20 % bare and +27 % over a pad on 3.2 mm laminate under a 2 mm part at 0.25 mm "

@@ -338,6 +338,8 @@ The power coefficient and the heatsink on the package apply to the steady-state 
 <tr><td><kbd>P</kbd></td><td>Polygon mode: click the vertices, double-click or <kbd>Enter</kbd> to finish, right-click also finishes</td></tr>
 <tr><td>Wheel, middle-drag, <kbd>Space</kbd>+drag</td><td>Zoom, pan</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>0</kbd>, <kbd>Ctrl</kbd>+<kbd>+</kbd> (or <kbd>Ctrl</kbd>+<kbd>=</kbd>), <kbd>Ctrl</kbd>+<kbd>-</kbd></td><td>Fit the board, zoom in, zoom out</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>Select all on the active layer</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>,</kbd></td><td>Preferences</td></tr>
 <tr><td><kbd>Del</kbd> or <kbd>Backspace</kbd>, <kbd>Ctrl</kbd>+<kbd>D</kbd>, arrows</td><td>Delete, duplicate, nudge the selection (it cannot leave the board)</td></tr>
 <tr><td><kbd>Esc</kbd></td><td>Cancel the drawing, clear the selection</td></tr>
 <tr><td><kbd>G</kbd>, <kbd>Shift</kbd>+<kbd>G</kbd>, <kbd>T</kbd></td><td>Grid, solver grid, temperature overlay</td></tr>
@@ -374,7 +376,7 @@ The power coefficient and the heatsink on the package apply to the steady-state 
 <p>Every warning has a one-line form under the Run button (hold the mouse on it for the full text) and the full text in the Results summary. None of them blocks a run; each says what the model cannot be trusted for. Look for the key words in the first column.</p>
 <table>
 <tr><th>Warning (key words)</th><th>When it appears</th><th>What it means</th><th>What to do</th></tr>
-<tr><td>Heater outside the board / no copper under a heater / copper edge crosses a heater</td><td>Live</td><td>The input is geometrically doubtful: the power goes to the nearest cell, or the footprint sits on bare laminate or across a copper edge.</td><td>Move the part or draw the copper; confirm with the FVM.</td></tr>
+<tr><td>Heater outside the board / no copper under a heater / copper edge crosses a heater</td><td>Live</td><td>The input is geometrically doubtful: the power goes to the nearest cell, or the footprint sits on bare laminate or across a copper edge (the edge warning appears only when the Lumped or Analytic model runs, and not on imported copper, which has its own warning).</td><td>Move the part or draw the copper; confirm with the FVM.</td></tr>
 <tr><td>Memory: red verdict, <i>Run</i> greyed</td><td>Live</td><td>The estimated peak memory is above the limit (60 % of the physical memory by default).</td><td>Use the cell the message names, or raise the limit in Preferences if the machine can take it.</td></tr>
 <tr><td><i>Centre of the part sits on bare laminate</i></td><td>Live</td><td>The layered models read lower than a resolved 3D solution there.</td><td>Use the 3D solid for the final value.</td></tr>
 <tr><td><i>Part is small against the sub-layer of laminate</i></td><td>Live</td><td>The laminate rule is too coarse for a part this small: the FVM and FDM read 4 to 24 % of the resistance too cool, the 3D solid too hot.</td><td>Reduce <i>Laminate sub-gap</i> or raise <i>Laminate sub-gaps</i>.</td></tr>

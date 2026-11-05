@@ -81,8 +81,8 @@ SECTION_HINTS = {"new_board": "The values a board starts with when you choose Fi
                  "calculator": "How uncertain the inputs of the power calculator are. The band (best case / nominal / worst case) moves each one to both ends and adds the effects as the root of the sum of squares.",
                  "solver": "The models and settings a new project starts with.",
                  "gerber": "Limits of the Gerber reader. A setting of this machine, not saved in project files."}
-MACHINE_NOTES = {"solver": "The models and settings a new project starts with, and the memory limit of this machine. The memory limit (and the laminate options of a run) "
-                           "are machine preferences: they are not saved in project files.",
+MACHINE_NOTES = {"solver": "The models and settings a new project starts with, and the memory limit of this machine. The memory limit is a machine preference: "
+                           "it is not saved in project files.",
                  "gerber": "Limits of the Gerber reader. A machine preference: not saved in project files."}
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
@@ -174,7 +174,7 @@ class PreferencesDialog(QDialog):
         self.info.setTextFormat(Qt.RichText)
         self.info.setToolTip("Where the user's defaults are kept and what they change. Without that file the program uses the values shipped with it.")
         lay.addWidget(self.info)
-        # The eight sections are a list on the left and their pages are stacked on the right (eight tabs needed scroll arrows in a narrow window)
+        # The sections are a list on the left and their pages are stacked on the right (as tabs they needed scroll arrows in a narrow window)
         self.sections = QListWidget()
         self.sections.setObjectName("sections")
         self.sections.setFixedWidth(SECTION_LIST_WIDTH)

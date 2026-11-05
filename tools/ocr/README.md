@@ -6,7 +6,7 @@ not part of the `pcbthermal` package (the program never imports it). MIT, like t
 Run from the repository root with a Python that has PyMuPDF (the markitdown environment has it; the project `.venv` does not):
 
 ```sh
-PY=/Volumes/SSD/PROJETOS/markitdown/.venv/bin/python
+PY=python   # any Python that has PyMuPDF; the local provider also needs PCBT_EXTRACTPDF (folder of the extractpdf project)
 $PY -W ignore -m tools.ocr providers                       # providers, models, key variables
 $PY -W ignore -m tools.ocr check-key --pdf ArXiv2307.08354 # one tiny request, no retry, 60 s timeout; prints OK or FAIL, model, time
 $PY -W ignore -m tools.ocr transcribe ShenWang2019Vias --pages 1   # a stem in papers/pdf or a path; --pages '3,5-6', '10-', 'all'

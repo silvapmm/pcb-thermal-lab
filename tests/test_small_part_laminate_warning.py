@@ -52,7 +52,7 @@ def test_threshold_and_boundary_of_the_layered_rule():
             w = [x for x in check_small_part_laminate(board(side, thick), ("fvm",)) if "sub-layer" in x]
             assert bool(w) == expect, (thick, side)
         w = check_small_part_laminate(board(2.0, thick), ("fdm",))
-        assert len(w) == 1 and w[0].kind == "heater" and w[0].index == 0 and "laminate_s_max_mm" in w[0]
+        assert len(w) == 1 and w[0].kind == "heater" and w[0].index == 0 and 'Laminate sub-gap' in w[0]
         assert w[0].short and len(w[0].short) < len(str(w[0]))
 
 

@@ -22,8 +22,7 @@ from pcbthermal.gerber.errors import GerberError
 ## Where the git-ignored boards of the research may be (`research/gerber-real-boards/scripts/fetch_boards.py`), as in test_gerber_conformance.py: the first folder that exists is used.
 _CANDIDATES = [os.environ.get("PCBT_REAL_BOARDS", ""), os.environ.get("PCBT_GERBER_DATA", ""),
                str(Path(__file__).resolve().parents[1] / "research" / "gerber-real-boards" / "data"),
-               "/Volumes/SSD/PROJETOS/pcb-thermal-lab/.claude/worktrees/agent-aa828a7a970c19021/research/gerber-real-boards/data",
-               "/Volumes/SSD/PROJETOS/pcb-thermal-lab/research/gerber-real-boards/data"]
+               str(Path(__file__).resolve().parents[1] / "pcb-library" / "env" / "data")]  # local git-ignored library, see pcb-library/scripts/link_env.sh
 DATA = next((Path(c) for c in _CANDIDATES if c and Path(c).is_dir()), Path("research/gerber-real-boards/data"))
 
 

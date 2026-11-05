@@ -4,7 +4,7 @@
 @file test_gerber_conformance.py
 @brief Conformance of pcbthermal.gerber with the research reader (research/gerber-import/lib/native_gerber.py) on the real boards of research/gerber-real-boards.
 @details The real boards are third-party files kept out of git (`data/` is ignored), so every test here skips when the research reader or the boards are absent. The folders searched
-         are the environment variable PCBT_GERBER_DATA, the repository's own research/gerber-real-boards/data and the data folder of the research worktree of the maintainer. The
+         are the environment variable PCBT_GERBER_DATA, the repository's own research/gerber-real-boards/data and pcb-library/env/data (local, git-ignored). The
          program's reader must agree with the prototype it was ported from: the copper area of every layer within 3 % (it agrees within 0.05 % in the run recorded in the report), the
          holes of every drill file (count, positions and plating), the X2 layer functions, and closed outlines whose boxes match the research stroke boxes. The Ucamco layer-format test
          files that the research could read are rasterised too, and the two it refuses (aperture blocks) are refused here.
@@ -22,9 +22,8 @@ from pcbthermal.gerber.excellon import is_gerber_text
 
 REPO = Path(__file__).resolve().parents[1]
 RESEARCH_READER = REPO / "research" / "gerber-import" / "lib" / "native_gerber.py"
-CANDIDATES = [os.environ.get("PCBT_GERBER_DATA", ""), str(REPO / "research" / "gerber-real-boards" / "data"),
-              "/Volumes/SSD/PROJETOS/pcb-thermal-lab/.claude/worktrees/agent-aa828a7a970c19021/research/gerber-real-boards/data",
-              "/Volumes/SSD/PROJETOS/pcb-thermal-lab/research/gerber-real-boards/data"]
+CANDIDATES = [os.environ.get("PCBT_REAL_BOARDS", ""), os.environ.get("PCBT_GERBER_DATA", ""), str(REPO / "research" / "gerber-real-boards" / "data"),
+              str(REPO / "pcb-library" / "env" / "data")]  # local git-ignored library, see pcb-library/scripts/link_env.sh
 PIX = 0.1
 BOARDS = ["rp2040", "stickhub", "vstcm", "oswlight", "isastm"]
 
