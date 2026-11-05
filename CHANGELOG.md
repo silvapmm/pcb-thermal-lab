@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed and changed (`fix/preferences-and-equivalent-rectangle`)
+- Preferences: no page scrolls sideways any more (rows wrap into two lines, the models are a two-column grid, library tables share the width and a cut cell shows its whole text when hovered); the list of sections has no tooltip. `tests/test_preferences_layout.py` checks every page at 980x600, 1100x700 and 800x600 in both themes.
+- The Lumped and Analytic maps of a board with an outline can show the field as solved: the rectangle of the same area, dashed, with its parts, and the real outline dotted (box `Equiv. rect.` above the Temperature and Gradient maps, ticked by default; unticked, the field is stretched onto the real box as before). Their gradient map is taken on the solved spacing (it was `s` times too small). New field `SteadyResult.equivalent_scale`; the maps of FVM, FDM, 3D solid and of rectangular boards are unchanged.
+
 ### Fixed (live check speed, `fix/live-check-speed`)
 - The live input check no longer tests every pair of parts and of metal blocks for overlap: a bounding-box sweep (`geometry.bbox_overlap_pairs`) selects the pairs that can overlap and the exact overlap runs on those only, and the zone-model test of each part no longer scans every via again (`lumped.will_be_zoned(..., prepared=True)`), and the distance of the vias to the parts (`viaconstriction.heater_distance`, also used by the Analytic and Lumped runs, bit-identical) skips the vias that a part's bounding box cannot bring closer. 300 small parts: 0.77 s to 0.05 s; 1000: 9.6 s to 0.26 s; 500 parts with 8000 vias: 2.4 s to about 0.45 s. The warnings are identical (same texts, order and tags; checked by the review on 562 random and real imported boards against the previous code).
 

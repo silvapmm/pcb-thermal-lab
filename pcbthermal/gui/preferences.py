@@ -14,10 +14,10 @@ import copy
 import os
 import shutil
 
-from PySide6.QtCore import QUrl, Qt
+from PySide6.QtCore import QEvent, QUrl, Qt
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
+                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QToolTip, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import defaults, memory
 from .. import model
@@ -39,6 +39,28 @@ def _cell_text(value):
             text = eng(value, 8)
         return text
     return str(value)
+
+
+class _LibraryTable(QTableWidget):
+    """!
+    @brief Table of a library whose columns share the width: a cell whose text does not fit (elided) shows its full text as the tooltip;
+           elsewhere the table's own tooltip (what the library is) is shown.
+    """
+
+    def viewportEvent(self, event):
+        """!
+        @brief Show the full text of an elided cell on a tooltip event.
+        @param event The viewport event.
+        @return bool True when the event was handled here.
+        """
+        if event.type() == QEvent.ToolTip:
+            item = self.itemAt(event.pos())
+            if item is not None and item.text():
+                rect = self.visualItemRect(item)
+                if self.fontMetrics().horizontalAdvance(item.text()) > rect.width() - 6:        # Elided: the cell text minus its margins
+                    QToolTip.showText(event.globalPos(), item.text(), self.viewport(), rect)
+                    return True
+        return super().viewportEvent(event)
 
 
 SECTION_LIST_WIDTH = 240          # Pixels: wide enough for the longest section title
@@ -154,8 +176,7 @@ class PreferencesDialog(QDialog):
         self.sections.setObjectName("sections")
         self.sections.setFixedWidth(SECTION_LIST_WIDTH)
         self.sections.setTextElideMode(Qt.ElideNone)
-        self.sections.setToolTip("Sections of the preferences (Up and Down change the page). Libraries are tables of materials (they appear in the lists of the program); "
-                                 "the last two sections hold the values a new board, a new element and a new project start with, and the power calculator's uncertainties.")
+        # No tooltip on the list: the section names say it all (the maintainer found the old one added nothing); the controls of the pages keep theirs
         self.pages = QStackedWidget()
         body = QHBoxLayout()
         body.addWidget(self.sections)
@@ -226,7 +247,7 @@ class PreferencesDialog(QDialog):
         lay.addWidget(note)
         rows = self.data["libraries"][lib]
         cols = list(defaults.shipped()["libraries"][lib][0].keys())
-        t = QTableWidget(len(rows), len(cols))
+        t = _LibraryTable(len(rows), len(cols))
         t.setHorizontalHeaderLabels([COLUMNS.get(c, c) for c in cols])          # Readable titles with units, not the JSON keys
         for c, key in enumerate(cols):
             t.horizontalHeaderItem(c).setToolTip(f"JSON key: {key}")
@@ -235,8 +256,11 @@ class PreferencesDialog(QDialog):
         for r, e in enumerate(rows):
             for c, key in enumerate(cols):
                 t.setItem(r, c, QTableWidgetItem(_cell_text(e.get(key, ""))))
-        t.resizeColumnsToContents()
-        t.horizontalHeader().setStretchLastSection(True)
+        # Columns share the width so that the table never scrolls sideways (number-width columns overflowed the Dielectrics page at 800 px);
+        # a cell that does not fit is elided and shows its full text as the tooltip (_LibraryTable)
+        t.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        t.horizontalHeader().setMinimumSectionSize(24)
+        t.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         t.itemChanged.connect(lambda _item, lib=lib: self._read_table(lib))
         self.tables[lib] = (t, cols)
         lay.addWidget(t, 1)
@@ -270,6 +294,7 @@ class PreferencesDialog(QDialog):
         lay.addStretch(1)
         area = QScrollArea()
         area.setWidgetResizable(True)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)       # The page scrolls vertically only; its content is laid out to fit the width
         area.setWidget(host)
         return area
 
@@ -298,22 +323,25 @@ class PreferencesDialog(QDialog):
         """
         w = QWidget()
         f = QFormLayout(w)
+        # A row that does not fit puts its field under the label (two-line form) instead of widening the page: no horizontal scroll bar
+        f.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        f.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         values = self.data[section]
         lib_names = {"via_fill": [e["name"] for e in self.data["libraries"]["via_fills"]], "block_metal": [e["name"] for e in self.data["libraries"]["metals"]],
                      "block_interface": [e["name"] for e in self.data["libraries"]["interfaces"]]}
         for key, val in values.items():
             if key == "models":
                 row = QWidget()
-                rl = QHBoxLayout(row)
+                rl = QGridLayout(row)                      # Two columns: the five long model names in one line were wider than the page
                 rl.setContentsMargins(0, 0, 0, 0)
                 boxes = {}
-                for m in MODELS:
+                for n, m in enumerate(MODELS):
                     c = QCheckBox(tips.model_label(m))
                     c.setChecked(m in val)
                     c.setToolTip(TIPS["models"])
                     c.toggled.connect(lambda _on, section=section: self._read_models(section))
                     boxes[m] = c
-                    rl.addWidget(c)
+                    rl.addWidget(c, n // 2, n % 2)
                 self.widgets[(section, key)] = boxes
                 f.addRow(LABELS.get(key, key), row)
                 continue
@@ -324,6 +352,9 @@ class PreferencesDialog(QDialog):
                 if str(val) not in [wdg.itemText(i) for i in range(wdg.count())]:
                     wdg.addItem(str(val))
                 wdg.setCurrentText(str(val))
+                # The width of a combo box follows its longest item; let it shrink and elide so that a long name never widens the page
+                wdg.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+                wdg.setMinimumContentsLength(10)
                 wdg.currentTextChanged.connect(lambda text, section=section, key=key: self._set(section, key, text))
             elif isinstance(val, bool):
                 wdg = QCheckBox()
