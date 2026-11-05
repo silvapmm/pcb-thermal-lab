@@ -28,11 +28,24 @@ The two tracked CSV files that `study_baseline_uniform.py` and `study_validation
 
 ## Not run
 
-* `convection-laws/study_plate_mac.py --both` (README: about an hour), `bare-spot-under-source/study_window_sweep.py all` (about 40 minutes: 28 resolved references) and the gap-subdivision studies that need `out/refs_pads.json` (`study_baseline_pads.py` 1.5 to 3 hours, then `study_gap_nodes.py`, `study_gap_grading.py`, `study_review.py 2`) are in the long run (`--late`); their result is in the section "Long run" below.
-* `make_figures.py` and `make_diagrams.py` of every folder (they draw the figures; they do not print program numbers that the README quotes).
+* `convection-laws/study_plate_mac.py` (README: about an hour): not run. The coordinator gave it to tester F, whose shards were paused for lack of swap; it does not import the program except for the law tables. My long runner started it by mistake at the end of its list and I stopped it at once (it had run for under a minute and produced nothing).
+* `component-heatsink/base_spreading_study.py`, `bare-spot-under-source/study_review.py` and `study_real_stormduino.py` (`reference` then `treat`): not re-run after the first pass, on the coordinator's order not to start new jobs on a tight machine. The first two printed their tables before the limit and those equal the README (see the table above); the third needs the fine references first (about 1 hour) and has no output.
+* `make_figures.py` and `make_diagrams.py` of every folder (they draw the figures; the numbers they would print are those of the studies above).
 
 ## Defects found
 
 None in the program. Two defects of the pass's own handling: the first-pass limit of 30 minutes counted paused time (three jobs), and the two tracked CSV files rewritten by the gap-subdivision studies (restored).
 
-## Long run
+## Long run (run with `--late`)
+
+* `bare-spot-under-source/study_window_sweep.py all` (21 minutes, ok): the columns of the program copy (`program -19.3 / -18.4 %`, `vert`, `n = 2 ... 6`, the layers-1-to-4 window rows -10.6 %) equal README 3.1 to 3.3; the column of the real FVM (`fvm -10.6 / -6.3 / -4.1 %` against the README's program copy -22.9 / -22.8 / -18.4) is the laminate rule of 2.4.5 acting on the real program, as the 2.4.5 pass noted; the 3D solid column is unchanged (+1.5 / +0.7 / +0.2 %). UNCHANGED against 2.4.5.
+* `gap-subdivision/study_baseline_pads.py` (12 minutes with its 4 processes, ok): rebuilt `out/refs_pads.json` (52 references) and rewrote `baseline/pads.csv`; the file is byte-identical to the committed one (the references and the five models, seven digits). UNCHANGED.
+* `gap-subdivision/study_gap_nodes.py` (59 minutes with pauses, ok): 992 of 1304 printed numbers appear in the README (the rest are cells of tables the README summarises); `baseline/gap_nodes.csv` is identical to the committed file at the end of the run. `study_gap_grading.py` (37 s; pad10-full -3.33 -2.37 -1.86 -1.32 -1.03 | -2.08 -1.11 -0.59 -0.04 +0.25 as README 7) and `study_review.py 2` (12 s; solid3d +5.07, FVM -1.05 (gap alone -4.39) ...) equal the README. UNCHANGED.
+
+## Counts of Part A (comparison unit: one study script)
+
+| | Checked | Unchanged | EXPLAINED | UNEXPLAINED | Not run / not finished |
+| :-- | --: | --: | --: | --: | --: |
+| Part A | 62 | 58 | 4 (`analytic-edge-spatial/study_frozen_impact`, `block-and-fins/study_finned_block_all_models`, `block_equivalent_study`, `gap-subdivision/rerun_baseline`) | 0 | 4 (`study_plate_mac`, `base_spreading_study` mesh check, `bare-spot study_review` end, `study_real_stormduino`) plus the figure scripts |
+
+The folders also keep three README statements that the 2.4.5 pass listed as stale (the FVM and FDM columns of `analytic-partial-copper` 3, the pre-2.4.5 body of `component-heatsink` 4.11, the program-copy columns of `bare-spot-under-source`); nothing new went stale in 2.5.0 except the Analytic column of `block-and-fins` (4.1, 4.2, 4.3: Robin edge).
