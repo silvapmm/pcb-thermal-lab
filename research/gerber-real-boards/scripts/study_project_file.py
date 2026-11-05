@@ -2,54 +2,92 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file study_project_file.py
-@brief How big is a project file that embeds the imported copper, against one that only references the Gerber files, and does the migration from format 1 to 2 lose nothing?
-@details For every downloaded board and pixels of 0.1, 0.05 and 0.025 mm the copper layers are drawn (binary mask) and packed as `lib/project_format.py` does (bits, deflate, base64): the size of the JSON text per layer
-         and per board, for the binary mask and for the 8-bit coverage mask, and the size of the Gerber sources for comparison. The round trip pack -> JSON -> unpack must give the binary mask back exactly and the coverage
-         within 1/255; the migration 1 -> 2 -> 1 must give a project dict equal to the original. The sizes decide the default of INTEGRATION.md (embed the mask at the pixel of the import, or keep only references).
-         Output: out/project_file.json and the printed table. Success criterion (before the run): a 4-layer board of about 100 x 100 mm at 0.05 mm embedded as binary masks is under 20 MB of JSON (so the
-         project can still be opened and saved in a second or two); the round trips are exact. NOT verified: the load time in the program, the size with compression of the whole file by the user's tools,
-         projects that hold several imported boards.
+@brief How big is a project file that embeds the imported copper, against one that only references the Gerber files, and does the program's own project API (format 2, nested) keep the imports?
+@details For every downloaded board and pixels of 0.1, 0.05 and 0.025 mm the copper layers are drawn (binary mask) and packed (bits, deflate, base64): the size of the JSON text per layer by the packing of
+         `lib/project_format.py` (the old prototype) and the size of the FILE the program writes (`pcbthermal.project.save_project` of the example board plus one import record with the masks packed by
+         `pcbthermal.copper.pack_coverage`), for the binary mask and for the 8-bit coverage mask, against the size of the Gerber sources. The round trip pack -> JSON -> unpack must give the binary mask
+         back exactly and the coverage within 1/255. The FORMAT is not prototyped here any more: the first version of this study wrote the flat layout of the research prototype (the format key changed and
+         "imports" beside the keys of format 1), which the program refuses since format 2 is nested under "project". `format2_check` now goes through the program's own API: a project with an import record is
+         saved and loaded back, the file is nested, a project without imports stays format 1, the flat layout is refused.
+         Success criterion (before the run): a 4-layer board of about 100 x 100 mm at 0.05 mm embedded as binary masks is under 20 MB of JSON; the round trips are exact. NOT verified: the load time in the
+         program, the size with compression of the whole file by the user's tools, projects that hold several imported boards, the behaviour of the released 2.4.5 with a nested file (measured in an earlier run
+         on the tag extracted apart; not repeated).
          Run (from the repository root): .venv-research/bin/python research/gerber-real-boards/scripts/study_project_file.py [--pix 0.1 0.05 0.025]   (a few minutes; the pixel of 0.025 mm peaks at about 6.5 GB on CO60)
-         It also prints what the program of this tree does with a format 2 file in two layouts (older_program_check).
 """
 
 import _bootstrap  # noqa: F401  (puts the import paths in order)
 
 import json
 import sys
+import tempfile
+from pathlib import Path
 
 import numpy as np
 
 import boardrun
-import project_format as pf
+import project_format as pf       # the old prototype: its FORMAT_2 key and pack_mask (to compare the packed sizes with the program's own)
 import rb_paths
 import registry
 
 
-def older_program_check():
+def format2_check():
     """!
-    @brief What the program of this tree (2.4.5 on develop) does with a format 2 file that carries imports: read it, save it, look at what was written.
-    @details Added by the review: the README quoted "imports kept after reading and saving: False" from a run that no kept script made. Two variants: the flat layout of the prototype (format key changed,
-             an "imports" list added beside the format 1 keys) and a nested layout (the problem under a "project" key), which an older reader cannot open because the "board" key is missing.
-    @return None (prints the outcome of both variants).
+    @brief What the program's project API (`pcbthermal.project`, format 2 nested under "project") does with a project that carries an import record.
+    @details Four checks: (1) a project with an ImportRecord is saved and loaded by the program and the record and the packed mask come back unchanged; (2) the file on disk is nested ("project" and
+             "imports" at the top, no "board" key at the top, which is what makes a 2.4.x reader refuse it); (3) a project without imports is written as format 1; (4) the flat layout of the old
+             prototype is refused with ProjectFormatError.
+    @return None (prints the outcome of each check; an assertion fails if one does not hold).
     """
-    import tempfile
-    from pathlib import Path
     from pcbthermal import project as pj
+    from pcbthermal import copper as cu
+    from pcbthermal.model import ImportRecord, ImportedCopper
     src = json.loads((Path(rb_paths.REPO) / "examples" / "example_board.pcbt.json").read_text())
-    flat = dict(src, format=pf.FORMAT_2, imports=[{"name": "board", "pix": 0.05, "layers": []}])
+    mask = (np.arange(64 * 48).reshape(64, 48) % 7 > 2)
+    layer = {"name": "F.Cu", "role": "top", "index": 0, "mask": cu.pack_coverage(mask, "binary")}
+    rec = ImportRecord(name="board", copper=ImportedCopper(pix_mm=0.05, embed=True, layers=[layer]))
     with tempfile.TemporaryDirectory() as d:
-        p_in, p_out = Path(d) / "in.pcbt.json", Path(d) / "out.pcbt.json"
-        p_in.write_text(json.dumps(flat))
-        pj.save_project(p_out, pj.load_project(p_in))
-        back = json.loads(p_out.read_text())
-    print(f"older program, flat format 2: opened without a message; saved as {back.get('format')}; imports kept after reading and saving: {'imports' in back}")
-    nested = {"format": pf.FORMAT_2, "project": src, "imports": [{"name": "board"}]}
-    try:
-        pj.project_from_dict(nested)
-        print("older program, nested format 2: opened (the imports would be lost)")
-    except Exception as exc:                                     # the older reader fails on the missing "board" key: the GUI shows "Cannot open file"
-        print(f"older program, nested format 2: refused ({type(exc).__name__}: {exc})")
+        p_plain, p_imp = Path(d) / "plain.pcbt.json", Path(d) / "imp.pcbt.json"
+        base = pj.project_from_dict(src)
+        pj.save_project(p_plain, base)
+        plain = json.loads(p_plain.read_text())
+        base.imports = [rec]
+        pj.save_project(p_imp, base)
+        raw = json.loads(p_imp.read_text())
+        back = pj.load_project(p_imp)
+        mask_back = cu.unpack_coverage(back.imports[0].copper.layers[0]["mask"])
+        flat = dict(src, format=pf.FORMAT_2, imports=[{"name": "board"}])
+        try:
+            pj.project_from_dict(flat)
+            flat_msg = "OPENED (unexpected)"
+        except pj.ProjectFormatError as exc:
+            flat_msg = f"refused (ProjectFormatError: {exc})"
+    assert plain.get("format") == pj.FORMAT_1 and "imports" not in plain
+    assert raw["format"] == pj.FORMAT_2 and "project" in raw and "imports" in raw and "board" not in raw
+    assert len(back.imports) == 1 and np.array_equal(mask_back > 127, mask), "the record or the mask changed in the round trip"
+    assert flat_msg.startswith("refused"), "the flat layout must be refused"
+    print(f"program, project without imports: written as {plain['format']}, no imports key")
+    print(f"program, project with one import record: written as {raw['format']}, top-level keys {sorted(raw)}; read back with {len(back.imports)} record, mask identical")
+    print(f"program, flat layout of the old prototype: {flat_msg}")
+
+
+def project_file_bytes(ib, kind):
+    """!
+    @brief Size of the file the program writes for an imported board: the example board's project plus one import record with all the copper layers packed by the program.
+    @param ib Imported board with `layers`, each a dict with "binary" and "coverage" masks.
+    @param kind "binary" or "coverage".
+    @return int bytes of the .pcbt.json written by `pcbthermal.project.save_project`.
+    """
+    from pcbthermal import project as pj
+    from pcbthermal import copper as cu
+    from pcbthermal.model import ImportRecord, ImportedCopper
+    src = json.loads((Path(rb_paths.REPO) / "examples" / "example_board.pcbt.json").read_text())
+    layers = [{"name": f"L{i + 1}", "role": "copper", "index": i, "mask": cu.pack_coverage(ly[kind], kind)} for i, ly in enumerate(ib.layers)]
+    proj = pj.project_from_dict(src)
+    proj.imports = [ImportRecord(name="board", copper=ImportedCopper(pix_mm=0.0, embed=True, layers=layers))]
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "p.pcbt.json"
+        pj.save_project(path, proj)
+        return path.stat().st_size
 
 
 def main(argv):
@@ -61,7 +99,7 @@ def main(argv):
     pixels = (0.1, 0.05, 0.025)
     if "--pix" in argv:
         pixels = tuple(float(a) for a in argv[argv.index("--pix") + 1:] if not a.startswith("--"))
-    older_program_check()
+    format2_check()
     rows = []
     for key in registry.available():
         r = registry.roles(key)
@@ -81,13 +119,10 @@ def main(argv):
                     else:
                         assert np.max(np.abs(back - ly[field])) <= 1.0 / 255 + 1e-9, "coverage round trip beyond 1/255"
                 rec[f"{kind}_json_bytes"] = tot
+                rec[f"{kind}_program_file_bytes"] = project_file_bytes(ib, kind)     # the whole file of the program (the example board's own JSON, a few kB, is in it)
             rows.append(rec)
-            print(f"{key:9s} pix {pix:5.3f}: {rec['layers']} layers {rec['mask_shape']}  binary {rec['binary_json_bytes'] / 1e6:7.2f} MB  coverage {rec['coverage_json_bytes'] / 1e6:7.2f} MB  (Gerber sources {src / 1e6:.2f} MB)", flush=True)
-    d1 = {"format": pf.FORMAT_1, "board": {"width": 0.1}, "zones": [], "solver": {}, "view": {}}
-    d2 = pf.migrate_1_to_2(d1)
-    assert d2["format"] == pf.FORMAT_2 and d2["imports"] == []
-    assert pf.downgrade_2_to_1(d2) == d1, "migration 1 -> 2 -> 1 changed the project"
-    print("migration 1 -> 2 -> 1: identical")
+            print(f"{key:9s} pix {pix:5.3f}: {rec['layers']} layers {rec['mask_shape']}  binary {rec['binary_json_bytes'] / 1e6:7.2f} MB  coverage {rec['coverage_json_bytes'] / 1e6:7.2f} MB  "
+                  f"program file binary {rec['binary_program_file_bytes'] / 1e6:7.2f} MB  coverage {rec['coverage_program_file_bytes'] / 1e6:7.2f} MB  (Gerber sources {src / 1e6:.2f} MB)", flush=True)
     rb_paths.OUT.mkdir(parents=True, exist_ok=True)
     with open(rb_paths.OUT / "project_file.json", "w") as fh:
         json.dump(rows, fh, indent=1)
