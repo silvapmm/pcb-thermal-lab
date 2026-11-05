@@ -79,6 +79,9 @@ def build_parser() -> argparse.ArgumentParser:
     common(q)
     s = sub.add_parser("suspects", help="find suspect pages and the printed/PDF page offset")
     s.add_argument("--only", help="comma-separated file stems")
+    asm_p = sub.add_parser("assemble", help="assemble the per-page outputs of PDFs into papers/md-final/<stem>.md")
+    asm_p.add_argument("stems", nargs="+", help="PDF stems in papers/pdf")
+    asm_p.add_argument("--root", help="repository root for the used-by search (default: parent of the papers folder)")
     v = sub.add_parser("verify", help="write an HTML page with the page image beside its transcription")
     v.add_argument("pdf")
     v.add_argument("--page", type=int, required=True)
@@ -310,7 +313,32 @@ def cmd_decode(a, papers: Path) -> int:
     return 0
 
 
-COMMANDS = {"transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
+def cmd_assemble(a, papers: Path) -> int:
+    """!
+    @brief The `assemble` command: one final Markdown per PDF in `papers/md-final/`.
+    @param a      Parsed arguments (`stems`, `--root`).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    import fitz  # PyMuPDF, only needed here
+    from . import assemble as asm, suspects as su
+    root = Path(a.root) if a.root else papers.parent
+    out = papers / "md-final"
+    out.mkdir(exist_ok=True)
+    for stem in a.stems:
+        doc = fitz.open(str(resolve_pdf(stem, papers)))
+        texts = [doc[i].get_text() for i in range(len(doc))]
+        found = {i + 1: su.printed_page_number(t) for i, t in enumerate(texts)}
+        off = su.page_offset({k: v for k, v in found.items() if v})
+        printed = {p: su.printed_page(p, found[p], off) for p in found}
+        digital = sum(len(t) for t in texts[:8]) / max(1, min(8, len(texts))) > 600
+        (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(doc), None, printed, digital),
+                                        encoding="utf-8")
+        print(f"{stem}: {out / (stem + '.md')}")
+    return 0
+
+
+COMMANDS = {"assemble": cmd_assemble, "transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
             "providers": cmd_providers, "check-key": cmd_check_key, "decode": cmd_decode}
 
 

@@ -15,6 +15,7 @@ $PY -W ignore -m tools.ocr queue --status                  # what is pending, re
 $PY -W ignore -m tools.ocr suspects                        # suspect pages + printed/PDF page numbers
 $PY -W ignore -m tools.ocr verify Lemczyk1992 --page 1     # HTML with the page image beside the transcription
 $PY -W ignore -m tools.ocr decode FILE.md [--force]        # base-36 font cipher post-processor (ciphered pages only)
+$PY -W ignore -m tools.ocr assemble Yovanovich2003    # one final Markdown in papers/md-final/<stem>.md (header, contents, cleaned and joined pages)
 ```
 
 Page numbers are PDF pages, 1-based (the `<!-- page N -->` markers use the same number). Exit codes: 0 ok, 1 failure,
@@ -51,6 +52,13 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
   `unverified` in `data/models.json`: read the current price list before estimating a cost).
 * **RECITATION**: a page refused by the copyright filter (empty answer with `finishReason` RECITATION) is retried as two
   half-page crops (top and bottom, 10 % overlap), then once with each fallback model. The output says which was used.
+* **Assemble** (`assemble.py`, command `assemble <stem>...`): one Markdown file per PDF in `papers/md-final/`, deterministic from the
+  per-page outputs. The page text is Claude's, else Gemini's, else `[missing]`; lines that repeat at the top or bottom of three
+  or more pages and lone page numbers are removed; a word hyphenated across a page break and a sentence cut by a break are
+  joined; every page keeps the marker `<!-- page N | printed M -->`; the YAML header holds the citation (from `notes/INDEX.md`),
+  page counts, the pages of each provider, the files that cite the paper and `reading_status: machine`; a table of
+  contents is built from the headings. Not done by the tool (it needs a reader): renumbering equations as in the paper,
+  the reference list as a numbered list, figure descriptions and the section "Equations used by the program".
 * **Resume**: a page whose output file exists is skipped unless `--force`. `--out FILE` also writes the pages of the run joined.
 * **Ledger** (`usage.json`): one entry per attempt (date, provider, model, file, page, ok, seconds, words, requests, note).
   `--daily-limit N` stops after N requests today.

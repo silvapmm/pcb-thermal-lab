@@ -767,3 +767,35 @@ def test_anthropic_prose_refusal_and_content_filter_take_the_recitation_path(tmp
     for first in (prose, blocked()):
         o = runner(tmp_path, FakeAnthropic([first, half, half])).run_page(PDF, 1, force=True)
         assert o.status == "ok" and "half-page crops" in o.text
+
+
+def test_assemble_cleans_joins_and_marks(tmp_path):
+    """!
+    @brief The assembler drops running headers and page numbers, joins a hyphenated word and a cut sentence, keeps markers.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import assemble
+    ocr = tmp_path / "ocr" / "anthropic"
+    ocr.mkdir(parents=True)
+    pages = {1: "<!-- page 1 -->\nJ. HEAT TRANSFER 2003\n# Title\n\nThe spreading resist-\n\n1",
+             2: "<!-- page 2 -->\nJ. HEAT TRANSFER 2004\nance is large and the heat flows\n3",
+             3: "<!-- page 3 -->\nJ. HEAT TRANSFER 2005\ninto the plate.\n\n$$ R = 1 \\tag{1} $$\n4"}
+    for p, t in pages.items():
+        (ocr / f"X_p{p}.md").write_text(t, encoding="utf-8")
+    out = assemble.assemble(tmp_path, "X", tmp_path, 4, None, {1: 10, 2: 11}, True)
+    assert out == assemble.assemble(tmp_path, "X", tmp_path, 4, None, {1: 10, 2: 11}, True)  # deterministic
+    assert "J. HEAT TRANSFER" not in out
+    assert "resistance" in out and "resist-" not in out
+    assert "<!-- page 2 | printed 11 -->" in out and "<!-- page 4 | printed ? -->" in out
+    assert out.count("[missing]") == 1 and "reading_status: machine" in out
+    assert "- Title" in out and "\\tag{1}" in out
+
+
+def test_assemble_ranges():
+    """!
+    @brief Page lists are written as ranges.
+    @return None
+    """
+    from tools.ocr import assemble
+    assert assemble.ranges([1, 2, 3, 5, 7, 8]) == "1-3,5,7-8"
