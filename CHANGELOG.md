@@ -46,6 +46,9 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Detailed entries by branch
 
+### Fixed (release polish, `fix/release-polish-250`; texts and tests, no number moves)
+- The Preferences Solver note no longer says that the laminate options are machine preferences (they are saved in the project when not the default); the copper-edge warning appears only when the Lumped or Analytic model runs and not on imported copper; the small-part warning names the panel's Laminate sub-gap controls; the About box mentions the Gerber import and the scope of the validation; Ctrl+A and Ctrl+, are in the key tables; the tests find the real boards through environment variables or `pcb-library/env`, not through agent worktrees; the README test badge is 2416.
+
 ### Fixed (dark toolbar icons)
 - The navigation toolbar of the result plots drew pure white icons in the dark theme; they are now painted with the `text` token of the theme and recoloured on a theme switch (`tests/test_toolbar_icons.py`).
 

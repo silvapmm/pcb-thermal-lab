@@ -1136,6 +1136,8 @@ class MainWindow(QMainWindow):
 <tr><td><b>Ctrl+0, Ctrl++ (or Ctrl+=), Ctrl+-</b></td><td>Fit board, zoom in, zoom out</td></tr>
 <tr><td><b>Right-click</b></td><td>On a shape: add or delete a vertex, duplicate, delete; on an empty spot: add a heater, zone, heatsink or via there</td></tr>
 <tr><td><b>Del or Backspace, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
+<tr><td><b>Ctrl+A</b></td><td>Select all on the active layer</td></tr>
+<tr><td><b>Ctrl+,</b></td><td>Preferences</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
