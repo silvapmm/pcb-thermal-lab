@@ -19,7 +19,15 @@ symmetric, positive semidefinite, with zero row sum from the via.
 * Sheet conductance of the well: that of the cell with the largest weight, per unit of board (the cover factor of the cell is divided out).
 
 The research is in research/point-via-convergence (treatment, convergence), research/sor-with-via-couplings and research/via-real-board.
-@note The board-edge image of the via (the kernel has no image of an edge) is not modelled; `edge_via_indices` lists the vias that are too near an edge, for a warning.
+* Edge image (FVM only): the lattice kernel has no image of a board edge, and the footprint sits at cell centres, not at the via, so a via within about one cell
+  of a straight edge saw the image of the edge at the wrong distance (the via effect read +14.5 % high at 1 mm for a via 0.16 mm from the edge). The well
+  gets the term c = sum over the walls [ln D_lat - ln D_true] (D_true = 2 max(distance, r_via) the distance to the mirror image of the via, D_lat the lattice
+  mean distance of the footprint to its own mirror image), G_c = 2 pi S / (ln(r_eff / r_t) + c); at a corner the diagonal image is added. The mirror image
+  is that of an insulated edge and is used also for a cooled edge (a Robin image was studied and is not worth its code: research/via-edge-image 3).
+  Only the walls of `image_walls` are imaged: none within EDGE_GUARD_CELLS of a reflex corner or a short or slanted side, where the infinite mirror of a side
+  that ends there overstates the wall (docs/validation.md 28.1).
+@note Not covered cleanly by the image (`edge_via_indices` lists them for the warning): the FDM and the 3D solid, a cell of 2 mm or more (the image is applied,
+      the via is a fraction of a cell), an outline with a slanted or curved side, a short step or a reflex corner near the via, a via whose centre is within its radius of the wall.
 """
 
 import math
@@ -32,6 +40,8 @@ EULER_GAMMA = 0.5772156649015329
 KAPPA = (2.0 * EULER_GAMMA + 3.0 * math.log(2.0)) / math.pi        # asymptotic constant of the potential kernel of the five-point stencil
 TARGET_RATIO = math.exp(-0.25)                                      # r_t / r_via: the radius of the uniform sink density over the disc of the via
 POINT_SINK_RADIUS = math.exp(-math.pi * KAPPA / 2.0)               # equivalent radius of a point sink on the lattice, in cells (0.1985: the exact infinite-lattice value; Peaceman's radial argument gives exp(-pi/2) = 0.2079, Ibraguimov 2022, Theorem 1)
+EDGE_REACH_CELLS = 6.0                                              # a wall counts when its distance from the via centre is at most this many cells
+EDGE_GUARD_CELLS = 0.6                                              # no image when a reflex vertex, a slanted or a short side is nearer than this many cells (image_walls)
 SAMPLES = 24                                                        # samples per cell side for the area of the disc
 
 
@@ -133,6 +143,38 @@ def restrict_to_board(weights, cover):
     return {k: v / tot for k, v in out.items()} if tot > 0 else {}
 
 
+def enlarged_footprint(cx, cy, r_via, dx, origin, cover, dy, origin_y, need):
+    """!
+    @brief Smallest disc footprint (centre fixed, restricted to the board) whose lattice effective radius is at least `need`.
+    @param cx Via centre x in m.
+    @param cy Via centre y in m.
+    @param r_via Drill radius in m.
+    @param dx Cell size in m.
+    @param origin Lower x edge of cell 0 in m.
+    @param cover Array (ny, nx) of the board share of each cell (dimensionless).
+    @param dy Cell size along y in m.
+    @param origin_y Lower y edge of row 0 in m.
+    @param need Required effective radius in m.
+    @return dict {(i, j): w} (the disc radius is found by bisection after a doubling search bounded by the board size).
+    """
+    h = math.sqrt(dx * dy)
+
+    def make(radius):
+        return restrict_to_board(disc_weights(cx, cy, radius, dx, origin, dy, origin_y), cover)
+
+    limit = max(cover.shape) * max(dx, dy)
+    lo, hi = r_via, 2.0 * r_via
+    while effective_radius(make(hi), h) < need and hi < limit:
+        lo, hi = hi, 2.0 * hi
+    for _ in range(30):
+        mid = 0.5 * (lo + hi)
+        if effective_radius(make(mid), h) < need:
+            lo = mid
+        else:
+            hi = mid
+    return make(hi)
+
+
 def footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
     """!
     @brief Footprint of a via: the disc of the via on the cells of the board, enlarged (centre fixed) until its effective radius reaches the target.
@@ -149,29 +191,163 @@ def footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
     r_t = TARGET_RATIO * r_via
     dy = dx if dy is None else dy
     h = math.sqrt(dx * dy)                     # lattice spacing of the effective radius (the kernel is that of square cells; dy / dx is 1 +- 1 / (2 n))
-
-    def make(radius):
-        return restrict_to_board(disc_weights(cx, cy, radius, dx, origin, dy, origin_y), cover)
-
-    w = make(r_via)
+    w = restrict_to_board(disc_weights(cx, cy, r_via, dx, origin, dy, origin_y), cover)
     if not w:
         return {}, 0.0, r_t
     r_eff = effective_radius(w, h)
     if r_eff >= r_t:
         return w, r_eff, r_t
     # Enlarge the disc until the lattice effective radius equals the target (r_eff grows with the radius); the size of the board bounds the search
-    limit = max(cover.shape) * max(dx, dy)
-    lo, hi = r_via, 2.0 * r_via
-    while effective_radius(make(hi), h) < r_t and hi < limit:
-        lo, hi = hi, 2.0 * hi
-    for _ in range(30):
-        mid = 0.5 * (lo + hi)
-        if effective_radius(make(mid), h) < r_t:
-            lo = mid
-        else:
-            hi = mid
-    w = make(hi)
+    w = enlarged_footprint(cx, cy, r_via, dx, origin, cover, dy, origin_y, r_t)
     return w, effective_radius(w, h), r_t
+
+
+def lattice_log(di, dj, h):
+    """!
+    @brief Lattice distance in logarithm units, ln h + (pi / 2)(a(d) - kappa), the potential kernel read at real offsets (bilinear between the exact integer values).
+    @param di Offset along rows in cells (array, dimensionless).
+    @param dj Offset along columns in cells (array, dimensionless).
+    @param h Cell size in m.
+    @return numpy.ndarray ln(distance / 1 m) in the lattice sense (asymptotically the logarithm of the Euclidean distance).
+    """
+    di = np.asarray(di, dtype=float)
+    dj = np.asarray(dj, dtype=float)
+    i0, j0 = np.floor(di + 1e-9), np.floor(dj + 1e-9)          # the tolerance keeps an offset that is an integer up to rounding on its own node
+    fi, fj = di - i0, dj - j0
+    i0, j0 = i0.astype(int), j0.astype(int)
+    a = ((1 - fi) * (1 - fj) * lattice_kernel(i0, j0) + fi * (1 - fj) * lattice_kernel(i0 + 1, j0)
+         + (1 - fi) * fj * lattice_kernel(i0, j0 + 1) + fi * fj * lattice_kernel(i0 + 1, j0 + 1))
+    return math.log(h) + math.pi / 2.0 * (a - KAPPA)
+
+
+def edge_walls(problem, v, reach):
+    """!
+    @brief The straight walls near a via: the box edges, or the axis-parallel outline segments, at most one per axis (the nearest).
+    @param problem The Problem.
+    @param v The Via (x, y in m).
+    @param reach Largest distance from the via centre to a wall that counts, in m.
+    @return Tuple (walls, clean): walls is a list of (axis, position) with axis "x" or "y" and the position in m (at most two); clean is False when the
+            outline has a slanted, curved or short (shorter than `reach`) side, or a corner that the walls do not describe, within `reach` of the via
+            (then the image is incomplete and the warning stays).
+    @note On an outline a segment counts only when the via projects inside it; a reflex corner (a T, an L) is therefore never closed by an image of the
+          missing side, and a via near a vertex that is not a convex corner of two found walls is reported as not clean.
+    """
+    walls, bad = edge_scan(problem, v, reach)
+    return walls, bad > reach
+
+
+def image_walls(problem, v, reach, cell):
+    """!
+    @brief The walls whose mirror image the well of a via gets (`build`): the walls of `edge_scan` that are nearer to the via than every feature that is not
+           a straight wall, and none when such a feature is within `EDGE_GUARD_CELLS` cells of the via.
+    @details Next to a reflex corner (a T, an L) the side the via faces ends at the corner, so its infinite mirror overstates the wall: measured against a
+             resolved reference (`docs/validation.md` 28.1) the image put a via 0.26 mm from the reflex corner of an inverted T at -13.5 % (1 mm cell) against
+             -2.9 % without it, and a via whose near side was too short to count got the image of a farther side behind it (+1 to +2 points worse). The guard
+             removes those cases; the warning stays for every via that is not clean (`edge_walls`).
+    @param problem The Problem.
+    @param v The Via (x, y in m).
+    @param reach Largest distance from the via centre to a wall that counts, in m.
+    @param cell Cell size in m (the larger of dx and dy).
+    @return list of (axis, position) as in `edge_walls` (possibly empty).
+    """
+    walls, bad = edge_scan(problem, v, reach)
+    if bad < EDGE_GUARD_CELLS * cell:
+        return []
+    pos = {"x": v.x, "y": v.y}
+    return [(a, q) for a, q in walls if abs(pos[a] - q) < bad]
+
+
+def edge_scan(problem, v, reach):
+    """!
+    @brief The straight walls near a via and the distance to the nearest feature of the outline that is not one (shared by `edge_walls` and `image_walls`).
+    @param problem The Problem.
+    @param v The Via (x, y in m).
+    @param reach Largest distance from the via centre to a wall or a feature that counts, in m.
+    @return Tuple (walls, bad): walls as in `edge_walls`; bad is the distance in m from the via centre to the nearest slanted, curved or short side, side
+            beyond whose end the via projects, or vertex that is not the convex corner of the two walls found, within `reach` (math.inf when there is none).
+    """
+    b = problem.board
+    if not b.has_outline():
+        # A rectangle: the four sides, always long enough
+        cand = {"x": [0.0, b.width], "y": [0.0, b.height]}
+        pos = {"x": v.x, "y": v.y}
+        out = []
+        for axis in ("x", "y"):
+            near = [(abs(pos[axis] - p), p) for p in cand[axis] if abs(pos[axis] - p) <= reach]
+            if near:
+                out.append((axis, min(near)[1]))
+        return out, math.inf
+    pts = [(float(p[0]), float(p[1])) for p in b.outline]
+    cand = {"x": [], "y": []}
+    bad = math.inf
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]):
+        # Distance from the via centre to the segment
+        sx, sy = x1 - x0, y1 - y0
+        ln2 = sx * sx + sy * sy
+        t = 0.0 if ln2 == 0.0 else min(max(((v.x - x0) * sx + (v.y - y0) * sy) / ln2, 0.0), 1.0)
+        dist = math.hypot(v.x - (x0 + t * sx), v.y - (y0 + t * sy))
+        if dist > reach:
+            continue
+        if abs(sx) < 1e-12 and abs(sy) >= reach and min(y0, y1) <= v.y <= max(y0, y1):
+            cand["x"].append(x0)
+        elif abs(sy) < 1e-12 and abs(sx) >= reach and min(x0, x1) <= v.x <= max(x0, x1):
+            cand["y"].append(y0)
+        else:
+            bad = min(bad, dist)                # slanted, curved (many short sides), a short step, or the via projects beyond the end of the side
+    out = []
+    for axis, pos in (("x", v.x), ("y", v.y)):
+        near = [(abs(pos - p), p) for p in cand[axis] if abs(pos - p) <= reach]
+        if near:
+            out.append((axis, min(near)[1]))
+    # A vertex within reach must be a convex corner of the two walls found (the walls meet exactly there)
+    found = dict(out)
+    for (x, y) in pts:
+        dv = math.hypot(v.x - x, v.y - y)
+        if dv <= reach and not (len(out) == 2 and abs(found["x"] - x) < 1e-12 and abs(found["y"] - y) < 1e-12):
+            bad = min(bad, dv)
+    return out, bad
+
+
+def edge_term(w, dx, dy, via_xy, r_via, walls):
+    """!
+    @brief The extra logarithm c of the well for the mirror images of the straight walls near a via.
+    @param w Footprint weights {(i, j): w} (cell-centred grid, origin 0).
+    @param dx Cell size in x in m.
+    @param dy Cell size in y in m.
+    @param via_xy Via centre (x, y) in m.
+    @param r_via Drill radius in m.
+    @param walls list of (axis, position) from `edge_walls`.
+    @return float c = sum over the walls of [mean lattice log of the footprint to its own mirror image - ln(2 max(distance, r_via))], plus the same difference
+            for the diagonal image when there are two walls (a corner). Positive when the lattice image is farther than the true one.
+    """
+    h = math.sqrt(dx * dy)
+    keys = list(w)
+    wt = np.array([w[k] for k in keys])
+    X = (np.array([k[1] for k in keys]) + 0.5) * dx
+    Y = (np.array([k[0] for k in keys]) + 0.5) * dy
+
+    def mean_log(Xi, Yi):
+        """!
+        @brief Mean lattice log between the footprint cells and an image of the footprint.
+        @param Xi Image x of every cell in m.
+        @param Yi Image y of every cell in m.
+        @return float sum_ab w_a w_b ln(lattice distance).
+        """
+        return float(wt @ lattice_log((Y[:, None] - Yi[None, :]) / h, (X[:, None] - Xi[None, :]) / h, h) @ wt)
+
+    c = 0.0
+    deltas = []
+    Xd, Yd = X, Y
+    for axis, p in walls:
+        delta = abs((via_xy[0] if axis == "x" else via_xy[1]) - p)
+        deltas.append(delta)
+        Xi, Yi = (2.0 * p - X, Y) if axis == "x" else (X, 2.0 * p - Y)
+        c += mean_log(Xi, Yi) - math.log(2.0 * max(delta, r_via))
+        Xd, Yd = (2.0 * p - Xd, Yd) if axis == "x" else (Xd, 2.0 * p - Yd)
+    if len(walls) == 2:
+        # The diagonal image of a corner: the footprint mirrored about both walls
+        c += mean_log(Xd, Yd) - math.log(2.0 * max(math.hypot(*deltas), r_via))
+    return c
 
 
 def tuned_footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
@@ -245,17 +421,21 @@ def tuned_footprint(cx, cy, r_via, dx, origin, cover, dy=None, origin_y=None):
     return make(hi)
 
 
-def well_conductance(s_sheet, r_eff, r_t):
+def well_conductance(s_sheet, r_eff, r_t, c=0.0):
     """!
     @brief Peaceman well conductance between the footprint mean and the barrel.
     @param s_sheet Sheet conductance of the layer at the via in W/K.
     @param r_eff Effective radius of the footprint in m.
     @param r_t Target radius of the barrel in m.
-    @return float 2 pi S / ln(r_eff / r_t) in W/K, infinite when r_eff <= r_t.
+    @param c Edge term of the well in logarithm units (dimensionless, see `edge_term`; 0 away from an edge, where the result is that of the earlier versions bit for bit).
+    @return float 2 pi S / (ln(r_eff / r_t) + c) in W/K, infinite when the denominator is not positive.
     """
-    if r_eff <= r_t * (1.0 + 1e-9):
-        return math.inf
-    return 2.0 * math.pi * s_sheet / math.log(r_eff / r_t)
+    if c == 0.0:
+        if r_eff <= r_t * (1.0 + 1e-9):
+            return math.inf
+        return 2.0 * math.pi * s_sheet / math.log(r_eff / r_t)
+    den = math.log(r_eff / r_t) + c
+    return math.inf if den <= 1e-9 else 2.0 * math.pi * s_sheet / den
 
 
 def kron_barrel(g_gap, g_well):
@@ -335,7 +515,25 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
         ic, jc = max(w, key=w.get)
         # Sheet conductance per unit of board: the cell value carries the cover factor
         s_cell = [float(S[l, ic, jc]) / float(cover[ic, jc]) for l in range(L)]
-        g_well = [well_conductance(s_cell[l], r_eff, r_t) if s_cell[l] > 0 else 0.0 for l in range(L)]
+        c = 0.0
+        if origin == 0.0:
+            # The edge image acts on the cell-centred grid only (the half volumes at the edge nodes of the FDM are left alone)
+            walls = image_walls(problem, v, EDGE_REACH_CELLS * max(dx, dy), max(dx, dy))
+            if walls:
+                r_via = v.diameter / 2.0
+                h = math.sqrt(dx * dy)
+                for _ in range(5):
+                    # The footprint and c depend on each other through the enlargement; a negative c would need a negative resistance
+                    c = edge_term(w, dx, dy, (v.x, v.y), r_via, walls)
+                    if math.log(r_eff / r_t) + c > 1e-9:
+                        break
+                    w = enlarged_footprint(v.x, v.y, r_via, dx, origin, cover, dy, oy, r_t * math.exp(-c) * (1.0 + 1e-6))
+                    r_eff = effective_radius(w, h)
+                    ic, jc = max(w, key=w.get)
+                    s_cell = [float(S[l, ic, jc]) / float(cover[ic, jc]) for l in range(L)]
+                else:
+                    c = edge_term(w, dx, dy, (v.x, v.y), r_via, walls)
+        g_well = [well_conductance(s_cell[l], r_eff, r_t, c) if s_cell[l] > 0 else 0.0 for l in range(L)]
         keys = list(w)
         blocks.append((np.array([k[0] for k in keys]), np.array([k[1] for k in keys]), np.array([w[k] for k in keys]), kron_barrel(gv, g_well)))
     return blocks, gz_via

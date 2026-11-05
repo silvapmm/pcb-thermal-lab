@@ -4,7 +4,7 @@
 @file test_no_secrets.py
 @brief No file tracked by the version control holds an API key, and the key files are ignored.
 
-@details Scans the content of `git ls-files` for Google keys (`AIza` + 35 characters, the newer `AQ.` form, which
+@details Scans the content of `git ls-files` for Anthropic keys (`sk-ant-` plus 20 or more characters, any family) and Google keys (`AIza` + 35 characters, the newer `AQ.` form, which
 may hold further dots) and for assignments such as `api_key = "..."` with a long literal. On request
 (`PCBT_SCAN_KEY_VALUES=1`, by the maintainer; skipped otherwise so that routine runs never read the key) and when
 the local key file `.ocr_keys` exists and is safe, the tracked files are also searched for the exact key values, so
@@ -22,6 +22,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 PATTERNS = {
     "google key": re.compile(r"AIza[0-9A-Za-z_-]{35}"),
     "google key (AQ form)": re.compile(r"\bAQ\.[A-Za-z0-9_.-]{30,}"),
+    "anthropic key": re.compile(r"sk-ant-[A-Za-z0-9_-]{20,}"),      # also the sk-ant-usr- family
+    "openrouter key": re.compile(r"sk-or-[A-Za-z0-9_-]{20,}"),
     "api key assignment": re.compile(r"""api[_-]?key\s*[=:]\s*['"][A-Za-z0-9_.-]{20,}""", re.I),
 }
 MAX_BYTES = 2_000_000

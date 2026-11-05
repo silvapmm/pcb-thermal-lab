@@ -284,14 +284,24 @@ def test_the_footprint_rows_use_dy_when_the_cells_are_not_square(height, cell):
 
 def test_warning_for_a_via_touching_the_board_edge():
     """!
-    @brief A via within one cell of the edge of the board is reported; a via in the middle is not.
+    @brief A via within one cell of the edge is reported for what the mirror image of the FVM does not cover (the FDM, the 3D solid, a cell of 2 mm or more, a
+           via cut by the edge); the FVM at a fine cell with a straight edge, and a via in the middle, get none.
     @return None.
     """
     edge = small_board([(0.3, 5.0, 0.3)])
     middle = small_board([(5.0, 5.0, 0.3)])
-    assert any("touching the board edge" in w for w in check_via_limits(edge, ("fvm",), 1.0))
-    assert not any("touching the board edge" in w for w in check_via_limits(middle, ("fvm",), 1.0))
+    assert not any("touching the board edge" in w for w in check_via_limits(edge, ("fvm",), 1.0))        # covered by the image
+    assert any("touching the board edge" in w for w in check_via_limits(edge, ("fvm",), 2.0))            # a coarse cell
+    assert any("half-volume edge nodes" in w for w in check_via_limits(edge, ("fvm", "fdm"), 1.0))
+    assert any("touching the board edge" in w for w in check_via_limits(edge, ("solid3d",), 1.0))
+    assert not any("touching the board edge" in w for w in check_via_limits(middle, ("fvm", "fdm", "solid3d"), 1.0))
     assert not any("touching the board edge" in w for w in check_via_limits(edge, ("lumped",), 1.0))
+    # A via cut by the edge (centre within its radius of the wall) and a via beside a slanted side are not covered
+    cut = small_board([(0.1, 5.0, 0.4)])
+    assert any("touching the board edge" in w for w in check_via_limits(cut, ("fvm",), 1.0))
+    tri = small_board([(5.0, 0.4, 0.3)])
+    tri.set_outline([(0, 0), (10, 0), (10, 10), (4, 10), (0, 6)])
+    assert any("touching the board edge" in w for w in check_via_limits(tri, ("fvm",), 1.0))
 
 
 def test_warning_for_a_coarse_cell_next_to_vias():

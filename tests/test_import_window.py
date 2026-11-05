@@ -184,7 +184,7 @@ def test_parts_come_from_the_paste_layer_and_the_placement_file(board_dir):
     assert u1.power == 2.0 and u1.edits["use"] and u1.edits["tj_max"] == 125.0 and sx.is_source(u1)
     sx.set_part("R1", use=True)                                        # no opening: cannot be ticked
     assert not sx.is_source(sx.part("R1"))
-    # the shapes are always editable: hull (the suggestion), box and, for several openings, the largest
+    # the shapes are always editable: hull (the suggestion) and box; 'largest' is not offered any more
     assert sx.shapes_of(u1) == ["hull", "box"]
     sx.set_shape("U1", "box")
     xs = [q[0] for q in u1.polygon_mm]
@@ -496,7 +496,7 @@ def test_the_parts_page_table_edits_and_clicks(window, qtbot):
     assert sx.part("U1").power == 1.5 and sx.is_source(sx.part("U1")) and window.step_states()[1][0] == "current"
     row = [pg.table.item(r, 1).text() for r in range(4)].index("U1")
     pg.table.selectRow(row)
-    assert pg.selected == "U1" and pg.radios["hull"].isChecked() and not pg.radios["largest"].isEnabled()
+    assert pg.selected == "U1" and pg.radios["hull"].isChecked() and "largest" not in pg.radios
     pg.radios["box"].setChecked(True)
     assert sx.part("U1").shape == "box"
     pg.table.cellWidget(row, 8).setValue(90.0)
