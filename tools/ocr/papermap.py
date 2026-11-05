@@ -298,6 +298,7 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
             n = len(pymupdf.open(str(pdf)))
         claude = page_files(papers / "ocr" / "anthropic", stem)
         gemini = page_files(papers / "ocr", stem)
+        openrouter = page_files(papers / "ocr" / "openrouter", stem)     # free vision models, below Claude, above Gemini
         local_text = rd(papers / "md" / f"{stem}.md")
         local = set(re.findall(r"<!-- page (\d+) -->", local_text))
         local_pages = {int(x) for x in local}
@@ -314,7 +315,7 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
         # best text per page for locating tables and equations
         best = {}
         for p in range(1, n + 1):
-            f = claude.get(p) or gemini.get(p)
+            f = claude.get(p) or openrouter.get(p) or gemini.get(p)
             best[p] = f.read_text(encoding="utf-8", errors="replace") if f else info["text"].get(p, "")
         off = offsets.get(stem)
         ess: dict[int, list[str]] = {}
@@ -362,7 +363,7 @@ def build_map(papers: Path, root: Path, analyser=analyse_pdf) -> dict:
         row = {
             "stem": stem, "keys": sorted(ks), "pages": n, "kind": kind,
             "born_digital": bool(born), "arxiv_text": is_arxiv, "confidential": confidential,
-            "claude_pages": len(claude), "gemini_pages": len(gemini),
+            "claude_pages": len(claude), "openrouter_pages": len(openrouter), "gemini_pages": len(gemini),
             "local_only_pages": len(local_pages - set(claude) - set(gemini)),
             "text_clean": counts.get("clean", 0), "text_formula": counts.get("formula", 0),
             "text_garbage_or_none": counts.get("garbage", 0) + counts.get("none", 0),

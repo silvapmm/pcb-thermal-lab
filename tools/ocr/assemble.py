@@ -20,9 +20,11 @@ import collections
 import re
 from pathlib import Path
 
+from tools.ocr import compare
+
 HEADER_ZONE = 2        # non-empty lines at the top and bottom of a page that may be running text
 MIN_REPEAT = 3         # a header or footer must repeat on this many pages
-PAGE_RE = re.compile(r"^\s*<!--\s*page\s+\d+\s*-->\s*", re.I)
+PAGE_RE = re.compile(r"^\s*<!--\s*page\s+\d+\s*-->\s*(?:<!--\s*model:[^>]*-->\s*)?", re.I)
 NUM_ONLY = re.compile(r"^\s*(page\s+)?\d{1,4}\s*$", re.I)
 
 
@@ -193,8 +195,12 @@ def usable_text_layer(text: str) -> bool:
     return len(re.findall(r"\w+", text)) >= 60 and not suspects.garbage_text_layer(text)
 
 
+DEFAULT_ORDER = ("claude", "openrouter", "gemini")      # priority of the model sources; the text layer comes last
+
+
 def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_text: dict[int, str] | None = None,
-             printed: dict[int, int | None] | None = None, born_digital: bool | None = None) -> str:
+             printed: dict[int, int | None] | None = None, born_digital: bool | None = None,
+             order: tuple[str, ...] = DEFAULT_ORDER) -> str:
     """!
     @brief Build the final Markdown of one PDF.
     @param papers         Papers folder (reads `ocr/anthropic/<stem>_p<N>.md`, `ocr/<stem>_p<N>.md`, `notes/INDEX.md`).
@@ -205,18 +211,34 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
                           its text layer (provider `text`) when it is usable: enough words and not a garbage layer.
     @param printed        Mapping PDF page -> printed page number (None when unknown).
     @param born_digital   True for a PDF with a text layer, False for a scan, None when unknown.
+    @param order          Priority of the model sources, from `claude`, `openrouter`, `gemini` (default Claude, then
+                          OpenRouter, then Gemini). Where two sources exist for a page the first wins, and a page on
+                          which a lower source disagrees with Claude (`compare.compare_pages`) is listed in the header
+                          as `disagrees_with_claude`.
     @return str The file content.
     """
     printed = printed or {}
     ocr = papers / "ocr"
     src: dict[int, str] = {}
     prov: dict[int, str] = {}
+    files = {"claude": lambda p: ocr / "anthropic" / f"{stem}_p{p}.md", "openrouter": lambda p: ocr / "openrouter" / f"{stem}_p{p}.md",
+             "gemini": lambda p: ocr / f"{stem}_p{p}.md"}
+    disagree: dict[str, list[int]] = {"openrouter": [], "gemini": []}
     for p in range(1, page_count + 1):
-        for name, f in (("claude", ocr / "anthropic" / f"{stem}_p{p}.md"), ("gemini", ocr / f"{stem}_p{p}.md")):
+        for name in order:
+            f = files[name](p)
             if f.is_file():
                 src[p] = strip_marker(f.read_text(encoding="utf-8"))
                 prov[p] = name
                 break
+        # Claude is the reference: report the pages where another source read the page differently (Claude wins).
+        cl = files["claude"](p)
+        if cl.is_file():
+            ref = strip_marker(cl.read_text(encoding="utf-8"))
+            for other in disagree:
+                g = files[other](p)
+                if g.is_file() and not compare.compare_pages(ref, strip_marker(g.read_text(encoding="utf-8")))["agree"]:
+                    disagree[other].append(p)
         if p not in src and pdf_pages_text and usable_text_layer(pdf_pages_text.get(p, "")):
             # free source for plain pages: the text layer (equations are not LaTeX there, so the tier E1 pages stay with the model)
             src[p] = pdf_pages_text[p].strip()
@@ -231,7 +253,7 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
     body = join_pages(chunks)
     row = index_row(papers, stem)
     pr_nums = [v for v in printed.values() if v]
-    by = {n: ranges([p for p, v in prov.items() if v == n]) for n in ("claude", "gemini", "text")}
+    by = {n: ranges([p for p, v in prov.items() if v == n]) for n in ("claude", "openrouter", "gemini", "text")}
     missing = [p for p in range(1, page_count + 1) if p not in src]
     head = [
         "---",
@@ -243,9 +265,10 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
         f"pdf_type: {'born-digital' if born_digital else 'scan' if born_digital is False else 'unknown'}",
         f"bibliography_key: {yaml_text(row['key'] or 'unknown')}",
         f"supports: {yaml_text(row['supports'] or 'unknown')}",
-        f"provider_pages: {{claude: {yaml_text(by['claude'])}, gemini: {yaml_text(by['gemini'])}, text: {yaml_text(by['text'])}, "
+        f"provider_pages: {{claude: {yaml_text(by['claude'])}, openrouter: {yaml_text(by['openrouter'])}, gemini: {yaml_text(by['gemini'])}, text: {yaml_text(by['text'])}, "
         f"missing: {yaml_text(ranges(missing))}}}",
         "licence: open copy kept locally, not redistributed; third-party material, never committed",
+        f"disagrees_with_claude: {{openrouter: {yaml_text(ranges(disagree['openrouter']))}, gemini: {yaml_text(ranges(disagree['gemini']))}}}",
         "reading_status: machine   # becomes verified only when the reviewer compares the page images",
         "used_by:",
     ]

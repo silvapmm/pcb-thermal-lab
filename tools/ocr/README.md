@@ -51,6 +51,18 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
   half-page crops, `refusal` takes the RECITATION path (crops, then the fallback model). The response `usage` is kept
   in the ledger as `input_tokens` and `output_tokens` per page (`Ledger.tokens_today`); no price is stored (the field is
   `unverified` in `data/models.json`: read the current price list before estimating a cost).
+* **OpenRouter provider** (`--provider openrouter`, key `OPENROUTER_API_KEY` or the line `openrouter=KEY` in `.ocr_keys`;
+  outputs in `ocr/openrouter/`, every page file carries `<!-- model: openrouter:<id> -->`): the OpenAI-compatible chat
+  API with `Authorization: Bearer` (never in the URL) and the page as an `image_url` data URL. The default model `auto`
+  is resolved by one `GET /models`: ids ending in `:free`, with image input and zero prices, classifiers (`safety`,
+  `guard`) left out, ranked (`dots`/OCR models, Qwen-VL, Gemma, Pixtral, Llama vision, ...) then by context; the best
+  four are a chain tried in order when a model fails for a reason of its own (404, no image input, upstream 429, 5xx),
+  within 3 requests per page. The free plan (about 20 requests per minute, 50 per day without credits) is respected
+  client side: 3.2 s between requests, and the runner stops cleanly (exit 2, pages stay pending) at `daily_limit` 45 of
+  `data/models.json` (counted in the ledger as provider `openrouter`) or at an error that names the daily limit or the
+  credits. `Retry-After` is honoured. Priority of the sources in `assemble` and `map`: Claude, then OpenRouter, then
+  Gemini, then the text layer (`assemble --order claude,openrouter,gemini` changes it); the header of the assembled
+  file lists `disagrees_with_claude` (digits, equation count, word similarity, `compare.py`): Claude wins.
 * **RECITATION**: a page refused by the copyright filter (empty answer with `finishReason` RECITATION) is retried as two
   half-page crops (top and bottom, 10 % overlap), then once with each fallback model. The output says which was used.
 * **Assemble** (`assemble.py`, command `assemble <stem>...`): one Markdown file per PDF in `papers/md-final/`, deterministic from the
@@ -84,7 +96,7 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 
 ## The key
 
-Looked up in this order: the environment variable the provider declares (Gemini: `GEMINI_API_KEY`, then `GOOGLE_API_KEY`; Anthropic: `ANTHROPIC_API_KEY`), then the
+Looked up in this order: the environment variable the provider declares (Gemini: `GEMINI_API_KEY`, then `GOOGLE_API_KEY`; Anthropic: `ANTHROPIC_API_KEY`; OpenRouter: `OPENROUTER_API_KEY`), then the
 file `.ocr_keys` in the project root (also in the main checkout when the tool runs from a worktree, found with
 `git rev-parse --git-common-dir`). Format: one `provider=KEY` per line, `#` for comments. The file must be mode 600; a file
 that group or others can read is refused with a message that does not contain the key. `.ocr_keys` and `*.key` are in

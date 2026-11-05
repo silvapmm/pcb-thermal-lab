@@ -23,6 +23,7 @@ PATTERNS = {
     "google key": re.compile(r"AIza[0-9A-Za-z_-]{35}"),
     "google key (AQ form)": re.compile(r"\bAQ\.[A-Za-z0-9_.-]{30,}"),
     "anthropic key": re.compile(r"sk-ant-[A-Za-z0-9_-]{20,}"),      # also the sk-ant-usr- family
+    "openrouter key": re.compile(r"sk-or-[A-Za-z0-9_-]{20,}"),
     "api key assignment": re.compile(r"""api[_-]?key\s*[=:]\s*['"][A-Za-z0-9_.-]{20,}""", re.I),
 }
 MAX_BYTES = 2_000_000

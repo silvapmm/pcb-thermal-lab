@@ -80,7 +80,9 @@ class Runner:
         self.model = model or cfg.get("default") or provider.default_model
         self.fallbacks = [m for m in cfg.get("fallbacks", []) if m != self.model]
         self.prompt = prompt or config.default_prompt()
-        self.pause, self.daily_limit, self.dpi = pause, daily_limit, dpi
+        # A provider with a free daily cap (OpenRouter) carries its limit in data/models.json; --daily-limit overrides it.
+        self.pause, self.dpi = pause, dpi
+        self.daily_limit = daily_limit if daily_limit is not None else cfg.get("daily_limit")
         self.allow_confidential = allow_confidential
         # Defaults resolved at call time (a default argument would freeze the function when the module is imported).
         self._sleep = sleep
@@ -146,10 +148,11 @@ class Runner:
         """
         res = self._call(self._render(pdf, page, self.dpi, None), self.model)
         if not (res.recitation or res.split):
+            used = res.model or self.model       # a provider that walks a chain of models says which one answered
             if not res.text.strip():
-                return res.text, self.model, f"empty answer (finish {res.finish_reason})"
+                return res.text, used, f"empty answer (finish {res.finish_reason})"
             # Text with another finish reason (MAX_TOKENS, SAFETY, ...) may be cut: keep it, but say so.
-            return res.text, self.model, ("" if res.finish_reason in ("STOP", "", "end_turn", "stop_sequence") else
+            return res.text, used, ("" if res.finish_reason in ("STOP", "", "end_turn", "stop_sequence", "stop") else
                                           f"finish {res.finish_reason}: the text may be incomplete")
         # Refused by the copyright filter (or cut at the token limit): two half-page crops with the same model.
         log.info("%s p%d: %s, trying half-page crops", pdf.name, page, res.finish_reason or "RECITATION")
@@ -192,7 +195,9 @@ class Runner:
                 status, note = "quota", "daily quota exhausted: " + note
         if status == "ok":
             self.out_dir.mkdir(parents=True, exist_ok=True)
-            out.write_text(f"<!-- page {page} -->\n{text}", encoding="utf-8")
+            # The model that answered is recorded in the page file when the provider can change it (OpenRouter).
+            tag = f"<!-- model: {self.provider.name}:{model} -->\n" if getattr(self.provider, "header_model", False) else ""
+            out.write_text(f"<!-- page {page} -->\n{tag}{text}", encoding="utf-8")
         self.ledger.add(provider=self.provider.name, model=model, file=stem, page=page, ok=status == "ok",
                         seconds=round(time.time() - t0, 1), words=len(text.split()) if status == "ok" else 0,
                         requests=self._requests - before, note=note[:300],

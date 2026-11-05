@@ -868,3 +868,142 @@ def test_papermap_formula_score_and_build(tmp_path):
     assert row["stem"] == "Foo" and row["pages"] == 2 and row["claude_pages"] == 1
     assert 2 in row["essential_pages"] and row["e1_run"] == [] and row["e1_verify_only"] == [2]
     assert "Foo" in pm.render_markdown(m)
+
+
+# ---------------------------------------------------------------------------- OpenRouter (mocked transport)
+from tools.ocr.providers.openrouter import OpenRouterProvider, rank_models  # noqa: E402
+from tools.ocr import compare as ocr_compare  # noqa: E402
+
+OR_KEY = "sk-or-" + "v1-" + "ab12" * 10          # built here so the source has no key-like text
+OR_OK = {"model": "qwen/qwen2.5-vl-72b-instruct:free", "choices": [{"message": {"content": "page $x^2$"}, "finish_reason": "stop"}],
+         "usage": {"prompt_tokens": 900, "completion_tokens": 120}}
+OR_MODELS = {"data": [
+    {"id": "meta-llama/llama-3.2-11b-vision-instruct:free", "architecture": {"input_modalities": ["text", "image"]},
+     "pricing": {"prompt": "0", "completion": "0"}, "context_length": 131072},
+    {"id": "qwen/qwen2.5-vl-72b-instruct:free", "architecture": {"input_modalities": ["text", "image"]},
+     "pricing": {"prompt": "0", "completion": "0"}, "context_length": 32768},
+    {"id": "some/text-only:free", "architecture": {"input_modalities": ["text"]}, "pricing": {"prompt": "0", "completion": "0"}},
+    {"id": "paid/vision", "architecture": {"input_modalities": ["image"]}, "pricing": {"prompt": "0.1", "completion": "0.1"}}]}
+
+
+class FakeOpenRouter(OpenRouterProvider):
+    """!
+    @brief OpenRouter provider whose HTTP calls are scripted.
+    """
+
+    def __init__(self, answers, **kw):
+        """!
+        @brief Create it.
+        @param answers List of dict responses or exceptions for the POSTs.
+        @param kw      Extra constructor arguments.
+        @return None
+        """
+        super().__init__(key=OR_KEY, retries=2, first_pause=0.0, sleep=lambda s: None, min_interval=0.0, **kw)
+        self.answers, self.urls, self.bodies, self.sleeps, self.gets = list(answers), [], [], [], []
+        self._sleep = self.sleeps.append
+
+    def _post(self, url, body, timeout):
+        """!
+        @brief Scripted POST.
+        @param url     URL (recorded).
+        @param body    Body (recorded).
+        @param timeout Unused.
+        @return dict The next response.
+        """
+        self.urls.append(url)
+        self.bodies.append(json.loads(body))
+        a = self.answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+    def _get(self, url, timeout):
+        """!
+        @brief Scripted GET of the model list.
+        @param url     URL (recorded).
+        @param timeout Unused.
+        @return dict The model list.
+        """
+        self.gets.append(url)
+        return OR_MODELS
+
+
+def or_error(code, message, headers=None):
+    """!
+    @brief Build an HTTPError in the shape of OpenRouter.
+    @param code    HTTP status.
+    @param message Message.
+    @param headers Response headers.
+    @return urllib.error.HTTPError The error.
+    """
+    body = json.dumps({"error": {"message": message, "code": code}})
+    return urllib.error.HTTPError("http://x", code, "err", headers or {}, io.BytesIO(body.encode()))
+
+
+def test_openrouter_request_shape_usage_and_key_not_in_url():
+    g = FakeOpenRouter([OR_OK])
+    r = g.transcribe(b"png", "prompt", {"model": "qwen/qwen2.5-vl-72b-instruct:free"})
+    assert r.text == "page $x^2$" and r.extra["usage"] == {"input_tokens": 900, "output_tokens": 120}
+    part = g.bodies[0]["messages"][0]["content"][0]
+    assert part["type"] == "image_url" and part["image_url"]["url"].startswith("data:image/png;base64,")
+    assert OR_KEY not in g.urls[0] and g.gets == []
+
+
+def test_openrouter_ranks_only_free_vision_models_and_auto_walks_the_chain():
+    ids = rank_models(OR_MODELS["data"])
+    assert ids == ["qwen/qwen2.5-vl-72b-instruct:free", "meta-llama/llama-3.2-11b-vision-instruct:free"]
+    g = FakeOpenRouter([or_error(404, "No endpoints found"), OR_OK])
+    r = g.transcribe(b"png", "p", {"model": "auto"})
+    assert [b["model"] for b in g.bodies] == ids and len(g.gets) == 1 and r.extra["attempts"] == 2
+
+
+def test_openrouter_429_waits_retry_after_and_daily_limit_stops_at_once():
+    g = FakeOpenRouter([or_error(429, "slow down", {"Retry-After": "7"}), OR_OK])
+    assert g.transcribe(b"png", "p", {"model": "m:free"}).text and g.sleeps == [7.0]
+    h = FakeOpenRouter([or_error(429, "Rate limit exceeded: free-models-per-day")])
+    with pytest.raises(ProviderError) as e:
+        h.transcribe(b"png", "p", {"model": "m:free"})
+    assert e.value.quota_exhausted and len(h.urls) == 1
+
+
+def test_openrouter_client_side_rate_limit_spaces_requests():
+    now = [100.0]
+    g = FakeOpenRouter([OR_OK, OR_OK], clock=lambda: now[0])
+    g.min_interval = 3.2
+    g.transcribe(b"png", "p", {"model": "m:free"})
+    g.transcribe(b"png", "p", {"model": "m:free"})
+    assert g.sleeps == [pytest.approx(3.2)]
+
+
+def test_openrouter_error_with_a_key_never_reaches_the_message():
+    g = FakeOpenRouter([or_error(401, "bad key " + OR_KEY)])
+    with pytest.raises(ProviderError) as e:
+        g.transcribe(b"png", "p", {"model": "m:free"})
+    assert OR_KEY not in str(e.value) and "sk-or-" not in str(e.value)
+
+
+def test_openrouter_is_registered_and_has_a_daily_limit():
+    assert REGISTRY["openrouter"].key_env == ("OPENROUTER_API_KEY",)
+    assert config.models()["openrouter"]["daily_limit"] <= 50
+
+
+def test_openrouter_pages_rank_below_claude_and_disagreements_are_reported(tmp_path):
+    ocr = tmp_path / "ocr"
+    (ocr / "anthropic").mkdir(parents=True)
+    (ocr / "openrouter").mkdir()
+    (ocr / "anthropic" / "Foo_p1.md").write_text("<!-- page 1 -->\nvalue 12.5 K")
+    (ocr / "openrouter" / "Foo_p1.md").write_text("<!-- page 1 -->\n<!-- model: openrouter:m:free -->\nvalue 12.6 K")
+    (ocr / "openrouter" / "Foo_p2.md").write_text("<!-- page 2 -->\n<!-- model: openrouter:m:free -->\nonly openrouter here")
+    (ocr / "Foo_p2.md").write_text("<!-- page 2 -->\ngemini text")
+    from tools.ocr import assemble as asm
+    out = asm.assemble(tmp_path, "Foo", tmp_path, 2)
+    assert "value 12.5 K" in out and "only openrouter here" in out and "gemini text" not in out
+    assert "model:" not in out.split("---", 2)[2]
+    assert "openrouter: '1'" in out.replace('"', "'") and "disagrees_with_claude" in out
+    assert "gemini text" in asm.assemble(tmp_path, "Foo", tmp_path, 2, order=("gemini", "openrouter", "claude"))
+
+
+def test_compare_pages_digits_equations_similarity():
+    r = ocr_compare.compare_pages("a $x$ 12 b", "a $x$ 12 b")
+    assert r["agree"] and r["digits_equal"]
+    assert not ocr_compare.compare_pages("a 12", "a 13")["agree"]
