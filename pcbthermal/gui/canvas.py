@@ -477,18 +477,26 @@ class BoardView(QGraphicsView):
 
     def _fit_labels(self):
         """!
-        @brief In a project with imported parts hide the name of a heater that is wider than the heater on the screen (27 names on a board seen whole would be a smear); zooming in shows them.
+        @brief In a project with imported parts hide the name of a heater that is wider than the heater on the screen or that would overlap a name already shown (27 names on a board seen
+               whole would be a smear); zooming in shows them. Larger heaters are named first.
         @details Drawn boards are left alone: their labels always show. The selected heater keeps its name.
         """
         if self.doc.problem.imported is None:
             return
         scale = abs(self.transform().m11())
-        for it in self.scene().items():
-            lab = getattr(it, "label", None)
-            if isinstance(it, ElementItem) and it.kind == "heater" and lab is not None:
-                fm = QFontMetrics(lab.font())
-                need = fm.horizontalAdvance(lab.text()) + 4
-                lab.setVisible(it.isSelected() or it.boundingRect().width() * scale >= need)
+        heaters = [it for it in self.scene().items() if isinstance(it, ElementItem) and it.kind == "heater" and it.label is not None]
+        heaters.sort(key=lambda it: (not it.isSelected(), -it.boundingRect().width() * it.boundingRect().height()))
+        taken = []
+        for it in heaters:
+            lab = it.label
+            fm = QFontMetrics(lab.font())
+            w, h = fm.horizontalAdvance(lab.text()) + 4, fm.height()
+            pt = self.mapFromScene(lab.scenePos())                # The label ignores the view's scale: its rectangle is in pixels from this point
+            r = QRectF(pt.x(), pt.y(), w, h)
+            show = it.isSelected() or (it.boundingRect().width() * scale >= w and not any(r.intersects(t) for t in taken))
+            lab.setVisible(show)
+            if show:
+                taken.append(r)
 
     def _add_background(self):
         """!
