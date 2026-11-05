@@ -176,6 +176,9 @@ def patched(kind="cap_nn", t_mm=1.0, k_nn=0.75, m_rad=8.0, floor_mm=0.25, cap_mm
     @throws RuntimeError If an anchor of the program's source is not found (the program changed).
     """
     from pcbthermal import analytic
+    # The prototype patch rewrites lines of the Analytic that the program no longer has (the tile rule and the via self-term entered it with fix/via-constriction): say so plainly
+    if not patch_available():
+        raise RuntimeError("the S4 patch cannot be installed: analytic.solve_steady no longer has the lines of the prototype (obsolete since fix/via-constriction; see README, section 'Status of the scripts')")
     orig = analytic.solve_steady
     src0 = textwrap.dedent(inspect.getsource(orig))
     old_rule = dict(RULE)
