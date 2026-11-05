@@ -155,6 +155,43 @@ def _outline(ax, problem, layer):
         ax.plot([v.x * 1000.0 for v in problem.vias], [v.y * 1000.0 for v in problem.vias], "k.", ms=3)
 
 
+EQUIVALENT_LABEL = "rectangle solved (same area as the outline"
+
+
+def _solved_view(problem, dx, dy, scale):
+    """!
+    @brief The geometry that the Lumped and Analytic models really solved for a board with an outline.
+    @details They solve `Problem.equivalent_rectangle` (box, positions, zones, vias and heatsinks scaled by s about the origin, parts of the
+             same size moved to the scaled centre) and the result is stretched back by 1/s onto the real box (`api._run_model`). Drawing the
+             field on its solved spacing (dx s, dy s) with the elements of that rectangle puts the field, the parts and the dashed edge in one
+             frame, so the drawn rectangle has the size its legend gives.
+    @param problem The Problem with an outline.
+    @param dx Spacing along x of the stretched field in metres.
+    @param dy Spacing along y of the stretched field in metres.
+    @param scale s of `Problem.equivalent_rectangle` (0 < s <= 1).
+    @return Tuple (rectangular Problem as solved, dx_solved, dy_solved).
+    """
+    q, _ = problem.equivalent_rectangle()
+    return q, dx * scale, dy * scale
+
+
+def _equivalent_lines(ax, problem, solved, color):
+    """!
+    @brief Draw the edge of the solved rectangle (dashed, `color`) and the real outline (thin grey) for comparison.
+    @param ax Matplotlib axis (coordinates in mm).
+    @param problem The Problem with the real outline.
+    @param solved The rectangular Problem that was solved (`_solved_view`).
+    @param color Colour of the dashed edge.
+    @return List of the two Line2D (for a legend).
+    """
+    W, H = solved.board.width * 1000.0, solved.board.height * 1000.0
+    rect, = ax.plot([0, W, W, 0, 0], [0, 0, H, H, 0], color=color, lw=1.8, ls=(0, (6, 3)), clip_on=False, zorder=5,
+                    label=f"{EQUIVALENT_LABEL}, {W:.1f} x {H:.1f} mm)")
+    o = np.vstack([problem.board.outline, problem.board.outline[:1]]) * 1000.0
+    real, = ax.plot(o[:, 0], o[:, 1], color="#9a9a9a", lw=1.0, ls=":", zorder=4, label="real outline")
+    return [rect, real]
+
+
 def _field_axes(field, problem, dx, dy):
     """!
     @brief Sample positions and image extent of a field that holds either cell values or values at grid points.
@@ -179,7 +216,7 @@ def _field_axes(field, problem, dx, dy):
 
 @_with_engineering_ticks
 def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None, vmax=None,
-               layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)"):
+               layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)", equivalent_scale=None, equivalent_color="#ffb000"):
     """!
     @brief Draw one layer of a scalar field over the board, with outlines and a colour bar.
     @param fig Target Figure (cleared first).
@@ -196,11 +233,21 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     @param marker Optional (x_m, y_m) of a marker, for example the hottest point.
     @param hotspot Optional temperature; the contour at that level is drawn in magenta.
     @param label Colour bar label.
+    @param equivalent_scale Scale s of the equivalent rectangle (`SteadyResult.equivalent_scale`) of a Lumped or Analytic result on a board with
+           an outline: the field is drawn as solved, on the rectangle of the same area with its parts, the rectangle dashed and the real outline
+           dotted, with a legend; None (or a board without an outline) draws the field stretched onto the real box as usual.
+    @param equivalent_color Colour of that dashed line.
     @return The axes.
     """
     fig.clear()
     ax = fig.add_subplot(111)
     b = problem.board
+    real = problem
+    solved_view = equivalent_scale is not None and b.has_outline()
+    if solved_view:
+        problem, dx, dy = _solved_view(problem, dx, dy, equivalent_scale)   # One frame: the solved field, its parts and its edge
+        if marker is not None:
+            marker = (marker[0] * equivalent_scale, marker[1] * equivalent_scale)
     field = _off_board(field, problem, dx, dy)
     xs, ys, ext = _field_axes(field, problem, dx, dy)
     im = ax.imshow(field, origin="lower", cmap=cmap, extent=ext,
@@ -212,6 +259,9 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
         _outline(ax, problem, layer)
     if marker is not None:
         ax.plot(marker[0] * 1000, marker[1] * 1000, "c+", ms=12, mew=1.5)
+    if solved_view:
+        lines = _equivalent_lines(ax, real, problem, equivalent_color)
+        fig.legend(handles=lines, loc="outside lower center", fontsize=7, ncols=1, framealpha=0.7)
     ax.set_xlim(0, b.width * 1000)
     ax.set_ylim(0, b.height * 1000)
     ax.set_xlabel("x (mm)")
@@ -247,27 +297,39 @@ def draw_block(fig, result, problem, face, cmap="inferno"):
 
 
 @_with_engineering_ticks
-def draw_fields(fig, result, problem, cmap="inferno"):
+def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equivalent_color="#ffb000"):
     """!
     @brief All layers side by side with a shared colour scale.
     @param fig Target Figure (cleared first).
     @param result A SteadyResult with a field.
     @param problem The Problem.
     @param cmap Colormap name.
+    @param show_equivalent If True and the result ran on the equivalent rectangle of an outline board (`result.equivalent_scale`), draw every
+           layer as solved (the rectangle of the same area with its parts, dashed, the real outline dotted; one legend below the figure);
+           False draws the field stretched onto the real box.
+    @param equivalent_color Colour of that dashed line.
     """
     fig.clear()
-    T = np.stack([_off_board(t, problem, result.dx, result.dy) for t in result.T])
+    b = problem.board
+    real = problem
+    s = result.equivalent_scale
+    solved_view = show_equivalent and s is not None and b.has_outline()
+    dx, dy = result.dx, result.dy
+    if solved_view:
+        problem, dx, dy = _solved_view(problem, dx, dy, s)                  # One frame for the field, the parts and the dashed edge
+    T = np.stack([_off_board(t, problem, dx, dy) for t in result.T])
     L = T.shape[0]
     vmin, vmax = float(np.nanmin(T)), float(np.nanmax(T))
-    b = problem.board
     axes = fig.subplots(1, L, squeeze=False)[0]
-    im = None
+    im, lines = None, None
     for l, ax in enumerate(axes):
-        _, _, ext = _field_axes(T[l], problem, result.dx, result.dy)
+        _, _, ext = _field_axes(T[l], problem, dx, dy)
         im = ax.imshow(T[l], origin="lower", cmap=cmap, vmin=vmin, vmax=vmax, extent=ext)
         ax.set_xlim(0, b.width * 1000)
         ax.set_ylim(0, b.height * 1000)
         _outline(ax, problem, l)
+        if solved_view:
+            lines = _equivalent_lines(ax, real, problem, equivalent_color)
         ax.set_title(f"Layer {l + 1}  (mean {result.layer_mean[l]:.1f} °C)", fontsize=9)
         ax.set_xlabel("x (mm)")
         ax.set_aspect("equal")
@@ -275,8 +337,12 @@ def draw_fields(fig, result, problem, cmap="inferno"):
             ax.set_ylabel("y (mm)")
     loc = result.t_max_location
     if loc is not None and loc[0] < L:
-        axes[loc[0]].plot(loc[1] * 1000, loc[2] * 1000, "c+", ms=10)
+        f = s if solved_view else 1.0                                       # The location is stored on the real box (stretched back)
+        axes[loc[0]].plot(loc[1] * 1000 * f, loc[2] * 1000 * f, "c+", ms=10)
     fig.colorbar(im, ax=list(axes), label="Temperature (°C)", shrink=0.9)
+    if lines:
+        # One legend for the figure, below the maps: inside the first small axis it squeezed the layout of every layer
+        fig.legend(handles=lines, loc="outside lower center", fontsize=7, ncols=1, framealpha=0.7)
     fig.suptitle(f"{result.model.upper()}: Tmax {result.t_max:.1f} °C, Rθ {result.r_theta:.2f} K/W, "
                  f"power balance {num(result.balance_error, sign=True)}", fontsize=10)
 

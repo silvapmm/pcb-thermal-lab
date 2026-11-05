@@ -705,3 +705,19 @@ def test_low_rayleigh_warning_fires_once_below_the_criterion_only_for_vertical_c
     assert not check_low_rayleigh(b, info(1.0, 1.0))
     b.orientation, b.h_mode = "vertical", "manual"
     assert not check_low_rayleigh(b, info(1.0, 1.0))
+
+
+def test_convection_not_measured_note_only_with_computed_h():
+    """!
+    @brief The Results summary carries the line that computed coefficients were never compared with a measured board, once, only in computed mode.
+    @return None.
+    """
+    from pcbthermal import api, examples
+    from pcbthermal.api import CONVECTION_NOT_MEASURED_NOTE
+    p = examples.example_board()
+    p.board.h_mode = "computed"
+    sim = api.simulate(p, api.SolverOptions(models=("fvm",), cell_mm=2.0))
+    assert sim.warnings.count(CONVECTION_NOT_MEASURED_NOTE) == 1
+    p.board.h_mode = "manual"
+    sim = api.simulate(p, api.SolverOptions(models=("fvm",), cell_mm=2.0))
+    assert CONVECTION_NOT_MEASURED_NOTE not in sim.warnings
