@@ -981,12 +981,19 @@ def test_import_window_in_the_application(win, qtbot, tmp_path, monkeypatch):
     empty.mkdir()
     dlg.open_path(str(empty))                                                     # an empty folder: a message, the window stays
     assert "Cannot read the files" in notes
-    dlg.open_path(str(make_board(tmp_path / "fab2")))
+    dlg.open_path(str(make_board(tmp_path / "fab2", qfn=True)))                  # with a QFN: the exposed pad is the proposed shape
     assert dlg.session.complete()
     # Step 2: edit the parts, click, shapes; step 3: the model settings
     dlg.go(1)
     pg = dlg.page2
-    assert pg.table.rowCount() == 4
+    assert pg.table.rowCount() == 5
+    names = [pg.table.item(r, 1).text() for r in range(5)]
+    pg.table.selectRow(names.index("U2"))
+    assert pg.radios["exposed"].isChecked()
+    for key in ("hull", "box", "largest", "exposed"):                             # every shape of the QFN, each one drawn
+        pg.radios[key].setChecked(True)
+        pg.preview.grab()
+        win.toggle_theme()
     pg.table.cellWidget(0, 7).setValue(2.0)
     pg.table.selectRow(0)
     pg.radios["box"].setChecked(True)
