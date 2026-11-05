@@ -21,7 +21,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from .geometry import BOARD_SAMPLES, part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, points_in_polygon, polygon_centroid, zone_fill
-from . import blocks, fvm, laminate, viawell
+from . import blocks, copper, fvm, laminate, viawell
 from .results import SteadyResult
 
 
@@ -83,13 +83,16 @@ class Network:
              the number of nodes, so the transient and the power-profile machinery of the FVM runs on it unchanged.
     """
 
-    def __init__(self, problem, cell_mm=2.0, mean="arithmetic", sampling="area"):
+    def __init__(self, problem, cell_mm=2.0, mean="arithmetic", sampling="area", faces=None):
         """!
         @param problem A Problem.
         @param cell_mm Target grid spacing in millimetres (the board is divided into round(width / spacing) intervals).
         @param mean "arithmetic" (classic) or "harmonic" mean of the nodal conductivities on a face.
         @param sampling "area" (covered fraction of the control volume around each node, removes most of the grid-to-grid scatter)
                or "point" (the classic test of whether the node lies inside a polygon).
+        @param faces Imported copper (copper.py): None takes `problem.imported` when it has masks, False ignores it, or a copper.CopperSource. The fill of the imported layers
+               comes from the masks (averaged around the nodes); with the "faces" or "lambda" mapping the in-plane couplings of those layers are the face conductances of
+               the reduced sheet between node centres (the windows are centred on the nodes), with "fill" the mean of the two nodal values. Only with area sampling.
         @throws ValueError If the sampling is unknown.
         """
         problem.validate()
@@ -132,10 +135,12 @@ class Network:
         area = area * ncov                                                   # Board area of every control volume
         self.area = area
 
+        self.copper = copper.resolve(faces, problem) if sampling == "area" else None
         # Copper fill at the nodes
         if sampling == "area":
             # The union of the zones per sample point on the cells, then averaged over the cells around every node
             cell_fill = zone_fill(problem.zones, L, cells_x, cells_y, dx, dy, 4)
+            copper.override_fill(cell_fill, self.copper, cells_y, cells_x, W, H)     # The imported layers come from their masks
             fill = np.stack([_node_average(cell_fill[k]) for k in range(L)])
         else:
             fill = np.zeros((L, ny, nx))                                     # Point sampling: a node is inside or outside, the maximum is exact
@@ -213,13 +218,27 @@ class Network:
         on = self.active
         fx = _mean(S[:, :, :-1], S[:, :, 1:], mean)
         fy = _mean(S[:, :-1, :], S[:, 1:, :], mean)
+        # Imported copper: the face conductances of the sheet the copper node keeps after the rule (the sheet before the rule is via_S)
+        faces_xy = {}
+        if self.copper is not None and self.copper.mapping != "fill":
+            with np.errstate(divide="ignore", invalid="ignore"):
+                for layer in self.copper.layers:
+                    a_full = float(m.k_copper * tc[layer, 0, 0] + k_lam[layer, 0, 0] * (slab[layer if slab.shape[0] > 1 else 0, 0, 0] - tc[layer, 0, 0]))
+                    b_bare = float(k_lam[layer, 0, 0] * slab[layer if slab.shape[0] > 1 else 0, 0, 0])
+                    red = np.where(ncov > 0, np.maximum(via_S[layer] - S[layer], 0.0) / ncov, 0.0)
+                    faces_xy[layer] = self.copper.lateral(layer, a_full, b_bare, red, ncov, cells_y, cells_x, W, H, nodes=True)
         if rule is not None and rule.layers:
             # A laminate node joins its neighbour by the mean of the two only where both exist: the arithmetic mean would leak half of a refined node's conductance into
             # the neighbouring node that no cell uses (a node pinned to the ambient)
             for fq, sq in ((fx, (S[L:, :, :-1], S[L:, :, 1:])), (fy, (S[L:, :-1, :], S[L:, 1:, :]))):
                 fq[L:] = 0.5 * (sq[0] + sq[1]) * ((sq[0] > 0) & (sq[1] > 0))
-        couple(idx[:, :, :-1], idx[:, :, 1:], fx * wy[None, :, None] / dx * (on[:, :-1] & on[:, 1:])[None])
-        couple(idx[:, :-1, :], idx[:, 1:, :], fy * wx[None, None, :] / dy * (on[:-1, :] & on[1:, :])[None])
+        gxl = fx * wy[None, :, None] / dx * (on[:, :-1] & on[:, 1:])[None]
+        gyl = fy * wx[None, None, :] / dy * (on[:-1, :] & on[1:, :])[None]
+        for layer, (fgx, fgy) in faces_xy.items():
+            gxl[layer] = fgx * (on[:, :-1] & on[:, 1:])
+            gyl[layer] = fgy * (on[:-1, :] & on[1:, :])
+        couple(idx[:, :, :-1], idx[:, :, 1:], gxl)
+        couple(idx[:, :-1, :], idx[:, 1:, :], gyl)
         # Vertical: dielectric over the control area; the via barrels are mean-potential couplings of a footprint of nodes (viawell.py)
         if L > 1:
             d = b.gap_thicknesses()
@@ -354,7 +373,7 @@ def unknowns(problem, cell_mm=2.0):
     if laminate.uses_rule(problem):
         # The laminate nodes of the rule exist only at the nodes that carry them: count them as the network will (area sampling of the fill, the default)
         dx, dy = b.width / cells_x, b.height / cells_y
-        cell_fill = zone_fill(problem.zones, b.layers, cells_x, cells_y, dx, dy, 4)
+        cell_fill = copper.problem_fill(problem, cells_x, cells_y, dx, dy, 4)
         fill = np.stack([_node_average(cell_fill[k]) for k in range(b.layers)])
         if b.has_outline():
             c = _node_average(coverage_fraction(b.outline, cells_x, cells_y, dx, dy, BOARD_SAMPLES))

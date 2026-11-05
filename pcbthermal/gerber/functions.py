@@ -17,6 +17,7 @@ from typing import NamedTuple, Optional
 
 from .excellon import drill_function
 from .parser import attributes_as_commands
+from .profiles import rules_for
 
 HEAD_BYTES = 8192
 
@@ -26,13 +27,22 @@ class LayerFunction(NamedTuple):
     @brief The detected function of a file.
     @details kind: "copper", "paste", "soldermask", "silkscreen", "outline", "drill", "component", "other" or "unknown". side: "top", "bottom", "inner" or None.
              index: the copper layer number counted from the top (X2, source "x2"), or the ordinal among the inner layers (names, source "name"); None when unknown.
-             plated: True or False for a drill file when known. source: "x2", "excellon" or "name".
+             plated: True or False for a drill file when known. source: "x2", "excellon" or "name". The `confidence` follows the source: the file's own statement (X2, the Excellon
+             header) is "high", a guess from the name alone is never more than "low" (names mislead: a mask named "top" or an assembly drawing named "Layer3").
     """
     kind: str
     side: Optional[str]
     index: Optional[int]
     plated: Optional[bool]
     source: str
+
+    @property
+    def confidence(self):
+        """!
+        @brief How far the detection can be trusted.
+        @return str "high" when the file states its function (X2, Excellon header), "low" when only its name suggests it.
+        """
+        return "high" if self.source in ("x2", "excellon") else "low"
 
 
 UNKNOWN = LayerFunction("unknown", None, None, None, "name")
@@ -47,6 +57,8 @@ _EXT = {
     "gtp": ("paste", "top", None), "gbp": ("paste", "bottom", None), "crc": ("paste", "top", None), "crs": ("paste", "bottom", None),
     "gko": ("outline", None, None), "gm1": ("outline", None, None), "gml": ("outline", None, None), "dim": ("outline", None, None), "oln": ("outline", None, None),
     "drl": ("drill", None, None), "xln": ("drill", None, None), "exc": ("drill", None, None), "drd": ("drill", None, None), "txt": ("drill", None, None),
+    # pcb-rnd assembly and fabrication drawings (review: `power-art.asb` was read as inner copper because the project name holds "power")
+    "asb": ("other", "bottom", None), "ast": ("other", "top", None), "fab": ("other", None, None),
 }
 
 
@@ -84,7 +96,7 @@ def _from_x2(head):
 _KICAD = re.compile(r"[-_.](f|b|in(\d+))[._](cu|mask|paste|silks|silkscreen|fab|crtyd|courtyard|adhes|adhesive)$")
 _KICAD_KIND = {"cu": "copper", "mask": "soldermask", "paste": "paste", "silks": "silkscreen", "silkscreen": "silkscreen"}
 # Drawings of the drill (KiCad "-drl_map", Altium "Drill Drawing", EasyEDA "DrillDrawingLayer", "drill guide"): Gerber pictures, not drill files
-_DRILL_DRAWING = re.compile(r"drl[-_ ]?map|drill[-_ ]?(map|drawing|guide|chart)|drilldrawing|drillmap|drillguide")
+_DRILL_DRAWING = re.compile(r"drl[-_ ]?map|drill[-_ ]?(map|drawing|guide|chart|dwg)|drilldrawing|drillmap|drillguide")
 
 
 def _from_name(name):
@@ -140,9 +152,10 @@ def _from_name(name):
             break
     if side is None:
         side = "bottom" if ("bottom" in parts or "bot" in parts) else "top" if "top" in parts else None
-    if re.search(r"\bpaste\b|\bsolderpaste\b|\bsmdpaste\b", joined) or "paste" in tokens:
+    if re.search(r"\bpaste\b|\bsolderpaste\b|\bsmdpaste\b", joined) or "paste" in tokens or "past" in tokens:      # "PAST_TOP" (Allegro film name)
         return LayerFunction("paste", side, None, None, "name")
-    if "mask" in joined or "soldermask" in tokens or "smask" in tokens:
+    # "solder" and "sm" alone are ambiguous (EAGLE's solder side is the bottom copper); with a side word ("SOLDER_TOP", "bot-sm") they name the mask. "resist" is the solder resist
+    if "mask" in joined or any(t in tokens for t in ("soldermask", "smask", "resist")) or (side is not None and any(t in tokens for t in ("solder", "sm"))):
         return LayerFunction("soldermask", side, None, None, "name")
     if re.search(r"silk|legend|overlay", joined) or "ss" in tokens:
         return LayerFunction("silkscreen", side, None, None, "name")
@@ -151,7 +164,7 @@ def _from_name(name):
     if re.search(r"drill|drl|pth|npth|ncdrill|excellon", joined):
         plated = False if "npth" in joined or "nonplated" in joined else True if "pth" in joined else None
         return LayerFunction("drill", None, None, plated, "name")
-    if re.search(r"assem|assy|fab|adhes|glue|courtyard|crtyd|user|dwg|drawing|comment|doc|note", joined):
+    if re.search(r"assem|assy|fab|adhes|glue|courtyard|crtyd|user|dwg|drawing|comment|doc|note", joined) or any(t in tokens for t in ("asb", "ast", "asm", "assembly", "symbol")):
         return LayerFunction("other", side, None, None, "name")
     inner = re.search(r"\b(?:in|inner|l|layer|mid|int)[-_ ]?(\d+)\b|in(\d+)[-_ ]?cu", joined + " " + stem)
     if inner and ("cu" in tokens or "copper" in parts or "inner" in parts or "layer" in parts or re.search(r"in\d+", stem)) and side is None:
@@ -163,11 +176,34 @@ def _from_name(name):
     return UNKNOWN
 
 
-def detect_function(name, head=""):
+def _from_profile(base, rules, generic):
+    """!
+    @brief The function from the name rules of a CAD profile (the tier between the content rules and the generic name rules).
+    @details The rule gives the kind and, when it knows, the side; a missing side of a layer kind is taken from the generic name reading. The source stays "name", so the
+             confidence stays "low": a profile makes the guess better, not certain.
+    @param base File name (no directory).
+    @param rules Rules of `profiles.rules_for` (compiled regex on the lower-case name, kind, side).
+    @param generic LayerFunction of the generic name rules for the same file.
+    @return LayerFunction, or None when no rule of the profile matches.
+    """
+    low = base.lower()
+    for rx, kind, side in rules:
+        if rx.search(low):
+            if side is None and (kind in ("copper", "paste", "soldermask", "silkscreen") or kind == generic.kind):
+                side = generic.side                                      # the side the generic reading found (pcb-rnd `.asb` is a bottom drawing)
+            index = generic.index if side == "inner" and generic.side == "inner" else None
+            plated = generic.plated if kind == "drill" and generic.kind == "drill" else None
+            return LayerFunction(kind, side, index, plated, "name")
+    return None
+
+
+def detect_function(name, head="", profile=None):
     """!
     @brief Detect the function of a file.
+    @details Order of trust: the X2 file function, the Excellon header, the content rules, the name rules of the CAD profile (`profile`), the generic name rules.
     @param name File name (a path is accepted; only the last part is used).
     @param head First kilobytes of the file content (may be empty: then only the name is used).
+    @param profile Key of the CAD profile whose name rules are used before the generic ones (None or "unknown": the generic rules only); see profiles.py.
     @return LayerFunction.
     """
     base = Path(str(name).replace("\\", "/")).name
@@ -176,17 +212,62 @@ def detect_function(name, head=""):
         x2 = _from_x2(head)
         if x2 is not None:
             return x2
-        if head.lstrip().startswith("M48") or re.match(r"\s*(;[^\n]*\n\s*)*M48", head):         # Excellon header
+        if re.match(r"\s*(?:(?:;[^\n]*|%[ \t\r]*)\n\s*)*M48", head):                   # Excellon header, after comments or a stray % line
             plated, _, _ = drill_function(head)
             by_name = _from_name(base)
             return LayerFunction("drill", None, None, plated if plated is not None else by_name.plated, "excellon")
-    return _from_name(base)
+    by_name = _from_name(base)
+    rules = rules_for(profile)
+    if rules:
+        guess = _from_profile(base, rules, by_name)
+        if guess is not None and guess.kind == "drill" and by_name.kind != "drill" and head and not _looks_excellon(head) and not _gerber_head(head):
+            # a profile's drill extension (Altium `.txt`) on a text that is neither Excellon nor Gerber (Altium's "Status Report.Txt") is not a drill file: the
+            # generic reading stands (review)
+            guess = None
+        by_name = guess or by_name
+    if head and by_name.kind == "copper" and not _looks_gerber(head):
+        # Copper is always a Gerber file: a name such as "VNA-top-pos.csv" or "B_A_.log" with a side word is not copper when its content is not Gerber (review: a KiCad
+        # placement file was proposed as top copper, which also hid it from the placement detection of the import)
+        return UNKNOWN
+    if head and by_name.kind == "drill" and _gerber_head(head) and not re.search(r"D0?3\s*\*", head):
+        # A Gerber file that draws strokes and flashes nothing (Xpedition DRILL.gdo, crosses at the holes) is a drawing of the holes, never an Excellon drill file; one that flashes
+        # is a Gerber drill layer (the holes are the flashes) and keeps the kind. An X2 drill function returned above.
+        return LayerFunction("other", None, None, None, "name")
+    return by_name
 
 
-def detect_file(path):
+def _looks_gerber(head):
+    """!
+    @brief Whether the head of a file looks like Gerber at all (a format, unit, aperture or comment command, or a D code), loosely, for the copper content rule.
+    @param head First kilobytes of the file.
+    @return bool True when any Gerber command is found.
+    """
+    return bool(re.search(r"%FS|%MO|%AD|%TF|G04|D0?[123]\*", head))
+
+
+def _looks_excellon(head):
+    """!
+    @brief Whether the head of a file looks like Excellon at all (a header, a tool, a coordinate or a format line), loosely, for the profile's drill rule.
+    @param head First kilobytes of the file.
+    @return bool True when any Excellon statement starts a line.
+    """
+    return bool(re.search(r"(?m)^[ \t]*(?:M48|M71|M72|T\d|X-?[\d.]+|Y-?[\d.]+|INCH|METRIC|FMAT|%[ \t]*$)", head))
+
+
+def _gerber_head(head):
+    """!
+    @brief Whether the head of a file is Gerber (a format statement) and not Excellon.
+    @param head First kilobytes of the file.
+    @return bool True for a Gerber head.
+    """
+    return bool(re.search(r"%FS[LTD]?[AI]?X\d\dY\d\d", head))
+
+
+def detect_file(path, profile=None):
     """!
     @brief Detect the function of a file on disk, reading only its first kilobytes.
     @param path File path.
+    @param profile Key of the CAD profile for the name rules (None: generic).
     @return LayerFunction.
     """
     p = Path(path)
@@ -195,7 +276,7 @@ def detect_file(path):
             head = fh.read(HEAD_BYTES).decode("utf-8", "replace")
     except OSError:
         head = ""
-    return detect_function(p.name, head)
+    return detect_function(p.name, head, profile)
 
 
 def order_copper_layers(items):
@@ -206,3 +287,41 @@ def order_copper_layers(items):
     """
     rank = {"top": 0, "inner": 1, "bottom": 2}
     return sorted(items, key=lambda it: (rank.get(it[1].side, 1), it[1].index or 0, it[0]))
+
+
+# "Layer3", "lyr10", "L04", also with a short word after the number ("lyr1_GAF", the Allegro film of an outer layer in another format)
+_NUMBERED = re.compile(r"(?:^|[-_. ])(?:layer|lyr|l)[-_ ]?(\d+)(?:[-_][a-z]{1,12})?$")
+
+
+def detect_set(items, profile=None):
+    """!
+    @brief Detect the function of every file of a set, then resolve what one file cannot tell: the copper layers that are only numbered.
+    @details A name such as `Layer1.gdo` ... `Layer4.gdo` says the order but not the side, so alone every one reads as an inner layer. In a set whose copper has no
+             file-stated or named top and bottom, and whose copper files are all numbered, 1 to N without a gap (N at least 2), the lowest number is the top, the highest the
+             bottom and the others are inner layers in order (the stack counted from the top); otherwise nothing is assumed. These stay "low" confidence (source "name"),
+             for the user to confirm.
+    @param items List of (name, head) pairs (head may be empty).
+    @param profile Key of the CAD profile for the name rules (None: generic).
+    @return dict name -> LayerFunction.
+    """
+    out = {n: detect_function(n, h, profile) for n, h in items}
+    copper = [n for n, f in out.items() if f.kind == "copper"]
+    if any(out[n].side in ("top", "bottom") for n in copper):
+        return out                                                       # a top or bottom is known: the numbers are inner layers indeed
+    numbered = {}
+    for n in copper:
+        stem = Path(str(n).replace("\\", "/")).stem.lower()
+        m = _NUMBERED.search(stem)
+        if m and out[n].source == "name":
+            numbered[n] = int(m.group(1))
+    if len(numbered) < 2 or len(set(numbered.values())) < len(numbered):
+        return out
+    # Review: the numbers must be the whole stack 1..N and every copper file of the set must be one of them. Otherwise the lowest and highest numbers are not the outer
+    # layers (Allegro MinnowMax: `lyr2.art` ... `lyr9.art` beside `lyr1_GAF.art` and `lyr10_GAF.art` made GND2 the top and GND9 the bottom); then nothing is assumed
+    if sorted(numbered.values()) != list(range(1, len(numbered) + 1)) or len(numbered) != len(copper):
+        return out
+    order = sorted(numbered, key=numbered.get)
+    for rank, n in enumerate(order):
+        side = "top" if rank == 0 else "bottom" if rank == len(order) - 1 else "inner"
+        out[n] = LayerFunction("copper", side, rank if side == "inner" else None, None, "name")
+    return out

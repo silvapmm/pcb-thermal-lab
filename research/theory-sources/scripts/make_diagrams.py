@@ -2,8 +2,8 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file make_diagrams.py
-@brief Pictures of the situations of research/theory-sources (no data, no program): the trace cell of Lemczyk, the coupon of Culham with its series, the duality of Keller and Dykhne, the Foster and Cauer networks, the Gerber region with a hole, the two spreading cases of Muzychka, the Peaceman well-block on a non-square, anisotropic grid with the via footprint.
-@details Numbers quoted are those printed in the sources (named in each caption) or in the README of this folder. Writes figures/fig_06 to fig_12 (fig_01 to fig_05 and fig_13 are the data figures of make_figures.py).
+@brief Pictures of the situations of research/theory-sources (no data, no program): the trace cell of Lemczyk, the coupon of Culham with its series, the duality of Keller and Dykhne, the Foster and Cauer networks, the Gerber region with a hole, the two spreading cases of Muzychka, the Peaceman well-block on a non-square, anisotropic grid with the via footprint, the evidence matrix of the models and the plan of a cheap measurement.
+@details Numbers quoted are those printed in the sources (named in each caption) or in the README of this folder. Writes figures/fig_06 to fig_12, fig_14 and fig_15 (fig_01 to fig_05 and fig_13 are the data figures of make_figures.py).
          Run: .venv/bin/python research/theory-sources/scripts/make_diagrams.py (from the repository root).
 """
 
@@ -251,6 +251,114 @@ def peaceman_well(path):
     dk.save(fig, path)
 
 
+# Evidence levels of docs/models-evidence-and-gaps.md section 4: 2 strong (reproduced within a few per cent),
+# 1 partial or indirect (a limit, a bracket, a plot reading, an assumed layout), 0 none. The rows and the levels are
+# the table of that document; no number is drawn, only the level.
+EVIDENCE_COLUMNS = ("closed form /\nexact case", "published case\nreproduced", "independent\nsolver (3D, 2D)", "physical\nmeasurement")
+EVIDENCE_ROWS = (
+    ("laminate and spreading (layered board)", (2, 2, 2, 1)),
+    ("patterned copper (fill, laminate nodes)", (1, 1, 2, 0)),
+    ("vias (well, Kron, constriction)", (2, 1, 2, 1)),
+    ("metal block and fins", (2, 1, 2, 0)),
+    ("natural convection, vertical face", (2, 2, 1, 1)),
+    ("natural convection, horizontal faces", (1, 1, 1, 0)),
+    ("forced convection", (2, 2, 0, 0)),
+    ("radiation (view factor 1)", (2, 0, 0, 0)),
+    ("mixed convection blend", (1, 0, 0, 0)),
+    ("board edge (h_side)", (2, 2, 1, 0)),
+    ("outline (cut cells, equal-area rectangle)", (0, 1, 2, 0)),
+    ("parts: junction, theta, datasheet RthJA", (1, 2, 1, 1)),
+    ("top path (heatsink on the package)", (1, 0, 0, 0)),
+    ("transient and power profiles", (2, 0, 0, 0)),
+    ("imported copper (Gerber mapping)", (0, 0, 2, 0)),
+)
+
+
+def evidence_matrix(path):
+    """!
+    @brief The evidence behind each physical ingredient of the models, by kind of reference (section 4 of docs/models-evidence-and-gaps.md).
+    @details Green: reproduced within a few per cent; amber: partial or indirect (a bracket, a plot, an assumed layout, outside the published range);
+             grey: none. The last column is the main risk: no copper printed-circuit board has been compared with a measurement of its own.
+    @param path Output file.
+    @return None.
+    """
+    colours = {2: "#7fc97f", 1: "#fdc086", 0: "#d9d9d9"}
+    words = {2: "yes", 1: "partial", 0: "none"}
+    fig, ax = dk.canvas(11, 7.2)
+    n = len(EVIDENCE_ROWS)
+    ax.set_xlim(-6.2, len(EVIDENCE_COLUMNS) * 1.6 + 0.2)
+    ax.set_ylim(-0.6, n + 1.6)
+    # Column headers above the grid
+    for j, name in enumerate(EVIDENCE_COLUMNS):
+        ax.text(j * 1.6 + 0.8, n + 0.75, name, ha="center", va="center", fontsize=8, weight="bold")
+    # One row per ingredient, top to bottom in the order of the table
+    for i, (name, levels) in enumerate(EVIDENCE_ROWS):
+        y = n - 1 - i
+        ax.text(-0.15, y + 0.45, name, ha="right", va="center", fontsize=8)
+        for j, lev in enumerate(levels):
+            ax.add_patch(Rectangle((j * 1.6 + 0.05, y + 0.05), 1.5, 0.8, facecolor=colours[lev], edgecolor="k", linewidth=0.6))
+            ax.text(j * 1.6 + 0.8, y + 0.45, words[lev], ha="center", va="center", fontsize=7)
+    # Mark the measurement column: the main risk of the program
+    ax.add_patch(Rectangle((3 * 1.6 + 0.0, -0.05), 1.6, n + 0.05, fill=False, edgecolor="#c0392b", linewidth=2.0))
+    ax.text(3 * 1.6 + 0.8, -0.4, "main risk: no copper board measured", ha="center", va="center", fontsize=7, color="#c0392b")
+    dk.save(fig, path, "Evidence behind each ingredient of the five models")
+
+
+def test_board_plan(path):
+    """!
+    @brief The cheap measurement proposed in section 6 of docs/models-evidence-and-gaps.md: a two-layer board with a resistor of known power, thermocouples and an infrared view.
+    @details (a) plan: the 100 x 80 mm board, a power resistor (or a MOSFET used as a heater) at the centre and one near an edge, thermocouples at the source, on a ring and at a corner;
+             (b) section: the heat paths (into the copper, across the laminate, to the air by convection and radiation) and where each sensor sits;
+             (c) the comparison: the measured rise against the five models at three powers, so that the convection law (which grows with the rise) and the conduction (which does not) are separated.
+             Illustrative: no measured number is drawn.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(13, 4.4, 1, 3, ratios=[1.1, 1.2, 1.0])
+    # (a) plan of the test board
+    ax = axs[0]
+    ax.set_xlim(-5, 105)
+    ax.set_ylim(-12, 90)
+    ax.add_patch(Rectangle((0, 0), 100, 80, facecolor="#e8c07a", edgecolor="k"))
+    ax.add_patch(Rectangle((45, 37), 10, 6, facecolor="#555555", edgecolor="k"))
+    ax.add_patch(Rectangle((84, 37), 10, 6, facecolor="#555555", edgecolor="k"))
+    for (x, y, lab) in ((50, 40, "TC1"), (65, 40, "TC2"), (50, 60, "TC3"), (8, 8, "TC4"), (89, 46, "TC5")):
+        ax.plot(x, y, "o", color="#c0392b", ms=5)
+        ax.text(x + 2, y + 2, lab, fontsize=7, color="#c0392b")
+    ax.text(50, 84, "100 x 80 mm, 2 layers, 1.6 mm, full copper or a pad", ha="center", fontsize=7)
+    ax.text(50, -7, "heater at the centre and near the edge, power V x I", ha="center", fontsize=7)
+    ax.set_title("(a) plan: known power, five thermocouples", fontsize=8)
+    # (b) section with the heat paths
+    ax = axs[1]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 6)
+    dk.layer(ax, 0.5, 2.6, 9, 0.15, "#b87333")
+    dk.layer(ax, 0.5, 1.4, 9, 1.2, "#cfe8a9", "FR-4 laminate", 7)
+    dk.layer(ax, 0.5, 1.25, 9, 0.15, "#b87333")
+    dk.layer(ax, 4.2, 2.75, 1.6, 0.5, "#555555")
+    ax.text(5.0, 3.0, "heater", ha="center", va="center", fontsize=7, color="w")
+    dk.arrow(ax, 5.0, 2.7, 7.6, 2.7, "#c0392b", label="spreading in copper")
+    dk.arrow(ax, 5.0, 2.6, 5.0, 1.45, "#c0392b")
+    dk.arrow(ax, 7.5, 2.85, 8.2, 4.2, "#2c7fb8", label="convection + radiation")
+    dk.arrow(ax, 7.5, 1.2, 8.2, 0.3, "#2c7fb8")
+    ax.plot(5.0, 3.35, "v", color="#c0392b")
+    ax.text(5.0, 3.75, "TC on the part / IR", ha="center", fontsize=7, color="#c0392b")
+    ax.set_title("(b) section: where the heat goes and what is read", fontsize=8)
+    # (c) what is compared (illustrative shape, no data)
+    ax = axs[2]
+    ax.axis("on")
+    p = np.linspace(0, 1, 50)
+    ax.plot(p, 60 * p ** 0.85, color="k", label="measured rise (TC1)")
+    ax.plot(p, 60 * p, "--", color="#2c7fb8", label="model, fixed h")
+    ax.plot(p, 62 * p ** 0.86, ":", color="#c0392b", label="model, computed h")
+    ax.set_xlabel("power (relative)", fontsize=7)
+    ax.set_ylabel("rise above ambient (illustrative)", fontsize=7)
+    ax.tick_params(labelsize=6)
+    ax.legend(fontsize=6, loc="upper left")
+    ax.set_title("(c) compared at three powers (illustrative)", fontsize=8)
+    dk.save(fig, path, "A cheap measurement to close the main gap")
+
+
 def main():
     """!
     @brief Draw every diagram.
@@ -264,6 +372,8 @@ def main():
     gerber_hole(OUT / "fig_10_gerber_spec_regions.png")
     muzychka_cases(OUT / "fig_11_muzychka_cases.png")
     peaceman_well(OUT / "fig_12_peaceman_well_block.png")
+    evidence_matrix(OUT / "fig_14_evidence_matrix.png")
+    test_board_plan(OUT / "fig_15_measurement_test_board.png")
 
 
 if __name__ == "__main__":

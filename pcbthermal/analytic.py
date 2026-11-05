@@ -7,21 +7,23 @@
 @details Every layer is a thin sheet with lateral conductance S_l [W/K] (copper fill and FR-4
 in-plane share), coupled to its neighbours through the dielectric conductance per unit area
 g = (k_fr4_through / d) + smeared vias, and to ambient through h_top (layer 1) and h_bottom
-(last layer). With insulated edges the steady rise theta_l(x, y) of layer l obeys
+(last layer). The steady rise theta_l(x, y) of layer l obeys
 
     S_l * laplacian(theta_l) - h_l * theta_l - g * (2*theta_l - theta_{l-1} - theta_{l+1}) = -q_l
 
-(the coupling terms drop at the outer layers). Expanding in cosines
+(the coupling terms drop at the outer layers) with a convective (Robin) board edge, S_l d theta_l / dn = -h_side s_l theta_l, written with one parameter common to the
+layers, beta = h_side sum(s_l) / sum(S_l) (1/m; s_l the layer slab thickness, on a board with an outline the perimeter of the real outline scales h_side). The series is in the
+eigenfunctions of that edge (Muzychka, Culham and Yovanovich 2003, AIAA 2003-4188, Part II, eqs. 12 to 21): along each direction (length L, half length Lh)
 
-    theta_l = sum_{m,n} a_{l,mn} cos(m pi x / W) cos(n pi y / H)
+    even  cos(lam u),  lam Lh tan(lam Lh) = beta Lh;    odd  sin(lam u),  lam Lh cot(lam Lh) = -beta Lh,    u = x - L/2,
 
-decouples the equation by mode: for every (m, n) a small tridiagonal L x L system is solved,
+ordered by lam. Then theta_l = sum_{m,n} a_{l,mn} phi_m(x) phi_n(y) decouples the equation by mode: for every (m, n) a small tridiagonal L x L system is solved,
 
-    ( diag(S_l * k_mn^2 + h_l) + g * graph_laplacian ) a_mn = q_mn,  k_mn^2 = (m pi/W)^2 + (n pi/H)^2,
+    ( diag(S_l * k_mn^2 + h_l) + g * graph_laplacian ) a_mn = q_mn,  k_mn^2 = lam_m^2 + lam_n^2,
 
-where q_mn is the cosine projection of the heaters (analytic for rectangles). The a_00 mode is
-the uniform-board limit P / (h W H); the other modes add the lateral spreading penalty. The
-model needs laterally uniform properties, with these refinements:
+where q_mn is the projection of the heaters on the eigenfunctions (analytic for rectangles) over their norms. Without an edge coefficient beta = 0, the eigenfunctions are the
+cosines cos(m pi x / W) (lam = m pi / W) and the code is the insulated one, bit for bit. The a_00 mode of the insulated board is the uniform-board limit P / (h W H); the
+other modes add the lateral spreading penalty. The model needs laterally uniform properties, with these refinements:
 
 - Copper fill is averaged per layer with a weight equal to the influence of the heaters
   (the fin Green function K0(r / lambda_l), lambda_l = sqrt(S_l / g_loss) the layer's own fin length), so copper near a heater counts
@@ -43,11 +45,12 @@ import math
 
 import numpy as np
 
+from scipy.optimize import brentq
 from scipy.special import k0
 
-from . import blocks, laminate, viaconstriction
+from . import blocks, copper, laminate, viaconstriction
 from .fvm import Network
-from .geometry import coverage_fraction, polygon_area, polygon_centroid, zone_fill
+from .geometry import coverage_fraction, polygon_area, polygon_centroid
 from .results import SteadyResult
 from .numfmt import num
 
@@ -94,6 +97,196 @@ def _cos_projection(lo, hi, length, n_terms):
 
 
 
+def _edge_root(k, odd, bl):
+    """!
+    @brief The k-th root delta = lam Lh of the even (delta tan delta = bl) or odd (delta cot delta = -bl) eigen-equation, for any bl > 0.
+    @details Solved in the forms without poles, even g(d) = d sin d - bl cos d on [k pi, k pi + pi/2] and odd g(d) = d cos d + bl sin d on [k pi + pi/2, (k + 1) pi], where g
+             changes sign once. When the root is closer to an end of its interval than rounding resolves (a very small or a very large bl) the first-order asymptote of that
+             end is used: small bl, even d = sqrt(bl) (k = 0) or k pi + bl / (k pi), odd d = (k + 1/2) pi + bl / ((k + 1/2) pi); large bl, even d = (k + 1/2) pi (1 - 1/bl),
+             odd d = (k + 1) pi (1 - 1/bl). The lowest even root below bl of 1e-8 is sqrt(bl) (1 + bl/12) directly (the absolute tolerance of the root finder
+             would return 0 there).
+    @param k Index of the interval (0, 1, ...).
+    @param odd 0 for the even function, 1 for the odd function.
+    @param bl Edge parameter times the half length, beta Lh (dimensionless, > 0).
+    @return float The root delta (rad).
+    """
+    if odd:
+        lo, hi = k * np.pi + 0.5 * np.pi, (k + 1) * np.pi
+        g = lambda d: d * np.cos(d) + bl * np.sin(d)          # noqa: E731
+    else:
+        lo, hi = k * np.pi, k * np.pi + 0.5 * np.pi
+        g = lambda d: d * np.sin(d) - bl * np.cos(d)          # noqa: E731
+    if bl < 1e-8 and not odd and k == 0:
+        return float(np.sqrt(bl)) * (1.0 + bl / 12.0)       # d sin d = bl for small d (brentq's absolute tolerance would return 0 below d of 1e-15)
+    if g(lo) * g(hi) < 0.0:
+        return float(brentq(g, lo, hi, xtol=1e-15, rtol=1e-15))
+    # No sign change in floating point: the root sits at an end of the interval to rounding, use the asymptote of that end
+    if bl < 1.0:
+        if odd:
+            return lo + bl / lo
+        return float(np.sqrt(bl)) if k == 0 else lo + bl / lo
+    return hi * (1.0 - 1.0 / bl)
+
+
+class _EdgeBasis:
+    """!
+    @brief The first n eigenfunctions of d2/dx2 on [0, L] with a convective edge at both ends, the basis of one direction of the series.
+    @details beta = 0 (or too small to matter, beta L below 1e-200) is the cosine basis cos(m pi x / L) of the insulated board, with the same expressions as the program had
+             before the edge entered the basis, so that the result is identical bit for bit. Otherwise even cos(lam u) and odd sin(lam u) (u = x - L/2) in the order of lam
+             (mode 0 even, 1 odd, ...) with the roots of _edge_root; they are orthogonal for the weight 1.
+    """
+
+    def __init__(self, length, beta, n):
+        """!
+        @param length Length L of the direction in metres.
+        @param beta Edge parameter h_side sum(s) / sum(S) in 1/m (0: insulated).
+        @param n Number of modes.
+        @throws ValueError If beta is not a finite number or is negative.
+        """
+        if not math.isfinite(beta) or beta < 0.0:
+            raise ValueError(f"edge parameter must be finite and not negative, got {beta}")
+        self.L, self.beta, self.n = float(length), float(beta), int(n)
+        Lh = 0.5 * self.L
+        self.cosine = self.beta * self.L < 1e-200
+        if self.cosine:
+            self.lam = np.arange(self.n) * np.pi / self.L
+            self.kind = None
+            return
+        bl = self.beta * Lh
+        self.kind = np.arange(self.n) % 2                          # 0 even (cos in u), 1 odd (sin in u)
+        self.lam = np.array([_edge_root(m // 2, m % 2, bl) for m in range(self.n)]) / Lh
+
+    @property
+    def eig2(self):
+        """!
+        @brief Eigenvalues lam^2 (1/m2) that replace (m pi / L)^2 in the modal matrices.
+        @return Array (n,).
+        """
+        return self.lam ** 2
+
+    @property
+    def norm(self):
+        """!
+        @brief Squared norm, integral of phi_m^2 over [0, L], of the unnormalised eigenfunctions.
+        @return Array (n,) in metres.
+        """
+        if self.cosine:
+            return np.where(np.arange(self.n) == 0, self.L, 0.5 * self.L)
+        Lh = 0.5 * self.L
+        s = np.sin(2.0 * self.lam * Lh) / (2.0 * self.lam)
+        return np.where(self.kind == 0, Lh + s, Lh - s)
+
+    @property
+    def weight(self):
+        """!
+        @brief L / norm: 1 for the constant mode and 2 for the other cosines (the factor e_m of the cosine series), in general the length over the squared norm.
+        @return Array (n,).
+        """
+        return self.L / self.norm
+
+    def evaluate(self, x):
+        """!
+        @brief The eigenfunctions at points x.
+        @param x Array (p,) of positions in metres from the lower edge.
+        @return Array (p, n).
+        """
+        x = np.asarray(x, dtype=float)
+        if self.cosine:
+            return np.cos(np.outer(x, self.lam))
+        arg = np.outer(x - 0.5 * self.L, self.lam)
+        return np.where(self.kind[None, :] == 0, np.cos(arg), np.sin(arg))
+
+    def at(self, x):
+        """!
+        @brief The eigenfunctions at one point (the cosine basis in the form m pi x / L of the point read-outs, so that the insulated board keeps its last bit).
+        @param x Position in metres from the lower edge.
+        @return Array (n,).
+        """
+        if self.cosine:
+            return np.cos(np.arange(self.n) * np.pi * x / self.L)
+        return self.evaluate([x])[0]
+
+    def project(self, lo, hi):
+        """!
+        @brief Integral of every eigenfunction over [lo, hi].
+        @param lo Lower bound in metres.
+        @param hi Upper bound in metres.
+        @return Array (n,) in metres.
+        """
+        if self.cosine:
+            return _cos_projection(lo, hi, self.L, self.n)
+        ul, uh = lo - 0.5 * self.L, hi - 0.5 * self.L
+        lam = self.lam
+        even = (np.sin(lam * uh) - np.sin(lam * ul)) / lam
+        odd = -(np.cos(lam * uh) - np.cos(lam * ul)) / lam
+        return np.where(self.kind == 0, even, odd)
+
+
+def _bases(sh, n_terms):
+    """!
+    @brief The bases of the two directions for a sheet (kept in the sheet dict, so that the roots are found once per mode count).
+    @param sh Dict from _effective_sheet.
+    @param n_terms Modes per direction.
+    @return Tuple (basis along x, basis along y).
+    """
+    key = ("bases", int(n_terms))
+    if key not in sh:
+        sh[key] = (_EdgeBasis(sh["W"], sh["beta"], n_terms), _EdgeBasis(sh["H"], sh["beta"], n_terms))
+    return sh[key]
+
+
+def _plan_mean(bx, by, a):
+    """!
+    @brief Mean of the field of one layer over the board plan, given its modal coefficients.
+    @param bx Basis along x.
+    @param by Basis along y.
+    @param a Modal coefficients (M, N) of the layer in K.
+    @return float Mean rise over the plan in K (for the cosine basis exactly a_00, so the insulated board is unchanged to the last bit).
+    """
+    if bx.cosine and by.cosine:
+        return float(a[0, 0])
+    return float(bx.project(0.0, bx.L) @ a @ by.project(0.0, by.L)) / (bx.L * by.L)
+
+
+def _edge_loss(bx, by, a, S, beta):
+    """!
+    @brief Heat of one layer that leaves through the convective edge, beta S times the integral of the rise along the four sides.
+    @param bx Basis along x.
+    @param by Basis along y.
+    @param a Modal coefficients (M, N) of the layer in K.
+    @param S Sheet conductance of the layer in W/K.
+    @param beta Edge parameter in 1/m.
+    @return float Power in W.
+    """
+    ex, ey = bx.evaluate([0.0, bx.L]), by.evaluate([0.0, by.L])
+    along_y = (ex @ a) @ by.project(0.0, by.L)              # rise at x = 0 and x = W integrated over y
+    along_x = (ey @ a.T) @ bx.project(0.0, bx.L)            # rise at y = 0 and y = H integrated over x
+    return float(beta * S * (along_y.sum() + along_x.sum()))
+
+
+def _influence(centres, xs, ys, dx, lam_l):
+    """!
+    @brief Weight of every cell for the heater-influence average of the copper fill, the sum over the heaters of power times K0(distance / lam_l).
+    @details K0 underflows to zero when the fin length is far below a cell (an absurd edge or face coefficient); then no cell has weight and the average would be 0/0. In that
+             limit the influence is the heater itself, so the cells nearest to a heater get the weight (the limit lam_l -> 0).
+    @param centres List of ((cx, cy), r0, power, layer) of the heaters with power.
+    @param xs Cell centre abscissae in metres.
+    @param ys Cell centre ordinates in metres.
+    @param dx Cell size in metres.
+    @param lam_l Fin length of the layer in metres.
+    @return Array (ny, nx) of weights, with a positive sum.
+    """
+    w = np.zeros((len(ys), len(xs)))
+    dmin = np.full(w.shape, np.inf)
+    for (cx, cy), r0, pw, _ in centres:
+        dist = np.maximum(np.hypot(xs[None, :] - cx, ys[:, None] - cy), max(r0, 0.5 * dx))
+        w += pw * k0(dist / lam_l)
+        dmin = np.minimum(dmin, dist)
+    if not np.isfinite(w.sum()) or w.sum() <= 0.0:
+        w = (dmin <= dmin.min()).astype(float)
+    return w
+
+
 def _tile_grid(W, H, lam):
     """!
     @brief Tile grid used for the local corrections.
@@ -116,7 +309,7 @@ def _effective_sheet(problem, cell_mm):
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid.
     @return Dict with b, m (board and materials), W, H, L, slab, nx, ny, dx, dy, xs, ys, tc, power, warnings,
-            fill, S, lam, h_tot, d_diel and g_diel.
+            fill, S, lam, h_tot, h_edge (W/m2K per layer: for the lengths and the time constant only), beta (1/m, the edge parameter of the basis), h_eff, d_diel and g_diel.
     """
     problem.validate()
     b = problem.board
@@ -134,8 +327,15 @@ def _effective_sheet(problem, cell_mm):
     warnings = []
 
     # --- Copper fill field of every layer and its heater-influence weighted average
-    fill_map = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)
-    h_tot = float(b.h_top + b.h_bottom)
+    fill_map = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+    # Edge conductance per plan area of each layer, h_side * perimeter * slab_l / (W H) (W/m2K): the edge area of the layer node over its plan area (the same split
+    # by layer as the edge conductance of the FVM). It is NOT a surface coefficient of the modal matrices (the edge is in the basis, see beta below); it enters the
+    # total h_tot that sets the fin lengths and the tile size, and the time constant, so that the copper weighting and the tiles do not move. On a board with an
+    # outline the model runs on the rectangle of the same area, so the perimeter is that of the real outline (Problem.equivalent_rectangle keeps it), not the
+    # shorter one of the rectangle.
+    perimeter = getattr(b, "edge_perimeter", None) or 2.0 * (W + H)
+    h_edge = (b.h_side or 0.0) * perimeter * slab / (W * H)
+    h_tot = float(b.h_top + b.h_bottom + h_edge.sum())
     d_diel = b.gap_thicknesses()                                          # (L-1,) one per gap
     g_diel = b.gap_properties()[0] / d_diel if L > 1 else np.zeros(0)     # Vertical conductance per area of each gap (W/m2K)
     fill_mean = fill_map.mean(axis=(1, 2))
@@ -152,14 +352,11 @@ def _effective_sheet(problem, cell_mm):
         for l in range(L):
             if l in heater_layers:
                 g_adj = sum(g_diel[g] for g in (l - 1, l) if 0 <= g < L - 1)       # Conductance to the neighbouring layers
-                h_surf = (b.h_top if l == 0 else 0.0) + (b.h_bottom if l == L - 1 else 0.0)
+                h_surf = (b.h_top if l == 0 else 0.0) + (b.h_bottom if l == L - 1 else 0.0) + h_edge[l]
                 lam_l = float(np.sqrt(S_mean[l] / max(h_surf + g_adj, 1e-9)))
             else:
                 lam_l = lam
-            w = np.zeros((ny, nx))
-            for (cx, cy), r0, pw, _ in centres:
-                dist = np.maximum(np.hypot(xs[None, :] - cx, ys[:, None] - cy), max(r0, 0.5 * dx))
-                w += pw * k0(dist / lam_l)                  # Influence of the heater at this distance
+            w = _influence(centres, xs, ys, dx, lam_l)             # Influence of the heaters at each cell
             fill[l] = (fill_map[l] * w).sum() / w.sum()
             spread[l] = np.sqrt(((fill_map[l] - fill[l]) ** 2 * w).sum() / w.sum())
             if l in heater_layers:
@@ -168,10 +365,7 @@ def _effective_sheet(problem, cell_mm):
                 # seen, so the first spread is silent exactly on the boards that are worst (research/analytic-partial-copper, README 9.4).
                 S_cu = m.k_copper * tc[l] + k_lam[l] * (slab[l] - tc[l])
                 lam_cu = float(np.sqrt(S_cu / max(h_surf + g_adj, 1e-9)))
-                w_cu = np.zeros((ny, nx))
-                for (cx, cy), r0, pw, _ in centres:
-                    dist = np.maximum(np.hypot(xs[None, :] - cx, ys[:, None] - cy), max(r0, 0.5 * dx))
-                    w_cu += pw * k0(dist / lam_cu)
+                w_cu = _influence(centres, xs, ys, dx, lam_cu)
                 f_cu = (fill_map[l] * w_cu).sum() / w_cu.sum()
                 spread[l] = max(spread[l], float(np.sqrt(((fill_map[l] - f_cu) ** 2 * w_cu).sum() / w_cu.sum())))
         if spread.max() > 0.25:
@@ -181,30 +375,50 @@ def _effective_sheet(problem, cell_mm):
                 "and 9 % too hot against a resolved 3D solution, and the same board entered as one layer or as two (bare second layer) "
                 "differed by up to 1.8 times. Use the FVM result for this board.")
     S = fill * m.k_copper * tc + k_lam * (slab - fill * tc)                     # (L,)
+    # Edge parameter of the Robin basis (Muzychka, Culham and Yovanovich 2003, Part II eqs. 12 to 21), one for all layers: the sum of the edge conductances per metre of
+    # edge over the sum of the sheet conductances. Exact when every layer has the same ratio slab_l / S_l, an approximation otherwise (docs/theory.md 6). h_eff is
+    # h_side scaled so that the rectangle has the edge conductance of the real outline. 1/m; zero without h_side (the cosine basis).
+    h_eff = (b.h_side or 0.0) * perimeter / (2.0 * (W + H))
+    beta = float(h_eff * slab.sum() / S.sum())
+    edge_share = float(h_edge.sum() / h_tot) if h_tot > 0 else 0.0
+    spread = float(S.max() / S.min())
+    if beta > 0.0 and edge_share > 0.3 and (L == 1 or spread > (1.5 if L == 2 else 2.5)):
+        # Calibrated on 54 boards outside the first study (research/analytic-edge-spatial README 8.3): it fires on the boards with a Robin error above 3 % and on none
+        # of the 135 uniform ones
+        what = ("on a one-layer board the laminate edge is given to the copper" if L == 1
+                else f"the sheet conductances of the layers differ by {spread:.1f} times")
+        warnings.append(
+            f"edge convection: the edge takes {edge_share * 100:.0f} % of the loss coefficient and the Analytic model shares it between the copper layers with one "
+            f"parameter ({what}): the hottest temperature can be off by up to about 9 % either way (measured cool, up to 9 %, with the copper on the heated layer). "
+            "Use the FVM result for this board (itself up to about 15 % low on a thick board with a large edge coefficient: then the 3D solid).")
     return {"b": b, "m": m, "W": W, "H": H, "L": L, "slab": slab, "nx": nx, "ny": ny, "dx": dx, "dy": dy, "xs": xs,
             "ys": ys, "tc": tc, "power": power, "warnings": warnings, "fill": fill, "S": S, "lam": lam,
-            "h_tot": h_tot, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam, "rho_cp_lam": rho_cp_lam}
+            "h_tot": h_tot, "h_edge": h_edge, "beta": beta, "h_eff": h_eff, "d_diel": d_diel, "g_diel": g_diel, "k_lam": k_lam, "rho_cp_lam": rho_cp_lam}
 
 
-def _heater_unit_sources(problem, M, N):
+def _heater_unit_sources(problem, bx, by):
     """!
-    @brief Cosine projection of every heater for 1 W (the source of a heater is its power times this array).
+    @brief Modal projection of every heater for 1 W (the source of a heater is its power times this array).
     @param problem A Problem.
-    @param M Modes along x.
-    @param N Modes along y.
+    @param bx Basis along x (_EdgeBasis; its n is the number of modes), or the number of cosine modes (the insulated board: the studies that read this function).
+    @param by Basis along y, or the number of cosine modes.
     @return List of arrays (M, N, L), one per heater.
     """
     b = problem.board
     W, H, L = b.width, b.height, b.layers
-    ex = np.where(np.arange(M) == 0, 1.0, 2.0)
-    ey = np.where(np.arange(N) == 0, 1.0, 2.0)
+    if not isinstance(bx, _EdgeBasis):
+        bx = _EdgeBasis(W, 0.0, bx)
+    if not isinstance(by, _EdgeBasis):
+        by = _EdgeBasis(H, 0.0, by)
+    M, N = bx.n, by.n
+    ex, ey = bx.weight, by.weight                            # 1 for the constant cosine and 2 for the others; L over the squared norm for the Robin basis
     out = []
     for ht in problem.heaters:
         q = np.zeros((M, N, L))
         x1, x2, y1, y2 = _equivalent_rectangle(ht.polygon, W, H)
         q0 = 1.0 / ((x2 - x1) * (y2 - y1))                   # Power density of 1 W (W/m2)
-        px = _cos_projection(x1, x2, W, M)
-        py = _cos_projection(y1, y2, H, N)
+        px = bx.project(x1, x2)
+        py = by.project(y1, y2)
         q[:, :, ht.layer] = q0 * np.outer(ex * px, ey * py) / (W * H)
         out.append(q)
     return out
@@ -228,7 +442,7 @@ def _block_tiles(problem, ntx, nty, tw, th, L):
             g_link, g_amb.
     """
     b = problem.board
-    fill_t = zone_fill(problem.zones, L, ntx, nty, tw, th, 4)
+    fill_t = copper.problem_fill(problem, ntx, nty, tw, th, 4)
     area_t = np.full((nty, ntx), tw * th)
     out = []
     for ly in blocks.extra_layers(problem, lambda poly, n: coverage_fraction(poly, ntx, nty, tw, th, n), area_t, fill_t, tw, th):
@@ -263,7 +477,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
     @brief Analytic steady-state solution of the multilayer fin problem.
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid used for the fields and the maxima.
-    @param n_terms Number of cosine modes per direction (300 resolves heaters of a few mm).
+    @param n_terms Number of modes per direction (300 resolves heaters of a few mm; cosines, or the eigenfunctions of the convective edge).
     @param local_corrections If True vias and heatsinks are applied locally (Green-function update);
                              if False they are smeared over the board (the older, cruder model).
     @note With vias the tiles follow the pitch and the vias get the constriction of the heat converging on a barrel (viaconstriction.plan, add_self_terms); the correction
@@ -296,16 +510,16 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
         if L > 1:
             g += m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / d_diel
 
-    # --- Cosine coefficients of the heaters, one vector entry per layer
+    # --- Modal coefficients of the heaters, one vector entry per layer (the basis has the convective edge in it: beta = 0 is the cosine basis)
     M = N = n_terms
-    ex = np.where(np.arange(M) == 0, 1.0, 2.0)
-    ey = np.where(np.arange(N) == 0, 1.0, 2.0)
+    bx, by = _bases(sh, n_terms)
+    ex, ey = bx.weight, by.weight
     q_mn = np.zeros((M, N, L))
-    for ht, q_unit in zip(problem.heaters, _heater_unit_sources(problem, M, N)):
+    for ht, q_unit in zip(problem.heaters, _heater_unit_sources(problem, bx, by)):
         q_mn += ht.power * q_unit
 
     # --- Modal matrices A_mn (L x L) and their inverses
-    k2 = ((np.arange(M) * np.pi / W) ** 2)[:, None] + ((np.arange(N) * np.pi / H) ** 2)[None, :]
+    k2 = bx.eig2[:, None] + by.eig2[None, :]
     A = np.zeros((M, N, L, L))
     for l in range(L):
         A[:, :, l, l] = S[l] * k2 + h_l[l]
@@ -347,9 +561,9 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
         Nt = len(active)
         if Nt:
             rect = [(c * tw, (c + 1) * tw, r * th, (r + 1) * th) for r, c in active]
-            PX = np.stack([_cos_projection(x1, x2, W, M) for x1, x2, _, _ in rect], axis=1)   # (M, Nt)
-            PY = np.stack([_cos_projection(y1, y2, H, N) for _, _, y1, y2 in rect], axis=1)   # (N, Nt)
-            Ux, Uy = PX / tw, PY / th                         # Cosine average over each tile
+            PX = np.stack([bx.project(x1, x2) for x1, x2, _, _ in rect], axis=1)   # (M, Nt)
+            PY = np.stack([by.project(y1, y2) for _, _, y1, y2 in rect], axis=1)   # (N, Nt)
+            Ux, Uy = PX / tw, PY / th                         # Average of the eigenfunctions over each tile
             # Tile averages of the uniform solution
             y0 = np.stack([np.einsum("mr,mn,nr->r", Ux, a_mn[:, :, l], Uy) for l in range(L)], axis=1)  # (Nt, L)
             # Modal response between tiles: G[(r,l),(s,k)] for unit power injected uniformly in tile s, layer k
@@ -393,7 +607,7 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 rows_e = np.array([pos[(int(a), int(c))] * L + e["layer"] for a, c in e["tiles"]])
                 phi = np.linalg.solve(e["M"], e["g_link"] * y[rows_e])
                 block_power += float((e["g_amb"] * phi).sum())
-                # The face under the block does not lose heat to the air; the a_00 mode below counts the whole face, so this part is taken off it
+                # The face under the block does not lose heat to the air; the plan mean below counts the whole face, so this part is taken off it
                 hidden["top" if e["side"] == 0 else "bottom"] += float((e["face"] * y[rows_e]).sum())
             f = -(C @ y).reshape(Nt, L)                       # Heat injected into every tile and layer (W)
             heatsink_extraction = float(sum(g_heatsink[l, row, col] * y[r * L + l]
@@ -406,22 +620,22 @@ def solve_steady(problem, cell_mm=1.0, n_terms=300, local_corrections=True):
                 a_mn += np.einsum("mnl,mn->mnl", Ainv[:, :, :, k], q_corr)
 
     # --- Evaluate every layer at the cell centres by two matrix products
-    cx_ = np.cos(np.outer(xs, np.arange(M) * np.pi / W))     # (nx, M)
-    cy_ = np.cos(np.outer(ys, np.arange(N) * np.pi / H))     # (ny, N)
+    cx_ = bx.evaluate(xs)                                    # (nx, M)
+    cy_ = by.evaluate(ys)                                    # (ny, N)
     theta = np.stack([cy_ @ a_mn[:, :, l].T @ cx_.T for l in range(L)])     # (L, ny, nx)
     T = theta + b.ambient
 
     l, i, j = np.unravel_index(int(np.argmax(T)), T.shape)
-    # Heat leaving through the faces: the a_00 mode integrates each layer exactly
-    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * a_mn[0, 0, 0]) - hidden["top"],
-             "bottom": float(b.h_bottom * W * H * a_mn[0, 0, L - 1]) - hidden["bottom"],
+    # Heat leaving through the faces: the mean of each layer over the plan (for the cosine basis exactly a_00)
+    mean = [_plan_mean(bx, by, a_mn[:, :, k]) for k in range(L)]
+    p_out = {**({"blocks": block_power} if block_power else {}), "top": float(b.h_top * W * H * mean[0]) - hidden["top"],
+             "bottom": float(b.h_bottom * W * H * mean[L - 1]) - hidden["bottom"],
              "heatsinks": float(heatsink_extraction if local_corrections else
-                            sum(h_l[k] * W * H * a_mn[0, 0, k] for k in range(L))
-                            - b.h_top * W * H * a_mn[0, 0, 0] - b.h_bottom * W * H * a_mn[0, 0, L - 1])}
-    edge_ratio = (b.h_side or 0.0) * 2 * (W + H) * b.total_thickness() / max(h_tot * W * H, 1e-30)
-    if edge_ratio > 0.05:
-        warnings.append(f"edge convection is about {edge_ratio * 100:.0f} % of the face convection but the "
-                        "analytic model assumes insulated edges")
+                            sum(h_l[k] * W * H * mean[k] for k in range(L))
+                            - b.h_top * W * H * mean[0] - b.h_bottom * W * H * mean[L - 1])}
+    if b.h_side:
+        # The edge loss, reported apart under the same key as the FVM: beta S_l times the rise of the layer integrated along the four sides, so the heat balance closes
+        p_out["sides"] = float(sum(_edge_loss(bx, by, a_mn[:, :, k], S[k], sh["beta"]) for k in range(L)))
     return SteadyResult(
         model="analytic", ambient=b.ambient, power_in=power, t_max=float(T.max()),
         t_min=float(T.min()), t_mean=float(T.mean()), layer_mean=[float(T[k].mean()) for k in range(L)],
@@ -439,7 +653,7 @@ def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
     @brief The (M, N, L, L) matrix A_mn of the modal equations C a' + A a = q (symmetric, tridiagonal in the layer index).
     @param problem A Problem.
     @param sh Dict from _effective_sheet.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction.
     @param via_scale Factor on the smeared via conductance.
     @param heatsink_scale Factor on the smeared heatsink coefficient.
     @return Array (M, N, L, L).
@@ -454,7 +668,8 @@ def _modal_matrix(problem, sh, n_terms, via_scale, heatsink_scale=1.0):
     g = sh["g_diel"].copy()
     if L > 1:
         g += via_scale * m.k_copper * sum(v.thermal_area(b.via_plating, m.k_copper) for v in problem.vias) / (W * H) / sh["d_diel"]
-    k2 = ((np.arange(M) * np.pi / W) ** 2)[:, None] + ((np.arange(N) * np.pi / H) ** 2)[None, :]
+    bx, by = _bases(sh, n_terms)                              # The edge is in the basis (beta = 0: the cosines)
+    k2 = bx.eig2[:, None] + by.eig2[None, :]
     A = np.zeros((M, N, L, L))
     for l in range(L):
         A[:, :, l, l] = sh["S"][l] * k2 + h_l[l]
@@ -477,7 +692,7 @@ def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, heatsink_scale=1.0
              (smeared) vias and heatsinks, as the steady model does when local corrections are off.
     @param problem A Problem.
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @param via_scale Factor applied to the smeared via conductance (see _calibrated_dynamics).
     @param heatsink_scale Factor applied to the smeared heatsink coefficient (see _calibrated_dynamics).
     @return Dict with the sheet data and lam (M, N, L), back (M, N, L, L), V, G (heaters, M, N, L), U (heaters, M, N, L),
@@ -492,22 +707,23 @@ def _modal_dynamics(problem, cell_mm, n_terms, via_scale=1.0, heatsink_scale=1.0
     cinv = 1.0 / np.sqrt(c_l)
     lam, V = np.linalg.eigh(A * cinv[None, None, :, None] * cinv[None, None, None, :])
     back = cinv[None, None, :, None] * V                    # a = back @ b
-    G = np.stack([np.einsum("mnlk,mnl->mnk", back, q) for q in _heater_unit_sources(problem, M, N)])
-    cos_x = np.cos(np.outer(sh["xs"], np.arange(M) * np.pi / W))          # (nx, M)
-    cos_y = np.cos(np.outer(sh["ys"], np.arange(N) * np.pi / H))          # (ny, N)
+    bx, by = _bases(sh, n_terms)
+    G = np.stack([np.einsum("mnlk,mnl->mnk", back, q) for q in _heater_unit_sources(problem, bx, by)])
+    cos_x = bx.evaluate(sh["xs"])          # (nx, M) values of the eigenfunctions (cosines without an edge coefficient)
+    cos_y = by.evaluate(sh["ys"])          # (ny, N)
     # Own hottest point of every heater: the hottest cell of its unit steady field
     U, points = [], []
     for i in range(len(G)):
         a = np.einsum("mnlk,mnk->mnl", back, G[i] / lam)
         fields = np.stack([cos_y @ a[:, :, l].T @ cos_x.T for l in range(L)])      # (L, ny, nx)
         lay, iy, ix = np.unravel_index(int(np.argmax(fields)), fields.shape)
-        wx, wy = np.cos(np.arange(M) * np.pi * sh["xs"][ix] / W), np.cos(np.arange(N) * np.pi * sh["ys"][iy] / H)
+        wx, wy = bx.at(sh["xs"][ix]), by.at(sh["ys"][iy])
         U.append(wx[:, None, None] * wy[None, :, None] * back[:, :, lay, :])            # (M, N, L)
         points.append((lay, iy, ix))
     U = np.stack(U)
     rth = np.einsum("hmnk,hmnk,mnk->h", U, G, 1.0 / lam)
     tau = float(c_l.sum() / max(sh["h_tot"], 1e-9))
-    sh.update({"lam": lam, "back": back, "V": V, "G": G, "U": U, "rth": rth, "c_l": c_l, "cos_x": cos_x,
+    sh.update({"bases": (bx, by), "lam": lam, "back": back, "V": V, "G": G, "U": U, "rth": rth, "c_l": c_l, "cos_x": cos_x,
                "cos_y": cos_y, "points": points, "tau": tau, "M": M, "N": N, "via_scale": via_scale,
                "heatsink_scale": heatsink_scale})
     return sh
@@ -519,14 +735,15 @@ def _smeared_steady_max(problem, sh, A, n_terms):
     @param problem A Problem (heater powers are used).
     @param sh Dict from _effective_sheet.
     @param A Matrix from _modal_matrix.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @return Maximum rise above ambient in kelvin.
     """
     W, H, L = sh["W"], sh["H"], sh["L"]
-    q = sum(h.power * src for h, src in zip(problem.heaters, _heater_unit_sources(problem, n_terms, n_terms)))
+    bx, by = _bases(sh, n_terms)
+    q = sum(h.power * src for h, src in zip(problem.heaters, _heater_unit_sources(problem, bx, by)))
     a = np.linalg.solve(A, q[..., None])[..., 0]                         # (M, N, L)
-    cx = np.cos(np.outer(sh["xs"], np.arange(n_terms) * np.pi / W))
-    cy = np.cos(np.outer(sh["ys"], np.arange(n_terms) * np.pi / H))
+    cx = bx.evaluate(sh["xs"])
+    cy = by.evaluate(sh["ys"])
     return float(max((cy @ a[:, :, l].T @ cx.T).max() for l in range(L)))
 
 
@@ -541,7 +758,7 @@ def _calibrated_dynamics(problem, cell_mm, n_terms):
              the example board follows the FVM within a few degC at every time (without it by up to 10 degC).
     @param problem A Problem (heater powers are the ones used for the calibration).
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @return Dict from _modal_dynamics with the extra keys local_max (degC, None if there are no vias or heatsinks) and scaled
             ("vias", "heatsinks" or None).
     """
@@ -585,8 +802,8 @@ def _point_vector(d, point):
     @return Array (M, N, L) such that T = sum(vector * b).
     """
     lay, iy, ix = point
-    wx = np.cos(np.arange(d["M"]) * np.pi * d["xs"][ix] / d["W"])
-    wy = np.cos(np.arange(d["N"]) * np.pi * d["ys"][iy] / d["H"])
+    bx, by = d["bases"]
+    wx, wy = bx.at(d["xs"][ix]), by.at(d["ys"][iy])
     return wx[:, None, None] * wy[None, :, None] * d["back"][:, :, lay, :]
 
 
@@ -603,7 +820,7 @@ class _ModalSet:
         """!
         @param problem A Problem.
         @param cell_mm Cell size (mm) of the sampling grid.
-        @param n_terms Cosine modes per direction.
+        @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
         """
         nh = len(problem.heaters)
         self.nh = nh
@@ -677,7 +894,7 @@ def step_responses(problem, cell_mm=1.0, n_terms=300, t_end=None, n_times=100):
     @details Z_i(t) = sum over modes of U g (1 - exp(-lambda t)) / lambda, in the system that serves heater i.
     @param problem A Problem with at least one heater.
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @param t_end Last time in seconds (default: ten board time constants).
     @param n_times Number of logarithmically spaced times.
     @return Tuple (times, z, rth) as in fvm.step_responses.
@@ -709,7 +926,7 @@ class _AnalyticAdapter:
         """!
         @param problem A Problem (heater powers equal the averages).
         @param cell_mm Cell size (mm) of the sampling grid.
-        @param n_terms Cosine modes per direction.
+        @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
         """
         self.ms = ms = _ModalSet(problem, cell_mm, n_terms)
         d = ms.d0
@@ -799,7 +1016,7 @@ def run_profile(problem, decisions, options, cell_mm=1.0, n_terms=300, progress=
     @param decisions Decisions from profiles.decide().
     @param options ProfileOptions.
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @param progress Optional callback progress(message, fraction).
     @return ProfileResult.
     @throws ProfileError If the run is too expensive for options.max_steps.
@@ -821,7 +1038,7 @@ def solve_transient(problem, t_end, n_out=40, cell_mm=1.0, n_terms=300, log_time
     @param t_end Final time in seconds.
     @param n_out Number of output frames after t = 0.
     @param cell_mm Cell size (mm) of the sampling grid.
-    @param n_terms Cosine modes per direction.
+    @param n_terms Modes per direction (cosines, or the eigenfunctions of the convective edge).
     @param log_times True for logarithmically spaced times (resolves fast and slow parts), False for linear.
     @return TransientResult.
     """

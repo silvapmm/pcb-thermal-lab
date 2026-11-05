@@ -4,7 +4,7 @@
 @file test_docs.py
 @brief Documentation gate: every module, class, function and method must be documented in Doxygen style.
 
-@details Rules enforced on the `pcbthermal` package, on `examples/` and on `research/<topic>/scripts/`:
+@details Rules enforced on the `pcbthermal` package, on `examples/`, on `tools/` and on `research/<topic>/scripts/`:
 - a module docstring with @file and @brief,
 - a class docstring with @brief,
 - a function or method docstring with @brief (constructors may list only their parameters),
@@ -20,6 +20,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SOURCES = sorted(list((ROOT / "pcbthermal").rglob("*.py")) + list((ROOT / "examples").glob("*.py"))
+                 + list((ROOT / "tools").rglob("*.py"))      # tools/ (the OCR tool) follows the same Doxygen rule
                  + [f for f in (ROOT / "research").glob("*/scripts/*.py") if f.parent.parent.name != "gerbers"])      # research/<topic>/scripts (the Gerber research is kept by its own session)
 
 
@@ -104,3 +105,17 @@ def test_theory_document_covers_every_model_and_formula_family():
     # The key equations are stated
     for formula in ("G_x = (2 S₁ S₂", "(C/Δt + ϑK)", "(I + G_mod C_loc) y = y₀", "A_mn a_mn = q_mn", "ΔT = P₀ R/(1 − α P₀ R)", "Nu = 0.54 Ra"):
         assert formula in text or formula.replace("S₁ S₂", "S₁ S₂") in text, f"docs/theory.md lost the equation {formula}"
+
+
+def test_theory_convection_claims_are_true():
+    """The horizontal-face laws are not in Lienhard, Example 8.1 uses the laminar form, and the face turned down has its limit written."""
+    text = (ROOT / "docs" / "theory.md").read_text()
+    # The false statements found by the review of the sources must not return
+    assert "the same forms are read in [Lienhard2024]" not in text
+    assert "general form reproduces the worked example" not in text
+    # What the pages of Lienhard print, and the limit of the face turned down
+    for needle in ("Raithby-Hollands", "Example 8.1", "laminar** form 8.13a", "Limit of the face turned down", "exponent 1/5",
+                   "No convection coefficient of the program has been compared with a measurement"):
+        assert needle in text, f"docs/theory.md lost '{needle}'"
+    models = (ROOT / "docs" / "models.md").read_text()
+    assert "face turned down" in models and "conservative side" in models

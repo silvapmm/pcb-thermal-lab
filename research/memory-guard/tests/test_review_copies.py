@@ -26,6 +26,8 @@ def test_one_factor_transient_is_bit_identical(monkeypatch):
     @return None.
     """
     spec = dict(family="partial", layers=4, size_mm=40, cell_mm=2.0, model="fvm")
+    # The copy factorises with plain splu (SuperLU's default mode); the program's fvm.lu_factor uses the symmetric mode, which differs in the last bits, so both run in the default mode
+    monkeypatch.setattr(fvm, "SYMMETRIC_LU", False)
     a = fvm.solve_transient(cases.build(spec), t_end=200.0, n_out=10, cell_mm=2.0)
     monkeypatch.setattr(fvm, "transient_from_network", review_copies.transient_from_network_one_factor)
     b = fvm.solve_transient(cases.build(spec), t_end=200.0, n_out=10, cell_mm=2.0)
