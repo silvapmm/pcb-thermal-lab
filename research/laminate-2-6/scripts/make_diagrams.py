@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Drawings of the three situations of research/laminate-2-6 (no data, no solver): the sub-layers under a small part (default and local rule), the laminate at the board edge (one film on
        the copper node, laminate nodes at the edge), and the slabs of the 3D solid (4 per gap and by thickness).
-@details Figures 01 to 03 of figures/ (the data figures 04 on are drawn by make_figures.py; one numbering). Vertical scales are exaggerated; the only numbers on the drawings are rules
+@details Figures 01 to 03 and 07 (the transition of the chains, drawn in the review) of figures/ (the data figures 04 on are drawn by make_figures.py; one numbering). Vertical scales are exaggerated; the only numbers on the drawings are rules
          stated in the README. Usage: .venv/bin/python research/laminate-2-6/scripts/make_diagrams.py   (from the repository root).
 """
 
@@ -141,7 +141,48 @@ def fig_solid():
     plt.close(fig)
 
 
+def fig_transition():
+    """!
+    @brief Figure 07 (review): the lateral links of the laminate across the face between a cell with a fine chain and one with a coarser chain (local rule, left) and between a flagged
+           cell and one without interior nodes (the program's rule and the edge band, right). The ratios are the ones measured in README 7.2.
+    @return None
+    """
+    import numpy as np
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
+    cases = ((8, 4, "level 8 | level 4 (local rule)", "lateral laminate conductance across the face:\n0.68 of the slab's (harmonic mean of s and 2s)"),
+             (4, 1, "flagged, 4 sub-gaps | not flagged (edge band, program's rule)", "lateral laminate conductance across the face:\n0.40 of the slab's (d/8 against d/2)"))
+    for ax, (nf, nc, title, note) in zip(axes, cases):
+        ax.set_xlim(0, 10)
+        ax.set_ylim(-1.6, 7.2)
+        ax.axis("off")
+        zt, d = 6.0, 5.0
+        ax.add_patch(Rectangle((0, zt), 10, 0.3, color=CU))
+        ax.add_patch(Rectangle((0, zt - d - 0.3), 10, 0.3, color=CU))
+        ax.add_patch(Rectangle((0, zt - d), 10, d, color=FR4))
+        ax.plot([5, 5], [zt - d - 0.3, zt + 0.3], color="k", lw=1.0, ls=":")
+        zf = [zt - d * k / nf for k in range(nf + 1)]
+        zc = [zt - d * k / nc for k in range(nc + 1)]
+        for z in zf:
+            ax.plot(2.5, z, "o", color="#2f6f2f", ms=5)
+        for z in zc:
+            ax.plot(7.5, z, "o", color="#2f6f2f", ms=5)
+        for z in zf:
+            if any(abs(z - y) < 1e-9 for y in zc):
+                ax.plot([2.6, 7.4], [z, z], color="#1f77b4", lw=1.6)
+            else:
+                ax.plot([2.6, 4.9], [z, z], color="#c0504d", lw=1.0, ls="--")
+                ax.text(4.95, z, "x", color="#c0504d", va="center", fontsize=9)
+        ax.text(2.5, zt + 0.7, f"{nf} sub-gaps", ha="center", fontsize=8)
+        ax.text(7.5, zt + 0.7, f"{nc} sub-gap{'s' if nc > 1 else ''}" + (" (copper nodes hold d/2)" if nc == 1 else ""), ha="center", fontsize=8)
+        ax.text(5, -0.9, note, ha="center", fontsize=8)
+        ax.set_title(title, fontsize=9)
+    fig.suptitle("Fig. 7  Lateral links of the laminate at a change of chain (blue: link at a common depth; red: a node with no neighbour)", fontsize=10)
+    fig.savefig(OUT / "fig_07_level_transition.png", dpi=140, bbox_inches="tight")
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     fig_small_part()
     fig_edge()
     fig_solid()
+    fig_transition()

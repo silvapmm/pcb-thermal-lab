@@ -139,7 +139,9 @@ def make_plan_gaps(problem, trigger=TRIGGER, target=TARGET, n_cap=N_CAP, grade=1
                 ring = np.zeros((ny, nx), dtype=bool)
                 ring[0, :] = ring[-1, :] = True
                 ring[:, 0] = ring[:, -1] = True
-            ring = ndimage.binary_dilation(ring, iterations=edge_margin) & active
+            # (scipy repeats a dilation with iterations < 1 until nothing changes, which floods the board: the first version of this study measured "margin 0" as nodes
+            # everywhere; margin 0 is the ring alone)
+            ring = (ndimage.binary_dilation(ring, iterations=edge_margin) if edge_margin > 0 else ring) & active
         out = []
         for g in range(L - 1):
             d = float(d_all[g])

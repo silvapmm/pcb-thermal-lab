@@ -71,3 +71,60 @@ def test_edge_nodes_raise_a_cool_edge_board():
     with LL.local_rule(p, trigger=1e9, edge=True, edge_margin=1):
         b = cases.rise(p, "fvm", 0.5)
     assert b > a * 1.02
+
+
+def test_edge_margin_zero_is_the_ring_only():
+    """!
+    @brief Review regression: edge_margin 0 flags the cells of the board border only (scipy's binary_dilation with iterations 0 floods the mask, which made "margin 0" equal to nodes everywhere).
+    @return None
+    """
+    import cases
+    import numpy as np
+    from pcbthermal import fvm
+    p, _ = cases.board(30, 20, 2, 3.2, 200.0, "corner")
+    with LL.local_rule(p, trigger=1e9, edge=True, edge_margin=0):
+        net = fvm.Network(p, 30, 20, assemble=False)
+    flagged = net.ladder.plans[0].flagged
+    assert int(flagged.sum()) == 2 * 30 + 2 * 20 - 4
+    assert not flagged[1:-1, 1:-1].any()
+
+
+def test_level_transition_keeps_two_thirds_of_the_lateral_laminate():
+    """!
+    @brief Review: the lateral laminate conductance across a face between a cell of level 2n and one of level n is about 0.68 of the slab's (harmonic mean of nodes of unequal
+           thickness; the odd depths of the fine cell have no neighbour). Recorded as a limit of the prototype (README 7.2); a conservative transition would raise it to 1 and must update this test.
+    @return None
+    """
+    import numpy as np
+    from pcbthermal import fvm
+    c = B.case(2.0, 3.2, W=20.0)
+    p = B.problem_of(c, False)
+    with LL.local_rule(p, trigger=0.05, target=0.05, n_cap=16):
+        net = fvm.Network(p, 80, 80, assemble=False)
+    S = net.S
+    gx = fvm.Network._harmonic(S[:, :, :-1], S[:, :, 1:]).sum(axis=0)[40]
+    tot = S.sum(axis=0)[40]
+    ratio = gx / (0.5 * (tot[:-1] + tot[1:]))
+    off = ratio[40:][np.abs(ratio[40:] - 1.0) > 1e-3]
+    assert len(off) == 2 and np.all((off > 0.6) & (off < 0.75))
+
+
+def test_edge_band_boundary_keeps_two_fifths_of_the_lateral_laminate():
+    """!
+    @brief Review: across the face between a flagged cell (4 sub-gaps) and a cell without interior nodes the lateral laminate conductance is 0.40 of the slab's (the copper nodes hold
+           d/8 against d/2; the interior nodes have no neighbour). The same face exists in the program's rule at the edge of every flagged region (README 7.2); copper is taken out of S here.
+    @return None
+    """
+    import numpy as np
+    import cases
+    from pcbthermal import fvm
+    p, _ = cases.board(60, 40, 2, 3.2, 200.0, "corner")
+    p.board.materials.k_copper = 1e-9
+    with LL.local_rule(p, trigger=1e9, edge=True, edge_margin=1):
+        net = fvm.Network(p, 120, 80, assemble=False)
+    S = net.S
+    gx = fvm.Network._harmonic(S[:, :, :-1], S[:, :, 1:]).sum(axis=0)[40]
+    tot = S.sum(axis=0)[40]
+    ratio = gx / (0.5 * (tot[:-1] + tot[1:]))
+    off = ratio[np.abs(ratio - 1.0) > 1e-3]
+    assert len(off) == 2 and np.allclose(off, 0.4, atol=1e-3)
