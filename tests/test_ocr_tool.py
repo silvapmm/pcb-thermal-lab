@@ -792,6 +792,22 @@ def test_assemble_cleans_joins_and_marks(tmp_path):
     assert "- Title" in out and "\\tag{1}" in out
 
 
+def test_assemble_text_layer_fills_missing_pages(tmp_path):
+    """!
+    @brief A page with no OCR output takes a usable text layer (provider `text`); a short or missing layer stays `[missing]`.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import assemble
+    ocr = tmp_path / "ocr" / "anthropic"
+    ocr.mkdir(parents=True)
+    (ocr / "X_p1.md").write_text("<!-- page 1 -->\nClaude page", encoding="utf-8")
+    prose = " ".join(f"word{i}" for i in range(80))
+    out = assemble.assemble(tmp_path, "X", tmp_path, 3, {1: "ignored " * 100, 2: prose, 3: "too short"}, {}, True)
+    assert "Claude page" in out and "word79" in out and out.count("[missing]") == 1
+    assert "text: '2'" in out or "text: 2" in out
+
+
 def test_assemble_ranges():
     """!
     @brief Page lists are written as ranges.

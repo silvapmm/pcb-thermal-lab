@@ -334,7 +334,7 @@ def cmd_assemble(a, papers: Path) -> int:
         off = su.page_offset({k: v for k, v in found.items() if v})
         printed = {p: su.printed_page(p, found[p], off) for p in found}
         digital = sum(len(t) for t in texts[:8]) / max(1, min(8, len(texts))) > 600
-        (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(doc), None, printed, digital),
+        (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(doc), {i + 1: t for i, t in enumerate(texts)}, printed, digital),
                                         encoding="utf-8")
         print(f"{stem}: {out / (stem + '.md')}")
     return 0

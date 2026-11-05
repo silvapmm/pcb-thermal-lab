@@ -183,6 +183,16 @@ def toc(body: str) -> str:
     return "\n".join(items)
 
 
+def usable_text_layer(text: str) -> bool:
+    """!
+    @brief Whether a PDF text layer can stand in for an OCR page (enough words, not a garbage layer).
+    @param text Text layer of one page.
+    @return bool True when usable.
+    """
+    from . import suspects
+    return len(re.findall(r"\w+", text)) >= 60 and not suspects.garbage_text_layer(text)
+
+
 def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_text: dict[int, str] | None = None,
              printed: dict[int, int | None] | None = None, born_digital: bool | None = None) -> str:
     """!
@@ -191,7 +201,8 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
     @param stem           File stem.
     @param root           Repository root for the used-by search.
     @param page_count     Number of PDF pages.
-    @param pdf_pages_text Unused placeholder for a text layer (kept for callers that want to extend the check).
+    @param pdf_pages_text Text layer of each PDF page (page -> text) or None. A page with no Claude or Gemini output takes
+                          its text layer (provider `text`) when it is usable: enough words and not a garbage layer.
     @param printed        Mapping PDF page -> printed page number (None when unknown).
     @param born_digital   True for a PDF with a text layer, False for a scan, None when unknown.
     @return str The file content.
@@ -206,6 +217,10 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
                 src[p] = strip_marker(f.read_text(encoding="utf-8"))
                 prov[p] = name
                 break
+        if p not in src and pdf_pages_text and usable_text_layer(pdf_pages_text.get(p, "")):
+            # free source for plain pages: the text layer (equations are not LaTeX there, so the tier E1 pages stay with the model)
+            src[p] = pdf_pages_text[p].strip()
+            prov[p] = "text"
     running = find_running_lines(src)
     chunks = []
     for p in range(1, page_count + 1):
@@ -216,7 +231,7 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
     body = join_pages(chunks)
     row = index_row(papers, stem)
     pr_nums = [v for v in printed.values() if v]
-    by = {n: ranges([p for p, v in prov.items() if v == n]) for n in ("claude", "gemini")}
+    by = {n: ranges([p for p, v in prov.items() if v == n]) for n in ("claude", "gemini", "text")}
     missing = [p for p in range(1, page_count + 1) if p not in src]
     head = [
         "---",
@@ -228,7 +243,7 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
         f"pdf_type: {'born-digital' if born_digital else 'scan' if born_digital is False else 'unknown'}",
         f"bibliography_key: {yaml_text(row['key'] or 'unknown')}",
         f"supports: {yaml_text(row['supports'] or 'unknown')}",
-        f"provider_pages: {{claude: {yaml_text(by['claude'])}, gemini: {yaml_text(by['gemini'])}, "
+        f"provider_pages: {{claude: {yaml_text(by['claude'])}, gemini: {yaml_text(by['gemini'])}, text: {yaml_text(by['text'])}, "
         f"missing: {yaml_text(ranges(missing))}}}",
         "licence: open copy kept locally, not redistributed; third-party material, never committed",
         "reading_status: machine   # becomes verified only when the reviewer compares the page images",
