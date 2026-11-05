@@ -251,3 +251,26 @@ def test_the_prefilter_loses_no_via_of_the_exact_rule(seed, cell):
     want = _exact_partial(p, cell)
     got = [k for k, _, _ in checks.partial_copper_vias(p, cell)[0]]
     assert got == want and 0 < len(want) < 60
+
+
+def test_the_check_uses_the_grid_of_the_run_on_a_small_board(monkeypatch):
+    """!
+    @brief The footprint is searched on the cells of fvm.solve (nx = max(round(W / cell), 2)): a floor of 8 cells once gave a 5 mm board 0.625 mm cells at a 1 mm run.
+    @return None.
+    """
+    from pcbthermal import viawell
+    seen = []
+    real = viawell.footprint
+
+    def spy(*args, **kwargs):
+        seen.append(args[3])                                    # dx
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(viawell, "footprint", spy)
+    p = Problem.new(5, 5, 2)
+    p.add_zone(1, rect=(0, 0, 2.5, 5))                          # Copper edge through the via
+    p.add_zone(2, rect=(0, 0, 5, 5))
+    p.add_heater(1, 0.2, rect=(1.0, 2.0, 2.0, 3.0))
+    p.add_via(2.5, 2.5, 0.3)
+    checks.partial_copper_vias(p, 1.0)
+    assert seen and all(abs(dx - 1.0e-3) < 1e-12 for dx in seen)

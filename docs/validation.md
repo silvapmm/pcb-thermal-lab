@@ -1169,11 +1169,11 @@ Import 10 s and 0.64 GB, network build 7.7 s, solve 32 s, peak 5.5 GB. The impor
 
 Nothing was compared with a measurement of a physical board. Plated holes are left out of the tables (the primary run isolates the mapping); heaters other than a 4 to 4.8 mm square on the top layer; copper other than 35 micrometres; the transient of an imported board at the program's cells (the earlier study 4.3 ran it at a fine cell only); the 3D solid and the Lumped and Analytic models on imported copper only through the warnings and the tests of `tests/test_imported_copper.py` (the 1 to 16 % of the warning is the earlier study of 24 windows, README 4.5, not re-run here). The 24 mm windows of the four-layer boards need 8.4 GB for the pixel network (the script's header) and were not run.
 
-## 28. A via on a plane with copper over part of its footprint
+## 30. A via on a plane with copper over part of its footprint
 
 The via of the FVM and FDM draws heat from each cell of its footprint in proportion to a fixed weight (theory 2.6). Where a copper layer has copper over only part of the footprint, the bare cells cannot supply it. The investigation is `research/via-partial-copper` (numbers quoted from its README, sections 2, 3, 6; the warning rule below is `checks.partial_copper_vias`, run here on the imported windows by the branch `fix/via-partial-copper-warning`).
 
-### 28.1 What the investigation measured
+### 30.1 What the investigation measured
 
 | FVM, board of theory 2.2 (30 x 30 mm, h = 10 W/m2K) | 1 mm | 0.5 mm | 0.25 mm | 0.125 mm |
 | :-- | --: | --: | --: | --: |
@@ -1182,18 +1182,22 @@ The via of the FVM and FDM draws heat from each cell of its footprint in proport
 | FDM via effect, K (no cold spot) | 8.93 | 10.69 | 11.06 | 11.36 |
 | 3D solid via effect, K (not converged) | 0.70 | 2.86 | 7.20 | 10.74 |
 
-* The 3D solid of the old comparison (2.86 K at 0.5 mm) had not converged; against the 3D solid at 1/16 and 1/20 mm (agreeing to 0.2 % on a copper edge) the FVM at 0.25 mm reads the via effect 31 to 47 % low for a copper edge through the via, 45 to 68 % low for a track ending on it and 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser. The effect has mixed sign.
+* The 3D solid of the old comparison (2.86 K at 0.5 mm) had not converged; against the 3D solid at 1/16 and 1/20 mm (agreeing to 0.2 % on a copper edge) the FVM at cells of 0.125 to 1 mm reads the via effect 31 to 47 % low for a copper edge through the via, 45 to 68 % low for a track ending on it and 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser. The effect has mixed sign.
 * The extent 'below the ambient' (-2.5 % to -38 % of the largest rise) was not reproduced (minimum rise above zero in all the cases run, cells 1 to 0.125 mm; the cells of 0.05 and 0.025 mm were not run). Antipads are not a cause.
 * The rule fires on every copper-edge, track and bare case and on the documented board at every cell; silent on antipads, on the array with antipads and on all five frozen boards with vias at 2, 1 and 0.5 mm (0 false alarms; of 44 cases with a via effect above 1 K: 19 fired and the program wrong, 4 fired and right, 4 silent and wrong, 17 silent and right).
 
-### 28.2 Fire rate on imported boards (the imported copper at the cell of the run, vias as the import makes them)
+### 30.2 Fire rate on imported boards (the imported copper at the cell of the run, vias as the import makes them)
 
-| Board | Layers | Vias | Fire at 1 mm | Fire at 0.5 mm |
-| :-- | --: | --: | --: | --: |
-| RP2040 | 2 | 43 | 3 (7.0 %) | 7 (16.3 %) |
-| ISASTM | 4 | 1008 | 42 (4.2 %) | 51 (5.1 %) |
-| CMM2 | 4 | 1000 | 18 (1.8 %) | 49 (4.9 %) |
-| OSW light | 4 | 126 | 5 (4.0 %) | 10 (7.9 %) |
-| CO60 | 2 | 359 | 35 (9.7 %) | 133 (37.0 %) |
+| Board | Layers | Vias | Fire at 1 mm | Fire at 0.5 mm | With the reduced sheet, 1 / 0.5 mm |
+| :-- | --: | --: | --: | --: | --: |
+| RP2040 | 2 | 43 | 3 (7.0 %) | 7 (16.3 %) | 5 (11.6 %) / 7 (16.3 %) |
+| ISASTM | 4 | 1008 | 42 (4.2 %) | 51 (5.1 %) | 42 / 51 |
+| CMM2 | 4 | 1000 | 18 (1.8 %) | 49 (4.9 %) | 22 (2.2 %) / 50 (5.0 %) |
+| OSW light | 4 | 126 | 5 (4.0 %) | 10 (7.9 %) | 5 / 10 |
+| CO60 | 2 | 359 | 35 (9.7 %) | 133 (37.0 %) | 41 (11.4 %) / 139 (38.7 %) |
+| StickHub (review) | 2 | 87 | 4 (4.6 %) | 6 (6.9 %) | 4 / 8 (9.2 %) |
+| VSTCM (review) | 2 | 21 | 2 (9.5 %) | 9 (42.9 %) | 3 (14.3 %) / 10 (47.6 %) |
 
-The rule fires on a minority of the vias of real boards (at most 37 %, at 0.5 mm on the stripe-patterned CO60), so it stays in the live list with the share ("N of M vias"); above about one half it would be a property of every via and would be moved to a single note after the run. Measured with the sheet before the laminate rule (`partial_copper_vias`); the prefilter gives the same counts as the test of every via (`tests/test_via_partial_copper_warning.py`). Nothing was compared with a physical board.
+The rule is that of the program (`partial_copper_vias`), whose sheet is the layer node **before** the laminate rule. The last column (review) applies the same rule to the sheet of the FVM network after the rule (`fvm.Network(...).S`, the sheet the field actually has): it flags every via the program flags and 0 to 6 more per board (at most 4.7 points of the share, VSTCM at 1 mm), because moving the laminate out of a bare cell lowers its sheet further against the copper beside it. The program's rule therefore errs on the silent side by those few vias; it keeps the cheap sheet so that the live check needs no network. The rule fires on a minority of the vias of real boards (at most 43 % at 0.5 mm, on the 21 vias of VSTCM; 37 % on the stripe-patterned CO60), so it stays in the live list with the share ("N of M vias"); above about one half it would be a property of every via and would be moved to a single note after the run. The prefilter gives the same counts as the test of every via on all seven boards and both sheets (`tests/test_via_partial_copper_warning.py` for random boards). The rule (with either sheet) is silent on the five frozen boards with vias at 2, 1 and 0.5 mm, on the four antipad cases and on the array with antipads at 1 to 0.15 mm, and fires on the copper-edge, track and bare cases at 1 to 0.125 mm (review re-run with the program's function). Nothing was compared with a physical board.
+
+**Cost of the live check** (review; 200 x 150 mm, four layers, 8500 vias): 0.02 / 0.08 s at 1 / 0.5 mm with full copper (0.06 / 0.15 s on an elliptic outline; the whole `check_input` 0.17 to 0.80 s); but with a plane of 1 mm stripes under every via, so that no via passes the prefilter, 0.28 s at 1 mm and **2.3 s at 0.5 mm** (2162 / 2457 vias flagged; `check_input` 2.6 to 2.8 s). The exact footprint costs about 0.3 ms per via; real boards stay below 0.21 s (CO60 at 0.5 mm).
