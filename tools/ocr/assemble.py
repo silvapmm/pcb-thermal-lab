@@ -20,7 +20,9 @@ import collections
 import re
 from pathlib import Path
 
-from tools.ocr import compare
+from tools.ocr import compare, status as st
+
+BARRIER = "\x01"       # marks a corrected page: it is never joined to its neighbours and never cleaned
 
 HEADER_ZONE = 2        # non-empty lines at the top and bottom of a page that may be running text
 MIN_REPEAT = 3         # a header or footer must repeat on this many pages
@@ -84,8 +86,13 @@ def join_pages(chunks: list[tuple[str, str]]) -> str:
     @return str Body text.
     """
     out: list[str] = []
+    prev_barrier = False
     for marker, text in chunks:
-        if out and text and out[-1]:
+        barrier = text.startswith(BARRIER)
+        text = text.lstrip(BARRIER) if barrier else text
+        joinable = not (barrier or prev_barrier)
+        prev_barrier = barrier
+        if joinable and out and text and out[-1]:
             prev = out[-1].rstrip()
             last = prev.splitlines()[-1] if prev else ""
             first = text.lstrip().splitlines()[0] if text.strip() else ""
@@ -198,6 +205,31 @@ def usable_text_layer(text: str) -> bool:
 DEFAULT_ORDER = ("claude", "openrouter", "gemini")      # priority of the model sources; the text layer comes last
 
 
+def reading_line(by_state: dict[str, str], machine: str) -> str:
+    """!
+    @brief The `reading_status` line of the header.
+    @param by_state Pages `verified` and `corrected` as range texts.
+    @param machine  Range text of the pages that are still machine text.
+    @return str `reading_status: machine ...` when nothing was compared, else the three ranges.
+    """
+    if not by_state["verified"] and not by_state["corrected"]:
+        return "reading_status: machine   # becomes verified only when the reviewer compares the page images"
+    return (f"reading_status: {{verified: {yaml_text(by_state['verified'])}, corrected: {yaml_text(by_state['corrected'])}, "
+            f"machine: {yaml_text(machine)}}}   # from ocr/reading_status.json (python -m tools.ocr status)")
+
+
+def marker_suffix(entry: dict) -> str:
+    """!
+    @brief The reading-status text added to a page marker.
+    @param entry Status entry of the page (`state`, `note`).
+    @return str "" for a machine page, else ` | verified (image)`, ` | verified (text layer)` or ` | corrected and verified (image)`.
+    """
+    if entry["state"] == "machine":
+        return ""
+    how = "text layer" if "text layer" in (entry.get("note") or "") else "image"
+    return f" | {'corrected and ' if entry['state'] == 'corrected' else ''}verified ({how})"
+
+
 def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_text: dict[int, str] | None = None,
              printed: dict[int, int | None] | None = None, born_digital: bool | None = None,
              order: tuple[str, ...] = DEFAULT_ORDER) -> str:
@@ -215,9 +247,13 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
                           OpenRouter, then Gemini). Where two sources exist for a page the first wins, and a page on
                           which a lower source disagrees with Claude (`compare.compare_pages`) is listed in the header
                           as `disagrees_with_claude`.
-    @return str The file content.
+    @return str The file content. The reading status of each page comes from `ocr/reading_status.json` (`status.py`): a
+            `corrected` page takes its text from `ocr/corrected/` before any provider and is left as it is; a
+            `verified` page whose provider text changed since the check is reported as `machine`.
     """
     printed = printed or {}
+    sdata = st.load(papers)
+    states: dict[int, dict] = {}
     ocr = papers / "ocr"
     src: dict[int, str] = {}
     prov: dict[int, str] = {}
@@ -225,7 +261,13 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
              "gemini": lambda p: ocr / f"{stem}_p{p}.md"}
     disagree: dict[str, list[int]] = {"openrouter": [], "gemini": []}
     for p in range(1, page_count + 1):
+        states[p] = st.effective(papers, stem, p, sdata)
+        if states[p]["state"] == "corrected":
+            src[p] = strip_marker(st.corrected_path(papers, stem, p).read_text(encoding="utf-8")).strip("\n")
+            prov[p] = "corrected"
         for name in order:
+            if p in src:
+                break
             f = files[name](p)
             if f.is_file():
                 src[p] = strip_marker(f.read_text(encoding="utf-8"))
@@ -247,13 +289,18 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
     chunks = []
     for p in range(1, page_count + 1):
         pr = printed.get(p)
-        marker = f"<!-- page {p} | printed {pr if pr else '?'} -->"
-        text = clean_page(src[p], running) if p in src else "[missing]"
+        marker = f"<!-- page {p} | printed {pr if pr else '?'}{marker_suffix(states[p]) if p in src else ''} -->"
+        if p in src and prov[p] == "corrected":
+            text = BARRIER + src[p]
+        else:
+            text = clean_page(src[p], running) if p in src else "[missing]"
         chunks.append((marker, text))
     body = join_pages(chunks)
     row = index_row(papers, stem)
     pr_nums = [v for v in printed.values() if v]
-    by = {n: ranges([p for p, v in prov.items() if v == n]) for n in ("claude", "openrouter", "gemini", "text")}
+    by = {n: ranges([p for p, v in prov.items() if v == n]) for n in ("claude", "openrouter", "gemini", "text", "corrected")}
+    by_state = {k: ranges([p for p in range(1, page_count + 1) if states[p]["state"] == k and p in src]) for k in ("verified", "corrected")}
+    machine = ranges([p for p in range(1, page_count + 1) if p in src and states[p]["state"] == "machine"])
     missing = [p for p in range(1, page_count + 1) if p not in src]
     head = [
         "---",
@@ -266,10 +313,10 @@ def assemble(papers: Path, stem: str, root: Path, page_count: int, pdf_pages_tex
         f"bibliography_key: {yaml_text(row['key'] or 'unknown')}",
         f"supports: {yaml_text(row['supports'] or 'unknown')}",
         f"provider_pages: {{claude: {yaml_text(by['claude'])}, openrouter: {yaml_text(by['openrouter'])}, gemini: {yaml_text(by['gemini'])}, text: {yaml_text(by['text'])}, "
-        f"missing: {yaml_text(ranges(missing))}}}",
+        f"corrected: {yaml_text(by['corrected'])}, missing: {yaml_text(ranges(missing))}}}",
         "licence: open copy kept locally, not redistributed; third-party material, never committed",
         f"disagrees_with_claude: {{openrouter: {yaml_text(ranges(disagree['openrouter']))}, gemini: {yaml_text(ranges(disagree['gemini']))}}}",
-        "reading_status: machine   # becomes verified only when the reviewer compares the page images",
+        reading_line(by_state, machine),
         "used_by:",
     ]
     head += [f"  - {u}" for u in used_by(root, stem, row["key"])] or ["  - none found"]

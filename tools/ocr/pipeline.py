@@ -56,7 +56,7 @@ class Runner:
     def __init__(self, provider: Provider, out_dir: Path, ledger: Ledger, model: str | None = None,
                  prompt: str | None = None, pause: float = 4.0, daily_limit: int | None = None,
                  allow_confidential: bool = False, dpi: int = render.DEFAULT_DPI, sleep=time.sleep,
-                 renderer=None, info=None):
+                 renderer=None, info=None, max_tokens: int | None = None, whole_page: bool = False):
         """!
         @brief Create a runner.
         @param provider           The provider.
@@ -73,8 +73,12 @@ class Runner:
                                   at call time; replaced in tests).
         @param info               Function pdf -> (text of the first pages, metadata) for the confidential check
                                   (default render.first_page_info, looked up at call time).
+        @param max_tokens         Output token budget per request (None: the provider's default, 8192 for Claude).
+        @param whole_page         One request per page, never half-page crops or fallback models: a refused page stays
+                                  empty and a page cut at the token limit is kept with a note.
         @return None
         """
+        self.max_tokens, self.whole_page = max_tokens, whole_page
         self.provider, self.out_dir, self.ledger = provider, Path(out_dir), ledger
         cfg = config.models().get(provider.name, {})
         self.model = model or cfg.get("default") or provider.default_model
@@ -123,7 +127,10 @@ class Runner:
         """
         self._requests += 1
         try:
-            res = self.provider.transcribe(png, self.prompt, {"model": model})
+            opts = {"model": model}
+            if self.max_tokens:
+                opts["max_tokens"] = int(self.max_tokens)
+            res = self.provider.transcribe(png, self.prompt, opts)
             # The retries inside the provider are requests too (the daily limit counts what was sent).
             self._requests += max(0, int((res.extra or {}).get("attempts", 1)) - 1)
             usage = (res.extra or {}).get("usage") or {}
@@ -154,6 +161,13 @@ class Runner:
             # Text with another finish reason (MAX_TOKENS, SAFETY, ...) may be cut: keep it, but say so.
             return res.text, used, ("" if res.finish_reason in ("STOP", "", "end_turn", "stop_sequence", "stop") else
                                           f"finish {res.finish_reason}: the text may be incomplete")
+        if self.whole_page:
+            # No crops (they repeat the overlap): keep a page cut at the token limit with a note, leave a refusal empty.
+            if res.split and res.text.strip():
+                return res.text, self.model, f"finish {res.finish_reason}: the text is cut at the token limit"
+            said = " ".join(res.text.split())[:160]
+            return "", self.model, (f"{res.finish_reason or 'RECITATION'} on the full page (whole-page mode: no crops, no fallback)"
+                                    + (f"; the model said: {said}" if said else ""))
         # Refused by the copyright filter (or cut at the token limit): two half-page crops with the same model.
         log.info("%s p%d: %s, trying half-page crops", pdf.name, page, res.finish_reason or "RECITATION")
         halves = [self._call(self._render(pdf, page, self.dpi, clip), self.model) for clip in render.HALVES]
