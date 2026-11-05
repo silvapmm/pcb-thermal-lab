@@ -94,7 +94,7 @@ def test_the_exposed_pad_of_a_synthetic_qfn_is_the_default_shape_and_the_hull_st
 
 def test_the_thresholds_of_the_exposed_pad_rule_are_held():
     """!@brief A paste share of 0.24 stays hull and 0.26 is exposed (the 0.25 line); an opening at 0.49 of the largest stays out of the group and at 0.51 is in (then all join: no pad); the constants are the opinion's."""
-    assert (P.EXPOSED_MIN_AREA, P.EXPOSED_MIN_PASTE, P.EXPOSED_MAX_HULL) == (0.5, 0.25, 0.5)
+    assert (P.EXPOSED_MIN_AREA, P.EXPOSED_MIN_PASTE, P.EXPOSED_MAX_HULL, P.EXPOSED_MIN_FILL, P.EXPOSED_MAX_GAP) == (0.5, 0.25, 0.75, 0.5, 0.5)
     assert P.default_shape_kind(ring_part(8)) == "hull"          # 1.0 / (1.0 + 8 * 0.4) = 0.238
     assert P.default_shape_kind(ring_part(7)) == "exposed"       # 1.0 / (1.0 + 7 * 0.4) = 0.263
     assert len(P.dominant_group(ring_part(5, small_area=0.49))) == 1       # share 1.0 / 3.45 = 0.29
@@ -102,6 +102,26 @@ def test_the_thresholds_of_the_exposed_pad_rule_are_held():
     # The hull ratio: a pad group spanning more than half of the part is not an exposed pad
     wide = [box_op(-4, 0, 2, 2), box_op(4, 0, 2, 2)] + [box_op(0, 1.0 + 0.1 * k, 0.5, 0.5) for k in range(2)]
     assert P.dominant_group(wide) == []
+
+
+def test_a_dpak_tab_is_found_and_mounting_pads_at_the_ends_of_a_part_are_not():
+    """!@brief Found by the review on the open boards: a DPAK tab in four windows spans 0.6 of the part (the first hull limit of 0.5 missed every DPAK and D2PAK) and is found; two mounting
+    pads at the ends of a JST connector, the two large legs of a tactile switch and the three mounting pads of a micro-USB (all of them once or nearly taken for an exposed pad) are not."""
+    # TO-252: the tab 6.0 x 5.8 mm in 2 x 2 windows of 2.85 x 2.75 mm (0.3 mm apart) and two leads of 1.6 x 1.0 mm, 6.3 mm away
+    dpak = [box_op(sx * 1.575, sy * 1.525, 2.85, 2.75) for sx in (-1, 1) for sy in (-1, 1)] + [box_op(-6.3, y, 1.6, 1.0) for y in (-2.28, 2.28)]
+    grp = P.dominant_group(dpak)
+    assert len(grp) == 4 and P.default_shape_kind(dpak) == "exposed"
+    assert 0.5 < polygon_area(P.shape_polygon(dpak, "exposed")) / polygon_area(P.shape_polygon(dpak, "hull")) < P.EXPOSED_MAX_HULL
+    # JST SH 1x04 with two mounting pads: 1.2 x 1.8 mm at x = +-2.9, four pins of 0.6 x 1.55 mm at a pitch of 1 mm (fill 0.34, gap 3.0 sides)
+    jst = [box_op(sx * 2.9, 0.0, 1.2, 1.8) for sx in (-1, 1)] + [box_op(-1.5 + k, 2.4, 0.6, 1.55) for k in range(4)]
+    # A tactile switch: two legs of 1.2 x 1.2 mm on one diagonal, two of 1.0 x 0.6 mm on the other
+    switch = [box_op(-1.9, -1.2, 1.2, 1.2), box_op(1.9, 1.2, 1.2, 1.2), box_op(-0.5, -1.6, 1.0, 0.6), box_op(0.5, 1.6, 1.0, 0.6)]
+    # A micro-USB: five pins of 0.4 x 1.35 mm, three mounting pads of 1.5 x 2 (sides) and 2 x 2 mm (middle) 1.3 mm apart (fill 0.59, gap 0.66 sides)
+    musb = [box_op(-1.3 + 0.65 * k, 2.8, 0.4, 1.35) for k in range(5)] + [box_op(-3.05, 0.0, 1.5, 2.0), box_op(0.0, 0.0, 2.0, 2.0), box_op(3.05, 0.0, 1.5, 2.0)]
+    for name, ops in (("jst", jst), ("switch", switch), ("micro-usb", musb)):
+        assert P.dominant_group(ops) == [], name
+    # The same micro-USB pads with no gap between them are one pad: the gap test is what holds it out
+    assert P._largest_gap(musb[5:]) > P.EXPOSED_MAX_GAP * 2.0 and P._largest_gap(dpak[:4]) == pytest.approx(0.3)
 
 
 ## The classification of the eleven parts of the study, from three open KiCad boards. U3 is the thin one: its paste share is 0.32 against the line of 0.25.
@@ -143,6 +163,31 @@ def test_the_rule_classifies_the_eleven_parts_of_the_study():
     assert found == ELEVEN
 
 
+## Every part classified 'exposed' on the open boards of the review (875 parts with a heat-source polygon on eight boards): all are exposed pads or tabs (QFN, SOT-223, DPAK,
+## D2PAK, exposed-pad TSSOP); no connector, switch, crystal, LED or passive is among them. U7 of oswlight is a 38-pin QFN with its pad in four windows (paste only, `TO.P` EP).
+EXPOSED_ON_THE_BOARDS = {"rp2040": ["U1", "U3"], "isastm": ["U15", "U5"], "cmm2": ["U4", "U6"], "oswlight": ["U7"], "co60": [],
+                         "stickhub": [], "ucamco/x3_coldfire": ["VR201"], "ucamco/x3_liion": ["Q120", "Q121", "Q220", "Q221", "U1", "U51"]}
+
+
+@needs_data
+def test_every_exposed_part_of_eight_open_boards_is_a_pad_or_a_tab():
+    """!@brief Out of sample (the review): on every part of eight open boards the rule takes exactly the exposed pads and tabs; the seven JST SH connectors of StickHub and the four
+    switches of oswlight (two side mounting pads) are not taken, the four DPAK and the D2PAK are."""
+    from pcbthermal.gui.import_session import ImportSession
+    seen = 0
+    for board, want in EXPOSED_ON_THE_BOARDS.items():
+        if not (DATA / board).is_dir():
+            continue
+        sx = ImportSession()
+        sx.set_files(DATA / board)
+        sx.load()
+        got = sorted(p.designator for p in sx.parts() if p.shape == "exposed")
+        assert got == sorted(want), board
+        seen += 1
+    if not seen:
+        pytest.skip("no open board present")
+
+
 def test_x3_puts_the_exposed_pad_before_the_body_and_keeps_the_order_otherwise():
     """!@brief In an X3 part the exposed pad of the paste comes before Body; without a pad, or with an explicit hull or box, the order is Body, Lead2Lead, paste, ...; the part's shape name is 'exposed'."""
     c = xc.Component("U1", origin=(0.0, 0.0), side="top")
@@ -176,9 +221,19 @@ def test_a_reimport_keeps_the_explicit_shape_and_rederives_only_the_default():
     assert m.shape == "exposed" and m.power == 0.5
     # (3) a project written before the rule: no shape_rule, the hull was the default
     old = ImportPart("U1", "hull", [list(map(float, q)) for q in shapes["U1"]["hull"]], 0.7, {}, "", "top", {"source": "to.c+placement"})
-    m = {p.designator: p for p in P.merge_parts([old], [new], shapes).parts}["U1"]
+    res = P.merge_parts([old], [new], shapes)
+    m = {p.designator: p for p in res.parts}["U1"]
     assert m.shape == "hull" and m.power == 0.7 and m.polygon_mm == old.polygon_mm
-    assert m.from_file["shape_rule"] == P.SHAPE_RULE                         # the new file data replaced the old, so the next re-import follows the rule
+    assert any("before the exposed-pad rule" in c for c in res.changes)
+    # Review: the kept kind lasts (the second re-import used to flip it to the pad) until the user chooses
+    assert "shape_rule" not in m.from_file
+    m2 = {p.designator: p for p in P.merge_parts([m], [new], shapes).parts}["U1"]
+    assert m2.shape == "hull" and m2.polygon_mm == old.polygon_mm
+    # Review: a layout revision moved the part by 2 mm: the kept hull is drawn from the NEW openings, not left at the old place
+    moved = [box_op(o.x + 2.0, o.y, o.bbox[2] - o.bbox[0], o.bbox[3] - o.bbox[1]) for o in ops]
+    new_m = P.part_from_openings("U1", moved, "auto", "paste only")
+    m3 = {p.designator: p for p in P.merge_parts([old], [new_m], {"U1": P.shape_set(moved)}).parts}["U1"]
+    assert m3.shape == "hull" and m3.polygon_mm == [list(map(float, q)) for q in P.shape_set(moved)["hull"]] and m3.polygon_mm != old.polygon_mm
 
 
 def test_old_part_shapes_load_unchanged_and_a_project_with_an_exposed_part_round_trips(tmp_path):

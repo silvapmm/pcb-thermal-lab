@@ -272,9 +272,18 @@ class Preview(QWidget):
             # An exposed-pad part: where the part is (the hull of its pads) is a thin dashed outline without power, so that a 3 mm square is not read as a misplaced part
             outer = sx.part_hull(sel)
             if outer:
-                p.setPen(QPen(QColor(c["muted"]), 1.0, Qt.DashLine))
+                # Review: in the muted colour and 1 px wide, on the outer edges of the pins (the hull touches them), the outline vanished at every zoom. It is drawn in the
+                # text colour (the strongest contrast of either theme), 1.6 px, and pushed 4 px out of the pins so that it never lies on an opening
+                pts = [self.to_px(x, y) for x, y in outer]
+                gx, gy = sum(q.x() for q in pts) / len(pts), sum(q.y() for q in pts) / len(pts)
+                grown = []
+                for q in pts:
+                    dx, dy = q.x() - gx, q.y() - gy
+                    d = max((dx * dx + dy * dy) ** 0.5, 1e-9)
+                    grown.append(QPointF(q.x() + 4.0 * dx / d, q.y() + 4.0 * dy / d))
+                p.setPen(QPen(QColor(c["text"]), 1.6, Qt.DashLine))
                 p.setBrush(Qt.NoBrush)
-                p.drawPolygon(QPolygonF([self.to_px(x, y) for x, y in outer]))
+                p.drawPolygon(QPolygonF(grown))
             fill = QColor(c["heater"])
             fill.setAlpha(55)
             p.setPen(QPen(QColor(c["accent"]), 2.2))
@@ -937,9 +946,10 @@ class Step2Page(QWidget):
         gl = QVBoxLayout(g)
         self.radios = {}
         grp = QButtonGroup(g)
-        for key, text, tip in (("exposed", "Exposed pad or tab (suggested for QFN, DFN, SOT-223)", "The hull of the dominant group of paste openings: the exposed thermal pad of a QFN or DFN or the tab of a SOT-223 or DPAK. "
-                                "These packages put almost all their heat through that pad and the datasheet theta_JC(bottom) is measured to it, so the whole power goes there (worst case). The outline of the part is drawn dashed. "
-                                "Enabled only for a part whose paste has such a pad."),
+        for key, text, tip in (("exposed", "Exposed pad or tab (suggested for QFN, DFN, SOT-223, DPAK)", "The hull of the dominant group of paste openings: the exposed thermal pad of a QFN or DFN or the tab of a SOT-223 or DPAK. "
+                                "These packages put almost all their heat through that pad and the datasheet θJC(bottom) is measured to it, so the whole power goes there (worst case: the leads, "
+                                "which carry a few per cent, are left out). Give the part θ = θJC(bottom): its junction is then the hottest point under the pad plus θ times the power. "
+                                "The outline of the part is drawn dashed. Enabled only for a part whose paste has such a pad."),
                                ("hull", "Convex hull of the paste openings (suggested for other parts)", "The smallest convex polygon around the openings: the area of the pads of the part. For a part with an exposed pad or a tab it spreads the heat "
                                 "over a body that does not carry it and reads the junction 10 to 40 % cooler."),
                                ("box", "Bounding box of the paste openings", "A rectangle around all the openings: the power spreads over the gaps between pads too."),
@@ -1165,8 +1175,9 @@ class Step2Page(QWidget):
         @return str
         """
         if p.shape == "exposed":
-            return (f"Heat source: {note}. The paste of this part has an exposed pad or a tab (openings of at least half the area of the largest, holding a quarter of the paste and spanning at most half "
-                    "of the part), which carries almost all the heat; the whole power goes there (worst case). Choose another shape below to spread it over the pads.")
+            return (f"Heat source: {note}. The paste of this part has an exposed pad or a tab (openings of at least half the area of the largest, holding a quarter of the paste, "
+                    "spanning at most three quarters of the part and lying together as one pad), which carries almost all the heat; the whole power goes there (worst case: the leads carry a few "
+                    "per cent). Choose another shape below to spread it over the pads.")
         return f"Heat source: {note}."
 
     def _shape(self, kind):

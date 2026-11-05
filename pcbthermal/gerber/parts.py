@@ -777,13 +777,19 @@ def apply_offset(parts, dx, dy):
 
 
 # ------------------------------------------------------------------------------------------------------------------------------ shapes and the click
-# The rule of the exposed pad (research/gerber-real-boards/docs/heater-shape-opinion.md, section 6). MEASURED ON ELEVEN PARTS of three open KiCad boards (RP2040 minimal design,
-# ISASTM, CMM2), not on a physical board and not on DPAK, SOT-89, power SO-8 or LGA parts. The margin of the thinnest case is thin: the paste share of the RP2040-QFN-56 (U3) is
-# 0.32 against EXPOSED_MIN_PASTE = 0.25, and the USB micro-B (J3) is held out only by the hull ratio (its six mounting pads hold 86 % of the paste but their hull is the whole
-# part, ratio 1.0). The table of the eleven parts is in tests/test_gerber_parts.py; change a constant only with a new table.
+# The rule of the exposed pad (research/gerber-real-boards/docs/heater-shape-opinion.md, section 6). First set on ELEVEN PARTS of three open KiCad boards (RP2040 minimal design,
+# ISASTM, CMM2), then checked by the review on every part of eight open boards (RP2040, ISASTM, CMM2, oswlight, co60, StickHub X3, Ucamco X3 coldfire and li-ion; 875 parts):
+# the first rule (hull ratio at most 0.5, no compactness test) missed the four DPAK (TO-252, group hull 0.60 of the part) and the D2PAK (TO-263, 0.62) of the li-ion charger
+# and the coldfire kit, and took eleven parts with two side mounting pads for an exposed pad (seven JST SH connectors, four tactile switches: group fill 0.34 / 0.39, gap 1.9
+# to 3.0). With the fill and the gap tests every exposed pad and tab of the eight boards is found (QFN, SOT-223, DPAK, D2PAK, exposed-pad SSOP: fill 0.70 to 1.00, gap at most
+# 0.25, hull ratio at most 0.62) and no connector or switch is; the nearest connector is a micro-USB with three mounting pads (fill 0.59, gap 0.66). Not on a physical board,
+# and no SOT-89, power SO-8 or LGA with a thermal pad was among the parts. Thin margin: the paste share of the RP2040-QFN-56 (U3) is 0.32 against EXPOSED_MIN_PASTE = 0.25.
+# The tables are in tests/test_exposed_pad.py; change a constant only with a new table.
 EXPOSED_MIN_AREA = 0.5      # an opening joins the dominant group when its area is at least this share of the largest opening's area
 EXPOSED_MIN_PASTE = 0.25    # the group must hold at least this share of the paste area of the part
-EXPOSED_MAX_HULL = 0.5      # and its hull must be at most this share of the hull of the whole part (J3: 1.0, U3: 0.1)
+EXPOSED_MAX_HULL = 0.75     # its hull must be at most this share of the hull of the whole part (USB micro-B J3: 1.0; DPAK 0.60, D2PAK 0.62, QFN 0.08 to 0.36)
+EXPOSED_MIN_FILL = 0.5      # the group must fill at least this share of its own hull: one pad or a pad cut in windows (0.70 to 1.00), not pads at two ends (0.34, 0.39)
+EXPOSED_MAX_GAP = 0.5       # and be one cluster: no gap between its openings wider than this times the side sqrt(area) of the largest (windows 0.06 to 0.25; mounting pads 0.66 to 3.0)
 # The version of the rule written in `from_file["shape_rule"]`: a part from an older project has none, and a re-import then keeps its polygon instead of re-deriving the new default
 SHAPE_RULE = "exposed-v1"
 
@@ -792,8 +798,10 @@ def dominant_group(openings):
     """!
     @brief The openings of an exposed pad or a tab, or [] when the part has none.
     @details The openings with at least `EXPOSED_MIN_AREA` of the area of the largest are the candidate group. It is an exposed pad when it is not all the openings (a SOIC, a
-             crystal, a 0402 pair have equal pads), holds at least `EXPOSED_MIN_PASTE` of the paste and its hull is at most `EXPOSED_MAX_HULL` of the hull of the part (the six mounting
-             pads of a connector hold most of the paste but span the part). Thresholds: see the comment above them.
+             crystal, a 0402 pair have equal pads), holds at least `EXPOSED_MIN_PASTE` of the paste, its hull is at most `EXPOSED_MAX_HULL` of the hull of the part (the six mounting
+             pads of a connector hold most of the paste but span the part), its openings fill at least `EXPOSED_MIN_FILL` of its own hull and no gap between them (the longest link
+             of the minimum spanning tree of their boxes) is wider than `EXPOSED_MAX_GAP` times the side of the largest opening: one pad or one pad cut in windows, not two mounting
+             pads at the ends of a connector or the four legs of a switch. Thresholds: see the comment above them.
     @param openings List of Opening (one part).
     @return list of Opening (the dominant group), empty when the part has no exposed pad or tab.
     """
@@ -803,12 +811,40 @@ def dominant_group(openings):
     grp = [o for o in openings if o.area >= EXPOSED_MIN_AREA * amax]
     if len(grp) == len(openings):
         return []
-    if sum(o.area for o in grp) < EXPOSED_MIN_PASTE * sum(o.area for o in openings):
+    a_grp = sum(o.area for o in grp)
+    if a_grp < EXPOSED_MIN_PASTE * sum(o.area for o in openings):
         return []
     whole = polygon_area(_hull([p for o in openings for p in o.hull]))
-    if whole <= 0 or polygon_area(_hull([p for o in grp for p in o.hull])) > EXPOSED_MAX_HULL * whole:
+    h_grp = polygon_area(_hull([p for o in grp for p in o.hull]))
+    if whole <= 0 or h_grp <= 0 or h_grp > EXPOSED_MAX_HULL * whole or a_grp < EXPOSED_MIN_FILL * h_grp:
+        return []
+    if _largest_gap(grp) > EXPOSED_MAX_GAP * math.sqrt(amax):
         return []
     return grp
+
+
+def _largest_gap(ops):
+    """!
+    @brief The widest gap that joins a set of openings into one cluster: the longest edge of the minimum spanning tree of the gaps between their boxes (Prim, O(n^2)).
+    @param ops List of Opening.
+    @return float in mm (0 for one opening or for boxes that touch).
+    """
+    def gap(a, b):
+        """!@brief Distance between the boxes of two openings. @param a Opening. @param b Opening. @return float in mm (0 when they overlap)."""
+        dx = max(a.bbox[0] - b.bbox[2], b.bbox[0] - a.bbox[2], 0.0)
+        dy = max(a.bbox[1] - b.bbox[3], b.bbox[1] - a.bbox[3], 0.0)
+        return math.hypot(dx, dy)
+    if len(ops) < 2:
+        return 0.0
+    best = {j: gap(ops[0], ops[j]) for j in range(1, len(ops))}
+    widest = 0.0
+    while best:
+        # Join the nearest opening to the tree; the longest join is the gap the cluster needs
+        j = min(best, key=best.get)
+        widest = max(widest, best.pop(j))
+        for k in best:
+            best[k] = min(best[k], gap(ops[j], ops[k]))
+    return widest
 
 
 def default_shape_kind(openings):
@@ -1363,10 +1399,16 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
             if a.edits.get("shape_user") and a.shape in shapes.get(p.designator, {}):
                 q.shape = a.shape
                 q.polygon_mm = [list(map(float, pt)) for pt in shapes[p.designator][a.shape]]
-            elif "shape_rule" not in a.from_file and a.polygon_mm and a.shape in ("hull", "box", "largest", "outline") and q.shape != a.shape:
-                # A part of a project written before the exposed-pad rule: its polygon was the default of that time and a re-import does not move it under a power the user typed
+            elif "shape_rule" not in a.from_file and a.polygon_mm and a.shape in ("hull", "box", "largest", "outline") and q.shape == "exposed":
+                # A part of a project written before the exposed-pad rule: its shape was the default of that time and a re-import keeps that KIND, drawn from the NEW openings when
+                # the new import has it (review: the first version kept the old coordinates, so a part moved by a layout revision kept its heater at the old place); an outline or
+                # a largest opening, which the new import does not offer, keeps its stored polygon. The new file data loses `shape_rule`, so the next re-import keeps it too
+                # (review: it flipped to the pad at the second re-import); the user turns it to the pad in the import window.
                 q.shape = a.shape
-                q.polygon_mm = [list(map(float, pt)) for pt in a.polygon_mm]
+                src = shapes.get(p.designator, {}).get(a.shape) or a.polygon_mm
+                q.polygon_mm = [list(map(float, pt)) for pt in src]
+                q.from_file.pop("shape_rule", None)
+                changes.append(f"{p.designator}: kept the shape '{a.shape}' of a project written before the exposed-pad rule (the pad is now proposed and reads hotter: choose it in step 2)")
             changes.append(f"{p.designator}: kept power {a.power:g} W" if a.power else f"{p.designator}: matched")
         merged.append(q)
         taken.add(q.designator)
