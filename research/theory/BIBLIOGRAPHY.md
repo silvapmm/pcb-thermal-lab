@@ -1029,3 +1029,7 @@ Culham and Yovanovich (1998) page 463 (coupon, Table 1) R; Teertstra review page
 
 ### [Saad2003] (page of the list)
 PDF page 454 is the multigrid Fig. 13.4, not the SOR page; the SOR statements stand on pages 126 and 127 (PDF 146, 147) as recorded.
+
+### [Muzychka2003Part2] (key used by `docs/theory.md`; entry added by the review of `analytic-edge-spatial`)
+Y. S. Muzychka, J. R. Culham, M. M. Yovanovich, *Thermal spreading resistances in rectangular flux channels, Part II: edge cooling*, 36th AIAA Thermophysics Conference, AIAA 2003-4188 (2003); local copy in the git-ignored `papers/`. **Pages 3 to 5 read from a text layer made by a model from the page images (untrusted; the pages were not seen as images in `analytic-edge-spatial`)**; p. 5, eq. 27 to 31, was read as an image earlier (`docs/theory.md` 6). Eq. 12 to 21: the edge-cooled rectangular channel with a centred source, eigenvalues `delta tan delta = Bi_e` (eq. 14, 15), total resistance eq. 21; the review re-derived eq. 21 from eq. 13 to 20 and reproduced it against an independent 3D solver with side films (-0.16 to +1.06 % at k 50, -0.07 to +0.28 % at k 385, 24 cases; `analytic-edge-spatial` README 2). Eq. 18 as transcribed is not dimensionally consistent; the dimensional form of eq. 24 is used. No numerical table for the rectangle is printed, so no published number was reproduced. **Status R for eq. 12 to 21 (text layer, confirmed by the derivation) and eq. 27 to 31 (image).**
+
