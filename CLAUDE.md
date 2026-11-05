@@ -340,6 +340,8 @@ The goal is release 2.5.0 from `develop` only. Everything planned for it is merg
 
 ## Decisions Log
 
+- **Preferences: Solver and Gerber import are sections of their own** (`fix/preferences-solver-gerber-order`): they were boxes at the bottom of the long Defaults page; now two entries of the list of sections with a header line (machine preference, not saved in projects); every key and file format is unchanged.
+
 - **CAD tool line colour held by tests** (`fix/cad-line-colour`, reviewer's item): the code already used the alert token for every detection with `needs_check` (any confidence but high, CAM tools, re-exports) and the low-names rule, and the text colour only for a plain high one; no code change, a test per confidence level in both themes now keeps it (the user's choice does not clear the alert: the line follows the detection).
 
 

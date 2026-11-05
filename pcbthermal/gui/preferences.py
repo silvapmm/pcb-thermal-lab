@@ -81,6 +81,9 @@ SECTION_HINTS = {"new_board": "The values a board starts with when you choose Fi
                  "calculator": "How uncertain the inputs of the power calculator are. The band (best case / nominal / worst case) moves each one to both ends and adds the effects as the root of the sum of squares.",
                  "solver": "The models and settings a new project starts with.",
                  "gerber": "Limits of the Gerber reader. A setting of this machine, not saved in project files."}
+MACHINE_NOTES = {"solver": "The models and settings a new project starts with, and the memory limit of this machine. The memory limit (and the laminate options of a run) "
+                           "are machine preferences: they are not saved in project files.",
+                 "gerber": "Limits of the Gerber reader. A machine preference: not saved in project files."}
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
 # Labels with units for the fields of the defaults (the JSON key, which a hand-edited file uses, is given in each tooltip)
@@ -186,6 +189,9 @@ class PreferencesDialog(QDialog):
         for lib in defaults.LIBRARIES:
             self._add_section(LIBRARY_TITLES[lib], self._library_tab(lib))
         self._add_section("Defaults for new projects", self._defaults_tab())
+        # Solver and Gerber import have their own sections (they sat at the bottom of the long defaults page, hard to find)
+        self._add_section("Solver", self._machine_tab("solver"))
+        self._add_section("Gerber import", self._machine_tab("gerber"))
         self._add_section("Power Calculator", self._calculator_tab())
         self.sections.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.sections.setCurrentRow(0)                      # The first page is shown
@@ -285,7 +291,7 @@ class PreferencesDialog(QDialog):
         from PySide6.QtWidgets import QGroupBox, QScrollArea
         host = QWidget()
         lay = QVBoxLayout(host)
-        for section in ("new_board", "new_elements", "materials", "solver", "gerber"):
+        for section in ("new_board", "new_elements", "materials"):
             box = QGroupBox(SECTION_TITLES[section])
             box.setToolTip(SECTION_HINTS[section])
             inner = QVBoxLayout(box)
@@ -295,6 +301,28 @@ class PreferencesDialog(QDialog):
         area = QScrollArea()
         area.setWidgetResizable(True)
         area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)       # The page scrolls vertically only; its content is laid out to fit the width
+        area.setWidget(host)
+        return area
+
+    def _machine_tab(self, section):
+        """!
+        @brief A page of its own for the Solver or the Gerber import settings, with a header line.
+        @param section "solver" or "gerber".
+        @return QWidget (a scroll area that never scrolls sideways).
+        """
+        from PySide6.QtWidgets import QScrollArea
+        host = QWidget()
+        lay = QVBoxLayout(host)
+        note = QLabel(MACHINE_NOTES[section])
+        note.setWordWrap(True)
+        th.hint(note)
+        note.setToolTip(SECTION_HINTS[section])
+        lay.addWidget(note)
+        lay.addWidget(self._section_tab(section))
+        lay.addStretch(1)
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         area.setWidget(host)
         return area
 
