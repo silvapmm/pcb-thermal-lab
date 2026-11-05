@@ -51,7 +51,7 @@ def _temperature(problem, name, options, index, point, power, psi_jt=0.0):
     row = heater_stats(res, pr)[index]
     key = {"max": "t_max", "mean": "t_mean", "ring": "t_ring", "junction": "t_junction", "top": "t_junction"}[point]
     if row[key] is None:
-        raise ValueError({"ring": "the grid is too coarse to have a ring around the part: use a smaller cell size",
+        raise ValueError({"ring": "the grid is too coarse to have a ring around the part: use a smaller cell size (Simulation settings, Cell size)",
                           "junction": "the part has no junction-to-pad resistance theta: enter it first",
                           "top": "the top of the package needs the junction-to-pad resistance theta of the part and the datasheet psi_JT: enter them first"}[point])
     if point == "top":

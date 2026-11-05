@@ -19,6 +19,9 @@ from . import blocks, convection, copper, laminate, lumped, viaconstriction, via
 from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, bbox_overlap_pairs, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 
+# Where to change the cell, appended to every warning that tells the user to use another cell size (the GUI has no other hint; the command line option is --cell-mm)
+CELL_WHERE = "Simulation settings, Cell size, or the Auto button; --cell-mm on the command line"
+
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
 THICK_PLATE_LIMIT = 0.05
 
@@ -122,7 +125,7 @@ def check_problem(problem, cell_mm=1.0, models=None):
         n_across = min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) / min(dx, dy)
         if n_across < 3:
             _add(out, "heater", k, f"{name}: the smallest side is only {n_across:.1f} cells wide; use a cell size of "
-                       f"{min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000 / 4:.2f} mm or less.")
+                       f"{min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000 / 4:.2f} mm or less ({CELL_WHERE}).")
         if cov.sum() > 0:
             f_mean = float((fill[h.layer] * cov).sum() / cov.sum())
             if f_mean < 0.02:
@@ -1007,20 +1010,20 @@ def check_via_limits(problem, models, cell_mm):
                 _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM corrects the cut footprint with the mirror image of a straight "
                                     "edge of the board (or of an axis-parallel side of an outline), but here the correction is partial: a slanted, curved or short side or a "
                                     "reflex corner is near, the via centre is within its radius of the edge, or the cell is 2 mm or more. The via effect can be off by about "
-                                    "-6 to +15 % at a 1 mm cell; use a finer cell or read the result near it with care.",
+                                    "-6 to +15 % at a 1 mm cell; use a finer cell (" + CELL_WHERE + ") or read the result near it with care.",
                      f"{name}: via within one cell of the board edge; its effect can be off by -6 to +15 % at 1 mm.")
             else:
                 _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM treats it with the mirror image of the edge, but the FDM "
                                     "(half-volume edge nodes) has no image and reads the via effect 4 to 10 % too small at a 1 mm cell, and the 3D solid has none and reads it about "
-                                    "19 points too large; use the FVM, or a finer cell, for the part near it.",
+                                    "19 points too large; use the FVM, or a finer cell (" + CELL_WHERE + "), for the part near it.",
                      f"{name}: via within one cell of the board edge; FDM and 3D solid have no image of the edge (effect 4 to 10 % too small and about 19 points too large at 1 mm).")
         if len(todo) > 5:
             _add(out, None, None, f"{len(todo) - 5} more vias touch the board edge (see above).")
     if cell_mm >= VIA_COARSE_CELL_MM and any(m in ("fvm", "fdm") for m in models):
         _add(out, None, None, f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias: a via is a fraction of a cell, so the temperature drop they cause is uncertain "
                               "by about 3 to 4 % at 2 mm and by 5 to 50 % at 3 to 4 mm, depending on where each via falls in its cell (example board: 9 vias, "
-                              "-3 % FVM and -4 % FDM at 2 mm, within 0.5 % at 0.5 mm). Use 1 mm or finer.",
-             f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias (3 to 50 % uncertainty in their effect); use 1 mm or finer.")
+                              "-3 % FVM and -4 % FDM at 2 mm, within 0.5 % at 0.5 mm). Use 1 mm or finer (" + CELL_WHERE + ").",
+             f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias (3 to 50 % uncertainty in their effect); use 1 mm or finer ({CELL_WHERE}).")
     return out
 
 
@@ -1127,7 +1130,7 @@ def check_via_partial_copper(problem, models, cell_mm):
          f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
          f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower (measured in the FVM: 31 to 68 % low for a copper edge "
          "through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser), and the cold spot that the FVM can "
-         "show below the barrel is a numerical artefact of the footprint weights. Use a finer cell or check the via with the 3D solid.",
+         "show below the barrel is a numerical artefact of the footprint weights. Use a finer cell (" + CELL_WHERE + ") or check the via with the 3D solid.",
          f"{n} of {n_checked} via{'s have' if n > 1 else ' has'} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "
-         "(higher or lower); use a finer cell or the 3D solid.")
+         "(higher or lower); use a finer cell (" + CELL_WHERE + ") or the 3D solid.")
     return out

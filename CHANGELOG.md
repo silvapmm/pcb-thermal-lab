@@ -3,6 +3,15 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
+## [Unreleased]
+
+### Fixed
+- **Picking a via on the editor canvas**: the click area of a via was its outline stroked with the 2 mm cosmetic pen, so on an imported board (hundreds of vias) a click selected the neighbouring via. The area is now the drawn disc, and a press within 6 screen pixels of a via centre (or its drawn radius, whichever is larger) selects the via whose centre is nearest, before any zone or part below it; Ctrl-click and dragging are unchanged. Test `tests/test_via_pick.py`.
+- **Warnings that tell you to use another cell size now say where**: the Cell size box of the Simulation settings, or the Auto button (and `--cell-mm` on the command line).
+
+### Changed
+- The Gerber import window no longer has tooltips on its obvious controls (file list and its function boxes, preview and view switches, file buttons, part-ticking buttons, Back / Next / Import now); those that explain a parameter or a rule stay.
+
 ## [2.5.0] - 2026-11-05
 
 ### 2.5.0 summary

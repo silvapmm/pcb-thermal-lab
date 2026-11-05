@@ -86,7 +86,6 @@ class Preview(QWidget):
         self._images = {}                                            # (role, theme name, id of the array) -> QImage
         self.setMinimumSize(360, 340)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setToolTip("Preview of the board. Mouse wheel zooms, drag pans, double click shows the whole board. The layer selected in the file list is drawn at full strength.")
 
     def reset_view(self):
         """!
@@ -576,13 +575,10 @@ class Step1Page(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("Folder, ZIP or files"))
         self.source = QLineEdit()
-        self.source.setToolTip("A folder or a ZIP archive with the Gerber files, the Excellon drill files and, optionally, the placement file of the same board. Type a path and press Enter to read it.")
         self.source.returnPressed.connect(lambda: self.win.open_path(self.source.text()))
         row.addWidget(self.source, 1)
-        for text, tip, fn in (("Folder…", "Choose a folder of fabrication files.", self._folder), ("ZIP…", "Choose a ZIP archive of fabrication files. Nothing is extracted to disk.", self._zip),
-                              ("Files…", "Choose the fabrication files one by one (select several).", self._files)):
+        for text, fn in (("Folder…", self._folder), ("ZIP…", self._zip), ("Files…", self._files)):
             b = QPushButton(text)
-            b.setToolTip(tip)
             b.clicked.connect(fn)
             row.addWidget(b)
         left.addLayout(row)
@@ -598,8 +594,6 @@ class Step1Page(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setMinimumHeight(240)
-        self.table.setToolTip("One row per file. Untick a file to leave it out, or change its function. The models read copper, outline and drills; paste and placement give the parts; "
-                              "mask and legend files are not used. Two files claiming one function are shown in red.")
         self.table.cellChanged.connect(self._use_changed)
         self.table.itemSelectionChanged.connect(self._row_selected)
         gl.addWidget(self.table)
@@ -650,7 +644,6 @@ class Step1Page(QWidget):
         bar = QHBoxLayout()
         self.preview = Preview(self.session)
         self.layer_pick = QComboBox()
-        self.layer_pick.setToolTip("The copper layer drawn at full strength; the others are faded. Selecting a copper file in the list does the same.")
         self.layer_pick.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.layer_pick.setMinimumContentsLength(14)
         self.layer_pick.currentTextChanged.connect(self._layer_picked)
@@ -658,7 +651,6 @@ class Step1Page(QWidget):
         for key, label in (("copper", "Copper"), ("outline", "Outline"), ("holes", "Holes")):
             c = QCheckBox(label)
             c.setChecked(True)
-            c.setToolTip(f"Show or hide the {label.lower()} in the preview.")
             c.toggled.connect(lambda on, k=key: (self.preview.show_layers.__setitem__(k, on), self.preview.update()))
             bar.addWidget(c)
         bar.addStretch(1)
@@ -817,7 +809,6 @@ class Step1Page(QWidget):
             cb = QComboBox()
             cb.addItems(ROLES)
             cb.setCurrentText(f.role)
-            cb.setToolTip("What the file is. Inner copper layers are numbered from the top. Choose Ignore to leave the file out.")
             cb.currentTextChanged.connect(lambda text, i=r: self._role_changed(i, text))
             t.setCellWidget(r, 3, cb)
         hh = t.horizontalHeader()
@@ -966,11 +957,8 @@ class Step2Page(QWidget):
         gl.addWidget(self.suggest)
         left.addWidget(g)
         row = QHBoxLayout()
-        for text, tip, fn in (("Make selected a heat source", "Tick the selected part as a heat source.", self._make_selected),
-                              ("All parts with a power", "Tick every part that already has a power.", self._all_power),
-                              ("All matched parts", "Tick every part that has a paste opening (0 W until you give a power).", self._all_matched)):
+        for text, fn in (("Make selected a heat source", self._make_selected), ("All parts with a power", self._all_power), ("All matched parts", self._all_matched)):
             b = QPushButton(text)
-            b.setToolTip(tip)
             b.clicked.connect(fn)
             row.addWidget(b)
         left.addLayout(row)
@@ -980,17 +968,12 @@ class Step2Page(QWidget):
         self.preview = Preview(self.session, "parts")
         self.side = QComboBox()
         self.side.addItems(["Top side", "Bottom side"])
-        self.side.setToolTip("Which side's paste openings are shown and clickable.")
         self.side.currentIndexChanged.connect(lambda i: (setattr(self.preview, "side", "top" if i == 0 else "bottom"), self.preview.update()))
         bar.addWidget(self.side, 0, 0)
-        for n, (key, label, tip) in enumerate((("copper", "Copper", "Show or hide: copper."), ("paste", "Paste openings", "Show or hide: paste openings."),
-                                ("sources", "Heat sources", "Show or hide: heat sources."),
-                                ("labels", "Labels", "Write the designator on every part that is large enough on the screen (larger when you zoom in), a ? on the paste openings that match no part, "
-                                                     "and the drill diameter on the large holes. Hold the pointer on a part for its package, source and power."),
-                                ("holes", "Holes", "Draw the drilled holes (vias in the via colour, component holes in the warning colour, non-plated ones muted) and a legend with the diameter classes and how many of each."))):
+        for n, (key, label) in enumerate((("copper", "Copper"), ("paste", "Paste openings"), ("sources", "Heat sources"),
+                                ("labels", "Labels"), ("holes", "Holes"))):
             c = QCheckBox(label)
             c.setChecked(True)
-            c.setToolTip(tip)
             c.toggled.connect(lambda on, k=key: (self.preview.show_layers.__setitem__(k, on), self.preview.update()))
             bar.addWidget(c, (n + 1) // 3, (n + 1) % 3)
         bar.setColumnStretch(3, 1)
@@ -1795,7 +1778,6 @@ class ImportBoardWindow(QDialog):
         lay.addWidget(self.stepper)
         self.subtitle = QLabel("")
         th.hint(self.subtitle)
-        self.subtitle.setToolTip("What the current step is for.")
         lay.addWidget(self.subtitle)
         self.page1 = Step1Page(self)
         self.page2, self.page3 = Step2Page(self), Step3Page(self)
@@ -1816,12 +1798,9 @@ class ImportBoardWindow(QDialog):
         row.addWidget(self.status, 1)
         self.help_btn, self.close_btn = QPushButton("Help"), QPushButton("Close")
         self.early_btn = QPushButton("Import now")
-        self.early_btn.setToolTip("Import with what is set so far; the later steps keep their defaults. Available once step 1 is complete.")
         self.back_btn, self.next_btn = QPushButton("Back"), QPushButton("Next")
         self.next_btn.setObjectName("primary")
         self.next_btn.setMinimumWidth(90)
-        self.back_btn.setToolTip("Go back one step.")
-        self.next_btn.setToolTip("Go to the next step; on the last step it imports the board.")
         self.close_btn.clicked.connect(self.reject)
         self.help_btn.clicked.connect(self.show_help)
         self.early_btn.clicked.connect(self.do_import)
@@ -1999,7 +1978,7 @@ class ImportBoardWindow(QDialog):
                 out.append(("locked", f"Locked: step 1 is not complete. {why}."))
             elif i == 0:
                 out.append(("done", "Step 1: files and layers are complete. Click to go back."))
-            elif i == 1 and sx.heat_sources():
+            elif i == 1 and not self._busy and sx.heat_sources():           # while a call runs the stepper is repainted: asking for the parts would build them in the GUI thread beside the worker
                 out.append(("done", f"Step 2: {len(sx.heat_sources())} heat source(s) defined. Click to open."))
             else:
                 out.append(("ready", f"Step {i + 1}: {t}. Click to open."))
@@ -2044,9 +2023,6 @@ class ImportBoardWindow(QDialog):
         self.early_btn.setEnabled(ok)
         self.status.setText("" if ok else "Next is disabled: " + "; ".join(self.session.problems()))
         self.subtitle.setText(STEP_SUBTITLES[self.step])
-        self.early_btn.setToolTip("Import with what is set so far; the later steps keep their defaults. "
-                                  + ("" if self.session.heat_sources() else "No heat source is defined yet: you will be asked to confirm.") if ok
-                                  else "Available once step 1 is complete.")
         self.stepper.update()
 
     def do_import(self):

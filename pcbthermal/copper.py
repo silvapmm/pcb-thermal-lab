@@ -751,7 +751,7 @@ SCREENING_CELL_MM = 1.5                          # Cell above which the warning 
 COARSE_CELL_WARNING = ("imported copper at a cell above 1 mm: on 24 mm windows of real two-layer boards the face conductances read up to 4.3 % too hot at a 1 mm cell and 7 to 10 % "
                        "too hot at a 2 mm cell for a 4 mm part (on the safe side; the program's grid error under a part two cells wide is +0.5 % and +2.2 % at 1 and 2 mm with drawn "
                        "full copper, +3.7 % and +11.8 % on bare laminate, and the imported overshoot lies between the two; the share of the copper inside a cell was not separated); "
-                       "use a cell of 1 mm or less for the result")
+                       "use a cell of 1 mm or less for the result (Simulation settings, Cell size, or the Auto button)")
 SCREENING_WARNING = ("imported copper at a cell above 1.5 mm: treat the result as a screening estimate (7 to 10 % too hot at 2 mm in the windows measured), not as a figure to design to")
 REDUCED_MODEL_WARNING = ("imported copper on the Lumped / Analytic model: these models do not read the imported copper (only the copper fraction of every cell, as zones; the FVM, FDM and 3D "
                          "solid do read it) and they read too cool every time it was measured; the figures are a sample, not a bound: 1 to 16 % (6 % on average) on 24 windows of 24 mm "
