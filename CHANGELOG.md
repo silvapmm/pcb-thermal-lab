@@ -46,6 +46,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ### Detailed entries by branch
 
+### Changed (Preferences order, `fix/preferences-solver-gerber-order`; interface only, no key or file format moves)
+
+The Solver settings (models, cell, solver, memory limit) and the Gerber import limit are now sections of their own in the list of Preferences (`Solver`, `Gerber import`), each with a header line saying that it is a machine preference not saved in projects, instead of boxes at the bottom of the long `Defaults for new projects` page.
+
 
 ### Tests (CAD tool line colour, `fix/cad-line-colour`; no code change)
 - A test per confidence level (high, mixed, medium, low, declared, unknown) in both themes holds that the CAD tool line of the Gerber import window uses the alert colour for every detection that needs a check and the text colour only for a plain high one.
