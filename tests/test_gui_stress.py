@@ -940,6 +940,95 @@ def test_power_calculator_in_the_application(win, qtbot, monkeypatch):
     assert not empty.compute.isEnabled()
 
 
+def test_import_window_in_the_application(win, qtbot, tmp_path, monkeypatch):
+    """The Gerber import window, the full flow: opens from the File menu and closes, reads a ZIP and a folder, survives wrong functions, a damaged file, an empty folder and a theme switch on
+    every step, edits the parts (power, shape, clicks, frame answer), changes the model settings, imports into a new project, re-imports (Update, one undo step) and leaves the old project alone
+    when cancelled."""
+    from pcbthermal.gui import import_session as ims
+    from pcbthermal.gui.import_window import ImportBoardWindow
+    from tests.helpers.synthetic_board import make_board, make_zip
+    load(win, example_board())
+    before = win.doc.problem.board.width
+    shown = []
+    monkeypatch.setattr(ImportBoardWindow, "exec", lambda self: (shown.append(self), self.show(), self.close(), 0)[3])   # Open and close, as the menu does
+    win.a_import.trigger()
+    assert len(shown) == 1 and win.doc.problem.board.width == before
+    dlg = ImportBoardWindow(win)
+    qtbot.addWidget(dlg)
+    notes = []
+    dlg.notify = lambda title, text: notes.append(title)
+    dlg.confirm = lambda title, text: True
+    dlg.show()
+    folder = make_board(tmp_path / "fab", inner=2)
+    dlg.open_path(str(make_zip(folder, tmp_path / "set.zip")))                 # A ZIP first
+    assert dlg.session.complete()
+    dlg.open_path(str(folder))                                                    # then a folder
+    for step in (1, 2, 0):
+        dlg.go(step)
+        win.toggle_theme()                                                        # the live theme switch on every step
+        dlg.page1.preview.grab()
+        dlg.stepper.grab()
+    # Every function of the list on every file, one after the other: nothing raises, the checks speak
+    for i in range(len(dlg.session.files)):
+        for role in ims.ROLES:
+            dlg.page1.table.cellWidget(i, 3).setCurrentText(role)
+        dlg.page1.table.cellWidget(i, 3).setCurrentText(dlg.session.files[i].role)
+    dlg.reload()
+    (folder / "F.gbr").write_text("not a gerber file at all\n%%%")              # a damaged copper file
+    dlg.open_path(str(folder))
+    dlg.page1.preview.grab()
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    dlg.open_path(str(empty))                                                     # an empty folder: a message, the window stays
+    assert "Cannot read the files" in notes
+    dlg.open_path(str(make_board(tmp_path / "fab2")))
+    assert dlg.session.complete()
+    # Step 2: edit the parts, click, shapes; step 3: the model settings
+    dlg.go(1)
+    pg = dlg.page2
+    assert pg.table.rowCount() == 4
+    pg.table.cellWidget(0, 7).setValue(2.0)
+    pg.table.selectRow(0)
+    pg.radios["box"].setChecked(True)
+    pg.preview.clicked.emit(1.0, 1.0, False)                                      # a click on nothing
+    pg.preview.grab()
+    dlg.go(2)
+    p3 = dlg.page3
+    p3.adv.setChecked(True)
+    for key in ("lambda", "fill", "faces"):
+        p3.radios[key].setChecked(True)
+    p3.cell.setValue(2.0)
+    p3.pix.setValue(0.05)
+    p3.via_max.setValue(0.2)
+    p3.preview.grab()
+    dlg.session.cell_mm, dlg.session.via_max_mm = 1.0, 0.5
+    QTest.mouseClick(dlg.back_btn, Qt.LeftButton)
+    QTest.mouseClick(dlg.next_btn, Qt.LeftButton)
+    dlg.page3.preview.zoom = 5.0
+    QTest.mouseDClick(dlg.page3.preview, Qt.LeftButton)
+    assert dlg.do_import() is True and dlg.record is not None and len(dlg.problem.heaters) >= 1
+    assert win.doc.problem.board.width == before                                  # the open project was not touched yet
+    # In the application: a new import, then a re-import as one undo step
+    win.doc.open_import(dlg.problem, dlg.record)
+    n = win.doc.stack.count()
+    again = ImportBoardWindow(win, existing=win.doc.project.imports[0])
+    qtbot.addWidget(again)
+    again.confirm, again.notify = (lambda *a: True), (lambda *a: None)
+    again.open_path(str(make_board(tmp_path / "fab3")))
+    again.ask_reimport = lambda d: (d.radios["update"].setChecked(True), True)[1]
+    assert again.do_import() is True and again.mode == "update"
+    win.doc.reimport(again.problem, again.record, "Re-import")
+    assert win.doc.stack.count() == n + 1
+    win.doc.stack.undo()
+    ask_cancel = ImportBoardWindow(win, existing=win.doc.project.imports[0])
+    qtbot.addWidget(ask_cancel)
+    ask_cancel.confirm, ask_cancel.notify = (lambda *a: True), (lambda *a: None)
+    ask_cancel.open_path(str(make_board(tmp_path / "fab4")))
+    ask_cancel.ask_reimport = lambda d: False
+    assert ask_cancel.do_import() is False and ask_cancel.problem is None
+    dlg.close()
+
+
 def test_natural_form_control_in_the_application(win, qtbot):
     """The vertical natural convection form: shown with computed h, enabled only for a vertical board, written to the document, undone, run, saved and reloaded."""
     load(win, example_board())
