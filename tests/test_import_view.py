@@ -140,13 +140,21 @@ def test_a_huge_mask_is_drawn_from_a_reduced_copy_quickly_and_lightly():
 def test_the_co60_canvas_is_fast_and_light(qtbot):
     sx = ims.ImportSession()
     sx.set_files(os.path.join(REAL, "co60"))
-    b = sx.load()
-    cov = b.copper[0][2]
-    assert cov.size > 5e6
+    sx.load()
+    sx.pixel_mm = sx.auto_pixel() / 2.0                          # twice as fine as the automatic pixel: about 10.8 Mpx per layer
+    prob = sx.build_problem()
+    doc = Document()
+    doc.open_import(prob, sx.record)
+    mask = doc.problem.imported.layers[0]["mask"]
+    rows, cols = mask["shape"]
+    copper.unpack_coverage(mask)                                 # the models keep this array anyway; only the canvas' own cost is measured
     before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     t0 = time.perf_counter()
-    red, f = reduced_coverage(cov)
-    assert time.perf_counter() - t0 < 1.0 and max(red.shape) <= 2048
-    # ru_maxrss is bytes on macOS and kilobytes on Linux; the reduction itself must add well under 100 MB
-    grew = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before) / (1.0 if os.uname().sysname == "Darwin" else 1024.0)
-    assert grew < 100e6
+    view = BoardView(doc, "dark")
+    qtbot.addWidget(view)
+    spent = time.perf_counter() - t0
+    assert view._copper_item is not None and max(view._copper_item.pixmap().width(), view._copper_item.pixmap().height()) <= 2048
+    # ru_maxrss is bytes on macOS and kilobytes on Linux
+    grew = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before) * (1.0 if os.uname().sysname == "Darwin" else 1024.0)
+    print(f"co60 mask {rows} x {cols} = {rows * cols / 1e6:.1f} Mpx: canvas {spent:.2f} s, +{grew / 1e6:.0f} MB")
+    assert spent < 1.0 and grew < 100e6
