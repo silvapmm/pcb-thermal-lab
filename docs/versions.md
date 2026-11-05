@@ -165,6 +165,27 @@ The original wxPython program, "PCB Thermal Simulator Tool": editor and three so
 
 ---
 
+## Documentation audit 2.5.0
+
+What was checked in the in-app help (`pcbthermal/help/index.html`, `calculator.html`), the tooltips, the keyboard list, the About box and the README against the code and the 2.5.0 list of changes. Status: ok = described and correct; fixed = missing or wrong text corrected in this audit.
+
+| Feature | Guide | Tooltip | README | Status |
+| :-- | :-- | :-- | :-- | :-- |
+| Memory limit (Preferences field, panel verdict line, Run disabled with its reason, Auto cell that fits, exit code 3, `--memory-fraction`, `PCBTHERMAL_MEMORY_BYTES`) | 5 (cell size row) | Preferences field, unknowns label | features, Use | ok |
+| Zonal Lumped (core of the vias, 0.5 mm cell, three limits, warnings) | 15 | no control | model table | ok |
+| Live warnings (one line, hover for the text) and which come only after the run | 2, 15 | list tooltip | features | fixed (the list of after-run-only warnings was missing in guide and README) |
+| Laminate options (sub-gap, count, greyed with a block, CLI flags) | 5 | two spin boxes | features, Use | fixed (README) |
+| Profile curves at the face of the part and the decision | 11, 15 | no control | features | ok |
+| Laminar default of new projects, low Rayleigh warning | 3, 15 | combo, Preferences | features, Use | fixed (README said the general form was the default) |
+| Project format 2, safe save, `.bak`, refused file | 13 | no control | features | fixed (guide did not say 2.5.0) |
+| Theme (light/dark, softer dark guide) | 14 | action tip | features | fixed (not in the guide) |
+| Keyboard list (dialog and guide) | 14 | no control | no | fixed (file keys, Ctrl+A, Ctrl+, and Ctrl+Shift+T were missing) |
+| Gerber reader (library only) | not described | drill tip | features says no interface | fixed (a drill tip and a calculator sentence suggested a working import) |
+| About box | no | no | no | ok (no new data) |
+| Power Calculator speed | not user-visible | no | no | not documented on purpose |
+
+Screenshots: `docs/images` pictures of the editor, stack-up, calculator and results were not regenerated (no screen changed in a way the text depends on); the dark-theme controls and the Memory limit row of Preferences have no screenshot. `tests/test_help.py` and `tests/test_tooltips.py` are the gates.
+
 ## Planned
 
 What we want to **implement** in the program, each item once, with the evidence and the branch. What we want to investigate is in `research/ROADMAP.md`. When an item is implemented it leaves this chapter in the same commit and is recorded above. A **fix** goes on `fix/<topic>` off `develop` (executor, reviewer, maintainer); a **feature** on `feature/<topic>`, with documents, user guide, tooltips and the whole battery; **after the investigation X** waits for the study in `research/ROADMAP.md`. One `pytest` at a time (16 GB machine).
