@@ -200,6 +200,7 @@ python3 -m venv .venv-research && .venv-research/bin/pip install -r requirements
 .venv/bin/python research/models-comparison/scripts/validation_study.py [--fem]                # every scenario in every model (+ 3D solid)
 .venv/bin/python research/models-comparison/scripts/solver_equivalence.py                      # direct vs CG vs SOR on five boards
 PCBT_FROZEN_CELLS=2,1,0.5 .venv/bin/python -m pytest -q tests/regression                          # release procedure: the frozen numbers at the three cells (about 1 to 2 minutes)
+PCBT_COMPAT_V245=1 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/test_format_compat_245.py   # release gate: the v2.4.5 tag (git archive, subprocess) refuses a format 2 file untouched and opens format 1; this tree opens 2.4.5 files (a few seconds; skipped without the variable)
 ```
 
 ## Branches and Versions

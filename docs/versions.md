@@ -184,6 +184,7 @@ What was checked in the in-app help (`pcbthermal/help/index.html`, `calculator.h
 | Gerber reader (library only) | not described | drill tip | features says no interface | fixed (a drill tip and a calculator sentence suggested a working import) |
 | Mirror image of a board edge in the via well (FVM; warning for the FDM, the 3D solid, a 2 mm cell) | 15 (Via warnings, glossary) | no control | no | ok (guide and test words in the user-guide merge) |
 | Via with copper over part of its footprint (live warning) | 15 (glossary) | list tooltip | no | ok |
+| Project files across versions (v2.4.5 refuses a format 2 file with `KeyError`, file left byte-identical; opens format 1 of this tree; this tree opens 2.4.5 files with the same content): `tests/test_format_compat_245.py`, run with `PCBT_COMPAT_V245=1` | 13 | no control | no | ok (scripted; was done by hand) |
 | Analytic time simulation with a heatsink (warning in the Results summary, animation and CLI) | 15 (glossary), 11 | no control | no | ok |
 | Exposed-pad heat source and the shape study (`validation.md` 29) | 13 (import), walkthrough picture | step 2 combo | features | ok |
 | Anthropic and OpenRouter OCR providers, assemble, map (developer tool, `tools/ocr/`) | not user-visible | no | no | ok (folder README) |
