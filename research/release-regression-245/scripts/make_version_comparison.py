@@ -25,6 +25,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "lib"))
+sys.path.insert(0, str(HERE))
 
 import matplotlib                                                           # noqa: E402
 
@@ -32,6 +33,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt                                             # noqa: E402
 
 import regress_classify as C                                                # noqa: E402
+import study_pending_coverage as PC                                         # noqa: E402
 
 MODELS = ("fvm", "fdm", "lumped", "analytic", "solid3d")
 MARKERS = {"fvm": "o", "fdm": "s", "lumped": "^", "analytic": "v", "solid3d": "D"}
@@ -260,7 +262,33 @@ def status_lines(diff):
     return [f"* {e['board']} / {e['model']} / {e['cell_mm']:g} mm: {e['status_old']} to {e['status_new']}" for e in diff["entries"] if e["status_old"] != e["status_new"]]
 
 
-def build(base, new, table, fig_dir=None, level=1, changelog=None, link="../figures/", pair_notes=None):
+def coverage_lines(base, new, pending_dir):
+    """!
+    @brief Markdown block that checks every shifted number of an unreleased pair against the pending-shift files of the tree.
+    @param base Earlier result set.
+    @param new Result set of the tree.
+    @param pending_dir Folder of the pending files.
+    @return list of str.
+    """
+    cov = PC.coverage(base, new, pending_dir)
+    c = cov["counts"]
+    md = ["", "## Every shifted number against the pending-shift files of the tree", "",
+          f"Numbers compared: {sum(c.values())}. Identical: {c['identical']}. Different only in the last bits of a floating-point sum (at most 1e-8 K or 1e-10 of the value, the tolerance of the frozen-numbers test; {cov['records_last_bit']} records, the symmetric-mode LU): {c['last_bit']}. "
+          f"Covered by a pending file (the new value equals the one the file holds): {c['covered']}, in {len(cov['records_covered'])} records. **Unexplained: {c['unexplained']}.**", ""]
+    rows = [r for r in cov["rows"] if r["metric"] == "t_max" and r["class"] == "covered"]
+    if rows:
+        md += ["| Record (board, model, cell mm) | Tmax old [degC] | Tmax new [degC] | Shift [K] | Pending file |", "| :-- | --: | --: | --: | :-- |"]
+        md += [f"| {r['record'].replace('|', ', ')} | {r['old']:.4f} | {r['new']:.4f} | {r['delta']:+.4f} | {', '.join(r['topic'])} |" for r in rows]
+        md += [""]
+    if cov["transients"]:
+        md += ["| Time to 63 % (board, model, part) | Old [s] | New [s] | Pending file |", "| :-- | --: | --: | :-- |"]
+        md += [f"| {t['record'].replace('|', ', ')} | {t['old']:.3f} | {t['new']:.3f} | {', '.join(t['topic']) or 'UNEXPLAINED'} |" for t in cov["transients"]]
+        md += [""]
+    md += [f"* UNEXPLAINED {r['record']} {r['metric']}" for r in cov["rows"] if r["class"] == "unexplained"]
+    return md
+
+
+def build(base, new, table, fig_dir=None, level=1, changelog=None, link="../figures/", pair_notes=None, pending_dir=None):
     """!
     @brief Build the chapter text (and the figure when a folder is given).
     @param base Earlier result set.
@@ -271,6 +299,7 @@ def build(base, new, table, fig_dir=None, level=1, changelog=None, link="../figu
     @param changelog Text of the CHANGELOG section of the new version, quoted verbatim when there is no table.
     @param link Path prefix of the figure in the Markdown link.
     @param pair_notes Dict with `implemented` and `reading` lists of text (hand-written notes of this pair) or None.
+    @param pending_dir Folder of the pending-shift files: for a pair without a table every shifted number is checked against them.
     @return tuple (markdown text, rows of the hottest-point table, figure path or None).
     """
     classified = table is not None
@@ -307,6 +336,8 @@ def build(base, new, table, fig_dir=None, level=1, changelog=None, link="../figu
             md += ["What the CHANGELOG and docs/versions.md of this version say was implemented:", ""] + [f"* {t}" for t in pair_notes["implemented"]] + [""]
         if pair_notes.get("reading"):
             md += ["Reading of the numbers (each line cites the item that explains it; where no item does, it says unexplained):", ""] + [f"* {t}" for t in pair_notes["reading"]] + [""]
+    if not classified and pending_dir:
+        md += coverage_lines(base, new, pending_dir)
     md += ["", "## Hottest point moved, per model", "", model_summary(rows) if rows else "No hottest point moved."]
     st = status_lines(diff)
     if st:
@@ -565,7 +596,7 @@ def pair_table(table, base, new):
     return None
 
 
-def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, boards=CANONICAL, link="../figures/", refs=None, pair_notes=None, error_cells=(2.0, 1.0)):
+def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, boards=CANONICAL, link="../figures/", refs=None, pair_notes=None, error_cells=(2.0, 1.0), pending_dir=None):
     """!
     @brief The whole document: availability, summary across versions, error against the independent solver, then one chapter per consecutive pair, newest first.
     @param sets Result sets in version order (oldest first).
@@ -580,6 +611,7 @@ def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, bo
     @param refs References of the independent solver (board -> cell text -> rise) or None.
     @param pair_notes Dict "vA->vB" -> dict with `implemented` and `reading` lists (hand-written) or None.
     @param error_cells Cell sizes of the error tables.
+    @param pending_dir Folder of the pending-shift files or None.
     @return str.
     """
     labels = [vlabel(x) for x in sets]
@@ -614,7 +646,7 @@ def build_history(sets, table, changelog_text, not_run, cell, fig_dir, notes, bo
     for a, b in reversed(list(zip(sets[:-1], sets[1:]))):
         unreleased = b.get("tree_state") == "unreleased"
         ch = changelog_section(changelog_text, "Unreleased" if unreleased else b["program"]["version"])
-        text, _rows, _fig = build(a, b, pair_table(table, a, b), fig_dir, level=2, changelog=ch, link=link, pair_notes=pair_notes.get(f"{vlabel(a)}->{vlabel(b)}"))
+        text, _rows, _fig = build(a, b, pair_table(table, a, b), fig_dir, level=2, changelog=ch, link=link, pair_notes=pair_notes.get(f"{vlabel(a)}->{vlabel(b)}"), pending_dir=pending_dir if unreleased else None)
         md.append(text)
     return "\n".join(md)
 
@@ -638,6 +670,7 @@ def main(argv=None):
     ap.add_argument("--link", default="../figures/", help="path prefix of the figures in the Markdown (for a file in docs/: ../research/release-regression-245/figures/)")
     ap.add_argument("--references", default=None, help="references.json of study_references.py (error against the independent solver)")
     ap.add_argument("--pair-notes", default=None, help="JSON with the hand-written notes of every pair, keys 'vA->vB'")
+    ap.add_argument("--pending", default=None, help="folder of the pending-shift files (tests/regression/data/pending): checks every shift of the unreleased pair")
     ap.add_argument("--no-figure", action="store_true")
     a = ap.parse_args(argv)
     sets = [C.load_set(x) for x in a.sets]
@@ -655,7 +688,7 @@ def main(argv=None):
         cl = Path(a.changelog).read_text(encoding="utf-8") if Path(a.changelog).exists() else ""
         text, rows, fig = build_history(sets, table, cl, a.not_run, a.summary_cell, fig_dir, a.note, link=a.link,
                                          refs=json.loads(Path(a.references).read_text(encoding="utf-8")) if a.references else None,
-                                         pair_notes=json.loads(Path(a.pair_notes).read_text(encoding="utf-8")) if a.pair_notes else None), [], None
+                                         pair_notes=json.loads(Path(a.pair_notes).read_text(encoding="utf-8")) if a.pair_notes else None, pending_dir=a.pending), [], None
         out = Path(a.out) if a.out else ROOT / "out" / "version-comparison.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
