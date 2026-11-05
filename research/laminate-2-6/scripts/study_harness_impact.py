@@ -49,7 +49,10 @@ def main(argv=None):
     cells = [float(x) for x in (argv[argv.index("--cells") + 1] if "--cells" in argv else "2,1").split(",")]
     rows = []
     print("board | cell | T default | A local (dT K, unknowns x) | B edge (dT K, unknowns x)")
+    only = argv[argv.index("--only") + 1].split(",") if "--only" in argv else None
     for name in RB.board_names():
+        if only and name not in only:
+            continue
         try:
             p = RB.build(name, str(_boot26.REPO / "examples"))
         except Exception as e:
@@ -68,7 +71,7 @@ def main(argv=None):
                 continue
             rows.append(dict(board=name, cell=cell, t0=t0, ta=ta, tb=tb, u0=u0, ua=ua, ub=ub, h_side=p.board.h_side))
             print(f"{name:22s} {cell:4g} | {t0:8.3f} | {ta - t0:+7.3f} ({ua / u0:4.2f}) | {tb - t0:+7.3f} ({ub / u0:4.2f})  h_side {p.board.h_side}", flush=True)
-    (_boot26.OUT / "study_harness_impact.json").write_text(json.dumps(rows, indent=1))
+    (_boot26.OUT / ("study_harness_impact_only.json" if only else "study_harness_impact.json")).write_text(json.dumps(rows, indent=1))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,9 @@
+# Text for docs/theory.md 1.4 and 4 when the proposals are adopted
+
+**Local laminate rule.** The laminate between two copper layers is cut into sub-gaps where the copper is absent next to the gap. Under and around a part that is small against the sub-gap (the side through which its heat enters the laminate, the part or the part grown by the copper around it, smaller than 20 sub-gaps) the gap is cut into up to 16 sub-gaps, nested in depth with the coarse cells (a coarse cell uses every second or fourth node of the fine chain, so the same layer index is the same depth everywhere), in the footprint grown by about one gap thickness; the node of a cell holds the laminate half way to its neighbours in its own chain. Elsewhere the rule is unchanged. Measured against equation 50 of Muzychka, Yovanovich and Culham (2004) and an extrapolated 3D solver: -16.6 % and -19.7 % (bare and pad, 2 mm part, 3.2 mm board) become -1.1 % and -2.1 % at 1.7 times the unknowns of the default (the global 16 sub-gaps: 3.4 times).
+
+**Edge nodes.** With an edge coefficient, the cells that touch the board edge (and one cell beyond) get the laminate nodes even where the copper is full, so that the laminate loses heat at its own temperature and not at that of the copper node: 2 x 1.6 mm board of 3.2 mm, `h_side` 200 W/m2K, -14.3 % becomes -0.6 % against the 3D solver with the side film.
+
+**3D solid.** Each gap is cut into clip(ceil(d / 0.2 mm), 4, 16) slabs and the half layer of laminate between the node and the face of a part over bare laminate is added; with the same pixel and slabs the solid equals the independent solver to 0.01 %.
+
+Pictures: figures 01 to 03 of `research/laminate-2-6/figures/`. Sources: Muzychka, Yovanovich and Culham 2004 (equation 50, read in `research/paper-case-studies`); `research/analytic-edge-spatial` 8.4 for the edge probe.

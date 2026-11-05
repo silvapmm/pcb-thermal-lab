@@ -131,9 +131,14 @@ def make_plan_gaps(problem, trigger=TRIGGER, target=TARGET, n_cap=N_CAP, grade=1
         parts = _part_info(problem, fill, dxx, dy)
         d_all = board.gap_thicknesses()
         if edge:
-            ring = np.zeros((ny, nx), dtype=bool)
-            ring[0, :] = ring[-1, :] = True
-            ring[:, 0] = ring[:, -1] = True
+            if board.has_outline():
+                # the cells the outline crosses (the same edge lengths the FVM uses for the edge conductance)
+                from pcbthermal.geometry import edge_length_on_board
+                ring = edge_length_on_board(board.outline, nx, ny, dxx, dy, active) > 0
+            else:
+                ring = np.zeros((ny, nx), dtype=bool)
+                ring[0, :] = ring[-1, :] = True
+                ring[:, 0] = ring[:, -1] = True
             ring = ndimage.binary_dilation(ring, iterations=edge_margin) & active
         out = []
         for g in range(L - 1):
