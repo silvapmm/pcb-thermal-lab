@@ -39,7 +39,7 @@ from scipy.spatial import cKDTree
 
 from ..model import ImportPart
 from .errors import UnsupportedFeatureError
-from .components import duplicate_references, heat_polygon, hull as _hull, link_copper
+from .components import duplicate_references, heat_polygon, hull as _hull, link_copper, polygon_area
 from .raster import Window, rasterize
 
 ## The sources of a match, in order of trust (ImportPart.from_file["source"]).
@@ -777,16 +777,65 @@ def apply_offset(parts, dx, dy):
 
 
 # ------------------------------------------------------------------------------------------------------------------------------ shapes and the click
+# The rule of the exposed pad (research/gerber-real-boards/docs/heater-shape-opinion.md, section 6). MEASURED ON ELEVEN PARTS of three open KiCad boards (RP2040 minimal design,
+# ISASTM, CMM2), not on a physical board and not on DPAK, SOT-89, power SO-8 or LGA parts. The margin of the thinnest case is thin: the paste share of the RP2040-QFN-56 (U3) is
+# 0.32 against EXPOSED_MIN_PASTE = 0.25, and the USB micro-B (J3) is held out only by the hull ratio (its six mounting pads hold 86 % of the paste but their hull is the whole
+# part, ratio 1.0). The table of the eleven parts is in tests/test_gerber_parts.py; change a constant only with a new table.
+EXPOSED_MIN_AREA = 0.5      # an opening joins the dominant group when its area is at least this share of the largest opening's area
+EXPOSED_MIN_PASTE = 0.25    # the group must hold at least this share of the paste area of the part
+EXPOSED_MAX_HULL = 0.5      # and its hull must be at most this share of the hull of the whole part (J3: 1.0, U3: 0.1)
+# The version of the rule written in `from_file["shape_rule"]`: a part from an older project has none, and a re-import then keeps its polygon instead of re-deriving the new default
+SHAPE_RULE = "exposed-v1"
+
+
+def dominant_group(openings):
+    """!
+    @brief The openings of an exposed pad or a tab, or [] when the part has none.
+    @details The openings with at least `EXPOSED_MIN_AREA` of the area of the largest are the candidate group. It is an exposed pad when it is not all the openings (a SOIC, a
+             crystal, a 0402 pair have equal pads), holds at least `EXPOSED_MIN_PASTE` of the paste and its hull is at most `EXPOSED_MAX_HULL` of the hull of the part (the six mounting
+             pads of a connector hold most of the paste but span the part). Thresholds: see the comment above them.
+    @param openings List of Opening (one part).
+    @return list of Opening (the dominant group), empty when the part has no exposed pad or tab.
+    """
+    if len(openings) < 2:
+        return []
+    amax = max(o.area for o in openings)
+    grp = [o for o in openings if o.area >= EXPOSED_MIN_AREA * amax]
+    if len(grp) == len(openings):
+        return []
+    if sum(o.area for o in grp) < EXPOSED_MIN_PASTE * sum(o.area for o in openings):
+        return []
+    whole = polygon_area(_hull([p for o in openings for p in o.hull]))
+    if whole <= 0 or polygon_area(_hull([p for o in grp for p in o.hull])) > EXPOSED_MAX_HULL * whole:
+        return []
+    return grp
+
+
+def default_shape_kind(openings):
+    """!
+    @brief The shape the program proposes for a part: "exposed" when it has an exposed pad or a tab (`dominant_group`), else "hull".
+    @param openings List of Opening (one part).
+    @return str "exposed" or "hull".
+    """
+    return "exposed" if dominant_group(openings) else "hull"
+
+
 def shape_polygon(openings, kind="hull"):
     """!
     @brief The candidate heat-source shape of a set of openings.
     @param openings List of Opening (one part).
-    @param kind "hull" (convex hull of all the openings, the suggested default), "box" (the rectangle around them) or "largest" (the hull of the largest opening, the exposed pad of a QFN or the tab of a power package).
+    @param kind "hull" (convex hull of all the openings), "box" (the rectangle around them), "exposed" (the hull of the dominant group, the exposed pad or tab; the hull when the part
+           has none), "auto" (exposed when the part has an exposed pad, else the hull: the default of the import) or "largest" (the hull of the largest opening: right only for a single tab).
     @return list of (x, y) in mm (counter-clockwise), empty for no openings.
     @throws ValueError For an unknown kind.
     """
     if not openings:
         return []
+    if kind == "auto":
+        kind = default_shape_kind(openings)
+    if kind == "exposed":
+        grp = dominant_group(openings) or openings
+        return _hull([p for o in grp for p in o.hull])
     if kind == "hull":
         return _hull([p for o in openings for p in o.hull])
     if kind == "box":
@@ -796,6 +845,18 @@ def shape_polygon(openings, kind="hull"):
     if kind == "largest":
         return list(max(openings, key=lambda o: o.area).hull)
     raise ValueError(f"unknown shape {kind!r}")
+
+
+def shape_set(ops):
+    """!
+    @brief The shapes of a part kept for the re-import: the box and the hull, and the exposed pad when the part has one.
+    @param ops List of Opening of the part.
+    @return dict kind -> polygon.
+    """
+    out = {"box": shape_polygon(ops, "box"), "hull": shape_polygon(ops, "hull")}
+    if dominant_group(ops):
+        out["exposed"] = shape_polygon(ops, "exposed")
+    return out
 
 
 def _point_to_hull(poly, px, py):
@@ -886,12 +947,12 @@ def _bbox_of(poly):
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def part_from_openings(designator, openings, shape="hull", source="paste only", from_file=None, footprint="", side=None, grouping=None):
+def part_from_openings(designator, openings, shape="auto", source="paste only", from_file=None, footprint="", side=None, grouping=None):
     """!
     @brief Make an `ImportPart` from the openings of one part (the click, the proximity fallback, `TO.C`).
     @param designator Designator (the key of the part in a re-import; "H<n>" for a part picked by hand).
     @param openings List of Opening of the part.
-    @param shape "hull" (suggested), "box" or "largest": the heat-source polygon taken.
+    @param shape "auto" (the exposed pad when the part has one, else the hull; the resolved name is stored), "hull", "box", "exposed" or "largest": the heat-source polygon taken.
     @param source Source of the match, one of `SOURCES`.
     @param from_file Dict of file data to start from (copied).
     @param footprint Footprint name when known.
@@ -903,6 +964,10 @@ def part_from_openings(designator, openings, shape="hull", source="paste only", 
     ff = dict(from_file or {})
     ff["source"] = source
     ff["n_openings"] = len(openings)
+    if shape == "auto":
+        shape = default_shape_kind(openings)
+    # The version of the shape rule: a part without it comes from an older project (the hull was the default) and keeps its polygon in a re-import
+    ff["shape_rule"] = SHAPE_RULE
     if grouping:
         ff["grouping"] = grouping
     return ImportPart(designator, shape, [list(map(float, p)) for p in shape_polygon(openings, shape)], 0.0, {}, footprint,
@@ -919,7 +984,7 @@ class PartsResult:
     listed: list = field(default_factory=list)       # ImportPart that is not a heat-source candidate: no opening (placement only, polygon empty) or an X3 part that is not SMD (the offered outline kept, from_file["heat_source"] False); listed, not an error
     unmatched: list = field(default_factory=list)    # Opening no file names (the user clicks them)
     openings: list = field(default_factory=list)     # Every Opening read
-    shapes: dict = field(default_factory=dict)       # designator -> {"box": polygon, "hull": polygon} for the re-import
+    shapes: dict = field(default_factory=dict)       # designator -> {"box", "hull" and, for an exposed pad, "exposed": polygon} for the re-import
     info: dict = field(default_factory=dict)         # convention, frame check, counts by source, warnings
 
 
@@ -954,14 +1019,16 @@ def _x3_part(comp, ops, shape):
     @brief The ImportPart of an X3 component.
     @param comp Component.
     @param ops Openings of the part (paste linked by `TO.C`).
-    @param shape "hull" or "box": the polygon taken from the openings when the paste is the source.
-    @return tuple (ImportPart, {"box": polygon, "hull": polygon}).
+    @param shape "auto", "hull", "box" or "exposed": the polygon taken from the openings when the paste is the source. With "auto" an exposed pad or tab of the paste goes before the
+           Body outline (the mould does not carry the heat); an explicit "hull" or "box" keeps the order of the specification.
+    @return tuple (ImportPart, dict of the shapes of the openings).
     """
     paste_hull = shape_polygon(ops, "hull") if ops else None
-    poly, src = heat_polygon(comp, paste_hull)
+    exposed = shape_polygon(ops, "exposed") if ops and shape in ("auto", "exposed") and dominant_group(ops) else None
+    poly, src = heat_polygon(comp, paste_hull, exposed)
     if src == "paste" and shape == "box":
         poly = shape_polygon(ops, "box")
-    ff = {"value": comp.value, "mount": comp.mount, "rotation_deg": comp.rotation, "package": comp.package, "source": "x3", "shape_source": src,
+    ff = {"value": comp.value, "mount": comp.mount, "rotation_deg": comp.rotation, "package": comp.package, "source": "x3", "shape_source": src, "shape_rule": SHAPE_RULE,
           "position_mm": [comp.origin[0], comp.origin[1]] if comp.origin else None, "n_openings": len(ops)}
     if comp.height_mm is not None:
         ff["height_mm"] = comp.height_mm
@@ -972,12 +1039,12 @@ def _x3_part(comp, ops, shape):
     if comp.library:
         ff["library"] = comp.library
     # The shape name: "hull" or "box" for the paste openings (as asked), "hull" for the pins, "outline" for an outline of the layer (Body, Lead2Lead, Footprint, Courtyard)
-    kind = ("box" if shape == "box" else "hull") if src == "paste" else "hull" if src == "pins" else "outline"
+    kind = ("box" if shape == "box" else "hull") if src == "paste" else "exposed" if src == "exposed" else "hull" if src == "pins" else "outline"
     if not comp.is_smd:
         # TH, Pressfit, Other, Fiducial or an unknown mount type: listed with the offered shape, not a heat-source candidate (INTEGRATION 12 item 4)
         ff["heat_source"] = False
     part = ImportPart(comp.ref, kind, [list(map(float, p)) for p in (poly or [])], 0.0, {}, comp.footprint, comp.side, ff)
-    shapes = {"box": shape_polygon(ops, "box"), "hull": shape_polygon(ops, "hull")} if ops else {}
+    shapes = shape_set(ops) if ops else {}
     return part, shapes
 
 
@@ -1000,7 +1067,7 @@ def _first_of_each(placement, info):
     return out
 
 
-def build_parts(paste=None, placement=None, components=None, copper=None, pix=PASTE_PIXEL_MM, tol=ENVELOPE_TOLERANCE_MM, shape="hull", bottom="auto",
+def build_parts(paste=None, placement=None, components=None, copper=None, pix=PASTE_PIXEL_MM, tol=ENVELOPE_TOLERANCE_MM, shape="auto", bottom="auto",
                 offset=(0.0, 0.0), proximity_fallback=False, use_refs=True):
     """!
     @brief The parts of an import from the paste layers, the placement file and the X3 component layers.
@@ -1017,7 +1084,7 @@ def build_parts(paste=None, placement=None, components=None, copper=None, pix=PA
     @param copper List of copper `parser.Layer` (to report how the X3 pins sit on the copper pads), or None.
     @param pix Raster pixel of the paste in mm.
     @param tol Tolerance of the pad envelope in mm.
-    @param shape "hull" (default) or "box": the heat-source polygon of a part from its openings.
+    @param shape "auto" (default: the exposed pad of a part that has one, else the hull), "hull", "box" or "exposed": the heat-source polygon of a part from its openings.
     @param bottom "auto", "as is" or "negated X": the X convention of bottom-side parts in the placement file.
     @param offset Offset (dx, dy) in mm added to the part positions of the placement file.
     @param proximity_fallback True: openings nobody names are grouped by proximity into parts P1, P2, ... (marked, "paste only"); False: they are returned in `unmatched`.
@@ -1120,7 +1187,7 @@ def build_parts(paste=None, placement=None, components=None, copper=None, pix=PA
         if p:
             ff.update(value=p["value"], package=p["package"], rotation_deg=p["rot"], position_mm=[p["x"], p["y"]])
         part = part_from_openings(ref, ops, shape, src, ff, p["package"] if p else "", ops[0].side)
-        add(part, {"box": shape_polygon(ops, "box"), "hull": shape_polygon(ops, "hull")})
+        add(part, shape_set(ops))
     for p in parts_pl:
         r = p["ref"]
         idx = [plain[k] for k in byref_pl.get(r, [])]
@@ -1134,7 +1201,7 @@ def build_parts(paste=None, placement=None, components=None, copper=None, pix=PA
         ops = [openings[i] for i in idx]
         claimed.update(idx)
         part = part_from_openings(r, ops, shape, "placement by position", ff, p["package"], p["side"])
-        add(part, {"box": shape_polygon(ops, "box"), "hull": shape_polygon(ops, "hull")})
+        add(part, shape_set(ops))
     res.unmatched = [o for i, o in enumerate(openings) if i not in claimed]
     _fallback(res, proximity_fallback)
     return res
@@ -1151,9 +1218,9 @@ def _fallback(res, enabled):
         return
     for k, grp in enumerate(proximity_groups(res.unmatched), start=1):
         ops = [res.unmatched[i] for i in grp]
-        part = part_from_openings(f"P{k}", ops, "hull", "paste only", grouping="proximity")
+        part = part_from_openings(f"P{k}", ops, "auto", "paste only", grouping="proximity")
         res.parts.append(part)
-        res.shapes[part.designator] = {"box": shape_polygon(ops, "box"), "hull": shape_polygon(ops, "hull")}
+        res.shapes[part.designator] = shape_set(ops)
         res.info["counts"]["paste only"] += 1
     res.unmatched = []
 
@@ -1280,6 +1347,10 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
             if a.edits.get("shape_user") and a.shape in shapes.get(p.designator, {}):
                 q.shape = a.shape
                 q.polygon_mm = [list(map(float, pt)) for pt in shapes[p.designator][a.shape]]
+            elif "shape_rule" not in a.from_file and a.polygon_mm and a.shape in ("hull", "box", "largest", "outline") and q.shape != a.shape:
+                # A part of a project written before the exposed-pad rule: its polygon was the default of that time and a re-import does not move it under a power the user typed
+                q.shape = a.shape
+                q.polygon_mm = [list(map(float, pt)) for pt in a.polygon_mm]
             changes.append(f"{p.designator}: kept power {a.power:g} W" if a.power else f"{p.designator}: matched")
         merged.append(q)
         taken.add(q.designator)
@@ -1309,7 +1380,7 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
                 pending.append(a)
                 continue
             used_open.update(inside)
-            q = part_from_openings(a.designator, [openings[i] for i in inside], a.shape if a.shape in ("hull", "box", "largest") else "hull", "paste only",
+            q = part_from_openings(a.designator, [openings[i] for i in inside], a.shape if a.shape in ("hull", "box", "largest", "exposed") else "hull", "paste only",
                                    footprint=a.footprint, side=a.side, grouping=a.from_file.get("grouping"))
             q.power, q.edits, q.extra = a.power, copy.deepcopy(a.edits), copy.deepcopy(a.extra)
         else:

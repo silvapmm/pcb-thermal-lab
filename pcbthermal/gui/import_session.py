@@ -705,7 +705,7 @@ class ImportSession:
             except (GerberError, ValueError) as exc:
                 f.error = str(exc)
         try:
-            res = parts_mod.build_parts(paste, placement, comps or None, shape="hull", offset=self.offset if self.offset_answer == "accepted" else (0.0, 0.0))
+            res = parts_mod.build_parts(paste, placement, comps or None, shape="auto", offset=self.offset if self.offset_answer == "accepted" else (0.0, 0.0))
         except GerberError as exc:
             # A paste layer with a negative image or another refusal: the parts are left empty and the file says why
             for f in self.used(*PASTE):
@@ -893,20 +893,54 @@ class ImportSession:
 
     def shapes_of(self, p) -> list:
         """!
-        @brief The shapes the user can choose for a part: those its openings give ("hull", "box", "largest").
+        @brief The shapes the user can choose for a part: those its openings give ("hull", "box", "exposed" when the part has an exposed pad or a tab, "largest").
+        @details "largest" is offered when the part has more than one opening, but it is right only for a single tab (several equal pads: +22 to +299 % of the hottest point in the study).
         @param p ImportPart.
         @return list of str (empty when the part has no opening).
         """
         ops = self._openings_of(p)
         if not ops:
             return []
-        return ["hull", "box"] + (["largest"] if len(ops) > 1 else [])
+        return ["hull", "box"] + (["exposed"] if parts_mod.dominant_group(ops) else []) + (["largest"] if len(ops) > 1 else [])
+
+    def default_shape(self, p) -> str:
+        """!
+        @brief The shape the program proposes for a part: "exposed" for a part with an exposed pad or a tab, else "hull".
+        @param p ImportPart.
+        @return str ("hull" when the part has no opening of its own).
+        """
+        return parts_mod.default_shape_kind(self._openings_of(p))
+
+    def shape_note(self, p) -> str:
+        """!
+        @brief Text for the table: which heat-source shape the part has and, for an exposed pad, why.
+        @param p ImportPart.
+        @return str (empty for a part with no heat-source polygon).
+        """
+        if not p.polygon_mm:
+            return ""
+        ops = self._openings_of(p)
+        auto = self.default_shape(p) if ops else "hull"
+        label = {"exposed": "exposed pad", "hull": "convex hull", "box": "bounding box", "largest": "largest opening", "outline": "part outline"}.get(p.shape, p.shape)
+        who = "chosen by you" if p.edits.get("shape_user") else "proposed" if p.shape == auto else "from the file"
+        return f"{label} ({who})"
+
+    def part_hull(self, p):
+        """!
+        @brief The convex hull of the openings of a part that has an exposed-pad heat source (the dashed outline of where the part is), or None.
+        @param p ImportPart.
+        @return list of (x, y) in mm, or None when the heat source is the whole hull or the part has no opening.
+        """
+        if p is None or p.shape != "exposed":
+            return None
+        ops = self._openings_of(p)
+        return parts_mod.shape_polygon(ops, "hull") if ops else None
 
     def set_shape(self, designator: str, kind: str):
         """!
         @brief Choose the heat-source shape of a part from its openings (always allowed; the choice is remembered as the user's).
         @param designator Designator.
-        @param kind "hull", "box" or "largest".
+        @param kind "hull", "box", "exposed" or "largest".
         @return None
         """
         p = self.part(designator)
@@ -915,7 +949,8 @@ class ImportSession:
             return
         p.shape = kind
         p.polygon_mm = [list(map(float, q)) for q in parts_mod.shape_polygon(ops, kind)]
-        p.edits["shape_user"] = kind != "hull"
+        # The choice is the user's when it differs from what the rule proposes (a hull on a QFN is a choice, a hull on a SOIC is the default)
+        p.edits["shape_user"] = kind != self.default_shape(p)
         self._owner_cache = None
 
     def click(self, x: float, y: float, add: bool = False, selected: str = None, side: str = None):
@@ -941,7 +976,7 @@ class ImportSession:
         sel = self.part(selected) if selected else None
         if add and sel is not None and sel.polygon_mm:
             ops = self._openings_of(sel) + [o]
-            kind = sel.shape if sel.shape in ("hull", "box", "largest") else "hull"
+            kind = sel.shape if sel.shape in ("hull", "box", "largest", "exposed") else "hull"
             ff = dict(sel.from_file)
             ff["n_openings"] = len(ops)
             sel.polygon_mm = [list(map(float, q)) for q in parts_mod.shape_polygon(ops, kind)]
@@ -954,7 +989,7 @@ class ImportSession:
         n = 1
         while f"H{n}" in taken:
             n += 1
-        q = parts_mod.part_from_openings(f"H{n}", [o], "hull", "paste only", side=o.side, grouping="hand")
+        q = parts_mod.part_from_openings(f"H{n}", [o], "auto", "paste only", side=o.side, grouping="hand")
         q.edits["use"], q.edits["role"] = True, "Source"
         self._parts.append(q)
         self._unmatched = [u for u in self._unmatched if u is not o]

@@ -269,6 +269,12 @@ class Preview(QWidget):
                 p.setBrush(Qt.NoBrush)
                 p.drawPolygon(QPolygonF([self.to_px(x, y) for x, y in q.polygon_mm]))
         if sel is not None and sel.polygon_mm:
+            # An exposed-pad part: where the part is (the hull of its pads) is a thin dashed outline without power, so that a 3 mm square is not read as a misplaced part
+            outer = sx.part_hull(sel)
+            if outer:
+                p.setPen(QPen(QColor(c["muted"]), 1.0, Qt.DashLine))
+                p.setBrush(Qt.NoBrush)
+                p.drawPolygon(QPolygonF([self.to_px(x, y) for x, y in outer]))
             fill = QColor(c["heater"])
             fill.setAlpha(55)
             p.setPen(QPen(QColor(c["accent"]), 2.2))
@@ -931,9 +937,14 @@ class Step2Page(QWidget):
         gl = QVBoxLayout(g)
         self.radios = {}
         grp = QButtonGroup(g)
-        for key, text, tip in (("hull", "Convex hull of the paste openings (suggested)", "The smallest convex polygon around the openings: follows the pads of a part with a tab and equals the box for a rectangular pattern."),
+        for key, text, tip in (("exposed", "Exposed pad or tab (suggested for QFN, DFN, SOT-223)", "The hull of the dominant group of paste openings: the exposed thermal pad of a QFN or DFN or the tab of a SOT-223 or DPAK. "
+                                "These packages put almost all their heat through that pad and the datasheet theta_JC(bottom) is measured to it, so the whole power goes there (worst case). The outline of the part is drawn dashed. "
+                                "Enabled only for a part whose paste has such a pad."),
+                               ("hull", "Convex hull of the paste openings (suggested)", "The smallest convex polygon around the openings: the area of the pads of the part. For a part with an exposed pad or a tab it spreads the heat "
+                                "over a body that does not carry it and reads the junction 10 to 40 % cooler."),
                                ("box", "Bounding box of the paste openings", "A rectangle around all the openings: the power spreads over the gaps between pads too."),
-                               ("largest", "Largest opening only", "The hull of the largest opening: the exposed pad of a QFN or the tab of a power package, where the heat enters.")):
+                               ("largest", "Largest opening only (a single tab)", "The hull of the largest opening. Right for a single tab; on a part with several equal pads it puts all the heat on one pad "
+                                "(the hottest point reads 22 to 300 % too hot).")):
             r = QRadioButton(text)
             r.setToolTip(tip)
             r.toggled.connect(lambda on, k=key: on and self._shape(k))
@@ -1021,6 +1032,9 @@ class Step2Page(QWidget):
                     6: f"{pos[0]:.0f}, {pos[1]:.0f}" if pos else "-"}
             if p.from_file.get("heat_source") is False:
                 vals[3] += f" ({p.from_file.get('mount', 'not SMD')})"
+            note = sx.shape_note(p)
+            if p.shape == "exposed" and not orphan:
+                vals[3] += "; " + note
             for col, text in vals.items():
                 item = QTableWidgetItem(text)
                 item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
@@ -1029,7 +1043,7 @@ class Step2Page(QWidget):
                 if col == 6 and pos:                                 # The column shows whole millimetres to stay narrow; the tooltip has the exact position
                     item.setToolTip(f"Centre of the part: x {pos[0]:.2f} mm, y {pos[1]:.2f} mm (Gerber frame)")
                 if col in (2, 3):                                    # These two columns share the spare width and may be cut: the full text is in the tooltip
-                    item.setToolTip(_plain_tip(sx.source_explanation(p) if col == 3 else text))      # the package name comes from the files
+                    item.setToolTip(_plain_tip(sx.source_explanation(p) + (" " + self._shape_tip(p, note) if note else "") if col == 3 else text))      # the package name comes from the files
                 t.setItem(k, col, item)
             sp = _spin(0, 1000, p.power, 3, "W", "Power the part dissipates, in W. Worst case: all of it enters the board. From the datasheet or the Power Calculator.")
             sp.setSuffix("")                                         # The unit is in the header, so the column can be narrow
@@ -1138,12 +1152,27 @@ class Step2Page(QWidget):
         elif not avail:
             self.suggest.setText(f"{p.designator} has no paste opening of its own ({sx.source_label(p)}): click a red opening in the preview with Ctrl to add one.")
         else:
-            self.suggest.setText(f"{p.designator}: shape '{p.shape}'. The convex hull is the suggestion; you can always change it.")
+            auto = sx.default_shape(p)
+            why = ("This part has an exposed pad or a tab: it puts almost all its heat through it, so the pad is the suggestion and the outline of the part is dashed. "
+                   if auto == "exposed" else "The convex hull is the suggestion. ")
+            self.suggest.setText(f"{p.designator}: shape '{p.shape}'. {why}You can always change it.")
+
+    def _shape_tip(self, p, note):
+        """!
+        @brief The sentence of the Source tooltip about the heat-source shape of a part.
+        @param p ImportPart.
+        @param note Text of `ImportSession.shape_note`.
+        @return str
+        """
+        if p.shape == "exposed":
+            return (f"Heat source: {note}. The paste of this part has an exposed pad or a tab (openings of at least half the area of the largest, holding a quarter of the paste and spanning at most half "
+                    "of the part), which carries almost all the heat; the whole power goes there (worst case). Choose another shape below to spread it over the pads.")
+        return f"Heat source: {note}."
 
     def _shape(self, kind):
         """!
         @brief The user chose a shape.
-        @param kind "hull", "box" or "largest".
+        @param kind "hull", "box", "exposed" or "largest".
         @return None
         """
         if self.selected and not self._building:

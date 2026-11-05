@@ -10,7 +10,7 @@
          `TD` removes from, read when each object is created, so the order in the file does not matter), the interpolation mode and the coordinate format. Lengths in mm (the file unit is converted,
          `.CHgt` too); angles in degrees, positive counter-clockwise seen from the top. Not read: aperture blocks and macros (not used by a component layer); step and repeat is counted in `Component.notes`.
          Mount types: `SMD` parts are heat-source candidates; `TH`, `Pressfit`, `Other` (and `Fiducial`, the value of files older than revision 2024.05, or any unknown value) are listed without a source.
-         Heat-source shape, in order: Body, Lead2Lead, the hull of the paste openings linked by `TO.C`, Footprint, Courtyard, hull of the pins (`heat_polygon`).
+         Heat-source shape, in order: the exposed pad or tab of the paste (when it has one), Body, Lead2Lead, the hull of the paste openings linked by `TO.C`, Footprint, Courtyard, hull of the pins (`heat_polygon`).
          Rotation: zero as in IPC-7351B; a bottom part is the top footprint turned over, so the local x changes sign before the rotation (`to_board`).
 """
 
@@ -470,15 +470,19 @@ def _best_loop(loops):
     return list(loop[:-1] if loop[0] == loop[-1] else loop)
 
 
-def heat_polygon(part, paste_hull=None):
+def heat_polygon(part, paste_hull=None, exposed=None):
     """!
-    @brief The heat-source shape of a part with the name of its source, in the order Body, Lead2Lead, hull of the paste openings linked by `TO.C`, Footprint, Courtyard, hull of the pins.
-    @details A body outline is what dissipates; the Footprint outline is the contour of the land pattern (about the paste hull); a courtyard is a clearance (1.57 times the paste box in area, median of
+    @brief The heat-source shape of a part with the name of its source, in the order exposed pad (when the paste has one), Body, Lead2Lead, hull of the paste openings linked by `TO.C`, Footprint, Courtyard, hull of the pins.
+    @details An exposed pad or a tab (the dominant group of the paste openings, `parts.dominant_group`) is where the heat enters the board and the datasheet theta_JC(bottom) is measured to
+             it, so it goes before the Body, which is the mould and does not carry the heat (research/gerber-real-boards/docs/heater-shape-opinion.md); a body outline is what dissipates otherwise; the Footprint outline is the contour of the land pattern (about the paste hull); a courtyard is a clearance (1.57 times the paste box in area, median of
              360 parts) and is offered after them; the pin hull has no area for a two-pin part along one axis, so a hull of less than 1e-6 mm2 is returned as the bounding box of the pins grown by 0.1 mm.
     @param part Component.
     @param paste_hull Hull of the paste openings of the part as a list of (x, y) in mm, or None when the part has none (through-hole).
-    @return tuple (polygon as list of (x, y) without the repeated closing point, source name "Body", "Lead2Lead", "paste", "Footprint", "Courtyard" or "pins") or (None, "none").
+    @param exposed Hull of the exposed pad or tab found in the paste openings (list of (x, y) in mm), or None when the part has none.
+    @return tuple (polygon as list of (x, y) without the repeated closing point, source name "exposed", "Body", "Lead2Lead", "paste", "Footprint", "Courtyard" or "pins") or (None, "none").
     """
+    if exposed is not None and len(exposed) >= 3 and polygon_area(exposed) > 1e-9:
+        return [tuple(map(float, p)) for p in exposed], "exposed"
     for kind in OUTLINE_BEFORE_PASTE:
         loop = _best_loop(part.outlines.get(kind))
         if loop:

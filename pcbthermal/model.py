@@ -1542,7 +1542,7 @@ class ImportPart:
              edit. The user's edits stay in `edits`.
     """
     designator: str = ""                                  # Key used to match the part again in a re-import
-    shape: str = "box"                                    # "box", "hull", "largest" (the largest opening) or "outline" (an outline of an X3 component layer)
+    shape: str = "box"                                    # "box", "hull", "exposed" (the hull of the exposed pad or tab, the default of a part that has one), "largest" (the largest opening) or "outline" (an outline of an X3 component layer)
     polygon_mm: list = field(default_factory=list)        # Heat-source polygon [[x, y], ...] in mm
     power: float = 0.0                                    # Power in W (user edit)
     edits: dict = field(default_factory=dict)             # Other user edits (tj_max, role, use, shape_user, ...)
