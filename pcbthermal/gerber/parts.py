@@ -1404,10 +1404,10 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
             elif a.edits.get("shape_user") and a.shape in shapes.get(p.designator, {}):
                 q.shape = a.shape
                 q.polygon_mm = [list(map(float, pt)) for pt in shapes[p.designator][a.shape]]
-            elif "shape_rule" not in a.from_file and a.polygon_mm and a.shape in ("hull", "box", "largest", "outline") and q.shape == "exposed":
+            elif "shape_rule" not in a.from_file and a.polygon_mm and a.shape in ("hull", "box", "outline") and q.shape == "exposed":
                 # A part of a project written before the exposed-pad rule: its shape was the default of that time and a re-import keeps that KIND, drawn from the NEW openings when
-                # the new import has it (review: the first version kept the old coordinates, so a part moved by a layout revision kept its heater at the old place); an outline or
-                # a largest opening, which the new import does not offer, keeps its stored polygon. The new file data loses `shape_rule`, so the next re-import keeps it too
+                # the new import has it (review: the first version kept the old coordinates, so a part moved by a layout revision kept its heater at the old place); an outline,
+                # which the new import does not offer, keeps its stored polygon (a retired 'largest' is taken by the first branch). The new file data loses `shape_rule`, so the next re-import keeps it too
                 # (review: it flipped to the pad at the second re-import); the user turns it to the pad in the import window.
                 q.shape = a.shape
                 src = shapes.get(p.designator, {}).get(a.shape) or a.polygon_mm
@@ -1450,6 +1450,13 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
         else:
             pending.append(a)
             continue
+        if a.shape == "largest":
+            # Review: the positional paths also take a retired 'largest' to the proposed shape, clear the user's mark and say so. The stored polygon was ONE opening, so the region
+            # above finds only that opening: the line says how many of the stored openings were found, and the user adds the others with Ctrl+click in step 2
+            q.edits["shape_user"] = False
+            found, stored = q.from_file.get("n_openings"), a.from_file.get("n_openings")
+            short = f" ({found} of its {stored} openings found: add the others with Ctrl+click in step 2)" if found and stored and found < stored else ""
+            changes.append(f"{a.designator}: the shape 'largest opening' is no longer offered; the part has the proposed shape '{q.shape}'{short}")
         merged.append(q)
         taken.add(q.designator)
         changes.append(f"{a.designator}: matched by position" + (f", kept power {a.power:g} W" if a.power else ""))

@@ -981,7 +981,14 @@ class ImportSession:
         sel = self.part(selected) if selected else None
         if add and sel is not None and sel.polygon_mm:
             ops = self._openings_of(sel) + [o]
-            kind = sel.shape if sel.shape in ("hull", "box", "exposed") else "hull"
+            # Review: a retired 'largest' (or an X3 outline, which the openings cannot redraw) becomes the proposed shape of the grown part, and the shape name follows the polygon
+            # (the first version kept the name 'largest' over a hull polygon)
+            if sel.shape in ("hull", "box", "exposed"):
+                kind = sel.shape
+            else:
+                kind = parts_mod.default_shape_kind(ops)
+                sel.edits["shape_user"] = False
+            sel.shape = kind
             ff = dict(sel.from_file)
             ff["n_openings"] = len(ops)
             sel.polygon_mm = [list(map(float, q)) for q in parts_mod.shape_polygon(ops, kind)]
