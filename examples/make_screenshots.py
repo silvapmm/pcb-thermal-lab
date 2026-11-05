@@ -18,7 +18,8 @@ os.environ.setdefault("QT_API", "pyside6")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtCore import QSettings, Qt                                        # noqa: E402
-from PySide6.QtWidgets import QApplication, QScrollArea                                  # noqa: E402
+from PySide6.QtGui import QPainter, QPixmap                                  # noqa: E402
+from PySide6.QtWidgets import QApplication                                  # noqa: E402
 
 from pcbthermal import SolverOptions, simulate                              # noqa: E402
 from pcbthermal.examples import example_board, example_profile_board                               # noqa: E402
@@ -278,14 +279,25 @@ def main_import(out_dir, board_dir):
         save(win, f"results_temperature_imported{suffix}.png")
         if not suffix:
             pref = PreferencesDialog(win)
-            pref.resize(980, 700)
+            pref.resize(980, 440)
             pref.show()
-            pref.sections.setCurrentRow(pref.section_titles().index("Defaults for new projects"))
-            page = pref.pages.currentWidget()
-            # The same page scrolled to its end: the Solver and Gerber import boxes (memory fraction, file-size limit)
-            for sc in ([page] if isinstance(page, QScrollArea) else []) + page.findChildren(QScrollArea):
-                sc.verticalScrollBar().setValue(sc.verticalScrollBar().maximum())
-            save(pref, "preferences_solver_gerber.png")
+            # Solver and Gerber import are sections of their own: one picture with the two pages one above the other
+            grabs = []
+            for title in ("Solver", "Gerber import"):
+                pref.sections.setCurrentRow(pref.section_titles().index(title))
+                app.processEvents()
+                grabs.append(pref.grab())
+            sheet = QPixmap(grabs[0].width(), sum(g.height() for g in grabs))
+            painter = QPainter(sheet)
+            y = 0
+            for g in grabs:
+                painter.drawPixmap(0, y, g)
+                y += g.height()
+            painter.end()
+            path = os.path.join(out_dir, "preferences_solver_gerber.png")
+            sheet.save(path)
+            shrink(path)
+            written.append(path)
             pref.close()
         dlg.close()
         win.doc.stack.setClean()

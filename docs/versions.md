@@ -191,7 +191,7 @@ What was checked in the in-app help (`pcbthermal/help/index.html`, `calculator.h
 | About box | no | no | no | ok (no new data) |
 | Power Calculator speed | not user-visible | no | no | not documented on purpose |
 
-Screenshots: all pictures of `docs/images` were regenerated on the final 2.5.0 tree with `examples/make_screenshots.py` (quantised to 256 colours and at most 1400 px wide by `shrink`), and the import window (steps 1 to 3, the re-import dialog), the imported RP2040 board in the editor and in the results (light and dark), the live warnings under Run and the Solver and Gerber boxes of Preferences were added with `examples/make_screenshots.py --import <folder>`; the guide ships nine of them beside `index.html`. Only the RP2040 minimal design (BSD-3-Clause) appears in an image. `tests/test_help.py` and `tests/test_tooltips.py` are the gates.
+Screenshots: all pictures of `docs/images` were regenerated on the final 2.5.0 tree with `examples/make_screenshots.py` (quantised to 256 colours and at most 1400 px wide by `shrink`), and the import window (steps 1 to 3, the re-import dialog), the imported RP2040 board in the editor and in the results (light and dark), the live warnings under Run and the Solver and Gerber import sections of Preferences were added with `examples/make_screenshots.py --import <folder>`; the guide ships nine of them beside `index.html`. Only the RP2040 minimal design (BSD-3-Clause) appears in an image. `tests/test_help.py` and `tests/test_tooltips.py` are the gates.
 
 ## Planned
 
