@@ -51,13 +51,17 @@ def hotspots(result, threshold):
 def gradient_magnitude(result):
     """!
     @brief Magnitude of the in-plane temperature gradient of every layer.
+    @details A Lumped or Analytic result of a board with an outline is the field of the rectangle of the same area stretched by 1/s onto
+             the box (`SteadyResult.equivalent_scale`); its gradient is taken on the spacing that was solved (dx s, dy s), since the stretched
+             spacing would make it s times too small.
     @param result A SteadyResult with a field.
     @return Array (layers, ny, nx) in K/mm.
     """
     _require_field(result)
+    s = result.equivalent_scale or 1.0
     g = np.empty_like(result.T)
     for l in range(result.T.shape[0]):
-        gy, gx = np.gradient(result.T[l], result.dy * 1000.0, result.dx * 1000.0)
+        gy, gx = np.gradient(result.T[l], result.dy * s * 1000.0, result.dx * s * 1000.0)
         g[l] = np.hypot(gx, gy)
     return g
 

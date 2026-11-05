@@ -13,7 +13,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Any board shape**: an outline polygon (presets, vertex table, drawing tool) in the FVM, FDM and 3D solid.
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).
 - **Metal blocks** (heat spreaders with an interface resistance, optional fins) in all five models (the Lumped and Analytic have them in steady state only), plated vias (hollow or filled), heatsinks.
-- **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general (default) and a laminar form (`Board.natural_form`).
+- **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general and a laminar form (`Board.natural_form`; the laminar form is the default of new projects, old files keep the general one, and a low face Rayleigh number is warned).
 - **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically (a part over bare laminate is read at its face); animation of the heat evolution with GIF export.
 
 **Tools**
@@ -22,8 +22,11 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Simulations run in a separate process**: the window never freezes, a run can be **cancelled** at any moment and nothing is left running when you close the program.
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.
 - **Memory guard**: the memory of every finite model (FVM, FDM, 3D solid) is estimated from its unknown count before anything is allocated; a run above the **Memory limit** (Preferences, 60 % of the physical memory by default) is refused with the cell that fits, the solver panel shows the verdict and Auto picks a cell that fits.
-- **Gerber reader** (a package, `pcbthermal.gerber`, **no interface yet**): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, with the copper rasterised to a one-byte coverage per pixel; refuses what it cannot draw naming the file and the feature (`docs/models.md` 19, `docs/theory.md` 1.6).
-- **Input checks** that warn when a model is doubtful (heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, ...).
+- **Gerber reader** (`pcbthermal.gerber`, used by **File - Import Gerber board**, `docs/models.md` 19.4): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, with the copper rasterised to a one-byte coverage per pixel; refuses what it cannot draw naming the file and the feature (`docs/models.md` 19, `docs/theory.md` 1.6). It also recognises which CAD program wrote a set of files (KiCad, Altium, EAGLE, Allegro and others) from their headers, only to propose layer names, never to decide (`docs/models.md` 19.3).
+- **Gerber import window** (**File - Import Gerber board**, three steps: files and layers, parts, model): parts from the paste layers, the placement file and X3 component layers, with the heat source shaped as the exposed pad or tab (proposed for QFN, DFN, SOT-223, DPAK), the convex hull or the bounding box; plated holes become vias; re-import with Replace, Update or Add files keeps what you did in the editor; a project with imports is saved in **project format 2** (needs 2.5.0 or later; older programs refuse it, `.bak` copies are kept). The user guide has a walkthrough, a glossary of the warnings and a table of what is validated and what is not.
+- **Imported copper**: the copper of each layer from the files, mapped to the finite-volume and finite-difference conductances by the flow-based faces on the laminate-reduced sheet (View - Imported copper draws it in the editor); the Lumped and Analytic models warn that they read 1 to 16 % too cool.
+- **Input checks**, live under the Run button (one line per warning, the full measured text on hover): heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, the limits of the selected models and the via warnings; what only a run can know (thick plates, close fins, low Rayleigh number, the Lumped zone model) is added to the Results summary.
+- **Laminate options**: the longest sub-gap and the most sub-gaps of the laminate between copper nodes (FVM and FDM; Simulation panel and `run --laminate-s-max-mm`, `--laminate-n-max`).
 - **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON that store every parameter (saved atomically, with a `.bak` copy when a save changes the format; a project with imported boards uses format 2 and needs 2.5.0 or later).
 
 ![Editor](docs/images/editor.png)
@@ -74,7 +77,8 @@ python3 -m venv .venv
 .venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
-.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --memory-fraction 0.5   # limit of this run; exit code 3 if a model is refused
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --memory-fraction 0.5   # limit of this run; exit code 3 if a model is refused (PCBTHERMAL_MEMORY_BYTES states the memory when it is not visible)
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --laminate-s-max-mm 0.2 --laminate-n-max 8 --natural-form laminar
 .venv/bin/python -m pcbthermal --version
 .venv/bin/python -m pytest -q tests
 ```
@@ -94,6 +98,14 @@ sim.save("results")               # report, JSON, CSV fields, figures
 ![Power profile](docs/images/power_profile.png)
 
 ![Time simulation](docs/images/results_power_profile.png)
+
+## Help us test your CAD tool
+
+PCB Thermal Lab reads Gerber, Excellon and placement files with its own reader, and recognises the program that wrote them from the headers of the files. It was tested on files from KiCad, Altium, EAGLE, Allegro, Xpedition and several others (the honest list, with the number of sample sets of each, is in `docs/models.md` 19.3). Not tested: Zuken CR-8000 and CR-5000, CADSTAR, PADS Professional, Allegro X, OrCAD X, a recent Xpedition, EasyEDA Pro, Horizon. If you use one of them or a version we have not seen, a sample helps more than anything else.
+
+* **What to send**: one complete fabrication output (Gerber, drill and placement files, and the output settings if you can) of a board you are free to share, such as a demonstration or open-hardware board. If you cannot share a board, the first 30 lines of one copper Gerber and one drill file are already useful. Remove or replace anything private first (file headers may hold a user name, a computer name or a folder path).
+* **How**: open an issue on the project's GitHub page and attach the files, or say there how you would rather send them. The program never uploads anything: no file leaves your computer unless you send it.
+* **What we do with it**: we only read which program wrote the files and how it writes them (the header lines, the units and formats, the names of the layers) and check that the reader understands them. We do not commit your files to the repository or publish them; we keep only the counts and the conventions we learned, and we credit you if you wish. Tell us the licence under which we may keep the files for testing.
 
 ## Documentation
 

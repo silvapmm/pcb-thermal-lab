@@ -13,9 +13,10 @@ of every warning says what is wrong and what to do.
 import math
 
 import numpy as np
+from scipy import ndimage
 
-from . import blocks, convection, copper, lumped, viaconstriction, viawell
-from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, polygon_area, polygon_centroid, polygon_self_intersects
+from . import blocks, convection, copper, laminate, lumped, viaconstriction, viawell
+from .geometry import coverage_fraction, part_board_share, points_in_polygon, polygon_overlap_area, bbox_overlap_pairs, polygon_area, polygon_centroid, polygon_self_intersects
 from .numfmt import num
 
 # A plate under a source is called thick when the through-thickness drop q'' t / (2 k) exceeds this fraction of the heater's rise
@@ -131,18 +132,20 @@ def check_problem(problem, cell_mm=1.0):
                            "Lumped and Analytic models are unreliable here, use the FVM.",
                      f"{name}: a copper edge crosses its footprint (fill {f_mean:.2f}); use the FVM.")
 
-    for i in range(len(problem.heaters)):
-        for j in range(i + 1, len(problem.heaters)):
-            hi, hj = problem.heaters[i], problem.heaters[j]
-            if hi.layer == hj.layer and heater_poly[i] is not None and heater_poly[j] is not None:
-                # Exact area of the intersection of the two footprints: the 4 x 4 cover of each cell made neighbours 0.3 mm apart "overlap" when
-                # both covers touched the same cell
-                overlap = polygon_overlap_area(hi.polygon, hj.polygon)
-                small = min(polygon_area(hi.polygon), polygon_area(hj.polygon))
-                if overlap > 0.05 * small:
-                    _add(out, "heater", i, f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap on layer "
-                               f"{hi.layer + 1} ({100 * overlap / small:.0f} % of the smaller footprint): their power densities add up.", f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap "
-                               f"({100 * overlap / small:.0f} % of the smaller).")
+    # Only the pairs whose bounding boxes overlap can overlap (polygon_overlap_area returns 0 for the others at once), found by a sweep so that
+    # a board with hundreds of parts does not pay for every pair; the pairs come in the order of the double loop, so the warnings keep their order
+    areas = [polygon_area(h.polygon) if p is not None else 0.0 for h, p in zip(problem.heaters, heater_poly)]
+    for i, j in bbox_overlap_pairs(heater_poly):
+        hi, hj = problem.heaters[i], problem.heaters[j]
+        if hi.layer == hj.layer:
+            # Exact area of the intersection of the two footprints: the 4 x 4 cover of each cell made neighbours 0.3 mm apart "overlap" when
+            # both covers touched the same cell
+            overlap = polygon_overlap_area(hi.polygon, hj.polygon)
+            small = min(areas[i], areas[j])
+            if overlap > 0.05 * small:
+                _add(out, "heater", i, f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap on layer "
+                           f"{hi.layer + 1} ({100 * overlap / small:.0f} % of the smaller footprint): their power densities add up.", f"{hi.name or f'Heater {i + 1}'} and {hj.name or f'Heater {j + 1}'} overlap "
+                           f"({100 * overlap / small:.0f} % of the smaller).")
 
     # A via is judged by its drill disc against the outline (or the box): no board under it = ignored by every model; less than half = mostly off
     for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
@@ -199,10 +202,9 @@ def check_problem(problem, cell_mm=1.0):
         face = 0 if (s.layer == 0 or b.layers == 1) else 1
         block_cov.setdefault(face, []).append((name, s.polygon))
     for face, items in block_cov.items():
-        for i in range(len(items)):
-            for j in range(i + 1, len(items)):
-                if polygon_overlap_area(items[i][1], items[j][1]) > 1e-10:      # Exact; 1e-10 m2 is 0.0001 mm2 (touching blocks do not overlap)
-                    _add(out, None, None, f"{items[i][0]} and {items[j][0]} overlap: in the overlap only the later one is used.")
+        for i, j in bbox_overlap_pairs([np.asarray(it[1], dtype=float) for it in items]):
+            if polygon_overlap_area(items[i][1], items[j][1]) > 1e-10:      # Exact; 1e-10 m2 is 0.0001 mm2 (touching blocks do not overlap)
+                _add(out, None, None, f"{items[i][0]} and {items[j][0]} overlap: in the overlap only the later one is used.")
 
     if problem.total_power() <= 0:
         _add(out, None, None, "The total heater power is zero: the board stays at ambient temperature.")
@@ -224,7 +226,8 @@ def check_input(problem, models, cell_mm=1.0):
     @return List of warning strings (CheckWarning, tagged with the element) in the order validity, model limits, vias.
     """
     models = tuple(models)
-    return check_problem(problem, cell_mm) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
+    return (check_problem(problem, cell_mm) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
+            + check_via_partial_copper(problem, models, cell_mm))
 
 
 # Models whose layered idealisation has no vertical path through a bare cell of a gap (research/bare-spot-under-source, INTEGRATION P3)
@@ -436,6 +439,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
                      f"{h.name or f'Heater {k + 1}'}: the part sits on bare laminate (fill {f_core:.2f}); the layered models read low (the FVM up to 10 %); "
                      "use the 3D solid.")
 
+    out.extend(check_small_part_laminate(problem, models, cell_mm))
+
     if not problem.vias or b.layers < 2:
         return out                                              # A one-layer board has no gap: its vias join nothing and change no model
 
@@ -461,8 +466,8 @@ def check_model_limits(problem, models, cell_mm=1.0):
                     # What will_be_zoned builds by itself for every part: the equivalent rectangle of an outline (the board the Lumped model solves) and the vias on the board
                     zp = problem.equivalent_rectangle()[0] if b.has_outline() else problem
                     kept = zp.drop_off_board_vias()
-                    zone_board = (zp, viaconstriction.ViaSet(kept) if len(kept.vias) >= 2 else None)
-                zoned = lumped.will_be_zoned(zone_board[0], zone_board[0].heaters[k], vias=zone_board[1])
+                    zone_board = (kept, viaconstriction.ViaSet(kept) if len(kept.vias) >= 2 else None)
+                zoned = lumped.will_be_zoned(zone_board[0], zone_board[0].heaters[k], vias=zone_board[1], prepared=True)
                 if zoned:
                     # The numbers of the zone model (research/lumped-zones-adoption INTEGRATION 0.1: 36 family and 26 held-out boards against 1/8 mm references)
                     _add(out, "heater", k, f"{h.name or f'Heater {k + 1}'}: {n_in} via{'s' if n_in > 1 else ''} under the footprint; the Lumped "
@@ -530,6 +535,185 @@ def check_model_limits(problem, models, cell_mm=1.0):
             _add(out, None, None, "Analytic model: one or two vias beside or under a part were measured up to 16 % too small in the via effect "
                                   "(an effect of 1 to 4 K; the tile is 1 mm and the barrel is read at its scale); use the FVM for the value.",
                  "Analytic model: one or two vias were measured up to 16 % too small in the via effect; use the FVM.")
+    return out
+
+
+SMALL_PART_RATIO = 0.15       # Bare laminate under the part: a sub-layer thicker than this times the side of the part reads it too cool by more than about 4 % (research/paper-case-studies 16.3; review)
+SMALL_PART_RATIO_PAD = 0.10   # A copper pad of the part's size under it: the error of the layered rule is larger at the same ratio and passes about 4 % near 0.1 (review, FVM 0.25 mm in air)
+SMALL_PART_AGGREGATE = 3      # More parts than this in one group give one aggregated message
+SOLID3D_SLABS = 4             # Slabs per dielectric gap of the 3D solid as the API builds it (solid3d.solve_steady, n_diel)
+
+
+def _spread_side(fill_layer, foot, side, dx, dist=None):
+    """!
+    @brief The side of the region through which the heat of a part enters the laminate: the part itself on bare laminate, or the part grown by the copper around it.
+    @details The heat of a part over a copper pad or plane first spreads in that copper, so the length that the sub-layer must resolve is the copper around the part, not the
+             part (review: a 2 mm part on a 3 mm or 4 mm pad reads the same error as a 3 mm or 4 mm part on its own pad; under a full plane the error is 0.02 %). The copper
+             cells are those of fill 0.5 or more on the layer of the part; r is the smallest distance from a cell of the footprint to a cell without copper, less 1.5 cells so
+             that a coarse raster does not grow a pad that has the size of the part (the error of the rounding falls on the side of a warning).
+    @param fill_layer Copper fill (ny, nx) of the layer of the part.
+    @param foot Boolean (ny, nx) of the cells of the footprint (mostly covered).
+    @param side Smaller side of the part in m.
+    @param dx Cell size of the raster in m.
+    @param dist Distance transform of the copper cells of the layer (computed when None; the caller keeps one per layer).
+    @return float Side in m (at least side).
+    """
+    cu = fill_layer >= 0.5
+    if not cu.any() or not (foot & cu).any():
+        return side
+    if cu.all():
+        return math.inf                                          # A plane over the whole board: nothing limits the spread
+    dist = ndimage.distance_transform_edt(cu) if dist is None else dist   # Cells from every copper cell to the nearest cell without copper
+    r = max(0.0, float(dist[foot & cu].min()) - 1.5) * dx
+    return side + 2.0 * r
+
+
+def small_part_ratios(problem, models, cell_mm=1.0):
+    """!
+    @brief For every part that sits on a laminate sub-layer thick against its size: the ratio of the sub-layer to the side through which the heat enters the laminate, for the layered FVM/FDM rule and for the 3D solid.
+    @details The sub-layer of the FVM and FDM is s = d / n with n = min(laminate_n_max, ceil(d / laminate_s_max_mm)) (laminate.n_for_gap, the options in force) and counts only when the rule
+             cuts the gap under the part: some cell of the footprint is flagged by laminate.flag_cells (copper absent next to the gap, plus its margin; the raster is that of the check,
+             so the margin can differ from the run's by a cell) and the board has no metal block (which keeps the earlier treatment). The sub-layer of the 3D solid is d / 4 (SOLID3D_SLABS) and
+             is always present. d is the gap on each side of the layer of the part; the larger ratio is kept. The side is the smaller extent of the bounding box of the footprint, grown by
+             the copper around the part on its layer (_spread_side): a part over a plane is silent. The limit is SMALL_PART_RATIO on bare laminate (the centre of the footprint without copper,
+             as in the bare-laminate warning) and, for the layered rule over copper, SMALL_PART_RATIO_PAD; the 3D solid uses SMALL_PART_RATIO in both cases (4 against 16 slabs: +3.5 % bare,
+             +4.1 % pad at 0.15, +2.5 % pad at 0.10).
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run.
+    @param cell_mm Cell size (mm) of the raster used for the geometric tests.
+    @return List of tuples (heater index, model group "layered" or "solid3d", sub-layer in m, side in m, ratio, limit) for the ratios above their limit.
+    """
+    models = set(models)
+    layered = bool(models & {"fvm", "fdm"}) and laminate.uses_rule(problem)
+    solid = "solid3d" in models
+    b = problem.board
+    if not (layered or solid) or not problem.heaters:
+        return []
+    L = b.layers
+    if L == 1:
+        gaps = [(0, float(b.slab_thicknesses()[0]) - float(np.asarray(b.copper_thickness, dtype=float)[0]))]
+    else:
+        gaps = list(enumerate(float(d) for d in b.gap_thicknesses()))
+    s_max, n_max = laminate.parameters()
+    W, H = b.width, b.height
+    nx = max(int(round(W * 1000.0 / cell_mm)), 8)
+    ny = max(int(round(H * 1000.0 / cell_mm)), 8)
+    dx, dy = W / nx, H / ny
+    low = min(SMALL_PART_RATIO, SMALL_PART_RATIO_PAD)
+    fill = None                                                  # Copper fill of every layer, built only when a part passes the cheap ratio test
+    flagged_of, dist_of = {}, {}                                 # Per gap and per layer: computed once for all the parts (a Gerber board has hundreds)
+    found = []
+    for k, h in enumerate(problem.heaters):
+        poly = np.asarray(h.polygon, dtype=float)
+        if len(poly) < 3 or polygon_area(h.polygon) <= 0:
+            continue
+        side = float(min(np.ptp(poly[:, 0]), np.ptp(poly[:, 1])))
+        if side <= 0:
+            continue
+        # The gaps next to the layer of the part (a one-layer board: its laminate)
+        near = [g for g in gaps if L == 1 or g[0] in (h.layer - 1, h.layer)]
+        subs = {"layered": [(g, d, laminate.n_for_gap(d, s_max, n_max)) for g, d in near] if layered else [],
+                "solid3d": [(g, d, SOLID3D_SLABS) for g, d in near] if solid else []}
+        # Cheap test first: the side only grows with the copper and the lowest limit is `low`, so a part below it for every gap needs no raster
+        if not any(d / n > low * side * (1.0 + 1e-9) for v in subs.values() for _, d, n in v):
+            continue
+        if fill is None:
+            fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+        cov = coverage_fraction(h.polygon, nx, ny, dx, dy, 4)
+        foot = cov > 0
+        if not foot.any():
+            continue                                             # Off the board: check_problem says so
+        c = np.asarray(polygon_centroid(h.polygon))
+        core = coverage_fraction(c + 0.5 * (poly - c), nx, ny, dx, dy, 4) > 0
+        if not core.any():
+            core = foot
+        over_copper = float(fill[h.layer][core].min()) >= 0.5   # The same test as the bare-laminate warning
+        mostly = cov >= 0.5
+        eff = side
+        if over_copper:
+            cu = fill[h.layer] >= 0.5
+            if h.layer not in dist_of and cu.any() and not cu.all():
+                dist_of[h.layer] = ndimage.distance_transform_edt(cu)
+            eff = _spread_side(fill[h.layer], mostly if mostly.any() else foot, side, dx, dist_of.get(h.layer))
+        for model in ("layered", "solid3d"):
+            limit = SMALL_PART_RATIO_PAD if (model == "layered" and over_copper) else SMALL_PART_RATIO
+            best = None
+            for g, d, n in subs[model]:
+                sub = d / n
+                if sub <= limit * eff * (1.0 + 1e-9):
+                    continue
+                if model == "layered":
+                    if n < 2:
+                        continue
+                    if g not in flagged_of:
+                        fb = None if L == 1 else fill[g + 1]
+                        flagged_of[g] = laminate.flag_cells(fill[g], fb, d, dx, np.ones((ny, nx), dtype=bool))
+                    if not (flagged_of[g] & foot).any():
+                        continue                                  # The gap stays one link under this part: the rule does not apply
+                if best is None or sub > best[0]:
+                    best = (sub, d)
+            if best is not None:
+                found.append((k, model, best[0], eff, best[0] / eff, limit))
+    return found
+
+
+def check_small_part_laminate(problem, models, cell_mm=1.0):
+    """!
+    @brief Warnings for a small part over a thick insulating layer: the layered FVM/FDM laminate rule and the 3D solid with four slabs read it too cool or too hot (text only).
+    @details Measured against an extrapolated 3D reference and, on bare laminate, the closed form of Muzychka, Yovanovich and Culham (research/paper-case-studies 11.3, 16.3, 16.4;
+             FVM at 0.25 mm). Layered rule, error against the ratio of the sub-gap s = d / n to the side of the part (always too cool, only where the gap is cut under the part):
+             0.15 to 0.2: -4 to -9 % bare, -6 to -14 % with a copper pad; 0.3 to 0.4: -12 to -20 % bare, -14 to -24 % pad; the review measured the part's rise in air
+             (20 mm two-layer board, h 10 / 15 W/m2K, against the FVM extrapolated in its sub-gaps): bare -3.4 % at 0.14, -4.1 to -4.3 % at 0.16, pad -4.3 to -4.8 % at 0.08 to 0.09,
+             -5.4 % at 0.10 and -6.3 to -7.4 % at 0.12 to 0.14, so the limit over copper is 0.10. A pad larger than the part counts by its own size; a plane under the part is silent.
+             With the default rule it fires on bare laminate for parts under about 2.5 mm on a 1.6 mm board and 5.2 mm on a 3.2 mm board, over a pad of the part's size under 3.8 and 7.8 mm.
+             A smaller laminate_s_max_mm or a larger laminate_n_max reduces it ((0.2, 8): 1.4 to 4.6 times the time and 1.2 to 3 times the memory).
+             The 3D solid cuts every gap into four slabs and reads a 2 mm part up to +20 % (bare) and +27 % (pad) hot on 3.2 mm (+5.5 and +14.7 % on 1.6 mm); the test is d / 4 against
+             0.15 of the side. No result depends on it.
+    @param problem A Problem (structurally valid).
+    @param models Iterable of model keys that will run.
+    @param cell_mm Cell size (mm) of the raster used for the geometric tests.
+    @return List of warnings (CheckWarning, tagged with the heater): one per part and model group, or one for the whole group (kind None, the five worst named) when more than SMALL_PART_AGGREGATE parts qualify.
+    """
+    out = []
+    found = small_part_ratios(problem, models, cell_mm)
+    # More than SMALL_PART_AGGREGATE parts of one group (a Gerber board can have hundreds over pads): one message for the group, worst first
+    for model in ("layered", "solid3d"):
+        group = [f for f in found if f[1] == model]
+        if len(group) <= SMALL_PART_AGGREGATE:
+            continue
+        group.sort(key=lambda f: -f[4])
+        worst = ", ".join(f"{problem.heaters[f[0]].name or f'Heater {f[0] + 1}'} ({f[4]:.2f})" for f in group[:5])
+        limit = min(f[5] for f in group)
+        if model == "layered":
+            s_max, n_max = laminate.parameters()
+            what = (f"the layered FVM and FDM read them too cool (4 to 24 % of the thermal resistance, more over a pad); a smaller laminate_s_max_mm (now {num(s_max * 1e3, 2)} mm) "
+                    f"or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8)")
+            short_what = "the FVM and FDM read them too cool (4 to 24 %); reduce laminate_s_max_mm"
+        else:
+            what = "the 3D solid, with four slabs per insulating layer, reads them too hot (up to +20 % bare and +27 % over a pad on 3.2 mm laminate)"
+            short_what = "the 3D solid reads them too hot (up to +27 %)"
+        _add(out, None, None, f"{len(group)} parts are small against the sub-layer of laminate under them (ratio above {limit:.2f}; the worst, with their ratios: {worst}); {what}.",
+             f"{len(group)} small parts over a thick laminate (worst: {worst}); {short_what}.")
+    found = [f for f in found if sum(1 for g in found if g[1] == f[1]) <= SMALL_PART_AGGREGATE]
+    for k, model, sub, side, ratio, limit in found:
+        h = problem.heaters[k]
+        name = h.name or f"Heater {k + 1}"
+        size = f"{num(side * 1e3, 2)} mm" if math.isfinite(side) else "large"
+        if model == "layered":
+            s_max, n_max = laminate.parameters()
+            over = "over a copper pad" if limit == SMALL_PART_RATIO_PAD else "on bare laminate"
+            _add(out, "heater", k, f"{name}: the part is small ({size}, {over}) against the sub-layer of laminate under it ({num(sub * 1e3, 2)} mm, ratio {ratio:.2f} "
+                       f"above {limit:.2f}); the layered FVM and FDM read it too cool: measured -4 to -9 % of the thermal resistance bare and -6 to -14 % over a copper pad "
+                       "at a ratio of 0.15 to 0.2, -12 to -24 % at 0.3 to 0.4 (over a pad already -5 % at 0.1). A smaller laminate_s_max_mm (now "
+                       f"{num(s_max * 1e3, 2)} mm) or a larger laminate_n_max (now {n_max}) reduces it, at 1.4 to 4.6 times the time and 1.2 to 3 times the memory for (0.2 mm, 8). "
+                       "The 3D solid, with its four slabs per insulating layer, reads such a part too hot instead, so it is not the answer here.",
+                 f"{name}: small part over a thick laminate; the FVM and FDM read it too cool (ratio {ratio:.2f}, about 4 to 24 %); "
+                 "reduce laminate_s_max_mm.")
+        else:
+            _add(out, "heater", k, f"{name}: the part is small ({size}) against the slabs of the 3D solid ({num(sub * 1e3, 2)} mm, four per insulating layer, ratio {ratio:.2f} "
+                       f"above {limit:.2f}); the solid reads it too hot: measured up to +20 % bare and +27 % over a pad on 3.2 mm laminate under a 2 mm part at 0.25 mm "
+                       "(+5 and +15 % on 1.6 mm; 8 slabs: +5 and +13 %; 16 slabs: +0.4 and +8 %). The slabs of the API are fixed at four per layer.",
+                 f"{name}: small part on a thick laminate; the 3D solid (four slabs per layer) reads it too hot, up to +20 to +27 %.")
     return out
 
 
@@ -775,13 +959,18 @@ def check_via_limits(problem, models, cell_mm):
     @brief Warnings about the vias on the grid: a via touching the edge of the board, and a cell too coarse for the vias (FVM and FDM).
     @details The mean-potential via of the FVM and FDM (viawell.py) converges as the cell shrinks, but
              * its kernel has no image of the board edge, so a via within one cell of the edge of the box or of the outline is clipped and its effect is
-               too large (research/via-real-board, README 3.1: +12 to +15 % for a via 0.16 mm from the edge at a 1 mm cell);
+               too large (research/via-real-board, README 3.1: +12 to +15 % for a via 0.16 mm from the edge at a 1 mm cell). The FVM now adds the mirror image
+               of a straight edge (viawell.edge_term; research/via-edge-image: +14.5 % becomes +0.7 %), so the warning stays only for what it does not
+               cover cleanly (a slanted, curved or short outline side or a reflex corner within six cells, where the image is partial or left out and
+               the via effect was measured -6 to +12 % off at 1 mm, docs/validation.md 28.1; a cell of 2 mm or more, where the image is applied but
+               the via is a fraction of a cell, +3 to +4 % at 2 mm; a via centre within its radius of the edge) and for the FDM (-4.5 to -10 % at
+               1 mm) and the 3D solid (about +19 points), which have no image;
              * from a 2 mm cell the via is a fraction of a cell and the position of its centre inside the cell moves the answer. Measured on the example
                board (9 vias, the drop of the hottest temperature caused by the vias, 9.6 K at 0.25 mm): FVM -2.9 % at 2 mm, -0.3 % at 0.5 mm, FDM -4.0 % at
                2 mm, -0.2 % at 0.5 mm, and at 3 and 4 mm the error is between -5 and +16 % (FVM) and -22 and -49 % (FDM), by the position of the vias
                (the FDM -41 % first measured at 3 mm had the footprints up to one cell off in y, where dy differs from dx).
     @param problem The Problem.
-    @param models Model keys that will run (the cell warning applies to "fvm" and "fdm").
+    @param models Model keys that will run (the cell warning applies to "fvm" and "fdm", the edge warning to "fvm", "fdm" and "solid3d").
     @param cell_mm Cell size in mm.
     @return List of warning strings (empty when nothing is doubtful).
     """
@@ -792,19 +981,150 @@ def check_via_limits(problem, models, cell_mm):
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
     dx, dy = b.width / nx, b.height / ny
-    if any(m in ("fvm", "fdm") for m in models):
-        # The edge test reads the cells of the FVM/FDM grid; the 3D solid has the same footprint rule, so the warning is for the layered grids and the 3D
+    if any(m in ("fvm", "fdm", "solid3d") for m in models):
+        # The edge test reads the cells of the FVM/FDM grid (the 3D solid has the same footprint rule). The FVM gives the via the mirror image of a straight
+        # edge (viawell.edge_term, at every cell); the warning is dropped only for a clean neighbourhood at a cell finer than VIA_COARSE_CELL_MM, and the
+        # FDM and the 3D solid keep it.
         edge = viawell.edge_via_indices(problem, nx, ny, dx, dy, b.cover(nx, ny, dx, dy))
-        for k in edge[:5]:
+        others = bool({"fdm", "solid3d"} & set(models))
+        todo = []
+        for k in edge:
             v = problem.vias[k]
-            _add(out, "via", k, f"{v.name or f'Via {k + 1}'}: via touching the board edge (within one cell of the edge). The cut footprint has no image of the edge, so "
-                                "its effect can be too large by 12 to 15 % at a 1 mm cell; use a finer cell or read the result near it with care.",
-                 f"{v.name or f'Via {k + 1}'}: via within one cell of the board edge; its effect can be 12 to 15 % too large at 1 mm.")
-        if len(edge) > 5:
-            _add(out, None, None, f"{len(edge) - 5} more vias touch the board edge (see above).")
+            covered = False
+            if "fvm" in models and cell_mm < VIA_COARSE_CELL_MM:
+                walls, clean = viawell.edge_walls(problem, v, viawell.EDGE_REACH_CELLS * max(dx, dy))
+                # A via whose centre is within its own radius of the wall is cut by the edge: the image is taken at the radius, not at the centre
+                covered = bool(walls) and clean and all(abs((v.x if a == "x" else v.y) - q) >= v.diameter / 2.0 for a, q in walls)
+            if others or ("fvm" in models and not covered):
+                todo.append((k, covered))
+        for k, covered in todo[:5]:
+            v = problem.vias[k]
+            name = v.name or f"Via {k + 1}"
+            if "fvm" in models and not covered:
+                _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM corrects the cut footprint with the mirror image of a straight "
+                                    "edge of the board (or of an axis-parallel side of an outline), but here the correction is partial: a slanted, curved or short side or a "
+                                    "reflex corner is near, the via centre is within its radius of the edge, or the cell is 2 mm or more. The via effect can be off by about "
+                                    "-6 to +15 % at a 1 mm cell; use a finer cell or read the result near it with care.",
+                     f"{name}: via within one cell of the board edge; its effect can be off by -6 to +15 % at 1 mm.")
+            else:
+                _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM treats it with the mirror image of the edge, but the FDM "
+                                    "(half-volume edge nodes) has no image and reads the via effect 4 to 10 % too small at a 1 mm cell, and the 3D solid has none and reads it about "
+                                    "19 points too large; use the FVM, or a finer cell, for the part near it.",
+                     f"{name}: via within one cell of the board edge; FDM and 3D solid have no image of the edge (effect 4 to 10 % too small and about 19 points too large at 1 mm).")
+        if len(todo) > 5:
+            _add(out, None, None, f"{len(todo) - 5} more vias touch the board edge (see above).")
     if cell_mm >= VIA_COARSE_CELL_MM and any(m in ("fvm", "fdm") for m in models):
         _add(out, None, None, f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias: a via is a fraction of a cell, so the temperature drop they cause is uncertain "
                               "by about 3 to 4 % at 2 mm and by 5 to 50 % at 3 to 4 mm, depending on where each via falls in its cell (example board: 9 vias, "
                               "-3 % FVM and -4 % FDM at 2 mm, within 0.5 % at 0.5 mm). Use 1 mm or finer.",
              f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias (3 to 50 % uncertainty in their effect); use 1 mm or finer.")
+    return out
+
+
+PARTIAL_MIN_SHARE = 0.05    # A footprint cell takes part in the partial-copper test when it holds at least this share of the largest footprint weight (research/via-partial-copper, lib/warnrule.py)
+PARTIAL_RATIO = 0.5         # A footprint is partial in a layer when the smallest sheet conductance of the taking-part cells is below this share of the largest
+
+
+def partial_copper_vias(problem, cell_mm):
+    """!
+    @brief The vias whose footprint on the grid of a run covers a copper layer with copper over only part of it, with the worst layer of each.
+    @details The footprint is the one the FVM would use (viawell.footprint: the disc of the drill enlarged to the target radius, on the cells of the run). A footprint is
+             partial in a layer when, among the cells that hold at least PARTIAL_MIN_SHARE of the largest weight, the smallest sheet conductance per unit of board is
+             below PARTIAL_RATIO times the largest (a copper edge or a track end inside the footprint, a clearance wider than a cell). The sheet is that of the layer node
+             before the laminate rule (copper plus the in-plane FR-4 of the rest of the slab), as the cell fill gives it; it is not read from a network, so the check is
+             cheap enough for the live list. The sheet after the rule (lower in the bare cells) flags the same vias and 0 to 6 more per board on seven imported boards
+             (validation 30.2), so the rule errs on the silent side by those few. Near a straight board edge the FVM of feature/via-edge-image enlarges the footprint
+             further; this check keeps the plain footprint.
+             Why it matters (research/via-partial-copper): the via draws heat from each footprint cell in proportion to a fixed weight, so on a partial footprint the
+             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread in both directions: 31 to 68 % low for a copper edge
+             through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser.
+    @param problem The Problem.
+    @param cell_mm Cell size in mm.
+    @return Tuple (partial, n_checked): partial is a list of (via index, layer index, ratio of the smallest to the largest sheet conductance), one entry per via
+            (its layer of the smallest ratio); n_checked is the number of vias with a footprint on the board.
+    """
+    b = problem.board
+    if not problem.vias or b.layers < 2:
+        return [], 0                                            # A one-layer board has no gap: its vias join nothing
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)          # The grid of fvm.solve: the footprint must be that of the run (the floor of 8 of the other checks gave a 5 mm board 0.625 mm cells at 1 mm)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    dx, dy = b.width / nx, b.height / ny
+    try:
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+    except ValueError:
+        return [], 0                                            # Damaged imported copper: check_problem already says so
+    cover = b.cover(nx, ny, dx, dy)
+    # Sheet conductance per unit of board of every layer node (the S of fvm.Network divided by the cover): copper plus the in-plane FR-4 of the rest of the slab
+    t_cu = np.asarray(b.copper_thickness, dtype=float)[:, None, None]
+    k_lam, _ = b.layer_laminate()
+    slab = b.slab_thicknesses()[:, None, None]
+    rel = fill * b.materials.k_copper * t_cu + k_lam[:, None, None] * (slab - fill * t_cu)
+    # Cheap prefilter: the footprint search (a bisection on the radius) costs 0.3 ms per via at a fine cell, 2.5 s for 8500 vias at 0.5 mm. A via can fire only when the sheet
+    # conductance varies by more than the ratio inside a window that contains its footprint: the disc grows to the target radius, which stays within about the drill
+    # radius plus a cell, so a window of twice the drill radius in cells plus three covers it (checked against the exact test on the study boards and the imported windows).
+    # The vias are then tested exactly only where such a window exists.
+    reach = int(math.ceil(max(v.diameter for v in problem.vias) / 2.0 / min(dx, dy))) * 2 + 3
+    size = 2 * reach + 1
+    maybe = np.zeros((ny, nx), dtype=bool)
+    on = cover > 0
+    for l in range(b.layers):
+        lo = ndimage.minimum_filter(np.where(on, rel[l], np.inf), size=size, mode="nearest")
+        hi = ndimage.maximum_filter(np.where(on, rel[l], -np.inf), size=size, mode="nearest")
+        maybe |= lo < PARTIAL_RATIO * hi
+    partial, n_checked = [], 0
+    for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
+        if share <= 0.0:
+            continue                                            # No board under the drill disc: ignored by every model
+        if not maybe[min(max(int(v.y / dy), 0), ny - 1), min(max(int(v.x / dx), 0), nx - 1)]:
+            n_checked += 1                                      # Uniform neighbourhood: counted, cannot fire (the exact test would give a footprint)
+            continue
+        w, _, _ = viawell.footprint(v.x, v.y, v.diameter / 2.0, dx, 0.0, cover, dy, 0.0)
+        if not w:
+            continue
+        n_checked += 1
+        wmax = max(w.values())
+        cells = [c for c, x in w.items() if x >= PARTIAL_MIN_SHARE * wmax]
+        rows = np.array([c[0] for c in cells])
+        cols = np.array([c[1] for c in cells])
+        vals = rel[:, rows, cols]                               # (layers, cells)
+        ratio = vals.min(axis=1) / vals.max(axis=1)
+        layer = int(np.argmin(ratio))
+        if ratio[layer] < PARTIAL_RATIO:
+            partial.append((k, layer, float(ratio[layer])))
+    return partial, n_checked
+
+
+PARTIAL_LISTED = 3          # Vias named in the partial-copper warning (the worst by the ratio); the rest are counted
+
+
+def check_via_partial_copper(problem, models, cell_mm):
+    """!
+    @brief Warning for the vias whose footprint covers a copper layer with copper over only part of it (FVM and FDM): one aggregated message with the count, the worst few and the rule.
+    @details The rule and its measurements are those of partial_copper_vias (research/via-partial-copper: 0 false alarms on the five frozen boards with vias at 2, 1 and 0.5 mm; on
+             seven imported boards it fires on 2 to 43 % of the vias, so it is a live line with the share, not a property of every via). The text does not say which way the via effect
+             is misread because it goes both ways (the FVM reads 31 to 68 % low for a copper edge through the via or a track ending on it, 3 to 4 times high for a via just outside a
+             copper edge at a cell of 0.5 mm or coarser), and the cold spot below the barrel is a numerical artefact of the fixed footprint weights.
+    @param problem The Problem.
+    @param models Model keys that will run (the warning applies to "fvm" and "fdm").
+    @param cell_mm Cell size in mm.
+    @return List of warning strings (empty or one message).
+    """
+    out = []
+    if not any(m in ("fvm", "fdm") for m in models):
+        return out
+    partial, n_checked = partial_copper_vias(problem, cell_mm)
+    if not partial:
+        return out
+    worst = sorted(partial, key=lambda t: t[2])[:PARTIAL_LISTED]
+    names = "; ".join(f"{problem.vias[k].name or f'Via {k + 1}'} (layer {layer + 1}, smallest sheet {num(100.0 * ratio, 2)} % of the largest)" for k, layer, ratio in worst)
+    more = f" and {len(partial) - len(worst)} more" if len(partial) > len(worst) else ""
+    n = len(partial)
+    _add(out, "via", worst[0][0],
+         f"{n} of {n_checked} via{'s have' if n > 1 else ' has'} copper over only part of {'their footprint' if n > 1 else 'its footprint'} on a copper layer "
+         f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
+         f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower (measured in the FVM: 31 to 68 % low for a copper edge "
+         "through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser), and the cold spot that the FVM can "
+         "show below the barrel is a numerical artefact of the footprint weights. Use a finer cell or check the via with the 3D solid.",
+         f"{n} of {n_checked} via{'s have' if n > 1 else ' has'} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "
+         "(higher or lower); use a finer cell or the 3D solid.")
     return out

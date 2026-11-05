@@ -10,17 +10,18 @@ coordinates are the board coordinates the physics core uses.
 
 import numpy as np
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import (QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
+from PySide6.QtGui import (QFontMetrics, QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
                            QTransform)
 from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPolygonItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
                                QMenu, QStyle)
 
-from .. import defaults
+from .. import copper, defaults
 from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 from ..numfmt import num
 
+COPPER_DISPLAY_PIXELS = 2048           # Longest side (pixels) of the reduced mask that is drawn under the elements
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
 
 
@@ -63,6 +64,25 @@ def _clamped_position(item, value):
     return QPointF(x, y)
 
 
+def reduced_coverage(coverage, target=COPPER_DISPLAY_PIXELS):
+    """!
+    @brief Reduce a coverage mask for display by the integer factor that brings its longest side to at most `target` pixels (block mean).
+    @details The reduction is done once per mask and cached by the canvas; only the rows and columns that fill whole blocks are used (less than one block, a fraction of a
+             percent of the board, is left out at the right and bottom edges), and the sum runs in 32 bits, so no temporary larger than the result is made.
+    @param coverage uint8 array (rows, columns), 0 to 255.
+    @param target Largest side of the result in pixels.
+    @return tuple (uint8 array (rows', columns'), factor) with factor the number of mask pixels per displayed pixel.
+    """
+    f = max(1, int(np.ceil(max(coverage.shape) / float(target))))
+    if f == 1:
+        return np.ascontiguousarray(coverage), 1
+    r, c = (coverage.shape[0] // f) * f, (coverage.shape[1] // f) * f
+    if r == 0 or c == 0:                                     # A mask thinner than one block: keep it as it is
+        return np.ascontiguousarray(coverage), 1
+    blocks = coverage[:r, :c].reshape(r // f, f, c // f, f)
+    return (blocks.sum(axis=(1, 3), dtype=np.uint32) // (f * f)).astype(np.uint8), f
+
+
 class ElementItem(QGraphicsPolygonItem):
     """!
     @brief A zone, heater or heatsink polygon on the canvas.
@@ -95,6 +115,20 @@ class ElementItem(QGraphicsPolygonItem):
             self.label.setBrush(QBrush(QColor(th.colors(self.view.theme)["on_element"])))
         self.restyle()
 
+    def lift_label(self):
+        """!
+        @brief Make the name a top-level item above the vias (z 6): as a child it would stay inside the z of its element (3) and the vias (4) would cover it.
+        @details The label takes no mouse button, so the hit-testing of the elements is unchanged; it follows the element when it moves (`itemChange`).
+        """
+        if self.label is None or self.label.parentItem() is None:
+            return
+        self._label_base = QPointF(self.label.pos())            # The element sits at the origin when the scene is built
+        self.label.setParentItem(None)
+        self.label.setZValue(6)
+        self.label.setOpacity(self.opacity())
+        self.label.setAcceptedMouseButtons(Qt.NoButton)
+        self.label.setPos(self._label_base + self.pos())
+
     def restyle(self):
         """!
         @brief Apply the fill and outline of the element kind and its selection state.
@@ -122,6 +156,8 @@ class ElementItem(QGraphicsPolygonItem):
             return _clamped_position(self, value)
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.restyle()
+        if change == QGraphicsItem.ItemPositionHasChanged and getattr(self, "_label_base", None) is not None and self.label.parentItem() is None:
+            self.label.setPos(self._label_base + self.pos())
         return super().itemChange(change, value)
 
     def paint(self, painter, option, widget=None):
@@ -299,6 +335,10 @@ class BoardView(QGraphicsView):
         self._draw_start, self._poly_pts, self._preview = None, [], None
         self._handles, self._handle_item = [], None
         self._overlay = self._background = None
+        self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
+        self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
+        self.show_imported_copper = True            # View - Imported copper
+        self.show_labels = True                     # Names of the heaters on the active layer
         self._fitted = False
 
         doc.changed.connect(self.rebuild)
@@ -361,17 +401,18 @@ class BoardView(QGraphicsView):
             sc = self.scene()
             sc.blockSignals(True)
             sc.clear()
-            self._overlay = self._background = None
+            self._overlay = self._background = self._copper_item = None
             pr = self.doc.problem
             W, H = pr.board.width * 1000.0, pr.board.height * 1000.0
             m = max(W, H) * 0.6
             sc.setSceneRect(QRectF(-m, -m, W + 2 * m, H + 2 * m))
             self._add_background()
+            self._add_imported_copper()
             active = self.layer
             for kind, lst in (("zone", pr.zones), ("heatsink", pr.heatsinks), ("heater", pr.heaters)):
                 for i, el in enumerate(lst):
                     poly = self.doc.polygon_mm(el)
-                    label = el.name if el.layer == active else ""
+                    label = el.name if el.layer == active and self.show_labels else ""
                     if kind == "heatsink" and el.is_block() and label:
                         label = f"{label} ({num(el.thickness * 1000)} mm block)"
                     it = ElementItem(self, kind, i, poly, label, el.layer)
@@ -382,6 +423,7 @@ class BoardView(QGraphicsView):
                         it.setOpacity(0.22)
                         it.setFlags(it.flags() & ~(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable))
                     sc.addItem(it)
+                    it.lift_label()
                     if (kind, i) in selected and el.layer == active:
                         it.setSelected(True)
             for i, v in enumerate(pr.vias):
@@ -393,8 +435,95 @@ class BoardView(QGraphicsView):
         finally:
             self._rebuilding = False
         self._update_handles()
+        self._fit_labels()
         self.viewport().update()
         self.selection_changed.emit(self.selected_elements())
+
+    def _add_imported_copper(self):
+        """!
+        @brief Draw the imported copper of the active layer under the elements, from a reduced mask that is built once and cached.
+        @details The item is a pixmap in the copper colour whose alpha is the coverage, placed like the raster of the import (top-left corner of the board, rows downwards), so
+                 panning and zooming only move a texture. A project without imported copper, a layer without a mask and the switch View - Imported copper off add nothing.
+        """
+        imp = self.doc.problem.imported
+        self._copper_item = None
+        if imp is None or not self.show_imported_copper or imp.pix_mm <= 0:
+            if imp is None:
+                self._copper_cache = {}                       # A project without imported copper: nothing cached is of use any more
+            return
+        # The token of a mask is its layer and its packed text (length and hash; the hash of a str is computed once and kept by Python, so this is cheap on every rebuild)
+        tokens = {(int(e.get("index", -1)), len(d), hash(d)) for e in imp.layers if copper.has_mask(e) for d in (str(e["mask"].get("data", "")),)}
+        # Keep only the pixmaps of the masks of the open problem in the current theme: a new import, a re-import, another project or a theme change drops the old ones
+        # (without this every import added up to 16 MB per layer visited to the cache for the life of the window)
+        self._copper_cache = {k: v for k, v in self._copper_cache.items() if k[3] == self.theme and k[:3] in tokens}
+        entry = next((e for e in imp.layers if int(e.get("index", -1)) == self.layer and copper.has_mask(e)), None)
+        if entry is None:
+            return
+        data = str(entry["mask"].get("data", ""))
+        key = (self.layer, len(data), hash(data), self.theme)
+        if key not in self._copper_cache:
+            try:
+                red, f = reduced_coverage(copper.unpack_coverage(entry["mask"]))
+            except ValueError:                                # A damaged mask: the canvas shows no copper rather than failing
+                return
+            col = QColor(th.colors(self.theme)["copper"])
+            rgba = np.zeros(red.shape + (4,), np.uint8)
+            rgba[..., 0], rgba[..., 1], rgba[..., 2], rgba[..., 3] = col.red(), col.green(), col.blue(), red
+            img = QImage(rgba.data, red.shape[1], red.shape[0], 4 * red.shape[1], QImage.Format_RGBA8888)
+            self._copper_cache[key] = (QPixmap.fromImage(img), imp.pix_mm * f)    # fromImage copies, so rgba may go
+        pm, mm = self._copper_cache[key]
+        item = QGraphicsPixmapItem(pm)
+        # Smooth (bilinear) sampling: seen whole, a displayed pixel covers several pixels of the pixmap and the nearest-pixel default would drop or alias the thin tracks;
+        # measured on the 10.8 Mpx board, the frame costs the same (about 10 ms whole, 2 to 3 ms zoomed in, offscreen)
+        item.setTransformationMode(Qt.SmoothTransformation)
+        item.setTransform(QTransform().scale(mm, -mm))            # Rows go downwards, the scene upwards
+        item.setPos(0.0, self.doc.problem.board.height * 1000.0)
+        item.setOpacity(0.55)
+        item.setZValue(0.3)                                       # Over the background photo, under the temperature map and the elements
+        item.setAcceptedMouseButtons(Qt.NoButton)
+        self.scene().addItem(item)
+        self._copper_item = item
+
+    def set_show_imported_copper(self, on):
+        """!
+        @brief Show or hide the imported copper (View - Imported copper).
+        @param on True to show.
+        """
+        self.show_imported_copper = bool(on)
+        self.rebuild()
+
+    def set_show_labels(self, on):
+        """!
+        @brief Show or hide the names of the elements: zones, heatsinks and heaters (View - Element names).
+        @param on True to show.
+        """
+        self.show_labels = bool(on)
+        self.rebuild()
+
+    def _fit_labels(self):
+        """!
+        @brief In a project with imported parts centre the name of each heater on it and hide a name that is wider than the heater on the screen or that would overlap a name already
+               shown (27 names on a board seen whole would be a smear); zooming in shows them. Larger heaters are named first.
+        @details Drawn boards are left alone: their labels always show, from the centre to the right as before. The selected heater keeps its name. The size of a heater is that of its
+                 polygon: `boundingRect()` of the item adds the width of its cosmetic pen in scene millimetres (1.4 to 2.2 mm), which let a name wider than a small part show.
+        """
+        if self.doc.problem.imported is None:
+            return
+        scale = abs(self.transform().m11())
+        heaters = [it for it in self.scene().items() if isinstance(it, ElementItem) and it.kind == "heater" and it.label is not None]
+        heaters.sort(key=lambda it: (not it.isSelected(), -it.polygon().boundingRect().width() * it.polygon().boundingRect().height()))
+        taken = []
+        for it in heaters:
+            lab = it.label
+            fm = QFontMetrics(lab.font())
+            w, h = fm.horizontalAdvance(lab.text()) + 4, fm.height()
+            lab.setTransform(QTransform.fromTranslate(-w / 2.0 + 2.0, -h / 2.0))    # In pixels (the label ignores the view's scale): centred on the heater
+            pt = self.mapFromScene(lab.scenePos())                # The centre of the heater on the screen
+            r = QRectF(pt.x() - w / 2.0, pt.y() - h / 2.0, w, h)
+            show = it.isSelected() or (it.polygon().boundingRect().width() * scale >= w and not any(r.intersects(t) for t in taken))
+            lab.setVisible(show)
+            if show:
+                taken.append(r)
 
     def _add_background(self):
         """!
@@ -479,6 +608,7 @@ class BoardView(QGraphicsView):
         self.scene().blockSignals(False)
         self._external = False
         self._update_handles()
+        self._fit_labels()
 
     def _on_scene_selection(self):
         """!
@@ -487,6 +617,7 @@ class BoardView(QGraphicsView):
         if self._rebuilding or self._external:
             return
         self._update_handles()
+        self._fit_labels()                                     # A selected heater shows its name even when it does not fit
         self.selection_changed.emit(self.selected_elements())
 
     # ------------------------------------------------------------------ vertex handles
@@ -570,6 +701,7 @@ class BoardView(QGraphicsView):
         self.setTransform(QTransform().scale(s, -s))
         self.centerOn(W / 2, H / 2)
         self._fitted = True
+        self._fit_labels()
 
     def showEvent(self, e):
         """!
@@ -586,6 +718,7 @@ class BoardView(QGraphicsView):
         @param factor Scale factor (greater than 1 zooms in).
         """
         self.scale(factor, factor)
+        self._fit_labels()
 
     def wheelEvent(self, e):
         """!
@@ -593,6 +726,7 @@ class BoardView(QGraphicsView):
         @param e QWheelEvent (the vertical angle delta sets the zoom).
         """
         self.scale(1.15 ** (e.angleDelta().y() / 120.0), 1.15 ** (e.angleDelta().y() / 120.0))
+        self._fit_labels()
 
     # ------------------------------------------------------------------ painting
     def drawBackground(self, painter, rect):

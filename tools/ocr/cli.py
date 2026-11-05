@@ -73,16 +73,23 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--out", help="also write the pages joined into this file")
     common(t)
     q = sub.add_parser("queue", help="process the pending lines of a queue file")
-    q.add_argument("queue", nargs="?", help="queue file (default papers/gemini/QUEUE.md)")
+    q.add_argument("queue", nargs="?", help="queue file (default papers/ocr/QUEUE.md)")
     q.add_argument("--limit", type=int, default=20, help="pages to try in this run (default 20)")
     q.add_argument("--status", action="store_true", help="list pending lines and exit")
     common(q)
     s = sub.add_parser("suspects", help="find suspect pages and the printed/PDF page offset")
     s.add_argument("--only", help="comma-separated file stems")
+    asm_p = sub.add_parser("assemble", help="assemble the per-page outputs of PDFs into papers/md-final/<stem>.md")
+    asm_p.add_argument("stems", nargs="+", help="PDF stems in papers/pdf")
+    asm_p.add_argument("--order", default="claude,openrouter,gemini",
+                       help="priority of the model sources, comma-separated (default claude,openrouter,gemini)")
+    asm_p.add_argument("--root", help="repository root for the used-by search (default: parent of the papers folder)")
+    map_p = sub.add_parser("map", help="write papers/notes/OCR_MAP.md and ocr_map.json (what is done and needed; offline)")
+    map_p.add_argument("--root", help="repository root for the documents and the program (default: parent of the papers folder)")
     v = sub.add_parser("verify", help="write an HTML page with the page image beside its transcription")
     v.add_argument("pdf")
     v.add_argument("--page", type=int, required=True)
-    v.add_argument("--md", help="transcription file (default papers/gemini/<stem>_p<N>.md)")
+    v.add_argument("--md", help="transcription file (default papers/ocr/<stem>_p<N>.md)")
     v.add_argument("--out")
     sub.add_parser("providers", help="list the providers and their models")
     c = sub.add_parser("check-key", help="one tiny request; prints only OK or FAIL")
@@ -109,14 +116,26 @@ def resolve_pdf(arg: str, papers: Path) -> Path:
     raise FileNotFoundError(f"no PDF '{arg}' (looked in {papers / 'pdf'})")
 
 
+def ocr_dir(papers: Path) -> Path:
+    """!
+    @brief Folder of the online-OCR work: per-page outputs, the ledger `usage.json` and the queue `QUEUE.md`.
+    @param papers Papers folder.
+    @return Path `papers/ocr`; an older library that still has `papers/gemini` and no `papers/ocr` keeps using it.
+    """
+    new = papers / "ocr"
+    old = papers / "gemini"
+    return old if (old.is_dir() and not new.exists()) else new
+
+
 def out_dir(papers: Path, provider: str) -> Path:
     """!
     @brief Folder of the per-page outputs of a provider.
     @param papers   Papers folder.
     @param provider Provider name.
-    @return Path `papers/<provider>` (the Gemini outputs keep their historic folder `papers/gemini`).
+    @return Path `papers/ocr` for Gemini (the default provider), `papers/ocr/<provider>` for any other.
     """
-    return papers / provider
+    base = ocr_dir(papers)
+    return base if provider == "gemini" else base / provider
 
 
 def make_runner(a, papers: Path) -> Runner:
@@ -127,7 +146,7 @@ def make_runner(a, papers: Path) -> Runner:
     @return Runner Ready to run.
     """
     return Runner(get_provider(a.provider), out_dir(papers, a.provider),
-                  Ledger(papers / "gemini" / "usage.json"), model=a.model, pause=a.pause,
+                  Ledger(ocr_dir(papers) / "usage.json"), model=a.model, pause=a.pause,
                   daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi)
 
 
@@ -171,8 +190,8 @@ def cmd_queue(a, papers: Path) -> int:
     @param papers Papers folder.
     @return int Exit code.
     """
-    qpath = Path(a.queue) if a.queue else papers / "gemini" / "QUEUE.md"
-    ledger = Ledger(papers / "gemini" / "usage.json")
+    qpath = Path(a.queue) if a.queue else ocr_dir(papers) / "QUEUE.md"
+    ledger = Ledger(ocr_dir(papers) / "usage.json")
     done = ledger.done()
     pending = [i for i in parse_queue(qpath.read_text(encoding="utf-8"))
                if (i.file, i.page) not in done and not (out_dir(papers, a.provider) / f"{i.file}_p{i.page}.md").is_file()]
@@ -212,7 +231,7 @@ def cmd_verify(a, papers: Path) -> int:
     @return int Exit code.
     """
     pdf = resolve_pdf(a.pdf, papers)
-    md = Path(a.md) if a.md else papers / "gemini" / f"{pdf.stem}_p{a.page}.md"
+    md = Path(a.md) if a.md else out_dir(papers, "gemini") / f"{pdf.stem}_p{a.page}.md"
     out = Path(a.out) if a.out else papers / "verify" / f"{pdf.stem}_p{a.page}.html"
     text = md.read_text(encoding="utf-8")
     printed = suspects.printed_page_number(_page_text(pdf, a.page))
@@ -274,6 +293,7 @@ def cmd_check_key(a, papers: Path) -> int:
             png = render.synthetic_png()
         res = prov.transcribe(png, "Reply with the text you can read, at most 30 words.",
                               {"model": model, "timeout": 60})
+        model = res.model or model        # OpenRouter's "auto" says which model answered
         ok = bool(res.text.strip())
         why = "" if ok else f"empty answer, finish {res.finish_reason}"
     except (ProviderError, KeyError_, RuntimeError) as e:
@@ -298,7 +318,46 @@ def cmd_decode(a, papers: Path) -> int:
     return 0
 
 
-COMMANDS = {"transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
+def cmd_assemble(a, papers: Path) -> int:
+    """!
+    @brief The `assemble` command: one final Markdown per PDF in `papers/md-final/`.
+    @param a      Parsed arguments (`stems`, `--root`).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    import fitz  # PyMuPDF, only needed here
+    from . import assemble as asm, suspects as su
+    root = Path(a.root) if a.root else papers.parent
+    out = papers / "md-final"
+    out.mkdir(exist_ok=True)
+    for stem in a.stems:
+        doc = fitz.open(str(resolve_pdf(stem, papers)))
+        texts = [doc[i].get_text() for i in range(len(doc))]
+        found = {i + 1: su.printed_page_number(t) for i, t in enumerate(texts)}
+        off = su.page_offset({k: v for k, v in found.items() if v})
+        printed = {p: su.printed_page(p, found[p], off) for p in found}
+        digital = sum(len(t) for t in texts[:8]) / max(1, min(8, len(texts))) > 600
+        (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(doc), {i + 1: t for i, t in enumerate(texts)}, printed, digital, tuple(a.order.split(","))),
+                                        encoding="utf-8")
+        print(f"{stem}: {out / (stem + '.md')}")
+    return 0
+
+
+def cmd_map(a, papers: Path) -> int:
+    """!
+    @brief The `map` command: the map of what is converted and what the theory still needs (offline, no provider).
+    @param a      Parsed arguments (`--root`).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    from . import papermap
+    root = Path(a.root) if a.root else papers.parent
+    md, js = papermap.write_map(papers, root)
+    print(f"{md}\n{js}")
+    return 0
+
+
+COMMANDS = {"map": cmd_map, "assemble": cmd_assemble, "transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
             "providers": cmd_providers, "check-key": cmd_check_key, "decode": cmd_decode}
 
 

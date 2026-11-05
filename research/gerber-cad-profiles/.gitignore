@@ -1,0 +1,5 @@
+# Downloaded sample sets (licences differ: never commit them), caches and outputs
+data/
+out/
+*.npz
+__pycache__/

@@ -26,6 +26,7 @@ from tools.ocr.ledger import Ledger, parse_queue  # noqa: E402
 from tools.ocr.pipeline import ConfidentialError, Runner, combine  # noqa: E402
 from tools.ocr.providers import REGISTRY, get_provider  # noqa: E402
 from tools.ocr.providers.base import Provider, ProviderError, Result  # noqa: E402
+from tools.ocr.providers.anthropic import AnthropicProvider  # noqa: E402
 from tools.ocr.providers.gemini import GeminiProvider  # noqa: E402
 from tools.ocr.providers.local import LocalProvider  # noqa: E402
 
@@ -574,8 +575,8 @@ def test_a_second_provider_runs_through_the_command_line(tmp_path, monkeypatch, 
     monkeypatch.setattr("tools.ocr.pipeline.render.render_page", lambda *a, **k: b"12345")
     assert cli.main(["--papers", str(tmp_path), "transcribe", "Paper", "--pages", "all", "--provider", "echo",
                      "--pause", "0"]) == 0
-    assert (tmp_path / "echo" / "Paper_p2.md").read_text() == "<!-- page 2 -->\n5 bytes"
-    led = json.loads((tmp_path / "gemini" / "usage.json").read_text())
+    assert (tmp_path / "ocr" / "echo" / "Paper_p2.md").read_text() == "<!-- page 2 -->\n5 bytes"
+    led = json.loads((tmp_path / "ocr" / "usage.json").read_text())
     assert [e["provider"] for e in led] == ["echo", "echo"] and led[0]["model"] == "echo-1"
     monkeypatch.setattr(cli.render, "synthetic_png", lambda: b"png")
     assert cli.main(["--papers", str(tmp_path), "check-key", "--provider", "echo"]) == 0   # no models.json entry
@@ -616,3 +617,428 @@ def test_an_oversized_page_is_rendered_at_a_lower_resolution(tmp_path):
     png = render.render_page(tmp_path / "big.pdf", 1)
     pix = mu.Pixmap(png)
     assert pix.width * pix.height <= render.MAX_PIXELS
+
+
+def test_ocr_folder_is_ocr_and_an_old_gemini_folder_is_still_found(tmp_path):
+    assert cli.ocr_dir(tmp_path) == tmp_path / "ocr"
+    assert cli.out_dir(tmp_path, "gemini") == tmp_path / "ocr"
+    assert cli.out_dir(tmp_path, "local") == tmp_path / "ocr" / "local"
+    (tmp_path / "gemini").mkdir()                       # a library made before the rename
+    assert cli.ocr_dir(tmp_path) == tmp_path / "gemini"
+    (tmp_path / "ocr").mkdir()                          # once ocr/ exists it wins
+    assert cli.ocr_dir(tmp_path) == tmp_path / "ocr"
+
+
+# ---------------------------------------------------------------- Anthropic provider (no network)
+ANT_KEY = "sk-ant-" + "usr-" + "Ab1_-" * 8          # built here so the source has no key-like text
+
+
+class FakeAnthropic(AnthropicProvider):
+    """!
+    @brief Anthropic provider whose HTTP call is scripted.
+    """
+
+    def __init__(self, answers):
+        """!
+        @brief Create it.
+        @param answers List of dict responses or exceptions.
+        @return None
+        """
+        super().__init__(key=ANT_KEY, retries=3, first_pause=0.0, sleep=lambda s: None)
+        self.answers, self.urls, self.bodies, self.sleeps = list(answers), [], [], []
+        self._sleep = self.sleeps.append
+
+    def _post(self, url, body, timeout):
+        """!
+        @brief Scripted POST.
+        @param url     URL (recorded).
+        @param body    Body (recorded).
+        @param timeout Unused.
+        @return dict The next response.
+        """
+        self.urls.append(url)
+        self.bodies.append(json.loads(body))
+        a = self.answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+
+def ant_error(code, kind, message, headers=None):
+    """!
+    @brief Build an HTTPError in the shape of the Messages API.
+    @param code    HTTP status.
+    @param kind    Error type.
+    @param message Error message.
+    @param headers Response headers.
+    @return urllib.error.HTTPError The error.
+    """
+    body = json.dumps({"type": "error", "error": {"type": kind, "message": message}})
+    return urllib.error.HTTPError("http://x", code, "err", headers or {}, io.BytesIO(body.encode()))
+
+
+ANT_OK = {"content": [{"type": "text", "text": "page $x^2$"}], "stop_reason": "end_turn",
+          "usage": {"input_tokens": 1500, "output_tokens": 300}}
+
+
+def test_anthropic_request_shape_usage_and_key_not_in_url():
+    g = FakeAnthropic([ANT_OK])
+    r = g.transcribe(b"png", "prompt", {"model": "claude-haiku-5-5"})
+    assert r.text == "page $x^2$" and r.extra["usage"] == {"input_tokens": 1500, "output_tokens": 300}
+    b = g.bodies[0]
+    assert b["model"] == "claude-haiku-5-5" and b["max_tokens"] >= 4096
+    assert b["messages"][0]["content"][0]["source"]["media_type"] == "image/png"
+    assert ANT_KEY not in g.urls[0] and "key" not in g.urls[0]
+    assert "temperature" not in b      # the current models answer HTTP 400 to it
+
+
+def test_anthropic_429_waits_for_retry_after_and_overloaded_529_retries():
+    g = FakeAnthropic([ant_error(429, "rate_limit_error", "slow down", {"retry-after": "7"}),
+                       ant_error(529, "overloaded_error", "Overloaded"), ANT_OK])
+    assert g.transcribe(b"png", "p", {}).text and g.sleeps[0] == 7.0 and len(g.urls) == 3
+
+
+def test_anthropic_credit_and_usage_limit_errors_stop_at_once():
+    for code, msg in ((400, "Your credit balance is too low to access the Anthropic API."),
+                      (429, "You have reached your specified API usage limits.")):
+        g = FakeAnthropic([ant_error(code, "invalid_request_error", msg)])
+        with pytest.raises(ProviderError) as e:
+            g.transcribe(b"png", "p", {})
+        assert e.value.quota_exhausted and not e.value.retryable and len(g.urls) == 1
+
+
+def test_anthropic_permission_error_is_not_retried():
+    g = FakeAnthropic([ant_error(403, "permission_error", "not allowed")])
+    with pytest.raises(ProviderError) as e:
+        g.transcribe(b"png", "p", {})
+    assert e.value.status == 403 and not e.value.retryable and not e.value.quota_exhausted and len(g.urls) == 1
+
+
+def test_anthropic_max_tokens_is_a_split_and_refusal_a_recitation():
+    g = FakeAnthropic([{"content": [{"type": "text", "text": "cut"}], "stop_reason": "max_tokens", "usage": {}},
+                       {"content": [], "stop_reason": "refusal", "usage": {}}])
+    assert g.transcribe(b"png", "p", {}).split
+    assert g.transcribe(b"png", "p", {}).recitation
+
+
+def test_anthropic_error_with_a_usr_key_never_reaches_any_output(tmp_path, capfd, caplog):
+    keys.register_secret(ANT_KEY)
+    # An unregistered key of the same family is removed by the pattern alone.
+    other = "sk-ant-" + "usr-" + "Zz9-_" * 8
+    assert other not in keys.redact(f"bad {other}") and ANT_KEY not in keys.redact(f"x-api-key: {ANT_KEY}")
+    caplog.set_level(logging.DEBUG)
+    g = FakeAnthropic([ant_error(401, "authentication_error", f"invalid x-api-key {ANT_KEY} / {other}")])
+    r = runner(tmp_path, g)
+    o = r.run_page(PDF, 1)
+    assert o.status == "failed"
+    out = capfd.readouterr()
+    blob = o.note + (tmp_path / "usage.json").read_text() + out.out + out.err + caplog.text
+    assert ANT_KEY not in blob and other not in blob
+
+
+def test_anthropic_tokens_reach_the_ledger_and_max_tokens_is_asked_in_halves(tmp_path):
+    cut = {"content": [{"type": "text", "text": "cut"}], "stop_reason": "max_tokens",
+           "usage": {"input_tokens": 100, "output_tokens": 8192}}
+    half = {"content": [{"type": "text", "text": "half"}], "stop_reason": "end_turn",
+            "usage": {"input_tokens": 50, "output_tokens": 20}}
+    r = runner(tmp_path, FakeAnthropic([cut, half, half]))
+    o = r.run_page(PDF, 1)
+    assert o.status == "ok" and "half-page crops" in o.text
+    e = json.loads((tmp_path / "usage.json").read_text())[0]
+    assert e["provider"] == "anthropic" and e["input_tokens"] == 200 and e["output_tokens"] == 8232
+    assert Ledger(tmp_path / "usage.json").tokens_today("anthropic")["output_tokens"] == 8232
+
+
+def test_anthropic_is_registered_with_its_key_variable_and_models():
+    assert REGISTRY["anthropic"].key_env == ("ANTHROPIC_API_KEY",)
+    assert config.models()["anthropic"]["default"] == "claude-sonnet-5-5"
+
+
+def test_anthropic_prose_refusal_and_content_filter_take_the_recitation_path(tmp_path):
+    # "I can't transcribe ... here is a summary" (end_turn) and HTTP 400 "content filtering policy" are refusals of the page.
+    prose = {"content": [{"type": "text", "text": "I can't transcribe this page in full, because it is text from a published article. Here is a summary of the page."}], "stop_reason": "end_turn", "usage": {}}
+    half = {"content": [{"type": "text", "text": "half $x$"}], "stop_reason": "end_turn", "usage": {}}
+    assert FakeAnthropic([prose]).transcribe(b"png", "p", {}).recitation
+    assert not FakeAnthropic([ANT_OK]).transcribe(b"png", "p", {}).recitation
+    def blocked():
+        return ant_error(400, "invalid_request_error", "Output blocked by content filtering policy")
+    r = FakeAnthropic([blocked()]).transcribe(b"png", "p", {})
+    assert r.recitation and r.text == "" and r.finish_reason == "content_filter"
+    for first in (prose, blocked()):
+        o = runner(tmp_path, FakeAnthropic([first, half, half])).run_page(PDF, 1, force=True)
+        assert o.status == "ok" and "half-page crops" in o.text
+
+
+def test_assemble_cleans_joins_and_marks(tmp_path):
+    """!
+    @brief The assembler drops running headers and page numbers, joins a hyphenated word and a cut sentence, keeps markers.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import assemble
+    ocr = tmp_path / "ocr" / "anthropic"
+    ocr.mkdir(parents=True)
+    pages = {1: "<!-- page 1 -->\nJ. HEAT TRANSFER 2003\n# Title\n\nThe spreading resist-\n\n1",
+             2: "<!-- page 2 -->\nJ. HEAT TRANSFER 2004\nance is large and the heat flows\n3",
+             3: "<!-- page 3 -->\nJ. HEAT TRANSFER 2005\ninto the plate.\n\n$$ R = 1 \\tag{1} $$\n4"}
+    for p, t in pages.items():
+        (ocr / f"X_p{p}.md").write_text(t, encoding="utf-8")
+    out = assemble.assemble(tmp_path, "X", tmp_path, 4, None, {1: 10, 2: 11}, True)
+    assert out == assemble.assemble(tmp_path, "X", tmp_path, 4, None, {1: 10, 2: 11}, True)  # deterministic
+    assert "J. HEAT TRANSFER" not in out
+    assert "resistance" in out and "resist-" not in out
+    assert "<!-- page 2 | printed 11 -->" in out and "<!-- page 4 | printed ? -->" in out
+    assert out.count("[missing]") == 1 and "reading_status: machine" in out
+    assert "- Title" in out and "\\tag{1}" in out
+
+
+def test_assemble_text_layer_fills_missing_pages(tmp_path):
+    """!
+    @brief A page with no OCR output takes a usable text layer (provider `text`); a short or missing layer stays `[missing]`.
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    from tools.ocr import assemble
+    ocr = tmp_path / "ocr" / "anthropic"
+    ocr.mkdir(parents=True)
+    (ocr / "X_p1.md").write_text("<!-- page 1 -->\nClaude page", encoding="utf-8")
+    prose = " ".join(f"word{i}" for i in range(80))
+    out = assemble.assemble(tmp_path, "X", tmp_path, 3, {1: "ignored " * 100, 2: prose, 3: "too short"}, {}, True)
+    assert "Claude page" in out and "word79" in out and out.count("[missing]") == 1
+    assert 'text: "2"' in out
+
+
+def test_assemble_ranges():
+    """!
+    @brief Page lists are written as ranges.
+    @return None
+    """
+    from tools.ocr import assemble
+    assert assemble.ranges([1, 2, 3, 5, 7, 8]) == "1-3,5,7-8"
+
+
+def test_papermap_parsers():
+    """!
+    @brief The note parsers of the map: page specs, the verified/error pages, the offsets and the citation contexts.
+    @return None
+    """
+    from tools.ocr import papermap as pm
+    assert pm.parse_page_spec("1-3,7") == {1, 2, 3, 7}
+    ver = pm.parse_verified("| file | pages | why | checked |\n| :-- | :-- | :-- | :-- |\n"
+                            "| Foo | 1-6 | eq | p5, p6 R (Table 1); p4 ERROR eq 17; p1 not compared |\n"
+                            "| Lienhard2024 | 323-325 | conv | R: 323, 325; p433 ERROR |\n")
+    assert ver["Foo"]["verified"] == {5, 6} and ver["Foo"]["error"] == {4} and ver["Foo"]["listed"] == set(range(1, 7))
+    assert ver["Lienhard2024"]["verified"] == {323, 325}
+    assert pm.parse_offsets("| Foo | 9 | -2 | 1 / 3: low |\n| Bar | 9 | ? |  |\n") == {"Foo": -2}
+    text = "see [Muzychka2003] Table 3, eq. 25, p. 8-9 and [Muzychka2003Part1] p. 4"
+    ctx = pm.citations(text, "Muzychka2003")
+    assert len(ctx) == 1                      # a longer key is not a match
+    loc = pm.cited_locations(ctx[0])
+    assert 3 in loc["tables"] and 25 in loc["eqs"] and {8, 9} <= set(loc["pages"])
+    assert pm.locate("table", 3, {1: "Table 2 x", 2: "\nTable 3 Results"}) == [2]
+
+
+def test_papermap_formula_score_and_build(tmp_path):
+    """!
+    @brief The formula density separates equations from prose, and a map is built from a fake papers folder.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from tools.ocr import papermap as pm
+    prose = "the heat flows through the board and spreads " * 20
+    maths = "T = a + b ; α = β γ = 2 ; x = y ; z = w ; q = 1 ; " * 6
+    assert pm.formula_score(prose)[0] < pm.FORMULA_SCORE < pm.formula_score(maths)[0]
+    papers = tmp_path / "papers"
+    (papers / "pdf").mkdir(parents=True)
+    (papers / "pdf" / "Foo.pdf").write_bytes(b"%PDF")
+    (papers / "notes").mkdir()
+    (papers / "notes" / "INDEX.md").write_text("| Foo.pdf | FooKey | A paper | x | y |\n")
+    (papers / "ocr" / "anthropic").mkdir(parents=True)
+    (papers / "ocr" / "anthropic" / "Foo_p2.md").write_text("page two")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "theory.md").write_text("Result of [FooKey] Table 1 on p. 2.")
+
+    def fake(path):
+        t = {1: prose, 2: maths}
+        return {"pages": 2, "text": t, "words": {1: 200, 2: 200}, "garbage": {1: False, 2: False},
+                "formula": {p: pm.formula_score(t[p])[0] for p in t}, "equals": {p: t[p].count("=") for p in t}}
+
+    m = pm.build_map(papers, tmp_path, fake)
+    row = m["rows"][0]
+    assert row["stem"] == "Foo" and row["pages"] == 2 and row["claude_pages"] == 1
+    assert 2 in row["essential_pages"] and row["e1_run"] == [] and row["e1_verify_only"] == [2]
+    assert "Foo" in pm.render_markdown(m)
+
+
+# ---------------------------------------------------------------------------- OpenRouter (mocked transport)
+from tools.ocr.providers.openrouter import OpenRouterProvider, rank_models  # noqa: E402
+from tools.ocr import compare as ocr_compare  # noqa: E402
+
+OR_KEY = "sk-or-" + "v1-" + "ab12" * 10          # built here so the source has no key-like text
+OR_OK = {"model": "qwen/qwen2.5-vl-72b-instruct:free", "choices": [{"message": {"content": "page $x^2$"}, "finish_reason": "stop"}],
+         "usage": {"prompt_tokens": 900, "completion_tokens": 120}}
+OR_MODELS = {"data": [
+    {"id": "meta-llama/llama-3.2-11b-vision-instruct:free", "architecture": {"input_modalities": ["text", "image"]},
+     "pricing": {"prompt": "0", "completion": "0"}, "context_length": 131072},
+    {"id": "qwen/qwen2.5-vl-72b-instruct:free", "architecture": {"input_modalities": ["text", "image"]},
+     "pricing": {"prompt": "0", "completion": "0"}, "context_length": 32768},
+    {"id": "some/text-only:free", "architecture": {"input_modalities": ["text"]}, "pricing": {"prompt": "0", "completion": "0"}},
+    {"id": "paid/vision", "architecture": {"input_modalities": ["image"]}, "pricing": {"prompt": "0.1", "completion": "0.1"}}]}
+
+
+class FakeOpenRouter(OpenRouterProvider):
+    """!
+    @brief OpenRouter provider whose HTTP calls are scripted.
+    """
+
+    def __init__(self, answers, **kw):
+        """!
+        @brief Create it.
+        @param answers List of dict responses or exceptions for the POSTs.
+        @param kw      Extra constructor arguments.
+        @return None
+        """
+        super().__init__(key=OR_KEY, retries=2, first_pause=0.0, sleep=lambda s: None, min_interval=0.0, **kw)
+        self.answers, self.urls, self.bodies, self.sleeps, self.gets = list(answers), [], [], [], []
+        self._sleep = self.sleeps.append
+
+    def _post(self, url, body, timeout):
+        """!
+        @brief Scripted POST.
+        @param url     URL (recorded).
+        @param body    Body (recorded).
+        @param timeout Unused.
+        @return dict The next response.
+        """
+        self.urls.append(url)
+        self.bodies.append(json.loads(body))
+        a = self.answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+    def _get(self, url, timeout):
+        """!
+        @brief Scripted GET of the model list.
+        @param url     URL (recorded).
+        @param timeout Unused.
+        @return dict The model list.
+        """
+        self.gets.append(url)
+        return OR_MODELS
+
+
+def or_error(code, message, headers=None):
+    """!
+    @brief Build an HTTPError in the shape of OpenRouter.
+    @param code    HTTP status.
+    @param message Message.
+    @param headers Response headers.
+    @return urllib.error.HTTPError The error.
+    """
+    body = json.dumps({"error": {"message": message, "code": code}})
+    return urllib.error.HTTPError("http://x", code, "err", headers or {}, io.BytesIO(body.encode()))
+
+
+def test_openrouter_request_shape_usage_and_key_not_in_url():
+    g = FakeOpenRouter([OR_OK])
+    r = g.transcribe(b"png", "prompt", {"model": "qwen/qwen2.5-vl-72b-instruct:free"})
+    assert r.text == "page $x^2$" and r.extra["usage"] == {"input_tokens": 900, "output_tokens": 120}
+    part = g.bodies[0]["messages"][0]["content"][0]
+    assert part["type"] == "image_url" and part["image_url"]["url"].startswith("data:image/png;base64,")
+    assert OR_KEY not in g.urls[0] and g.gets == []
+
+
+def test_openrouter_ranks_only_free_vision_models_and_auto_walks_the_chain():
+    ids = rank_models(OR_MODELS["data"])
+    assert ids == ["qwen/qwen2.5-vl-72b-instruct:free", "meta-llama/llama-3.2-11b-vision-instruct:free"]
+    g = FakeOpenRouter([or_error(404, "No endpoints found"), OR_OK])
+    r = g.transcribe(b"png", "p", {"model": "auto"})
+    assert [b["model"] for b in g.bodies] == ids and len(g.gets) == 1 and r.extra["attempts"] == 2
+
+
+def test_openrouter_429_waits_retry_after_and_daily_limit_stops_at_once():
+    g = FakeOpenRouter([or_error(429, "slow down", {"Retry-After": "7"}), OR_OK])
+    assert g.transcribe(b"png", "p", {"model": "m:free"}).text and g.sleeps == [7.0]
+    h = FakeOpenRouter([or_error(429, "Rate limit exceeded: free-models-per-day")])
+    with pytest.raises(ProviderError) as e:
+        h.transcribe(b"png", "p", {"model": "m:free"})
+    assert e.value.quota_exhausted and len(h.urls) == 1
+
+
+def test_openrouter_client_side_rate_limit_spaces_requests():
+    now = [100.0]
+    g = FakeOpenRouter([OR_OK, OR_OK], clock=lambda: now[0])
+    g.min_interval = 3.2
+    g.transcribe(b"png", "p", {"model": "m:free"})
+    g.transcribe(b"png", "p", {"model": "m:free"})
+    assert g.sleeps == [pytest.approx(3.2)]
+
+
+def test_openrouter_error_with_a_key_never_reaches_the_message():
+    g = FakeOpenRouter([or_error(401, "bad key " + OR_KEY)])
+    with pytest.raises(ProviderError) as e:
+        g.transcribe(b"png", "p", {"model": "m:free"})
+    assert OR_KEY not in str(e.value) and "sk-or-" not in str(e.value)
+
+
+def test_openrouter_is_registered_and_has_a_daily_limit():
+    assert REGISTRY["openrouter"].key_env == ("OPENROUTER_API_KEY",)
+    assert config.models()["openrouter"]["daily_limit"] <= 50
+
+
+def test_openrouter_pages_rank_below_claude_and_disagreements_are_reported(tmp_path):
+    ocr = tmp_path / "ocr"
+    (ocr / "anthropic").mkdir(parents=True)
+    (ocr / "openrouter").mkdir()
+    (ocr / "anthropic" / "Foo_p1.md").write_text("<!-- page 1 -->\nvalue 12.5 K")
+    (ocr / "openrouter" / "Foo_p1.md").write_text("<!-- page 1 -->\n<!-- model: openrouter:m:free -->\nvalue 12.6 K")
+    (ocr / "openrouter" / "Foo_p2.md").write_text("<!-- page 2 -->\n<!-- model: openrouter:m:free -->\nonly openrouter here")
+    (ocr / "Foo_p2.md").write_text("<!-- page 2 -->\ngemini text")
+    from tools.ocr import assemble as asm
+    out = asm.assemble(tmp_path, "Foo", tmp_path, 2)
+    assert "value 12.5 K" in out and "only openrouter here" in out and "gemini text" not in out
+    assert "model:" not in out.split("---", 2)[2]
+    assert "openrouter: '1'" in out.replace('"', "'") and "disagrees_with_claude" in out
+    assert "gemini text" in asm.assemble(tmp_path, "Foo", tmp_path, 2, order=("gemini", "openrouter", "claude"))
+
+
+def test_compare_pages_digits_equations_similarity():
+    r = ocr_compare.compare_pages("a $x$ 12 b", "a $x$ 12 b")
+    assert r["agree"] and r["digits_equal"]
+    assert not ocr_compare.compare_pages("a 12", "a 13")["agree"]
+
+
+def _ledger_worker(path: str, tag: str, n: int) -> None:
+    """!
+    @brief Append `n` entries to a ledger from a separate process (helper of the concurrency test).
+    @param path Ledger file.
+    @param tag  Provider name written in the entries.
+    @param n    Number of entries.
+    @return None
+    """
+    from tools.ocr.ledger import Ledger
+    led = Ledger(pathlib.Path(path))  # opened once: its in-memory copy goes stale while the other process writes
+    for i in range(n):
+        led.add(provider=tag, file="X", page=i, ok=True)
+
+
+def test_ledger_concurrent_appends_keep_every_entry(tmp_path):
+    """!
+    @brief Two processes appending to one ledger lose no entry (lock plus re-read inside the lock).
+    @param tmp_path pytest temporary folder.
+    @return None
+    """
+    import json
+    import multiprocessing as mp
+    path = tmp_path / "usage.json"
+    ctx = mp.get_context("spawn")
+    procs = [ctx.Process(target=_ledger_worker, args=(str(path), tag, 40)) for tag in ("a", "b")]
+    for pr in procs:
+        pr.start()
+    for pr in procs:
+        pr.join(60)
+        assert pr.exitcode == 0
+    rows = json.loads(path.read_text())
+    assert len(rows) == 80 and sum(r["provider"] == "a" for r in rows) == 40
+    assert not list(tmp_path.glob("*.tmp"))

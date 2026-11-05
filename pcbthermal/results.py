@@ -46,6 +46,7 @@ class SteadyResult:
     arrays: Dict[str, np.ndarray] = field(default_factory=dict)  # Model specific profiles for plots
     warnings: List[str] = field(default_factory=list)          # Validity warnings for the user
     grid: str = "cells"                          # "cells": T holds cell values; "nodes": T holds values at grid points (FDM)
+    equivalent_scale: Optional[float] = None     # s of Problem.equivalent_rectangle when the model ran on the rectangle of the same area of an outline board (T is stretched back by 1/s onto the box); None otherwise
 
     def coords(self):
         """!
@@ -118,6 +119,7 @@ class TransientResult:
     steady_t_max: float                          # Steady-state maximum for reference (degC)
     ambient: float                               # Ambient temperature (degC)
     grid: str = "cells"                          # "cells" or "nodes": what the frames hold (nodes for the finite-difference model)
+    warnings: List[str] = field(default_factory=list)   # Limits of the model met by this run (the Analytic with a heatsink); empty for the FVM and FDM
 
     def time_constant(self):
         """!
