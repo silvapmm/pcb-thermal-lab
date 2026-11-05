@@ -57,13 +57,14 @@ def _line(pts, a="10"):
     return f"D{a}*\nX{_c(pts[0][0])}Y{_c(pts[0][1])}D02*\n" + "".join(f"X{_c(x)}Y{_c(y)}D01*\n" for x, y in pts[1:])
 
 
-def make_board(folder, inner=0, placement=True, drills=True):
+def make_board(folder, inner=0, placement=True, drills=True, qfn=False):
     """!
     @brief Write the synthetic fabrication set into a folder.
     @param folder Folder (created).
     @param inner Number of inner copper layers (X2 `Copper,L<n>,Inr`).
     @param placement True to write the placement table.
     @param drills True to write the drill file.
+    @param qfn True to add U2, a QFN with 24 pins and an exposed pad in four paste windows (TO.C U2, 4 x 4 mm at (20, 22)).
     @return pathlib.Path of the folder.
     """
     d = Path(folder)
@@ -78,12 +79,25 @@ def make_board(folder, inner=0, placement=True, drills=True):
     paste = "%TF.FileFunction,Paste,Top*%\n" + HEAD + APERTURES
     for ref, x, y, a in (("U1", 12, 15, 12), ("Q1", 25, 12, 11), ("D1", 30, 20, 11)):
         paste += f"%TO.C,{ref}*%\n" + _flash(x, y, a) + "%TD*%\n"
+    if qfn:
+        # Six pins of 0.25 x 0.8 mm per side at a pitch of 0.5 mm, and the pad in four windows of 1.1 x 1.1 mm (the paste of a QFN)
+        qx, qy = 20.0, 22.0
+        paste += "%TO.C,U2*%\n"
+        for k in range(6):
+            o = (k - 2.5) * 0.5
+            paste += _rect(qx + o - 0.125, qy + 1.5, qx + o + 0.125, qy + 2.3) + _rect(qx + o - 0.125, qy - 2.3, qx + o + 0.125, qy - 1.5)
+            paste += _rect(qx + 1.5, qy + o - 0.125, qx + 2.3, qy + o + 0.125) + _rect(qx - 2.3, qy + o - 0.125, qx - 1.5, qy + o + 0.125)
+        for sx in (-0.65, 0.65):
+            for sy in (-0.65, 0.65):
+                paste += _rect(qx + sx - 0.55, qy + sy - 0.55, qx + sx + 0.55, qy + sy + 0.55)
+        paste += "%TD*%\n"
     (d / "pasteF.gbr").write_text(paste + "M02*\n")
     if drills:
         (d / "drill.drl").write_text("M48\n; #@! TF.FileFunction,Plated,1,2,PTH\nMETRIC,TZ\nT1C0.300\nT2C3.000\n%\nT1\nX20.0Y10.0\nX22.0Y10.0\nT2\nX30.0Y25.0\nM30\n")
     if placement:
         (d / "pos.csv").write_text('Ref,Val,Package,PosX,PosY,Rot,Side\n"U1","reg","SOT-223",12.0,15.0,0,top\n"Q1","fet","SOT-23",25.0,12.0,0,top\n'
-                                   '"D1","led","D_0603",30.0,20.0,0,top\n"R1","1k","R_0603",20.0,25.0,0,top\n')
+                                   '"D1","led","D_0603",30.0,20.0,0,top\n"R1","1k","R_0603",20.0,25.0,0,top\n'
+                                   + ('"U2","mcu","QFN-24-1EP_4x4mm_P0.5mm_EP2.6x2.6mm",20.0,22.0,0,top\n' if qfn else ""))
     return d
 
 
