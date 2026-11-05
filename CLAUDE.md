@@ -340,6 +340,8 @@ The goal is release 2.5.0 from `develop` only. Everything planned for it is merg
 
 ## Decisions Log
 
+- **Toolbar icons from the theme** (`fix/dark-toolbar-icons`): the Matplotlib toolbar of the result plots took pure white icons in the dark theme; `results_view.recolour_toolbar` fills the icon shapes with the `text` token (contrast with the window at least 3.0) and is re-applied by `PlotTab.set_theme`; canvases are untouched.
+
 - **CAD tool line colour held by tests** (`fix/cad-line-colour`, reviewer's item): the code already used the alert token for every detection with `needs_check` (any confidence but high, CAM tools, re-exports) and the low-names rule, and the text colour only for a plain high one; no code change, a test per confidence level in both themes now keeps it (the user's choice does not clear the alert: the line follows the detection).
 
 
