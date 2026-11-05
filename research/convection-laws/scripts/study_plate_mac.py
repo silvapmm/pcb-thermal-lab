@@ -9,7 +9,7 @@
          solver (README of horizontal-plate-h, section 5, strip, both faces hot: Ra 1e3 up 1.412 down 2.296; Ra 1e4 up 2.075 down 3.501; reproduced here only as printed) show
          what can be concluded. Checks per case: heat leaving the plate against heat reaching the cold walls (energy balance), and the resolution (the base grid and a finer one).
          Output: out/plate_mac.json and a printed table.
-Usage: .venv/bin/python research/convection-laws/scripts/study_plate_mac.py [--quick]   (several minutes; --quick: Ra 1e3 only, base grid)
+Usage: .venv/bin/python research/convection-laws/scripts/study_plate_mac.py [--quick|--both|--isolated]   (about an hour in one process; --quick: Ra 1e3 only, base grid; --both and --isolated split the sweep in two processes, the second writes out/plate_mac_isolated.json)
 """
 
 import json
@@ -79,6 +79,12 @@ def main():
     # (Ra, box scale, resolution factor): the base grid at s = 1 for the four Ra, a finer grid and a box twice as large at the Ra where the open-domain solver has numbers
     cases = [(1e3, 1.0, 1.0, "both")] if quick else [(3e2, 1.0, 1.0, "both"), (1e3, 1.0, 1.0, "both"), (3e3, 1.0, 1.0, "both"), (1e4, 1.0, 1.0, "both"), (1e3, 1.0, 1.4, "both"), (1e3, 2.0, 1.0, "both"), (1e4, 2.0, 1.0, "both"),
                                                       (1e3, 1.0, 1.0, "up"), (1e3, 1.0, 1.0, "down"), (1e4, 1.0, 1.0, "up"), (1e4, 1.0, 1.0, "down")]
+    out_name = "plate_mac.json"
+    if "--isolated" in sys.argv:                                    # the four isolated-face cases alone, in a second process, to a file of their own
+        cases = [c for c in cases if c[3] != "both"]
+        out_name = "plate_mac_isolated.json"
+    elif "--both" in sys.argv:                                      # the cases with both faces hot alone
+        cases = [c for c in cases if c[3] == "both"]
     rows = []
     print("Ra     s  fine  faces  nx x ny   Nu_up   Nu_down  balance  conv   umax   steps  seconds")
     os.makedirs(OUT, exist_ok=True)
@@ -86,7 +92,7 @@ def main():
         r = run_case(ra, s, fine, faces)
         rows.append(r)
         print(f"{ra:6.0e} {s:3.1f} {fine:4.1f} {faces:5s} {r['nx']:3d}x{r['ny']:3d}  {r['nu_up']:.3f}   {r['nu_down']:.3f}   {r['balance']:.3f}   {r['converged']!s:5} {r['umax']:6.1f} {r['steps']:6d}  {r['seconds']:.0f}", flush=True)
-        with open(os.path.join(OUT, "plate_mac.json"), "w") as fh:           # saved after every case: the sweep is long
+        with open(os.path.join(OUT, out_name), "w") as fh:           # saved after every case: the sweep is long
             json.dump(rows, fh, indent=1)
 
 

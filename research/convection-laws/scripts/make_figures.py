@@ -40,6 +40,21 @@ def load(name):
     return json.loads(p.read_text())
 
 
+def plate_rows():
+    """!
+    @brief The rows of the strip sweep from out/plate_mac.json and out/plate_mac_isolated.json, without repeats (same faces, Ra, box scale and resolution).
+    @return list of dict.
+    """
+    seen, rows = set(), []
+    for name in ("plate_mac.json", "plate_mac_isolated.json"):
+        for r in load(name) or []:
+            key = (r.get("faces", "both"), r["ra"], r["s"], r["fine"])
+            if key not in seen:
+                seen.add(key)
+                rows.append(r)
+    return rows
+
+
 def fig04():
     """!
     @brief The laws as ratios to the program over Ra, with the Ra range of the boards of table 2.
@@ -54,14 +69,14 @@ def fig04():
     ax.axhline(1, color="k", lw=0.8)
     ax.set_title("Face up: candidate / program")
     ax = axs[1]
-    for lab, f in (("0.475 Ra^1/5 (Goldstein-Lau, second hand)", laws.goldstein_lau_down), ("Fujii-Imura strip, W = 2 A/P", lambda r: laws.C.fujii_imura_down(r, 2.0)),
+    for lab, f in (("0.475 Ra^1/5 (mean Goldstein-Lau, Yovanovich-Jafarpur p. 8)", laws.goldstein_lau_down), ("Fujii-Imura strip, W = 2 A/P", lambda r: laws.C.fujii_imura_down(r, 2.0)),
                    ("Fujii-Imura square, W = 4 A/P", lambda r: laws.C.fujii_imura_down(r, 4.0)), ("Kadambi-Drake disc", laws.C.kadambi_drake_down),
                    ("Jaffer eq. 56, square", lambda r: laws.C.jaffer_down_shape(r, 2.0))):
         ax.semilogx(ra, f(ra) / base_d, label=lab)
     ax.axhline(1, color="k", lw=0.8)
     ax.set_title("Face down: candidate / program")
     for ax in axs:
-        ax.axvspan(3e2, 2e4, color="#f0d9a8", alpha=0.5, label="Ra of the boards (table 2)")
+        ax.axvspan(3e2, 2e4, color="#f0d9a8", alpha=0.5, label="Ra of the boards (README 3.2)")
         ax.set_xlabel("Ra (L = A/P)")
         ax.set_ylim(0.4, 1.8)
         ax.grid(alpha=0.3)
@@ -106,15 +121,19 @@ def fig06():
     @brief Nusselt numbers of the two faces of the strip in a cold box against the laws.
     @return None.
     """
-    rows = load("plate_mac.json")
+    rows = plate_rows()
     if not rows:
         return
     ra = np.logspace(2.3, 4.2, 100)
     fig, axs = plt.subplots(1, 2, figsize=(10.5, 4))
     for ax, face in zip(axs, ("up", "down")):
         for s, mk in ((1.0, "o"), (2.0, "s")):
-            sel = [r for r in rows if r["s"] == s and (r["fine"] == 1.0)]
+            sel = [r for r in rows if r["s"] == s and r["fine"] == 1.0 and r.get("faces", "both") == "both"]
             ax.loglog([r["ra"] for r in sel], [r["nu_" + face] for r in sel], mk, label=f"cold box, s = {s:g}")
+        iso = [r for r in rows if r.get("faces") == face and r["s"] == 1.0 and r["fine"] == 1.0]
+        ax.loglog([r["ra"] for r in iso], [r["nu_" + face] for r in iso], "v", color="m", label="cold box s = 1, this face alone")
+        gl = np.logspace(np.log10(40), np.log10(8e3), 20)
+        ax.loglog(gl, (0.621 if face == "up" else 0.524) * gl ** 0.2, "k--", lw=1, label=f"Goldstein-Lau numerical strip {'0.621' if face == 'up' else '0.524'} Ra^1/5 (40 < Ra < 8e3, YJ p. 8)")
         if face == "up":
             ax.loglog(ra, laws.C.program_up(ra), label="program 0.54 Ra^1/4")
             ax.loglog(ra, laws.C.raithby_hollands_up(ra), label="Raithby-Hollands")
