@@ -344,6 +344,8 @@ The goal is release 2.5.0 from `develop` only. Everything planned for it is merg
 
 ## Decisions Log
 
+- **Toolbar icons from the theme** (`fix/dark-toolbar-icons`): the Matplotlib toolbar of the result plots took pure white icons in the dark theme; `results_view.recolour_toolbar` fills the icon shapes with the `text` token (contrast with the window at least 3.0) and is re-applied by `PlotTab.set_theme`; canvases are untouched.
+
 - **Preferences: Solver and Gerber import are sections of their own** (`fix/preferences-solver-gerber-order`): they were boxes at the bottom of the long Defaults page; now two entries of the list of sections with a header line (machine preference, not saved in projects); every key and file format is unchanged.
 
 - **Plain warning texts** (`fix/warning-texts-plain`, text only): the long Lumped via warning quoted internal branch and study names; it now states the evidence (29 boards and 17 more against the FVM at 0.25 mm, a sample, not a bound) and points to `docs/theory.md` 5; `tests/test_warning_texts_plain.py` fails if any warning of the checks or of a run names `research/`, `fix/` or `feature/`. Comments and docstrings may keep such names.
