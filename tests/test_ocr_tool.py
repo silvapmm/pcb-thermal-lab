@@ -805,7 +805,7 @@ def test_assemble_text_layer_fills_missing_pages(tmp_path):
     prose = " ".join(f"word{i}" for i in range(80))
     out = assemble.assemble(tmp_path, "X", tmp_path, 3, {1: "ignored " * 100, 2: prose, 3: "too short"}, {}, True)
     assert "Claude page" in out and "word79" in out and out.count("[missing]") == 1
-    assert "text: '2'" in out or "text: 2" in out
+    assert 'text: "2"' in out
 
 
 def test_assemble_ranges():
