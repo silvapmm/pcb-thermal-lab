@@ -503,7 +503,7 @@ def check_model_limits(problem, models, cell_mm=1.0):
                        "measured 22 % too small to 65 % too large depending on the distance and the number of rings (an effect of 0.5 to 3 K), "
                        "that of a row 6 to 21 % too large, that of vias scattered over the board 19 to 56 % too large, and that of an array just "
                        "outside the edge of a footprint up to 2.3 times the reference (the part up to 4 K, 9 % of its rise, too cool; "
-                       "research/young-omega-tiles 3.8, the review of fix/via-constriction, research/lumped-zones-adoption 8.4); use the FVM.",
+                       "measured on 29 boards, and 17 more, against the FVM at 0.25 mm; a sample, not a bound; see docs/theory.md section 5); use the FVM.",
                  f"{first}{f' and {outside.size - 1} more vias' if outside.size > 1 else ''}: outside every footprint; the Lumped model is approximate here "
                  "(effect 22 % too small to 65 % too large, an array just beside a part up to 2.3 times); use the FVM.")
     if "analytic" in models and on_board.any() and b.layers > 1:
