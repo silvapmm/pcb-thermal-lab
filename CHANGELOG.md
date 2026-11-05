@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Changed (via near a board edge, `feature/via-edge-image`)
+- The FVM gives a via within six cells of a straight board edge (the box, or an axis-parallel side of an outline) the mirror image of the edge in its well (`viawell.edge_term`): the via effect of a via 0.16 mm from the edge at a 1 mm cell was +14.5 % high and is +0.7 % (a corner +26.0 % to -1.0 %, an outline side +14.1 % to +1.1 %); the matrix keeps its structure and results are bit-identical for vias out of reach. The inverted T of the frozen numbers moves -0.0103 K at 2 mm (pending shift). The FDM and the 3D solid have no image.
+- The warning *via touching the board edge* now applies to what the image does not cover: the FDM and the 3D solid (their via effect is 4 to 10 % too small and about 19 points too large at 1 mm), a cell of 2 mm or more, a via cut by the edge, and slanted, curved or short outline sides.
+
 ### Fixed and changed (`fix/preferences-and-equivalent-rectangle`)
 - Preferences: no page scrolls sideways any more (rows wrap into two lines, the models are a two-column grid, library tables share the width and a cut cell shows its whole text when hovered); the list of sections has no tooltip. `tests/test_preferences_layout.py` checks every page at 980x600, 1100x700 and 800x600 in both themes.
 - The Lumped and Analytic maps of a board with an outline can show the field as solved: the rectangle of the same area, dashed, with its parts, and the real outline dotted (box `Equiv. rect.` above the Temperature and Gradient maps, ticked by default; unticked, the field is stretched onto the real box as before). Their gradient map is taken on the solved spacing (it was `s` times too small). New field `SteadyResult.equivalent_scale`; the maps of FVM, FDM, 3D solid and of rectangular boards are unchanged.
