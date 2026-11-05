@@ -1168,3 +1168,32 @@ Import 10 s and 0.64 GB, network build 7.7 s, solve 32 s, peak 5.5 GB. The impor
 ### 27.6 What was not verified
 
 Nothing was compared with a measurement of a physical board. Plated holes are left out of the tables (the primary run isolates the mapping); heaters other than a 4 to 4.8 mm square on the top layer; copper other than 35 micrometres; the transient of an imported board at the program's cells (the earlier study 4.3 ran it at a fine cell only); the 3D solid and the Lumped and Analytic models on imported copper only through the warnings and the tests of `tests/test_imported_copper.py` (the 1 to 16 % of the warning is the earlier study of 24 windows, README 4.5, not re-run here). The 24 mm windows of the four-layer boards need 8.4 GB for the pixel network (the script's header) and were not run.
+
+## 28. A via on a plane with copper over part of its footprint
+
+The via of the FVM and FDM draws heat from each cell of its footprint in proportion to a fixed weight (theory 2.6). Where a copper layer has copper over only part of the footprint, the bare cells cannot supply it. The investigation is `research/via-partial-copper` (numbers quoted from its README, sections 2, 3, 6; the warning rule below is `checks.partial_copper_vias`, run here on the imported windows by the branch `fix/via-partial-copper-warning`).
+
+### 28.1 What the investigation measured
+
+| FVM, board of theory 2.2 (30 x 30 mm, h = 10 W/m2K) | 1 mm | 0.5 mm | 0.25 mm | 0.125 mm |
+| :-- | --: | --: | --: | --: |
+| cold spot, K | 0.00 | -7.94 | -14.43 | -14.33 |
+| via effect on the maximum, K | 6.41 | 7.31 | 7.67 | 8.28 |
+| FDM via effect, K (no cold spot) | 8.93 | 10.69 | 11.06 | 11.36 |
+| 3D solid via effect, K (not converged) | 0.70 | 2.86 | 7.20 | 10.74 |
+
+* The 3D solid of the old comparison (2.86 K at 0.5 mm) had not converged; against the 3D solid at 1/16 and 1/20 mm (agreeing to 0.2 % on a copper edge) the FVM at 0.25 mm reads the via effect 31 to 47 % low for a copper edge through the via, 45 to 68 % low for a track ending on it and 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser. The effect has mixed sign.
+* The extent 'below the ambient' (-2.5 % to -38 % of the largest rise) was not reproduced (minimum rise above zero in all the cases run, cells 1 to 0.125 mm; the cells of 0.05 and 0.025 mm were not run). Antipads are not a cause.
+* The rule fires on every copper-edge, track and bare case and on the documented board at every cell; silent on antipads, on the array with antipads and on all five frozen boards with vias at 2, 1 and 0.5 mm (0 false alarms; of 44 cases with a via effect above 1 K: 19 fired and the program wrong, 4 fired and right, 4 silent and wrong, 17 silent and right).
+
+### 28.2 Fire rate on imported boards (the imported copper at the cell of the run, vias as the import makes them)
+
+| Board | Layers | Vias | Fire at 1 mm | Fire at 0.5 mm |
+| :-- | --: | --: | --: | --: |
+| RP2040 | 2 | 43 | 3 (7.0 %) | 7 (16.3 %) |
+| ISASTM | 4 | 1008 | 42 (4.2 %) | 51 (5.1 %) |
+| CMM2 | 4 | 1000 | 18 (1.8 %) | 49 (4.9 %) |
+| OSW light | 4 | 126 | 5 (4.0 %) | 10 (7.9 %) |
+| CO60 | 2 | 359 | 35 (9.7 %) | 133 (37.0 %) |
+
+The rule fires on a minority of the vias of real boards (at most 37 %, at 0.5 mm on the stripe-patterned CO60), so it stays in the live list with the share ("N of M vias"); above about one half it would be a property of every via and would be moved to a single note after the run. Measured with the sheet before the laminate rule (`partial_copper_vias`); the prefilter gives the same counts as the test of every via (`tests/test_via_partial_copper_warning.py`). Nothing was compared with a physical board.
