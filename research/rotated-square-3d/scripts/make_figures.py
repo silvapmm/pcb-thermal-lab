@@ -166,10 +166,95 @@ def fig_square_reference():
     plt.close(fig)
 
 
+def fig_fvm_cut_cells():
+    """!
+    @brief Figure 12: the cut-cell links of the layered FVM against the program's cover scaling (from `study_cut_cells_fvm.py disc|tee|square`, tier light).
+    @details Left: peak of a round board at the centre of the hot cell against the axisymmetric reduction, per cent of the rise, against the cell, `h_side` 1000.
+             Middle: the example board cut to the T, hottest point at the cells of the study (aligned references 2/3 and 1/3 mm), `h_side` 10.
+             Right: the small T, error of the hottest point against the program at 1/12 mm cells, against the position of the neck edge, cell 1 mm.
+    @return None.
+    """
+    disc, tee, schemes = runs.load("cutfvm_disc_light.json"), runs.load("cutfvm_tee_light.json"), ("program", "aperture", "links", "links+strip")
+    if disc is None or tee is None:
+        print("study_cut_cells_fvm.py disc and tee have not been run: figure 12 skipped")
+        return
+    cols = {"program": "#d62728", "aperture": "#ff7f0e", "links": "#2ca02c", "links+strip": "#9467bd"}
+    fig, axs = plt.subplots(1, 3, figsize=(14, 4.2))
+    cells = (1.0, 0.5, 0.25)
+    for k, s in enumerate(schemes):
+        axs[0].plot(cells, [disc[f"1000|{c:g}"][k][0] for c in cells], "o-", color=cols[s], label=s)
+    axs[0].axhline(0.0, color="k", lw=0.6)
+    axs[0].set_xscale("log")
+    axs[0].invert_xaxis()
+    axs[0].set_xlabel("cell (mm)")
+    axs[0].set_ylabel("peak minus axisymmetric reduction (% of the rise)")
+    axs[0].set_title("round board, 40 mm, h_side 1000", fontsize=9)
+    axs[0].legend(fontsize=7)
+    axs[0].grid(alpha=0.3)
+    cs = (1.0, 0.8, 0.5, 0.4, 0.25)
+    for k, s in enumerate(schemes):
+        axs[1].plot(cs, [tee[f"example|10|{c:.4f}"][k] for c in cs], "o-", color=cols[s], label=s)
+    for c in (2 / 3, 1 / 3):
+        axs[1].plot([c], [tee[f"example|10|{c:.4f}"][0]], "ks")
+    axs[1].invert_xaxis()
+    axs[1].set_xlabel("cell (mm)   (black squares: edge on grid lines, no cut cell)")
+    axs[1].set_ylabel("hottest point (degC)")
+    axs[1].set_title("example board cut to a T, h_side 10", fontsize=9)
+    axs[1].grid(alpha=0.3)
+    keys = sorted(k for k in tee if k.startswith("small|") and k.endswith("|1"))
+    xs = [float(k.split("|")[1]) for k in keys]
+    for k, s in enumerate(schemes):
+        axs[2].plot(xs, [tee[key][k] for key in keys], "o-", color=cols[s], label=s)
+    axs[2].set_xlabel("left neck edge a (mm); 10.0 and 11.0 are on grid lines")
+    axs[2].set_ylabel("error of the hottest point (K)")
+    axs[2].set_title("small T, 1 mm cells, against 1/12 mm", fontsize=9)
+    axs[2].grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_12_fvm_cut_cells.png", dpi=105)
+    plt.close(fig)
+
+
+def fig_sweep():
+    """!
+    @brief Figure 16: the error of the hottest point of the layered FVM against the fine-cell value of the same board while the outline of a 20 mm square moves over one cell (left) and turns (right), program against cut-cell links, at three edge coefficients (1 mm cells).
+    @return None.
+    """
+    import json
+    path = HERE.parent / "out" / "cutsweep_square.json"
+    if not path.exists():
+        return
+    d = json.load(open(path))
+    cols = {"program": "#d62728", "program@exact": "#ff7f0e", "aperture": "#9467bd", "links": "#2ca02c", "links@exact": "#1f77b4", "links+strip": "#8c564b"}
+    fig, axs = plt.subplots(2, 3, figsize=(12.5, 6.4))
+    for c, hs in enumerate((10, 100, 2000)):
+        res = d.get(f"square off 0 h {hs}|1")
+        if res is None:
+            continue
+        for s, r in res["res"].items():
+            e = r["shift_values"]
+            axs[0, c].plot([k / len(e) for k in range(len(e))], [v - e[0] for v in e], "o-", ms=3, color=cols[s], label=s)
+            t = r["turn_values"]
+            axs[1, c].plot([5 * k for k in range(len(t))], [v - t[0] for v in t], "o-", ms=3, color=cols[s], label=s)
+        axs[0, c].set_title(f"h_side {hs} W/m2K: outline moved over a cell", fontsize=9)
+        axs[1, c].set_title(f"h_side {hs} W/m2K: outline turned", fontsize=9)
+        axs[0, c].set_xlabel("shift (cells, both axes)")
+        axs[1, c].set_xlabel("turn (degrees)")
+        for r_ in (0, 1):
+            axs[r_, c].set_ylabel("error change (K)")
+            axs[r_, c].grid(alpha=0.3)
+    axs[0, 0].legend(fontsize=7)
+    fig.suptitle("Layered FVM at 1 mm: the part stays on the grid, the 20 mm board moves (the read-out bias of the cell-centred peak is subtracted)", fontsize=10)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    fig.savefig(OUT / "fig_16_cut_cell_sweep.png", dpi=105)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
+    fig_fvm_cut_cells()
     fig_ladder()
     fig_remeasure()
     fig_disc()
     fig_conductance()
     fig_square_reference()
+    fig_sweep()

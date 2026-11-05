@@ -36,7 +36,7 @@ TIPS = {
     "width": "Width of the rectangle along x in millimetres.",
     "height": "Height of the rectangle along y in millimetres.",
     "power": "Power dissipated by the part in watts. With a power profile this is the average.",
-    "drill diameter": "Drill diameter of the via in millimetres: the plating is inside it, so the finished hole is the drill minus twice the plating (the plating thickness is in the Materials box of the Stack-up tab). A Gerber or Excellon file gives the drill.",
+    "drill diameter": "Drill diameter of the via in millimetres: the plating is inside it, so the finished hole is the drill minus twice the plating (the plating thickness is in the Materials box of the Stack-up tab). A drill file will give it when the Gerber import reaches the interface (the reader exists, the import does not yet).",
     "fill": "What fills the via barrel: open, epoxy resin (the usual fabricator filled via, almost no heat), conductive paste (+5 %) or electroplated copper (3.3 times the plating).",
     "block material": "Metal of the block pressed on the board (a preset sets the conductivity below; Custom keeps your value).",
     "cooling model": "How the cooling of this area is described: manual input (you give h or the datasheet θSA) or a metal block the program computes (spreading in the metal, interface, optional fins; all models in steady state, the finite-volume ones also in time).",

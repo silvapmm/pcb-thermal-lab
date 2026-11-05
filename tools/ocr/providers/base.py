@@ -46,7 +46,9 @@ class Result:
     """!
     @brief The outcome of one transcription call.
     @details text is the Markdown (empty when blocked); finish_reason is the provider's own word ("STOP",
-             "RECITATION", ...); recitation is True when the page was refused by a copyright filter.
+             "RECITATION", ...); recitation is True when the page was refused by a copyright filter; split is True when
+             the page should be asked again as two half-page crops (an answer cut at the token limit);
+             extra may hold "attempts" (HTTP attempts made) and "usage" ({"input_tokens", "output_tokens"}).
     """
 
     text: str
@@ -54,6 +56,7 @@ class Result:
     model: str = ""
     seconds: float = 0.0
     recitation: bool = False
+    split: bool = False          # True when the answer was cut or refused and two half-page requests may fix it
     extra: dict = field(default_factory=dict)
 
 
