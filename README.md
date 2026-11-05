@@ -1,6 +1,6 @@
 # PCB Thermal Lab
 
-[![version](https://img.shields.io/badge/version-2.4.5-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-1233%20passing-brightgreen)](tests)
+[![version](https://img.shields.io/badge/version-2.5.0-blue)](CHANGELOG.md) [![tests](https://img.shields.io/badge/tests-1233%20passing-brightgreen)](tests)
 
 Thermal simulation of printed circuit boards. Draw copper zones, heaters, vias and heatsinks on a multi-layer board, run the models and inspect temperatures,
 gradients, hotspots, component junction temperatures and the heat evolution in time.
@@ -55,9 +55,9 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
 
-## What is new in 2.5.0 (next release, on `develop`)
+## What is new in 2.5.0
 
-The next version, 2.5.0, is a candidate and the version number above changes only at the release. It adds the **import of Gerber boards** (File - Import Gerber board: files and layers, parts, model), the **imported copper** in the finite-volume and finite-difference models, **parts from the paste layers** with the exposed pad as the heat source, the **memory guard**, a much faster direct solver for boards with many vias, a **zonal Lumped model** for parts over groups of vias, the convective board edge in the Analytic model, the mirror image of a board edge for vias, laminate options, more live warnings and a softer, more legible interface. The list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
+Version 2.5.0 (2026-11-05) adds the **import of Gerber boards** (File - Import Gerber board: files and layers, parts, model), the **imported copper** in the finite-volume and finite-difference models, **parts from the paste layers** with the exposed pad as the heat source, the **memory guard**, a much faster direct solver for boards with many vias, a **zonal Lumped model** for parts over groups of vias, the convective board edge in the Analytic model, the mirror image of a board edge for vias, laminate options, more live warnings and a softer, more legible interface. The list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
 
 * **First version of the Gerber import and of the imported copper**: they were checked against independent references and on real sets of files from open boards, **not against a measured board**.
 * **Project format 2**: a project with an imported board opens as an error ("Cannot open file") in 2.4.x, which never overwrites it; projects without imports are unchanged.
@@ -140,6 +140,7 @@ In the program: **Help - User guide** (`F1`; the same file is `pcbthermal/help/i
 
 Semantic versioning; the version is defined in `pcbthermal/__init__.py` and shown in the title bar, status bar, About box and every report. Details of each version are in [`docs/versions.md`](docs/versions.md).
 
+- **2.5.0** (2026-11-05): the Gerber import and the imported copper, parts from the paste layers with the exposed pad as the heat source, the memory guard, a faster direct solver for boards with many vias, the zonal Lumped model, the convective edge in the Analytic model, the mirror image of a board edge for vias, laminate options and more live warnings; the list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
 - **2.4.5** (2026-11-01): fixes only: vias converge with the cell in the FVM and FDM and are coupled in the SOR, the Lumped and Analytic models carry the constriction of the heat on a via, laminate nodes for patterned copper, a part across the board outline is weighted by its intersection, one factorisation for the top-path split, the SOR relaxation factor, and warnings of the limits of the models. Details in [`CHANGELOG.md`](CHANGELOG.md).
 - **2.4.4** (2026-10-29): the Simulation footer stays in sight on a low window, a decimal comma pasted from the right-click menu is read as a point, and the warning for plate fins that are too close is now a check after the run on the channel Rayleigh number, with a text that follows the orientation of the board; no result changes.
 - **2.4.3** (2026-10-29): corrections found by the investigations: a metal block is cut at the board outline, zones that meet inside a cell keep the copper of both, the top path exists only on a component, the 3D solid keeps the copper of a large via, the unknowns shown are the ones the models have, the via field is the drill diameter, plus an input warning for a source with component fields and small interface cleanups.

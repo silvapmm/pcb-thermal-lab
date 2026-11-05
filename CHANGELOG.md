@@ -3,11 +3,11 @@
 All notable changes are recorded here. The project follows [Semantic Versioning](https://semver.org/):
 MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Releases are tagged `vMAJOR.MINOR.PATCH` on `main`.
 
-## [Unreleased] (candidate for 2.5.0)
+## [2.5.0] - 2026-11-05
 
 **Fixed (dark toolbar icons).** The navigation toolbar of the result plots drew pure white icons in the dark theme; they are now painted with the `text` token of the theme and recoloured on a theme switch (`tests/test_toolbar_icons.py`).
 
-### 2.5.0 summary (candidate; the bump commit turns this heading into `## [2.5.0] - <date>` and keeps the detailed entries below)
+### 2.5.0 summary
 
 **Honest note.** 2.5.0 is the **first version of the Gerber import and of the imported copper**. They are checked against independent references (an exact vector geometry of the files, a resolved 3D solid, datasheet cases) and on real sets of files from open boards, **not against a measured physical board**. As for every version, no model has been compared with a measurement of a board.
 
