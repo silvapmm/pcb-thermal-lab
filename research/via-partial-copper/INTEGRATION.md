@@ -38,6 +38,9 @@ The barrel as one node per layer joined to every cell by `g_a = c w_a` (weights 
 
 ## 4. Recommendation
 
+**Changed by the review (README 9.4).** Proposal A is implemented and reviewed on `fix/via-partial-copper-warning` (not yet merged) and stays the 2.5.0 item. For the numbers, the review recommends **C (the star) once, in 2.6.0, after `feature/via-edge-image` is in `develop`, and not B first**: C is equal to or better than B on seven of the eight 10 mm rows, is the only one with a structural maximum principle (an M-matrix), keeps the path of a part heating a bare cell (-16 % against -84 %), and doing B then C would move the imported boards twice. B stays the fallback if the maintainer wants no frozen shift. The acceptance tests of C are listed in README 9.4. The order below is the folder's original recommendation, kept as the record.
+
+
 1. **2.5.0:** Proposal A (the warning). It moves no number and rests on 0 false alarms on the frozen boards; run it on the imported windows first. Update the Planned item and `theory.md` 2.2 in the same branch to drop "exaggerates the via effect 2.5 to 4 times" (the research does not support it: the 3D reference of that figure was not converged, README 2).
 2. **After 2.5.0:** `fix/via-partial-copper` with B, once `feature/via-edge-image` is merged and the real-window comparison (with and without B on the 12 windows with holes) has been run; or C instead of B if the maintainer prefers one model change.
 3. **If the maintainer wants the number fix in 2.5.0:** B only, after the edge image, with the real-window comparison as a condition and a pending shift file for the imported boards (none for the frozen ones).
@@ -45,5 +48,5 @@ The barrel as one node per layer joined to every cell by `g_a = c w_a` (weights 
 ## 5. Decisions for the maintainer
 
 * A in 2.5.0: yes or no; the demotion rule if it fires on most imported vias.
-* B or C, and when.
-* Whether the Planned item and `theory.md` 2.2 are corrected now (documents; not done here).
+* B or C, and when (the review: C in 2.6.0, README 9.4).
+* Whether the Planned item and `theory.md` 2.2 are corrected now (documents; done on `fix/via-partial-copper-warning`, not here).
