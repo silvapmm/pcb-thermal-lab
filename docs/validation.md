@@ -1165,7 +1165,7 @@ Cells of 0.5, 1 and 2 mm are whole numbers of the pixels above, so the tables do
 
 ### 27.5 Time and memory (CO60, 285 x 95 mm, two layers; the reviewer's measurement, not re-run for this document)
 
-Import 10 s and 0.64 GB, network build 7.7 s, solve 32 s, peak 5.5 GB. The import and run terms of `memory.py` (`copper_run_bytes`: the unpacked masks, 1 byte per pixel and layer; the face construction, 40 bytes per source pixel of the largest layer plus 50 MB) are the ones fitted to such runs. **The memory law of the FVM itself ignores the vias** (`memory.estimate`): a board with many plated holes costs more than the estimate says; this is a separate fix (`docs/versions.md` 'Planned'), not part of this branch.
+Import 10 s and 0.64 GB, network build 7.7 s, solve 32 s, peak 5.5 GB. The import and run terms of `memory.py` (`copper_run_bytes`: the unpacked masks, 1 byte per pixel and layer; the face construction, 40 bytes per source pixel of the largest layer plus 50 MB) are the ones fitted to such runs. When this was measured the memory law of the FVM ignored the vias; it now carries the via term of `theory.md` (2.8b), fitted on the symmetric-mode peaks of `research/memory-guard` README 14.12 (this CO60 run was not repeated with it).
 
 ### 27.6 What was not verified
 
