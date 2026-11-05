@@ -5,6 +5,10 @@ MAJOR for incompatible changes, MINOR for new features, PATCH for fixes. Release
 
 ## [Unreleased]
 
+### Fixed and changed (`fix/preferences-and-equivalent-rectangle`)
+- Preferences: no page scrolls sideways any more (rows wrap into two lines, the models are a two-column grid, library tables share the width); the list of sections has no tooltip. `tests/test_preferences_layout.py` checks every page at 980x600, 1100x700 and 800x600 in both themes.
+- The Lumped and Analytic maps of a board with an outline draw the rectangle of the same area they solved as a dashed line with a legend entry (box `Equiv. rect.` above the map, also on the board overlay; the Results summary warning mentions it). New field `SteadyResult.equivalent_scale`; the maps of FVM, FDM, 3D solid and of rectangular boards are unchanged.
+
 ### Changed (integration)
 - `Board.validate` refuses an edge coefficient `h_side` above 1e5 W/m2K (the Preferences range ends at 500; at 1e300 the edge heat of the Analytic model was absurd); the message names the limit.
 - Delete has a second key, Backspace (the menu and both key tables show it). The side docks are titled "Board settings" and "Simulation settings"; their saved-layout names are unchanged, so saved window layouts still restore.

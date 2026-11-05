@@ -673,11 +673,12 @@ def _run_model(problem, name, o):
         eq, s = problem.equivalent_rectangle()
         res = _run_model(eq, name, o)
         res.dx, res.dy = res.dx / s, res.dy / s
+        res.equivalent_scale = s                           # The plots draw the rectangle that was solved (plots.draw_field)
         if res.t_max_location is not None:
             layer, x, y = res.t_max_location
             res.t_max_location = (layer, x / s, y / s)
-        res.warnings.append(f"the board has an outline: computed on a rectangle of the same area (box and positions scaled by {s:.3f}); expect a few percent of "
-                            "difference, more for parts near the edge or in a narrow arm; the FVM, FDM and 3D solid use the real shape")
+        res.warnings.append(f"the board has an outline: computed on a rectangle of the same area (box and positions scaled by {s:.3f}) and stretched back onto the real box; the maps draw that rectangle dashed; "
+                            "expect a few percent of difference, more for parts near the edge or in a narrow arm; the FVM, FDM and 3D solid use the real shape")
         return res
     if name == "fvm":
         return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver, memory_limit=memory.limit_bytes(o.memory_fraction))

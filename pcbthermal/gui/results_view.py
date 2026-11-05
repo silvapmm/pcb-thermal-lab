@@ -123,6 +123,9 @@ class PlotTab(QWidget):
         self.cmap.addItems(plots.CMAPS)
         self.hot = QCheckBox("Hotspot contour")
         self.hot.setChecked(True)
+        self.equiv = QCheckBox("Equiv. rect.")
+        self.equiv.setChecked(True)
+        self.equiv.setVisible(False)                    # Shown only for a Lumped or Analytic result of a board with an outline
         self.auto = QCheckBox("Auto range")
         self.auto.setChecked(True)
         self.vmin, self.vmax = QDoubleSpinBox(), QDoubleSpinBox()
@@ -139,6 +142,8 @@ class PlotTab(QWidget):
         self.model.setToolTip("Model whose result is drawn.")
         self.layer.setToolTip("Copper layer shown.")
         self.cmap.setToolTip("Colour scale of the map.")
+        self.equiv.setToolTip("Draw, dashed, the rectangle of the same area that the Lumped and Analytic models solved instead of the outline. Their field is that rectangle "
+                              "stretched back by 1 / s onto the box of the board (s = square root of the area ratio) and blanked outside the outline.")
         self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
         self.vmax.setToolTip("Highest temperature of the colour scale in °C (used when Auto range is off).")
         self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
@@ -149,6 +154,7 @@ class PlotTab(QWidget):
             for lbl, w in (("Model", self.model), ("Layer", self.layer), ("Colours", self.cmap)):
                 controls.addWidget(QLabel(lbl))
                 controls.addWidget(w)
+            controls.addWidget(self.equiv)
             if kind == "temperature":
                 controls.addWidget(self.hot)
                 controls.addWidget(self.auto)
@@ -170,7 +176,7 @@ class PlotTab(QWidget):
 
         for w in (self.model, self.layer, self.cmap, self.axis):
             w.currentIndexChanged.connect(self.redraw)
-        for w in (self.hot, self.auto):
+        for w in (self.hot, self.auto, self.equiv):
             w.toggled.connect(self.redraw)
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
@@ -251,6 +257,10 @@ class PlotTab(QWidget):
         if self._updating or self.sim is None:
             return
         sim, prob = self.sim, self.sim.problem
+        r0 = self._result()
+        eq = r0.equivalent_scale if r0 is not None and prob.board.has_outline() else None
+        self.equiv.setVisible(eq is not None and self.kind in ("temperature", "gradient"))
+        eq_args = {"equivalent_scale": eq if self.equiv.isChecked() else None, "equivalent_color": th.colors("dark")["alert"]}   # Amber token: readable on every colour map
         self.vmin.setEnabled(not self.auto.isChecked())
         self.vmax.setEnabled(not self.auto.isChecked())
         with _mpl_theme(self.theme):
@@ -259,7 +269,7 @@ class PlotTab(QWidget):
                 layer = self.layer.currentData()
                 cmap = self.cmap.currentText()
                 if layer == -1:
-                    plots.draw_fields(self.fig, r, prob, cmap=cmap)
+                    plots.draw_fields(self.fig, r, prob, cmap=cmap, show_equivalent=self.equiv.isChecked(), equivalent_color=eq_args["equivalent_color"])
                 elif layer >= 100:
                     plots.draw_block(self.fig, r, prob, layer - 100, cmap=cmap)
                 else:
@@ -268,7 +278,7 @@ class PlotTab(QWidget):
                     loc = r.t_max_location
                     plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
                                      layer=layer, marker=(loc[1], loc[2]) if loc and loc[0] == layer else None,
-                                     hotspot=sim.options.hotspot_c if self.hot.isChecked() else None,
+                                     hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
                                      title=f"{r.model.upper()} - layer {layer + 1}   "
                                            f"Tmax {r.t_max:.1f} °C   Tmean {r.t_mean:.1f} °C")
             elif self.kind == "gradient" and self._result() is not None:
@@ -276,7 +286,7 @@ class PlotTab(QWidget):
                 layer = max(self.layer.currentData(), 0)
                 g = analysis.gradient_magnitude(r)[layer]
                 plots.draw_field(self.fig, g, prob, r.dx, r.dy, cmap=self.cmap.currentText(), layer=layer,
-                                 label="|∇T| (K/mm)",
+                                 label="|∇T| (K/mm)", **eq_args,
                                  title=f"{r.model.upper()} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
             elif self.kind == "profile":
                 axis = self.axis.currentData()

@@ -112,7 +112,7 @@ def walk_results(win, qtbot):
             combo = getattr(tab, name)
             for i in range(combo.count()):
                 combo.setCurrentIndex(i)
-        for chk in (tab.hot, tab.auto):
+        for chk in (tab.hot, tab.auto, tab.equiv):
             chk.setChecked(not chk.isChecked())
             chk.setChecked(not chk.isChecked())
         for v in (0, 250, 1000):

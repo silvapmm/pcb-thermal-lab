@@ -416,7 +416,7 @@ class BoardView(QGraphicsView):
         self.scene().addItem(item)
         self._background = item
 
-    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.8, nodes=False):
+    def set_overlay(self, field, dx, dy, cmap="inferno", vmin=None, vmax=None, opacity=0.8, nodes=False, equivalent_scale=None):
         """!
         @brief Draw a temperature map over the board.
         @param field Array (ny, nx) in degC (row 0 at y = 0).
@@ -427,6 +427,8 @@ class BoardView(QGraphicsView):
         @param vmax Upper colour limit.
         @param opacity Overlay opacity (0..1).
         @param nodes True if the field holds values at grid points (the first sample sits at 0, not at half a cell).
+        @param equivalent_scale Scale s of the equivalent rectangle when the field is a Lumped or Analytic result of a board with an outline: its
+               dashed edge (the box the stretched field fills) is drawn above the map; None draws nothing.
         """
         from matplotlib import colormaps
 
@@ -448,6 +450,19 @@ class BoardView(QGraphicsView):
         item.setAcceptedMouseButtons(Qt.NoButton)
         self.scene().addItem(item)
         self._overlay = item
+        if equivalent_scale is not None and self.doc.problem.board.has_outline():
+            b = self.doc.problem.board
+            rect = QGraphicsRectItem(QRectF(0, 0, b.width * 1000.0, b.height * 1000.0))
+            pen = QPen(QColor(th.colors("dark")["alert"]), 0, Qt.DashLine)          # Amber token, readable on every colour map
+            pen.setCosmetic(True)
+            rect.setPen(pen)
+            rect.setBrush(Qt.NoBrush)
+            rect.setZValue(0.6)
+            rect.setAcceptedMouseButtons(Qt.NoButton)
+            rect.setToolTip(f"Equivalent rectangle used by the Lumped / Analytic (same area, {b.width * 1000.0 * equivalent_scale:.1f} x "
+                            f"{b.height * 1000.0 * equivalent_scale:.1f} mm): their field is stretched onto this box")
+            self.scene().addItem(rect)
+            self._equivalent_item = rect
 
     def clear_overlay(self):
         """!
@@ -456,6 +471,9 @@ class BoardView(QGraphicsView):
         if self._overlay is not None and self._overlay.scene() is not None:
             self.scene().removeItem(self._overlay)
         self._overlay = None
+        if getattr(self, "_equivalent_item", None) is not None and self._equivalent_item.scene() is not None:
+            self.scene().removeItem(self._equivalent_item)
+        self._equivalent_item = None
 
     # ------------------------------------------------------------------ selection
     def selected_elements(self):

@@ -155,6 +155,29 @@ def _outline(ax, problem, layer):
         ax.plot([v.x * 1000.0 for v in problem.vias], [v.y * 1000.0 for v in problem.vias], "k.", ms=3)
 
 
+EQUIVALENT_LABEL = "equivalent rectangle used by the Lumped / Analytic (same area"
+
+
+def _equivalent_rectangle(ax, problem, scale, color, legend=True):
+    """!
+    @brief Draw, dashed, the rectangle that the Lumped and Analytic models solved for a board with an outline, with a legend entry.
+    @details The models solve the rectangle of the same area (box scaled by `scale`) and the field is stretched back by 1/scale onto the box of the
+             board, so the map is the field of that rectangle stretched over the bounding box and blanked outside the real outline: the dashed
+             line is the edge of the stretched rectangle, that is the box, and the legend gives the size that was really solved.
+    @param ax Matplotlib axis (coordinates in mm).
+    @param problem The Problem (real box and outline).
+    @param scale s of `Problem.equivalent_rectangle` (0 < s <= 1).
+    @param color Line colour.
+    @param legend If True add the legend entry (one per figure is enough).
+    """
+    b = problem.board
+    W, H = b.width * 1000.0, b.height * 1000.0
+    ax.plot([0, W, W, 0, 0], [0, 0, H, H, 0], color=color, lw=1.8, ls=(0, (6, 3)), clip_on=False, zorder=5,
+            label=f"{EQUIVALENT_LABEL}, {W * scale:.1f} x {H * scale:.1f} mm)")
+    if legend:
+        ax.legend(loc="lower left", fontsize=7, framealpha=0.7)
+
+
 def _field_axes(field, problem, dx, dy):
     """!
     @brief Sample positions and image extent of a field that holds either cell values or values at grid points.
@@ -179,7 +202,7 @@ def _field_axes(field, problem, dx, dy):
 
 @_with_engineering_ticks
 def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None, vmax=None,
-               layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)"):
+               layer=0, outline=True, marker=None, hotspot=None, label="Temperature (°C)", equivalent_scale=None, equivalent_color="#ffb000"):
     """!
     @brief Draw one layer of a scalar field over the board, with outlines and a colour bar.
     @param fig Target Figure (cleared first).
@@ -196,6 +219,8 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
     @param marker Optional (x_m, y_m) of a marker, for example the hottest point.
     @param hotspot Optional temperature; the contour at that level is drawn in magenta.
     @param label Colour bar label.
+    @param equivalent_scale Scale s of the equivalent rectangle (`SteadyResult.equivalent_scale`) to draw it dashed with a legend entry; None draws nothing.
+    @param equivalent_color Colour of that dashed line.
     @return The axes.
     """
     fig.clear()
@@ -212,6 +237,8 @@ def draw_field(fig, field, problem, dx, dy, title="", cmap="inferno", vmin=None,
         _outline(ax, problem, layer)
     if marker is not None:
         ax.plot(marker[0] * 1000, marker[1] * 1000, "c+", ms=12, mew=1.5)
+    if equivalent_scale is not None and b.has_outline():
+        _equivalent_rectangle(ax, problem, equivalent_scale, equivalent_color)
     ax.set_xlim(0, b.width * 1000)
     ax.set_ylim(0, b.height * 1000)
     ax.set_xlabel("x (mm)")
@@ -247,13 +274,15 @@ def draw_block(fig, result, problem, face, cmap="inferno"):
 
 
 @_with_engineering_ticks
-def draw_fields(fig, result, problem, cmap="inferno"):
+def draw_fields(fig, result, problem, cmap="inferno", show_equivalent=True, equivalent_color="#ffb000"):
     """!
     @brief All layers side by side with a shared colour scale.
     @param fig Target Figure (cleared first).
     @param result A SteadyResult with a field.
     @param problem The Problem.
     @param cmap Colormap name.
+    @param show_equivalent If True and the result ran on the equivalent rectangle of an outline board, draw it dashed on every layer (legend on the first).
+    @param equivalent_color Colour of that dashed line.
     """
     fig.clear()
     T = np.stack([_off_board(t, problem, result.dx, result.dy) for t in result.T])
@@ -268,6 +297,8 @@ def draw_fields(fig, result, problem, cmap="inferno"):
         ax.set_xlim(0, b.width * 1000)
         ax.set_ylim(0, b.height * 1000)
         _outline(ax, problem, l)
+        if show_equivalent and result.equivalent_scale is not None and b.has_outline():
+            _equivalent_rectangle(ax, problem, result.equivalent_scale, equivalent_color, legend=l == 0)
         ax.set_title(f"Layer {l + 1}  (mean {result.layer_mean[l]:.1f} °C)", fontsize=9)
         ax.set_xlabel("x (mm)")
         ax.set_aspect("equal")
