@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_frozen_numbers.py
-@brief Compares a live run of the five models on the 17 regression boards with the numbers frozen at the release (`data/v2.4.5.json`) under one tolerance policy.
+@brief Compares a live run of the five models on the 17 regression boards with the numbers frozen at the release (`data/v2.5.0.json`) under one tolerance policy.
 @details The frozen file is made at a release by `research/release-regression-245/scripts/study_freeze_reference.py` (CLAUDE.md, "Branches and Versions") and copied to
          `tests/regression/data/v<version>.json`; the test reads the newest. Tolerance policy (the same for every record, `regress_frozen.py`): temperatures 1e-8 K, field
          checksums 1e-10 relative, heat balance 1e-9 W, unknown counts and skipped status exactly, time to 63 % 1e-6 relative. Defaults: the 2 mm cell, all boards and models, with
