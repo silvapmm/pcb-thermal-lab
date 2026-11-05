@@ -8,7 +8,7 @@
 environment and loads a model of several GB). The page image is wrapped in a one-page PDF and converted with
 `pdf2md_local.py --engine auto --mlx-model ovis --no-docling-formulas --no-scan-docling --page-markers --workers 1`.
 The converter is a separate project and is run, never modified. Paths come from the environment:
-`PCBT_EXTRACTPDF` (folder of the project, default /Volumes/SSD/PROJETOS/extractpdf) and `PCBT_EXTRACTPDF_PYTHON`
+`PCBT_EXTRACTPDF` (folder of the project, no default: set it) and `PCBT_EXTRACTPDF_PYTHON`
 (its Python, default `<folder>/venv/bin/python`). One page at a time (concurrency 1) and do not run it while a
 whole test battery runs (memory).
 """
@@ -24,7 +24,7 @@ from pathlib import Path
 
 from tools.ocr.providers.base import Provider, ProviderError, Result
 
-DEFAULT_FOLDER = "/Volumes/SSD/PROJETOS/extractpdf"
+DEFAULT_FOLDER = "extractpdf"   # relative to the working directory; set PCBT_EXTRACTPDF (or pass folder) to the real project
 
 
 def scrubbed_environment() -> dict[str, str]:
@@ -52,7 +52,7 @@ class LocalProvider(Provider):
     def __init__(self, folder: str | None = None, python: str | None = None, timeout: float = 1800.0):
         """!
         @brief Create the provider.
-        @param folder  Folder of the extractpdf project (default env PCBT_EXTRACTPDF or DEFAULT_FOLDER).
+        @param folder  Folder of the extractpdf project (default: the environment variable PCBT_EXTRACTPDF, else DEFAULT_FOLDER).
         @param python  Python of its environment (default env PCBT_EXTRACTPDF_PYTHON or <folder>/venv/bin/python).
         @param timeout Seconds allowed for one page.
         @return None

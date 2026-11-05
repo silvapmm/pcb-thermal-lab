@@ -505,9 +505,9 @@ def _data_folders():
     if os.environ.get("PCBT_REAL_BOARDS"):
         out.append(Path(os.environ["PCBT_REAL_BOARDS"]))
     out.append(ROOT / "research" / "gerber-real-boards" / "data")
-    for base in ROOT.parents:
-        out.append(base / "research" / "gerber-real-boards" / "data")
-        out.extend(sorted((base / ".claude" / "worktrees").glob("*/research/gerber-real-boards/data")) if (base / ".claude" / "worktrees").is_dir() else [])
+    if os.environ.get("PCBT_GERBER_DATA"):
+        out.append(Path(os.environ["PCBT_GERBER_DATA"]))
+    out.append(ROOT / "pcb-library" / "env" / "data")                # local ignored library, see pcb-library/scripts/link_env.sh
     return out
 
 
