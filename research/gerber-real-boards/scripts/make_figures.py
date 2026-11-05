@@ -7,7 +7,7 @@
          with the fitted line (study_time_memory), fig_06 the step response of the heater by cell size (study_transient_fine), fig_07 the fine-copper indicator against the error of the cell model with
          the threshold (study_fine_copper_warning). Every number in a figure comes from the printed results; a curve that is only illustrative is not drawn here.
          fig_14 to fig_16 the 30 parts of the RP2040 board against the prototype's group rule and the envelope rule (lib/component_match.py, lib/component_views.py), fig_17 box or hull as the heat-source shape,
-         fig_18 and fig_19 screenshots of the import window prototype (lib/window_shots.py); these need data/rp2040 (git-ignored; fetch_boards.py) and are skipped with a message without it; fig_21 statistics of the X3 samples (needs out/x3_components.json from study_x3_components.py; no board geometry); fig_18 and fig_19 also need PySide 6 (QT_QPA_PLATFORM=offscreen is set).
+         fig_18 and fig_19 screenshots of the import window prototype (lib/window_shots.py); these need data/rp2040 (git-ignored; fetch_boards.py) and are skipped with a message without it; fig_22 and fig_23 the heat-source shapes of the parts (study_heater_shape.py; `--sheets DIR` adds one contact sheet per part, `--only-heater-shapes` draws only these); fig_21 statistics of the X3 samples (needs out/x3_components.json from study_x3_components.py; no board geometry); fig_18 and fig_19 also need PySide 6 (QT_QPA_PLATFORM=offscreen is set).
          Run (from the repository root): .venv/bin/python research/gerber-real-boards/scripts/make_figures.py   (matplotlib and NumPy only)
 """
 
@@ -404,17 +404,164 @@ def fig_x3_real():
     fig.savefig(FIG / "fig_21_x3_real_components.png", dpi=105)
     plt.close(fig)
 
+## Colours and labels of the heat-source shapes of study_heater_shape.py
+SHAPE_STYLE = {"hull": ("#2ca02c", "(a) convex hull of the openings"), "box": ("#d62728", "(b) bounding box of the openings"),
+               "envelope": ("#9467bd", "(c) envelope from the package name"), "largest": ("#ff7f0e", "(d) largest opening only"),
+               "ep": ("#1f77b4", "(d') exposed-pad windows (hull)"), "ep_pad": ("#17becf", "(d'') exposed pad from the name"),
+               "openings": ("#8c564b", "(e) each opening, power by area")}
 
-def main():
+
+def _top_copper(board):
+    """!
+    @brief The top copper of a downloaded board at the preview pixel of the import session (program reader).
+    @param board Board key (folder of data/).
+    @return tuple (coverage array uint8, rows from the top; extent (x0, x1, y0, y1) in mm).
+    """
+    sys.path[:0] = [str(ROOT / "scripts"), str(ROOT.parents[1])]
+    import study_heater_shape as hs
+    bd = hs.session(board).board()
+    cov = bd.copper[0][2]
+    x0, y0, x1, y1 = bd.box
+    return cov, (x0, x0 + cov.shape[1] * bd.pixel_mm, y1 - cov.shape[0] * bd.pixel_mm, y1)
+
+
+def _shape_panel(ax, row, name, copper, extent, compact=False):
+    """!
+    @brief Draw one heat-source shape of a part over its top copper and paste openings.
+    @param ax Matplotlib axes.
+    @param row Part record of out/heater_shape.json.
+    @param name Shape key.
+    @param copper Top copper coverage (rows from the top).
+    @param extent (x0, x1, y0, y1) of the copper image in mm.
+    @param compact True: short title (for the grid figure).
+    @return None
+    """
+    from matplotlib.patches import Polygon as Poly
+    ops = [np.asarray(o) for o in row["openings_xy"]]
+    allp = np.vstack(ops + [np.asarray(pg) for pg in row["polygons"].get("envelope", [])])
+    (xa, ya), (xb, yb) = allp.min(axis=0) - 1.0, allp.max(axis=0) + 1.0
+    ax.imshow(copper, extent=extent, origin="upper", cmap=matplotlib.colors.ListedColormap(["#f3efe4", "#d9a35b"]), vmin=0, vmax=255, interpolation="nearest")
+    for o in ops:
+        ax.add_patch(Poly(o, closed=True, facecolor="#9e9e9e", edgecolor="#424242", linewidth=0.5, alpha=0.9))
+    col, lab = SHAPE_STYLE[name]
+    for pg in row["polygons"].get(name, []):
+        ax.add_patch(Poly(np.asarray(pg), closed=True, facecolor=col, edgecolor=col, linewidth=1.4, alpha=0.38))
+        ax.add_patch(Poly(np.asarray(pg), closed=True, fill=False, edgecolor=col, linewidth=1.4))
+    ax.set_xlim(xa, xb)
+    ax.set_ylim(ya, yb)
+    ax.set_aspect("equal")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    if name in row["runs"]:
+        rr, h0, a = row["runs"][name], row["runs"]["hull"]["t_max"], row["areas"][name]
+        stats = f"{a:.1f} mm2, {rr['t_max']:.1f} K/W ({rr['t_max'] - h0:+.1f} K, {100 * (rr['t_max'] / h0 - 1):+.0f} %)"
+        ax.set_title((lab.split(" ")[0] + "\n" + stats) if compact else (lab + "\n" + stats), fontsize=7 if compact else 8)
+    else:
+        ax.set_title(lab.split(" ")[0] + "\nnot applicable" if compact else lab + "\nnot applicable (no exposed pad)", fontsize=7 if compact else 8)
+
+
+def contact_sheet(row, copper, extent, path):
+    """!
+    @brief One picture per heat-source shape of a part (a contact sheet, light theme) with the table of its values.
+    @param row Part record of out/heater_shape.json.
+    @param copper Top copper coverage of its board.
+    @param extent Extent of the copper image (mm).
+    @param path Output PNG.
+    @return None
+    """
+    names = [n for n in SHAPE_STYLE if n in row["runs"]]
+    fig, axs = plt.subplots(2, 4, figsize=(13, 7.2))
+    axs = axs.ravel()
+    for ax, name in zip(axs, names):
+        _shape_panel(ax, row, name, copper, extent)
+    for ax in axs[len(names):]:
+        ax.axis("off")
+    ax = axs[-1]
+    h0 = row["runs"]["hull"]["t_max"]
+    lines = ["shape        area   W/cm2  Tmax  Tmean  dK     d%"]
+    for n in names:
+        rr, a = row["runs"][n], row["areas"][n]
+        lines.append(f"{n:10s} {a:6.1f} {100 / a:6.1f} {rr['t_max']:5.1f} {rr['t_mean']:5.1f} {rr['t_max'] - h0:+5.1f} {100 * (rr['t_max'] / h0 - 1):+5.0f}")
+    ax.text(0.0, 1.0, "\n".join(lines) + "\n\n1 W on the top layer, FVM 0.5 mm, h 10 W/m2K;\nTmax = R part-to-board (K/W),\nhottest face point under the heater", va="top",
+            family="monospace", fontsize=6.6, transform=ax.transAxes)
+    fig.suptitle(f"{row['ref']} - {row['package']} ({row['board']}; {row['n_openings']} paste openings, grey; top copper, tan)", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(path, dpi=110)
+    plt.close(fig)
+
+
+def fig_heater_shapes(sheets_dir=None):
+    """!
+    @brief Figures 22 and 23: the heat-source shapes of five RP2040 parts (BSD-3-Clause board, drawn) and the change of the hottest point against the hull for all eleven parts (numbers only,
+           no geometry of the GPL-3.0 boards). With `sheets_dir`, one contact sheet per part (every board, for local viewing; never committed).
+    @param sheets_dir Folder for the contact sheets, or None.
+    @return None
+    """
+    res = load("heater_shape.json")
+    if res is None:
+        return
+    fig, ax = plt.subplots(figsize=(11, 4.6))
+    names = [n for n in SHAPE_STYLE if n != "hull"]
+    labels = [f"{r['ref']}\n{r['board']}" for r in res["parts"]]
+    xx = np.arange(len(labels))
+    w = 0.13
+    for k, n in enumerate(names):
+        vals = [100 * (r["runs"][n]["t_max"] / r["runs"]["hull"]["t_max"] - 1) if n in r["runs"] else np.nan for r in res["parts"]]
+        ax.bar(xx + (k - 2.5) * w, np.clip(vals, -20, 80), w, color=SHAPE_STYLE[n][0], label=SHAPE_STYLE[n][1])
+    ax.axhspan(-10, 10, color="#cccccc", alpha=0.35, zorder=0)
+    ax.axhline(0, color="k", linewidth=0.8)
+    ax.set_xticks(xx)
+    ax.set_xticklabels(labels, fontsize=7)
+    ax.set_ylim(-20, 80)
+    ax.set_ylabel("hottest point under the part vs the hull (%)\n(clipped at +80 %)")
+    ax.set_title("1 W on each part: how the heat-source shape moves the hottest board point (grey band: +-10 %, about the rest of the model error)", fontsize=8)
+    ax.legend(fontsize=6.5, ncol=3, loc="upper right")
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_23_heater_shape_change.png", dpi=110)
+    plt.close(fig)
+    if not (ROOT / "data" / "rp2040" / "pos.csv").exists():
+        print("skipped: fig_22 needs data/rp2040 (run fetch_boards.py)")
+        return
+    coppers = {}
+    rows = [r for r in res["parts"] if r["board"] == "rp2040" and r["ref"] in ("U3", "U1", "U2", "Y1", "R2")]
+    coppers["rp2040"] = _top_copper("rp2040")
+    shapes = list(SHAPE_STYLE)
+    fig, axs = plt.subplots(len(rows), len(shapes), figsize=(2.1 * len(shapes), 2.25 * len(rows)))
+    for i, r in enumerate(rows):
+        for j, n in enumerate(shapes):
+            _shape_panel(axs[i, j], r, n, *coppers["rp2040"], compact=True)
+        axs[i, 0].set_ylabel(f"{r['ref']}\n{r['package'][:22]}", fontsize=7)
+    fig.suptitle("Heat-source shapes of five parts of the RP2040 minimal design (BSD-3-Clause, Raspberry Pi Ltd and T. Gilligan): grey paste openings, tan top copper; "
+                 "1 W, FVM 0.5 mm; K/W of the hottest point and the change against the hull", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(FIG / "fig_22_heater_shapes_rp2040.png", dpi=100)
+    plt.close(fig)
+    if sheets_dir:
+        Path(sheets_dir).mkdir(parents=True, exist_ok=True)
+        for r in res["parts"]:
+            if r["board"] not in coppers:
+                coppers[r["board"]] = _top_copper(r["board"])
+            p = Path(sheets_dir) / f"heater_shapes_{r['board']}_{r['ref']}.png"
+            contact_sheet(r, *coppers[r["board"]], p)
+            print("contact sheet:", p.resolve())
+
+
+def main(sheets_dir=None):
     """!
     @brief Draw every figure whose results exist.
+    @param sheets_dir Folder for the per-part contact sheets of the heater shapes (`--sheets DIR`), or None.
     @return None.
     """
     FIG.mkdir(parents=True, exist_ok=True)
     for f in (fig_mapping, fig_memory, fig_transient, fig_fine, fig_paste_window, fig_project_and_links, fig_rule_on, fig_rule_shift, fig_network_split, fig_components, fig_window, fig_x3_real):
         f()
+    fig_heater_shapes(sheets_dir)
 
 
 if __name__ == "__main__":
-    main()
+    if "--only-heater-shapes" in sys.argv:
+        FIG.mkdir(parents=True, exist_ok=True)
+        fig_heater_shapes(sys.argv[sys.argv.index("--sheets") + 1] if "--sheets" in sys.argv else None)
+    else:
+        main(sys.argv[sys.argv.index("--sheets") + 1] if "--sheets" in sys.argv else None)
     sys.exit(0)

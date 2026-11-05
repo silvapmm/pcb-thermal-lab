@@ -608,6 +608,16 @@ The sign of the rotation: negating every rotation changes nothing on the four bo
 
 The hull moves the hottest cell by 0 to 1.3 % on these four (the earlier review's range over all boards is -0.8 to +6.0 %, section 4.4 D); the shape is suggested (box) and editable; no measurement says which is right. **Review:** about 41.4 K of each rise is the mean rise of the synthetic board (the same for every shape), so the percentages are diluted; against the local part (hottest cell minus board mean: box 13.2, 14.0, 12.4, 14.2 K) the hull is hotter by 5.2, 0.0, 2.4 and 0.7 %, and the openings alone by -3.8, -12.1, +11.8 and -6.6 %. The box is therefore **never the hotter of box and hull** (it is not the conservative choice) and the openings-only shape is not a bound either (above both for the QFN, whose exposed pad holds most of the paste); the caption of figure 17 said "lower bound" and was corrected.
 
+**Follow-up: the exposed pad** (`scripts/study_heater_shape.py`, opinion and full table in [docs/heater-shape-opinion.md](docs/heater-shape-opinion.md)). Eleven parts of the RP2040, ISASTM and CMM2 boards, 1 W, program FVM at 0.5 mm on the imported copper: box, envelope and the openings by area stay within -6.1 to +9.3 % of the hull's hottest point; the heat on the exposed pad or tab reads +11.3 to +44.3 % hotter (QFN and SOT-223), and on the JEDEC 2s2p board of the power calculator the exposed pad as heater gives 31.9 K/W against the datasheet's 32.5 (the 5 mm body 40.0). Proposed: an "exposed pad" shape as the default for parts with a dominant paste group, the hull otherwise.
+
+![heat-source shapes of five RP2040 parts](figures/fig_22_heater_shapes_rp2040.png)
+
+*Figure 22: `figures/fig_22_heater_shapes_rp2040.png`, five RP2040 parts with the seven candidate shapes over the top copper and the paste openings, with the hottest point in K/W and the change against the hull (BSD-3-Clause board).*
+
+![change against the hull](figures/fig_23_heater_shape_change.png)
+
+*Figure 23: `figures/fig_23_heater_shape_change.png`, the change of the hottest point against the hull for the eleven parts (numbers only).*
+
 ### 11.6 What was not verified
 
 * The envelopes come from footprint names (a few lines of regular expressions), not from KiCad footprints; "the part count found" is not "the right shape of the heat source", and the 20 TSOP openings and the unknown envelopes are misses.
