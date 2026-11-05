@@ -958,13 +958,16 @@ def check_via_limits(problem, models, cell_mm):
     @brief Warnings about the vias on the grid: a via touching the edge of the board, and a cell too coarse for the vias (FVM and FDM).
     @details The mean-potential via of the FVM and FDM (viawell.py) converges as the cell shrinks, but
              * its kernel has no image of the board edge, so a via within one cell of the edge of the box or of the outline is clipped and its effect is
-               too large (research/via-real-board, README 3.1: +12 to +15 % for a via 0.16 mm from the edge at a 1 mm cell);
+               too large (research/via-real-board, README 3.1: +12 to +15 % for a via 0.16 mm from the edge at a 1 mm cell). The FVM now adds the mirror image
+               of a straight edge (viawell.edge_term; research/via-edge-image: +14.5 % becomes +0.7 %), so the warning stays only for what it does not
+               cover (a slanted, curved or short outline side, a cell of 2 mm or more, a via centre within its radius of the edge) and for the FDM
+               (-4.5 to -10 % at 1 mm) and the 3D solid (+19 points), which have no image;
              * from a 2 mm cell the via is a fraction of a cell and the position of its centre inside the cell moves the answer. Measured on the example
                board (9 vias, the drop of the hottest temperature caused by the vias, 9.6 K at 0.25 mm): FVM -2.9 % at 2 mm, -0.3 % at 0.5 mm, FDM -4.0 % at
                2 mm, -0.2 % at 0.5 mm, and at 3 and 4 mm the error is between -5 and +16 % (FVM) and -22 and -49 % (FDM), by the position of the vias
                (the FDM -41 % first measured at 3 mm had the footprints up to one cell off in y, where dy differs from dx).
     @param problem The Problem.
-    @param models Model keys that will run (the cell warning applies to "fvm" and "fdm").
+    @param models Model keys that will run (the cell warning applies to "fvm" and "fdm", the edge warning to "fvm", "fdm" and "solid3d").
     @param cell_mm Cell size in mm.
     @return List of warning strings (empty when nothing is doubtful).
     """
@@ -975,16 +978,36 @@ def check_via_limits(problem, models, cell_mm):
     nx = max(int(round(b.width * 1000.0 / cell_mm)), 8)
     ny = max(int(round(b.height * 1000.0 / cell_mm)), 8)
     dx, dy = b.width / nx, b.height / ny
-    if any(m in ("fvm", "fdm") for m in models):
-        # The edge test reads the cells of the FVM/FDM grid; the 3D solid has the same footprint rule, so the warning is for the layered grids and the 3D
+    if any(m in ("fvm", "fdm", "solid3d") for m in models):
+        # The edge test reads the cells of the FVM/FDM grid (the 3D solid has the same footprint rule). The FVM gives the via the mirror image of a straight
+        # edge (viawell.edge_term) when the cell is finer than VIA_COARSE_CELL_MM; what it does not cover, and the FDM and the 3D solid, keep the warning.
         edge = viawell.edge_via_indices(problem, nx, ny, dx, dy, b.cover(nx, ny, dx, dy))
-        for k in edge[:5]:
+        others = bool({"fdm", "solid3d"} & set(models))
+        todo = []
+        for k in edge:
             v = problem.vias[k]
-            _add(out, "via", k, f"{v.name or f'Via {k + 1}'}: via touching the board edge (within one cell of the edge). The cut footprint has no image of the edge, so "
-                                "its effect can be too large by 12 to 15 % at a 1 mm cell; use a finer cell or read the result near it with care.",
-                 f"{v.name or f'Via {k + 1}'}: via within one cell of the board edge; its effect can be 12 to 15 % too large at 1 mm.")
-        if len(edge) > 5:
-            _add(out, None, None, f"{len(edge) - 5} more vias touch the board edge (see above).")
+            covered = False
+            if "fvm" in models and cell_mm < VIA_COARSE_CELL_MM:
+                walls, clean = viawell.edge_walls(problem, v, viawell.EDGE_REACH_CELLS * max(dx, dy))
+                # A via whose centre is within its own radius of the wall is cut by the edge: the image is taken at the radius, not at the centre
+                covered = bool(walls) and clean and all(abs((v.x if a == "x" else v.y) - q) >= v.diameter / 2.0 for a, q in walls)
+            if others or ("fvm" in models and not covered):
+                todo.append((k, covered))
+        for k, covered in todo[:5]:
+            v = problem.vias[k]
+            name = v.name or f"Via {k + 1}"
+            if "fvm" in models and not covered:
+                _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The mirror image of the edge is applied only to a straight edge "
+                                    "of a board (or an axis-parallel side of an outline) at a cell finer than 2 mm and with the via centre inside the board; here it is not, "
+                                    "so the cut footprint has no image of the edge and the via effect can be too large by 12 to 15 % at a 1 mm cell; use a finer cell or read the result near it with care.",
+                     f"{name}: via within one cell of the board edge; its effect can be 12 to 15 % too large at 1 mm.")
+            else:
+                _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM treats it with the mirror image of the edge, but the FDM "
+                                    "(half-volume edge nodes) has no image and reads the via effect 4 to 10 % too small at a 1 mm cell, and the 3D solid has none and reads it about "
+                                    "19 points too large; use the FVM, or a finer cell, for the part near it.",
+                     f"{name}: via within one cell of the board edge; FDM and 3D solid have no image of the edge (effect 4 to 10 % too small and about 19 points too large at 1 mm).")
+        if len(todo) > 5:
+            _add(out, None, None, f"{len(todo) - 5} more vias touch the board edge (see above).")
     if cell_mm >= VIA_COARSE_CELL_MM and any(m in ("fvm", "fdm") for m in models):
         _add(out, None, None, f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias: a via is a fraction of a cell, so the temperature drop they cause is uncertain "
                               "by about 3 to 4 % at 2 mm and by 5 to 50 % at 3 to 4 mm, depending on where each via falls in its cell (example board: 9 vias, "
