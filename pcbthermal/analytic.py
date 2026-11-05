@@ -943,14 +943,14 @@ class _AnalyticAdapter:
         self.warnings = []
         if problem.heatsinks:
             # Measured on 10 test boards (one 60 x 40 mm family, one 10 x 10 mm part, unit-step response only, FVM at 1 mm; research/analytic-2-6 README 3.1,
-            # reproduced by the review): the time to 63 % was -66.9 % to +112.7 % of the FVM with a heatsink (-36.7 % with the heatsink under the part and no vias;
+            # reproduced by the review): the time to 63 % was -66.9 % to +112.7 % of the FVM at 1 mm with a heatsink (review: against the converged FVM -66 % to +84 %, +175 % on a 2-layer board with a 300 W/m2K heatsink) (-36.7 % with the heatsink under the part and no vias;
             # the earlier review of validation 4.1 measured -3.6 % for a heatsink alone in a corner and +28 to +49 % with vias, another board); plain boards, one via and via arrays were +0.1 to +0.6 %. The Lumped model is not a safe alternative there (-41.8 % with the
             # heatsink beside the part), so the text points to the FVM and FDM. Text only: no number moves (the local modal system is planned for 2.6.0).
             scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
             self.warnings.append(
-                "the analytic transient smears the heatsinks over the board: with a heatsink the time to 63 % was measured from -67 % to +113 % "
-                "off the finite-volume result (10 test boards of one 60 x 40 mm family, step response only; -37 % with the heatsink under the part "
-                "and no vias); use the FVM or the FDM for the time behaviour"
+                "the analytic transient smears the heatsinks over the board: with a heatsink the time to 63 % was, on a sample of test boards, "
+                "from about -66 % to +84 % off the converged finite-volume result, and +175 % on one 2-layer board with a strong heatsink (300 W/m2K); "
+                "this is a sample, not a bound (one 60 x 40 mm family, step response only); use the FVM or the FDM for the time behaviour with a heatsink"
                 + (f" (calibration factors {scales})" if ms.scaled else ""))
         elif ms.scaled:
             what = "via conductance" if ms.scaled[0][0] == "vias" else "heatsink coefficient"
