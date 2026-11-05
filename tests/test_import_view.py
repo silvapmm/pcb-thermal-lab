@@ -19,7 +19,8 @@ import pytest
 pytest.importorskip("pytestqt")
 
 from PySide6.QtCore import QPoint, QPointF, QSettings, Qt
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QCheckBox
 
 from pcbthermal import copper
 from pcbthermal.gui import import_session as ims
@@ -158,3 +159,130 @@ def test_the_co60_canvas_is_fast_and_light(qtbot):
     grew = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before) * (1.0 if os.uname().sysname == "Darwin" else 1024.0)
     print(f"co60 mask {rows} x {cols} = {rows * cols / 1e6:.1f} Mpx: canvas {spent:.2f} s, +{grew / 1e6:.0f} MB")
     assert spent < 1.0 and grew < 100e6
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------- step 2 of the import window
+def _step2(qtbot, tmp_path, width=1280):
+    """!
+    @brief The import window of the synthetic board on step 2.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param width Window width in pixels.
+    @return ImportBoardWindow
+    """
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.resize(width, 820)
+    w.show()
+    w.confirm = lambda *a: True
+    w.notify = lambda title, text: pytest.fail(f"{title}: {text}")
+    w.open_path(str(make_board(tmp_path / "fab", inner=0)))
+    w.go(1)
+    return w
+
+
+def _centre(sx, des):
+    """!
+    @brief The centre of the heat-source polygon of a part (mm, Gerber frame).
+    @param sx ImportSession.
+    @param des Designator.
+    @return tuple (x, y)
+    """
+    poly = sx.part(des).polygon_mm
+    return sum(q[0] for q in poly) / len(poly), sum(q[1] for q in poly) / len(poly)
+
+
+def test_every_matched_part_gets_a_label_and_the_toggle_removes_them(qtbot, tmp_path):
+    w = _step2(qtbot, tmp_path)
+    pv = w.page2.preview
+    pv.resize(900, 700)
+    pv.zoom = 3.0
+    pv.update()
+    on = pv.grab().toImage()
+    pv.show_layers["labels"] = False
+    off = pv.grab().toImage()
+    assert on != off
+    # The pixel size of the label grows with the zoom and a part that is too small for its text has none
+    assert pv.label_pixels("U1", 16, 30) > pv.label_pixels("U1", 12, 30) and pv.label_pixels("U1", 5, 30) is None and pv.label_pixels("U1", 40, 3) is None
+    boxes = {c.text(): c for c in w.page2.findChildren(QCheckBox)}
+    assert "Labels" in boxes and "Holes" in boxes and boxes["Labels"].toolTip() and boxes["Holes"].toolTip()
+    boxes["Labels"].setChecked(False)
+    assert pv.show_layers["labels"] is False
+
+
+def test_the_hole_legend_counts_vias_and_component_holes(qtbot, tmp_path):
+    w = _step2(qtbot, tmp_path)
+    pv = w.page2.preview
+    classes = pv.hole_classes()
+    assert sorted((k, d, n) for k, d, n in classes) == [("component hole", 3.0, 1), ("via", 0.3, 2)]
+    pv.resize(900, 700)
+    with_legend = pv.grab().toImage()
+    pv.show_layers["holes"] = False
+    assert pv.grab().toImage() != with_legend
+
+
+def test_hovering_a_part_names_it_and_a_click_selects_its_row(qtbot, tmp_path):
+    w = _step2(qtbot, tmp_path)
+    sx, pg = w.session, w.page2
+    des = next(p.designator for p in sx.parts() if p.polygon_mm and p.side == "top")
+    x, y = _centre(sx, des)
+    text = pg.preview.hover_text(x, y)
+    assert text.startswith(des) and "Package:" in text and "Source:" in text and "Power:" in text
+    assert pg.preview.hover_text(-500.0, -500.0) is None
+    pg.preview.resize(900, 700)
+    pt = pg.preview.to_px(x, y)
+    QTest.mouseClick(pg.preview, Qt.LeftButton, pos=QPoint(int(pt.x()), int(pt.y())))
+    assert pg.selected == des and pg.table.item(pg.table.currentRow(), 1).text() == des and pg.preview.selected_part == des
+    # The reverse: a row of the table highlights its part in the preview
+    other = next(p.designator for p in sx.parts() if p.polygon_mm and p.designator != des)
+    row = next(r for r in range(pg.table.rowCount()) if pg.table.item(r, 1).text() == other)
+    pg.table.selectRow(row)
+    assert pg.preview.selected_part == other
+    # A hole says what it is
+    h = sx.board().holes[0]
+    assert "drill" in pg.preview.hover_text(h.x, h.y)
+
+
+@pytest.mark.parametrize("width", [1480, 1100, 800])
+def test_the_parts_table_fits_the_window(qtbot, tmp_path, width):
+    w = _step2(qtbot, tmp_path, width)
+    t = w.page2.table
+    qtbot.wait(50)
+    hh = t.horizontalHeader()
+    last = t.columnCount() - 1
+    needed = hh.sectionPosition(last) + hh.sectionSize(last)
+    print(f"width {width}: table viewport {t.viewport().width()} px, columns need {needed} px, scroll maximum {t.horizontalScrollBar().maximum()}")
+    if width >= 1100:
+        assert t.horizontalScrollBar().maximum() == 0 and needed <= t.viewport().width() + 1
+    assert "(W)" in t.horizontalHeaderItem(7).text() and "\n" in t.horizontalHeaderItem(7).text()
+
+
+def test_the_by_position_wording_says_what_to_check(qtbot, tmp_path):
+    w = _step2(qtbot, tmp_path)
+    sx = w.session
+    q = sx.parts()[0]
+    q.from_file = dict(q.from_file, source="placement by position")      # the synthetic paste file names its parts, so make one a by-position part
+    assert sx.source_label(q) == "by position (approx.)"
+    tip = sx.source_explanation(q)
+    assert "0.3 mm" in tip and "package" in tip and "preview" in tip
+
+
+@pytest.mark.skipif(not REAL or not os.path.isdir(os.path.join(REAL, "rp2040")), reason="PCBT_REAL_BOARDS does not point to the real boards")
+def test_the_rp2040_step_two_warning_and_table(qtbot):
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.resize(1100, 820)
+    w.show()
+    w.confirm = lambda *a: True
+    w.open_path(os.path.join(REAL, "rp2040"))
+    w.go(1)
+    sx = w.session
+    assert any("names no parts" in x and "0.3 mm" in x and "check" in x for x in sx.parts_warnings())
+    assert "by position" in w.page2.warn.text()
+    t = w.page2.table
+    qtbot.wait(100)
+    assert t.horizontalScrollBar().maximum() == 0                      # 30 parts with real package names, still no scroll bar at 1100 px
+    pv = w.page2.preview
+    pv.resize(900, 700)
+    des = [p.designator for p in sx.parts() if p.polygon_mm and p.side == "top"]
+    assert len(des) >= 20 and pv.hole_classes()

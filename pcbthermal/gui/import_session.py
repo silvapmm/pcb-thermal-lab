@@ -796,8 +796,27 @@ class ImportSession:
         """
         if self.is_orphan(p):
             return "orphan (not in the files)"
-        return {"x3": "X3 component layer", "to.c+placement": "paste TO.C + placement", "placement by position": "paste + placement by position",
+        return {"x3": "X3 component layer", "to.c+placement": "paste TO.C + placement", "placement by position": "by position (approx.)",
                 "paste only": "paste only", "placement only": "placement only"}.get(p.from_file.get("source", ""), p.from_file.get("source", "") or "-")
+
+    SOURCE_EXPLANATION = {
+        "x3": "Found in the X3 component layer of the Gerber files: the designator, the outline and the pins come from the CAD program.",
+        "to.c+placement": "The paste file names this part (the TO.C attribute) and the placement file gives its package and position.",
+        "placement by position": "The paste file names no parts, so each opening was given to the part of the placement file whose pad outline contains it. The outline is rebuilt from the package "
+                                 "name and the part's rotation and grown by 0.3 mm. Usually right; look at the part in the preview before you give it a power.",
+        "paste only": "A paste opening that no file names: a part made from the opening alone (named H1, H2, ...).",
+        "placement only": "A part of the placement file with no paste opening (a connector, a through-hole part): listed, with no area to heat.",
+    }
+
+    def source_explanation(self, p) -> str:
+        """!
+        @brief The tooltip of the Source column: what the way the part was found means and what to check.
+        @param p ImportPart.
+        @return str
+        """
+        if self.is_orphan(p):
+            return "The part is no longer in the files of the re-import: it is kept with its power and does not heat the board."
+        return self.SOURCE_EXPLANATION.get(p.from_file.get("source", ""), self.source_label(p))
 
     def set_part(self, designator: str, power: float = None, tj_max: float = None, role: str = None, use: bool = None):
         """!
@@ -988,7 +1007,8 @@ class ImportSession:
             out.append("The placement file and the Gerber files do not fit (another origin beyond 10 mm, a rotation, a mirror or a unit): the parts matched by position are not reliable")
         if self.used(PLACEMENT) and self.used(*PASTE) and self.openings() and not any(o.ref for o in self.openings()) and not self.used(COMPONENT):
             n = sum(1 for p in self.parts() if p.from_file.get("source") == "placement by position")
-            out.append(f"The paste layer names no parts: {n} parts matched by position (approximate)")
+            out.append(f"The paste layer names no parts, so {n} parts were matched to the placement file by position: each opening went to the part whose pad outline (from its package name, "
+                       f"grown by 0.3 mm) contains it. Usually right; check in the preview that the parts you give a power sit on their own pads")
         x3 = info.get("x3_vs_placement")
         if x3 and (x3.get("only_x3") or x3.get("only_placement") or x3.get("moved")):
             out.append(f"The X3 layer and the placement file differ: {len(x3['only_x3'])} parts only in the X3 layer, {len(x3['only_placement'])} only in the placement file, {len(x3['moved'])} moved")
