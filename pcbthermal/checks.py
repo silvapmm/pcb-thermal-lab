@@ -226,7 +226,8 @@ def check_input(problem, models, cell_mm=1.0):
     @return List of warning strings (CheckWarning, tagged with the element) in the order validity, model limits, vias.
     """
     models = tuple(models)
-    return check_problem(problem, cell_mm) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
+    return (check_problem(problem, cell_mm) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
+            + check_via_partial_copper(problem, models, cell_mm))
 
 
 # Models whose layered idealisation has no vertical path through a bare cell of a gap (research/bare-spot-under-source, INTEGRATION P3)
@@ -1017,4 +1018,113 @@ def check_via_limits(problem, models, cell_mm):
                               "by about 3 to 4 % at 2 mm and by 5 to 50 % at 3 to 4 mm, depending on where each via falls in its cell (example board: 9 vias, "
                               "-3 % FVM and -4 % FDM at 2 mm, within 0.5 % at 0.5 mm). Use 1 mm or finer.",
              f"The cell ({num(cell_mm, 3)} mm) is coarse for the vias (3 to 50 % uncertainty in their effect); use 1 mm or finer.")
+    return out
+
+
+PARTIAL_MIN_SHARE = 0.05    # A footprint cell takes part in the partial-copper test when it holds at least this share of the largest footprint weight (research/via-partial-copper, lib/warnrule.py)
+PARTIAL_RATIO = 0.5         # A footprint is partial in a layer when the smallest sheet conductance of the taking-part cells is below this share of the largest
+
+
+def partial_copper_vias(problem, cell_mm):
+    """!
+    @brief The vias whose footprint on the grid of a run covers a copper layer with copper over only part of it, with the worst layer of each.
+    @details The footprint is the one the FVM would use (viawell.footprint: the disc of the drill enlarged to the target radius, on the cells of the run). A footprint is
+             partial in a layer when, among the cells that hold at least PARTIAL_MIN_SHARE of the largest weight, the smallest sheet conductance per unit of board is
+             below PARTIAL_RATIO times the largest (a copper edge or a track end inside the footprint, a clearance wider than a cell). The sheet is that of the layer node
+             before the laminate rule (copper plus the in-plane FR-4 of the rest of the slab), as the cell fill gives it; it is not read from a network, so the check is
+             cheap enough for the live list. The sheet after the rule (lower in the bare cells) flags the same vias and 0 to 6 more per board on seven imported boards
+             (validation 30.2), so the rule errs on the silent side by those few. Near a straight board edge the FVM of feature/via-edge-image enlarges the footprint
+             further; this check keeps the plain footprint.
+             Why it matters (research/via-partial-copper): the via draws heat from each footprint cell in proportion to a fixed weight, so on a partial footprint the
+             bare cells cannot supply it (a cold spot under the barrel in the FVM) and the via effect is misread in both directions: 31 to 68 % low for a copper edge
+             through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser.
+    @param problem The Problem.
+    @param cell_mm Cell size in mm.
+    @return Tuple (partial, n_checked): partial is a list of (via index, layer index, ratio of the smallest to the largest sheet conductance), one entry per via
+            (its layer of the smallest ratio); n_checked is the number of vias with a footprint on the board.
+    """
+    b = problem.board
+    if not problem.vias or b.layers < 2:
+        return [], 0                                            # A one-layer board has no gap: its vias join nothing
+    nx = max(int(round(b.width * 1000.0 / cell_mm)), 2)          # The grid of fvm.solve: the footprint must be that of the run (the floor of 8 of the other checks gave a 5 mm board 0.625 mm cells at 1 mm)
+    ny = max(int(round(b.height * 1000.0 / cell_mm)), 2)
+    dx, dy = b.width / nx, b.height / ny
+    try:
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)
+    except ValueError:
+        return [], 0                                            # Damaged imported copper: check_problem already says so
+    cover = b.cover(nx, ny, dx, dy)
+    # Sheet conductance per unit of board of every layer node (the S of fvm.Network divided by the cover): copper plus the in-plane FR-4 of the rest of the slab
+    t_cu = np.asarray(b.copper_thickness, dtype=float)[:, None, None]
+    k_lam, _ = b.layer_laminate()
+    slab = b.slab_thicknesses()[:, None, None]
+    rel = fill * b.materials.k_copper * t_cu + k_lam[:, None, None] * (slab - fill * t_cu)
+    # Cheap prefilter: the footprint search (a bisection on the radius) costs 0.3 ms per via at a fine cell, 2.5 s for 8500 vias at 0.5 mm. A via can fire only when the sheet
+    # conductance varies by more than the ratio inside a window that contains its footprint: the disc grows to the target radius, which stays within about the drill
+    # radius plus a cell, so a window of twice the drill radius in cells plus three covers it (checked against the exact test on the study boards and the imported windows).
+    # The vias are then tested exactly only where such a window exists.
+    reach = int(math.ceil(max(v.diameter for v in problem.vias) / 2.0 / min(dx, dy))) * 2 + 3
+    size = 2 * reach + 1
+    maybe = np.zeros((ny, nx), dtype=bool)
+    on = cover > 0
+    for l in range(b.layers):
+        lo = ndimage.minimum_filter(np.where(on, rel[l], np.inf), size=size, mode="nearest")
+        hi = ndimage.maximum_filter(np.where(on, rel[l], -np.inf), size=size, mode="nearest")
+        maybe |= lo < PARTIAL_RATIO * hi
+    partial, n_checked = [], 0
+    for k, (v, share) in enumerate(zip(problem.vias, problem.via_board_shares())):
+        if share <= 0.0:
+            continue                                            # No board under the drill disc: ignored by every model
+        if not maybe[min(max(int(v.y / dy), 0), ny - 1), min(max(int(v.x / dx), 0), nx - 1)]:
+            n_checked += 1                                      # Uniform neighbourhood: counted, cannot fire (the exact test would give a footprint)
+            continue
+        w, _, _ = viawell.footprint(v.x, v.y, v.diameter / 2.0, dx, 0.0, cover, dy, 0.0)
+        if not w:
+            continue
+        n_checked += 1
+        wmax = max(w.values())
+        cells = [c for c, x in w.items() if x >= PARTIAL_MIN_SHARE * wmax]
+        rows = np.array([c[0] for c in cells])
+        cols = np.array([c[1] for c in cells])
+        vals = rel[:, rows, cols]                               # (layers, cells)
+        ratio = vals.min(axis=1) / vals.max(axis=1)
+        layer = int(np.argmin(ratio))
+        if ratio[layer] < PARTIAL_RATIO:
+            partial.append((k, layer, float(ratio[layer])))
+    return partial, n_checked
+
+
+PARTIAL_LISTED = 3          # Vias named in the partial-copper warning (the worst by the ratio); the rest are counted
+
+
+def check_via_partial_copper(problem, models, cell_mm):
+    """!
+    @brief Warning for the vias whose footprint covers a copper layer with copper over only part of it (FVM and FDM): one aggregated message with the count, the worst few and the rule.
+    @details The rule and its measurements are those of partial_copper_vias (research/via-partial-copper: 0 false alarms on the five frozen boards with vias at 2, 1 and 0.5 mm; on
+             seven imported boards it fires on 2 to 43 % of the vias, so it is a live line with the share, not a property of every via). The text does not say which way the via effect
+             is misread because it goes both ways (the FVM reads 31 to 68 % low for a copper edge through the via or a track ending on it, 3 to 4 times high for a via just outside a
+             copper edge at a cell of 0.5 mm or coarser), and the cold spot below the barrel is a numerical artefact of the fixed footprint weights.
+    @param problem The Problem.
+    @param models Model keys that will run (the warning applies to "fvm" and "fdm").
+    @param cell_mm Cell size in mm.
+    @return List of warning strings (empty or one message).
+    """
+    out = []
+    if not any(m in ("fvm", "fdm") for m in models):
+        return out
+    partial, n_checked = partial_copper_vias(problem, cell_mm)
+    if not partial:
+        return out
+    worst = sorted(partial, key=lambda t: t[2])[:PARTIAL_LISTED]
+    names = "; ".join(f"{problem.vias[k].name or f'Via {k + 1}'} (layer {layer + 1}, smallest sheet {num(100.0 * ratio, 2)} % of the largest)" for k, layer, ratio in worst)
+    more = f" and {len(partial) - len(worst)} more" if len(partial) > len(worst) else ""
+    n = len(partial)
+    _add(out, "via", worst[0][0],
+         f"{n} of {n_checked} via{'s have' if n > 1 else ' has'} copper over only part of {'their footprint' if n > 1 else 'its footprint'} on a copper layer "
+         f"(the smallest sheet conductance among the footprint cells that count is below {num(PARTIAL_RATIO, 1)} of the largest: a copper edge or a track end inside the footprint, "
+         f"or a clearance wider than a cell). Worst: {names}{more}. The via effect may be misread, higher or lower (measured in the FVM: 31 to 68 % low for a copper edge "
+         "through the via or a track ending on it, 3 to 4 times high for a via just outside a copper edge at a cell of 0.5 mm or coarser), and the cold spot that the FVM can "
+         "show below the barrel is a numerical artefact of the footprint weights. Use a finer cell or check the via with the 3D solid.",
+         f"{n} of {n_checked} via{'s have' if n > 1 else ' has'} copper over only part of {'their footprint' if n > 1 else 'its footprint'}; the via effect may be misread "
+         "(higher or lower); use a finer cell or the 3D solid.")
     return out
