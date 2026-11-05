@@ -246,6 +246,32 @@ def test_the_session_proposes_the_pad_and_remembers_only_a_choice_that_differs_f
     assert u1.edits["shape_user"] is False
 
 
+def test_the_openings_of_an_exposed_pad_part_stay_its_own_when_no_file_names_them(tmp_path):
+    """!@brief Regression found with the RP2040 board: with the polygon only the pad, a part matched by position lost its pins (they read as unmatched and the shape rule saw only the windows). The region of
+    the part is the hull of all its openings (`from_file["outer_mm"]`): ownership by position gives U2 its 28 openings, its note stays 'proposed', and choosing the hull gives the real hull."""
+    sx = _session(tmp_path)
+    for o in sx.openings():
+        o.ref = None                                  # as if no file wrote a TO.C: the openings are owned by their place
+    sx._owner_cache = None
+    u2 = sx.part("U2")
+    assert len(sx._openings_of(u2)) == 28 and sx.owned_indices() == set(range(len(sx.openings()))) and sx.shape_note(u2) == "exposed pad (proposed)"
+    assert u2.from_file["outer_mm"] and polygon_area(u2.from_file["outer_mm"]) > 3 * polygon_area(u2.polygon_mm)
+    sx.set_shape("U2", "hull")
+    assert polygon_area(u2.polygon_mm) == pytest.approx(polygon_area(u2.from_file["outer_mm"]), rel=1e-6)
+    assert "outer_mm" not in sx.part("U1").from_file
+
+
+@needs_data
+def test_the_rp2040_qfn_owns_its_sixty_openings_through_the_session():
+    """!@brief The RP2040 board in a session: U3 owns its 60 openings (not only the pad windows), U1 its 4, and every opening of the paste belongs to a part."""
+    from pcbthermal.gui.import_session import ImportSession
+    sx = ImportSession()
+    sx.set_files(DATA / "rp2040")
+    sx.load()
+    assert len(sx._openings_of(sx.part("U3"))) == 60 and len(sx._openings_of(sx.part("U1"))) == 4
+    assert sx.owned_indices() == set(range(len(sx.openings()))) and sx.shape_note(sx.part("U3")) == "exposed pad (proposed)"
+
+
 def test_the_parts_page_has_the_exposed_radio_the_dashed_hull_and_the_source_note(qtbot, tmp_path):
     """!@brief Step 2: the QFN row says 'exposed pad (proposed)' in the Source column and its tooltip says why; selecting it checks the 'Exposed pad' radio; the hull radio of a SOT-23-like single pad leaves it disabled; the preview draws."""
     from pcbthermal.gui.import_window import ImportBoardWindow

@@ -859,7 +859,8 @@ class ImportSession:
         if self._owner_cache is None:
             out = {}
             ops = self.openings()
-            hulls = [(p, comp_mod.hull([tuple(q) for q in p.polygon_mm])) for p in self._parts if len(p.polygon_mm) >= 3]
+            # The region of a part is the hull of all its openings (`outer_mm` when the heat source is only an exposed pad), else its polygon
+            hulls = [(p, comp_mod.hull([tuple(q) for q in (p.from_file.get("outer_mm") or p.polygon_mm)])) for p in self._parts if len(p.polygon_mm) >= 3]
             names = {p.designator for p in self._parts + self._listed}
             for i, o in enumerate(ops):
                 owner = o.ref if o.ref and o.ref in names else None
@@ -934,7 +935,7 @@ class ImportSession:
         if p is None or p.shape != "exposed":
             return None
         ops = self._openings_of(p)
-        return parts_mod.shape_polygon(ops, "hull") if ops else None
+        return parts_mod.shape_polygon(ops, "hull") if ops else (p.from_file.get("outer_mm") or None)
 
     def set_shape(self, designator: str, kind: str):
         """!
@@ -980,6 +981,7 @@ class ImportSession:
             ff = dict(sel.from_file)
             ff["n_openings"] = len(ops)
             sel.polygon_mm = [list(map(float, q)) for q in parts_mod.shape_polygon(ops, kind)]
+            parts_mod._set_outer(ff, ops)
             sel.from_file = ff
             self._unmatched = [u for u in self._unmatched if u is not o]
             self._owner_cache = None

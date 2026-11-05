@@ -940,7 +940,7 @@ class Step2Page(QWidget):
         for key, text, tip in (("exposed", "Exposed pad or tab (suggested for QFN, DFN, SOT-223)", "The hull of the dominant group of paste openings: the exposed thermal pad of a QFN or DFN or the tab of a SOT-223 or DPAK. "
                                 "These packages put almost all their heat through that pad and the datasheet theta_JC(bottom) is measured to it, so the whole power goes there (worst case). The outline of the part is drawn dashed. "
                                 "Enabled only for a part whose paste has such a pad."),
-                               ("hull", "Convex hull of the paste openings (suggested)", "The smallest convex polygon around the openings: the area of the pads of the part. For a part with an exposed pad or a tab it spreads the heat "
+                               ("hull", "Convex hull of the paste openings (suggested for other parts)", "The smallest convex polygon around the openings: the area of the pads of the part. For a part with an exposed pad or a tab it spreads the heat "
                                 "over a body that does not carry it and reads the junction 10 to 40 % cooler."),
                                ("box", "Bounding box of the paste openings", "A rectangle around all the openings: the power spreads over the gaps between pads too."),
                                ("largest", "Largest opening only (a single tab)", "The hull of the largest opening. Right for a single tab; on a part with several equal pads it puts all the heat on one pad "

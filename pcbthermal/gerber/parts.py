@@ -847,6 +847,19 @@ def shape_polygon(openings, kind="hull"):
     raise ValueError(f"unknown shape {kind!r}")
 
 
+def _set_outer(ff, ops):
+    """!
+    @brief Write or drop `from_file["outer_mm"]`: the hull of all the openings of a part that has an exposed pad (where the part is; the heat-source polygon is only the pad).
+    @param ff Dict of file data (changed in place).
+    @param ops List of Opening of the part.
+    @return None
+    """
+    if ops and dominant_group(ops):
+        ff["outer_mm"] = [[float(x), float(y)] for x, y in shape_polygon(ops, "hull")]
+    else:
+        ff.pop("outer_mm", None)
+
+
 def shape_set(ops):
     """!
     @brief The shapes of a part kept for the re-import: the box and the hull, and the exposed pad when the part has one.
@@ -968,6 +981,8 @@ def part_from_openings(designator, openings, shape="auto", source="paste only", 
         shape = default_shape_kind(openings)
     # The version of the shape rule: a part without it comes from an older project (the hull was the default) and keeps its polygon in a re-import
     ff["shape_rule"] = SHAPE_RULE
+    # With an exposed pad the polygon is only the pad, so the part's region (which openings are its own) is kept apart: the hull of all its openings
+    _set_outer(ff, openings)
     if grouping:
         ff["grouping"] = grouping
     return ImportPart(designator, shape, [list(map(float, p)) for p in shape_polygon(openings, shape)], 0.0, {}, footprint,
@@ -1040,6 +1055,7 @@ def _x3_part(comp, ops, shape):
         ff["library"] = comp.library
     # The shape name: "hull" or "box" for the paste openings (as asked), "hull" for the pins, "outline" for an outline of the layer (Body, Lead2Lead, Footprint, Courtyard)
     kind = ("box" if shape == "box" else "hull") if src == "paste" else "exposed" if src == "exposed" else "hull" if src == "pins" else "outline"
+    _set_outer(ff, ops)
     if not comp.is_smd:
         # TH, Pressfit, Other, Fiducial or an unknown mount type: listed with the offered shape, not a heat-source candidate (INTEGRATION 12 item 4)
         ff["heat_source"] = False
@@ -1375,7 +1391,8 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
             q.designator, q.power, q.edits, q.extra = a.designator, a.power, copy.deepcopy(a.edits), copy.deepcopy(a.extra)
             q.from_file["grouping"] = a.from_file.get("grouping")
         elif openings is not None and len(a.polygon_mm) >= 3:
-            inside = [i for i, op in enumerate(openings) if i not in used_open and op.side == a.side and _point_to_hull(_hull(a.polygon_mm), op.x, op.y) <= 1e-9]
+            region = _hull(a.from_file.get("outer_mm") or a.polygon_mm)         # the hull of all the openings, not only the exposed pad
+            inside = [i for i, op in enumerate(openings) if i not in used_open and op.side == a.side and _point_to_hull(region, op.x, op.y) <= 1e-9]
             if not inside:
                 pending.append(a)
                 continue
