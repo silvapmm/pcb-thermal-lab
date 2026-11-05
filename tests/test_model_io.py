@@ -75,3 +75,17 @@ def test_cli_run_writes_outputs(tmp_path):
     assert set(summary["models"]) == {"fvm", "lumped", "analytic"}
     assert (out / "report.txt").exists()
     assert (out / "fields_fvm.png").exists() and (out / "comparison.png").exists()
+
+
+def test_board_validate_refuses_huge_edge_coefficient():
+    """!
+    @brief The edge coefficient above 1e5 W/m2K is refused with a message that names the limit.
+    @return None
+    """
+    # 500 is the end of the Preferences range and must stay valid; 1e300 made the Analytic edge heat absurd
+    p = reference_problem()
+    p.board.h_side = 500.0
+    p.board.validate()
+    p.board.h_side = 1e300
+    with pytest.raises(ValueError, match="must not exceed"):
+        p.board.validate()
