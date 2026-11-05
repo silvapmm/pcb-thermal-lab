@@ -186,8 +186,13 @@ class AnimationTab(QWidget):
         self.compute.setEnabled(True)
         self._set_enabled(True)
         tau = tr.time_constant()
-        self.status.setText(f"Steady Tmax {tr.steady_t_max:.1f} °C; the hottest point reaches 63 % at "
-                            f"{tau:.1f} s. {len(tr.times) - 1} frames up to {tr.times[-1]:.0f} s.")
+        text = (f"Steady Tmax {tr.steady_t_max:.1f} °C; the hottest point reaches 63 % at "
+                f"{tau:.1f} s. {len(tr.times) - 1} frames up to {tr.times[-1]:.0f} s.")
+        # Limits of the model met by this run (the Analytic with a heatsink): the animation has no Results summary, so they are shown here.
+        # getattr: a result computed before the field existed has none
+        warns = list(getattr(tr, "warnings", None) or [])
+        self.status.setText(text + "".join(f"\nWarning: {w}" for w in warns))
+        self.status.setToolTip("\n".join(warns))
         self._frame = len(tr.times) - 1
         self.slider.setValue(self._frame)
         self._redraw()
