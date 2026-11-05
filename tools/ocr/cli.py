@@ -73,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     t.add_argument("--out", help="also write the pages joined into this file")
     common(t)
     q = sub.add_parser("queue", help="process the pending lines of a queue file")
-    q.add_argument("queue", nargs="?", help="queue file (default papers/gemini/QUEUE.md)")
+    q.add_argument("queue", nargs="?", help="queue file (default papers/ocr/QUEUE.md)")
     q.add_argument("--limit", type=int, default=20, help="pages to try in this run (default 20)")
     q.add_argument("--status", action="store_true", help="list pending lines and exit")
     common(q)
@@ -82,7 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
     v = sub.add_parser("verify", help="write an HTML page with the page image beside its transcription")
     v.add_argument("pdf")
     v.add_argument("--page", type=int, required=True)
-    v.add_argument("--md", help="transcription file (default papers/gemini/<stem>_p<N>.md)")
+    v.add_argument("--md", help="transcription file (default papers/ocr/<stem>_p<N>.md)")
     v.add_argument("--out")
     sub.add_parser("providers", help="list the providers and their models")
     c = sub.add_parser("check-key", help="one tiny request; prints only OK or FAIL")
@@ -109,14 +109,26 @@ def resolve_pdf(arg: str, papers: Path) -> Path:
     raise FileNotFoundError(f"no PDF '{arg}' (looked in {papers / 'pdf'})")
 
 
+def ocr_dir(papers: Path) -> Path:
+    """!
+    @brief Folder of the online-OCR work: per-page outputs, the ledger `usage.json` and the queue `QUEUE.md`.
+    @param papers Papers folder.
+    @return Path `papers/ocr`; an older library that still has `papers/gemini` and no `papers/ocr` keeps using it.
+    """
+    new = papers / "ocr"
+    old = papers / "gemini"
+    return old if (old.is_dir() and not new.exists()) else new
+
+
 def out_dir(papers: Path, provider: str) -> Path:
     """!
     @brief Folder of the per-page outputs of a provider.
     @param papers   Papers folder.
     @param provider Provider name.
-    @return Path `papers/<provider>` (the Gemini outputs keep their historic folder `papers/gemini`).
+    @return Path `papers/ocr` for Gemini (the default provider), `papers/ocr/<provider>` for any other.
     """
-    return papers / provider
+    base = ocr_dir(papers)
+    return base if provider == "gemini" else base / provider
 
 
 def make_runner(a, papers: Path) -> Runner:
@@ -127,7 +139,7 @@ def make_runner(a, papers: Path) -> Runner:
     @return Runner Ready to run.
     """
     return Runner(get_provider(a.provider), out_dir(papers, a.provider),
-                  Ledger(papers / "gemini" / "usage.json"), model=a.model, pause=a.pause,
+                  Ledger(ocr_dir(papers) / "usage.json"), model=a.model, pause=a.pause,
                   daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi)
 
 
@@ -171,8 +183,8 @@ def cmd_queue(a, papers: Path) -> int:
     @param papers Papers folder.
     @return int Exit code.
     """
-    qpath = Path(a.queue) if a.queue else papers / "gemini" / "QUEUE.md"
-    ledger = Ledger(papers / "gemini" / "usage.json")
+    qpath = Path(a.queue) if a.queue else ocr_dir(papers) / "QUEUE.md"
+    ledger = Ledger(ocr_dir(papers) / "usage.json")
     done = ledger.done()
     pending = [i for i in parse_queue(qpath.read_text(encoding="utf-8"))
                if (i.file, i.page) not in done and not (out_dir(papers, a.provider) / f"{i.file}_p{i.page}.md").is_file()]
@@ -212,7 +224,7 @@ def cmd_verify(a, papers: Path) -> int:
     @return int Exit code.
     """
     pdf = resolve_pdf(a.pdf, papers)
-    md = Path(a.md) if a.md else papers / "gemini" / f"{pdf.stem}_p{a.page}.md"
+    md = Path(a.md) if a.md else out_dir(papers, "gemini") / f"{pdf.stem}_p{a.page}.md"
     out = Path(a.out) if a.out else papers / "verify" / f"{pdf.stem}_p{a.page}.html"
     text = md.read_text(encoding="utf-8")
     printed = suspects.printed_page_number(_page_text(pdf, a.page))
