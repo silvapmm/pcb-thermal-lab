@@ -626,6 +626,12 @@ def _block_flux_result(sim):
     return aux.reference
 
 
+# Note of the Results summary when the heat transfer coefficients are computed (once per run)
+CONVECTION_NOT_MEASURED_NOTE = ("the computed heat transfer coefficients are published correlations of a plate in open air and have not been compared "
+                                "with a measured copper board (the conduction is checked against independent solvers); treat the absolute temperature "
+                                "as uncertain by the uncertainty of h, or fit the convection multiplier to a measurement")
+
+
 def _part_warnings(sim):
     """!
     @brief Warnings after the solves, once per simulation: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients,
@@ -653,6 +659,8 @@ def _part_warnings(sim):
         ref = sim.reference
         info = convection.board_h(sim.problem.board, ref.layer_mean[0], ref.extras.get("bottom_face_mean", ref.layer_mean[-1]))[2]
         out += check_low_rayleigh(sim.problem.board, info)
+        # One short, calm line per run: the correlations are not checked against a measured copper board (docs/theory.md 8)
+        out.append(CONVECTION_NOT_MEASURED_NOTE)
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
     if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):
