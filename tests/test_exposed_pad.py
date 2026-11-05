@@ -289,7 +289,7 @@ def test_the_session_proposes_the_pad_and_remembers_only_a_choice_that_differs_f
     sx = _session(tmp_path)
     u2, u1 = sx.part("U2"), sx.part("U1")
     assert u2.shape == "exposed" and sx.default_shape(u2) == "exposed" and u1.shape == "hull"
-    assert sx.shapes_of(u2) == ["hull", "box", "exposed", "largest"] and sx.shapes_of(u1) == ["hull", "box"]
+    assert sx.shapes_of(u2) == ["hull", "box", "exposed"] and sx.shapes_of(u1) == ["hull", "box"]
     assert sx.shape_note(u2) == "exposed pad (proposed)" and sx.shape_note(u1) == "convex hull (proposed)"
     assert sx.part_hull(u2) is not None and sx.part_hull(u1) is None
     assert polygon_area(sx.part_hull(u2)) > 3 * polygon_area(u2.polygon_mm)
@@ -346,7 +346,7 @@ def test_the_parts_page_has_the_exposed_radio_the_dashed_hull_and_the_source_not
     assert "exposed" not in pg.table.item(rows.index("U1"), 3).text()
     assert pg.radios["exposed"].toolTip() and "Exposed pad" in pg.radios["exposed"].text()
     pg.table.selectRow(r2)
-    assert pg.selected == "U2" and pg.radios["exposed"].isEnabled() and pg.radios["exposed"].isChecked() and "exposed pad or a tab" in pg.suggest.text()
+    assert pg.selected == "U2" and pg.radios["exposed"].isEnabled() and pg.radios["exposed"].isChecked() and "exposed pad" in pg.suggest.text() and len(pg.suggest.text()) < 90
     pg.preview.resize(500, 400)
     assert pg.preview.grab().toImage().width() > 0
     pg.radios["hull"].setChecked(True)

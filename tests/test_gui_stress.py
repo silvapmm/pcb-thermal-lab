@@ -990,7 +990,7 @@ def test_import_window_in_the_application(win, qtbot, tmp_path, monkeypatch):
     names = [pg.table.item(r, 1).text() for r in range(5)]
     pg.table.selectRow(names.index("U2"))
     assert pg.radios["exposed"].isChecked()
-    for key in ("hull", "box", "largest", "exposed"):                             # every shape of the QFN, each one drawn
+    for key in ("hull", "box", "exposed"):                             # every shape of the QFN, each one drawn
         pg.radios[key].setChecked(True)
         pg.preview.grab()
         win.toggle_theme()

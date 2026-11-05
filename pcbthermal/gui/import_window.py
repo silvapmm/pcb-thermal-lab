@@ -281,7 +281,7 @@ class Preview(QWidget):
                     dx, dy = q.x() - gx, q.y() - gy
                     d = max((dx * dx + dy * dy) ** 0.5, 1e-9)
                     grown.append(QPointF(q.x() + 4.0 * dx / d, q.y() + 4.0 * dy / d))
-                p.setPen(QPen(QColor(c["text"]), 1.6, Qt.DashLine))
+                p.setPen(QPen(QColor(c["text"]), 2.4, Qt.DashLine))
                 p.setBrush(Qt.NoBrush)
                 p.drawPolygon(QPolygonF(grown))
             fill = QColor(c["heater"])
@@ -895,7 +895,7 @@ def _spin(lo, hi, value, decimals, suffix, tip):
 class Step2Page(QWidget):
     """!
     @brief Step 2, parts: the paste openings and the placement file as parts, a table with the heat-source tick, power, Tj max and role, the shape of the heat source, the frame check and the preview with clicks.
-    @details The pre-selection from the paste layer is always editable: every number, the tick, the shape (convex hull by default, box, the largest opening) and the openings of a part (a click on a
+    @details The pre-selection from the paste layer is always editable: every number, the tick, the shape (exposed pad or tab where the part has one, convex hull, box) and the openings of a part (a click on a
              red opening makes a part, Ctrl+click adds it to the selected part).
     """
 
@@ -949,12 +949,10 @@ class Step2Page(QWidget):
         for key, text, tip in (("exposed", "Exposed pad or tab (suggested for QFN, DFN, SOT-223, DPAK)", "The hull of the dominant group of paste openings: the exposed thermal pad of a QFN or DFN or the tab of a SOT-223 or DPAK. "
                                 "These packages put almost all their heat through that pad and the datasheet θJC(bottom) is measured to it, so the whole power goes there (worst case: the leads, "
                                 "which carry a few per cent, are left out). Give the part θ = θJC(bottom): its junction is then the hottest point under the pad plus θ times the power. "
-                                "The outline of the part is drawn dashed. Enabled only for a part whose paste has such a pad."),
+                                "The outline of the part is drawn dashed. A single tab is this choice too. Enabled only for a part whose paste has such a pad."),
                                ("hull", "Convex hull of the paste openings (suggested for other parts)", "The smallest convex polygon around the openings: the area of the pads of the part. For a part with an exposed pad or a tab it spreads the heat "
                                 "over a body that does not carry it and reads the junction 10 to 40 % cooler."),
-                               ("box", "Bounding box of the paste openings", "A rectangle around all the openings: the power spreads over the gaps between pads too."),
-                               ("largest", "Largest opening only (a single tab)", "The hull of the largest opening. Right for a single tab; on a part with several equal pads it puts all the heat on one pad "
-                                "(the hottest point reads 22 to 300 % too hot).")):
+                               ("box", "Bounding box of the paste openings", "A rectangle around all the openings: the power spreads over the gaps between pads too.")):
             r = QRadioButton(text)
             r.setToolTip(tip)
             r.toggled.connect(lambda on, k=key: on and self._shape(k))
@@ -1162,10 +1160,8 @@ class Step2Page(QWidget):
         elif not avail:
             self.suggest.setText(f"{p.designator} has no paste opening of its own ({sx.source_label(p)}): click a red opening in the preview with Ctrl to add one.")
         else:
-            auto = sx.default_shape(p)
-            why = ("This part has an exposed pad or a tab: it puts almost all its heat through it, so the pad is the suggestion and the outline of the part is dashed. "
-                   if auto == "exposed" else "The convex hull is the suggestion. ")
-            self.suggest.setText(f"{p.designator}: shape '{p.shape}'. {why}You can always change it.")
+            pad = sx.default_shape(p) == "exposed"
+            self.suggest.setText(f"{p.designator}: {sx.shape_note(p)}." + (" Pad or tab found; its outline is dashed." if pad else ""))
 
     def _shape_tip(self, p, note):
         """!
@@ -1183,7 +1179,7 @@ class Step2Page(QWidget):
     def _shape(self, kind):
         """!
         @brief The user chose a shape.
-        @param kind "hull", "box", "exposed" or "largest".
+        @param kind "hull", "box" or "exposed".
         @return None
         """
         if self.selected and not self._building:

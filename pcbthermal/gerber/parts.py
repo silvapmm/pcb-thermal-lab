@@ -1396,7 +1396,12 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
             q.power = a.power
             q.edits = copy.deepcopy(a.edits)
             q.extra = copy.deepcopy(a.extra)
-            if a.edits.get("shape_user") and a.shape in shapes.get(p.designator, {}):
+            if a.shape == "largest":
+                # The 'largest opening' radio was removed from the import window (it put all the heat on one pad of a part with several equal pads); a choice stored with it
+                # becomes the proposed shape of the new import, and the line says so (the user's other choices, power, tick, role, are kept)
+                q.edits["shape_user"] = False
+                changes.append(f"{p.designator}: the shape 'largest opening' is no longer offered; the part has the proposed shape '{q.shape}'")
+            elif a.edits.get("shape_user") and a.shape in shapes.get(p.designator, {}):
                 q.shape = a.shape
                 q.polygon_mm = [list(map(float, pt)) for pt in shapes[p.designator][a.shape]]
             elif "shape_rule" not in a.from_file and a.polygon_mm and a.shape in ("hull", "box", "largest", "outline") and q.shape == "exposed":
@@ -1439,7 +1444,7 @@ def merge_parts(old, new, shapes=None, remove=(), openings=None, move_mm=0.3):
                 pending.append(a)
                 continue
             used_open.update(inside)
-            q = part_from_openings(a.designator, [openings[i] for i in inside], a.shape if a.shape in ("hull", "box", "largest", "exposed") else "hull", "paste only",
+            q = part_from_openings(a.designator, [openings[i] for i in inside], a.shape if a.shape in ("hull", "box", "exposed") else "auto" if a.shape == "largest" else "hull", "paste only",
                                    footprint=a.footprint, side=a.side, grouping=a.from_file.get("grouping"))
             q.power, q.edits, q.extra = a.power, copy.deepcopy(a.edits), copy.deepcopy(a.extra)
         else:

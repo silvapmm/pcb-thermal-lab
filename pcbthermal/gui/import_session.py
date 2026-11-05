@@ -894,15 +894,15 @@ class ImportSession:
 
     def shapes_of(self, p) -> list:
         """!
-        @brief The shapes the user can choose for a part: those its openings give ("hull", "box", "exposed" when the part has an exposed pad or a tab, "largest").
-        @details "largest" is offered when the part has more than one opening, but it is right only for a single tab (several equal pads: +22 to +299 % of the hottest point in the study).
+        @brief The shapes the user can choose for a part: those its openings give ("hull", "box", and "exposed" when the part has an exposed pad or a tab).
+        @details The 'largest opening' choice is not offered any more (several equal pads: +22 to +299 % of the hottest point in the study); a single tab is the exposed pad.
         @param p ImportPart.
         @return list of str (empty when the part has no opening).
         """
         ops = self._openings_of(p)
         if not ops:
             return []
-        return ["hull", "box"] + (["exposed"] if parts_mod.dominant_group(ops) else []) + (["largest"] if len(ops) > 1 else [])
+        return ["hull", "box"] + (["exposed"] if parts_mod.dominant_group(ops) else [])
 
     def default_shape(self, p) -> str:
         """!
@@ -922,17 +922,17 @@ class ImportSession:
             return ""
         ops = self._openings_of(p)
         auto = self.default_shape(p) if ops else "hull"
-        label = {"exposed": "exposed pad", "hull": "convex hull", "box": "bounding box", "largest": "largest opening", "outline": "part outline"}.get(p.shape, p.shape)
+        label = {"exposed": "exposed pad", "hull": "convex hull", "box": "bounding box", "largest": "largest opening (older project)", "outline": "part outline"}.get(p.shape, p.shape)
         who = "chosen by you" if p.edits.get("shape_user") else "proposed" if p.shape == auto else "from the file"
         return f"{label} ({who})"
 
     def part_hull(self, p):
         """!
-        @brief The convex hull of the openings of a part that has an exposed-pad heat source (the dashed outline of where the part is), or None.
+        @brief The convex hull of the openings of a part whose heat source is not that hull (the exposed pad or the box): the dashed outline of where the part is, whether or not it is ticked.
         @param p ImportPart.
         @return list of (x, y) in mm, or None when the heat source is the whole hull or the part has no opening.
         """
-        if p is None or p.shape != "exposed":
+        if p is None or p.shape == "hull":
             return None
         ops = self._openings_of(p)
         return parts_mod.shape_polygon(ops, "hull") if ops else (p.from_file.get("outer_mm") or None)
@@ -941,13 +941,17 @@ class ImportSession:
         """!
         @brief Choose the heat-source shape of a part from its openings (always allowed; the choice is remembered as the user's).
         @param designator Designator.
-        @param kind "hull", "box", "exposed" or "largest".
+        @param kind "hull", "box" or "exposed"; the retired "largest" (and an unknown name) is taken as the proposed shape.
         @return None
         """
         p = self.part(designator)
         ops = self._openings_of(p) if p else []
         if not ops:
             return
+        if kind not in ("hull", "box", "exposed"):
+            kind = self.default_shape(p)
+        # The region of the part (which openings are its own) must not shrink with the shape: keep the hull of all its openings beside a heat source that is smaller
+        parts_mod._set_outer(p.from_file, ops)
         p.shape = kind
         p.polygon_mm = [list(map(float, q)) for q in parts_mod.shape_polygon(ops, kind)]
         # The choice is the user's when it differs from what the rule proposes (a hull on a QFN is a choice, a hull on a SOIC is the default)
@@ -977,7 +981,7 @@ class ImportSession:
         sel = self.part(selected) if selected else None
         if add and sel is not None and sel.polygon_mm:
             ops = self._openings_of(sel) + [o]
-            kind = sel.shape if sel.shape in ("hull", "box", "largest", "exposed") else "hull"
+            kind = sel.shape if sel.shape in ("hull", "box", "exposed") else "hull"
             ff = dict(sel.from_file)
             ff["n_openings"] = len(ops)
             sel.polygon_mm = [list(map(float, q)) for q in parts_mod.shape_polygon(ops, kind)]
