@@ -166,7 +166,7 @@ def test_boards_without_vias_are_unchanged():
     p.vias = []
     stored = {("lumped", 0.5): (94.69317856820783, 50.41009237427764), ("lumped", 1.0): (96.5103448282088, 50.40227481692728),
               ("analytic", 0.5): (94.7149725526851, 50.842489306804865), ("analytic", 1.0): (94.55801736064181, 50.8424906244942)}
-    # The Analytic numbers were stored before the edge loss was moved to the faces (fix/analytic-edge-transfer): they hold with insulated edges
+    # The Analytic numbers were stored before the edge loss entered the Analytic model: they hold with insulated edges (the cosine basis, bit for bit)
     insulated = copy.deepcopy(p)
     insulated.board.h_side = None
     for (model, cell), (t_max, t_mean) in stored.items():

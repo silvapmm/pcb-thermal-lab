@@ -10,7 +10,7 @@ PY=/Volumes/SSD/PROJETOS/markitdown/.venv/bin/python
 $PY -W ignore -m tools.ocr providers                       # providers, models, key variables
 $PY -W ignore -m tools.ocr check-key --pdf ArXiv2307.08354 # one tiny request, no retry, 60 s timeout; prints OK or FAIL, model, time
 $PY -W ignore -m tools.ocr transcribe ShenWang2019Vias --pages 1   # a stem in papers/pdf or a path; --pages '3,5-6', '10-', 'all'
-$PY -W ignore -m tools.ocr queue --limit 20                # next pending lines of papers/gemini/QUEUE.md
+$PY -W ignore -m tools.ocr queue --limit 20                # next pending lines of papers/ocr/QUEUE.md
 $PY -W ignore -m tools.ocr queue --status                  # what is pending, requests today
 $PY -W ignore -m tools.ocr suspects                        # suspect pages + printed/PDF page numbers
 $PY -W ignore -m tools.ocr verify Lemczyk1992 --page 1     # HTML with the page image beside the transcription
@@ -23,8 +23,8 @@ Page numbers are PDF pages, 1-based (the `<!-- page N -->` markers use the same 
 ## The papers folder
 
 `--papers`, else the environment variable `PCBT_PAPERS`, else `papers/` of the main checkout. It is ignored by version control
-and holds third-party material that is never committed. Layout: `pdf/` the PDFs, `gemini/` per-page outputs `<stem>_p<N>.md`
-(each starts with `<!-- page N -->`), the ledger `gemini/usage.json` and the queue `gemini/QUEUE.md`, `md/` local conversions,
+and holds third-party material that is never committed. Layout: `pdf/` the PDFs, `ocr/` per-page outputs `<stem>_p<N>.md` (converted from PDF to Markdown by online OCR; other providers write to `ocr/<provider>/`; an older library with `gemini/` and no `ocr/` keeps using `gemini/`)
+(each starts with `<!-- page N -->`), the ledger `ocr/usage.json` and the queue `ocr/QUEUE.md`, `md/` local conversions,
 `notes/SUSPECT_PAGES.md`, `verify/` the comparison pages.
 
 ## What it does

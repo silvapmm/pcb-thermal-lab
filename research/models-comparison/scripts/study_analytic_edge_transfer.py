@@ -15,6 +15,11 @@
          on two uniform boards and the example board.
 
          Run from the repository root: .venv/bin/python research/models-comparison/scripts/study_analytic_edge_transfer.py [--3d] [--time]  (about 5 minutes)
+
+@note Superseded (`feature/analytic-robin-edge`): the program no longer moves the edge loss to the faces; the edge is in the eigenfunctions of the series
+      (docs/theory.md 6, docs/validation.md 4.1, research/analytic-edge-spatial). Run on the current program, the column "now" is the Robin result and the
+      "misplaced share" (h_edge times the rim excess) measures a transfer that is not there any more, so its warning rule and sense lines mean nothing. Kept
+      as the record of the faces transfer; its numbers are those of that version (the merge of `fix/analytic-edge-transfer`).
 """
 
 import argparse
