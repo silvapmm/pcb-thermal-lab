@@ -799,3 +799,56 @@ def test_assemble_ranges():
     """
     from tools.ocr import assemble
     assert assemble.ranges([1, 2, 3, 5, 7, 8]) == "1-3,5,7-8"
+
+
+def test_papermap_parsers():
+    """!
+    @brief The note parsers of the map: page specs, the verified/error pages, the offsets and the citation contexts.
+    @return None
+    """
+    from tools.ocr import papermap as pm
+    assert pm.parse_page_spec("1-3,7") == {1, 2, 3, 7}
+    ver = pm.parse_verified("| file | pages | why | checked |\n| :-- | :-- | :-- | :-- |\n"
+                            "| Foo | 1-6 | eq | p5, p6 R (Table 1); p4 ERROR eq 17; p1 not compared |\n"
+                            "| Lienhard2024 | 323-325 | conv | R: 323, 325; p433 ERROR |\n")
+    assert ver["Foo"]["verified"] == {5, 6} and ver["Foo"]["error"] == {4} and ver["Foo"]["listed"] == set(range(1, 7))
+    assert ver["Lienhard2024"]["verified"] == {323, 325}
+    assert pm.parse_offsets("| Foo | 9 | -2 | 1 / 3: low |\n| Bar | 9 | ? |  |\n") == {"Foo": -2}
+    text = "see [Muzychka2003] Table 3, eq. 25, p. 8-9 and [Muzychka2003Part1] p. 4"
+    ctx = pm.citations(text, "Muzychka2003")
+    assert len(ctx) == 1                      # a longer key is not a match
+    loc = pm.cited_locations(ctx[0])
+    assert 3 in loc["tables"] and 25 in loc["eqs"] and {8, 9} <= set(loc["pages"])
+    assert pm.locate("table", 3, {1: "Table 2 x", 2: "\nTable 3 Results"}) == [2]
+
+
+def test_papermap_formula_score_and_build(tmp_path):
+    """!
+    @brief The formula density separates equations from prose, and a map is built from a fake papers folder.
+    @param tmp_path Temporary folder.
+    @return None
+    """
+    from tools.ocr import papermap as pm
+    prose = "the heat flows through the board and spreads " * 20
+    maths = "T = a + b ; α = β γ = 2 ; x = y ; z = w ; q = 1 ; " * 6
+    assert pm.formula_score(prose)[0] < pm.FORMULA_SCORE < pm.formula_score(maths)[0]
+    papers = tmp_path / "papers"
+    (papers / "pdf").mkdir(parents=True)
+    (papers / "pdf" / "Foo.pdf").write_bytes(b"%PDF")
+    (papers / "notes").mkdir()
+    (papers / "notes" / "INDEX.md").write_text("| Foo.pdf | FooKey | A paper | x | y |\n")
+    (papers / "ocr" / "anthropic").mkdir(parents=True)
+    (papers / "ocr" / "anthropic" / "Foo_p2.md").write_text("page two")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "theory.md").write_text("Result of [FooKey] Table 1 on p. 2.")
+
+    def fake(path):
+        t = {1: prose, 2: maths}
+        return {"pages": 2, "text": t, "words": {1: 200, 2: 200}, "garbage": {1: False, 2: False},
+                "formula": {p: pm.formula_score(t[p])[0] for p in t}, "equals": {p: t[p].count("=") for p in t}}
+
+    m = pm.build_map(papers, tmp_path, fake)
+    row = m["rows"][0]
+    assert row["stem"] == "Foo" and row["pages"] == 2 and row["claude_pages"] == 1
+    assert 2 in row["essential_pages"] and row["e1_run"] == [] and row["e1_verify_only"] == [2]
+    assert "Foo" in pm.render_markdown(m)

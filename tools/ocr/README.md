@@ -16,6 +16,7 @@ $PY -W ignore -m tools.ocr suspects                        # suspect pages + pri
 $PY -W ignore -m tools.ocr verify Lemczyk1992 --page 1     # HTML with the page image beside the transcription
 $PY -W ignore -m tools.ocr decode FILE.md [--force]        # base-36 font cipher post-processor (ciphered pages only)
 $PY -W ignore -m tools.ocr assemble Yovanovich2003    # one final Markdown in papers/md-final/<stem>.md (header, contents, cleaned and joined pages)
+$PY -W ignore -m tools.ocr map                          # offline, no provider: papers/notes/OCR_MAP.md + ocr_map.json (what is done, what the theory still needs, tokens to finish)
 ```
 
 Page numbers are PDF pages, 1-based (the `<!-- page N -->` markers use the same number). Exit codes: 0 ok, 1 failure,
@@ -115,3 +116,12 @@ lower resolution (at most 40 million pixels); there is no time limit on a page, 
 
 `QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q tests/test_ocr_tool.py tests/test_no_secrets.py` (no network, no PDF:
 fake providers, a scripted HTTP layer). `tests/test_docs.py` and `tests/test_license_header.py` cover `tools/`.
+
+* **Map** (`papermap.py`, command `map [--root DIR]`): offline and read-only (no provider, no key, no network). For every PDF in
+  `papers/pdf` it writes the pages, born-digital or scan, the kind, whether an exact arXiv text exists, the pages done by Claude,
+  by Gemini and by the local conversion only, the text-layer quality of every page (clean, formula-heavy by the density of equals
+  signs and mathematical glyphs, garbage or empty) and the **essential pages**: those that the documents (`docs/theory.md`,
+  `models.md`, `validation.md`, `calculators.md`, the bibliography) and the program quote by key with a page, table or equation
+  number, plus the reviewer's list `OCR_TO_VERIFY.md`. Tiers: E1 essential and not verified against the image, E2 verified, O not
+  cited; the tokens to finish use 7.5k per page. The page detection is a heuristic (printed pages shifted by the file's offset),
+  stated as such in the output.

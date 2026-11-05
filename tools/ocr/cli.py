@@ -82,6 +82,8 @@ def build_parser() -> argparse.ArgumentParser:
     asm_p = sub.add_parser("assemble", help="assemble the per-page outputs of PDFs into papers/md-final/<stem>.md")
     asm_p.add_argument("stems", nargs="+", help="PDF stems in papers/pdf")
     asm_p.add_argument("--root", help="repository root for the used-by search (default: parent of the papers folder)")
+    map_p = sub.add_parser("map", help="write papers/notes/OCR_MAP.md and ocr_map.json (what is done and needed; offline)")
+    map_p.add_argument("--root", help="repository root for the documents and the program (default: parent of the papers folder)")
     v = sub.add_parser("verify", help="write an HTML page with the page image beside its transcription")
     v.add_argument("pdf")
     v.add_argument("--page", type=int, required=True)
@@ -338,7 +340,21 @@ def cmd_assemble(a, papers: Path) -> int:
     return 0
 
 
-COMMANDS = {"assemble": cmd_assemble, "transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
+def cmd_map(a, papers: Path) -> int:
+    """!
+    @brief The `map` command: the map of what is converted and what the theory still needs (offline, no provider).
+    @param a      Parsed arguments (`--root`).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    from . import papermap
+    root = Path(a.root) if a.root else papers.parent
+    md, js = papermap.write_map(papers, root)
+    print(f"{md}\n{js}")
+    return 0
+
+
+COMMANDS = {"map": cmd_map, "assemble": cmd_assemble, "transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
             "providers": cmd_providers, "check-key": cmd_check_key, "decode": cmd_decode}
 
 
