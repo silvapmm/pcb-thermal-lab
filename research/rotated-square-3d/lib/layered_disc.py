@@ -5,8 +5,9 @@
 @brief The axisymmetric reduction of the layered idealisation of a round two-layer board, returning the whole radial field, the rim loss and the mean of the top layer.
 @details Same equations as `axisym3d.solve_layered_disc` (which returns only the centre value): one node per layer and ring, sheet conductance
          copper + the dielectric share of the slab, vertical conductance per area through / gap, films on both faces and on the rim (over the slab thickness).
-         The rim loss and the readout over a square cell are what the cut-cell study needs: the temperature of a cell of the FVM is a mean over the cell,
-         not the value at the centre, and at 1 mm that is 0.4 % of the rise of a 3 mm source, so the peak has to be compared with the mean over the same square.
+         The rim loss and the whole radial field are what the cut-cell study needs. The cell-centred unknown of the FVM is compared with the field at the
+         centre of the hot cell, `dx / sqrt(2)` from the disc centre (`study_cut_cells_fvm.py disc`, README 10.2); `quadrant_mean` (the mean over the cell) is
+         not used by the studies; the disc-centre value was the first, wrong, read-out (0.4 % of the rise at 1 mm, README 10.2).
 """
 
 import numpy as np

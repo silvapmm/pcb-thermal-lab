@@ -3,11 +3,12 @@
 """!
 @file study_cutcell_sweep.py
 @brief Re-measure, on the current program, how much the layered FVM depends on where the outline cuts the grid, and what the cut-cell links (option P1) change, on simple boards first.
-@details The continuum problem does not know the grid, so a board moved or turned together with its part has ONE answer. The reference is that answer, estimated
-         from the aligned board (no cell cut) at 0.25 and 0.125 mm with a Richardson step (second order in the cell). Studies (each prints a markdown table and writes
-         `out/cutsweep_<name>.json`):
+@details The part stays fixed on a cell centre and only the outline moves, so the continuum answer changes with the position: every position has its own
+         reference, the program's FVM and the links at a cell 8 times finer (1 mm cells) or 4 times finer (0.5 mm cells), their mean, with their difference printed as
+         the uncertainty (`reference`). The reference is the program's own layered model at a finer cell, not an independent solver. Studies (each prints a markdown
+         table and writes `out/cutsweep_<name>.json`):
 
-         square   - 20 mm square and 24 x 12 mm rectangle, a 3 mm part (centred, or 3.5 mm off centre towards the edge), board and part shifted by k/8 of a cell
+         square   - 20 mm square and 24 x 12 mm rectangle, a 3 mm part (centred, or 3.5 mm off centre towards the edge), the outline shifted by k/8 of a cell
                     on both axes and turned 0 to 45 degrees; h_side 10, 100, 2000; error of the peak against the reference (bias, spread, worst case)
          patterned- the same square with a 3 x 3 via array under the part, with the top copper held 1.2 mm inside the outline (laminate nodes in the cut cells), or both
          smallcell- a board edge swept so that the cover of the edge cell goes from 0.002 to 1: the conductance ratios, the diagonal, the condition number estimate,
@@ -316,7 +317,7 @@ def study_balance():
     out = {}
     print("\n### balance: heat to the air over the power; edge conductance over h t P; sum of covers over the polygon area\n")
     print("| board | cell (mm) | scheme | heat / power - 1 | t_eff = sum g_side / (h P) (mm) | sum(cover) dx dy / area - 1 |\n| :-- | --: | :-- | --: | --: | --: |")
-    cases = {"square turned 20": lambda: edge_board(angle=20.0), "square shifted": lambda: edge_board(shift=0.3), "rect turned 33": lambda: edge_board(angle=33.0, shape="rect", off=5.0),
+    cases = {"square turned 20": lambda: edge_board(angle=20.0), "square shifted": lambda: edge_board(sx=0.3, sy=0.3), "rect turned 33": lambda: edge_board(angle=33.0, shape="rect", off=5.0),
              "disc 20 mm": lambda: rotsq.disc_board(20.0, 1.5, 2000.0, box_mm=30.0)}
     for name, mk in cases.items():
         for cell in (1.0, 0.5):
