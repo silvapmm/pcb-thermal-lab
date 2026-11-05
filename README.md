@@ -13,7 +13,7 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Any board shape**: an outline polygon (presets, vertex table, drawing tool) in the FVM, FDM and 3D solid.
 - **Parts**: junction temperature from a datasheet resistance (worst case), junction limit with margin and power limit, ψJB estimate, a power that grows with temperature (with runaway detection) and a **heatsink on the package** (θJC(top) + interface + θSA).
 - **Metal blocks** (heat spreaders with an interface resistance, optional fins) in all five models (the Lumped and Analytic have them in steady state only), plated vias (hollow or filled), heatsinks.
-- **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general (default) and a laminar form (`Board.natural_form`).
+- **Computed heat transfer coefficients**: natural or forced convection plus radiation from the board temperature, with a calibration multiplier; the vertical-board correlation has a general and a laminar form (`Board.natural_form`; the laminar form is the default of new projects, old files keep the general one, and a low face Rayleigh number is warned).
 - **Power profiles**: square waves and CSV tables per heater, averaged or simulated in time automatically (a part over bare laminate is read at its face); animation of the heat evolution with GIF export.
 
 **Tools**
@@ -23,10 +23,23 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 - **Built-in help**: an HTML user guide (**Help - User guide**, `F1`), an About box, and a keyboard shortcut list.
 - **Memory guard**: the memory of every finite model (FVM, FDM, 3D solid) is estimated from its unknown count before anything is allocated; a run above the **Memory limit** (Preferences, 60 % of the physical memory by default) is refused with the cell that fits, the solver panel shows the verdict and Auto picks a cell that fits.
 - **Gerber reader** (`pcbthermal.gerber`, used by **File - Import Gerber board**, `docs/models.md` 19.4): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, with the copper rasterised to a one-byte coverage per pixel; refuses what it cannot draw naming the file and the feature (`docs/models.md` 19, `docs/theory.md` 1.6). It also recognises which CAD program wrote a set of files (KiCad, Altium, EAGLE, Allegro and others) from their headers, only to propose layer names, never to decide (`docs/models.md` 19.3).
-- **Input checks** that warn when a model is doubtful (heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, ...).
+- **Gerber import window** (**File - Import Gerber board**, three steps: files and layers, parts, model): parts from the paste layers, the placement file and X3 component layers, with the heat source shaped as the exposed pad or tab (proposed for QFN, DFN, SOT-223, DPAK), the convex hull or the bounding box; plated holes become vias; re-import with Replace, Update or Add files keeps what you did in the editor; a project with imports is saved in **project format 2** (needs 2.5.0 or later; older programs refuse it, `.bak` copies are kept). The user guide has a walkthrough, a glossary of the warnings and a table of what is validated and what is not.
+- **Imported copper**: the copper of each layer from the files, mapped to the finite-volume and finite-difference conductances by the flow-based faces on the laminate-reduced sheet (View - Imported copper draws it in the editor); the Lumped and Analytic models do not read it and warn that they read too cool (a sample, not a bound: 1 to 16 % on 24 mm windows, 17 to 42 % on the whole RP2040 board).
+- **Input checks**, live under the Run button (one line per warning, the full measured text on hover): heater off the board, no copper under a heater, a copper edge crossing a heater, a neck of the outline too narrow, the limits of the selected models and the via warnings; what only a run can know (thick plates, close fins, low Rayleigh number, the Lumped zone model) is added to the Results summary.
+- **Laminate options**: the longest sub-gap and the most sub-gaps of the laminate between copper nodes (FVM and FDM; Simulation panel and `run --laminate-s-max-mm`, `--laminate-n-max`).
 - **Command line and Python API** for scripts and parameter sweeps; project files in plain JSON that store every parameter (saved atomically, with a `.bak` copy when a save changes the format; a project with imported boards uses format 2 and needs 2.5.0 or later).
 
 ![Editor](docs/images/editor.png)
+
+![Gerber import, step 2: parts from the paste layer, the RP2040 chip with its exposed pad as the heat source](docs/images/import_step2.png)
+
+![The imported RP2040 board in the editor, with the copper drawn and the live warnings under Run](docs/images/editor_warnings.png)
+
+![The imported board in the dark theme](docs/images/editor_imported_dark.png)
+
+![Temperature of the imported board (FVM, dark theme)](docs/images/results_temperature_imported_dark.png)
+
+*The screenshots of an imported board show the RP2040 minimal design (Raspberry Pi, BSD-3-Clause), imported from its Gerber files and drawn by `examples/make_screenshots.py --import <folder>`.*
 
 ![Stack-up](docs/images/stackup.png)
 
@@ -41,6 +54,14 @@ gradients, hotspots, component junction temperatures and the heat evolution in t
 ![Temperature](docs/images/results_temperature.png)
 
 Every equation, discretisation and approximation of every model is in [`docs/theory.md`](docs/theory.md); the auxiliary calculators (today the Power Calculator, with its validation against datasheets) in [`docs/calculators.md`](docs/calculators.md).
+
+## What is new in 2.5.0 (next release, on `develop`)
+
+The next version, 2.5.0, is a candidate and the version number above changes only at the release. It adds the **import of Gerber boards** (File - Import Gerber board: files and layers, parts, model), the **imported copper** in the finite-volume and finite-difference models, **parts from the paste layers** with the exposed pad as the heat source, the **memory guard**, a much faster direct solver for boards with many vias, a **zonal Lumped model** for parts over groups of vias, the convective board edge in the Analytic model, the mirror image of a board edge for vias, laminate options, more live warnings and a softer, more legible interface. The list with the numbers is in [`CHANGELOG.md`](CHANGELOG.md).
+
+* **First version of the Gerber import and of the imported copper**: they were checked against independent references and on real sets of files from open boards, **not against a measured board**.
+* **Project format 2**: a project with an imported board opens as an error ("Cannot open file") in 2.4.x, which never overwrites it; projects without imports are unchanged.
+* **Known limits**: a numerical cold spot under a via whose plane has copper over only part of the footprint (warned), the Analytic time simulation with a heatsink (warned, fix planned), convection laws not compared with a measured board, and the Lumped and Analytic models that cannot read imported copper well (they warn).
 
 ## Which model should I use?
 
@@ -74,7 +95,8 @@ python3 -m venv .venv
 .venv/bin/python -m pcbthermal run --duration cycles --cycles 4 examples/profile_board.pcbt.json
 .venv/bin/python -m pcbthermal transient examples/example_board.pcbt.json --gif   # animation
 .venv/bin/python -m pcbthermal solvers examples/example_board.pcbt.json    # direct matrices vs CG vs SOR
-.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --memory-fraction 0.5   # limit of this run; exit code 3 if a model is refused
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --memory-fraction 0.5   # limit of this run; exit code 3 if a model is refused (PCBTHERMAL_MEMORY_BYTES states the memory when it is not visible)
+.venv/bin/python -m pcbthermal run examples/example_board.pcbt.json --laminate-s-max-mm 0.2 --laminate-n-max 8 --natural-form laminar
 .venv/bin/python -m pcbthermal --version
 .venv/bin/python -m pytest -q tests
 ```
@@ -90,6 +112,8 @@ sim.save("results")               # report, JSON, CSV fields, figures
 ```
 
 ![Summary](docs/images/results_summary.png)
+
+![Summary of an imported board, with its notes and warnings](docs/images/results_summary_imported.png)
 
 ![Power profile](docs/images/power_profile.png)
 
@@ -144,7 +168,8 @@ The results are a design aid and have not been validated against measurements of
 | Matplotlib 3.11 | figures | Matplotlib licence (based on the Python Software Foundation licence, BSD-compatible) |
 | PySide 6.12 (Qt for Python) | the desktop application | LGPL-3.0 **or** GPL-2.0 **or** GPL-3.0 (Qt also sells a commercial licence) |
 | pytest, pytest-qt, pytest-timeout | tests only | MIT |
+| **PyMuPDF 1.28.2** (developer tool only: `tools/ocr/`, never imported by `pcbthermal`, not in `requirements.txt`) | rendering PDF pages for the OCR tool | **Dual licensed: GNU Affero GPL 3.0 or Artifex Commercial License** (the `License` field of the metadata of the installed package, read on 2026-11-05) |
 
-The Gerber reader adds **no dependency** (NumPy and SciPy only; the comparison tools of the Gerber research stay in `research/`).
+The Gerber reader adds **no dependency** (NumPy and SciPy only; the comparison tools of the Gerber research stay in `research/`). The developer tool `tools/ocr/` (not part of the program, never imported by `pcbthermal`) uses the standard library for its providers (Gemini, Anthropic and OpenRouter over HTTPS, key in the environment or `.ocr_keys`); its page rendering, `assemble` and `map` commands import PyMuPDF, which is not in `requirements.txt` and not installed in the project environments (the tool is run from a separate environment that has it). PyMuPDF is AGPL-3.0 (or commercial), as the table says: it is acceptable here because it is **installed with `pip` and imported by a local developer tool, never copied or vendored into the repository and never distributed with the program**; the project's rule that copyleft code is not copied holds. Anyone who redistributes the OCR tool together with PyMuPDF, or offers it as a network service, must meet the AGPL conditions or take the commercial licence. This is not legal advice.
 
 The MIT licence of this project and these licences are compatible: the code here only imports the libraries. If you **distribute a bundled application** that contains PySide 6 and Qt (for example a frozen executable), the LGPL conditions of Qt apply to that bundle (include the LGPL text and the notices, allow the Qt libraries to be replaced, and provide or offer the Qt source); this repository does not bundle them. This is not legal advice. The studies in `research/` may also use scikit-fem (BSD) as an offline cross-check; downloaded boards are never committed and keep their own licences.

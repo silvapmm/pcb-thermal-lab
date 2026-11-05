@@ -13,6 +13,7 @@ import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QPlainTextEdit, QSlider, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
@@ -98,6 +99,34 @@ def _fit_height(table, min_rows=3, max_rows=12):
     table.setFixedHeight(h)
 
 
+def recolour_toolbar(toolbar, theme):
+    """!
+    @brief Paint the icons of a Matplotlib navigation toolbar with the text token of the theme.
+    @param toolbar NavigationToolbar2QT.
+    @param theme "dark" or "light".
+    @note Matplotlib picks the icon colour from the palette (a light cream in the dark theme); the shape (alpha) of the first icon of
+          each action is kept and filled with the token, so a theme switch can recolour it again.
+    """
+    colour = QColor(th.colors(theme)["text"])
+    for act in toolbar.actions():
+        if act.isSeparator() or act.icon().isNull():
+            continue
+        # The original shape is kept on the action once, a recoloured icon would lose nothing but this stays independent of the colour
+        pm = act.property("_shape")
+        if pm is None:
+            pm = act.icon().pixmap(48, 48)
+            act.setProperty("_shape", pm)
+        out = QPixmap(pm.size())
+        out.setDevicePixelRatio(pm.devicePixelRatio())
+        out.fill(Qt.transparent)
+        p = QPainter(out)
+        p.drawPixmap(0, 0, pm)
+        p.setCompositionMode(QPainter.CompositionMode_SourceIn)     # Keep the alpha, replace the colour
+        p.fillRect(out.rect(), colour)
+        p.end()
+        act.setIcon(QIcon(out))
+
+
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
@@ -116,6 +145,7 @@ class PlotTab(QWidget):
         self.canvas = FigureCanvasQTAgg(self.fig)
         _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         self.toolbar = NavigationToolbar2QT(self.canvas, self)
+        recolour_toolbar(self.toolbar, self.theme)
 
         self.model = QComboBox()
         self.layer = QComboBox()
@@ -190,6 +220,7 @@ class PlotTab(QWidget):
         """
         self.theme = theme
         _paint_figure(self.fig, theme)                  # Also when nothing is drawn yet
+        recolour_toolbar(self.toolbar, theme)
         self.canvas.draw_idle()
         self.redraw()
 

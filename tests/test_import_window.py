@@ -184,7 +184,7 @@ def test_parts_come_from_the_paste_layer_and_the_placement_file(board_dir):
     assert u1.power == 2.0 and u1.edits["use"] and u1.edits["tj_max"] == 125.0 and sx.is_source(u1)
     sx.set_part("R1", use=True)                                        # no opening: cannot be ticked
     assert not sx.is_source(sx.part("R1"))
-    # the shapes are always editable: hull (the suggestion), box and, for several openings, the largest
+    # the shapes are always editable: hull (the suggestion) and box; 'largest' is not offered any more
     assert sx.shapes_of(u1) == ["hull", "box"]
     sx.set_shape("U1", "box")
     xs = [q[0] for q in u1.polygon_mm]
@@ -496,7 +496,7 @@ def test_the_parts_page_table_edits_and_clicks(window, qtbot):
     assert sx.part("U1").power == 1.5 and sx.is_source(sx.part("U1")) and window.step_states()[1][0] == "current"
     row = [pg.table.item(r, 1).text() for r in range(4)].index("U1")
     pg.table.selectRow(row)
-    assert pg.selected == "U1" and pg.radios["hull"].isChecked() and not pg.radios["largest"].isEnabled()
+    assert pg.selected == "U1" and pg.radios["hull"].isChecked() and "largest" not in pg.radios
     pg.radios["box"].setChecked(True)
     assert sx.part("U1").shape == "box"
     pg.table.cellWidget(row, 8).setValue(90.0)
@@ -1116,3 +1116,24 @@ def test_zero_unmatched_openings_are_not_written_in_red(window):
     window.go(1)
     c = th.colors(th.current_name())
     assert "match no part" in window.page2.info.text() and c["bad"] not in window.page2.info.text()
+
+
+@pytest.mark.parametrize("theme_name", ["light", "dark"])
+@pytest.mark.parametrize("confidence, expect_alert", [("high", False), ("mixed", True), ("medium", True), ("low", True), ("declared", True), ("unknown", True)])
+def test_the_tool_line_colour_follows_the_confidence(qtbot, tmp_path, theme_name, confidence, expect_alert):
+    from pcbthermal.gerber.profiles import ProfileResult
+    d = make_board(tmp_path / "fab", placement=False)
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(d))
+    sx, pg = w.session, w.page1
+    # a profile of kind "ecad" with a given confidence; only the alert (medium, mixed, low, declared, unknown) or the text colour (high) may come out
+    sx.profile_result = ProfileResult("kicad" if confidence not in ("declared", "unknown") else confidence, confidence, "", [], [], "")
+    c = th.colors(theme_name)
+    pg._refresh_tool(c)
+    style = pg.tool_label.styleSheet()
+    assert (c["alert"] in style) is expect_alert
+    assert (c["text"] in style) is (not expect_alert)
+    assert sx.profile_line()[1] is expect_alert                     # the session and the label agree: needs_check or the low-name rule

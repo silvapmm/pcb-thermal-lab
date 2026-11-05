@@ -66,6 +66,11 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--allow-confidential", action="store_true",
                        help="send a file marked confidential to an online provider (the maintainer must agree)")
         p.add_argument("--force", action="store_true", help="transcribe again even if the output exists")
+        p.add_argument("--max-tokens", type=int, help="output token budget per request (Claude default 8192)")
+        p.add_argument("--whole-page", action="store_true",
+                       help="one request per page: no half-page crops, no fallback model (a cut page is kept with a note)")
+        p.add_argument("--subdir", help="write the pages into this subfolder of the provider's output folder "
+                                        "(to keep an existing or reviewed page untouched)")
 
     t = sub.add_parser("transcribe", help="transcribe pages of one PDF")
     t.add_argument("pdf", help="PDF path or stem in papers/pdf")
@@ -79,6 +84,24 @@ def build_parser() -> argparse.ArgumentParser:
     common(q)
     s = sub.add_parser("suspects", help="find suspect pages and the printed/PDF page offset")
     s.add_argument("--only", help="comma-separated file stems")
+    asm_p = sub.add_parser("assemble", help="assemble the per-page outputs of PDFs into papers/md-final/<stem>.md")
+    asm_p.add_argument("stems", nargs="+", help="PDF stems in papers/pdf")
+    asm_p.add_argument("--order", default="claude,openrouter,gemini",
+                       help="priority of the model sources, comma-separated (default claude,openrouter,gemini)")
+    asm_p.add_argument("--root", help="repository root for the used-by search (default: parent of the papers folder)")
+    st_p = sub.add_parser("status", help="per-page reading status (ocr/reading_status.json): set, show, seed")
+    st_sub = st_p.add_subparsers(dest="status_cmd", required=True)
+    st_set = st_sub.add_parser("set", help="record verified / corrected / machine for pages of a stem")
+    st_set.add_argument("stem")
+    st_set.add_argument("pages", help="'3,5-6' (PDF pages)")
+    st_set.add_argument("state", choices=["verified", "corrected", "machine"])
+    st_set.add_argument("--note", default="", help="what was compared or changed")
+    st_set.add_argument("--by", default="reviewer")
+    st_show = st_sub.add_parser("show", help="print the status of the pages of a stem (or the counts of all)")
+    st_show.add_argument("stem", nargs="?")
+    st_sub.add_parser("seed", help="fill the file from the headers and markers of md-final and from OCR_TO_VERIFY.md (never replaces)")
+    map_p = sub.add_parser("map", help="write papers/notes/OCR_MAP.md and ocr_map.json (what is done and needed; offline)")
+    map_p.add_argument("--root", help="repository root for the documents and the program (default: parent of the papers folder)")
     v = sub.add_parser("verify", help="write an HTML page with the page image beside its transcription")
     v.add_argument("pdf")
     v.add_argument("--page", type=int, required=True)
@@ -138,9 +161,13 @@ def make_runner(a, papers: Path) -> Runner:
     @param papers Papers folder.
     @return Runner Ready to run.
     """
-    return Runner(get_provider(a.provider), out_dir(papers, a.provider),
+    out = out_dir(papers, a.provider)
+    if getattr(a, "subdir", None):
+        out = out / a.subdir
+    return Runner(get_provider(a.provider), out,
                   Ledger(ocr_dir(papers) / "usage.json"), model=a.model, pause=a.pause,
-                  daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi)
+                  daily_limit=a.daily_limit, allow_confidential=a.allow_confidential, dpi=a.dpi,
+                  max_tokens=getattr(a, "max_tokens", None), whole_page=getattr(a, "whole_page", False))
 
 
 def report(outcomes) -> int:
@@ -286,6 +313,7 @@ def cmd_check_key(a, papers: Path) -> int:
             png = render.synthetic_png()
         res = prov.transcribe(png, "Reply with the text you can read, at most 30 words.",
                               {"model": model, "timeout": 60})
+        model = res.model or model        # OpenRouter's "auto" says which model answered
         ok = bool(res.text.strip())
         why = "" if ok else f"empty answer, finish {res.finish_reason}"
     except (ProviderError, KeyError_, RuntimeError) as e:
@@ -310,7 +338,80 @@ def cmd_decode(a, papers: Path) -> int:
     return 0
 
 
-COMMANDS = {"transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
+def cmd_assemble(a, papers: Path) -> int:
+    """!
+    @brief The `assemble` command: one final Markdown per PDF in `papers/md-final/`.
+    @param a      Parsed arguments (`stems`, `--root`).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    import fitz  # PyMuPDF, only needed here
+    from . import assemble as asm, suspects as su
+    root = Path(a.root) if a.root else papers.parent
+    out = papers / "md-final"
+    out.mkdir(exist_ok=True)
+    for stem in a.stems:
+        doc = fitz.open(str(resolve_pdf(stem, papers)))
+        texts = [doc[i].get_text() for i in range(len(doc))]
+        found = {i + 1: su.printed_page_number(t) for i, t in enumerate(texts)}
+        off = su.page_offset({k: v for k, v in found.items() if v})
+        printed = {p: su.printed_page(p, found[p], off) for p in found}
+        digital = sum(len(t) for t in texts[:8]) / max(1, min(8, len(texts))) > 600
+        (out / f"{stem}.md").write_text(asm.assemble(papers, stem, root, len(doc), {i + 1: t for i, t in enumerate(texts)}, printed, digital, tuple(a.order.split(","))),
+                                        encoding="utf-8")
+        print(f"{stem}: {out / (stem + '.md')}")
+    return 0
+
+
+def cmd_status(a, papers: Path) -> int:
+    """!
+    @brief The `status` command: `set`, `show` and `seed` of the sidecar `ocr/reading_status.json`.
+    @param a      Parsed arguments (`status_cmd`, ...).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    from . import status as st
+    if a.status_cmd == "set":
+        pages = st._pages(a.pages)
+        if not pages:
+            print(f"no pages in '{a.pages}'")
+            return 1
+        try:
+            st.set_status(papers, a.stem, pages, a.state, a.by, a.note,
+                          {p: s for p in pages if (s := st._src_sha(papers, a.stem, p))} if a.state == "verified" else None)
+        except ValueError as e:
+            print(e)
+            return 1
+        print(f"{a.stem}: pages {sorted(pages)} -> {a.state}")
+    elif a.status_cmd == "seed":
+        print("added:", st.seed(papers))
+    else:
+        data = st.load(papers)
+        for stem in ([a.stem] if a.stem else sorted(data)):
+            ent = data.get(stem, {})
+            counts = {s: sum(1 for e in ent.values() if e["state"] == s) for s in st.STATES}
+            print(stem, counts)
+            if a.stem:
+                for k in sorted(ent, key=int):
+                    print(f"  p{k}: {ent[k]['state']} ({ent[k].get('by', '')}) {ent[k].get('note', '')}")
+    return 0
+
+
+def cmd_map(a, papers: Path) -> int:
+    """!
+    @brief The `map` command: the map of what is converted and what the theory still needs (offline, no provider).
+    @param a      Parsed arguments (`--root`).
+    @param papers Papers folder.
+    @return int Exit code.
+    """
+    from . import papermap
+    root = Path(a.root) if a.root else papers.parent
+    md, js = papermap.write_map(papers, root)
+    print(f"{md}\n{js}")
+    return 0
+
+
+COMMANDS = {"status": cmd_status, "map": cmd_map, "assemble": cmd_assemble, "transcribe": cmd_transcribe, "queue": cmd_queue, "suspects": cmd_suspects, "verify": cmd_verify,
             "providers": cmd_providers, "check-key": cmd_check_key, "decode": cmd_decode}
 
 
