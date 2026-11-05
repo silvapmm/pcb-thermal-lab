@@ -574,8 +574,8 @@ def test_a_second_provider_runs_through_the_command_line(tmp_path, monkeypatch, 
     monkeypatch.setattr("tools.ocr.pipeline.render.render_page", lambda *a, **k: b"12345")
     assert cli.main(["--papers", str(tmp_path), "transcribe", "Paper", "--pages", "all", "--provider", "echo",
                      "--pause", "0"]) == 0
-    assert (tmp_path / "echo" / "Paper_p2.md").read_text() == "<!-- page 2 -->\n5 bytes"
-    led = json.loads((tmp_path / "gemini" / "usage.json").read_text())
+    assert (tmp_path / "ocr" / "echo" / "Paper_p2.md").read_text() == "<!-- page 2 -->\n5 bytes"
+    led = json.loads((tmp_path / "ocr" / "usage.json").read_text())
     assert [e["provider"] for e in led] == ["echo", "echo"] and led[0]["model"] == "echo-1"
     monkeypatch.setattr(cli.render, "synthetic_png", lambda: b"png")
     assert cli.main(["--papers", str(tmp_path), "check-key", "--provider", "echo"]) == 0   # no models.json entry
@@ -616,3 +616,13 @@ def test_an_oversized_page_is_rendered_at_a_lower_resolution(tmp_path):
     png = render.render_page(tmp_path / "big.pdf", 1)
     pix = mu.Pixmap(png)
     assert pix.width * pix.height <= render.MAX_PIXELS
+
+
+def test_ocr_folder_is_ocr_and_an_old_gemini_folder_is_still_found(tmp_path):
+    assert cli.ocr_dir(tmp_path) == tmp_path / "ocr"
+    assert cli.out_dir(tmp_path, "gemini") == tmp_path / "ocr"
+    assert cli.out_dir(tmp_path, "local") == tmp_path / "ocr" / "local"
+    (tmp_path / "gemini").mkdir()                       # a library made before the rename
+    assert cli.ocr_dir(tmp_path) == tmp_path / "gemini"
+    (tmp_path / "ocr").mkdir()                          # once ocr/ exists it wins
+    assert cli.ocr_dir(tmp_path) == tmp_path / "ocr"
