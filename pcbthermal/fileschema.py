@@ -216,5 +216,5 @@ class guard:
         if exc is None or isinstance(exc, (ProjectFormatError, KeyboardInterrupt, SystemExit, MemoryError)):
             return False
         text = str(exc.args[0]) if isinstance(exc, KeyError) and exc.args else str(exc)
-        kind_name = "missing key" if isinstance(exc, KeyError) else "invalid value"
+        kind_name = "missing key" if isinstance(exc, KeyError) else "malformed value"
         raise ProjectFormatError(f"{self.section}: {kind_name} ({text})") from exc
