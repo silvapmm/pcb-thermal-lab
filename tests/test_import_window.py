@@ -970,7 +970,7 @@ def test_file_names_are_never_read_as_rich_text(qtbot, tmp_path):
     w.open_path(str(d))
     assert "a<b>x.gbr" in w.status.text() and w.status.textFormat() == Qt.PlainText
     assert "a&lt;b&gt;x.gbr" in w.page1.problem.text() and "a<b>x.gbr" not in w.page1.problem.text()
-    assert w.page1.layers_label.textFormat() == Qt.PlainText and w.page1.tool_row.isHidden()      # the CAD-tool hook exists and is hidden
+    assert w.page1.layers_label.textFormat() == Qt.PlainText and w.page1.tool_row.isVisibleTo(w.page1)      # the CAD-tool line is shown once a set is read
 
 
 def test_auto_cell_uses_the_program_rule_and_says_why_it_left_the_cap(window, qtbot, monkeypatch):
@@ -982,3 +982,137 @@ def test_auto_cell_uses_the_program_rule_and_says_why_it_left_the_cap(window, qt
     autos = [b for b in pg.findChildren(type(window.help_btn)) if b.text() == "Auto"]
     autos[-1].click()
     assert sx.cell_mm == 2.0 and "screening estimate" in pg.note.text() or "enlarged" in pg.note.text()
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------- CAD tool
+def _kicad_set(d):
+    """!
+    @brief Rename the synthetic set to the KiCad conventions and add the KiCad generator to the headers (the name rules of the profile have something to read).
+    @param d Folder of the synthetic set (changed in place).
+    @return None
+    """
+    gen = "%TF.GenerationSoftware,KiCad,Pcbnew,8.0.4*%\n"
+    for old, new in (("F.gbr", "board-F_Cu.gbr"), ("B.gbr", "board-B_Cu.gbr"), ("edge.gbr", "board-Edge_Cuts.gbr"), ("pasteF.gbr", "board-F_Paste.gbr")):
+        text = (d / old).read_text()
+        (d / new).write_text(gen + text)
+        (d / old).unlink()
+
+
+def test_a_kicad_set_is_recognised_and_the_line_says_so(qtbot, tmp_path):
+    d = make_board(tmp_path / "fab")
+    _kicad_set(d)
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(d))
+    sx, pg = w.session, w.page1
+    assert sx.profile_choice.key == "kicad" and sx.profile_choice.source == "detected"
+    assert pg.tool_row.isVisible() and pg.tool_label.text().startswith("Detected: KiCad") and pg.tool_label.textFormat() == Qt.PlainText
+    assert pg.tool_pick.currentData() is None and pg.tool_pick.count() > 3
+    assert "Help us test your CAD tool" in pg.tool_label.toolTip() and "Markers:" in pg.tool_label.toolTip()
+    assert sx.build_problem() and sx.record.cad_profile == {"key": "kicad", "source": "detected", "table": sx.profile_choice.table}
+
+
+def test_an_unknown_set_says_the_tool_is_not_recognised_in_the_alert_colour(qtbot, tmp_path):
+    d = make_board(tmp_path / "fab", placement=False)
+    for f in d.glob("*.gbr"):
+        f.write_text(f.read_text().replace("%TF.FileFunction", "G04 x*\n%TF.FileFunction"))
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(d))
+    text, check, tip = w.session.profile_line()
+    assert w.session.profile_result.confidence in ("unknown", "declared", "low") and check
+    assert "not recognised" in text or "Declared by the files" in text
+    alert = th.colors(th.current_name())["alert"]
+    assert alert in w.page1.tool_label.styleSheet()
+    # a low-confidence result never names a program
+    sx = ImportSession()
+    sx.set_files(d)
+    from pcbthermal.gerber.profiles import ProfileResult
+    sx.profile_result = ProfileResult("altium", "low", "", [], [], "")
+    assert sx.profile_line()[0].startswith("Tool not recognised") and "Altium" not in sx.profile_line()[0]
+
+
+def test_the_users_tool_choice_replaces_only_the_name_rules(tmp_path):
+    d = tmp_path / "fab"
+    d.mkdir()
+    body = "%FSLAX46Y46*%\n%MOMM*%\n%ADD10C,0.25*%\nD10*\nX1000000Y1000000D02*\nX9000000Y1000000D01*\nM02*\n"
+    (d / "set.GTL").write_text(body)
+    (d / "set.GBL").write_text(body)
+    (d / "set.GKO").write_text(body)
+    sx = ImportSession()
+    sx.set_files(d)
+    i = [f.name for f in sx.files].index("set.GBL")
+    sx.set_role(i, ims.COPPER_TOP)                                      # the user's assignment of this file is final
+    sx.set_profile("kicad")
+    assert sx.profile_choice.source == "user" and sx.profile_choice.key == "kicad" and sx.user_profile == "kicad"
+    assert sx.files[i].role == ims.COPPER_TOP and sx.files[i].user_role
+    assert "your choice: KiCad" in sx.profile_line()[0]
+    sx.set_profile(None)
+    assert sx.profile_choice.source == "detected"
+    with pytest.raises(ValueError):
+        sx.set_profile("no-such-tool")
+    # X2 still wins over any profile
+    (d / "x.gbr").write_text("%TF.FileFunction,Copper,L1,Top*%\n" + body)
+    sx.set_files(d)
+    sx.set_profile("kicad")
+    assert next(f for f in sx.files if f.name == "x.gbr").role == ims.COPPER_TOP
+
+
+def test_the_combo_changes_the_tool_and_a_reimport_keeps_the_key(qtbot, tmp_path):
+    d = make_board(tmp_path / "fab")
+    _kicad_set(d)
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(d))
+    pg = w.page1
+    pg.tool_pick.setCurrentIndex(pg.tool_pick.findData("unknown"))
+    assert w.session.profile_choice.key == "unknown" and w.session.profile_choice.source == "user"
+    w.session.build_problem()
+    stored = w.session.record
+    assert stored.cad_profile["key"] == "unknown" and stored.cad_profile["source"] == "user"
+    w2 = ImportBoardWindow(existing=stored)
+    qtbot.addWidget(w2)
+    w2.show()
+    w2.notify = lambda *a: None
+    w2.open_path(str(d))
+    assert w2.session.profile_choice.key == "unknown" and w2.session.profile_choice.source == "user"
+    assert w2.page1.tool_pick.currentData() == "unknown"
+
+
+def test_a_banner_with_a_path_and_a_user_never_reaches_a_label_or_a_tooltip(qtbot, tmp_path):
+    d = make_board(tmp_path / "fab")
+    secret = "C:\\Users\\jsmith\\Secret Project\\board.pcb"
+    for f in d.glob("*.gbr"):
+        f.write_text("G04 Created by Altium Designer 21.0.8 on " + secret + " for jsmith*\n" + f.read_text())
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(d))
+    w.go(1)
+    w.go(2)
+    texts = []
+    from PySide6.QtWidgets import QLabel, QWidget
+    for wid in w.findChildren(QWidget):
+        texts.append(wid.toolTip())
+        if isinstance(wid, QLabel):
+            texts.append(wid.text())
+    texts += [w.stepper.states()[i][1] for i in range(3)]
+    text, _, tip = w.session.profile_line()
+    texts += [text, tip]
+    assert not any("jsmith" in t or "Secret Project" in t or "Users" in t for t in texts)
+    assert "jsmith" not in repr(w.session.profile_result) and "Secret" not in repr(w.session.profile_result)
+    w.session.build_problem()
+    assert "jsmith" not in repr(w.session.record.cad_profile) and "Secret" not in " ".join(w.session.record.warnings)
+
+
+def test_zero_unmatched_openings_are_not_written_in_red(window):
+    window.go(1)
+    c = th.colors(th.current_name())
+    assert "match no part" in window.page2.info.text() and c["bad"] not in window.page2.info.text()

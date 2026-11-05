@@ -31,6 +31,7 @@ from .. import memory
 from ..gerber import (DrillFile, GerberArchive, GerberError, LayerFunction, detect_set, limits, parse_layer, pixel_counts, rasterize, read_drill, read_outline,
                       window_of)
 from ..gerber import components as comp_mod
+from ..gerber import profiles as prof_mod
 from ..gerber import parts as parts_mod
 from ..model import ImportFile, ImportRecord, Problem, new_problem, stackup_template
 
@@ -116,6 +117,7 @@ class SourceFile:
         self.name, self.size, self.sha256, self.detected, self.role, self.how, self.reader = name, size, sha256, detected, role, how, reader
         self.use = role in USED_BY_DEFAULT
         self.error = ""                                       # Why the reader could not use it ("" when it could or was not tried)
+        self.user_role = False                                # True once the user chose the function of this file
         self.limit_error = ""                                 # Set when the file is above the size limit: it stays listed with this message and is never read
         self.warnings = []                                    # Tolerances the reader used on this file (Layer.warnings), text
 
@@ -218,6 +220,10 @@ class ImportSession:
         self.pixel_mm = None                                  # Pixel of the copper masks (mm); None: automatic
         self.offset = (0.0, 0.0)                              # Offset added to the placement file positions (mm), the user's answer to the frame check
         self.offset_answer = ""                               # "", "accepted" or "rejected"
+        self.profile_result = None                            # profiles.ProfileResult of the last set_files() (the CAD tool that wrote the files)
+        self.profile_choice = None                            # profiles.ProfileChoice: the profile whose name rules were used, and who chose it
+        self.reuse_profile = None                             # Profile key a re-import takes from the stored import (the user's choice then)
+        self.user_profile = None                              # Profile key the user chose (or a re-import reuses); None keeps the detection
         self.auto_note = ""                                   # The sentence of the last auto_cell() when the cell left the imported-copper cap
         self.record = None                                    # ImportRecord of the last build_problem()
         self.thickness_mm = None                              # Board thickness of the last build (mm)
@@ -252,6 +258,7 @@ class ImportSession:
         self.close()
         self.files, self._board, self._board_error, self.job, self._pending = [], None, "", None, []
         self._parts_dirty, self.offset, self.offset_answer = True, (0.0, 0.0), ""
+        self.user_profile = self.reuse_profile                # a new set starts from the detection, a re-import from the stored profile
         self._parts, self._listed, self._unmatched, self._res = [], [], [], None
         if isinstance(source, (list, tuple)):
             paths = [Path(p) for p in source]
@@ -277,7 +284,11 @@ class ImportSession:
         @brief Detect the function of the whole set at once (`detect_set` orders copper layers that are only numbered, Layer1 to Layer4) and make the file entries.
         @return None
         """
-        found = detect_set([(e[0], e[3]) for e in self._pending])
+        # The tool is found once per import from the names and the first 8 kB of every file (already read, through the size limit); nothing matched is kept
+        self.profile_result = prof_mod.detect_profile({e[0]: e[3] for e in self._pending})
+        self.profile_choice = prof_mod.choose(self.profile_result, self.user_profile)
+        found = detect_set([(e[0], e[3]) for e in self._pending], profile=self.profile_choice.key)
+        self._heads = {e[0]: e[3] for e in self._pending}
         for name, size, sha, head, reader, limit_error in self._pending:
             fn = found[name]
             role, how = role_of(fn), _how(fn)
@@ -371,6 +382,58 @@ class ImportSession:
         """
         f = self.files[i]
         f.role, f.use, f.error = role, role != IGNORE, f.limit_error
+        f.user_role = True                                    # the user's assignment of a file is final: a change of profile never touches it
+        self._board, self._parts_dirty = None, True
+
+    def profile_line(self) -> tuple:
+        """!
+        @brief The CAD-tool line of step 1: text (plain), whether it needs a check, and the tooltip (public facts only, never text matched in a file).
+        @details A result with only name evidence (low confidence) says "tool not recognised" instead of naming a program. A choice of the user is said so.
+        @return tuple (text, check bool, tooltip str); ("", False, "") before a set is read.
+        """
+        r = self.profile_result
+        if r is None:
+            return "", False, ""
+        ev = prof_mod.public_evidence(r)
+        text = ev["line"]
+        if r.confidence == "low":
+            text = "Tool not recognised: only the file names hint at a program, generic rules are used"
+        if self.profile_choice is not None and self.profile_choice.source == "user":
+            text += f"  [your choice: {prof_mod.profile_name(self.profile_choice.key)}]" if self.profile_choice.key != "unknown" else "  [your choice: none, generic rules]"
+        marks = ", ".join(f"{m} ({n} file{'s' if n != 1 else ''})" for m, n in ev["markers"]) or "none"
+        tip = (f"The program that wrote the files, found from their headers and names. Markers: {marks}. It only gives better defaults for the file names; the X2 attributes, the "
+               "Excellon header and your own choice of a function always win, and the bottom-side X sign of a placement file is never preset by it. "
+               "Help us test your CAD tool: a sample of the files of another program makes its profile possible (see the user guide, Import Gerber board).")
+        return text, bool(ev["check"] or r.confidence == "low"), tip
+
+    def profile_keys(self) -> list:
+        """!
+        @brief The profiles the user can choose from: (key, name) pairs, "unknown" (generic rules) first.
+        @return list of tuples.
+        """
+        return [(k, prof_mod.profile_name(k)) for k in prof_mod.profile_keys()]
+
+    def set_profile(self, key):
+        """!
+        @brief The user chooses the CAD profile (None: back to the detection). Only the name rules of the files whose function the user did not choose are applied again.
+        @param key Profile key of the table, or None.
+        @return None
+        @throws ValueError If the key is not a profile of the table.
+        """
+        if self.profile_result is None:
+            return
+        self.profile_choice = prof_mod.choose(self.profile_result, key)
+        self.user_profile = key
+        found = detect_set([(f.name, self._heads.get(f.name, "")) for f in self.files], profile=self.profile_choice.key)
+        for f in self.files:
+            if f.user_role:
+                continue
+            fn = found[f.name]
+            role, how = role_of(fn), _how(fn)
+            if fn.kind == "unknown" and Path(f.name).suffix.lower() in (".csv", ".pos", ".txt", ".xy") and _looks_like_placement(self._heads.get(f.name, "")):
+                role, how = PLACEMENT, "columns of a placement table"
+            f.detected, f.role, f.how, f.use = fn, role, how, role in USED_BY_DEFAULT
+        self._assign_inner_numbers()
         self._board, self._parts_dirty = None, True
 
     def set_use(self, i: int, use: bool):
@@ -1104,6 +1167,7 @@ class ImportSession:
         rec.parts = copy.deepcopy(self.parts())
         rec.holes = rec.holes + self._component_holes(ib.box_mm)
         rec.warnings = list(ib.warnings) + self.warnings()
+        rec.cad_profile = self.profile_choice.record() if self.profile_choice is not None else None
         rec.settings = {"mapping": self.mapping, "cell_mm": self.cell_mm, "pixel_mm": ib.pixel_mm, "via_max_mm": self.via_max_mm, "offset_mm": list(self.offset),
                         "roles": {f.name: f.role for f in self.used()}}
         self.record, self.thickness_mm = rec, thickness

@@ -359,17 +359,20 @@ class Step1Page(QWidget):
         self.drill_label.setTextFormat(Qt.PlainText)
         self.drill_label.setToolTip("Plated holes up to 0.5 mm are vias and are imported; larger plated holes are component holes (a lead is not modelled); non-plated holes are ignored.")
         f.addRow("Drills", self.drill_label)
-        # Hook for the CAD-tool profiles (feature/cad-profiles): "Detected tool: ..." with a [change...] list. Hidden until profiles exist; nothing reads it yet
+        # The CAD tool that wrote the files (profiles.detect_profile): a plain-text line, coloured when it needs a check, and a list to change it (replaces only the profile tier)
         self.tool_row = QWidget()
         tl = QHBoxLayout(self.tool_row)
         tl.setContentsMargins(0, 0, 0, 0)
-        self.tool_label = QLabel("Detected tool: -")
-        self.tool_label.setTextFormat(Qt.PlainText)
-        self.tool_label.setToolTip("The CAD tool that wrote the files, found from their headers; it sets the conventions of the placement file. Not available yet.")
+        self._tool_filling = False
+        self.tool_label = QLabel("")
+        self.tool_label.setTextFormat(Qt.PlainText)                         # the text is built from table names only; never rich
+        self.tool_label.setWordWrap(True)
+        self.tool_label.setToolTip("The program that wrote the files.")
         self.tool_pick = QComboBox()
-        self.tool_pick.setToolTip("Change the detected CAD tool.")
-        self.tool_pick.setEnabled(False)
-        tl.addWidget(self.tool_label)
+        self.tool_pick.setToolTip("Change the CAD tool: it replaces only the file-name rules (the X2 attributes, the Excellon header and your own choice of a function still win).")
+        self.tool_pick.addItem("Automatic (detected)", None)
+        self.tool_pick.currentIndexChanged.connect(self._tool_changed)
+        tl.addWidget(self.tool_label, 1)
         tl.addWidget(self.tool_pick)
         tl.addStretch(1)
         self.tool_row.setVisible(False)
@@ -461,6 +464,7 @@ class Step1Page(QWidget):
                 cb.blockSignals(False)
             t.item(i, 4).setText(f.how + (f"; {f.error}" if f.error else ""))
         self._filling = False
+        self._refresh_tool(c)
         self.source.setText(sx.source_text)
         self.box.setTitle(f"Files found ({len(sx.files)})")
         probs, notes = sx.problems(), sx.notes()
@@ -494,6 +498,39 @@ class Step1Page(QWidget):
         if picked:
             self.layer_pick.setCurrentText(self.preview.selected)
         self.preview.update()
+
+    def _refresh_tool(self, c):
+        """!
+        @brief Show the CAD-tool line and its list for the files read (hidden before a set is read).
+        @param c Colour table of the theme.
+        @return None
+        """
+        sx = self.session
+        text, check, tip = sx.profile_line()
+        self.tool_row.setVisible(bool(text))
+        if not text:
+            return
+        self.tool_label.setText(text)
+        self.tool_label.setToolTip(tip)
+        self.tool_label.setStyleSheet(f"color: {c['alert'] if check else c['text']};")      # the alert token when the detection needs a check
+        self._tool_filling = True
+        if self.tool_pick.count() <= 1:
+            for key, name in sx.profile_keys():
+                self.tool_pick.addItem(name if key != "unknown" else "None (generic rules)", key)
+        self.tool_pick.setCurrentIndex(max(0, self.tool_pick.findData(sx.user_profile)))
+        self._tool_filling = False
+
+    def _tool_changed(self, _):
+        """!
+        @brief The user chose another CAD tool: the name rules are applied again to the files whose function the user did not choose.
+        @param _ Ignored (the combo index).
+        @return None
+        """
+        if self._tool_filling or self.session.profile_result is None:
+            return
+        self.session.set_profile(self.tool_pick.currentData())
+        self.win.refresh()
+        self.win.reload_later()
 
     def _build_rows(self):
         """!
@@ -752,7 +789,7 @@ class Step2Page(QWidget):
         counts = sx.parts_info().get("counts", {})
         n_open = len(sx.openings())
         self.info.setText(f"<b>{len(parts)} parts</b> ({', '.join(f'{v} {k}' for k, v in counts.items() if v) or 'none found'}); {n_open} paste openings, "
-                          f"<span style='color:{c['bad']}'>{len(sx.unmatched())} match no part (red in the preview).</span>")
+                          + (f"<span style='color:{c['bad']}'>{len(sx.unmatched())} match no part (red in the preview).</span>" if sx.unmatched() else "0 match no part."))
         fr = sx.frame_proposal()
         self.frame_box.setVisible(bool(fr))
         if fr:
@@ -1428,6 +1465,8 @@ class ImportBoardWindow(QDialog):
         super().__init__(parent)
         self.session = session or ImportSession()
         self.existing = existing
+        if existing is not None and getattr(existing, "cad_profile", None):
+            self.session.reuse_profile = existing.cad_profile.get("key")      # a re-import keeps the stored CAD profile
         self.step = 0
         self.problem = None                                   # The Problem built by Import (None until the import ran)
         self.record = None                                    # The ImportRecord to store in the project
