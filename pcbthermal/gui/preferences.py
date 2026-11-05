@@ -14,10 +14,10 @@ import copy
 import os
 import shutil
 
-from PySide6.QtCore import QUrl, Qt
+from PySide6.QtCore import QEvent, QUrl, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
-                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
+                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QToolTip, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
 
 from .. import defaults, memory
 from .. import model
@@ -39,6 +39,28 @@ def _cell_text(value):
             text = eng(value, 8)
         return text
     return str(value)
+
+
+class _LibraryTable(QTableWidget):
+    """!
+    @brief Table of a library whose columns share the width: a cell whose text does not fit (elided) shows its full text as the tooltip;
+           elsewhere the table's own tooltip (what the library is) is shown.
+    """
+
+    def viewportEvent(self, event):
+        """!
+        @brief Show the full text of an elided cell on a tooltip event.
+        @param event The viewport event.
+        @return bool True when the event was handled here.
+        """
+        if event.type() == QEvent.ToolTip:
+            item = self.itemAt(event.pos())
+            if item is not None and item.text():
+                rect = self.visualItemRect(item)
+                if self.fontMetrics().horizontalAdvance(item.text()) > rect.width() - 6:        # Elided: the cell text minus its margins
+                    QToolTip.showText(event.globalPos(), item.text(), self.viewport(), rect)
+                    return True
+        return super().viewportEvent(event)
 
 
 SECTION_LIST_WIDTH = 240          # Pixels: wide enough for the longest section title
@@ -225,7 +247,7 @@ class PreferencesDialog(QDialog):
         lay.addWidget(note)
         rows = self.data["libraries"][lib]
         cols = list(defaults.shipped()["libraries"][lib][0].keys())
-        t = QTableWidget(len(rows), len(cols))
+        t = _LibraryTable(len(rows), len(cols))
         t.setHorizontalHeaderLabels([COLUMNS.get(c, c) for c in cols])          # Readable titles with units, not the JSON keys
         for c, key in enumerate(cols):
             t.horizontalHeaderItem(c).setToolTip(f"JSON key: {key}")
@@ -234,7 +256,8 @@ class PreferencesDialog(QDialog):
         for r, e in enumerate(rows):
             for c, key in enumerate(cols):
                 t.setItem(r, c, QTableWidgetItem(_cell_text(e.get(key, ""))))
-        # Columns share the width (a narrow window elides a cell, whose full text is its tooltip) so that the table never scrolls sideways
+        # Columns share the width so that the table never scrolls sideways (number-width columns overflowed the Dielectrics page at 800 px);
+        # a cell that does not fit is elided and shows its full text as the tooltip (_LibraryTable)
         t.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         t.horizontalHeader().setMinimumSectionSize(24)
         t.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)

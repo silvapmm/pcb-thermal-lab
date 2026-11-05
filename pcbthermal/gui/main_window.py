@@ -194,7 +194,6 @@ class MainWindow(QMainWindow):
 
         self.canvas = BoardView(self.doc, self.theme_name)
         self.results = ResultsView(self.theme_name)
-        self.results.temp.equiv.toggled.connect(lambda _on: self.a_overlay.isChecked() and self._toggle_overlay(True))   # The board view follows the checkbox
         self.tabs = QTabWidget()
         self.tabs.addTab(self.canvas, "Board")
         self.stackup_page = StackupPage(self.doc, self.theme_name)
@@ -641,8 +640,7 @@ class MainWindow(QMainWindow):
         ref = self.sim.reference
         layer = min(self.canvas.layer, ref.T.shape[0] - 1)
         cfg = self.results.temp.current_field()
-        eq = ref.equivalent_scale if self.results.temp.equiv.isChecked() else None     # Dashed equivalent rectangle of a Lumped or Analytic reference
-        self.canvas.set_overlay(ref.T[layer], ref.dx, ref.dy, cmap=cfg[3] if cfg else "inferno", nodes=ref.grid == "nodes", equivalent_scale=eq)
+        self.canvas.set_overlay(ref.T[layer], ref.dx, ref.dy, cmap=cfg[3] if cfg else "inferno", nodes=ref.grid == "nodes")
 
     def _refresh_layers(self):
         """!

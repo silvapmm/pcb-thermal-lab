@@ -55,3 +55,32 @@ def test_section_list_has_no_tooltip(qtbot):
     assert dlg.sections.toolTip() == ""
     assert all(dlg.sections.item(i).toolTip() == "" for i in range(dlg.sections.count()))
     assert all(w.toolTip() for w in dlg.widgets.values() if hasattr(w, "toolTip"))
+
+
+def test_elided_library_cell_shows_its_full_text(qtbot):
+    """!
+    @brief The library tables share the width, so a long cell is elided: hovering it shows its whole text; a cell that fits leaves the table's tooltip.
+    @param qtbot pytest-qt fixture.
+    """
+    from PySide6.QtCore import QEvent, QPoint
+    from PySide6.QtGui import QHelpEvent
+    from PySide6.QtWidgets import QToolTip
+    dlg = PreferencesDialog()
+    qtbot.addWidget(dlg)
+    dlg.show()
+    dlg.resize(800, 600)
+    dlg.sections.setCurrentRow(dlg.section_titles().index("Package heatsinks (typical θSA)"))
+    QApplication.processEvents()
+    t, cols = dlg.tables["heatsinks"]
+    item = t.item(0, cols.index("note"))
+    rect = t.visualItemRect(item)
+    assert t.fontMetrics().horizontalAdvance(item.text()) > rect.width()           # The note is elided at this size
+    QToolTip.hideText()
+    pos = rect.center()
+    handled = t.viewportEvent(QHelpEvent(QEvent.ToolTip, pos, t.viewport().mapToGlobal(pos)))
+    assert handled and QToolTip.text() == item.text()
+    QToolTip.hideText()
+    short = t.item(0, cols.index("theta_sa_k_per_w"))                              # "11.4" fits: the table's own tooltip, not the cell text
+    pos = t.visualItemRect(short).center()
+    t.viewportEvent(QHelpEvent(QEvent.ToolTip, pos, t.viewport().mapToGlobal(pos)))
+    assert QToolTip.text() != short.text()

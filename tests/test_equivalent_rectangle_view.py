@@ -58,28 +58,67 @@ def test_scale_is_recorded_only_for_lumped_and_analytic(sim):
     assert 0.5 < s < 1.0
     for m in ("lumped", "analytic"):
         assert sim.results[m].equivalent_scale == pytest.approx(s)
-        assert any("the maps draw that rectangle dashed" in w for w in sim.results[m].warnings)
+        assert any("show that rectangle as solved" in w for w in sim.results[m].warnings)
 
 
 def test_draw_field_adds_the_rectangle_only_when_asked(sim):
     """!
-    @brief draw_field draws the dashed rectangle and its legend for a scale, and nothing for None.
+    @brief draw_field draws the field as solved for a scale: the dashed edge has the size its legend gives, the image fills that rectangle, and
+           the parts are those of the rectangle; nothing changes for None.
     @param sim Simulation fixture.
     """
     r = sim.results["lumped"]
+    eq, s = sim.problem.equivalent_rectangle()
     fig = plots.new_figure()
     ax = plots.draw_field(fig, r.T[0], sim.problem, r.dx, r.dy, equivalent_scale=r.equivalent_scale)
     lines = _dashed(ax)
-    assert len(lines) == 1 and ax.get_legend() is not None
-    b = sim.problem.board
-    assert max(lines[0].get_xdata()) == pytest.approx(b.width * 1000.0)
-    assert f"{b.width * 1000.0 * r.equivalent_scale:.1f}" in lines[0].get_label()
+    assert len(lines) == 1 and fig.legends
+    W, H = eq.board.width * 1000.0, eq.board.height * 1000.0
+    assert max(lines[0].get_xdata()) == pytest.approx(W) and max(lines[0].get_ydata()) == pytest.approx(H)
+    assert f"{W:.1f} x {H:.1f} mm" in lines[0].get_label()
+    ext = ax.get_images()[0].get_extent()                                   # The field fills the solved rectangle, not the real box
+    assert ext[1] == pytest.approx(W, rel=1e-6) and ext[3] == pytest.approx(H, rel=1e-6)
+    assert not np.ma.getmaskarray(ax.get_images()[0].get_array()).any()              # Nothing blanked: the rectangle is the board that was solved
+    heater = eq.heaters[0].polygon * 1000.0                                  # The part is drawn where the model put it
+    xs = [ln.get_xdata() for ln in ax.get_lines() if ln.get_linestyle() == "--" and len(ln.get_xdata()) == len(heater) + 1]
+    assert any(np.allclose(x[:-1], heater[:, 0]) for x in xs)
+    assert ax.get_xlim() == pytest.approx((0, sim.problem.board.width * 1000.0))   # The axes keep the real box, so the real outline is in sight
     ax = plots.draw_field(fig, r.T[0], sim.problem, r.dx, r.dy)
-    assert _dashed(ax) == []
+    assert _dashed(ax) == [] and not fig.legends
+    assert np.ma.getmaskarray(ax.get_images()[0].get_array()).any()                  # Stretched view: blanked outside the outline as before
     fig = plots.new_figure()
     plots.draw_fields(fig, r, sim.problem)
-    assert sum(len(_dashed(a)) for a in fig.axes) >= 1
+    assert sum(len(_dashed(a)) for a in fig.axes) == sim.problem.board.layers and len(fig.legends) == 1
     plots.draw_fields(fig, r, sim.problem, show_equivalent=False)
+    assert sum(len(_dashed(a)) for a in fig.axes) == 0 and not fig.legends
+
+
+def test_gradient_uses_the_solved_spacing(sim):
+    """!
+    @brief The gradient of a Lumped or Analytic result on an outline board is taken on the spacing that was solved, not the stretched one.
+    @param sim Simulation fixture.
+    """
+    from pcbthermal import analysis
+    r = sim.results["analytic"]
+    s = r.equivalent_scale
+    gy, gx = np.gradient(r.T[0], r.dy * s * 1000.0, r.dx * s * 1000.0)
+    assert np.allclose(analysis.gradient_magnitude(r)[0], np.hypot(gx, gy))
+    f = sim.results["fvm"]
+    gy, gx = np.gradient(f.T[0], f.dy * 1000.0, f.dx * 1000.0)
+    assert np.array_equal(analysis.gradient_magnitude(f)[0], np.hypot(gx, gy))
+
+
+def test_old_result_without_the_field_draws_stretched(sim):
+    """!
+    @brief A result pickled before the field existed (no attribute in its dict) reads None and draws as before.
+    @param sim Simulation fixture.
+    """
+    import copy
+    r = copy.copy(sim.results["lumped"])
+    del r.__dict__["equivalent_scale"]
+    assert r.equivalent_scale is None
+    fig = plots.new_figure()
+    plots.draw_fields(fig, r, sim.problem)
     assert sum(len(_dashed(a)) for a in fig.axes) == 0
 
 
@@ -101,9 +140,10 @@ def test_rectangular_board_is_unchanged():
     assert np.array_equal(np.asarray(f1.canvas.buffer_rgba()), np.asarray(f2.canvas.buffer_rgba()))
 
 
-def test_gui_checkbox_and_board_overlay(qtbot, tmp_path, sim):
+def test_gui_checkbox(qtbot, tmp_path, sim):
     """!
-    @brief The Results tab shows the checkbox for Lumped and Analytic only, and the board overlay draws the dashed rectangle of a Lumped reference.
+    @brief The Temperature and Gradient tabs show the checkbox for Lumped and Analytic only; the board overlay stays the stretched map without a
+           rectangle (the editor's parts are on the real board, so the solved frame cannot be drawn there).
     @param qtbot pytest-qt fixture.
     @param tmp_path pytest folder.
     @param sim Simulation fixture.
@@ -121,13 +161,12 @@ def test_gui_checkbox_and_board_overlay(qtbot, tmp_path, sim):
     t.equiv.setChecked(False)
     assert _dashed(t.fig.axes[0]) == []
     t.equiv.setChecked(True)
-    # Board view: a Lumped reference gets the dashed item, an FVM one does not
+    assert len(_dashed(t.fig.axes[0])) == 1
+    g = win.results.grad
+    g.set_simulation(sim)
+    g.model.setCurrentIndex(g.model.findData("analytic"))
+    assert g.equiv.isVisibleTo(g) and len(_dashed(g.fig.axes[0])) == 1
     win._load_problem(sim.problem, "t")
     ref = sim.results["lumped"]
-    win.canvas.set_overlay(ref.T[0], ref.dx, ref.dy, equivalent_scale=ref.equivalent_scale)
-    assert win.canvas._equivalent_item is not None
-    win.canvas.clear_overlay()
-    assert win.canvas._equivalent_item is None
-    fvm = sim.results["fvm"]
-    win.canvas.set_overlay(fvm.T[0], fvm.dx, fvm.dy, equivalent_scale=fvm.equivalent_scale)
-    assert getattr(win.canvas, "_equivalent_item", None) is None
+    win.canvas.set_overlay(ref.T[0], ref.dx, ref.dy)
+    assert not hasattr(win.canvas, "_equivalent_item")

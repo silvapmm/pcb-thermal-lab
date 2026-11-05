@@ -142,8 +142,9 @@ class PlotTab(QWidget):
         self.model.setToolTip("Model whose result is drawn.")
         self.layer.setToolTip("Copper layer shown.")
         self.cmap.setToolTip("Colour scale of the map.")
-        self.equiv.setToolTip("Draw, dashed, the rectangle of the same area that the Lumped and Analytic models solved instead of the outline. Their field is that rectangle "
-                              "stretched back by 1 / s onto the box of the board (s = square root of the area ratio) and blanked outside the outline.")
+        self.equiv.setToolTip("Lumped and Analytic on a board with an outline: they solve a rectangle of the same area (box and positions scaled by s, the square root "
+                              "of the area ratio; parts keep their size). Ticked, the map shows that rectangle as solved, dashed, with its parts and the real outline dotted. "
+                              "Unticked, the field is stretched back by 1/s onto the box and blanked outside the outline (the parts then look 1/s larger).")
         self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
         self.vmax.setToolTip("Highest temperature of the colour scale in °C (used when Auto range is off).")
         self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
@@ -260,7 +261,8 @@ class PlotTab(QWidget):
         r0 = self._result()
         eq = r0.equivalent_scale if r0 is not None and prob.board.has_outline() else None
         self.equiv.setVisible(eq is not None and self.kind in ("temperature", "gradient"))
-        eq_args = {"equivalent_scale": eq if self.equiv.isChecked() else None, "equivalent_color": th.colors("dark")["alert"]}   # Amber token: readable on every colour map
+        # Ticked: the map as solved (the rectangle of the same area, its parts, dashed edge); amber token of the dark theme, readable on every colour map
+        eq_args = {"equivalent_scale": eq if self.equiv.isChecked() else None, "equivalent_color": th.colors("dark")["alert"]}
         self.vmin.setEnabled(not self.auto.isChecked())
         self.vmax.setEnabled(not self.auto.isChecked())
         with _mpl_theme(self.theme):
