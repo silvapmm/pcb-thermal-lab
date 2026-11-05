@@ -941,7 +941,17 @@ class _AnalyticAdapter:
         self.steady_average_max = float(self.frame(self.b_avg).max())
         self.steady_peak_max = float(self.frame(b_peak).max())
         self.warnings = []
-        if ms.scaled:
+        if problem.heatsinks:
+            # Measured on 10 test boards (60 x 40 mm family, step response of one part, FVM at 1 mm; research/analytic-2-6): the time to 63 %
+            # was -67 % to +113 % of the FVM with a heatsink (-0.4 % with the heatsink under the part and no vias); plain boards, one via and
+            # via arrays were +0.1 to +0.6 %. Text only: no number moves (the local modal system is planned for 2.6.0).
+            scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
+            self.warnings.append(
+                "the analytic transient smears the heatsinks over the board: with a heatsink the time to 63 % was measured from -67 % to +113 % "
+                "off the finite-volume result on test boards (best when the heatsink is under the part and there are no vias); "
+                "use the FVM or the Lumped model for the time behaviour"
+                + (f" (calibration factors {scales})" if ms.scaled else ""))
+        elif ms.scaled:
             what = "via conductance" if ms.scaled[0][0] == "vias" else "heatsink coefficient"
             scales = ", ".join(f"{num(sc, 3)}" for _, sc, _ in ms.scaled)
             self.warnings.append(
