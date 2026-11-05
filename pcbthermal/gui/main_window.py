@@ -1154,7 +1154,7 @@ class MainWindow(QMainWindow):
 
     def show_about(self):
         """!
-        @brief Show the About box (program, version, author, project link, libraries).
+        @brief Show the About box (program, version, author, project link, licence and the scope of the validation).
         """
         AboutDialog(self).exec()
 
