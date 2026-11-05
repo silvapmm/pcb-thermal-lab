@@ -135,11 +135,11 @@ The rows of 4.1 are computed at 0.5 mm. Model RθJA in K/W, computed convection 
 
 | Board | datasheet | 1 mm | 0.5 mm | 0.35 mm | 0.25 mm |
 | :-- | --: | --: | --: | --: | --: |
-| CSD17308Q3, 1 in² pad | 46 | 46.4 | 46.8 | 47.2 | 47.1 |
+| CSD17308Q3, 1 in² pad | 46 | 47.2 | 47.5 | 48.0 | 47.9 |
 | JEDEC 2s2p, 9 thermal vias | 32.5 | 32.2 | 31.6 | 32.0 | 32.1 |
 | JEDEC 2s2p, no thermal vias | - | 83.6 | 68.1 | 72.9 | 74.5 |
 
-* The two datasheet rows settle at −2.3 % (CSD17308Q3) and +1.3 % (JEDEC) of power error: still within 2 to 3 %, but the 0.5 mm values are not converged (0.5 mm is the lowest point of a non-monotonic sequence for the JEDEC board).
+* The two datasheet rows settle at −3.2 % (CSD17308Q3, 2.5.0 candidate; −2.3 % before the laminate rule of 2.4.5) and +1.3 % (JEDEC, not re-run) of power error: still within 2 to 3 %, but the 0.5 mm values are not converged (0.5 mm is the lowest point of a non-monotonic sequence for the JEDEC board).
 * The board without vias is strongly grid-dependent (84 to 68 K/W): its heat leaves through a 3.15 mm source on a 4.15 mm land, a few cells wide, and the cell cover of the land changes with the grid. The 67.4 K/W quoted before this review is reproduced by no script (the test runs at 1 mm, 83.6 K/W). The conclusion (the exposed pad needs the vias, a factor 2 or more) holds at every cell size.
 * The bottom layer of the JEDEC board read as a 74.2 mm plane of 70 µm (ROHM's table, see 4.1) gives 26.4 K/W at 0.5 mm (+22.9 % of power error): the agreement of the JEDEC row depends on the traces reading.
 
@@ -229,3 +229,5 @@ The example band (drawn board = real board, nominal / best / worst in W) at ever
 * `calculator_validation.py` prints a fourth row (the 58 K/W datasheet maximum, +26.9 %, not a target) and, since this review, the "JEDEC board without vias" row (68.1 K/W at 0.5 mm); the 67.4 K/W quoted before is not reproduced by any script (section 4.5).
 * Not implemented: the known-power reference (fits only parts with a controllable dissipation; the copper error it removes also goes away with Gerber or KiCad import), the two-point fit (a study only), the datasheet shortcut θJA − ψJT.
 * Text for the project documents (`docs/calculators.md`, `docs/validation.md`) that this review found stale: `docs/for-the-project-documents.md`.
+
+**Update for 2.5.0 (reproduction pass)**: the CSD17308Q3 row of 4.5 now reads 47.2 / 47.5 / 48.0 / 47.9 K/W (1 / 0.5 / 0.35 / 0.25 mm), re-run with `study_cell_size.py`; it equals `docs/calculators.md` and the 47.5 K/W, 0.968 W, −3.2 % of `calculator_validation.py` (the 46.4 / 46.8 / 47.2 / 47.1 were values before the laminate rule of 2.4.5). **Not re-run**: the two JEDEC rows and the 70 µm bottom-plane row of 4.5 (and the 8-minute figure of the long-run list above): the run was stopped after 20 minutes on a shared, loaded machine before the first JEDEC row printed, so those digits are still the pre-2.4.5 ones and may have moved, as the CSD row did; the bullet on the vias-free board (84 to 68 K/W) and the conclusion that the pad needs the vias are likewise unchecked on the candidate.

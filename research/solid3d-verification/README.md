@@ -73,8 +73,8 @@ Status: **implemented** in the program (see the program's `docs/versions.md` and
 
 | ε = a/b | Table 3 (isoflux) | exact series, circular tube | exact series, square tube | 3D solid | 3D solid against the table | against the square tube |
 | --: | --: | --: | --: | --: | --: | --: |
-| 0.2 | 0.8009 | 0.8010 | 0.8027 | 0.8076 | +0.8 % | +0.6 % |
-| 0.3 | 0.6649 | 0.6649 | 0.6676 | 0.6698 | +0.7 % | +0.3 % |
+| 0.2 | 0.8009 | 0.8010 | 0.8027 | 0.8062 | +0.7 % | +0.4 % |
+| 0.3 | 0.6649 | 0.6649 | 0.6676 | 0.6700 | +0.8 % | +0.4 % |
 
 The two series columns were added by the review: the closed form behind the table, `ψ = (16/(π ε)) Σ J1(δn ε)² / (δn³ J0(δn)²)` over the roots `δn` of `J1`, reproduces Table 3 to its four digits (0.9401, 0.8010, 0.6649, 0.5337 for ε = 0.1 to 0.4), so the table values used here are confirmed independently of the paper; and the double cosine series of the same source on the **square** tube of the same area (the problem the 3D solid actually solves; only even orders survive, the disc integral is `2π a J1(λa)/λ`) is 0.2 % (ε = 0.2) and 0.4 % (ε = 0.3) above the table. The earlier explanation "the square tube, the staircase circle and the subtracted one-dimensional resistances" is thereby measured: the square tube accounts for 0.2 to 0.4 points, the mesh (staircase circle, cells of 1 mm) for the remaining 0.3 to 0.6 points. For `ε = 0.1` the source is 2.8 mm across (three cells) and the difference grows to 2 %.
 
@@ -200,7 +200,7 @@ Heat that leaves a small source into a much larger body has to spread out first,
 | 0.3 | 0.6649 | 0.6597 | -0.8 % |
 | 0.4 | 0.5337 | 0.5298 | -0.7 % |
 
-The solver converges at first order (the flux changes by a step at the edge of the source, which a cell-centred scheme resolves to one cell): at ε = 0.2 the values for 100, 200 and 400 cells per radius are 0.7716, 0.7857 and 0.7932, and the Richardson extrapolation (order one assumed, not measured) is **0.8006 against 0.8009**. The program's 3D solid is +0.8 % (0.8076) and +0.7 % at ε = 0.3: the table lies between the two solvers, which approach it from opposite sides (the square tube and the staircase circle of the 3D solid, the first-order edge of the axisymmetric one), so neither reproduces it to better than their own discretisation error.
+The solver converges at first order (the flux changes by a step at the edge of the source, which a cell-centred scheme resolves to one cell): at ε = 0.2 the values for 100, 200 and 400 cells per radius are 0.7716, 0.7857 and 0.7932, and the Richardson extrapolation (order one assumed, not measured) is **0.8006 against 0.8009**. The program's 3D solid is +0.7 % (0.8062) and +0.8 % at ε = 0.3: the table lies between the two solvers, which approach it from opposite sides (the square tube and the staircase circle of the 3D solid, the first-order edge of the axisymmetric one), so neither reproduces it to better than their own discretisation error.
 
 ![Spreading resistance explained](figures/fig_06_spreading_resistance_explained.png)
 
@@ -267,3 +267,5 @@ Yovanovich, J. Electronic Packaging 125 (2003) 169 to 177, Table 3 (as cited in 
 * **Figure 9 and the solve-cost text**: checked against the two printouts of `study_solve_cost.py` (times, memory and memory per unknown agree); the "20.5 GB peak footprint" at 512 000 unknowns is 20.5 MB of the parent process, so it is no evidence of paging; no record shows the documents' times were made while swapping (the computed-h loop is an equally possible cause); the 3D-solid rows are 5.5 to 8.5 times longer than the example board and 20 to 40 times longer than the plain board.
 * Not implemented: a time simulation of the 3D solid (steady state only); the FEM solid inside the program (it stays an offline cross-check, scikit-fem is not a dependency).
 * One-layer board (4.4): the old behaviour is imitated by a board whose laminate is 1 µm thick, not by running the old code; the independent reference (with patterned copper) is in `research/effective-conductivity/` 4.11 and in `lib/layered3d.py` here.
+
+**Update for 2.5.0 (reproduction pass)**: the 3D solid column of the Yovanovich table is 0.8062 and 0.6700 (+0.7 / +0.8 % against the table, +0.4 / +0.4 % against the square tube), re-run with `solid3d_verification.py` on the 2.5.0 candidate (the 0.8076 and 0.6698 were values of a program before 2.4.5; `docs/validation.md` 21 already had them). The GCI line is unchanged (cells 4, 2, 1 mm: 75.4712, 71.0158, 69.6240 K/W, order 1.68, GCI 1.14 %). The memory guard now prints a warning line before each 3D solve when the free memory is short; the numbers do not depend on it. Not re-run: the other scripts of the folder.
