@@ -517,3 +517,117 @@ def test_a_check_that_is_not_a_run_writes_no_log_line(caplog):
         assert not caplog.records
         memory.check(reference_problem(), ("fvm",), 2.0, refuse="return")
         assert len(caplog.records) == 1
+
+
+# ---------------------------------------------------------------------------------------------------- the via term
+def test_no_via_estimates_are_unchanged():
+    """!
+    @brief Without vias (zero footprint cells) the estimate is the law of memory.CONTINUOUS exactly, for every model, and the 3D solid ignores the term.
+    @return None.
+    """
+    for model, (k1, p, a, safety) in memory.CONTINUOUS.items():
+        n, cells = 400_000, 50_000
+        t_eff = max(min(n / cells, cells / (n / cells)), 1.0)
+        law = BASE + k1 * t_eff ** a * n * (n / memory.N_REF) ** (p - 1.0) * safety
+        assert memory.estimate_bytes(model, n, cells, BASE) == law
+        assert memory.estimate_bytes(model, n, cells, BASE, 1.0, 0.0) == law
+    assert memory.estimate_bytes("solid3d", 400_000, 50_000, BASE, 1.0, 5000.0) == memory.estimate_bytes("solid3d", 400_000, 50_000, BASE)
+
+
+def test_via_gain_is_continuous_monotone_and_bounded():
+    """!
+    @brief The via factor starts at 1, grows with the footprint cells and never passes 1 + VIA_GAIN.
+    @return None.
+    """
+    assert memory.via_gain("fvm", 0.0) == 1.0
+    assert memory.via_gain("fvm", 1.0) == pytest.approx(1.0, abs=1e-3)           # one via is not a step
+    f = [memory.via_gain("fdm", x) for x in (10, 100, 1000, 10_000, 1e7)]
+    assert f == sorted(f) and f[-1] <= 1.0 + memory.VIA_GAIN + 1e-12 and f[-1] > 1.0 + 0.99 * memory.VIA_GAIN
+    assert memory.via_gain("solid3d", 1e6) == 1.0
+
+
+def test_via_cells_counts_the_footprints_of_the_vias_on_the_board():
+    """!
+    @brief The footprint cells are zero without vias, grow with the number of vias and with a finer cell, and leave out a via outside the board box.
+    @return None.
+    """
+    from pcbthermal.model import Problem
+    p = Problem.new(60, 60, layers=2)
+    p.add_full_copper()
+    assert memory.via_cells(p, 1.0) == 0.0
+    p.add_via_array((10, 10, 40, 40), 5, 5, diameter=0.3)
+    c1 = memory.via_cells(p, 1.0)
+    assert 25 <= c1 <= 25 * 5
+    assert memory.via_cells(p, 0.5) > c1                                           # a finer cell spreads the same drill over more cells
+    p.add_via(100.0, 100.0, diameter=0.3)                                         # outside the 60 mm board
+    assert memory.via_cells(p, 1.0) == c1
+    q = Problem.new(60, 60, layers=2)
+    q.add_via_array((10, 10, 40, 40), 10, 10, diameter=0.3)
+    assert memory.via_cells(q, 1.0) == pytest.approx(4.0 * c1, rel=0.3)
+
+
+def test_via_footprint_cells_agree_with_the_network():
+    """!
+    @brief The cheap count of the footprints is within 25 % of the cells the network builds for them (sum over the vias).
+    @return None.
+    """
+    import numpy as np
+    from pcbthermal import fvm
+    from pcbthermal.model import Problem
+    p = Problem.new(40, 40, layers=2)
+    p.add_full_copper()
+    # Scattered positions (a regular array on cell centres is the lucky case where every footprint is one cell; real boards are not on the grid)
+    rng = np.random.default_rng(7)
+    for x, y in rng.uniform(5.0, 35.0, size=(150, 2)):
+        p.add_via(float(x), float(y), diameter=0.3)
+    for x, y in rng.uniform(5.0, 35.0, size=(30, 2)):
+        p.add_via(float(x), float(y), diameter=1.0)
+    for cell in (1.0, 0.5):
+        nx = int(round(40 / cell))
+        net = fvm.Network(p, nx, nx)
+        real = sum(len(b[0]) for b in net.via_blocks)
+        assert memory.via_cells(p, cell) == pytest.approx(real, rel=0.25), cell
+
+
+def test_the_law_with_vias_stays_above_the_measured_peaks_of_the_study():
+    """!
+    @brief The measured peaks of boards with scattered vias (CO60 plated holes, 769 of them, copper full or in stripes; research/memory-guard README 14.12) are at or below the estimate.
+    @details Tuples are (model, unknowns, plan cells, footprint cells of the vias, measured peak in GB). The peaks are those of the symmetric-mode LU (`fvm.lu_factor`), after
+             which the via term was refitted from 0.40 to 0.10; the worst underestimate on the 85 via cases of the reviewer's re-run is 1.27 (small CO60 boards the via-free law already misses).
+    @return None.
+    """
+    pts = [("fvm", 545_305, 109_061, 5442.0, 2.42), ("fvm", 277_440, 55_488, 4071.0, 1.18), ("fvm", 135_375, 27_075, 2525.0, 0.55),
+           ("fvm", 218_122, 109_061, 5442.0, 0.66), ("fvm", 110_976, 55_488, 4071.0, 0.37)]
+    for model, n, cells, f, peak in pts:
+        est = memory.estimate_bytes(model, n, cells, BASE, 1.0, f) / GB
+        assert est >= peak, (model, n, est, peak)
+        assert est <= 2.5 * peak, (model, n, est, peak)                              # not a blanket margin: the term is at most VIA_GAIN
+    # The term costs boards with vias only, and at most VIA_GAIN of the allocated part
+    n, cells = 545_305, 109_061
+    no = memory.estimate_bytes("fvm", n, cells, BASE) - BASE
+    yes = memory.estimate_bytes("fvm", n, cells, BASE, 1.0, 5442.0) - BASE
+    assert 1.0 < yes / no <= 1.0 + memory.VIA_GAIN
+
+
+def test_check_adds_the_via_term_and_keeps_the_bound_a_lower_bound():
+    """!
+    @brief A board with vias is estimated above the same board without them, the verdict objects carry the exact count, and the cell that fits is not finer for it.
+    @return None.
+    """
+    from pcbthermal.model import Problem
+    def board(vias):
+        p = Problem.new(80, 80, layers=2)
+        p.add_zone(1, rect=(0, 0, 80, 40))
+        p.add_zone(2, rect=(0, 20, 80, 80))
+        p.add_heater(1, 1.0, rect=(30, 30, 40, 40))
+        if vias:
+            p.add_via_array((10, 10, 70, 70), 25, 25, diameter=0.3)
+        return p
+    a = memory.check(board(False), ("fvm",), 0.5, refuse="return", quiet=True, base=BASE)[0]
+    b = memory.check(board(True), ("fvm",), 0.5, refuse="return", quiet=True, base=BASE)[0]
+    assert b.unknowns == a.unknowns and b.estimate > a.estimate
+    assert b.estimate - BASE <= (1.0 + memory.VIA_GAIN) * (a.estimate - BASE) * 1.0000001
+    # With a tiny machine both are refused from the bound, which carries no via term
+    ra = memory.check(board(False), ("fvm",), 0.5, refuse="return", quiet=True, base=BASE, ram=int(0.2e9))[0]
+    rb = memory.check(board(True), ("fvm",), 0.5, refuse="return", quiet=True, base=BASE, ram=int(0.2e9))[0]
+    assert ra.verdict == rb.verdict == "refuse" and rb.estimate == ra.estimate
