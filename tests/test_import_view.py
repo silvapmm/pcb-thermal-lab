@@ -205,7 +205,7 @@ def test_every_matched_part_gets_a_label_and_the_toggle_removes_them(qtbot, tmp_
     # The pixel size of the label grows with the zoom and a part that is too small for its text has none
     assert pv.label_pixels("U1", 16, 30) > pv.label_pixels("U1", 12, 30) and pv.label_pixels("U1", 5, 30) is None and pv.label_pixels("U1", 40, 3) is None
     boxes = {c.text(): c for c in w.page2.findChildren(QCheckBox)}
-    assert "Labels" in boxes and "Holes" in boxes and boxes["Labels"].toolTip() and boxes["Holes"].toolTip()
+    assert "Labels" in boxes and "Holes" in boxes            # No tooltips on the view switches: obvious controls, maintainer decision
     boxes["Labels"].setChecked(False)
     assert pv.show_layers["labels"] is False
 

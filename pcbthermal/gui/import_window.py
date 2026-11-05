@@ -1978,7 +1978,7 @@ class ImportBoardWindow(QDialog):
                 out.append(("locked", f"Locked: step 1 is not complete. {why}."))
             elif i == 0:
                 out.append(("done", "Step 1: files and layers are complete. Click to go back."))
-            elif i == 1 and sx.heat_sources():
+            elif i == 1 and not self._busy and sx.heat_sources():           # while a call runs the stepper is repainted: asking for the parts would build them in the GUI thread beside the worker
                 out.append(("done", f"Step 2: {len(sx.heat_sources())} heat source(s) defined. Click to open."))
             else:
                 out.append(("ready", f"Step {i + 1}: {t}. Click to open."))

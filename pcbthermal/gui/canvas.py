@@ -11,7 +11,7 @@ coordinates are the board coordinates the physics core uses.
 import numpy as np
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (QFontMetrics, QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
-                           QTransform)
+                           QMouseEvent, QTransform)
 from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPolygonItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
                                QMenu, QStyle)
@@ -194,6 +194,17 @@ class ViaItem(QGraphicsEllipseItem):
         self.setZValue(4)
         self.restyle()
 
+    def shape(self):
+        """!
+        @brief The area that answers a click: the drawn disc, without the pen.
+        @details The default shape strokes the outline with the pen width in scene units, and the cosmetic pen is 2 (mm here), so a via of 0.3 mm answered clicks 1.3 mm away
+                 and in a dense array the neighbour was picked. The tolerance around the centre is handled by BoardView.nearest_via, in pixels.
+        @return QPainterPath of the disc.
+        """
+        path = QPainterPath()
+        path.addEllipse(self.rect())
+        return path
+
     def restyle(self):
         """!
         @brief Apply the via colours and the selection highlight.
@@ -330,6 +341,7 @@ class BoardView(QGraphicsView):
         self.snap, self.show_grid, self.show_solver_grid, self.solver_cell = 1.0, True, False, 1.0
         self.via_diameter = None                    # None: the default via diameter of the user's defaults
         self._space = self._panning = self._external = self._rebuilding = False
+        self._via_shift = None            # (dx, dy) in pixels from the real press to the centre of the via it was redirected to, while that press is held
         self._handle_lock = False
         self._pan_last = QPointF()
         self._draw_start, self._poly_pts, self._preview = None, [], None
@@ -905,7 +917,47 @@ class BoardView(QGraphicsView):
             else:
                 self._draw_start = p
             return
+        if e.button() == Qt.LeftButton and self.tool == "select":
+            # Vertex handles keep their priority; otherwise a via near the cursor beats whatever polygon lies under it (the via is tiny at low zoom)
+            if not isinstance(self.itemAt(e.position().toPoint()), VertexHandle):
+                near = self.nearest_via(self.mapToScene(e.position().toPoint()))
+                if near is not None:
+                    # Hand Qt a press at the centre of that via, so that exactly this via takes the press (selection, Ctrl toggle and drag are Qt's)
+                    centre = self.mapFromScene(QPointF(*near))
+                    self._via_shift = QPointF(centre) - e.position()
+                    e = self._shifted(e)
         super().mousePressEvent(e)
+
+    def _shifted(self, e):
+        """!
+        @brief The mouse event moved by the redirect of the press to a via, so that the pointer keeps its distance to the via centre (no jump when the via is dragged).
+        @param e QMouseEvent as received.
+        @return The same event when no redirect is active, otherwise a copy shifted by the redirect.
+        """
+        if self._via_shift is None:
+            return e
+        pos = e.position() + self._via_shift
+        # The scene finds the items under the press from the GLOBAL position, so that one moves too
+        return QMouseEvent(e.type(), pos, pos, e.globalPosition() + self._via_shift, e.button(), e.buttons(), e.modifiers())
+
+    def nearest_via(self, scene_pt):
+        """!
+        @brief The via whose centre is nearest to a point, within the pick tolerance of that via.
+        @details The tolerance of a via is its drawn radius or 6 screen pixels, whichever is larger, so a via stays pickable at low zoom and in a dense array the nearest centre
+                 wins (the item under the cursor would be the first one drawn that reaches it).
+        @param scene_pt QPointF in mm (scene coordinates).
+        @return (x, y) of the via centre in mm, or None when no via is within its tolerance.
+        """
+        scale = max(abs(self.transform().m11()), 1e-9)                        # Pixels per mm
+        px, py = scene_pt.x(), scene_pt.y()
+        best, best_d = None, None
+        for v in self.doc.problem.vias:
+            x, y = v.x * 1000.0, v.y * 1000.0
+            tol = max(max(v.diameter * 1000.0 / 2.0, 0.3), 6.0 / scale)       # Same radius as ViaItem draws, in mm
+            d = ((x - px) ** 2 + (y - py) ** 2) ** 0.5
+            if d <= tol and (best_d is None or d < best_d):
+                best, best_d = (x, y), d
+        return best
 
     # ------------------------------------------------------------------ context menu
     @staticmethod
@@ -1060,7 +1112,7 @@ class BoardView(QGraphicsView):
             if self._poly_pts:
                 self._update_preview(p)
                 return
-        super().mouseMoveEvent(e)
+        super().mouseMoveEvent(self._shifted(e))
 
     def mouseReleaseEvent(self, e):
         """!
@@ -1080,7 +1132,9 @@ class BoardView(QGraphicsView):
                 y0, y1 = sorted((a.y(), b.y()))
                 self._create(self.tool, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
             return
-        super().mouseReleaseEvent(e)
+        super().mouseReleaseEvent(self._shifted(e))
+        if e.button() == Qt.LeftButton:
+            self._via_shift = None                                  # The press that was redirected to a via is over
         if self.tool == "select" and e.button() == Qt.LeftButton:
             moved = [it for it in self.scene().selectedItems() if hasattr(it, "kind") and it.pos() != it.origin]
             if moved:
