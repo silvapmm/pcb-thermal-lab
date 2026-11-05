@@ -119,7 +119,8 @@ def net_program(problem, cell_mm):
     """
     nx = max(int(round(problem.board.width * 1000.0 / cell_mm)), 2)
     ny = max(int(round(problem.board.height * 1000.0 / cell_mm)), 2)
-    return fvm.Network(problem, nx, ny)
+    # ladder=False: the network of the versions before the laminate nodes, whose vertical links join consecutive layers (the stencil of sorvia.py assumes it)
+    return fvm.Network(problem, nx, ny, ladder=False)
 
 
 def net_meanpot(problem, cell_mm):

@@ -358,3 +358,12 @@ are not cut by any cap: they stay a limit with a warning. **After the review (3.
 ### Note after `fix/sor-omega` and `fix/via-constriction`
 
 Both are in the program now. The prototype patch of the Analytic tile (`lib/tilerule.py`, `patched`) rewrites lines of the old `analytic.solve_steady` that no longer exist, so `patch_available()` is false and the three tests that install it are skipped; the numbers of the README are those of the program before these changes and were not re-run.
+
+### Status of the scripts on the 2.5.0 candidate
+
+* `study_s3_boards.py` runs again (4 minutes). It failed on 2.4.5 as well, because the program's network now carries the laminate nodes and the stencil of `sorvia.py` assumes vertical links between consecutive layers; `lib/s3boards.py::net_program` now builds `fvm.Network(..., ladder=False)`, the network of the versions before the laminate nodes (the same fix as in `sor-with-via-couplings`). Part 2 reprints the README table of 2.6 to the digit (example board 1 mm: program 1.9391 / 2250 sweeps, Rayleigh of the full K 1.9669 / 810, measured best 1.9694 / 740); these are the sweeps of this study's own solver on its own network, not the numbers of `docs/validation.md` section 5 (676 sweeps at 1 mm and 364 at 2 mm for the example board, against 2197 and 1054 with the earlier factor, from the program's own solver in `research/models-comparison/scripts/solver_equivalence.py`). Do not mix the two sets.
+* `study_s4_example.py` and the other `study_s4_*` scripts that call `tilerule.patched` are **obsolete, not repaired**: they patch lines of the old `analytic.solve_steady`, and the tile rule and the via self-term are now part of the program (`fix/via-constriction`), so a patch would change nothing that is not already there. `patched` now stops with a message saying so (they used to die with `line not found`). Their README numbers are those of the program before that change and are not reproducible on the candidate.
+* The 26 tests of the folder pass (three that install the patch are skipped).
+
+**Not verified in this update**: no S4 number was re-derived; the S3 part 1 and 3 tables of `study_s3_boards.py` were printed but only part 2 was compared with the README.
+
