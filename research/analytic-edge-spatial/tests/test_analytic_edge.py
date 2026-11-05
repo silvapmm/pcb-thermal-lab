@@ -71,18 +71,21 @@ def test_basis_beta_zero_is_cosine():
     assert np.allclose(b.lam, np.arange(10) * np.pi / 0.06)
 
 
-def test_faces_reproduces_program():
+def test_robin_reproduces_program():
     """!
-    @brief The copy with the faces treatment equals analytic.solve_steady (uniform board, and the example board with its vias and heatsinks).
+    @brief The copy with the Robin basis equals analytic.solve_steady, which since the Robin edge entered the program (uniform board, and the example board with its vias and heatsinks) is the same treatment; the old faces copy now differs from the program on purpose.
     @return None.
     """
     for p in (uniform(), uniform(h_side=200.0, x0=0.0, y0=0.0)):
         ref = analytic.solve_steady(p, cell_mm=1.0)
-        mine = ae.solve(p, 1.0, edge="faces")
+        mine = ae.solve(p, 1.0, edge="robin")
         assert np.abs(mine["T"] - ref.T).max() < 1e-9
+        # The faces copy is the program of before the Robin edge: it must stay different where an edge film is set
+        faces = ae.solve(p, 1.0, edge="faces")
+        assert np.abs(faces["T"] - ref.T).max() > 1e-3
     p = example_board()
     ref = analytic.solve_steady(p, cell_mm=1.0)
-    mine = ae.solve(p, 1.0, edge="faces")
+    mine = ae.solve(p, 1.0, edge="robin")
     assert np.abs(mine["T"] - ref.T).max() < 1e-6
 
 
