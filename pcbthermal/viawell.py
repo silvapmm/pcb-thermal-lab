@@ -24,8 +24,10 @@ The research is in research/point-via-convergence (treatment, convergence), rese
   gets the term c = sum over the walls [ln D_lat - ln D_true] (D_true = 2 max(distance, r_via) the distance to the mirror image of the via, D_lat the lattice
   mean distance of the footprint to its own mirror image), G_c = 2 pi S / (ln(r_eff / r_t) + c); at a corner the diagonal image is added. The mirror image
   is that of an insulated edge and is used also for a cooled edge (a Robin image was studied and is not worth its code: research/via-edge-image 3).
-@note Not covered by the image (`edge_via_indices` lists them for the warning): the FDM and the 3D solid, a cell of 2 mm or more, an outline with a slanted or
-      curved side or a short step near the via, a via whose centre is within its radius of the wall.
+  Only the walls of `image_walls` are imaged: none within EDGE_GUARD_CELLS of a reflex corner or a short or slanted side, where the infinite mirror of a side
+  that ends there overstates the wall (docs/validation.md 28.1).
+@note Not covered cleanly by the image (`edge_via_indices` lists them for the warning): the FDM and the 3D solid, a cell of 2 mm or more (the image is applied,
+      the via is a fraction of a cell), an outline with a slanted or curved side, a short step or a reflex corner near the via, a via whose centre is within its radius of the wall.
 """
 
 import math
@@ -39,6 +41,7 @@ KAPPA = (2.0 * EULER_GAMMA + 3.0 * math.log(2.0)) / math.pi        # asymptotic 
 TARGET_RATIO = math.exp(-0.25)                                      # r_t / r_via: the radius of the uniform sink density over the disc of the via
 POINT_SINK_RADIUS = math.exp(-math.pi * KAPPA / 2.0)               # equivalent radius of a point sink on the lattice, in cells (0.1985: the exact infinite-lattice value; Peaceman's radial argument gives exp(-pi/2) = 0.2079, Ibraguimov 2022, Theorem 1)
 EDGE_REACH_CELLS = 6.0                                              # a wall counts when its distance from the via centre is at most this many cells
+EDGE_GUARD_CELLS = 0.6                                              # no image when a reflex vertex, a slanted or a short side is nearer than this many cells (image_walls)
 SAMPLES = 24                                                        # samples per cell side for the area of the disc
 
 
@@ -229,6 +232,40 @@ def edge_walls(problem, v, reach):
     @note On an outline a segment counts only when the via projects inside it; a reflex corner (a T, an L) is therefore never closed by an image of the
           missing side, and a via near a vertex that is not a convex corner of two found walls is reported as not clean.
     """
+    walls, bad = edge_scan(problem, v, reach)
+    return walls, bad > reach
+
+
+def image_walls(problem, v, reach, cell):
+    """!
+    @brief The walls whose mirror image the well of a via gets (`build`): the walls of `edge_scan` that are nearer to the via than every feature that is not
+           a straight wall, and none when such a feature is within `EDGE_GUARD_CELLS` cells of the via.
+    @details Next to a reflex corner (a T, an L) the side the via faces ends at the corner, so its infinite mirror overstates the wall: measured against a
+             resolved reference (`docs/validation.md` 28.1) the image put a via 0.26 mm from the reflex corner of an inverted T at -13.5 % (1 mm cell) against
+             -2.9 % without it, and a via whose near side was too short to count got the image of a farther side behind it (+1 to +2 points worse). The guard
+             removes those cases; the warning stays for every via that is not clean (`edge_walls`).
+    @param problem The Problem.
+    @param v The Via (x, y in m).
+    @param reach Largest distance from the via centre to a wall that counts, in m.
+    @param cell Cell size in m (the larger of dx and dy).
+    @return list of (axis, position) as in `edge_walls` (possibly empty).
+    """
+    walls, bad = edge_scan(problem, v, reach)
+    if bad < EDGE_GUARD_CELLS * cell:
+        return []
+    pos = {"x": v.x, "y": v.y}
+    return [(a, q) for a, q in walls if abs(pos[a] - q) < bad]
+
+
+def edge_scan(problem, v, reach):
+    """!
+    @brief The straight walls near a via and the distance to the nearest feature of the outline that is not one (shared by `edge_walls` and `image_walls`).
+    @param problem The Problem.
+    @param v The Via (x, y in m).
+    @param reach Largest distance from the via centre to a wall or a feature that counts, in m.
+    @return Tuple (walls, bad): walls as in `edge_walls`; bad is the distance in m from the via centre to the nearest slanted, curved or short side, side
+            beyond whose end the via projects, or vertex that is not the convex corner of the two walls found, within `reach` (math.inf when there is none).
+    """
     b = problem.board
     if not b.has_outline():
         # A rectangle: the four sides, always long enough
@@ -239,10 +276,10 @@ def edge_walls(problem, v, reach):
             near = [(abs(pos[axis] - p), p) for p in cand[axis] if abs(pos[axis] - p) <= reach]
             if near:
                 out.append((axis, min(near)[1]))
-        return out, True
+        return out, math.inf
     pts = [(float(p[0]), float(p[1])) for p in b.outline]
     cand = {"x": [], "y": []}
-    clean = True
+    bad = math.inf
     for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1]):
         # Distance from the via centre to the segment
         sx, sy = x1 - x0, y1 - y0
@@ -256,19 +293,19 @@ def edge_walls(problem, v, reach):
         elif abs(sy) < 1e-12 and abs(sx) >= reach and min(x0, x1) <= v.x <= max(x0, x1):
             cand["y"].append(y0)
         else:
-            clean = False                       # slanted, curved (many short sides), a short step, or the via projects beyond the end of the side
+            bad = min(bad, dist)                # slanted, curved (many short sides), a short step, or the via projects beyond the end of the side
     out = []
     for axis, pos in (("x", v.x), ("y", v.y)):
         near = [(abs(pos - p), p) for p in cand[axis] if abs(pos - p) <= reach]
         if near:
             out.append((axis, min(near)[1]))
-    if clean:
-        # A vertex within reach must be a convex corner of the two walls found (the walls meet exactly there)
-        found = dict(out)
-        for (x, y) in pts:
-            if math.hypot(v.x - x, v.y - y) <= reach and not (len(out) == 2 and abs(found["x"] - x) < 1e-12 and abs(found["y"] - y) < 1e-12):
-                clean = False
-    return out, clean
+    # A vertex within reach must be a convex corner of the two walls found (the walls meet exactly there)
+    found = dict(out)
+    for (x, y) in pts:
+        dv = math.hypot(v.x - x, v.y - y)
+        if dv <= reach and not (len(out) == 2 and abs(found["x"] - x) < 1e-12 and abs(found["y"] - y) < 1e-12):
+            bad = min(bad, dv)
+    return out, bad
 
 
 def edge_term(w, dx, dy, via_xy, r_via, walls):
@@ -481,7 +518,7 @@ def build(problem, d, S, cover, dx, dy, nx, ny, origin, active):
         c = 0.0
         if origin == 0.0:
             # The edge image acts on the cell-centred grid only (the half volumes at the edge nodes of the FDM are left alone)
-            walls, _clean = edge_walls(problem, v, EDGE_REACH_CELLS * max(dx, dy))
+            walls = image_walls(problem, v, EDGE_REACH_CELLS * max(dx, dy), max(dx, dy))
             if walls:
                 r_via = v.diameter / 2.0
                 h = math.sqrt(dx * dy)

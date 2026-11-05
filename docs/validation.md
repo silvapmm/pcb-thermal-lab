@@ -1179,8 +1179,8 @@ The image of `viawell.edge_term` (theory 2.6) against a resolved reference: the 
 | insulated | 0.3 | 3.358 | +7.9 / +0.7 % | +0.0 / +0.2 % | -0.0 / -0.1 % |
 | insulated | 0.5 | 3.542 | +2.3 / +0.6 % | +0.2 / +0.2 % | -0.1 / -0.1 % |
 | insulated | 1 | 3.839 | +0.4 / +0.5 % | +0.2 / +0.2 % | -0.1 / -0.1 % |
-| insulated | 2 | 4.274 | +0.1 / +0.2 % | +0.2 / +0.2 % | -0.1 / -0.1 % |
-| h_side 10 W/m2K | 0.16 | 2.993 | +14.8 / +0.7 % | +6.2 / +0.0 % | +0.6 / -0.2 % |
+| insulated | 2 | 4.274 | +0.1 / +0.2 % | +0.2 / +0.3 % | -0.1 / -0.1 % |
+| h_side 10 W/m2K | 0.16 | 2.993 | +14.8 / +0.7 % | +6.2 / +0.1 % | +0.6 / -0.2 % |
 | h_side 10 W/m2K | 0.5 | 3.353 | +2.5 / +0.7 % | +0.2 / +0.2 % | -0.1 / -0.1 % |
 | h_side 10 W/m2K | 2 | 4.055 | +0.4 / +0.4 % | +0.3 / +0.3 % | -0.1 / -0.1 % |
 | h_side 1000 W/m2K | 0.16 | 0.412 | +17.3 / +1.5 % | +6.0 / -0.7 % | -0.7 / -1.6 % |
@@ -1189,10 +1189,31 @@ The image of `viawell.edge_term` (theory 2.6) against a resolved reference: the 
 | outline side on a grid line (x = 7 mm) | 0.16 | 7.628 | +14.1 / +1.1 % | +5.9 / +0.1 % | |
 | outline side inside a cell (x = 7.0625 mm) | 0.16 | 7.471 | +16.5 / +2.5 % | +7.3 / +0.3 % | |
 
-The with-image values were re-run on the program as merged for this section (the tests hold the 1 mm cases to the budget of 2 to 3 %), except the h_side 1000 row; the without-image values and that row are those of `research/via-edge-image/out/` on the earlier tip of `develop`, not re-run. Far from the edge (d of 1 to 2 mm and more) the image changes the result by at most 0.2 points.
+The 1 and 0.5 mm columns, with and without the image, and the h_side 1000 row were re-run by the review on the program of this branch against the same reference (the without-image values by switching the image off; they agree with `research/via-edge-image/out/` to 0.1 point); the 0.25 mm column is that of the research, not re-run. The tests hold the 1 mm cases to the budget of 2 to 3 %. Far from the edge (d of 1 to 2 mm and more) the image changes the result by at most 0.2 points. At a 2 mm cell (the coarse-cell warning applies) the image takes a via 0.16 mm from the edge from +24.4 to +3.3 % and the corner from +53.1 to +0.5 %; at d of 1 to 3 mm it is 0.2 to 1.1 points worse (+2.5 to +4.4 %).
 
-**Checks of the construction** (`tests/test_via_edge_image.py`): a via more than six cells from every edge, and the example board, are bit-identical with and without the image; the FDM is bit-identical; a via at distance d from the left edge gives the field of the mirrored via at the right edge (to 1e-9 K), also at a corner; the matrix stays symmetric (exactly for one via, to 1e-12 of its largest entry for a row of 50), positive definite (smallest eigenvalue above zero on the 10 x 10 mm board, a 60 x 20 mm board with 50 vias 0.2 mm from the edge and a 4 mm wide board with a via on the edge line, 0.01 mm inside and 0.05 mm outside the line), the row sums equal those of the board without the via (below 1e-12 W/K), the symmetric LU is accepted without falling back, and the heat balance closes (below 1e-9); the edge term costs well below 1 ms per via (0.05 ms measured in the research).
+**Checks of the construction** (`tests/test_via_edge_image.py`): a via more than six cells from every edge, and the example board, are bit-identical with and without the image; the FDM is bit-identical; a via at distance d from the left edge gives the field of the mirrored via at the right edge (to 1e-9 K), also at a corner; the matrix stays symmetric to rounding (the review measured `max |K - K^T|` at 5e-17 to 9e-17 of the largest entry for rows of 50 and 100 vias at the edge, the same as for the rows away from every edge: the order in which duplicate entries of the assembly are summed, not the image; the test bound is 1e-12, that of the symmetric LU guard), positive definite (smallest eigenvalue above zero on the 10 x 10 mm board, a 60 x 20 mm board with 50 vias 0.2 mm from the edge and a 4 mm wide board with a via on the edge line, 0.01 mm inside and 0.05 mm outside the line), the row sums equal those of the board without the via (below 1e-12 W/K), the symmetric LU is accepted without falling back, and the heat balance closes (below 1e-9); the edge term costs well below 1 ms per via (0.05 ms measured in the research).
 
 **Frozen numbers.** The only record that moves is the FVM of `example_cut_to_T` (`tests/regression/data/pending/via-edge-image.json`): of its nine vias, 3 at 2 mm and 1 at 1 mm lie within six cells of the straight side of the arm (x = 27 mm, 4.5 to 11.5 mm away), none at 0.5 mm; the maximum moves -0.0103 K at 2 mm (94.4545 to 94.4442 degC), -0.0001 K at 1 mm and 0 at 0.5 mm; the other four boards with vias are bit-identical. Against the same board at 0.25 mm (via effect 9.673 K) the via effect at 2 mm goes from 9.4485 K (-2.31 %) to 9.4588 K (-2.21 %): a small step towards the converged value, the rest is the coarse cell. An earlier estimate of this shift (-0.196 K at 2 mm) came from a prototype that also gave a wall to vias that project beyond the end of an outline side (beside a reflex corner, where there is no wall); the program does not.
 
-**Not verified.** No physical board; one board and one via (a published case of a via near an edge does not exist in the papers held); several vias near the edge are tested for finiteness, symmetry and the balance, not against a resolved reference; a narrow board with a wall on each side has only the nearest wall per axis (finite and positive definite, not compared with a reference); the FDM and the 3D solid are not changed.
+### 28.1 Reflex corners and narrow boards (review)
+
+The review built the same reference with an arbitrary set of cells removed (pinned to the ambient, like the cells off an outline) and placed the via near the reflex corner of an inverted T (bar 0..10 x 0..4 mm, stem 3..7 mm; source 4..6 x 0.5..2 mm) and of an L (the square 6..10 x 6..10 mm removed; source 1..4 x 1..3 mm), 23 positions, insulated edges. Error of the via effect in per cent; "first" is the image as first written on this branch (every wall within six cells), "now" is `image_walls` (no image within 0.6 cells of a reflex vertex or a short or slanted side, and no wall behind such a feature):
+
+| board, via (mm) | distance to the reflex corner | 1 mm: no image / first / now | 0.5 mm: no image / first / now |
+| :-- | --: | :-- | :-- |
+| T, (6.84, 4.2) | 0.26 mm | -2.9 / -13.5 / -2.9 % | -0.4 / -4.6 / -0.4 % |
+| T, (6.84, 4.4) | 0.43 mm | +2.5 / -8.0 / +2.5 % | +3.7 / -1.0 / -1.0 % |
+| T, (6.84, 4.6) | 0.62 mm | +7.1 / -3.1 / -3.5 % | +0.5 / -3.9 / -3.9 % |
+| T, (6.84, 5.3) | 1.31 mm | +4.2 / -6.3 / -5.7 % | +3.0 / -1.1 / -1.1 % |
+| T, (6.84, 6.0) | 2.01 mm | +9.6 / -2.6 / -2.6 % | +4.3 / -1.2 / -1.2 % |
+| T, (7.2, 3.84) | 0.26 mm | -0.7 / +0.2 / -0.7 % | +0.2 / -3.8 / +0.2 % |
+| L, (6.16, 5.84) | 0.23 mm | -0.1 / +2.3 / -0.1 % | -0.3 / -4.7 / -0.3 % |
+| L, (6.2, 5.84) | 0.26 mm | +1.1 / +3.4 / +1.1 % | +1.0 / -3.5 / +1.0 % |
+| L, (6.5, 5.84) | 0.54 mm | +7.1 / +8.3 / +7.1 % | +4.4 / -1.8 / -1.8 % |
+| L, (8.0, 5.84) | 2.01 mm | +10.3 / +11.7 / +10.3 % | +4.5 / -1.1 / -1.1 % |
+
+Over the 23 positions the largest error at 1 mm is -5.7 to +11.9 % now (the first version -13.5 to +12.2 %, no image -2.9 to +11.9 %), at 0.5 mm -3.9 to +1.1 % (first -4.7 to +1.1 %, no image -0.4 to +4.7 %). The positive values at 1 mm are vias whose near side is shorter than six cells, so no wall is imaged and the result is that of the version without the image; every one of these vias keeps the warning. The guard of 0.6 cells was chosen on these positions (the image is worse in magnitude below about half a cell and comparable or better beyond); it is a measured rule, not a derived one. `tests/test_via_edge_image.py` holds six of these cases.
+
+Narrow boards (an outline cut at x = W of the same 10 mm board, the via at y = 6 mm, both side walls within six cells at 1 mm, only the nearest imaged): W = 3, 4, 5, 6 and 8 mm with the via in the middle and 0.3 and 0.5 mm off it: -1.4 to +0.5 % at 1 mm (no image -0.6 to +0.5 %) and -0.8 to -0.3 % at 0.5 mm; the second wall is worth at most about 1 point at these widths.
+
+**Not verified.** No physical board; one board and one via (a published case of a via near an edge does not exist in the papers held); several vias near the edge are tested for finiteness, symmetry and the balance, not against a resolved reference; a narrow board with a wall on each side has only the nearest wall per axis (28.1: within 1.5 %); the FDM and the 3D solid are not changed.

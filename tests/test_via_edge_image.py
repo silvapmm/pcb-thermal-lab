@@ -380,3 +380,54 @@ def test_edge_walls_of_a_box_and_of_outlines():
     zig.set_outline([(0, 0), (10, 0), (10, 10), (1, 10), (1, 9.5), (0.5, 9.5), (0.5, 9.0), (0, 9.0)])
     walls, clean = viawell.edge_walls(zig, V(0.7e-3, 9.2e-3), 4e-3)
     assert not clean
+
+
+# E of the resolved reference (1/16 mm, the same construction with the cells off the outline pinned) for vias near the reflex corner of an inverted T and of an L
+T_OUTLINE = [(0, 0), (10, 0), (10, 4), (7, 4), (7, 10), (3, 10), (3, 4), (0, 4)]
+L_OUTLINE = [(0, 0), (10, 0), (10, 6), (6, 6), (6, 10), (0, 10)]
+REFLEX_REFERENCE = {("T", 6.84, 4.2): 10.410, ("T", 6.84, 6.0): 7.632, ("L", 6.2, 5.84): 5.505, ("L", 8.0, 5.84): 4.376}
+
+
+def reflex_board(shape, x, y, via=True):
+    """!
+    @brief A 10 x 10 mm four-plane board cut to an inverted T (stem 3..7 mm over a 4 mm bar) or an L (the square 6..10 x 6..10 mm removed), one 0.3 mm via.
+    @param shape "T" or "L".
+    @param x Via x in mm.
+    @param y Via y in mm.
+    @param via False: no via.
+    @return Problem.
+    """
+    p = Problem.new(10, 10, 4, 1.6, 35.0, h_top=10.0, h_bottom=200.0, h_side=None, materials=Materials(k_fr4_inplane=0.3))
+    for layer in range(1, 5):
+        p.add_zone(layer, rect=(0, 0, 10, 10))
+    p.set_outline(T_OUTLINE if shape == "T" else L_OUTLINE)
+    p.add_heater(1, 0.5, rect=(4, 0.5, 6, 2) if shape == "T" else (1, 1, 4, 3))
+    if via:
+        p.add_via(x, y, 0.3, fill_k=385.0)
+    return p
+
+
+@pytest.mark.parametrize("shape,x,y,cell,walls,budget", [("T", 6.84, 4.2, 1.0, 0, 4.0), ("T", 6.84, 4.2, 0.5, 0, 2.0), ("T", 6.84, 6.0, 1.0, 1, 4.0),
+                                                         ("L", 6.2, 5.84, 0.5, 0, 2.0), ("L", 8.0, 5.84, 1.0, 0, 12.0), ("L", 8.0, 5.84, 0.5, 2, 2.0)])
+def test_no_wrong_image_beside_a_reflex_corner(shape, x, y, cell, walls, budget):
+    """!
+    @brief Beside a reflex corner the image is left out (the corner within EDGE_GUARD_CELLS, or a short side nearer than the wall) and is kept farther away.
+    @details Found by the review: the infinite mirror of the stem side of a T put a via 0.26 mm from the reflex corner at -12.4 % (1 mm) and -4.6 % (0.5 mm)
+             against -2.9 and -0.4 % without it, and on the L the image of the far side behind a short one made every 1 mm case 1 to 2 points worse.
+             L at (8.0, 5.84) and 1 mm keeps its +10.3 % (no wall can be imaged: the near side is shorter than six cells; the warning covers it).
+    @param shape "T" or "L".
+    @param x Via x in mm.
+    @param y Via y in mm.
+    @param cell Cell in mm.
+    @param walls Number of walls imaged.
+    @param budget Largest error of the via effect in per cent.
+    @return None.
+    """
+    p = reflex_board(shape, x, y)
+    v = p.vias[0]
+    got = viawell.image_walls(p, v, viawell.EDGE_REACH_CELLS * cell * 1e-3, cell * 1e-3)
+    assert len(got) == walls, got
+    _walls, clean = viawell.edge_walls(p, v, viawell.EDGE_REACH_CELLS * cell * 1e-3)
+    assert not clean                                                                # the warning stays for every via near the reflex corner
+    e = rise(reflex_board(shape, x, y, via=False), cell) - rise(p, cell)
+    assert abs(100.0 * (e / REFLEX_REFERENCE[(shape, x, y)] - 1.0)) < budget

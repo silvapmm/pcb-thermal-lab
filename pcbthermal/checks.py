@@ -960,8 +960,10 @@ def check_via_limits(problem, models, cell_mm):
              * its kernel has no image of the board edge, so a via within one cell of the edge of the box or of the outline is clipped and its effect is
                too large (research/via-real-board, README 3.1: +12 to +15 % for a via 0.16 mm from the edge at a 1 mm cell). The FVM now adds the mirror image
                of a straight edge (viawell.edge_term; research/via-edge-image: +14.5 % becomes +0.7 %), so the warning stays only for what it does not
-               cover (a slanted, curved or short outline side, a cell of 2 mm or more, a via centre within its radius of the edge) and for the FDM
-               (-4.5 to -10 % at 1 mm) and the 3D solid (+19 points), which have no image;
+               cover cleanly (a slanted, curved or short outline side or a reflex corner within six cells, where the image is partial or left out and
+               the via effect was measured -6 to +12 % off at 1 mm, docs/validation.md 28.1; a cell of 2 mm or more, where the image is applied but
+               the via is a fraction of a cell, +3 to +4 % at 2 mm; a via centre within its radius of the edge) and for the FDM (-4.5 to -10 % at
+               1 mm) and the 3D solid (about +19 points), which have no image;
              * from a 2 mm cell the via is a fraction of a cell and the position of its centre inside the cell moves the answer. Measured on the example
                board (9 vias, the drop of the hottest temperature caused by the vias, 9.6 K at 0.25 mm): FVM -2.9 % at 2 mm, -0.3 % at 0.5 mm, FDM -4.0 % at
                2 mm, -0.2 % at 0.5 mm, and at 3 and 4 mm the error is between -5 and +16 % (FVM) and -22 and -49 % (FDM), by the position of the vias
@@ -980,7 +982,8 @@ def check_via_limits(problem, models, cell_mm):
     dx, dy = b.width / nx, b.height / ny
     if any(m in ("fvm", "fdm", "solid3d") for m in models):
         # The edge test reads the cells of the FVM/FDM grid (the 3D solid has the same footprint rule). The FVM gives the via the mirror image of a straight
-        # edge (viawell.edge_term) when the cell is finer than VIA_COARSE_CELL_MM; what it does not cover, and the FDM and the 3D solid, keep the warning.
+        # edge (viawell.edge_term, at every cell); the warning is dropped only for a clean neighbourhood at a cell finer than VIA_COARSE_CELL_MM, and the
+        # FDM and the 3D solid keep it.
         edge = viawell.edge_via_indices(problem, nx, ny, dx, dy, b.cover(nx, ny, dx, dy))
         others = bool({"fdm", "solid3d"} & set(models))
         todo = []
@@ -997,10 +1000,11 @@ def check_via_limits(problem, models, cell_mm):
             v = problem.vias[k]
             name = v.name or f"Via {k + 1}"
             if "fvm" in models and not covered:
-                _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The mirror image of the edge is applied only to a straight edge "
-                                    "of a board (or an axis-parallel side of an outline) at a cell finer than 2 mm and with the via centre inside the board; here it is not, "
-                                    "so the cut footprint has no image of the edge and the via effect can be too large by 12 to 15 % at a 1 mm cell; use a finer cell or read the result near it with care.",
-                     f"{name}: via within one cell of the board edge; its effect can be 12 to 15 % too large at 1 mm.")
+                _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM corrects the cut footprint with the mirror image of a straight "
+                                    "edge of the board (or of an axis-parallel side of an outline), but here the correction is partial: a slanted, curved or short side or a "
+                                    "reflex corner is near, the via centre is within its radius of the edge, or the cell is 2 mm or more. The via effect can be off by about "
+                                    "-6 to +15 % at a 1 mm cell; use a finer cell or read the result near it with care.",
+                     f"{name}: via within one cell of the board edge; its effect can be off by -6 to +15 % at 1 mm.")
             else:
                 _add(out, "via", k, f"{name}: via touching the board edge (within one cell of the edge). The FVM treats it with the mirror image of the edge, but the FDM "
                                     "(half-volume edge nodes) has no image and reads the via effect 4 to 10 % too small at a 1 mm cell, and the 3D solid has none and reads it about "
