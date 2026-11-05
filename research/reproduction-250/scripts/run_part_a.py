@@ -99,6 +99,11 @@ LATE = [
     ("gap-subdivision", "study_gap_grading.py", [], 3600),
     ("gap-subdivision", "study_review.py", ["2"], 3600),
     ("convection-laws", "study_plate_mac.py", ["--both"], 4200),
+    # the first pass hit its 30 min limit (base_spreading, review: slow under load) or needed the reference built first (stormduino)
+    ("component-heatsink", "base_spreading_study.py", [], 5400),
+    ("bare-spot-under-source", "study_review.py", [], 5400),
+    ("bare-spot-under-source", "study_real_stormduino.py", ["reference"], 5400),
+    ("bare-spot-under-source", "study_real_stormduino.py", ["treat"], 3600),
 ]
 
 
