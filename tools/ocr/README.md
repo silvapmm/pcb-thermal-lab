@@ -30,7 +30,7 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 ## What it does
 
 * **Providers** (`providers/`): `transcribe(image_bytes, prompt, options) -> Result`. `gemini` (online; default model
-  `gemini-3.1-flash-lite`; models and fallbacks in `data/models.json`), `local` (offline; the maintainer's `extractpdf`
+  `gemini-3.1-flash-lite`; models and fallbacks in `data/models.json`), `anthropic` (online; Claude through the Messages API, default model `claude-sonnet-5-5`, fallback `claude-opus-5-5`, `--model claude-haiku-5-5` for bulk pages; use `--provider anthropic` on `transcribe`, `queue` and `check-key`; outputs in `ocr/anthropic/`), `local` (offline; the maintainer's `extractpdf`
   MLX converter with the model `ovis`, a stub that was not run by the tests: set `PCBT_EXTRACTPDF` and
   `PCBT_EXTRACTPDF_PYTHON`). A new provider is a class in `providers/` registered in `providers/__init__.py`.
 * **Retry and quota**: HTTP 429 (per minute), 500 and 503 and network errors are retried (4 attempts) with the pause the
@@ -42,6 +42,13 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
   20 + 40 + 80 s of pauses on a 503 or 429 was why an earlier key check seemed to take more than two minutes; the measured
   check takes about 1.5 s). An answer with text but a finish reason other than STOP (`MAX_TOKENS`, ...) is kept with the note
   "the text may be incomplete"; a blocked prompt is reported as `NO_CANDIDATE:<blockReason>`.
+* **Anthropic provider**: the page is a base64 PNG image block plus the same prompt; headers `x-api-key` and
+  `anthropic-version`, never the URL. 429 waits the `retry-after` header, 500/502/503/529 (overloaded) and network
+  errors back off (20, 40, 80 s); an error that names the credit balance, a usage limit or a spend limit stops the run at
+  once (exit 2, the page stays pending); 401/403 are not retried. `stop_reason` `max_tokens` (8192) is asked again as two
+  half-page crops, `refusal` takes the RECITATION path (crops, then the fallback model). The response `usage` is kept
+  in the ledger as `input_tokens` and `output_tokens` per page (`Ledger.tokens_today`); no price is stored (the field is
+  `unverified` in `data/models.json`: read the current price list before estimating a cost).
 * **RECITATION**: a page refused by the copyright filter (empty answer with `finishReason` RECITATION) is retried as two
   half-page crops (top and bottom, 10 % overlap), then once with each fallback model. The output says which was used.
 * **Resume**: a page whose output file exists is skipped unless `--force`. `--out FILE` also writes the pages of the run joined.
@@ -68,12 +75,12 @@ and holds third-party material that is never committed. Layout: `pdf/` the PDFs,
 
 ## The key
 
-Looked up in this order: the environment variable the provider declares (`GEMINI_API_KEY`, then `GOOGLE_API_KEY`), then the
+Looked up in this order: the environment variable the provider declares (Gemini: `GEMINI_API_KEY`, then `GOOGLE_API_KEY`; Anthropic: `ANTHROPIC_API_KEY`), then the
 file `.ocr_keys` in the project root (also in the main checkout when the tool runs from a worktree, found with
 `git rev-parse --git-common-dir`). Format: one `provider=KEY` per line, `#` for comments. The file must be mode 600; a file
 that group or others can read is refused with a message that does not contain the key. `.ocr_keys` and `*.key` are in
 `.gitignore` (on branches older than this tool add `.ocr_keys` to `.git/info/exclude` too, which holds for every branch), and
-`tests/test_no_secrets.py` fails if a key-like string is tracked (`AIza...`, `AQ.` keys with or without further dots,
+`tests/test_no_secrets.py` fails if a key-like string is tracked (`AIza...`, `AQ.` keys with or without further dots, `sk-ant-` followed by 20 or more characters of any family (`sk-ant-api03-`, `sk-ant-usr-`),
 `api_key = "..."`). `PCBT_SCAN_KEY_VALUES=1` also searches the tracked files for the exact values of `.ocr_keys` (opt-in, so
 that routine test runs never read the key; the values never reach a message). The local converter is started without the
 key variables in its environment.
@@ -84,7 +91,7 @@ redacts every record. If a key was ever pasted in a chat or a file, create a new
 
 ## Privacy
 
-Pages sent to Gemini leave this machine and go to Google. On the free tier Google may use the content to improve its
+Pages sent to Gemini leave this machine and go to Google; pages sent with `--provider anthropic` go to Anthropic (the maintainer decided online OCR is acceptable for open papers; check Anthropic's current retention and training terms for the key's plan before sending anything else). On the free tier Google may use the content to improve its
 products. By the maintainer's decision this is accepted for open papers, and **never** for the confidential ODB++
 specification or any file marked confidential: the tool refuses a file whose SHA-256 is listed in `data/confidential.json`
 (a renamed copy of the ODB++ specification is refused although its name and its first page carry no mark: its word

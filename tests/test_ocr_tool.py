@@ -26,6 +26,7 @@ from tools.ocr.ledger import Ledger, parse_queue  # noqa: E402
 from tools.ocr.pipeline import ConfidentialError, Runner, combine  # noqa: E402
 from tools.ocr.providers import REGISTRY, get_provider  # noqa: E402
 from tools.ocr.providers.base import Provider, ProviderError, Result  # noqa: E402
+from tools.ocr.providers.anthropic import AnthropicProvider  # noqa: E402
 from tools.ocr.providers.gemini import GeminiProvider  # noqa: E402
 from tools.ocr.providers.local import LocalProvider  # noqa: E402
 
@@ -626,3 +627,127 @@ def test_ocr_folder_is_ocr_and_an_old_gemini_folder_is_still_found(tmp_path):
     assert cli.ocr_dir(tmp_path) == tmp_path / "gemini"
     (tmp_path / "ocr").mkdir()                          # once ocr/ exists it wins
     assert cli.ocr_dir(tmp_path) == tmp_path / "ocr"
+
+
+# ---------------------------------------------------------------- Anthropic provider (no network)
+ANT_KEY = "sk-ant-" + "usr-" + "Ab1_-" * 8          # built here so the source has no key-like text
+
+
+class FakeAnthropic(AnthropicProvider):
+    """!
+    @brief Anthropic provider whose HTTP call is scripted.
+    """
+
+    def __init__(self, answers):
+        """!
+        @brief Create it.
+        @param answers List of dict responses or exceptions.
+        @return None
+        """
+        super().__init__(key=ANT_KEY, retries=3, first_pause=0.0, sleep=lambda s: None)
+        self.answers, self.urls, self.bodies, self.sleeps = list(answers), [], [], []
+        self._sleep = self.sleeps.append
+
+    def _post(self, url, body, timeout):
+        """!
+        @brief Scripted POST.
+        @param url     URL (recorded).
+        @param body    Body (recorded).
+        @param timeout Unused.
+        @return dict The next response.
+        """
+        self.urls.append(url)
+        self.bodies.append(json.loads(body))
+        a = self.answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+
+def ant_error(code, kind, message, headers=None):
+    """!
+    @brief Build an HTTPError in the shape of the Messages API.
+    @param code    HTTP status.
+    @param kind    Error type.
+    @param message Error message.
+    @param headers Response headers.
+    @return urllib.error.HTTPError The error.
+    """
+    body = json.dumps({"type": "error", "error": {"type": kind, "message": message}})
+    return urllib.error.HTTPError("http://x", code, "err", headers or {}, io.BytesIO(body.encode()))
+
+
+ANT_OK = {"content": [{"type": "text", "text": "page $x^2$"}], "stop_reason": "end_turn",
+          "usage": {"input_tokens": 1500, "output_tokens": 300}}
+
+
+def test_anthropic_request_shape_usage_and_key_not_in_url():
+    g = FakeAnthropic([ANT_OK])
+    r = g.transcribe(b"png", "prompt", {"model": "claude-haiku-5-5"})
+    assert r.text == "page $x^2$" and r.extra["usage"] == {"input_tokens": 1500, "output_tokens": 300}
+    b = g.bodies[0]
+    assert b["model"] == "claude-haiku-5-5" and b["max_tokens"] >= 4096
+    assert b["messages"][0]["content"][0]["source"]["media_type"] == "image/png"
+    assert ANT_KEY not in g.urls[0] and "key" not in g.urls[0]
+
+
+def test_anthropic_429_waits_for_retry_after_and_overloaded_529_retries():
+    g = FakeAnthropic([ant_error(429, "rate_limit_error", "slow down", {"retry-after": "7"}),
+                       ant_error(529, "overloaded_error", "Overloaded"), ANT_OK])
+    assert g.transcribe(b"png", "p", {}).text and g.sleeps[0] == 7.0 and len(g.urls) == 3
+
+
+def test_anthropic_credit_and_usage_limit_errors_stop_at_once():
+    for code, msg in ((400, "Your credit balance is too low to access the Anthropic API."),
+                      (429, "You have reached your specified API usage limits.")):
+        g = FakeAnthropic([ant_error(code, "invalid_request_error", msg)])
+        with pytest.raises(ProviderError) as e:
+            g.transcribe(b"png", "p", {})
+        assert e.value.quota_exhausted and not e.value.retryable and len(g.urls) == 1
+
+
+def test_anthropic_permission_error_is_not_retried():
+    g = FakeAnthropic([ant_error(403, "permission_error", "not allowed")])
+    with pytest.raises(ProviderError) as e:
+        g.transcribe(b"png", "p", {})
+    assert e.value.status == 403 and not e.value.retryable and not e.value.quota_exhausted and len(g.urls) == 1
+
+
+def test_anthropic_max_tokens_is_a_split_and_refusal_a_recitation():
+    g = FakeAnthropic([{"content": [{"type": "text", "text": "cut"}], "stop_reason": "max_tokens", "usage": {}},
+                       {"content": [], "stop_reason": "refusal", "usage": {}}])
+    assert g.transcribe(b"png", "p", {}).split
+    assert g.transcribe(b"png", "p", {}).recitation
+
+
+def test_anthropic_error_with_a_usr_key_never_reaches_any_output(tmp_path, capfd, caplog):
+    keys.register_secret(ANT_KEY)
+    # An unregistered key of the same family is removed by the pattern alone.
+    other = "sk-ant-" + "usr-" + "Zz9-_" * 8
+    assert other not in keys.redact(f"bad {other}") and ANT_KEY not in keys.redact(f"x-api-key: {ANT_KEY}")
+    caplog.set_level(logging.DEBUG)
+    g = FakeAnthropic([ant_error(401, "authentication_error", f"invalid x-api-key {ANT_KEY} / {other}")])
+    r = runner(tmp_path, g)
+    o = r.run_page(PDF, 1)
+    assert o.status == "failed"
+    out = capfd.readouterr()
+    blob = o.note + (tmp_path / "usage.json").read_text() + out.out + out.err + caplog.text
+    assert ANT_KEY not in blob and other not in blob
+
+
+def test_anthropic_tokens_reach_the_ledger_and_max_tokens_is_asked_in_halves(tmp_path):
+    cut = {"content": [{"type": "text", "text": "cut"}], "stop_reason": "max_tokens",
+           "usage": {"input_tokens": 100, "output_tokens": 8192}}
+    half = {"content": [{"type": "text", "text": "half"}], "stop_reason": "end_turn",
+            "usage": {"input_tokens": 50, "output_tokens": 20}}
+    r = runner(tmp_path, FakeAnthropic([cut, half, half]))
+    o = r.run_page(PDF, 1)
+    assert o.status == "ok" and "half-page crops" in o.text
+    e = json.loads((tmp_path / "usage.json").read_text())[0]
+    assert e["provider"] == "anthropic" and e["input_tokens"] == 200 and e["output_tokens"] == 8232
+    assert Ledger(tmp_path / "usage.json").tokens_today("anthropic")["output_tokens"] == 8232
+
+
+def test_anthropic_is_registered_with_its_key_variable_and_models():
+    assert REGISTRY["anthropic"].key_env == ("ANTHROPIC_API_KEY",)
+    assert config.models()["anthropic"]["default"] == "claude-sonnet-5-5"

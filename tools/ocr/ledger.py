@@ -5,7 +5,7 @@
 @brief The ledger of requests (usage.json) and the queue file (QUEUE.md) of the OCR tool.
 
 @details The ledger is a JSON list, one entry per page attempt: date, provider, model, file, page, ok, seconds,
-words, requests, note. It is the same file the first scripts wrote (older entries have no provider or requests:
+words, requests, note and, when the provider reports them, input_tokens and output_tokens. It is the same file the first scripts wrote (older entries have no provider or requests:
 they count as "gemini" and one request). The queue is the Markdown table `| # | file | page | why |` of
 `papers/ocr/QUEUE.md`; lines `file.pdf page` or `file.pdf:page` are accepted too.
 """
@@ -58,6 +58,18 @@ class Ledger:
         today = today or str(datetime.date.today())
         return sum(e.get("requests", 1) for e in self.entries
                    if e.get("date") == today and e.get("provider", "gemini") == provider)
+
+    def tokens_today(self, provider: str, today: str | None = None) -> dict:
+        """!
+        @brief Tokens used today by a provider (entries without token fields count as zero).
+        @param provider Provider name.
+        @param today    Date text (default: today).
+        @return dict {"input_tokens": int, "output_tokens": int}.
+        """
+        today = today or str(datetime.date.today())
+        rows = [e for e in self.entries if e.get("date") == today and e.get("provider", "gemini") == provider]
+        return {"input_tokens": sum(int(e.get("input_tokens") or 0) for e in rows),
+                "output_tokens": sum(int(e.get("output_tokens") or 0) for e in rows)}
 
     def done(self, provider: str | None = None) -> set[tuple[str, int]]:
         """!

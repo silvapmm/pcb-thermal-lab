@@ -29,7 +29,9 @@ KEY_PATTERNS = (
     # The newer AI Studio keys start with "AQ." and may hold more dots further on: dots are part of the class,
     # otherwise a key whose first segment is shorter than 30 characters would not be matched at all.
     re.compile(r"\bAQ\.[A-Za-z0-9_.-]{30,}"),
-    re.compile(r"(?i)(api[_-]?key|x-goog-api-key)(\s*[=:]\s*)['\"]?[A-Za-z0-9_.-]{16,}"),
+    # Anthropic keys: "sk-ant-api03-...", but also "sk-ant-usr-..." and any other family after "sk-ant-".
+    re.compile(r"sk-ant-[A-Za-z0-9_-]{20,}"),
+    re.compile(r"(?i)(api[_-]?key|x-goog-api-key|x-api-key)(\s*[=:]\s*)['\"]?[A-Za-z0-9_.-]{16,}"),
 )
 
 _REGISTERED: set[str] = set()
@@ -63,7 +65,8 @@ def redact(text: object) -> str:
         out = out.replace(s, "[KEY]")
     out = KEY_PATTERNS[0].sub("[KEY]", out)
     out = KEY_PATTERNS[1].sub("[KEY]", out)
-    out = KEY_PATTERNS[2].sub(lambda m: m.group(1) + m.group(2) + "[KEY]", out)
+    out = KEY_PATTERNS[2].sub("[KEY]", out)
+    out = KEY_PATTERNS[3].sub(lambda m: m.group(1) + m.group(2) + "[KEY]", out)
     return out
 
 
