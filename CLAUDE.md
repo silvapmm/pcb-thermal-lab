@@ -340,6 +340,8 @@ The goal is release 2.5.0 from `develop` only. Everything planned for it is merg
 
 ## Decisions Log
 
+- **CAD tool line colour held by tests** (`fix/cad-line-colour`, reviewer's item): the code already used the alert token for every detection with `needs_check` (any confidence but high, CAM tools, re-exports) and the low-names rule, and the text colour only for a plain high one; no code change, a test per confidence level in both themes now keeps it (the user's choice does not clear the alert: the line follows the detection).
+
 
 - **Close of 2.5.0 integrated** (maintainer's close; `develop` after the merge of the last branches): `fix/analytic-transient-warning` (the warning quotes the converged range, -66 % to +175 % of the FVM, not -67 / +113 % at an unconverged 1 mm) and the research branches, each reviewed with go and with `develop` merged in; the program is untouched by every research merge (checked with `git diff develop...<branch> --stat -- pcbthermal tests examples ico`, empty); `research/version-comparison` is merged as regenerated, **reviewer pending**. Register conflicts were resolved keeping every row; the duplicated ids of `research/ROADMAP.md` are now A16 (edge of the laminate), A17 (3D solid slabs), A18 (source-aware laminate rule), A19 (Analytic per-layer edge and local transient) and A20 (via on partly covered plane). Whole battery on the tree before these merges: 2343 passed, 2 skipped, 2 xfailed, 21 min 29 s; frozen numbers 317.
 
