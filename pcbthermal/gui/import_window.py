@@ -12,22 +12,42 @@
          ReimportDialog asks Replace, Update, Add files or Cancel.
 """
 
+import gc
 import html
 import threading
 
 import numpy as np
 from PySide6.QtCore import QEvent, QEventLoop, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPolygonF
-from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QRadioButton, QSizePolicy, QStackedWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+                               QMessageBox, QPushButton, QRadioButton, QScrollArea, QSizePolicy, QStackedWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget)
 
 from ..gerber import GerberError
 from ..memory import MemoryGuardError
 from . import theme as th
-from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, ROLES, UNIQUE, ImportSession
+from .import_session import COPPER, COPPER_BOTTOM, COPPER_TOP, GEOMETRY, ROLES, UNIQUE, ImportSession
 from .panels import WarningList
 
 STEP_TITLES = ["Files and layers", "Parts", "Model"]
+
+
+def _plain_box(parent, icon, title, text, buttons):
+    """!
+    @brief A message box whose text is never read as rich text (a reader error quotes a file name, and a name such as `a<b>.gbr` would be markup).
+    @param parent Parent widget.
+    @param icon QMessageBox icon.
+    @param title Window title.
+    @param text Message.
+    @param buttons Standard buttons.
+    @return int the button pressed.
+    """
+    box = QMessageBox(icon, title, text, buttons, parent)
+    box.setTextFormat(Qt.PlainText)
+    return box.exec()
+
+
+class _Cancelled(Exception):
+    """!@brief The window was closed while a slow call ran off the GUI thread: the caller stops and the window closes when the call has ended."""
 STEP_SUBTITLES = ["Choose the folder, ZIP or files, check the function of every file and the stack-up.",
                   "Turn paste openings into heat sources: click an opening, give a power in W, choose the shape.",
                   "Choose how the copper is given to the models, the cell, the vias; read the memory verdict."]
@@ -632,6 +652,7 @@ class Step2Page(QWidget):
             self.radios[key] = r
         self.suggest = QLabel("")
         self.suggest.setWordWrap(True)
+        self.suggest.setTextFormat(Qt.PlainText)                            # it quotes a designator of the files
         th.hint(self.suggest)
         gl.addWidget(self.suggest)
         left.addWidget(g)
@@ -1150,9 +1171,13 @@ class ReimportDialog(QDialog):
         lay.addWidget(self.warn)
         self.radios = {}
         grp = QButtonGroup(self)
-        texts = {"replace": ("Replace the previous import", "Copper, drills and outline are replaced. Parts with the same designator keep their power, Tj max, role and shape edits. Parts that disappeared stay as orphans (not heating) unless you tick them to remove."),
+        texts = {"replace": ("Replace the previous import", "Copper, drills and outline are replaced. Parts with the same designator keep their power, Tj max, role and shape edits, and the values you "
+                             "changed in the editor. Heaters, zones, heatsinks and vias you drew stay, and so does the stack-up when the layer count is the same. "
+                             "Parts that disappeared stay as orphans (not heating) unless you tick them to remove."),
                  "update": ("Update after a layout revision", "Like replace, plus a table of what changed: moved, new, removed, resized and rotated parts. Nothing is lost silently."),
-                 "add": ("Add files to the existing import", "A missing layer, a drill file, a placement file or an extra paste layer. The stored copper and outline are not touched; files that claim a function the import already has are shown to choose.")}
+                 "add": ("Add files to the existing import", "A placement file, an extra paste layer or a component layer: their new parts are added and the stored parts keep everything. "
+                         "The stored copper, outline and vias are not touched, so a copper, outline or drill file is not taken here: use Replace or Update for it. "
+                         "Files that claim a function the import already has are shown to choose.")}
         for key, (t, tip) in texts.items():
             r = QRadioButton(t)
             r.setToolTip(tip)
@@ -1174,7 +1199,9 @@ class ReimportDialog(QDialog):
         self.note.setWordWrap(True)
         th.hint(self.note)
         lay.addWidget(self.note)
-        foot = QLabel("The result is one undo step. Results of earlier runs stay in the project and are marked outdated; run again after the import.")
+        foot = QLabel("The result is one undo step. What you changed in the editor after the import (powers and other part fields, heaters, zones, heatsinks and vias you drew, via fills, "
+                      "the stack-up when the layer count is the same) is kept, and the status bar says what. Results of earlier runs stay in the project and are marked outdated; "
+                      "run again after the import.")
         foot.setWordWrap(True)
         th.hint(foot)
         lay.addWidget(foot)
@@ -1215,7 +1242,9 @@ class ReimportDialog(QDialog):
             for k, s in enumerate(rows):
                 for col, v in ((0, s["function"]), (1, s["old"].name if s["old"] else "-"), (2, s["new"].name if s["new"] else "-")):
                     t.setItem(k, col, QTableWidgetItem(v))
-                if s["status"] == "added":
+                if s["function"] in GEOMETRY and s["status"] in ("added", "changed"):
+                    t.setItem(k, 3, QTableWidgetItem("not taken: use Replace or Update"))    # the stored masks, outline and vias stay as they are
+                elif s["status"] == "added":
                     t.setItem(k, 3, QTableWidgetItem("added"))
                 elif s["status"] == "identical":
                     t.setItem(k, 3, QTableWidgetItem("identical, nothing to do"))
@@ -1225,7 +1254,10 @@ class ReimportDialog(QDialog):
                     cb.setToolTip("Two files claim this function and they differ.")
                     t.setCellWidget(k, 3, cb)
                     self.combos[s["function"]] = cb
-            self.note.setText(f"{sum(1 for s in rows if s['status'] == 'added')} function(s) added, {len(self.combos)} conflict(s) to choose. The stored copper, outline and existing parts are not touched.")
+            geo = sum(1 for s in rows if s["function"] in GEOMETRY and s["status"] in ("added", "changed"))
+            self.note.setText(f"{sum(1 for s in rows if s['status'] == 'added' and s['function'] not in GEOMETRY)} function(s) added, {len(self.combos)} conflict(s) to choose. "
+                              "The stored copper, outline, vias and existing parts are not touched."
+                              + (f" {geo} copper, outline or drill file(s) are not taken: they change the board, use Replace or Update." if geo else ""))
         else:
             t.setHorizontalHeaderLabels(["Part", "Change", "Detail", "Kept from the stored import" if mode != "replace" else "Action"])
             rows = [d for d in self.diff if d["change"] != "kept"] if mode == "update" else [d for d in self.diff if d["change"] == "removed"]
@@ -1403,8 +1435,8 @@ class ImportBoardWindow(QDialog):
         self.changes = []                                     # Text lines of what a re-import changed
         self.ask_reimport = lambda dlg: dlg.exec() == QDialog.Accepted
         # The questions are attributes so that a test (or a script) can answer them without a modal box
-        self.confirm = lambda title, text: QMessageBox.question(self, title, text) == QMessageBox.Yes
-        self.notify = lambda title, text: QMessageBox.information(self, title, text)
+        self.confirm = lambda title, text: _plain_box(self, QMessageBox.Question, title, text, QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes
+        self.notify = lambda title, text: _plain_box(self, QMessageBox.Information, title, text, QMessageBox.Ok)
         self.setWindowTitle("Import Gerber board")
         self.resize(1280, 820)
         lay = QVBoxLayout(self)
@@ -1420,7 +1452,12 @@ class ImportBoardWindow(QDialog):
         self.pages = [self.page1, self.page2, self.page3]
         self.stack = QStackedWidget()
         for p in self.pages:
-            self.stack.addWidget(p)
+            # Each page scrolls inside the window: the two columns need about 970 x 610 pixels, more than an 800 x 600 screen (review)
+            sc = QScrollArea()
+            sc.setWidgetResizable(True)
+            sc.setFrameShape(QFrame.NoFrame)
+            sc.setWidget(p)
+            self.stack.addWidget(sc)
         lay.addWidget(self.stack, 1)
         row = QHBoxLayout()
         self.status = QLabel("")
@@ -1446,6 +1483,16 @@ class ImportBoardWindow(QDialog):
         self._reload_timer = QTimer(self)
         self._reload_timer.setSingleShot(True)
         self._reload_timer.timeout.connect(self.reload)
+        # A slow call of the session runs in a worker thread (_in_thread); while it runs nothing else may touch the session (review: the reload timer, a theme switch and a
+        # close of the window reached it from the GUI thread during the run)
+        self._busy = False
+        self._close_asked = False
+        self._recolour_asked = False
+        # Review: Enter in the path field also pressed the first auto-default button (Folder..., a file chooser), and Enter in a number field of step 3 would press Import.
+        # No button of this window acts on Enter; the fields act on it themselves (the path field reads the path)
+        for btn in self.findChildren(QPushButton):
+            btn.setAutoDefault(False)
+            btn.setDefault(False)
         self.update_nav()
 
     def _in_thread(self, fn):
@@ -1472,6 +1519,12 @@ class ImportBoardWindow(QDialog):
         tick.setInterval(20)
         tick.timeout.connect(lambda: None if t.is_alive() else loop.quit())
         self.setEnabled(False)
+        self._busy = True                                     # a pending re-read (reload) waits for the end of this call
+        # Review: the cyclic garbage collector runs in whichever thread allocates; in the worker it destroyed Qt objects of closed windows off the GUI thread (a segmentation
+        # fault in the test battery). It is held until the call has ended, so that a collection happens on the GUI thread only (reference counting still frees the rest).
+        # No explicit collect here: called from a slot of this window it could destroy the window itself when nothing but a cycle holds it
+        gc_was_on = gc.isenabled()
+        gc.disable()
         t.start()
         tick.start()
         try:
@@ -1480,7 +1533,17 @@ class ImportBoardWindow(QDialog):
         finally:
             tick.stop()
             t.join()
+            if gc_was_on:
+                gc.enable()
+            self._busy = False
             self.setEnabled(True)
+        if self._close_asked:
+            # The user closed the window during the call: the result is dropped and the window closes now that the session is no longer in use
+            QTimer.singleShot(0, self.reject)
+            raise _Cancelled()
+        if self._recolour_asked:
+            self._recolour_asked = False
+            QTimer.singleShot(0, self._recolour)
         if "error" in box:
             raise box["error"]
         return box.get("value")
@@ -1494,12 +1557,19 @@ class ImportBoardWindow(QDialog):
         """
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            self.session.set_files(source)
-            self._in_thread(self.session.load)
+            # Listing and hashing the files is off the GUI thread too (a folder of thousands of files, a large ZIP)
+            self._in_thread(lambda: (self.session.set_files(source), self.session.load()))
+        except _Cancelled:
+            return
         except (OSError, ValueError, GerberError) as exc:
             self.notify("Cannot read the files", str(exc))
         finally:
             QApplication.restoreOverrideCursor()
+        # Another board: the automatic cell and the project name of step 3 are taken again from it
+        self._cell_set = False
+        self.page3.newname.blockSignals(True)
+        self.page3.newname.setText("")
+        self.page3.newname.blockSignals(False)
         self.refresh()
 
     def reload_later(self):
@@ -1514,9 +1584,14 @@ class ImportBoardWindow(QDialog):
         @brief Read the board again from the files as assigned.
         @return None
         """
+        if self._busy:
+            self.reload_later()                               # a slow call is running: read again after it
+            return
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             self._in_thread(self.session.load)
+        except _Cancelled:
+            return
         finally:
             QApplication.restoreOverrideCursor()
         self.refresh()
@@ -1527,6 +1602,8 @@ class ImportBoardWindow(QDialog):
         @return None
         """
         self.page1.refresh()
+        if self.step:
+            self.pages[self.step].preview.update()            # a re-read that ended while another step is shown
         self.update_nav()
 
     def _refresh_page(self, i):
@@ -1541,11 +1618,12 @@ class ImportBoardWindow(QDialog):
                 self._in_thread(self.session.parts)               # built on first use (about 0.7 s on a 130-part board)
                 self.page2.refresh()
             elif i == 2:
-                if self.session.cell_mm == 1.0 and not getattr(self, "_cell_set", False):
+                if not getattr(self, "_cell_set", False):
                     self.session.cell_mm, self._cell_set = self.session.auto_cell(), True
                 self.page3.refresh()
         finally:
             QApplication.restoreOverrideCursor()
+        return True
 
     # -- steps
     def reachable(self, i: int) -> bool:
@@ -1583,9 +1661,12 @@ class ImportBoardWindow(QDialog):
         @param i Step index.
         @return None
         """
-        if 0 <= i < len(STEP_TITLES) and self.reachable(i):
+        if 0 <= i < len(STEP_TITLES) and self.reachable(i) and not self._busy:
+            try:
+                self._refresh_page(i)
+            except _Cancelled:
+                return
             self.step = i
-            self._refresh_page(i)
             self.stack.setCurrentIndex(i)
             self.update_nav()
 
@@ -1631,6 +1712,8 @@ class ImportBoardWindow(QDialog):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             prob = self._in_thread(sx.build_problem)
+        except _Cancelled:
+            return False
         except (ValueError, MemoryGuardError, GerberError) as exc:
             self.notify("Cannot import", str(exc))
             return False
@@ -1668,19 +1751,44 @@ class ImportBoardWindow(QDialog):
         @return None
         """
         if ev.type() == QEvent.PaletteChange and hasattr(self, "page1"):
-            self.page1.refresh()
-            if self.step == 1:
-                self.page2.refresh()
-            elif self.step == 2:
-                self.page3.refresh()
+            if self._busy:
+                self._recolour_asked = True                   # the pages read the session: refreshed when the running call has ended
+            else:
+                self._recolour()
         super().changeEvent(ev)
+
+    def _recolour(self):
+        """!
+        @brief Refill the pages whose labels carry theme colours.
+        @return None
+        """
+        self.page1.refresh()
+        if self.step == 1:
+            self.page2.refresh()
+        elif self.step == 2:
+            self.page3.refresh()
+
+    def reject(self):
+        """!
+        @brief Close, Escape or the close box of the window: while a slow call runs the window closes when it has ended (the call cannot be stopped half-way).
+        @return None
+        """
+        if self._busy:
+            self._close_asked = True
+            self.status.setText("Closing when the reading in progress has ended...")
+            return
+        super().reject()
 
     def done(self, result):
         """!
-        @brief Release the archive and the caches when the window closes.
+        @brief Release the archive and the caches when the window closes (never while a call of the session is running).
         @param result Dialog result code.
         @return None
         """
+        if self._busy:
+            self._close_asked = True
+            return
+        self._reload_timer.stop()                             # a closed window reads nothing again
         self.session.close()
         super().done(result)
 

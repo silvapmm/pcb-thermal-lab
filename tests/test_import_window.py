@@ -338,7 +338,63 @@ def test_reimport_merge_keeps_powers_and_orphans(board_dir, tmp_path):
     gone = s2.merge_import("replace", old, remove=["D1"])
     assert "D1" not in {p.designator for p in gone["parts"]}
     added = s2.merge_import("add", old, file_choice={ims.COPPER_TOP: "new"})
-    assert any("took the new file" in c for c in added["changes"])
+    # Review: "Add files" never takes a copper file (the stored masks would not follow it); it said "took the new file" before
+    assert any(c.startswith("not taken: Top copper") for c in added["changes"]) and not any("took the new file" in c for c in added["changes"])
+    assert {f.function: f.sha256 for f in added["record"].files}[ims.COPPER_TOP] == {f.function: f.sha256 for f in old.files}[ims.COPPER_TOP]
+    assert added["orphans"] == [] and {p.designator for p in added["parts"]} >= {p.designator for p in old.parts}
+
+
+def test_add_files_keeps_the_board_and_the_stored_parts(board_dir, tmp_path):
+    sx = ImportSession()
+    sx.set_files(board_dir)
+    sx.load()
+    sx.set_part("U1", power=2.0)
+    sx.build_problem()
+    old = sx.record
+    # The new set has one more inner layer (a copper layer forgotten in the first import), another drill file and no paste: none of it may change the board
+    d2 = make_board(tmp_path / "fab2", inner=3)
+    (d2 / "drill.drl").write_text((d2 / "drill.drl").read_text().replace("X22.0Y10.0\n", "X22.0Y10.0\nX24.0Y10.0\n"))
+    (d2 / "pasteF.gbr").unlink()
+    s2 = ImportSession()
+    s2.set_files(d2)
+    s2.load()
+    s2.build_problem()
+    res = s2.merge_import("add", old)
+    functions = {f.function for f in res["record"].files}
+    assert "Inner copper 3" not in functions and len(res["record"].copper.layers) == len(old.copper.layers) == 4
+    assert {f.function: f.sha256 for f in res["record"].files}[ims.PLATED] == {f.function: f.sha256 for f in old.files}[ims.PLATED]
+    assert sum(c.startswith("not taken") for c in res["changes"]) >= 2
+    stored = {p.designator: p for p in old.parts}
+    for p in res["parts"]:                                                    # the stored parts are untouched: power, polygon, no orphan
+        if p.designator in stored:
+            assert p.power == stored[p.designator].power and p.polygon_mm == stored[p.designator].polygon_mm and not p.from_file.get("orphan")
+    assert {p.designator: p.power for p in res["parts"]}["U1"] == 2.0 and res["orphans"] == []
+
+
+def test_hand_picked_parts_take_a_free_name_and_are_matched_by_position(tmp_path):
+    d = make_board(tmp_path / "fab")
+    (d / "pos.csv").unlink()
+    # A board whose files name a part H2 (a mounting hole, a heater): the hand-picked parts must not take that name
+    text = (d / "pasteF.gbr").read_text().replace("%TO.C,U1*%", "%TO.C,H2*%").replace("%TO.C,D1*%\n", "").replace("%TO.C,Q1*%\n", "")
+    (d / "pasteF.gbr").write_text(text)
+    sx = ImportSession()
+    sx.set_files(d)
+    sx.load()
+    reds = sx.unmatched()
+    assert len(reds) == 2
+    names = [sx.click(o.x, o.y) for o in reds]
+    assert names == ["H1", "H3"] and len({p.designator for p in sx.parts()}) == len(sx.parts())
+    sx.set_part("H3", power=0.7)
+    sx.build_problem()
+    old = sx.record
+    # A re-import of the same files: the hand-picked part is found again by position, with its power, although the new session has no H3
+    s2 = ImportSession()
+    s2.set_files(d)
+    s2.load()
+    s2.build_problem()
+    merged = {p.designator: p for p in s2.merge_import("update", old)["parts"]}
+    assert merged["H3"].power == 0.7 and not merged["H3"].from_file.get("orphan")
+    assert abs(sum(q[0] for q in merged["H3"].polygon_mm) / len(merged["H3"].polygon_mm) - reds[1].x) < 0.3
 
 
 def test_the_hash_of_a_large_member_uses_head_tail_and_size(board_dir, tmp_path, monkeypatch):
@@ -538,6 +594,175 @@ def test_the_application_applies_a_new_import_and_a_reimport_as_one_undo_step(qt
     assert win.doc.stack.count() == n + 1 and len(win.doc.problem.heaters) == 1
     win.doc.stack.undo()
     assert win.doc.problem.heaters[0].power == 5.0
+
+
+def test_a_reimport_keeps_what_the_user_did_in_the_editor(qtbot, tmp_path, monkeypatch, board_dir):
+    """!
+    @brief Review: Replace and Update used to rebuild the board from the record alone, dropping every edit made in the editor after the import.
+    @param qtbot pytest-qt fixture.
+    @param tmp_path Temporary folder.
+    @param monkeypatch pytest fixture.
+    @param board_dir Folder of the files.
+    """
+    from PySide6.QtWidgets import QMessageBox
+    from pcbthermal.gui import import_window as iw
+    from pcbthermal.model import Heatsink, Heater, Zone
+    monkeypatch.setattr("pcbthermal.gui.main_window.QMessageBox.question", lambda *a, **k: QMessageBox.Discard)
+    win = MainWindow(Document(), QSettings(str(tmp_path / "t.ini"), QSettings.IniFormat))
+    qtbot.addWidget(win)
+    plan = {"mode": "update", "powers": {"U1": 3.0, "Q1": 1.0}}
+
+    def fake_exec(self):
+        self.confirm = lambda *a: True
+        self.open_path(str(board_dir))
+        for d, w in plan["powers"].items():
+            self.session.set_part(d, power=w)
+        self.ask_reimport = lambda dlg: (dlg.radios[plan["mode"]].setChecked(True), True)[1]
+        return 1 if self.do_import() else 0
+    monkeypatch.setattr(iw.ImportBoardWindow, "exec", fake_exec)
+    win.show_import()
+    names = [h.name for h in win.doc.problem.heaters]
+    assert sorted(names) == ["Q1", "U1"]
+    u1, q1 = names.index("U1"), names.index("Q1")
+    win.doc.set_props("heater", u1, power=5.0, theta=7.0, merge=False)            # edits of an imported part
+    sq = np.array([[0.002, 0.002], [0.004, 0.002], [0.004, 0.004], [0.002, 0.004]])
+
+    def draw(project):
+        pr = project.problem
+        pr.heaters[q1].name = "FET"                                            # an imported part renamed
+        pr.heaters.append(Heater(0, sq.copy(), 1.0, name="Mine"))               # drawn by hand
+        pr.zones.append(Zone(0, sq.copy() * 2, 1.0, name="Pour"))
+        pr.heatsinks.append(Heatsink(pr.board.layers - 1, sq.copy() * 3, 50.0, name="Sink"))
+        pr.add_via(15.0, 15.0, diameter=0.3)                                     # drawn by hand
+        pr.vias[0].filled = True                                                 # an imported via, filled
+        pr.board.thickness = 1.0e-3                                              # the stack-up edited
+    win.doc.edit("user edits", draw)
+    for mode in ("update", "replace"):
+        plan.update(mode=mode, powers={})
+        n = win.doc.stack.index()
+        win.show_import()
+        pr = win.doc.problem
+        by = {h.name: h for h in pr.heaters}
+        assert win.doc.stack.index() == n + 1 and set(by) == {"U1", "FET", "Mine"}, mode
+        assert by["U1"].power == 5.0 and by["U1"].theta == 7.0 and by["FET"].power == 1.0
+        assert len(pr.zones) == 1 and len(pr.heatsinks) == 1 and pr.heatsinks[0].layer == pr.board.layers - 1
+        assert len(pr.vias) == 3 and pr.vias[0].filled and pr.board.thickness == 1.0e-3            # two imported vias and the one drawn
+        rec = {p.designator: p for p in win.doc.project.imports[0].parts}
+        assert rec["U1"].power == 5.0                                            # the record agrees with the editor
+        assert "kept" in win.statusBar().currentMessage()
+        win.doc.stack.undo()
+    # An imported heater the user deleted is not made again
+    win.doc.edit("delete", lambda project: project.problem.heaters.pop([h.name for h in project.problem.heaters].index("U1")))
+    plan.update(mode="update")
+    win.show_import()
+    assert "U1" not in {h.name for h in win.doc.problem.heaters}
+    assert not {p.designator: p for p in win.doc.project.imports[0].parts}["U1"].edits["use"]
+
+
+def test_closing_the_window_during_a_slow_call_waits_and_drops_the_result(qtbot, board_dir, monkeypatch):
+    """!
+    @brief Review: a close during the worker thread released the archive and the caches under the running call, and an import closed half-way was still applied.
+    @param qtbot pytest-qt fixture.
+    @param board_dir Folder of the files.
+    @param monkeypatch pytest fixture.
+    """
+    import time
+    from PySide6.QtCore import QTimer
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.confirm = lambda *a: True
+    w.notify = lambda *a: pytest.fail(f"no message expected: {a}")
+    w.open_path(str(board_dir))
+    real_build, closed = w.session.build_problem, []
+
+    def slow_build():
+        time.sleep(0.4)
+        closed.append(w.session._layer_cache == {})                            # the caches must not be released under the call
+        return real_build()
+    monkeypatch.setattr(w.session, "build_problem", slow_build)
+    QTimer.singleShot(100, w.reject)                                            # the close box during the build
+    QTimer.singleShot(150, w.close)
+    assert w.do_import() is False and w.problem is None and closed == [False]
+    qtbot.waitUntil(lambda: not w.isVisible(), timeout=3000)
+    assert w.result() == 0 and w.session._layer_cache == {}                      # closed (rejected) after the call, caches released then
+
+
+def test_a_reread_and_a_theme_switch_wait_for_a_running_call(qtbot, board_dir, monkeypatch):
+    """!
+    @brief Review: the 50 ms re-read timer and a theme switch reached the session from the GUI thread while a worker call ran (two calls on one session at once).
+    @param qtbot pytest-qt fixture.
+    @param board_dir Folder of the files.
+    @param monkeypatch pytest fixture.
+    """
+    import threading
+    import time
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.show()
+    w.notify = lambda *a: None
+    w.open_path(str(board_dir))
+    running, overlap = [0], []
+    lock = threading.Lock()
+
+    def wrap(fn):
+        def inner(*a, **k):
+            with lock:
+                running[0] += 1
+                overlap.append(running[0])
+            try:
+                time.sleep(0.15)
+                return fn(*a, **k)
+            finally:
+                with lock:
+                    running[0] -= 1
+        return inner
+    monkeypatch.setattr(w.session, "load", wrap(w.session.load))
+    monkeypatch.setattr(w.session, "build_parts", wrap(w.session.build_parts))
+    row = [f.name for f in w.session.files].index("In2.gbr")
+    w.page1.table.item(row, 0).setCheckState(Qt.Unchecked)                    # starts the 50 ms re-read timer
+    w.go(1)                                                                     # Next at once: the parts are built in the worker
+    th.apply_theme(QApplication.instance(), "light")
+    th.apply_theme(QApplication.instance(), "dark")
+    qtbot.waitUntil(lambda: w.session.board() is not None and len(w.session.layers()) == 3, timeout=5000)
+    assert max(overlap) == 1 and w.step == 1
+
+
+def test_enter_presses_no_button_and_the_window_fits_a_small_screen(window, qtbot, monkeypatch):
+    """!
+    @brief Review: Enter in the path field also pressed the first auto-default button (Folder..., a file chooser); the window needed 970 x 608 pixels.
+    @param window The import window with the board read.
+    @param qtbot pytest-qt fixture.
+    @param monkeypatch pytest fixture.
+    """
+    from PySide6.QtWidgets import QFileDialog, QPushButton
+    opened = []
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *a, **k: (opened.append(a), "")[1])
+    assert not any(b.autoDefault() or b.isDefault() for b in window.findChildren(QPushButton))
+    src = window.page1.source.text()
+    window.page1.source.setFocus()
+    QTest.keyClick(window.page1.source, Qt.Key_Return)
+    assert opened == [] and window.isVisible() and window.page1.source.text() == src and window.session.complete()
+    window.go(2)
+    QTest.keyClick(window.page3.cell, Qt.Key_Return)                              # Enter in a number field of the last step does not import
+    assert window.problem is None and window.isVisible()
+    window.resize(800, 600)
+    assert window.width() <= 800 and window.height() <= 600 and window.minimumSizeHint().width() <= 800
+
+
+def test_error_messages_are_plain_text(qtbot, monkeypatch):
+    """!
+    @brief A reader error quotes the file name; the message box must not read it as markup.
+    @param qtbot pytest-qt fixture.
+    @param monkeypatch pytest fixture.
+    """
+    from PySide6.QtWidgets import QMessageBox
+    seen = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: (seen.append((self.textFormat(), self.text())), QMessageBox.Ok)[1])
+    w = ImportBoardWindow()
+    qtbot.addWidget(w)
+    w.notify("Cannot read the files", "<b>x</b>.gbr: bad")
+    assert seen == [(Qt.PlainText, "<b>x</b>.gbr: bad")]
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------- real boards

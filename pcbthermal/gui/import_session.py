@@ -16,12 +16,15 @@
 """
 
 import copy
+import dataclasses
 import hashlib
 import json
 import logging
 import re
 from pathlib import Path
 from typing import Callable, List, NamedTuple, Optional
+
+import numpy as np
 
 from .. import copper as copper_mod
 from .. import memory
@@ -43,6 +46,10 @@ MASK = ("Solder mask top", "Solder mask bottom")
 LEGEND = ("Legend (silkscreen) top", "Legend (silkscreen) bottom")
 COMPONENT, PLACEMENT, IGNORE = "Component layer (X3)", "Placement (pick and place)", "Ignore"
 ROLES = COPPER + (OUTLINE, PLATED, NONPLATED) + PASTE + MASK + LEGEND + (COMPONENT, PLACEMENT, IGNORE)
+# Functions that change the board itself (copper masks, outline, vias): "Add files" never takes them, because it keeps the stored masks and the board as they are
+GEOMETRY = COPPER + (OUTLINE, PLATED, NONPLATED)
+# Functions that give the parts: an added one, or a conflict answered "use the new file", matches the stored parts again against the new files
+PARTS_FUNCTIONS = PASTE + (PLACEMENT, COMPONENT)
 # Roles that are read when the file is in use; the others (mask, legend) are listed and ignored by the models
 USED_BY_DEFAULT = COPPER + (OUTLINE, PLATED, NONPLATED) + PASTE + (COMPONENT, PLACEMENT)
 # Roles of which only one file can exist (two files claiming one are shown and stop the import)
@@ -860,7 +867,11 @@ class ImportSession:
             self._unmatched = [u for u in self._unmatched if u is not o]
             self._owner_cache = None
             return sel.designator
-        n = 1 + sum(1 for q in self.parts() if re.fullmatch(r"H\d+", q.designator))
+        # The first free H<n>: a board may have parts named H2, H3 (mounting holes), so a count of the H names could give a name that is taken
+        taken = {q.designator for q in self.parts()}
+        n = 1
+        while f"H{n}" in taken:
+            n += 1
         q = parts_mod.part_from_openings(f"H{n}", [o], "hull", "paste only", side=o.side, grouping="hand")
         q.edits["use"], q.edits["role"] = True, "Source"
         self._parts.append(q)
@@ -1167,8 +1178,11 @@ class ImportSession:
         """!
         @brief Merge the new import (`build_problem` was just run) into the stored record by the chosen command.
         @details "replace" and "update": copper, drills and outline come from the new files; a part with the same designator keeps its power and edits, a part that left the files is an
-                 orphan (kept, not heating) unless listed in `remove`. "add": the stored copper, outline and settings stay; the functions the store lacks are taken from the new files
-                 (for a function both have, `file_choice[function]` "stored", the default, or "new"), and the parts the added files bring are added to the stored ones.
+                 orphan (kept, not heating) unless listed in `remove`. "add": the stored copper, outline, drills and settings stay (a copper, outline or drill file is never taken:
+                 the masks and the vias of the board would not follow it, so it is listed as needing Replace or Update); the other functions the store lacks are taken from the new files
+                 (for a function both have, `file_choice[function]` "stored", the default, or "new"). The stored parts are kept as they are and the new designators are added; only
+                 when a paste, placement or component file is taken are the stored parts matched again against the new files (their power and edits kept), and even then no stored
+                 part becomes an orphan (its heater stays in the project).
         @param mode "replace", "update" or "add".
         @param old Stored ImportRecord.
         @param remove Designators the user confirmed to remove.
@@ -1180,25 +1194,181 @@ class ImportSession:
         if mode == "add":
             rec = copy.deepcopy(old)
             files = {f.function: f for f in old.files}
-            changes = []
+            changes, rematch = [], False
             for item in self.classify_files(old, new):
-                fn = item["function"]
-                if item["status"] == "added":
+                fn, status = item["function"], item["status"]
+                if status not in ("added", "changed"):
+                    continue
+                if fn in GEOMETRY:
+                    # Review: the record listed an added copper layer that the stored masks do not hold (and a drill file whose vias were not made)
+                    changes.append(f"not taken: {fn} ({item['new'].name}) changes the board itself; use Replace or Update to import it")
+                    continue
+                take = status == "added" or (file_choice or {}).get(fn, "stored") == "new"
+                if take:
                     files[fn] = item["new"]
-                    changes.append(f"added {fn}: {item['new'].name}")
-                elif item["status"] == "changed":
-                    take = (file_choice or {}).get(fn, "stored") == "new"
-                    if take:
-                        files[fn] = item["new"]
-                    changes.append(f"conflict on {fn}: " + (f"took the new file {item['new'].name}" if take else f"kept the stored file {item['old'].name}"))
+                    rematch = rematch or fn in PARTS_FUNCTIONS
+                changes.append(f"added {fn}: {item['new'].name}" if status == "added" else
+                               f"conflict on {fn}: " + (f"took the new file {item['new'].name}" if take else f"kept the stored file {item['old'].name}"))
             rec.files = list(files.values())
-            res = parts_mod.merge_parts(old.parts, new.parts, shapes, remove=remove, openings=self.openings())
-            rec.parts = res.parts
-            return {"record": rec, "changes": changes + res.changes, "parts": res.parts, "orphans": res.orphans}
+            res = parts_mod.merge_parts(old.parts, new.parts, shapes, openings=self.openings())
+            stored = {p.designator: p for p in old.parts}
+            # A stored part stays as it is unless the parts files were taken (then it takes the new match); it never becomes an orphan here
+            parts = [copy.deepcopy(stored[p.designator]) if p.designator in stored and (not rematch or p.from_file.get("orphan")) else p for p in res.parts]
+            rec.parts = parts
+            changes += [c for c in res.changes if "orphan" not in c] if rematch else [f"{p.designator}: added" for p in parts if p.designator not in stored]
+            return {"record": rec, "changes": changes, "parts": parts, "orphans": []}
         res = parts_mod.merge_parts(old.parts, self.parts(), shapes, remove=remove, openings=self.openings())
         rec = copy.deepcopy(new)
         rec.parts = res.parts
         return {"record": rec, "changes": res.changes, "parts": res.parts, "orphans": res.orphans}
 
 
-__all__ = ["BoardData", "Hole", "ImportNotAvailable", "ImportSession", "LayerInfo", "ROLES", "SourceFile"]
+def _same_polygon(a, b, tol=1e-7) -> bool:
+    """!
+    @brief Whether two polygons have the same vertices within a tolerance.
+    @param a Array-like (n, 2).
+    @param b Array-like (m, 2).
+    @param tol Largest difference of a coordinate, in the unit of the polygons.
+    @return bool
+    """
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    return a.shape == b.shape and bool(np.all(np.abs(a - b) <= tol))
+
+
+def carry_over(old_problem: Problem, old_record: ImportRecord, new_problem: Problem, new_record: ImportRecord) -> List[str]:
+    """!
+    @brief Bring what the user did in the editor after an import into the Problem of a Replace or Update, so that a re-import loses nothing the files do not give.
+    @details The files give the copper, the outline, the vias and the parts; the user gives the rest. Kept, in the Gerber frame (moved by the change of the board box):
+             * the fields of the heaters of the imported parts (power, theta, Tj max, role, top path, profile, ...) edited in the editor, onto the heater of the same part (matched by
+               designator, or by its polygon when the user renamed it); the merged record takes the power, Tj max and role too, so that it agrees with the editor (an orphan as well);
+             * an imported part whose heater the user deleted stays without a heater (its record part is unticked);
+             * the heaters, zones and heatsinks drawn by hand, and the vias drawn by hand (a via not at a hole of the stored import); the fill of an imported via is kept on the via at the
+               same place;
+             * the stack-up (thickness, copper per layer, dielectrics, inner copper weight) when the number of copper layers did not change.
+             A heater, zone or heatsink on the bottom layer stays on the bottom layer when the layer count changes; an inner one is clipped to the last inner layer.
+    @param old_problem The Problem of the open project (before the re-import).
+    @param old_record The stored ImportRecord (before the merge).
+    @param new_problem The Problem built from the new files with the heaters of the merged parts; changed in place.
+    @param new_record The merged ImportRecord; its parts are changed in place.
+    @return list of text lines (what was kept), for the status line and the record warnings.
+    """
+    ob, nb = list(old_record.box_mm), list(new_record.box_mm)
+    # Board coordinates are relative to the box of the import: the same place on the Gerber frame moves by the change of the box corner (metres)
+    dx, dy = ((ob[0] - nb[0]) * 1e-3, (ob[1] - nb[1]) * 1e-3) if len(ob) == 4 and len(nb) == 4 else (0.0, 0.0)
+    shift = np.array([dx, dy])
+    lo, ln = old_problem.board.layers, new_problem.board.layers
+
+    def layer_of(k):
+        """!
+        @brief The layer of the new board for a layer of the old one (bottom stays bottom, an inner layer is clipped).
+        @param k Old 0-based layer.
+        @return int
+        """
+        return ln - 1 if (k == lo - 1 and k > 0) else min(k, ln - 1)
+
+    out = []
+    # 1. Heaters: those of the imported parts (by designator, or by the polygon of a part when renamed) and those drawn by hand
+    oldx = ob[0] if len(ob) == 4 else 0.0
+    oldy = ob[1] if len(ob) == 4 else 0.0
+    # Only the parts that were heat sources made a heater; a heater named like a listed part (no heater of its own) is the user's
+    part_poly = {p.designator: [[(x - oldx) * 1e-3, (y - oldy) * 1e-3] for x, y in p.polygon_mm] for p in old_record.parts
+                 if p.polygon_mm and p.edits.get("use") and not p.from_file.get("orphan")}
+    rec_parts = {p.designator: p for p in new_record.parts}
+    new_by_name = {h.name: h for h in new_problem.heaters}
+    geometry_fields = {"layer", "polygon", "name"}
+    seen, edited, drawn = set(), [], []
+    for h in old_problem.heaters:
+        des = h.name if h.name in part_poly else next((d for d, poly in part_poly.items() if _same_polygon(poly, h.polygon)), None)
+        if des is None:
+            q = copy.deepcopy(h)
+            q.polygon, q.layer = np.asarray(h.polygon, float) + shift, layer_of(h.layer)
+            new_problem.heaters.append(q)
+            drawn.append(h.name or "unnamed")
+            continue
+        seen.add(des)
+        nh = new_by_name.get(des)
+        if nh is not None:
+            changed = False
+            for f in dataclasses.fields(h):
+                if f.name not in geometry_fields:
+                    v = copy.deepcopy(getattr(h, f.name))
+                    changed = changed or not _equal(getattr(nh, f.name), v)
+                    setattr(nh, f.name, v)
+            nh.name = h.name or des                                        # a name the user gave stays
+            if changed:
+                edited.append(h.name or des)
+        p = rec_parts.get(des)
+        if p is not None:
+            p.power = float(h.power)
+            p.edits["tj_max"] = float(h.tj_max)
+            if h.role:
+                p.edits["role"] = "Source" if h.role == "source" else "Component"
+    # 2. An imported heat source whose heater the user deleted stays deleted
+    deleted = [p.designator for p in old_record.parts if p.edits.get("use") and p.polygon_mm and not p.from_file.get("orphan") and p.designator not in seen]
+    if deleted:
+        new_problem.heaters = [h for h in new_problem.heaters if h.name not in deleted]
+        for d in deleted:
+            if d in rec_parts:
+                rec_parts[d].edits["use"] = False
+        out.append(f"kept deleted: no heater for {', '.join(deleted)} (deleted in the editor)")
+    if edited:
+        out.append(f"kept the editor's values of {len(edited)} imported part(s): {', '.join(edited[:8])}" + (" ..." if len(edited) > 8 else ""))
+    if drawn:
+        out.append(f"kept {len(drawn)} heater(s) drawn by hand: {', '.join(drawn[:8])}" + (" ..." if len(drawn) > 8 else ""))
+    # 3. Zones and heatsinks are never made by the import: all are the user's
+    for z in old_problem.zones:
+        q = copy.deepcopy(z)
+        q.polygon, q.layer = np.asarray(z.polygon, float) + shift, layer_of(z.layer)
+        new_problem.zones.append(q)
+    for s in old_problem.heatsinks:
+        q = copy.deepcopy(s)
+        q.polygon, q.layer = np.asarray(s.polygon, float) + shift, (0 if s.layer == 0 else ln - 1)
+        new_problem.heatsinks.append(q)
+    if old_problem.zones or old_problem.heatsinks:
+        out.append(f"kept {len(old_problem.zones)} zone(s) and {len(old_problem.heatsinks)} heatsink(s)")
+    # 4. Vias: the stored import's holes in board metres; a via elsewhere was drawn by hand, a via at a hole keeps its fill on the new via at the same place
+    holes = np.array([[(h["x_mm"]) * 1e-3, (h["y_mm"]) * 1e-3] for h in old_record.holes if h.get("kind") != "component"]).reshape(-1, 2)
+    new_xy = np.array([[v.x, v.y] for v in new_problem.vias]).reshape(-1, 2)
+    hand, fills = 0, 0
+    for v in old_problem.vias:
+        imported = holes.size and np.min(np.hypot(holes[:, 0] - v.x, holes[:, 1] - v.y)) < 1e-6
+        if not imported:
+            q = copy.deepcopy(v)
+            q.x, q.y = v.x + dx, v.y + dy
+            new_problem.vias.append(q)
+            hand += 1
+        elif (v.filled or v.fill_k or v.fill or v.name) and new_xy.size:
+            d = np.hypot(new_xy[:, 0] - (v.x + dx), new_xy[:, 1] - (v.y + dy))
+            k = int(np.argmin(d))
+            if d[k] < 1e-6:
+                nv = new_problem.vias[k]
+                nv.filled, nv.fill_k, nv.fill, nv.name = v.filled, v.fill_k, v.fill, v.name
+                fills += 1
+    if hand:
+        out.append(f"kept {hand} via(s) drawn by hand")
+    if fills:
+        out.append(f"kept the fill of {fills} imported via(s)")
+    # 5. The stack-up the user edited, when the layer count is the same
+    if lo == ln:
+        ob_, nb_ = old_problem.board, new_problem.board
+        for k in ("thickness", "copper_thickness", "dielectrics", "template_inner_oz"):
+            setattr(nb_, k, copy.deepcopy(getattr(ob_, k)))
+    else:
+        out.append(f"the stack-up is the typical one of {ln} layers (the board had {lo}): check it in the Stack-up tab")
+    return out
+
+
+def _equal(a, b) -> bool:
+    """!
+    @brief Equality that also works for arrays and profiles.
+    @param a Value.
+    @param b Value.
+    @return bool
+    """
+    try:
+        return bool(np.all(np.asarray(a) == np.asarray(b))) if isinstance(a, np.ndarray) or isinstance(b, np.ndarray) else bool(a == b)
+    except (ValueError, TypeError):
+        return False
+
+
+__all__ = ["BoardData", "Hole", "ImportNotAvailable", "ImportSession", "LayerInfo", "ROLES", "SourceFile", "carry_over"]

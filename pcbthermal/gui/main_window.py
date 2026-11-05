@@ -1005,7 +1005,14 @@ class MainWindow(QMainWindow):
         @brief Open the Gerber import window; a finished import is loaded as a new unsaved project, or, when the open project already holds an import, applied to it as one undo step
                (the window asked Replace, Update, Add files or Cancel).
         """
-        existing = self.doc.project.imports[0] if self.doc.project.imports else None
+        existing = None
+        if self.doc.project.imports:
+            # The re-import dialog shows what each part keeps: the powers typed in the editor after the import, not those of the import itself
+            existing = copy.deepcopy(self.doc.project.imports[0])
+            heaters = {h.name: h for h in self.doc.problem.heaters}
+            for p in existing.parts:
+                if p.designator in heaters:
+                    p.power = float(heaters[p.designator].power)
         dlg = ImportBoardWindow(self, existing=existing)
         if dlg.exec() != QDialog.Accepted or dlg.record is None:
             return
@@ -1018,10 +1025,12 @@ class MainWindow(QMainWindow):
         old = self.doc.project.imports[0]
         known = {p.designator for p in old.parts}
         added = [p for p in dlg.record.parts if p.designator not in known]
-        self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
-                          add=lambda project: dlg.session._add_heaters(project.problem, dlg.record.box_mm, added))
+        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
+                                 add=lambda project: dlg.session._add_heaters(project.problem, dlg.record.box_mm, added))
         self._refresh_layers()
-        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(dlg.changes[:3]) + ("..." if len(dlg.changes) > 3 else ""))
+        # What the editor kept comes first (the user must see it), then the first changes of the parts and files
+        lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
+        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("..." if len(lines) > 4 else ""))
 
     def show_calculator(self):
         """!

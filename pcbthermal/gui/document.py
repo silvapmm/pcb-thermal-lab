@@ -222,13 +222,19 @@ class Document(QObject):
     def reimport(self, problem, record, text="Re-import Gerber board", add=None):
         """!
         @brief Apply a re-import to the open project as ONE undo step.
-        @details "replace" and "update" give a new Problem (copper, outline, vias and the heaters of the merged parts) that keeps the environment of the open board; "add" gives only the
-                 merged record and a function `add(project)` that adds the heaters of the parts the new files brought. Results of earlier runs stay in the window, marked outdated by the edit.
+        @details "replace" and "update" give a new Problem (copper, outline, vias and the heaters of the merged parts) that keeps the environment of the open board and what the user
+                 did in the editor (`import_session.carry_over`: the edits of the imported heaters, the heaters, zones, heatsinks and vias drawn by hand, the via fills and the stack-up
+                 when the layer count is the same); "add" gives only the merged record and a function `add(project)` that adds the heaters of the parts the new files brought. Results of
+                 earlier runs stay in the window, marked outdated by the edit.
         @param problem The new Problem, or None for "add".
         @param record The merged ImportRecord, which replaces the stored one.
         @param text Text of the undo step.
         @param add Function(project) called for "add", or None.
+        @return list of text lines: what the re-import kept from the editor (empty for "add").
         """
+        from .import_session import carry_over
+        kept = []
+
         def mutate(project):
             """!
             @brief Change the project in place.
@@ -239,12 +245,16 @@ class Document(QObject):
                 old = project.problem.board
                 for k in self.KEEP_ON_REIMPORT:
                     setattr(problem.board, k, copy.deepcopy(getattr(old, k)))
+                if project.imports:
+                    # Review: Replace and Update used to drop every edit made in the editor after the import (powers, drawn heaters, zones, heatsinks, vias, stack-up)
+                    kept.extend(carry_over(project.problem, project.imports[0], problem, record))
                 problem.name = project.problem.name
                 project.problem = problem
             elif add is not None:
                 add(project)
             project.imports = [record] + list(project.imports[1:])
         self.edit(text, mutate)
+        return kept
 
     def save(self, path=None):
         """!
