@@ -370,7 +370,7 @@ def solve_steady(problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
     @brief Steady-state solution of the 3D model.
     @param problem A Problem.
     @param cell_mm Target size of the cells in the plan in millimetres.
-    @param n_diel Slabs across every dielectric gap (4 by default; 8 changes the answer by under 0.6 % even on a heater-sized pad).
+    @param n_diel Slabs across every dielectric gap (4 by default; not enough for a part whose side is under 6.7 times the slab d / 4: under a 2 mm source 4 against 8 slabs differ 5 % at 1.6 mm and 14 % at 3.2 mm, and the solid reads it up to +20 % bare / +27 % pad hot with 4, +5.4 / +13.3 % with 8, +0.4 / +7.9 % with 16; checks.check_small_part_laminate warns).
     @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()).
     @return SteadyResult with the temperature of the copper slab of every layer (layout of the FVM), the heat by path and, with metal
             blocks, their temperature and heat as the FVM does.

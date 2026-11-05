@@ -15,6 +15,7 @@ from typing import List, Optional
 import copy
 import json
 import math
+import re
 import os
 
 import numpy as np
@@ -169,6 +170,10 @@ def stackup_template(layers, path=None, inner_oz=0.5):
     out["name"] = f"{out['name']} - derived: {inner_oz:g} oz ({inner_um:g} um) inner copper, dielectrics of the template, board {out['total_thickness_um'] / 1000:.3f} mm (not a fabricator table)"
     out["derived"] = True
     return out
+
+
+# Largest edge heat transfer coefficient accepted by Board.validate (W/m2K)
+H_SIDE_MAX = 1e5
 
 
 @dataclass
@@ -388,6 +393,12 @@ class Board:
                 raise ValueError("the board outline must be a simple polygon with a positive area")
         if self.h_top < 0 or self.h_bottom < 0:
             raise ValueError("heat transfer coefficients must be >= 0")
+        # The edge coefficient too: a negative one made the edge a heat source in the grid models and a NaN or an infinite one gave a NaN field; None is insulated
+        if self.h_side is not None and (not math.isfinite(self.h_side) or self.h_side < 0):
+            raise ValueError("the edge heat transfer coefficient must be a finite number >= 0 (or None for insulated edges)")
+        # Upper limit (maintainer): the Preferences range ends at 500 and a value like 1e300 made the edge heat of the Analytic absurd
+        if self.h_side is not None and self.h_side > H_SIDE_MAX:
+            raise ValueError(f"the edge heat transfer coefficient must not exceed {H_SIDE_MAX:g} W/m2K")
         if self.h_mode not in ("manual", "computed"):
             raise ValueError("h_mode must be 'manual' or 'computed'")
         if self.orientation not in ("horizontal", "vertical"):
@@ -1531,7 +1542,7 @@ class ImportPart:
              edit. The user's edits stay in `edits`.
     """
     designator: str = ""                                  # Key used to match the part again in a re-import
-    shape: str = "box"                                    # "box", "hull", "largest" (the largest opening) or "outline" (an outline of an X3 component layer)
+    shape: str = "box"                                    # "box", "hull", "exposed" (the hull of the exposed pad or tab, the default of a part that has one), "largest" (the largest opening) or "outline" (an outline of an X3 component layer)
     polygon_mm: list = field(default_factory=list)        # Heat-source polygon [[x, y], ...] in mm
     power: float = 0.0                                    # Power in W (user edit)
     edits: dict = field(default_factory=dict)             # Other user edits (tj_max, role, use, shape_user, ...)
@@ -1608,6 +1619,26 @@ class ImportedCopper:
                               str(d.get("mapping", "faces")), _unknown_keys(d, ImportedCopper.KEYS))
 
 
+def _profile_record(d):
+    """!
+    @brief Read the CAD profile record of an import, tolerating anything a hand-edited or newer file holds.
+    @details The key must look like a key of the table (lower-case letters, digits, `_`, `-`, `.`, at most 64), because it may be shown in the import window; other
+             keys of the dict (written by a later version) are kept and written back.
+    @param d Value of the key "cad_profile" (a dict with "key", "source" and "table", or None).
+    @return dict with the three keys (and any others the file held), or None when absent or malformed.
+    """
+    if not isinstance(d, dict) or not isinstance(d.get("key"), str) or not re.fullmatch(r"[a-z0-9_.-]{1,64}", d["key"]):
+        return None
+    source = d.get("source") if d.get("source") in ("detected", "user") else "detected"
+    try:
+        table = int(d.get("table", 0))
+    except (TypeError, ValueError, OverflowError):
+        table = 0
+    out = {"key": d["key"], "source": source, "table": table}
+    out.update({k: copy.deepcopy(v) for k, v in d.items() if isinstance(k, str) and k not in out})
+    return out
+
+
 @dataclass
 class ImportRecord:
     """!
@@ -1621,9 +1652,10 @@ class ImportRecord:
     settings: dict = field(default_factory=dict)                      # Layer roles and order, drill units, outline choice, ...
     warnings: list = field(default_factory=list)                      # Warnings of the import (text)
     holes: list = field(default_factory=list)                         # Plated holes [{"x_mm", "y_mm", "d_mm", "kind": "via" or "component"}, ...]
+    cad_profile: Optional[dict] = None                                # CAD profile of the name rules: {"key", "source": "detected" or "user", "table": version}; None = none recorded
     extra: dict = field(default_factory=dict)                         # Keys written by a later version, kept and written back
 
-    KEYS = ("name", "files", "box_mm", "parts", "copper", "settings", "warnings", "holes")
+    KEYS = ("name", "files", "box_mm", "parts", "copper", "settings", "warnings", "holes", "cad_profile")
 
     def to_dict(self):
         """!
@@ -1632,7 +1664,9 @@ class ImportRecord:
         """
         return _with_unknown({"name": self.name, "files": [f.to_dict() for f in self.files], "box_mm": [float(v) for v in self.box_mm],
                               "parts": [p.to_dict() for p in self.parts], "copper": None if self.copper is None else self.copper.to_dict(),
-                              "settings": copy.deepcopy(self.settings), "warnings": list(self.warnings), "holes": copy.deepcopy(self.holes)},
+                              "settings": copy.deepcopy(self.settings), "warnings": list(self.warnings), "holes": copy.deepcopy(self.holes),
+                              # written only when present, so a project without a profile stays byte-identical to the first format 2 files
+                              **({} if self.cad_profile is None else {"cad_profile": copy.deepcopy(self.cad_profile)})},
                              self.extra)
 
     @staticmethod
@@ -1646,7 +1680,7 @@ class ImportRecord:
                             [ImportPart.from_dict(p) for p in d.get("parts", [])],
                             None if d.get("copper") is None else ImportedCopper.from_dict(d["copper"]),
                             copy.deepcopy(dict(d.get("settings", {}))), list(d.get("warnings", [])), copy.deepcopy(list(d.get("holes", []))),
-                            _unknown_keys(d, ImportRecord.KEYS))
+                            _profile_record(d.get("cad_profile")), _unknown_keys(d, ImportRecord.KEYS))
 
 
 reload_libraries()

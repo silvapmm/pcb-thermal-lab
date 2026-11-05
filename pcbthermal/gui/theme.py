@@ -13,7 +13,9 @@ from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QProxyS
 THEMES = {
     "dark": {
         "window": "#1e2127", "base": "#15181d", "alt": "#23272e", "text": "#e6e8eb", "muted": "#8b949e", "hint": "#9aa3ad",
-        "accent": "#4c8dff", "on_accent": "#ffffff", "link": "#6cb0ff", "link_visited": "#b79cf0", "indicator": "#8b949e", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
+        "accent": "#6a90c0", "accent_hover": "#7a9fcc", "accent_pressed": "#5a7eab", "on_accent": "#ffffff", "link": "#6cb0ff",
+        # Notes and warnings: the text and the symbol of an entry take the same token (the Run panel list was link blue with a text-coloured symbol)
+        "alert": "#e0a030", "alert_note": "#e0a030", "link_visited": "#b79cf0", "indicator": "#8b949e", "border": "#343a43", "canvas": "#101317", "board": "#17402f",
         "grid_minor": "#ffffff12", "grid_major": "#ffffff2a", "solver_grid": "#4cc9f040",
         "copper": "#d08a3c", "heater": "#ff5b4f", "heatsink": "#3aa0ff", "via": "#f2c14e",
         "ok": "#66bb6a", "warn": "#ffb74d", "bad": "#ef5350", "error": "#ef5350",
@@ -25,7 +27,8 @@ THEMES = {
     },
     "light": {
         "window": "#f3f4f6", "base": "#ffffff", "alt": "#eef0f3", "text": "#1f2328", "muted": "#6b7280", "hint": "#5f6570",
-        "accent": "#2563eb", "on_accent": "#ffffff", "link": "#0000ff", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
+        "accent": "#5a7fb0", "accent_hover": "#6a8fbf", "accent_pressed": "#4a6a96", "on_accent": "#ffffff", "link": "#0000ff",
+        "alert": "#8a5a00", "alert_note": "#8a5a00", "link_visited": "#6d28d9", "indicator": "#6b7280", "border": "#d0d5dd", "canvas": "#dfe3e8", "board": "#2f7d5b",
         "grid_minor": "#00000014", "grid_major": "#00000030", "solver_grid": "#0077aa50",
         "copper": "#c77d2e", "heater": "#e0392d", "heatsink": "#1d78d8", "via": "#c9971c",
         "ok": "#2e7d32", "warn": "#b26a00", "bad": "#c62828", "error": "#c62828",
@@ -320,6 +323,8 @@ def apply_theme(app, name):
         QPushButton {{ border: 1px solid {c['border']}; border-radius: 6px; padding: 6px 14px; background: {c['alt']}; }}
         QPushButton:hover {{ border-color: {c['accent']}; }}
         QPushButton#primary {{ background: {c['accent']}; border-color: {c['accent']}; color: {c['on_accent']}; font-weight: 600; }}
+        QPushButton#primary:hover {{ background: {c['accent_hover']}; }}
+        QPushButton#primary:pressed {{ background: {c['accent_pressed']}; }}
         QPushButton#primary:disabled {{ background: {c['border']}; color: {c['muted']}; }}
         QStatusBar {{ border-top: 1px solid {c['border']}; }}
         QHeaderView::section {{ background: {c['alt']}; border: none; padding: 4px 8px; }}

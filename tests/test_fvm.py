@@ -185,7 +185,6 @@ def _transient_all_factors(net, ambient, t_end, n_out):
     @return Array of the frames (nt, layers, ny, nx) in degC.
     """
     import scipy.sparse as sp
-    import scipy.sparse.linalg as spla
     stages = 10
     per_stage = max(int(np.ceil(n_out / stages)), 1)
     dt0 = t_end / (per_stage * (2 ** stages - 1))
@@ -194,7 +193,8 @@ def _transient_all_factors(net, ambient, t_end, n_out):
     for dt in dts:
         key = round(float(dt), 12)
         if key not in cache:
-            cache[key] = (spla.splu((sp.diags(net.C.ravel() / dt) + net.K).tocsc(), permc_spec=fvm.ORDERING), sp.diags(net.C.ravel() / dt).tocsr())
+            # The same factorisation as the program (fvm.lu_factor, symmetric mode), so that the comparison stays bit for bit
+            cache[key] = (fvm.lu_factor(sp.diags(net.C.ravel() / dt) + net.K), sp.diags(net.C.ravel() / dt).tocsr())
         lu, B = cache[key]
         x = lu.solve(B @ x + net.Q.ravel())
         out.append(x)

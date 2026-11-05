@@ -399,7 +399,8 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     """!
     @brief Cell size that resolves the smallest heater with about four cells across its narrow side, and that the memory guard accepts.
     @details When models are given, a cell that the guard would refuse for one of them (fvm, fdm, solid3d) is replaced by the smallest cell that fits (memory.cell_that_fits),
-             which may be above hi: the memory wins over the resolution, and the caller says so. Only the model keys are checked ("all" or "compare" must be
+             which may be above hi: the memory wins over the resolution, and the caller says so (for a board with imported copper `copper.auto_cell_note(problem, cell)` is
+             the sentence). A board with imported copper (mapping other than 'fill') is capped at copper.COARSE_CELL_MM (1 mm) before the memory is considered. Only the model keys are checked ("all" or "compare" must be
              expanded by the caller).
     @param problem A Problem.
     @param lo Smallest cell size returned from the heaters (mm).
@@ -414,6 +415,8 @@ def suggest_cell_mm(problem, lo=0.25, hi=2.0, models=None, fraction=None, transi
     """
     sizes = [min(np.ptp(h.polygon[:, 0]), np.ptp(h.polygon[:, 1])) * 1000.0 for h in problem.heaters if h.power > 0]
     cell = float(min(max(min(sizes) / 4.0, lo), hi)) if sizes else hi
+    # Imported copper wants a cell of 1 mm or less (the faces read 7 to 10 % too hot at 2 mm): Auto stays there unless the memory forces more
+    cell = copper.auto_cell_cap(problem, cell)
     if models:
         for v in memory.check(problem, tuple(models), cell, fraction=fraction, transient=transient, base=base, refuse="return", quiet=True, laminate_params=laminate_params):
             if v.verdict == "refuse" and v.cell_fit:
@@ -623,6 +626,12 @@ def _block_flux_result(sim):
     return aux.reference
 
 
+# Note of the Results summary when the heat transfer coefficients are computed (once per run)
+CONVECTION_NOT_MEASURED_NOTE = ("the computed heat transfer coefficients are published correlations of a plate in open air and have not been compared "
+                                "with a measured copper board (the conduction is checked against independent solvers); treat the absolute temperature "
+                                "as uncertain by the uncertainty of h, or fit the convection multiplier to a measurement")
+
+
 def _part_warnings(sim):
     """!
     @brief Warnings after the solves, once per simulation: junction above its limit, a theta that is probably not a junction-to-pad value, unused coefficients,
@@ -650,6 +659,8 @@ def _part_warnings(sim):
         ref = sim.reference
         info = convection.board_h(sim.problem.board, ref.layer_mean[0], ref.extras.get("bottom_face_mean", ref.layer_mean[-1]))[2]
         out += check_low_rayleigh(sim.problem.board, info)
+        # One short, calm line per run: the correlations are not checked against a measured copper board (docs/theory.md 8)
+        out.append(CONVECTION_NOT_MEASURED_NOTE)
     if sim.problem.has_profiles() and any(h.power_tc for h in sim.problem.heaters):
         out.append("the power temperature coefficient is applied to the steady-state models only, not to the time simulation")
     if sim.problem.has_profiles() and any(h.top_resistance() > 0 for h in sim.problem.heaters):
@@ -670,11 +681,13 @@ def _run_model(problem, name, o):
         eq, s = problem.equivalent_rectangle()
         res = _run_model(eq, name, o)
         res.dx, res.dy = res.dx / s, res.dy / s
+        res.equivalent_scale = s                           # The plots can draw the field as solved (plots.draw_field) and the gradient uses the solved spacing
         if res.t_max_location is not None:
             layer, x, y = res.t_max_location
             res.t_max_location = (layer, x / s, y / s)
-        res.warnings.append(f"the board has an outline: computed on a rectangle of the same area (box and positions scaled by {s:.3f}); expect a few percent of "
-                            "difference, more for parts near the edge or in a narrow arm; the FVM, FDM and 3D solid use the real shape")
+        res.warnings.append(f"the board has an outline: computed on a rectangle of the same area (box and positions scaled by {s:.3f}) and stretched back onto the real box; "
+                            "the application can show that rectangle as solved (Equiv. rect. above the map); "
+                            "expect a few percent of difference, more for parts near the edge or in a narrow arm; the FVM, FDM and 3D solid use the real shape")
         return res
     if name == "fvm":
         return fvm.solve_steady(problem, cell_mm=o.cell_mm, method=o.linear_solver, memory_limit=memory.limit_bytes(o.memory_fraction))

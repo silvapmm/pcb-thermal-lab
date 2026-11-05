@@ -290,7 +290,7 @@ def test_preferences_sections_are_a_list_with_stacked_pages(qtbot, tmp_path):
         assert d.sections.currentRow() == i and d.pages.currentIndex() == i
     QTest.keyClick(d.sections, Qt.Key_Up)
     assert d.pages.currentIndex() == 6
-    assert d.sections.toolTip()
+    assert not d.sections.toolTip()                                                             # The names say it all: no tooltip on the list (the pages keep theirs)
 
 
 def test_preferences_decimals_follow_the_shipped_value_and_show_a_saved_value_in_full(qtbot, tmp_path, monkeypatch):
