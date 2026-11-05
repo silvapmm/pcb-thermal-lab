@@ -138,3 +138,67 @@ def test_command_line_prints_message_and_exits_2(tmp_path, sub):
     r = subprocess.run([sys.executable, "-m", "pcbthermal", sub, str(f)], capture_output=True, text=True, cwd=ROOT, timeout=120)
     assert r.returncode == 2, r.stderr
     assert "Traceback" not in r.stderr and "zones[0].polygon_mm" in r.stderr
+
+
+def test_values_the_program_writes_itself_still_load():
+    """!
+    @brief Review: values that the program writes or holds are accepted, through JSON and through the undo path (no JSON in between).
+    @details `h_side` null is an insulated edge (Preferences "edges lose heat" off, or the editor): the first version of the checks refused it, so such a project
+             could not be reopened and every undo raised. The undo snapshots can hold NumPy scalars (np.int64 is not an int, np.bool_ not a bool).
+    @return None.
+    """
+    import numpy as np
+    p = example_board()
+    p.board.h_side = None
+    d = project_to_dict(Project(problem=p))
+    assert d["board"]["h_side"] is None
+    assert project_from_dict(json.loads(json.dumps(d))).problem.board.h_side is None
+    assert project_from_dict(copy.deepcopy(d), validate=False).problem.board.h_side is None
+    p = example_board()
+    p.board.layers, p.zones[0].layer, p.zones[0].fill, p.vias[0].filled = np.int64(p.board.layers), np.int64(0), np.float32(0.5), np.bool_(True)
+    project_from_dict(project_to_dict(Project(problem=p)), validate=False)
+
+
+@pytest.mark.parametrize("text", ['{"board": {"width_mm": ' + "1" * 5000 + ', "height_mm": 10}}',
+                                  '{"board": {"width_mm": ' + "1" * 400 + ', "height_mm": 10}}',
+                                  '{"name": ' + "1" * 400 + ', "board": {"width_mm": 10, "height_mm": 10}}',
+                                  '{"zz": ' + "[" * 100000 + "]" * 100000 + ', "board": {"width_mm": 10, "height_mm": 10}}'])
+def test_text_that_python_refuses_to_read_is_the_clear_error(tmp_path, text):
+    """!
+    @brief Review: an integer beyond the float range (OverflowError), more than 4300 digits (ValueError), deep nesting (RecursionError) give ProjectFormatError.
+    @param tmp_path pytest folder.
+    @param text File content.
+    @return None.
+    """
+    from pcbthermal.project import load_project
+    f = tmp_path / "bad.pcbt.json"
+    f.write_text(text)
+    with pytest.raises(ProjectFormatError):
+        load_project(str(f))
+
+
+def test_deeply_nested_unknown_key_of_format_2_is_the_clear_error():
+    """!
+    @brief Review: an unknown top-level key of format 2 is deep-copied to be kept; nested 900 levels it raised RecursionError, now ProjectFormatError.
+    @return None.
+    """
+    d = _format2()
+    deep = []
+    for _ in range(900):
+        deep = [deep]
+    d["zz"] = deep
+    with pytest.raises(ProjectFormatError):
+        project_from_dict(d)
+
+
+def test_bytes_that_are_not_utf8_are_the_clear_error(tmp_path):
+    """!
+    @brief Review: a file whose bytes are not UTF-8 gives ProjectFormatError, not a UnicodeDecodeError.
+    @param tmp_path pytest folder.
+    @return None.
+    """
+    from pcbthermal.project import load_project
+    f = tmp_path / "bad.pcbt.json"
+    f.write_bytes(b'{"board": {"width_mm": \xff\xfe}}')
+    with pytest.raises(ProjectFormatError, match="UTF-8"):
+        load_project(str(f))

@@ -140,7 +140,8 @@ def project_from_dict(data, validate=True):
                 if not isinstance(r, dict):
                     raise ProjectFormatError(f"imports[{i}]: expected an object, got {describe(r)}")
                 imports.append(ImportRecord.from_dict(r))
-        extra = {k: copy.deepcopy(v) for k, v in data.items() if k not in FORMAT_2_KEYS}
+        with guard("unknown top-level keys"):       # Kept for a later version; a copy of values nested hundreds of levels deep raises RecursionError
+            extra = {k: copy.deepcopy(v) for k, v in data.items() if k not in FORMAT_2_KEYS}
         data = data["project"]
     if "pcb_params" in data:
         with guard("legacy editor file"):
@@ -180,6 +181,12 @@ def read_project_json(path):
             return json.load(fh)
         except json.JSONDecodeError as exc:
             raise ProjectFormatError(f"this file is not valid JSON ({exc}); it may be damaged or not a project file") from exc
+        except UnicodeDecodeError as exc:          # Bytes that are not UTF-8 (a binary or damaged file)
+            raise ProjectFormatError(f"this file is not UTF-8 text ({exc.reason} at byte {exc.start}); it may be damaged or not a project file") from exc
+        except ValueError as exc:                  # A number of more than 4300 digits: Python refuses to read it
+            raise ProjectFormatError(f"this file holds a value that cannot be read ({exc}); it may be damaged or not a project file") from exc
+        except RecursionError as exc:              # Lists or objects nested thousands of levels deep: no project is like that
+            raise ProjectFormatError("this file is nested too deeply to be a project (lists or objects inside each other thousands of times)") from exc
 
 
 def _file_format(path):

@@ -11,11 +11,15 @@
 """
 
 import math
+import numbers
 
-# Keys of the native structure by the kind of value they must hold. "num" is a finite number (int or float, not a bool), "int" an integer-valued number,
-# "str" a text, "bool" a boolean, "poly" a list of pairs of numbers, "numlist" a list of numbers.
+import numpy as np
+
+# Keys of the native structure by the kind of value they must hold. "num" is a finite number (int or float, not a bool), "num?" a number or null
+# (null has a meaning: `h_side` null is an insulated edge, which the program writes itself), "int" an integer-valued number, "str" a text,
+# "bool" a boolean, "poly" a list of pairs of numbers, "numlist" a list of numbers.
 BOARD_KEYS = {
-    "width_mm": "num", "height_mm": "num", "thickness_mm": "num", "layers": "int", "ambient_c": "num", "h_top": "num", "h_bottom": "num", "h_side": "num",
+    "width_mm": "num", "height_mm": "num", "thickness_mm": "num", "layers": "int", "ambient_c": "num", "h_top": "num", "h_bottom": "num", "h_side": "num?",
     "via_plating_mm": "num", "h_mode": "str", "emissivity_top": "num", "emissivity_bottom": "num", "air_speed_m_per_s": "num", "orientation": "str",
     "h_calibration": "num", "template_inner_oz": "num", "natural_form": "str", "k_copper": "num", "k_fr4_through": "num", "k_fr4_inplane": "num",
     "rho_copper": "num", "cp_copper": "num", "rho_fr4": "num", "cp_fr4": "num"}
@@ -51,10 +55,12 @@ def describe(value):
     """
     if value is None:
         return "null"
-    if isinstance(value, bool):
+    if isinstance(value, (bool, np.bool_)):
         return "a boolean"
-    if isinstance(value, (int, float)):
-        return "a number" if math.isfinite(value) else "a non-finite number"
+    if isinstance(value, numbers.Real):
+        if _is_num(value):
+            return "a number"
+        return "a number too large" if isinstance(value, numbers.Integral) else "a non-finite number"   # An int beyond the float range, or NaN / Infinity
     if isinstance(value, str):
         return "a string"
     if isinstance(value, list):
@@ -66,11 +72,19 @@ def describe(value):
 
 def _is_num(v):
     """!
-    @brief True for a finite int or float (a bool is not a number here).
+    @brief True for a finite real number (a bool is not a number here).
+    @details Any real counts, not only int and float: the undo snapshots of the window are read by the same code without going through JSON, so they can
+             hold NumPy scalars (np.int64 is not an int, np.float32 not a float). An integer too large for a float (JSON has no limit on digits) is not
+             finite here, instead of the OverflowError that math.isfinite would raise.
     @param v Value.
     @return bool.
     """
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+    if isinstance(v, (bool, np.bool_)) or not isinstance(v, numbers.Real):
+        return False
+    try:
+        return math.isfinite(v)
+    except OverflowError:                               # An int beyond the float range
+        return False
 
 
 def check_value(path, value, kind):
@@ -78,7 +92,7 @@ def check_value(path, value, kind):
     @brief Check one value against its kind.
     @param path Key path for the message.
     @param value The value.
-    @param kind "num", "int", "str", "bool", "poly" or "numlist".
+    @param kind "num", "num?", "int", "str", "bool", "poly" or "numlist".
     @return None.
     @throws ProjectFormatError If the value is not of that kind.
     """
@@ -86,6 +100,9 @@ def check_value(path, value, kind):
     if kind == "num":
         ok = _is_num(value)
         what = "a number"
+    elif kind == "num?":
+        ok = value is None or _is_num(value)
+        what = "a number or null"
     elif kind == "int":
         ok = _is_num(value) and float(value).is_integer() and abs(value) < 1e9
         what = "an integer"
@@ -93,7 +110,7 @@ def check_value(path, value, kind):
         ok = isinstance(value, str)
         what = "a string"
     elif kind == "bool":
-        ok = isinstance(value, bool)
+        ok = isinstance(value, (bool, np.bool_))
         what = "true or false"
     elif kind == "numlist":
         ok = isinstance(value, list) and all(_is_num(x) for x in value)
