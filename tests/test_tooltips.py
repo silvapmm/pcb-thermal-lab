@@ -98,4 +98,14 @@ def test_every_control_has_a_tooltip(qtbot, tmp_path, monkeypatch):
     calc = PowerCalculator(win.doc)
     qtbot.addWidget(calc)
     bad += missing(calc, "calculator")
+    # The Gerber import window with a board read (the file list has a combo and a check box per file) and on every step
+    from pcbthermal.gui.import_window import ImportBoardWindow
+    from tests.helpers.synthetic_board import make_board
+    imp = ImportBoardWindow()
+    qtbot.addWidget(imp)
+    imp.open_path(str(make_board(tmp_path / "fab", inner=1)))
+    for step in range(3):
+        imp.go(step)
+        bad += missing(imp, f"import window step {step + 1}")
+    assert imp.stepper.states()[0][1]                                 # Every step marker has a tooltip too
     assert not bad, "\n".join(map(str, sorted(set(bad))))

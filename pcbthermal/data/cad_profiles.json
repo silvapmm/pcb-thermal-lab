@@ -1,0 +1,1241 @@
+{
+ "_comment": "CAD profiles of the Gerber import: markers that identify the program that wrote a set of files, and the layer-name rules of each program. Markers: scope gerber, drill, support (any other text file), name (file name), odb (ODB++ misc/info); weight 9 or more is decisive (the file names its generator or carries a quirk only that tool writes), 4 to 8 a quirk or convention, 1 to 3 shared. status: R = seen in a real sample file, D = a documented statement, M = from memory, not seen. name_rules_status M = names from memory (PADS, EAGLE). Only tools with real samples have a profile; there is none for Zuken, CADSTAR, PADS Professional, Xpedition VX, Allegro X, OrCAD X, EasyEDA Pro or Horizon. Every pattern is bounded so that its worst case on a head of 8 kB is linear. No profile presets the bottom-side X sign of a placement file (it is detected from the paste openings).",
+ "version": 1,
+ "profiles": {
+  "kicad": {
+   "name": "KiCad",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_x2",
+     "scope": "gerber",
+     "re": "TF\\.GenerationSoftware,[ \\t]{0,8}KiCad,[ \\t]{0,8}Pcbnew,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R kicad 5 to 9 sets",
+     "version": 1
+    },
+    {
+     "id": "g_old",
+     "scope": "gerber",
+     "re": "Created by KiCad \\(PCBNEW ([^)\\r\\n]{0,60})\\)",
+     "w": 10,
+     "status": "R kicad-older (4.0.6)",
+     "version": 1
+    },
+    {
+     "id": "d_hdr",
+     "scope": "drill",
+     "re": "DRILL file \\{KiCad ?\\(?([^})\\r\\n]{0,60})",
+     "w": 10,
+     "status": "R every KiCad drill file",
+     "version": 1
+    },
+    {
+     "id": "d_x2",
+     "scope": "drill",
+     "re": "(?i)#@! TF\\.GenerationSoftware,[ \\t]{0,8}KiCad,[ \\t]{0,8}Pcbnew,[ \\t]{0,8}([^\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R kicad 5.99 to 9",
+     "version": 1
+    },
+    {
+     "id": "odb",
+     "scope": "odb",
+     "re": "SAVE_APP=KiCad EDA ([\\d.]{1,20})",
+     "w": 10,
+     "status": "R one ODB++ export (9.0.3)",
+     "version": 1
+    },
+    {
+     "id": "odb_src",
+     "scope": "odb",
+     "re": "ODB_SOURCE=KiCad EDA",
+     "w": 10,
+     "status": "R one ODB++ export"
+    },
+    {
+     "id": "pos_hdr",
+     "scope": "support",
+     "re": "### Footprint positions - created on",
+     "w": 10,
+     "status": "M from memory; no .pos text file in the sample sets"
+    },
+    {
+     "id": "pos_csv",
+     "scope": "support",
+     "re": "\\ARef,Val,Package,PosX,PosY,Rot,Side",
+     "w": 6,
+     "status": "R placement csv of real boards"
+    },
+    {
+     "id": "g_aper",
+     "scope": "gerber",
+     "re": "G04 APERTURE (BEGIN |END )?LIST\\*",
+     "w": 3,
+     "status": "R kicad 5.99 and later"
+    },
+    {
+     "id": "n_cu",
+     "scope": "name",
+     "re": "-(F|B|In\\d{1,3})[._](Cu)\\.[a-z]{1,5}$",
+     "w": 3,
+     "status": "R kicad-older, wc2"
+    },
+    {
+     "id": "n_edge",
+     "scope": "name",
+     "re": "-Edge[._]Cuts\\.[a-z]{1,5}$",
+     "w": 3,
+     "status": "R"
+    }
+   ]
+  },
+  "altium": {
+   "name": "Altium Designer",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_x2",
+     "scope": "gerber",
+     "re": "TF\\.GenerationSoftware,[ \\t]{0,8}Altium Limited,[ \\t]{0,8}Altium Designer,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R altium-x2 (24.5.2, 22.x)",
+     "version": 1
+    },
+    {
+     "id": "g_phys",
+     "scope": "gerber",
+     "re": "G04 Layer_Physical_Order=\\d{1,6}",
+     "w": 9,
+     "status": "R altium (2017 export)"
+    },
+    {
+     "id": "g_color",
+     "scope": "gerber",
+     "re": "G04 Layer_Color=\\d{1,10}",
+     "w": 9,
+     "status": "R altium"
+    },
+    {
+     "id": "g_ampar",
+     "scope": "gerber",
+     "re": "G04:AMPARAMS\\|DCode=",
+     "w": 10,
+     "status": "R altium macro library files"
+    },
+    {
+     "id": "d_color",
+     "scope": "drill",
+     "re": "(?m)^;Layer_Color=\\d{1,10}",
+     "w": 9,
+     "status": "R altium NC Drill"
+    },
+    {
+     "id": "d_ff",
+     "scope": "drill",
+     "re": "(?m)^;FILE_FORMAT=\\d:\\d",
+     "w": 3,
+     "status": "R altium, pcad, easyeda (shared)"
+    },
+    {
+     "id": "extrep",
+     "scope": "support",
+     "re": "Gerber File Extension Report For:",
+     "w": 10,
+     "status": "R altium .EXTREP"
+    },
+    {
+     "id": "drr",
+     "scope": "support",
+     "re": "NCDrill File Report For:",
+     "w": 10,
+     "status": "R altium .DRR"
+    },
+    {
+     "id": "n_prot",
+     "scope": "name",
+     "re": "\\.(GTL|GBL|GTO|GBO|GTS|GBS|GTP|GBP|GKO|GM\\d{1,2}|GML|G\\d{1,3}|GP\\d{1,3}|GD\\d{1,3}|GG\\d{1,3})$",
+     "w": 1,
+     "status": "R Protel names, shared by many tools"
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.(txt|drl)$",
+     "drill",
+     null
+    ],
+    [
+     "\\.gtl$",
+     "copper",
+     "top"
+    ],
+    [
+     "\\.gbl$",
+     "copper",
+     "bottom"
+    ],
+    [
+     "\\.g\\d+$|\\.gp\\d+$",
+     "copper",
+     "inner"
+    ],
+    [
+     "\\.gts$",
+     "soldermask",
+     "top"
+    ],
+    [
+     "\\.gbs$",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "\\.gto$",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "\\.gbo$",
+     "silkscreen",
+     "bottom"
+    ],
+    [
+     "\\.gtp$",
+     "paste",
+     "top"
+    ],
+    [
+     "\\.gbp$",
+     "paste",
+     "bottom"
+    ],
+    [
+     "\\.(gko|gm1)$",
+     "outline",
+     null
+    ],
+    [
+     "\\.(gm\\d+|gd\\d+|gg\\d+)$",
+     "other",
+     null
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "circuitmaker": {
+   "name": "Altium CircuitMaker",
+   "kind": "ecad",
+   "parent": "altium",
+   "markers": [
+    {
+     "id": "g_x2",
+     "scope": "gerber",
+     "re": "TF\\.GenerationSoftware,[ \\t]{0,8}Altium Limited,[ \\t]{0,8}CircuitMaker,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R circuitmaker (2.2.1)",
+     "version": 1
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.(txt|drl)$",
+     "drill",
+     null
+    ],
+    [
+     "\\.gtl$",
+     "copper",
+     "top"
+    ],
+    [
+     "\\.gbl$",
+     "copper",
+     "bottom"
+    ],
+    [
+     "\\.g\\d+$|\\.gp\\d+$",
+     "copper",
+     "inner"
+    ],
+    [
+     "\\.gts$",
+     "soldermask",
+     "top"
+    ],
+    [
+     "\\.gbs$",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "\\.gto$",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "\\.gbo$",
+     "silkscreen",
+     "bottom"
+    ],
+    [
+     "\\.gtp$",
+     "paste",
+     "top"
+    ],
+    [
+     "\\.gbp$",
+     "paste",
+     "bottom"
+    ],
+    [
+     "\\.(gko|gm1)$",
+     "outline",
+     null
+    ],
+    [
+     "\\.(gm\\d+|gd\\d+|gg\\d+)$",
+     "other",
+     null
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "eagle": {
+   "name": "Autodesk EAGLE / Fusion Electronics",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_cmt",
+     "scope": "gerber",
+     "re": "G04 EAGLE Gerber (RS-274X|X2) export",
+     "w": 10,
+     "status": "R eagle, eagle-newer, eagle-x2, fusion360"
+    },
+    {
+     "id": "g_x2",
+     "scope": "gerber",
+     "re": "TF\\.GenerationSoftware,[ \\t]{0,8}Autodesk,[ \\t]{0,8}EAGLE,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R eagle 9.0.0 and 9.1.3",
+     "version": 1
+    },
+    {
+     "id": "d_x2",
+     "scope": "drill",
+     "re": ";GenerationSoftware,[ \\t]{0,8}Autodesk,[ \\t]{0,8}EAGLE,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R drills.xln",
+     "version": 1
+    },
+    {
+     "id": "job",
+     "scope": "support",
+     "re": "\\\"Application\\\":[ \\t]{0,8}\\\"Fusion Electronics\\\"",
+     "w": 10,
+     "status": "R fusion360 gerber_job.gbrjob (9.7.0)"
+    },
+    {
+     "id": "n_ext",
+     "scope": "name",
+     "re": "\\.(cmp|sol|plc|pls|stc|sts|crc|crs|dim|drd|xln)$",
+     "w": 3,
+     "status": "M EAGLE CAM default names, from memory"
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.(xln|drd)$",
+     "drill",
+     null
+    ],
+    [
+     "\\.cmp$",
+     "copper",
+     "top"
+    ],
+    [
+     "\\.sol$",
+     "copper",
+     "bottom"
+    ],
+    [
+     "\\.plc$",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "\\.pls$",
+     "silkscreen",
+     "bottom"
+    ],
+    [
+     "\\.stc$",
+     "soldermask",
+     "top"
+    ],
+    [
+     "\\.sts$",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "\\.crc$",
+     "paste",
+     "top"
+    ],
+    [
+     "\\.crs$",
+     "paste",
+     "bottom"
+    ],
+    [
+     "\\.(dim|oln)$",
+     "outline",
+     null
+    ]
+   ],
+   "name_rules_status": "M"
+  },
+  "allegro": {
+   "name": "Cadence Allegro / OrCAD PCB Editor",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_origin",
+     "scope": "gerber",
+     "re": "G04 File Origin:[ \\t]{1,20}Cadence Allegro ([^*\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R allegro (17.2), orcad (17.4)",
+     "version": 1
+    },
+    {
+     "id": "g_ident",
+     "scope": "gerber",
+     "re": "G04 ={1,80} begin FILE IDENTIFICATION RECORD",
+     "w": 9,
+     "status": "R allegro, orcad"
+    },
+    {
+     "id": "d_lead",
+     "scope": "drill",
+     "re": "(?m)^;LEADER: \\d{1,6}[ \\t]{0,20}\\n;HEADER:",
+     "w": 9,
+     "status": "R allegro .drl and .rou"
+    },
+    {
+     "id": "d_hole",
+     "scope": "drill",
+     "re": "(?m)^;T\\d{1,3} Holesize \\d{1,4}\\.[ \\t]{0,5}=",
+     "w": 9,
+     "status": "R allegro NC drill"
+    },
+    {
+     "id": "art_param",
+     "scope": "support",
+     "re": "DEVICE-TYPE[ \\t]{1,20}GERBER_RS274X",
+     "w": 8,
+     "status": "R allegro art_param.txt"
+    },
+    {
+     "id": "ipc_job",
+     "scope": "support",
+     "re": "(?m)^P[ \\t]{1,10}JOB[ \\t]{1,10}[^\\n]{0,200}\\.brd",
+     "w": 6,
+     "status": "R allegro IPC-D-356"
+    },
+    {
+     "id": "n_art",
+     "scope": "name",
+     "re": "\\.art$",
+     "w": 4,
+     "status": "R allegro, orcad"
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.(drl|rou)$",
+     "drill",
+     null
+    ],
+    [
+     "assy|assem|fab\\d?\\.art|drawing",
+     "other",
+     null
+    ],
+    [
+     "spt\\.art$|_spc(_|\\.)|(paste|_sp[cs]).*(top|prm)",
+     "paste",
+     "top"
+    ],
+    [
+     "spb\\.art$|_sps(_|\\.)|(paste|_sp[cs]).*(bot|sec)",
+     "paste",
+     "bottom"
+    ],
+    [
+     "paste|_spc|_sps",
+     "paste",
+     null
+    ],
+    [
+     "smt\\.art$|(^|_)smc(_|\\.)|(mask|solder_).*(top|prm)",
+     "soldermask",
+     "top"
+    ],
+    [
+     "smb\\.art$|(^|_)sms(_|\\.)|(mask|solder_).*(bot|sec)",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "mask|solder_|smc_|sms_",
+     "soldermask",
+     null
+    ],
+    [
+     "sst\\.art$|(^|_)tslk(_|\\.)|(silk|slk).*(top|prm)",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "ssb\\.art$|(^|_)bslk(_|\\.)|(silk|slk).*(bot|sec)",
+     "silkscreen",
+     "bottom"
+    ],
+    [
+     "silk|slk",
+     "silkscreen",
+     null
+    ],
+    [
+     "outline",
+     "outline",
+     null
+    ],
+    [
+     "^top\\.art|^l\\d{1,2}_(primary|top)(_|\\.)",
+     "copper",
+     "top"
+    ],
+    [
+     "^(bot|bottom)\\.art|^l\\d{1,2}_(secondary|bottom|bot)(_|\\.)",
+     "copper",
+     "bottom"
+    ],
+    [
+     "gnd|pwr|lyr\\d|layer_\\d|^l\\d_|^l\\d\\.|^lay\\d{1,2}(_|\\.)|^signal\\d",
+     "copper",
+     "inner"
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "xpedition": {
+   "name": "Siemens Xpedition / Mentor Expedition PCB",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_mentor",
+     "scope": "gerber",
+     "re": "G04 Mentor Graphics Example Gerber Output Definition",
+     "w": 10,
+     "status": "R 8 sets of one output template"
+    },
+    {
+     "id": "g_job",
+     "scope": "gerber",
+     "re": "G04 Job[ \\t]{1,10}:[^\\n]{0,300}\\n[ \\t]{0,10}G04 User[ \\t]{1,10}:[^\\n]{0,300}\\n[ \\t]{0,10}G04 Layer[ \\t]{1,10}:",
+     "w": 9,
+     "status": "R 8 sets of one output template"
+    },
+    {
+     "id": "d_ver",
+     "scope": "drill",
+     "re": "(?m)^; Version[ \\t]{0,10}:[ \\t]{0,10}LOCAL[ \\t]{0,10}\\n; Job[ \\t]{0,10}:",
+     "w": 9,
+     "status": "R .ncd files"
+    },
+    {
+     "id": "d_fmt",
+     "scope": "drill",
+     "re": "(?m)^; Format[ \\t]{0,10}:[ \\t]{0,10}\\d\\.\\d / (Absolute|Incremental) / (Inch|MM) / (Leading|Trailing)",
+     "w": 10,
+     "status": "R .ncd files"
+    },
+    {
+     "id": "gpf",
+     "scope": "support",
+     "re": "\\.CREATOR \\\"Xpedition Layout Gerber Output\\\"",
+     "w": 10,
+     "status": "R GerberPlot.gpf and PlotSetup.gpf"
+    },
+    {
+     "id": "gerbtool",
+     "scope": "support",
+     "re": "\\{Program[ \\t]{1,10}Expedition GerbTool",
+     "w": 10,
+     "status": "R one design file"
+    },
+    {
+     "id": "g_icas",
+     "scope": "gerber",
+     "re": "(?m)^%ICAS\\*%",
+     "w": 4,
+     "status": "R"
+    },
+    {
+     "id": "n_gdo",
+     "scope": "name",
+     "re": "\\.(gdo|ncd)$",
+     "w": 4,
+     "status": "R"
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.ncd$",
+     "drill",
+     null
+    ],
+    [
+     "drilldrawing|^drill\\.gdo",
+     "other",
+     null
+    ],
+    [
+     "boardoutl+ine",
+     "outline",
+     null
+    ],
+    [
+     "solderpaste.*(top|1)\\.gdo|solderpaste1",
+     "paste",
+     "top"
+    ],
+    [
+     "solderpaste.*(bottom|bot|2)\\.gdo",
+     "paste",
+     "bottom"
+    ],
+    [
+     "soldermask.*(top|1)\\.gdo|soldermask1",
+     "soldermask",
+     "top"
+    ],
+    [
+     "soldermask.*(bottom|bot|2)\\.gdo",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "silkscreen.*(top|1)\\.gdo",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "silkscreen.*(bottom|bot|2)\\.gdo",
+     "silkscreen",
+     "bottom"
+    ],
+    [
+     "etchlayer.*top|etchlayer_top|l01_top",
+     "copper",
+     "top"
+    ],
+    [
+     "etchlayer.*bot|l12_bottom|etchlayer_bot",
+     "copper",
+     "bottom"
+    ],
+    [
+     "etchlayer\\d|_l\\d\\d(_|\\.)",
+     "copper",
+     "inner"
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "pads": {
+   "name": "PADS (Mentor / Siemens) Layout",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_cmt",
+     "scope": "gerber",
+     "re": "G04 PADS ([\\d.]{1,20}) Build Number: (\\d{1,10}) generated Gerber",
+     "w": 10,
+     "status": "R pads 9.2 and 9.5",
+     "version": 1
+    },
+    {
+     "id": "g_pc",
+     "scope": "gerber",
+     "re": "G04 PC Version=",
+     "w": 5,
+     "status": "R pads"
+    },
+    {
+     "id": "n_pho",
+     "scope": "name",
+     "re": "\\.pho$",
+     "w": 4,
+     "status": "R pads; M for other PADS versions"
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.drl$",
+     "drill",
+     null
+    ],
+    [
+     "^top\\.pho|top-art\\.pho",
+     "copper",
+     "top"
+    ],
+    [
+     "^bottom\\.pho|bot-art\\.pho",
+     "copper",
+     "bottom"
+    ],
+    [
+     "^layer\\d\\.pho",
+     "copper",
+     "inner"
+    ],
+    [
+     "^smt\\.pho|top-sm\\.pho",
+     "soldermask",
+     "top"
+    ],
+    [
+     "^smb\\.pho|bot-sm\\.pho",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "^sst\\.pho|top-ss\\.pho",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "^ssb\\.pho",
+     "silkscreen",
+     "bottom"
+    ],
+    [
+     "fabnotes",
+     "other",
+     null
+    ]
+   ],
+   "name_rules_status": "M"
+  },
+  "diptrace": {
+   "name": "DipTrace",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_cmt",
+     "scope": "gerber",
+     "re": "G04 DipTrace ([\\d.]{1,20})\\*",
+     "w": 10,
+     "status": "R diptrace 2.4 to 4.3",
+     "version": 1
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.drl$",
+     "drill",
+     null
+    ],
+    [
+     "boardoutline|^border",
+     "outline",
+     null
+    ],
+    [
+     "topmask",
+     "soldermask",
+     "top"
+    ],
+    [
+     "bottommask",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "topsilk",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "bottomsilk",
+     "silkscreen",
+     "bottom"
+    ],
+    [
+     "toppaste",
+     "paste",
+     "top"
+    ],
+    [
+     "bottompaste",
+     "paste",
+     "bottom"
+    ],
+    [
+     "top\\.gbr|^1 - top",
+     "copper",
+     "top"
+    ],
+    [
+     "bottom\\.gbr|^2 - bottom",
+     "copper",
+     "bottom"
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "easyeda": {
+   "name": "EasyEDA / JLCEDA (Standard)",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_ver",
+     "scope": "gerber",
+     "re": "G04 EasyEDA v([\\d.]{1,20})",
+     "w": 10,
+     "status": "R easyeda 6.4 to 6.5",
+     "version": 1
+    },
+    {
+     "id": "g_gen",
+     "scope": "gerber",
+     "re": "G04 Gerber Generator version",
+     "w": 8,
+     "status": "R"
+    },
+    {
+     "id": "d_ver",
+     "scope": "drill",
+     "re": "(?m)^;EasyEDA v([\\d.]{1,20})",
+     "w": 10,
+     "status": "R",
+     "version": 1
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.drl$",
+     "drill",
+     null
+    ],
+    [
+     "boardoutline",
+     "outline",
+     null
+    ],
+    [
+     "toplayer",
+     "copper",
+     "top"
+    ],
+    [
+     "bottomlayer",
+     "copper",
+     "bottom"
+    ],
+    [
+     "topsoldermask",
+     "soldermask",
+     "top"
+    ],
+    [
+     "bottomsoldermask",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "toppastemask",
+     "paste",
+     "top"
+    ],
+    [
+     "bottompastemask",
+     "paste",
+     "bottom"
+    ],
+    [
+     "topsilk",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "bottomsilk",
+     "silkscreen",
+     "bottom"
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "fritzing": {
+   "name": "Fritzing",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_seq",
+     "scope": "gerber",
+     "re": "\\A[ \\t\\n]{0,16}%MOIN\\*%[ \\t\\n]{0,16}%OFA0B0\\*%[ \\t\\n]{0,16}%FSLAX\\d\\dY\\d\\d\\*%[ \\t\\n]{0,16}%IPPOS\\*%",
+     "w": 6,
+     "status": "R one set; no banner, a header sequence"
+    }
+   ]
+  },
+  "geda": {
+   "name": "gEDA PCB",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_cre",
+     "scope": "gerber",
+     "re": "G04 Creator: pcb (\\d{1,10}) \\*",
+     "w": 10,
+     "status": "R geda (20140316)",
+     "version": 1
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.cnc$",
+     "drill",
+     null
+    ],
+    [
+     "\\.top\\.gbr",
+     "copper",
+     "top"
+    ],
+    [
+     "\\.bottom\\.gbr",
+     "copper",
+     "bottom"
+    ],
+    [
+     "\\.group\\d",
+     "copper",
+     "inner"
+    ],
+    [
+     "topmask",
+     "soldermask",
+     "top"
+    ],
+    [
+     "bottommask",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "topsilk",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "\\.fab\\.",
+     "other",
+     null
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "pcbrnd": {
+   "name": "pcb-rnd",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_cre",
+     "scope": "gerber",
+     "re": "G04 Creator: pcb-rnd ([\\d.]{1,20}) \\*",
+     "w": 10,
+     "status": "R pcb-rnd (2.3.2)",
+     "version": 1
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.xln$",
+     "drill",
+     null
+    ],
+    [
+     "\\.(asb|ast|fab)$",
+     "other",
+     null
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "upverter": {
+   "name": "Upverter",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_mac",
+     "scope": "gerber",
+     "re": "%AM(Rect|RR)-[WH]\\d{1,12}",
+     "w": 8,
+     "status": "R one set; macro names with the size in the name"
+    },
+    {
+     "id": "d_m71",
+     "scope": "drill",
+     "re": "\\AM48[ \\t\\n]{1,10}M71,TZ[ \\t\\n]{1,10}FMAT,2",
+     "w": 5,
+     "status": "R one set"
+    }
+   ]
+  },
+  "target3001": {
+   "name": "Target 3001!",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_in",
+     "scope": "gerber",
+     "re": "%IN\\d{1,3}=[A-Za-z][^*\\r\\n]{0,80}\\*%",
+     "w": 7,
+     "status": "R one set (%IN2=CopperbottomL2(X.Bot)*%)"
+    },
+    {
+     "id": "info",
+     "scope": "support",
+     "re": "CAM output for current project",
+     "w": 10,
+     "status": "R the .Info file"
+    },
+    {
+     "id": "n_ext",
+     "scope": "name",
+     "re": "\\.(PosiTop|PosiBot|PasteTop|PasteBot|StopTop|StopBot|Outline|Info)$",
+     "w": 6,
+     "status": "R one set"
+    }
+   ],
+   "name_rules": [
+    [
+     "\\.drill$",
+     "drill",
+     null
+    ],
+    [
+     "\\.outline$",
+     "outline",
+     null
+    ],
+    [
+     "\\.top$",
+     "copper",
+     "top"
+    ],
+    [
+     "\\.bot$",
+     "copper",
+     "bottom"
+    ],
+    [
+     "\\.pastetop$",
+     "paste",
+     "top"
+    ],
+    [
+     "\\.pastebot$",
+     "paste",
+     "bottom"
+    ],
+    [
+     "\\.stoptop$",
+     "soldermask",
+     "top"
+    ],
+    [
+     "\\.stopbot$",
+     "soldermask",
+     "bottom"
+    ],
+    [
+     "\\.positop$",
+     "silkscreen",
+     "top"
+    ],
+    [
+     "\\.posibot$",
+     "silkscreen",
+     "bottom"
+    ]
+   ],
+   "name_rules_status": "R"
+  },
+  "pcad": {
+   "name": "P-CAD",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_src",
+     "scope": "gerber",
+     "re": "G04[ \\t]{1,5}Source:[ \\t]{1,10}P-CAD (\\d{1,6}) PCB, Version ([\\d.]{1,20})",
+     "w": 10,
+     "status": "R pcad 2006",
+     "version": 1
+    }
+   ]
+  },
+  "pulsonix": {
+   "name": "Pulsonix",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_cmt",
+     "scope": "gerber",
+     "re": "G04 GENERATED BY PULSONIX ([\\d.]{1,20}) GERBER\\.DLL",
+     "w": 10,
+     "status": "R pulsonix 7.6 to 12.5",
+     "version": 1
+    },
+    {
+     "id": "g_x2",
+     "scope": "gerber",
+     "re": "TF\\.GenerationSoftware,[ \\t]{0,8}Pulsonix,[ \\t]{0,8}Pulsonix,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R",
+     "version": 1
+    },
+    {
+     "id": "d_fmat",
+     "scope": "drill",
+     "re": "\\AM48[ \\t\\n]{1,10}FMAT,1[ \\t\\n]{1,10}(INCH|METRIC)",
+     "w": 4,
+     "status": "R"
+    }
+   ]
+  },
+  "proteus": {
+   "name": "Labcenter Proteus",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_cmt",
+     "scope": "gerber",
+     "re": "G04 PROTEUS GERBER X2 FILE",
+     "w": 10,
+     "status": "R proteus 8.5 to 8.15"
+    },
+    {
+     "id": "g_x2",
+     "scope": "gerber",
+     "re": "TF\\.GenerationSoftware,[ \\t]{0,8}Labcenter,[ \\t]{0,8}Proteus,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R proteus 8.15",
+     "version": 1
+    },
+    {
+     "id": "readme",
+     "scope": "support",
+     "re": "LABCENTER PROTEUS TOOL INFORMATION FILE",
+     "w": 10,
+     "status": "R READ-ME.TXT"
+    },
+    {
+     "id": "n_cadcam",
+     "scope": "name",
+     "re": " - CADCAM [A-Za-z0-9 -]{1,100}\\.(GBR|IPC|TXT)$",
+     "w": 8,
+     "status": "R"
+    }
+   ]
+  },
+  "designspark": {
+   "name": "DesignSpark PCB",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_cmt",
+     "scope": "gerber",
+     "re": "G04 DesignSpark PCB Gerber Version ([\\d.]{1,20}) Build (\\d{1,10})",
+     "w": 10,
+     "status": "R designspark 10 and 12",
+     "version": 1
+    }
+   ]
+  },
+  "librepcb": {
+   "name": "LibrePCB",
+   "kind": "ecad",
+   "markers": [
+    {
+     "id": "g_x2",
+     "scope": "gerber",
+     "re": "TF\\.GenerationSoftware,[ \\t]{0,8}LibrePCB,[ \\t]{0,8}LibrePCB,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R librepcb 0.1.0",
+     "version": 1
+    },
+    {
+     "id": "g_hdr",
+     "scope": "gerber",
+     "re": "G04 --- HEADER BEGIN --- \\*",
+     "w": 8,
+     "status": "R"
+    },
+    {
+     "id": "d_gen",
+     "scope": "drill",
+     "re": "(?m)^;Generated by LibrePCB ([\\d.]{1,20})",
+     "w": 10,
+     "status": "R",
+     "version": 1
+    }
+   ]
+  },
+  "cam350": {
+   "name": "CAM350 / BluePrint",
+   "kind": "cam",
+   "markers": [
+    {
+     "id": "g_cmt",
+     "scope": "gerber",
+     "re": "G04 CAM350 V([\\d.]{1,20})",
+     "w": 10,
+     "status": "R a set that claims OrCAD in its folder name, banner CAM350",
+     "version": 1
+    }
+   ]
+  },
+  "ucamx": {
+   "name": "Ucamco UcamX",
+   "kind": "cam",
+   "markers": [
+    {
+     "id": "g_x2",
+     "scope": "gerber",
+     "re": "TF\\.GenerationSoftware,[ \\t]{0,8}Ucamco,[ \\t]{0,8}UcamX,[ \\t]{0,8}([^*%\\r\\n]{1,60})",
+     "w": 10,
+     "status": "R Ucamco sample files",
+     "version": 1
+    }
+   ]
+  },
+  "unknown": {
+   "name": "Unknown program (generic rules)",
+   "kind": "generic",
+   "markers": []
+  },
+  "declared": {
+   "name": "Program declared by the files, no profile (generic rules)",
+   "kind": "generic",
+   "markers": []
+  }
+ }
+}

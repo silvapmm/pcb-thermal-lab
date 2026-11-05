@@ -25,6 +25,7 @@ from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
 from .calculator import PowerCalculator
+from .import_window import ImportBoardWindow
 from .help import AboutDialog, GuideWindow, open_guide_in_browser
 from .preferences import PreferencesDialog
 from .canvas import BoardView
@@ -466,12 +467,18 @@ class MainWindow(QMainWindow):
                                  "Show the cells of the FVM mesh (Shift+G); their size is the cell size of the Simulation panel")
         self.a_overlay = self._act("Temperature on board", self._toggle_overlay, "T", True, False,
                                    "Paint the last result over the board (T)")
+        self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
+                                    "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
+        self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
+                                  "Write the names of the zones, heatsinks and heaters of the active layer on the board (the designator for an imported part); on an imported board a part name that does not fit the part appears when you zoom in")
         self.a_bg = self._act("Background image…", self.set_background)
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
         self.a_run = self._act("Run simulation", self.run_simulation, "F5", tip="Solve the selected models (F5)")
         self.a_calc = self._act("Power Calculator…", self.show_calculator,
                                 tip="Find the power of a part from a temperature you measured (drawn board, or a datasheet parameter)")
+        self.a_import = self._act("Import Gerber board…", self.show_import,
+                                  tip="Make a new project from fabrication files (Gerber copper, drills, outline, optional placement file): a folder, a ZIP archive or files")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
@@ -486,7 +493,7 @@ class MainWindow(QMainWindow):
 
         mb = self.menuBar()
         m = mb.addMenu("&File")
-        for a in (self.a_new, self.a_open, None):
+        for a in (self.a_new, self.a_open, self.a_import, None):
             m.addAction(a) if a else m.addSeparator()
         ex = m.addMenu("Open example")
         ex.addAction(self.a_ex_ref)
@@ -498,7 +505,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
-        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, None,
+        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_imported, self.a_labels, None,
                   self.a_bg, self.a_theme):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
@@ -996,6 +1003,38 @@ class MainWindow(QMainWindow):
             self.inspector.rebuild()
             self.stackup_page.refresh()
             self.statusBar().showMessage("Defaults saved. New boards and elements use them; open boards keep their values.", 6000)
+
+    def show_import(self):
+        """!
+        @brief Open the Gerber import window; a finished import is loaded as a new unsaved project, or, when the open project already holds an import, applied to it as one undo step
+               (the window asked Replace, Update, Add files or Cancel).
+        """
+        existing = None
+        if self.doc.project.imports:
+            # The re-import dialog shows what each part keeps: the powers typed in the editor after the import, not those of the import itself
+            existing = copy.deepcopy(self.doc.project.imports[0])
+            heaters = {h.name: h for h in self.doc.problem.heaters}
+            for p in existing.parts:
+                if p.designator in heaters:
+                    p.power = float(heaters[p.designator].power)
+        dlg = ImportBoardWindow(self, existing=existing)
+        if dlg.exec() != QDialog.Accepted or dlg.record is None:
+            return
+        if dlg.mode == "new":
+            if self._confirm_discard():
+                dlg.problem.name = dlg.session.name
+                self.doc.open_import(dlg.problem, dlg.record)
+                self._after_load()
+            return
+        old = self.doc.project.imports[0]
+        known = {p.designator for p in old.parts}
+        added = [p for p in dlg.record.parts if p.designator not in known]
+        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
+                                 add=lambda project: dlg.session._add_heaters(project.problem, dlg.record.box_mm, added))
+        self._refresh_layers()
+        # What the editor kept comes first (the user must see it), then the first changes of the parts and files
+        lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
+        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("..." if len(lines) > 4 else ""))
 
     def show_calculator(self):
         """!
