@@ -933,3 +933,16 @@ def test_a_zone_on_an_imported_layer_is_said_to_be_ignored():
     warns = check_problem(p, 1.0)
     assert any("top plane" in w and "ignored" in w for w in warns)
     assert not any("bottom plane" in w and "ignored" in w for w in warns)
+
+
+def test_no_copper_edge_warning_on_an_imported_layer_even_for_lumped():
+    """!
+    @brief The "copper edge or hatching crosses its footprint" warning is not produced for a part on an imported-copper layer, whatever model is
+           requested (imported copper has its own, stronger warning).
+    @return None.
+    """
+    from pcbthermal.checks import check_input
+    n = int(WINDOW / PIX)
+    p = _board([_stripes(n), _solid(n)], "faces")
+    for models in (("lumped",), ("analytic",), ("fvm", "lumped", "analytic")):
+        assert not [w for w in check_input(p, models, 1.0) if "copper edge" in str(w)], models
