@@ -340,6 +340,8 @@ The goal is release 2.5.0 from `develop` only. Everything planned for it is merg
 
 ## Decisions Log
 
+- **Plain warning texts** (`fix/warning-texts-plain`, text only): the long Lumped via warning quoted internal branch and study names; it now states the evidence (29 boards and 17 more against the FVM at 0.25 mm, a sample, not a bound) and points to `docs/theory.md` 5; `tests/test_warning_texts_plain.py` fails if any warning of the checks or of a run names `research/`, `fix/` or `feature/`. Comments and docstrings may keep such names.
+
 - **CAD tool line colour held by tests** (`fix/cad-line-colour`, reviewer's item): the code already used the alert token for every detection with `needs_check` (any confidence but high, CAM tools, re-exports) and the low-names rule, and the text colour only for a plain high one; no code change, a test per confidence level in both themes now keeps it (the user's choice does not clear the alert: the line follows the detection).
 
 
