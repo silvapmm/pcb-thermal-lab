@@ -88,7 +88,7 @@ class ProfilePage(QWidget):
         self.derived = QLabel()
         self.derived.setWordWrap(True)
         self.error = QLabel()
-        self.error.setStyleSheet("color: #e5534b;")
+        self.error.setProperty("error", True)             # Red from the theme sheet (QLabel[error="true"]), so it follows a theme switch
         self.editor = QGroupBox("Power profile of the selected heater")
         form = QFormLayout(self.editor)
         form.addRow("Profile", self.kind)
@@ -176,6 +176,7 @@ class ProfilePage(QWidget):
         self.dec_table.setMaximumHeight(150)
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
 
         left = QWidget()
         lv = QVBoxLayout(left)
@@ -221,6 +222,8 @@ class ProfilePage(QWidget):
         @param theme "dark" or "light".
         """
         self.theme = theme
+        _paint_figure(self.fig, theme)
+        self.canvas.draw_idle()
         self._draw_waveforms()
 
     # ------------------------------------------------------------------ list and editor

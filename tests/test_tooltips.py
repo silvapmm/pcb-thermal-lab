@@ -29,7 +29,34 @@ KINDS = (QAbstractSpinBox, QComboBox, QCheckBox, QPushButton, QLineEdit, QSlider
 NO_TOOLTIP_BUTTONS = {"Run simulation   (F5)", "Auto", "Calculate", "Help", "Close", "Use as the power of a part", "Open in the browser"}
 
 
-def missing(root, label):
+# Controls of the Gerber import window with no tooltip: obvious controls, maintainer decision (the file list and its function boxes, the preview and its layer and view switches,
+# the buttons that choose files, the part-ticking buttons and the navigation row). The window's real parameters (cell, pixel, mapping, memory, CAD tool, Source column) keep theirs.
+IMPORT_OBVIOUS_BUTTONS = {"Folder…", "ZIP…", "Files…", "Make selected a heat source", "All parts with a power", "All matched parts", "Back", "Next", "Import", "Import now"}
+IMPORT_OBVIOUS_CHECKS = {"Copper", "Outline", "Holes", "Paste openings", "Heat sources", "Labels"}
+
+
+def import_obvious(w, root):
+    """!
+    @brief Whether a control of the Gerber import window is one of the obvious controls that carry no tooltip.
+    @param w Control to test.
+    @param root The import window (a control of the file list is told by its place).
+    @return True for an exempt control.
+    """
+    in_files = root.page1.table.isAncestorOf(w)                    # The per-file use box and function box
+    if isinstance(w, QPushButton):
+        return w.text() in IMPORT_OBVIOUS_BUTTONS
+    if isinstance(w, QCheckBox):
+        return in_files or w.text() in IMPORT_OBVIOUS_CHECKS
+    if isinstance(w, QLineEdit):
+        return w is root.page1.source
+    if isinstance(w, QComboBox):
+        return in_files or w is root.page1.layer_pick or w is root.page2.side
+    if isinstance(w, QTableWidget):
+        return w is root.page1.table
+    return False
+
+
+def missing(root, label, obvious_root=None):
     """!
     @brief Controls under root that have no tooltip (own or of their parent control).
     @param root QWidget to scan.
@@ -45,6 +72,8 @@ def missing(root, label):
             if parent is not None and isinstance(parent, KINDS) and parent.toolTip():
                 continue
             if isinstance(w, QPushButton) and w.text() in NO_TOOLTIP_BUTTONS:
+                continue
+            if obvious_root is not None and import_obvious(w, obvious_root):
                 continue
             if not w.toolTip():
                 out.append((label, type(w).__name__, getattr(w, "text", lambda: "")() if not isinstance(w, QLineEdit) else w.objectName()))
@@ -98,4 +127,14 @@ def test_every_control_has_a_tooltip(qtbot, tmp_path, monkeypatch):
     calc = PowerCalculator(win.doc)
     qtbot.addWidget(calc)
     bad += missing(calc, "calculator")
+    # The Gerber import window with a board read (the file list has a combo and a check box per file) and on every step
+    from pcbthermal.gui.import_window import ImportBoardWindow
+    from tests.helpers.synthetic_board import make_board
+    imp = ImportBoardWindow()
+    qtbot.addWidget(imp)
+    imp.open_path(str(make_board(tmp_path / "fab", inner=1)))
+    for step in range(3):
+        imp.go(step)
+        bad += missing(imp, f"import window step {step + 1}", imp)
+    assert imp.stepper.states()[0][1]                                 # Every step marker has a tooltip too
     assert not bad, "\n".join(map(str, sorted(set(bad))))

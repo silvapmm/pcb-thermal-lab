@@ -66,6 +66,10 @@ Around the models are the pieces they share. **Vias** carry a constriction resis
 
 *Figure 8 (`figures/fig_08_heat_transfer.png`): convection and radiation both grow with the temperature, so a constant h overstates the rise at high power and understates it at low power; the loop re-solves until h settles (illustrative values).*
 
+![Memory guard](figures/fig_46_memory_guard.png)
+
+*Figure 46 (`figures/fig_46_memory_guard.png`): left, the chain from the cell to the verdict (lower bound, exact count, estimate, limit); right, the law of the estimate against the unknowns for the FVM (`t_eff` 2 and 6), the FDM (4) and the 3D solid (6) with the coefficients of `memory.CONTINUOUS`, safety factor included and base left out, against 60 % of 16 GiB. Illustrative of the shape: the bytes were measured on one machine (`docs/theory.md` 2.7).*
+
 ![Top path split](figures/fig_42_top_path_split.png)
 
 *Figure 42 (`figures/fig_42_top_path_split.png`): a part with a top path, the root of its split, and why the plain loop oscillates (illustrative values).*

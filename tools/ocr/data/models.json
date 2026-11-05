@@ -1,0 +1,34 @@
+{
+  "gemini": {
+    "default": "gemini-3.1-flash-lite",
+    "fallbacks": [
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite"
+    ],
+    "note": "Free-tier models probed on the maintainer's key; limits change, check AI Studio. Fallbacks are tried in order for a page refused with finishReason RECITATION after the half-page crops failed."
+  },
+  "local": {
+    "default": "ovis",
+    "fallbacks": [],
+    "note": "MLX model of the maintainer's extractpdf project (offline)."
+  },
+  "anthropic": {
+    "default": "claude-sonnet-5-5",
+    "fallbacks": [
+      "claude-opus-5-5"
+    ],
+    "bulk": "claude-haiku-5-5",
+    "price_usd_per_mtok": {
+      "verified": false,
+      "note": "unverified: no price is stored; read the current price list before estimating a cost"
+    },
+    "note": "Vision-capable Claude models. Use --model claude-haiku-5-5 for bulk pages; the stronger model is the fallback for a page the default refused (stop_reason refusal) after the half-page crops failed."
+  },
+  "openrouter": {
+    "default": "auto",
+    "fallbacks": [],
+    "daily_limit": 45,
+    "note": "Free vision models (ids ending in :free) chosen at run time from GET /models and ranked (Qwen-VL, Gemma, Pixtral, Llama vision, ...); 'auto' walks the chain of the best four. Free plan: about 20 requests per minute and 50 per day without credits; the client keeps 3.2 s between requests and the runner stops at daily_limit (5 kept in reserve). Use --model <id> to force one."
+  }
+}

@@ -1,0 +1,390 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+"""!
+@file memory_model.py
+@brief Prototype of `pcbthermal/memory.py`: the physical memory of the machine, the estimate of the peak memory of a solve from its unknown count and class, the verdict and the fit of the coefficients.
+@details The program would adopt this module almost as it is (see INTEGRATION.md). Everything here is standard library plus NumPy; no new dependency.
+         The estimate has the form  peak = base + k * N * (N / N_REF) ** (p - 1)  with N the unknowns, N_REF = 500 000 and p about 4/3 for a sparse direct factorisation
+         of a 3D-like graph (nested dissection: the fill-in grows as N^(4/3) in three dimensions and as N log N in two; the layered boards are thin 3D graphs, so the fitted
+         exponent decides, see README 4). The class coefficients in COEFFS are PROVISIONAL: they are read from the earlier measurements of the documents
+         (the numbers are quoted in README 2) and are replaced by the fit of scripts/study_memory_ladder.py.
+"""
+
+import math
+import os
+import subprocess
+import sys
+from dataclasses import dataclass
+from typing import Callable, Dict, Optional, Sequence, Tuple
+
+import numpy as np
+
+N_REF = 500_000                      # Unknown count at which the coefficient k of a class is defined
+BASE_DEFAULT = 0.25e9                # Bytes of the interpreter with NumPy and SciPy loaded, before any solve (PROVISIONAL: the baseline run of the study measures it; the application with Qt is larger)
+GB = 1.0e9                         # Bytes in the unit used by the documents (decimal, as the measurements were quoted)
+DEFAULT_FRACTION = 0.70              # Default share of the physical memory a solve may use (maintainer's rule)
+SLOW_FRACTION = 0.35                 # Share of the physical memory above which the verdict is "slow" (a number to be set from the ladder)
+FALLBACK_LIMIT = 8.0 * GB            # Limit used when the physical memory cannot be read
+ABSOLUTE_CEILING_3D = 2_000_000      # Unknowns of the 3D solid that no machine is asked to attempt, whatever its memory
+
+
+@dataclass(frozen=True)
+class Coeffs:
+    """!
+    @brief Coefficients of the memory law of one class of model: peak = base + k * N * (N / N_REF) ** (p - 1), in bytes.
+    """
+    base: float          # Bytes held by the program before the solve (Python, NumPy, SciPy, Qt in the application)
+    k: float             # Bytes per unknown at N = N_REF
+    p: float             # Growth exponent of the peak with N (1.0 linear, 4/3 sparse direct in 3D)
+    note: str = ""       # Where the provisional value comes from
+
+
+# PROVISIONAL values (README 2): read from the documents' measurements, scaled to N_REF with the exponent p = 4/3. The ladder study replaces them.
+COEFFS: Dict[str, Coeffs] = {
+    # Layered FVM / FDM, copper everywhere (one node per layer): 1 million unknowns 2.7 GB (docs, quiet 16 GB machine)
+    # (992 000 unknowns 2.7 GB and 1 975 000 unknowns 5.5 GB: the growth between them is linear, p = 1.0; the ladder must say whether that holds on finer boards)
+    "layered_plain": Coeffs(BASE_DEFAULT, 2.7e3, 1.0, "992 000 unknowns 2.7 GB and 1 975 000 unknowns 5.5 GB, linear between them"),
+    # Laminate nodes of the rule, 2 copper layers: 637 000 unknowns 4.5 GB (fix/laminate-nodes), layer-major ordering
+    "layered_laminate_few": Coeffs(BASE_DEFAULT, 6.0e3, 4.0 / 3.0, "637 000 unknowns 4.5 GB, 2 layers, layer-major order"),
+    # Laminate nodes of the rule, 3 or more copper layers: 681 000 unknowns 7.6 GB (4 layers, fix/laminate-nodes)
+    "layered_laminate_many": Coeffs(BASE_DEFAULT, 9.5e3, 4.0 / 3.0, "681 000 unknowns 7.6 GB, 4 layers, layer-major order"),
+    # 3D solid, few slabs (a plain two-layer board, 6 slabs): 500 000 unknowns 3.3 GB
+    "solid3d_few": Coeffs(BASE_DEFAULT, 6.0e3, 4.0 / 3.0, "500 000 unknowns 3.3 GB, 6 slabs"),
+    # 3D solid, many slabs (the example board): 247 000 unknowns 3.5 GB, 392 000 7.4 GB, 512 000 9.9 GB resident
+    "solid3d_many": Coeffs(BASE_DEFAULT, 17.0e3, 4.0 / 3.0, "247 000 / 392 000 / 512 000 unknowns 3.5 / 7.4 / 9.9 GB"),
+    # Lumped: dense systems per heater, a few ring unknowns; the arrays of the plan grid dominate (nothing measured yet)
+    "lumped": Coeffs(BASE_DEFAULT, 0.4e3, 1.0, "not measured: arrays of the plan grid only"),
+}
+
+# MEASURED values of the ladder (README 5, out/class_fit.json): classes by t, the nodes per plan cell (unknowns / cells), with the safety factor (largest measured/fitted ratio x 1.1).
+# The base is the baseline child (0.08 GB: Python, NumPy, SciPy; the application with Qt starts higher). The 3D classes are extrapolated beyond 260 000 to 330 000 unknowns.
+MEASURED_BASE = 0.08e9
+MEASURED: Dict[str, Tuple[Coeffs, float]] = {
+    "fvm_t_le_3.5": (Coeffs(MEASURED_BASE, 2409.0, 1.10, "2 layers plain, outline, block; t <= 3.5"), 1.25),
+    "fvm_t_3.5_4.5": (Coeffs(MEASURED_BASE, 4174.0, 1.08, "4 layers plain, vias, 2 layers with laminate nodes; 3.5 < t <= 4.5"), 1.16),
+    "fvm_t_gt_4.5": (Coeffs(MEASURED_BASE, 6441.0, 1.36, "6 layers, 4 layers with laminate nodes, stripes; t > 4.5"), 1.46),
+    "fdm_t_le_4.5": (Coeffs(MEASURED_BASE, 4041.0, 1.12, "FDM plain 4 layers; 3 points only"), 1.11),
+    "fdm_t_gt_4.5": (Coeffs(MEASURED_BASE, 8793.0, 1.41, "FDM with laminate nodes, 4 layers; 4 points only"), 1.16),
+    "solid3d_t_le_6": (Coeffs(MEASURED_BASE, 5609.0, 1.26, "3D solid, 6 slabs"), 1.12),
+    "solid3d_t_6_12": (Coeffs(MEASURED_BASE, 10510.0, 1.28, "3D solid, 10 slabs; 3 points only"), 1.18),
+    "solid3d_t_gt_12": (Coeffs(MEASURED_BASE, 18641.0, 1.23, "3D solid, 16 and 26 slabs"), 1.40),
+}
+
+
+def classify_by_t(model: str, unknowns: float, cells: float) -> str:
+    """!
+    @brief Class of the measured table for a model and a board, from the nodes per plan cell t = unknowns / cells.
+    @param model "fvm", "fdm" or "solid3d".
+    @param unknowns Unknowns the model builds.
+    @param cells Cells of the plan grid (nx * ny; for the FDM the nodes of one layer).
+    @return Key of MEASURED.
+    @throws ValueError If the model has no class.
+    """
+    t = float(unknowns) / max(float(cells), 1.0)
+    if model == "fvm":
+        return "fvm_t_le_3.5" if t <= 3.5 else "fvm_t_3.5_4.5" if t <= 4.5 else "fvm_t_gt_4.5"
+    if model == "fdm":
+        return "fdm_t_le_4.5" if t <= 4.5 else "fdm_t_gt_4.5"
+    if model == "solid3d":
+        return "solid3d_t_le_6" if t <= 6.5 else "solid3d_t_6_12" if t <= 12 else "solid3d_t_gt_12"
+    raise ValueError(f"no class for model {model}")
+
+
+def estimate_measured(model: str, unknowns: float, cells: float, transient: bool = False) -> float:
+    """!
+    @brief Estimated peak of a solve with the measured classes and their safety factor (the estimate the guard would use).
+    @param model "fvm", "fdm" or "solid3d".
+    @param unknowns Unknowns.
+    @param cells Cells of the plan grid.
+    @param transient True for a time simulation (factor TRANSIENT_FACTOR, not measured).
+    @return Bytes.
+    """
+    key = classify_by_t(model, unknowns, cells)
+    c, safety = MEASURED[key]
+    return estimate_bytes(unknowns, key, {key: c}, transient) * safety
+
+
+# Transient (animation, fvm.solve_transient): measured by the review at 2.245 / 0.643 = 3.5 times the steady peak on a 4-layer board at 0.5 mm (README, Review R4),
+# because fvm.transient_from_network keeps the factor of all ten time-step stages; 1.230 / 0.643 = 1.9 with one factor kept (lib/review_copies.py). The first value (2.0) was
+# not measured and was too low for the program as it is.
+TRANSIENT_FACTOR = 3.5
+
+# CONTINUOUS law of the review (README, Review R1; scripts/study_review.py --fit): one law per model in the effective thickness t_eff = min(t, cells / t), fitted on the
+# 67 ladder points, with the safety factor largest ratio x 1.1. It replaces the bins of MEASURED, which are flat in t beyond the last edge and fell below the measurement on
+# a 12-layer FVM board (1.41 times) and an 8-layer 3D solid (1.14 times) even with their safety factor.
+CONTINUOUS: Dict[str, Tuple[float, float, float, float]] = {
+    # model: (k1 bytes per unknown at N_REF and t_eff = 1, exponent p in N, exponent a in t_eff, safety)
+    "fvm": (1469.0, 1.24, 0.79, 1.40),
+    "fdm": (1228.0, 1.34, 1.03, 1.24),
+    "solid3d": (1063.0, 1.30, 0.98, 1.30),
+}
+
+
+def estimate_continuous(model: str, unknowns: float, cells: float, transient: bool = False) -> float:
+    """!
+    @brief Estimated peak with the continuous law of the review and its safety factor.
+    @param model "fvm", "fdm" or "solid3d".
+    @param unknowns Unknowns the model builds.
+    @param cells Cells of the plan grid.
+    @param transient True for a time simulation (TRANSIENT_FACTOR).
+    @return Bytes.
+    """
+    k1, p, a, safety = CONTINUOUS[model]
+    n = max(float(unknowns), 1.0)
+    t = n / max(float(cells), 1.0)
+    t_eff = max(min(t, float(cells) / t), 1.0)
+    peak = MEASURED_BASE + k1 * t_eff ** a * n * (n / N_REF) ** (p - 1.0)
+    return peak * safety * (TRANSIENT_FACTOR if transient else 1.0)
+
+
+def available_bytes() -> Optional[int]:
+    """!
+    @brief Memory that can be used now without paging, read without a dependency; None if it cannot be read.
+    @details Linux: MemAvailable of /proc/meminfo. macOS: free + inactive + speculative + purgeable pages of `vm_stat` (the pages the system gives back
+             without writing them to swap). Windows: ullAvailPhys of GlobalMemoryStatusEx. A sketch of what the review proposes for the limit, min(fraction x installed, available).
+    @return int bytes or None.
+    """
+    if sys.platform.startswith("linux"):
+        try:
+            with open("/proc/meminfo") as fh:
+                for line in fh:
+                    if line.startswith("MemAvailable:"):
+                        return int(line.split()[1]) * 1024
+        except (OSError, ValueError):
+            return None
+    if sys.platform == "darwin":
+        try:
+            txt = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=5).stdout
+            page = int(txt.split("page size of")[1].split()[0])
+            pages = {}
+            for line in txt.splitlines()[1:]:
+                if ":" in line:
+                    key, val = line.split(":", 1)
+                    pages[key.strip()] = int(val.strip().rstrip("."))
+            return page * sum(pages.get(k, 0) for k in ("Pages free", "Pages inactive", "Pages speculative", "Pages purgeable"))
+        except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            return None
+    return None
+
+
+def ram_bytes() -> Optional[int]:
+    """!
+    @brief Physical memory of the machine in bytes, read without a dependency; None if it cannot be read.
+    @details Order: os.sysconf (Linux, macOS), `sysctl -n hw.memsize` (macOS if sysconf lacks the names), /proc/meminfo (Linux), GlobalMemoryStatusEx through ctypes (Windows).
+             A container limit (cgroup) is looked at on Linux because the host memory is not what the process may use.
+    @return int bytes (> 0) or None.
+    """
+    # A cgroup limit (v2 then v1) is smaller than the host memory inside a container
+    cg = None
+    for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+        try:
+            with open(path) as fh:
+                txt = fh.read().strip()
+            if txt.isdigit() and int(txt) < (1 << 60):
+                cg = int(txt)
+                break
+        except OSError:
+            pass
+    phys = None
+    try:
+        pages, size = os.sysconf("SC_PHYS_PAGES"), os.sysconf("SC_PAGE_SIZE")
+        if pages > 0 and size > 0:
+            phys = int(pages) * int(size)
+    except (ValueError, OSError, AttributeError):
+        pass
+    if phys is None and sys.platform == "darwin":
+        try:
+            phys = int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=5).stdout.strip())
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+    if phys is None and sys.platform.startswith("linux"):
+        try:
+            with open("/proc/meminfo") as fh:
+                for line in fh:
+                    if line.startswith("MemTotal:"):
+                        phys = int(line.split()[1]) * 1024
+                        break
+        except (OSError, ValueError):
+            pass
+    if phys is None and sys.platform == "win32":
+        try:
+            import ctypes
+
+            class _Status(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong), ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong), ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong), ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong), ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            st = _Status()
+            st.dwLength = ctypes.sizeof(_Status)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)):
+                phys = int(st.ullTotalPhys)
+        except (OSError, AttributeError, ImportError):
+            pass
+    if phys is not None and cg is not None:
+        return min(phys, cg)
+    return phys if phys else cg
+
+
+def estimate_bytes(unknowns: float, klass: str, coeffs: Optional[Dict[str, Coeffs]] = None, transient: bool = False) -> float:
+    """!
+    @brief Estimated peak memory of a solve.
+    @param unknowns Number of unknowns of the model (the count of fvm.unknowns, fdm.unknowns or solid3d.unknowns).
+    @param klass Key of the coefficient table (see COEFFS).
+    @param coeffs Table to use instead of COEFFS (the fitted one).
+    @param transient True for a time simulation (two factorisations held).
+    @return Bytes.
+    @throws KeyError If klass is unknown.
+    """
+    c = (coeffs or COEFFS)[klass]
+    n = max(float(unknowns), 0.0)
+    peak = c.base + c.k * n * (n / N_REF) ** (c.p - 1.0) if n > 0 else c.base
+    return peak * (TRANSIENT_FACTOR if transient else 1.0)
+
+
+def classify_layered(copper_layers: int, laminate_rule: bool) -> str:
+    """!
+    @brief Class of a layered (FVM or FDM) model.
+    @param copper_layers Copper layers of the board.
+    @param laminate_rule True when the laminate nodes of the rule are built (laminate.uses_rule).
+    @return Key of COEFFS.
+    """
+    if not laminate_rule:
+        return "layered_plain"
+    return "layered_laminate_few" if copper_layers <= 2 else "layered_laminate_many"
+
+
+def classify_solid3d(slabs: int) -> str:
+    """!
+    @brief Class of the 3D solid by its slab count.
+    @param slabs Number of slabs (solid3d.unknowns returns it).
+    @return Key of COEFFS ("solid3d_few" up to 6 slabs).
+    """
+    return "solid3d_few" if slabs <= 6 else "solid3d_many"
+
+
+def limit_bytes(fraction: float = DEFAULT_FRACTION, ram: Optional[int] = None) -> float:
+    """!
+    @brief Memory a solve may use.
+    @param fraction Share of the physical memory (the setting of the Preferences).
+    @param ram Physical memory in bytes (None: read it; if it cannot be read the fixed FALLBACK_LIMIT is used).
+    @return Bytes.
+    """
+    r = ram if ram is not None else ram_bytes()
+    return float(r) * fraction if r else FALLBACK_LIMIT
+
+
+def verdict(estimate: float, limit: float, slow_fraction: float = SLOW_FRACTION, ram: Optional[int] = None) -> str:
+    """!
+    @brief Verdict of a run: "ok", "slow" (runs, but warn) or "refuse".
+    @param estimate Estimated peak in bytes.
+    @param limit Limit in bytes (limit_bytes).
+    @param slow_fraction Share of the RAM above which the run is slow.
+    @param ram Physical memory in bytes (None: half the limit is the slow mark).
+    @return "ok", "slow" or "refuse".
+    """
+    if estimate > limit:
+        return "refuse"
+    slow_at = slow_fraction * ram if ram else 0.5 * limit
+    return "slow" if estimate > min(slow_at, limit) else "ok"
+
+
+def largest_unknowns(klass: str, limit: float, coeffs: Optional[Dict[str, Coeffs]] = None) -> int:
+    """!
+    @brief Largest unknown count whose estimate stays within a limit (bisection; the estimate is monotone).
+    @param klass Key of the coefficient table.
+    @param limit Limit in bytes.
+    @param coeffs Table to use instead of COEFFS.
+    @return Unknown count (0 if even the base is above the limit).
+    """
+    if estimate_bytes(1, klass, coeffs) > limit:
+        return 0
+    lo, hi = 1.0, 1.0e9
+    for _ in range(80):
+        mid = math.sqrt(lo * hi)
+        if estimate_bytes(mid, klass, coeffs) <= limit:
+            lo = mid
+        else:
+            hi = mid
+    return int(lo)
+
+
+def cell_that_fits(count: Callable[[float], int], klass: str, limit: float, cell_mm: float, coeffs: Optional[Dict[str, Coeffs]] = None,
+                   cell_max: float = 50.0) -> Optional[float]:
+    """!
+    @brief Smallest cell, grown in steps of 10 % and rounded up to 0.1 mm, not finer than cell_mm, whose model fits a limit (the refusal message and the Auto suggestion).
+    @param count Function cell_mm -> unknowns (for example `lambda c: fvm.unknowns(problem, c)[0]`).
+    @param klass Key of the coefficient table.
+    @param limit Limit in bytes.
+    @param cell_mm Cell tried first.
+    @param coeffs Table to use instead of COEFFS.
+    @param cell_max Largest cell tried.
+    @return Cell in mm, or None if even cell_max does not fit.
+    """
+    c = max(cell_mm, 0.05)
+    while c <= cell_max:
+        if estimate_bytes(count(c), klass, coeffs) <= limit:
+            return c
+        c = math.ceil(c * 1.1 * 10.0) / 10.0              # Grow 10 % and round up to 0.1 mm: the count is not smooth in c
+    return None
+
+
+def analytic_bytes(tiles: int, layers: int, modes: int = 300, base: float = BASE_DEFAULT) -> float:
+    """!
+    @brief Estimate of the memory of the Analytic model's local correction: dense matrices of (tiles x layers)^2 entries (G, C and the Woodbury system, about four alive at once) plus the projections of the modes.
+    @details Read from analytic.py (the arrays Gm, G, C and the matrix that is inverted); the factor four and the absence of a measurement are PROVISIONAL (README 9). The tiles are those
+             that carry a via, a heatsink coefficient or a block; the program would count them from the tile map before building the matrices.
+    @param tiles Tiles with a local correction.
+    @param layers Copper layers.
+    @param modes Cosine modes per direction (the projections are 2 x modes x tiles).
+    @param base Bytes before the solve.
+    @return Bytes.
+    """
+    n = float(tiles) * layers
+    return base + 4.0 * 8.0 * n * n + 2.0 * 8.0 * modes * tiles
+
+
+def sor_block_bytes(n: int) -> float:
+    """!
+    @brief Memory of the dense inverse of one SOR block (8 bytes per entry) with the copies of the build (dense block, its inverse, the sparse form kept for the iterations, the LAPACK work).
+    @param n Unknowns of the block.
+    @return Bytes (75 n^2: measured 66 to 75 n^2 on the via board, README 9, and 74 to 75 n^2 when the review repeated n = 1352 and 2450; the first estimate 16 n^2 was 4.5 times too low).
+    """
+    # The review took the largest measured value (75) instead of the middle one (72): the guard must not fall below a measurement
+    return 75.0 * float(n) * float(n)
+
+
+def sor_block_fits(n: int, limit: float, share: float = 0.25) -> bool:
+    """!
+    @brief Whether a SOR block may be inverted dense; it replaces the constant MAX_SOR_BLOCK = 5000 (72 n^2 = 1.8 GB at 5 000).
+    @param n Unknowns of the largest block.
+    @param limit Limit in bytes of the memory guard.
+    @param share Share of the limit one block may take (the blocks are inverted one after the other; the factors of all stay).
+    @return True if it fits.
+    """
+    return sor_block_bytes(n) <= share * limit
+
+
+def fit_class(points: Sequence[Tuple[float, float]], base: float = BASE_DEFAULT, p_range: Tuple[float, float] = (1.0, 1.7)) -> Coeffs:
+    """!
+    @brief Fit the law peak = base + k N (N / N_REF)^(p - 1) to measured points of one class by least squares on the logarithms.
+    @param points Pairs (unknowns, peak bytes), at least two with different N.
+    @param base Bytes before the solve, subtracted before the fit (measure it with an empty run).
+    @param p_range Allowed range of the exponent; the fit is clipped to it and the clipping is reported in the note.
+    @return Coeffs with k at N_REF and the fitted p.
+    @throws ValueError If there are fewer than two points with different N.
+    """
+    pts = [(float(n), float(m) - base) for n, m in points if m > base and n > 0]
+    if len(set(n for n, _ in pts)) < 2:
+        raise ValueError("at least two points with different unknown counts are needed")
+    x = np.log([n for n, _ in pts])
+    y = np.log([m for _, m in pts])
+    slope, icpt = np.polyfit(x, y, 1)                   # log(M) = icpt + slope log(N); slope = p
+    note = ""
+    p = float(slope)
+    if not p_range[0] <= p <= p_range[1]:
+        p = float(np.clip(p, *p_range))
+        icpt = float(np.mean(y - p * x))                 # Refit the intercept at the clipped exponent
+        note = f"exponent {slope:.2f} clipped to {p:.2f}"
+    k = math.exp(icpt) * N_REF ** (p - 1.0)              # M(N_REF) / N_REF, bytes per unknown at N_REF
+    return Coeffs(base, k, p, note)

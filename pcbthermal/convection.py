@@ -48,6 +48,9 @@ def h_natural_horizontal(t_surface, t_ambient, length, facing_up):
     @brief Natural convection coefficient of a horizontal plate.
     @details Hot surface facing up: Nu = 0.54 Ra^(1/4) up to Ra = 1e7, then 0.15 Ra^(1/3); facing down: Nu = 0.27 Ra^(1/4).
              The characteristic length is area over perimeter. A cold surface swaps up and down.
+             The 0.54 law is that of Lloyd and Moran (1974, not obtained; a mass-transfer correlation) via the textbooks; its published range on A/P is 2.2e4 to 8e6
+             (quoted by Yovanovich and Jafarpur 1993, p 7). Boards up to about 100 x 80 mm at a 20 K rise are below that range, and from 60 mm up the coefficient exceeds the
+             upper bound of Yovanovich and Jafarpur (1993, eq. 25, p 11) by 4 to 24 %; the board maximum moves by about 1 % (research/theory-sources 9.1). Documented limit, law unchanged.
     @param t_surface Mean surface temperature in degC.
     @param t_ambient Air temperature in degC.
     @param length Characteristic length A/P in metres.
@@ -97,6 +100,8 @@ def h_forced(t_surface, t_ambient, speed, length):
     """!
     @brief Forced convection coefficient of a flat plate parallel to the flow.
     @details Laminar Nu = 0.664 Re^(1/2) Pr^(1/3); above Re = 5e5 the mixed form Nu = (0.037 Re^(4/5) - 871) Pr^(1/3).
+             The laminar mean value (Pohlhausen) is read in Lienhard and Lienhard, A Heat Transfer Textbook, p 311; Yovanovich (1993, eq. 26) is 3 % below it at Pr 0.71 and
+             Yovanovich and Teertstra (2001, eq. 18) 1 to 4 % above with the same 0.664 (research/theory-sources 9.1).
     @param t_surface Mean surface temperature in degC.
     @param t_ambient Air temperature in degC.
     @param speed Free-stream air speed in m/s (0 gives 0).
@@ -128,7 +133,7 @@ def h_radiation(t_surface, t_ambient, emissivity):
 def board_h(board, t_top, t_bottom):
     """!
     @brief Heat transfer coefficients of the top and bottom faces of a board from its cooling settings.
-    @details Natural and forced convection are blended as (h_n^3 + h_f^3)^(1/3) (Churchill's rule for mixed convection),
+    @details Natural and forced convection are blended as (h_n^3 + h_f^3)^(1/3) (Churchill's rule for mixed convection; the paper, Churchill 1977, was not obtained),
              the calibration multiplier scales the convection only, and radiation is added. Orientation "horizontal" has the
              top face (layer 1) looking up and the bottom face looking down; "vertical" uses the plate correlation with the
              board height for both faces, in the form chosen by `natural_form` ("general" or "laminar"). A board mounted upside down is a board whose layers are numbered the other way round.

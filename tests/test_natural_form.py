@@ -6,6 +6,7 @@
 """
 
 import json
+import os
 
 import pytest
 
@@ -31,7 +32,8 @@ def general_by_hand(t_surface, t_ambient, height):
 
 def test_the_default_is_the_general_form_and_bit_identical_to_the_old_code():
     assert NATURAL_FORMS == ("general", "laminar")
-    assert Problem.new(100, 80, 2).board.natural_form == "general" and new_problem().board.natural_form == "general"
+    # The class default stays "general" (old files, the harness boards); only new projects (defaults.json) get "laminar"
+    assert Problem.new(100, 80, 2).board.natural_form == "general"
     for height, ts in ((0.05, 35.0), (0.08, 70.0), (0.2, 85.0)):
         assert h_natural_vertical(ts, 25.0, height)[0] == general_by_hand(ts, 25.0, height)
         assert h_natural_vertical(ts, 25.0, height, "general")[0] == general_by_hand(ts, 25.0, height)
@@ -132,3 +134,37 @@ def test_the_laminar_form_warns_above_its_range():
         msgs[form] = [w for w in sim.warnings if "laminar form" in w]
         assert f"vertical board ({form} form)" in sim.report()
     assert msgs["general"] == [] and len(msgs["laminar"]) == 1
+
+
+def test_new_projects_default_to_the_laminar_form_and_store_it():
+    p = new_problem()
+    assert p.board.natural_form == "laminar"
+    assert problem_to_dict(p)["board"]["natural_form"] == "laminar"
+    assert problem_from_dict(json.loads(json.dumps(problem_to_dict(p)))).board.natural_form == "laminar"
+    assert new_problem(120, 90, 4).board.natural_form == "laminar"
+
+
+def test_old_example_files_keep_the_general_form_and_their_numbers():
+    import glob
+    from pcbthermal import project
+    files = sorted(glob.glob(os.path.join(os.path.dirname(__file__), "..", "examples", "*.pcbt.json")))
+    assert files
+    for f in files:
+        assert "natural_form" not in open(f).read()               # Written before the option existed
+        assert project.load_project(f).problem.board.natural_form == "general", f
+
+
+def test_old_file_results_are_bit_identical_to_the_explicit_general_form_in_all_models():
+    # An old file (no key) reads as "general": the same numbers as a file that says it, for the five models
+    p = example_board()
+    p.board.h_mode, p.board.orientation = "computed", "vertical"
+    d = problem_to_dict(p)
+    del d["board"]["natural_form"]
+    old = problem_from_dict(d)
+    assert old.board.natural_form == "general"
+    new = problem_from_dict(problem_to_dict(p))
+    new.board.natural_form = "general"
+    o = SolverOptions(models=("fvm", "fdm", "lumped", "analytic", "solid3d"), cell_mm=2.0)
+    a, b = simulate(old, o), simulate(new, o)
+    for m in o.models:
+        assert a.results[m].t_max == b.results[m].t_max, m

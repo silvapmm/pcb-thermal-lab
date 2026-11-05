@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file test_frozen_numbers.py
-@brief Compares a live run of the five models on the 17 regression boards with the numbers frozen at the release (`data/v2.4.5.json`) under one tolerance policy.
+@brief Compares a live run of the five models on the 17 regression boards with the numbers frozen at the release (`data/v2.5.0.json`) under one tolerance policy.
 @details The frozen file is made at a release by `research/release-regression-245/scripts/study_freeze_reference.py` (CLAUDE.md, "Branches and Versions") and copied to
          `tests/regression/data/v<version>.json`; the test reads the newest. Tolerance policy (the same for every record, `regress_frozen.py`): temperatures 1e-8 K, field
          checksums 1e-10 relative, heat balance 1e-9 W, unknown counts and skipped status exactly, time to 63 % 1e-6 relative. Defaults: the 2 mm cell, all boards and models, with
@@ -13,11 +13,14 @@
          * `PCBT_FROZEN_TRANSIENTS`: "0" to leave out the times to 63 % (default "1");
          * `PCBT_FROZEN_EXACT`: "1" to demand equality of every float (only on the machine and libraries that froze the file);
          * `PCBT_FROZEN_FILE`: another frozen file.
-@note A failure is not automatically a defect: when a number moved for a reason that was decided (a model change), refreeze (research/release-regression-245/INTEGRATION.md
-      section 2) in the same commit and say why; if nobody decided it, the change is a regression.
+@note A failure is not automatically a defect: when a number moved for a reason that was decided (a model change), record the moved records as a pending shift in the same
+      commit (`make_pending.py`, `data/pending/<topic>.json`: the item, the branch, why, the new numbers) and say why; the frozen file of the release is not edited, and the
+      pending files are folded into the refreeze of the next release (research/release-regression-245/INTEGRATION.md section 2) and deleted. If nobody decided the
+      change, it is a regression.
 """
 
 import copy
+import json
 import os
 import re
 from pathlib import Path
@@ -86,15 +89,47 @@ def _transient_keys():
                   if (not boards or k.split("|")[0] in boards) and (not models or k.split("|")[1] in models))
 
 
+PENDING_DIR = HERE / "data" / "pending"
+
+
+def _pending_files():
+    """!
+    @brief The pending shifts (`data/pending/*.json`, written by make_pending.py): new numbers of frozen records that a decided change moved before the next release.
+    @return Sorted list of Path.
+    """
+    return sorted(PENDING_DIR.glob("*.json")) if PENDING_DIR.is_dir() else []
+
+
+def with_pending(data):
+    """!
+    @brief The frozen numbers with the pending shifts of the same base version applied (each moved record and time to 63 % replaced by its new numbers).
+    @details The frozen file of a release is never edited between releases: a model change on purpose records the records it moves in a pending file (the item, the branch,
+             why), so the battery stays green and the moved records are still held to the same tolerance. A pending file of another base version is not applied
+             (test_pending_shifts_belong_to_the_frozen_release fails on it: it must be folded into the refreeze of the release and deleted).
+    @param data Content of the frozen file (F.load()).
+    @return dict: a copy with the pending records in place, and "pending" listing the files applied.
+    """
+    out = copy.deepcopy(data)
+    out["pending"] = []
+    for path in _pending_files():
+        pend = json.loads(path.read_text(encoding="utf-8"))
+        if pend.get("base_version") != data["version"]:
+            continue
+        out["records"].update(pend.get("records", {}))
+        out["transients"].update(pend.get("transients", {}))
+        out["pending"].append(path.name)
+    return out
+
+
 @pytest.fixture(scope="module")
 def frozen_data():
     """!
-    @brief The frozen file (the module is skipped with a message when it is absent).
+    @brief The frozen file with the pending shifts of its version applied (the module is skipped with a message when the file is absent).
     @return dict.
     """
     if MISSING:
         pytest.skip(REASON)
-    return F.load(FROZEN_FILE)
+    return with_pending(F.load(FROZEN_FILE))
 
 
 @pytest.fixture(scope="module")
@@ -117,6 +152,25 @@ def _board(boards_cache, name):
     if name not in boards_cache:
         boards_cache[name] = B.build(name)
     return boards_cache[name]
+
+
+def test_pending_shifts_belong_to_the_frozen_release():
+    """!
+    @brief Every pending shift names the version of the newest frozen file, the change and its reason, and replaces only records and times that the frozen file holds.
+    @details A pending file of an older version is left over after a release: its shifts are in the new frozen file, so it must be deleted (CLAUDE.md, "Frozen numbers").
+    @return None.
+    """
+    if MISSING:
+        pytest.skip(REASON)
+    data = F.load(FROZEN_FILE)
+    for path in _pending_files():
+        pend = json.loads(path.read_text(encoding="utf-8"))
+        assert pend.get("format") == F.FORMAT, f"{path.name}: format {pend.get('format')} is not {F.FORMAT}"
+        assert pend.get("base_version") == data["version"], (f"{path.name} shifts the numbers of {pend.get('base_version')}, the newest frozen file is "
+                                                             f"{data['version']}: fold it into the refreeze of the release and delete it")
+        assert pend.get("item") and pend.get("branch") and pend.get("why"), f"{path.name}: the item, the branch and the reason are required"
+        assert set(pend.get("records", {})) <= set(data["records"]), f"{path.name}: records that are not in {FROZEN_FILE.name}"
+        assert set(pend.get("transients", {})) <= set(data["transients"]), f"{path.name}: times to 63 % that are not in {FROZEN_FILE.name}"
 
 
 def test_the_frozen_file_is_present_and_complete():

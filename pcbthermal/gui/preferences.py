@@ -14,13 +14,14 @@ import copy
 import os
 import shutil
 
-from PySide6.QtCore import QUrl, Qt
+from PySide6.QtCore import QEvent, QUrl, Qt
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
+                               QPushButton, QSpinBox, QTableWidget, QTableWidgetItem, QToolTip, QListWidget, QStackedWidget, QVBoxLayout, QWidget)
 
-from .. import defaults
+from .. import defaults, memory
 from .. import model
+from ..gerber import limits
 from ..numfmt import eng, num
 from . import theme as th
 from . import tips
@@ -40,6 +41,28 @@ def _cell_text(value):
     return str(value)
 
 
+class _LibraryTable(QTableWidget):
+    """!
+    @brief Table of a library whose columns share the width: a cell whose text does not fit (elided) shows its full text as the tooltip;
+           elsewhere the table's own tooltip (what the library is) is shown.
+    """
+
+    def viewportEvent(self, event):
+        """!
+        @brief Show the full text of an elided cell on a tooltip event.
+        @param event The viewport event.
+        @return bool True when the event was handled here.
+        """
+        if event.type() == QEvent.ToolTip:
+            item = self.itemAt(event.pos())
+            if item is not None and item.text():
+                rect = self.visualItemRect(item)
+                if self.fontMetrics().horizontalAdvance(item.text()) > rect.width() - 6:        # Elided: the cell text minus its margins
+                    QToolTip.showText(event.globalPos(), item.text(), self.viewport(), rect)
+                    return True
+        return super().viewportEvent(event)
+
+
 SECTION_LIST_WIDTH = 240          # Pixels: wide enough for the longest section title
 
 LIBRARY_TITLES = {"via_fills": "Via fills", "metals": "Metals (heatsink blocks)", "interfaces": "Interface materials", "dielectrics": "Dielectrics (stack-up)",
@@ -51,12 +74,16 @@ LIBRARY_TIPS = {"via_fills": "What a via barrel can be filled with: the name app
                 "dielectrics": "Dielectrics of the stack-up: conductivity across and along the plane (W/mK), density (kg/m³) and specific heat (J/kgK).",
                 "package_theta": "Typical values by package family: junction-to-pad θ, junction-to-case (top) θJC(top) (K/W) and the maximum junction temperature (°C): a starting value, never the datasheet's.",
                 "heatsinks": "Typical heatsinks for the top of a package and their catalogue θSA (K/W) with the source and the test conditions in the note: a starting value, your θSA depends on air flow, orientation and mounting."}
-SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project"}
+SECTION_TITLES = {"new_board": "New board", "new_elements": "New elements", "materials": "Materials of a new board", "calculator": "Power Calculator", "solver": "Solver of a new project", "gerber": "Gerber import (this machine)"}
 SECTION_HINTS = {"new_board": "The values a board starts with when you choose File - New board (and when the program starts).",
                  "new_elements": "The values of an element when you draw it or add it from the right-click menu.",
                  "materials": "Copper and the simple-stack-up dielectric of a new board. The dielectrics of the advanced stack-up are a library.",
                  "calculator": "How uncertain the inputs of the power calculator are. The band (best case / nominal / worst case) moves each one to both ends and adds the effects as the root of the sum of squares.",
-                 "solver": "The models and settings a new project starts with."}
+                 "solver": "The models and settings a new project starts with.",
+                 "gerber": "Limits of the Gerber reader. A setting of this machine, not saved in project files."}
+MACHINE_NOTES = {"solver": "The models and settings a new project starts with, and the memory limit of this machine. The memory limit is a machine preference: "
+                           "it is not saved in project files.",
+                 "gerber": "Limits of the Gerber reader. A machine preference: not saved in project files."}
 CHOICES = {"heater_kind": ("source", "component"), "h_mode": ("manual", "computed"), "orientation": ("horizontal", "vertical"), "natural_form": ("general", "laminar"), "linear_solver": ("direct", "cg", "sor"), "design_level": ("none", "cad", "hand", "estimated")}
 MODELS = ("fvm", "lumped", "analytic", "fdm", "solid3d")
 # Labels with units for the fields of the defaults (the JSON key, which a hand-edited file uses, is given in each tooltip)
@@ -77,7 +104,7 @@ LABELS = {
     "design_vias_pct": "Design: vias (± %)", "design_scale_cad": "Multiplier, fabrication files", "design_scale_hand": "Multiplier, drawn by hand",
     "design_scale_estimated": "Multiplier, estimated",
     "models": "Models", "cell_mm": "Cell size (mm)", "linear_solver": "FVM solver", "lumped_rings": "Lumped rings", "analytic_modes": "Analytic modes",
-    "hotspot_c": "Hotspot limit (°C)",
+    "hotspot_c": "Hotspot limit (°C)", "memory_fraction": "Memory limit (fraction of the physical memory)", "max_file_mb": "Largest Gerber or drill file (MB)",
 }
 # Column titles with units for the library tables (the JSON key is in the tooltip of the column title)
 COLUMNS = {"name": "Name", "note": "Note", "k_w_per_mk": "k (W/mK)", "rho_cp_j_per_m3k": "ρ·cp (J/m³K)", "thickness_mm": "Thickness (mm)",
@@ -91,7 +118,7 @@ TIPS = {
     "h_side": "Heat transfer coefficient of the edges (W/m²K).", "via_plating_um": "Copper plating of the via barrel in µm.",
     "h_mode": "How the face coefficients are found: typed, or computed from convection and radiation.", "emissivity_top": "Emissivity of the top face (0 to 1).",
     "emissivity_bottom": "Emissivity of the bottom face (0 to 1).", "orientation": "Mounting of the board for the computed coefficients.",
-    "natural_form": "Correlation of natural convection for a vertical board: general (Churchill and Chu, whole range) or laminar (same authors, Ra below 1.00E9); changes the rise by under 1 % on the example.",
+    "natural_form": "Correlation of natural convection for a vertical board: general (Churchill and Chu, whole range) or laminar (same authors, Ra below 1.00E9, the default of new projects); changes the rise by under 1 % on the example.",
     "air_speed": "Air speed along the board in m/s (computed mode).", "h_calibration": "Multiplier of the computed convection.",
     "heater_power_w": "Power of a new heater in W.", "heater_kind": "What a new heater is: a pure heat source (power only) or a component (junction, package, top path).", "heater_size_mm": "Side of a heater dropped from the right-click menu, in mm.",
     "zone_fill": "Copper fill (0 to 1) of a new zone.", "zone_size_mm": "Side of a zone dropped from the right-click menu, in mm.",
@@ -117,6 +144,13 @@ TIPS = {
     "design_scale_estimated": "Multiplier of the design amplitudes for an estimated board (normally 1).",
     "models": "Models selected in a new project.", "cell_mm": "Cell size in mm.", "linear_solver": "Solver of the FVM linear system.",
     "lumped_rings": "Rings of the Lumped model.", "analytic_modes": "Cosine modes of the Analytic model.", "hotspot_c": "Temperature limit for hotspot detection in °C.",
+    "max_file_mb": "Largest Gerber, drill or ZIP-member file the reader accepts, in MB (16 to 4096, shipped 256). Real Gerber files are 0.01 to 2 MB; a file far above that is "
+                   "a mistake or a hostile file and is refused from its size, before it is read, because the decoded text takes about twice the file in memory. This is a setting "
+                   "of this machine, not of the project: it is not saved in project files.",
+    "memory_fraction": "Share of the physical memory a solve may use (0.10 to 0.95, shipped 0.60). A FVM, FDM or 3D run whose estimated peak memory is above it is refused before "
+                       "anything is allocated, with the cell that fits. This is a setting of this machine, not of the project: it is not saved in project files. The estimate has a "
+                       "safety margin but can be wrong by tens of percent; a run above the memory available now only warns. Environment variable PCBTHERMAL_MEMORY_BYTES states the memory "
+                       "when it cannot be read (containers).",
 }
 
 
@@ -140,13 +174,12 @@ class PreferencesDialog(QDialog):
         self.info.setTextFormat(Qt.RichText)
         self.info.setToolTip("Where the user's defaults are kept and what they change. Without that file the program uses the values shipped with it.")
         lay.addWidget(self.info)
-        # The eight sections are a list on the left and their pages are stacked on the right (eight tabs needed scroll arrows in a narrow window)
+        # The sections are a list on the left and their pages are stacked on the right (as tabs they needed scroll arrows in a narrow window)
         self.sections = QListWidget()
         self.sections.setObjectName("sections")
         self.sections.setFixedWidth(SECTION_LIST_WIDTH)
         self.sections.setTextElideMode(Qt.ElideNone)
-        self.sections.setToolTip("Sections of the preferences (Up and Down change the page). Libraries are tables of materials (they appear in the lists of the program); "
-                                 "the last two sections hold the values a new board, a new element and a new project start with, and the power calculator's uncertainties.")
+        # No tooltip on the list: the section names say it all (the maintainer found the old one added nothing); the controls of the pages keep theirs
         self.pages = QStackedWidget()
         body = QHBoxLayout()
         body.addWidget(self.sections)
@@ -156,6 +189,9 @@ class PreferencesDialog(QDialog):
         for lib in defaults.LIBRARIES:
             self._add_section(LIBRARY_TITLES[lib], self._library_tab(lib))
         self._add_section("Defaults for new projects", self._defaults_tab())
+        # Solver and Gerber import have their own sections (they sat at the bottom of the long defaults page, hard to find)
+        self._add_section("Solver", self._machine_tab("solver"))
+        self._add_section("Gerber import", self._machine_tab("gerber"))
         self._add_section("Power Calculator", self._calculator_tab())
         self.sections.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.sections.setCurrentRow(0)                      # The first page is shown
@@ -217,7 +253,7 @@ class PreferencesDialog(QDialog):
         lay.addWidget(note)
         rows = self.data["libraries"][lib]
         cols = list(defaults.shipped()["libraries"][lib][0].keys())
-        t = QTableWidget(len(rows), len(cols))
+        t = _LibraryTable(len(rows), len(cols))
         t.setHorizontalHeaderLabels([COLUMNS.get(c, c) for c in cols])          # Readable titles with units, not the JSON keys
         for c, key in enumerate(cols):
             t.horizontalHeaderItem(c).setToolTip(f"JSON key: {key}")
@@ -226,8 +262,11 @@ class PreferencesDialog(QDialog):
         for r, e in enumerate(rows):
             for c, key in enumerate(cols):
                 t.setItem(r, c, QTableWidgetItem(_cell_text(e.get(key, ""))))
-        t.resizeColumnsToContents()
-        t.horizontalHeader().setStretchLastSection(True)
+        # Columns share the width so that the table never scrolls sideways (number-width columns overflowed the Dielectrics page at 800 px);
+        # a cell that does not fit is elided and shows its full text as the tooltip (_LibraryTable)
+        t.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        t.horizontalHeader().setMinimumSectionSize(24)
+        t.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         t.itemChanged.connect(lambda _item, lib=lib: self._read_table(lib))
         self.tables[lib] = (t, cols)
         lay.addWidget(t, 1)
@@ -252,7 +291,7 @@ class PreferencesDialog(QDialog):
         from PySide6.QtWidgets import QGroupBox, QScrollArea
         host = QWidget()
         lay = QVBoxLayout(host)
-        for section in ("new_board", "new_elements", "materials", "solver"):
+        for section in ("new_board", "new_elements", "materials"):
             box = QGroupBox(SECTION_TITLES[section])
             box.setToolTip(SECTION_HINTS[section])
             inner = QVBoxLayout(box)
@@ -261,6 +300,29 @@ class PreferencesDialog(QDialog):
         lay.addStretch(1)
         area = QScrollArea()
         area.setWidgetResizable(True)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)       # The page scrolls vertically only; its content is laid out to fit the width
+        area.setWidget(host)
+        return area
+
+    def _machine_tab(self, section):
+        """!
+        @brief A page of its own for the Solver or the Gerber import settings, with a header line.
+        @param section "solver" or "gerber".
+        @return QWidget (a scroll area that never scrolls sideways).
+        """
+        from PySide6.QtWidgets import QScrollArea
+        host = QWidget()
+        lay = QVBoxLayout(host)
+        note = QLabel(MACHINE_NOTES[section])
+        note.setWordWrap(True)
+        th.hint(note)
+        note.setToolTip(SECTION_HINTS[section])
+        lay.addWidget(note)
+        lay.addWidget(self._section_tab(section))
+        lay.addStretch(1)
+        area = QScrollArea()
+        area.setWidgetResizable(True)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         area.setWidget(host)
         return area
 
@@ -289,22 +351,25 @@ class PreferencesDialog(QDialog):
         """
         w = QWidget()
         f = QFormLayout(w)
+        # A row that does not fit puts its field under the label (two-line form) instead of widening the page: no horizontal scroll bar
+        f.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        f.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         values = self.data[section]
         lib_names = {"via_fill": [e["name"] for e in self.data["libraries"]["via_fills"]], "block_metal": [e["name"] for e in self.data["libraries"]["metals"]],
                      "block_interface": [e["name"] for e in self.data["libraries"]["interfaces"]]}
         for key, val in values.items():
             if key == "models":
                 row = QWidget()
-                rl = QHBoxLayout(row)
+                rl = QGridLayout(row)                      # Two columns: the five long model names in one line were wider than the page
                 rl.setContentsMargins(0, 0, 0, 0)
                 boxes = {}
-                for m in MODELS:
+                for n, m in enumerate(MODELS):
                     c = QCheckBox(tips.model_label(m))
                     c.setChecked(m in val)
                     c.setToolTip(TIPS["models"])
                     c.toggled.connect(lambda _on, section=section: self._read_models(section))
                     boxes[m] = c
-                    rl.addWidget(c)
+                    rl.addWidget(c, n // 2, n % 2)
                 self.widgets[(section, key)] = boxes
                 f.addRow(LABELS.get(key, key), row)
                 continue
@@ -315,6 +380,9 @@ class PreferencesDialog(QDialog):
                 if str(val) not in [wdg.itemText(i) for i in range(wdg.count())]:
                     wdg.addItem(str(val))
                 wdg.setCurrentText(str(val))
+                # The width of a combo box follows its longest item; let it shrink and elide so that a long name never widens the page
+                wdg.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+                wdg.setMinimumContentsLength(10)
                 wdg.currentTextChanged.connect(lambda text, section=section, key=key: self._set(section, key, text))
             elif isinstance(val, bool):
                 wdg = QCheckBox()
@@ -322,13 +390,13 @@ class PreferencesDialog(QDialog):
                 wdg.toggled.connect(lambda on, section=section, key=key: self._set(section, key, bool(on)))
             elif isinstance(val, int):
                 wdg = QSpinBox()
-                wdg.setRange(0, 100000)
+                wdg.setRange(*((limits.MIN_FILE_MB, limits.MAX_FILE_MB) if key == "max_file_mb" else (0, 100000)))
                 wdg.setValue(val)
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, int(v)))
             else:
                 wdg = QDoubleSpinBox()
                 # Amplitudes of the design uncertainty and the copper uncertainty stay below 100 %, so a thickness never reaches 0
-                wdg.setRange(*((0.0, 99.0) if section == "calculator" and key in ("copper_uncertainty_pct", "design_coverage_pct", "design_weight_pct", "design_planes_pct", "design_vias_pct") else (0.0, 1.0) if key.startswith("design_scale_") else (-1e9, 1e9)))
+                wdg.setRange(*((0.0, 99.0) if section == "calculator" and key in ("copper_uncertainty_pct", "design_coverage_pct", "design_weight_pct", "design_planes_pct", "design_vias_pct") else (0.0, 1.0) if key.startswith("design_scale_") else (memory.MIN_FRACTION, memory.MAX_FRACTION) if key == "memory_fraction" else (-1e9, 1e9)))
                 # Three decimals for small numbers (a via diameter, an emissivity, a multiplier), one for the large ones: "100,0000 mm" was hard to read.
                 # The choice follows the shipped value, not the user's (a user value of 10 W must not take the decimals away from the heater power),
                 # and grows to show a saved value in full (a spin box rounds its value to its decimals, and a reset would write the rounded number)
@@ -339,7 +407,11 @@ class PreferencesDialog(QDialog):
                 wdg.setDecimals(places)
                 wdg.setValue(float(val))
                 wdg.valueChanged.connect(lambda v, section=section, key=key: self._set(section, key, float(v)))
-            wdg.setToolTip(f"{TIPS.get(key, key)}\nJSON key: {key}")
+            tip = f"{TIPS.get(key, key)}\nJSON key: {key}"
+            if key == "memory_fraction":
+                ram = memory.ram_bytes()
+                tip += f"\nMemory detected: {ram / memory.GB:.1f} GB (limit now {memory.limit_bytes(float(val), ram) / memory.GB:.1f} GB)." if ram else "\nThe memory of this machine could not be read: a fixed limit is used."
+            wdg.setToolTip(tip)
             self.widgets[(section, key)] = wdg
             f.addRow(LABELS.get(key, key), wdg)
         return w

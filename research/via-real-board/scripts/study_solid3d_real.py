@@ -4,7 +4,7 @@
 @file study_solid3d_real.py
 @brief S2: the 3D solid with the single footprint rule (`disc_eta` of solid_patch: the centred disc enlarged to 0.78 r_v, a point when the cell is coarser) against the program's rule on
        boards with 100 or more vias, and against the FVM with the recommended treatment.
-@details The 3D solid is limited to `solid3d.MAX_CELLS` unknowns, so the boards are cut to a window around the source (--window mm square, default 40) with the holes inside it kept;
+@details The 3D solid is limited to `LIMIT_3D` unknowns, so the boards are cut to a window around the source (--window mm square, default 40) with the holes inside it kept;
          the same window is used for every model. For each board and cell of --cells: the via effect E (FVM program, FVM recommended, 3D program rule, 3D `disc_eta`), and the copper
          fill gain of the 3D solid with both rules (the quantity whose cell dependence the single rule is meant to remove: -4.77 / -4.35 / -5.65 K against -4.77 / -4.51 / -4.54 K on
          the 3 x 3 board of point-via-convergence 6). Configurations above the limit are skipped and printed.
@@ -19,6 +19,8 @@ import logging
 import real_board as rbd
 import runs
 from pcbthermal import solid3d
+
+LIMIT_3D = 250_000                       # Unknowns the study accepts for the 3D solid (the fixed limit the program used before the memory guard replaced it)
 
 
 def window(holes, width, height, size, centre):
@@ -71,8 +73,8 @@ def main(argv=None):
         pf = rbd.problem_from_holes(hw, ww, hh, layers=layers, fill_k=385.0)
         for c in a.cells:
             n = solid3d.unknowns(p, c)[0]
-            if n > solid3d.MAX_CELLS:
-                print(f"| {name} ({ww:g} x {hh:g}) | {len(hw)} | {c:g} | skipped: {n:,} unknowns > {solid3d.MAX_CELLS:,} | | | | | |", flush=True)
+            if n > LIMIT_3D:
+                print(f"| {name} ({ww:g} x {hh:g}) | {len(hw)} | {c:g} | skipped: {n:,} unknowns > {LIMIT_3D:,} | | | | | |", flush=True)
                 continue
             e_prog = runs.via_effect(p, "fvm", c)
             e_mw = runs.via_effect(p, "fvm", c, runs.MW_BOARD)

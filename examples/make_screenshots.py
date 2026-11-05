@@ -5,6 +5,7 @@
 @brief Renders the application off-screen and saves the screenshots used in the README and the docs.
 
 Usage: python examples/make_screenshots.py [output_folder]   (default: docs/images)
+       python examples/make_screenshots.py --import <rp2040 gerber folder> [output_folder]   (the import window, the imported board, Preferences, dark theme)
 """
 
 import os
@@ -14,9 +15,14 @@ import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_API", "pyside6")
+# Neutral configuration folder: Preferences shows the path of user_defaults.json, which must never be a personal path in a committed picture
+NEUTRAL_CONFIG = "/tmp/pcbthermal-config"
+os.makedirs(NEUTRAL_CONFIG, exist_ok=True)
+os.environ["PCBTHERMAL_CONFIG"] = NEUTRAL_CONFIG
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtCore import QSettings, Qt                                        # noqa: E402
+from PySide6.QtGui import QPainter, QPixmap                                  # noqa: E402
 from PySide6.QtWidgets import QApplication                                  # noqa: E402
 
 from pcbthermal import SolverOptions, simulate                              # noqa: E402
@@ -25,12 +31,41 @@ from pcbthermal.gui.calculator import PowerCalculator                      # noq
 from pcbthermal.gui.main_window import TAB_PROFILE, TAB_RESULTS, TAB_STACKUP, MainWindow   # noqa: E402
 
 
+def _assert_neutral(path):
+    """!
+    @brief Refuse to save a picture while the configuration folder is not the neutral one.
+    @param path Path of the picture about to be written (used in the message).
+    @return None
+    @throws RuntimeError If PCBTHERMAL_CONFIG is not the neutral folder.
+    """
+    if os.environ.get("PCBTHERMAL_CONFIG") != NEUTRAL_CONFIG:
+        raise RuntimeError(f"PCBTHERMAL_CONFIG is not neutral; refusing to write {path}")
+
+
+def shrink(path, max_width=1400):
+    """!
+    @brief Make a screenshot light for the repository: at most `max_width` pixels wide and 256 colours with dithering (keeps the colour bars smooth).
+    @param path PNG file, rewritten in place.
+    @param max_width Largest width in pixels.
+    @return None
+    """
+    from PIL import Image                                                    # Pillow comes with Matplotlib
+
+    _assert_neutral(path)
+
+    im = Image.open(path).convert("RGB")
+    if im.width > max_width:
+        im = im.resize((max_width, round(im.height * max_width / im.width)), Image.LANCZOS)
+    im.quantize(256, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG).save(path, optimize=True)
+
+
 def main(out_dir):
     """!
     @brief Produce the screenshots.
     @param out_dir Folder that receives the PNG files.
     @return List of written file paths.
     """
+    _assert_neutral(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     app = QApplication.instance() or QApplication([])
     settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots.ini"), QSettings.IniFormat)
@@ -49,6 +84,7 @@ def main(out_dir):
         app.processEvents()
         path = os.path.join(out_dir, name)
         win.grab().save(path)
+        shrink(path)
         written.append(path)
 
     win.canvas.fit()
@@ -121,6 +157,7 @@ def main(out_dir):
     app.processEvents()
     path = os.path.join(out_dir, "environment_natural_form.png")
     win.dock_board.grab().save(path)                                         # Only the Board dock: the control is small on the full window
+    shrink(path)
     written.append(path)
     win.resizeDocks([win.dock_board], [420], Qt.Horizontal)
     win.doc.stack.setClean()
@@ -148,12 +185,149 @@ def main(out_dir):
     app.processEvents()
     path = os.path.join(out_dir, "calculator_design.png")
     calc.grab().save(path)
+    shrink(path)
     written.append(path)
     calc.close()
     win.doc.stack.setClean()
     return written
 
 
+def main_import(out_dir, board_dir):
+    """!
+    @brief Produce the screenshots of the Gerber import window, the editor with the imported copper, Preferences and the dark theme (one real board).
+    @param out_dir Folder that receives the PNG files.
+    @param board_dir Folder with the Gerber files of the RP2040 minimal design (BSD-3-Clause) and its placement file.
+    @return List of written file paths.
+    """
+    import shutil
+
+    from pcbthermal.gui.import_window import ImportBoardWindow, ReimportDialog
+    from pcbthermal.gui.preferences import PreferencesDialog
+
+    _assert_neutral(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    app = QApplication.instance() or QApplication([])
+    # A copy of the files under a neutral name, so that no path of this machine can appear in a picture
+    work = os.path.join(tempfile.mkdtemp(), "rp2040")
+    shutil.copytree(board_dir, work)
+    written = []
+
+    def save(widget, name):
+        app.processEvents()
+        path = os.path.join(out_dir, name)
+        widget.grab().save(path)
+        shrink(path)
+        written.append(path)
+
+    for theme_name, suffix in (("light", ""), ("dark", "_dark")):
+        settings = QSettings(os.path.join(tempfile.mkdtemp(), "shots.ini"), QSettings.IniFormat)
+        settings.setValue("theme", theme_name)
+        win = MainWindow(settings=settings)
+        win.resize(2000, 1200)
+        win.show()
+        app.processEvents()
+        dlg = ImportBoardWindow(win)
+        dlg.confirm = lambda *a: True
+        dlg.notify = lambda *a: None
+        dlg.resize(1280, 820)
+        dlg.show()
+        dlg.open_path(work)
+        dlg.page1.source.setText("rp2040/gerber")                           # Display only: the path of the copy is a temporary folder of this machine
+        app.processEvents()
+        save(dlg, f"import_step1{suffix}.png")
+        dlg.go(1)
+        pg = dlg.page2
+        # Select the RP2040 chip (a QFN with an exposed pad) so that its pad shape and the dashed outline show
+        parts = dlg.session.parts()
+        des = next((p.designator for p in parts if "QFN" in (p.footprint or "")), parts[0].designator)   # the RP2040 chip: a QFN with an exposed pad
+        dlg.session.set_part(des, power=1.5)                                # a power ticks it as a heat source; the default shape of a part with an exposed pad is the pad
+        pg.refresh()
+        pg.selected = des
+        for r in range(pg.table.rowCount()):
+            if pg.table.item(r, 1) is not None and pg.table.item(r, 1).text() == des:
+                pg.table.selectRow(r)
+                pg.table.scrollToItem(pg.table.item(r, 1))
+        app.processEvents()
+        save(dlg, f"import_step2{suffix}.png")
+        dlg.go(2)
+        save(dlg, f"import_step3{suffix}.png")
+        dlg.do_import()
+        if not suffix:
+            old = dlg.record
+            # The stored import is the previous revision of the layout: one part is not in it yet (new in the files), one sits 0.8 mm from where the files now put it
+            old.parts = [q for q in old.parts if q.designator != "C10"]
+            for q in old.parts:
+                if q.designator == "C1":
+                    q.polygon_mm = [[x + 0.8, y] for x, y in q.polygon_mm]
+                    q.from_file["position_mm"] = [q.from_file["position_mm"][0] + 0.8, q.from_file["position_mm"][1]] if q.from_file.get("position_mm") else None
+            w2 = ImportBoardWindow(win, existing=old)
+            w2.confirm = lambda *a: True
+            w2.notify = lambda *a: None
+            w2.open_path(work)
+            w2.session.build_problem()                                       # the dialog compares the stored import with the one just built
+            rd = ReimportDialog(w2.session, old, w2)
+            rd.radios["update"].setChecked(True)                              # the table lists what the update does with every part
+            rd.show()
+            save(rd, "import_reimport.png")
+            rd.close()
+            w2.close()
+        win.doc.open_import(dlg.problem, dlg.record)
+        win._after_load()
+        win.resizeDocks([win.dock_board, win.dock_sim], [420, 560], Qt.Horizontal)
+        win.canvas.fit()
+        app.processEvents()
+        win.canvas.set_selection([("heater", 0)])
+        win._on_canvas_selection([("heater", 0)])
+        save(win, f"editor_imported{suffix}.png")
+        # Live warnings under Run: a second source that is half off the board, drawn on the top layer
+        win.doc.problem.add_heater(1, 0.5, rect=(46, 40, 58, 46), name="X1")
+        win.doc.changed.emit()
+        win.canvas.fit()
+        t0 = time.time()
+        while time.time() - t0 < 1.5:                                        # the live check runs a moment after an edit
+            app.processEvents()
+            time.sleep(0.05)
+        save(win, f"editor_warnings{suffix}.png")
+        # The run on the imported board: the summary with its notes, and the temperature map
+        win.doc.problem.heaters = [h for h in win.doc.problem.heaters if h.name != "X1"]
+        win.doc.changed.emit()
+        win._on_done(simulate(win.doc.problem, SolverOptions(cell_mm=1.0)))
+        win.results.tabs.setCurrentIndex(0)
+        save(win, f"results_summary_imported{suffix}.png")
+        win.results.tabs.setCurrentIndex(1)
+        save(win, f"results_temperature_imported{suffix}.png")
+        if not suffix:
+            pref = PreferencesDialog(win)
+            pref.resize(980, 440)
+            pref.show()
+            # Solver and Gerber import are sections of their own: one picture with the two pages one above the other
+            grabs = []
+            for title in ("Solver", "Gerber import"):
+                pref.sections.setCurrentRow(pref.section_titles().index(title))
+                app.processEvents()
+                grabs.append(pref.grab())
+            sheet = QPixmap(grabs[0].width(), sum(g.height() for g in grabs))
+            painter = QPainter(sheet)
+            y = 0
+            for g in grabs:
+                painter.drawPixmap(0, y, g)
+                y += g.height()
+            painter.end()
+            path = os.path.join(out_dir, "preferences_solver_gerber.png")
+            sheet.save(path)
+            shrink(path)
+            written.append(path)
+            pref.close()
+        dlg.close()
+        win.doc.stack.setClean()
+        win.close()
+    return written
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 2 and sys.argv[1] == "--import":
+        for f in main_import(sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images"), sys.argv[2]):
+            print(f)
+        sys.exit(0)
     for f in main(sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "images")):
         print(f)

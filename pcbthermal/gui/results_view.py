@@ -6,12 +6,14 @@
 """
 
 import contextlib
+import html
 
 import matplotlib
 import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QPlainTextEdit, QSlider, QSplitter, QTableWidget,
                                QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
@@ -97,6 +99,34 @@ def _fit_height(table, min_rows=3, max_rows=12):
     table.setFixedHeight(h)
 
 
+def recolour_toolbar(toolbar, theme):
+    """!
+    @brief Paint the icons of a Matplotlib navigation toolbar with the text token of the theme.
+    @param toolbar NavigationToolbar2QT.
+    @param theme "dark" or "light".
+    @note Matplotlib picks the icon colour from the palette (a light cream in the dark theme); the shape (alpha) of the first icon of
+          each action is kept and filled with the token, so a theme switch can recolour it again.
+    """
+    colour = QColor(th.colors(theme)["text"])
+    for act in toolbar.actions():
+        if act.isSeparator() or act.icon().isNull():
+            continue
+        # The original shape is kept on the action once, a recoloured icon would lose nothing but this stays independent of the colour
+        pm = act.property("_shape")
+        if pm is None:
+            pm = act.icon().pixmap(48, 48)
+            act.setProperty("_shape", pm)
+        out = QPixmap(pm.size())
+        out.setDevicePixelRatio(pm.devicePixelRatio())
+        out.fill(Qt.transparent)
+        p = QPainter(out)
+        p.drawPixmap(0, 0, pm)
+        p.setCompositionMode(QPainter.CompositionMode_SourceIn)     # Keep the alpha, replace the colour
+        p.fillRect(out.rect(), colour)
+        p.end()
+        act.setIcon(QIcon(out))
+
+
 class PlotTab(QWidget):
     """!
     @brief A matplotlib canvas with the controls of one kind of plot.
@@ -113,7 +143,9 @@ class PlotTab(QWidget):
         self._updating = False
         self.fig = Figure(layout="constrained")
         self.canvas = FigureCanvasQTAgg(self.fig)
+        _paint_figure(self.fig, self.theme)             # An empty figure would be white on the dark theme
         self.toolbar = NavigationToolbar2QT(self.canvas, self)
+        recolour_toolbar(self.toolbar, self.theme)
 
         self.model = QComboBox()
         self.layer = QComboBox()
@@ -121,6 +153,9 @@ class PlotTab(QWidget):
         self.cmap.addItems(plots.CMAPS)
         self.hot = QCheckBox("Hotspot contour")
         self.hot.setChecked(True)
+        self.equiv = QCheckBox("Equiv. rect.")
+        self.equiv.setChecked(True)
+        self.equiv.setVisible(False)                    # Shown only for a Lumped or Analytic result of a board with an outline
         self.auto = QCheckBox("Auto range")
         self.auto.setChecked(True)
         self.vmin, self.vmax = QDoubleSpinBox(), QDoubleSpinBox()
@@ -137,6 +172,9 @@ class PlotTab(QWidget):
         self.model.setToolTip("Model whose result is drawn.")
         self.layer.setToolTip("Copper layer shown.")
         self.cmap.setToolTip("Colour scale of the map.")
+        self.equiv.setToolTip("Lumped and Analytic on a board with an outline: they solve a rectangle of the same area (box and positions scaled by s, the square root "
+                              "of the area ratio; parts keep their size). Ticked, the map shows that rectangle as solved, dashed, with its parts and the real outline dotted. "
+                              "Unticked, the field is stretched back by 1/s onto the box and blanked outside the outline (the parts then look 1/s larger).")
         self.vmin.setToolTip("Lowest temperature of the colour scale in °C (used when Auto range is off).")
         self.vmax.setToolTip("Highest temperature of the colour scale in °C (used when Auto range is off).")
         self.axis.setToolTip("Direction of the line along which the temperature is plotted.")
@@ -147,6 +185,7 @@ class PlotTab(QWidget):
             for lbl, w in (("Model", self.model), ("Layer", self.layer), ("Colours", self.cmap)):
                 controls.addWidget(QLabel(lbl))
                 controls.addWidget(w)
+            controls.addWidget(self.equiv)
             if kind == "temperature":
                 controls.addWidget(self.hot)
                 controls.addWidget(self.auto)
@@ -168,7 +207,7 @@ class PlotTab(QWidget):
 
         for w in (self.model, self.layer, self.cmap, self.axis):
             w.currentIndexChanged.connect(self.redraw)
-        for w in (self.hot, self.auto):
+        for w in (self.hot, self.auto, self.equiv):
             w.toggled.connect(self.redraw)
         for w in (self.vmin, self.vmax):
             w.valueChanged.connect(self.redraw)
@@ -180,6 +219,9 @@ class PlotTab(QWidget):
         @param theme "dark" or "light".
         """
         self.theme = theme
+        _paint_figure(self.fig, theme)                  # Also when nothing is drawn yet
+        recolour_toolbar(self.toolbar, theme)
+        self.canvas.draw_idle()
         self.redraw()
 
     def set_simulation(self, sim):
@@ -247,6 +289,11 @@ class PlotTab(QWidget):
         if self._updating or self.sim is None:
             return
         sim, prob = self.sim, self.sim.problem
+        r0 = self._result()
+        eq = r0.equivalent_scale if r0 is not None and prob.board.has_outline() else None
+        self.equiv.setVisible(eq is not None and self.kind in ("temperature", "gradient"))
+        # Ticked: the map as solved (the rectangle of the same area, its parts, dashed edge); amber token of the dark theme, readable on every colour map
+        eq_args = {"equivalent_scale": eq if self.equiv.isChecked() else None, "equivalent_color": th.colors("dark")["alert"]}
         self.vmin.setEnabled(not self.auto.isChecked())
         self.vmax.setEnabled(not self.auto.isChecked())
         with _mpl_theme(self.theme):
@@ -255,7 +302,7 @@ class PlotTab(QWidget):
                 layer = self.layer.currentData()
                 cmap = self.cmap.currentText()
                 if layer == -1:
-                    plots.draw_fields(self.fig, r, prob, cmap=cmap)
+                    plots.draw_fields(self.fig, r, prob, cmap=cmap, show_equivalent=self.equiv.isChecked(), equivalent_color=eq_args["equivalent_color"])
                 elif layer >= 100:
                     plots.draw_block(self.fig, r, prob, layer - 100, cmap=cmap)
                 else:
@@ -264,7 +311,7 @@ class PlotTab(QWidget):
                     loc = r.t_max_location
                     plots.draw_field(self.fig, r.T[layer], prob, r.dx, r.dy, cmap=cmap, vmin=vmin, vmax=vmax,
                                      layer=layer, marker=(loc[1], loc[2]) if loc and loc[0] == layer else None,
-                                     hotspot=sim.options.hotspot_c if self.hot.isChecked() else None,
+                                     hotspot=sim.options.hotspot_c if self.hot.isChecked() else None, **eq_args,
                                      title=f"{r.model.upper()} - layer {layer + 1}   "
                                            f"Tmax {r.t_max:.1f} °C   Tmean {r.t_mean:.1f} °C")
             elif self.kind == "gradient" and self._result() is not None:
@@ -272,7 +319,7 @@ class PlotTab(QWidget):
                 layer = max(self.layer.currentData(), 0)
                 g = analysis.gradient_magnitude(r)[layer]
                 plots.draw_field(self.fig, g, prob, r.dx, r.dy, cmap=self.cmap.currentText(), layer=layer,
-                                 label="|∇T| (K/mm)",
+                                 label="|∇T| (K/mm)", **eq_args,
                                  title=f"{r.model.upper()} - layer {layer + 1}   max gradient {g.max():.2f} K/mm")
             elif self.kind == "profile":
                 axis = self.axis.currentData()
@@ -367,12 +414,24 @@ class ResultsView(QWidget):
         self.time_sim = ProfileResultsTab(theme)
         self.tabs.addTab(self.time_sim, "Power profile")
 
+    def _show_warnings(self, warns):
+        """!
+        @brief Write the notes of the run under the models table, text and symbol in the same theme token.
+        @param warns List of warning strings.
+        """
+        tone = th.colors(self.theme)["alert_note"]
+        self.warnings.setTextFormat(Qt.RichText)
+        # Two line breaks = one blank line between warnings, so that a long list is easy to read
+        self.warnings.setText("<br><br>".join(f"<span style='color:{tone}'>⚠ {html.escape(str(w))}</span>" for w in warns))
+
     def set_theme(self, theme):
         """!
         @brief Change the theme of all plots.
         @param theme "dark" or "light".
         """
         self.theme = theme
+        if getattr(self, "sim", None) is not None:
+            self._show_warnings(self.sim.warnings)             # The notes take the colour of the new theme
         for t in (self.temp, self.grad, self.profile, self.compare):
             t.set_theme(theme)
         self.animation.set_theme(theme)
@@ -392,7 +451,7 @@ class ResultsView(QWidget):
         _fill(self.model_table, rows)
         _fit_height(self.model_table)
         warns = sim.warnings
-        self.warnings.setText("<br>".join(f"⚠ {w}" for w in warns))
+        self._show_warnings(warns)
         self.warnings.setVisible(bool(warns))
         self.report.setPlainText(sim.report())
         for t in (self.temp, self.grad, self.profile, self.compare):

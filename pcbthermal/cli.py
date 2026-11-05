@@ -12,6 +12,8 @@ Commands
 - convert     legacy editor JSON -> native JSON
 - gui         open the graphical application
 - example     write the reference board as a native JSON file
+
+Exit codes: 0 done, 2 usage error (argparse), 3 a run refused by the memory guard (the message names the cell that fits; `--memory-fraction` changes the limit).
 """
 
 import argparse
@@ -23,29 +25,54 @@ import time
 
 import numpy as np
 
-from . import __version__, fvm
+from . import __version__, copper, fvm, laminate, memory
 from .api import simulate, suggest_cell_mm
 from .examples import example_block_board, example_board, example_profile_board
 from .model import load_problem, problem_to_dict, reference_problem
 from .profile_io import read_profile_csv
-from .project import Project, load_project, save_project
+from .project import Project, ProjectFormatError, load_project, save_project
 from .numfmt import num
 
 MODELS = ("fvm", "lumped", "analytic")
 RUN_MODELS = MODELS + ("fdm", "solid3d")  # "fdm" is the finite-difference model, "solid3d" the 3D finite-volume solid
 
 
-def _cell_arg(args, problem, default):
+def _cell_arg(args, problem, default, transient=False):
     """!
     @brief Resolve the --cell-mm argument.
     @param args Parsed arguments.
     @param problem The Problem (used by "auto").
     @param default Value used when the argument is absent.
+    @param transient True for a time simulation: "auto" has to fit its larger memory factor (memory.TRANSIENT_FACTOR).
     @return Cell size in millimetres.
     """
     if args.cell_mm is None:
         return default
-    return suggest_cell_mm(problem) if args.cell_mm == "auto" else float(args.cell_mm)
+    if args.cell_mm != "auto":
+        return float(args.cell_mm)
+    # The automatic cell also has to fit the memory of the models the command solves: "all" and "compare" are expanded to their model keys (the guard
+    # ignores keys it does not know, so "all" passed as it is would not be checked), and the base is the resident size of this process, where the solve runs
+    chosen = getattr(args, "model", "fvm")
+    models = {"all": MODELS, "compare": RUN_MODELS}.get(chosen, (chosen,))
+    cell = suggest_cell_mm(problem, models=models, transient=transient, base=None)
+    note = copper.auto_cell_note(problem, cell)          # Imported copper wants 1 mm or less: say so when the memory forced a larger cell
+    if note:
+        print(note, file=sys.stderr)
+    return cell
+
+
+def _guard(problem, models, cells, transient=False):
+    """!
+    @brief Ask the memory guard about every cell a command will try, before anything is allocated.
+    @param problem The Problem.
+    @param models Model keys that will be solved (the guard estimates fvm, fdm and solid3d).
+    @param cells Cell sizes in mm that the command will use.
+    @param transient True for a time simulation (a larger factor).
+    @return None.
+    @throws memory.MemoryGuardError If a model is above the memory limit.
+    """
+    for c in cells:
+        memory.check(problem, models, c, transient=transient)
 
 
 def cmd_run(args):
@@ -57,8 +84,14 @@ def cmd_run(args):
     project = load_project(args.config)
     options = project.options
     options.models = {"all": MODELS, "compare": RUN_MODELS}.get(args.model, (args.model,))
-    options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     options.linear_solver = args.solver
+    if args.laminate_s_max_mm is not None:
+        options.laminate_s_max_mm = args.laminate_s_max_mm
+    if args.laminate_n_max is not None:
+        options.laminate_n_max = args.laminate_n_max
+    options.validate()
+    with laminate.using(*options.laminate_params()):                  # "auto" counts the unknowns of the laminate rule of the run
+        options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     po = options.profile
     if args.steady_power:
         options.steady_power = args.steady_power
@@ -114,17 +147,20 @@ def cmd_transient(args):
     """
     problem = load_problem(args.config)
     t0 = time.time()
+    cell = _cell_arg(args, problem, 2.0, transient=True)                  # Resolved once: "auto" asks the guard, with the factor of a time simulation
+    _guard(problem, (args.model,), [cell], transient=True)                # The analytic model is not estimated (the guard skips it)
     if args.model == "fdm":
         from . import fdm
-        tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0), theta_scheme=args.theta)
+        tr = fdm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
     elif args.model == "analytic":
         from . import analytic
         tr = analytic.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=min(_cell_arg(args, problem, 1.0), 1.0))
     else:
-        tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=_cell_arg(args, problem, 2.0),
-                                 theta_scheme=args.theta)
+        tr = fvm.solve_transient(problem, t_end=args.t_end, n_out=args.steps, cell_mm=cell, theta_scheme=args.theta)
     print(f"Transient done in {time.time() - t0:.2f} s: steady Tmax {tr.steady_t_max:.2f} degC, "
           f"time constant (63 %) {tr.time_constant():.1f} s, Tmax at t_end {tr.t_max[-1]:.2f} degC")
+    for w in tr.warnings:
+        print(f"Warning: {w}")                                            # Limits of the model met by the run (the Analytic with a heatsink), as `run` prints its warnings
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "transient.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
@@ -149,7 +185,8 @@ def cmd_calibrate(args):
     from .api import calibrate_convection
     project = load_project(args.config)
     options = project.options
-    options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
+    with laminate.using(*options.laminate_params()):                    # "auto" counts the unknowns of the project's laminate rule
+        options.cell_mm = _cell_arg(args, project.problem, options.cell_mm)
     multiplier, predicted = calibrate_convection(project.problem, args.measured, options, args.model, args.heater)
     what = f"heater {args.heater}" if args.heater else "the board maximum"
     print(f"Measured {num(args.measured)} degC at {what}: convection multiplier {multiplier:.3f} "
@@ -166,8 +203,10 @@ def cmd_convergence(args):
     """
     problem = load_problem(args.config)
     rows = []
+    cells = (10, 5, 2.5, 2, 1, 0.5)
+    _guard(problem, ("fvm",), cells)                    # The whole study is checked first: no half-finished table when the last cell is too fine
     print(f"{'cell mm':>8s} {'cells':>8s} {'Tmax':>9s} {'time s':>7s}")
-    for c in (10, 5, 2.5, 2, 1, 0.5):
+    for c in cells:
         t0 = time.time()
         r = fvm.solve_steady(problem, cell_mm=c)
         dt = time.time() - t0
@@ -187,7 +226,9 @@ def cmd_solvers(args):
     @return Process exit code.
     """
     project = load_project(args.config)
-    cell = _cell_arg(args, project.problem, project.options.cell_mm)
+    with laminate.using(*project.options.laminate_params()):            # "auto" and the guard count the unknowns of the project's laminate rule
+        cell = _cell_arg(args, project.problem, project.options.cell_mm)
+        _guard(project.problem, ("fvm",), [cell])
     cases = [("direct (sparse LU)", dict(method="direct")),
              ("cg (Jacobi)", dict(method="cg")),
              ("SOR, residual 1e-9, omega auto", dict(method="sor")),
@@ -199,7 +240,8 @@ def cmd_solvers(args):
     print(f"{'solver':50s} {'Tmax C':>9s} {'|dT| vs direct':>15s} {'residual':>10s} {'sweeps':>8s} {'time s':>8s}")
     for name, kw in cases:
         t0 = time.time()
-        r = fvm.solve_steady(project.problem, cell_mm=cell, **kw)
+        with laminate.using(*project.options.laminate_params()):        # The board of the project, with its laminate rule
+            r = fvm.solve_steady(project.problem, cell_mm=cell, **kw)
         dt = time.time() - t0
         ref = r if ref is None else ref
         err = float(abs(r.T - ref.T).max())
@@ -261,12 +303,20 @@ def build_parser():
         sp.add_argument("--out", default="output", help="output directory (default: output)")
         sp.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto' (default: from the project, 1)")
         sp.add_argument("--no-plots", action="store_true", help="skip figure generation")
+        sp.add_argument("--memory-fraction", type=float, default=None, metavar="F",
+                        help=f"share of the physical memory a solve may use, {memory.MIN_FRACTION} to {memory.MAX_FRACTION} (default: the Preferences value, "
+                             f"{memory.DEFAULT_FRACTION}); a larger model is refused with exit code {memory.EXIT_CODE}")
 
     r = sub.add_parser("run", help="solve steady state")
     common(r)
     r.add_argument("--model", choices=RUN_MODELS + ("all", "compare"), default="all",
                    help="all: fvm, lumped, analytic; compare: those three plus the comparison models fdm and solid3d")
     r.add_argument("--solver", choices=("direct", "cg", "sor"), default="direct", help="FVM linear solver")
+    r.add_argument("--laminate-s-max-mm", type=float, default=None, metavar="S",
+                   help="longest sub-gap of the laminate between two copper nodes in mm, 0.05 to 5 (FVM and FDM; default 0.4)")
+    r.add_argument("--laminate-n-max", type=int, default=None, metavar="N",
+                   help="most sub-gaps in one gap, 1 to 16 (1 turns the cutting off; default 4; more is slower and closer to a resolved 3D solid). A gap of "
+                        "thickness d gets min(N, ceil(d / S)) sub-gaps: on a 1.6 mm board N above 4 needs a smaller --laminate-s-max-mm too")
     hg = r.add_argument_group("heat transfer coefficients computed from correlations (any of these switches to computed mode)")
     hg.add_argument("--computed-h", action="store_true", help="compute h_top and h_bottom (natural convection + radiation)")
     hg.add_argument("--air-speed", type=float, default=None, help="air speed along the board in m/s (0 = still air)")
@@ -305,6 +355,7 @@ def build_parser():
     k.add_argument("--heater", default=None, help="heater whose footprint maximum was measured (default: board maximum)")
     k.add_argument("--model", choices=MODELS, default="fvm")
     k.add_argument("--cell-mm", default=None, help="cell size in mm, or 'auto'")
+    k.add_argument("--memory-fraction", type=float, default=None, metavar="F", help="share of the physical memory a solve may use (see run)")
     k.set_defaults(func=cmd_calibrate)
 
     c = sub.add_parser("convergence", help="FVM grid refinement study")
@@ -340,7 +391,23 @@ def main(argv=None):
     @return Process exit code.
     """
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    try:
+        # The fraction is a process-wide override for the command (it replaces the Preferences value); restored afterwards so that a caller (tests) is not left changed
+        memory.set_default_fraction(getattr(args, "memory_fraction", None))
+        return args.func(args)
+    except memory.MemoryGuardError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return memory.EXIT_CODE
+    except ProjectFormatError as exc:                  # A project file of a format this program does not read: a message, not a traceback
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        if "memory fraction" in str(exc):                # An out-of-range --memory-fraction
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        raise
+    finally:
+        memory.set_default_fraction(None)
 
 
 if __name__ == "__main__":

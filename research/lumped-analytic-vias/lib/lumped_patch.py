@@ -221,7 +221,8 @@ def _compile_heater_network():
     @throws RuntimeError If a block to replace is not found (the program changed).
     """
     from pcbthermal import lumped
-    src = textwrap.dedent(inspect.getsource(lumped._heater_network))
+    # Since feature/lumped-zones the one-node network of 2.4.5 is lumped._one_node_network (the body moved unchanged; _heater_network chooses it or the zones)
+    src = textwrap.dedent(inspect.getsource(getattr(lumped, "_one_node_network", lumped._heater_network)))
     # The solve closure indents the loop block by 8 spaces after dedent of the function: normalise by locating the old text with its real indentation
     def swap(src, old, new, indent_old):
         pad = " " * indent_old
@@ -249,9 +250,9 @@ def _compile_heater_network():
     exec(compile(src, "<patched lumped._heater_network>", "exec"), lumped.__dict__, ns)
     lumped._via_couplings = _via_couplings
     lumped._lat_via = _lat_via
-    compiled = ns["_heater_network"]
+    compiled = ns["_one_node_network"] if "_one_node_network" in ns else ns["_heater_network"]
 
-    def heater_network(net, cov, layer, power, rings, vias=None):
+    def heater_network(net, cov, layer, power, rings, vias=None, zone_ok=None):
         """!
         @brief The compiled copy called the way the program calls `lumped._heater_network`.
         @param net Network (per-cell arrays) of the problem.
@@ -261,6 +262,7 @@ def _compile_heater_network():
         @param rings Number of rings outside the footprint.
         @param vias ViaSet of the program's own constriction (`viaconstriction.py`, adopted from this study); ignored here: the copy builds the couplings of the
                study, from the barrel read as `net.gz + net.gz_via` (the program's own branch for a board without a ViaSet).
+        @param zone_ok Ignored (the zone decision the program passes since feature/lumped-zones; this copy is the one-node network).
         @return Dict of `lumped._heater_network`.
         """
         return compiled(net, cov, layer, power, rings, None)
@@ -289,6 +291,9 @@ def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, clus
     old_solve = lumped.solve_steady
     old_units = lumped._unit_networks
     old_opts = dict(OPTIONS)
+    old_zones = getattr(lumped, "ZONES", None)
+    if old_zones is not None:
+        lumped.ZONES = False                                          # the program's zone model (feature/lumped-zones) off: this study is of the one-node network and its raster clip
     OPTIONS.update(mode=mode, eta=eta, c3=c3, cell=cell, cap_lambda=cap_lambda, cluster=cluster, scale=scale, macro_scale=macro_scale, peak=peak, macro_cap=macro_cap, lone_cap=lone_cap)
     try:
         lumped._heater_network = _compile_heater_network()
@@ -307,6 +312,8 @@ def patched(mode="krogh", eta=cr.ETA, c3=0.75, cell="ring", cap_lambda=1.0, clus
         lumped._heater_network = old_net
         lumped.solve_steady = old_solve
         lumped._unit_networks = old_units
+        if old_zones is not None:
+            lumped.ZONES = old_zones
         OPTIONS.clear()
         OPTIONS.update(old_opts)
         PROBLEM["p"] = None

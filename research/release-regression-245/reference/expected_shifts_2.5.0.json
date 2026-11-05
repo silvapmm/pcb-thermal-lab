@@ -1,0 +1,619 @@
+{
+ "format": 1,
+ "baseline": "v2.4.5",
+ "target": "2.5.0",
+ "how_to_read": "A shift of one number between the two result sets is 'expected' when a rule below covers its board, model, cell and metric and its direction and size are inside the bounds; 'to be explained' when the item is a plausible cause and no study gives the size; 'unexplained' when no rule covers it. A must_not_move entry wins over every rule. Sizes: abs_k in K, rel_rise as a fraction of the baseline rise of the hottest point, rel as a fraction of the baseline value (counts). Status: 'quantified' = the bound is a number printed by a study; 'derived' = the bound is worked out from a printed number or is an engineering margin; 'to be explained' = no size known. Everything not measured here is left as 'to be explained' on purpose. Review: 'expected_out_of_range' is an alarm too (a defect on a board that an item reaches shows exactly so). Each bound is applied only to its unit: abs_k and rel_rise to temperatures, rel to unknown counts, abs_w (W) to the heat balance; the field checksums are not bounded. 'limits' (written by scripts/study_tighten_table.py from the reviewed run, 1.25 x the measured shift per board, model and cell, floors 0.05 K, 0.1 % of a count, 1e-9 W, 1 % of a time to 63 %) replace the general bound, which stays as the hypothesis of the documents.",
+ "items": [
+  {
+   "id": "J1",
+   "title": "Analytic Robin edge",
+   "branch": "feature/analytic-robin-edge",
+   "evidence": "research/analytic-edge-spatial; docs/validation.md; docs/theory.md 6",
+   "moves": "Analytic on every board with an edge coefficient (13 boards, 3 cells, 39 records)",
+   "size": "example_board 85.1021 -> 84.5774 degC at 1 mm (-0.52 K); part_across_outline 216.03 -> 208.93 (-7.1 K, the largest); always cooler"
+  },
+  {
+   "id": "J2",
+   "title": "Zonal Lumped model",
+   "branch": "feature/lumped-zones",
+   "evidence": "research/lumped-zones-adoption; docs/theory.md 5.2",
+   "moves": "Lumped plate_vias (a part over a group of vias); time to 63 % 27.83 -> 31.00 s",
+   "size": "plate_vias 140.1495 -> 136.4534 degC at 0.5 mm, 140.3555 -> 136.4534 at 1 and 2 mm"
+  },
+  {
+   "id": "J3",
+   "title": "Lumped footprint potentials",
+   "branch": "fix/lumped-footprint-potentials",
+   "evidence": "docs/theory.md 5",
+   "moves": "Lumped reference_board at 0.5 mm (footprint above 900 cells)",
+   "size": "89.0933 -> 89.3632 degC (+0.27 K)"
+  },
+  {
+   "id": "J4",
+   "title": "Mirror image of a board edge for vias",
+   "branch": "feature/via-edge-image",
+   "evidence": "research/via-edge-image; docs/theory.md 2.6",
+   "moves": "FVM example_cut_to_T at 2 and 1 mm (vias on a straight board wall)",
+   "size": "94.4545 -> 94.4442 degC at 2 mm (-0.0103 K), -0.0001 K at 1 mm, 0 at 0.5 mm"
+  },
+  {
+   "id": "J5",
+   "title": "Symmetric-mode LU",
+   "branch": "fix/symmetric-lu",
+   "evidence": "CLAUDE.md Decisions Log; research/reproduction-250",
+   "moves": "last bits of the FVM, FDM, Lumped and 3D solid sums",
+   "size": "below 1e-8 K (largest printed here 2.9e-12 K)"
+  }
+ ],
+ "rules": [
+  {
+   "id": "R5a",
+   "item": "J5",
+   "boards": "*",
+   "models": [
+    "fvm",
+    "fdm",
+    "lumped",
+    "solid3d"
+   ],
+   "cells": "*",
+   "metrics": "*",
+   "abs_k": [
+    0,
+    1e-08
+   ],
+   "abs_w": [
+    0,
+    1e-08
+   ],
+   "status": "derived",
+   "note": "symmetric LU: the order of the sums changes the last bits only"
+  },
+  {
+   "id": "R1a",
+   "item": "J1",
+   "boards": [
+    "example_board",
+    "example_cut_to_T",
+    "finned_block",
+    "hatched_copper",
+    "part_across_outline",
+    "part_top_path",
+    "plate_lone_via",
+    "plate_vias",
+    "profile_board",
+    "reference_board",
+    "round_outline",
+    "t_outline",
+    "two_layer_partial"
+   ],
+   "models": [
+    "analytic"
+   ],
+   "cells": "*",
+   "metrics": "*",
+   "direction": "down",
+   "abs_k": [
+    0,
+    8.0
+   ],
+   "abs_w": [
+    0,
+    0.02
+   ],
+   "status": "quantified",
+   "note": "a convective board edge removes heat: the Analytic rise falls; the limits are 1.25 x the shifts printed by the reviewed run",
+   "limits": {
+    "example_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.9315
+     ]
+    },
+    "example_board|analytic|1": {
+     "abs_k": [
+      0,
+      0.9281
+     ]
+    },
+    "example_board|analytic|2": {
+     "abs_k": [
+      0,
+      0.9281
+     ]
+    },
+    "example_cut_to_T|analytic|0.5": {
+     "abs_k": [
+      0,
+      1.6619
+     ]
+    },
+    "example_cut_to_T|analytic|1": {
+     "abs_k": [
+      0,
+      1.6563
+     ]
+    },
+    "example_cut_to_T|analytic|2": {
+     "abs_k": [
+      0,
+      1.6563
+     ]
+    },
+    "finned_block|analytic|0.5": {
+     "abs_k": [
+      0,
+      1.6932
+     ]
+    },
+    "finned_block|analytic|1": {
+     "abs_k": [
+      0,
+      1.6797
+     ]
+    },
+    "finned_block|analytic|2": {
+     "abs_k": [
+      0,
+      1.6797
+     ]
+    },
+    "hatched_copper|analytic|0.5": {
+     "abs_k": [
+      0,
+      1.8858
+     ]
+    },
+    "hatched_copper|analytic|1": {
+     "abs_k": [
+      0,
+      1.8723
+     ]
+    },
+    "hatched_copper|analytic|2": {
+     "abs_k": [
+      0,
+      1.8723
+     ]
+    },
+    "part_across_outline|analytic|0.5": {
+     "abs_k": [
+      0,
+      8.8534
+     ]
+    },
+    "part_across_outline|analytic|1": {
+     "abs_k": [
+      0,
+      8.8821
+     ]
+    },
+    "part_across_outline|analytic|2": {
+     "abs_k": [
+      0,
+      8.8821
+     ]
+    },
+    "part_top_path|analytic|0.5": {
+     "abs_k": [
+      0,
+      1.0609
+     ]
+    },
+    "part_top_path|analytic|1": {
+     "abs_k": [
+      0,
+      1.0574
+     ]
+    },
+    "part_top_path|analytic|2": {
+     "abs_k": [
+      0,
+      1.0574
+     ]
+    },
+    "plate_lone_via|analytic|0.5": {
+     "abs_k": [
+      0,
+      3.0789
+     ]
+    },
+    "plate_lone_via|analytic|1": {
+     "abs_k": [
+      0,
+      3.0635
+     ]
+    },
+    "plate_lone_via|analytic|2": {
+     "abs_k": [
+      0,
+      3.0635
+     ]
+    },
+    "plate_vias|analytic|0.5": {
+     "abs_k": [
+      0,
+      3.0699
+     ]
+    },
+    "plate_vias|analytic|1": {
+     "abs_k": [
+      0,
+      3.0545
+     ]
+    },
+    "plate_vias|analytic|2": {
+     "abs_k": [
+      0,
+      3.0545
+     ]
+    },
+    "profile_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.9315
+     ]
+    },
+    "profile_board|analytic|1": {
+     "abs_k": [
+      0,
+      0.9281
+     ]
+    },
+    "profile_board|analytic|2": {
+     "abs_k": [
+      0,
+      0.9281
+     ]
+    },
+    "reference_board|analytic|0.5": {
+     "abs_k": [
+      0,
+      0.6975
+     ]
+    },
+    "reference_board|analytic|1": {
+     "abs_k": [
+      0,
+      0.6932
+     ]
+    },
+    "reference_board|analytic|2": {
+     "abs_k": [
+      0,
+      0.6932
+     ]
+    },
+    "round_outline|analytic|0.5": {
+     "abs_k": [
+      0,
+      4.7341
+     ]
+    },
+    "round_outline|analytic|1": {
+     "abs_k": [
+      0,
+      4.7135
+     ]
+    },
+    "round_outline|analytic|2": {
+     "abs_k": [
+      0,
+      4.7135
+     ]
+    },
+    "t_outline|analytic|0.5": {
+     "abs_k": [
+      0,
+      6.064
+     ]
+    },
+    "t_outline|analytic|1": {
+     "abs_k": [
+      0,
+      6.04
+     ]
+    },
+    "t_outline|analytic|2": {
+     "abs_k": [
+      0,
+      6.04
+     ]
+    },
+    "two_layer_partial|analytic|0.5": {
+     "abs_k": [
+      0,
+      2.4686
+     ]
+    },
+    "two_layer_partial|analytic|1": {
+     "abs_k": [
+      0,
+      2.4537
+     ]
+    },
+    "two_layer_partial|analytic|2": {
+     "abs_k": [
+      0,
+      2.4537
+     ]
+    }
+   }
+  },
+  {
+   "id": "R2a",
+   "item": "J2",
+   "boards": [
+    "plate_vias"
+   ],
+   "models": [
+    "lumped"
+   ],
+   "cells": "*",
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    5.0
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "status": "quantified",
+   "note": "zonal Lumped: the part over a via group is cooler, some layer means and part values go up (direction any); limits 1.25 x the printed shifts",
+   "limits": {
+    "plate_vias|lumped|0.5": {
+     "abs_k": [
+      0,
+      4.6203
+     ]
+    },
+    "plate_vias|lumped|1": {
+     "abs_k": [
+      0,
+      4.8777
+     ]
+    },
+    "plate_vias|lumped|2": {
+     "abs_k": [
+      0,
+      4.8777
+     ]
+    }
+   }
+  },
+  {
+   "id": "R3a",
+   "item": "J3",
+   "boards": [
+    "reference_board"
+   ],
+   "models": [
+    "lumped"
+   ],
+   "cells": [
+    0.5
+   ],
+   "metrics": "*",
+   "direction": "any",
+   "abs_k": [
+    0,
+    0.5
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "status": "quantified",
+   "note": "footprint potentials above 900 cells: the peak is hotter",
+   "limits": {
+    "reference_board|lumped|0.5": {
+     "abs_k": [
+      0,
+      0.3374
+     ]
+    }
+   }
+  },
+  {
+   "id": "R4a",
+   "item": "J4",
+   "boards": [
+    "example_cut_to_T"
+   ],
+   "models": [
+    "fvm"
+   ],
+   "cells": [
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "abs_k": [
+    0,
+    0.02
+   ],
+   "abs_w": [
+    0,
+    1e-06
+   ],
+   "status": "quantified",
+   "note": "edge image of the via well: -0.0103 K at 2 mm, -0.0001 K at 1 mm",
+   "limits": {
+    "example_cut_to_T|fvm|1": {
+     "abs_k": [
+      0,
+      0.0002
+     ]
+    },
+    "example_cut_to_T|fvm|2": {
+     "abs_k": [
+      0,
+      0.013
+     ]
+    }
+   }
+  }
+ ],
+ "must_not_move": [
+  {
+   "id": "N1",
+   "boards": [
+    "plate_uniform",
+    "plate_pad",
+    "one_layer_full",
+    "one_layer_pad"
+   ],
+   "models": [
+    "analytic"
+   ],
+   "cells": "*",
+   "metrics": "*",
+   "reason": "no edge coefficient on these boards: the Robin edge equals the cosine basis"
+  },
+  {
+   "id": "N2",
+   "boards": [
+    "plate_uniform",
+    "plate_pad",
+    "one_layer_full",
+    "one_layer_pad",
+    "finned_block",
+    "hatched_copper",
+    "part_top_path",
+    "two_layer_partial"
+   ],
+   "models": [
+    "lumped"
+   ],
+   "cells": "*",
+   "metrics": "*",
+   "reason": "no via group and no footprint above 900 cells: the Lumped is the 2.4.5 code line for line"
+  },
+  {
+   "id": "N3",
+   "boards": [
+    "reference_board"
+   ],
+   "models": [
+    "lumped"
+   ],
+   "cells": [
+    1.0,
+    2.0
+   ],
+   "metrics": "*",
+   "reason": "the footprint of the source is under 900 cells at 1 and 2 mm"
+  },
+  {
+   "id": "N4",
+   "boards": [
+    "reference_board",
+    "plate_uniform",
+    "plate_pad",
+    "plate_vias",
+    "plate_lone_via",
+    "two_layer_partial",
+    "one_layer_full",
+    "one_layer_pad",
+    "finned_block",
+    "hatched_copper",
+    "part_top_path",
+    "example_board",
+    "profile_board",
+    "round_outline",
+    "t_outline",
+    "example_cut_to_T"
+   ],
+   "models": [
+    "solid3d"
+   ],
+   "cells": "*",
+   "metrics": "*",
+   "reason": "the 3D solid is not changed by any item of 2.5.0 (last bits of the sums only on part_across_outline, rule R5a)"
+  }
+ ],
+ "transients": {
+  "must_not_move": [
+   {
+    "id": "U1",
+    "boards": [
+     "plate_uniform",
+     "plate_pad",
+     "one_layer_full",
+     "one_layer_pad",
+     "finned_block",
+     "round_outline",
+     "t_outline",
+     "part_across_outline"
+    ],
+    "models": [
+     "analytic",
+     "lumped"
+    ],
+    "reason": "no item reaches the time to 63 % of these boards in the Lumped or Analytic"
+   }
+  ],
+  "may_move": [
+   {
+    "id": "U2",
+    "boards": "*",
+    "models": [
+     "fvm",
+     "fdm"
+    ],
+    "direction": "any",
+    "rel_change": [
+     0,
+     1e-08
+    ],
+    "note": "symmetric LU: last bits of the time to 63 %",
+    "limits": {
+     "example_cut_to_T|fvm": [
+      0,
+      0.001
+     ]
+    }
+   },
+   {
+    "id": "U3",
+    "boards": [
+     "example_board",
+     "hatched_copper",
+     "part_top_path",
+     "plate_lone_via",
+     "plate_vias",
+     "profile_board",
+     "reference_board",
+     "two_layer_partial"
+    ],
+    "models": [
+     "analytic"
+    ],
+    "direction": "down",
+    "rel_change": [
+     0,
+     0.2
+    ],
+    "note": "Robin edge in the modal system: the board cools faster (largest printed -12.2 % of the time)"
+   },
+   {
+    "id": "U4",
+    "boards": [
+     "plate_vias"
+    ],
+    "models": [
+     "lumped"
+    ],
+    "direction": "up",
+    "rel_change": [
+     0,
+     0.2
+    ],
+    "note": "zonal Lumped: 27.83 -> 31.00 s (+11.4 %)"
+   }
+  ]
+ },
+ "board_matrix": {}
+}

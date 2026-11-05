@@ -1,0 +1,219 @@
+#  Copyright (c) 2026 Pedro Silva (PMS Labs). All rights reserved.
+#  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
+"""!
+@file make_diagrams.py
+@brief Schematic diagrams of the real-boards investigation: the chain from the files of a board to the models, the paste layer as a component footprint (what a click picks), and copper finer than the cell.
+@details Pure drawing, no data and no program; the shapes are in research/diagram_kit.py. Writes figures/fig_01_import_chain.png, fig_02_paste_to_footprint.png and fig_03_fine_copper_cell.png.
+         Not yet drawn (planned, need the results of the studies): the memory per unknown against the unknowns (make_figures.py), the step responses by cell size (make_figures.py).
+         Run (from the repository root): .venv/bin/python research/gerber-real-boards/scripts/make_diagrams.py   (needs matplotlib only)
+"""
+
+import sys
+from pathlib import Path
+
+import numpy as np
+from matplotlib.patches import Polygon, Rectangle
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import diagram_kit as dk                                           # noqa: E402
+
+OUT = Path(__file__).resolve().parents[1] / "figures"
+
+
+def import_chain(path):
+    """!
+    @brief The chain from the files of a board to the models of the program, with the places where a decision or a warning sits.
+    @param path Output file.
+    @return None.
+    """
+    fig, ax = dk.canvas(11, 5.2)
+    ax.set_xlim(0, 11)
+    ax.set_ylim(0, 5.2)
+    dk.box(ax, 0.1, 3.6, 2.2, 1.2, "Gerber set\ncopper, outline,\ndrill, paste", "#cfe3f5")
+    dk.box(ax, 0.1, 1.8, 2.2, 1.2, "placement file\n(CSV) or Gerber X3\ncomponent layer", "#cfe3f5")
+    dk.box(ax, 0.1, 0.1, 2.2, 1.2, "ODB++ (planned)\ncomponents, packages", "#e8e8e8")
+    dk.box(ax, 3.1, 3.6, 2.2, 1.2, "own reader\n(NumPy)\nmasks per layer", "#d8ecd0")
+    dk.box(ax, 3.1, 1.8, 2.2, 1.2, "paste groups\n(TO.C or proximity)\nregistered on the\nplacement", "#d8ecd0")
+    dk.box(ax, 6.1, 3.6, 2.2, 1.2, "copper mapping\nfaces per cell\n(+ fine-copper warning)", "#fbe3b6")
+    dk.box(ax, 6.1, 1.8, 2.2, 1.2, "parts: footprint,\nheat source by click", "#fbe3b6")
+    dk.box(ax, 8.8, 2.7, 2.1, 1.4, "program network\n(FVM; Lumped and\nAnalytic with a\nwarning)", "#f4b6b6", bold=True)
+    dk.box(ax, 8.8, 0.6, 2.1, 1.1, "project file 2\n(masks embedded\nor referenced)", "#e8e8e8")
+    for y in (4.2, 2.4):
+        dk.arrow(ax, 2.3, y, 3.1, y)
+        dk.arrow(ax, 5.3, y, 6.1, y)
+    dk.arrow(ax, 8.3, 4.1, 8.8, 3.6)
+    dk.arrow(ax, 8.3, 2.4, 8.8, 3.1)
+    dk.arrow(ax, 9.85, 2.7, 9.85, 1.7)
+    dk.arrow(ax, 2.3, 0.7, 3.1, 2.0, style="->")
+    ax.text(5.5, 0.35, "Studies: mapping default, time and memory, transient, paste, Lumped/Analytic rule, rare primitives, fine copper", fontsize=7, style="italic", ha="center")
+    dk.save(fig, path, "From the files of a board to the models (the chain this investigation tests)")
+
+
+def paste_to_footprint(path):
+    """!
+    @brief A QFN seen from above: the paste openings, the group, the three candidate footprints and the click.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(10, 4.2, 1, 3)
+    titles = ["paste openings", "group + footprint candidates", "click picks the group"]
+    for ax, t in zip(axs, titles):
+        ax.set_xlim(-4, 4)
+        ax.set_ylim(-4, 4)
+        ax.set_aspect("equal")
+        ax.set_title(t, fontsize=9)
+        # the 28 perimeter pads (7 per side) and the exposed-pad windows (2 x 2)
+        pads = []
+        for i in range(7):
+            u = -1.8 + 0.6 * i
+            for (x, y, w, h) in ((u, 2.6, 0.3, 0.8), (u, -2.6, 0.3, 0.8), (2.6, u, 0.8, 0.3), (-2.6, u, 0.8, 0.3)):
+                pads.append((x - w / 2, y - h / 2, w, h))
+        for (x0, y0, w, h) in ((-1.4, -1.4, 1.2, 1.2), (0.2, -1.4, 1.2, 1.2), (-1.4, 0.2, 1.2, 1.2), (0.2, 0.2, 1.2, 1.2)):
+            pads.append((x0, y0, w, h))
+        for (x0, y0, w, h) in pads:
+            ax.add_patch(Rectangle((x0, y0), w, h, facecolor="#7a7a7a", edgecolor="none"))
+    # panel 2: bounding box, hull (an octagon here), largest opening (one window; the exposed pad is split in four)
+    ax = axs[1]
+    ax.add_patch(Rectangle((-3.3, -3.3), 6.6, 6.6, fill=False, edgecolor=dk.BLUE, linewidth=1.6))
+    ax.text(-3.2, 3.5, "bounding box", color=dk.BLUE, fontsize=7)
+    hull = np.array([[-1.8, 3.0], [1.8, 3.0], [3.0, 1.8], [3.0, -1.8], [1.8, -3.0], [-1.8, -3.0], [-3.0, -1.8], [-3.0, 1.8]])
+    ax.add_patch(Polygon(hull, fill=False, edgecolor="#2ca02c", linewidth=1.6, linestyle="--"))
+    ax.text(-3.9, -3.8, "convex hull", color="#2ca02c", fontsize=7)
+    ax.add_patch(Rectangle((-1.4, -1.4), 2.8, 2.8, fill=False, edgecolor=dk.HEAT, linewidth=1.6, linestyle=":"))
+    ax.text(0.3, -1.9, "exposed pad", color=dk.HEAT, fontsize=7)
+    # panel 3: the click
+    ax = axs[2]
+    ax.add_patch(Rectangle((-3.3, -3.3), 6.6, 6.6, facecolor="#f4b6b6", alpha=0.35, edgecolor=dk.HEAT, linewidth=1.4))
+    ax.plot([0.75], [0.75], marker="+", color="k", markersize=14, markeredgewidth=2)
+    ax.text(0.95, 0.95, "click", fontsize=8)
+    ax.text(0, -3.8, "reference U1 from TO.C or from the placement file", fontsize=7, ha="center")
+    dk.save(fig, path, "The paste layer as a component: groups of openings, three footprints for the heat source, one click")
+
+
+def fine_copper(path):
+    """!
+    @brief Copper finer than the cell: stripes under a grid, the cells that are neither empty nor full, and the thin copper the cell cannot resolve.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(10, 4.2, 1, 2)
+    for ax, cell, title in ((axs[0], 1.0, "cell 1.0 mm: 0.2 mm stripes at 0.4 mm pitch\n(every cell mixed, all copper thinner than the cell)"),
+                            (axs[1], 0.2, "cell 0.2 mm: the same copper\n(cells are nearly empty or full along the stripes)")):
+        ax.set_xlim(0, 4)
+        ax.set_ylim(0, 4)
+        ax.set_aspect("equal")
+        ax.set_title(title, fontsize=8)
+        for y in np.arange(0, 4, 0.4):
+            ax.add_patch(Rectangle((0, y), 4, 0.2, facecolor=dk.COPPER, edgecolor="none"))
+        for g in np.arange(0, 4 + 1e-9, cell):
+            ax.plot([g, g], [0, 4], color="k", linewidth=0.5)
+            ax.plot([0, 4], [g, g], color="k", linewidth=0.5)
+    axs[0].text(2, -0.35, "heat across the stripes must cross every clearance: the arithmetic fill assumes it does not", fontsize=7, ha="center")
+    dk.save(fig, path, "Copper finer than the cell: what the cell conductance can only approximate")
+
+
+def laminate_rule_faces(path):
+    """!
+    @brief Cross-section through two copper layers with a bare window in the top one: the heat paths with one node per layer, with the laminate rule's interior nodes, and where a face mapping must not count the laminate twice.
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(12, 4.4, 1, 3)
+    titles = ("one node per copper layer\n(before 2.4.5): the laminate under the bare window\nis one link, the sideways flow in it is lost",
+              "the rule of 2.4.5: interior nodes in the gap\nbeside absent copper; the copper node gives up\nthat part of its laminate",
+              "a face mapping on the rule's network:\nthe faces must come from the sheet the node\nkept (grey), not from the whole slab")
+    for k, ax in enumerate(axs):
+        ax.set_xlim(0, 10)
+        ax.set_ylim(0, 6)
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.set_title(titles[k], fontsize=8)
+        ax.add_patch(Rectangle((0, 1.5), 10, 3.0, facecolor="#d8ecd0", edgecolor="none"))                  # the laminate gap (green)
+        for (x0, w) in ((0, 3.6), (6.4, 3.6)):
+            ax.add_patch(Rectangle((x0, 4.5), w, 0.35, facecolor=dk.COPPER, edgecolor="none"))             # top copper with a bare window between
+        ax.add_patch(Rectangle((0, 1.15), 10, 0.35, facecolor=dk.COPPER, edgecolor="none"))               # bottom copper plane
+        ax.text(5, 5.15, "bare window", ha="center", fontsize=7)
+        ax.text(0.1, 0.55, "bottom copper", fontsize=7)
+        ax.text(0.1, 5.15, "top copper", fontsize=7)
+        if k == 0:
+            dk.arrow(ax, 1.8, 4.5, 3.2, 3.0, color=dk.HEAT)
+            dk.arrow(ax, 3.2, 3.0, 4.4, 1.5, color=dk.HEAT)
+            ax.text(5, 3.0, "one link\n(no sideways flow)", ha="center", fontsize=7)
+        elif k == 1:
+            for y in (2.25, 3.0, 3.75):
+                ax.plot([0.4, 9.6], [y, y], color="k", linewidth=0.4, linestyle=":")
+            dk.arrow(ax, 3.4, 4.5, 4.2, 3.75, color=dk.HEAT)
+            dk.arrow(ax, 4.2, 3.75, 5.6, 3.3, color=dk.HEAT)
+            dk.arrow(ax, 5.6, 3.3, 5.2, 2.25, color=dk.HEAT)
+            dk.arrow(ax, 5.2, 2.25, 4.6, 1.5, color=dk.HEAT)
+            ax.text(5, 1.85, "interior nodes (dotted)", ha="center", fontsize=7)
+        else:
+            ax.add_patch(Rectangle((0, 3.7), 10, 0.8, facecolor="#cccccc", edgecolor="none", alpha=0.7))
+            ax.text(5, 4.0, "laminate the copper node gave up\n(now in the interior nodes):\nout of the faces", ha="center", fontsize=7)
+            ax.text(5, 2.6, "naive: faces from the whole slab\n=> this laminate is counted twice", ha="center", fontsize=7, color="#a02020")
+    dk.save(fig, path, "The laminate rule and the face mapping")
+
+
+def x3_component_object(path):
+    """!
+    @brief One component of an X3 component layer: the four outline types, the pins with the key pin, the origin flash, the reference designator, and what rotation and the bottom side do to the same footprint.
+    @param path Output file.
+    @return None.
+    """
+    import math
+    fig, axs = dk.canvas(11, 4.6, 1, 3)
+    # An 8-pin small-outline part at rotation zero: body 3 x 4, leads in two rows of 4 at x = -2.6 and +2.6, pitch 1.27, a courtyard and a footprint contour
+    pins = [(-2.6, 1.905 - 1.27 * k) for k in range(4)] + [(2.6, -1.905 + 1.27 * k) for k in range(4)]
+    body = [(-1.5, -2.0), (1.5, -2.0), (1.5, 2.0), (-1.5, 2.0)]
+    l2l = [(-3.1, -2.0), (3.1, -2.0), (3.1, 2.0), (-3.1, 2.0)]
+    foot = [(-3.4, -2.6), (3.4, -2.6), (3.4, 2.6), (-3.4, 2.6)]
+    court = [(-3.9, -3.1), (3.9, -3.1), (3.9, 3.1), (-3.9, 3.1)]
+
+    def put(pts, rot, bottom):
+        """!@brief Local points to the board: flip x for a bottom part, then rotate counter-clockwise by rot degrees (the rule found on the sample files)."""
+        a = math.radians(rot)
+        c, s = math.cos(a), math.sin(a)
+        return [(c * (-x if bottom else x) - s * y, s * (-x if bottom else x) + c * y) for x, y in pts]
+
+    cases = [("top, CRot 0", 0.0, False), ("top, CRot 90 (counter-clockwise)", 90.0, False), ("bottom, CRot 0 (seen from the top)", 0.0, True)]
+    for ax, (title, rot, bottom) in zip(axs, cases):
+        ax.axis("on")
+        ax.set_aspect("equal")
+        ax.set_xlim(-6.5, 6.5)
+        ax.set_ylim(-5.6, 6.6)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for pts, col, lab, ls in ((court, "#d62728", "Courtyard", "-"), (foot, "#9467bd", "Footprint", "-"), (l2l, "#2ca02c", "Lead2Lead", "-"), (body, "#17becf", "Body", "-")):
+            ax.add_patch(Polygon(put(pts, rot, bottom), closed=True, fill=False, edgecolor=col, linewidth=1.6, linestyle=ls, label=lab))
+        for k, (x, y) in enumerate(pins):
+            (px, py), = put([(x, y)], rot, bottom)
+            ax.plot(px, py, "D" if k == 0 else "o", color="#444444", markersize=7 if k == 0 else 4, zorder=5)
+            if k in (0, 1, 7):
+                ax.annotate(str(k + 1), (px, py), textcoords="offset points", xytext=(5, 5), fontsize=7)
+        ax.plot(0, 0, "x", color="k", markersize=9, zorder=6)
+        ax.text(0.12, -0.5, "U1", fontsize=9, ha="left", va="top", fontweight="bold")
+        ax.set_title(title, fontsize=9)
+        if rot:
+            ax.annotate("", xy=(4.3, 1.8), xytext=(4.3, -1.8), arrowprops=dict(arrowstyle="->", color="#555555", connectionstyle="arc3,rad=-0.5"))
+            ax.text(5.2, 0, "CCW", fontsize=7, color="#555555", rotation=90, va="center")
+    axs[0].legend(fontsize=7, loc="upper left", frameon=True, ncol=2)
+    axs[0].text(-6.2, -5.3, "x: ComponentMain flash (origin, %TO.C,U1 + .CRot, .CFtp, .CVal, .CMnt)\ndiamond: key pin (%TO.P,U1,1), circles: other pins", fontsize=6.5, va="bottom")
+    axs[2].text(-6.2, -5.3, "the footprint is turned over: pin 1 moves to the other side\n(the sample files: local x changes sign, then the rotation)", fontsize=6.5, va="bottom")
+    dk.save(fig, path, "An X3 component object: four outline types, pins, origin, rotation, bottom side (drawn after the specification, rev 2026.05, p. 157, 158, 166)")
+
+
+def main():
+    """!
+    @brief Draw all the diagrams.
+    @return None.
+    """
+    OUT.mkdir(parents=True, exist_ok=True)
+    laminate_rule_faces(OUT / "fig_12_laminate_rule_faces.png")
+    import_chain(OUT / "fig_01_import_chain.png")
+    paste_to_footprint(OUT / "fig_02_paste_to_footprint.png")
+    fine_copper(OUT / "fig_03_fine_copper_cell.png")
+    x3_component_object(OUT / "fig_20_x3_component_object.png")
+
+
+if __name__ == "__main__":
+    main()

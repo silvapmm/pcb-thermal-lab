@@ -5,17 +5,67 @@
 @brief The Help menu: the user guide (an HTML file, shown in the program or in the browser) and the About box.
 """
 
+import re
 from pathlib import Path
 
 from .. import defaults
-from PySide6.QtCore import QUrl, Qt
-from PySide6.QtGui import QDesktopServices, QIcon, QTextCursor
+from . import theme as th
+from PySide6.QtCore import QObject, QUrl, Qt
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon, QTextCursor
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout
 
 from .. import __author__, __project_url__, __version__
 
 GUIDE = Path(__file__).resolve().parents[1] / "help" / "index.html"
 LOGO = Path(__file__).resolve().parents[2] / "ico" / "pcb-board.png"
+
+
+class _PageReloader(QObject):
+    """!
+    @brief Child of a help browser that reloads its page when the application palette changes (the theme is switched).
+    """
+
+    def __init__(self, view, path):
+        """!
+        @param view QTextBrowser whose page is reloaded (and the Qt parent, so that this object dies with it).
+        @param path Path of the HTML file shown.
+        """
+        super().__init__(view)
+        self._view, self._path = view, path
+        QGuiApplication.instance().paletteChanged.connect(self.reload)
+
+    def reload(self, *_):
+        """!
+        @brief Load the page again with the colours of the theme now in use.
+        @param _ Ignored (the palette sent by the Qt signal).
+        """
+        set_themed_page(self._view, self._path)
+
+
+def set_themed_page(view, path, name=None):
+    """!
+    @brief Show an HTML help file in a QTextBrowser with the colours of the application theme.
+    @details Qt's rich text ignores the prefers-color-scheme block of the page (written for a web browser), so the style sheet of
+             the file is replaced by the one built from the theme table; the scroll position, the images (searched next to the
+             file) and the internal links are kept, so the page can be reloaded when the theme is switched while it is open.
+    @param view QTextBrowser that shows the page.
+    @param path Path of the HTML file.
+    @param name "dark" or "light"; None for the theme in use.
+    """
+    name = name or th.current_name()
+    text = Path(path).read_text(encoding="utf-8")
+    text = re.sub(r"<style>.*?</style>", lambda _m: "<style>" + th.document_css(name) + "</style>", text, count=1, flags=re.S)
+    bar = view.verticalScrollBar()
+    keep = bar.value()
+    view.setSearchPaths([str(Path(path).parent)])
+    view.document().setBaseUrl(QUrl.fromLocalFile(str(Path(path).parent) + "/"))
+    view.setHtml(text)
+    bar.setValue(keep)
+    if getattr(view, "_themed", None) is None:
+        # The page follows the application from now on: a theme switch while it is open (the user guide stays open, the help of the
+        # calculator opens over a modal dialog) reloads it, since a page already loaded keeps its colours otherwise
+        _PageReloader(view, path)
+    view._themed = (str(path), name)                         # what is shown now, for the tests
 
 
 class GuideWindow(QDialog):
@@ -44,11 +94,18 @@ class GuideWindow(QDialog):
         self.view = QTextBrowser()
         self.view.setOpenExternalLinks(True)
         self.view.setToolTip("The user guide. Click a link in the contents to jump to a section.")
-        self.view.setSource(QUrl.fromLocalFile(str(GUIDE)))
+        set_themed_page(self.view, GUIDE)
         lay.addWidget(self.view, 1)
         box = QDialogButtonBox(QDialogButtonBox.Close)
         box.rejected.connect(self.reject)
         lay.addWidget(box)
+
+    def set_theme(self, name=None):
+        """!
+        @brief Redraw the guide in a theme (a page already loaded keeps its old colours when the theme is switched).
+        @param name "dark" or "light"; None for the theme in use.
+        """
+        set_themed_page(self.view, GUIDE, name)
 
     def find_next(self):
         """!
@@ -88,7 +145,8 @@ class AboutDialog(QDialog):
         self.text = QLabel(
             f"<h2>PCB Thermal Lab</h2><p>Version <b>{__version__}</b></p>"
             "<p>Thermal simulation of printed circuit boards: finite volumes, finite differences, a thermal network, an analytical series and a 3D solid, "
-            "with power profiles, computed convection, parts with junction temperature and any board shape.</p>"
+            "with power profiles, computed convection, parts with junction temperature, any board shape and the import of a board from Gerber files.</p>"
+            "<p>The models are validated against independent models (a resolved 3D solid, closed forms, datasheet cases), not against a measured board.</p>"
             f"<p>Author: {__author__}<br>"
             f"Project: <a href=\"{__project_url__}\">{__project_url__}</a><br>"
             "Copyright © 2025-2026 Pedro Silva (PMS Labs). Released under the MIT License (see the LICENSE file).</p>"

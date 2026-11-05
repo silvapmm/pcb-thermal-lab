@@ -273,6 +273,212 @@ def part_weights(poly, outline, nx, ny, dx, dy, samples=BOARD_SAMPLES, cover=Non
     return out
 
 
+def _clip_to_box(poly, width, height):
+    """!
+    @brief Clip a polygon to the rectangle [0, width] x [0, height] (Sutherland-Hodgman, one box edge at a time).
+    @param poly Polygon vertices (n, 2) in metres.
+    @param width Box width in metres.
+    @param height Box height in metres.
+    @return numpy.ndarray Vertices (m, 2) of the clipped polygon in metres (m = 0 when nothing is left).
+    """
+    pts = [tuple(v) for v in np.asarray(poly, dtype=float)]
+    # Each box edge as (axis, limit, keep_greater): the kept side is the inside half-plane
+    for axis, limit, keep_greater in ((0, 0.0, True), (0, width, False), (1, 0.0, True), (1, height, False)):
+        if not pts:
+            break
+
+        def inside(q):
+            return q[axis] >= limit if keep_greater else q[axis] <= limit
+
+        res = []
+        prev = pts[-1]
+        for cur in pts:
+            if inside(cur) != inside(prev):
+                # The edge crosses the limit: add the crossing point
+                t = (limit - prev[axis]) / (cur[axis] - prev[axis])
+                res.append((prev[0] + t * (cur[0] - prev[0]), prev[1] + t * (cur[1] - prev[1])))
+            if inside(cur):
+                res.append(cur)
+            prev = cur
+        pts = res
+    return np.array(pts, dtype=float).reshape(-1, 2)
+
+
+# Points per side of the lattice laid on the bounding box of a part to find its share inside an outline (the part's own size, not the cell's)
+PART_SHARE_SAMPLES = 96
+
+
+def part_board_share(poly, width, height, outline=None):
+    """!
+    @brief Share of a part polygon that lies on the board, from the geometry and not from the cell raster.
+    @details A rectangular board (no outline) is the exact clip of the polygon to the box. With an outline the lattice is laid on the
+             bounding box of the part itself (PART_SHARE_SAMPLES points per side), so a part smaller than a cell is judged as finely as a large one;
+             the 4 x 4 lattice of the cell cover read a 1 mm part on a 2.5 mm cell as 22 % outside the board although it was inside.
+    @param poly Part polygon vertices (n, 2) in metres.
+    @param width Board width in metres.
+    @param height Board height in metres.
+    @param outline Board outline vertices (n, 2) in metres, or None for the rectangle.
+    @return float Share in [0, 1] (1 for a polygon of zero area).
+    """
+    p = np.asarray(poly, dtype=float)
+    area = polygon_area(p)
+    if area <= 0:
+        return 1.0
+    clipped = _clip_to_box(p, width, height)
+    share_box = polygon_area(clipped) / area if len(clipped) >= 3 else 0.0
+    if outline is None:
+        return float(min(share_box, 1.0))
+    if share_box <= 0.0:
+        return 0.0
+    # The outline is a general polygon: count lattice points of the part that fall inside it
+    n = PART_SHARE_SAMPLES
+    gx, gy = np.meshgrid(p[:, 0].min() + (np.arange(n) + 0.5) / n * np.ptp(p[:, 0]), p[:, 1].min() + (np.arange(n) + 0.5) / n * np.ptp(p[:, 1]))
+    in_part = points_in_polygon(gx.ravel(), gy.ravel(), p)
+    if not in_part.any():
+        return float(min(share_box, 1.0))
+    on_board = points_in_polygon(gx.ravel(), gy.ravel(), np.asarray(outline, dtype=float))
+    return float((in_part & on_board).sum() / in_part.sum())
+
+
+def _is_convex(poly):
+    """!
+    @brief Whether a polygon is convex (all turns of its boundary have the same sign; collinear vertices are allowed).
+    @param poly Polygon vertices (n, 2) in metres.
+    @return bool True for a convex polygon.
+    """
+    p = np.asarray(poly, dtype=float)
+    d1 = np.roll(p, -1, axis=0) - p
+    d2 = np.roll(d1, -1, axis=0)
+    cross = d1[:, 0] * d2[:, 1] - d1[:, 1] * d2[:, 0]
+    scale = 1e-12 * max(float(np.abs(d1).max()) ** 2, 1e-30)      # Tolerance relative to the size, so a collinear vertex is not a turn
+    if not (np.all(cross >= -scale) or np.all(cross <= scale)):
+        return False
+    # Turns of one sign are not enough: a pentagram turns the same way at every vertex but goes round twice and crosses itself, and clipping by it
+    # gave the whole square at its centre (which the even-odd fill of the program leaves empty). A convex polygon turns once in total (2 pi)
+    dot = d1[:, 0] * d2[:, 0] + d1[:, 1] * d2[:, 1]
+    return bool(abs(float(np.arctan2(cross, dot).sum())) < 3.0 * math.pi)
+
+
+def clip_polygon(subject, clip):
+    """!
+    @brief Clip a polygon to a convex polygon (Sutherland-Hodgman, one edge of the clip polygon at a time).
+    @details Exact for any subject polygon when the clip polygon is convex (a concave subject may leave zero-width bridges, which have no area).
+    @param subject Polygon to clip, vertices (n, 2) in metres.
+    @param clip Convex clip polygon, vertices (m, 2) in metres, either orientation.
+    @return numpy.ndarray Vertices (k, 2) of the clipped polygon in metres (k = 0 when nothing is left).
+    """
+    c = np.asarray(clip, dtype=float)
+    if polygon_area_signed(c) < 0:
+        c = c[::-1]                                            # Counter-clockwise: the inside is on the left of every edge
+    pts = [tuple(v) for v in np.asarray(subject, dtype=float)]
+    for k in range(len(c)):
+        a, b = c[k], c[(k + 1) % len(c)]
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        if not pts:
+            break
+
+        def side(q):
+            return ex * (q[1] - a[1]) - ey * (q[0] - a[0])      # Positive on the left (inside)
+
+        res = []
+        prev = pts[-1]
+        for cur in pts:
+            s_cur, s_prev = side(cur), side(prev)
+            if (s_cur >= 0) != (s_prev >= 0):
+                t = s_prev / (s_prev - s_cur)
+                res.append((prev[0] + t * (cur[0] - prev[0]), prev[1] + t * (cur[1] - prev[1])))
+            if s_cur >= 0:
+                res.append(cur)
+            prev = cur
+        pts = res
+    return np.array(pts, dtype=float).reshape(-1, 2)
+
+
+def polygon_area_signed(poly):
+    """!
+    @brief Signed area of a polygon (positive for counter-clockwise vertices).
+    @param poly Polygon vertices (n, 2) in metres.
+    @return float Signed area in m2.
+    """
+    p = np.asarray(poly, dtype=float)
+    return 0.5 * float(np.dot(p[:, 0], np.roll(p[:, 1], -1)) - np.dot(p[:, 1], np.roll(p[:, 0], -1)))
+
+
+def polygon_overlap_area(a, b):
+    """!
+    @brief Area shared by two polygons, from the geometry and not from a cell raster.
+    @details Exact (Sutherland-Hodgman) when at least one polygon is convex and neither outline crosses itself, which covers every rectangle and every
+             part footprint drawn as a convex shape. Two concave polygons, or an outline that crosses itself (read by the even-odd rule, as the fill of the
+             models), are measured with a PART_SHARE_SAMPLES x PART_SHARE_SAMPLES lattice laid on the intersection of their bounding boxes (within about
+             1 % of the smaller area on random star-shaped pairs against shapely).
+    @param a First polygon vertices (n, 2) in metres.
+    @param b Second polygon vertices (m, 2) in metres.
+    @return float Overlap area in m2 (0 when they are apart or only touch).
+    """
+    pa, pb = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    x0, x1 = max(pa[:, 0].min(), pb[:, 0].min()), min(pa[:, 0].max(), pb[:, 0].max())
+    y0, y1 = max(pa[:, 1].min(), pb[:, 1].min()), min(pa[:, 1].max(), pb[:, 1].max())
+    if x1 <= x0 or y1 <= y0:
+        return 0.0
+    # The clip measures the winding-number area, so a subject whose outline crosses itself (a pentagram: its centre wound twice) would count twice
+    # what the even-odd fill of the program leaves empty; such a polygon goes to the lattice, which uses the even-odd rule like the models
+    # (a polygon that _is_convex accepts turns once and cannot cross itself, so only the subject is tested)
+    if _is_convex(pb) and not polygon_self_intersects(pa):
+        clipped = clip_polygon(pa, pb)
+    elif _is_convex(pa) and not polygon_self_intersects(pb):
+        clipped = clip_polygon(pb, pa)
+    else:
+        n = PART_SHARE_SAMPLES
+        gx, gy = np.meshgrid(x0 + (np.arange(n) + 0.5) / n * (x1 - x0), y0 + (np.arange(n) + 0.5) / n * (y1 - y0))
+        both = points_in_polygon(gx.ravel(), gy.ravel(), pa) & points_in_polygon(gx.ravel(), gy.ravel(), pb)
+        return float(both.sum() / n / n * (x1 - x0) * (y1 - y0))
+    return abs(polygon_area_signed(clipped)) if len(clipped) >= 3 else 0.0
+
+
+def bbox_overlap_pairs(polys):
+    """!
+    @brief Index pairs of polygons whose bounding boxes overlap with a positive area, found by a sweep instead of testing every pair.
+    @details The pairs are exactly those for which polygon_overlap_area does not stop at its own bounding-box test (it returns 0 when the boxes only
+             touch or are apart), so running the exact overlap on these pairs alone gives the same results as running it on all pairs. The sweep sorts
+             the boxes by their left edge and, for each one, looks only at the boxes that start before its right edge and tests the y range with NumPy:
+             near-linear for parts spread over a board (about n log n plus the number of candidate pairs), quadratic only if every box overlaps in x
+             (and then in vectorised comparisons: 1000 parts in one column take about 10 ms). A box with no width or no height, or with a NaN
+             coordinate, is left out: its box test in polygon_overlap_area fails (or its exact overlap is NaN), so it never gives a warning.
+    @param polys Sequence of polygons, each None (skipped) or an array-like (n, 2) of vertices in metres.
+    @return List of (i, j) with i < j in increasing order (the order of the double loop over i and j).
+    """
+    idx = [k for k, p in enumerate(polys) if p is not None]
+    if len(idx) < 2:
+        return []
+    pts = [np.asarray(polys[k], dtype=float) for k in idx]
+    boxes = np.array([[p[:, 0].min(), p[:, 0].max(), p[:, 1].min(), p[:, 1].max()] for p in pts], dtype=float)
+    # A box with no width or no height (a point, a segment along an axis) overlaps nothing with a positive area: the box test of polygon_overlap_area
+    # takes min(right) - max(left), which is at most the width of each box. The sweep below tests only the edges of the partner, so such a box would
+    # pass when it lies inside another one; it is dropped here (as a box with a NaN coordinate, for which the exact overlap is NaN and never warns)
+    keep = (boxes[:, 1] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 2])
+    boxes = boxes[keep]
+    ids = np.array(idx)[keep]
+    if len(ids) < 2:
+        return []
+    order = np.argsort(boxes[:, 0], kind="stable")
+    xmin, xmax, ymin, ymax = (boxes[order, c] for c in range(4))
+    ids = ids[order]
+    pairs = []
+    for a in range(len(order)):
+        # Boxes sorted after a that start strictly before the right edge of a overlap it in x (those starting at or after it only touch)
+        hi = int(np.searchsorted(xmin, xmax[a], side="left"))
+        if hi <= a + 1:
+            continue
+        sl = slice(a + 1, hi)
+        # Strict overlaps in x (the sorted partner starts at or after a, so only its right edge must pass the left edge of a) and in y
+        ok = (xmax[sl] > xmin[a]) & (ymin[sl] < ymax[a]) & (ymax[sl] > ymin[a])
+        for b in np.nonzero(ok)[0]:
+            i, j = int(ids[a]), int(ids[a + 1 + b])
+            pairs.append((i, j) if i < j else (j, i))
+    pairs.sort()
+    return pairs
+
+
 def zone_fill(zones, layers, nx, ny, dx, dy, samples=4):
     """!
     @brief Copper fill of every layer: the union of its zones, taken at every sub-sample point and then averaged over the cell.

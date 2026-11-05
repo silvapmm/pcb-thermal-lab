@@ -152,13 +152,13 @@ class StackupView(QWidget):
                 fill = QColor(c["copper"])
             else:
                 k = layer["k_through"]
-                fill = QColor("#4a6f5a") if k < 1.0 else QColor("#6c8f9d") if k < 10 else QColor("#9aa7b4")
+                fill = QColor(c["diel_low"]) if k < 1.0 else QColor(c["diel_mid"]) if k < 10 else QColor(c["diel_high"])
                 fill = QColor(c["board"]) if k <= 0.35 and layer["material"].startswith("FR-4") else fill
             p.setBrush(QBrush(fill))
-            p.setPen(QPen(QColor("white") if i == self.selected else QColor(c["border"]), 2.0 if i == self.selected else 1.0))
+            p.setPen(QPen(QColor(c["selection"]) if i == self.selected else QColor(c["border"]), 2.0 if i == self.selected else 1.0))
             p.drawRect(rect)
             # Label inside the bar (when there is room) and the dimension to the right
-            p.setPen(QColor("white"))
+            p.setPen(th.readable_on(fill, c["on_element"]))            # white as before; dark only where white is below 3:1 (high-k grey 2.4:1, dark copper)
             if hp >= 14:
                 text = layer["label"] if layer["kind"] == "copper" else layer["material"]
                 p.drawText(rect.adjusted(6, 0, -4, 0), Qt.AlignVCenter | Qt.AlignLeft, p.fontMetrics().elidedText(text, Qt.ElideRight, int(bar_w) - 10))
@@ -401,18 +401,18 @@ class StackupPage(QWidget):
         self.scale.addItem("True proportions", True)
         self.scale.setToolTip("True proportions draw each layer with its real thickness ratio (35 µm copper next to 1.5 mm of laminate is a thin line).")
         self.typical = QPushButton("Load typical stack-up")
-        self.typical.setToolTip("Replace the copper and the dielectrics by a typical stack-up for this number of layers (JLCPCB-like 4 layers, 1.6 mm; 6, 8, 10, 12 layers). "
+        self.typical.setToolTip("Replace the copper and the dielectrics by a typical stack-up for this number of layers (a typical 4-layer build, 1.6 mm; 6, 8, 10, 12 layers). "
                                 "It is loaded automatically when you change the number of layers. The templates are in pcbthermal/data/stackups.json: edit that file to change them. "
-                                "They are typical values, not the stack-up of your fabricator.")
+                                "They are typical values: check your fabricator's stack-up.")
         self.typical.clicked.connect(self.doc.load_typical_stackup)
         self.inner_oz = QComboBox()
         self.inner_oz.addItem("0.5 oz (15.2 µm)", 0.5)
         self.inner_oz.addItem("1 oz (35 µm)", 1.0)
         self.inner_oz.setToolTip("Finished thickness of the INNER copper layers of the typical advanced stack-up (boards of 3 or more layers). 0.5 oz = 15.2 µm is the "
-                                 "default; 1 oz = 35 µm is what PCBWay, PCBGOGO, Bittele and AdvancedPCB list (JLCPCB's own 1 oz inner copper is about 30 µm). Choosing it reloads "
+                                 "default; 1 oz = 35 µm is the usual figure for a standard 1 oz inner copper (some builds use about 30 µm). Choosing it reloads "
                                  "the typical stack-up with 35 µm inner copper and the dielectrics of the template unchanged, so the board is about 0.02 mm thicker per inner layer "
                                  "(1.586 to 1.626 mm for 4 layers, 2.4 to 2.6 mm for 12): fabricators pick another build for 1 oz, they do not thin the dielectrics. It is derived from "
-                                 "the shipped templates, not a fabricator table. With a plane on every inner layer it makes the board about 7 K (10 to 13 % of the rise) cooler "
+                                 "the shipped templates (typical values, check your fabricator's stack-up). With a plane on every inner layer it makes the board about 7 K (10 to 13 % of the rise) cooler "
                                  "than 0.5 oz; with copper only on the outer layers it changes the result by less than 0.3 K. "
                                  "Disabled with fewer than 3 layers and in the simple stack-up (where every layer has the outer copper thickness).")
         self.inner_oz.currentIndexChanged.connect(self._inner_oz_changed)

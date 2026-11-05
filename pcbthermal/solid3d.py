@@ -31,47 +31,40 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 
-from . import viawell
+from . import copper, memory, viawell
 from .fvm import ORDERING
-from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid, zone_fill
+from .geometry import part_weights, coverage_fraction, edge_length_on_board, nearest_active_cell, polygon_centroid
 from .results import SteadyResult
 
 log = logging.getLogger(__name__)
 
 ISOLATED = 1.0e-9            # W/K to the ambient of a cell with no block: keeps the matrix regular, changes nothing
 K_FLOOR = 1.0e-9             # W/mK of a cell that holds no material (outside a block)
-# Largest 3D model that is solved. The direct sparse solve of a 3D grid fills in far more than the layered 2D models. Measured on a quiet
-# 16 GB machine (research/solid3d-verification/docs/for-the-project-documents.md): on the example board (16 slabs) 158 000 unknowns take
-# 7.2 s and 2.15 GB, 247 000 take 15.3 s and 3.5 GB, 392 000 take 32.8 s and 7.4 GB and 512 000 take 57.7 s and 9.9 GB resident; on a plain
-# two-layer board (6 slabs) 500 000 unknowns take 9.3 s and 3.3 GB. Time and memory depend on the board (slab count, vias, blocks), on the
-# machine and on the computed-h loop (the solve is repeated 3 to 6 times). The older figures of this comment (tens of seconds to minutes, 4.4 GB
-# at 254 000) were not reproduced and are withdrawn. The limit is kept at 250 000, a value set for memory: at it the example board needs 3.5 GB.
-MAX_CELLS = 250_000
+# The size of a 3D model is no longer a fixed number: pcbthermal/memory.py estimates the peak memory from the unknowns and refuses a run above a share of the
+# installed memory (api.simulate, jobs.py and the constructor of Solid call it before anything is built). Measured on a quiet 16 GB machine (research/memory-guard): the example board
+# (16 slabs) takes 3.5 GB at 247 000 unknowns and 9.9 GB at 512 000; a plain two-layer board (6 slabs) 3.3 GB at 500 000.
 K_PAD = 1.0                  # W/mK of the interface pad slab (its thickness is R'' times this)
 
 
 @contextlib.contextmanager
 def size_limit(max_cells):
     """!
-    @brief Change MAX_CELLS inside a with block and restore it after (for the offline studies that accept long solves on a large machine).
-    @details The application keeps the limit; a study that needs a finer 3D grid (the 0.5 mm columns of validation_study.py, the 6-layer board of
-             study_complex_boards.py) runs inside `with solid3d.size_limit(2_000_000):`, so a test that imports the study is not affected.
-    @param max_cells Largest number of unknowns accepted inside the block.
+    @brief Accept 3D models up to a number of unknowns inside a with block whatever the memory estimate, and refuse them above it (the offline studies).
+    @details The memory guard (`memory.check`) would refuse such a model on a small machine; inside the block it does not, up to `max_cells`, and the ceiling of the 3D
+             solid is lifted to it. A study that needs a finer 3D grid (the 0.5 mm columns of validation_study.py, the 6-layer board of study_complex_boards.py) runs inside
+             `with solid3d.size_limit(2_000_000):`; a study that must stay small (`size_limit(250_000)`) gets a refusal above the number, as before the guard.
+             The guard acts in `api.simulate`, `jobs.py` and the constructor of `Solid`, so a study that builds the 3D solid directly is checked too.
+    @param max_cells Largest number of unknowns accepted inside the block (and refused above it), count.
     @return Context manager (yields nothing).
     """
-    global MAX_CELLS
-    old = MAX_CELLS
-    MAX_CELLS = int(max_cells)
-    try:
+    with memory.accept_unknowns("solid3d", int(max_cells)):
         yield
-    finally:
-        MAX_CELLS = old
 
 
 def unknowns(problem, cell_mm=2.0, n_diel=4):
     """!
     @brief Number of unknowns of the 3D model of a problem, counted without building it (same slabs as Solid).
-    @details Used to refuse a model that is too large before anything is assembled, and by the application to show the size next to the cell.
+    @details Used by the memory guard to refuse a model that is too large before anything is assembled, and by the application to show the size next to the cell.
     @param problem A Problem.
     @param cell_mm Target size of the cells in the plan in millimetres.
     @param n_diel Slabs across every dielectric gap.
@@ -92,22 +85,6 @@ def unknowns(problem, cell_mm=2.0, n_diel=4):
     # Every face with a block gets a pad slab and 1 to 6 metal slabs (one per millimetre of the thickest block), as in Solid
     ns += sum(1 + int(np.clip(round(t * 1000.0), 1, 6)) for t in thick.values())
     return ns * nx * ny, ns, nx, ny
-
-
-def check_size(problem, cell_mm=2.0, n_diel=4):
-    """!
-    @brief Refuse a 3D model above MAX_CELLS unknowns, before anything is built.
-    @param problem A Problem.
-    @param cell_mm Target size of the cells in the plan in millimetres.
-    @param n_diel Slabs across every dielectric gap.
-    @throws ValueError If the model would have more than MAX_CELLS unknowns.
-    """
-    n, ns, nx, ny = unknowns(problem, cell_mm, n_diel)
-    if n > MAX_CELLS:
-        # Suggest the cell that brings the model under the limit (the unknowns go as 1 / cell^2)
-        hint = np.ceil(cell_mm * (n / MAX_CELLS) ** 0.5 * 10.0) / 10.0    # Rounded up to 0.1 mm, so the printed cell is enough
-        raise ValueError(f"the 3D model would have {n} unknowns ({ns} slabs of {nx} x {ny} cells), more than the {MAX_CELLS} a direct solve "
-                         f"handles (the limit keeps the memory of a solve to a few GB); use a cell of {hint:.1f} mm or more")
 
 
 def _edge_length(cov, dx, dy):
@@ -131,15 +108,19 @@ class Solid:
     @brief The slabs, conductances and sources of the 3D model.
     """
 
-    def __init__(self, problem, cell_mm=2.0, n_diel=4):
+    def __init__(self, problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
         """!
         @param problem A Problem.
         @param cell_mm Target size of the cells in the plan in millimetres (same rule as the FVM).
         @param n_diel Slabs across every dielectric gap.
-        @throws ValueError If the model would have more than MAX_CELLS unknowns.
+        @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()); api.simulate passes the option of the run.
+        @throws memory.MemoryGuardError (a ValueError) If the estimated memory is above the limit, the model is above the 3D ceiling, or it is outside the
+                window of a size_limit block; checked before any array of the size of the model is made.
         """
         problem.validate()
-        check_size(problem, cell_mm, n_diel)                        # Before any array of the size of the model is made
+        # The memory guard here too, not only in api.simulate: the studies and the tests build the 3D solid directly, and before the guard this constructor
+        # refused a model above MAX_CELLS; a study that catches ValueError to print "-" for a model too large keeps working
+        memory.check(problem, ("solid3d",), cell_mm, fraction=memory_fraction, n_diel=n_diel)
         self.problem = problem
         b, m = problem.board, problem.board.materials
         L, W, H = b.layers, b.width, b.height
@@ -161,7 +142,7 @@ class Solid:
         self.area_b = Ab
 
         # --- Copper fill of every layer and the plated area of the vias in every cell
-        fill = zone_fill(problem.zones, L, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
+        fill = copper.problem_fill(problem, nx, ny, dx, dy, 4)           # Union per sample point, not per cell
         via_frac = np.zeros((ny, nx))
         for v, share in zip(problem.vias, problem.via_board_shares()):
             if share > 0.0:                    # The geometric test of the warning and of every model: a via with no board under its drill adds nothing
@@ -254,7 +235,7 @@ class Solid:
             for kind, dz, kx, kz in block_slabs(1):
                 add(kind, L - 1, np.maximum(dz, 1e-9), kx, kz)
         ns = len(slabs)
-        n = ns * ny * nx                                         # Equal to unknowns() (checked by the tests), so check_size above saw this size
+        n = ns * ny * nx                                         # Equal to unknowns() (checked by the tests), the size the memory guard saw
         self.ns, self.n = ns, n
 
         # --- Conductances inside the solid (W/K): x and y neighbours in a slab, z neighbours between slabs
@@ -384,17 +365,18 @@ class Solid:
         return theta.reshape(self.ns, self.ny, self.nx), res
 
 
-def solve_steady(problem, cell_mm=2.0, n_diel=4):
+def solve_steady(problem, cell_mm=2.0, n_diel=4, memory_fraction=None):
     """!
     @brief Steady-state solution of the 3D model.
     @param problem A Problem.
     @param cell_mm Target size of the cells in the plan in millimetres.
-    @param n_diel Slabs across every dielectric gap (4 by default; 8 changes the answer by under 0.6 % even on a heater-sized pad).
+    @param n_diel Slabs across every dielectric gap (4 by default; not enough for a part whose side is under 6.7 times the slab d / 4: under a 2 mm source 4 against 8 slabs differ 5 % at 1.6 mm and 14 % at 3.2 mm, and the solid reads it up to +20 % bare / +27 % pad hot with 4, +5.4 / +13.3 % with 8, +0.4 / +7.9 % with 16; checks.check_small_part_laminate warns).
+    @param memory_fraction Share of the physical memory the solve may use (None: memory.default_fraction()).
     @return SteadyResult with the temperature of the copper slab of every layer (layout of the FVM), the heat by path and, with metal
             blocks, their temperature and heat as the FVM does.
-    @throws ValueError If the model is too large.
+    @throws memory.MemoryGuardError (a ValueError) If the model is too large for the memory guard.
     """
-    net = Solid(problem, cell_mm, n_diel)
+    net = Solid(problem, cell_mm, n_diel, memory_fraction)
     b = problem.board
     theta_all, res = net.solve()
     L = b.layers

@@ -189,18 +189,17 @@ def test_sor_sweeps_with_vias_are_not_more_than_without():
 
 def test_sor_falls_back_to_the_direct_solver_when_a_block_is_too_large(monkeypatch):
     """!
-    @brief Above MAX_SOR_BLOCK unknowns in one via block the SOR solves directly and says so in its info.
+    @brief When the dense inverse of a via block (75 n^2 bytes) is above a quarter of the memory limit the SOR solves directly and says so in its info.
     @param monkeypatch pytest fixture.
     @return None.
     """
     net = fvm.Network(small_board([(5.0, 5.0, 0.8)]), 20, 20)
     direct, _ = net.solve_steady()
-    monkeypatch.setattr(fvm, "MAX_SOR_BLOCK", 3)
-    theta, res, info = net.solve_sor()
+    theta, res, info = net.solve_sor(memory_limit=1000.0)           # A 1 kB limit: no block fits
     assert info.get("fallback") == "direct"
     assert float(np.abs(theta - direct).max()) < 1e-9
     # The result the user sees says that the SOR was not used (it was only in the log)
-    r = fvm.solve_steady(small_board([(5.0, 5.0, 0.8)]), cell_mm=0.5, method="sor")
+    r = fvm.solve_steady(small_board([(5.0, 5.0, 0.8)]), cell_mm=0.5, method="sor", memory_limit=1000.0)
     assert r.extras.get("fallback_direct") == 1.0
     assert any("SOR not used" in w for w in r.warnings)
 
@@ -285,14 +284,24 @@ def test_the_footprint_rows_use_dy_when_the_cells_are_not_square(height, cell):
 
 def test_warning_for_a_via_touching_the_board_edge():
     """!
-    @brief A via within one cell of the edge of the board is reported; a via in the middle is not.
+    @brief A via within one cell of the edge is reported for what the mirror image of the FVM does not cover (the FDM, the 3D solid, a cell of 2 mm or more, a
+           via cut by the edge); the FVM at a fine cell with a straight edge, and a via in the middle, get none.
     @return None.
     """
     edge = small_board([(0.3, 5.0, 0.3)])
     middle = small_board([(5.0, 5.0, 0.3)])
-    assert any("touching the board edge" in w for w in check_via_limits(edge, ("fvm",), 1.0))
-    assert not any("touching the board edge" in w for w in check_via_limits(middle, ("fvm",), 1.0))
+    assert not any("touching the board edge" in w for w in check_via_limits(edge, ("fvm",), 1.0))        # covered by the image
+    assert any("touching the board edge" in w for w in check_via_limits(edge, ("fvm",), 2.0))            # a coarse cell
+    assert any("half-volume edge nodes" in w for w in check_via_limits(edge, ("fvm", "fdm"), 1.0))
+    assert any("touching the board edge" in w for w in check_via_limits(edge, ("solid3d",), 1.0))
+    assert not any("touching the board edge" in w for w in check_via_limits(middle, ("fvm", "fdm", "solid3d"), 1.0))
     assert not any("touching the board edge" in w for w in check_via_limits(edge, ("lumped",), 1.0))
+    # A via cut by the edge (centre within its radius of the wall) and a via beside a slanted side are not covered
+    cut = small_board([(0.1, 5.0, 0.4)])
+    assert any("touching the board edge" in w for w in check_via_limits(cut, ("fvm",), 1.0))
+    tri = small_board([(5.0, 0.4, 0.3)])
+    tri.set_outline([(0, 0), (10, 0), (10, 10), (4, 10), (0, 6)])
+    assert any("touching the board edge" in w for w in check_via_limits(tri, ("fvm",), 1.0))
 
 
 def test_warning_for_a_coarse_cell_next_to_vias():

@@ -4,7 +4,7 @@
 @file make_diagrams.py
 @brief Pictures for the theory (folder research/theory) of every model of `docs/theory.md` and for the models and analyses that are planned (`docs/versions.md` "Planned"): what each equation or method does, drawn.
 @details Pure drawing and textbook formulas (no program, no data); the numbers quoted are those of `docs/theory.md`, `docs/versions.md` "Planned" and `docs/research.md`. Curves that are only
-         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44, fig_45 (the diagrams of the rewrite of the theory).
+         illustrative (shape, not value) say so in their caption. Writes figures/fig_01 to fig_30 and fig_38, fig_39, fig_41, fig_44, fig_45, fig_46 (the diagrams of the rewrite of the theory).
          Optional arguments: the numbers of the figures to draw (`... make_diagrams.py 38 39`), the others are left as they are.
          Run: .venv/bin/python research/theory/scripts/make_diagrams.py (from the repository root).
 """
@@ -1279,6 +1279,97 @@ def problem_to_model(path):
     dk.save(fig, path, "The problem and the way to a model")
 
 
+def memory_guard(path):
+    """!
+    @brief Draw the memory guard of section 4.1 of the theory: the chain from the board to the verdict (left) and the law of the estimate against the unknowns for the three models with the limit of a 16 GiB machine at 60 % (right; the coefficients of `pcbthermal/memory.py` CONTINUOUS, no base and no time factor).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(18, 5.8, 1, 2, ratios=[1.0, 1.15])
+    a = axs[0]; a.set_xlim(0, 10); a.set_ylim(0, 10)
+    a.text(5, 9.6, "from the cell to the verdict", ha="center", fontsize=9, fontweight="bold")
+    steps = (("board + cell: plan grid nx ny", "#e8e8e8"),
+             ("cheap lower bound of N (one node per copper layer\nand plan cell): refuse at once if it is over the limit", "#cfe3f5"),
+             ("exact count N (copper sampled), t = N / (nx ny),\nt_eff = min(t, nx ny / t)", "#cfe3f5"),
+             ("estimate = base + safety x factor x via x k1 t_eff^a N (N/Nref)^(p-1)\nfactor 1 steady, 2 time run or profile; via = 1 + 0.10 (1 - exp(-F/500))\nfor the FVM and FDM with vias (F: cells of the via footprints)", "#fdeeb4"),
+             ("limit = fraction (60 %) x physical memory\nok, slow (above 30 s predicted) or refuse", "#f4b6b6"))
+    for i, (txt, col) in enumerate(steps):
+        y = 7.5 - i * 1.75
+        dk.box(a, 0.3, y, 9.4, 1.15, txt, color=col, size=7.5)
+        if i < len(steps) - 1:
+            dk.arrow(a, 5, y, 5, y - 0.6)
+    a = axs[1]
+    # Coefficients of memory.CONTINUOUS: k1 (bytes at Nref, t_eff = 1), p, a, safety (the figure is drawn without the program)
+    law = {"FVM": (1469.0, 1.24, 0.79, 1.40), "FDM": (1228.0, 1.34, 1.03, 1.24), "3D solid": (1063.0, 1.30, 0.98, 1.30)}
+    n = np.logspace(4.7, 6.4, 200)
+    for (name, (k1, p, e, s)), t, col, ls in ((("FVM", law["FVM"]), 2, dk.BLUE, "-"), (("FVM", law["FVM"]), 6, dk.BLUE, "--"),
+                                              (("FDM", law["FDM"]), 4, "#3a8a3a", "-"), (("3D solid", law["3D solid"]), 6, dk.HEAT, "-")):
+        a.plot(n, s * k1 * t ** e * n * (n / 5e5) ** (p - 1.0) / 1e9, color=col, ls=ls, lw=2, label=f"{name}, t_eff = {t}")
+    # The via term of the FVM and FDM saturates at 1 + VIA_GAIN = 1.10 (memory.VIA_GAIN): the board with thousands of via footprint cells
+    k1, p, e, sf = law["FVM"]
+    a.plot(n, 1.10 * sf * k1 * 6 ** e * n * (n / 5e5) ** (p - 1.0) / 1e9, color=dk.BLUE, ls="-.", lw=1.5, label="FVM, t_eff = 6, with vias (x 1.10)")
+    lim = 0.6 * 16 * 2 ** 30 / 1e9
+    a.axhline(lim, color="k", ls=":", lw=1.5)
+    a.text(5.5e4, lim * 1.04, f"limit: 60 % of 16 GiB = {lim:.1f} GB", fontsize=8)
+    a.set_xscale("log"); a.set_yscale("log"); a.axis("on"); a.grid(alpha=0.3, which="both")
+    a.set_xlabel("unknowns N"); a.set_ylabel("estimated peak (GB), safety factor included")
+    a.set_title("the law (illustrative of the shape; bytes of the algorithm, fitted on 67 points of one machine):\nthicker graphs and more unknowns cost more than linearly", fontsize=8.5)
+    a.legend(fontsize=7.5, loc="upper left")
+    dk.save(fig, path, "The memory guard")
+
+
+def gerber_sampling(path):
+    """!
+    @brief Draw the sampling of the Gerber coverage (theory 1.6): a thin line against the sub-pixel sample centres (left), the area error against the width over the sample spacing with its worst case s/w and the mean over the offset (middle), and the memory of the rasteriser against the size of the layer (right).
+    @param path Output file.
+    @return None.
+    """
+    fig, axs = dk.canvas(18, 5.2, 1, 3, ratios=[1.0, 1.0, 1.0])
+    # Left: horizontal line of width w, rows of samples at spacing s (here w = 1.5 s), two offsets of the lattice
+    a = axs[0]; a.set_xlim(0, 10); a.set_ylim(0, 11); a.axis("off")
+    a.set_title("a line of width w = 1.5 s seen by the samples", fontsize=9)
+    s = 1.0; w = 1.5
+    for k, (off, col, lab) in enumerate(((0.2, dk.BLUE, "offset A: 2 rows hit, area 2 s = 1.33 w"), (0.7, dk.HEAT, "offset B: 1 row hit, area 1 s = 0.67 w"))):
+        y0 = 7.2 - k * 3.6
+        a.add_patch(Rectangle((0.5, y0), 9, w, color="#bbbbbb", lw=0))
+        for yy in np.arange(y0 - 1.0 + off, y0 + w + 1.0, s):
+            hit = y0 <= yy <= y0 + w
+            a.plot(np.arange(1, 9.6, s), [yy] * len(np.arange(1, 9.6, s)), ls="none", marker="o", ms=3.5, color=col if hit else "#999999", mfc=col if hit else "none")
+        a.text(0.5, y0 + w + 0.5 if k == 0 else y0 - 1.3, lab, fontsize=8, color=col)
+    # Middle: area error of one line against w/s, worst case and mean over the offset (computed here, no program)
+    a = axs[1]
+    a.axis("on")
+    ratio = np.linspace(0.3, 6.0, 600) + 1e-4   # off the integers, where float rounding of the lattice would spike
+    worst = np.zeros_like(ratio); mean = np.zeros_like(ratio)
+    offs = np.linspace(0, 1, 400, endpoint=False)
+    for i, r in enumerate(ratio):
+        # Number of samples (spacing 1) inside an interval of length r starting at a random offset
+        n = np.floor(offs + r) - np.floor(offs)
+        err = (n - r) / r
+        worst[i] = np.max(np.abs(err)); mean[i] = np.mean(err)
+    a.plot(ratio, 100 * worst, color=dk.HEAT, lw=2, label="worst offset")
+    a.plot(ratio, 100 * np.minimum(1.0 / ratio, 1.0), color="k", ls=":", lw=1.2, label="s / w (the bound)")
+    a.plot(ratio, 100 * mean, color=dk.BLUE, lw=2, label="mean over the offset (no bias)")
+    a.axvline(2, color="#888888", ls="--", lw=1); a.text(2.05, 80, "warning below\nw = 2 s", fontsize=8)
+    a.set_xlabel("width of the feature over the sample spacing, w / s"); a.set_ylabel("area error of one feature (%)")
+    a.set_ylim(-20, 105); a.grid(alpha=0.3); a.legend(fontsize=7.5, loc="upper right")
+    a.set_title("the area of a thin feature: worst case s / w, mean zero", fontsize=9)
+    # Right: bytes against the pixels of a layer (constants of pcbthermal/gerber/raster.py)
+    a = axs[2]
+    a.axis("on")
+    px = np.logspace(6, 8.6, 100)
+    working = 90.0 * 2048.0 ** 2 * np.ones_like(px)  # 90 B per sub-pixel, one tile of 2048 x 2048
+    for layers, ls in ((1, "-"), (4, "--")):
+        a.plot(px, (px * layers + working) / 1e6, color=dk.BLUE, ls=ls, lw=2, label=f"{layers} layer(s) stored + one tile at work")
+    a.plot(px, working / 1e6, color=dk.HEAT, lw=1.5, ls=":", label="working set of a tile (constant, 377 MB)")
+    a.axvline(4e8, color="k", ls=":", lw=1.2); a.text(2.2e8, 600, "MAX_RASTER_PIXELS\n400 M", fontsize=7.5, ha="right")
+    a.set_xscale("log"); a.set_yscale("log"); a.grid(alpha=0.3, which="both")
+    a.set_xlabel("pixels of one layer"); a.set_ylabel("resident memory (MB)")
+    a.set_title("the memory law: 1 B per stored pixel per layer + a constant working set\n(constants of the code; the operations add 600 B each at the parse peak)", fontsize=8.5)
+    a.legend(fontsize=7.2, loc="upper left")
+    dk.save(fig, path, "Gerber coverage sampling and memory")
+
+
 def main(only=None):
     """!
     @brief Draw and save the figures of this folder.
@@ -1301,7 +1392,7 @@ def main(only=None):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
     # The diagrams added for the rewrite of docs/theory.md continue the numbering (fig_42 is a data figure of make_figures.py)
-    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model)):
+    for k, name, fn in ((38, "document_map", document_map), (39, "stackup_slabs", stackup_slabs), (41, "block_section", block_section), (44, "laminate_nodes", laminate_nodes), (45, "problem_to_model", problem_to_model), (46, "memory_guard", memory_guard), (47, "gerber_sampling", gerber_sampling)):
         if not only or k in only:
             fn(OUT / f"fig_{k:02d}_{name}.png")
 

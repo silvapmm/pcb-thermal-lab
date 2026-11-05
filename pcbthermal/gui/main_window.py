@@ -19,12 +19,13 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBo
 
 from .. import __version__
 from .. import defaults
-from .. import fvm
-from ..checks import check_problem
+from .. import fvm, memory
+from ..checks import check_input
 from ..examples import example_board
 from ..model import reference_problem
 from . import theme as th
 from .calculator import PowerCalculator
+from .import_window import ImportBoardWindow
 from .help import AboutDialog, GuideWindow, open_guide_in_browser
 from .preferences import PreferencesDialog
 from .canvas import BoardView
@@ -242,6 +243,8 @@ class MainWindow(QMainWindow):
         self._check_timer.timeout.connect(self._update_checks)
         self.doc.changed.connect(self._on_doc_changed)
         self.doc.state_changed.connect(self._update_title)
+        self._checks_key = None                               # (models, cell) the live checks were last scheduled for
+        self.doc.state_changed.connect(self._on_options_changed)
         self.doc.state_changed.connect(lambda: self.canvas.__setattr__("solver_cell", self.doc.options.cell_mm))
 
         th.apply_theme(QApplication.instance(), self.theme_name)
@@ -274,18 +277,19 @@ class MainWindow(QMainWindow):
         area.setWidget(page)
         return area
 
-    def _dock(self, title, widget, area, scroll=True, footer=None):
+    def _dock(self, title, widget, area, scroll=True, footer=None, label=None):
         """!
         @brief Add a titled dock widget.
-        @param title Dock title.
+        @param title Dock key: the object name under which saved window layouts store the dock (never changes).
         @param widget Content widget.
         @param area Qt dock area.
         @param scroll True to put the widget in a scroll area (panels of fields); False for a list that scrolls by itself.
         @param footer Optional widget kept below the scroll area, always visible (the Run button of the Simulation panel).
+        @param label Title shown in the title bar and the View menu (default: title).
         @return The QDockWidget.
         """
-        d = QDockWidget(title, self)
-        d.setObjectName(title)
+        d = QDockWidget(label or title, self)
+        d.setObjectName(title)                                  # The object name stays the old title: saved window layouts are keyed by it
         if scroll:
             # The panels grew taller with their boxes: a scroll area keeps every field reachable when the dock is short (a clipped panel hid "Position and size")
             area_widget = QScrollArea()
@@ -315,13 +319,17 @@ class MainWindow(QMainWindow):
         """!
         @brief Create the left and right docks.
         """
-        self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea)
+        self.dock_board = self._dock("Board", self.board_panel, Qt.LeftDockWidgetArea, label="Board settings")
         self.dock_elements = self._dock("Elements", self.elements, Qt.LeftDockWidgetArea, scroll=False)
         self.splitDockWidget(self.dock_board, self.dock_elements, Qt.Vertical)
-        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea, footer=self.solver_panel.footer)
+        self.dock_sim = self._dock("Simulation", self.solver_panel, Qt.RightDockWidgetArea, footer=self.solver_panel.footer, label="Simulation settings")
         self.dock_inspector = self._dock("Properties", self.inspector, Qt.RightDockWidgetArea)
         self.splitDockWidget(self.dock_sim, self.dock_inspector, Qt.Vertical)
         # The widths are set in showEvent (_size_docks): before the window is shown resizeDocks has no effect and the docks started about 110 px wide
+
+    STATE_VERSION = 2                       # Version of the saved dock arrangement (restoreState refuses another)
+    DOCK_MIN_LEFT = 300                     # Narrowest usable width in pixels of the Board and Elements docks
+    DOCK_MIN_RIGHT = 340                    # Narrowest usable width in pixels of the Simulation and Properties docks
 
     def _size_docks(self):
         """!
@@ -344,21 +352,49 @@ class MainWindow(QMainWindow):
         @brief Restore the saved dock arrangement, or give the docks their default widths when there is none (or it cannot be read).
         """
         try:
-            restored = bool(self._saved_state) and self.restoreState(self._saved_state)
+            # The version number invalidates the states saved before the minimum widths existed (they may hold collapsed docks)
+            restored = bool(self._saved_state) and self.restoreState(self._saved_state, self.STATE_VERSION)
         except (TypeError, ValueError):                          # A hand-edited settings file can hold text where the state was
             restored = False
         if not restored:
             self._size_docks()
+            self._schedule_dock_minimums()
             return
         # restoreState brings back where the docks are and which are shown, but not always their sizes: those are applied from the saved numbers
         sizes = self.settings.value("dock_sizes")
         try:
             bw, sw, bh, eh, sh, ih = (int(v) for v in sizes)
         except (TypeError, ValueError):
+            self._size_docks()
+            self._schedule_dock_minimums()
             return
-        self.resizeDocks([self.dock_board, self.dock_sim], [bw, sw], Qt.Horizontal)
-        self.resizeDocks([self.dock_board, self.dock_elements], [bh, eh], Qt.Vertical)
-        self.resizeDocks([self.dock_sim, self.dock_inspector], [sh, ih], Qt.Vertical)
+        # Sizes saved from a collapsed or much larger window are stale: below the minimum, or wider than the window can hold
+        if bw < self.DOCK_MIN_LEFT or sw < self.DOCK_MIN_RIGHT or bw + sw > 0.8 * self.width() or min(bh, eh, sh, ih) < 60:
+            self._size_docks()
+        else:
+            self.resizeDocks([self.dock_board, self.dock_sim], [bw, sw], Qt.Horizontal)
+            self.resizeDocks([self.dock_board, self.dock_elements], [bh, eh], Qt.Vertical)
+            self.resizeDocks([self.dock_sim, self.dock_inspector], [sh, ih], Qt.Vertical)
+        self._schedule_dock_minimums()
+
+    def _schedule_dock_minimums(self):
+        """!
+        @brief Check the dock widths now and again shortly after, when the window system has settled the window size.
+
+        @note The window manager may still change the frame after the first show (a window larger than the screen is cut to the
+              visible area), which squeezes the docks after _first_layout has run.
+        """
+        self._ensure_dock_minimums()
+        QTimer.singleShot(250, self._ensure_dock_minimums)
+
+    def _ensure_dock_minimums(self):
+        """!
+        @brief Widen a docked panel that is narrower than its fields need (a floating or hidden dock is left alone).
+        """
+        for dock, side in ((self.dock_board, self.DOCK_MIN_LEFT), (self.dock_elements, self.DOCK_MIN_LEFT),
+                           (self.dock_sim, self.DOCK_MIN_RIGHT), (self.dock_inspector, self.DOCK_MIN_RIGHT)):
+            if dock.isVisible() and not dock.isFloating() and dock.width() < side:
+                self.resizeDocks([dock], [side], Qt.Horizontal)
 
     def showEvent(self, e):
         """!
@@ -407,30 +443,42 @@ class MainWindow(QMainWindow):
         self.a_export_txt = self._act("Export report (TXT)…", self.export_report)
         self.a_export_json = self._act("Export summary (JSON)…", self.export_summary)
         self.a_quit = self._act("Quit", self.close, QKeySequence.Quit)
+        if not self.a_quit.shortcuts():
+            self.a_quit.setShortcut(QKeySequence("Ctrl+Q"))     # Some platform themes (offscreen, minimal Linux) bind no Quit key
 
         self.a_undo = self.doc.stack.createUndoAction(self, "Undo")
         self.a_undo.setShortcut(QKeySequence.Undo)
         self.a_redo = self.doc.stack.createRedoAction(self, "Redo")
-        self.a_redo.setShortcut(QKeySequence.Redo)
+        # Both usual redo keys on every platform (Windows lists Ctrl+Y first, macOS Ctrl+Shift+Z): one action, two keys, no other action has them
+        self.a_redo.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
         self.a_delete = self._act("Delete", lambda: self.doc.delete(self.canvas.selected_elements()), "Del")
+        # Backspace (the key labelled delete on a Mac keyboard) is the second key of the same action, so the menu shows it and the canvas needs no branch
+        self.a_delete.setShortcuts([QKeySequence("Del"), QKeySequence("Backspace")])
         self.a_dup = self._act("Duplicate", lambda: self.canvas.set_selection(
             self.doc.duplicate(self.canvas.selected_elements())), "Ctrl+D")
         self.a_selall = self._act("Select all on layer", self._select_all, QKeySequence.SelectAll)
 
         self.a_fit = self._act("Fit board", self.canvas.fit, "Ctrl+0", tip="Zoom to show the whole board (Ctrl+0)")
         self.a_zin = self._act("Zoom in", lambda: self.canvas.zoom(1.25), QKeySequence.ZoomIn)
+        self.a_zin.setShortcuts([QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")])   # Ctrl+= is the same key without Shift on most keyboards
         self.a_zout = self._act("Zoom out", lambda: self.canvas.zoom(0.8), QKeySequence.ZoomOut)
         self.a_grid = self._act("Grid", self._toggle_grid, "G", True, True, "Show the drawing grid (G); the snap distance is chosen in the tool bar")
         self.a_sgrid = self._act("Solver grid", self._toggle_solver_grid, "Shift+G", True, False,
                                  "Show the cells of the FVM mesh (Shift+G); their size is the cell size of the Simulation panel")
         self.a_overlay = self._act("Temperature on board", self._toggle_overlay, "T", True, False,
                                    "Paint the last result over the board (T)")
+        self.a_imported = self._act("Imported copper", self.canvas.set_show_imported_copper, None, True, True,
+                                    "Draw the copper pattern of an imported Gerber board under the elements, one layer at a time following the layer chooser")
+        self.a_labels = self._act("Element names", self.canvas.set_show_labels, None, True, True,
+                                  "Write the names of the zones, heatsinks and heaters of the active layer on the board (the designator for an imported part); on an imported board a part name that does not fit the part appears when you zoom in")
         self.a_bg = self._act("Background image…", self.set_background)
         self.a_theme = self._act("Light / dark theme", self.toggle_theme, "Ctrl+Shift+T")
 
         self.a_run = self._act("Run simulation", self.run_simulation, "F5", tip="Solve the selected models (F5)")
         self.a_calc = self._act("Power Calculator…", self.show_calculator,
                                 tip="Find the power of a part from a temperature you measured (drawn board, or a datasheet parameter)")
+        self.a_import = self._act("Import Gerber board…", self.show_import,
+                                  tip="Make a new project from fabrication files (Gerber copper, drills, outline, optional placement file): a folder, a ZIP archive or files")
         self.a_cancel = self._act("Cancel calculation", self.cancel_simulation, "Ctrl+.", tip="Stop the running simulation, animation or analysis; the window stays usable")
 
         self.a_prefs = self._act("Preferences…", self.show_preferences, "Ctrl+,",
@@ -445,7 +493,7 @@ class MainWindow(QMainWindow):
 
         mb = self.menuBar()
         m = mb.addMenu("&File")
-        for a in (self.a_new, self.a_open, None):
+        for a in (self.a_new, self.a_open, self.a_import, None):
             m.addAction(a) if a else m.addSeparator()
         ex = m.addMenu("Open example")
         ex.addAction(self.a_ex_ref)
@@ -457,7 +505,7 @@ class MainWindow(QMainWindow):
         for a in (self.a_undo, self.a_redo, None, self.a_dup, self.a_delete, self.a_selall, None, self.a_prefs):
             m.addAction(a) if a else m.addSeparator()
         m = mb.addMenu("&View")
-        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, None,
+        for a in (self.a_fit, self.a_zin, self.a_zout, None, self.a_grid, self.a_sgrid, self.a_overlay, self.a_imported, self.a_labels, None,
                   self.a_bg, self.a_theme):
             m.addAction(a) if a else m.addSeparator()
         for d in (self.dock_board, self.dock_elements, self.dock_sim, self.dock_inspector):
@@ -473,6 +521,23 @@ class MainWindow(QMainWindow):
         m.addAction(self.a_keys)
         m.addSeparator()
         m.addAction(self.a_about)
+        self._hide_bare_key_hints()
+
+    def _hide_bare_key_hints(self):
+        """!
+        @brief Keep the single-key shortcuts of the View menu (G, Shift+G, T) working but out of the menu text.
+
+        On macOS the native menu prints a key without a modifier as a lone letter next to the entry ("Temperature on board  T"),
+        which reads like a mnemonic or a wrong item. The keys stay on window-level actions that toggle the visible ones; the
+        tool bar tooltips and the keyboard help still name them.
+        """
+        for a in (self.a_grid, self.a_sgrid, self.a_overlay):
+            keys = a.shortcuts()
+            a.setShortcuts([])
+            hidden = QAction(a.text(), self)
+            hidden.setShortcuts(keys)
+            hidden.triggered.connect(a.toggle)
+            self.addAction(hidden)                              # Active in the whole window, in no menu
 
     def _build_toolbar(self):
         """!
@@ -662,12 +727,24 @@ class MainWindow(QMainWindow):
         self.tool_actions["select"].setChecked(True)
         self.canvas.set_tool("select")
 
+    def _on_options_changed(self):
+        """!
+        @brief Schedule the live checks again when the selected models or the cell changed (the limits of the models and the via checks depend on them).
+        """
+        key = (tuple(self.doc.options.models), self.doc.options.cell_mm)
+        if key != self._checks_key:
+            self._checks_key = key
+            self._check_timer.start()
+
     def _update_checks(self):
         """!
-        @brief Run the input validity checks and show them in the Simulation panel.
+        @brief Run the live input checks (validity, limits of the selected models, vias; no solve) and show them in the Simulation panel.
+        @details The same warnings, in the same order, that api.simulate puts at the head of the warnings of a run: the list shows the one-line form of each, the
+                 Results summary and the tooltip of the item hold the full measured text, and the summary adds only what a run knows.
+                 Run in the window's thread by a single-shot timer (restarted, never stacked); a calculation runs in its own process and is not slowed by it.
         """
         try:
-            self.solver_panel.set_checks(check_problem(self.doc.problem, max(self.doc.options.cell_mm, 0.5)))
+            self.solver_panel.set_checks(check_input(self.doc.problem, self.doc.options.models, max(self.doc.options.cell_mm, 0.5)))
         except Exception:                                     # A half-edited design may be inconsistent
             self.solver_panel.set_checks([])
 
@@ -766,11 +843,21 @@ class MainWindow(QMainWindow):
         if not self.doc.path:
             return self.save_file_as()
         try:
-            self.doc.save()
+            backup = self.doc.save()
         except Exception as exc:
             QMessageBox.critical(self, "Cannot save", str(exc))
             return False
+        self._report_backup(backup)
         return True
+
+    def _report_backup(self, backup):
+        """!
+        @brief Say in the status bar that a save changed the file format and kept a copy of the old file.
+        @param backup Path of the copy, or None (nothing is shown).
+        """
+        if backup:
+            self.statusBar().showMessage(f"Saved. The file format changed (a project with imported boards needs 2.5.0 or later); "
+                                         f"the old file was kept as {backup}", 15000)
 
     def save_file_as(self):
         """!
@@ -784,10 +871,11 @@ class MainWindow(QMainWindow):
         if not path.endswith(".json"):
             path += ".pcbt.json"
         try:
-            self.doc.save(path)
+            backup = self.doc.save(path)
         except Exception as exc:
             QMessageBox.critical(self, "Cannot save", str(exc))
             return False
+        self._report_backup(backup)
         return True
 
     def export_results(self):
@@ -853,7 +941,16 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "Cannot run", str(exc))
             return
-        self.solver_panel.set_running(True, "Starting…")
+        # The memory guard in the window: a model above the limit never starts a process (the panel disables Run too; F5 and the menu arrive here), and a run that
+        # needs more than the memory available now only warns
+        self.solver_panel.refresh()
+        if self.solver_panel.blocked:
+            QMessageBox.warning(self, "Cannot run: not enough memory", self.solver_panel.blocked)
+            return
+        low = [v.message for v in self.solver_panel.verdicts() if v.exceeds_available]
+        self.solver_panel.set_running(True, "Starting…" if not low else "Starting… " + low[0])
+        if low:
+            self.statusBar().showMessage(low[0], 10000)
         self._run_edits = self._edits
         self.worker = ProcessWorker("simulate", copy.deepcopy(self.doc.problem), copy.deepcopy(self.doc.options))
         self.worker.progress.connect(self.solver_panel.set_progress)
@@ -900,10 +997,44 @@ class MainWindow(QMainWindow):
         d = PreferencesDialog(self)
         d.exec()
         if d.saved:
+            self.doc.options.memory_fraction = memory.default_fraction()       # The machine preference may have changed; the panel shows the new verdicts
+            self.solver_panel.refresh()
             self._show_defaults_state()
             self.inspector.rebuild()
             self.stackup_page.refresh()
             self.statusBar().showMessage("Defaults saved. New boards and elements use them; open boards keep their values.", 6000)
+
+    def show_import(self):
+        """!
+        @brief Open the Gerber import window; a finished import is loaded as a new unsaved project, or, when the open project already holds an import, applied to it as one undo step
+               (the window asked Replace, Update, Add files or Cancel).
+        """
+        existing = None
+        if self.doc.project.imports:
+            # The re-import dialog shows what each part keeps: the powers typed in the editor after the import, not those of the import itself
+            existing = copy.deepcopy(self.doc.project.imports[0])
+            heaters = {h.name: h for h in self.doc.problem.heaters}
+            for p in existing.parts:
+                if p.designator in heaters:
+                    p.power = float(heaters[p.designator].power)
+        dlg = ImportBoardWindow(self, existing=existing)
+        if dlg.exec() != QDialog.Accepted or dlg.record is None:
+            return
+        if dlg.mode == "new":
+            if self._confirm_discard():
+                dlg.problem.name = dlg.session.name
+                self.doc.open_import(dlg.problem, dlg.record)
+                self._after_load()
+            return
+        old = self.doc.project.imports[0]
+        known = {p.designator for p in old.parts}
+        added = [p for p in dlg.record.parts if p.designator not in known]
+        kept = self.doc.reimport(dlg.problem, dlg.record, f"Re-import Gerber board ({dlg.mode})",
+                                 add=lambda project: dlg.session._add_heaters(project.problem, dlg.record.box_mm, added))
+        self._refresh_layers()
+        # What the editor kept comes first (the user must see it), then the first changes of the parts and files
+        lines = kept + [c for c in dlg.changes if c.startswith("not taken")] + [c for c in dlg.changes if not c.startswith("not taken")]
+        self.statusBar().showMessage(f"Gerber board re-imported ({dlg.mode}): " + "; ".join(lines[:4]) + ("..." if len(lines) > 4 else ""))
 
     def show_calculator(self):
         """!
@@ -939,7 +1070,15 @@ class MainWindow(QMainWindow):
         source = self.sim.effective_problem if (self.sim is not None and not self._stale and self.sim.effective_problem) \
             else self.doc.problem
         problem = copy.deepcopy(source)
-        kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0))
+        kwargs = dict(kwargs, cell_mm=max(self.doc.options.cell_mm, 1.0), laminate=self.doc.options.laminate_params())
+        # The animation holds the factor of the matrix and the frames (memory.TRANSIENT_FACTOR): checked here with the preference, so that the message comes at once
+        if kwargs.get("model", "fvm") in ("fvm", "fdm"):
+            try:
+                memory.check(problem, (kwargs.get("model", "fvm"),), kwargs["cell_mm"], fraction=self.doc.options.memory_fraction, transient=True, base=memory.BASE_DEFAULT,
+                             laminate_params=self.doc.options.laminate_params())
+            except memory.MemoryGuardError as exc:
+                anim.computing_failed(str(exc))
+                return
         self._anim_worker = ProcessWorker("transient", problem, kwargs)
         self._anim_worker.done.connect(lambda tr: anim.set_result(tr, problem))
         self._anim_worker.failed.connect(anim.computing_failed)
@@ -986,30 +1125,38 @@ class MainWindow(QMainWindow):
         self.results.set_theme(self.theme_name)
         self.profile_page.set_theme(self.theme_name)
         self.stackup_page.set_theme(self.theme_name)
+        self.solver_panel.refresh()                                         # The memory verdicts take the colours of the new theme
+        self.solver_panel.checks.recolour()                                 # The links of the warnings take the link colour of the new palette
         self._refresh_icons()
 
-    def show_shortcuts(self):
-        """!
-        @brief Show the keyboard and mouse help.
-        """
-        QMessageBox.information(self, "Keyboard and mouse", """<table cellpadding=3>
+    SHORTCUTS_HTML = """<table cellpadding=3>
 <tr><td><b>S Z H C V O</b></td><td>Select, Zone, Heater, Heatsink (Cooling), Via, board Outline tools</td></tr>
 <tr><td><b>P</b></td><td>Polygon mode (click vertices; double click or Enter finishes)</td></tr>
 <tr><td><b>Wheel / middle drag / Space+drag</b></td><td>Zoom / pan</td></tr>
-<tr><td><b>Ctrl+0</b></td><td>Fit board</td></tr>
+<tr><td><b>Ctrl+0, Ctrl++ (or Ctrl+=), Ctrl+-</b></td><td>Fit board, zoom in, zoom out</td></tr>
 <tr><td><b>Right-click</b></td><td>On a shape: add or delete a vertex, duplicate, delete; on an empty spot: add a heater, zone, heatsink or via there</td></tr>
-<tr><td><b>Del, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
+<tr><td><b>Del or Backspace, Ctrl+D, arrows</b></td><td>Delete, duplicate, nudge selection</td></tr>
+<tr><td><b>Ctrl+A</b></td><td>Select all on the active layer</td></tr>
+<tr><td><b>Ctrl+,</b></td><td>Preferences</td></tr>
 <tr><td><b>Esc</b></td><td>Cancel drawing / clear selection</td></tr>
 <tr><td><b>Enter / Tab</b></td><td>In a field: apply the typed number / apply it and go to the next field</td></tr>
 <tr><td><b>G, Shift+G, T</b></td><td>Grid, solver grid, temperature overlay</td></tr>
+<tr><td><b>Ctrl+Shift+T</b></td><td>Light / dark theme</td></tr>
 <tr><td><b>F5 / Ctrl+.</b></td><td>Run simulation / cancel the calculation</td></tr>
 <tr><td><b>Ctrl+1 to Ctrl+4</b></td><td>Board, Stack-up, Power profile, Results tabs</td></tr>
-<tr><td><b>Ctrl+Z / Ctrl+Shift+Z</b></td><td>Undo / redo</td></tr>
-<tr><td><b>F1</b></td><td>User guide</td></tr></table>""")
+<tr><td><b>Ctrl+Z / Ctrl+Shift+Z or Ctrl+Y</b></td><td>Undo / redo</td></tr>
+<tr><td><b>F1</b></td><td>User guide</td></tr>
+<tr><td><b>macOS</b></td><td>Ctrl in this table is the Command key (⌘); Backspace (the key labelled delete) also deletes the selection</td></tr></table>"""
+
+    def show_shortcuts(self):
+        """!
+        @brief Show the keyboard and mouse help (the text is SHORTCUTS_HTML, which tests/test_shortcuts.py checks against the real shortcuts).
+        """
+        QMessageBox.information(self, "Keyboard and mouse", self.SHORTCUTS_HTML)
 
     def show_about(self):
         """!
-        @brief Show the About box (program, version, author, project link, libraries).
+        @brief Show the About box (program, version, author, project link, licence and the scope of the validation).
         """
         AboutDialog(self).exec()
 
@@ -1030,7 +1177,7 @@ class MainWindow(QMainWindow):
         if self._confirm_discard():
             compute.shutdown()                         # Nothing keeps running in the background after the window closes
             self.settings.setValue("geometry", self.saveGeometry())
-            self.settings.setValue("window_state", self.saveState())      # Dock positions and visibility
+            self.settings.setValue("window_state", self.saveState(self.STATE_VERSION))      # Dock positions and visibility
             self.settings.setValue("dock_sizes", [self.dock_board.width(), self.dock_sim.width(), self.dock_board.height(),
                                                   self.dock_elements.height(), self.dock_sim.height(), self.dock_inspector.height()])
             e.accept()

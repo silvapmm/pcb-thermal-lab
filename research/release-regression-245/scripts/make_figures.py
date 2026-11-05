@@ -8,6 +8,10 @@
          .venv/bin/python research/release-regression-245/scripts/make_figures.py out/v2.4.4.json out/rc.json [--cell 1.0]
 
          Files: fig_02_shift_map.png, fig_03_error_vs_reference.png (figures 01 is the flow diagram of make_diagrams.py). Nothing is drawn that the result sets do not hold.
+
+         The result sets are not committed (they are git-ignored in out/), so the committed figure is fig_04_frozen_times.png, drawn from the frozen reference file alone:
+
+             .venv/bin/python research/release-regression-245/scripts/make_figures.py --frozen research/release-regression-245/reference/v2.4.5.json
 """
 
 import argparse
@@ -100,6 +104,35 @@ def error_bars(base, new, refs):
     plt.close(fig)
 
 
+def frozen_times(reference):
+    """!
+    @brief Draw the times to 63 % of the step response held by the frozen reference file (committed, so no result set is needed): one column per board, one marker per model, the first part of the board.
+    @param reference Path of `reference/v<version>.json`.
+    @return None (writes fig_04_frozen_times.png).
+    """
+    data = json.loads(Path(reference).read_text(encoding="utf-8"))
+    boards = sorted({k.split("|")[0] for k in data["transients"]})
+    fig, ax = plt.subplots(figsize=(9, 4))
+    for model, marker in zip(MODELS, "osv^D"):
+        xs, ys = [], []
+        for i, b in enumerate(boards):
+            rec = data["transients"].get(f"{b}|{model}")
+            if rec and rec["t63"]:
+                xs.append(i)
+                ys.append(next(iter(rec["t63"].values())))
+        ax.plot(xs, ys, marker, label=model, ms=6, alpha=0.8)
+    ax.set_xticks(range(len(boards)))
+    ax.set_xticklabels(boards, rotation=70, ha="right", fontsize=7)
+    ax.set_yscale("log")
+    ax.set_ylabel("time to 63 % of the step (s), first part")
+    ax.set_title(f"Frozen reference v{data['version']}: {len(data['transients'])} step responses (board x model)", fontsize=9)
+    ax.legend(ncol=5, fontsize=8, loc="lower right")
+    ax.grid(alpha=0.3, which="both")
+    fig.tight_layout()
+    fig.savefig(OUT / "fig_04_frozen_times.png", dpi=140)
+    plt.close(fig)
+
+
 def main(argv=None):
     """!
     @brief Draw the data figures.
@@ -107,13 +140,17 @@ def main(argv=None):
     @return int exit code (0).
     """
     ap = argparse.ArgumentParser(description=__doc__.split("@details")[0])
-    ap.add_argument("base")
-    ap.add_argument("new")
+    ap.add_argument("base", nargs="?", help="earlier result set (omit it with --frozen)")
+    ap.add_argument("new", nargs="?", help="result set under test (omit it with --frozen)")
+    ap.add_argument("--frozen", metavar="REFERENCE", help="draw only fig_04 from a frozen reference file (reference/v<version>.json); needs no result set")
     ap.add_argument("--cell", type=float, default=1.0)
     ap.add_argument("--table", default=str(ROOT / "reference" / "expected_shifts.json"))
     ap.add_argument("--references", default=str(ROOT / "out" / "references.json"))
     a = ap.parse_args(argv)
     OUT.mkdir(exist_ok=True)
+    if a.frozen:
+        frozen_times(a.frozen)
+        return 0
     base, new = C.load_set(a.base), C.load_set(a.new)
     shift_map(base, new, json.loads(Path(a.table).read_text(encoding="utf-8")), a.cell)
     if Path(a.references).exists():

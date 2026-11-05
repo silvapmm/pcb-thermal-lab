@@ -10,6 +10,7 @@ import glob
 import os
 
 import numpy as np
+import pytest
 
 from pcbthermal import Problem, SolverOptions, project, simulate
 from pcbthermal.checks import check_model_limits, check_via_limits
@@ -134,9 +135,12 @@ def test_via_warnings():
     p.add_via(10, 10)
     p.add_via(50, 10)
     w = check_model_limits(p, ("lumped",), 1.0)
+    # The two far vias (nearest neighbour 40 mm) join the pair under the part into one group by the single linkage, but they lie far beyond the
+    # reach of the pair, so the too-cool rule does not fire (the centred pair is the general text's case): two warnings
     assert len(w) == 2
     assert w[0].kind == "heater" and w[0].index == 0 and "2 vias under the footprint" in w[0]
     assert w[1].kind == "via" and w[1].index == 2 and "and 1 more vias" in w[1] and "outside the footprint" in w[1]
+    assert "2.3 times the reference" in w[1] and "9 % of its rise" in w[1]          # The bound of an array beside a part (zones-adoption 8.4)
     for cell in (0.5, 1.0, 2.0, 4.0):
         assert check_model_limits(p, ("fvm", "fdm"), cell) == []
     q = Problem.new(60, 60, 2)
@@ -175,7 +179,7 @@ def test_warnings_do_not_change_results_and_reach_the_simulation(monkeypatch):
     @param monkeypatch pytest fixture used to switch the check off.
     @return None.
     """
-    from pcbthermal import api
+    from pcbthermal import checks
     p = window_board(6)
     p.add_via(15, 15)
     opts = SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=1.0)
@@ -183,8 +187,553 @@ def test_warnings_do_not_change_results_and_reach_the_simulation(monkeypatch):
     assert any("bare laminate" in w for w in sim.problem_warnings)
     assert any("via under the footprint" in w for w in sim.problem_warnings)
     assert not any("bare laminate" in w for w in simulate(pad_board(10.0, 1.6), opts).problem_warnings)
-    monkeypatch.setattr(api, "check_model_limits", lambda *a, **k: [])
+    monkeypatch.setattr(checks, "check_model_limits", lambda *a, **k: [])
     quiet = simulate(p, opts)
     assert not any("bare laminate" in w for w in quiet.problem_warnings)
     for m in opts.models:
         assert np.array_equal(sim.results[m].T, quiet.results[m].T), m
+
+
+def _via_part_board(x0, y0, x1, y1, vias, layers=2):
+    """!
+    @brief A 60 x 60 mm board with full copper, one part and the given vias.
+    @param x0 Left edge of the part in mm.
+    @param y0 Bottom edge of the part in mm.
+    @param x1 Right edge of the part in mm.
+    @param y1 Top edge of the part in mm.
+    @param vias List of (x, y) positions in mm.
+    @param layers Number of copper layers.
+    @return Problem.
+    """
+    p = Problem.new(60, 60, layers)
+    p.add_full_copper()
+    p.add_heater(1, 2.0, rect=(x0, y0, x1, y1), name="U")
+    for x, y in vias:
+        p.add_via(x, y, 0.3)
+    return p
+
+
+def _grid(cx, cy, n, pitch):
+    """!
+    @brief An n x n array of via positions centred on a point.
+    @param cx Centre x in mm.
+    @param cy Centre y in mm.
+    @param n Vias per side.
+    @param pitch Pitch in mm.
+    @return list of (x, y) in mm.
+    """
+    h = (n - 1) / 2
+    return [(cx + (i - h) * pitch, cy + (j - h) * pitch) for i in range(n) for j in range(n)]
+
+
+def _cool_warnings(p):
+    """!
+    @brief The warnings of the Lumped model that carry the too-cool rule of the one-node network (the zone model off: with it a part that will be split gets its text
+           after the run, tests/test_lumped_zones.py).
+    @param p Problem.
+    @return list of str.
+    """
+    from pcbthermal import lumped
+    lumped.ZONES = False
+    try:
+        return [str(w) for w in check_model_limits(p, ("lumped",), 1.0) if "too cool, unsafe" in str(w)]
+    finally:
+        lumped.ZONES = True
+
+
+def test_lumped_cool_warning_fires_across_the_edge_and_off_centre():
+    """!
+    @brief An array across the edge of the footprint, an array off its centre and an elongated footprint get the too-cool warning with the kelvin and
+           the percent of the rise; a centred square array, a board without vias and a one-layer board do not.
+    @return None.
+    """
+    edge = _via_part_board(27, 27, 33, 33, _grid(33.5, 30, 5, 1.5))           # Group across the edge (columns at 30.5 to 36.5 mm; none on the edge)
+    w = _cool_warnings(edge)
+    assert len(w) == 1 and "about 11 K, a quarter of its rise" in w[0] and "3.2 times" in w[0] and "use the FVM" in w[0]
+    off = _via_part_board(24, 26, 36, 34, _grid(31.5, 30, 5, 1.0))             # 5 x 5 array 1.5 mm off the centre of a 12 x 8 mm part
+    assert len(_cool_warnings(off)) == 1 and "17.5 % of its rise" in _cool_warnings(off)[0]
+    wider = _via_part_board(27, 27, 33, 33, _grid(30, 30, 7, 1.4))            # Centred, square, wider than the part (none on the edge): condition (i) alone
+    assert len(_cool_warnings(wider)) == 1
+    elongated = _via_part_board(22, 27, 38, 33, _grid(30, 30, 3, 1.0))        # Centred array, side ratio 2.7
+    assert len(_cool_warnings(elongated)) == 1
+    centred = _via_part_board(27, 27, 33, 33, _grid(30, 30, 3, 1.0))
+    assert _cool_warnings(centred) == []
+    assert any("under the footprint" in str(x) for x in check_model_limits(centred, ("lumped",), 1.0))   # The general text still applies
+    assert _cool_warnings(_via_part_board(27, 27, 33, 33, [])) == []
+    assert check_model_limits(_via_part_board(27, 27, 33, 33, _grid(33.5, 30, 5, 1.5), layers=1), ("lumped",), 1.0) == []
+    assert not _cool_warnings_other(edge)                                     # The rule belongs to the Lumped model only
+
+
+def _cool_warnings_other(p):
+    """!
+    @brief The too-cool rule text among the warnings of the models other than the Lumped (must be none).
+    @param p Problem.
+    @return list of str.
+    """
+    return [str(w) for w in check_model_limits(p, ("fvm", "fdm", "analytic"), 1.0) if "too cool, unsafe" in str(w)]
+
+
+def test_lumped_cool_warning_ignores_scattered_vias_far_from_a_centred_array():
+    """!
+    @brief Vias scattered over the board chain a centred thermal array into one single-linkage group with them; the rule must not read that group as
+           an array across the footprint edge. Before the review the rule fired on 4 of 4 centred arrays with 20 scattered vias 2 mm or more from every
+           footprint (10 seeds); an array that really continues past the edge, and a scattered via next to an array via, still fire.
+    @return None.
+    """
+    rng = np.random.default_rng(7)
+    p = _via_part_board(26, 26, 34, 34, _grid(30, 30, 3, 2.0))               # Centred 3 x 3 array under an 8 mm part
+    while len(p.vias) < 9 + 30:
+        x, y = rng.uniform(2, 58, 2)
+        if max(abs(x - 30), abs(y - 30)) > 6.0:                                # 2 mm or more outside the footprint
+            p.add_via(float(x), float(y), 0.3)
+    assert _cool_warnings(p) == []
+    assert any("outside the footprint" in str(x) for x in check_model_limits(p, ("lumped",), 1.0))   # The aggregated outside text still applies
+    p.add_via(35.0, 30.0, 0.3)                                                 # 1 mm outside the edge, one pitch from the array's outer via (32, 30)
+    assert len(_cool_warnings(p)) == 1
+    across = _via_part_board(26, 26, 34, 34, _grid(34, 30, 3, 2.0))           # The array itself across the edge, with the same scattered vias
+    for v in p.vias[9:-1]:
+        across.add_via(v.x * 1e3, v.y * 1e3, 0.3)
+    assert len(_cool_warnings(across)) == 1
+
+
+def test_lumped_cool_warning_is_cheap_with_two_thousand_vias():
+    """!
+    @brief The live check stays fast with 2000 vias under and around a part.
+    @return None.
+    """
+    import time
+    rng = np.random.default_rng(1)
+    pts = [(float(a), float(b)) for a, b in rng.uniform(5, 55, (2000, 2))]
+    p = _via_part_board(27, 27, 33, 33, pts)
+    best = 1e9
+    for _ in range(3):                                           # Best of three, robust to a loaded battery
+        t0 = time.perf_counter()
+        check_model_limits(p, ("lumped",), 1.0)
+        best = min(best, time.perf_counter() - t0)
+    assert best < 0.3, best
+
+
+def _outside_percent(problem, cell_mm):
+    """!
+    @brief Percentage written in the "outside the board" warning of check_problem for the first heater (0 when there is no such warning).
+    @param problem The Problem.
+    @param cell_mm Cell size in mm.
+    @return int Percent of the footprint reported outside, 0 when silent.
+    """
+    import re
+    from pcbthermal.checks import check_problem
+    for w in check_problem(problem, cell_mm):
+        m = re.search(r"(\d+) % of the footprint is outside the board", w)
+        if m:
+            return int(m.group(1))
+    return 0
+
+
+def test_small_part_inside_the_board_is_not_reported_outside():
+    """!
+    @brief A part under about two cells wide, wholly on the board, used to read 6 to 22 % outside (4 x 4 samples per cell); the share now comes from the
+           geometry, for every size, offset and cell, with and without an outline.
+    @return None.
+    """
+    from pcbthermal.geometry import part_board_share
+    seen = 0
+    for size in (1.0, 2.0, 3.0):
+        for cell in (1.0, 1.7, 2.0, 2.5, 3.0, 4.0):
+            for ox in np.linspace(5.0, 5.9, 7):
+                p = Problem.new(30, 20, 2)
+                p.add_zone(1, rect=(0, 0, 30, 20))
+                p.add_heater(1, 1.0, rect=(ox, 7.7, ox + size, 7.7 + size))
+                assert _outside_percent(p, cell) == 0, (size, cell, ox)
+                seen += 1
+    assert seen == 126
+    # The share itself: exact for a rectangle on the box, 1 for a part wholly inside an outline
+    sq = np.array([[1, 1], [3, 1], [3, 3], [1, 3]]) * 1e-3
+    assert part_board_share(sq, 30e-3, 20e-3) == 1.0
+    assert part_board_share(sq - 2e-3, 30e-3, 20e-3) == 0.25                    # A 2 mm square with its corner 1 mm beyond the corner of the board
+    outline = np.array([[0, 0], [30, 0], [30, 20], [0, 20]]) * 1e-3
+    assert part_board_share(sq, 30e-3, 20e-3, outline) == 1.0
+    assert abs(part_board_share(sq - 2e-3, 30e-3, 20e-3, outline) - 0.25) < 0.01
+
+
+def test_genuine_overlap_with_the_edge_still_warns():
+    """!
+    @brief A part half outside the board is reported as 50 % outside, also when it is smaller than a cell, and a part wholly beyond the edge as 100 %.
+    @return None.
+    """
+    p = Problem.new(30, 20, 2)
+    p.add_zone(1, rect=(0, 0, 30, 20))
+    p.add_heater(1, 1.0, rect=(29.0, 5.0, 31.0, 7.0))
+    assert _outside_percent(p, 3.0) == 50
+    assert _outside_percent(p, 1.0) == 50
+    q = Problem.new(30, 20, 2)
+    q.add_zone(1, rect=(0, 0, 30, 20))
+    q.add_heater(1, 1.0, rect=(31.0, 5.0, 33.0, 7.0))
+    assert len(_warnings_with(q, 1.0, "whole footprint is outside the board")) == 1       # Its own text: nothing of the part is on the board
+
+
+def test_live_input_check_is_what_a_run_reports():
+    """!
+    @brief checks.check_input (the live list of the application) holds the validity, model-limit and via warnings, and the run starts its warnings with the same
+           texts, so the post-run list replaces the live one instead of adding to it.
+    @return None.
+    """
+    from pcbthermal.checks import check_input
+    p = window_board(6)                                          # Part on bare laminate: a model-limit warning
+    p.add_via(15, 15)
+    models = ("fvm", "lumped")
+    live = [str(w) for w in check_input(p, models, 1.0)]
+    assert any("sits on bare laminate" in w for w in live)
+    assert any("under the footprint; the Lumped" in w for w in live)
+    sim = simulate(p, SolverOptions(models=models, cell_mm=1.0))
+    # Same warnings in the same order; the live list shows the one-line form of each and the full measured text is the tooltip and the run's text
+    assert [str(w) for w in sim.problem_warnings[:len(live)]] == live
+    from pcbthermal.checks import line
+    shorts = [line(w) for w in check_input(p, models, 1.0)]
+    assert all(len(sh) < 170 and len(sh) <= len(full) for sh, full in zip(shorts, live))
+    assert any(sh != full for sh, full in zip(shorts, live))                 # At least the via and bare-laminate texts have a shorter form
+    via_line = next(sh for sh in shorts if "under the footprint" in sh)
+    assert "use the FVM" in via_line and "-21 to +33 %" in via_line and "measured" not in via_line
+    # The warnings depend on the selected models: with the FVM alone the Lumped via text is gone
+    assert not any("via under the footprint" in str(w) or "under the footprint; the Lumped" in str(w) for w in check_input(p, ("fvm",), 1.0))
+
+
+def _many_via_board(n_scattered, outline=False):
+    """!
+    @brief A 200 x 150 mm four-layer board with 20 parts, a 5 x 5 array of 0.4 mm pitch under each part (a group the Lumped zone model splits) and scattered vias.
+    @param n_scattered Number of scattered vias.
+    @param outline True to cut the board to an ellipse (some vias and parts then lie off it).
+    @return Problem.
+    """
+    rng = np.random.default_rng(3)
+    p = Problem.new(200, 150, 4)
+    for ly in (1, 2, 3, 4):
+        p.add_zone(ly, rect=(0, 0, 200, 150))
+    for k in range(20):
+        x, y = rng.uniform(10, 180), rng.uniform(10, 130)
+        p.add_heater(1, 1.0, rect=(x, y, x + rng.uniform(2, 12), y + rng.uniform(2, 12)), name=f"U{k}")
+        for i in range(5):
+            for j in range(5):
+                p.add_via(x + 0.5 + i * 0.4, y + 0.5 + j * 0.4, 0.3)
+    for x, y in rng.uniform(1, 149, (n_scattered, 2)):
+        p.add_via(float(x) * 200 / 150, float(y), 0.3)
+    if outline:
+        t = np.linspace(0, 2 * np.pi, 128, endpoint=False)
+        p.board.outline = np.c_[100e-3 + 99e-3 * np.cos(t), 75e-3 + 74e-3 * np.sin(t)]
+    return p
+
+
+def test_live_check_reuses_the_zone_decision_inputs():
+    """!
+    @brief check_model_limits builds the board and the vias of lumped.will_be_zoned once (not per part) and must decide exactly as will_be_zoned does by itself,
+           on a rectangle and on an outline (where the decision is taken on the equivalent rectangle).
+    @return None.
+    """
+    from pcbthermal import lumped
+    for outline in (False, True):
+        p = _many_via_board(300, outline)
+        texts = [str(w) for w in check_model_limits(p, ("lumped",), 1.0)]
+        on_board = np.array(p.via_board_shares()) > 0
+        vx, vy = np.array([v.x for v in p.vias]), np.array([v.y for v in p.vias])
+        from pcbthermal.geometry import points_in_polygon
+        zoned_seen = 0
+        for h in p.heaters:
+            if not (points_in_polygon(vx, vy, h.polygon) & on_board).any():
+                continue
+            zoned = lumped.will_be_zoned(p, h)
+            zoned_seen += zoned
+            split = any(t.startswith(f"{h.name}:") and "splits this footprint" in t for t in texts)
+            assert split == zoned, (outline, h.name)
+        assert zoned_seen > 0
+
+
+def test_heater_distance_is_the_per_via_loop():
+    """!
+    @brief The vectorised distance of every via to the nearest footprint is bit-identical to the per-via loop it replaced (it feeds the Analytic tile plan).
+    @return None.
+    """
+    from pcbthermal import viaconstriction
+    p = _many_via_board(5000)
+    t = np.linspace(0, 2 * np.pi, 90, endpoint=False)
+    p.add_heater(1, 1.0, polygon=np.c_[60 + 8 * np.cos(t), 60 + 5 * np.sin(t)], name="disc")
+    vs = viaconstriction.ViaSet(p)
+    ref = np.full(len(vs), np.inf)
+    for h in p.heaters:
+        poly = np.asarray(h.polygon, dtype=float)
+        inside = viaconstriction.points_in_polygon(vs.x, vs.y, poly)
+        ref[inside] = 0.0
+        a, c = poly, np.roll(poly, -1, axis=0)
+        e = c - a
+        len2 = np.maximum((e ** 2).sum(axis=1), 1e-300)
+        for i in np.flatnonzero(~inside):
+            tt = np.clip(((vs.x[i] - a[:, 0]) * e[:, 0] + (vs.y[i] - a[:, 1]) * e[:, 1]) / len2, 0.0, 1.0)
+            ref[i] = min(ref[i], float(np.hypot(vs.x[i] - (a[:, 0] + tt * e[:, 0]), vs.y[i] - (a[:, 1] + tt * e[:, 1])).min()))
+    assert np.array_equal(viaconstriction.heater_distance(p, vs), ref)
+
+
+def test_live_input_check_is_cheap_on_a_large_board():
+    """!
+    @brief The live list runs in the window's thread after every edit: with 8500 vias, 20 parts and every model it took 1.8 s (2.7 s on an outline) because the
+           Lumped zone decision rebuilt the vias for every part and the Analytic plan measured the distances via by via; now about 0.2 s (0.5 s).
+    @return None.
+    """
+    import time
+    from pcbthermal.checks import check_input
+    models = ("fvm", "fdm", "lumped", "analytic", "solid3d")
+    # Measured without outline: 0.2 s alone, 0.92 s in a loaded battery, 1.46 to 1.8 s with the old code (hence 1.2 s); with outline 0.5 s alone, 2.7 s old
+    for outline, limit in ((False, 1.2), (True, 1.5)):
+        p = _many_via_board(8000, outline)
+        check_input(p, models, 1.0)                              # Warm the imports and caches
+        # Best of three: a loaded battery inflates one call (0.2 s alone became 0.92 s), the minimum is the cost of the code
+        best = 1e9
+        for _ in range(3):
+            t0 = time.perf_counter()
+            check_input(p, models, 1.0)
+            best = min(best, time.perf_counter() - t0)
+        assert best < limit, (outline, best)
+
+
+def _warnings_with(problem, cell_mm, text):
+    """!
+    @brief The warnings of check_problem that contain a text.
+    @param problem The Problem.
+    @param cell_mm Cell size in mm.
+    @param text Text to look for.
+    @return list The matching warnings.
+    """
+    from pcbthermal.checks import check_problem
+    return [w for w in check_problem(problem, cell_mm) if text in w]
+
+
+def test_neighbouring_parts_apart_do_not_overlap_and_real_overlaps_do():
+    """!
+    @brief Two parts 0.3 mm apart used to be reported as overlapping (4 of 10 positions for 1 to 3 mm parts at a 1 mm cell; their 4 x 4 covers met in one
+           cell); the overlap is the exact area of the intersection now, and a genuine overlap warns with its exact share of the smaller part.
+    @return None.
+    """
+    seen = 0
+    for size in (1.0, 2.0, 3.0):
+        for cell in (1.0, 1.7, 2.5):
+            for ox in np.linspace(5.0, 5.9, 10):
+                p = Problem.new(30, 20, 2)
+                p.add_zone(1, rect=(0, 0, 30, 20))
+                p.add_heater(1, 1.0, rect=(ox, 8.0, ox + size, 8.0 + size))
+                p.add_heater(1, 1.0, rect=(ox + size + 0.3, 8.0, ox + 2 * size + 0.3, 8.0 + size))
+                assert not _warnings_with(p, cell, "overlap on layer"), (size, cell, ox)
+                seen += 1
+    assert seen == 90
+    q = Problem.new(30, 20, 2)
+    q.add_zone(1, rect=(0, 0, 30, 20))
+    q.add_heater(1, 1.0, rect=(5.0, 8.0, 7.0, 10.0))
+    q.add_heater(1, 1.0, rect=(6.0, 8.0, 8.0, 10.0))                    # Half of each over the other
+    from pcbthermal.checks import check_problem, line
+    got = [w for w in check_problem(q, 1.0) if "overlap on layer" in w]
+    assert len(got) == 1 and "50 % of the smaller" in line(got[0])
+    r = Problem.new(30, 20, 2)
+    r.add_zone(1, rect=(0, 0, 30, 20))
+    r.add_heater(1, 1.0, rect=(5.0, 8.0, 7.0, 10.0))
+    r.add_heater(1, 1.0, rect=(7.0, 8.0, 9.0, 10.0))                    # Edges that touch
+    assert not _warnings_with(r, 1.0, "overlap on layer")
+    r.add_heater(1, 1.0, rect=(5.1, 8.1, 5.9, 8.9))                     # A small part wholly inside the first one: 100 % of the smaller
+    assert any("100 % of the smaller" in line(w) for w in _warnings_with(r, 1.0, "overlap on layer"))
+
+
+def test_polygon_overlap_area_against_closed_forms():
+    """!
+    @brief The Sutherland-Hodgman overlap area against closed forms: rectangles, a triangle cut by a square, a concave L against a square, and disjoint shapes.
+    @return None.
+    """
+    from pcbthermal.geometry import polygon_overlap_area
+    sq = lambda x0, y0, x1, y1: np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], dtype=float)
+    assert abs(polygon_overlap_area(sq(0, 0, 2, 2), sq(1, 1, 3, 3)) - 1.0) < 1e-12
+    assert polygon_overlap_area(sq(0, 0, 1, 1), sq(1, 0, 2, 1)) == 0.0
+    assert polygon_overlap_area(sq(0, 0, 1, 1), sq(2, 2, 3, 3)) == 0.0
+    tri = np.array([[0, 0], [2, 0], [0, 2]], dtype=float)                 # Area 2; the square [0,1]x[0,1] lies wholly under its hypotenuse
+    assert abs(polygon_overlap_area(tri, sq(0, 0, 1, 1)) - 1.0) < 1e-12
+    assert abs(polygon_overlap_area(tri, sq(0, 0, 2, 2)) - 2.0) < 1e-12
+    assert polygon_overlap_area(sq(1, 1, 2, 2), tri) < 1e-12              # Only touches the hypotenuse at (1, 1)
+    ell = np.array([[0, 0], [3, 0], [3, 1], [1, 1], [1, 3], [0, 3]], dtype=float)       # Concave L of area 5
+    assert abs(polygon_overlap_area(ell, sq(0.5, 0.5, 2.5, 2.5)) - 1.75) < 1e-9
+    other_l = np.array([[0.5, 0.5], [3.5, 0.5], [3.5, 1.5], [1.5, 1.5], [1.5, 3.5], [0.5, 3.5]], dtype=float)   # Two concave polygons: lattice
+    assert abs(polygon_overlap_area(ell, other_l) - 2.25) < 0.1             # 1.25 + 0.25 + 0.75 by hand
+
+
+def test_small_zone_and_block_inside_the_board_are_not_reported_outside():
+    """!
+    @brief A small zone (2 x 2 samples per cell) and a 3 mm block on a 2.5 mm cell used to read as partly outside the board at some positions; the shares come
+           from the geometry now, an outline is respected by the zone check, and a genuine overhang still warns.
+    @return None.
+    """
+    for cell in (1.0, 2.0, 2.5, 3.0):
+        for ox in np.linspace(5.0, 7.4, 10):
+            p = Problem.new(30, 20, 2)
+            p.add_zone(1, rect=(0, 0, 30, 20))
+            p.add_zone(1, rect=(ox, 7.7, ox + 1.0, 8.7), fill=0.5)
+            p.add_heatsink(1, 10.0, rect=(ox, 12.0, ox + 3.0, 15.0), thickness_mm=2.0)
+            assert not _warnings_with(p, cell, "of the zone is outside"), (cell, ox)
+            assert not _warnings_with(p, cell, "part of the metal block is outside"), (cell, ox)
+    half = Problem.new(30, 20, 2)
+    half.add_zone(1, rect=(0, 0, 30, 20))
+    half.add_zone(1, rect=(29.0, 5.0, 33.0, 7.0))                          # 25 % on the board
+    half.add_heatsink(1, 10.0, rect=(28.0, 10.0, 32.0, 14.0), thickness_mm=2.0)   # 50 % on the board
+    assert len(_warnings_with(half, 1.0, "of the zone is outside")) == 1
+    assert len(_warnings_with(half, 1.0, "part of the metal block is outside")) == 1
+    # The outline is respected: a zone in the cut-away corner of an L-shaped board is outside it
+    ell = Problem.new(30, 20, 2)
+    ell.board.outline = np.array([[0, 0], [30, 0], [30, 10], [15, 10], [15, 20], [0, 20]], dtype=float) * 1e-3
+    ell.add_zone(1, rect=(0, 0, 15, 20))
+    ell.add_zone(1, rect=(20.0, 14.0, 24.0, 18.0))
+    assert len(_warnings_with(ell, 1.0, "of the zone is outside")) == 1
+    inner = Problem.new(30, 20, 2)
+    inner.board.outline = ell.board.outline
+    inner.add_zone(1, rect=(1.0, 1.0, 3.0, 3.0))
+    assert not _warnings_with(inner, 1.0, "of the zone is outside")
+
+
+def test_part_fully_outside_has_a_text_that_does_not_contradict_itself():
+    """!
+    @brief At 100 % outside the warning no longer says that the power is applied to the part that is inside (nothing is).
+    @return None.
+    """
+    q = Problem.new(30, 20, 2)
+    q.add_zone(1, rect=(0, 0, 30, 20))
+    q.add_heater(1, 1.0, rect=(31.0, 5.0, 33.0, 7.0))
+    got = _warnings_with(q, 1.0, "outside the board")
+    assert len(got) == 1 and "part that is inside" not in got[0] and "heats nothing" in got[0]
+
+
+def test_statistics_of_a_very_small_part_are_not_nan():
+    """!
+    @brief A part smaller than the 4 x 4 samples of a cell (here 0.2 mm on a 2 mm cell, between the sample points) used to give NaN statistics; it reads its cell.
+    @return None.
+    """
+    p = Problem.new(30, 20, 2)
+    p.add_zone(1, rect=(0, 0, 30, 20))
+    p.add_heater(1, 0.5, rect=(10.05, 10.05, 10.25, 10.25))             # Between the sample points of its cell
+    sim = simulate(p, SolverOptions(models=("fvm", "fdm"), cell_mm=2.0))
+    from pcbthermal.analysis import heater_stats
+    for model in ("fvm", "fdm"):                                         # A cell field and a node field (the part falls between the nodes too)
+        res = sim.results[model]
+        row = heater_stats(res, p)[0]
+        assert all(np.isfinite(row[k]) for k in ("t_mean", "t_max")), (model, row)
+        if model == "fvm":
+            assert row["t_max"] == pytest.approx(float(res.T.max()), abs=1e-9)    # The only source, in the cell of its centroid: the hottest cell
+        else:
+            # The FDM shares the cell's power among its four nodes; the part reads the node nearest to its centroid, one of them (not always the hottest)
+            assert float(res.T[0, 5:7, 5:7].min()) - 1e-9 <= row["t_max"] <= float(res.T.max()) + 1e-9
+
+
+def test_overlap_of_self_crossing_and_rotated_polygons_follows_the_even_odd_fill():
+    """!
+    @brief A pentagram turns the same way at every vertex; it used to be taken as convex and to give the whole square at its centre, which the even-odd fill
+           of the program leaves empty. Rotated rectangles are exact against the closed form of two squares turned by 45 degrees.
+    @return None.
+    """
+    from pcbthermal.geometry import _is_convex, polygon_overlap_area
+    ang = np.arange(5) * 4 * np.pi / 5
+    star = np.c_[np.cos(ang), np.sin(ang)] * 2.0
+    sq = np.array([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]])
+    assert not _is_convex(star)
+    # Even-odd: the centre pentagon (inradius 2 cos 72 deg = 0.618) is empty and holds most of the square; only its corners reach into the arms
+    assert polygon_overlap_area(sq, star) < 0.05
+    assert polygon_overlap_area(star, sq) < 0.05
+    diamond = np.array([[1.0, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.0, -1.0]])    # |x| + |y| <= 1: a square of side sqrt(2) turned by 45 deg, area 2
+    big = 2.0 * sq                                                       # Area 4; the diamond is wholly inside
+    assert polygon_overlap_area(diamond, big) == pytest.approx(2.0, abs=1e-12)
+    # The square [-0.5, 0.5]^2 against the diamond |x| + |y| <= 1: the square lies wholly inside the diamond
+    assert polygon_overlap_area(sq, diamond) == pytest.approx(1.0, abs=1e-12)
+    assert polygon_overlap_area(sq[::-1], diamond[::-1]) == pytest.approx(1.0, abs=1e-12)     # Clockwise vertices give the same area
+
+
+def test_overlap_and_cool_part_warnings_keep_their_numbers_in_both_forms():
+    """!
+    @brief The overlap share is in the full text (Results summary) as well as in the one-line form; the one-line form of the Lumped cool-part warning
+           names no single trigger (it fires for an array past the edge, an off-centre array and an elongated footprint) and keeps the unsafe size.
+    @return None.
+    """
+    from pcbthermal.checks import check_problem, check_model_limits, line
+    q = Problem.new(30, 20, 2)
+    q.add_zone(1, rect=(0, 0, 30, 20))
+    q.add_heater(1, 1.0, rect=(5.0, 8.0, 7.0, 10.0))
+    q.add_heater(1, 1.0, rect=(6.0, 8.0, 8.0, 10.0))
+    got = [w for w in check_problem(q, 1.0) if "overlap on layer" in w]
+    assert len(got) == 1 and "50 % of the smaller" in got[0] and "50 % of the smaller" in line(got[0])
+    e = Problem.new(40, 30, 2)
+    e.add_zone(1, rect=(0, 0, 40, 30))
+    e.add_zone(2, rect=(0, 0, 40, 30))
+    e.add_heater(1, 2.0, rect=(10.0, 10.0, 16.0, 12.0))                  # Elongated footprint (side ratio 3) filled by a centred array: not zoned
+    for x in np.arange(10.25, 16.0, 0.5):                                # (the core covers the footprint), so the warning is a live one
+        for y in np.arange(10.25, 12.0, 0.5):
+            e.add_via(x, y, 0.2)
+    cool = [w for w in check_model_limits(e, ("lumped",), 1.0) if "unsafe for a design" in w]
+    assert cool, [str(w) for w in check_model_limits(e, ("lumped",), 1.0)]
+    assert all("past the footprint" not in line(w) and "unsafe for a design" in line(w) and "a quarter" in line(w) for w in cool)
+
+
+def test_low_rayleigh_warning_fires_once_below_the_criterion_only_for_vertical_computed_boards():
+    from pcbthermal.checks import LOW_RAYLEIGH_LIMIT, check_low_rayleigh
+    p = Problem.new(12, 12, 2).add_full_copper()
+    p.add_heater(1, 0.02, rect=(4, 4, 8, 8))
+    b = p.board
+    b.h_mode, b.orientation = "computed", "vertical"
+    # Ra about 7e2 on a 12 mm face: one warning for the simulation, not one per model (five models were five copies), in the Results summary list
+    sim = simulate(p, SolverOptions(models=("fvm", "fdm", "lumped", "analytic"), cell_mm=1.0))
+    low = [w for w in sim.warnings if "Rayleigh number" in w and "thin boundary layer" in w]
+    assert len(low) == 1 and low[0] in sim.part_warnings, sim.warnings
+    assert "12 mm high" in low[0] and "below 1000" in low[0] and "convection multiplier" in low[0]
+    # The same board horizontal or with typed coefficients: no such warning
+    for orientation, mode in (("horizontal", "computed"), ("vertical", "manual")):
+        b.orientation, b.h_mode = orientation, mode
+        sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
+        assert not [w for w in sim.warnings if "thin boundary layer" in w], (orientation, mode)
+    # Forced air that dominates the natural convection: the low natural Ra does not matter
+    b.orientation, b.h_mode, b.air_speed = "vertical", "computed", 2.0
+    sim = simulate(p, SolverOptions(models=("fvm",), cell_mm=1.0))
+    assert not [w for w in sim.warnings if "thin boundary layer" in w]
+    b.air_speed = 0.0
+    # A larger board at a larger rise is far above 1e3: silent
+    q = Problem.new(100, 80, 2).add_full_copper()
+    q.add_heater(1, 3.0, rect=(40, 30, 60, 50))
+    q.board.h_mode, q.board.orientation = "computed", "vertical"
+    sim = simulate(q, SolverOptions(models=("fvm",), cell_mm=2.0))
+    assert not [w for w in sim.warnings if "thin boundary layer" in w]
+    # The function itself: the criterion on the smaller face Ra, faces dominated by forced air left out
+    def info(ra_top, ra_bottom, forced=0.0):
+        return {"top": {"rayleigh": ra_top, "natural": 3.0, "forced": forced}, "bottom": {"rayleigh": ra_bottom, "natural": 3.0, "forced": forced}}
+    assert check_low_rayleigh(b, info(2e4, 0.5 * LOW_RAYLEIGH_LIMIT)) and not check_low_rayleigh(b, info(2e4, 1.01 * LOW_RAYLEIGH_LIMIT))
+    assert not check_low_rayleigh(b, info(1.0, 1.0, forced=5.0))
+    b.orientation = "horizontal"
+    assert not check_low_rayleigh(b, info(1.0, 1.0))
+    b.orientation, b.h_mode = "vertical", "manual"
+    assert not check_low_rayleigh(b, info(1.0, 1.0))
+
+
+def test_convection_not_measured_note_only_with_computed_h():
+    """!
+    @brief The Results summary carries the line that computed coefficients were never compared with a measured board, once, only in computed mode.
+    @return None.
+    """
+    from pcbthermal import api, examples
+    from pcbthermal.api import CONVECTION_NOT_MEASURED_NOTE
+    p = examples.example_board()
+    p.board.h_mode = "computed"
+    sim = api.simulate(p, api.SolverOptions(models=("fvm",), cell_mm=2.0))
+    assert sim.warnings.count(CONVECTION_NOT_MEASURED_NOTE) == 1
+    p.board.h_mode = "manual"
+    sim = api.simulate(p, api.SolverOptions(models=("fvm",), cell_mm=2.0))
+    assert CONVECTION_NOT_MEASURED_NOTE not in sim.warnings
+
+
+def test_copper_edge_across_a_footprint_warns_only_for_lumped_and_analytic():
+    """!
+    @brief The "copper edge crosses its footprint" warning concerns the reduced models: silent on an FVM-only run, present with the Lumped or the Analytic.
+    @return None
+    """
+    from pcbthermal.checks import check_input
+    p = Problem.new(60, 60, 2)
+    p.add_zone(1, rect=(10, 10, 30, 30))                       # The pad edge runs through the part below
+    p.add_heater(1, 1.0, rect=(27, 27, 33, 33), name="U")
+    def edge(models):
+        return [w for w in check_input(p, models, 1.0) if "copper edge" in str(w)]
+    assert edge(("fvm",)) == []
+    assert edge(("fvm", "fdm", "solid3d")) == []
+    assert len(edge(("lumped",))) == 1 and len(edge(("fvm", "analytic"))) == 1

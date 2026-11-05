@@ -10,17 +10,18 @@ coordinates are the board coordinates the physics core uses.
 
 import numpy as np
 from PySide6.QtCore import QLineF, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import (QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
-                           QTransform)
+from PySide6.QtGui import (QFontMetrics, QPainterPath, QBrush, QColor, QCursor, QImage, QPainter, QPen, QPixmap, QPolygonF,
+                           QMouseEvent, QTransform)
 from PySide6.QtWidgets import (QGraphicsEllipseItem, QGraphicsItem, QGraphicsPixmapItem, QGraphicsPolygonItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem, QGraphicsView,
                                QMenu, QStyle)
 
-from .. import defaults
+from .. import copper, defaults
 from ..geometry import insert_vertex, nearest_vertex, polygon_is_simple
 from . import theme as th
 from ..numfmt import num
 
+COPPER_DISPLAY_PIXELS = 2048           # Longest side (pixels) of the reduced mask that is drawn under the elements
 _GRID_STEPS = (0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200)
 
 
@@ -63,6 +64,25 @@ def _clamped_position(item, value):
     return QPointF(x, y)
 
 
+def reduced_coverage(coverage, target=COPPER_DISPLAY_PIXELS):
+    """!
+    @brief Reduce a coverage mask for display by the integer factor that brings its longest side to at most `target` pixels (block mean).
+    @details The reduction is done once per mask and cached by the canvas; only the rows and columns that fill whole blocks are used (less than one block, a fraction of a
+             percent of the board, is left out at the right and bottom edges), and the sum runs in 32 bits, so no temporary larger than the result is made.
+    @param coverage uint8 array (rows, columns), 0 to 255.
+    @param target Largest side of the result in pixels.
+    @return tuple (uint8 array (rows', columns'), factor) with factor the number of mask pixels per displayed pixel.
+    """
+    f = max(1, int(np.ceil(max(coverage.shape) / float(target))))
+    if f == 1:
+        return np.ascontiguousarray(coverage), 1
+    r, c = (coverage.shape[0] // f) * f, (coverage.shape[1] // f) * f
+    if r == 0 or c == 0:                                     # A mask thinner than one block: keep it as it is
+        return np.ascontiguousarray(coverage), 1
+    blocks = coverage[:r, :c].reshape(r // f, f, c // f, f)
+    return (blocks.sum(axis=(1, 3), dtype=np.uint32) // (f * f)).astype(np.uint8), f
+
+
 class ElementItem(QGraphicsPolygonItem):
     """!
     @brief A zone, heater or heatsink polygon on the canvas.
@@ -92,8 +112,22 @@ class ElementItem(QGraphicsPolygonItem):
                 self.label.setPos(br.center().x(), br.center().y())
             else:
                 self.label.setPos(br.left() + 0.5, br.bottom() - 0.5)     # y points up: bottom() is the top edge
-            self.label.setBrush(QBrush(QColor("white")))
+            self.label.setBrush(QBrush(QColor(th.colors(self.view.theme)["on_element"])))
         self.restyle()
+
+    def lift_label(self):
+        """!
+        @brief Make the name a top-level item above the vias (z 6): as a child it would stay inside the z of its element (3) and the vias (4) would cover it.
+        @details The label takes no mouse button, so the hit-testing of the elements is unchanged; it follows the element when it moves (`itemChange`).
+        """
+        if self.label is None or self.label.parentItem() is None:
+            return
+        self._label_base = QPointF(self.label.pos())            # The element sits at the origin when the scene is built
+        self.label.setParentItem(None)
+        self.label.setZValue(6)
+        self.label.setOpacity(self.opacity())
+        self.label.setAcceptedMouseButtons(Qt.NoButton)
+        self.label.setPos(self._label_base + self.pos())
 
     def restyle(self):
         """!
@@ -103,7 +137,7 @@ class ElementItem(QGraphicsPolygonItem):
         base = {"zone": c["copper"], "heater": c["heater"], "heatsink": c["heatsink"]}[self.kind]
         alpha = {"zone": 70, "heater": 120, "heatsink": 70}[self.kind]
         self.setBrush(QBrush(th.qcolor(base, alpha)))
-        pen = QPen(QColor("white") if self.isSelected() else QColor(base), 0)
+        pen = QPen(QColor(c["selection"]) if self.isSelected() else QColor(base), 0)
         pen.setCosmetic(True)
         pen.setWidthF(2.2 if self.isSelected() else 1.4)
         if self.kind == "heatsink" and not getattr(self, "is_block", False):
@@ -122,6 +156,8 @@ class ElementItem(QGraphicsPolygonItem):
             return _clamped_position(self, value)
         if change == QGraphicsItem.ItemSelectedHasChanged:
             self.restyle()
+        if change == QGraphicsItem.ItemPositionHasChanged and getattr(self, "_label_base", None) is not None and self.label.parentItem() is None:
+            self.label.setPos(self._label_base + self.pos())
         return super().itemChange(change, value)
 
     def paint(self, painter, option, widget=None):
@@ -158,12 +194,23 @@ class ViaItem(QGraphicsEllipseItem):
         self.setZValue(4)
         self.restyle()
 
+    def shape(self):
+        """!
+        @brief The area that answers a click: the drawn disc, without the pen.
+        @details The default shape strokes the outline with the pen width in scene units, and the cosmetic pen is 2 (mm here), so a via of 0.3 mm answered clicks 1.3 mm away
+                 and in a dense array the neighbour was picked. The tolerance around the centre is handled by BoardView.nearest_via, in pixels.
+        @return QPainterPath of the disc.
+        """
+        path = QPainterPath()
+        path.addEllipse(self.rect())
+        return path
+
     def restyle(self):
         """!
         @brief Apply the via colours and the selection highlight.
         """
         c = th.colors(self.view.theme)
-        pen = QPen(QColor("white") if self.isSelected() else QColor(c["via"]))
+        pen = QPen(QColor(c["selection"]) if self.isSelected() else QColor(c["via"]))
         pen.setCosmetic(True)
         pen.setWidthF(2.0)
         self.setPen(pen)
@@ -210,8 +257,9 @@ class VertexHandle(QGraphicsRectItem):
         # The handle follows the mouse by itself (mouseMoveEvent) and only reshapes the polygon.
         self.setFlags(QGraphicsItem.ItemIgnoresTransformations | QGraphicsItem.ItemSendsGeometryChanges)
         self.setAcceptedMouseButtons(Qt.LeftButton)
-        self.setBrush(QBrush(QColor("white")))
-        pen = QPen(QColor("#4c8dff"))
+        c = th.colors(view.theme)
+        self.setBrush(QBrush(QColor(c["selection"])))
+        pen = QPen(QColor(c["accent"]))
         pen.setWidthF(1.5)
         self.setPen(pen)
         self.setZValue(20)
@@ -293,11 +341,16 @@ class BoardView(QGraphicsView):
         self.snap, self.show_grid, self.show_solver_grid, self.solver_cell = 1.0, True, False, 1.0
         self.via_diameter = None                    # None: the default via diameter of the user's defaults
         self._space = self._panning = self._external = self._rebuilding = False
+        self._via_shift = None            # (dx, dy) in pixels from the real press to the centre of the via it was redirected to, while that press is held
         self._handle_lock = False
         self._pan_last = QPointF()
         self._draw_start, self._poly_pts, self._preview = None, [], None
         self._handles, self._handle_item = [], None
         self._overlay = self._background = None
+        self._copper_item = None                    # The pixmap item of the imported copper of the active layer (None without one)
+        self._copper_cache = {}                     # (layer index, mask token, theme) -> (QPixmap, millimetres per displayed pixel)
+        self.show_imported_copper = True            # View - Imported copper
+        self.show_labels = True                     # Names of the heaters on the active layer
         self._fitted = False
 
         doc.changed.connect(self.rebuild)
@@ -360,17 +413,18 @@ class BoardView(QGraphicsView):
             sc = self.scene()
             sc.blockSignals(True)
             sc.clear()
-            self._overlay = self._background = None
+            self._overlay = self._background = self._copper_item = None
             pr = self.doc.problem
             W, H = pr.board.width * 1000.0, pr.board.height * 1000.0
             m = max(W, H) * 0.6
             sc.setSceneRect(QRectF(-m, -m, W + 2 * m, H + 2 * m))
             self._add_background()
+            self._add_imported_copper()
             active = self.layer
             for kind, lst in (("zone", pr.zones), ("heatsink", pr.heatsinks), ("heater", pr.heaters)):
                 for i, el in enumerate(lst):
                     poly = self.doc.polygon_mm(el)
-                    label = el.name if el.layer == active else ""
+                    label = el.name if el.layer == active and self.show_labels else ""
                     if kind == "heatsink" and el.is_block() and label:
                         label = f"{label} ({num(el.thickness * 1000)} mm block)"
                     it = ElementItem(self, kind, i, poly, label, el.layer)
@@ -381,6 +435,7 @@ class BoardView(QGraphicsView):
                         it.setOpacity(0.22)
                         it.setFlags(it.flags() & ~(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable))
                     sc.addItem(it)
+                    it.lift_label()
                     if (kind, i) in selected and el.layer == active:
                         it.setSelected(True)
             for i, v in enumerate(pr.vias):
@@ -392,8 +447,95 @@ class BoardView(QGraphicsView):
         finally:
             self._rebuilding = False
         self._update_handles()
+        self._fit_labels()
         self.viewport().update()
         self.selection_changed.emit(self.selected_elements())
+
+    def _add_imported_copper(self):
+        """!
+        @brief Draw the imported copper of the active layer under the elements, from a reduced mask that is built once and cached.
+        @details The item is a pixmap in the copper colour whose alpha is the coverage, placed like the raster of the import (top-left corner of the board, rows downwards), so
+                 panning and zooming only move a texture. A project without imported copper, a layer without a mask and the switch View - Imported copper off add nothing.
+        """
+        imp = self.doc.problem.imported
+        self._copper_item = None
+        if imp is None or not self.show_imported_copper or imp.pix_mm <= 0:
+            if imp is None:
+                self._copper_cache = {}                       # A project without imported copper: nothing cached is of use any more
+            return
+        # The token of a mask is its layer and its packed text (length and hash; the hash of a str is computed once and kept by Python, so this is cheap on every rebuild)
+        tokens = {(int(e.get("index", -1)), len(d), hash(d)) for e in imp.layers if copper.has_mask(e) for d in (str(e["mask"].get("data", "")),)}
+        # Keep only the pixmaps of the masks of the open problem in the current theme: a new import, a re-import, another project or a theme change drops the old ones
+        # (without this every import added up to 16 MB per layer visited to the cache for the life of the window)
+        self._copper_cache = {k: v for k, v in self._copper_cache.items() if k[3] == self.theme and k[:3] in tokens}
+        entry = next((e for e in imp.layers if int(e.get("index", -1)) == self.layer and copper.has_mask(e)), None)
+        if entry is None:
+            return
+        data = str(entry["mask"].get("data", ""))
+        key = (self.layer, len(data), hash(data), self.theme)
+        if key not in self._copper_cache:
+            try:
+                red, f = reduced_coverage(copper.unpack_coverage(entry["mask"]))
+            except ValueError:                                # A damaged mask: the canvas shows no copper rather than failing
+                return
+            col = QColor(th.colors(self.theme)["copper"])
+            rgba = np.zeros(red.shape + (4,), np.uint8)
+            rgba[..., 0], rgba[..., 1], rgba[..., 2], rgba[..., 3] = col.red(), col.green(), col.blue(), red
+            img = QImage(rgba.data, red.shape[1], red.shape[0], 4 * red.shape[1], QImage.Format_RGBA8888)
+            self._copper_cache[key] = (QPixmap.fromImage(img), imp.pix_mm * f)    # fromImage copies, so rgba may go
+        pm, mm = self._copper_cache[key]
+        item = QGraphicsPixmapItem(pm)
+        # Smooth (bilinear) sampling: seen whole, a displayed pixel covers several pixels of the pixmap and the nearest-pixel default would drop or alias the thin tracks;
+        # measured on the 10.8 Mpx board, the frame costs the same (about 10 ms whole, 2 to 3 ms zoomed in, offscreen)
+        item.setTransformationMode(Qt.SmoothTransformation)
+        item.setTransform(QTransform().scale(mm, -mm))            # Rows go downwards, the scene upwards
+        item.setPos(0.0, self.doc.problem.board.height * 1000.0)
+        item.setOpacity(0.55)
+        item.setZValue(0.3)                                       # Over the background photo, under the temperature map and the elements
+        item.setAcceptedMouseButtons(Qt.NoButton)
+        self.scene().addItem(item)
+        self._copper_item = item
+
+    def set_show_imported_copper(self, on):
+        """!
+        @brief Show or hide the imported copper (View - Imported copper).
+        @param on True to show.
+        """
+        self.show_imported_copper = bool(on)
+        self.rebuild()
+
+    def set_show_labels(self, on):
+        """!
+        @brief Show or hide the names of the elements: zones, heatsinks and heaters (View - Element names).
+        @param on True to show.
+        """
+        self.show_labels = bool(on)
+        self.rebuild()
+
+    def _fit_labels(self):
+        """!
+        @brief In a project with imported parts centre the name of each heater on it and hide a name that is wider than the heater on the screen or that would overlap a name already
+               shown (27 names on a board seen whole would be a smear); zooming in shows them. Larger heaters are named first.
+        @details Drawn boards are left alone: their labels always show, from the centre to the right as before. The selected heater keeps its name. The size of a heater is that of its
+                 polygon: `boundingRect()` of the item adds the width of its cosmetic pen in scene millimetres (1.4 to 2.2 mm), which let a name wider than a small part show.
+        """
+        if self.doc.problem.imported is None:
+            return
+        scale = abs(self.transform().m11())
+        heaters = [it for it in self.scene().items() if isinstance(it, ElementItem) and it.kind == "heater" and it.label is not None]
+        heaters.sort(key=lambda it: (not it.isSelected(), -it.polygon().boundingRect().width() * it.polygon().boundingRect().height()))
+        taken = []
+        for it in heaters:
+            lab = it.label
+            fm = QFontMetrics(lab.font())
+            w, h = fm.horizontalAdvance(lab.text()) + 4, fm.height()
+            lab.setTransform(QTransform.fromTranslate(-w / 2.0 + 2.0, -h / 2.0))    # In pixels (the label ignores the view's scale): centred on the heater
+            pt = self.mapFromScene(lab.scenePos())                # The centre of the heater on the screen
+            r = QRectF(pt.x() - w / 2.0, pt.y() - h / 2.0, w, h)
+            show = it.isSelected() or (it.polygon().boundingRect().width() * scale >= w and not any(r.intersects(t) for t in taken))
+            lab.setVisible(show)
+            if show:
+                taken.append(r)
 
     def _add_background(self):
         """!
@@ -478,6 +620,7 @@ class BoardView(QGraphicsView):
         self.scene().blockSignals(False)
         self._external = False
         self._update_handles()
+        self._fit_labels()
 
     def _on_scene_selection(self):
         """!
@@ -486,6 +629,7 @@ class BoardView(QGraphicsView):
         if self._rebuilding or self._external:
             return
         self._update_handles()
+        self._fit_labels()                                     # A selected heater shows its name even when it does not fit
         self.selection_changed.emit(self.selected_elements())
 
     # ------------------------------------------------------------------ vertex handles
@@ -569,6 +713,7 @@ class BoardView(QGraphicsView):
         self.setTransform(QTransform().scale(s, -s))
         self.centerOn(W / 2, H / 2)
         self._fitted = True
+        self._fit_labels()
 
     def showEvent(self, e):
         """!
@@ -585,6 +730,7 @@ class BoardView(QGraphicsView):
         @param factor Scale factor (greater than 1 zooms in).
         """
         self.scale(factor, factor)
+        self._fit_labels()
 
     def wheelEvent(self, e):
         """!
@@ -592,6 +738,7 @@ class BoardView(QGraphicsView):
         @param e QWheelEvent (the vertical angle delta sets the zoom).
         """
         self.scale(1.15 ** (e.angleDelta().y() / 120.0), 1.15 ** (e.angleDelta().y() / 120.0))
+        self._fit_labels()
 
     # ------------------------------------------------------------------ painting
     def drawBackground(self, painter, rect):
@@ -770,7 +917,47 @@ class BoardView(QGraphicsView):
             else:
                 self._draw_start = p
             return
+        if e.button() == Qt.LeftButton and self.tool == "select":
+            # Vertex handles keep their priority; otherwise a via near the cursor beats whatever polygon lies under it (the via is tiny at low zoom)
+            if not isinstance(self.itemAt(e.position().toPoint()), VertexHandle):
+                near = self.nearest_via(self.mapToScene(e.position().toPoint()))
+                if near is not None:
+                    # Hand Qt a press at the centre of that via, so that exactly this via takes the press (selection, Ctrl toggle and drag are Qt's)
+                    centre = self.mapFromScene(QPointF(*near))
+                    self._via_shift = QPointF(centre) - e.position()
+                    e = self._shifted(e)
         super().mousePressEvent(e)
+
+    def _shifted(self, e):
+        """!
+        @brief The mouse event moved by the redirect of the press to a via, so that the pointer keeps its distance to the via centre (no jump when the via is dragged).
+        @param e QMouseEvent as received.
+        @return The same event when no redirect is active, otherwise a copy shifted by the redirect.
+        """
+        if self._via_shift is None:
+            return e
+        pos = e.position() + self._via_shift
+        # The scene finds the items under the press from the GLOBAL position, so that one moves too
+        return QMouseEvent(e.type(), pos, pos, e.globalPosition() + self._via_shift, e.button(), e.buttons(), e.modifiers())
+
+    def nearest_via(self, scene_pt):
+        """!
+        @brief The via whose centre is nearest to a point, within the pick tolerance of that via.
+        @details The tolerance of a via is its drawn radius or 6 screen pixels, whichever is larger, so a via stays pickable at low zoom and in a dense array the nearest centre
+                 wins (the item under the cursor would be the first one drawn that reaches it).
+        @param scene_pt QPointF in mm (scene coordinates).
+        @return (x, y) of the via centre in mm, or None when no via is within its tolerance.
+        """
+        scale = max(abs(self.transform().m11()), 1e-9)                        # Pixels per mm
+        px, py = scene_pt.x(), scene_pt.y()
+        best, best_d = None, None
+        for v in self.doc.problem.vias:
+            x, y = v.x * 1000.0, v.y * 1000.0
+            tol = max(max(v.diameter * 1000.0 / 2.0, 0.3), 6.0 / scale)       # Same radius as ViaItem draws, in mm
+            d = ((x - px) ** 2 + (y - py) ** 2) ** 0.5
+            if d <= tol and (best_d is None or d < best_d):
+                best, best_d = (x, y), d
+        return best
 
     # ------------------------------------------------------------------ context menu
     @staticmethod
@@ -925,7 +1112,7 @@ class BoardView(QGraphicsView):
             if self._poly_pts:
                 self._update_preview(p)
                 return
-        super().mouseMoveEvent(e)
+        super().mouseMoveEvent(self._shifted(e))
 
     def mouseReleaseEvent(self, e):
         """!
@@ -945,7 +1132,9 @@ class BoardView(QGraphicsView):
                 y0, y1 = sorted((a.y(), b.y()))
                 self._create(self.tool, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
             return
-        super().mouseReleaseEvent(e)
+        super().mouseReleaseEvent(self._shifted(e))
+        if e.button() == Qt.LeftButton:
+            self._via_shift = None                                  # The press that was redirected to a via is over
         if self.tool == "select" and e.button() == Qt.LeftButton:
             moved = [it for it in self.scene().selectedItems() if hasattr(it, "kind") and it.pos() != it.origin]
             if moved:
@@ -959,8 +1148,10 @@ class BoardView(QGraphicsView):
 
     def keyPressEvent(self, e):
         """!
-        @brief Keyboard shortcuts: Delete, Ctrl+D, arrows, Enter, Esc, Space (pan).
+        @brief Keys of the canvas: Backspace, arrows, Enter, Esc, Space (pan).
         @param e QKeyEvent of the key press.
+        @note Del and Ctrl+D are shortcuts of the window actions Delete and Duplicate, which take the key before the canvas sees it, so they are not handled
+              here (tests/test_shortcuts.py checks that the canvas never receives them). Backspace (the Mac "delete" key) is the second key of the Delete action too.
         """
         key = e.key()
         if key == Qt.Key_Space and not e.isAutoRepeat():
@@ -971,11 +1162,6 @@ class BoardView(QGraphicsView):
             self.scene().clearSelection()
         elif key in (Qt.Key_Return, Qt.Key_Enter) and self._poly_pts:
             self._finish_polygon()
-        elif key in (Qt.Key_Delete, Qt.Key_Backspace):
-            self.doc.delete(self.selected_elements())
-        elif key == Qt.Key_D and e.modifiers() & Qt.ControlModifier:
-            new = self.doc.duplicate(self.selected_elements())
-            self.set_selection(new)
         elif key in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down) and self.selected_elements():
             s = self.snap if self.snap > 0 else 1.0
             dx = {Qt.Key_Left: -s, Qt.Key_Right: s}.get(key, 0.0)
@@ -1024,7 +1210,8 @@ class BoardView(QGraphicsView):
         @param cursor Current snapped cursor position.
         """
         self._clear_preview()
-        pen = QPen(QColor("white"))
+        # The text colour: it reads on the canvas of both themes (white was 1.3:1 on the light canvas)
+        pen = QPen(QColor(th.colors(self.theme)["text"]))
         pen.setCosmetic(True)
         pen.setStyle(Qt.DashLine)
         pen.setWidthF(1.5)

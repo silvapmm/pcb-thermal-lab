@@ -166,8 +166,11 @@ def test_boards_without_vias_are_unchanged():
     p.vias = []
     stored = {("lumped", 0.5): (94.69317856820783, 50.41009237427764), ("lumped", 1.0): (96.5103448282088, 50.40227481692728),
               ("analytic", 0.5): (94.7149725526851, 50.842489306804865), ("analytic", 1.0): (94.55801736064181, 50.8424906244942)}
+    # The Analytic numbers were stored before the edge loss entered the Analytic model: they hold with insulated edges (the cosine basis, bit for bit)
+    insulated = copy.deepcopy(p)
+    insulated.board.h_side = None
     for (model, cell), (t_max, t_mean) in stored.items():
-        r = simulate(p, SolverOptions(models=(model,), cell_mm=cell)).results[model]
+        r = simulate(insulated if model == "analytic" else p, SolverOptions(models=(model,), cell_mm=cell)).results[model]
         assert r.t_max == pytest.approx(t_max, rel=1e-12, abs=0) and r.t_mean == pytest.approx(t_mean, rel=1e-12, abs=0), (model, cell)
     # A board with a heatsink and no vias uses the tiles of the program (2.5 to 5 mm), not the via rule
     q = Problem.new(40, 30, 2)
@@ -176,7 +179,10 @@ def test_boards_without_vias_are_unchanged():
     q.add_heatsink(1, 200.0, rect=(20, 5, 30, 12))
     for (model, cell), (t_max, t_mean) in {("lumped", 0.5): (95.30638364936246, 68.13580022840694), ("analytic", 0.5): (103.09955553667217, 72.68787455758647),
                                            ("analytic", 1.0): (102.96314995913453, 72.68787455758647)}.items():
-        r = simulate(q, SolverOptions(models=(model,), cell_mm=cell)).results[model]
+        qq = copy.deepcopy(q)
+        if model == "analytic":
+            qq.board.h_side = None                                           # stored before the edge transfer, as above
+        r = simulate(qq, SolverOptions(models=(model,), cell_mm=cell)).results[model]
         assert r.t_max == pytest.approx(t_max, rel=1e-12, abs=0) and r.t_mean == pytest.approx(t_mean, rel=1e-12, abs=0), (model, cell)
 
 
@@ -338,7 +344,7 @@ def test_via_warnings_carry_the_measured_numbers():
     """
     p = array(3, 3.5)
     w = [str(x) for x in check_model_limits(p, ("lumped",), 1.0)]
-    assert len(w) == 1 and "46 boards" in w[0] and "21 % too small" in w[0] and "33 % too large" in w[0] and "36 more" in w[0] and "80 %" in w[0]
+    assert len(w) == 1 and "46 boards" in w[0] and "21 % too small" in w[0] and "33 % too large" in w[0] and "36 more" in w[0] and "14 % of its rise" in w[0] and "80 %" not in w[0]
     assert check_model_limits(p, ("analytic",), 1.0) == []                       # nine vias at 3.5 mm: inside what was tested
     lone = board()
     lone.add_via(3.0, 3.0, 0.3)
