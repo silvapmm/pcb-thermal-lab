@@ -149,7 +149,7 @@ class Runner:
             if not res.text.strip():
                 return res.text, self.model, f"empty answer (finish {res.finish_reason})"
             # Text with another finish reason (MAX_TOKENS, SAFETY, ...) may be cut: keep it, but say so.
-            return res.text, self.model, ("" if res.finish_reason in ("STOP", "") else
+            return res.text, self.model, ("" if res.finish_reason in ("STOP", "", "end_turn", "stop_sequence") else
                                           f"finish {res.finish_reason}: the text may be incomplete")
         # Refused by the copyright filter (or cut at the token limit): two half-page crops with the same model.
         log.info("%s p%d: %s, trying half-page crops", pdf.name, page, res.finish_reason or "RECITATION")
