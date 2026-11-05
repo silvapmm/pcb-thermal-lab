@@ -721,3 +721,19 @@ def test_convection_not_measured_note_only_with_computed_h():
     p.board.h_mode = "manual"
     sim = api.simulate(p, api.SolverOptions(models=("fvm",), cell_mm=2.0))
     assert CONVECTION_NOT_MEASURED_NOTE not in sim.warnings
+
+
+def test_copper_edge_across_a_footprint_warns_only_for_lumped_and_analytic():
+    """!
+    @brief The "copper edge crosses its footprint" warning concerns the reduced models: silent on an FVM-only run, present with the Lumped or the Analytic.
+    @return None
+    """
+    from pcbthermal.checks import check_input
+    p = Problem.new(60, 60, 2)
+    p.add_zone(1, rect=(10, 10, 30, 30))                       # The pad edge runs through the part below
+    p.add_heater(1, 1.0, rect=(27, 27, 33, 33), name="U")
+    def edge(models):
+        return [w for w in check_input(p, models, 1.0) if "copper edge" in str(w)]
+    assert edge(("fvm",)) == []
+    assert edge(("fvm", "fdm", "solid3d")) == []
+    assert len(edge(("lumped",))) == 1 and len(edge(("fvm", "analytic"))) == 1

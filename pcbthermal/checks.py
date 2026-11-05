@@ -66,11 +66,12 @@ def _add(out, kind, index, text, short=None):
     out.append(w)
 
 
-def check_problem(problem, cell_mm=1.0):
+def check_problem(problem, cell_mm=1.0, models=None):
     """!
     @brief List the validity warnings of a problem.
     @param problem A Problem (assumed structurally valid, see Problem.validate).
     @param cell_mm Cell size (mm) of the raster used for the geometric checks and the FVM mesh.
+    @param models  Model keys that will run, or None (every model): the warning about a copper edge across a footprint concerns only the Lumped and Analytic models.
     @return List of warning strings (empty when nothing is doubtful).
     """
     b = problem.board
@@ -127,7 +128,9 @@ def check_problem(problem, cell_mm=1.0):
             if f_mean < 0.02:
                 _add(out, "heater", k, f"{name}: there is no copper under it on layer {h.layer + 1}; the heat can only spread "
                            "through the FR-4 and the part will run very hot.", f"{name}: no copper under it on layer {h.layer + 1}; it will run very hot.")
-            elif f_mean < 0.98:
+            elif f_mean < 0.98 and h.layer not in imported_layers and (models is None or {"lumped", "analytic"} & set(models)):
+                # Only the reduced models are unreliable here, and an imported layer has its own, stronger warning (the gaps between the pins of a QFN
+                # already read as an edge): so no message on an FVM-only run or on imported copper
                 _add(out, "heater", k, f"{name}: a copper edge or hatching crosses its footprint (copper fill {f_mean:.2f}); the "
                            "Lumped and Analytic models are unreliable here, use the FVM.",
                      f"{name}: a copper edge crosses its footprint (fill {f_mean:.2f}); use the FVM.")
@@ -226,7 +229,7 @@ def check_input(problem, models, cell_mm=1.0):
     @return List of warning strings (CheckWarning, tagged with the element) in the order validity, model limits, vias.
     """
     models = tuple(models)
-    return (check_problem(problem, cell_mm) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
+    return (check_problem(problem, cell_mm, models) + check_model_limits(problem, models, cell_mm) + check_via_limits(problem, models, cell_mm)
             + check_via_partial_copper(problem, models, cell_mm))
 
 
