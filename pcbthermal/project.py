@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from . import __version__
 from .api import SolverOptions
 from .copper import has_mask
+from .fileschema import ProjectFormatError, describe, guard
 from .model import ImportRecord, Problem, problem_from_dict, problem_from_legacy, problem_to_dict
 
 PROJECT_SUFFIX = ".pcbt.json"
@@ -36,12 +37,6 @@ FORMAT_1 = "pcbthermal-project-1"
 FORMAT_2 = "pcbthermal-project-2"
 KNOWN_FORMATS = (1, 2)                              # Format numbers this program reads
 FORMAT_2_KEYS = ("format", "app_version", "project", "imports")   # Top-level keys of format 2 that this version reads
-
-
-class ProjectFormatError(ValueError):
-    """!
-    @brief A project file that this program must not open (a format newer than it knows, or a malformed format 2 file).
-    """
 
 
 @dataclass
@@ -139,15 +134,26 @@ def project_from_dict(data, validate=True):
         raw = data.get("imports", [])
         if not isinstance(raw, list):
             raise ProjectFormatError("format 2 project file whose \"imports\" section is not a list")
-        try:
-            imports = [ImportRecord.from_dict(r) for r in raw]
-        except (TypeError, ValueError, AttributeError, KeyError) as exc:   # A hand-edited or damaged record: a message, not a traceback
-            raise ProjectFormatError(f"format 2 project file with a malformed \"imports\" section ({exc!r})") from exc
+        imports = []
+        for i, r in enumerate(raw):                 # A hand-edited or damaged record: a message that names it, not a traceback
+            with guard(f"imports[{i}]"):
+                if not isinstance(r, dict):
+                    raise ProjectFormatError(f"imports[{i}]: expected an object, got {describe(r)}")
+                imports.append(ImportRecord.from_dict(r))
         extra = {k: copy.deepcopy(v) for k, v in data.items() if k not in FORMAT_2_KEYS}
         data = data["project"]
-    problem = problem_from_legacy(data) if "pcb_params" in data else problem_from_dict(data, validate)
-    project = Project(problem=problem, options=SolverOptions.from_dict(data.get("solver")),
-                      view=dict(data.get("view", {})), imports=imports, extra=extra)
+    if "pcb_params" in data:
+        with guard("legacy editor file"):
+            problem = problem_from_legacy(data)
+    else:
+        problem = problem_from_dict(data, validate)
+    if data.get("solver") is not None and not isinstance(data["solver"], dict):
+        raise ProjectFormatError(f"solver: expected an object, got {describe(data['solver'])}")
+    if data.get("view") is not None and not isinstance(data["view"], dict):
+        raise ProjectFormatError(f"view: expected an object, got {describe(data['view'])}")
+    with guard("solver"):
+        options = SolverOptions.from_dict(data.get("solver"))
+    project = Project(problem=problem, options=options, view=dict(data.get("view") or {}), imports=imports, extra=extra)
     project.problem = project.run_problem()          # The masks live in the import records; the models read them from the problem (shares the packed text)
     return project
 

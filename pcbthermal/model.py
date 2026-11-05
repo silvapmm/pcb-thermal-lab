@@ -21,6 +21,7 @@ import os
 import numpy as np
 
 from . import defaults
+from .fileschema import ProjectFormatError, check_problem_dict, guard
 from .geometry import BOARD_SAMPLES, coverage_fraction, discs_board_share, polygon_area, polygon_is_simple
 
 
@@ -1220,8 +1221,23 @@ def problem_from_dict(data, validate=True):
     @param data Dict with the keys board, zones, heaters, vias and heatsinks (older files call the last one "sinks", still accepted).
     @param validate If False, skip the consistency check (used to restore undo snapshots).
     @return A Problem (validated unless validate is False).
+    @throws pcbthermal.fileschema.ProjectFormatError For a value of the wrong type or a missing key (the message names the key path) or a problem that
+            fails the validation.
     """
+    check_problem_dict(data)                         # One clear message for a wrong type, instead of a TypeError from a constructor
     b = data["board"]
+    with guard("board"):
+        return _build_problem(data, b, validate)
+
+
+def _build_problem(data, b, validate):
+    """!
+    @brief Build the Problem from a checked native structure (the body of problem_from_dict).
+    @param data The whole structure.
+    @param b Its "board" section.
+    @param validate False to skip the consistency check.
+    @return Problem.
+    """
     layers = int(b.get("layers", 2))
     cu = b.get("copper_thickness_mm", 0.035)
     # Accept a single value or a list with one value per layer
@@ -1261,31 +1277,38 @@ def problem_from_dict(data, validate=True):
                      for d in b["dielectrics"]] if "dielectrics" in b else None,
     )
     prob = Problem(board=board, name=data.get("name", "board"))
-    for z in data.get("zones", []):
-        prob.zones.append(Zone(z["layer"] - 1, _poly_mm(z["polygon_mm"]), z.get("fill", 1.0), z.get("name", "")))
-    for h in data.get("heaters", []):
-        # "theta_jb_k_per_w" is the key of files saved before the junction resistance was renamed
-        heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]), h.get("name", ""),
-                        float(h.get("theta_k_per_w", h.get("theta_jb_k_per_w", 0.0))), None, float(h.get("tj_max_c", 0.0)),
-                        float(h.get("psi_jb_k_per_w", 0.0)), float(h.get("power_tc_per_k", 0.0)),
-                        float(h.get("theta_jc_top_k_per_w", 0.0)), float(h.get("theta_sa_k_per_w", 0.0)), float(h.get("interface_kcm2_per_w", 0.0)),
-                        float(h.get("contact_area_mm2", 0.0)) * 1e-6, float(h.get("pad_thickness_mm", 0.0)) * 1e-3, float(h.get("pad_k_w_per_mk", 0.0)),
-                        h.get("role", ""), float(h.get("base_interface_kcm2_per_w", 0.0)), float(h.get("base_pad_thickness_mm", 0.0)) * 1e-3,
-                        float(h.get("base_pad_k_w_per_mk", 0.0)), h.get("family", ""), h.get("heatsink", ""))
-        if "profile" in h:
-            heater.set_profile(_profile_from_dict(h["profile"]))
-        prob.heaters.append(heater)
-    for v in data.get("vias", []):
-        prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
-                             v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", ""), float(v.get("fill_k_w_per_mk", 0.0)), v.get("fill", "")))
-    for s in data.get("heatsinks", data.get("sinks", [])):    # "sinks" is the key of files saved before the rename
-        prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
-                               float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 204.0)),
-                               float(s.get("rho_cp_j_per_m3k", 2.44e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4)),
-                               float(s.get("fin_height_mm", 0.0)) / 1000.0, float(s.get("fin_thickness_mm", 0.0)) / 1000.0,
-                               float(s.get("fin_pitch_mm", 0.0)) / 1000.0, float(s.get("pad_thickness_mm", 0.0)) / 1000.0, float(s.get("pad_k_w_per_mk", 0.0))))
+    for i, z in enumerate(data.get("zones", [])):
+        with guard(f"zones[{i}]"):
+            prob.zones.append(Zone(z["layer"] - 1, _poly_mm(z["polygon_mm"]), z.get("fill", 1.0), z.get("name", "")))
+    for i, h in enumerate(data.get("heaters", [])):
+        with guard(f"heaters[{i}]"):
+            # "theta_jb_k_per_w" is the key of files saved before the junction resistance was renamed
+            heater = Heater(h["layer"] - 1, _poly_mm(h["polygon_mm"]), float(h["power_w"]), h.get("name", ""),
+                            float(h.get("theta_k_per_w", h.get("theta_jb_k_per_w", 0.0))), None, float(h.get("tj_max_c", 0.0)),
+                            float(h.get("psi_jb_k_per_w", 0.0)), float(h.get("power_tc_per_k", 0.0)),
+                            float(h.get("theta_jc_top_k_per_w", 0.0)), float(h.get("theta_sa_k_per_w", 0.0)), float(h.get("interface_kcm2_per_w", 0.0)),
+                            float(h.get("contact_area_mm2", 0.0)) * 1e-6, float(h.get("pad_thickness_mm", 0.0)) * 1e-3, float(h.get("pad_k_w_per_mk", 0.0)),
+                            h.get("role", ""), float(h.get("base_interface_kcm2_per_w", 0.0)), float(h.get("base_pad_thickness_mm", 0.0)) * 1e-3,
+                            float(h.get("base_pad_k_w_per_mk", 0.0)), h.get("family", ""), h.get("heatsink", ""))
+            if "profile" in h:
+                heater.set_profile(_profile_from_dict(h["profile"]))
+            prob.heaters.append(heater)
+    for i, v in enumerate(data.get("vias", [])):
+        with guard(f"vias[{i}]"):
+            prob.vias.append(Via(v["x_mm"] / 1000.0, v["y_mm"] / 1000.0,
+                                 v.get("diameter_mm", 0.3) / 1000.0, v.get("filled", False), v.get("name", ""), float(v.get("fill_k_w_per_mk", 0.0)), v.get("fill", "")))
+    for i, s in enumerate(data.get("heatsinks", data.get("sinks", []))):    # "sinks" is the key of files saved before the rename
+        with guard(f"heatsinks[{i}]"):
+            prob.heatsinks.append(Heatsink(s["layer"] - 1, _poly_mm(s["polygon_mm"]), float(s["h_extra"]), s.get("name", ""),
+                                   float(s.get("thickness_mm", 0.0)) / 1000.0, float(s.get("k_w_per_mk", 204.0)),
+                                   float(s.get("rho_cp_j_per_m3k", 2.44e6)), float(s.get("contact_r_m2k_per_w", 5.0e-4)),
+                                   float(s.get("fin_height_mm", 0.0)) / 1000.0, float(s.get("fin_thickness_mm", 0.0)) / 1000.0,
+                                   float(s.get("fin_pitch_mm", 0.0)) / 1000.0, float(s.get("pad_thickness_mm", 0.0)) / 1000.0, float(s.get("pad_k_w_per_mk", 0.0))))
     if validate:
-        prob.validate()
+        try:
+            prob.validate()
+        except ValueError as exc:                    # The model's own range message, as the one clear exception of a file
+            raise ProjectFormatError(str(exc)) from exc
     return prob
 
 
