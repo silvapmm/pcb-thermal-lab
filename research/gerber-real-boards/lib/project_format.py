@@ -2,7 +2,7 @@
 #  This code is licensed under the MIT License. Inclusion of this notice is required in any redistribution.
 """!
 @file project_format.py
-@brief A prototype of the project-file format 2: what an import stores (masks packed in the JSON, or references to the source files), and the migration from format 1 and back.
+@brief SUPERSEDED prototype (flat layout) of the project-file format 2; the program's format 2 is nested under "project" (pcbthermal/project.py). Kept for its mask packing and its tests. It was: what an import stores (masks packed in the JSON, or references to the source files), and the migration from format 1 and back.
 @details Format 1 is `pcbthermal-project-1` (pcbthermal/project.py): the native problem JSON plus "solver" and "view". Format 2 keeps every key of format 1 and adds one list, "imports", with one record per
          imported board: the source files (name, size, SHA-256, never the path of the user's disk), the settings of the import (pixel, box, layer roles and order, units), and per copper layer a mask that
          is either embedded (packed bits or 8-bit coverage, deflate, base64) or a reference to the file ("embed": false: the mask is redrawn from the Gerber when the project opens, which needs the file).
