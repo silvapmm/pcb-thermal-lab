@@ -2,7 +2,7 @@
 
 Every number comes from result sets of the regression harness (`research/release-regression-245`): the same 17 boards, five models, direct solver, run on each tag extracted with `git archive`; nothing is estimated. A shift is explained only when the table of expected shifts of that release links it to an item, or when the notes of the pair (taken from the CHANGELOG and docs/versions.md of the later version) name one; otherwise it is left unclassified or called unexplained. The example boards are read from the current tree for every version: a release that does not know a field of the file ignores it.
 
-Versions compared (oldest first): v2.0.0, v2.1.0, v2.2.0, v2.3.0, v2.4.0, v2.4.1, v2.4.2, v2.4.3, v2.4.4, v2.4.5, develop-tip.
+Versions compared (oldest first): v2.0.0, v2.1.0, v2.2.0, v2.3.0, v2.4.0, v2.4.1, v2.4.2, v2.4.3, v2.4.4, v2.4.5, v2.5.0.
 
 ## Which versions could run which boards and models
 
@@ -18,7 +18,7 @@ Versions compared (oldest first): v2.0.0, v2.1.0, v2.2.0, v2.3.0, v2.4.0, v2.4.1
 | v2.4.3 | 255 | 251 | 0 | 0 | 4 | 17 | fvm, fdm, lumped, analytic, solid3d |
 | v2.4.4 | 255 | 251 | 0 | 0 | 4 | 17 | fvm, fdm, lumped, analytic, solid3d |
 | v2.4.5 | 255 | 251 | 0 | 0 | 4 | 17 | fvm, fdm, lumped, analytic, solid3d |
-| develop-tip | 255 | 251 | 0 | 0 | 4 | 17 | fvm, fdm, lumped, analytic, solid3d |
+| v2.5.0 | 255 | 251 | 0 | 0 | 4 | 17 | fvm, fdm, lumped, analytic, solid3d |
 
 What did not run, and why:
 
@@ -56,13 +56,13 @@ What did not run, and why:
   * board round_outline: AttributeError: 'Problem' object has no attribute 'set_outline'
   * board t_outline: AttributeError: 'Problem' object has no attribute 'set_outline'
 
-**How to read this document.** Each version is run on the same 17 test boards with the same five models; the document shows what moved between consecutive versions and why. The tables of mean error against an independent 3D conduction solver (below) are the at-a-glance summary: lower is better. Between two versions, a paragraph in the section of that pair says what was implemented and why the numbers moved. The last pair, v2.4.5 to develop-tip, is the 2.5.0 candidate.
-**At a glance (error of the rise against the independent solver, mean over the four reference boards, cell 1 mm).** FVM 4.80 % (v2.0.0) to 2.21 % (v2.4.2) to 1.01 % (v2.4.5, laminate nodes for patterned copper); FDM 8.75 % to 6.64 %; Lumped 9.30 % to 7.01 %; Analytic 23.84 % to 22.98 %; 3D solid 10.59 % (v2.3.0) to 0.07 % (v2.4.2). From v2.4.5 to the 2.5.0 candidate these four reference boards do not move at all (they have insulated edges, one source and no vias), so the table does not show the gains of the 2.5.0 work; those are in the section of the last pair and in docs/validation.md.
-**Honest limit of this comparison.** The 17 harness boards reach only part of the 2.5.0 features. The Gerber reader, the import window, imported copper, the parts from the paste layers, the exposed-pad heat source and the project format 2 need an import that no harness board has; the memory guard, the memory law and the warnings change refusals and text, not temperatures; the laminate options keep their defaults; the face term acts on the profile curves, which the harness does not run; the laminar convection default applies to new projects only. Only the zonal Lumped model, the Lumped footprint potentials and the Analytic Robin edge move numbers here (all three are held by pending-shift files), and the symmetric LU moves the last bits of the sums.
+**How to read this document.** Each version is run on the same 17 test boards with the same five models; the document shows what moved between consecutive versions and why. The tables of mean error against an independent 3D conduction solver (below) are the at-a-glance summary: lower is better. Between two versions, a paragraph in the section of that pair says what was implemented and why the numbers moved. The last pair, v2.4.5 to v2.5.0, is the release.
+**At a glance (error of the rise against the independent solver, mean over the four reference boards, cell 1 mm).** FVM 4.80 % (v2.0.0) to 2.21 % (v2.4.2) to 1.01 % (v2.4.5, laminate nodes for patterned copper); FDM 8.75 % to 6.64 %; Lumped 9.30 % to 7.01 %; Analytic 23.84 % to 22.98 %; 3D solid 10.59 % (v2.3.0) to 0.07 % (v2.4.2). From v2.4.5 to v2.5.0 these four reference boards do not move at all (they have insulated edges, one source and no vias), so the table does not show the gains of the 2.5.0 work; those are in the section of the last pair and in docs/validation.md.
+**Honest limit of this comparison.** The 17 harness boards reach only part of the 2.5.0 features. The Gerber reader, the import window, imported copper, the parts from the paste layers, the exposed-pad heat source and the project format 2 need an import that no harness board has; the memory guard, the memory law and the warnings change refusals and text, not temperatures; the laminate options keep their defaults; the face term acts on the profile curves, which the harness does not run; the laminar convection default applies to new projects only. Only the zonal Lumped model, the Lumped footprint potentials and the Analytic Robin edge move numbers here (all three were held by pending-shift files until the refreeze), and the symmetric LU moves the last bits of the sums.
 
 ## Hottest point of canonical boards across versions (cell 1 mm, degC)
 
-| Board | Model | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | develop-tip |
+| Board | Model | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | v2.5.0 |
 | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
 | example_board | fvm | 85.814 | 85.814 | 85.814 | 85.814 | 85.814 | 85.814 | 85.814 | 85.814 | 85.814 | 85.234 | 85.234 |
 | example_board | fdm | not_available | not_available | 84.383 | 84.383 | 84.383 | 84.383 | 84.383 | 84.383 | 84.383 | 85.126 | 85.126 |
@@ -102,7 +102,7 @@ What did not run, and why:
 
 The solver is `research/solid3d-verification/lib/layered3d.py` (imports nothing from the program) on the four boards of `regress_boards.REFERENCE_SPECS`; the compared number is the rise of the hottest top-copper cell under the source on the same cell size as the model; error = model rise / reference rise - 1, in percent. The `solid3d` model is itself a 3D solid but not the independent solver.
 
-| Board | Model | Reference rise [K] | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | develop-tip |
+| Board | Model | Reference rise [K] | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | v2.5.0 |
 | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
 | one_layer_full | fvm | 30.363 | -2.07 | -2.07 | -2.07 | -2.07 | -2.07 | -2.07 | -0.01 | -0.01 | -0.01 | -0.03 | -0.03 |
 | one_layer_full | fdm | 30.363 |  |  | -2.07 | -2.07 | -2.07 | -2.07 | -0.01 | -0.01 | -0.01 | -0.03 | -0.03 |
@@ -127,7 +127,7 @@ The solver is `research/solid3d-verification/lib/layered3d.py` (imports nothing 
 
 Mean absolute error of the rise over the four reference boards, cell 2 mm, percent (blank: a version without the model or a board it could not run):
 
-| Model | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | develop-tip |
+| Model | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | v2.5.0 |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
 | fvm | 5.83 | 5.83 | 5.83 | 5.83 | 5.83 | 5.83 | 2.96 | 2.96 | 2.96 | 1.28 | 1.28 |
 | fdm |  |  | 12.97 | 12.97 | 12.97 | 12.97 | 11.52 | 11.52 | 11.52 | 11.39 | 11.39 |
@@ -135,7 +135,7 @@ Mean absolute error of the rise over the four reference boards, cell 2 mm, perce
 | analytic | 24.53 | 24.53 | 24.53 | 24.53 | 24.53 | 24.53 | 23.68 | 23.68 | 23.68 | 23.68 | 23.68 |
 | solid3d |  |  |  | 10.43 | 10.43 | 10.43 | 0.04 | 0.04 | 0.04 | 0.04 | 0.04 |
 
-| Board | Model | Reference rise [K] | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | develop-tip |
+| Board | Model | Reference rise [K] | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | v2.5.0 |
 | :-- | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
 | one_layer_full | fvm | 30.450 | -2.06 | -2.06 | -2.06 | -2.06 | -2.06 | -2.06 | -0.01 | -0.01 | -0.01 | -0.03 | -0.03 |
 | one_layer_full | fdm | 30.450 |  |  | -2.06 | -2.06 | -2.06 | -2.06 | -0.01 | -0.01 | -0.01 | -0.03 | -0.03 |
@@ -160,7 +160,7 @@ Mean absolute error of the rise over the four reference boards, cell 2 mm, perce
 
 Mean absolute error of the rise over the four reference boards, cell 1 mm, percent (blank: a version without the model or a board it could not run):
 
-| Model | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | develop-tip |
+| Model | v2.0.0 | v2.1.0 | v2.2.0 | v2.3.0 | v2.4.0 | v2.4.1 | v2.4.2 | v2.4.3 | v2.4.4 | v2.4.5 | v2.5.0 |
 | :-- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
 | fvm | 4.80 | 4.80 | 4.80 | 4.80 | 4.80 | 4.80 | 2.21 | 2.21 | 2.21 | 1.01 | 1.01 |
 | fdm |  |  | 8.75 | 8.75 | 8.75 | 8.75 | 6.94 | 6.94 | 6.94 | 6.64 | 6.64 |
@@ -168,92 +168,30 @@ Mean absolute error of the rise over the four reference boards, cell 1 mm, perce
 | analytic | 23.84 | 23.84 | 23.84 | 23.84 | 23.84 | 23.84 | 22.98 | 22.98 | 22.98 | 22.98 | 22.98 |
 | solid3d |  |  |  | 10.59 | 10.59 | 10.59 | 0.07 | 0.07 | 0.07 | 0.07 | 0.07 |
 
-## Results of develop-tip against v2.4.5
+## Results of v2.5.0 against v2.4.5
 
 Environment of the new set: {'python': '3.13.5', 'numpy': '2.5.4', 'scipy': '1.18.1', 'platform': 'macOS-27.2-arm64-arm-64bit-Mach-O', 'machine': 'arm64'}. Cells in the sets: [2.0, 1.0, 0.5] mm.
 
-Records compared: 251 (skipped or failed in both: 4). Bit-identical in every number (status ok in both): 108, of which 85 also have the same warning texts. Hottest point moved: 134. Alarms: not applicable, the pair has no table.
+Records compared: 251 (skipped or failed in both: 4). Bit-identical in every number (status ok in both): 108, of which 85 also have the same warning texts. Hottest point moved: 134. Alarms (unexplained, must-not-move, out of range): 0.
 
-No table of expected shifts exists for this pair, so the shifts are not classified automatically; the notes below name the items that explain them, or say unexplained.
+| Class of the shifted numbers (all metrics) | Count |
+| :-- | --: |
+| expected | 1542 |
+| expected_out_of_range | 0 |
+| to_be_explained | 0 |
+| unexplained | 0 |
+| must_not_move | 0 |
+| warnings_only | 23 |
 
-<details><summary>CHANGELOG section of the later version (verbatim)</summary>
+### Items of the release
 
-> ## [Unreleased]
-> 
-> ### Changed (exposed-pad heat source, `feature/exposed-pad-heater`; moves numbers only of imported parts that have an exposed pad)
-> - The default heat-source shape of a part imported from the paste layer is the **exposed pad or tab** when the paste has one (QFN, DFN, SOT-223, DPAK: the hull of the dominant group of openings; `parts.dominant_group`, shape `auto`), and the convex hull of all the openings otherwise (passives, SOIC, SOT-23, crystals, connectors). The hull spread the power over a body that does not carry it and read the hottest point 11 to 44 % too cool (eleven parts of three open boards, 1 W; a JEDEC case gives 31.9 K/W with the pad against 32.5 on the datasheet and 40.0 with the body). The whole power goes on the pad (worst case) with theta_JC(bottom). Measured on eleven parts in the program's own FVM, not on a physical board; the thresholds were set on those eleven parts and corrected by the review on every part of eight open boards (875 parts): the group must also fill half of its own hull and lie together as one pad, and its hull may span up to 0.75 of the part (0.5 / 0.25 / 0.75 / 0.5 / 0.5), because the first rule (hull at most 0.5) missed every DPAK and D2PAK and took seven connectors and four switches with two end mounting pads for exposed pads. The thinnest margin (RP2040 QFN-56, 0.32 against 0.25) is held by a test. With the polygon on the pad the ψJB ring and the top-path interface area are those of the pad (on the safe side).
-> - Import window, step 2: a radio **Exposed pad or tab**, the heater drawn filled and the hull of the part dashed, the Source column says "exposed pad (proposed)" with the reason in its tooltip; the label of "Largest opening only" says it is for a single tab. In an X3 layer the exposed pad goes before the Body outline. A shape the user chose is kept by a re-import; a part of a project written before the rule (no `from_file["shape_rule"]`) keeps its shape kind at every re-import (drawn from the new openings, so a part moved by a layout revision follows them) until the user chooses the pad, and the re-import says so (review: the first version kept the old coordinates and flipped the part to the pad at the second re-import). The frozen numbers do not move (the change reaches only imported parts).
-> 
-> ### Fixed and changed (`fix/preferences-and-equivalent-rectangle`)
-> - Preferences: no page scrolls sideways any more (rows wrap into two lines, the models are a two-column grid, library tables share the width and a cut cell shows its whole text when hovered); the list of sections has no tooltip. `tests/test_preferences_layout.py` checks every page at 980x600, 1100x700 and 800x600 in both themes.
-> - The Lumped and Analytic maps of a board with an outline can show the field as solved: the rectangle of the same area, dashed, with its parts, and the real outline dotted (box `Equiv. rect.` above the Temperature and Gradient maps, ticked by default; unticked, the field is stretched onto the real box as before). Their gradient map is taken on the solved spacing (it was `s` times too small). New field `SteadyResult.equivalent_scale`; the maps of FVM, FDM, 3D solid and of rectangular boards are unchanged.
-> 
-> ### Fixed (convection text, `docs/convection-theory-fixes`; no number moves)
-> - `docs/theory.md` 8 no longer claims that the horizontal-face laws are read in Lienhard (they are textbook forms from memory; Lienhard prints Raithby-Hollands for the face up and 1/5 laws for the face down) nor that Example 8.1 confirms the general form of the vertical plate (it is worked with the laminar form). It states the limit of the face turned down (exponent 1/4 against the 1/5 of the published forms, on the hot side) and the checks against Lienhard Example 6.5 and Table A.6; `docs/models.md` and the user guide say the same.
-> - The Results summary and the user guide say, once per run and only with computed coefficients, that the heat transfer coefficients have not been compared with a measured copper board.
-> ### Fixed (imported board in the views, `fix/import-view-polish`)
-> - Step 2 of the import window names every matched part in the preview (designator centred on the part, scaled with the zoom, hidden when it does not fit or collides), marks the unmatched openings with a ?, and has **Labels** and **Holes** boxes; Holes adds a legend of the drill classes (vias, component holes, non-plated) with the counts. Hovering a part shows its package, source and power, a click on a part selects its table row and a row highlights its part. The parts table fits the window (two-line headers with units, narrow numeric columns, package and source stretch; no horizontal scroll bar from 1100 px). The source `placement by position` reads "by position (approx.)" with a tooltip saying what was matched (pad outline from the package name, grown by 0.3 mm) and what to check, and the step warning says the same.
-> - The editor canvas draws the imported copper of the active layer under the elements (View - Imported copper, on by default; drawn from a reduced mask built once, at most 2048 pixels a side, sampled smoothly) and the element names (View - Element names; on an imported board a part name is centred on its part, waits for the zoom when it is wider than the part, and shows at once when the part is selected).
-> - Review of the views: the canvas kept the copper pixmaps of every earlier import for the life of the window (up to 16 MB per layer visited; now only the masks of the open project are kept); a part name could show although wider than its part (the width included the outline pen, 1.4 to 2.2 mm); the hover and Package tooltips of step 2 read designators and package names from the files as rich text (now escaped); the Power and Tj max boxes were cut at 1000.000 W with the 13 px macOS font (now as wide as their widest value); the user guide, README and `docs/models.md` 19 still said there was no import window.
-> 
-> ### Fixed (live check speed, `fix/live-check-speed`)
-> - The live input check no longer tests every pair of parts and of metal blocks for overlap: a bounding-box sweep (`geometry.bbox_overlap_pairs`) selects the pairs that can overlap and the exact overlap runs on those only, and the zone-model test of each part no longer scans every via again (`lumped.will_be_zoned(..., prepared=True)`), and the distance of the vias to the parts (`viaconstriction.heater_distance`, also used by the Analytic and Lumped runs, bit-identical) skips the vias that a part's bounding box cannot bring closer. 300 small parts: 0.77 s to 0.05 s; 1000: 9.6 s to 0.26 s; 500 parts with 8000 vias: 2.4 s to about 0.45 s. The warnings are identical (same texts, order and tags; checked by the review on 562 random and real imported boards against the previous code).
-> 
-> ### Changed (integration)
-> - `Board.validate` refuses an edge coefficient `h_side` above 1e5 W/m2K (the Preferences range ends at 500; at 1e300 the edge heat of the Analytic model was absurd); the message names the limit.
-> - Delete has a second key, Backspace (the menu and both key tables show it). The side docks are titled "Board settings" and "Simulation settings"; their saved-layout names are unchanged, so saved window layouts still restore.
-> 
-> ### Fixed (interface polish, `fix/ui-polish-colours-docks`)
-> - The View menu no longer shows the bare letters `T`, `G` and `Shift+G` as shortcut hints (macOS prints a key without modifier as a lone letter); the keys still work, on hidden window actions.
-> - The first layout of the side docks is robust: minimum widths are enforced after the window is shown (and again 250 ms later), saved dock sizes that are collapsed or too wide are replaced by the default, and a window state saved by an older version is refused (state version 2).
-> - The notes of the Run panel list and the Results summary draw the symbol and the text with the same theme token (`alert`, `alert_note`); the colours are unchanged except that the symbol now follows the text. **Softer palette chosen by the maintainer**: accent family `#5a7fb0` (hover `#6a8fbf`, pressed `#4a6a96`) in the light theme and `#6a90c0` (hover `#7a9fcc`, pressed `#5a7eab`) in the dark theme, replacing `#2563eb` and `#4c8dff`; notes and warnings are amber, `#8a5a00` (light) and `#e0a030` (dark), for the Run panel list and the Results notes, symbol and text alike. The greys, the links and the status colours are unchanged. The accent of the browser copies of the help pages follows (`#5a7fb0`).
-> 
-> ### Fixed (memory law, `fix/memory-law-vias`)
-> - The memory guard now counts the vias in the FVM and FDM estimate: the allocated part is multiplied by `1 + 0.10 (1 - exp(-F/500))`, F the cells of the footprints of the vias (`memory.via_cells`). The gain was fitted at 0.40 on SuperLU's default mode (CO60 with 769 vias at 0.5 mm took 3.96 GB against 2.42 GB without them) and refitted at 0.10 after the symmetric LU (peak with vias 0.82 to 1.09 of the board without them). Boards without vias, the 3D solid and the cheap lower bound are unchanged; no temperature changes.
-> 
-> ### Changed (speed and memory)
-> - **Symmetric-mode LU for the direct solver** (`fix/symmetric-lu`; `fvm.lu_factor`): the thermal matrices are symmetric positive definite, so SuperLU runs in its symmetric mode with a residual-checked fallback to the default mode. Temperatures unchanged (differences below 1e-11 K, frozen numbers pass); boards with dense via arrays solve 8 to 60 times faster with 3 to 5 times less peak memory (for example 214 s / 7.5 GB to 4.1 s / 1.5 GB); other boards are unchanged in time.
-> 
-> ### Added
-> - **Gerber import window** (`feature/import-dialog`; `pcbthermal/gui/import_session.py`, `pcbthermal/gui/import_window.py`, `Document.open_import` and `Document.reimport`; `docs/models.md` 19.4, user guide 12b; tests `test_import_window.py` and the scenario `test_import_window_in_the_application`): File - Import Gerber board opens a window like the Power Calculator with a stepper (Files and layers, Parts, Model), Back / Next (Import on the last step) and Import now. Step 1: folder, ZIP (read in memory, never extracted) or files; the function of every file is detected (X2, Excellon header, the name rules of the CAD tool that wrote the set, `detect_set` for numbered copper), shown with its confidence (a guess from the name alone in the alert colour) and editable (two files for one function stop the import; a file above the size limit is listed with its error); the line of the CAD tool and its list; layer count with the typical stack-up, outline, drills and a zoomable preview. Step 2: the parts from the paste layers, the placement file and the X3 layer (Source column with five values, power, Tj max, role, hull shape by default and always editable, the frame check with the offer to move the placement file, red unmatched openings that a click turns into a heat source, orphans that do not heat). Step 3: the copper mapping (faces, the others under Advanced with their measured error), pixel and cell with Auto (the program's rule and its note), vias from the plated drills, the memory verdict before anything is drawn and the warnings (including the job file's layer count and thickness). Import builds a project in format 2 with the import record. **Re-import** (the open project already holds an import): Replace, Update (with the table of parts that moved, resized, rotated, new or removed) or Cancel, one undo step, and **the work done in the editor is kept** (heaters, zones and other elements the user drew, and the environment of the board; only what comes from the files is replaced); **Add files** takes only placement, paste and component layers and never the copper, outline or drills. The slow reads run in a worker thread with the window disabled; file names and file text are plain text in every label. Not in this version: the CAD-tool profiles in a user file, ODB++ and IPC-2581.
-> - **Warning for a small part over a thick laminate** (`fix/small-part-laminate-warning`; `checks.check_small_part_laminate`): the FVM and FDM warn when the sub-gap of the laminate rule exceeds 0.15 of the side of a part on bare laminate, or 0.10 over a copper pad, over cells the rule cuts (the part reads too cool, 4 to 24 %), the 3D solid when `d / 4` exceeds 0.15 (too hot, up to 27 %); the side counts the copper around the part, so a part under a plane is silent; text only, no result changes; more than three parts give one message with the count and the five worst. Documents: the limit of the rule in `theory.md` 1.4, a correction of the 3D solid slab claim, a footnote in `validation.md` 21.2.
-> - **CAD profiles of the Gerber import, backend** (`feature/cad-profiles`; `docs/theory.md` 1.6, `docs/models.md` 19.3): the program that wrote a set of Gerber and drill files is recognised from the names and the first 8 kB of the files (fifteen eCAD programs tested on real sample sets, Xpedition on 8 sets of one output template, Fritzing and Upverter as "probably", Target 3001 by its `.Info` file; Zuken, CADSTAR, PADS Professional, Allegro X and others are not tested and have no profile), with a confidence and the user's override. The profile supplies the layer-name rules below the X2 attribute and the Excellon header (results a file states itself do not change), and its key, source and table version are stored in the import record of the project (written only when present). Text from the files is never shown or saved, the patterns are bounded, and the sign of the bottom-side X is never preset. The line in the import window comes with the import dialog. Tests: `tests/test_cad_profiles.py`.
-> - **Imported copper at a coarse cell** (`feature/imported-copper`, reopened after the review): the warning above a 1 mm cell now quotes the measured numbers (up to 4.3 % too hot at 1 mm, 7 to 10 % at 2 mm on 24 mm windows of real two-layer boards, between the program's own grid error with drawn full copper, +2.2 % at 2 mm, and on bare laminate, +11.8 %; the "about half" of the earlier text is withdrawn), calls the result a screening estimate above 1.5 mm, and Auto (`suggest_cell_mm`) no longer proposes more than 1 mm for imported copper unless the memory limit forces it (`copper.auto_cell_note` says so).
-> - **Low face Rayleigh number warning** (`fix/natural-convection-low-ra`; `checks.check_low_rayleigh`, `research/plate-h-level`): after the run, once per run (from the reference model, not once per model), a vertical board in computed mode whose face Rayleigh number is below 1e3 (a face about 10 mm high at a 10 K excess) is told that the natural-convection coefficient is not checked there; a face where forced air is at least the natural convection is not counted. The channel part is covered by the fin warning (`Ra_b < 90`).
-> - **Imported copper** (`feature/imported-copper`; `pcbthermal/copper.py`, `docs/theory.md` 1.7, `docs/models.md` 19.1, `docs/validation.md` 27): the coverage masks of an import become the copper of the board. Default mapping `faces` (flow-based face conductances of the FVM and FDM, built on the reduced sheet after the laminate rule), `lambda` and `fill` as options; the 3D solid reads the fill and warns; the Lumped and Analytic read the fill and always warn (1 to 16 % too cool). Cells that are not a whole number of pixels are sampled, not averaged. The import (`copper.import_copper`) picks the pixel as a quarter of the thinnest feature, at most a tenth of the cell, and the memory guard (`copper_run_bytes`, `import_draw_bytes`, `check_import`) refuses before anything is drawn. Masks from files are checked (shape, inflation cap, extent, layer indices); a problem with imported copper and no import record is saved with a record of its own instead of losing the masks. A zone drawn on an imported layer is ignored and warned. No import dialog yet; a problem without imported copper takes the old path unchanged.
-> - **Gerber reader tolerances and an editable file limit** (`fix/gerber-reader-tolerances`; `docs/theory.md` 1.6, `docs/models.md` 19): `G93X0Y0`, `M71,TZ` / `M72,LZ` (coordinates without a decimal point after the suffix are refused), a stray `%` before `M48` and hyphenated macro names (with a warning) are read; the layer-function detector no longer takes masks, paste films, assembly drawings or files that are not Gerber (placement tables, pictures, logs) for copper, orders numbered copper over the set, does not take a stroked Gerber drawing for a drill file and gives names at most low confidence; the largest file is the Preferences entry `gerber.max_file_mb` (256 MB, 16 to 4096, not saved in projects); the convention of parts matched by `TO.C` is checked or reported as not checked.
-> - **Gerber reader** (`feature/gerber-reader`; `pcbthermal.gerber`, `docs/theory.md` 1.6, `docs/models.md` 19): our own reader of Gerber RS-274X with X2 attributes, Excellon, XNC and X2 drill files, the board outline, layer-function detection and ZIP sets, and the rasteriser to a one-byte coverage per pixel. **No interface yet**: nothing in the application or the project files uses it, and there is no new dependency. Features that would change the geometry are refused naming file and feature; hostile or damaged input always ends in a `GerberError` (0 raw errors in 1100 mutated files and 300 damaged ZIPs). The copper areas of 109 files are within -0.026 to +0.18 % of the exact vector areas. The pixel is proposed from the thinnest feature and a warning is given below two sample spacings. G37 resets the interpolation mode to G01, a documented deviation from the 2026 specification.
-> - **Parts from the paste layers, placement files and X3 components** (`feature/paste-parts`; `pcbthermal/gerber/parts.py`, `components.py`, `ImportPart.from_file`; `docs/models.md` 19.2, `docs/theory.md` 1.8): the heat-source parts of an import. A placement file (KiCad, Altium and generic CSV, units read from the header) is matched to the openings of the solder-paste layers by `TO.C`, by the pad envelope of the footprint name or, for an opening nobody names, by a click (the largest opening under the point, shape convex hull by default, box available); an X3 component layer (`ComponentMain`, `ComponentOutline`, `ComponentPin`) gives every part with reference, mount type, rotation and outlines, and the paste openings are linked by `TO.C`. Before the matching rule runs the bottom-side X convention, the mirror of an off-centre bottom footprint and the frame of the placement file are checked, and the import says when the files do not fit. Re-importing keeps the user's edits (power, shape) and pairs hand-picked and renumbered parts by position. **No interface yet**: nothing in the application or the project files uses it except the new `from_file` field of `ImportPart` (saved only when not empty, so format 2 files without it stay byte-identical), and there is no new dependency.
-> - **Project file format 2 for projects with imported boards** (`feature/project-format-2`; `docs/models.md` 8.1): the problem is nested under a `project` key beside the list of imports, written only when the project has imports; other projects stay format 1, byte-identical to the earlier versions. A file of a newer format is refused with the version that wrote it, and keys this version does not know are kept when it saves. **A project with imported boards needs 2.5.0 or later**: 2.4.x answers "Cannot open file" and does not overwrite it.
-> - **Laminate options** (`feature/laminate-options`; `docs/theory.md` 1.4, `docs/models.md` 2, `docs/validation.md` 21.2): the longest sub-gap (0.05 to 5 mm, default 0.4) and the most sub-gaps (integer 1 to 16, default 4) of the laminate rule are options of the run, `SolverOptions.laminate_s_max_mm` and `laminate_n_max`, saved in the project only when not the default; two spin boxes in the solver panel (greyed with a metal block) and the CLI flags `run --laminate-s-max-mm` and `--laminate-n-max`. A larger count alone changes nothing when the longest sub-gap already gives that count. The power calculator and `calibrate` use them. Limit: the `transient` command uses the default laminate options.
-> - **Lumped warnings for the zone model** (`checks.check_lumped_zones`, after the run): a bound of up to 16 % of the rise for an array across the footprint edge, softer texts for an off-centre cluster and an elongated footprint, a raster coarser than a tenth of the core, and a note when a footprint with a group of vias was kept as one node (the core covers more than 92 % of it).
-> - **Memory guard** (`feature/memory-guard`; `docs/theory.md` 2.7, `docs/validation.md` 26, `research/memory-guard`): the program reads the physical memory, estimates the peak memory of the FVM, the FDM and the 3D solid from their unknown count and the thickness of the graph, and refuses a run above the limit **before** allocating anything, naming the cell that fits (a cheap lower bound first, so a huge board is refused at once). New Preferences field **Memory limit** (fraction of the physical memory, default 0.60, 0.10 to 0.95; a machine preference, not saved in the project; an old project file's value is ignored). The solver panel shows the unknowns and the verdict (ok, slow, refused) of each model, **Run is disabled** with the reason when a model is refused, and **Auto** picks a cell that fits. A run above the memory available now only warns. Time simulations, animations and profile runs count twice the steady estimate. The command line exits with **code 3** on a refusal (2 stays argparse's usage error) and takes `--memory-fraction F`; the variable `PCBTHERMAL_MEMORY_BYTES` states the memory when the machine's limit is not visible. The estimate and the measured peak of each run are logged so that other machines can check the law. The Lumped and the Analytic models are not checked.
-> 
-> ### Changed
-> - **Analytic model: the convective board edge is in the series** (`feature/analytic-robin-edge`, from `research/analytic-edge-spatial`; `analytic.py`, `Problem.equivalent_rectangle`, `docs/theory.md` 6, `docs/validation.md` 4.1 and 13): the cosine series has insulated edges, so the edge coefficient `h_side` was left out and a board with it read hot (+3 to +22 % of the rise on 30 x 20 and 60 x 40 mm boards at the default 10 W/m2K, up to 2.5 times at 200 W/m2K). With `h_side` the series now uses the eigenfunctions of the convective edge (even `cos`, odd `sin`, roots of `λ (L/2) tan(λ L/2) = β (L/2)`, Muzychka, Culham and Yovanovich 2003, Part II), with one edge parameter for all the layers and the perimeter of the REAL outline on a board with an outline; the steady sheet, the tile correction of vias, heatsinks and metal blocks and the modal transient share the basis. On 135 uniform boards (parts at the centre, an edge or a corner, `h_side` 10 to 200 W/m2K) the hottest rise is within 0.12 % of the FVM on average and 0.32 % at most; vias and heatsinks within 0.25 %; the example board -1.0 / -1.2 / -1.9 % at `h_side` 10 / 50 / 200; the time to 63 % -3.3 to +5.9 %. Moved: the Analytic records of the boards with an edge coefficient (+0.1 to +0.7 % of the rise); boards without `h_side` are bit-identical (the cosine basis). The heat through the edge is `power_out["sides"]` and the heat balance closes. **The warning** (edge above 30 % of the loss and one layer, or two layers with sheet conductances differing by more than 1.5 times, or more layers by more than 2.5 times) says that the common parameter shares the edge between the layers (up to about 9 % either way, measured cool with the copper on the heated layer). An earlier version of this branch moved the edge loss to the faces of the layers (eq. 29 of the same paper); it was never released and is replaced by this entry (it was 12 to 37 % hot with a part at the edge). The Lumped model is not changed. The frozen Analytic records are held by the pending file `tests/regression/data/pending/analytic-edge.json`. A NaN, infinite or negative edge coefficient is now refused by `Board.validate` for every model (the FVM used to run a negative one as a heat source at the edge).
-> - **Natural convection form: `laminar` is the default of NEW projects** (`fix/natural-convection-low-ra`; `Board.natural_form`, `defaults.json`, Preferences, Environment panel): the class `Board` and project files written before keep `general`, so old files give the same numbers. Only vertical boards with computed h change: -0.1 to -2 % of the rise on small boards and up to +0.3 % on large ones; the example board turned vertical is 0.22 K cooler (-0.36 % of the rise) in every model. A user who chose `general` explicitly before has nothing stored (`user_defaults.json` keeps only the differences from the shipped defaults) and now gets `laminar`; set `general` again in Preferences to keep it. Proposal A of `research/plate-h-level`.
-> - **Power Calculator is faster, with the same results** (`fix/inverse-factor-reuse`): at manual h its runs share one factorisation of the board matrix (about 3.8 times faster, bit-identical in 84 of 84 cases, peak memory equal or lower; with computed h nothing is reused). **Note:** the discrete maximum principle is not guaranteed with via couplings (`docs/theory.md` 2.2); on a plane whose copper covers only part of a via footprint the FVM can show a cold spot (limit documented, correction waits in `docs/versions.md`, chapter 'Planned').
-> - **Saving a project is atomic and keeps a backup** (`project.py`): the file is written to a temporary file, synchronised to the disk and renamed over the old one (permissions and symbolic link kept, a read-only file refused), and the old file is copied to `.bak`, `.bak2`, ... when the save changes its format or the old file is not JSON. A damaged or non-project JSON file gives a readable message instead of a traceback.
-> - **Documentation of sources and the limit of the horizontal faces** (`docs/bibliography-update`; documents and docstrings only, no number moves): `docs/theory.md` 12 lists the sources read and used but not cited, with their reading status; citations corrected (the Teertstra review is J. Electronics Manufacturing 7 (2) (1997) 79-92, the Kron reduction is cited to Dorfler and Bullo, George (1973) is read in part, the forced-convection mean value is read in Lienhard p 311); the limit of the horizontal-face laws is stated in `theory.md` 8 and `models.md` (the 0.54 law is used below its published range on boards up to about 100 x 80 mm and above the Yovanovich-Jafarpur upper bound from 60 mm: +4 to +24 %; effect on the board maximum -1.1 to +1.0 %); `validation.md` and four docstrings follow.
-> - **No hard-coded colours in `pcbthermal/gui`** (`fix/theme-controls`; `tests/test_theme_coherence.py`, `tests/test_theme_contrast.py`): every colour comes from the theme tokens (new: ok, warn, bad, error, selection, on_element, run, diel_*, doc_*, link, link_visited). The dark guide and calculator help page is a softer grey, `#353b43`. The light theme is pixel-identical to the previous release (the maintainer likes the current look), except for the outline of the radio and check indicators and dimmed disabled labels. Contrast targets lowered by design where the dark accent cannot meet more: white on the dark accent 3.0, muted text 4.0, disabled button text 3.9, status tones 3.5.
-> - **The model-limit and via warnings are shown while editing** (`fix/live-input-warnings`; `checks.check_input`): the list under Run is the live check of the design plus the limits of the models you selected and the via warnings, checked again when you change the models or the cell. Each warning is **one line** with the full measured text on hover and in the Results summary. Links in the dark theme are readable (palette Link and LinkVisited).
-> - **Profile curves of parts over bare laminate include the face** (`feature/laminate-options`; `docs/theory.md` 10): the FVM and FDM curves add the quasi-static face term of the power of each step, and the average-or-resolve decision adds the swing of that term, so a fast square wave that the node alone would average can be resolved (6 mm part, 0 to 2 W at 10 ms: peak 187.60 to 189.58 degC). The legend and the summary say hottest at the face of a part; the face is first order and overstates the swing below about ten times the time constant of the half copper layer (0.69, 2.8, 11 ms for 35, 70, 140 um).
-> - **Lumped model: a part over a dense group of vias has two nodes for its footprint** (`feature/lumped-zones`; `docs/theory.md` 5.2, `docs/validation.md` 18.2, `research/lumped-zones-adoption`): the cells near the vias of a group in the footprint (the core) and the rest of the footprint are two nodes per layer joined by a lateral link, so the heat of the rest of the footprint has its own way down and a way sideways to the core. **The Lumped result of a part over a dense via group changes**: the via effect of such a part, up to 32 % too large (the part too cool) on 36 simple boards and up to 109 % on 26 others with the one node, is within 9.1 % and 20.6 % with the zones, and the hottest temperature is within 7.2 % and 7.6 % of a fine-grid solution (the one node: up to 14.2 % and 17.4 % too cool). The zones are not hotter or cooler than the one node by rule: on three boards of the square-wave run and on one of the 62 steady boards they read the part hotter than the one node did, on the safe side. Boards without vias, parts whose vias form no group in the footprint and parts whose core covers more than 92 % of the footprint (the nine vias of the example board) give the same result as before. The 3D check with the barrels drawn (three 16 mm boards) puts the zones within 7.8 % of the effect and 1.6 % of the rise, with the limit that a 0.3 mm barrel is not resolved there. Not fixed: an array across or just outside the footprint edge (up to 16 % of the rise too cool, warned).
-> - **Lumped raster: one 0.5 mm cell per board when a part will be zoned**: the core must be a handful of cells across, so a board with such a part runs the Lumped model on a 0.5 mm cell instead of the 0.5 to 1 mm clip; the cell is one per board, so the other parts of that board move by the raster too (on a Gerber-like test board two small parts on bare laminate moved by 9 to 18 K between 1.0 and 0.5 mm, nearer the FVM at 0.5 mm). The Analytic keeps its clip.
-> - **Lumped capacities, step response and power profiles follow the zones**: the capacity of each node is the sum of its cells' and the profile runner applies the power through the same source split (square-wave peak within 5.4 % of the FVM's average rise on three boards and 3.8 % on average over 93, 14.3 % at most; the one node 21.4 % and 9.6 % / 28.9 %).
-> - **Frozen numbers**: the Lumped records of `plate_vias` (a 4 x 4 array under a pad) move from 140.3555 to 136.4534 degC (-3.90 K) and its time to 63 % from 27.83 to 31.00 s; they are held by the pending shift `tests/regression/data/pending/lumped-zones.json` until the release refreezes the file.
-> - The fixed limit of 250 000 unknowns of the 3D solid is replaced by the memory estimate, with an absolute ceiling of 2 million unknowns (`solid3d.size_limit` keeps its meaning as a window for the studies); `solid3d.Solid` checks its own count in its constructor.
-> - **SOR guard by bytes** (`fvm.MAX_SOR_BLOCK` removed): the dense inverse of a block costs about 75 n^2 bytes (5 000 unknowns take about 1.9 GB, not the 200 MB the old comment said); the SOR block solve is allowed when the sum over its blocks is at most 25 % of the memory limit, otherwise the direct solver is used and the result says so.
-> - **One LU factor in the animation and the transient** (bit-identical frames): the logarithmic time grid kept the factor of every one of its ten steps; it now keeps one, so the peak of an animation is 1.9 times a steady solve instead of 3.5 (on a 111 556-unknown case 2.60 GB became 0.65 GB, a figure reported by the review of the integration).
-> 
-> ### Fixed
-> - **Keyboard shortcuts** (`fix/menu-shortcuts`; `tests/test_shortcuts.py`): no key sequence of the main window is bound to two actions (checked over every action of the menus, tool bar, tab actions and docks). Redo now answers both Ctrl+Shift+Z and Ctrl+Y on every platform (the Keyboard shortcuts box and the user guide said Ctrl+Shift+Z but Windows and the offscreen platform bound only Ctrl+Y), Zoom in also Ctrl+= (the same key without Shift), Quit has Ctrl+Q where the platform theme binds none, and the two key tables now list the zoom keys and Ctrl+Shift+T (light / dark theme).
-> - **Dark theme legibility** (`fix/theme-controls`): the unchecked radio and check indicators were invisible (contrast 1.12, now 4.4), disabled text was not dimmed, links were unreadable, the user guide and the calculator help were white, empty figures and messages were white or black on dark, the warning-list links, the canvas rubber band and the stack-up labels now follow the tokens. The keyboard focus ring is kept.
-> - **False "outside the board" and "overlap" warnings of small parts, zones and blocks** (`fix/live-input-warnings`; `geometry.clip_polygon`, `polygon_overlap_area`, `polygon_area_signed`, `part_board_share`): the checks judged a part by its cell coverage, so small parts and thin zones were reported outside the board or overlapping when they were not. They are now judged by exact geometry (the overlap is exact when one of the two polygons is convex; self-crossing polygons are measured on a 96 x 96 lattice with the even-odd rule). Old false warnings on the study sets: 13 of 126 (parts outside), 48 of 90 (overlaps), 5 of 40 and 1 of 40 (zones and blocks), now 0. Limit: the 96 x 96 lattice used for boards with an outline is within 1 % of the exact area; the live check costs 0.2 s on a 200 x 150 mm board with 8500 vias. A part wholly outside the board says so in words (100 % outside). Part statistics (mean, minimum, ring) of very small parts no longer come out NaN in the FVM (cells) and the FDM (nodes).
-> - **Lumped: footprint potentials of large footprints** (`fix/lumped-footprint-potentials`; `docs/theory.md` 5): the link of the heater footprint to the first ring was 4 to 22 % short on footprints above 900 cells (squares of 20 to 40 mm at a 0.5 mm cell: -4.0, -10.8, -21.6 %) by aliasing of the stride decimation; large footprints are now summed in k x k blocks (within 0.03 % of the all-cell sum on squares, a disc, a rectangle, an L and a ring; the peak term within 0.15 %). Results for footprints of 900 cells or fewer, including the three example boards, are unchanged to the bit. The board maximum at a 0.5 mm cell moves by +1 to +5 K on a 20 W source of 20 to 60 mm on a single copper sheet, and by 0 to +1.1 K at 1 mm. Tests: `tests/test_lumped_footprint.py`. The frozen record `reference_board|lumped|0.5` of `tests/regression/data/v2.4.5.json` moves with it (`t_max` 89.093 to 89.363 degC, `Tj` 79.71 to 79.97 degC) and is refrozen at the 2.5.0 release; the default 2 mm set is unchanged.
-> - **Lumped via warnings: the unsafe side** (`fix/lumped-via-warning-limits`; text only, no temperature changes): the 2.4.5 text quoted up to 80 % for an array across the edge of a footprint where up to 221 % of the via effect (the part up to about 11 K, a quarter of its rise, too cool) was measured (`research/lumped-zones-adoption` 8.4). A new warning (`checks.lumped_via_cool_warning`) fires for a part whose via group continues past the footprint edge, stands off its centre (more than 0.1 of the smaller side) or lies under a footprint of side ratio above 1.5; vias farther than twice the array pitch do not count, so scattered vias on a board do not trigger it. The general text now gives up to 14 % of the rise too cool, and the text of the vias outside every part up to 2.3 times the effect (4 K, 9 % of the rise) for an array beside a part.
-
-</details>
+| Item | What |
+| :-- | :-- |
+| J1 | Analytic Robin edge |
+| J2 | Zonal Lumped model |
+| J3 | Lumped footprint potentials |
+| J4 | Mirror image of a board edge for vias |
+| J5 | Symmetric-mode LU |
 
 ### Notes: what was implemented and why the numbers moved
 
@@ -267,7 +205,8 @@ What the CHANGELOG and docs/versions.md of this version say was implemented:
 * Symmetric-mode LU for the direct solver: temperatures unchanged except in the last bits of the sums (differences below 1e-11 K); boards with dense via arrays solve 8 to 60 times faster with 3 to 5 times less peak memory (speed and memory, not accuracy).
 * Imported copper, Gerber reader, parts from the paste layers, project format 2, import window, exposed-pad heat source: no board of the harness has imported copper or an import record, so none of them reaches these 17 boards.
 * Natural convection form `laminar` is the default of NEW projects only: the harness boards are built by class and keep `general`, so their numbers do not move. The edge coefficient `h_side` is refused above 1e5 W/m2K (a validation, not a number).
-* Not in this tree and therefore not in this comparison: the via edge image (`feature/via-edge-image` is not merged into develop).
+* Items merged late in the 2.5.0 work, none moves a temperature: the texts of the warnings in plain words (`tests/test_warning_texts_plain.py`); the Solver and Gerber import sections of Preferences; the dark-theme icons of the result toolbar (`tests/test_toolbar_icons.py`); every screenshot of `docs/images` regenerated on the 2.5.0 tree; the imported-copper warning now quotes the measured numbers for the whole RP2040 (Lumped 27 to 42 % and Analytic 17 to 35 % cool).
+* Not in 2.5.0 and therefore not in this comparison: the via edge image (`feature/via-edge-image` is not merged into develop).
 
 Reading of the numbers (each line cites the item that explains it; where no item does, it says unexplained):
 
@@ -275,79 +214,14 @@ Reading of the numbers (each line cites the item that explains it; where no item
 * Lumped: plate_vias -3.90 K at 1 and 2 mm and -3.70 K at 0.5 mm (zonal Lumped), reference_board +0.27 K at 0.5 mm (footprint potentials); time to 63 % of plate_vias 27.83 to 31.00 s.
 * Analytic: 13 of the 17 boards move by -0.26 to -7.1 K (example board -0.52 K, plate_vias -1.77 K, T outline -4.3 K, part across the outline -7.1 K) and the times to 63 % are 1.5 to 12 % shorter. Cause: the edge heat that the old series left out is now in it (Robin edge). The shifts are larger on small boards and boards with an outline, where the edge is a larger share of the loss.
 * Last bit: the symmetric LU changes the last bits of the sums in 143 records (differences far below 1e-8 K, the tolerance of the frozen-numbers test); no other number of the FVM, FDM or 3D solid moves.
-* The pending files must be folded into the new frozen file at the 2.5.0 refreeze; until then this comparison shows that nothing else moved.
-
-
-### Every shifted number against the pending-shift files of the tree
-
-Numbers compared: 3802. Identical: 2209. Different only in the last bits of a floating-point sum (at most 1e-8 K or 1e-10 of the value, the tolerance of the frozen-numbers test; 143 records, the symmetric-mode LU): 1132. Covered by a pending file (the new value equals the one the file holds): 461, in 43 records. **Unexplained: 0.**
-
-| Record (board, model, cell mm) | Tmax old [degC] | Tmax new [degC] | Shift [K] | Pending file |
-| :-- | --: | --: | --: | :-- |
-| example_board, analytic, 0.5 | 85.2167 | 84.6916 | -0.5250 | analytic-edge |
-| example_board, analytic, 1 | 85.1021 | 84.5774 | -0.5247 | analytic-edge |
-| example_board, analytic, 2 | 85.1021 | 84.5774 | -0.5247 | analytic-edge |
-| example_cut_to_T, analytic, 0.5 | 91.9344 | 90.9231 | -1.0114 | analytic-edge |
-| example_cut_to_T, analytic, 1 | 91.9041 | 90.8872 | -1.0169 | analytic-edge |
-| example_cut_to_T, analytic, 2 | 91.9041 | 90.8872 | -1.0169 | analytic-edge |
-| finned_block, analytic, 0.5 | 130.8188 | 129.8918 | -0.9270 | analytic-edge |
-| finned_block, analytic, 1 | 130.6275 | 129.7004 | -0.9271 | analytic-edge |
-| finned_block, analytic, 2 | 130.6275 | 129.7004 | -0.9271 | analytic-edge |
-| hatched_copper, analytic, 0.5 | 112.5825 | 111.6710 | -0.9115 | analytic-edge |
-| hatched_copper, analytic, 1 | 112.4150 | 111.5034 | -0.9116 | analytic-edge |
-| hatched_copper, analytic, 2 | 112.4150 | 111.5034 | -0.9116 | analytic-edge |
-| part_across_outline, analytic, 0.5 | 216.0016 | 208.9189 | -7.0827 | analytic-edge |
-| part_across_outline, analytic, 1 | 216.0332 | 208.9276 | -7.1056 | analytic-edge |
-| part_across_outline, analytic, 2 | 216.0332 | 208.9276 | -7.1056 | analytic-edge |
-| part_top_path, analytic, 0.5 | 69.6851 | 69.3371 | -0.3480 | analytic-edge |
-| part_top_path, analytic, 1 | 69.5730 | 69.2227 | -0.3503 | analytic-edge |
-| part_top_path, analytic, 2 | 69.5730 | 69.2227 | -0.3503 | analytic-edge |
-| plate_lone_via, analytic, 0.5 | 152.2283 | 150.4506 | -1.7776 | analytic-edge |
-| plate_lone_via, analytic, 1 | 152.1101 | 150.3321 | -1.7779 | analytic-edge |
-| plate_lone_via, analytic, 2 | 152.1101 | 150.3321 | -1.7779 | analytic-edge |
-| plate_vias, analytic, 0.5 | 137.8125 | 136.0464 | -1.7661 | analytic-edge |
-| plate_vias, analytic, 1 | 137.6411 | 135.8748 | -1.7663 | analytic-edge |
-| plate_vias, analytic, 2 | 137.6411 | 135.8748 | -1.7663 | analytic-edge |
-| plate_vias, lumped, 0.5 | 140.1495 | 136.4534 | -3.6961 | lumped-zones |
-| plate_vias, lumped, 1 | 140.3555 | 136.4534 | -3.9021 | lumped-zones |
-| plate_vias, lumped, 2 | 140.3555 | 136.4534 | -3.9021 | lumped-zones |
-| profile_board, analytic, 0.5 | 85.2167 | 84.6916 | -0.5250 | analytic-edge |
-| profile_board, analytic, 1 | 85.1021 | 84.5774 | -0.5247 | analytic-edge |
-| profile_board, analytic, 2 | 85.1021 | 84.5774 | -0.5247 | analytic-edge |
-| reference_board, analytic, 0.5 | 90.3988 | 90.1404 | -0.2584 | analytic-edge |
-| reference_board, analytic, 1 | 90.3488 | 90.0904 | -0.2584 | analytic-edge |
-| reference_board, analytic, 2 | 90.3488 | 90.0904 | -0.2584 | analytic-edge |
-| reference_board, lumped, 0.5 | 89.0933 | 89.3632 | +0.2699 | lumped-footprint-potentials |
-| round_outline, analytic, 0.5 | 178.9139 | 175.8954 | -3.0184 | analytic-edge |
-| round_outline, analytic, 1 | 178.3478 | 175.3291 | -3.0187 | analytic-edge |
-| round_outline, analytic, 2 | 178.3478 | 175.3291 | -3.0187 | analytic-edge |
-| t_outline, analytic, 0.5 | 141.1283 | 136.8173 | -4.3110 | analytic-edge |
-| t_outline, analytic, 1 | 141.0696 | 136.7720 | -4.2977 | analytic-edge |
-| t_outline, analytic, 2 | 141.0696 | 136.7720 | -4.2977 | analytic-edge |
-| two_layer_partial, analytic, 0.5 | 154.1897 | 152.9350 | -1.2547 | analytic-edge |
-| two_layer_partial, analytic, 1 | 153.9638 | 152.7090 | -1.2548 | analytic-edge |
-| two_layer_partial, analytic, 2 | 153.9638 | 152.7090 | -1.2548 | analytic-edge |
-
-| Time to 63 % (board, model, part) | Old [s] | New [s] | Pending file |
-| :-- | --: | --: | :-- |
-| example_board, analytic, U1 | 13.475 | 12.815 | analytic-edge |
-| example_board, analytic, U2 | 2.630 | 2.543 | analytic-edge |
-| hatched_copper, analytic, U | 19.471 | 18.539 | analytic-edge |
-| part_top_path, analytic, Q1 | 21.981 | 19.304 | analytic-edge |
-| plate_lone_via, analytic, U | 22.841 | 20.891 | analytic-edge |
-| plate_vias, analytic, U | 33.638 | 31.011 | analytic-edge |
-| plate_vias, lumped, U | 27.828 | 31.000 | lumped-zones |
-| profile_board, analytic, U1 | 13.475 | 12.815 | analytic-edge |
-| profile_board, analytic, U2 | 2.630 | 2.543 | analytic-edge |
-| reference_board, analytic, Heater 1 | 19.115 | 18.835 | analytic-edge |
-| two_layer_partial, analytic, U | 20.563 | 19.598 | analytic-edge |
+* The pending-shift files were folded into the 2.5.0 frozen file (`tests/regression/data/v2.5.0.json`) and deleted at the refreeze; the shifts of this pair are checked against the table `reference/expected_shifts_2.5.0.json`.
 
 
 ### Hottest point moved, per model
 
 | Model | Records moved | Largest shift [K] (board, cell) | Largest shift [% of old rise] |
 | :-- | --: | :-- | --: |
-| fvm | 45 | -0.000 (finned_block, 2 mm) | 0.00 |
+| fvm | 45 | -0.010 (example_cut_to_T, 2 mm) | 0.01 |
 | fdm | 46 | +0.000 (finned_block, 0.5 mm) | 0.00 |
 | lumped | 4 | -3.902 (plate_vias, 1 mm) | 3.38 |
 | analytic | 39 | -7.106 (part_across_outline, 1 mm) | 3.72 |
@@ -359,140 +233,140 @@ The shift in percent is relative to the rise of the old hottest point over the a
 
 | Board | Model | Cell [mm] | Tmax old [degC] | Tmax new [degC] | Shift [K] | Shift [% of old rise] | Class | Item of the release |
 | :-- | :-- | --: | --: | --: | --: | --: | :-- | :-- |
-| example_board | analytic | 2 | 85.1021 | 84.5774 | -0.5247 | -0.87 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_board | fvm | 2 | 85.0746 | 85.0746 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_cut_to_T | analytic | 2 | 91.9041 | 90.8872 | -1.0169 | -1.52 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_cut_to_T | fdm | 2 | 93.7156 | 93.7156 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_cut_to_T | fvm | 2 | 94.4545 | 94.4545 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | analytic | 2 | 130.6275 | 129.7004 | -0.9271 | -0.88 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | fdm | 2 | 129.6428 | 129.6428 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | fvm | 2 | 129.6472 | 129.6472 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | analytic | 2 | 112.4150 | 111.5034 | -0.9116 | -1.04 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | fdm | 2 | 112.0085 | 112.0085 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | fvm | 2 | 112.0050 | 112.0050 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_full | fvm | 2 | 55.3551 | 55.3551 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_pad | fdm | 2 | 81.1920 | 81.1920 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_pad | fvm | 2 | 95.5649 | 95.5649 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_across_outline | analytic | 2 | 216.0332 | 208.9276 | -7.1056 | -3.72 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_across_outline | fdm | 2 | 230.5204 | 230.5204 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_across_outline | fvm | 2 | 229.9490 | 229.9490 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_top_path | analytic | 2 | 69.5730 | 69.2227 | -0.3503 | -0.79 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_top_path | fdm | 2 | 71.5911 | 71.5911 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_top_path | fvm | 2 | 74.7096 | 74.7096 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | analytic | 2 | 152.1101 | 150.3321 | -1.7779 | -1.40 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | fdm | 2 | 148.6873 | 148.6873 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | fvm | 2 | 151.5199 | 151.5199 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_pad | fdm | 2 | 291.2924 | 291.2924 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_pad | fvm | 2 | 362.6071 | 362.6071 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_uniform | fdm | 2 | 159.0524 | 159.0524 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | analytic | 2 | 137.6411 | 135.8748 | -1.7663 | -1.57 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | fdm | 2 | 133.4338 | 133.4338 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | lumped | 2 | 140.3555 | 136.4534 | -3.9021 | -3.38 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| profile_board | analytic | 2 | 85.1021 | 84.5774 | -0.5247 | -0.87 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| profile_board | fvm | 2 | 85.0746 | 85.0746 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | analytic | 2 | 90.3488 | 90.0904 | -0.2584 | -0.40 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | fdm | 2 | 90.0661 | 90.0661 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | analytic | 2 | 178.3478 | 175.3291 | -3.0187 | -1.97 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | fdm | 2 | 175.0036 | 175.0036 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | fvm | 2 | 174.9929 | 174.9929 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | analytic | 2 | 141.0696 | 136.7720 | -4.2977 | -3.70 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | fdm | 2 | 186.2550 | 186.2550 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | fvm | 2 | 186.9946 | 186.9946 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | analytic | 2 | 153.9638 | 152.7090 | -1.2548 | -0.97 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | fdm | 2 | 159.6119 | 159.6119 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | fvm | 2 | 162.6181 | 162.6181 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_board | analytic | 1 | 85.1021 | 84.5774 | -0.5247 | -0.87 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_board | fdm | 1 | 85.1260 | 85.1260 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_board | fvm | 1 | 85.2335 | 85.2335 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_cut_to_T | analytic | 1 | 91.9041 | 90.8872 | -1.0169 | -1.52 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_cut_to_T | fdm | 1 | 94.3333 | 94.3333 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_cut_to_T | fvm | 1 | 94.5009 | 94.5009 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | analytic | 1 | 130.6275 | 129.7004 | -0.9271 | -0.88 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | fdm | 1 | 129.8997 | 129.8997 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | fvm | 1 | 129.9009 | 129.9009 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | analytic | 1 | 112.4150 | 111.5034 | -0.9116 | -1.04 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | fdm | 1 | 112.2389 | 112.2389 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | fvm | 1 | 112.2367 | 112.2367 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_full | fdm | 1 | 55.4415 | 55.4415 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_full | fvm | 1 | 55.4415 | 55.4415 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_pad | fdm | 1 | 85.9040 | 85.9040 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_across_outline | analytic | 1 | 216.0332 | 208.9276 | -7.1056 | -3.72 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_across_outline | fvm | 1 | 230.0426 | 230.0426 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_top_path | analytic | 1 | 69.5730 | 69.2227 | -0.3503 | -0.79 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_top_path | fvm | 1 | 74.0979 | 74.0979 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | analytic | 1 | 152.1101 | 150.3321 | -1.7779 | -1.40 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | fdm | 1 | 149.8734 | 149.8734 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | fvm | 1 | 150.3788 | 150.3788 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_pad | fdm | 1 | 315.2488 | 315.2488 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_pad | fvm | 1 | 353.3838 | 353.3838 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_uniform | fdm | 1 | 159.5161 | 159.5161 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_uniform | fvm | 1 | 159.5161 | 159.5161 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | analytic | 1 | 137.6411 | 135.8748 | -1.7663 | -1.57 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | fdm | 1 | 137.2392 | 137.2392 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | fvm | 1 | 135.6061 | 135.6061 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | lumped | 1 | 140.3555 | 136.4534 | -3.9021 | -3.38 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| profile_board | analytic | 1 | 85.1021 | 84.5774 | -0.5247 | -0.87 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| profile_board | fdm | 1 | 85.1260 | 85.1260 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| profile_board | fvm | 1 | 85.2335 | 85.2335 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | analytic | 1 | 90.3488 | 90.0904 | -0.2584 | -0.40 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | fdm | 1 | 90.1341 | 90.1341 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | fvm | 1 | 90.1339 | 90.1339 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | analytic | 1 | 178.3478 | 175.3291 | -3.0187 | -1.97 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | fdm | 1 | 175.4332 | 175.4332 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | fvm | 1 | 175.4300 | 175.4300 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | analytic | 1 | 141.0696 | 136.7720 | -4.2977 | -3.70 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | fdm | 1 | 186.5413 | 186.5413 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | fvm | 1 | 186.8702 | 186.8702 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | analytic | 1 | 153.9638 | 152.7090 | -1.2548 | -0.97 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | fdm | 1 | 161.3952 | 161.3952 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | fvm | 1 | 163.4703 | 163.4703 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_board | analytic | 0.5 | 85.2167 | 84.6916 | -0.5250 | -0.87 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_board | fdm | 0.5 | 85.1200 | 85.1200 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_board | fvm | 0.5 | 85.1808 | 85.1808 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_cut_to_T | analytic | 0.5 | 91.9344 | 90.9231 | -1.0114 | -1.51 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| example_cut_to_T | fdm | 0.5 | 94.3409 | 94.3409 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | analytic | 0.5 | 130.8188 | 129.8918 | -0.9270 | -0.88 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | fdm | 0.5 | 129.9652 | 129.9652 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| finned_block | fvm | 0.5 | 129.9655 | 129.9655 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | analytic | 0.5 | 112.5825 | 111.6710 | -0.9115 | -1.04 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | fdm | 0.5 | 112.2980 | 112.2980 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| hatched_copper | fvm | 0.5 | 112.2967 | 112.2967 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_full | fdm | 0.5 | 55.4638 | 55.4638 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_full | fvm | 0.5 | 55.4638 | 55.4638 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| one_layer_pad | fdm | 0.5 | 88.9805 | 88.9805 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_across_outline | analytic | 0.5 | 216.0016 | 208.9189 | -7.0827 | -3.71 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_across_outline | fdm | 0.5 | 229.1729 | 229.1729 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_across_outline | fvm | 0.5 | 229.1716 | 229.1716 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_top_path | analytic | 0.5 | 69.6851 | 69.3371 | -0.3480 | -0.78 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_top_path | fdm | 0.5 | 73.2427 | 73.2427 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| part_top_path | fvm | 0.5 | 73.9654 | 73.9654 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | analytic | 0.5 | 152.2283 | 150.4506 | -1.7776 | -1.40 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | fdm | 0.5 | 150.0614 | 150.0614 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_lone_via | fvm | 0.5 | 150.2451 | 150.2451 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_pad | fdm | 0.5 | 330.3285 | 330.3285 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_pad | fvm | 0.5 | 349.5995 | 349.5995 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_uniform | fdm | 0.5 | 159.6365 | 159.6365 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_uniform | fvm | 0.5 | 159.6365 | 159.6365 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | analytic | 0.5 | 137.8125 | 136.0464 | -1.7661 | -1.57 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | fdm | 0.5 | 136.3377 | 136.3377 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | fvm | 0.5 | 136.2417 | 136.2417 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| plate_vias | lumped | 0.5 | 140.1495 | 136.4534 | -3.6961 | -3.21 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| profile_board | analytic | 0.5 | 85.2167 | 84.6916 | -0.5250 | -0.87 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| profile_board | fdm | 0.5 | 85.1200 | 85.1200 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| profile_board | fvm | 0.5 | 85.1808 | 85.1808 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | analytic | 0.5 | 90.3988 | 90.1404 | -0.2584 | -0.40 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | fdm | 0.5 | 90.1512 | 90.1512 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | fvm | 0.5 | 90.1512 | 90.1512 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| reference_board | lumped | 0.5 | 89.0933 | 89.3632 | +0.2699 | +0.42 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | analytic | 0.5 | 178.9139 | 175.8954 | -3.0184 | -1.96 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | fdm | 0.5 | 175.5527 | 175.5527 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| round_outline | fvm | 0.5 | 175.5516 | 175.5516 | +0.0000 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | analytic | 0.5 | 141.1283 | 136.8173 | -4.3110 | -3.71 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | fdm | 0.5 | 186.6475 | 186.6475 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| t_outline | fvm | 0.5 | 186.7904 | 186.7904 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | analytic | 0.5 | 154.1897 | 152.9350 | -1.2547 | -0.97 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | fdm | 0.5 | 162.2960 | 162.2960 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
-| two_layer_partial | fvm | 0.5 | 163.3350 | 163.3350 | -0.0000 | -0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | analytic | 2 | 85.1021 | 84.5774 | -0.5247 | -0.87 | expected | J1 Analytic Robin edge |
+| example_board | fvm | 2 | 85.0746 | 85.0746 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| example_cut_to_T | analytic | 2 | 91.9041 | 90.8872 | -1.0169 | -1.52 | expected | J1 Analytic Robin edge |
+| example_cut_to_T | fdm | 2 | 93.7156 | 93.7156 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| example_cut_to_T | fvm | 2 | 94.4545 | 94.4442 | -0.0103 | -0.01 | expected | J4 Mirror image of a board edge for vias |
+| finned_block | analytic | 2 | 130.6275 | 129.7004 | -0.9271 | -0.88 | expected | J1 Analytic Robin edge |
+| finned_block | fdm | 2 | 129.6428 | 129.6428 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| finned_block | fvm | 2 | 129.6472 | 129.6472 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| hatched_copper | analytic | 2 | 112.4150 | 111.5034 | -0.9116 | -1.04 | expected | J1 Analytic Robin edge |
+| hatched_copper | fdm | 2 | 112.0085 | 112.0085 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| hatched_copper | fvm | 2 | 112.0050 | 112.0050 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_full | fvm | 2 | 55.3551 | 55.3551 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_pad | fdm | 2 | 81.1920 | 81.1920 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_pad | fvm | 2 | 95.5649 | 95.5649 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| part_across_outline | analytic | 2 | 216.0332 | 208.9276 | -7.1056 | -3.72 | expected | J1 Analytic Robin edge |
+| part_across_outline | fdm | 2 | 230.5204 | 230.5204 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| part_across_outline | fvm | 2 | 229.9490 | 229.9490 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| part_top_path | analytic | 2 | 69.5730 | 69.2227 | -0.3503 | -0.79 | expected | J1 Analytic Robin edge |
+| part_top_path | fdm | 2 | 71.5911 | 71.5911 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| part_top_path | fvm | 2 | 74.7096 | 74.7096 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_lone_via | analytic | 2 | 152.1101 | 150.3321 | -1.7779 | -1.40 | expected | J1 Analytic Robin edge |
+| plate_lone_via | fdm | 2 | 148.6873 | 148.6873 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_lone_via | fvm | 2 | 151.5199 | 151.5199 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_pad | fdm | 2 | 291.2924 | 291.2924 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_pad | fvm | 2 | 362.6071 | 362.6071 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_uniform | fdm | 2 | 159.0524 | 159.0524 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_vias | analytic | 2 | 137.6411 | 135.8748 | -1.7663 | -1.57 | expected | J1 Analytic Robin edge |
+| plate_vias | fdm | 2 | 133.4338 | 133.4338 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_vias | lumped | 2 | 140.3555 | 136.4534 | -3.9021 | -3.38 | expected | J2 Zonal Lumped model |
+| profile_board | analytic | 2 | 85.1021 | 84.5774 | -0.5247 | -0.87 | expected | J1 Analytic Robin edge |
+| profile_board | fvm | 2 | 85.0746 | 85.0746 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| reference_board | analytic | 2 | 90.3488 | 90.0904 | -0.2584 | -0.40 | expected | J1 Analytic Robin edge |
+| reference_board | fdm | 2 | 90.0661 | 90.0661 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| round_outline | analytic | 2 | 178.3478 | 175.3291 | -3.0187 | -1.97 | expected | J1 Analytic Robin edge |
+| round_outline | fdm | 2 | 175.0036 | 175.0036 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| round_outline | fvm | 2 | 174.9929 | 174.9929 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| t_outline | analytic | 2 | 141.0696 | 136.7720 | -4.2977 | -3.70 | expected | J1 Analytic Robin edge |
+| t_outline | fdm | 2 | 186.2550 | 186.2550 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| t_outline | fvm | 2 | 186.9946 | 186.9946 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| two_layer_partial | analytic | 2 | 153.9638 | 152.7090 | -1.2548 | -0.97 | expected | J1 Analytic Robin edge |
+| two_layer_partial | fdm | 2 | 159.6119 | 159.6119 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| two_layer_partial | fvm | 2 | 162.6181 | 162.6181 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| example_board | analytic | 1 | 85.1021 | 84.5774 | -0.5247 | -0.87 | expected | J1 Analytic Robin edge |
+| example_board | fdm | 1 | 85.1260 | 85.1260 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| example_board | fvm | 1 | 85.2335 | 85.2335 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| example_cut_to_T | analytic | 1 | 91.9041 | 90.8872 | -1.0169 | -1.52 | expected | J1 Analytic Robin edge |
+| example_cut_to_T | fdm | 1 | 94.3333 | 94.3333 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| example_cut_to_T | fvm | 1 | 94.5009 | 94.5008 | -0.0001 | -0.00 | expected | J4 Mirror image of a board edge for vias |
+| finned_block | analytic | 1 | 130.6275 | 129.7004 | -0.9271 | -0.88 | expected | J1 Analytic Robin edge |
+| finned_block | fdm | 1 | 129.8997 | 129.8997 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| finned_block | fvm | 1 | 129.9009 | 129.9009 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| hatched_copper | analytic | 1 | 112.4150 | 111.5034 | -0.9116 | -1.04 | expected | J1 Analytic Robin edge |
+| hatched_copper | fdm | 1 | 112.2389 | 112.2389 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| hatched_copper | fvm | 1 | 112.2367 | 112.2367 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_full | fdm | 1 | 55.4415 | 55.4415 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_full | fvm | 1 | 55.4415 | 55.4415 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_pad | fdm | 1 | 85.9040 | 85.9040 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| part_across_outline | analytic | 1 | 216.0332 | 208.9276 | -7.1056 | -3.72 | expected | J1 Analytic Robin edge |
+| part_across_outline | fvm | 1 | 230.0426 | 230.0426 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| part_top_path | analytic | 1 | 69.5730 | 69.2227 | -0.3503 | -0.79 | expected | J1 Analytic Robin edge |
+| part_top_path | fvm | 1 | 74.0979 | 74.0979 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_lone_via | analytic | 1 | 152.1101 | 150.3321 | -1.7779 | -1.40 | expected | J1 Analytic Robin edge |
+| plate_lone_via | fdm | 1 | 149.8734 | 149.8734 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_lone_via | fvm | 1 | 150.3788 | 150.3788 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_pad | fdm | 1 | 315.2488 | 315.2488 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_pad | fvm | 1 | 353.3838 | 353.3838 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_uniform | fdm | 1 | 159.5161 | 159.5161 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_uniform | fvm | 1 | 159.5161 | 159.5161 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_vias | analytic | 1 | 137.6411 | 135.8748 | -1.7663 | -1.57 | expected | J1 Analytic Robin edge |
+| plate_vias | fdm | 1 | 137.2392 | 137.2392 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_vias | fvm | 1 | 135.6061 | 135.6061 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_vias | lumped | 1 | 140.3555 | 136.4534 | -3.9021 | -3.38 | expected | J2 Zonal Lumped model |
+| profile_board | analytic | 1 | 85.1021 | 84.5774 | -0.5247 | -0.87 | expected | J1 Analytic Robin edge |
+| profile_board | fdm | 1 | 85.1260 | 85.1260 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| profile_board | fvm | 1 | 85.2335 | 85.2335 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| reference_board | analytic | 1 | 90.3488 | 90.0904 | -0.2584 | -0.40 | expected | J1 Analytic Robin edge |
+| reference_board | fdm | 1 | 90.1341 | 90.1341 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| reference_board | fvm | 1 | 90.1339 | 90.1339 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| round_outline | analytic | 1 | 178.3478 | 175.3291 | -3.0187 | -1.97 | expected | J1 Analytic Robin edge |
+| round_outline | fdm | 1 | 175.4332 | 175.4332 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| round_outline | fvm | 1 | 175.4300 | 175.4300 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| t_outline | analytic | 1 | 141.0696 | 136.7720 | -4.2977 | -3.70 | expected | J1 Analytic Robin edge |
+| t_outline | fdm | 1 | 186.5413 | 186.5413 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| t_outline | fvm | 1 | 186.8702 | 186.8702 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| two_layer_partial | analytic | 1 | 153.9638 | 152.7090 | -1.2548 | -0.97 | expected | J1 Analytic Robin edge |
+| two_layer_partial | fdm | 1 | 161.3952 | 161.3952 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| two_layer_partial | fvm | 1 | 163.4703 | 163.4703 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| example_board | analytic | 0.5 | 85.2167 | 84.6916 | -0.5250 | -0.87 | expected | J1 Analytic Robin edge |
+| example_board | fdm | 0.5 | 85.1200 | 85.1200 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| example_board | fvm | 0.5 | 85.1808 | 85.1808 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| example_cut_to_T | analytic | 0.5 | 91.9344 | 90.9231 | -1.0114 | -1.51 | expected | J1 Analytic Robin edge |
+| example_cut_to_T | fdm | 0.5 | 94.3409 | 94.3409 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| finned_block | analytic | 0.5 | 130.8188 | 129.8918 | -0.9270 | -0.88 | expected | J1 Analytic Robin edge |
+| finned_block | fdm | 0.5 | 129.9652 | 129.9652 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| finned_block | fvm | 0.5 | 129.9655 | 129.9655 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| hatched_copper | analytic | 0.5 | 112.5825 | 111.6710 | -0.9115 | -1.04 | expected | J1 Analytic Robin edge |
+| hatched_copper | fdm | 0.5 | 112.2980 | 112.2980 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| hatched_copper | fvm | 0.5 | 112.2967 | 112.2967 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_full | fdm | 0.5 | 55.4638 | 55.4638 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_full | fvm | 0.5 | 55.4638 | 55.4638 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| one_layer_pad | fdm | 0.5 | 88.9805 | 88.9805 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| part_across_outline | analytic | 0.5 | 216.0016 | 208.9189 | -7.0827 | -3.71 | expected | J1 Analytic Robin edge |
+| part_across_outline | fdm | 0.5 | 229.1729 | 229.1729 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| part_across_outline | fvm | 0.5 | 229.1716 | 229.1716 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| part_top_path | analytic | 0.5 | 69.6851 | 69.3371 | -0.3480 | -0.78 | expected | J1 Analytic Robin edge |
+| part_top_path | fdm | 0.5 | 73.2427 | 73.2427 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| part_top_path | fvm | 0.5 | 73.9654 | 73.9654 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_lone_via | analytic | 0.5 | 152.2283 | 150.4506 | -1.7776 | -1.40 | expected | J1 Analytic Robin edge |
+| plate_lone_via | fdm | 0.5 | 150.0614 | 150.0614 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_lone_via | fvm | 0.5 | 150.2451 | 150.2451 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_pad | fdm | 0.5 | 330.3285 | 330.3285 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_pad | fvm | 0.5 | 349.5995 | 349.5995 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_uniform | fdm | 0.5 | 159.6365 | 159.6365 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_uniform | fvm | 0.5 | 159.6365 | 159.6365 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_vias | analytic | 0.5 | 137.8125 | 136.0464 | -1.7661 | -1.57 | expected | J1 Analytic Robin edge |
+| plate_vias | fdm | 0.5 | 136.3377 | 136.3377 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| plate_vias | fvm | 0.5 | 136.2417 | 136.2417 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| plate_vias | lumped | 0.5 | 140.1495 | 136.4534 | -3.6961 | -3.21 | expected | J2 Zonal Lumped model |
+| profile_board | analytic | 0.5 | 85.2167 | 84.6916 | -0.5250 | -0.87 | expected | J1 Analytic Robin edge |
+| profile_board | fdm | 0.5 | 85.1200 | 85.1200 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| profile_board | fvm | 0.5 | 85.1808 | 85.1808 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| reference_board | analytic | 0.5 | 90.3988 | 90.1404 | -0.2584 | -0.40 | expected | J1 Analytic Robin edge |
+| reference_board | fdm | 0.5 | 90.1512 | 90.1512 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| reference_board | fvm | 0.5 | 90.1512 | 90.1512 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| reference_board | lumped | 0.5 | 89.0933 | 89.3632 | +0.2699 | +0.42 | expected | J3 Lumped footprint potentials |
+| round_outline | analytic | 0.5 | 178.9139 | 175.8954 | -3.0184 | -1.96 | expected | J1 Analytic Robin edge |
+| round_outline | fdm | 0.5 | 175.5527 | 175.5527 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| round_outline | fvm | 0.5 | 175.5516 | 175.5516 | +0.0000 | +0.00 | expected | J5 Symmetric-mode LU |
+| t_outline | analytic | 0.5 | 141.1283 | 136.8173 | -4.3110 | -3.71 | expected | J1 Analytic Robin edge |
+| t_outline | fdm | 0.5 | 186.6475 | 186.6475 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| t_outline | fvm | 0.5 | 186.7904 | 186.7904 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| two_layer_partial | analytic | 0.5 | 154.1897 | 152.9350 | -1.2547 | -0.97 | expected | J1 Analytic Robin edge |
+| two_layer_partial | fdm | 0.5 | 162.2960 | 162.2960 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
+| two_layer_partial | fvm | 0.5 | 163.3350 | 163.3350 | -0.0000 | -0.00 | expected | J5 Symmetric-mode LU |
 
 Records where the hottest point is the same but another number moved (layer mean, a part, the unknowns, the heat split): 9.
 
@@ -530,57 +404,57 @@ Records where the hottest point is the same but another number moved (layer mean
 
 | Board | Model | Part | Old [s] | New [s] | Change [%] | Class | Rules |
 | :-- | :-- | :-- | --: | --: | --: | :-- | :-- |
-| example_board | analytic | U1 | 13.4748 | 12.8153 | -4.89 | unexplained |  |
-| example_board | analytic | U2 | 2.6305 | 2.5433 | -3.31 | unexplained |  |
-| example_board | fdm | U1 | 11.2772 | 11.2772 | -0.00 | unexplained |  |
-| example_board | fdm | U2 | 3.0990 | 3.0990 | -0.00 | unexplained |  |
-| example_board | fvm | U1 | 10.8637 | 10.8637 | +0.00 | unexplained |  |
-| example_board | fvm | U2 | 2.7605 | 2.7605 | +0.00 | unexplained |  |
-| example_cut_to_T | fdm | U1 | 16.7030 | 16.7030 | -0.00 | unexplained |  |
-| example_cut_to_T | fdm | U2 | 4.9388 | 4.9388 | -0.00 | unexplained |  |
-| example_cut_to_T | fvm | U1 | 15.9857 | 15.9857 | -0.00 | unexplained |  |
-| example_cut_to_T | fvm | U2 | 4.3589 | 4.3589 | -0.00 | unexplained |  |
-| finned_block | fdm | U | 15.3284 | 15.3284 | +0.00 | unexplained |  |
-| finned_block | fvm | U | 15.3320 | 15.3320 | -0.00 | unexplained |  |
-| hatched_copper | analytic | U | 19.4714 | 18.5393 | -4.79 | unexplained |  |
-| hatched_copper | fdm | U | 17.9890 | 17.9890 | -0.00 | unexplained |  |
-| hatched_copper | fvm | U | 17.9857 | 17.9857 | -0.00 | unexplained |  |
-| one_layer_full | fdm | U | 20.8406 | 20.8406 | -0.00 | unexplained |  |
-| one_layer_full | fvm | U | 20.8406 | 20.8406 | +0.00 | unexplained |  |
-| one_layer_pad | fdm | U | 56.1597 | 56.1597 | -0.00 | unexplained |  |
-| one_layer_pad | fvm | U | 58.8103 | 58.8103 | -0.00 | unexplained |  |
-| part_across_outline | fdm | U | 33.1631 | 33.1631 | +0.00 | unexplained |  |
-| part_across_outline | fvm | U | 33.5005 | 33.5005 | +0.00 | unexplained |  |
-| part_top_path | analytic | Q1 | 21.9811 | 19.3044 | -12.18 | unexplained |  |
-| part_top_path | fdm | Q1 | 19.3681 | 19.3681 | +0.00 | unexplained |  |
-| part_top_path | fvm | Q1 | 14.5268 | 14.5268 | -0.00 | unexplained |  |
-| plate_lone_via | analytic | U | 22.8408 | 20.8911 | -8.54 | unexplained |  |
-| plate_lone_via | fdm | U | 21.9850 | 21.9850 | +0.00 | unexplained |  |
-| plate_lone_via | fvm | U | 20.2503 | 20.2503 | +0.00 | unexplained |  |
-| plate_pad | fdm | U | 57.6310 | 57.6310 | -0.00 | unexplained |  |
-| plate_pad | fvm | U | 59.7302 | 59.7302 | +0.00 | unexplained |  |
-| plate_uniform | fdm | U | 19.1123 | 19.1123 | -0.00 | unexplained |  |
-| plate_uniform | fvm | U | 19.1123 | 19.1123 | +0.00 | unexplained |  |
-| plate_vias | analytic | U | 33.6380 | 31.0111 | -7.81 | unexplained |  |
-| plate_vias | fdm | U | 33.4684 | 33.4684 | +0.00 | unexplained |  |
-| plate_vias | fvm | U | 29.6669 | 29.6669 | +0.00 | unexplained |  |
-| plate_vias | lumped | U | 27.8278 | 31.0003 | +11.40 | unexplained |  |
-| profile_board | analytic | U1 | 13.4748 | 12.8153 | -4.89 | unexplained |  |
-| profile_board | analytic | U2 | 2.6305 | 2.5433 | -3.31 | unexplained |  |
-| profile_board | fdm | U1 | 11.2772 | 11.2772 | -0.00 | unexplained |  |
-| profile_board | fdm | U2 | 3.0990 | 3.0990 | -0.00 | unexplained |  |
-| profile_board | fvm | U1 | 10.8637 | 10.8637 | +0.00 | unexplained |  |
-| profile_board | fvm | U2 | 2.7605 | 2.7605 | +0.00 | unexplained |  |
-| reference_board | analytic | Heater 1 | 19.1150 | 18.8353 | -1.46 | unexplained |  |
-| reference_board | fdm | Heater 1 | 18.7409 | 18.7409 | -0.00 | unexplained |  |
-| reference_board | fvm | Heater 1 | 18.7405 | 18.7405 | -0.00 | unexplained |  |
-| round_outline | fdm | U | 38.8765 | 38.8765 | -0.00 | unexplained |  |
-| round_outline | fvm | U | 38.8743 | 38.8743 | -0.00 | unexplained |  |
-| t_outline | fdm | U | 48.6881 | 48.6881 | -0.00 | unexplained |  |
-| t_outline | fvm | U | 48.3950 | 48.3950 | +0.00 | unexplained |  |
-| two_layer_partial | analytic | U | 20.5633 | 19.5975 | -4.70 | unexplained |  |
-| two_layer_partial | fdm | U | 24.0260 | 24.0260 | -0.00 | unexplained |  |
-| two_layer_partial | fvm | U | 24.5317 | 24.5317 | +0.00 | unexplained |  |
+| example_board | analytic | U1 | 13.4748 | 12.8153 | -4.89 | expected | U3 |
+| example_board | analytic | U2 | 2.6305 | 2.5433 | -3.31 | expected | U3 |
+| example_board | fdm | U1 | 11.2772 | 11.2772 | -0.00 | expected | U2 |
+| example_board | fdm | U2 | 3.0990 | 3.0990 | -0.00 | expected | U2 |
+| example_board | fvm | U1 | 10.8637 | 10.8637 | +0.00 | expected | U2 |
+| example_board | fvm | U2 | 2.7605 | 2.7605 | +0.00 | expected | U2 |
+| example_cut_to_T | fdm | U1 | 16.7030 | 16.7030 | -0.00 | expected | U2 |
+| example_cut_to_T | fdm | U2 | 4.9388 | 4.9388 | -0.00 | expected | U2 |
+| example_cut_to_T | fvm | U1 | 15.9857 | 15.9945 | +0.06 | expected | U2 |
+| example_cut_to_T | fvm | U2 | 4.3589 | 4.3589 | -0.00 | expected | U2 |
+| finned_block | fdm | U | 15.3284 | 15.3284 | +0.00 | expected | U2 |
+| finned_block | fvm | U | 15.3320 | 15.3320 | -0.00 | expected | U2 |
+| hatched_copper | analytic | U | 19.4714 | 18.5393 | -4.79 | expected | U3 |
+| hatched_copper | fdm | U | 17.9890 | 17.9890 | -0.00 | expected | U2 |
+| hatched_copper | fvm | U | 17.9857 | 17.9857 | -0.00 | expected | U2 |
+| one_layer_full | fdm | U | 20.8406 | 20.8406 | -0.00 | expected | U2 |
+| one_layer_full | fvm | U | 20.8406 | 20.8406 | +0.00 | expected | U2 |
+| one_layer_pad | fdm | U | 56.1597 | 56.1597 | -0.00 | expected | U2 |
+| one_layer_pad | fvm | U | 58.8103 | 58.8103 | -0.00 | expected | U2 |
+| part_across_outline | fdm | U | 33.1631 | 33.1631 | +0.00 | expected | U2 |
+| part_across_outline | fvm | U | 33.5005 | 33.5005 | +0.00 | expected | U2 |
+| part_top_path | analytic | Q1 | 21.9811 | 19.3044 | -12.18 | expected | U3 |
+| part_top_path | fdm | Q1 | 19.3681 | 19.3681 | +0.00 | expected | U2 |
+| part_top_path | fvm | Q1 | 14.5268 | 14.5268 | -0.00 | expected | U2 |
+| plate_lone_via | analytic | U | 22.8408 | 20.8911 | -8.54 | expected | U3 |
+| plate_lone_via | fdm | U | 21.9850 | 21.9850 | +0.00 | expected | U2 |
+| plate_lone_via | fvm | U | 20.2503 | 20.2503 | +0.00 | expected | U2 |
+| plate_pad | fdm | U | 57.6310 | 57.6310 | -0.00 | expected | U2 |
+| plate_pad | fvm | U | 59.7302 | 59.7302 | +0.00 | expected | U2 |
+| plate_uniform | fdm | U | 19.1123 | 19.1123 | -0.00 | expected | U2 |
+| plate_uniform | fvm | U | 19.1123 | 19.1123 | +0.00 | expected | U2 |
+| plate_vias | analytic | U | 33.6380 | 31.0111 | -7.81 | expected | U3 |
+| plate_vias | fdm | U | 33.4684 | 33.4684 | +0.00 | expected | U2 |
+| plate_vias | fvm | U | 29.6669 | 29.6669 | +0.00 | expected | U2 |
+| plate_vias | lumped | U | 27.8278 | 31.0003 | +11.40 | expected | U4 |
+| profile_board | analytic | U1 | 13.4748 | 12.8153 | -4.89 | expected | U3 |
+| profile_board | analytic | U2 | 2.6305 | 2.5433 | -3.31 | expected | U3 |
+| profile_board | fdm | U1 | 11.2772 | 11.2772 | -0.00 | expected | U2 |
+| profile_board | fdm | U2 | 3.0990 | 3.0990 | -0.00 | expected | U2 |
+| profile_board | fvm | U1 | 10.8637 | 10.8637 | +0.00 | expected | U2 |
+| profile_board | fvm | U2 | 2.7605 | 2.7605 | +0.00 | expected | U2 |
+| reference_board | analytic | Heater 1 | 19.1150 | 18.8353 | -1.46 | expected | U3 |
+| reference_board | fdm | Heater 1 | 18.7409 | 18.7409 | -0.00 | expected | U2 |
+| reference_board | fvm | Heater 1 | 18.7405 | 18.7405 | -0.00 | expected | U2 |
+| round_outline | fdm | U | 38.8765 | 38.8765 | -0.00 | expected | U2 |
+| round_outline | fvm | U | 38.8743 | 38.8743 | -0.00 | expected | U2 |
+| t_outline | fdm | U | 48.6881 | 48.6881 | -0.00 | expected | U2 |
+| t_outline | fvm | U | 48.3950 | 48.3950 | +0.00 | expected | U2 |
+| two_layer_partial | analytic | U | 20.5633 | 19.5975 | -4.70 | expected | U3 |
+| two_layer_partial | fdm | U | 24.0260 | 24.0260 | -0.00 | expected | U2 |
+| two_layer_partial | fvm | U | 24.5317 | 24.5317 | +0.00 | expected | U2 |
 
 51 of 68 times changed; 17 are identical.
 
@@ -637,38 +511,40 @@ Records where the hottest point is the same but another number moved (layer mean
 
 ### Figure
 
-![shift of the hottest point](../research/release-regression-245/figures/fig_07_version_shift_v2.4.5_vs_develop_tip.png)
+![shift of the hottest point](../research/release-regression-245/figures/fig_12_version_shift_v2.4.5_vs_v2.5.0.png)
 
-*Figure 07 (`figures/fig_07_version_shift_v2.4.5_vs_develop_tip.png`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below 0.01 K.*
+*Figure 12 (`figures/fig_12_version_shift_v2.4.5_vs_v2.5.0.png`): the shift of the hottest point of every record that moved, per board and model, one panel per cell size; symmetric-log axis, linear below 0.01 K.*
 
 ## Results of v2.4.5 against v2.4.4
 
 Environment of the new set: {'python': '3.13.5', 'numpy': '2.5.4', 'scipy': '1.18.1', 'platform': 'macOS-27.2-arm64-arm-64bit-Mach-O', 'machine': 'arm64'}. Cells in the sets: [2.0, 1.0, 0.5] mm.
 
-Records compared: 251 (skipped or failed in both: 4). Bit-identical in every number (status ok in both): 127, of which 113 also have the same warning texts. Hottest point moved: 113. Alarms (unexplained, must-not-move, out of range): 0.
+Records compared: 251 (skipped or failed in both: 4). Bit-identical in every number (status ok in both): 127, of which 113 also have the same warning texts. Hottest point moved: 113. Alarms: not applicable, the pair has no table.
 
-| Class of the shifted numbers (all metrics) | Count |
-| :-- | --: |
-| expected | 1422 |
-| expected_out_of_range | 0 |
-| to_be_explained | 0 |
-| unexplained | 0 |
-| must_not_move | 0 |
-| warnings_only | 14 |
+No table of expected shifts exists for this pair, so the shifts are not classified automatically; the notes below name the items that explain them, or say unexplained.
 
-### Items of the release
+<details><summary>CHANGELOG section of the later version (verbatim)</summary>
 
-| Item | What |
-| :-- | :-- |
-| I1 | Part across the board outline |
-| I2 | Board cover sampled 8 x 8 |
-| I3 | Laminate nodes for patterned copper |
-| I4 | Vias converge with the cell (point via) and block SOR |
-| I5 | Constriction of the heat on a via in the Lumped and Analytic models |
-| I6 | SOR relaxation factor (Young omega) |
-| I7 | Warnings only |
-| I8 | Documents, docstrings, theory |
-| I9 | Power Calculator row of the CSD17308Q3 |
+> ## [2.4.5] - 2026-11-01
+> 
+> ### Fixed
+> - **Warnings of the limits of the models** (`fix/model-limit-warnings`; text only, no temperature changes): (1) the Analytic copper-spread warning now also tests the spread of the copper fill with the fin length of the layer taken as full copper (the larger of the two spreads above 0.25 warns), so that the thin-gap boards where the first test was silent are caught, and its text gives the measured range (76 % too cool to 9 % too hot, up to 1.8 times between one and two layers); on the 119 boards of `research/analytic-partial-copper` 9.4 it warns on 70 and is silent on 49, and no silent board is beyond 5 % error; (2) a part whose centre sits on bare laminate (the smallest copper fill in the central half of the footprint below 0.5) warns that the layered models (FVM, FDM, Lumped, Analytic) read lower than a resolved 3D solution (`research/bare-spot-under-source`, P3); it fires in 26 of 26 study cases at 0.5, 1 and 2 mm and is silent on full copper; (3) in the Lumped model, a part with vias under its footprint warns about the error of the via effect, and one aggregated message covers all the vias outside every footprint (the numbers of both texts are those measured after the constriction of the next entries, *Vias in the Lumped and Analytic models*; the figures of the first version of this warning, up to 72 % and 290 %, belonged to the Lumped model before that change). New `checks.check_model_limits`, called by `api.simulate`. The coarse-cell via warning came with `fix/point-via` (*Via warnings* below); not done: the live wiring of these checks in the application (they appear in the summary after Run).
+> - **One factorisation for the solves of the top-path split** (`fix/top-path-speed`; speed only, the same temperatures bit for bit): with fixed face coefficients the top-path split and the power-coefficient loop solve the same board matrix with other powers, and the FVM and FDM direct solve now factorises it once and reuses the LU (`fvm.factor_reuse`, `fvm.direct_solve`; one LU kept at a time and released after the loop, so the peak memory is that of one solve). MOSFET on an 8 mm pad, manual h, FVM 0.5 mm: 6 factorisations to 1, 4.9 to 0.7 s of CPU; two parts with top paths and a power coefficient on the example board at 1 mm: 42 to 1, 15.4 to 1.4 s. With computed coefficients the matrix changes at every Picard step and nothing is reused (25 factorisations, unchanged). Tests: `tests/test_top_path.py`.
+> - **Laminate nodes for patterned copper** (`fix/laminate-nodes`; `docs/theory.md` 1.4, `docs/validation.md` 21.2): in the FVM and FDM a gap between two copper nodes is cut into sub-gaps of at most 0.4 mm (at most 4) in the cells where copper is absent next to it plus a margin, and the path through the gap and the temperature of a part read at its face account for the laminate that replaces absent copper. Against a resolved 3D reference the FVM error of a 6 mm window falls from -18.44 to -3.07 % (1.6 mm laminate) and from -34.19 to -9.13 % (3.2 mm), a 10 mm pad on a one-layer board from -4.08 to -1.80 %. Boards with copper in every cell are unchanged (except one-layer boards). Cost: 2.5 times the unknowns on a 2-layer board at 0.5 mm (64 000 to 160 000), about 7 GB per million, and time: the direct solve of a 2-layer board takes 0.1 to 1.5 s at 0.5 mm and 0.9 to 21.4 s at 0.25 mm, a 4-layer board at 0.25 mm 6.8 to 66 s (table in `docs/validation.md` 21.2); the solver panel says "slow" above 500 000 unknowns. The FVM peak of a part on bare laminate is the face value (straddling a copper edge 143.89 to 148.98 degC at 1 mm; the board field reads 146.64). The CSD17308Q3 row of the Power Calculator moves from 0.983 W to 0.968 W. The SOR relaxes each plan column as a block. Lumped, Analytic and boards with a metal block are not changed.
+> - **Vias in the Lumped and Analytic models** (`fix/via-constriction`; `docs/theory.md` 1.5, 5.1 and 6.1): both models carry an area mean (a ring, a tile) and joined the planes through the barrel conductance alone, so the via effect was overstated by 35 to 60 % (copper-fill gain of the example board 6.3 to 6.8 K against 4.2 K of the FVM). The heat converging on a barrel now meets its constriction resistance (Krogh cell): in the Lumped model a well per plane in series with the barrel of every ring, with a macro term for groups of vias and couplings between all planes; in the Analytic model 1 mm tiles at most, a lone via shared among four tiles and a self-term on the tile response (dense system kept to 4800 unknowns). Example board copper-fill gain: FVM 4.19, Lumped 4.48, Analytic 4.27 at 0.5 mm, 3D solid 4.49 at 1 mm. Error of the via effect against the FVM on 29 study boards: Analytic mean 20 to 1.8 %, Lumped 33 to 8 %; on 17 boards not used to build it Analytic 2.9 % (-14 to +8 %), Lumped 20 % (-21 to +80 %). Boards without vias do not change. The warnings of the two models were rewritten with the new numbers; the Analytic also warns for a coarsened tile, a pitch under 0.45 mm, more than 2400 unknowns and one or two vias.
+> - **SOR relaxation factor** (`fix/sor-omega`; speed only): the automatic omega of the SOR was the optimum of a plate with fixed edge temperature, `2/(1 + sin(pi/n))`, and a board with insulated edges that loses heat through its faces needs a larger one (the program was 2.8 to 19 times slower than necessary, and a 1 x 1 board diverged). It is now the Rayleigh-quotient estimate of Young's optimum on the full matrix, restricted to the nodes that have a link, capped at 1.999 and always on the safe side (`fvm.Network.sor_omega`). Same temperatures; the example board needs 676 sweeps at 1 mm (2197 before) and 364 at 2 mm (1054 before), the five boards of `docs/validation.md` section 5 2.1 to 4.8 times fewer. With uneven losses or partial copper the omega stays 1.1 to 2 times above the best.
+> - **Vias converge with the cell** (`fix/point-via`, FVM and FDM; investigation `research/point-via-convergence`): the barrel was added to the vertical conductance of the one cell (node) that holds the via centre, and a point source in a five-point stencil acts like a hole of radius 0.1985 dx, so below about 0.5 mm the via over-constricted and the copper-fill gain of a via array drifted (3 x 3 board: -4.78 to -3.34 K from 1 to 0.0625 mm against -4.51 K resolved) while the FDM was 2 to 3 % low. Now the barrel is reached through the weighted mean temperature of a footprint of cells (nodes) restricted to the board and a Peaceman well, with the radius to reproduce set to 0.78 of the via radius; the barrel nodes are eliminated into couplings added to the matrix (`viawell.py`, no new unknown). The gain of the 3 x 3 board is -4.500 / -4.466 / -4.492 K (FVM) and -4.415 / -4.511 / -4.489 K (FDM) at 1 / 0.5 / 0.25 mm (reference -4.51 K). Boards without vias do not change; with vias the example board at 1 mm moves from 85.81 to 85.23 degC (FVM) and from 84.38 to 85.13 degC (FDM). **3D solid**: one footprint rule for every via (an open and a copper-filled via were different models at some cells). The Lumped keeps the point conductance of the via cell.
+> - **SOR with vias** (`fix/point-via`, block SOR): the cells of the footprint of a via are coupled by dense blocks that the six-neighbour red-black update did not see (it iterated another matrix, 19 to 22 K from the direct solver on the 3 x 3 board). After the two colours each group of via blocks that the matrix does not couple is solved exactly and relaxed with the same omega (greedy colouring; same temperatures as the direct solver within 1e-8 K, not more sweeps than the board without vias). A block over 5000 unknowns is not inverted: the direct solver is used and the result says *SOR not used*.
+> - **A via with no board under it is ignored** (`fix/point-via`): a via whose drill disc has no board under it (tested with the centre plus 6 rings of 24 samples, `geometry.discs_board_share`) is no longer moved to the nearest board cell; every model ignores it, also the Lumped and Analytic transients and power profiles. A via outside the box of a rectangular board is ignored too, as the warning already said, and two warnings say it (outside the outline and ignored; more than half outside, the models still count its whole barrel on the part that is on the board). On the T preset at 1 mm (FVM / FDM / 3D solid) the hottest point is 106.809 / 105.938 / 107.788 degC (it was 104.884 / 104.908 / 107.788); a via with its centre on the re-entrant edge and half its disc on the board changes the result by 0.75 K in the FVM and 0.85 K in the 3D solid. The example board is unchanged (85.2335 / 85.1260 / 86.6277 / 85.1021 / 85.9751 degC in FVM / FDM / Lumped / Analytic / 3D solid). The live input check takes 0.19 s with 2000 vias and a 400-vertex outline (it was 7.9 s).
+> - **Via warnings** (text only): a via within one cell of the board edge (the lattice kernel has no image of the edge; effect 12 to 15 % too large at a 1 mm cell) and a cell of 2 mm or more next to vias (the drop they cause is uncertain by 3 to 4 % at 2 mm and 5 to 50 % at 3 to 4 mm); `checks.check_via_limits`. These and the Lumped via warnings are silent on a one-layer board, whose vias join no gap and change no model.
+> - **Part across the board outline**: a part that crossed the outline heated each cut cell with the power density of the whole cell (FVM, FDM, 3D solid), up to 4 K too hot on the example board cut to a T at 1 to 0.5 mm and up to 16 K in an edge-shift sweep on a small T. Now each cell gets the share that is both in the part and on the board, consistent with the cell's board cover (`geometry.part_weights`). The mean, minimum and ring temperatures under parts and zones (and the mean and ring points of the Power Calculator) no longer count the cells off the board, which read the ambient: a zone on a T board showed a minimum of 25 degC, and the mean under a small T part read 191.3 instead of 223.4 degC at 0.5 mm. The 3D solid samples footprints 8 x 8 like the FVM, and the board cover of an outline is now sampled 8 x 8 as well (`geometry.BOARD_SAMPLES`, one constant for `Board.cover`, the part weights and the FDM node cover; it was 4 x 4), so the weight of a cut cell is exactly the share of the cell that is in the part and on the board. The edge-shift scatter of a small T at 1 mm falls from 2.95 to 1.47 K (FVM) and from 3.23 to 1.56 K (3D solid); the result is smoother when an edge moves across the grid, not more accurate (a mean bias of +1.4 K at 1 mm remains and some edge positions are up to 1 K worse). The hottest point of the example board cut to a T moves by 0.02 K at most. A large outline is sampled in full only in the cells an edge touches (bit-identical, 30 to 60 times cheaper on fine grids). In the FDM the part of a footprint that was off the board used to be spread over the edge nodes; it is now weighted by the part on the board. On the part-across-outline board the FDM hot spot moves -16.2 / -21.8 / -5.7 K at 2 / 1 / 0.5 mm (252.03 -> 230.23 degC at 1 mm), the FVM -1.7 / -13.7 / -3.7 K and the 3D solid -1.7 / -14.1 / -3.8 K; before the three models spread 231.7 to 252.0 degC, now they agree within 1.4 K, and against the independent layered reference (0.2 mm cells, isotropic) all are within 0.6 % of the 214.64 K rise (before: FDM +8.5 / +10.9 / +2.6 %, FVM up to +7 %). In the Lumped and Analytic models the temperature field, the hottest point and the junction temperatures are unchanged (bit-identical); on a board with an outline the mean under a part is now read on the board only (8 x 8 cover) and moves by up to 2 K in the Analytic (1 % of the rise; -1.9 K for a part across the edge at 0.5 mm). Boards without an outline are unchanged in every model. In the 3D solid a board whose outline is slanted or curved loses 2 to 5 % of its side conductance at edge coefficients of 1000 W/m2K and more (limit A3 of research/rotated-square-3d; the 8 x 8 cover counts more slivers): a 20 mm square turned 45 degrees at h_side 2000 reads 1.5 K further above the aligned square at 1 mm (+6.75 -> +8.22 K; 0.47 K of it comes from the part across the outline, 1.0 K from the 8 x 8 cover), 0.3 K at 0.5 mm; at the default h_side 10 W/m2K a turned board stays within 0.3 K of the aligned one.
+> 
+> ### Documentation
+> - A frozen-numbers regression test in `tests/regression/`: the five models on 17 regression boards at 2 mm and the times to 63 % against the reference numbers of 2.4.5 (`data/v2.4.5.json`), one tolerance policy; the 2, 1 and 0.5 mm sets are run at the release. Tests only; no program number changes.
+> - `docs/theory.md` rewritten for the models as implemented (one structure per model, sources by key with their reading status, no history: the numbers it quoted are in `docs/validation.md` 25 and the history in `docs/versions.md`).
+> - The numbers of `docs/validation.md`, `docs/calculators.md` and the research folders re-run on the 2.4.5 program (`research/reproduction-245`, and the final review): the comparison with the 3D solids (sections 3 and 3.1: the FVM is now 0.1 to 0.7 % from the finite-element solid on the four boards, +2.9 % on a one-sided heater-sized pad, where it was 0.4 to 2.2 % and −4.9 %), the parts and the top path (section 9, 0.1 to 1.2 K), the example board cut to a T (section 23) and the JEDEC row of the Power Calculator (+3.0 to +3.9 %).
+
+</details>
 
 ### Notes: what was implemented and why the numbers moved
 
@@ -703,119 +579,119 @@ The shift in percent is relative to the rise of the old hottest point over the a
 
 | Board | Model | Cell [mm] | Tmax old [degC] | Tmax new [degC] | Shift [K] | Shift [% of old rise] | Class | Item of the release |
 | :-- | :-- | --: | --: | --: | --: | --: | :-- | :-- |
-| example_board | analytic | 2 | 84.6522 | 85.1021 | +0.4498 | +0.75 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_board | fdm | 2 | 84.6643 | 84.2657 | -0.3986 | -0.67 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| example_board | fvm | 2 | 85.3423 | 85.0746 | -0.2676 | -0.44 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| example_board | lumped | 2 | 84.6586 | 86.6277 | +1.9691 | +3.30 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_cut_to_T | analytic | 2 | 91.3379 | 91.9041 | +0.5662 | +0.85 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_cut_to_T | fdm | 2 | 93.6862 | 93.7156 | +0.0294 | +0.04 | expected | I3 Laminate nodes for patterned copper; I4 Vias converge with the cell (point via) and block SOR |
-| example_cut_to_T | fvm | 2 | 93.9936 | 94.4545 | +0.4609 | +0.67 | expected | I3 Laminate nodes for patterned copper; I2 Board cover sampled 8 x 8; I4 Vias converge with the cell (point via) and block SOR |
-| example_cut_to_T | lumped | 2 | 91.3742 | 93.1443 | +1.7701 | +2.67 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| hatched_copper | fdm | 2 | 111.4265 | 112.0085 | +0.5820 | +0.67 | expected | I3 Laminate nodes for patterned copper |
-| hatched_copper | fvm | 2 | 111.4244 | 112.0050 | +0.5806 | +0.67 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_full | fdm | 2 | 55.3611 | 55.3551 | -0.0060 | -0.02 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_full | fvm | 2 | 55.3611 | 55.3551 | -0.0060 | -0.02 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_pad | fdm | 2 | 81.0749 | 81.1920 | +0.1171 | +0.21 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_pad | fvm | 2 | 94.3139 | 95.5649 | +1.2510 | +1.80 | expected | I3 Laminate nodes for patterned copper |
-| part_across_outline | fdm | 2 | 246.7576 | 230.5204 | -16.2372 | -7.32 | expected | I1 Part across the board outline |
-| part_across_outline | fvm | 2 | 231.6459 | 229.9490 | -1.6969 | -0.82 | expected | I1 Part across the board outline; I2 Board cover sampled 8 x 8 |
-| part_across_outline | solid3d | 2 | 232.6448 | 230.9185 | -1.7263 | -0.83 | expected | I1 Part across the board outline; I2 Board cover sampled 8 x 8 |
-| part_top_path | fdm | 2 | 71.3533 | 71.5911 | +0.2379 | +0.51 | expected | I3 Laminate nodes for patterned copper |
-| part_top_path | fvm | 2 | 73.8188 | 74.7096 | +0.8908 | +1.82 | expected | I3 Laminate nodes for patterned copper |
-| plate_lone_via | analytic | 2 | 155.4761 | 152.1101 | -3.3661 | -2.58 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_lone_via | fdm | 2 | 147.9627 | 148.6873 | +0.7246 | +0.59 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_lone_via | fvm | 2 | 152.7777 | 151.5199 | -1.2578 | -0.98 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_lone_via | lumped | 2 | 153.8039 | 154.4795 | +0.6756 | +0.52 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_pad | fdm | 2 | 289.9771 | 291.2924 | +1.3153 | +0.50 | expected | I3 Laminate nodes for patterned copper |
-| plate_pad | fvm | 2 | 345.1313 | 362.6071 | +17.4758 | +5.46 | expected | I3 Laminate nodes for patterned copper |
-| plate_vias | analytic | 2 | 142.2092 | 137.6411 | -4.5681 | -3.90 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_vias | fdm | 2 | 132.6113 | 133.4338 | +0.8225 | +0.76 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_vias | fvm | 2 | 136.7664 | 137.7239 | +0.9576 | +0.86 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_vias | lumped | 2 | 138.0602 | 140.3555 | +2.2953 | +2.03 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| profile_board | analytic | 2 | 84.6522 | 85.1021 | +0.4498 | +0.75 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| profile_board | fdm | 2 | 84.6643 | 84.2657 | -0.3986 | -0.67 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| profile_board | fvm | 2 | 85.3423 | 85.0746 | -0.2676 | -0.44 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| profile_board | lumped | 2 | 84.6586 | 86.6277 | +1.9691 | +3.30 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| round_outline | fvm | 2 | 174.9731 | 174.9929 | +0.0198 | +0.01 | expected | I2 Board cover sampled 8 x 8 |
-| round_outline | solid3d | 2 | 175.7021 | 175.7478 | +0.0457 | +0.03 | expected | I2 Board cover sampled 8 x 8 |
-| two_layer_partial | fdm | 2 | 159.0593 | 159.6119 | +0.5526 | +0.41 | expected | I3 Laminate nodes for patterned copper |
-| two_layer_partial | fvm | 2 | 161.2585 | 162.6181 | +1.3596 | +1.00 | expected | I3 Laminate nodes for patterned copper |
-| example_board | analytic | 1 | 84.6522 | 85.1021 | +0.4498 | +0.75 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_board | fdm | 1 | 84.3829 | 85.1260 | +0.7432 | +1.25 | expected | I3 Laminate nodes for patterned copper; I4 Vias converge with the cell (point via) and block SOR |
-| example_board | fvm | 1 | 85.8143 | 85.2335 | -0.5808 | -0.95 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| example_board | lumped | 1 | 84.6586 | 86.6277 | +1.9691 | +3.30 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_cut_to_T | analytic | 1 | 91.3379 | 91.9041 | +0.5662 | +0.85 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_cut_to_T | fdm | 1 | 93.1590 | 94.3333 | +1.1743 | +1.72 | expected | I3 Laminate nodes for patterned copper; I4 Vias converge with the cell (point via) and block SOR |
-| example_cut_to_T | fvm | 1 | 94.6742 | 94.5009 | -0.1733 | -0.25 | expected | I1 Part across the board outline; I2 Board cover sampled 8 x 8; I4 Vias converge with the cell (point via) and block SOR |
-| example_cut_to_T | lumped | 1 | 91.3742 | 93.1443 | +1.7701 | +2.67 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| hatched_copper | fdm | 1 | 111.6499 | 112.2389 | +0.5890 | +0.68 | expected | I3 Laminate nodes for patterned copper |
-| hatched_copper | fvm | 1 | 111.6492 | 112.2367 | +0.5875 | +0.68 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_full | fdm | 1 | 55.4475 | 55.4415 | -0.0061 | -0.02 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_full | fvm | 1 | 55.4475 | 55.4415 | -0.0061 | -0.02 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_pad | fdm | 1 | 85.6770 | 85.9040 | +0.2270 | +0.37 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_pad | fvm | 1 | 92.7492 | 93.7159 | +0.9666 | +1.43 | expected | I3 Laminate nodes for patterned copper |
-| part_across_outline | fdm | 1 | 252.0294 | 230.2339 | -21.7955 | -9.60 | expected | I1 Part across the board outline |
-| part_across_outline | fvm | 1 | 243.7245 | 230.0426 | -13.6819 | -6.26 | expected | I1 Part across the board outline; I2 Board cover sampled 8 x 8 |
-| part_across_outline | solid3d | 1 | 245.2111 | 231.1502 | -14.0610 | -6.39 | expected | I1 Part across the board outline; I2 Board cover sampled 8 x 8 |
-| part_top_path | fdm | 1 | 72.3425 | 72.7044 | +0.3619 | +0.76 | expected | I3 Laminate nodes for patterned copper |
-| part_top_path | fvm | 1 | 73.3252 | 74.0979 | +0.7726 | +1.60 | expected | I3 Laminate nodes for patterned copper |
-| plate_lone_via | analytic | 1 | 155.4761 | 152.1101 | -3.3661 | -2.58 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_lone_via | fdm | 1 | 149.6646 | 149.8734 | +0.2088 | +0.17 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_lone_via | fvm | 1 | 151.8262 | 150.3788 | -1.4474 | -1.14 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_lone_via | lumped | 1 | 153.8039 | 154.4795 | +0.6756 | +0.52 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_pad | fdm | 1 | 312.2633 | 315.2488 | +2.9854 | +1.04 | expected | I3 Laminate nodes for patterned copper |
-| plate_pad | fvm | 1 | 341.7945 | 353.3838 | +11.5893 | +3.66 | expected | I3 Laminate nodes for patterned copper |
-| plate_vias | analytic | 1 | 142.2092 | 137.6411 | -4.5681 | -3.90 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_vias | fdm | 1 | 136.8845 | 137.2392 | +0.3547 | +0.32 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_vias | fvm | 1 | 135.2454 | 135.6061 | +0.3607 | +0.33 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_vias | lumped | 1 | 138.0602 | 140.3555 | +2.2953 | +2.03 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| profile_board | analytic | 1 | 84.6522 | 85.1021 | +0.4498 | +0.75 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| profile_board | fdm | 1 | 84.3829 | 85.1260 | +0.7432 | +1.25 | expected | I3 Laminate nodes for patterned copper; I4 Vias converge with the cell (point via) and block SOR |
-| profile_board | fvm | 1 | 85.8143 | 85.2335 | -0.5808 | -0.95 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| profile_board | lumped | 1 | 84.6586 | 86.6277 | +1.9691 | +3.30 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| round_outline | fvm | 1 | 175.4392 | 175.4300 | -0.0092 | -0.01 | expected | I2 Board cover sampled 8 x 8 |
-| round_outline | solid3d | 1 | 176.1642 | 176.1768 | +0.0127 | +0.01 | expected | I2 Board cover sampled 8 x 8 |
-| two_layer_partial | fdm | 1 | 160.5649 | 161.3952 | +0.8303 | +0.61 | expected | I3 Laminate nodes for patterned copper |
-| two_layer_partial | fvm | 1 | 162.1087 | 163.4703 | +1.3616 | +0.99 | expected | I3 Laminate nodes for patterned copper |
-| example_board | analytic | 0.5 | 84.6914 | 85.2167 | +0.5252 | +0.88 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_board | fdm | 0.5 | 85.2200 | 85.1200 | -0.0999 | -0.17 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| example_board | fvm | 0.5 | 85.8744 | 85.1808 | -0.6936 | -1.14 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| example_board | lumped | 0.5 | 83.5399 | 85.4469 | +1.9070 | +3.26 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_cut_to_T | analytic | 0.5 | 91.3442 | 91.9344 | +0.5902 | +0.89 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| example_cut_to_T | fdm | 0.5 | 94.4435 | 94.3409 | -0.1025 | -0.15 | expected | I1 Part across the board outline; I4 Vias converge with the cell (point via) and block SOR |
-| example_cut_to_T | fvm | 0.5 | 94.7762 | 94.4302 | -0.3459 | -0.50 | expected | I1 Part across the board outline; I2 Board cover sampled 8 x 8; I4 Vias converge with the cell (point via) and block SOR |
-| example_cut_to_T | lumped | 0.5 | 91.1313 | 92.9413 | +1.8100 | +2.74 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| hatched_copper | fdm | 0.5 | 111.7070 | 112.2980 | +0.5910 | +0.68 | expected | I3 Laminate nodes for patterned copper |
-| hatched_copper | fvm | 0.5 | 111.7068 | 112.2967 | +0.5899 | +0.68 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_full | fdm | 0.5 | 55.4699 | 55.4638 | -0.0061 | -0.02 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_full | fvm | 0.5 | 55.4699 | 55.4638 | -0.0061 | -0.02 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_pad | fdm | 0.5 | 88.5866 | 88.9805 | +0.3939 | +0.62 | expected | I3 Laminate nodes for patterned copper |
-| one_layer_pad | fvm | 0.5 | 92.1564 | 92.9336 | +0.7773 | +1.16 | expected | I3 Laminate nodes for patterned copper |
-| part_across_outline | fdm | 0.5 | 234.8561 | 229.1729 | -5.6831 | -2.71 | expected | I1 Part across the board outline |
-| part_across_outline | fvm | 0.5 | 232.8846 | 229.1716 | -3.7130 | -1.79 | expected | I1 Part across the board outline; I2 Board cover sampled 8 x 8 |
-| part_across_outline | solid3d | 0.5 | 233.9440 | 230.1227 | -3.8213 | -1.83 | expected | I1 Part across the board outline; I2 Board cover sampled 8 x 8 |
-| part_top_path | fdm | 0.5 | 72.7528 | 73.2427 | +0.4899 | +1.03 | expected | I3 Laminate nodes for patterned copper |
-| part_top_path | fvm | 0.5 | 73.2706 | 73.9654 | +0.6949 | +1.44 | expected | I3 Laminate nodes for patterned copper |
-| plate_lone_via | analytic | 0.5 | 155.7533 | 152.2283 | -3.5250 | -2.70 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_lone_via | fdm | 0.5 | 150.1164 | 150.0614 | -0.0549 | -0.04 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_lone_via | fvm | 0.5 | 150.9823 | 150.2451 | -0.7372 | -0.59 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_lone_via | lumped | 0.5 | 153.7504 | 154.4345 | +0.6842 | +0.53 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_lone_via | solid3d | 0.5 | 151.5025 | 151.3630 | -0.1395 | -0.11 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_pad | fdm | 0.5 | 325.3730 | 330.3285 | +4.9556 | +1.65 | expected | I3 Laminate nodes for patterned copper |
-| plate_pad | fvm | 0.5 | 340.7071 | 349.5995 | +8.8924 | +2.82 | expected | I3 Laminate nodes for patterned copper |
-| plate_vias | analytic | 0.5 | 142.5777 | 137.8125 | -4.7652 | -4.05 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_vias | fdm | 0.5 | 137.2135 | 136.3377 | -0.8758 | -0.78 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_vias | fvm | 0.5 | 136.3506 | 136.2417 | -0.1089 | -0.10 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| plate_vias | lumped | 0.5 | 137.8315 | 140.1495 | +2.3180 | +2.05 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| plate_vias | solid3d | 0.5 | 136.5061 | 136.3589 | -0.1472 | -0.13 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| profile_board | analytic | 0.5 | 84.6914 | 85.2167 | +0.5252 | +0.88 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| profile_board | fdm | 0.5 | 85.2200 | 85.1200 | -0.0999 | -0.17 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| profile_board | fvm | 0.5 | 85.8744 | 85.1808 | -0.6936 | -1.14 | expected | I4 Vias converge with the cell (point via) and block SOR |
-| profile_board | lumped | 0.5 | 83.5399 | 85.4469 | +1.9070 | +3.26 | expected | I5 Constriction of the heat on a via in the Lumped and Analytic models |
-| round_outline | fvm | 0.5 | 175.5455 | 175.5516 | +0.0061 | +0.00 | expected | I2 Board cover sampled 8 x 8 |
-| round_outline | solid3d | 0.5 | 176.2478 | 176.2634 | +0.0156 | +0.01 | expected | I2 Board cover sampled 8 x 8 |
-| two_layer_partial | fdm | 0.5 | 161.2839 | 162.2960 | +1.0121 | +0.74 | expected | I3 Laminate nodes for patterned copper |
-| two_layer_partial | fvm | 0.5 | 162.0783 | 163.3350 | +1.2567 | +0.92 | expected | I3 Laminate nodes for patterned copper |
+| example_board | analytic | 2 | 84.6522 | 85.1021 | +0.4498 | +0.75 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | fdm | 2 | 84.6643 | 84.2657 | -0.3986 | -0.67 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | fvm | 2 | 85.3423 | 85.0746 | -0.2676 | -0.44 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | lumped | 2 | 84.6586 | 86.6277 | +1.9691 | +3.30 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | analytic | 2 | 91.3379 | 91.9041 | +0.5662 | +0.85 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | fdm | 2 | 93.6862 | 93.7156 | +0.0294 | +0.04 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | fvm | 2 | 93.9936 | 94.4545 | +0.4609 | +0.67 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | lumped | 2 | 91.3742 | 93.1443 | +1.7701 | +2.67 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| hatched_copper | fdm | 2 | 111.4265 | 112.0085 | +0.5820 | +0.67 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| hatched_copper | fvm | 2 | 111.4244 | 112.0050 | +0.5806 | +0.67 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_full | fdm | 2 | 55.3611 | 55.3551 | -0.0060 | -0.02 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_full | fvm | 2 | 55.3611 | 55.3551 | -0.0060 | -0.02 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_pad | fdm | 2 | 81.0749 | 81.1920 | +0.1171 | +0.21 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_pad | fvm | 2 | 94.3139 | 95.5649 | +1.2510 | +1.80 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | fdm | 2 | 246.7576 | 230.5204 | -16.2372 | -7.32 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | fvm | 2 | 231.6459 | 229.9490 | -1.6969 | -0.82 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | solid3d | 2 | 232.6448 | 230.9185 | -1.7263 | -0.83 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_top_path | fdm | 2 | 71.3533 | 71.5911 | +0.2379 | +0.51 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_top_path | fvm | 2 | 73.8188 | 74.7096 | +0.8908 | +1.82 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | analytic | 2 | 155.4761 | 152.1101 | -3.3661 | -2.58 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | fdm | 2 | 147.9627 | 148.6873 | +0.7246 | +0.59 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | fvm | 2 | 152.7777 | 151.5199 | -1.2578 | -0.98 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | lumped | 2 | 153.8039 | 154.4795 | +0.6756 | +0.52 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_pad | fdm | 2 | 289.9771 | 291.2924 | +1.3153 | +0.50 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_pad | fvm | 2 | 345.1313 | 362.6071 | +17.4758 | +5.46 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | analytic | 2 | 142.2092 | 137.6411 | -4.5681 | -3.90 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | fdm | 2 | 132.6113 | 133.4338 | +0.8225 | +0.76 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | fvm | 2 | 136.7664 | 137.7239 | +0.9576 | +0.86 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | lumped | 2 | 138.0602 | 140.3555 | +2.2953 | +2.03 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | analytic | 2 | 84.6522 | 85.1021 | +0.4498 | +0.75 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | fdm | 2 | 84.6643 | 84.2657 | -0.3986 | -0.67 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | fvm | 2 | 85.3423 | 85.0746 | -0.2676 | -0.44 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | lumped | 2 | 84.6586 | 86.6277 | +1.9691 | +3.30 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| round_outline | fvm | 2 | 174.9731 | 174.9929 | +0.0198 | +0.01 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| round_outline | solid3d | 2 | 175.7021 | 175.7478 | +0.0457 | +0.03 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| two_layer_partial | fdm | 2 | 159.0593 | 159.6119 | +0.5526 | +0.41 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| two_layer_partial | fvm | 2 | 161.2585 | 162.6181 | +1.3596 | +1.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | analytic | 1 | 84.6522 | 85.1021 | +0.4498 | +0.75 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | fdm | 1 | 84.3829 | 85.1260 | +0.7432 | +1.25 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | fvm | 1 | 85.8143 | 85.2335 | -0.5808 | -0.95 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | lumped | 1 | 84.6586 | 86.6277 | +1.9691 | +3.30 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | analytic | 1 | 91.3379 | 91.9041 | +0.5662 | +0.85 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | fdm | 1 | 93.1590 | 94.3333 | +1.1743 | +1.72 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | fvm | 1 | 94.6742 | 94.5009 | -0.1733 | -0.25 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | lumped | 1 | 91.3742 | 93.1443 | +1.7701 | +2.67 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| hatched_copper | fdm | 1 | 111.6499 | 112.2389 | +0.5890 | +0.68 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| hatched_copper | fvm | 1 | 111.6492 | 112.2367 | +0.5875 | +0.68 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_full | fdm | 1 | 55.4475 | 55.4415 | -0.0061 | -0.02 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_full | fvm | 1 | 55.4475 | 55.4415 | -0.0061 | -0.02 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_pad | fdm | 1 | 85.6770 | 85.9040 | +0.2270 | +0.37 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_pad | fvm | 1 | 92.7492 | 93.7159 | +0.9666 | +1.43 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | fdm | 1 | 252.0294 | 230.2339 | -21.7955 | -9.60 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | fvm | 1 | 243.7245 | 230.0426 | -13.6819 | -6.26 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | solid3d | 1 | 245.2111 | 231.1502 | -14.0610 | -6.39 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_top_path | fdm | 1 | 72.3425 | 72.7044 | +0.3619 | +0.76 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_top_path | fvm | 1 | 73.3252 | 74.0979 | +0.7726 | +1.60 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | analytic | 1 | 155.4761 | 152.1101 | -3.3661 | -2.58 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | fdm | 1 | 149.6646 | 149.8734 | +0.2088 | +0.17 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | fvm | 1 | 151.8262 | 150.3788 | -1.4474 | -1.14 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | lumped | 1 | 153.8039 | 154.4795 | +0.6756 | +0.52 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_pad | fdm | 1 | 312.2633 | 315.2488 | +2.9854 | +1.04 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_pad | fvm | 1 | 341.7945 | 353.3838 | +11.5893 | +3.66 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | analytic | 1 | 142.2092 | 137.6411 | -4.5681 | -3.90 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | fdm | 1 | 136.8845 | 137.2392 | +0.3547 | +0.32 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | fvm | 1 | 135.2454 | 135.6061 | +0.3607 | +0.33 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | lumped | 1 | 138.0602 | 140.3555 | +2.2953 | +2.03 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | analytic | 1 | 84.6522 | 85.1021 | +0.4498 | +0.75 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | fdm | 1 | 84.3829 | 85.1260 | +0.7432 | +1.25 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | fvm | 1 | 85.8143 | 85.2335 | -0.5808 | -0.95 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | lumped | 1 | 84.6586 | 86.6277 | +1.9691 | +3.30 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| round_outline | fvm | 1 | 175.4392 | 175.4300 | -0.0092 | -0.01 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| round_outline | solid3d | 1 | 176.1642 | 176.1768 | +0.0127 | +0.01 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| two_layer_partial | fdm | 1 | 160.5649 | 161.3952 | +0.8303 | +0.61 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| two_layer_partial | fvm | 1 | 162.1087 | 163.4703 | +1.3616 | +0.99 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | analytic | 0.5 | 84.6914 | 85.2167 | +0.5252 | +0.88 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | fdm | 0.5 | 85.2200 | 85.1200 | -0.0999 | -0.17 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | fvm | 0.5 | 85.8744 | 85.1808 | -0.6936 | -1.14 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_board | lumped | 0.5 | 83.5399 | 85.4469 | +1.9070 | +3.26 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | analytic | 0.5 | 91.3442 | 91.9344 | +0.5902 | +0.89 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | fdm | 0.5 | 94.4435 | 94.3409 | -0.1025 | -0.15 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | fvm | 0.5 | 94.7762 | 94.4302 | -0.3459 | -0.50 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| example_cut_to_T | lumped | 0.5 | 91.1313 | 92.9413 | +1.8100 | +2.74 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| hatched_copper | fdm | 0.5 | 111.7070 | 112.2980 | +0.5910 | +0.68 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| hatched_copper | fvm | 0.5 | 111.7068 | 112.2967 | +0.5899 | +0.68 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_full | fdm | 0.5 | 55.4699 | 55.4638 | -0.0061 | -0.02 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_full | fvm | 0.5 | 55.4699 | 55.4638 | -0.0061 | -0.02 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_pad | fdm | 0.5 | 88.5866 | 88.9805 | +0.3939 | +0.62 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| one_layer_pad | fvm | 0.5 | 92.1564 | 92.9336 | +0.7773 | +1.16 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | fdm | 0.5 | 234.8561 | 229.1729 | -5.6831 | -2.71 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | fvm | 0.5 | 232.8846 | 229.1716 | -3.7130 | -1.79 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_across_outline | solid3d | 0.5 | 233.9440 | 230.1227 | -3.8213 | -1.83 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_top_path | fdm | 0.5 | 72.7528 | 73.2427 | +0.4899 | +1.03 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| part_top_path | fvm | 0.5 | 73.2706 | 73.9654 | +0.6949 | +1.44 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | analytic | 0.5 | 155.7533 | 152.2283 | -3.5250 | -2.70 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | fdm | 0.5 | 150.1164 | 150.0614 | -0.0549 | -0.04 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | fvm | 0.5 | 150.9823 | 150.2451 | -0.7372 | -0.59 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | lumped | 0.5 | 153.7504 | 154.4345 | +0.6842 | +0.53 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_lone_via | solid3d | 0.5 | 151.5025 | 151.3630 | -0.1395 | -0.11 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_pad | fdm | 0.5 | 325.3730 | 330.3285 | +4.9556 | +1.65 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_pad | fvm | 0.5 | 340.7071 | 349.5995 | +8.8924 | +2.82 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | analytic | 0.5 | 142.5777 | 137.8125 | -4.7652 | -4.05 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | fdm | 0.5 | 137.2135 | 136.3377 | -0.8758 | -0.78 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | fvm | 0.5 | 136.3506 | 136.2417 | -0.1089 | -0.10 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | lumped | 0.5 | 137.8315 | 140.1495 | +2.3180 | +2.05 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| plate_vias | solid3d | 0.5 | 136.5061 | 136.3589 | -0.1472 | -0.13 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | analytic | 0.5 | 84.6914 | 85.2167 | +0.5252 | +0.88 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | fdm | 0.5 | 85.2200 | 85.1200 | -0.0999 | -0.17 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | fvm | 0.5 | 85.8744 | 85.1808 | -0.6936 | -1.14 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| profile_board | lumped | 0.5 | 83.5399 | 85.4469 | +1.9070 | +3.26 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| round_outline | fvm | 0.5 | 175.5455 | 175.5516 | +0.0061 | +0.00 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| round_outline | solid3d | 0.5 | 176.2478 | 176.2634 | +0.0156 | +0.01 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| two_layer_partial | fdm | 0.5 | 161.2839 | 162.2960 | +1.0121 | +0.74 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
+| two_layer_partial | fvm | 0.5 | 162.0783 | 163.3350 | +1.2567 | +0.92 | not classified | no table of expected shifts for this pair; see the CHANGELOG section below |
 
 Records where the hottest point is the same but another number moved (layer mean, a part, the unknowns, the heat split): 11.
 
@@ -855,47 +731,47 @@ Records where the hottest point is the same but another number moved (layer mean
 
 | Board | Model | Part | Old [s] | New [s] | Change [%] | Class | Rules |
 | :-- | :-- | :-- | --: | --: | --: | :-- | :-- |
-| example_board | analytic | U1 | 13.8892 | 13.4748 | -2.98 | expected | T4 |
-| example_board | fdm | U1 | 10.9038 | 11.2772 | +3.42 | expected | T3, T4 |
-| example_board | fdm | U2 | 3.0994 | 3.0990 | -0.01 | expected | T3, T4 |
-| example_board | fvm | U1 | 10.3965 | 10.8637 | +4.49 | expected | T3, T4 |
-| example_board | fvm | U2 | 2.7592 | 2.7605 | +0.05 | expected | T3, T4 |
-| example_board | lumped | U1 | 10.5410 | 9.1555 | -13.14 | expected | T4 |
-| example_board | lumped | U2 | 2.8736 | 2.8741 | +0.02 | expected | T4 |
-| example_cut_to_T | fdm | U1 | 16.4739 | 16.7030 | +1.39 | expected | T3, T4, T5 |
-| example_cut_to_T | fdm | U2 | 4.9389 | 4.9388 | -0.00 | expected | T3, T4, T5 |
-| example_cut_to_T | fvm | U1 | 16.1301 | 15.9857 | -0.90 | expected | T3, T4, T5 |
-| example_cut_to_T | fvm | U2 | 4.3571 | 4.3589 | +0.04 | expected | T3, T4, T5 |
-| hatched_copper | fdm | U | 18.4665 | 17.9890 | -2.59 | expected | T3 |
-| hatched_copper | fvm | U | 18.4645 | 17.9857 | -2.59 | expected | T3 |
-| one_layer_full | fdm | U | 20.9521 | 20.8406 | -0.53 | expected | T3 |
-| one_layer_full | fvm | U | 20.9521 | 20.8406 | -0.53 | expected | T3 |
-| one_layer_pad | fdm | U | 56.3478 | 56.1597 | -0.33 | expected | T3 |
-| one_layer_pad | fvm | U | 58.6447 | 58.8103 | +0.28 | expected | T3 |
-| part_across_outline | fdm | U | 26.4841 | 33.1631 | +25.22 | expected | T5 |
-| part_across_outline | fvm | U | 32.3216 | 33.5005 | +3.65 | expected | T5 |
-| part_top_path | fdm | Q1 | 20.7524 | 19.3681 | -6.67 | expected | T3 |
-| part_top_path | fvm | Q1 | 16.5867 | 14.5268 | -12.42 | expected | T3 |
-| plate_lone_via | analytic | U | 20.9335 | 22.8408 | +9.11 | expected | T4 |
-| plate_lone_via | fdm | U | 22.4466 | 21.9850 | -2.06 | expected | T4 |
-| plate_lone_via | fvm | U | 19.5283 | 20.2503 | +3.70 | expected | T4 |
-| plate_lone_via | lumped | U | 19.1475 | 18.7980 | -1.83 | expected | T4 |
-| plate_pad | fdm | U | 58.1275 | 57.6310 | -0.85 | expected | T3 |
-| plate_pad | fvm | U | 59.4487 | 59.7302 | +0.47 | expected | T3 |
-| plate_vias | analytic | U | 29.7959 | 33.6380 | +12.89 | expected | T4 |
-| plate_vias | fdm | U | 34.1737 | 33.4684 | -2.06 | expected | T4 |
-| plate_vias | fvm | U | 30.4448 | 29.6669 | -2.56 | expected | T4 |
-| plate_vias | lumped | U | 29.5932 | 27.8278 | -5.97 | expected | T4 |
-| profile_board | analytic | U1 | 13.8892 | 13.4748 | -2.98 | expected | T4 |
-| profile_board | fdm | U1 | 10.9038 | 11.2772 | +3.42 | expected | T3, T4 |
-| profile_board | fdm | U2 | 3.0994 | 3.0990 | -0.01 | expected | T3, T4 |
-| profile_board | fvm | U1 | 10.3965 | 10.8637 | +4.49 | expected | T3, T4 |
-| profile_board | fvm | U2 | 2.7592 | 2.7605 | +0.05 | expected | T3, T4 |
-| profile_board | lumped | U1 | 10.5410 | 9.1555 | -13.14 | expected | T4 |
-| profile_board | lumped | U2 | 2.8736 | 2.8741 | +0.02 | expected | T4 |
-| round_outline | fvm | U | 38.8562 | 38.8743 | +0.05 | expected | T5 |
-| two_layer_partial | fdm | U | 24.5230 | 24.0260 | -2.03 | expected | T3 |
-| two_layer_partial | fvm | U | 24.9649 | 24.5317 | -1.74 | expected | T3 |
+| example_board | analytic | U1 | 13.8892 | 13.4748 | -2.98 | unexplained |  |
+| example_board | fdm | U1 | 10.9038 | 11.2772 | +3.42 | unexplained |  |
+| example_board | fdm | U2 | 3.0994 | 3.0990 | -0.01 | unexplained |  |
+| example_board | fvm | U1 | 10.3965 | 10.8637 | +4.49 | unexplained |  |
+| example_board | fvm | U2 | 2.7592 | 2.7605 | +0.05 | unexplained |  |
+| example_board | lumped | U1 | 10.5410 | 9.1555 | -13.14 | unexplained |  |
+| example_board | lumped | U2 | 2.8736 | 2.8741 | +0.02 | unexplained |  |
+| example_cut_to_T | fdm | U1 | 16.4739 | 16.7030 | +1.39 | unexplained |  |
+| example_cut_to_T | fdm | U2 | 4.9389 | 4.9388 | -0.00 | unexplained |  |
+| example_cut_to_T | fvm | U1 | 16.1301 | 15.9857 | -0.90 | unexplained |  |
+| example_cut_to_T | fvm | U2 | 4.3571 | 4.3589 | +0.04 | unexplained |  |
+| hatched_copper | fdm | U | 18.4665 | 17.9890 | -2.59 | unexplained |  |
+| hatched_copper | fvm | U | 18.4645 | 17.9857 | -2.59 | unexplained |  |
+| one_layer_full | fdm | U | 20.9521 | 20.8406 | -0.53 | unexplained |  |
+| one_layer_full | fvm | U | 20.9521 | 20.8406 | -0.53 | unexplained |  |
+| one_layer_pad | fdm | U | 56.3478 | 56.1597 | -0.33 | unexplained |  |
+| one_layer_pad | fvm | U | 58.6447 | 58.8103 | +0.28 | unexplained |  |
+| part_across_outline | fdm | U | 26.4841 | 33.1631 | +25.22 | unexplained |  |
+| part_across_outline | fvm | U | 32.3216 | 33.5005 | +3.65 | unexplained |  |
+| part_top_path | fdm | Q1 | 20.7524 | 19.3681 | -6.67 | unexplained |  |
+| part_top_path | fvm | Q1 | 16.5867 | 14.5268 | -12.42 | unexplained |  |
+| plate_lone_via | analytic | U | 20.9335 | 22.8408 | +9.11 | unexplained |  |
+| plate_lone_via | fdm | U | 22.4466 | 21.9850 | -2.06 | unexplained |  |
+| plate_lone_via | fvm | U | 19.5283 | 20.2503 | +3.70 | unexplained |  |
+| plate_lone_via | lumped | U | 19.1475 | 18.7980 | -1.83 | unexplained |  |
+| plate_pad | fdm | U | 58.1275 | 57.6310 | -0.85 | unexplained |  |
+| plate_pad | fvm | U | 59.4487 | 59.7302 | +0.47 | unexplained |  |
+| plate_vias | analytic | U | 29.7959 | 33.6380 | +12.89 | unexplained |  |
+| plate_vias | fdm | U | 34.1737 | 33.4684 | -2.06 | unexplained |  |
+| plate_vias | fvm | U | 30.4448 | 29.6669 | -2.56 | unexplained |  |
+| plate_vias | lumped | U | 29.5932 | 27.8278 | -5.97 | unexplained |  |
+| profile_board | analytic | U1 | 13.8892 | 13.4748 | -2.98 | unexplained |  |
+| profile_board | fdm | U1 | 10.9038 | 11.2772 | +3.42 | unexplained |  |
+| profile_board | fdm | U2 | 3.0994 | 3.0990 | -0.01 | unexplained |  |
+| profile_board | fvm | U1 | 10.3965 | 10.8637 | +4.49 | unexplained |  |
+| profile_board | fvm | U2 | 2.7592 | 2.7605 | +0.05 | unexplained |  |
+| profile_board | lumped | U1 | 10.5410 | 9.1555 | -13.14 | unexplained |  |
+| profile_board | lumped | U2 | 2.8736 | 2.8741 | +0.02 | unexplained |  |
+| round_outline | fvm | U | 38.8562 | 38.8743 | +0.05 | unexplained |  |
+| two_layer_partial | fdm | U | 24.5230 | 24.0260 | -2.03 | unexplained |  |
+| two_layer_partial | fvm | U | 24.9649 | 24.5317 | -1.74 | unexplained |  |
 
 41 of 68 times changed; 27 are identical.
 

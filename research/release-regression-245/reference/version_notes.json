@@ -95,7 +95,7 @@
    "Boards no item reaches are bit-identical (reference_board, plate_uniform, finned_block in all five models), as the table requires."
   ]
  },
- "v2.4.5->develop-tip": {
+ "v2.4.5->v2.5.0": {
   "implemented": [
    "Zonal Lumped model (CHANGELOG 'Lumped model: a part over a dense group of vias has two nodes for its footprint', docs/theory.md 5.2): the footprint over a group of two or more vias is split into the core of the vias and the rest, joined by a lateral link, and the Lumped raster is 0.5 mm for such a board. Why: with one node the heat of the rest of the footprint had no way of its own down and sideways; the via effect was off by up to 221 % in the worst cases of the study.",
    "Lumped footprint potentials in blocks (CHANGELOG 'Lumped: footprint potentials of large footprints'): large footprints are summed in k x k blocks instead of a stride that aliased with the row order (the link to the first ring was 4 to 22 % short).",
@@ -105,14 +105,15 @@
    "Symmetric-mode LU for the direct solver: temperatures unchanged except in the last bits of the sums (differences below 1e-11 K); boards with dense via arrays solve 8 to 60 times faster with 3 to 5 times less peak memory (speed and memory, not accuracy).",
    "Imported copper, Gerber reader, parts from the paste layers, project format 2, import window, exposed-pad heat source: no board of the harness has imported copper or an import record, so none of them reaches these 17 boards.",
    "Natural convection form `laminar` is the default of NEW projects only: the harness boards are built by class and keep `general`, so their numbers do not move. The edge coefficient `h_side` is refused above 1e5 W/m2K (a validation, not a number).",
-   "Not in this tree and therefore not in this comparison: the via edge image (`feature/via-edge-image` is not merged into develop)."
+   "Items merged late in the 2.5.0 work, none moves a temperature: the texts of the warnings in plain words (`tests/test_warning_texts_plain.py`); the Solver and Gerber import sections of Preferences; the dark-theme icons of the result toolbar (`tests/test_toolbar_icons.py`); every screenshot of `docs/images` regenerated on the 2.5.0 tree; the imported-copper warning now quotes the measured numbers for the whole RP2040 (Lumped 27 to 42 % and Analytic 17 to 35 % cool).",
+   "Not in 2.5.0 and therefore not in this comparison: the via edge image (`feature/via-edge-image` is not merged into develop)."
   ],
   "reading": [
    "Only the Lumped and the Analytic move, and every shifted number is the one a pending-shift file of the tree holds (section 'Every shifted number against the pending-shift files'): the FVM, FDM and 3D solid keep every number to the last bits.",
    "Lumped: plate_vias -3.90 K at 1 and 2 mm and -3.70 K at 0.5 mm (zonal Lumped), reference_board +0.27 K at 0.5 mm (footprint potentials); time to 63 % of plate_vias 27.83 to 31.00 s.",
    "Analytic: 13 of the 17 boards move by -0.26 to -7.1 K (example board -0.52 K, plate_vias -1.77 K, T outline -4.3 K, part across the outline -7.1 K) and the times to 63 % are 1.5 to 12 % shorter. Cause: the edge heat that the old series left out is now in it (Robin edge). The shifts are larger on small boards and boards with an outline, where the edge is a larger share of the loss.",
    "Last bit: the symmetric LU changes the last bits of the sums in 143 records (differences far below 1e-8 K, the tolerance of the frozen-numbers test); no other number of the FVM, FDM or 3D solid moves.",
-   "The pending files must be folded into the new frozen file at the 2.5.0 refreeze; until then this comparison shows that nothing else moved."
+   "The pending-shift files were folded into the 2.5.0 frozen file (`tests/regression/data/v2.5.0.json`) and deleted at the refreeze; the shifts of this pair are checked against the table `reference/expected_shifts_2.5.0.json`."
   ]
  }
 }
