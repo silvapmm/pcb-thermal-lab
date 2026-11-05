@@ -8,12 +8,12 @@ and (5) writes the measurement that would decide (`docs/measurement-plan.md`). T
 
 **Summary in six lines**
 
-1. Over the Ra of the boards (3e2 to 5e4 on the face, A/P) the program's up face is -7 % to +15 % of Raithby-Hollands (Lienhard 8.37a/b, range 1 < Ra < 1e7, read in the page image: -7 % at 3e2, +1 % at 1e3, +9 % at 1e4, +15 % at 1e5) and its down face is -20 % (Ra 1e3), -10 % (1e4), +1 % (1e5) of the mean Goldstein-Lau law `0.475 Ra^(1/5)` (read on page 8 of Yovanovich and Jafarpur 1993).
-2. The new solver (`lib/mac2d.py`, primitive variables, staggered grid, imports nothing from the program or from the other plate solvers) reproduces the differentially heated cavity of de Vahl Davis to 0.0 / 0.2 / 0.25 % in Nu at Ra 1e3 / 1e4 / 1e5 on uniform grids of 96, 96 and 144 cells (midplane velocities within 0.1 %) it reproduces the numerical strip of Goldstein and Lau (as printed on page 8 of Yovanovich and Jafarpur) within 8 % on the isolated faces at Ra 1e3 and 1e4, and the earlier open-domain solver within 2 to 7 % on the thin plate with both faces hot. **It cannot choose a law**: the two-dimensional steady symmetric flow is not the flow of a board above Ra of about 1e4, and the heat of the cold box is not the open air (section 5).
+1. Over the Ra of the boards (5e2 to 5e5 on the face, A/P, for 40 to 200 mm at 5 to 80 K; 3e2 to 2e4 for most boards at a modest excess) the program's up face is -7 % to +15 % of Raithby-Hollands (Lienhard 8.37a/b, range 1 < Ra < 1e7, read in the page image: -7 % at 3e2, -1 % at 1e3, +9 % at 1e4, +15 % at 1e5; the first version wrote +1 % at 1e3) and its down face is -20 % (Ra 1e3), -10 % (1e4), +1 % (1e5) of the mean Goldstein-Lau law `0.475 Ra^(1/5)` (read on page 8 of Yovanovich and Jafarpur 1993).
+2. The new solver (`lib/mac2d.py`, primitive variables, staggered grid, imports nothing from the program or from the other plate solvers) reproduces the differentially heated cavity of de Vahl Davis (Table V, read by the review in the paper) to 0.0 / 0.2 / 0.25 % of the cavity-mean Nu and 0.1 / 0.4 / 0.5 % of the hot-wall Nu at Ra 1e3 / 1e4 / 1e5 on uniform grids of 96, 96 and 144 cells (midplane velocities within 0.1 %); it reproduces the numerical strip of Goldstein and Lau (as printed on page 8 of Yovanovich and Jafarpur) within 8 % on the isolated faces at Ra 1e3 and 1e4, and the earlier open-domain solver within 2 to 7 % on the thin plate with both faces hot. **It cannot choose a law**: the two-dimensional steady symmetric flow is not the flow of a board above Ra of about 1e4, and the heat of the cold box is not the open air (section 5).
 3. **With the 17 boards of the regression harness** the hottest rise changes by **-0.9 to +1.0 % (mean +0.26 %)** if the program used Raithby-Hollands above and Goldstein-Lau below (-1.7 to +2.9 % without radiation); the two faces nearly cancel (+0.2 to +1.7 % with the face up alone). For the three test boards at 35 K of rise (local heater) the change is at most 0.5 %.
 4. A board with a local heater is blind to the law; a uniform plate with one bright face is not: the ratio of the rise face up to face down is 0.62 for the program, 0.69 for Raithby-Hollands with Goldstein-Lau, 0.66 with Fujii-Imura, 0.52 for Jaffer (section 8): a measurement of one afternoon decides.
 5. Recommendation (INTEGRATION.md): measure first; if one must change before, the pair Raithby-Hollands (up) with the mean Goldstein-Lau (down) rests on equations that were read, costs -0.9 to +1.0 % of the rise, and its acceptance tests are written; otherwise keep the laws and write the limit.
-6. Not verified: de Vahl Davis' numbers are from memory (the solver and the memory agree); the Goldstein-Lau paper was not obtained; no measurement exists.
+6. Not verified: the Goldstein-Lau paper was not obtained; no measurement exists. (The de Vahl Davis numbers, first quoted from memory, were read in the paper by the review: every value agreed; section 12.)
 
 ## 1. The situation
 
@@ -33,10 +33,10 @@ What would answer it: a table of the laws (section 3), an independent numerical 
 | [Lienhard2024] p 437 | Fujii-Imura `0.58 Ra_W^(1/5)` on the width W (water, 2D, 1e6 to 1e11) | R in `research/horizontal-plate-h`, not re-read |
 | Jaffer 2023 | eq. 30 (up) and 56 (down), through `research/horizontal-plate-h/lib/correlations.py` (reviewed there) | R there, not re-read |
 | Lloyd and Moran 1974 | the program's 0.54 | M (via [YovanovichJafarpur1993] p 7: range 2.2e4 to 8e6) |
-| de Vahl Davis 1983 | cavity benchmark: `Nu` 1.118, 2.243, 4.519, 8.800; midplane maxima | **M** (paper not obtained) |
+| de Vahl Davis 1983 (Int. J. Numer. Meth. Fluids 3, 249-264) | Table V, printed p 256 (PDF 8): cavity mean `Nu` 1.118, 2.243, 4.519, 8.800; hot wall `Nu_0` 1.117, 2.238, 4.509, 8.817; midplane maxima `u` 3.649, 16.178, 34.73, 64.63 and `w` 3.697, 19.617, 68.59, 219.36; Table VII p 261: estimated error 0.1, 0.2, 0.3, 1 % | **R** (page images, read by the review from an open course copy; first version M) |
 | Churchill and Chu | vertical forms | R through Lienhard 8.13a/b in earlier folders |
 
-Nothing of a third party is stored here. The correlations were not copied from `research/horizontal-plate-h/lib/correlations.py`: they are imported from it (it is in `develop`).
+Nothing of a third party is stored here. [YovanovichJafarpur1993] is the file `YovanovichJafarpur1993Bounds.pdf` of the local library (the upper and lower bounds paper), not the cuboids paper. The same page 8 also gives, for the face up, the theoretical single-face results summarised by Goldstein and Lau, `C Ra^(1/5)` with `C` 0.560 to 0.688 on `L = A/P` (no range of Ra): at Ra 1e3 that is 2.23 to 2.74, below the program (3.04) and Raithby-Hollands (3.06) by 10 to 27 %. The correlations were not copied from `research/horizontal-plate-h/lib/correlations.py`: they are imported from it (it is in `develop`).
 
 ## 3. The candidate laws
 
@@ -108,17 +108,19 @@ The other two solvers of the repository are stream function and vorticity codes 
 
 ### 4.1 Validation on the published cavity (de Vahl Davis)
 
-`scripts/study_cavity.py`: air, Pr 0.71, square cavity, hot wall on the left, cold on the right, adiabatic top and bottom; mean `Nu` of the hot wall against the benchmark values (M) and the maxima of the velocities on the midplanes.
+`scripts/study_cavity.py`: air, Pr 0.71, square cavity, hot wall on the left, cold on the right, adiabatic top and bottom; mean `Nu` of the hot wall against the benchmark values (Table V, read) and the maxima of the velocities on the midplanes.
 
-| Ra | cells | Nu hot wall | Nu cold wall | de Vahl Davis | error | max u on x = 0.5 (ref) | max v on y = 0.5 (ref) |
-| --: | --: | --: | --: | --: | --: | --: | --: |
-| 1e+03 | 48 | 1.1188 | 1.1188 | 1.118 | +0.07 % | 3.65 (3.649) | 3.70 (3.697) |
-| 1e+03 | 96 | 1.1180 | 1.1180 | 1.118 | +0.00 % | 3.65 (3.649) | 3.70 (3.697) |
-| 1e+04 | 48 | 2.2565 | 2.2565 | 2.243 | +0.60 % | 16.18 (16.178) | 19.64 (19.617) |
-| 1e+04 | 96 | 2.2476 | 2.2476 | 2.243 | +0.20 % | 16.18 (16.178) | 19.63 (19.617) |
-| 1e+05 | 64 | 4.5697 | 4.5697 | 4.519 | +1.12 % | 34.79 (34.73) | 68.50 (68.59) |
-| 1e+05 | 96 | 4.5418 | 4.5418 | 4.519 | +0.50 % | 34.74 (34.73) | 68.65 (68.59) |
-| 1e+05 | 144 | 4.5302 | 4.5302 | 4.519 | +0.25 % | 34.74 (34.73) | 68.66 (68.59) |
+| Ra | cells | Nu hot wall | Nu cold wall | Nu-bar (dVD) | error | Nu_0 hot wall (dVD) | error | max u on x = 0.5 (ref) | max v on y = 0.5 (ref) |
+| --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| 1e+03 | 48 | 1.1188 | 1.1188 | 1.118 | +0.07 % | 1.117 | +0.16 % | 3.65 (3.649) | 3.70 (3.697) |
+| 1e+03 | 96 | 1.1180 | 1.1180 | 1.118 | +0.00 % | 1.117 | +0.09 % | 3.65 (3.649) | 3.70 (3.697) |
+| 1e+04 | 48 | 2.2565 | 2.2565 | 2.243 | +0.60 % | 2.238 | +0.83 % | 16.18 (16.178) | 19.64 (19.617) |
+| 1e+04 | 96 | 2.2476 | 2.2476 | 2.243 | +0.20 % | 2.238 | +0.43 % | 16.18 (16.178) | 19.63 (19.617) |
+| 1e+05 | 64 | 4.5697 | 4.5697 | 4.519 | +1.12 % | 4.509 | +1.35 % | 34.79 (34.73) | 68.50 (68.59) |
+| 1e+05 | 96 | 4.5418 | 4.5418 | 4.519 | +0.50 % | 4.509 | +0.73 % | 34.74 (34.73) | 68.65 (68.59) |
+| 1e+05 | 144 | 4.5302 | 4.5302 | 4.519 | +0.25 % | 4.509 | +0.47 % | 34.74 (34.73) | 68.66 (68.59) |
+
+(Review: the reference columns are Table V of de Vahl Davis, read in the paper; the solver's wall Nusselt number is compared with the cavity mean Nu-bar, as the first version did, and with the hot-wall `Nu_0`, which is the like quantity.)
 
 ![cavity benchmark](figures/fig_05_cavity_benchmark_of_the_new_solver.png)
 
@@ -156,7 +158,7 @@ Regression tests: `tests/test_convection_laws.py` (graded faces, exact conductio
 * **Two codes, both faces hot** (the situation of a thin board): 1.447 / 2.182 (Ra 1e3) and 2.036 / 3.248 (1e4) against 1.412 / 2.296 and 2.075 / 3.501 of the earlier solver: +2.5 / -5.0 % and -1.9 / -7.2 %. Both find the same large effect that the earlier folder reported: **with both faces hot the face up is 44 % (Ra 1e3: 1.447 against 2.563) and 47 % (1e4: 2.036 against 3.859) below the same face alone, and barely grows from Ra 1e3 to 3e3 (1.447, 1.490)**. It is the steady, symmetric two-dimensional flow of a thin plate whose plume is fed by the air of the lower face; whether a board does this in three dimensions is not answered here (boards E and D of the measurement separate it).
 * **Grid and box.** Ra 1e3, fine grid against base: -0.6 % (up) and -0.5 % (down); box twice as large: +0.9 % and +1.0 %. The cold walls change the Nusselt numbers by about 1 % at that Ra, so the box is not what limits the numbers. At Ra 1e4 the box of s = 2 did **not converge** in 400 000 steps (2.166 / 3.372, balance 1.25, +6 % / +4 % of s = 1): the steady symmetric solution is not reached there, as the earlier folder estimated from the local Rayleigh number of the hot layer (about 1700 at 1e4).
 * **Energy balance.** 1.00 at Ra 3e2, 1.05 at 1e3, 1.10 at 3e3, 1.14 to 1.16 at 1e4 (1.25 in the large box): the wall gradients at the singular tip of a zero-thickness plate under-read as Ra grows (the earlier folder found the same on its own closed boxes). **Absolute Nusselt numbers are good to about 5 % up to Ra 1e3 and 15 % at 1e4; the comparisons above stand within those margins.**
-* **Against the program's laws and Raithby-Hollands.** A strip is not a board: the isolated upper face of the strip is 16 % below the program at Ra 1e3 (2.563 against 3.037) and 29 % below at 1e4 (3.859 against 5.400), 16 % and 22 % below Raithby-Hollands (3.064, 4.965); Goldstein and Lau's own strip (0.621 Ra^(1/5)) is 19 % and 21 % below Raithby-Hollands at 1e3 and 1e4 (2.47 against 3.06 and 3.92 against 4.97): a strip has no air drawn in at the ends and a board has, so **the strip says that Raithby-Hollands is the nearer of the two up-face laws at 1e4 and equal at 1e3, and nothing more**. The lower face of the strip is 48 % (1e3) and 25 % (1e4) above the program's law and 19 % and 13 % above the mean Goldstein-Lau law; the strip is the upper end of the shapes (0.524 against the mean 0.475, +10 %), and Jaffer's shape factor accounts for most of the rest, so **the 1/5 law is the right family for the lower face and the program's exponent 1/4 is not, which the numbers of a strip confirm; the coefficient of a board needs its shape**.
+* **Against the program's laws and Raithby-Hollands.** A strip is not a board: the isolated upper face of the strip is 16 % below the program at Ra 1e3 (2.563 against 3.037) and 29 % below at 1e4 (3.859 against 5.400), 16 % and 22 % below Raithby-Hollands (3.064, 4.965); Goldstein and Lau's own strip (0.621 Ra^(1/5)) is 19 % and 21 % below Raithby-Hollands at 1e3 and 1e4 (2.47 against 3.06 and 3.92 against 4.97): a strip has no air drawn in at the ends and a board has, so **the strip says that Raithby-Hollands is the nearer of the two up-face laws at 1e4 and equal at 1e3, and nothing more**. The lower face of the strip is 48 % (1e3) and 25 % (1e4) above the program's law and 19 % and 13 % above the mean Goldstein-Lau law; the strip is the upper end of the shapes (0.524 against the mean 0.475, +10 %), and Jaffer's shape factor accounts for most of the rest, so the 1/5 law is the family of every published lower-face form and the program's exponent 1/4 is not; the coefficient of a board needs its shape. **Review note:** the strip does not add evidence on the exponent of one face against the other: its isolated upper face grows as Ra^0.18 from 1e3 to 1e4 (2.563 to 3.859) just as its lower face does (Ra^0.18, 2.248 to 3.376), so a two-dimensional strip gives a 1/5 slope on both faces (as Goldstein and Lau's 0.621 and 0.524 do) and would, read alone, reject Raithby-Hollands' 1/4 on the face up as well; and the heat balance drifts from 1.01 to 1.14 over the same interval. The exponent argument for the face down rests on the published forms, not on this strip.
 * **What cannot be concluded.** Which law is right for a finite board in free air on the upper face (unsteady and three-dimensional above Ra of about 1e4, a thin hot layer with the coupling above); the size of the coupling of the faces in three dimensions; any number above Ra 1e4.
 
 
@@ -206,6 +208,9 @@ Hottest rise of the program (K) and change for each pair, half power:
 
 | board | program (K) | RH+program-down | RH+GL | RH+FI | Jaffer |
 | :-- | --: | --: | --: | --: | --: |
+| **min / max / mean** | | +0.1 / +1.4 / +0.82 % | -1.5 / +0.9 / -0.10 % | -0.8 / +1.4 / +0.43 % | -1.1 / +0.7 / +0.07 % |
+
+(The first version left this table empty; the row is the printout of `scripts/print_tables.py` after the review's re-run, identical to the committed run.)
 
 
 
@@ -240,14 +245,14 @@ Hottest rise of the program (K) and change for each pair, half power:
 * Powers for a 35 K rise with the program's laws: A 1.52 W, B 0.62 W, C 0.66 W (3 x 3 vias of 0.3 mm on a 1.3 mm pitch: +6.2 % of the power for the same rise against the pad alone; 5 x 5 +9.4 %, 6 x 6 +10.4 %).
 * The hottest rise of the three boards horizontal, turned over and vertical differs between the four sets of laws by at most 0.5 % (table in the script output): a board with a local heater cannot choose a law.
 * A multiplier on h fitted on A to a film "RH + GL" (0.977) makes the program's laws predict B and C to 0.4 to 0.8 %; without it to 0.0 to 0.4 %: the multiplier hides the law.
-* **A uniform plate with one bright face** (board D, back loss 1 W/m2K, emissivity 0.07; the program's own convection functions, a 1D balance, no board solver): rise up / rise down at 2, 4 and 8 W: program 0.629 / 0.625 / 0.624, RH + GL 0.699 / 0.693 / 0.691, RH + FI 0.665 / 0.659 / 0.658, Jaffer 0.533 / 0.521 / 0.518; the back loss (0.5 to 2 W/m2K) and the emissivity (0.05 to 0.10) move the ratios by 0.03 and 0.015 and keep the order. The spread between the laws is 5 times the resolution of a ratio of two runs (3 %).
+* **A uniform plate with one bright face** (board D, back loss 1 W/m2K, emissivity 0.07; the program's own convection functions, a 1D balance, no board solver): rise up / rise down at 2, 4 and 8 W: program 0.629 / 0.625 / 0.624, RH + GL 0.699 / 0.693 / 0.691, RH + FI 0.665 / 0.659 / 0.658, Jaffer 0.533 / 0.521 / 0.518; the back loss (0.5 to 2 W/m2K) and the emissivity (0.05 to 0.10) move the ratios by 0.045 and 0.015 (the first version wrote 0.03 for the back loss: that is per 1 W/m2K) and keep the order. The full spread between the laws (0.52 to 0.69) is 5 times the resolution of a ratio of two runs (0.03), but **neighbouring laws are only about one resolution apart** (program 0.625, RH + FI 0.659, RH + GL 0.693 at 4 W): the test separates Jaffer from the rest and the program from RH + GL, not every pair. The 8 W rows are model points only: the plan runs board D at 2 and 4 W (8 W is 132 to 155 K face down; review correction, `docs/measurement-plan.md`).
 * **Both faces open** (board E: a film heater under board A, emissivity 0.9): rise at 3 / 6 / 12 W: program 16.8 / 30.2 / 53.4 K, RH + GL 17.0 / 30.9 / 54.9 K, RH + FI 17.2 / 31.3 / 55.5 K, Jaffer 17.0 / 30.8 / 54.6 K (a spread of 3.5 %), and 18.9 / 34.1 / 60.0 K (+13 %) if the upper face carried 40 % less (the coupling hypothesis of section 5, not a result): that test separates a coupling of the faces from every law.
 * The protocol, the bill of materials, the uncertainty budget (2 to 3 % of the rise when the air is still; estimates, not measured) and the comparison list are in `docs/measurement-plan.md`.
 
 ## 9. Recommendation
 
-In `INTEGRATION.md`: (1) measure board D first (a day, about 150 EUR); (2) if the maintainer prefers to change before, option B (Raithby-Hollands up, 0.475 Ra^(1/5) down) rests on read equations, moves the rise of the 17 boards by -0.9 to +1.0 %, and has acceptance tests; (3) otherwise keep the laws and write the limit (`docs/theory-text.md`).
-The decision is the maintainer's.
+In `INTEGRATION.md`: (1) measure board D first (one to two days, about 150 EUR; at 2 and 4 W on a high-temperature insulation, review correction); (2) if the maintainer prefers to change before, option B (Raithby-Hollands up, 0.475 Ra^(1/5) down) rests on read equations, moves the rise of the 17 boards by -0.9 to +1.0 %, and has acceptance tests; (3) otherwise keep the laws and write the limit (`docs/theory-text.md`).
+The reviewer's recommendation (section 12, `INTEGRATION.md` 3 with the cost of each way): keep the laws and write the limit now, and measure board D before any change; B only if a change is wanted without a measurement. The decision is the maintainer's.
 
 ## 10. Limits of this study
 
@@ -260,8 +265,37 @@ The decision is the maintainer's.
 
 * **Read in full (page images, this study):** Lienhard 6.00 printed pages 435 and 436 (eq. 8.35, 8.37a/b with the correction and the range), Yovanovich and Jafarpur (1993) page 8 (Goldstein-Lau coefficients: 0.475, 0.524, 0.621, the ranges 40 < Ra < 8e3).
 * **Read earlier (other folders, not re-read):** Lienhard p 437 (Fujii-Imura, Kadambi-Drake), Jaffer (2023) equations 30 and 56, Churchill-Chu forms.
-* **From memory:** de Vahl Davis (1983) values (1.118, 2.243, 4.519, 8.800, midplane maxima) and Lloyd and Moran; the solver reproduces the first to 0.0 to 0.25 %.
-* **Not obtained:** the paper of Goldstein and Lau (1983), the Raithby-Hollands chapter, Fujii and Imura (1972), Lloyd and Moran (1974), de Vahl Davis (1983).
-* **Reproduced:** the cavity (section 4.1) with an independent solver written here; the program's L1 ratios (section 3.1); the program's numbers of section 6 are runs of the program on a copy in memory. **Not reproduced:** any published horizontal-plate number with a flow in free space.
+* **From memory:** Lloyd and Moran. (de Vahl Davis (1983) was from memory in the first version; read by the review, Table V p 256 and Table VII p 261, section 12.)
+* **Not obtained:** the paper of Goldstein and Lau (1983), the Raithby-Hollands chapter, Fujii and Imura (1972), Lloyd and Moran (1974).
+* **Reproduced:** the cavity (section 4.1, against the table read in the paper) with an independent solver written here; the program's L1 ratios (section 3.1); the program's numbers of section 6 are runs of the program on a copy in memory. **Not reproduced:** any published horizontal-plate number with a flow in free space.
 * **Tests:** `research/convection-laws/tests/test_convection_laws.py`, 6 tests.
 * **Reproduce:** `scripts/study_laws_table.py`, `study_cavity.py` (about 4 minutes), `study_plate_mac.py` (about an hour, two processes with `--both` and `--isolated`), `study_board_effect.py` (1 minute), `study_measurement_prediction.py` (2 minutes; `--vias`, `--faces`), `print_tables.py`, `make_diagrams.py`, `make_figures.py`.
+
+## 12. Review
+
+Independent review of the folder (reviewer agent), on the branch merged with `develop` (program unchanged: `git diff origin/develop --stat -- pcbthermal tests examples ico` empty).
+
+**Sources checked in the page images** (rendered from the local library by the reviewer, not from the OCR transcriptions):
+* Lienhard 6.00 printed pp 435 and 436 (PDF 449, 450): eq. 8.35 `0.14 Ra^(1/3) (1 + 0.0107 Pr)/(1 + 0.01 Pr)`, `0.024 <= Pr <= 2000`, for `Ra >= 1e7`; eq. 8.37a `0.560 Ra^(1/4) / [1 + (0.492/Pr)^(9/16)]^(4/9)` on `L* = A/P`, 8.37b `1.4 / ln(1 + 1.4/Nu)` when `Nu <= 10`, "recommended for 1 < Ra < 1e7". As tabulated. Recomputed by hand at Pr 0.71: Ra 1e3 3.064, 1e4 4.966 (table 3.064, 4.965); the jump at 1e7 is 24.17 to 30.18 (+25 %).
+* Yovanovich and Jafarpur (1993), the bounds paper (`YovanovichJafarpur1993Bounds.pdf`), page 8: face up, Goldstein and Lau's numerical strip `0.621 Ra^(1/5)`, Pr 0.71, `40 < Ra < 8e3`; face down `C` 0.44 to 0.527, the mean of the Pr 0.71 results 0.475, the strip 0.524 in the same range. As tabulated. Not quoted by the first version and added to section 2: the theoretical single-face results for the face up, `C` 0.560 to 0.688 on A/P.
+* de Vahl Davis (1983), Int. J. Numer. Meth. Fluids 3, 249-264, opened by the review (an open course copy, page images; nothing stored): Table V p 256 gives every value the study had quoted from memory (Nu-bar 1.118, 2.243, 4.519, 8.800; `u_max` 3.649, 16.178, 34.73, 64.63; `w_max` 3.697, 19.617, 68.59, 219.36): all agree. The table also gives the **hot-wall** value `Nu_0` 1.117, 2.238, 4.509, 8.817, which is what the solver's wall Nusselt number is; the first version compared it with the cavity mean. The second opened source, Fischer and others (arXiv physics/0305049, Table 1), prints the same 2.243, 4.519, 8.800 and the finer reference of Hortmann and others, 2.245, 4.522, 8.825.
+
+**Re-runs** (load average 4 to 5.6, swap steady at 1.06 GB, peak memory of a study 0.12 GB):
+* `study_laws_table.py`: every number of sections 3.1 and 3.2 reproduced to the digit.
+* `study_board_effect.py` (all 17 boards, 57 s): every rise identical to the committed output (largest relative difference 0); the half-power summary row, missing in the first version, is now in section 6.
+* `study_measurement_prediction.py` (default, `--vias`, `--faces`): powers 1.52 / 0.62 / 0.66 W, vias +6.2 / +9.4 / +10.4 %, the fit 0.977, ratios 0.629 / 0.699 / 0.665 / 0.533 at 2 W, board E 16.76 / 30.21 / 53.40 K: all reproduced.
+* `study_cavity.py`, now printing both references: the table of 4.1 reproduced to the digit (finest grids: hot wall +0.09 / +0.43 / +0.47 % of `Nu_0`, +0.00 / +0.20 / +0.25 % of Nu-bar; 219 s, 0.25 GB); Richardson extrapolation of the solver's own grids: 2.2446 at Ra 1e4 (48, 96) and 4.5209 at 1e5 (96, 144), within 0.1 % of Nu-bar and of Hortmann's 2.245 and 4.522, 0.3 % above `Nu_0`.
+* `study_plate_mac.py`: the case with both faces hot at Ra 1e3 in the box s = 1 (`--quick`, 160 s) gave 1.447 / 2.182, balance 1.046, the numbers of the table of section 5 to the digit; the other ten cases (about an hour) were not re-run (the load of the machine stayed near 6 with other agents), their numbers are read from the committed outputs of the first two commits.
+
+**Findings, corrected in the folder:**
+1. Summary line 1 and `docs/theory-text.md`: the up face against Raithby-Hollands at Ra 1e3 is -1 %, not +1 % (3.037 / 3.064); the Ra range of the boards was given as 3e2 to 5e4 against the 5e2 to 5e5 of table 3.2.
+2. Cavity: the benchmark was from memory (now read, all values agree) and the wall Nusselt number was compared with the cavity mean; the hot-wall errors are 0.1 / 0.4 / 0.5 % on the finest grids, and the Richardson extrapolation of the solver's own grids lands within 0.1 % of Nu-bar and of Hortmann's values and within 0.3 % of `Nu_0`, inside the benchmark's own error (0.1 to 0.3 %, Table VII).
+3. `INTEGRATION.md`: option B moves **no** frozen record (the 17 harness boards use manual h, and manual is the default of the class and of new projects); the pending file it asked for is not needed. What moves is every computed-h result on a horizontal board.
+4. Section 5.1: "the 1/5 law ... which the numbers of a strip confirm" overstated: the strip's isolated upper face also grows as Ra^0.18, so a strip would reject the 1/4 of the face up as well; the exponent of the face down rests on the published forms. The claim that the strip cannot choose a law for a board stands and is stronger for it.
+5. Measurement plan: board D was to run at 8 W (132 to 155 K face down, above the glass transition of FR-4) on XPS foam (softens near 75 degC, passed at 4 W face down); now 2 and 4 W on mineral wool or calcium silicate, 2 W only on XPS. The back-loss sensitivity is 0.045 over 0.5 to 2 W/m2K (written 0.03), and neighbouring laws are only one resolution apart (the test separates Jaffer and the program from RH + GL, not every pair). The supply wires of boards B and C can carry 4.5 to 6.5 % of the power (fin estimate) unless taped along the board: added to the budget. The uncertainty budget itself (2 to 3 %, board A) is an estimate and was only checked for arithmetic (root sum of squares 2.0 %).
+6. `study_measurement_prediction.py` docstring said 1.2 mm via pitch; the code and the plan use 1.3 mm.
+7. Outputs committed by mistake: the first two commits of the branch (`ef99854`, `a1532be`) added eight `out/*.json` files; `c2afd3a` removed them and added `out/` to the `.gitignore`. They stay in the history (published history is not rewritten); nothing else generated is tracked.
+
+**Not verified:** the strip runs other than those re-run above; the three-dimensional flow of a board (no solver here does it); the Goldstein-Lau paper; any measurement; the textbook service temperature of XPS and the conductivities of the insulations (estimates). The figures were not redrawn: none quotes a number that moved (figure 3 shows T1 at the heater in a top view; the plan glues it on the bottom face).
+
+**Verdict: go** for the merge as a closed investigation that waits for the maintainer's decision. **Recommendation:** keep the laws and write the limit now (most of it is already in `docs/theory.md` 8), and measure board D (then E) before changing anything; option B only if the maintainer wants a change without a measurement. Costs in `INTEGRATION.md` 3.

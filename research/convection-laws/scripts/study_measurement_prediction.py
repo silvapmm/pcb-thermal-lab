@@ -4,7 +4,7 @@
 @file study_measurement_prediction.py
 @brief What the program predicts for the three test boards of docs/measurement-plan.md, how much the predictions differ between the horizontal laws, and how much a convection multiplier fitted on board A transfers to B and C.
 @details Boards (100 x 80 mm, 1.6 mm FR-4, 35 um copper, 2 layers, 5 mm clearance of copper from the board edge is NOT used: copper reaches 1 mm from the edge): A full copper on both layers;
-         B a 20 x 20 mm pad on both layers; C the pad plus a 3 x 3 array of 0.3 mm vias on a 1.2 mm pitch under the heater. The heater is one 8 x 8 mm part on the top layer at the centre
+         B a 20 x 20 mm pad on both layers; C the pad plus a 3 x 3 array of 0.3 mm vias on a 1.3 mm pitch under the heater (the code; an earlier docstring said 1.2 mm). The heater is one 8 x 8 mm part on the top layer at the centre
          (two 2512 resistors side by side are about 6.4 x 6.4 mm; the power is the electrical V*I). Computed h (natural convection and radiation, emissivity 0.9), FVM cell 1 mm, ambient 22 degC.
          Runs: (1) the powers that give a rise of about 35 K on each board with the program's laws; (2) the hottest rise and the mean face temperatures for horizontal (layer 1 up),
          horizontal flipped (layer 1 down) and vertical, for the program's laws and for the pair Raithby-Hollands + Goldstein-Lau; (3) the fit: the multiplier m (Board.h_calibration)

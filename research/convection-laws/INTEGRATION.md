@@ -26,10 +26,24 @@ Change of the hottest rise against the program (with radiation / convection only
 | Jaffer (C) | -0.7 % | +0.7 % | +0.28 % | -0.7 % | +2.7 % | +1.18 % |
 
 (at double and half power the RH + GL extremes are -0.5 / +1.2 % and -1.5 / +0.9 %.) In kelvin: 0.1 to 1 K on the boards of 60 to 80 K rise and up to 2.4 K on the 300 K plate with a pad. The vertical board does not change.
-Frozen numbers: every record of a horizontal board with computed h moves by the percentages above (FVM, FDM, 3D solid, Lumped, Analytic in the same direction): a pending file
-(`tests/regression/data/pending/<topic>.json`) as in the rules of the regression test.
+Frozen numbers: **none moves** (review correction: the first version of this file said that every record of a horizontal board with computed h moves and asked for a pending file; the
+17 boards of `tests/regression/regress_boards.py` all use the manual coefficients, `Board.h_mode` defaults to `manual` and `pcbthermal/data/defaults.json` keeps `manual` for new
+projects, so the frozen file is untouched; the study forces `computed` on each board to measure the effect). What moves is every result with computed h on a horizontal board: the
+program's tests of the convection functions and of computed h, `docs/validation.md` rows with computed h, and the user's own projects that chose computed h.
 
-## 3. Recommendation
+## 3. Recommendation (reviewed)
+
+**The cost of each way** (estimates of work, not measured):
+
+| way | cost | what it buys | risk |
+| :-- | :-- | :-- | :-- |
+| measure first (board D, then E) | boards about 100 to 150 EUR, a film heater, a logger the maintainer may already have; one to two days of bench work and one of analysis (`docs/measurement-plan.md`) | the only evidence that can choose the law of a board in free air: separates Jaffer and the program from Raithby-Hollands with Goldstein-Lau at the 0.03 resolution of the ratio (neighbouring laws are one resolution apart); board E tests the coupling of the faces that the 2D solvers suggest (+13 % on the rise if real) | draught, the back loss and the wire loss (the plan states them); one bench, one board size |
+| option B now | one function (`h_natural_horizontal`), its docstring, `docs/theory.md` 8, `docs/models.md`, the user guide sentence, the tests of the convection functions; a `fix/horizontal-laws` branch with the whole battery; no frozen record moves | laws read in their source (face up within its range; face down with the exponent of every published form); results move by -0.9 to +1.0 % of the rise with radiation, -1.7 to +2.9 % without, on the 17 boards with h forced to computed | changes the numbers of the users' computed-h projects for a gain that no measurement shows; the 0.475 is a mean of shapes, not the board's |
+| keep and write the limit (A) | the paragraph of `docs/theory-text.md` into `docs/theory.md` 8 (most of it is already there since `docs/convection-theory-fixes`) | honesty at no cost; the effect on a board is about 1 % of the rise | none on the numbers; the down-face exponent stays wrong in form |
+
+**Reviewer's recommendation: keep the laws and write the limit now (A), and measure board D (and E) before any change.** The effect of B on a board (about 1 %, below the 2 to 3 % of a measurement and the 3 to 5 % of the models) does not justify moving users' numbers without evidence; the measurement is cheap and is the only way to choose. If the maintainer prefers a change without measuring, B is the defensible one.
+
+## 3a. Recommendation of the first version (kept as written)
 
 1. **The measurement is the decision, and it is cheap** (`docs/measurement-plan.md`, board D: the ratio of the rise with a bright face up and down is 0.62 for the program, 0.69 for B,
    0.66 for Raithby-Hollands with Fujii-Imura, 0.52 for Jaffer, a spread five times larger than the resolution). The numerical plate solved here cannot decide it (README section 5: the two-dimensional steady
@@ -42,7 +56,7 @@ Frozen numbers: every record of a horizontal board with computed h moves by the 
 
 * `h_natural_horizontal` against the values of README table 3.1 (Raithby-Hollands at Ra 1e2, 1e3, 1e4, 1e5: 1.977, 3.064, 4.965, 8.324 at Pr 0.71, computed from eq. 8.37; the Goldstein-Lau column) within 1e-3, and continuity of the correction at Nu = 10.
 * A cold surface swaps the faces (existing test); vertical boards unchanged bit for bit.
-* The 17 boards of the harness at 2, 1 and 0.5 mm: shifts within the table of section 2 (-1.0 to +1.7 %), every other record bit-identical; a pending file for the horizontal computed-h records.
+* The 17 boards of the harness at 2, 1 and 0.5 mm: every frozen record bit-identical (they use manual h); the effect of section 2 is checked by `scripts/study_board_effect.py` with h forced to computed (-0.9 to +1.0 % with radiation).
 * `docs/theory.md` 8: the sentence on the laws and its sources by key, Ra range stated, the discontinuity at 1e7 stated; `docs/models.md` 2; `tests/test_docs.py` unchanged.
 * Reproduction by the reviewer of the section 2 numbers (`scripts/study_board_effect.py`, one minute).
 

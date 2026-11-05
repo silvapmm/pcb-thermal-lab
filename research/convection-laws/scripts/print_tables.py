@@ -47,11 +47,13 @@ def main():
     """
     cav = load("cavity.json")
     if cav:
-        print("| Ra | cells | Nu hot wall | Nu cold wall | de Vahl Davis | error | max u on x = 0.5 (ref) | max v on y = 0.5 (ref) |\n| --: | --: | --: | --: | --: | --: | --: | --: |")
+        print("| Ra | cells | Nu hot wall | Nu cold wall | Nu-bar (dVD) | error | Nu_0 hot wall (dVD) | error | max u on x = 0.5 (ref) | max v on y = 0.5 (ref) |\n| --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |")
         refu, refv = {1e3: 3.649, 1e4: 16.178, 1e5: 34.73}, {1e3: 3.697, 1e4: 19.617, 1e5: 68.59}
         for r in cav:
+            # the hot-wall reference (Nu_0 of Table V) was added by the review; an older out/cavity.json has only the cavity mean
+            wall = f"{r['reference_wall']} | {r['error_wall_pct']:+.2f} %" if "error_wall_pct" in r else "n/a | n/a"
             print(f"| {r['ra']:.0e} | {r['n']}{'' if r['ratio'] == 1.0 else ' graded ' + str(r['ratio'])} | {r['nu_hot']:.4f} | {r['nu_cold']:.4f} | {r['reference']} | {r['error_pct']:+.2f} % | "
-                  f"{r['umid_max']:.2f} ({refu[r['ra']]}) | {r['vmid_max']:.2f} ({refv[r['ra']]}) |")
+                  f"{wall} | {r['umid_max']:.2f} ({refu[r['ra']]}) | {r['vmid_max']:.2f} ({refv[r['ra']]}) |")
     pl = plate_rows()
     if pl:
         print("\n| faces hot | Ra | box s | grid | Nu up | Nu down | balance | converged | max u | steps |\n| :-- | --: | --: | :-- | --: | --: | --: | :-- | --: | --: |")
